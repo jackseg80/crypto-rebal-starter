@@ -111,23 +111,18 @@ async def portfolio_groups(
     source: str = Query("cointracking"),
     min_usd: float = Query(1.0, ge=0.0),
 ):
-    rows = await get_current_balances(source=source)
+    # ⬇️ important : récupérer TOUT (pas de filtre ici)
+    rows = await get_current_balances(source=source, alias="all", min_usd=0.0)
     return snapshot_groups(rows, min_usd=min_usd)
 
 @app.post("/rebalance/plan")
 async def rebalance_plan(
     source: str = Query("cointracking"),
     min_usd: float = Query(1.0, ge=0.0),
-    payload: Dict[str, Any] = Body(..., example={
-        "group_targets_pct": {
-            "BTC": 35, "ETH": 25, "Stablecoins": 10, "SOL": 10, "L1/L0 majors": 15, "Others": 5
-        },
-        "sub_allocation": "proportional",
-        "primary_symbols": {"Stablecoins": "USDC", "BTC": "BTC", "ETH": "ETH", "SOL": "SOL"},
-        "min_trade_usd": 10
-    })
+    payload: Dict[str, Any] = Body(...),
 ):
-    rows = await get_current_balances(source=source)
+    # ⬇️ idem ici
+    rows = await get_current_balances(source=source, alias="all", min_usd=0.0)
     return plan_rebalance(
         rows=rows,
         group_targets_pct=payload.get("group_targets_pct", {}),
