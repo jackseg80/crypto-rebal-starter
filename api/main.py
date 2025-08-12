@@ -1,14 +1,62 @@
 from fastapi import FastAPI, Body, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
-from connectors.cointracking import get_current_balances
+from typing import List, Optional, Dict, Any, Union
 from engine.plan import build_plan
-from connectors.cointracking import ct_raw,  get_current_balances
+from connectors.cointracking import ct_raw, get_current_balances
 from services.rebalance import snapshot_groups, plan_rebalance
 from api.taxonomy import Taxonomy
 
 STABLES = {"USDT","USDC","FDUSD","TUSD","DAI","EURT","USDCE","USDBC","BUSD","FDUSD","EUR","USD","UST","USTC"}
+
+def _normalize_targets(raw: Union[Dict[str, float], List[Dict[str, Any]], None]) -> Dict[str, float]:
+    """
+    Accepte:
+      - dict: {"BTC":35, "ETH":25, ...}
+      - list: [{"group":"BTC","weight_pct":35}, {"group":"ETH","pct":25}, ...]
+    Retourne toujours: dict[str, float]
+    """
+    if raw is None:
+        return {}
+
+    if isinstance(raw, dict):
+        return {str(k): float(v) for k, v in raw.items()}
+
+    out: Dict[str, float] = {}
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        name = item.get("group") or item.get("name")
+        val = (item.get("weight_pct") or item.get("pct") or item.get("percent") or item.get("value"))
+        if name is not None and val is not None:
+            out[str(name)] = float(val)
+    return out
+
+def _to_taxonomy_rows(rows):
+    norm = []
+    for r in rows or []:
+        if not isinstance(r, dict):
+            continue
+        symbol = (r.get("symbol") or r.get("coin") or r.get("ticker") or "").upper()
+        value_usd = (
+            r.get("value_usd")
+            if r.get("value_usd") is not None
+            else r.get("usd_value")  # <-- ton format actuel
+        )
+        # fallback éventuel
+        if value_usd is None:
+            value_usd = r.get("value_fiat")
+
+        amount = r.get("amount") or r.get("qty") or 0
+        alias = r.get("alias")
+
+        norm.append({
+            "symbol": symbol,
+            "value_usd": float(value_usd or 0),
+            "amount": float(amount or 0),
+            "alias": alias,
+        })
+    return norm
 
 app = FastAPI()
 app.add_middleware(
@@ -20,21 +68,6 @@ app.add_middleware(
 @app.get("/health")
 def health():
     return {"status":"ok"}
-
-class Target(BaseModel):
-    symbol: str
-    target_weight: float = Field(..., ge=0.0, le=1.0)
-
-class Constraints(BaseModel):
-    min_trade_usd: float = 25.0
-    fee_bps: float = 10.0
-
-class PlanRequest(BaseModel):
-    source: str = "stub"            # stub|csv|cointracking
-    csv_current: Optional[str] = None
-    csv_by_exchange: Optional[str] = None
-    targets: List[Target]
-    constraints: Constraints = Constraints()
 
 @app.get("/balances/current")
 async def balances_current(
@@ -58,14 +91,6 @@ async def balances_current_post(body: Dict[str, Any] = Body(...)):
                                       min_usd=min_usd,
                                       alias_mode=alias)
     return {"source": source, "items": data}
-
-@app.post("/rebalance/plan")
-async def rebalance_plan(req: PlanRequest):
-    balances = await get_current_balances(
-        source=req.source, csv_current=req.csv_current, csv_by_exchange=req.csv_by_exchange
-    )
-    plan = build_plan(balances, [t.model_dump() for t in req.targets], req.constraints.model_dump())
-    return plan
 
 @app.get("/debug/env")
 def debug_env():
@@ -109,28 +134,81 @@ async def portfolio_summary(
 @app.get("/portfolio/groups")
 async def portfolio_groups(
     source: str = Query("cointracking"),
-    min_usd: float = Query(1.0, ge=0.0),
+    min_usd_raw: str | None = Query(None, alias="min_usd"),
 ):
-    # ⬇️ important : récupérer TOUT (pas de filtre ici)
-    rows = await get_current_balances(source=source, alias="all", min_usd=0.0)
+    min_usd = 1.0
+    if min_usd_raw and min_usd_raw.strip():
+        try:
+            min_usd = float(min_usd_raw)
+        except ValueError:
+            pass
+
+    res = await get_current_balances(source=source)
+    rows = res.get("items", []) if isinstance(res, dict) else (res or [])
+    rows = _to_taxonomy_rows(rows)  # <-- normalisation
+
     return snapshot_groups(rows, min_usd=min_usd)
+
 
 @app.post("/rebalance/plan")
 async def rebalance_plan(
     source: str = Query("cointracking"),
-    min_usd: float = Query(1.0, ge=0.0),
+    min_usd_raw: str | None = Query(None, alias="min_usd"),
     payload: Dict[str, Any] = Body(...),
 ):
-    # ⬇️ idem ici
-    rows = await get_current_balances(source=source, alias="all", min_usd=0.0)
-    return plan_rebalance(
+    # parse min_usd
+    min_usd = 1.0
+    if min_usd_raw and min_usd_raw.strip():
+        try:
+            min_usd = float(min_usd_raw)
+        except ValueError:
+            pass
+
+    # portefeuille courant
+    res = await get_current_balances(source=source)
+    rows = res.get("items", []) if isinstance(res, dict) else (res or [])
+    rows = _to_taxonomy_rows(rows)
+
+    # compat: "group_targets_pct" ou "targets" (dict ou list)
+    targets_raw = payload.get("group_targets_pct")
+    if targets_raw is None:
+        targets_raw = payload.get("targets")
+    group_targets_pct = _normalize_targets(targets_raw)
+
+    # on garde min_trade_usd localement (sert aussi au balancer)
+    min_trade_usd = float(payload.get("min_trade_usd", 25.0))
+
+    result = plan_rebalance(
         rows=rows,
-        group_targets_pct=payload.get("group_targets_pct", {}),
+        group_targets_pct=group_targets_pct,
         min_usd=min_usd,
         sub_allocation=payload.get("sub_allocation", "proportional"),
         primary_symbols=payload.get("primary_symbols"),
-        min_trade_usd=float(payload.get("min_trade_usd", 10.0)),
+        min_trade_usd=min_trade_usd,
     )
+
+    # ---- Ajout d'une ligne d'équilibrage pour que Σ(usd) ≈ 0 ----
+    actions = result.get("actions", [])
+    buy_sum  = sum(a.get("usd", 0) for a in actions if a.get("action") == "buy")
+    sell_sum = sum(a.get("usd", 0) for a in actions if a.get("action") == "sell")  # négatif
+    net = round(buy_sum + sell_sum, 2)
+
+    # si l'écart est significatif, on compense via un stablecoin (par défaut USD)
+    if abs(net) >= max(0.01, min_trade_usd):
+        balancer_alias = payload.get("balancer_alias", "USD")  # tu peux mettre "USDT" ou "USDC"
+        actions.append({
+            "group": "Stablecoins",
+            "alias": balancer_alias,
+            "symbol": balancer_alias,
+            "action": "sell" if net > 0 else "buy",
+            "usd": -net,  # ex: net=+441.74 -> on vend -441.74 de USD
+            "est_quantity": None,
+            "price_used": None,
+        })
+        result["actions"] = actions
+
+    return result
+
     
 # --- DEBUG SNAPSHOT ----------------------------------------------------------
 @app.get("/debug/snapshot")
@@ -149,3 +227,28 @@ async def debug_snapshot(
         "min_usd": min_usd,
         **snap
     }
+    
+# --- Debug: voir la "shape" des données ---
+@app.get("/debug/peek")
+async def debug_peek(source: str = Query("cointracking")):
+    res = await get_current_balances(source=source)
+    if isinstance(res, dict):
+        items = res.get("items", [])
+        first = items[0] if items else None
+        return {
+            "top_level_type": "dict",
+            "top_level_keys": list(res.keys()),
+            "items_len": len(items),
+            "first_row": first,
+            "first_row_keys": list(first.keys()) if isinstance(first, dict) else None,
+        }
+    elif isinstance(res, list):
+        first = res[0] if res else None
+        return {
+            "top_level_type": "list",
+            "items_len": len(res),
+            "first_row": first,
+            "first_row_keys": list(first.keys()) if isinstance(first, dict) else None,
+        }
+    else:
+        return {"top_level_type": type(res).__name__, "value_preview": str(res)[:200]}
