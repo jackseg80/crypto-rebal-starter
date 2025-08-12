@@ -209,7 +209,62 @@ async def rebalance_plan(
 
     return result
 
-    
+# --- CSV helper -------------------------------------------------------------
+from fastapi.responses import StreamingResponse
+import io, csv
+
+def _actions_to_csv(actions: list[dict]) -> io.StringIO:
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["group", "alias", "symbol", "action", "usd", "est_quantity", "price_used"])
+    for a in actions:
+        w.writerow([
+            a.get("group"),
+            a.get("alias"),
+            a.get("symbol"),
+            a.get("action"),
+            round(float(a.get("usd", 0.0)), 2),
+            a.get("est_quantity"),
+            a.get("price_used"),
+        ])
+    buf.seek(0)
+    return buf
+
+@app.post("/rebalance/plan.csv")
+async def rebalance_plan_csv(
+    source: str = Query("cointracking"),
+    min_usd_raw: str | None = Query(None, alias="min_usd"),
+    payload: Dict[str, Any] = Body(...),
+):
+    # même parsing que /rebalance/plan
+    min_usd = 1.0
+    if min_usd_raw and min_usd_raw.strip():
+        try:
+            min_usd = float(min_usd_raw)
+        except ValueError:
+            pass
+
+    res = await get_current_balances(source=source)
+    rows = res.get("items", []) if isinstance(res, dict) else (res or [])
+    rows = _to_taxonomy_rows(rows)
+
+    targets_raw = payload.get("group_targets_pct") or payload.get("targets")
+    group_targets_pct = _normalize_targets(targets_raw)
+
+    plan = plan_rebalance(
+        rows=rows,
+        group_targets_pct=group_targets_pct,
+        min_usd=min_usd,
+        sub_allocation=payload.get("sub_allocation", "proportional"),
+        primary_symbols=payload.get("primary_symbols"),
+        min_trade_usd=float(payload.get("min_trade_usd", 25.0)),
+    )
+
+    buf = _actions_to_csv(plan.get("actions", []))
+    headers = {"Content-Disposition": 'attachment; filename="rebalance-actions.csv"'}
+    return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv", headers=headers)
+
+
 # --- DEBUG SNAPSHOT ----------------------------------------------------------
 @app.get("/debug/snapshot")
 async def debug_snapshot(
