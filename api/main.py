@@ -5,6 +5,7 @@ from typing import List, Optional, Dict, Any
 from connectors.cointracking import get_current_balances
 from engine.plan import build_plan
 from connectors.cointracking import ct_raw,  get_current_balances
+from services.rebalance import snapshot_groups, plan_rebalance
 from api.taxonomy import Taxonomy
 
 STABLES = {"USDT","USDC","FDUSD","TUSD","DAI","EURT","USDCE","USDBC","BUSD","FDUSD","EUR","USD","UST","USTC"}
@@ -104,6 +105,37 @@ async def portfolio_summary(
         "top": out[:top_n],
         "items": out  # complet si tu veux tout afficher côté front
     }
+    
+@app.get("/portfolio/groups")
+async def portfolio_groups(
+    source: str = Query("cointracking"),
+    min_usd: float = Query(1.0, ge=0.0),
+):
+    rows = await get_current_balances(source=source)
+    return snapshot_groups(rows, min_usd=min_usd)
+
+@app.post("/rebalance/plan")
+async def rebalance_plan(
+    source: str = Query("cointracking"),
+    min_usd: float = Query(1.0, ge=0.0),
+    payload: Dict[str, Any] = Body(..., example={
+        "group_targets_pct": {
+            "BTC": 35, "ETH": 25, "Stablecoins": 10, "SOL": 10, "L1/L0 majors": 15, "Others": 5
+        },
+        "sub_allocation": "proportional",
+        "primary_symbols": {"Stablecoins": "USDC", "BTC": "BTC", "ETH": "ETH", "SOL": "SOL"},
+        "min_trade_usd": 10
+    })
+):
+    rows = await get_current_balances(source=source)
+    return plan_rebalance(
+        rows=rows,
+        group_targets_pct=payload.get("group_targets_pct", {}),
+        min_usd=min_usd,
+        sub_allocation=payload.get("sub_allocation", "proportional"),
+        primary_symbols=payload.get("primary_symbols"),
+        min_trade_usd=float(payload.get("min_trade_usd", 10.0)),
+    )
     
 # --- DEBUG SNAPSHOT ----------------------------------------------------------
 @app.get("/debug/snapshot")
