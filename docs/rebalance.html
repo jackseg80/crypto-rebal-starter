@@ -10,11 +10,10 @@
     .wrap { max-width:1100px; margin:32px auto; padding:0 16px; }
     h1 { font-size:22px; margin:0 0 16px; }
     .row { display:flex; gap:16px; flex-wrap:wrap; }
-    .card { background:var(--card); border:1px solid #1f2937; border-radius:12px; padding:16px; flex:1 1 320px; }
+    .card { background:var(--card); border:1px solid #1f2937; border-radius:12px; padding:16px; flex:1 1 420px; }
     .muted { color:var(--muted); }
-    .grid { display:grid; gap:8px; grid-template-columns: 160px 1fr 64px; align-items:center; }
-    input[type="range"] { width:100%; }
     input[type="number"], input[type="text"] { width:100%; padding:8px; background:#0b1220; border:1px solid #273249; color:var(--text); border-radius:8px; }
+    input[type="range"] { width:100%; }
     button { background:var(--accent); border:0; color:#06121a; font-weight:600; padding:10px 14px; border-radius:10px; cursor:pointer; }
     button.ghost { background:#0b1220; color:var(--text); border:1px solid #273249; }
     .pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; }
@@ -32,6 +31,27 @@
     summary { cursor:pointer; }
     .two { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
     @media (max-width:900px){ .two { grid-template-columns:1fr; } }
+
+    /* === LIGNE DES SLIDERS : plus de chevauchement === */
+    #sliders .row-item{
+      display:grid;
+      grid-template-columns: 160px 1fr 90px; /* libellé | slider | nombre */
+      gap:10px;
+      align-items:center;
+      margin:6px 0;
+    }
+    #sliders .row-item label{
+      margin:0;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    /* badge “Somme : …” */
+    #sumBadge{
+      display:inline-block; margin-left:8px; padding:2px 8px; border-radius:12px;
+      background:#123f2a; color:#b6ffcf; font-size:12px;
+    }
   </style>
 </head>
 <body>
@@ -39,12 +59,15 @@
   <h1>Rebalance — plan & export CSV</h1>
 
   <div class="row">
-    <div class="card" style="flex:1 1 420px;">
+    <!-- Colonne gauche -->
+    <div class="card">
       <div class="section-title">
         <strong>Répartition cible (doit faire 100%)</strong>
         <span id="sumBadge" class="pill warn">Somme : 0%</span>
       </div>
-      <div id="sliders" class="grid"></div>
+
+      <div id="sliders"></div>
+
       <div class="two" style="margin-top:12px">
         <div>
           <label class="small muted">min_trade_usd</label>
@@ -55,6 +78,7 @@
           <input id="minUsd" type="number" step="1" min="0" value="1">
         </div>
       </div>
+
       <div style="margin-top:12px">
         <label class="small muted">primary_symbols (virgule)</label>
         <div class="two">
@@ -66,23 +90,24 @@
           <input id="symExtra" type="text" placeholder="(optionnel) GROUP=SYM1,SYM2" value="">
         </div>
       </div>
+
       <div style="display:flex; gap:8px; margin-top:14px;">
         <button id="btnPlan">Générer le plan</button>
         <button id="btnCsv" class="ghost">Télécharger CSV</button>
         <button id="btnSave" class="ghost">Sauvegarder</button>
         <button id="btnReset" class="ghost">Reset</button>
       </div>
-      <div class="muted small" style="margin-top:8px">
-        Astuce: la config est sauvegardée en localStorage.
-      </div>
+      <div class="muted small" style="margin-top:8px">Astuce: la config est sauvegardée en localStorage.</div>
     </div>
 
+    <!-- Colonne droite -->
     <div class="card" style="flex:2 1 520px;">
       <div class="section-title">
         <strong>Résumé</strong>
         <span id="badgeTotal" class="pill ok">Total: -</span>
       </div>
       <div id="summary" class="muted small">Clique sur “Générer le plan”.</div>
+
       <div style="margin-top:12px">
         <table id="tblGroups" hidden>
           <thead>
@@ -120,28 +145,43 @@
 </div>
 
 <script>
+/* ====== Config ====== */
 const API = (path, qs="") => `http://127.0.0.1:8000${path}${qs}`;
 const GROUPS = ["BTC","ETH","Stablecoins","SOL","L1/L0 majors","Others"];
 
+/* ====== UI sliders ====== */
 const slidersEl = document.getElementById('sliders');
-const sumBadge = document.getElementById('sumBadge');
-const minTrade = document.getElementById('minTrade');
-const minUsd = document.getElementById('minUsd');
-const symBTC = document.getElementById('symBTC');
-const symETH = document.getElementById('symETH');
-const symSOL = document.getElementById('symSOL');
-const symExtra = document.getElementById('symExtra');
+const sumBadge  = document.getElementById('sumBadge');
+const minTrade  = document.getElementById('minTrade');
+const minUsd    = document.getElementById('minUsd');
+const symBTC    = document.getElementById('symBTC');
+const symETH    = document.getElementById('symETH');
+const symSOL    = document.getElementById('symSOL');
+const symExtra  = document.getElementById('symExtra');
 
-let sliders = {};
-function row(label, value=0){
-  const wrap = document.createElement('div'); wrap.className='grid';
-  const l = document.createElement('div'); l.textContent = label; wrap.appendChild(l);
-  const r = document.createElement('input'); r.type='range'; r.min=0; r.max=100; r.value=value; r.step=1; r.dataset.group = label; wrap.appendChild(r);
-  const n = document.createElement('input'); n.type='number'; n.min=0; n.max=100; n.step=1; n.value=value; n.dataset.group = label; wrap.appendChild(n);
-  r.addEventListener('input', ()=>{ n.value = r.value; refreshSum(); saveScratch(); });
-  n.addEventListener('input', ()=>{ r.value = n.value || 0; refreshSum(); saveScratch(); });
-  sliders[label] = {range:r, num:n};
-  slidersEl.appendChild(wrap);
+const sliders = {}; // { group: {range, num} }
+
+function makeRow(group, value=0){
+  const row = document.createElement('div');
+  row.className = 'row-item';
+
+  const label = document.createElement('label');
+  label.textContent = group;
+  row.appendChild(label);
+
+  const range = document.createElement('input');
+  range.type = 'range'; range.min = 0; range.max = 100; range.step = 1; range.value = value;
+  row.appendChild(range);
+
+  const num = document.createElement('input');
+  num.type = 'number'; num.min = 0; num.max = 100; num.step = 1; num.value = value;
+  row.appendChild(num);
+
+  range.addEventListener('input', ()=>{ num.value = range.value; refreshSum(); saveScratch(); });
+  num.addEventListener('input',   ()=>{ range.value = num.value || 0; refreshSum(); saveScratch(); });
+
+  sliders[group] = { range, num };
+  slidersEl.appendChild(row);
 }
 
 function refreshSum(){
@@ -151,31 +191,38 @@ function refreshSum(){
   sumBadge.className = 'pill ' + (sum===100 ? 'ok' : (sum>100 ? 'bad' : 'warn'));
 }
 
+function defaultTargets(){
+  return { BTC:35, ETH:25, Stablecoins:10, SOL:10, "L1/L0 majors":10, Others:10 };
+}
+
+/* ====== localStorage ====== */
 function saveScratch(){
-  const obj = {
+  const cfg = {
     targets: Object.fromEntries(GROUPS.map(g=>[g, Number(sliders[g].num.value||0)])),
     min_trade_usd: Number(minTrade.value||25),
     min_usd: Number(minUsd.value||1),
-    primary_symbols: collectPrimarySymbols()
+    primary_symbols: collectPrimarySymbols(),
   };
-  localStorage.setItem('rebalance_config', JSON.stringify(obj));
+  localStorage.setItem('rebalance_config', JSON.stringify(cfg));
 }
 function loadScratch(){
   const raw = localStorage.getItem('rebalance_config');
   if(!raw) return;
   try{
     const cfg = JSON.parse(raw);
-    if (cfg.targets) for(const g of GROUPS){ if (g in cfg.targets){ sliders[g].num.value = sliders[g].range.value = cfg.targets[g]; } }
-    if (cfg.min_trade_usd) minTrade.value = cfg.min_trade_usd;
-    if (cfg.min_usd) minUsd.value = cfg.min_usd;
+    if (cfg.targets) for (const g of GROUPS) {
+      if (g in cfg.targets) sliders[g].range.value = sliders[g].num.value = cfg.targets[g];
+    }
+    if (cfg.min_trade_usd != null) minTrade.value = cfg.min_trade_usd;
+    if (cfg.min_usd != null)       minUsd.value   = cfg.min_usd;
     if (cfg.primary_symbols){
       if (cfg.primary_symbols.BTC) symBTC.value = cfg.primary_symbols.BTC.join(',');
       if (cfg.primary_symbols.ETH) symETH.value = cfg.primary_symbols.ETH.join(',');
       if (cfg.primary_symbols.SOL) symSOL.value = cfg.primary_symbols.SOL.join(',');
-      const extra = Object.entries(cfg.primary_symbols)
+      const extras = Object.entries(cfg.primary_symbols)
         .filter(([k])=>!["BTC","ETH","SOL"].includes(k))
         .map(([k,v])=>`${k}=${v.join(',')}`).join(' ; ');
-      symExtra.value = extra;
+      symExtra.value = extras;
     }
   }catch{}
 }
@@ -195,11 +242,24 @@ function collectPrimarySymbols(){
   return map;
 }
 
-for (const g of GROUPS) row(g, {BTC:35,ETH:25,"Stablecoins":10,SOL:10,"L1/L0 majors":10,Others:10}[g] || 0);
-refreshSum(); loadScratch(); refreshSum();
+/* init sliders */
+for (const g of GROUPS) makeRow(g, defaultTargets()[g] ?? 0);
+loadScratch();
+refreshSum();
 
-document.getElementById('btnSave').onclick = ()=>{ saveScratch(); alert('Config sauvegardée.'); };
-document.getElementById('btnReset').onclick = ()=>{ localStorage.removeItem('rebalance_config'); location.reload(); };
+/* ====== API calls ====== */
+const badgeTotal  = document.getElementById('badgeTotal');
+const summary     = document.getElementById('summary');
+const tblGroups   = document.getElementById('tblGroups');
+const tbGroups    = tblGroups.querySelector('tbody');
+const tblBuys     = document.getElementById('tblBuys');
+const tbBuys      = tblBuys.querySelector('tbody');
+const tblSells    = document.getElementById('tblSells');
+const tbSells     = tblSells.querySelector('tbody');
+const unknownCount= document.getElementById('unknownCount');
+const unknownList = document.getElementById('unknownList');
+
+function fmt(n){ return n.toLocaleString('fr-FR', {maximumFractionDigits:2}); }
 
 function buildPayload(){
   const targets = Object.fromEntries(GROUPS.map(g=>[g, Number(sliders[g].num.value||0)]));
@@ -210,19 +270,6 @@ function buildPayload(){
     primary_symbols: collectPrimarySymbols(),
   };
 }
-
-const badgeTotal = document.getElementById('badgeTotal');
-const summary = document.getElementById('summary');
-const tblGroups = document.getElementById('tblGroups');
-const tbGroups = tblGroups.querySelector('tbody');
-const tblBuys = document.getElementById('tblBuys');
-const tbBuys = tblBuys.querySelector('tbody');
-const tblSells = document.getElementById('tblSells');
-const tbSells = tblSells.querySelector('tbody');
-const unknownCount = document.getElementById('unknownCount');
-const unknownList = document.getElementById('unknownList');
-
-function fmt(n){ return n.toLocaleString('fr-FR', {maximumFractionDigits:2}); }
 
 async function callPlan(){
   const qs = `?source=cointracking&min_usd=${encodeURIComponent(minUsd.value||1)}`;
@@ -235,6 +282,10 @@ async function callPlan(){
   if(!res.ok){ const t = await res.text(); throw new Error(t); }
   return res.json();
 }
+
+/* ====== UI actions ====== */
+document.getElementById('btnSave').onclick  = ()=>{ saveScratch(); alert('Config sauvegardée.'); };
+document.getElementById('btnReset').onclick = ()=>{ localStorage.removeItem('rebalance_config'); location.reload(); };
 
 document.getElementById('btnPlan').onclick = async ()=>{
   try{
@@ -249,30 +300,27 @@ document.getElementById('btnPlan').onclick = async ()=>{
         <span class="chip">Actions: ${plan.actions.length}</span>
       </div>`;
 
-    // tableau groupes
     tbGroups.innerHTML = '';
     const groups = Object.keys(plan.current_by_group || {});
     for(const g of groups){
-      const cur = plan.current_by_group[g] || 0;
+      const cur    = plan.current_by_group[g] || 0;
       const curPct = plan.current_weights_pct?.[g] ?? 0;
       const tgtPct = plan.target_weights_pct?.[g] ?? 0;
       const tgtUSD = plan.targets_usd?.[g] ?? 0;
-      const delta = plan.deltas_by_group_usd?.[g] ?? 0;
+      const delta  = plan.deltas_by_group_usd?.[g] ?? 0;
       const tr = document.createElement('tr');
       tr.innerHTML = `<td>${g}</td><td>${fmt(cur)}</td><td>${fmt(curPct)}</td><td>${fmt(tgtUSD)}</td><td>${fmt(tgtPct)}</td><td>${fmt(delta)}</td>`;
       tbGroups.appendChild(tr);
     }
     tblGroups.hidden = false;
 
-    // top 12 buys/sells
-    const buys = plan.actions.filter(a=>a.action==='buy').sort((a,b)=>b.usd-a.usd).slice(0,12);
+    const buys  = plan.actions.filter(a=>a.action==='buy').sort((a,b)=>b.usd-a.usd).slice(0,12);
     const sells = plan.actions.filter(a=>a.action==='sell').sort((a,b)=>a.usd-b.usd).slice(0,12);
-    tbBuys.innerHTML = buys.map(a=>`<tr><td>${a.group}</td><td>${a.alias}</td><td>${a.symbol}</td><td>${fmt(a.usd)}</td></tr>`).join('');
+    tbBuys.innerHTML  = buys.map(a=>`<tr><td>${a.group}</td><td>${a.alias}</td><td>${a.symbol}</td><td>${fmt(a.usd)}</td></tr>`).join('');
     tbSells.innerHTML = sells.map(a=>`<tr><td>${a.group}</td><td>${a.alias}</td><td>${a.symbol}</td><td>${fmt(a.usd)}</td></tr>`).join('');
-    tblBuys.hidden = buys.length===0;
+    tblBuys.hidden  = buys.length===0;
     tblSells.hidden = sells.length===0;
 
-    // unknown aliases
     const unk = plan.unknown_aliases || [];
     unknownCount.textContent = unk.length;
     unknownList.innerHTML = unk.map(x=>`<span class="chip">${x}</span>`).join('');
