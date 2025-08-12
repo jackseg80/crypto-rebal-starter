@@ -2,412 +2,305 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Rebalance Planner</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Rebalance Plan</title>
   <style>
-    :root { --bg:#0b1220; --fg:#e7ecf3; --muted:#9aa7b2; --card:#121a2a; --acc:#5ac8fa; --bad:#ff6b6b; --ok:#2ecc71; --warn:#f4b400; }
-    * { box-sizing: border-box; }
-    html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); font:14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji"; }
-    a { color: var(--acc); text-decoration: none; }
-    .container { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
-    header { display:flex; gap:12px; align-items:center; margin-bottom: 18px; }
-    header h1 { font-size: 18px; margin:0; }
-    .row { display:grid; grid-template-columns: 1fr 1fr; gap:16px; }
-    @media (max-width: 920px) { .row { grid-template-columns: 1fr; } }
-    .card { background:var(--card); border:1px solid #1e2740; border-radius:14px; padding:16px; }
-    .card h3 { margin:0 0 12px; font-size:15px; }
-    label { display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
-    input[type="text"], input[type="number"], select, textarea {
-      width:100%; background:#0e1628; color:var(--fg); border:1px solid #243056; border-radius:10px; padding:10px 12px; outline:none;
-    }
+    :root { --bg:#0f172a; --card:#111827; --muted:#94a3b8; --text:#e5e7eb; --accent:#38bdf8; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; }
+    body { margin:0; font:15px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--text); }
+    .wrap { max-width:1100px; margin:32px auto; padding:0 16px; }
+    h1 { font-size:22px; margin:0 0 16px; }
+    .row { display:flex; gap:16px; flex-wrap:wrap; }
+    .card { background:var(--card); border:1px solid #1f2937; border-radius:12px; padding:16px; flex:1 1 320px; }
+    .muted { color:var(--muted); }
+    .grid { display:grid; gap:8px; grid-template-columns: 160px 1fr 64px; align-items:center; }
     input[type="range"] { width:100%; }
-    .grid-2 { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
-    .grid-3 { display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; }
-    .targets { display:grid; grid-template-columns: 130px 1fr 70px; gap:10px; align-items:center; }
-    .sum { font-weight:600; }
-    .sum.bad { color: var(--bad); }
-    .sum.ok { color: var(--ok); }
-    .btn { display:inline-flex; align-items:center; gap:8px; background:#233259; color:#fff; border:1px solid #2e4175; padding:10px 14px; border-radius:10px; cursor:pointer; user-select:none; }
-    .btn.primary { background:#2a72ff; border-color:#2a72ff; }
-    .btn:disabled { opacity:.6; cursor:not-allowed; }
-    .toolbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-    .warn { color: var(--warn); }
-    .pill { display:inline-block; padding:4px 8px; border-radius:999px; background:#1a2440; border:1px solid #2a3c6f; margin:3px; font-size:12px; }
-    table { width:100%; border-collapse: collapse; }
-    th, td { text-align:left; padding:8px 10px; border-bottom:1px solid #1e2740; }
-    th { font-size:12px; color:var(--muted); font-weight:600; }
-    tfoot td { font-weight:700; }
-    .right { text-align:right; }
-    .muted { color: var(--muted); }
-    .badge-buy { color:#16c784; }
-    .badge-sell { color:#ff6868; }
-    .flex { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-    .hidden { display:none !important; }
+    input[type="number"], input[type="text"] { width:100%; padding:8px; background:#0b1220; border:1px solid #273249; color:var(--text); border-radius:8px; }
+    button { background:var(--accent); border:0; color:#06121a; font-weight:600; padding:10px 14px; border-radius:10px; cursor:pointer; }
+    button.ghost { background:#0b1220; color:var(--text); border:1px solid #273249; }
+    .pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; }
+    .ok { background:#052814; color:#86efac; }
+    .warn { background:#2a1e04; color:#fde68a; }
+    .bad { background:#2a0b0b; color:#fecaca; }
+    table { width:100%; border-collapse:collapse; }
+    th, td { text-align:right; padding:8px; border-bottom:1px solid #1f2937; }
+    th:first-child, td:first-child { text-align:left; }
     .small { font-size:12px; }
+    .section-title { display:flex; align-items:center; justify-content:space-between; margin:6px 0 12px; }
+    .chips { display:flex; gap:6px; flex-wrap:wrap; }
+    .chip { background:#0b1220; border:1px solid #273249; padding:4px 8px; border-radius:999px; font-size:12px; }
+    details { background:#0b1220; border:1px solid #273249; border-radius:10px; padding:10px 12px; }
+    summary { cursor:pointer; }
+    .two { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    @media (max-width:900px){ .two { grid-template-columns:1fr; } }
   </style>
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>Rebalance Planner</h1>
-      <span class="muted">·</span>
-      <a href="./index.html">ouvrir le dashboard</a>
-      <span class="muted">·</span>
-      <a href="https://github.com/jackseg80/crypto-rebal-starter" target="_blank" rel="noreferrer">repo</a>
-    </header>
+<div class="wrap">
+  <h1>Rebalance — plan & export CSV</h1>
 
-    <div class="row">
-      <div class="card">
-        <h3>Connexion API</h3>
-        <div class="grid-2">
-          <div>
-            <label>API base URL</label>
-            <input id="apiUrl" type="text" placeholder="http://127.0.0.1:8000" />
-            <div id="httpsWarn" class="small warn hidden" style="margin-top:6px;">
-              Cette page est servie en <b>https</b>. Pour éviter le “mixed content”, ton API doit aussi être accessible en <b>https</b> (ex: ngrok).
-            </div>
-          </div>
-          <div>
-            <label>Source</label>
-            <input id="source" type="text" value="cointracking" />
-          </div>
+  <div class="row">
+    <div class="card" style="flex:1 1 420px;">
+      <div class="section-title">
+        <strong>Répartition cible (doit faire 100%)</strong>
+        <span id="sumBadge" class="pill warn">Somme : 0%</span>
+      </div>
+      <div id="sliders" class="grid"></div>
+      <div class="two" style="margin-top:12px">
+        <div>
+          <label class="small muted">min_trade_usd</label>
+          <input id="minTrade" type="number" step="1" min="0" value="25">
+        </div>
+        <div>
+          <label class="small muted">min_usd (filtre ligne)</label>
+          <input id="minUsd" type="number" step="1" min="0" value="1">
         </div>
       </div>
-
-      <div class="card">
-        <h3>Paramètres</h3>
-        <div class="grid-3">
-          <div>
-            <label>min_usd (filtre données)</label>
-            <input id="minUsd" type="number" min="0" step="1" value="1" />
-          </div>
-          <div>
-            <label>min_trade_usd</label>
-            <input id="minTrade" type="number" min="0" step="1" value="25" />
-          </div>
-          <div>
-            <label>sub_allocation</label>
-            <select id="subAlloc">
-              <option value="proportional" selected>proportional</option>
-              <option value="flat">flat</option>
-            </select>
-          </div>
+      <div style="margin-top:12px">
+        <label class="small muted">primary_symbols (virgule)</label>
+        <div class="two">
+          <input id="symBTC" type="text" placeholder="BTC,TBTC,WBTC" value="BTC,TBTC,WBTC">
+          <input id="symETH" type="text" placeholder="ETH,WSTETH,STETH,RETH,WETH" value="ETH,WSTETH,STETH,RETH,WETH">
+        </div>
+        <div class="two" style="margin-top:8px">
+          <input id="symSOL" type="text" placeholder="SOL,JUPSOL,JITOSOL" value="SOL,JUPSOL,JITOSOL">
+          <input id="symExtra" type="text" placeholder="(optionnel) GROUP=SYM1,SYM2" value="">
         </div>
       </div>
-
-      <div class="card">
-        <h3>Poids cibles (%)</h3>
-        <div id="targets" class="targets">
-          <!-- Lignes générées par JS -->
-        </div>
-        <div class="flex" style="margin-top:10px;">
-          <span class="muted">Somme :</span>
-          <span id="sum" class="sum">0</span>%
-          <button id="btnNormalize" class="btn">Normaliser à 100%</button>
-          <button id="btnPreset" class="btn">Preset BTC35 / ETH25 / 10x4</button>
-        </div>
+      <div style="display:flex; gap:8px; margin-top:14px;">
+        <button id="btnPlan">Générer le plan</button>
+        <button id="btnCsv" class="ghost">Télécharger CSV</button>
+        <button id="btnSave" class="ghost">Sauvegarder</button>
+        <button id="btnReset" class="ghost">Reset</button>
       </div>
-
-      <div class="card">
-        <h3>Primary symbols (mapping intra-groupe)</h3>
-        <div class="grid-3">
-          <div>
-            <label>BTC aliases (CSV)</label>
-            <input id="symBTC" type="text" value="BTC,TBTC,WBTC" />
-          </div>
-          <div>
-            <label>ETH aliases (CSV)</label>
-            <input id="symETH" type="text" value="ETH,WSTETH,STETH,RETH,WETH" />
-          </div>
-          <div>
-            <label>SOL aliases (CSV)</label>
-            <input id="symSOL" type="text" value="SOL,JUPSOL,JITOSOL" />
-          </div>
-        </div>
+      <div class="muted small" style="margin-top:8px">
+        Astuce: la config est sauvegardée en localStorage.
       </div>
     </div>
 
-    <div class="card" style="margin-top:16px;">
-      <div class="toolbar">
-        <button id="btnPlan" class="btn primary">Générer le plan</button>
-        <button id="btnCSV" class="btn" disabled>Exporter les actions en CSV</button>
-        <span id="status" class="muted"></span>
+    <div class="card" style="flex:2 1 520px;">
+      <div class="section-title">
+        <strong>Résumé</strong>
+        <span id="badgeTotal" class="pill ok">Total: -</span>
       </div>
-    </div>
-
-    <div id="results" class="row" style="margin-top:16px;">
-      <div class="card">
-        <h3>Résumé</h3>
-        <div id="summary" class="small muted">—</div>
-        <div id="unknown" style="margin-top:8px;"></div>
-      </div>
-
-      <div class="card">
-        <h3>Top achats / ventes</h3>
-        <div class="row">
-          <div>
-            <table id="tblBuys">
-              <thead><tr><th>group</th><th>alias</th><th>symbol</th><th class="right">usd</th></tr></thead>
-              <tbody></tbody>
-            </table>
-          </div>
-          <div>
-            <table id="tblSells">
-              <thead><tr><th>group</th><th>alias</th><th>symbol</th><th class="right">usd</th></tr></thead>
-              <tbody></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3>Répartition actuelle vs cible</h3>
-        <table id="tblDist">
+      <div id="summary" class="muted small">Clique sur “Générer le plan”.</div>
+      <div style="margin-top:12px">
+        <table id="tblGroups" hidden>
           <thead>
-            <tr><th>Group</th><th class="right">CurrentUSD</th><th class="right">CurrentPct</th><th class="right">TargetUSD</th><th class="right">TargetPct</th><th class="right">DeltaUSD</th></tr>
+            <tr><th>Group</th><th>CurrentUSD</th><th>Current%</th><th>TargetUSD</th><th>Target%</th><th>DeltaUSD</th></tr>
           </thead>
           <tbody></tbody>
         </table>
       </div>
+
+      <div class="two" style="margin-top:16px">
+        <div>
+          <div class="section-title"><strong>Top achats</strong></div>
+          <table id="tblBuys" hidden>
+            <thead><tr><th>group</th><th>alias</th><th>symbol</th><th>usd</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div>
+          <div class="section-title"><strong>Top ventes</strong></div>
+          <table id="tblSells" hidden>
+            <thead><tr><th>group</th><th>alias</th><th>symbol</th><th>usd</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style="margin-top:16px">
+        <details>
+          <summary><strong>Aliases inconnus</strong> <span id="unknownCount" class="pill muted">0</span></summary>
+          <div id="unknownList" class="chips" style="margin-top:8px;"></div>
+        </details>
+      </div>
     </div>
   </div>
+</div>
 
 <script>
-  // --- Config & état ---
-  const GROUPS = ["BTC","ETH","Stablecoins","SOL","L1/L0 majors","Others"];
-  const els = {
-    apiUrl: document.getElementById('apiUrl'),
-    httpsWarn: document.getElementById('httpsWarn'),
-    source: document.getElementById('source'),
-    minUsd: document.getElementById('minUsd'),
-    minTrade: document.getElementById('minTrade'),
-    subAlloc: document.getElementById('subAlloc'),
-    targets: document.getElementById('targets'),
-    sum: document.getElementById('sum'),
-    btnNormalize: document.getElementById('btnNormalize'),
-    btnPreset: document.getElementById('btnPreset'),
-    symBTC: document.getElementById('symBTC'),
-    symETH: document.getElementById('symETH'),
-    symSOL: document.getElementById('symSOL'),
-    btnPlan: document.getElementById('btnPlan'),
-    btnCSV: document.getElementById('btnCSV'),
-    status: document.getElementById('status'),
-    summary: document.getElementById('summary'),
-    tblBuys: document.querySelector('#tblBuys tbody'),
-    tblSells: document.querySelector('#tblSells tbody'),
-    tblDist: document.querySelector('#tblDist tbody'),
-    unknown: document.getElementById('unknown'),
-  };
-  let lastActions = [];
+const API = (path, qs="") => `http://127.0.0.1:8000${path}${qs}`;
+const GROUPS = ["BTC","ETH","Stablecoins","SOL","L1/L0 majors","Others"];
 
-  // Warn https→http
-  function checkHttpsWarning() {
-    const api = els.apiUrl.value.trim();
-    if (location.protocol === 'https:' && api.startsWith('http://')) {
-      els.httpsWarn.classList.remove('hidden');
-    } else {
-      els.httpsWarn.classList.add('hidden');
+const slidersEl = document.getElementById('sliders');
+const sumBadge = document.getElementById('sumBadge');
+const minTrade = document.getElementById('minTrade');
+const minUsd = document.getElementById('minUsd');
+const symBTC = document.getElementById('symBTC');
+const symETH = document.getElementById('symETH');
+const symSOL = document.getElementById('symSOL');
+const symExtra = document.getElementById('symExtra');
+
+let sliders = {};
+function row(label, value=0){
+  const wrap = document.createElement('div'); wrap.className='grid';
+  const l = document.createElement('div'); l.textContent = label; wrap.appendChild(l);
+  const r = document.createElement('input'); r.type='range'; r.min=0; r.max=100; r.value=value; r.step=1; r.dataset.group = label; wrap.appendChild(r);
+  const n = document.createElement('input'); n.type='number'; n.min=0; n.max=100; n.step=1; n.value=value; n.dataset.group = label; wrap.appendChild(n);
+  r.addEventListener('input', ()=>{ n.value = r.value; refreshSum(); saveScratch(); });
+  n.addEventListener('input', ()=>{ r.value = n.value || 0; refreshSum(); saveScratch(); });
+  sliders[label] = {range:r, num:n};
+  slidersEl.appendChild(wrap);
+}
+
+function refreshSum(){
+  let sum = 0;
+  for (const g of GROUPS) sum += Number(sliders[g].num.value || 0);
+  sumBadge.textContent = `Somme : ${sum}%`;
+  sumBadge.className = 'pill ' + (sum===100 ? 'ok' : (sum>100 ? 'bad' : 'warn'));
+}
+
+function saveScratch(){
+  const obj = {
+    targets: Object.fromEntries(GROUPS.map(g=>[g, Number(sliders[g].num.value||0)])),
+    min_trade_usd: Number(minTrade.value||25),
+    min_usd: Number(minUsd.value||1),
+    primary_symbols: collectPrimarySymbols()
+  };
+  localStorage.setItem('rebalance_config', JSON.stringify(obj));
+}
+function loadScratch(){
+  const raw = localStorage.getItem('rebalance_config');
+  if(!raw) return;
+  try{
+    const cfg = JSON.parse(raw);
+    if (cfg.targets) for(const g of GROUPS){ if (g in cfg.targets){ sliders[g].num.value = sliders[g].range.value = cfg.targets[g]; } }
+    if (cfg.min_trade_usd) minTrade.value = cfg.min_trade_usd;
+    if (cfg.min_usd) minUsd.value = cfg.min_usd;
+    if (cfg.primary_symbols){
+      if (cfg.primary_symbols.BTC) symBTC.value = cfg.primary_symbols.BTC.join(',');
+      if (cfg.primary_symbols.ETH) symETH.value = cfg.primary_symbols.ETH.join(',');
+      if (cfg.primary_symbols.SOL) symSOL.value = cfg.primary_symbols.SOL.join(',');
+      const extra = Object.entries(cfg.primary_symbols)
+        .filter(([k])=>!["BTC","ETH","SOL"].includes(k))
+        .map(([k,v])=>`${k}=${v.join(',')}`).join(' ; ');
+      symExtra.value = extra;
+    }
+  }catch{}
+}
+function collectPrimarySymbols(){
+  const map = {
+    BTC: symBTC.value.split(',').map(s=>s.trim()).filter(Boolean),
+    ETH: symETH.value.split(',').map(s=>s.trim()).filter(Boolean),
+    SOL: symSOL.value.split(',').map(s=>s.trim()).filter(Boolean),
+  };
+  if (symExtra.value.trim()){
+    const parts = symExtra.value.split(';');
+    for(const p of parts){
+      const [g, list] = p.split('=');
+      if (g && list) map[g.trim()] = list.split(',').map(s=>s.trim()).filter(Boolean);
     }
   }
+  return map;
+}
 
-  // Sliders
-  function makeTargetRow(group, value=0) {
-    const label = document.createElement('div');
-    label.textContent = group;
+for (const g of GROUPS) row(g, {BTC:35,ETH:25,"Stablecoins":10,SOL:10,"L1/L0 majors":10,Others:10}[g] || 0);
+refreshSum(); loadScratch(); refreshSum();
 
-    const range = document.createElement('input');
-    range.type = 'range'; range.min = 0; range.max = 100; range.step = 0.5; range.value = value;
+document.getElementById('btnSave').onclick = ()=>{ saveScratch(); alert('Config sauvegardée.'); };
+document.getElementById('btnReset').onclick = ()=>{ localStorage.removeItem('rebalance_config'); location.reload(); };
 
-    const pct = document.createElement('input');
-    pct.type = 'number'; pct.min = 0; pct.max = 100; pct.step = 0.5; pct.value = value;
+function buildPayload(){
+  const targets = Object.fromEntries(GROUPS.map(g=>[g, Number(sliders[g].num.value||0)]));
+  return {
+    group_targets_pct: targets,
+    sub_allocation: "proportional",
+    min_trade_usd: Number(minTrade.value||25),
+    primary_symbols: collectPrimarySymbols(),
+  };
+}
 
-    range.addEventListener('input', () => { pct.value = range.value; updateSum(); });
-    pct.addEventListener('input', () => { range.value = pct.value; updateSum(); });
+const badgeTotal = document.getElementById('badgeTotal');
+const summary = document.getElementById('summary');
+const tblGroups = document.getElementById('tblGroups');
+const tbGroups = tblGroups.querySelector('tbody');
+const tblBuys = document.getElementById('tblBuys');
+const tbBuys = tblBuys.querySelector('tbody');
+const tblSells = document.getElementById('tblSells');
+const tbSells = tblSells.querySelector('tbody');
+const unknownCount = document.getElementById('unknownCount');
+const unknownList = document.getElementById('unknownList');
 
-    els.targets.appendChild(label);
-    els.targets.appendChild(range);
-    els.targets.appendChild(pct);
+function fmt(n){ return n.toLocaleString('fr-FR', {maximumFractionDigits:2}); }
+
+async function callPlan(){
+  const qs = `?source=cointracking&min_usd=${encodeURIComponent(minUsd.value||1)}`;
+  const payload = buildPayload();
+  const res = await fetch(API('/rebalance/plan', qs), {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  });
+  if(!res.ok){ const t = await res.text(); throw new Error(t); }
+  return res.json();
+}
+
+document.getElementById('btnPlan').onclick = async ()=>{
+  try{
+    summary.textContent = 'Calcul en cours...';
+    const plan = await callPlan();
+
+    badgeTotal.textContent = `Total: ${fmt(plan.total_usd)}`;
+    summary.innerHTML = `
+      <div class="chips">
+        <span class="chip">Achats: ${fmt(plan.actions.filter(a=>a.action==='buy').reduce((s,a)=>s+a.usd,0))} USD</span>
+        <span class="chip">Ventes: ${fmt(plan.actions.filter(a=>a.action==='sell').reduce((s,a)=>s+a.usd,0))} USD</span>
+        <span class="chip">Actions: ${plan.actions.length}</span>
+      </div>`;
+
+    // tableau groupes
+    tbGroups.innerHTML = '';
+    const groups = Object.keys(plan.current_by_group || {});
+    for(const g of groups){
+      const cur = plan.current_by_group[g] || 0;
+      const curPct = plan.current_weights_pct?.[g] ?? 0;
+      const tgtPct = plan.target_weights_pct?.[g] ?? 0;
+      const tgtUSD = plan.targets_usd?.[g] ?? 0;
+      const delta = plan.deltas_by_group_usd?.[g] ?? 0;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${g}</td><td>${fmt(cur)}</td><td>${fmt(curPct)}</td><td>${fmt(tgtUSD)}</td><td>${fmt(tgtPct)}</td><td>${fmt(delta)}</td>`;
+      tbGroups.appendChild(tr);
+    }
+    tblGroups.hidden = false;
+
+    // top 12 buys/sells
+    const buys = plan.actions.filter(a=>a.action==='buy').sort((a,b)=>b.usd-a.usd).slice(0,12);
+    const sells = plan.actions.filter(a=>a.action==='sell').sort((a,b)=>a.usd-b.usd).slice(0,12);
+    tbBuys.innerHTML = buys.map(a=>`<tr><td>${a.group}</td><td>${a.alias}</td><td>${a.symbol}</td><td>${fmt(a.usd)}</td></tr>`).join('');
+    tbSells.innerHTML = sells.map(a=>`<tr><td>${a.group}</td><td>${a.alias}</td><td>${a.symbol}</td><td>${fmt(a.usd)}</td></tr>`).join('');
+    tblBuys.hidden = buys.length===0;
+    tblSells.hidden = sells.length===0;
+
+    // unknown aliases
+    const unk = plan.unknown_aliases || [];
+    unknownCount.textContent = unk.length;
+    unknownList.innerHTML = unk.map(x=>`<span class="chip">${x}</span>`).join('');
+  }catch(err){
+    alert('Erreur: ' + err.message);
   }
+};
 
-  function initTargets() {
-    els.targets.innerHTML = '';
-    // preset défaut
-    const preset = { BTC:35, ETH:25, Stablecoins:10, SOL:10, "L1/L0 majors":10, Others:10 };
-    GROUPS.forEach(g => makeTargetRow(g, preset[g] ?? 0));
-    updateSum();
-  }
-
-  function readTargets() {
-    const rows = els.targets.querySelectorAll('input[type="number"]');
-    const out = [];
-    GROUPS.forEach((g, i) => {
-      const v = parseFloat(rows[i].value || '0');
-      out.push({ group: g, weight_pct: isFinite(v) ? v : 0 });
+document.getElementById('btnCsv').onclick = async ()=>{
+  try{
+    const qs = `?source=cointracking&min_usd=${encodeURIComponent(minUsd.value||1)}`;
+    const payload = buildPayload();
+    const res = await fetch(API('/rebalance/plan.csv', qs), {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
     });
-    return out;
-    // NOTE: l’API accepte aussi un dict group_targets_pct, mais on utilise ici la version "targets" (liste).
-  }
-
-  function updateSum() {
-    const total = readTargets().reduce((s, t) => s + (t.weight_pct || 0), 0);
-    els.sum.textContent = total.toFixed(1);
-    els.sum.classList.toggle('ok', Math.abs(total-100) < 0.01);
-    els.sum.classList.toggle('bad', Math.abs(total-100) >= 0.01);
-  }
-
-  function normalizeTo100() {
-    const t = readTargets();
-    const sum = t.reduce((s,x)=>s+x.weight_pct,0);
-    if (sum <= 0) return;
-    const rows = els.targets.querySelectorAll('input[type="number"]');
-    t.forEach((x,i)=> { rows[i].value = (x.weight_pct*100/sum).toFixed(1); rows[i].dispatchEvent(new Event('input')); });
-  }
-
-  function setPreset() {
-    initTargets();
-  }
-
-  // Helpers
-  function toCSV(actions) {
-    const head = ['group','alias','symbol','action','usd'];
-    const esc = v => `"${String(v ?? '').replace(/"/g,'""')}"`;
-    const rows = actions.map(a => [a.group,a.alias,a.symbol,a.action,a.usd]);
-    return [head, ...rows].map(r => r.map(esc).join(',')).join('\r\n');
-  }
-
-  function download(filename, text) {
-    const blob = new Blob([text], {type: 'text/csv;charset=utf-8;'});
+    if(!res.ok){ const t = await res.text(); throw new Error(t); }
+    const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = filename; a.click();
+    a.href = url; a.download = 'rebalance-actions.csv';
+    document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
+  }catch(err){
+    alert('Erreur CSV: ' + err.message);
   }
-
-  function fmtUsd(n) { return new Intl.NumberFormat('fr-FR', { style:'currency', currency:'USD', maximumFractionDigits: 2 }).format(n); }
-  function fmtPct(n) { return `${Number(n).toFixed(3)}%`; }
-
-  // Appel API
-  async function generatePlan() {
-    try {
-      els.status.textContent = 'Calcul en cours…';
-      els.btnPlan.disabled = true;
-
-      const api = els.apiUrl.value.trim() || 'http://127.0.0.1:8000';
-      checkHttpsWarning();
-
-      const q = new URLSearchParams({ source: els.source.value.trim() || 'cointracking', min_usd: String(els.minUsd.value || '1') });
-      const url = `${api}/rebalance/plan?${q.toString()}`;
-
-      const primary_symbols = {};
-      if (els.symBTC.value.trim()) primary_symbols.BTC = els.symBTC.value.split(',').map(s=>s.trim()).filter(Boolean);
-      if (els.symETH.value.trim()) primary_symbols.ETH = els.symETH.value.split(',').map(s=>s.trim()).filter(Boolean);
-      if (els.symSOL.value.trim()) primary_symbols.SOL = els.symSOL.value.split(',').map(s=>s.trim()).filter(Boolean);
-
-      const payload = {
-        targets: readTargets(),
-        sub_allocation: els.subAlloc.value,
-        min_trade_usd: Number(els.minTrade.value || 25),
-        primary_symbols
-      };
-
-      const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-      if (!resp.ok) {
-        const errText = await resp.text();
-        throw new Error(`HTTP ${resp.status} – ${errText}`);
-      }
-      const plan = await resp.json();
-      renderPlan(plan);
-
-      els.status.textContent = 'OK';
-    } catch (e) {
-      console.error(e);
-      els.status.textContent = `Erreur: ${e.message || e}`;
-    } finally {
-      els.btnPlan.disabled = false;
-    }
-  }
-
-  function renderPlan(plan) {
-    // Résumé
-    const total = plan.total_usd ?? 0;
-    const cur = plan.current_by_group || {};
-    const tgtPct = plan.target_weights_pct || {};
-    const deltas = plan.deltas_by_group_usd || {};
-
-    // Dist tableau
-    const tbody = els.tblDist; tbody.innerHTML = '';
-    const groups = GROUPS.slice(); // ordre fixe
-    groups.forEach(g => {
-      const curUsd = cur[g] ?? 0;
-      const curPct = plan.current_weights_pct?.[g] ?? 0;
-      const tarPct = tgtPct[g] ?? 0;
-      const tarUsd = total * (tarPct/100);
-      const delta = (deltas[g] ?? (tarUsd - curUsd));
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${g}</td>
-        <td class="right">${fmtUsd(curUsd)}</td>
-        <td class="right">${Number(curPct).toFixed(3)}%</td>
-        <td class="right">${fmtUsd(tarUsd)}</td>
-        <td class="right">${Number(tarPct).toFixed(1)}%</td>
-        <td class="right">${fmtUsd(delta)}</td>`;
-      tbody.appendChild(tr);
-    });
-
-    // Summary
-    const lines = [];
-    lines.push(`<div>Total USD : <b>${fmtUsd(total)}</b></div>`);
-    const sumBuys = (plan.actions || []).filter(a=>a.action==='buy').reduce((s,a)=>s+(a.usd||0),0);
-    const sumSells = (plan.actions || []).filter(a=>a.action==='sell').reduce((s,a)=>s+(a.usd||0),0);
-    lines.push(`<div>Achats : <span class="badge-buy">${fmtUsd(sumBuys)}</span> — Ventes : <span class="badge-sell">${fmtUsd(sumSells)}</span> — Net : <b>${fmtUsd(sumBuys + sumSells)}</b></div>`);
-    els.summary.innerHTML = lines.join('');
-
-    // Unknown aliases
-    const unk = plan.unknown_aliases || [];
-    els.unknown.innerHTML = (unk.length ? `<div class="small muted">Unknown aliases:</div>` : '') + unk.map(x=>`<span class="pill">${x}</span>`).join('');
-
-    // Top lists
-    lastActions = plan.actions || [];
-    const buys = lastActions.filter(a=>a.action==='buy').sort((a,b)=>b.usd-a.usd).slice(0,15);
-    const sells = lastActions.filter(a=>a.action==='sell').sort((a,b)=>a.usd-b.usd).slice(0,15);
-
-    function fillTable(tbody, rows) {
-      tbody.innerHTML = '';
-      rows.forEach(r => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${r.group}</td><td>${r.alias}</td><td>${r.symbol}</td><td class="right">${fmtUsd(r.usd)}</td>`;
-        tbody.appendChild(tr);
-      });
-    }
-    fillTable(els.tblBuys, buys);
-    fillTable(els.tblSells, sells);
-
-    // CSV
-    els.btnCSV.disabled = lastActions.length === 0;
-  }
-
-  // Events
-  els.btnPlan.addEventListener('click', generatePlan);
-  els.btnCSV.addEventListener('click', () => {
-    const csv = toCSV(lastActions);
-    const ts = new Date().toISOString().replace(/[:.]/g,'-');
-    download(`rebalance-actions-${ts}.csv`, csv);
-  });
-  els.btnNormalize.addEventListener('click', normalizeTo100);
-  els.btnPreset.addEventListener('click', setPreset);
-  els.apiUrl.addEventListener('input', checkHttpsWarning);
-
-  // Init
-  (function boot(){
-    els.apiUrl.value = localStorage.getItem('apiUrl') || 'http://127.0.0.1:8000';
-    ['apiUrl','source','minUsd','minTrade','subAlloc','symBTC','symETH','symSOL'].forEach(id=>{
-      els[id].addEventListener('change', ()=> localStorage.setItem(id, els[id].value));
-      const saved = localStorage.getItem(id);
-      if (saved) els[id].value = saved;
-    });
-    initTargets();
-    checkHttpsWarning();
-  })();
+};
 </script>
 </body>
 </html>
