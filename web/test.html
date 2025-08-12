@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="fr">
+  <meta charset="utf-8"/>
+  <title>Test API</title>
+  <body>
+    <h1>Test /balances/current (stub)</h1>
+    <pre id="out"></pre>
+    <script>
+      fetch('/balances/current?source=stub').then(r=>r.json()).then(j=>{
+        document.getElementById('out').textContent = JSON.stringify(j,null,2);
+      }).catch(e=>document.getElementById('out').textContent = e);
+    </script>
+  </body>
+</html>

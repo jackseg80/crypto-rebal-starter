@@ -1,0 +1,2275 @@
+<!DOCTYPE html>
+
+<html lang="fr">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<title>Rapport crypto — Dashboard dynamique (v70.2, Composite Cycle Score)</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&amp;display=swap" rel="stylesheet"/>
+<style>
+  :root{
+    --bg:#f8fafc; --panel:#ffffff; --text:#0f172a; --muted:#475569; --border:#e2e8f0; --accent:#111827;
+    --ok:#059669; --warn:#e11d48; --legend:#64748b; --errbg:#fef2f2; --errbd:#fecaca; --errtx:#991b1b;
+    --tipbg:#0f172a; --tiptx:#e5e7eb; --tipbd:rgba(0,0,0,0.2);
+  }
+  body.theme-dark{
+    --bg:#0b1220; --panel:#0f172a; --text:#e5e7eb; --muted:#94a3b8; --border:#1f2937; --accent:#0ea5e9;
+    --ok:#34d399; --warn:#fb7185; --legend:#a1a1aa; --errbg:#2b1216; --errbd:#7f1d1d; --errtx:#fecaca;
+    --tipbg:#111827; --tiptx:#e5e7eb; --tipbd:#0b1220;
+  }
+  *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+  .container{max-width:1280px;margin:0 auto;padding:16px}
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  h1{font-size:26px;font-weight:800;margin:8px 0 12px}
+  section{background:var(--panel);border:1px solid var(--border);border-radius:12px;margin-bottom:16px}
+  .sec-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)}
+  .sec-title{display:flex;align-items:center;gap:10px}
+  .sec-body{padding:16px}
+  .muted{color:var(--muted);font-size:13px}
+  .grid{display:grid;gap:16px}
+  .grid-2{grid-template-columns:1fr 1fr}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .btn{padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:#fff;color:var(--accent);cursor:pointer}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.ghost{background:transparent;color:var(--text)}
+  .btn.icon{padding:6px 10px}
+  .btn.small{padding:6px 8px;font-size:12px}
+  .toggle-sec[aria-expanded="false"]::after{content:"▶";margin-left:6px}
+  .toggle-sec[aria-expanded="true"]::after{content:"▼";margin-left:6px}
+  input[type="number"], input[type="range"], input[type="text"]{width:100%;background:transparent;color:var(--text)}
+  input[type="file"]{color:var(--muted)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:8px;border-bottom:1px solid var(--border)}
+  th{border-bottom:1px solid var(--border);text-align:left}
+  .right{text-align:right}
+  .ok{color:var(--ok)}.warn{color:var(--warn)}
+  .tag{padding:6px 10px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer}
+  .tag.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .legend{font-size:12px;color:var(--legend)}
+  .pie{min-height:520px}
+
+  .targets-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+  .target-card{display:grid;grid-template-rows:auto auto auto;gap:8px;border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--panel)}
+  .target-title{font-size:13px}
+  .target-middle{display:grid;grid-template-columns:1fr 66px;gap:8px;align-items:center}
+  .target-range{width:100%}
+
+  .scenario-compact{display:grid;grid-template-columns:repeat(5, minmax(120px,1fr));gap:8px}
+  @media (max-width: 1100px){ .scenario-compact{grid-template-columns:repeat(3, minmax(120px,1fr));} }
+  @media (max-width: 700px){ .scenario-compact{grid-template-columns:repeat(2, minmax(120px,1fr));} }
+  .scenario-item{display:grid;grid-template-columns:1fr 70px;gap:6px;align-items:center;border:1px solid var(--border);border-radius:10px;padding:8px;background:var(--panel)}
+
+  .error-box{display:none;margin-top:10px;border:1px solid var(--errbd);background:var(--errbg);color:var(--errtx);border-radius:10px;padding:10px;font-size:13px}
+
+  .ex-header{display:flex;align-items:center;gap:8px;justify-content:space-between}
+  .ex-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:16px;margin-top:8px}
+  .ex-card{border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--panel)}
+  .ex-title{font-weight:600;margin-bottom:8px}
+  .ex-chart{height:320px}
+  .ex-filters{display:none;margin-top:4px;margin-bottom:8px;gap:6px;flex-wrap:wrap}
+  .ex-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;padding:4px 8px;font-size:12px;background:transparent;cursor:pointer}
+  .ex-chip input{accent-color:var(--accent)}
+  .ex-actions{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-bottom:6px}
+  .ex-table{margin-top:6px}
+  .ex-note{font-size:12px;color:var(--legend)}
+
+  .tooltip{position:fixed;pointer-events:none;background:var(--tipbg);color:var(--tiptx);border:1px solid var(--tipbd);
+           border-radius:10px;padding:8px 10px;font-size:12px;max-width:340px;z-index:9999;opacity:0;transform:translate(-50%,-120%);
+           box-shadow:0 6px 18px rgba(2,6,23,0.28);transition:opacity 100ms ease;white-space:pre-line}
+  .tooltip.show{opacity:1}
+  .tip-title{font-weight:600;margin-bottom:4px}
+  .tip-body{opacity:0.9}
+
+  .cycle-grid{display:grid;grid-template-columns:1.2fr 1fr;gap:16px}
+  @media (max-width: 1000px){ ...cycle-grid{grid-template-columns:1fr;} }
+  .cycle-controls{display:grid;gap:10px;border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--panel)}
+  .cycle-row{display:grid;grid-template-columns:1fr 80px;gap:8px;align-items:center}
+  .cycle-pie{height:340px}
+
+  .sig-grid{display:grid;grid-template-columns:1fr;gap:12px}
+  .sig-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  @media (max-width: 900px){ ...sig-row{grid-template-columns:1fr;} }
+  .sig-card{border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--panel)}
+  .badge{font-size:12px;padding:3px 8px;border-radius:999px;border:1px solid var(--border)}
+
+  .gauge-wrap{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:center}
+  @media (max-width: 900px){ ...gauge-wrap{grid-template-columns:1fr;} }
+  .weights{margin-top:8px;border:1px solid var(--border);border-radius:10px;padding:8px}
+  .weights h4{margin:0 0 6px;font-size:14px}
+  .ccs-note{font-size:12px;color:var(--legend)}
+
+
+/* === Free-only indicators config === */
+#indConfigTable table{ width:100%; border-collapse: collapse; margin-top:8px; }
+#indConfigTable th, #indConfigTable td{ padding:8px 10px; border-bottom:1px solid rgba(255,255,255,0.08); text-align:left; }
+#indConfigTable th{ opacity:0.8; font-weight:600; }
+#indConfigTable td small{ opacity:0.7; }
+#indConfigTable input[type="number"]{ width:70px; }
+@media (max-width:900px){
+  
+  #indConfigTable .col-source{ display:none; }
+}
+
+
+/* === Indicateurs gratuits (CCS) === */
+
+#indConfigTable th,#indConfigTable td{ padding:8px 10px; border-bottom:1px solid rgba(255,255,255,0.08); }
+#indConfigTable th{ opacity:.8; font-weight:600; text-align:left; }
+#indConfigTable td.right{ text-align:right; }
+#indConfigTable input[type="number"]{ width:70px; }
+#indConfigTable .col-source a{ text-decoration:underline; }
+@media (max-width:900px){ #indConfigTable .col-source{ display:none; } }
+/* === Free-only indicators config === */
+.ind-config table{ width:100%; border-collapse: collapse; margin-top:8px; }
+.ind-config th, .ind-config td{ padding:8px 10px; border-bottom:1px solid rgba(255,255,255,0.08); text-align:left; }
+.ind-config th{ opacity:0.8; font-weight:600; }
+.ind-config td small{ opacity:0.7; }
+.ind-config input[type="number"]{ width:70px; }
+.ind-config table{ font-size:0.92rem; }
+.ind-config .col-source{ display:none; }
+/* === Indicateurs gratuits (CCS) === */
+.ind-config table{ width:100%; border-collapse:collapse; margin-top:8px; }
+.ind-config th,.ind-config td{ padding:8px 10px; border-bottom:1px solid rgba(255,255,255,0.08); }
+.ind-config th{ opacity:.8; font-weight:600; text-align:left; }
+.ind-config td.right{ text-align:right; }
+.ind-config input[type="number"]{ width:70px; }
+.ind-config .col-source a{ text-decoration:underline; }
+.ind-config .col-source{ display:none; }
+</style>
+<script>
+// v48: helper de confort (sans toucher au rendu existant)
+(function(){
+  if (!window.rerenderAll){
+    window.rerenderAll = function(){
+      try{ if (typeof renderTargets==='function') renderTargets(); }catch(e){}
+      try{ if (typeof renderPies==='function') renderPies(); }catch(e){}
+      try{ if (typeof renderPlan==='function') renderPlan(); }catch(e){}
+      try{ if (typeof renderScenarioTable==='function') renderScenarioTable(); }catch(e){}
+    };
+  }
+})();
+</script>
+<script>
+// === Helpers globaux pour signaux/graphiques ===
+(function(w){
+  if (typeof w.SMA!=='function') w.SMA=function(a,n){ if(!a||a.length<n) return null; var s=0; for(var i=a.length-n;i<a.length;i++) s+=a[i]; return s/n; };
+  if (typeof w.EMA!=='function') w.EMA=function(a,n){ if(!a||!a.length) return null; var k=2/(n+1), e=a[0]; for(var i=1;i<a.length;i++) e=a[i]*k+e*(1-k); return e; };
+  if (typeof w.stdev!=='function') w.stdev=function(a){ if(!a||a.length<2) return 0; var m=a.reduce((x,y)=>x+y,0)/a.length; var v=a.reduce((x,y)=>x+(y-m)*(y-m),0)/(a.length-1); return Math.sqrt(v); };
+  if (typeof w.toLogReturns!=='function') w.toLogReturns=function(cl){ var o=[]; if(!cl) return o; for(var i=1;i<cl.length;i++){ var r=Math.log(cl[i]/cl[i-1]); if(isFinite(r)) o.push(r); } return o; };
+  if (typeof w.piece!=='function') w.piece=function(x,p){ if(x==null||isNaN(x)) return null; for(var i=1;i<p.length;i++){ var x0=p[i-1][0],y0=p[i-1][1],x1=p[i][0],y1=p[i][1]; if(x<=x1){ var t=(x-x0)/(x1-x0); return y0+t*(y1-y0);} } return p[p.length-1][1]; };
+  if (typeof w.scalePiecewise!=='function') w.scalePiecewise=function(x,p){ try{ return w.piece? w.piece(x,p):null; }catch(e){ return null; } };
+})(window);
+</script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<style>
+/* === Responsive layout & larger canvas === */
+.container{ max-width: min(1800px, 96vw); padding: 16px; }
+@media (max-width: 1100px){ .cycle-grid{ grid-template-columns: 1fr; } }
+@media (min-width: 1600px){ .cycle-grid{ grid-template-columns: 1.4fr 1fr; } }
+
+/* Make pie panel and controls stretch nicely */
+.cycle-controls{ align-content: start; }
+
+/* Ensure Plotly divs can grow with container; height set via JS */
+.js-plotly-plot{ width: 100% !important; }
+</style>
+</head>
+<body>
+<div class="container" id="root">
+<header>
+<h1>Rapport crypto — Tableau de bord (v61) (v70.2)</h1>
+<div class="row">
+<span class="muted">Thème :</span>
+<button class="btn ghost" id="btnTheme">🌙 Sombre</button>
+</div>
+</header>
+<section data-print="section" id="sec1">
+<div class="sec-head">
+<div class="sec-title"><h2>1) Importer les CSV CoinTracking</h2></div>
+<button aria-expanded="true" class="btn icon toggle-sec" data-target="sec1Body">Section</button>
+</div>
+<div class="sec-body" id="sec1Body">
+<div class="muted">Charge <em>CoinTracking - Current Balance.csv</em> (séparateur virgule ou point-virgule détecté automatiquement). “Balance by Exchange” est facultatif.</div>
+<div class="row" style="margin-top:8px">
+<label>Current Balance.csv <input accept=".csv" id="csvCurrent" type="file"/></label>
+<label>Balance by Exchange.csv (optionnel) <input accept=".csv" id="csvEx" type="file"/></label>
+</div>
+<div class="error-box" id="errorBox"></div>
+</div>
+<div>Total: <strong id="total_usd">–</strong></div>
+<table>
+<thead><tr><th>Sym</th><th>USD</th><th>%</th><th>Stable</th></tr></thead>
+<tbody id="top_body"></tbody>
+</table>
+</section>
+<section data-print="section" id="sec2">
+<div class="sec-head">
+<div class="sec-title"><h2>2) Répartition actuelle &amp; cibles</h2></div>
+<button aria-expanded="true" class="btn icon toggle-sec" data-target="sec2Body">Section</button>
+</div>
+<div class="sec-body" id="sec2Body">
+<div class="muted" id="hintUpload">➡️ Charge d’abord ton <b>Current Balance.csv</b> pour afficher les graphiques.</div>
+<div class="grid grid-2" id="pies" style="display:none">
+<div>
+<div class="pie" id="pieBefore"></div>
+<div class="legend" id="totalUsd"></div>
+</div>
+<div>
+<div class="pie" id="pieAfter"></div>
+<div class="legend">Somme cibles (normalisée) : <b>100%</b></div>
+</div>
+</div>
+<div style="margin-top:16px; background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:12px;">
+<h3 style="margin:0 0 8px;font-size:16px">Paramétrage des cibles (%)</h3>
+<div class="targets-grid" id="targets"></div>
+<div class="row" style="margin-top:8px">
+<button class="btn primary" id="btnReset">Réinitialiser</button>
+<button class="btn" id="btnNormalize">Normaliser</button>
+<span class="muted">Les cibles sont <b>normalisées automatiquement</b> pour sommer à 100%.</span>
+</div>
+</div>
+</div>
+</section>
+<section data-print="section" id="sec2b">
+<div class="sec-head">
+<div class="sec-title"><h2>2bis) Répartition par plateforme</h2></div>
+<div class="row">
+<select class="btn small" id="exLimit">
+<option value="3">top 3</option>
+<option selected="" value="6">top 6</option>
+<option value="9">top 9</option>
+<option value="12">top 12</option>
+</select>
+<button aria-expanded="true" class="btn icon toggle-sec" data-target="sec2bBody">Section</button>
+</div>
+</div>
+<div class="sec-body" id="sec2bBody">
+<div class="ex-grid" id="exGrid"></div>
+</div>
+</section>
+<section data-print="section" id="sec3">
+<div class="sec-head">
+<div class="sec-title"><h2>3) Plan de rééquilibrage (à acheter / vendre)</h2></div>
+<button aria-expanded="true" class="btn icon toggle-sec" data-target="sec3Body">Section</button>
+</div>
+<div class="sec-body" id="sec3Body">
+<div class="muted" id="planWrapper">—</div>
+</div>
+</section>
+<section data-print="section" id="sec4">
+<div class="sec-head">
+<div class="sec-title"><h2>4) Module scénarios (fin de cycle)</h2></div>
+<button aria-expanded="true" class="btn icon toggle-sec" data-target="sec4Body">Section</button>
+</div>
+<div class="sec-body" id="sec4Body">
+<div class="row" style="margin-bottom:8px">
+<span class="muted">Profil:</span>
+<button class="tag" data-scen="Basse">Basse</button>
+<button class="tag" data-scen="Moyenne">Moyenne</button>
+<button class="tag" data-scen="Haute">Haute</button>
+<button class="tag" data-scen="Personnalisé">Personnalisé</button>
+</div>
+<div class="scenario-compact" id="scenarioEditor" style="margin-bottom:8px"></div>
+<div class="muted" id="scenarioTable">—</div>
+</div>
+</section>
+<section data-print="section" id="sec5">
+<div class="sec-head">
+<div class="sec-title"><h2>5) Signaux et Cycles</h2></div>
+<button class="btn icon toggle-sec" data-target="sec5Body">Section</button>
+</div>
+</section>
+<div class="sec-body" id="sec5Body">
+<div class="cycle-grid">
+<div id="cycleChart" style="height:420px"></div>
+<div class="cycle-controls">
+<div class="cycle-row">
+<label>Position actuelle (mois après halving):</label>
+<input id="cycleMonths" max="36" min="0" step="0.1" type="number"/>
+</div>
+<input id="cycleSlider" max="36" min="0" step="0.1" type="range"/>
+<div class="cycle-row">
+<label>Poids du cycle:</label>
+<input id="cycleAlpha" max="100" min="0" step="5" type="number" value="60"/>
+</div>
+<input id="cycleAlphaSlider" max="100" min="0" step="1" type="range" value="60"/>
+<div class="row">
+<button class="btn primary" id="btnCycleApply">Appliquer comme cibles</button>
+</div>
+<div class="cycle-pie" id="cyclePie" title="CCS* (cible) = mélange entre le CCS externe et le score de cycle.
+Formule: CCS* = (1 − w_cycle) × CCS + w_cycle × score_cycle(mois_après_halving).
+Le curseur « Poids du cycle » contrôle w_cycle."></div>
+<div class="muted">Remarque: la courbe est <b>indicative</b> (index synthétique du cycle) avec lignes verticales aux <b>halvings</b>.</div>
+</div>
+</div>
+<hr style="margin:14px 0;border:none;border-top:1px solid var(--border)"/>
+<h3 style="margin:0 0 8px">Signaux externes &amp; Composite Cycle Score (0–100)</h3>
+<div id="signalsMergedWrap">
+<div class="sig-grid">
+<div class="sig-card">
+<div class="row" style="justify-content:space-between;align-items:center">
+<div>
+<b>Source :</b>
+<select class="btn small" id="sigSource">
+<option selected="" value="free">Free bundle (sans clé) — Fear &amp; Greed, Mayer, Pi Cycle, Funding, Drawdown, Volatilité</option>
+<option value="coinglass">CoinGlass — Bull Market Peak Indicators (clé requise)</option>
+<option value="custom">Entrée JSON personnalisée</option>
+</select>
+<span class="badge">Beta</span>
+</div>
+<div class="muted">Les requêtes API sont effectuées <b>depuis ton navigateur</b>.</div>
+</div>
+<!-- FREE BUNDLE -->
+<div id="freeBox" style="margin-top:8px">
+<div class="sig-row">
+<div class="muted">Pack gratuit : Alternative.me (Fear &amp; Greed) + Binance (klines &amp; funding). Calcul local de Mayer Multiple, Pi Cycle, Drawdown &amp; Volatilité 30j.</div>
+<div class="row" style="align-items:flex-end;gap:8px">
+<button class="btn ghost" id="btnFreeExplain">Docs</button>
+</div>
+<div class="row" style="align-items:center;gap:12px">
+<label style="display:grid;grid-template-columns:1fr 80px;gap:8px;align-items:center">Intensité d'impact alloc<input id="freeAlpha" max="100" min="0" step="5" type="number" value="60"/></label>
+<input id="freeAlphaSlider" max="100" min="0" step="1" type="range" value="60"/>
+<button aria-hidden="true" class="btn" id="btnFreePreview" style="display:none">Aperçu cible</button>
+<button aria-hidden="true" class="btn primary" id="btnFreeApply" style="display:none">Appliquer cibles</button>
+</div>
+</div>
+<div class="gauge-wrap" style="margin-top:10px">
+<div id="ccsGauge" style="height:260px" title="CCS (0–100) = moyenne pondérée des sous-scores des indicateurs activés.
+Sous-score = mise à l’échelle en [0–100] par fonctions piecewise (scalePiecewise).
+Indicateurs: Fear &amp; Greed, Mayer Multiple, Pi Cycle (EMA111/2×SMA350), Funding (moy |36 obs), Drawdown depuis ATH, Volatilité 30j annualisée.
+Poids par défaut: 20/20/20/10/20/10.
+Formule: CCS = Σ(w_i × subscore_i) / Σ(w_i)."></div>
+<div>
+<div class="muted" id="ccsExplain" title="CCS (0–100) = moyenne pondérée des sous-scores des indicateurs activés.
+Sous-score = mise à l’échelle en [0–100] par fonctions piecewise (scalePiecewise).
+Indicateurs: Fear &amp; Greed, Mayer Multiple, Pi Cycle (EMA111/2×SMA350), Funding (moy |36 obs), Drawdown depuis ATH, Volatilité 30j annualisée.
+Poids par défaut: 20/20/20/10/20/10.
+Formule: CCS = Σ(w_i × subscore_i) / Σ(w_i).">—</div>
+<div class="weights">
+<h4>Poids &amp; inclusion des signaux</h4>
+<div id="weightsTableWrap"></div>
+<div class="ccs-note">Le <b>Composite Cycle Score</b> est une moyenne pondérée (0–100). 0 = fin de bull / euphorie, 100 = creux/accumulation.<br/>
+                    Les mappings sont heuristiques, calibrés sur les cycles historiques BTC.</div>
+</div>
+</div>
+</div>
+<div class="muted" id="freeStatus" style="margin-top:8px">—</div>
+<div id="freeTableWrap" style="margin-top:8px"></div>
+<div id="freePie" style="height:320px;margin-top:6px;display:none"></div>
+</div>
+<!-- COINGLASS -->
+<div id="coinglassBox" style="display:none;margin-top:8px">
+<div class="sig-row">
+<label>Clé API <small class="muted">(en-tête <code>CG-API-KEY</code>)</small><input id="cgKey" placeholder="colle ici ta CG-API-KEY" type="text"/></label>
+<label>Garder la clé (local)<input id="cgRemember" type="checkbox"/></label>
+<div class="row" style="align-items:flex-end">
+<button class="btn" id="btnCgFetch">Tester &amp; charger</button>
+<button class="btn ghost" id="btnCgDoc">Doc</button>
+</div>
+</div>
+<div class="muted" id="cgStatus" style="margin-top:6px">—</div>
+<div id="cgTableWrap" style="margin-top:8px"></div>
+<div class="row" style="margin-top:8px">
+<label style="display:grid;grid-template-columns:1fr 80px;gap:8px;align-items:center">Intensité d'impact<input id="cgAlpha" max="100" min="0" step="5" type="number" value="60"/></label>
+<input id="cgAlphaSlider" max="100" min="0" step="1" type="range" value="60"/>
+<button class="btn" id="btnCgPreview">Aperçu cible (signaux)</button>
+<button class="btn primary" id="btnCgApply">Appliquer comme cibles</button>
+</div>
+<div id="cgPie" style="height:320px;margin-top:6px"></div>
+</div>
+<!-- CUSTOM JSON -->
+<div id="customBox" style="display:none;margin-top:8px">
+<label>Colle un JSON compatible CoinGlass (<code>data: [ {indicator_name, current_value, target_value, comparison_type, hit_status} ]</code>)</label>
+<textarea id="customJson" rows="8" style="width:100%;font-family:ui-monospace,monospace"></textarea>
+<div class="row" style="margin-top:8px">
+<button class="btn" id="btnCustomLoad">Charger</button>
+<button class="btn primary" id="btnCustomApply">Appliquer</button>
+</div>
+<div id="customTableWrap" style="margin-top:8px"></div>
+</div>
+</div>
+</div>
+</div>
+<div class="card" id="freePackConfig">
+<h3 style="margin-top:16px">Indicateurs gratuits — configuration (CCS)</h3>
+<p class="muted">Active/désactive et ajuste le poids de chaque indicateur intégré (tous <b>gratuits</b>, endpoints téléchargeables / sans clé).</p>
+<div class="ind-config" id="indConfigTable"></div>
+<div class="row" style="gap:12px; margin-top:12px">
+<button class="btn" id="btnSaveIndCfg">Enregistrer</button>
+<button class="btn" id="btnResetIndCfg">Réinitialiser</button>
+<span class="muted" id="indCfgStatus"></span>
+</div>
+</div></div>
+<section data-print="section" id="sec6">
+<div class="sec-head"><div class="sec-title"><h2>6) Export</h2></div>
+<button aria-expanded="true" class="btn icon toggle-sec" data-target="sec6Body">Section</button>
+</div>
+<div class="sec-body" id="sec6Body">
+<button class="btn primary" id="btnPDF">Exporter en PDF</button>
+<div class="muted" style="margin-top:6px">Le PDF capture les sections visibles du tableau de bord.</div>
+</div>
+</section>
+<div class="muted" style="margin-top:8px">Ce tableau de bord n’est pas un conseil financier.</div>
+</div>
+<div aria-hidden="true" class="tooltip" id="tooltip" role="tooltip">
+<div class="tip-title"></div>
+<div class="tip-body"></div>
+</div>
+<script>
+let THEME = "light";
+let __READY = false;
+
+// ---------- Utils ----------
+const fmtUSD = n => n===0||n ? n.toLocaleString(undefined,{style:"currency",currency:"USD",maximumFractionDigits:0}) : "—";
+const fmtPct = x => (x*100).toFixed(2)+"%";
+const parseUSD = v => { if (v===null || v===undefined) return 0; const s = String(v).replace(/[\s\u00A0,]/g, ""); const n = Number(s); return Number.isFinite(n) ? n : 0; };
+
+// Tooltip
+const $tip = document.getElementById('tooltip'); const $tipTitle = $tip.querySelector('.tip-title'); const $tipBody = $tip.querySelector('.tip-body');
+function showTip(title, body, x, y){ $tipTitle.textContent = title || ''; $tipBody.textContent = body || ''; $tip.style.left = x + 'px'; $tip.style.top = y + 'px'; $tip.classList.add('show'); $tip.setAttribute('aria-hidden','false'); }
+function moveTip(x,y){ $tip.style.left = x + 'px'; $tip.style.top = y + 'px'; }
+function hideTip(){ $tip.classList.remove('show'); $tip.setAttribute('aria-hidden','true'); }
+function attachTip(el, title, body){ if (!el) return; el.addEventListener('mouseenter', (e)=> showTip(title, body, e.clientX, e.clientY)); el.addEventListener('mousemove', (e)=> moveTip(e.clientX, e.clientY)); el.addEventListener('mouseleave', hideTip); }
+
+// Collapsible sections
+for (const btn of document.querySelectorAll('.toggle-sec')){
+  btn.addEventListener('click', (e)=>{
+    const id = btn.getAttribute('data-target'); const body = document.getElementById(id);
+    const now = body.style.display !== 'none';
+    body.style.display = now ? 'none' : 'block';
+    btn.setAttribute('aria-expanded', String(!now));
+  });
+}
+
+// Errors
+const errorBox = document.getElementById("errorBox");
+function showError(msg){ errorBox.textContent = msg; errorBox.style.display = "block"; }
+function clearError(){ errorBox.textContent=""; errorBox.style.display="none"; }
+
+// Families + hints
+const STABLES = new Set(["USD","USDT","USDC","BUSD","TUSD","USDD","GUSD","LUSD","FRAX","FDUSD","DAI","PYUSD","EURS","EURT","XDAI","USDP","USDK","CUSD","EURC"]);
+const BTC = new Set(["BTC","WBTC","TBTC","SBTC","TBTC"]);
+const ETH_STACK = new Set(["ETH","WETH","STETH","WSTETH","RETH","CBETH","SFRXETH","FRXETH","SWETH","OETH","OSETH","ANKRETH","RTETH"]);
+const SOL_STACK = new Set(["SOL","SOL2","MSOL","JSOL","JITOSOL","JUPSOL","BSOL"]);
+const OTHER_L1 = new Set(["ADA","AVAX","ATOM","NEAR","APT","SUI","TON","ALGO","TRX","FTM","EGLD","KAS","KSM","DOT","ICP","ROSE","SEI"]);
+const MEMES = new Set(["DOGE","SHIB","PEPE","BONK","WIF"]);
+const FAMILY_HINTS = {
+  "Stablecoins USD/EUR": "Exemples: USD, USDT, USDC, EURC, DAI, TUSD, BUSD, FDUSD, PYUSD, GUSD, LUSD, FRAX, USDP, EURT…",
+  "Bitcoin stack": "Exemples: BTC, WBTC, tBTC, sBTC…",
+  "Ethereum stack (L1 + LST/LRT)": "Exemples: ETH, stETH, wstETH, rETH, cbETH, frxETH/sfrxETH, swETH, osETH, oETH, ankrETH, rtETH…",
+  "Solana stack (L1 + LST)": "Exemples: SOL, jupSOL, jitoSOL, mSOL, bSOL, jSOL…",
+  "BNB": "Exemples: BNB (L1 + écosystème BSC)",
+  "XRP": "Exemples: XRP (XRPL)",
+  "Other L1/L0 majors": "Exemples: ADA, AVAX, ATOM, NEAR, DOT, ICP, TRX, TON, APT, SUI, KAS, SEI, ROSE, EGLD, FTM, ALGO…",
+  "Memecoins (majors)": "Exemples: DOGE, SHIB, PEPE, BONK, WIF…",
+  "Long tail / Others": "Exemples: petites/mid caps, DeFi niches, DePIN, RWA, gaming, infra…"
+};
+
+// --- Fixed colors per family (stable across 'Avant' & 'Après') ---
+const FAMILY_COLORS = {
+  "Long tail / Others": "#10b981",                 // emerald 500 (bright green)
+  "Stablecoins USD/EUR": "#0ea5e9",                // sky 500
+  "Bitcoin stack": "#f59e0b",                      // amber 500
+  "Ethereum stack (L1 + LST/LRT)": "#8b5cf6",      // violet 500
+  "Solana stack (L1 + LST)": "#06b6d4",            // cyan 500
+  "BNB": "#facc15",                                // yellow 400
+  "XRP": "#f43f5e",                                // rose 500
+  "Other L1/L0 majors": "#ef4444",                 // red 500
+  "Memecoins (majors)": "#f472b6"                  // pink 400
+};
+const DEFAULT_PIE_COLORS = ["#0ea5e9","#f59e0b","#8b5cf6","#06b6d4","#facc15","#f43f5e","#ef4444","#f472b6","#10b981"];
+function colorsFor(labels){ return labels.map((l,i)=> (FAMILY_COLORS[l] || DEFAULT_PIE_COLORS[i % DEFAULT_PIE_COLORS.length])); }
+
+
+const DEFAULT_TARGET = {
+  "Stablecoins USD/EUR": 0.15,
+  "Bitcoin stack": 0.38,
+  "Ethereum stack (L1 + LST/LRT)": 0.25,
+  "Solana stack (L1 + LST)": 0.05,
+  "BNB": 0.03,
+  "XRP": 0.03,
+  "Other L1/L0 majors": 0.05,
+  "Memecoins (majors)": 0.01,
+  "Long tail / Others": 0.05,
+};
+const SCENARIOS_DEFAULT = {
+  Basse: {"Bitcoin stack":1.10,"Ethereum stack (L1 + LST/LRT)":1.05,"Solana stack (L1 + LST)":1.10,"BNB":1.05,"XRP":1.00,"Other L1/L0 majors":1.05,"Memecoins (majors)":0.60,"Long tail / Others":0.80,"Stablecoins USD/EUR":1.00},
+  Moyenne: {"Bitcoin stack":1.40,"Ethereum stack (L1 + LST/LRT)":1.60,"Solana stack (L1 + LST)":1.90,"BNB":1.50,"XRP":1.70,"Other L1/L0 majors":1.80,"Memecoins (majors)":2.50,"Long tail / Others":1.30,"Stablecoins USD/EUR":1.00},
+  Haute: {"Bitcoin stack":2.20,"Ethereum stack (L1 + LST/LRT)":2.60,"Solana stack (L1 + LST)":3.20,"BNB":2.00,"XRP":2.50,"Other L1/L0 majors":2.80,"Memecoins (majors)":5.00,"Long tail / Others":2.00,"Stablecoins USD/EUR":1.00},
+};
+
+function familyOf(rec) {
+  const t = String(rec.Ticker || rec.Currency || "").toUpperCase();
+  const n = String(rec.Name || rec.Currency || "").toUpperCase();
+  const has = x => n.includes(x);
+  if (STABLES.has(t) || has("USD COIN") || has("TETHER") || has("BINANCE USD") || has("TRUEUSD") || has("DAI") || has("EURC")) return "Stablecoins USD/EUR";
+  if (BTC.has(t) || has("BITCOIN") || /\bBTC\b/.test(n)) return "Bitcoin stack";
+  if (ETH_STACK.has(t) || has("ETHEREUM") || has("STAKED ETH") || has("RESTAKED ETH")
+      || ["WSTETH","STETH","RETH","CBETH","FRXETH","SFRXETH","SWETH","OSETH","OETH","ANKR ETH","RTETH"].some(has)) return "Ethereum stack (L1 + LST/LRT)";
+  if (SOL_STACK.has(t) || has("SOLANA") || has("MSOL") || has("JITO") || has("JITOSOL") || has("JUPSOL") || has("BSOL")) return "Solana stack (L1 + LST)";
+  if (t==="BNB" || has("BINANCE COIN")) return "BNB";
+  if (t==="XRP") return "XRP";
+  if (MEMES.has(t)) return "Memecoins (majors)";
+  if (OTHER_L1.has(t) || ["CARDANO","AVALANCHE","COSMOS","NEAR","APTOS","SUI","TON","ALGORAND","TRON","FANTOM","ELROND","KASPA","POLKADOT","INTERNET COMPUTER","KUSAMA","SEI"].some(has)) return "Other L1/L0 majors";
+  if ((has("STAKED") || has("RESTAKED")) && has("ETH")) return "Ethereum stack (L1 + LST/LRT)";
+  return "Long tail / Others";
+}
+
+function groupByFamily(records) {
+  const hasValue = records[0] && (Object.prototype.hasOwnProperty.call(records[0], "Value in USD") || Object.prototype.hasOwnProperty.call(records[0], "Current value in USD"));
+  if (!hasValue) { showError("Colonnes attendues introuvables. Le fichier doit contenir soit « Value in USD » (Current Balance) soit « Current value in USD » (Balance by Exchange)."); return []; }
+  clearError();
+  const valueKey = Object.prototype.hasOwnProperty.call(records[0], "Value in USD") ? "Value in USD" : "Current value in USD";
+  const rows = records.map(r => ({ Ticker: r.Ticker || r.Currency || "", Name: r.Name || r["Name"] || r["Currency"] || "", value_usd: parseUSD(r[valueKey] ?? 0) }));
+  const map = new Map(); for (const r of rows) { const fam = familyOf(r); map.set(fam, (map.get(fam)||0) + r.value_usd); }
+  const out = Array.from(map.entries()).map(([Family, value_usd]) => ({ Family, value_usd })).sort((a,b)=>b.value_usd - a.value_usd);
+  for (const fam of Object.keys(DEFAULT_TARGET)) if (!out.find(x=>x.Family===fam)) out.push({Family:fam, value_usd:0});
+  return out;
+}
+
+function groupByExchange(records) {
+  const hasValue = records[0] && Object.prototype.hasOwnProperty.call(records[0], "Current value in USD");
+  const hasEx = records[0] && (Object.prototype.hasOwnProperty.call(records[0], "Exchange") || Object.prototype.hasOwnProperty.call(records[0], "Exchange name") || Object.prototype.hasOwnProperty.call(records[0], "Exchange Name"));
+  if (!hasValue || !hasEx) { showError("Pour « Balance by Exchange », il faut les colonnes « Exchange » et « Current value in USD »."); return { groups:{}, totals:{} }; }
+  clearError();
+  const valueKey = "Current value in USD";
+  const exKey = Object.prototype.hasOwnProperty.call(records[0], "Exchange") ? "Exchange" : (Object.prototype.hasOwnProperty.call(records[0], "Exchange name") ? "Exchange name" : "Exchange Name");
+  const groups = {}; const totals = {};
+  for (const r of records) {
+    const ex = String(r[exKey] ?? "Unknown");
+    const val = parseUSD(r[valueKey] ?? 0);
+    const fam = familyOf({ Ticker: r.Currency || r.Ticker || "", Name: r.Currency || "" });
+    groups[ex] = groups[ex] || {}; groups[ex][fam] = (groups[ex][fam] || 0) + val;
+    totals[ex] = (totals[ex] || 0) + val;
+  }
+  return { groups, totals };
+}
+
+function normalizeTargets(t) { const s = Object.values(t).reduce((a,b)=>a+(Number(b)||0),0); if (!s) return t; const out = {}; for (const k of Object.keys(t)) out[k] = (t[k]||0)/s; return out; }
+function computePlan(families, targets) {
+  const total = families.reduce((a,b)=>a+b.value_usd,0);
+  const rows = Object.keys(targets).map(fam => {
+    const cur = families.find(x=>x.Family===fam)?.value_usd || 0;
+    const tgtPct = targets[fam] || 0;
+    const tgtVal = total * tgtPct;
+    return { Family: fam, current_usd: cur, current_pct: total?cur/total:0, target_pct: tgtPct, target_usd: tgtVal, to_trade_usd: tgtVal - cur, delta_pts: (tgtPct - (total?cur/total:0)) };
+  }).sort((a,b)=>Math.abs(b.to_trade_usd)-Math.abs(a.to_trade_usd));
+  return { total, rows };
+}
+
+// ---------- UI bindings ----------
+const btnTheme = document.getElementById("btnTheme");
+const elUpload = document.getElementById("csvCurrent");
+const elUploadEx = document.getElementById("csvEx");
+const elHint = document.getElementById("hintUpload");
+const elPies = document.getElementById("pies");
+const elPieBefore = document.getElementById("pieBefore");
+const elPieAfter = document.getElementById("pieAfter");
+const elTargets = document.getElementById("targets");
+const elPlan = document.getElementById("planWrapper");
+const elTotal = document.getElementById("totalUsd");
+const elBtnReset = document.getElementById("btnReset");
+const elBtnNormalize = document.getElementById("btnNormalize");
+const elScenarioEditor = document.getElementById("scenarioEditor");
+const elScenarioTable = document.getElementById("scenarioTable");
+const elBtnPDF = document.getElementById("btnPDF");
+const elExGrid = document.getElementById("exGrid");
+const elExLimit = document.getElementById("exLimit");
+
+// Signals elements
+const elSigSource = document.getElementById("sigSource");
+// Free bundle + CCS
+const elFreeBox = document.getElementById("freeBox");
+const elBtnFreeFetch = document.getElementById("btnFreeFetch");
+const elBtnFreeExplain = document.getElementById("btnFreeExplain");
+const elFreeStatus = document.getElementById("freeStatus");
+const elFreeTableWrap = document.getElementById("freeTableWrap");
+const elFreeAlpha = document.getElementById("freeAlpha");
+const elFreeAlphaSlider = document.getElementById("freeAlphaSlider");
+const elBtnFreePreview = document.getElementById("btnFreePreview");
+const elBtnFreeApply = document.getElementById("btnFreeApply");
+const elFreePie = document.getElementById("freePie");
+const elWeightsTableWrap = document.getElementById("weightsTableWrap");
+const elCcsGauge = document.getElementById("ccsGauge");
+const elCcsExplain = document.getElementById("ccsExplain");
+// CoinGlass
+const elCoinglassBox = document.getElementById("coinglassBox");
+const elCgKey = document.getElementById("cgKey");
+const elCgRemember = document.getElementById("cgRemember");
+const elBtnCgFetch = document.getElementById("btnCgFetch");
+const elBtnCgDoc = document.getElementById("btnCgDoc");
+const elCgStatus = document.getElementById("cgStatus");
+const elCgTableWrap = document.getElementById("cgTableWrap");
+const elCgAlpha = document.getElementById("cgAlpha");
+const elCgAlphaSlider = document.getElementById("cgAlphaSlider");
+const elBtnCgPreview = document.getElementById("btnCgPreview");
+const elBtnCgApply = document.getElementById("btnCgApply");
+const elCgPie = document.getElementById("cgPie");
+// Custom JSON
+const elCustomBox = document.getElementById("customBox");
+const elCustomJson = document.getElementById("customJson");
+const elCustomTableWrap = document.getElementById("customTableWrap");
+
+// ---------- THEME ----------
+function applyTheme(theme){
+  THEME = theme;
+  document.body.classList.toggle("theme-dark", theme === "dark");
+  btnTheme.textContent = theme === "dark" ? "☀️ Clair" : "🌙 Sombre";
+  localStorage.setItem("theme", theme);
+  if (__READY) { renderAllExceptTargets(); renderExchangePies(); renderCycleChart(); if (window.__lastCCS!=null) drawGauge(window.__lastCCS); }
+}
+(function initTheme(){
+  const saved = localStorage.getItem("theme");
+  if (saved) applyTheme(saved);
+  else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) applyTheme("dark");
+  else applyTheme("light");
+})();
+btnTheme.addEventListener("click", ()=> applyTheme(THEME === "dark" ? "light" : "dark"));
+
+// ---------- State ----------
+let CURRENT_FAMILIES = [];
+let TARGETS = { ...DEFAULT_TARGET };
+let SCEN = null;
+let MULTS = JSON.parse(JSON.stringify(SCENARIOS_DEFAULT));
+let EX_GROUPS = {}; let EX_TOTALS = {}; let EX_FILTERS = {};
+
+// ---------- CSV upload ----------
+elUpload.addEventListener("change", (e)=>{
+  const file = e.target.files?.[0]; if (!file) return;
+  clearError();
+  Papa.parse(file, { header:true, skipEmptyLines:true, delimiter:"", transformHeader:(h)=>String(h).trim(),
+    complete: (res)=>{ const data = res.data || []; if (!data.length) { showError("Le fichier est vide ou non lisible."); return; } CURRENT_FAMILIES = groupByFamily(data); if (!CURRENT_FAMILIES.length) return; renderAll(); },
+    error: (err)=> showError("Erreur de lecture CSV : " + (err?.message||"inconnue"))
+  });
+});
+elUploadEx.addEventListener("change", (e)=>{
+  const file = e.target.files?.[0]; if (!file) return;
+  clearError();
+  Papa.parse(file, { header:true, skipEmptyLines:true, delimiter:"", transformHeader:(h)=>String(h).trim(),
+    complete: (res)=>{ const data = res.data || []; if (!data.length) { showError("Le fichier (Balance by Exchange) est vide ou non lisible."); return; }
+      const { groups, totals } = groupByExchange(data); EX_GROUPS = groups; EX_TOTALS = totals; EX_FILTERS = {}; renderExchangePies(); },
+    error: (err)=> showError("Erreur lecture Balance by Exchange : " + (err?.message||"inconnue"))
+  });
+});
+elExLimit.addEventListener("change", renderExchangePies);
+
+// ---------- Plot helpers ----------
+function plotLayout(title){
+  const dark = THEME === "dark";
+  return { title, margin:{l:10,r:10,t:30,b:0}, height:300, paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
+           font:{ color: dark ? '#e5e7eb' : '#0f172a' }, showlegend:false };
+}
+function pieTrace(labels, values){
+  const colors = colorsFor(labels);
+
+  const dark = THEME === "dark";
+  const custom = labels.map(l => (FAMILY_HINTS[l] || ""));
+  return { labels, values, type:"pie", hole:0.25, textinfo:"percent", textposition:"inside",
+           textfont:{ color: dark ? '#e5e7eb' : '#0f172a', size:12 },
+           customdata: custom,
+           hovertemplate: "<b>%{label}</b><br>%{percent:.1%}<br><span style='font-size:12px;color:#94a3b8'>%{customdata}</span><extra></extra>", marker:{ colors: colors } };
+}
+
+// ---------- Renders (global) ----------
+function renderPies() {
+  try {
+    var __t = typeof TARGETS!=='undefined' ? TARGETS : (window.TARGETS||{});
+    var __j = JSON.stringify(__t);
+    if (window.__lastTargetsJSON_renderPies === __j) return;
+    window.__lastTargetsJSON_renderPies = __j;
+  } catch(_){
+    // no-op
+  }
+
+  if (!CURRENT_FAMILIES.length) { elPies.style.display="none"; elHint.style.display="block"; return; }
+  elPies.style.display="grid"; elHint.style.display="none";
+  const total = CURRENT_FAMILIES.reduce((a,b)=>a+b.value_usd,0);
+  elTotal.innerHTML = "Total : <b>"+fmtUSD(total)+"</b>";
+  const beforeLabels = CURRENT_FAMILIES.map(f=>f.Family);
+  const beforeValues = CURRENT_FAMILIES.map(f=>f.value_usd);
+  Plotly.newPlot(elPieBefore, [pieTrace(beforeLabels, beforeValues)], { ...plotLayout("Avant"), height:560, margin:{l:20,r:20,t:40,b:20}, title:"Avant : répartition actuelle" }, {displayModeBar:false});
+  const norm = normalizeTargets(TARGETS);
+  const fams = Object.keys(norm); const pcts = fams.map(f=>norm[f]);
+  Plotly.newPlot(elPieAfter, [pieTrace(fams, pcts)], { ...plotLayout("Après"), height:560, margin:{l:20,r:20,t:40,b:20}, title:"Après : répartition cible (normalisée)" }, {displayModeBar:false});
+}
+
+function renderTargets() {
+  elTargets.innerHTML = "";
+  for (const fam of Object.keys(DEFAULT_TARGET)) {
+    const card = document.createElement("div"); card.className="target-card"; attachTip(card, fam, FAMILY_HINTS[fam] || "");
+    const title = document.createElement("div"); title.className="target-title"; title.textContent=fam; card.appendChild(title);
+    const middle = document.createElement("div"); middle.className="target-middle";
+    const lbl = document.createElement("span"); lbl.className="muted"; lbl.textContent="Objectif (%)";
+    const num = document.createElement("input"); num.type="number"; num.step="0.1"; num.min=0; num.value=((TARGETS[fam]||0)*100).toFixed(2);
+    middle.appendChild(lbl); middle.appendChild(num); card.appendChild(middle);
+    const range = document.createElement("input"); range.className="target-range"; range.type="range"; range.min=0; range.max=100; range.step=0.1; range.value=(TARGETS[fam]||0)*100;
+    range.addEventListener("input", (e)=>{ TARGETS[fam] = Math.max(0, Number(e.target.value))/100; renderAllExceptTargets(); num.value=((TARGETS[fam]||0)*100).toFixed(2); });
+    num.addEventListener("input", (e)=>{ TARGETS[fam] = Math.max(0, Number(e.target.value))/100; renderAllExceptTargets(); range.value=((TARGETS[fam]||0)*100).toFixed(2); });
+    card.appendChild(range);
+    elTargets.appendChild(card);
+  }
+}
+
+function renderPlan() {
+  try {
+    var __t = typeof TARGETS!=='undefined' ? TARGETS : (window.TARGETS||{});
+    var __j = JSON.stringify(__t);
+    if (window.__lastTargetsJSON_renderPlan === __j) return;
+    window.__lastTargetsJSON_renderPlan = __j;
+  } catch(_){
+    // no-op
+  }
+
+  if (!CURRENT_FAMILIES.length) { elPlan.textContent="—"; return; }
+  const norm = normalizeTargets(TARGETS);
+  const { total, rows } = computePlan(CURRENT_FAMILIES, norm);
+  const table = document.createElement("table");
+  const thead = document.createElement("thead"); theadinnerHTML = `
+    <tr><th>Famille</th><th class="right">% actuel</th><th class="right">% cible</th>
+    <th class="right">Valeur actuelle</th><th class="right">Valeur cible</th>
+    <th class="right">À acheter (+) / vendre (–)</th><th class="right">Écart (pts)</th></tr>`;
+  table.appendChild(thead);
+  const tbody = document.createElement("tbody");
+  for (const r of rows) {
+    const tr = document.createElement("tr"); attachTip(tr, r.Family, FAMILY_HINTS[r.Family] || "");
+    tr.innerHTML = `<td>${r.Family}</td>
+      <td class="right">${fmtPct(r.current_pct)}</td>
+      <td class="right">${fmtPct(r.target_pct)}</td>
+      <td class="right">${fmtUSD(r.current_usd)}</td>
+      <td class="right">${fmtUSD(r.target_usd)}</td>
+      <td class="right ${r.to_trade_usd>=0?'ok':'warn'}">${fmtUSD(r.to_trade_usd)}</td>
+      <td class="right">${(r.delta_pts*100).toFixed(2)}%</td>`;
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  elPlan.innerHTML = ""; elPlan.appendChild(table);
+  const info = document.createElement("div"); info.className = "muted"; info.style.marginTop = "8px"; info.innerHTML = `Total portefeuille : <b>${fmtUSD(total)}</b>`; elPlan.appendChild(info);
+}
+
+// ---- Exchange pies ----
+function sanitizeId(s){ return s.replace(/[^a-z0-9]/gi,'_'); }
+function renderExchangePies(){
+  const entries = Object.entries(EX_TOTALS || {}).sort((a,b)=>b[1]-a[1]);
+  const elSection = document.getElementById("sec2b");
+  if (!entries.length) { elSection.style.display="none"; elExGrid.innerHTML=""; return; }
+  elSection.style.display = "block";
+  const limit = Number(elExLimit.value || 6);
+  const top = entries.slice(0, limit);
+  elExGrid.innerHTML = "";
+  for (const [ex, total] of top) {
+    const card = document.createElement('div'); card.className='ex-card';
+    const title = document.createElement('div'); title.className='ex-title'; title.textContent = `${ex} — ${fmtUSD(total)}`; card.appendChild(title);
+    const actions = document.createElement('div'); actions.className='ex-actions';
+    const btnF = document.createElement('button'); btnF.className='btn ghost small'; btnF.textContent='Filtres familles'; const note = document.createElement('div'); note.className='ex-note'; note.textContent='Masque/affiche des familles pour lire le graphique.';
+    actions.appendChild(btnF); actions.appendChild(note); card.appendChild(actions);
+    const filters = document.createElement('div'); filters.className='ex-filters row'; card.appendChild(filters);
+    const div = document.createElement('div'); div.id = 'exPie_'+sanitizeId(ex); div.className='ex-chart'; card.appendChild(div);
+    const table = document.createElement('table'); table.className = 'ex-table'; table.innerHTML = '<thead><tr><th>Famille</th><th class="right">% </th><th class="right">USD</th></tr></thead><tbody></tbody>'; card.appendChild(table);
+    elExGrid.appendChild(card);
+    btnF.addEventListener('click', ()=>{ filters.style.display = (filters.style.display === 'flex' ? 'none':'flex'); });
+    if (!window.EX_FILTERS) window.EX_FILTERS = {}; if (!EX_FILTERS[ex]) EX_FILTERS[ex] = new Set();
+    const famObj = EX_GROUPS[ex] || {}; const labels = Object.keys(famObj).sort((a,b)=> (famObj[b]-famObj[a]));
+    filters.innerHTML='';
+    for (const fam of labels) {
+      const chip = document.createElement('label'); chip.className='ex-chip'; chip.title = FAMILY_HINTS[fam] || '';
+      const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = !EX_FILTERS[ex].has(fam);
+      cb.addEventListener('change', ()=>{ if (cb.checked) EX_FILTERS[ex].delete(fam); else EX_FILTERS[ex].add(fam); drawEx(ex, div, table); });
+      const span = document.createElement('span'); span.textContent = fam; chip.appendChild(cb); chip.appendChild(span); filters.appendChild(chip);
+    }
+    drawEx(ex, div, table);
+  }
+}
+function pieDataForExchange(ex){ const famObj = EX_GROUPS[ex] || {}; const hidden = EX_FILTERS[ex] || new Set(); const labels = Object.keys(famObj).filter(k=>!hidden.has(k)); const values = labels.map(k=>famObj[k]); return { labels, values, total: (EX_TOTALS[ex] || 0) }; }
+function drawEx(ex, div, table){ const { labels, values, total } = pieDataForExchange(ex);
+  if (!labels.length) { Plotly.purge(div); div.innerHTML = '<div class="muted">Aucune famille sélectionnée.</div>'; }
+  else { Plotly.newPlot(div, [pieTrace(labels, values)], plotLayout(ex), {displayModeBar:false}); }
+  const tbody = table.querySelector('tbody'); tbody.innerHTML='';
+  const rows = labels.map((l,i)=>({ fam:l, usd: values[i], pct: total? (values[i]/total)*100 : 0 })).sort((a,b)=> b.usd - a.usd);
+  for (const r of rows) { const tr = document.createElement('tr'); attachTip(tr, r.fam, FAMILY_HINTS[r.fam] || ''); tr.innerHTML = `<td>${r.fam}</td><td class="right">${r.pct.toFixed(2)}%</td><td class="right">${fmtUSD(r.usd)}</td>`; tbody.appendChild(tr); }
+}
+
+// ---------- Scénarios ----------
+for (const btn of document.querySelectorAll("[data-scen]")) {
+  btn.addEventListener("click", (e)=>{
+    for (const b of document.querySelectorAll("[data-scen]")) b.classList.remove("active");
+    e.currentTarget.classList.add("active"); SCEN = e.currentTarget.getAttribute("data-scen"); renderScenarioEditor(); renderScenarioTable();
+  });
+}
+function renderScenarioEditor() {
+  elScenarioEditor.innerHTML = ""; if (!SCEN) return;
+  const m = (SCEN==="Personnalisé" ? (MULTS["Personnalisé"] || SCENARIOS_DEFAULT["Moyenne"]) : MULTS[SCEN]);
+  for (const fam of Object.keys(DEFAULT_TARGET)) {
+    const item = document.createElement("label"); item.className="scenario-item"; attachTip(item, fam, FAMILY_HINTS[fam] || "");
+    const span = document.createElement("span"); span.textContent=fam; const input = document.createElement("input"); input.type="number"; input.step="0.05"; input.value=m[fam];
+    input.addEventListener("change", (e)=>{ const val = Number(e.target.value || 1); if (SCEN==="Personnalisé") { MULTS["Personnalisé"] = { ...(MULTS["Personnalisé"] || SCENARIOS_DEFAULT["Moyenne"]), [fam]: val }; } else { MULTS[SCEN] = { ...MULTS[SCEN], [fam]: val }; } renderScenarioTable(); });
+    item.appendChild(span); item.appendChild(input); elScenarioEditor.appendChild(item);
+  }
+}
+function renderScenarioTable() {
+  if (!CURRENT_FAMILIES.length) { elScenarioTable.textContent="—"; return; }
+  const total = CURRENT_FAMILIES.reduce((a,b)=>a+b.value_usd,0); const norm = normalizeTargets(TARGETS);
+  const sets = { ...MULTS, "Personnalisé": MULTS["Personnalisé"] || SCENARIOS_DEFAULT["Moyenne"] };
+  const rows = Object.entries(sets).map(([key, mults])=>{ let totalProj=0; for (const [fam, pct] of Object.entries(norm)) totalProj += total*pct*(mults[fam] ?? 1); return { key, totalProj, perf: ((totalProj/total)-1)*100 }; }).sort((a,b)=>a.totalProj - b.totalProj);
+  const table = document.createElement("table"); table.innerHTML = `<thead><tr><th>Scénario</th><th class="right">Valeur projetée</th><th class="right">Perf vs actuel</th></tr></thead>`;
+  const tbody = document.createElement("tbody");
+  for (const r of rows) { const tr = document.createElement("tr"); tr.innerHTML = `<td>${r.key}</td><td class="right">${fmtUSD(r.totalProj)}</td><td class="right">${r.perf.toFixed(2)}%</td>`; tbody.appendChild(tr); }
+  table.appendChild(tbody); elScenarioTable.innerHTML = ""; elScenarioTable.appendChild(table);
+}
+
+// ---------- Cycle module ----------
+const HALVINGS = [new Date('2012-11-28'), new Date('2016-07-09'), new Date('2020-05-11'), new Date('2024-04-20'), new Date('2028-05-01')];
+const LAST_HALVING = HALVINGS[HALVINGS.length-2]; // 2024
+function monthsSince(date){ const now = new Date(); return (now.getFullYear()-date.getFullYear())*12 + (now.getMonth()-date.getMonth()) + (now.getDate()-date.getDate())/30; }
+function cycleMultipliers(months){
+  if (months < 6) return {"Bitcoin stack":1.20,"Ethereum stack (L1 + LST/LRT)":1.10,"Solana stack (L1 + LST)":1.00,"BNB":0.95,"XRP":0.95,"Other L1/L0 majors":0.95,"Memecoins (majors)":0.70,"Long tail / Others":0.80,"Stablecoins USD/EUR":0.95};
+  if (months < 12) return {"Bitcoin stack":1.10,"Ethereum stack (L1 + LST/LRT)":1.25,"Solana stack (L1 + LST)":1.50,"BNB":1.10,"XRP":1.10,"Other L1/L0 majors":1.35,"Memecoins (majors)":1.60,"Long tail / Others":1.20,"Stablecoins USD/EUR":0.90};
+  if (months < 18) return {"Bitcoin stack":1.10,"Ethereum stack (L1 + LST/LRT)":1.30,"Solana stack (L1 + LST)":1.80,"BNB":1.10,"XRP":1.10,"Other L1/L0 majors":1.60,"Memecoins (majors)":2.20,"Long tail / Others":1.70,"Stablecoins USD/EUR":0.85};
+  if (months < 30) return {"Bitcoin stack":1.00,"Ethereum stack (L1 + LST/LRT)":0.95,"Solana stack (L1 + LST)":0.85,"BNB":0.90,"XRP":0.90,"Other L1/L0 majors":0.80,"Memecoins (majors)":0.50,"Long tail / Others":0.60,"Stablecoins USD/EUR":1.30};
+  return {"Bitcoin stack":1.10,"Ethereum stack (L1 + LST/LRT)":1.00,"Solana stack (L1 + LST)":0.90,"BNB":0.95,"XRP":0.95,"Other L1/L0 majors":0.85,"Memecoins (majors)":0.60,"Long tail / Others":0.70,"Stablecoins USD/EUR":1.10};
+}
+function applyCycleToTargets(baseTargets, months, alpha){ const m = cycleMultipliers(months); const out = {}; for (const k of Object.keys(baseTargets)) { const mult = m[k] ?? 1; const factor = 1 + alpha*(mult - 1); out[k] = (baseTargets[k] || 0) * factor; } return normalizeTargets(out); }
+function renderCycleChart(){
+  const start = new Date('2011-01-01'); const end = new Date('2029-12-31');
+  const dates = []; const values = [];
+  let d = new Date(start);
+  while (d <= end){ dates.push(new Date(d)); const months = (d.getFullYear()-HALVINGS[0].getFullYear())*12 + (d.getMonth()-HALVINGS[0].getMonth());
+    let y = 0.0;
+    for (let i=0;i<HALVINGS.length;i++){ const h = HALVINGS[i]; const m = (d.getFullYear()-h.getFullYear())*12 + (d.getMonth()-h.getMonth());
+      if (m >= -12 && m <= 36){ if (m < 0){ y += Math.exp(m/18); } else if (m <= 18){ y += Math.exp(m/8); } else { y += Math.exp(18/8) * Math.exp(-(m-18)/10); } } }
+    values.push(y); d.setMonth(d.getMonth()+1);
+  }
+  const shapes = []; const annotations = [];
+  for (const h of HALVINGS){ shapes.push({ type:'line', x0:h, x1:h, y0:0, y1:1, xref:'x', yref:'paper', line:{ color:'#6b7280', width:1, dash:'dot' }});
+    annotations.push({ x:h, y:1.02, xref:'x', yref:'paper', text:'Halving', showarrow:false, font:{size:10}}); }
+  const now = new Date(); shapes.push({ type:'line', x0:now, x1:now, y0:0, y1:1, xref:'x', yref:'paper', line:{ color:'#0ea5e9', width:2 }});
+  annotations.push({ x:now, y:1.06, xref:'x', yref:'paper', text:'Aujourd’hui', showarrow:false, font:{size:10,color:'#0ea5e9'}});
+  Plotly.newPlot(document.getElementById("cycleChart"), [{ x: dates, y: values, type:'scatter', mode:'lines', name:'Cycle index (synthetic)', line:{ width:2 } }], {
+    title:'Cycles Bitcoin (synthétiques) & halvings', paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
+    xaxis:{ title:'Années' }, yaxis:{ title:'Index (log-like)', type:'log', autorange:true },
+    shapes, annotations, font:{ color: (THEME==='dark' ? '#e5e7eb' : '#0f172a') }, margin:{l:50,r:20,t:40,b:40}, showlegend:false
+  }, {displayModeBar:false});
+}
+function initCycleControls(){
+  const months = Math.max(0, Math.min(36, monthsSince(LAST_HALVING)));
+  document.getElementById("cycleMonths").value = months.toFixed(1); document.getElementById("cycleSlider").value = months.toFixed(1);
+  document.getElementById("cycleSlider").addEventListener('input', ()=>{ document.getElementById("cycleMonths").value = Number(document.getElementById("cycleSlider").value).toFixed(1); });
+  document.getElementById("cycleMonths").addEventListener('input', ()=>{ let v = Number(document.getElementById("cycleMonths").value||0); v = Math.max(0, Math.min(36, v)); document.getElementById("cycleSlider").value = v; });
+  document.getElementById("cycleAlphaSlider").addEventListener('input', ()=>{ document.getElementById("cycleAlpha").value = Number(document.getElementById("cycleAlphaSlider").value); });
+  document.getElementById("cycleAlpha").addEventListener('input', ()=>{ let v = Math.max(0, Math.min(100, Number(document.getElementById("cycleAlpha").value||0))); document.getElementById("cycleAlphaSlider").value = v; });
+  
+
+// Unified preview/apply using CCS* (external CCS blended with cycle score)
+(document.getElementById("btnCyclePreview")||{addEventListener:()=>{}}).addEventListener('click', function(e){ e.preventDefault(); try{ previewCycleDirect(); }catch(_){} });
+document.getElementById("btnCycleApply").addEventListener('click', async ()=>{
+  const months = Number(document.getElementById("cycleSlider").value||0);
+  const wCycle = (Number(document.getElementById("cycleAlphaSlider").value||0)/100);
+  const base = normalizeTargets(TARGETS);
+  try {
+    if (!window.CCS_CONFIG || !Array.isArray(CCS_CONFIG) || !CCS_CONFIG.some(c=>c.value!=null)) {
+      if (typeof loadFree === 'function') { await loadFree(); }
+    }
+  } catch(e){ /* ignore */ }
+
+  const cycleScore = (typeof cycleScoreFromMonths === 'function') ? cycleScoreFromMonths(months) : 60;
+  let ccsExt = 50;
+  try {
+    ccsExt = (typeof computeAndShowCCS === 'function') ? computeAndShowCCS() : (window.__lastCCS || 50);
+  } catch(e){ ccsExt = window.__lastCCS || 50; }
+
+  const ccsStar = (1 - wCycle) * ccsExt + wCycle * cycleScore;
+  window.__CYCLE_SCORE__ = cycleScore;
+  window.__CCS_STAR__ = ccsStar;
+
+  const aAlloc = (Number((document.getElementById("freeAlphaSlider")||{value:60}).value||60)/100);
+  const targets = (typeof applyFreeToTargetsFromCCS === 'function') ? applyFreeToTargetsFromCCS(base, ccsStar, aAlloc) : base;
+  TARGETS = targets; renderTargets(); renderAllExceptTargets();
+});
+
+
+}
+
+// ---------- Signals: source switch ----------
+elSigSource.addEventListener('change', ()=>{
+  const src = elSigSource.value;
+  elFreeBox.style.display = (src==='free' ? 'block':'none');
+  elCoinglassBox.style.display = (src==='coinglass' ? 'block':'none');
+  elCustomBox.style.display = (src==='custom' ? 'block':'none');
+});
+
+// ---------- Free bundle + CCS ----------
+elBtnFreeExplain.addEventListener('click', ()=>{
+  window.open('https://alternative.me/crypto/fear-and-greed-index/', '_blank');
+});
+elFreeAlphaSlider.addEventListener('input', ()=>{ elFreeAlpha.value = Number(elFreeAlphaSlider.value); });
+elFreeAlpha.addEventListener('input', ()=>{ let v = Math.max(0, Math.min(100, Number(elFreeAlpha.value||0))); elFreeAlphaSlider.value = v; });
+
+async function fetchFearGreed(){
+  const res = await fetch('https://api.alternative.me/fng/?limit=1');
+  const j = await res.json();
+  const v = Number(j?.data?.[0]?.value || j?.data?.[0]?.value_float || 0);
+  return { indicator_name:'Fear & Greed', current_value: v, target_value: 80, comparison_type: '>=', hit_status: v>=80 };
+}
+async function fetchFundingAvg(){
+  const res = await fetch('https://fapi.binance.com/fapi/v1/fundingRate?symbol=BTCUSDT&limit=36');
+  const j = await res.json();
+  if (!Array.isArray(j)) return { indicator_name:'Funding (8h)', current_value: '—', target_value: 0.0005, comparison_type: '>=', hit_status: false };
+  const vals = j.map(x=>Math.abs(Number(x.fundingRate||0)));
+  const avg = vals.reduce((a,b)=>a+b,0) / (vals.length||1);
+  return { indicator_name:'Funding (avg |36 obs)', current_value: avg, target_value: 0.0005, comparison_type: '>=', hit_status: avg>=0.0005 };
+}
+async function fetchKlines(){
+  const res = await fetch('https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=1200');
+  const j = await res.json();
+  const closes = j.map(r=>Number(r[4]));
+  const highs = j.map(r=>Number(r[2]));
+  return { closes, highs };
+}
+
+
+// v61: network helpers (timeout + concurrent race) - pure JS (no extra <script> tags)
+function fetchWithTimeout(resource, options = {}){
+  const { timeout = 8000 } = options;
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  return fetch(resource, { ...options, signal: controller.signal }).finally(() => clearTimeout(id));
+}
+async function fetchJsonRace(urls, timeout = 8000){
+  const attempts = urls.map(u =>
+    fetchWithTimeout(u, { cache:'no-store', timeout })
+      .then(r => r.text())
+      .then(t => JSON.parse(t))
+  );
+  return (Promise.any ? Promise.any(attempts) : new Promise((resolve, reject)=>{
+    let errs = 0, N = attempts.length;
+    attempts.forEach(p => p.then(resolve).catch(()=>{ if(++errs===N) reject(new Error('all failed')); }));
+  }));
+}
+
+
+async function fetchCBBI(){
+  try{
+    const url = 'https://r.jina.ai/http://colintalkscrypto.com/cbbi/data/latest.json';
+    const txt = await fetch(url, { cache:'no-store' }).then(r=>r.text());
+    const j = JSON.parse(txt);
+    const series = (j && j.CBBI && typeof j.CBBI==='object') ? j.CBBI : j;
+    const keys = Object.keys(series||{});
+    if (!keys.length) return { indicator_name:'CBBI (confidence)', current_value:null, source:url };
+    const last = keys.sort().pop();
+    const val = Number(series[last]);
+    return { indicator_name:'CBBI (confidence)', current_value: (isFinite(val)?val:null), source:url };
+  }catch(_){
+    return { indicator_name:'CBBI (confidence)', current_value:null };
+  }
+}
+// Map CBBI confidence (0..100) -> subscore (contrarian: bas = bon)
+// low confidence → haut score
+function mapCBBIToScore(val){ return (typeof val==='number') ? scalePiecewise(val, [[0,100],[20,90],[40,70],[60,40],[80,15],[100,5]]) : null; }
+
+// Optional adapters (MVRV-Z & BMO) via custom URLs or API keys
+async function fetchMvrvZ(){
+  try{
+    if (window.MVRVZ_URL){
+      const r = await fetch(window.MVRVZ_URL, {cache:'no-store'});
+      // accept CSV or JSON time series {date,value} or {timestamp:value}
+      const txt = await r.text();
+      let val = null;
+      if (txt.trim().startsWith('{') || txt.trim().startsWith('[')){
+        const j = JSON.parse(txt);
+        if (Array.isArray(j)){
+          const last = j[j.length-1];
+          val = (last.value ?? last.z ?? last[1] ?? null);
+        } else {
+          const keys = Object.keys(j).sort();
+          val = Number(j[keys[keys.length-1]]);
+        }
+      } else {
+        // CSV: find last non-empty line; assume last column is the value
+        const lines = txt.trim().split(/\r?\n/).filter(Boolean);
+        const last = lines[lines.length-1].split(',');
+        val = Number(last[last.length-1]);
+      }
+      return { indicator_name:'MVRV Z-Score', current_value: val, target_value: 6.0, comparison_type: '>=', hit_status: (val||0) >= 6.0 };
+    }
+    // Glassnode (requires API key): uncomment & set window.GLASSNODE_API_KEY
+    // const gn = await fetch('https://api.glassnode.com/v1/metrics/market/mvrv_z_score?a=BTC&i=24h&api_key='+window.GLASSNODE_API_KEY);
+    // const arr = await gn.json(); const last = arr[arr.length-1]; const val = last.v;
+    return { indicator_name:'MVRV Z-Score', current_value: null, target_value: 6.0, comparison_type: '>=', hit_status: false };
+  }catch(e){
+    return { indicator_name:'MVRV Z-Score', current_value: null, target_value: 6.0, comparison_type: '>=', hit_status: false, error:(e?.message||String(e)) };
+  }
+}
+// Map MVRV-Z -> subscore (contrarian): bas → bon
+function mapMVRVZToScore(z){ return (typeof z==='number') ? scalePiecewise(z, [[-1.0,95],[0.0,90],[1.0,80],[2.0,60],[3.0,40],[5.0,10],[7.0,5]]) : null; }
+
+async function fetchBMO(){
+  try{
+    if (window.BMO_URL){
+      const r = await fetch(window.BMO_URL, {cache:'no-store'});
+      const txt = await r.text();
+      let val = null;
+      if (txt.trim().startsWith('{') || txt.trim().startsWith('[')){
+        const j = JSON.parse(txt);
+        if (Array.isArray(j)){
+          const last = j[j.length-1];
+          val = Number(last.value ?? last.bmo ?? last[1] ?? null);
+        } else {
+          const keys = Object.keys(j).sort();
+          val = Number(j[keys[keys.length-1]]);
+        }
+      } else {
+        const lines = txt.trim().split(/\r?\n/).filter(Boolean);
+        const last = lines[lines.length-1].split(',');
+        val = Number(last[last.length-1]);
+      }
+      return { indicator_name:'Bitcoin Macro Oscillator (BMO)', current_value: val, target_value: 80, comparison_type: '>=', hit_status: (val||0) >= 80 };
+    }
+    return { indicator_name:'Bitcoin Macro Oscillator (BMO)', current_value: null, target_value: 80, comparison_type: '>=', hit_status: false };
+  }catch(e){
+    return { indicator_name:'Bitcoin Macro Oscillator (BMO)', current_value: null, target_value: 80, comparison_type: '>=', hit_status: false, error:(e?.message||String(e)) };
+  }
+}
+// Generic mapping for BMO if scaled 0..100 (contrarian)
+function mapBMOToScore(v){ return (typeof v==='number') ? scalePiecewise(v, [[0,95],[30,80],[50,55],[70,30],[90,10],[100,5]]) : null; }
+
+function SMA(arr, n){ if (arr.length < n) return null; let s=0; for (let i=arr.length-n;i<arr.length;i++) s+=arr[i]; return s/n; }
+function EMA(arr, n){ const k = 2/(n+1); if (arr.length < n) return null; let ema = SMA(arr.slice(0,n), n); for (let i=n;i<arr.length;i++){ ema = arr[i]*k + ema*(1-k);} return ema; }
+function stdev(arr){ const m = arr.reduce((a,b)=>a+b,0)/(arr.length||1); const v = arr.reduce((a,b)=>a+(b-m)*(b-m),0)/(arr.length||1); return Math.sqrt(v); }
+function toLogReturns(arr){ const out=[]; for (let i=1;i<arr.length;i++){ const r = Math.log(arr[i]/arr[i-1]); if (Number.isFinite(r)) out.push(r); } return out; }
+
+function scalePiecewise(x, points){ // points: [ [x,y], ... ] x ascending
+  if (x<=points[0][0]) return points[0][1];
+  for (let i=1;i<points.length;i++){
+    const [x0,y0] = points[i-1], [x1,y1] = points[i];
+    if (x<=x1){ const t = (x - x0)/(x1 - x0); return y0 + t*(y1 - y0); }
+  }
+  return points[points.length-1][1];
+}
+
+function mapFGToScore(fg){ return scalePiecewise(fg, [[0,100],[50,60],[70,30],[90,5],[100,0]]); }
+function mapMMToScore(mm){ return scalePiecewise(mm, [[0.5,100],[0.8,95],[1.0,70],[1.5,30],[2.0,10],[2.5,0]]); }
+function mapPiToScore(piDist){ return scalePiecewise(piDist, [[0.6,95],[0.8,80],[1.0,40],[1.05,20],[1.10,5]]); }
+function mapFundingToScore(f){ return scalePiecewise(f, [[0.0000,90],[0.0005,60],[0.0010,30],[0.0020,5]]); }
+function mapDDToScore(dd){ return scalePiecewise(dd, [[0.00,5],[0.20,30],[0.50,70],[0.80,95],[0.90,100]]); }
+function mapVolToScore(vol){ return scalePiecewise(vol, [[0.30,80],[0.50,60],[0.80,35],[1.20,15],[1.80,5]]); }
+
+let lastFreeData = null;
+let CCS_CONFIG = [
+    { key:'cbbi', name:'CBBI (confidence)', included:true, weight:15, value:null, subscore:null },
+  { key:'fg', name:'Fear & Greed', included:true, weight:20, value:null, subscore:null },
+  { key:'mm', name:'Mayer Multiple', included:true, weight:20, value:null, subscore:null },
+  { key:'pi', name:'Pi Cycle (EMA111 / 2×SMA350)', included:true, weight:20, value:null, subscore:null },
+  { key:'fund', name:'Funding (avg |36 obs)', included:true, weight:10, value:null, subscore:null },
+  { key:'dd', name:'Drawdown depuis ATH', included:true, weight:20, value:null, subscore:null },
+  { key:'vol', name:'Volatilité 30j annualisée', included:true, weight:10, value:null, subscore:null },
+
+  { key:'ssr', name:'Stablecoin Supply Ratio (SSR)', included:true, weight:15, value:null, subscore:null },
+  { key:'dom', name:'BTC dominance (CoinGecko)', included:true, weight:10, value:null, subscore:null },
+  { key:'act', name:'Active addresses', included:true, weight:10, value:null, subscore:null },
+];
+
+async function loadFree(){
+  elFreeStatus.textContent = "Chargement…";
+  try{
+    const [fg, fund, kl, cbbi, mvrvz, bmo] = await Promise.all([fetchFearGreed(), fetchFundingAvg(), fetchKlines(), fetchCBBI(), fetchMvrvZ(), fetchBMO()]);
+    const closes = kl.closes;
+    const last = closes[closes.length-1];
+    const sma200 = SMA(closes, 200);
+    const mayer = (sma200 ? (last / sma200) : null);
+    const sma350 = SMA(closes, 350);
+    const ema111 = EMA(closes, 111);
+    const piDist = (ema111!=null && sma350!=null) ? (ema111/(2*sma350)) : null;
+    const ath = Math.max(...closes);
+    const dd = (ath>0) ? ((ath - last)/ath) : null;
+    const rets = toLogReturns(closes);
+    const last30 = rets.slice(-30);
+    const vol30a = (last30.length ? stdev(last30) * Math.sqrt(365) : null);
+
+    
+    // Set CCS_CONFIG values/subscores for new indicators
+    const conf = (name)=>CCS_CONFIG.find(c=>c.key===name);
+    const c_cbbi = conf('cbbi'); if (c_cbbi){ c_cbbi.value = (cbbi && typeof cbbi.current_value==='number') ? cbbi.current_value : null; c_cbbi.subscore = mapCBBIToScore(c_cbbi.value); }
+    const c_mz = conf('mvrvz'); if (c_mz){ c_mz.value = (mvrvz && typeof mvrvz.current_value==='number') ? mvrvz.current_value : null; c_mz.subscore = mapMVRVZToScore(c_mz.value); }
+    const c_bmo = conf('bmo'); if (c_bmo){ c_bmo.value = (bmo && typeof bmo.current_value==='number') ? bmo.current_value : null; c_bmo.subscore = mapBMOToScore(c_bmo.value); }
+// Fill config values + subscores
+    for (const c of CCS_CONFIG){
+      if (c.key==='fg'){ c.value = fg.current_value; c.subscore = mapFGToScore(c.value); }
+      if (c.key==='mm'){ c.value = mayer; c.subscore = mayer!=null ? mapMMToScore(mayer) : null; }
+      if (c.key==='pi'){ c.value = piDist; c.subscore = piDist!=null ? mapPiToScore(piDist) : null; }
+      if (c.key==='fund'){ c.value = fund.current_value; c.subscore = mapFundingToScore(Math.abs(c.value||0)); }
+      if (c.key==='dd'){ c.value = dd; c.subscore = dd!=null ? mapDDToScore(dd) : null; }
+      if (c.key==='vol'){ c.value = vol30a; c.subscore = vol30a!=null ? mapVolToScore(vol30a) : null; }
+    }
+    renderFreeTable([fg, fund, {indicator_name:'Mayer Multiple', current_value:mayer, target_value:2.0, comparison_type:'>=', hit_status:(mayer||0)>=2.0},
+                              {indicator_name:'Pi Cycle (EMA111 / 2×SMA350)', current_value:piDist, target_value:1.0, comparison_type:'>=', hit_status:(piDist||0)>=1.0},
+                              {indicator_name:'Drawdown depuis ATH', current_value:dd, target_value:0.50, comparison_type:'>=', hit_status:(dd||0)>=0.5},
+                              {indicator_name:'Volatilité 30j annualisée', current_value:vol30a, target_value:1.0, comparison_type:'>=', hit_status:(vol30a||0)>=1.0} , cbbi, mvrvz, bmo]);
+    elFreeStatus.innerHTML = `✅ Signaux chargés. Modifie les poids/checkbox puis regarde le score.`;
+    renderWeightsTable();
+    computeAndShowCCS();
+    previewFree(); // draw initial target preview
+  }catch(e){
+    elFreeStatus.textContent = "❌ Erreur de chargement : " + (e?.message || e);
+  }
+}
+
+// Generic table renderer for signal arrays (safe, read-only)
+function renderSignalTable(container, rows){
+  if (!container){ return; }
+  const table = document.createElement('table');
+  table.innerHTML = `<thead><tr>
+    <th>Indicateur</th>
+    <th class="right">Valeur</th>
+    <th class="right">Seuil</th>
+    <th>Type</th>
+    <th>Actif</th>
+  </tr></thead>`;
+  const tbody = document.createElement('tbody');
+  for (const r of rows){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${r.name ?? '—'}</td>
+      <td class="right">${r.value ?? '—'}</td>
+      <td class="right">${r.target ?? '—'}</td>
+      <td>${r.ctype ?? '—'}</td>
+      <td>${r.hit ? '✅' : '—'}</td>`;
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  container.innerHTML = '';
+  container.appendChild(table);
+}
+function renderFreeTable(arr){
+  if (!Array.isArray(arr)) { elFreeTableWrap.innerHTML=''; return; }
+  const rows = arr.map(r => {
+    // format value
+    let val = r.current_value;
+    if (typeof val === 'number'){
+      if ((r.indicator_name||'').includes('Volatilité')) val = (val*100).toFixed(1)+'%';
+      else if ((r.indicator_name||'').includes('Drawdown')) val = (val*100).toFixed(1)+'%';
+      else val = Number(r.current_value).toFixed(4);
+    }
+    // format target
+    let tgt = r.target_value;
+    if (typeof tgt === 'number'){
+      if ((r.indicator_name||'').includes('Volatilité') || (r.indicator_name||'').includes('Drawdown')) tgt = (tgt*100).toFixed(1)+'%';
+      else tgt = tgt.toFixed(4);
+    }
+    return {
+      name: r.indicator_name || r.name,
+      value: val,
+      target: tgt,
+      ctype: r.comparison_type || r.type,
+      hit: !!(r.hit_status ?? r.hit)
+    };
+  });
+  renderSignalTable(elFreeTableWrap, rows);
+}
+
+function renderWeightsTable(){
+  const table = document.createElement('table');
+  table.innerHTML = `<thead><tr><th>Signal</th><th class="right">Valeur</th><th class="right">Score (0–100)</th><th>Inclure</th><th class="right">Poids %</th></tr></thead>`;
+  const tbody = document.createElement('tbody');
+  for (const c of CCS_CONFIG){
+    const tr = document.createElement('tr');
+    const valStr = (c.value==null) ? '—' : (c.key==='vol'||c.key==='dd' ? ( (c.value*100).toFixed(1)+'%' ) : (typeof c.value==='number'? c.value.toFixed(4):c.value));
+    tr.innerHTML = `<td>${c.name}</td><td class="right">${valStr}</td><td class="right">${c.subscore!=null ? c.subscore.toFixed(1) : '—'}</td>`;
+    const tdInc = document.createElement('td');
+    const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = c.included;
+    cb.addEventListener('change', ()=>{ c.included = cb.checked; computeAndShowCCS(); });
+    tdInc.appendChild(cb); tr.appendChild(tdInc);
+    const tdW = document.createElement('td'); tdW.className='right';
+    const inp = document.createElement('input'); inp.type='number'; inp.step='1'; inp.min='0'; inp.value = c.weight;
+    inp.addEventListener('change', ()=>{ const v = Math.max(0, Number(inp.value||0)); c.weight = v; computeAndShowCCS(); });
+    tdW.appendChild(inp); tr.appendChild(tdW);
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  elWeightsTableWrap.innerHTML=''; elWeightsTableWrap.appendChild(table);
+}
+function computeAndShowCCS(){
+  const active = CCS_CONFIG.filter(c=>c.included && c.subscore!=null);
+  const wsum = active.reduce((a,b)=>a+(b.weight||0),0) || 1;
+  let ccs = 0;
+  for (const c of active){ const w = (c.weight||0)/wsum; ccs += w * c.subscore; }
+  window.__lastCCS = ccs;
+  drawGauge(ccs);
+  explainCCS(ccs);
+  return ccs;
+}
+function drawGauge(ccs){
+  const zone = [
+    {range:[0,30], color:'#fca5a5'},
+    {range:[30,40], color:'#fdba74'},
+    {range:[40,70], color:'#fde68a'},
+    {range:[70,85], color:'#bbf7d0'},
+    {range:[85,100], color:'#86efac'}
+  ];
+  const data = [{
+    type:'indicator', mode:'gauge+number', value: ccs,
+    number:{ valueformat: '.1f' },
+    gauge:{
+      axis:{ range:[0,100] },
+      steps: zone
+    },
+    title:{ text:'Composite Cycle Score' }
+  }];
+  const layout = { margin:{l:10,r:10,t:20,b:10}, paper_bgcolor:'rgba(0,0,0,0)', font:{ color: (THEME==='dark' ? '#e5e7eb' : '#0f172a') } };
+  Plotly.newPlot(elCcsGauge, data, layout, {displayModeBar:false});
+}
+function explainCCS(ccs){
+  let phase = '', advice='';
+  if (ccs < 30){ phase='🔥 Euphorie / fin de cycle'; advice='Mode défensif: augmenter stablecoins, réduire memecoins/long tail, alléger alt L1.'; }
+  else if (ccs < 40){ phase='⚠️ Zone chaude'; advice='Réduire le risque progressivement, resserrer stops et cibles.'; }
+  else if (ccs < 70){ phase='🙂 Neutre / milieu de cycle'; advice='Allocation équilibrée.'; }
+  else if (ccs < 85){ phase='🌱 Impulsion haussière'; advice='Tilt pro-croissance mesuré (majors + Solana/ETH).'; }
+  else { phase='🧊 Accumulation / Capitulation passée'; advice='Tilt pro-croissance plus marqué, réduire les stables.'; }
+  elCcsExplain.innerHTML = `<b>Phase probable :</b> ${phase}<br/><b>Lecture :</b> ${ccs.toFixed(1)} / 100<br/><span class="muted">${advice}</span>`;
+}
+
+function applyFreeToTargetsFromCCS(base, ccs, alpha){
+  let mults;
+  if (ccs < 40){
+    mults = {"Bitcoin stack":1.05,"Ethereum stack (L1 + LST/LRT)":0.95,"Solana stack (L1 + LST)":0.85,"BNB":0.95,"XRP":0.95,"Other L1/L0 majors":0.80,"Memecoins (majors)":0.40,"Long tail / Others":0.60,"Stablecoins USD/EUR":1.40};
+  } else if (ccs < 70){
+    mults = {"Bitcoin stack":1.05,"Ethereum stack (L1 + LST/LRT)":1.05,"Solana stack (L1 + LST)":1.05,"BNB":1.00,"XRP":1.00,"Other L1/L0 majors":1.00,"Memecoins (majors)":0.80,"Long tail / Others":0.90,"Stablecoins USD/EUR":1.05};
+  } else {
+    mults = {"Bitcoin stack":1.15,"Ethereum stack (L1 + LST/LRT)":1.20,"Solana stack (L1 + LST)":1.35,"BNB":1.15,"XRP":1.10,"Other L1/L0 majors":1.25,"Memecoins (majors)":1.60,"Long tail / Others":1.25,"Stablecoins USD/EUR":0.70};
+  }
+  const a = Math.max(0, Math.min(1, alpha));
+  const out = {}; for (const k of Object.keys(base)) { const m = mults[k] ?? 1; out[k] = base[k] * (1 + a*(m-1)); }
+  return normalizeTargets(out);
+}
+function previewFree(){
+  const base = normalizeTargets(TARGETS);
+  const a = Number(elFreeAlphaSlider.value||0)/100;
+  const ccs = computeAndShowCCS();
+  const newT = applyFreeToTargetsFromCCS(base, ccs, a);
+  const fams = Object.keys(newT); const pcts = fams.map(f=>newT[f]);
+  Plotly.newPlot(elFreePie, [pieTrace(fams, pcts)], { ...plotLayout('Aperçu cible (CCS)'), height:320, title:'Aperçu cible (CCS)' }, {displayModeBar:false});
+  return newT;
+}
+
+elBtnFreeFetch.addEventListener('click', loadFree);
+elBtnFreePreview.addEventListener('click', ()=>{ if (CCS_CONFIG.some(c=>c.value!=null)) previewFree(); });
+elBtnFreeApply.addEventListener('click', ()=>{ if (CCS_CONFIG.some(c=>c.value!=null)){ TARGETS = previewFree(); renderTargets(); renderAllExceptTargets(); }});
+
+// ---------- CoinGlass block (clé) ----------
+(function initCg(){
+  const saved = localStorage.getItem('CG_API_KEY'); if (saved) { elCgKey.value = saved; elCgRemember.checked = true; }
+
+  elBtnCgDoc.addEventListener('click', ()=> window.open('https://docs.coinglass.com/reference/bull-market-peak-indicator','_blank'));
+  elCgAlphaSlider.addEventListener('input', ()=>{ elCgAlpha.value = Number(elCgAlphaSlider.value); });
+  elCgAlpha.addEventListener('input', ()=>{ let v = Math.max(0, Math.min(100, Number(elCgAlpha.value||0))); elCgAlphaSlider.value = v; });
+
+  async function fetchCoinglass(){
+    elCgStatus.textContent = "Chargement…";
+    try{
+      const key = (elCgKey.value||'').trim();
+      if (!key){ elCgStatus.textContent = "⛔ Clé API manquante."; return; }
+      const res = await fetch('https://open-api-v4.coinglass.com/api/bull-market-peak-indicator', { headers: { 'accept':'application/json', 'CG-API-KEY': key }});
+      if (!res.ok){ const txt = await res.text(); throw new Error('HTTP '+res.status+' — '+txt.slice(0,160)); }
+      const json = await res.json();
+      const arr = json?.data || json?.Data || [];
+      if (!Array.isArray(arr) || !arr.length){ elCgStatus.textContent = "Aucun indicateur retourné."; elCgTableWrap.innerHTML=''; return; }
+      renderCgTable(arr);
+      elCgStatus.innerHTML = `✅ ${arr.filter(x=>x.hit_status===true || x.hit===true).length}/${arr.length} signaux <b>activés</b>.`;
+      if (elCgRemember.checked) localStorage.setItem('CG_API_KEY', key); else localStorage.removeItem('CG_API_KEY');
+      return arr;
+    }catch(err){
+      elCgStatus.innerHTML = "❌ Erreur API/CORS : "+ (err?.message || err);
+      return null;
+    }
+  }
+  function renderCgTable(arr){
+    const table = document.createElement('table');
+    table.innerHTML = `<thead><tr><th>Indicateur</th><th class="right">Valeur</th><th class="right">Seuil</th><th>Type</th><th>Actif</th></tr></thead>`;
+    const tbody = document.createElement('tbody');
+    for (const r of arr){
+      const name = r.indicator_name || r.indicName || r.name || '—';
+      const val = r.current_value ?? r.currentValue ?? '—';
+      const tgt = r.target_value ?? r.targetValue ?? '—';
+      const typ = r.comparison_type ?? r.type ?? '—';
+      const hit = (r.hit_status ?? r.hit) ? '✅' : '—';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${name}</td><td class="right">${val}</td><td class="right">${tgt}</td><td>${typ}</td><td>${hit}</td>`;
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    elCgTableWrap.innerHTML=''; elCgTableWrap.appendChild(table);
+  }
+
+  function applySignalsToTargets(base, arr, alpha){
+    const hits = arr.filter(x=>x.hit_status===true || x.hit===true).length;
+    const total = arr.length || 1;
+    const hr = hits/total;
+    let mults;
+    if (hr < 0.2){
+      mults = {"Bitcoin stack":1.05,"Ethereum stack (L1 + LST/LRT)":1.25,"Solana stack (L1 + LST)":1.60,"BNB":1.20,"XRP":1.20,"Other L1/L0 majors":1.45,"Memecoins (majors)":2.00,"Long tail / Others":1.60,"Stablecoins USD/EUR":0.85};
+    } else if (hr < 0.4){
+      mults = {"Bitcoin stack":1.10,"Ethereum stack (L1 + LST/LRT)":1.30,"Solana stack (L1 + LST)":1.80,"BNB":1.20,"XRP":1.25,"Other L1/L0 majors":1.60,"Memecoins (majors)":2.40,"Long tail / Others":1.70,"Stablecoins USD/EUR":0.85};
+    } else if (hr < 0.6){
+      mults = {"Bitcoin stack":1.10,"Ethereum stack (L1 + LST/LRT)":1.10,"Solana stack (L1 + LST)":1.10,"BNB":1.05,"XRP":1.05,"Other L1/L0 majors":1.10,"Memecoins (majors)":1.20,"Long tail / Others":1.10,"Stablecoins USD/EUR":1.00};
+    } else {
+      mults = {"Bitcoin stack":1.20,"Ethereum stack (L1 + LST/LRT)":0.95,"Solana stack (L1 + LST)":0.80,"BNB":0.90,"XRP":0.90,"Other L1/L0 majors":0.70,"Memecoins (majors)":0.40,"Long tail / Others":0.60,"Stablecoins USD/EUR":1.50};
+    }
+    const a = Math.max(0, Math.min(1, alpha));
+    const out = {}; for (const k of Object.keys(base)) { const m = mults[k] ?? 1; out[k] = base[k] * (1 + a*(m-1)); }
+    return normalizeTargets(out);
+  }
+
+  function previewFrom(arr){
+    const base = normalizeTargets(TARGETS);
+    const a = Number(elCgAlphaSlider.value||0)/100;
+    const newT = applySignalsToTargets(base, arr, a);
+    const fams = Object.keys(newT); const pcts = fams.map(f=>newT[f]);
+    Plotly.newPlot(elCgPie, [pieTrace(fams, pcts)], { ...plotLayout('Aperçu cible (signaux)'), height:320, title:'Aperçu cible (signaux)' }, {displayModeBar:false});
+    return newT;
+  }
+
+  let lastCgData = null;
+  elBtnCgFetch.addEventListener('click', async ()=>{ lastCgData = await fetchCoinglass(); if (lastCgData) previewFrom(lastCgData); });
+  elBtnCgPreview.addEventListener('click', ()=>{ if (lastCgData) previewFrom(lastCgData); });
+  elBtnCgApply.addEventListener('click', ()=>{ if (lastCgData){ TARGETS = previewFrom(lastCgData); renderTargets(); renderAllExceptTargets(); }});
+})();
+
+// ---------- Custom JSON ----------
+document.getElementById('btnCustomLoad').addEventListener('click', ()=>{
+  try{ const json = JSON.parse(document.getElementById('customJson').value||'{}'); const arr = json?.data || json || []; if (!Array.isArray(arr) || !arr.length) throw new Error('JSON vide/incorrect');
+    renderCustomTable(arr); window.__CUSTOM_SIGNALS = arr;
+  }catch(e){ alert('JSON invalide: '+e.message); }
+});
+document.getElementById('btnCustomApply').addEventListener('click', ()=>{
+  const arr = window.__CUSTOM_SIGNALS || []; if (!arr.length) return;
+  const base = normalizeTargets(TARGETS); const a = 0.6;
+  const newT = (function(){
+    const hits = arr.filter(x=>x.hit_status===true || x.hit===true).length; const total = arr.length||1; const hr = hits/total;
+    let mults = (hr < 0.4) ? {"Bitcoin stack":1.10,"Ethereum stack (L1 + LST/LRT)":1.30,"Solana stack (L1 + LST)":1.80,"BNB":1.20,"XRP":1.25,"Other L1/L0 majors":1.60,"Memecoins (majors)":2.40,"Long tail / Others":1.70,"Stablecoins USD/EUR":0.85}
+                           : {"Bitcoin stack":1.20,"Ethereum stack (L1 + LST/LRT)":0.95,"Solana stack (L1 + LST)":0.80,"BNB":0.90,"XRP":0.90,"Other L1/L0 majors":0.70,"Memecoins (majors)":0.40,"Long tail / Others":0.60,"Stablecoins USD/EUR":1.50};
+    const out = {}; for (const k of Object.keys(base)) out[k] = base[k] * (1 + a*((mults[k]??1)-1)); return normalizeTargets(out);
+  })();
+  TARGETS = newT; renderTargets(); renderAllExceptTargets();
+});
+function renderCustomTable(arr){
+  const wrap = document.getElementById('customTableWrap'); const table = document.createElement('table');
+  table.innerHTML = `<thead><tr><th>Indicateur</th><th class="right">Valeur</th><th class="right">Seuil</th><th>Type</th><th>Actif</th></tr></thead>`;
+  const tbody = document.createElement('tbody');
+  for (const r of arr){ const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${r.indicator_name||r.indicName||r.name||'—'}</td><td class="right">${r.current_value ?? r.currentValue ?? '—'}</td><td class="right">${r.target_value ?? r.targetValue ?? '—'}</td><td>${r.comparison_type ?? r.type ?? '—'}</td><td>${(r.hit_status ?? r.hit) ? '✅':'—'}</td>`;
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody); wrap.innerHTML=''; wrap.appendChild(table);
+}
+
+// ---------- Export ----------
+document.getElementById("btnPDF").addEventListener("click", async ()=>{
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+  const sections = Array.from(document.getElementById("root").querySelectorAll("[data-print='section']"));
+  const a4w = 595.28, margin = 18;
+  for (let i=0;i<sections.length;i++) {
+    const body = sections[i].querySelector('.sec-body');
+    if (body && body.style.display === 'none') continue;
+    const node = sections[i];
+    node.style.background = "#ffffff";
+    const canvas = await html2canvas(node, { scale: 2, useCORS:true, backgroundColor:"#fff" });
+    const img = canvas.toDataURL("image/png");
+    const w = a4w - margin*2;
+    const h = (canvas.height * w) / canvas.width;
+    if (i>0) pdf.addPage();
+    pdf.addImage(img, "PNG", margin, margin, w, h);
+  }
+  pdf.save("Rapport_Crypto_"+new Date().toISOString().slice(0,10)+".pdf");
+});
+
+// ---------- Init ----------
+function renderAllExceptTargets() { renderPies(); renderPlan(); renderScenarioTable(); }
+function renderAll() { renderPies(); renderTargets(); renderPlan(); renderScenarioEditor(); renderScenarioTable(); }
+
+(function(){
+  renderCycleChart();
+  initCycleControls();
+  __READY = true;
+})();
+
+// Helper: cycle score from months after halving (scaled 0..100)
+function cycleScoreFromMonths(m){
+  const x = Math.max(-12, Math.min(36, Number(m)||0));
+  function lerp(x1,y1,x2,y2,x){ return y1 + (y2-y1)*((x-x1)/(x2-x1)); }
+  if (x <= -12) return 75;
+  if (x <= -6)  return lerp(-12,75, -6,85, x);
+  if (x <= 0)   return lerp(-6,85,  0,90, x);
+  if (x <= 3)   return lerp(0,90, 3,85, x);
+  if (x <= 6)   return lerp(3,85, 6,80, x);
+  if (x <= 12)  return lerp(6,80, 12,70, x);
+  if (x <= 18)  return lerp(12,70, 18,58, x);
+  if (x <= 24)  return lerp(18,58, 24,42, x);
+  if (x <= 30)  return lerp(24,42, 30,25, x);
+  if (x <= 36)  return lerp(30,25, 36,12, x);
+  return 12;
+}
+
+/* removed legacy block: /* --- Auto-preview: cycle sliders trigger unified */
+;
+
+</script>
+<script>
+/* removed legacy block: /* removed legacy block: /* removed legacy block: /* removed legacy block: /* ==== Minimal fast patch (safe) ==== */
+;
+</script>
+<script>/* ==== Direct live preview for cycle (no button click) ==== */
+(function(){
+  function debounce(fn, wait){ var t=null; return function(){ var ctx=this, args=arguments; clearTimeout(t); t=setTimeout(function(){ fn.apply(ctx,args); }, wait); }; }
+
+  async function previewCycleDirect(){
+    if (typeof Plotly==='undefined' || !Plotly.newPlot) { setTimeout(previewCycleDirect, 120); return; }
+    try{
+      var months = Number((document.getElementById('cycleSlider')||{}).value||0);
+      var wCycle = (Number((document.getElementById('cycleAlphaSlider')||{value:60}).value||60)/100);
+      var aAlloc = (Number((document.getElementById('freeAlphaSlider')||{value:60}).value||60)/100);
+      var base = (typeof normalizeTargets==='function') ? normalizeTargets(TARGETS) : TARGETS;
+
+      var cycleScore = (typeof cycleScoreFromMonths==='function') ? cycleScoreFromMonths(months) : 60;
+      var ccsExt = 50;
+      try{
+        ccsExt = (typeof computeAndShowCCS==='function') ? computeAndShowCCS() : (window.__lastCCS || 50);
+      }catch(_){ ccsExt = window.__lastCCS || 50; }
+
+      var ccsStar = (1 - wCycle) * ccsExt + wCycle * cycleScore;
+      window.__CYCLE_SCORE__ = cycleScore;
+      window.__CCS_STAR__ = ccsStar;
+
+      var targets = (typeof applyFreeToTargetsFromCCS==='function') ? applyFreeToTargetsFromCCS(base, ccsStar, aAlloc) : base;
+      var fams = Object.keys(targets);
+      var pcts = fams.map(function(f){ return targets[f]; });
+
+      var div = document.getElementById('cyclePie');
+      if (!div) return;
+      var trace = [pieTrace(fams, pcts)];
+      var layout = Object.assign({}, plotLayout('Aperçu cible'), {height:340, title:'Aperçu cible (CCS* — cycle intégré)'});
+      if (div.data) { Plotly.react(div, trace, layout, {displayModeBar:false, responsive:true}); }
+      else { Plotly.newPlot(div, trace, layout, {displayModeBar:false, responsive:true}); }
+    }catch(e){ /* keep UI responsive on any error */ }
+  }
+
+  var fast = debounce(previewCycleDirect, 80);
+  function bind(id){ var el = document.getElementById(id); if (el){ el.addEventListener('input', fast, {passive:true}); } }
+  function init(){ bind('cycleSlider'); bind('cycleAlphaSlider'); bind('freeAlphaSlider'); previewCycleDirect(); }
+  if (document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', init); } else { init(); }
+})();</script>
+<script>
+// === Auto-load CCS external signals on page open ===
+(function(){
+  function ready(fn){ if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', fn); else fn(); }
+  function loadSignalsAuto(){
+    try{
+      if (typeof loadFree === 'function'){
+        var p = loadFree();
+        if (p && typeof p.then === 'function'){
+          p.then(function(){ try{ if (typeof computeAndShowCCS==='function') computeAndShowCCS(); }catch(_){} });
+        } else {
+          setTimeout(function(){ try{ if (typeof computeAndShowCCS==='function') computeAndShowCCS(); }catch(_){} }, 120);
+        }
+      } else {
+        try{ if (typeof computeAndShowCCS==='function') computeAndShowCCS(); }catch(_){}
+      }
+    }catch(e){ /* silent */ }
+  }
+  function waitReady(){
+    // Wait for Plotly and key functions to exist before autoload
+    if (typeof Plotly==='undefined' || !Plotly.newPlot || (typeof computeAndShowCCS!=='function' && typeof loadFree!=='function')){
+      return setTimeout(waitReady, 120);
+    }
+    loadSignalsAuto();
+  }
+  ready(waitReady);
+})();
+</script>
+<script>
+// === Ensure the Bitcoin Cycle + Halvings chart renders on load (with retries) ===
+(function(){
+  function ready(fn){ if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', fn); else fn(); }
+  function ensureCycleChart(){
+    try{
+      var div = document.getElementById('cycleChart');
+      if (!div) return;
+      if (typeof Plotly==='undefined' || !Plotly.newPlot || typeof renderCycleChart!=='function'){
+        return setTimeout(ensureCycleChart, 120);
+      }
+      // Draw once now
+      renderCycleChart();
+      // Draw again shortly (after layout/resizes/CCS load)
+      setTimeout(function(){ try{ renderCycleChart(); }catch(_){} }, 300);
+    }catch(e){ /*silent*/ }
+  }
+  ready(ensureCycleChart);
+})();
+</script>
+<script>
+// === Apply the *visible* cycle pie as TARGETS and refresh sections ===
+(function(){
+  function ready(fn){ if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', fn); else fn(); }
+
+  function pieDivToTargets(div){
+    // Read the Plotly pie currently shown in #cyclePie and convert to TARGETS (fractions 0..1)
+    if (!div || !div.data || !div.data.length) return null;
+    var d = div.data[0];
+    var labels = (d.labels || []).slice();
+    var values = (d.values || []).slice();
+    if (!labels.length || !values.length || labels.length !== values.length) return null;
+
+    // Values are percentages in the pie; convert to fractions and normalize just in case
+    var sum = values.reduce(function(a,b){ return a + Number(b||0); }, 0) || 0;
+    var out = {};
+    for (var i=0;i<labels.length;i++){
+      var v = Number(values[i]||0);
+      var frac = sum ? (v / sum) : 0;
+      out[String(labels[i])] = frac; // fraction 0..1
+    }
+    return out;
+  }
+
+  function refreshAll(){
+    try{ if (typeof renderPies === 'function') renderPies(); }catch(_){}
+    try{ if (typeof renderTargets === 'function') renderTargets(); }catch(_){}
+    try{ if (typeof renderPlan === 'function') renderPlan(); }catch(_){}
+    try{ if (typeof renderScenarioEditor === 'function') renderScenarioEditor(); }catch(_){}
+    try{ if (typeof renderScenarioTable === 'function') renderScenarioTable(); }catch(_){}
+  }
+
+  function applyVisibleCyclePieAsTargets(){
+    try{
+      var div = document.getElementById('cyclePie');
+      if (!div) return;
+      var t = pieDivToTargets(div);
+      if (!t) return;
+
+      // Persist into lexical TARGETS (not window.*), keeping all families
+      try{
+        var merged = {};
+        var keys = Object.keys(TARGETS || {});
+        // keep existing families, default to 0 if missing in t
+        keys.forEach(function(f){ merged[f] = (t.hasOwnProperty(f) ? t[f] : 0); });
+        // add any new families from t
+        Object.keys(t).forEach(function(f){ if (!(f in merged)) merged[f] = t[f]; });
+        // normalize to sum to 1
+        if (typeof normalizeTargets === 'function') merged = normalizeTargets(merged);
+        TARGETS = merged;
+      }catch(_){ TARGETS = t; }
+
+      // Optionally update any target inputs bound in the "2) Répartition..." section
+      try{
+        Object.keys(t).forEach(function(fam){
+          var el = document.querySelector('[data-target-family="'+fam+'"]');
+          if (el) el.value = (t[fam]*100).toFixed(2);
+        });
+      }catch(_){}
+
+      // Re-render all dependent sections (section 2, 3, 4)
+      refreshAll();
+    }catch(e){ /* ignore but keep UI responsive */ }
+  }
+
+  function bind(){
+    var btn = document.getElementById('btnCycleApply');
+    if (!btn) return;
+    btn.addEventListener('click', function(ev){
+      ev.preventDefault();
+      applyVisibleCyclePieAsTargets();
+    });
+  }
+
+  // Make sure Plotly and the cycle pie exist before enabling apply action
+  function waitReady(){
+    if (typeof Plotly==='undefined' || !Plotly.newPlot){
+      return setTimeout(waitReady, 100);
+    }
+    bind();
+  }
+
+  ready(waitReady);
+})();
+</script>
+<script>
+// === Plotly responsive resize manager ===
+(function(){
+  function debounce(fn, wait){ var t=null; return function(){ var c=this, a=arguments; clearTimeout(t); t=setTimeout(function(){ fn.apply(c,a); }, wait); }; }
+  function setHeight(div){
+    if (!div) return;
+    var w = div.clientWidth || (div.parentElement ? div.parentElement.clientWidth : 600) || 600;
+    var vh = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
+    var h;
+    if (div.id === 'cycleChart'){ h = Math.max(320, Math.min(0.48*vh, w*0.6)); }
+    else if (div.id === 'cyclePie'){ h = Math.max(260, Math.min(0.52*vh, w*0.9)); }
+    else { h = Math.max(260, Math.min(0.50*vh, w*0.7)); }
+    div.style.height = Math.round(h) + 'px';
+  }
+  
+function isDisplayed(el){
+  try { return !!(el && el.offsetParent !== null && el.clientWidth > 0 && el.clientHeight > 0); }
+  catch(e){ return false; }
+}
+function resizeAll(){
+
+    try{
+      var divs = document.querySelectorAll('.js-plotly-plot');
+      divs.forEach(function(d){ setHeight(d); if (window.Plotly && Plotly.Plots && Plotly.Plots.resize) if (isDisplayed(d)) Plotly.Plots.resize(d); });
+    }catch(e){}
+  }
+  var onResize = debounce(resizeAll, 120);
+  window.addEventListener('resize', onResize);
+  // after toggle of any section, give it time to open then resize
+  document.addEventListener('click', function(e){
+    var t = e.target;
+    if (t && t.classList && t.classList.contains('toggle-sec')){
+      setTimeout(resizeAll, 200);
+    }
+  });
+  if (document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', resizeAll); }
+  else { resizeAll(); }
+}
+)();
+</script><script>
+// === FREE-ONLY PACK: fetchers, mapping & config UI ===
+(function(){
+  // ---------- Helpers ----------
+  function pct(n, d){ n=Number(n||0); d=Number(d||0)||1; return (100*n/d).toFixed(2)+'%'; }
+  function clamp(x,a,b){ return Math.max(a, Math.min(b, x)); }
+  function ema(arr, period){
+    const k = 2/(period+1); let ema = arr[0]; const out=[ema];
+    for (let i=1;i<arr.length;i++){ ema = arr[i]*k + ema*(1-k); out.push(ema); }
+    return out;
+  }
+  function sma(arr, period){
+    const out=[]; let sum=0;
+    for (let i=0;i<arr.length;i++){ sum+=arr[i]; if (i>=period) sum-=arr[i-period]; out.push(i>=period-1? sum/period : null); }
+    return out;
+  }
+  function last(arr){ return arr && arr.length ? arr[arr.length-1] : null; }
+  function piece(x, pairs){ // pairs: [[x0,y0],[x1,y1],...], linear segments
+    if (x==null || isNaN(x)) return null;
+    for (let i=1;i<pairs.length;i++){ const [x0,y0]=pairs[i-1], [x1,y1]=pairs[i]; if (x<=x1){ const t=(x-x0)/(x1-x0); return y0 + t*(y1-y0); } }
+    return pairs[pairs.length-1][1];
+  }
+
+  // ---------- Public endpoints (free) ----------
+  async function fetchAltFG(){ // Alternative.me Fear & Greed
+    try{
+      const r = await fetch('https://api.alternative.me/fng/?limit=1&format=json',{cache:'no-store'});
+      const j = await r.json();
+      const v = Number(j?.data?.[0]?.value);
+      return { indicator_name:'Fear & Greed', current_value: v, source:'https://api.alternative.me/fng/' };
+    }catch(e){ return { indicator_name:'Fear & Greed', current_value:null, error:String(e), source:'https://api.alternative.me/fng/' }; }
+  }
+  async function fetchCBBI(){ // latest CBBI confidence
+    try{
+      const r = await fetch('https://colintalkscrypto.com/cbbi/data/latest.json',{cache:'no-store'});
+      const j = await r.json();
+      const ks = Object.keys(j).sort(); const v = Number(j[ks[ks.length-1]]);
+      return { indicator_name:'CBBI (confidence)', current_value: v, source:'https://colintalkscrypto.com/cbbi/data/latest.json' };
+    }catch(e){ return { indicator_name:'CBBI (confidence)', current_value:null, error:String(e), source:'https://colintalkscrypto.com/cbbi/' }; }
+  }
+  async function fetchBinanceKlines(days=600){
+    const url='https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit='+days;
+    const r = await fetch(url, {cache:'no-store'});
+    const a = await r.json(); // [ [openTime, open, high, low, close, ...], ... ]
+    const close = a.map(row=> Number(row[4]));
+    return { close, source:url };
+  }
+  async function fetchFundingHist(limit=1000){
+    const url='https://fapi.binance.com/fapi/v1/fundingRate?symbol=BTCUSDT&limit='+limit;
+    const r = await fetch(url, {cache:'no-store'});
+    const a = await r.json();
+    const vals = a.map(x=> Number(x.fundingRate));
+    return { vals, source:url };
+  }
+  async function fetchBCChart(name, span='3years'){
+    const url='https://api.blockchain.info/charts/'+name+'?timespan='+encodeURIComponent(span)+'&format=json&cors=true';
+    const r = await fetch(url, {cache:'no-store'});
+    const j = await r.json(); // {values:[{x:ts,y:val}, ...]}
+    const vals = (j?.values||[]).map(x=> Number(x.y));
+    return { vals, source:url };
+  }
+
+  // ---------- Derived indicators (free) ----------
+  function computePiCycle(close){
+    // ratio = EMA111 / (2*SMA350)
+    if (!close || close.length<360) return { ratio:null };
+    const ema111 = ema(close,111);
+    const sma350 = sma(close,350);
+    const r = ema111.map((v,i)=> (v!=null && sma350[i]!=null ? v/(2*sma350[i]) : null));
+    return { ratio: last(r), ema111:last(ema111), sma350:last(sma350) };
+  }
+  function computeMayer(close){
+    if (!close || close.length<200) return { mm:null };
+    const sma200 = sma(close,200);
+    const mm = last(close)/last(sma200);
+    return { mm, sma200:last(sma200), price:last(close) };
+  }
+  function mapContrarian(x, pairs){ return piece(x, pairs); } // high -> low score
+  function mapProTrend(x, pairs){ return piece(x, pairs); }   // high -> high score (capped)
+
+  // Scoring suggestions (piecewise)
+  function scorePiRatio(r){ return r==null? null : mapContrarian(r, [[0.6,90],[0.8,70],[1.0,35],[1.1,12],[1.2,5]]); }
+  function scoreMayer(mm){ return mm==null? null : mapContrarian(mm, [[0.8,85],[1.0,70],[1.5,30],[2.4,8]]); }
+  function scoreFunding(f){ // avg of last 36 obs (≈12 jours) en absolu
+    if (!Array.isArray(f) || !f.length) return null;
+    const k = Math.min(36, f.length);
+    const avg = f.slice(-k).reduce((a,b)=>a+Math.abs(b),0)/k;
+    return mapContrarian(avg, [[0.000,90],[0.015,60],[0.030,30],[0.060,8]]);
+  }
+  function scorePercentile(val, arr, proTrend=true){
+    if (val==null || !arr?.length) return null;
+    const xs = arr.slice(-365*2).filter(v=>v!=null).sort((a,b)=>a-b);
+    if (!xs.length) return null;
+    const p = clamp(xs.findIndex(v=>v>val)/xs.length, 0,1);
+    // proTrend: haut -> mieux (cap)
+    return proTrend ? piece(p, [[0,20],[0.5,60],[0.8,85],[0.95,92],[1,92]]) : piece(p, [[0,95],[0.2,85],[0.5,60],[0.8,30],[1,10]]);
+  }
+
+  // ---------- Config model ----------
+  // Extend CCS_CONFIG with free-only pack defaults (on by default)
+  if (typeof CCS_CONFIG==='undefined') window.CCS_CONFIG = [];
+  (function ensureFreePack(){
+    const have = k=> CCS_CONFIG.some(c=> c.key===k);
+    function add(k,name,weight,included,source){ if (!have(k)) CCS_CONFIG.push({key:k,name,weight,included,value:null,subscore:null,source}); }
+    add('fg',   'Fear & Greed',                      10, true,  'https://api.alternative.me/fng/');
+    add('cbbi', 'CBBI (confidence)',                 10, true,  'https://colintalkscrypto.com/cbbi/data/latest.json');
+    add('pi',   'Pi Cycle ratio (EMA111 / 2×SMA350)',10, true,  'https://api.binance.com/api/v3/klines');
+    add('mm','Mayer Multiple (Price / SMA200)',    5, true,  'https://api.binance.com/api/v3/klines');
+    add('fund', 'Funding rate (Binance Futures)',    10, true,  'https://fapi.binance.com/fapi/v1/fundingRate');
+    add('act',  'Active addresses (Blockchain.com)', 10, true,  'https://api.blockchain.info/charts/n-unique-addresses');
+    add('hash', 'Hash rate trend (MA30/MA60)',        5, true,  'https://api.blockchain.info/charts/hash-rate');
+    add('revm', 'Miners revenue (contrarian)',        5, true,  'https://api.blockchain.info/charts/miners-revenue');
+    add('fees', 'Transaction fees (network tension)', 5, true,  'https://api.blockchain.info/charts/transaction-fees');
+  })();
+
+  // Load persisted config
+  (function loadCfg(){
+    try{
+      const raw = localStorage.getItem('freePackCfg');
+      if (raw){
+        const saved = JSON.parse(raw);
+        CCS_CONFIG.forEach(c=>{
+          const s = saved.find(x=>x.key===c.key);
+          if (s){ c.included = !!s.included; c.weight = Number(s.weight)||c.weight; }
+        });
+      }
+    }catch(e){}
+  })();
+
+  // ---------- Fetch & compute ----------
+  
+async function loadFreePack(){
+  const idx = k => CCS_CONFIG.findIndex(c=>c.key===k);
+  function put(k, value, sub, src){
+    const i = idx(k);
+    if (i>=0){ CCS_CONFIG[i].value=value; CCS_CONFIG[i].subscore=sub; if (src) CCS_CONFIG[i].source=src; }
+  }
+
+  const tasks = {
+    fg:   fetchAltFG(),
+    cbbi: fetchCBBI(),
+    ssr:  fetchSSR(),
+    dom:  fetchDominance(),
+    kl:   fetchBinanceKlines(600),
+    fHist: fetchFundingHist(500),
+    act:  fetchBCChart('n-unique-addresses','1year'),
+    hash: fetchBCChart('hash-rate','1year'),
+    diff: fetchBCChart('difficulty','1year'),
+    rev:  fetchBCChart('miners-revenue','1year'),
+    fees: fetchBCChart('transaction-fees','1year')
+  };
+
+  try{
+    const settled = await Promise.allSettled([tasks.fg, tasks.kl, tasks.fHist]);
+    const fg    = settled[0].status==='fulfilled' ? settled[0].value : null;
+    const kl    = settled[1].status==='fulfilled' ? settled[1].value : null;
+    const fHist = settled[2].status==='fulfilled' ? settled[2].value : null;
+    if (kl && kl.close){
+      const pi  = computePiCycle(kl.close);
+      const may = computeMayer(kl.close);
+      put('pi',  pi.ratio, piece(pi.ratio, [[0.35,95],[0.45,90],[0.6,75],[0.8,55],[1,40],[1.5,20],[2,5]]), 'local');
+      put('may', may.mm,  scoreMayer(may.mm), 'local');
+    }
+    if (fg){ const s = piece(Number(fg.value), [[10,85],[25,70],[50,40],[80,15],[100,5]]); put('fg', Number(fg.value), s, fg.source); }
+    if (fHist){ const sF = percentToScore(fHist.avgFunding||0); put('fund', Number(fHist.avgFunding||0), sF, fHist.source); }
+  }catch(_){}
+
+  renderIndicators(); computeAndShowCCS();
+
+  const rest = await Promise.allSettled([tasks.cbbi, tasks.ssr, tasks.dom, tasks.act, tasks.hash, tasks.diff, tasks.rev, tasks.fees]);
+  const cbbi = rest[0].status==='fulfilled' ? rest[0].value : null;
+  const ssr  = rest[1].status==='fulfilled' ? rest[1].value : null;
+  const dom  = rest[2].status==='fulfilled' ? rest[2].value : null;
+  const act  = rest[3].status==='fulfilled' ? rest[3].value : null;
+
+  if (cbbi && cbbi.current_value!=null){ const s = mapCBBIToScore(cbbi.current_value); put('cbbi', cbbi.current_value, s, cbbi.source); } else { put('cbbi', null, null, null); }
+  if (ssr && ssr.current_value!=null){ const s1 = piece(ssr.current_value, [[5,90],[10,75],[20,55],[40,30],[60,10]]); put('ssr', ssr.current_value, s1, 'coingecko'); } else { put('ssr', null, null, null); }
+  if (dom && dom.current_value!=null){ const s2 = piece(dom.current_value, [[35,80],[45,70],[55,55],[65,40],[75,25]]); put('dom', dom.current_value, s2, 'coingecko'); } else { put('dom', null, null, null); }
+  if (act && act.values){ const v=act.values.slice(-1)[0]?.y; const sA = percentileScore(act.values.map(p=>p.y), v, true); put('act', v, sA, act.source); }
+
+  renderIndicators(); computeAndShowCCS();
+}
+// ---- New free-only fetchers (SSR & BTC dominance) ----
+
+
+
+async function fetchSSR(){
+  try{
+    const url = 'https://r.jina.ai/http://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin,tether,usd-coin,dai,frax,first-digital-usd,pax-dollar,usdd&per_page=250&page=1&sparkline=false';
+    const txt = await fetch(url, { cache:'no-store' }).then(r=>r.text());
+    const arr = JSON.parse(txt);
+    if (!Array.isArray(arr)) return { indicator_name:'Stablecoin Supply Ratio (SSR)', current_value:null, source:url };
+    let mcap_btc=0, mcap_st=0;
+    for (const it of arr){
+      const id=(it.id||'').toLowerCase();
+      const mc=Number(it.market_cap||0);
+      if (id==='bitcoin') mcap_btc+=mc; else mcap_st+=mc;
+    }
+    const ssr = (mcap_btc>0 && mcap_st>0) ? (mcap_btc/mcap_st) : null;
+    return { indicator_name:'Stablecoin Supply Ratio (SSR)', current_value:ssr, source:url };
+  }catch(_){
+    return { indicator_name:'Stablecoin Supply Ratio (SSR)', current_value:null };
+  }
+}
+
+async function fetchDominance(){
+  try{
+    const url = 'https://r.jina.ai/http://api.coingecko.com/api/v3/global';
+    const txt = await fetch(url, { cache:'no-store' }).then(r=>r.text());
+    const j = JSON.parse(txt);
+    const dom = Number(j?.data?.market_cap_percentage?.bitcoin);
+    return { indicator_name:'BTC dominance', current_value:(isFinite(dom)?dom:null), source:url };
+  }catch(_){
+    return { indicator_name:'BTC dominance', current_value:null };
+  }
+}
+)();
+</script>
+<script>
+(function(){
+  function ready(fn){ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', fn); else fn(); }
+  function fmt(v,pct){ if(v==null||!isFinite(v)) return '—'; return pct? (v*100).toFixed(1)+'%' : v.toFixed(4); }
+  function scoreFG(v){ return scalePiecewise(v, [[0,95],[20,85],[50,60],[80,30],[100,10]]); }
+  function scoreCBBI(v){ return scalePiecewise(v, [[0,90],[20,80],[40,70],[60,40],[80,15],[100,5]]); }
+  function scoreMM(v){  return scalePiecewise(v, [[0.8,85],[1.0,70],[1.5,30],[2.4,8]]); }
+  function scorePi(r){  return scalePiecewise(r, [[0.6,90],[0.8,70],[1.0,35],[1.1,12],[1.2,5]]); }
+  function scoreFund(a){ return scalePiecewise(a, [[0.000,90],[0.015,60],[0.030,30],[0.060,8]]); }
+  function scoreDD(d){  return scalePiecewise(d, [[0.00,90],[0.10,70],[0.30,35],[0.50,10]]); }
+  function scoreVol(v){  return scalePiecewise(v, [[0.3,85],[0.6,65],[1.0,35],[1.5,12]]); }
+  function scorePct(val, arr, pro){ var xs=(arr||[]).slice(-730).filter(x=>isFinite(x)).sort((a,b)=>a-b); if(!xs.length||!isFinite(val)) return null; var p=xs.findIndex(x=>x>val); if(p<0) p=xs.length; p/=xs.length; return pro? scalePiecewise(p, [[0,20],[0.5,60],[0.8,85],[0.95,92],[1,92]]) : scalePiecewise(p, [[0,95],[0.2,85],[0.5,60],[0.8,30],[1,10]]); }
+
+  async function fetchFG(){ const r=await fetch('https://api.alternative.me/fng/?limit=1&format=json',{cache:'no-store'}); const j=await r.json(); return Number(j?.data?.[0]?.value); }
+  async function fetchCBBI(){
+    const base='https://colintalkscrypto.com/cbbi/data/latest.json';
+    const tries=[ base+'?t='+Date.now(), base, 'https://api.allorigins.win/raw?url='+encodeURIComponent(base), 'https://r.jina.ai/http://colintalkscrypto.com/cbbi/data/latest.json' ];
+    for(let i=0;i<tries.length;i++){
+      try{
+        const r=await fetch(tries[i],{cache:'no-store'}); const txt=await r.text(); let j; try{ j=JSON.parse(txt);}catch(_){j=null;}
+        let val=null;
+        if(j && !Array.isArray(j) && typeof j==='object'){ const ks=Object.keys(j).sort(); if(ks.length) val=Number(j[ks[ks.length-1]]); }
+        else if(Array.isArray(j) && j.length){ const last=j[j.length-1]; if(Array.isArray(last)&&last.length>=2) val=Number(last[1]); else if(typeof last==='object') val=Number(last.value??last.cbbi??last.confidence); }
+        if(Number.isFinite(val)) return val;
+        const m=txt.match(/([0-9]+\.?[0-9]*)\s*}$/); if(m){ const v=Number(m[1]); if(Number.isFinite(v)) return v; }
+      }catch(e){}
+    }
+    return null;
+  }
+  async function fetchKlines(){ const r=await fetch('https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=800',{cache:'no-store'}); const a=await r.json(); return a.map(row=>Number(row[4])); }
+  async function fetchFunding(){ const r=await fetch('https://fapi.binance.com/fapi/v1/fundingRate?symbol=BTCUSDT&limit=500',{cache:'no-store'}); const a=await r.json(); return a.map(x=>Number(x.fundingRate)); }
+  async function fetchBC(name){ const r=await fetch('https://api.blockchain.info/charts/'+name+'?timespan=4years&format=json&cors=true',{cache:'no-store'}); const j=await r.json(); return (j?.values||[]).map(x=>Number(x.y)); }
+
+  function renderTable(conf){
+    const root = document.getElementById('indConfigTable'); if(!root) return;
+    let html = '<table><thead><tr><th>ON</th><th>Poids</th><th>Indicateur</th><th class="right">Valeur</th><th class="right">Sous-score</th><th class="col-source">Source</th></tr></thead><tbody>';
+    conf.forEach(c=>{
+      const valStr = (c.val==null||!isFinite(c.val)) ? '—' : ((c.key==='dd'||c.key==='vol')? (c.val*100).toFixed(1)+'%' : c.val.toFixed(4));
+      const subStr = (c.sub==null||!isFinite(c.sub)) ? '—' : c.sub.toFixed(1);
+      const src = c.src ? '<a href="'+c.src+'" target="_blank" rel="noopener">Source</a>' + (c.key==='cbbi' && !isFinite(c.val) ? ' <span class="muted">(indispo)</span>' : '') : '';
+      html += '<tr>'+
+              '<td><input type="checkbox" '+(c.on?'checked':'')+' data-k="'+c.key+'" class="ind-on"></td>'+
+              '<td class="right"><input type="number" min="0" max="40" step="1" value="'+c.w+'" data-k="'+c.key+'" class="ind-w"></td>'+
+              '<td><b>'+c.name+'</b></td>'+
+              '<td class="right">'+valStr+'</td>'+
+              '<td class="right">'+subStr+'</td>'+
+              '<td class="col-source">'+src+'</td>'+
+              '</tr>';
+    });
+    html += '</tbody></table>';
+    root.innerHTML = html;
+  }
+
+  function recompute(conf){
+    // compute CCS
+    const active = conf.filter(c=>c.on && isFinite(c.sub));
+    const wsum = active.reduce((a,b)=>a+(b.w||0),0);
+    let ccs = 0;
+    if (wsum>0 && active.length){ active.forEach(c=>{ ccs += (c.w/wsum)*c.sub; }); }
+    // Gauge & explanation (if present)
+    try{ if (typeof drawGauge==='function') drawGauge(ccs); }catch(e){}
+    try{ if (typeof explainCCS==='function') explainCCS(ccs); }catch(e){}
+    const st = document.getElementById('freeStatus'); if(st) st.textContent = '✅ Signaux chargés.';
+    // sync legacy panel if it exists
+    try{ if (typeof renderWeightsTable==='function') renderWeightsTable(); }catch(e){}
+  }
+
+  function bind(conf){
+    document.addEventListener('change', function(e){
+      if(!e.target) return;
+      if (e.target.classList.contains('ind-on') || e.target.classList.contains('ind-w')){
+        const k = e.target.getAttribute('data-k');
+        const it = conf.find(x=>x.key===k);
+        if (it){
+          if (e.target.classList.contains('ind-on')) it.on = e.target.checked;
+          if (e.target.classList.contains('ind-w')) it.w = Number(e.target.value)||0;
+          try{ localStorage.setItem('freePackCfg2', JSON.stringify(conf.map(c=>({key:c.key,on:c.on,w:c.w})))); }catch(_){}
+          if (typeof CCS_CONFIG!=='undefined' && Array.isArray(CCS_CONFIG)){
+            const f = CCS_CONFIG.find(x=>x.key===k); if (f){ f.included=it.on; f.weight=it.w; f.value=it.val; f.subscore=it.sub; }
+          }
+          recompute(conf);
+        }
+      }
+    });
+    document.addEventListener('click', function(ev){
+      if (ev.target && ev.target.id==='btnSaveIndCfg'){ try{ localStorage.setItem('freePackCfg2', JSON.stringify(conf.map(c=>({key:c.key,on:c.on,w:c.w})))); }catch(_){}
+        const st=document.getElementById('indCfgStatus'); if(st){ st.textContent='Enregistré'; setTimeout(()=>st.textContent='',1200);} }
+      if (ev.target && ev.target.id==='btnResetIndCfg'){ try{ localStorage.removeItem('freePackCfg2'); location.reload(); }catch(_){ location.reload(); } }
+    });
+  }
+
+  async function boot(){
+    const st = document.getElementById('freeStatus'); if (st) st.textContent = 'Chargement…';
+    try{
+      const [fg, cbbi, closes, addrs, hash, rev, fees, fund] = await Promise.all([
+        fetchFG(), fetchCBBI(), fetchKlines(), fetchBC('n-unique-addresses'), fetchBC('hash-rate'),
+        fetchBC('miners-revenue'), fetchBC('transaction-fees'), fetchFunding()
+      ]);
+
+      const valid = (closes||[]).filter(x=>Number.isFinite(x));
+      const last = valid.length ? valid[valid.length-1] : null;
+      const mm   = (function(){ var s=SMA(valid,200); return (s && last!=null ? last/s : null); })();
+      const pi   = (function(){ var e=EMA(valid,111), s=SMA(valid,350); return (e&&s ? e/(2*s) : null); })();
+      const rets = toLogReturns(valid), vol = (rets.length? stdev(rets.slice(-30))*Math.sqrt(365) : null);
+      const ath  = valid.length ? Math.max.apply(null, valid) : null;
+      const dd   = (ath && last!=null && ath>0) ? (ath-last)/ath : (last!=null ? 0 : null);
+      const fundAvg = (fund.length? fund.slice(-36).reduce((a,b)=>a+Math.abs(b),0)/Math.min(36,fund.length) : null);
+
+      let conf = [
+        {key:'cbbi', name:'CBBI (confidence)',            val:cbbi,      sub: scoreCBBI(cbbi),                 w:15, on:true, src:'https://colintalkscrypto.com/cbbi/data/latest.json'},
+        {key:'fg',   name:'Fear & Greed',                 val:fg,        sub: scoreFG(fg),                     w:20, on:true, src:'https://api.alternative.me/fng/'},
+        {key:'mm',   name:'Mayer Multiple (Price/SMA200)',val:mm,        sub: scoreMM(mm),                     w:20, on:true, src:'https://api.binance.com/api/v3/klines'},
+        {key:'pi',   name:'Pi Cycle (EMA111 / 2×SMA350)', val:pi,        sub: scorePi(pi),                     w:20, on:true, src:'https://api.binance.com/api/v3/klines'},
+        {key:'fund', name:'Funding (avg |36 obs)',        val:fundAvg,   sub: scoreFund(fundAvg),              w:10, on:true, src:'https://fapi.binance.com/fapi/v1/fundingRate'},
+        {key:'dd',   name:'Drawdown depuis ATH',          val:dd,        sub: scoreDD(dd),                     w:20, on:true, src:'price derived'},
+        {key:'vol',  name:'Volatilité 30j annualisée',    val:vol,       sub: scoreVol(vol),                   w:10, on:true, src:'price derived'},
+        {key:'act',  name:'Active addresses (Blockchain.com)', val:addrs? addrs[addrs.length-1] : null, sub: scorePct(addrs? addrs[addrs.length-1] : null, addrs, true), w:10, on:true, src:'https://api.blockchain.info/charts/n-unique-addresses'},
+        {key:'hash', name:'Hash rate trend (MA30/MA60)',  val:(function(){var a=SMA(hash,30),b=SMA(hash,60); return (a&&b? a/b : null);})(), sub:(function(){var a=SMA(hash,30),b=SMA(hash,60); var r=(a&&b? a/b : null); return isFinite(r)? scalePiecewise(r, [[0.90,20],[0.98,40],[1.02,70],[1.08,85]]) : null;})(), w:5, on:true, src:'https://api.blockchain.info/charts/hash-rate'},
+        {key:'revm', name:'Miners revenue (contrarian)',  val:rev? rev[rev.length-1] : null, sub: scorePct(rev? rev[rev.length-1] : null, rev, false), w:5, on:true, src:'https://api.blockchain.info/charts/miners-revenue'},
+        {key:'fees', name:'Transaction fees (network tension)', val:fees? fees[fees.length-1] : null, sub: scorePct(fees? fees[fees.length-1] : null, fees, true), w:5, on:true, src:'https://api.blockchain.info/charts/transaction-fees'}
+      ];
+
+      // apply persisted config
+      try{
+        const raw = localStorage.getItem('freePackCfg2');
+        if (raw){
+          const cfg = JSON.parse(raw);
+          conf.forEach(c=>{ const s=cfg.find(x=>x.key===c.key); if(s){ c.on=!!s.on; c.w=Number(s.w)||c.w; } });
+        }
+      }catch(_){}
+
+      // mirror into CCS_CONFIG if present
+      if (typeof CCS_CONFIG!=='undefined' && Array.isArray(CCS_CONFIG)){
+        conf.forEach(c=>{
+          const f = CCS_CONFIG.find(x=>x.key===c.key);
+          if (f){ f.included=c.on; f.weight=c.w; f.value=c.val; f.subscore=c.sub; }
+          else { CCS_CONFIG.push({key:c.key, name:c.name, included:c.on, weight:c.w, value:c.val, subscore:c.sub}); }
+        });
+      }
+
+      renderTable(conf); bind(conf); recompute(conf);
+    }catch(e){
+      const st=document.getElementById('freeStatus'); if(st) st.textContent='❌ Erreur de chargement : '+(e&&e.message?e.message:String(e));
+      try{ if (typeof drawGauge==='function') drawGauge(0); }catch(_){}
+    }
+  }
+  ready(boot);
+})();
+</script>
+<script>
+// v37: CBBI loader + sync hooks (add-only, safe)
+(function(){
+  function onLoad(fn){
+    if (document.readyState==='complete' || document.readyState==='interactive') { setTimeout(fn,0); }
+    else { window.addEventListener('load', fn); }
+  }
+  function lerpPiece(x, pairs){
+    if (x==null || isNaN(x)) return null;
+    for (var i=1;i<pairs.length;i++){
+      var x0=pairs[i-1][0], y0=pairs[i-1][1], x1=pairs[i][0], y1=pairs[i][1];
+      if (x<=x1){ var t=(x-x0)/(x1-x0); return y0 + t*(y1-y0); }
+    }
+    return pairs[pairs.length-1][1];
+  }
+  function normalizeCbbi(v){
+    if (!Number.isFinite(v)) return null;
+    // Some feeds return [0,1], others [0,100]; normalize to [0,100]
+    return (v <= 1.5) ? (v*100) : v;
+  }
+  function mapCBBIToScore(v){ return lerpPiece(v, [[0,90],[20,80],[40,70],[60,40],[80,15],[100,5]]); }
+
+  async function fetchTxt(url){
+    const r = await fetch(url, {cache:'no-store'});
+    return await r.text();
+  }
+  function lastNumFromObj(obj){
+    if (!obj || typeof obj!=='object') return null;
+    // Prefer numeric timestamp keys
+    var ks = Object.keys(obj).filter(k=>/^\d{8,}$/.test(k)).sort();
+    if (ks.length){ var v = Number(obj[ks[ks.length-1]]); if (Number.isFinite(v)) return v; }
+    // Else last key
+    ks = Object.keys(obj).sort();
+    if (ks.length){ var v2 = Number(obj[ks[ks.length-1]]); if (Number.isFinite(v2)) return v2; }
+    return null;
+  }
+  async function getCBBI(){
+    const base='https://colintalkscrypto.com/cbbi/data/latest.json';
+    const tries=[
+      'https://r.jina.ai/http://colintalkscrypto.com/cbbi/data/latest.json?t='+Date.now(),
+      base+'?t='+Date.now(),
+      base
+    ];
+    for (let i=0;i<tries.length;i++){
+      try{
+        const txt = await fetchTxt(tries[i]);
+        let j; try{ j = JSON.parse(txt); }catch(_){ j = null; }
+        let val = null;
+        if (j && typeof j==='object'){
+          val = lastNumFromObj(j); // direct series
+          if (val==null){
+            // nested under a cbbi-like key (ignore "Price")
+            const k = Object.keys(j).find(k=>/cbb|composite|confidence/i.test(k));
+            if (k && typeof j[k]==='object'){ val = lastNumFromObj(j[k]); }
+          }
+        } else if (Array.isArray(j) && j.length){
+          const last = j[j.length-1];
+          if (Array.isArray(last) && last.length>=2) val = Number(last[1]);
+          else if (typeof last==='object') val = Number(last.value ?? last.cbbi ?? last.confidence);
+        }
+        if (Number.isFinite(val)) return normalizeCbbi(val);
+      }catch(e){ /* next */ }
+    }
+    return null;
+  }
+
+  function upsertModel(val){
+    const score = mapCBBIToScore(val);
+    if (Array.isArray(window.CCS_CONFIG)){
+      let it = window.CCS_CONFIG.find(x=>x && x.key==='cbbi');
+      if (!it){ it = {key:'cbbi', name:'CBBI (confidence)', included:true, weight:15, value:null, subscore:null}; window.CCS_CONFIG.push(it); }
+      it.value = val;
+      it.subscore = score;
+    }
+    return score;
+  }
+
+  function applyToBottomTable(val, score){
+    try{
+      const root = document.getElementById('indConfigTable');
+      if (!root) return;
+      const rows = root.querySelectorAll('tbody tr');
+      rows.forEach(tr=>{
+        const n = tr.querySelector('td:nth-child(3)');
+        if (n && /CBBI/i.test(n.textContent||'')){
+          const v = tr.querySelector('td:nth-child(4)');
+          const s = tr.querySelector('td:nth-child(5)');
+          if (v) v.textContent = (val==null ? '—' : Number(val).toFixed(2));
+          if (s) s.textContent = (score==null ? '—' : Number(score).toFixed(1));
+        }
+      });
+    }catch(_){}
+  }
+
+  function recomputeGauge(){
+    try{
+      if (!Array.isArray(window.CCS_CONFIG)) return;
+      const active = window.CCS_CONFIG.filter(c=>c && c.included && Number.isFinite(c.subscore));
+      const wsum = active.reduce((a,b)=>a+(Number(b.weight)||0),0);
+      let ccs = 0;
+      if (wsum>0 && active.length){ active.forEach(c=>{ ccs += (Number(c.weight)||0)/wsum * c.subscore; }); }
+      if (typeof window.drawGauge==='function') window.drawGauge(ccs);
+      if (typeof window.explainCCS==='function') window.explainCCS(ccs);
+    }catch(_){}
+  }
+
+  function ensureHooks(){
+    ['renderWeightsTable','renderIndicatorsConfig','loadFreePack'].forEach(function(fn){
+      if (typeof window[fn]==='function' && !window[fn].__cbbiHooked){
+        const orig = window[fn];
+        window[fn] = function(){
+          const r = orig.apply(this, arguments);
+          setTimeout(function(){
+            // Re-apply CBBI values after any re-render
+            try{
+              if (Array.isArray(window.CCS_CONFIG)){
+                const it = window.CCS_CONFIG.find(x=>x && x.key==='cbbi');
+                if (it){ applyToBottomTable(it.value, it.subscore); }
+              }
+            }catch(_){}
+          }, 0);
+          return r;
+        };
+        window[fn].__cbbiHooked = true;
+      }
+    });
+  }
+
+  function applyOverrideIfAny(){
+    try{
+      const saved = localStorage.getItem('cbbiOverrideValue');
+      if (saved!=null && saved!==''){
+        const v = Number(saved);
+        if (isFinite(v)){
+          const norm = normalizeCbbi(v);
+          const score = upsertModel(norm);
+          applyToBottomTable(norm, score);
+          recomputeGauge();
+          return true;
+        }
+      }
+    }catch(_){}
+    return false;
+  }
+
+  onLoad(async function(){
+    ensureHooks();
+    // Pass 1: user override wins
+    if (applyOverrideIfAny()) return;
+
+    // Pass 2: try to fetch live value
+    try{
+      const val = await getCBBI();
+      if (Number.isFinite(val)){
+        const score = upsertModel(val);
+        applyToBottomTable(val, score);
+        recomputeGauge();
+      }
+    }catch(_){}
+
+    // Pass 3: A few re-apply ticks to survive late re-renders
+    let ticks = 0;
+    const t = setInterval(function(){
+      try{
+        if (Array.isArray(window.CCS_CONFIG)){
+          const it = window.CCS_CONFIG.find(x=>x && x.key==='cbbi');
+          if (it){ applyToBottomTable(it.value, it.subscore); }
+        }
+      }catch(_){}
+      ticks++;
+      if (ticks>=10) clearInterval(t);
+    }, 500);
+  });
+})();
+</script>
+</body>
+</html>
+<script>
+// v46: Phase du cycle (safe add-on)
+(function(){
+  var PRESETS = {
+    mid:  { "Stablecoins USD/EUR":0.15,"Bitcoin stack":0.38,"Ethereum stack (L1 + LST/LRT)":0.25,"Solana stack (L1 + LST)":0.05,"BNB":0.03,"XRP":0.03,"Other L1/L0 majors":0.05,"Memecoins (majors)":0.01,"Long tail / Others":0.05 },
+    def:  { "Stablecoins USD/EUR":0.30,"Bitcoin stack":0.40,"Ethereum stack (L1 + LST/LRT)":0.18,"Solana stack (L1 + LST)":0.03,"BNB":0.02,"XRP":0.02,"Other L1/L0 majors":0.04,"Memecoins (majors)":0.005,"Long tail / Others":0.005 },
+    early:{ "Stablecoins USD/EUR":0.18,"Bitcoin stack":0.45,"Ethereum stack (L1 + LST/LRT)":0.22,"Solana stack (L1 + LST)":0.05,"BNB":0.03,"XRP":0.03,"Other L1/L0 majors":0.02,"Memecoins (majors)":0.01,"Long tail / Others":0.01 },
+    alt:  { "Stablecoins USD/EUR":0.08,"Bitcoin stack":0.35,"Ethereum stack (L1 + LST/LRT)":0.22,"Solana stack (L1 + LST)":0.08,"BNB":0.05,"XRP":0.05,"Other L1/L0 majors":0.10,"Memecoins (majors)":0.05,"Long tail / Others":0.02 }
+  };
+  var ORDER = ["Stablecoins USD/EUR","Bitcoin stack","Ethereum stack (L1 + LST/LRT)","Solana stack (L1 + LST)","BNB","XRP","Other L1/L0 majors","Memecoins (majors)","Long tail / Others"];
+  function norm(obj){
+    var out={}, sum=0;
+    ORDER.forEach(function(k){ var v = Math.max(0, Number(obj[k]||0)); out[k]=v; sum+=v; });
+    if (sum>0) ORDER.forEach(function(k){ out[k] = out[k]/sum; });
+    return out;
+  }
+  function applyPresetKey(key){
+    try{
+      var p = PRESETS[key] || PRESETS.mid;
+      // Update the real model (global let TARGETS) if present
+      if (typeof TARGETS !== 'undefined'){
+        TARGETS = norm(p);
+      } else if (typeof window.TARGETS !== 'undefined'){
+        window.TARGETS = norm(p);
+      }
+      // Re-render UI and charts if functions exist
+      if (typeof renderTargets === 'function') renderTargets();
+      if (typeof renderPies === 'function') renderPies();
+      if (typeof renderPlan === 'function') renderPlan();
+      if (typeof renderScenarioTable === 'function') renderScenarioTable();
+    }catch(e){ /* no-op */ }
+  }
+  function ensureUI(){
+    var grid = document.getElementById('targets');
+    if (!grid || document.getElementById('phaseSelect')) return !!grid;
+    // Insert selector above the targets grid
+    var wrap = document.createElement('div');
+    wrap.className = 'row';
+    wrap.style.cssText = 'margin:8px 0 12px; gap:8px; align-items:center';
+    wrap.innerHTML = '<label class="muted">Phase du cycle&nbsp;:</label>\
+      <select id="phaseSelect" class="btn" style="padding:6px 10px">\
+        <option value="mid">Milieu de cycle (par défaut)</option>\
+        <option value="early">Early bull</option>\
+        <option value="def">Défensif / Fin de cycle</option>\
+        <option value="alt">Altseason / Spéculatif</option>\
+      </select>\
+      <span class="muted" id="phaseHint"></span>';
+    grid.parentNode.insertBefore(wrap, grid);
+    // Bind change
+    var sel = document.getElementById('phaseSelect');
+    if (sel){
+      sel.addEventListener('change', function(){ applyPresetKey(this.value); });
+    }
+    return true;
+  }
+  function boot(){
+    var tries = 0;
+    var t = setInterval(function(){
+      tries++;
+      var ok = ensureUI();
+      if (ok && (typeof TARGETS !== 'undefined' || typeof window.TARGETS !== 'undefined')){
+        // Set initial inferred phase from current model
+        var T = (typeof TARGETS !== 'undefined') ? TARGETS : (window.TARGETS||{});
+        var key = 'mid';
+        if ((T["Stablecoins USD/EUR"]||0) > 0.25) key = 'def';
+        else if (((T["Other L1/L0 majors"]||0) + (T["Memecoins (majors)"]||0)) > 0.20) key = 'alt';
+        else if ((T["Bitcoin stack"]||0) > 0.42) key = 'early';
+        var sel = document.getElementById('phaseSelect'); if (sel) sel.value = key;
+        clearInterval(t);
+      }
+      if (tries > 40) clearInterval(t); // 20s timeout
+    }, 500);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})();
+</script>
+<script>
+async function loadPortfolio() {
+  const url = 'http://127.0.0.1:8000/portfolio/summary?source=cointracking&min_usd=1&alias=safe&top_n=15';
+  const data = await fetch(url).then(r => r.json());
+  // Exemple: total + 1re ligne
+  document.querySelector('#total_usd').textContent = Intl.NumberFormat('en-US', {style:'currency', currency:'USD'}).format(data.total_usd);
+  const t = document.querySelector('#top_body');
+  t.innerHTML = '';
+  for (const a of data.top) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${a.symbol}</td>
+      <td style="text-align:right">${a.usd_value.toFixed(2)}</td>
+      <td style="text-align:right">${a.weight_pct.toFixed(2)}%</td>
+      <td>${a.is_stable ? '✅' : ''}</td>`;
+    t.appendChild(tr);
+  }
+}
+document.addEventListener('DOMContentLoaded', loadPortfolio);
+</script>
