@@ -32,6 +32,42 @@
     summary { cursor:pointer; }
     .two { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
     @media (max-width:900px){ .two { grid-template-columns:1fr; } }
+    /* === Fix mise en page des cibles (labels qui chevauchent les champs) === */
+
+    /* Chaque enfant direct de #targets est une ligne */
+    #targets > div {
+      display: grid;
+      grid-template-columns: 140px 1fr 80px; /* Label | Slider | Nombre */
+      gap: 10px 14px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    /* Le nom du groupe ne doit pas passer à la ligne ni déborder */
+    #targets > div > span:first-child {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Le slider prend toute la place centrale */
+    #targets input[type="range"] {
+      width: 100%;
+    }
+
+    /* Le champ numérique a une largeur fixe et aligne à droite */
+    #targets input[type="number"] {
+      width: 80px;
+      text-align: right;
+      padding: 6px 8px;
+    }
+
+    /* Petites largeurs d'écran : rétrécir un peu la colonne label */
+    @media (max-width: 560px) {
+      #targets > div {
+        grid-template-columns: 110px 1fr 72px;
+      }
+    }
   </style>
 </head>
 <body>
