@@ -1,69 +1,78 @@
-# api/taxonomy_endpoints.py
-from __future__ import annotations
-
-from collections import defaultdict
-from typing import Any, Dict
-
-from fastapi import APIRouter, Body, HTTPException, Query
-
-from api.taxonomy import Taxonomy, _storage_path
+from fastapi import APIRouter, Body, Query
+from typing import Any, Dict, List
+from services.taxonomy import Taxonomy
 from connectors.cointracking import get_current_balances
+from services.rebalance import plan_rebalance
 
-router = APIRouter()  # <-- pas de prefix ici
+router = APIRouter(prefix="/taxonomy", tags=["taxonomy"])
 
-@router.get("/taxonomy")
-def get_taxonomy() -> Dict[str, Any]:
-    tx = Taxonomy.load()
-    return {
-        "groups_order": tx.groups_order,
-        "aliases": tx.aliases,
-        "storage": _storage_path(),
-    }
-
-@router.post("/taxonomy/aliases")
-def post_aliases(data: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
+def _to_rows(raw: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    Body:
-    {
-      "aliases": { "WBTC": "BTC", "WSTETH": "ETH", ... }
-    }
+    Normalise les lignes renvoyées par connecteurs (CoinTracking) vers :
+    { symbol: str, alias: Optional[str], value_usd: float, location: Optional[str] }
     """
-    if not isinstance(data, dict) or "aliases" not in data:
-        raise HTTPException(status_code=400, detail="Body must contain an 'aliases' object.")
-    add = data["aliases"]
-    if not isinstance(add, dict):
-        raise HTTPException(status_code=400, detail="'aliases' must be an object.")
-
-    tx = Taxonomy.load()
-    for k, v in add.items():
-        k_norm = str(k).upper().strip()
-        v_norm = str(v).upper().strip()
-        if not k_norm or not v_norm:
+    out: List[Dict[str, Any]] = []
+    for r in raw or []:
+        symbol = r.get("symbol") or r.get("coin") or r.get("name")
+        if not symbol:
             continue
-        tx.aliases[k_norm] = v_norm
-    tx.save()
-    return {"ok": True, "aliases_count": len(tx.aliases)}
 
-@router.get("/taxonomy/unknown_aliases")
-async def get_unknown_aliases(
-    source: str = Query("cointracking"),
-    min_usd: float = Query(100.0),
-) -> Dict[str, Any]:
-    """
-    Liste les symboles non mappés (pas présents dans taxonomy.aliases), avec total >= min_usd.
-    """
+        # valeur en USD (différents noms possibles selon la source)
+        v = (
+            r.get("value_usd", None)
+            if isinstance(r, dict)
+            else None
+        )
+        if v is None:
+            v = r.get("usd_value")
+        if v is None:
+            v = r.get("usd")
+        if v is None:
+            v = r.get("value")
+
+        try:
+            value_usd = float(v)
+        except (TypeError, ValueError):
+            value_usd = 0.0
+
+        out.append({
+            "symbol": str(symbol),
+            "alias": r.get("alias") or None,   # l'alias sera (re)calculé côté Taxonomy si absent
+            "value_usd": value_usd,
+            "location": r.get("location"),
+        })
+    return out
+
+@router.get("")
+async def get_taxonomy():
     tx = Taxonomy.load()
+    return {"groups_order": tx.groups_order, "aliases": tx.aliases}
+
+@router.post("/aliases")
+async def add_aliases(payload: Dict[str, Any] = Body(...)):
+    tx = Taxonomy.load()
+    aliases = (payload or {}).get("aliases", {})
+    if not isinstance(aliases, dict):
+        return {"ok": False, "error": "payload.aliases must be a dict"}
+    tx.aliases.update({str(k).upper(): str(v) for k, v in aliases.items()})
+    tx.save()
+    return {"ok": True, "aliases": tx.aliases}
+
+@router.get("/unknown_aliases")
+async def unknown_aliases(source: str = Query("cointracking"), min_usd: float = Query(100.0)):
     res = await get_current_balances(source=source)
-    rows = res.get("items", []) if isinstance(res, dict) else (res or [])
+    raw = res.get("items", []) if isinstance(res, dict) else (res or [])
+    rows = _to_rows(raw)
+    tx = Taxonomy.load()
+    known = set(tx.aliases.keys())
 
-    totals = defaultdict(float)
+    agg: Dict[str, float] = {}
     for r in rows:
-        sym = str(r.get("symbol", "")).upper()
-        usd = float(r.get("usd_value") or r.get("value_usd") or 0.0)
-        if sym and sym not in tx.aliases:
-            totals[sym] += usd
-
-    items = [{"symbol": s, "total_usd": round(v, 2)}
-             for s, v in totals.items() if v >= min_usd]
-    items.sort(key=lambda x: x["total_usd"], reverse=True)
-    return {"count": len(items), "items": items}
+        v = float(r.get("value_usd") or 0.0)
+        if v < min_usd: 
+            continue
+        a = r.get("alias") or r.get("symbol")
+        if not a or a in known:
+            continue
+        agg[a] = agg.get(a, 0.0) + v
+    return [{"alias": k, "total_usd": round(v, 2)} for k, v in sorted(agg.items(), key=lambda kv: -kv[1])]

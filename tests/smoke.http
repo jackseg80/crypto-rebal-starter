@@ -1,0 +1,26 @@
+### Balances
+GET http://127.0.0.1:8000/balances/current?source=cointracking&min_usd=1
+
+### Groups
+GET http://127.0.0.1:8000/portfolio/groups?source=cointracking&min_usd=1
+
+### Taxonomy
+GET http://127.0.0.1:8000/taxonomy
+
+### Unknown aliases
+GET http://127.0.0.1:8000/taxonomy/unknown_aliases?source=cointracking&min_usd=50
+
+### Plan
+POST http://127.0.0.1:8000/rebalance/plan?source=cointracking&min_usd=1
+Content-Type: application/json
+
+{
+  "group_targets_pct": { "BTC":35, "ETH":25, "Stablecoins":10, "SOL":10, "L1/L0 majors":10, "Others":10 },
+  "min_trade_usd": 25,
+  "sub_allocation": "proportional",
+  "primary_symbols": {
+    "BTC": ["BTC","TBTC","WBTC"],
+    "ETH": ["ETH","WSTETH","RETH","STETH","WETH"],
+    "SOL": ["SOL","JUPSOL","JITOSOL"]
+  }
+}
