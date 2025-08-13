@@ -367,6 +367,103 @@
     }
     return map;
   }
+
+  // utilitaire simple pour mettre à jour le statut
+  function setStatus(msg, isError=false){
+    const el = document.getElementById('statusText');
+    if (!el) return;
+    el.textContent = msg;
+    el.style.color = isError ? '#b00020' : '#2e7d32';
+  }
+
+  async function buildPayloadFromForm() {
+    // => adapte si tes IDs diffèrent; logique identique à ton bouton "Calculer"
+    // Exemples :
+    // - lecture des poids par groupe
+    // - sub_allocation
+    // - min_trade_usd
+    // - primary_symbols (BTC/ETH/SOL)
+    // Retourne un objet { group_targets_pct, sub_allocation, min_trade_usd, primary_symbols }
+    // -------------------------
+    // Ici, je montre le squelette ; remplace par ta lecture réelle des champs :
+    const group_targets_pct = {
+      BTC: parseFloat(document.getElementById('w_btc').value || '0'),
+      ETH: parseFloat(document.getElementById('w_eth').value || '0'),
+      'L1/L0 majors': parseFloat(document.getElementById('w_l1').value || '0'),
+      Others: parseFloat(document.getElementById('w_others').value || '0'),
+      SOL: parseFloat(document.getElementById('w_sol').value || '0'),
+      Stablecoins: parseFloat(document.getElementById('w_stable').value || '0'),
+    };
+
+    const sub_allocation = (document.querySelector('input[name="suballoc"]:checked')?.value) || 'proportional';
+    const min_trade_usd = parseFloat(document.getElementById('min_trade').value || '25');
+
+    // Primary symbols selon tes checkboxes / inputs
+    const prim_btc = [];
+    if (document.getElementById('p_btc').checked) prim_btc.push('BTC');
+    if (document.getElementById('p_tbtc').checked) prim_btc.push('TBTC');
+    if (document.getElementById('p_wbtc').checked) prim_btc.push('WBTC');
+
+    const prim_eth = [];
+    if (document.getElementById('p_eth').checked) prim_eth.push('ETH');
+    if (document.getElementById('p_wsteth').checked) prim_eth.push('WSTETH');
+    if (document.getElementById('p_steth').checked) prim_eth.push('STETH');
+    if (document.getElementById('p_reth').checked) prim_eth.push('RETH');
+    if (document.getElementById('p_weth').checked) prim_eth.push('WETH');
+
+    const prim_sol = [];
+    if (document.getElementById('p_sol').checked) prim_sol.push('SOL');
+    if (document.getElementById('p_jupsol').checked) prim_sol.push('JUPSOL');
+    if (document.getElementById('p_jitosol').checked) prim_sol.push('JITOSOL');
+
+    const primary_symbols = {};
+    if (prim_btc.length) primary_symbols['BTC'] = prim_btc;
+    if (prim_eth.length) primary_symbols['ETH'] = prim_eth;
+    if (prim_sol.length) primary_symbols['SOL'] = prim_sol;
+
+    return { group_targets_pct, sub_allocation, min_trade_usd, primary_symbols };
+  }
+
+  // Bouton Télécharger CSV
+  document.getElementById('btnCsv')?.addEventListener('click', async () => {
+    try {
+      setStatus('Calcul en cours…', false);
+
+      const payload = await buildPayloadFromForm();
+      const minUsd = encodeURIComponent(document.getElementById('min_usd').value || '1');
+      const source = encodeURIComponent((document.getElementById('source')?.value) || 'cointracking');
+
+      const url = `http://127.0.0.1:8000/rebalance/plan.csv?source=${source}&min_usd=${minUsd}`;
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!resp.ok) {
+        const txt = await resp.text();
+        setStatus('Erreur calcul CSV', true);
+        alert('Erreur API CSV:\n' + txt);
+        return;
+      }
+
+      const blob = await resp.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'rebalance-actions.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setStatus('OK');
+    } catch (e) {
+      console.error(e);
+      setStatus('Erreur réseau', true);
+      alert('Erreur réseau: ' + (e?.message || e));
+    }
+  });
+
+  // (Optionnel) dans ton bouton "Calculer", appelle setStatus('Calcul en cours…') au début,
+  // puis setStatus('OK') en succès, setStatus('Erreur') en catch.
   </script>
 </body>
 </html>
