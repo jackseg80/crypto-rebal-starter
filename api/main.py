@@ -1,13 +1,41 @@
 from fastapi import FastAPI, Body, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any, Union
 from engine.plan import build_plan
 from connectors.cointracking import ct_raw, get_current_balances
 from services.rebalance import snapshot_groups, plan_rebalance
 from api.taxonomy import Taxonomy
+import io, csv, json
+
+
+import io, csv
 
 STABLES = {"USDT","USDC","FDUSD","TUSD","DAI","EURT","USDCE","USDBC","BUSD","FDUSD","EUR","USD","UST","USTC"}
+
+def _append_balancing_line(plan: dict, prefer_alias: str = "USD") -> dict:
+    """
+    Si la somme des 'usd' des actions != 0, ajoute une ligne d'équilibrage
+    sur un stable (alias prefer_alias), en 'buy' si net < 0, sinon 'sell'.
+    """
+    actions = plan.get("actions") or []
+    net = sum(a.get("usd", 0.0) for a in actions)
+    if abs(net) < 0.01:
+        return plan  # déjà équilibré
+
+    bal = {
+        "group": "Stablecoins",
+        "alias": prefer_alias,
+        "symbol": prefer_alias,
+        "action": "sell" if net > 0 else "buy",
+        "usd": -net,           # contrepartie exacte
+        "est_quantity": None,
+        "price_used": None,
+    }
+    actions.append(bal)
+    plan["actions"] = actions
+    return plan
 
 def _normalize_targets(raw: Union[Dict[str, float], List[Dict[str, Any]], None]) -> Dict[str, float]:
     """
@@ -149,70 +177,63 @@ async def portfolio_groups(
 
     return snapshot_groups(rows, min_usd=min_usd)
 
-
 @app.post("/rebalance/plan")
 async def rebalance_plan(
     source: str = Query("cointracking"),
     min_usd_raw: str | None = Query(None, alias="min_usd"),
     payload: Dict[str, Any] = Body(...),
 ):
-    # parse min_usd
+    # 1) parse min_usd (tolérant)
     min_usd = 1.0
-    if min_usd_raw and min_usd_raw.strip():
+    if min_usd_raw and str(min_usd_raw).strip():
         try:
             min_usd = float(min_usd_raw)
         except ValueError:
             pass
 
-    # portefeuille courant
+    # 2) portefeuille courant
     res = await get_current_balances(source=source)
     rows = res.get("items", []) if isinstance(res, dict) else (res or [])
     rows = _to_taxonomy_rows(rows)
 
-    # compat: "group_targets_pct" ou "targets" (dict ou list)
+    # 3) cibles (dict ou list)
     targets_raw = payload.get("group_targets_pct")
     if targets_raw is None:
         targets_raw = payload.get("targets")
     group_targets_pct = _normalize_targets(targets_raw)
 
-    # on garde min_trade_usd localement (sert aussi au balancer)
-    min_trade_usd = float(payload.get("min_trade_usd", 25.0))
+    # 4) primaires (UPPERCASE)
+    primary_symbols = payload.get("primary_symbols") or {}
+    primary_symbols = {
+        (alias or "").upper(): [str(s).upper() for s in (syms or [])]
+        for alias, syms in primary_symbols.items()
+    }
 
-    result = plan_rebalance(
+    # 5) sous-allocation : auto -> primary_first si primaires fournis
+    sub_allocation = payload.get("sub_allocation")
+    if not sub_allocation or sub_allocation == "auto":
+        has_primary = any(primary_symbols.values())
+        sub_allocation = "primary_first" if has_primary else "proportional"
+
+    # 6) plan brut
+    plan = plan_rebalance(
         rows=rows,
         group_targets_pct=group_targets_pct,
         min_usd=min_usd,
-        sub_allocation=payload.get("sub_allocation", "proportional"),
-        primary_symbols=payload.get("primary_symbols"),
-        min_trade_usd=min_trade_usd,
+        sub_allocation=sub_allocation,
+        primary_symbols=primary_symbols,
+        min_trade_usd=float(payload.get("min_trade_usd", 25.0)),
     )
 
-    # ---- Ajout d'une ligne d'équilibrage pour que Σ(usd) ≈ 0 ----
-    actions = result.get("actions", [])
-    buy_sum  = sum(a.get("usd", 0) for a in actions if a.get("action") == "buy")
-    sell_sum = sum(a.get("usd", 0) for a in actions if a.get("action") == "sell")  # négatif
-    net = round(buy_sum + sell_sum, 2)
+    # 7) sécurité : n’ACHETER que des primaires
+    plan = _enforce_primary_buys(plan, primary_symbols)
 
-    # si l'écart est significatif, on compense via un stablecoin (par défaut USD)
-    if abs(net) >= max(0.01, min_trade_usd):
-        balancer_alias = payload.get("balancer_alias", "USD")  # tu peux mettre "USDT" ou "USDC"
-        actions.append({
-            "group": "Stablecoins",
-            "alias": balancer_alias,
-            "symbol": balancer_alias,
-            "action": "sell" if net > 0 else "buy",
-            "usd": -net,  # ex: net=+441.74 -> on vend -441.74 de USD
-            "est_quantity": None,
-            "price_used": None,
-        })
-        result["actions"] = actions
+    # 8) équilibrage net à 0 via stable (USD)
+    plan = _append_balancing_line(plan, prefer_alias="USD")
+    return plan
 
-    return result
 
 # --- CSV helper -------------------------------------------------------------
-from fastapi.responses import StreamingResponse
-import io, csv
-
 def _actions_to_csv(actions: list[dict]) -> io.StringIO:
     buf = io.StringIO()
     w = csv.writer(buf)
@@ -238,7 +259,7 @@ async def rebalance_plan_csv(
 ):
     # même parsing que /rebalance/plan
     min_usd = 1.0
-    if min_usd_raw and min_usd_raw.strip():
+    if min_usd_raw and str(min_usd_raw).strip():
         try:
             min_usd = float(min_usd_raw)
         except ValueError:
@@ -251,18 +272,100 @@ async def rebalance_plan_csv(
     targets_raw = payload.get("group_targets_pct") or payload.get("targets")
     group_targets_pct = _normalize_targets(targets_raw)
 
+    # Uppercase des primary pour homogénéité
+    primary_symbols = {
+        (alias or "").upper(): [str(s).upper() for s in (syms or [])]
+        for alias, syms in (payload.get("primary_symbols") or {}).items()
+    }
+
+    # Choix de la sous-allocation : si primary fournis => primary_first
+    sub_allocation = payload.get("sub_allocation")
+    if not sub_allocation or sub_allocation == "auto":
+        has_primary = any(primary_symbols.values())
+        sub_allocation = "primary_first" if has_primary else "proportional"
+
+    # Plan brut
     plan = plan_rebalance(
         rows=rows,
         group_targets_pct=group_targets_pct,
         min_usd=min_usd,
-        sub_allocation=payload.get("sub_allocation", "proportional"),
-        primary_symbols=payload.get("primary_symbols"),
+        sub_allocation=sub_allocation,
+        primary_symbols=primary_symbols,
         min_trade_usd=float(payload.get("min_trade_usd", 25.0)),
     )
+
+    # IMPORTANT: même post-traitement que l’endpoint JSON
+    plan = _enforce_primary_buys(plan, primary_symbols)   # achats = primaires only
+    plan = _append_balancing_line(plan, prefer_alias="USD")  # net => 0 via stable
 
     buf = _actions_to_csv(plan.get("actions", []))
     headers = {"Content-Disposition": 'attachment; filename="rebalance-actions.csv"'}
     return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv", headers=headers)
+
+
+def _enforce_primary_buys(plan: Dict[str, Any], primary_symbols: Dict[str, list]) -> Dict[str, Any]:
+    """
+    Garantit qu'on n'achète QUE des coins listés dans primary_symbols pour chaque alias/groupe.
+    Si un buy cible un non-primary, on supprime cette action et on réalloue le montant à un coin primary du même alias.
+    """
+    if not primary_symbols:
+        return plan
+
+    prim = {alias.upper(): set([s.upper() for s in syms]) for alias, syms in primary_symbols.items()}
+    actions = plan.get("actions") or []
+    if not actions:
+        return plan
+
+    new_actions = []
+    # montants d'achats non-primary à réallouer par alias
+    pending_add: Dict[str, float] = {}
+    # index d'une action d'achat primary existante, pour réallouer facilement
+    primary_target_index: Dict[str, int] = {}
+
+    for i, a in enumerate(actions):
+        act = (a.get("action") or "").lower()
+        alias = (a.get("alias") or "").upper()
+        symbol = (a.get("symbol") or "").upper()
+
+        # on ne touche qu'aux BUY, et uniquement si on a un set primary pour cet alias
+        if act == "buy" and alias in prim:
+            if symbol not in prim[alias]:
+                # non-primary => on accumule pour réallocation et on drop cette action
+                usd = float(a.get("usd") or 0.0)
+                if usd > 0:
+                    pending_add[alias] = pending_add.get(alias, 0.0) + usd
+                # on ne garde pas cette action
+                continue
+            else:
+                # primary : on garde et on mémorise un index pour réaffecter plus tard
+                if alias not in primary_target_index:
+                    primary_target_index[alias] = len(new_actions)
+
+        new_actions.append(a)
+
+    # Réallocation : si on a du "pending" pour un alias, on l'ajoute à une action primary existante
+    for alias, add_usd in pending_add.items():
+        if add_usd <= 0:
+            continue
+        idx = primary_target_index.get(alias)
+        if idx is not None:
+            new_actions[idx]["usd"] = float(new_actions[idx].get("usd") or 0.0) + add_usd
+        else:
+            # aucune action d'achat primary existante => on crée une nouvelle action vers le 1er symbole primary
+            sym = next(iter(prim[alias]))
+            new_actions.append({
+                "group": alias,            # même libellé que le groupe/alias
+                "alias": alias,
+                "symbol": sym,
+                "action": "buy",
+                "usd": add_usd,
+                "est_quantity": None,
+                "price_used": None,
+            })
+
+    plan["actions"] = new_actions
+    return plan
+
 
 
 # --- DEBUG SNAPSHOT ----------------------------------------------------------
