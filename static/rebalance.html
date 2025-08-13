@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rebalance</title>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; margin: 24px; color:#0f172a; }
+    h1 { margin: 0 0 8px; }
+    .row { display:flex; gap:16px; flex-wrap:wrap; align-items:flex-end; }
+    .card { border:1px solid #e5e7eb; border-radius:12px; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
+    label { font-size:12px; color:#6b7280; display:block; margin-bottom:6px; }
+    input[type="number"], textarea { width: 220px; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:14px; }
+    textarea { width:420px; height:96px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+    button { background:#111827; color:white; border:none; padding:10px 14px; border-radius:10px; cursor:pointer; }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    table { border-collapse: collapse; width:100%; margin-top:8px; }
+    th, td { border-bottom:1px solid #e5e7eb; padding:8px; text-align:left; font-size:14px; }
+    th { background:#f8fafc; position:sticky; top:0; }
+    .muted { color:#64748b; }
+    .mono { font-family: ui-monospace, Consolas, Menlo, monospace; }
+    .ok { color:#047857; }
+    .warn { color:#b45309; }
+    .bad { color:#b91c1c; }
+  </style>
+</head>
+<body>
+  <h1>Rebalance</h1>
+  <div class="row">
+    <div class="card">
+      <label>Seuil min_usd (filtrage des positions)</label>
+      <input id="minUsd" type="number" step="1" value="1" />
+    </div>
+    <div class="card">
+      <label>Min trade USD (ignore petites lignes)</label>
+      <input id="minTrade" type="number" step="1" value="25" />
+    </div>
+    <div class="card">
+      <label>Targets (JSON {group:pct})</label>
+      <textarea id="targets">{ "BTC":35, "ETH":25, "Stablecoins":10, "SOL":10, "L1/L0 majors":10, "Others":10 }</textarea>
+    </div>
+    <div class="card">
+      <label>Primary symbols (JSON {group:[...]} – utilisés pour ACHATS uniquement)</label>
+      <textarea id="primary">{ "BTC": ["BTC","TBTC","WBTC"], "ETH":["ETH","WSTETH","RETH","STETH","WETH"], "SOL":["SOL","JUPSOL","JITOSOL"] }</textarea>
+    </div>
+    <div class="card">
+      <button id="runBtn">Générer le plan</button>
+    </div>
+  </div>
+
+  <div id="summary" class="card" style="margin-top:16px;"></div>
+  <div class="row" style="margin-top:16px;">
+    <div class="card" style="flex:1; min-width:320px;">
+      <strong>Top achats</strong>
+      <div id="buys"></div>
+    </div>
+    <div class="card" style="flex:1; min-width:320px;">
+      <strong>Top ventes</strong>
+      <div id="sells"></div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px;">
+    <strong>Unknown aliases</strong>
+    <div id="unknown"></div>
+  </div>
+
+<script>
+const API = location.origin.includes("127.0.0.1") || location.origin.includes("localhost")
+  ? "http://127.0.0.1:8000"
+  : "";
+
+// Helpers
+const fmt = n => (n||0).toLocaleString('fr-FR', {maximumFractionDigits:2});
+const el = (html) => { const d=document.createElement('div'); d.innerHTML=html.trim(); return d.firstChild; }
+
+async function run() {
+  const runBtn = document.getElementById('runBtn');
+  runBtn.disabled = true; runBtn.textContent = "Calcul...";
+
+  const minUsd = parseFloat(document.getElementById('minUsd').value || "1");
+  const minTrade = parseFloat(document.getElementById('minTrade').value || "25");
+  let targets = {}; let primary = {};
+  try { targets = JSON.parse(document.getElementById('targets').value || "{}"); } catch(e) { alert("Targets JSON invalide"); }
+  try { primary = JSON.parse(document.getElementById('primary').value || "{}"); } catch(e) { alert("Primary JSON invalide"); }
+
+  const body = {
+    group_targets_pct: targets,
+    primary_symbols: primary,
+    min_trade_usd: minTrade,
+    sub_allocation: "proportional"
+  };
+
+  const url = API + "/rebalance/plan?source=cointracking&min_usd=" + encodeURIComponent(minUsd);
+  let plan;
+  try {
+    const res = await fetch(url, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(body) });
+    if (!res.ok) throw new Error(await res.text());
+    plan = await res.json();
+  } catch(err) {
+    alert("Erreur API: " + err);
+    runBtn.disabled = false; runBtn.textContent = "Générer le plan"; 
+    return;
+  }
+
+  // Summary
+  const net = (plan.actions || []).reduce((s,a)=>s+(a.usd||0),0);
+  const summary = document.getElementById('summary');
+  summary.innerHTML = `
+    <div><strong>Total USD</strong> : <span class="mono">${fmt(plan.total_usd)}</span></div>
+    <div><strong>Net</strong> : <span class="mono ${Math.abs(net)<1?'ok':(Math.abs(net)<25?'warn':'bad')}">${fmt(net)}</span></div>
+    <div style="margin-top:8px;"><strong>Cible par groupe</strong></div>
+    <table><thead><tr><th>Groupe</th><th>Actuel USD</th><th>Actuel %</th><th>Cible %</th><th>Cible USD</th><th>Delta USD</th></tr></thead>
+    <tbody>
+      ${Object.keys(plan.target_weights_pct||{}).map(g=>`
+        <tr>
+          <td>${g}</td>
+          <td class="mono">${fmt(plan.current_by_group[g]||0)}</td>
+          <td class="mono">${fmt(plan.current_weights_pct[g]||0)}</td>
+          <td class="mono">${fmt(plan.target_weights_pct[g]||0)}</td>
+          <td class="mono">${fmt(plan.targets_usd[g]||0)}</td>
+          <td class="mono">${fmt(plan.deltas_by_group_usd[g]||0)}</td>
+        </tr>`).join('')}
+    </tbody></table>
+  `;
+
+  // Buys / Sells
+  const buys = (plan.actions||[]).filter(a=>a.action==="buy").sort((a,b)=>b.usd-a.usd).slice(0,15);
+  const sells = (plan.actions||[]).filter(a=>a.action==="sell").sort((a,b)=>a.usd-b.usd).slice(0,15);
+
+  const buysDiv = document.getElementById('buys');
+  const sellsDiv = document.getElementById('sells');
+  buysDiv.innerHTML = tableActions(buys);
+  sellsDiv.innerHTML = tableActions(sells);
+
+  // Unknown
+  const u = document.getElementById('unknown');
+  u.textContent = (plan.unknown_aliases||[]).join(", ");
+
+  runBtn.disabled = false; runBtn.textContent = "Générer le plan";
+}
+
+function tableActions(rows){
+  if (!rows.length) return '<div class="muted">Aucune action</div>';
+  return `<table><thead><tr><th>group</th><th>alias</th><th>symbol</th><th>usd</th></tr></thead>
+  <tbody>${rows.map(r=>`
+    <tr>
+      <td>${r.group}</td>
+      <td>${r.alias}</td>
+      <td>${r.symbol}</td>
+      <td class="mono">${fmt(r.usd)}</td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+document.getElementById('runBtn').addEventListener('click', run);
+</script>
+</body>
+</html>

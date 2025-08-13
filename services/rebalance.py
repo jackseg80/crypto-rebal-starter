@@ -1,214 +1,394 @@
-# services/rebalance.py
 from __future__ import annotations
 
-from collections import defaultdict
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from api.taxonomy import Taxonomy
 
-L1L0_MAJORS = {
-    "XRP","BNB","XMR","ADA","NEAR","ATOM","XLM","SUI","TRX","LTC","DOT","AVAX",
-    "XTZ","EGLD","ETC","TON","ALGO","KAVA","FIL","TIA","APT","ICP",
-}
+def _normalize_targets(targets_raw: Any) -> Dict[str, float]:
+    """
+    Accepte différents formats:
+      - dict {"BTC": 35, "ETH": 25, ...}
+      - list [{"group":"BTC","weight_pct":35}, ...]
+    Retourne toujours un dict {group: weight_pct_float}.
+    """
+    out: Dict[str, float] = {}
 
-STABLES = {"USD","USDT","USDC","EUR","TUSD"}
+    if isinstance(targets_raw, dict):
+        for k, v in targets_raw.items():
+            try:
+                out[str(k)] = float(v)
+            except Exception:
+                pass
+        return out
 
-def _group_for_alias(alias: str) -> str:
-    a = alias.upper()
-    if a == "BTC":
-        return "BTC"
-    if a == "ETH":
-        return "ETH"
-    if a in STABLES:
-        return "Stablecoins"
-    if a == "SOL":
-        return "SOL"
-    if a in L1L0_MAJORS:
-        return "L1/L0 majors"
-    return "Others"
+    if isinstance(targets_raw, list):
+        for item in targets_raw:
+            if not isinstance(item, dict):
+                continue
+            g = item.get("group")
+            w = item.get("weight_pct")
+            if g is None or w is None:
+                continue
+            try:
+                out[str(g)] = float(w)
+            except Exception:
+                pass
 
-def _normalize_rows(raw_rows: List[Dict[str, Any]], aliases_map: Dict[str, str]) -> List[Dict[str, Any]]:
-    rows: List[Dict[str, Any]] = []
-    for r in raw_rows:
-        sym = str(r.get("symbol", "")).upper()
-        usd = float(r.get("usd_value") or r.get("value_usd") or 0.0)
-        alias = aliases_map.get(sym, sym)  # si pas mappé, alias = symbole
-        grp = _group_for_alias(alias)
-        rows.append({
-            "symbol": sym,
-            "alias": alias,
-            "group": grp,
-            "value_usd": usd,
-        })
-    return rows
+    return out
 
-def _sum_by_group(rows: List[Dict[str, Any]]) -> Tuple[float, Dict[str, float]]:
-    totals: Dict[str, float] = defaultdict(float)
+
+def _canonize_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Assure un format propre pour chaque ligne:
+      - group: chaîne (si liste -> on prend le 1er élément)
+      - alias: chaîne (fallback sur symbol)
+      - value_usd: float depuis value_usd ou usd_value
+    """
+    canon: List[Dict[str, Any]] = []
+    for r in rows or []:
+        # group -> string
+        g = r.get("group")
+        if isinstance(g, list):
+            g = next((x for x in g if isinstance(x, str) and x), None)
+        if not isinstance(g, str) or not g:
+            g = "Others"
+
+        # alias / symbol
+        symbol = r.get("symbol") or r.get("name") or ""
+        alias = r.get("alias") or symbol
+
+        # value_usd
+        val = r.get("value_usd")
+        if val is None:
+            val = r.get("usd_value")
+        try:
+            value_usd = float(val or 0.0)
+        except Exception:
+            value_usd = 0.0
+
+        canon.append(
+            {
+                "group": g,
+                "alias": alias,
+                "symbol": symbol or alias,
+                "value_usd": value_usd,
+                "location": r.get("location") or "unknown",
+            }
+        )
+    return canon
+
+
+def _sum_by_group(rows: List[Dict[str, Any]], min_usd: float) -> Tuple[float, Dict[str, float], Dict[str, List[Dict[str, Any]]]]:
+    """
+    Retourne (total, current_by_group, items_by_group)
+    en filtrant les trop petites lignes (< min_usd).
+    """
     total = 0.0
-    for r in rows:
-        usd = float(r["value_usd"])
-        totals[r["group"]] += usd
-        total += usd
-    return total, totals
+    by_group: Dict[str, float] = {}
+    items_by_group: Dict[str, List[Dict[str, Any]]] = {}
 
-def _proportions(items: List[Tuple[str,float]]) -> List[Tuple[str,float]]:
-    s = sum(v for _, v in items)
-    if s <= 0:
-        n = len(items) or 1
-        return [(k, 1.0/n) for k,_ in items]
-    return [(k, v/s) for k, v in items]
+    for it in rows:
+        v = float(it.get("value_usd") or 0.0)
+        if v < min_usd:
+            continue
+        g = it["group"]  # déjà une chaîne grâce à _canonize_rows
+        total += v
+        by_group[g] = by_group.get(g, 0.0) + v
+        items_by_group.setdefault(g, []).append(it)
 
-def _round2(x: float) -> float:
-    return round(float(x), 2)
+    return total, by_group, items_by_group
+
+
+def _targets_usd(total: float, group_targets_pct: Dict[str, float]) -> Dict[str, float]:
+    return {g: round(total * (pct / 100.0), 2) for g, pct in group_targets_pct.items()}
+
+
+def _sell_actions_for_group(items: List[Dict[str, Any]], sell_amount: float) -> List[Dict[str, Any]]:
+    """
+    Ventes proportionnelles à la taille des positions du groupe.
+    sell_amount est négatif (ex: -1200.0)
+    """
+    actions: List[Dict[str, Any]] = []
+    group_total = sum(float(x["value_usd"]) for x in items) or 1.0  # eviter /0
+
+    remaining = abs(sell_amount)
+    for it in sorted(items, key=lambda x: x["value_usd"], reverse=True):
+        if remaining <= 0:
+            break
+        share = float(it["value_usd"]) / group_total
+        usd = round(-min(remaining, share * abs(sell_amount)), 2)
+        if usd == 0:
+            continue
+        actions.append(
+            {
+                "group": it["group"],
+                "alias": it["alias"],
+                "symbol": it["symbol"],
+                "action": "sell",
+                "usd": usd,  # négatif
+                "est_quantity": None,
+                "price_used": None,
+            }
+        )
+        remaining -= abs(usd)
+
+    return actions
+
+
+def _buy_actions_for_group(
+    group: str,
+    buy_amount: float,
+    primary_symbols: Optional[Dict[str, List[str]]],
+) -> List[Dict[str, Any]]:
+    """
+    Achats répartis uniquement sur primary_symbols[group] s’il existe,
+    sinon un seul achat “group” (ex: alias=BTC, symbol=BTC).
+    buy_amount est positif.
+    """
+    actions: List[Dict[str, Any]] = []
+    targets = []
+    if isinstance(primary_symbols, dict):
+        arr = primary_symbols.get(group)
+        if isinstance(arr, list) and arr:
+            targets = [s for s in arr if isinstance(s, str) and s]
+
+    if not targets:
+        # fallback: un seul achat sur le groupe lui-même
+        targets = [group]
+
+    n = len(targets)
+    if n == 0:
+        return actions
+
+    share = round(buy_amount / n, 2)
+    for sym in targets:
+        actions.append(
+            {
+                "group": group,
+                "alias": group,   # on regroupe par alias de groupe
+                "symbol": sym,
+                "action": "buy",
+                "usd": share,     # positif
+                "est_quantity": None,
+                "price_used": None,
+            }
+        )
+
+    # ajuster le dernier pour compenser les arrondis
+    diff = round(buy_amount - sum(a["usd"] for a in actions), 2)
+    if diff != 0 and actions:
+        actions[-1]["usd"] = round(actions[-1]["usd"] + diff, 2)
+
+    return actions
+
+
+# services/rebalance.py
+
+from typing import Any, Dict, List, Tuple
+from services.taxonomy import Taxonomy
 
 def plan_rebalance(
     rows: List[Dict[str, Any]],
     group_targets_pct: Dict[str, float],
-    min_usd: float,
+    min_usd: float = 0.0,
     sub_allocation: str = "proportional",
     primary_symbols: Dict[str, List[str]] | None = None,
     min_trade_usd: float = 25.0,
 ) -> Dict[str, Any]:
     """
-    - primary_symbols: dict { "BTC": ["BTC","TBTC","WBTC"], "ETH": [...], "SOL": [...] }
-      S'applique **uniquement** aux ACHATS (pas aux ventes).
-    - min_trade_usd: filtre les lignes d'action très petites.
+    rows: [{symbol, alias, value_usd, location, ...}]
+    group_targets_pct: {"BTC": 35, "ETH": 25, ...}  (somme ~100)
+    primary_symbols: {"BTC": ["BTC","TBTC","WBTC"], "ETH": ["ETH","WSTETH",...], ...}
+      -> utilisé pour les ACHATS seulement. Les ventes se font proportionnellement
+         aux positions actuelles dans chaque groupe (peu importe primary_symbols).
     """
     tx = Taxonomy.load()
-    norm_rows = _normalize_rows(rows, tx.aliases)
 
-    total_usd, curr_by_group = _sum_by_group(norm_rows)
-    # poids actuels
-    curr_weights = {g: _round2(100.0 * v / total_usd) if total_usd > 0 else 0.0
-                    for g, v in curr_by_group.items()}
+    # Ordre des groupes (fallback si vide)
+    groups_order = list(tx.groups_order or [])
+    if not groups_order:
+        groups_order = ["BTC", "ETH", "Stablecoins", "SOL", "L1/L0 majors", "Others"]
 
-    # cibles en USD
-    targets_usd: Dict[str, float] = {}
-    for g, pct in group_targets_pct.items():
-        targets_usd[g] = _round2(total_usd * float(pct) / 100.0)
+    by_group: Dict[str, List[Dict[str, Any]]] = {g: [] for g in groups_order}
+    fallback_group = "Others" if "Others" in by_group else groups_order[0]
 
-    # deltas
-    deltas_by_group: Dict[str, float] = {
-        g: _round2(targets_usd.get(g, 0.0) - curr_by_group.get(g, 0.0))
-        for g in tx.groups_order
+    def pick_group_for_alias(a: str) -> str:
+        g = tx.group_for_alias(a)
+        if isinstance(g, (list, tuple)):
+            for cand in g:
+                if isinstance(cand, str) and cand in by_group:
+                    return cand
+            for cand in g:
+                if isinstance(cand, str):
+                    return cand
+            return fallback_group
+        if isinstance(g, str):
+            return g if g in by_group else fallback_group
+        return fallback_group
+
+    # Normalise & filtre
+    items: List[Dict[str, Any]] = []
+    for it in rows or []:
+        symbol = (it.get("symbol") or it.get("name") or it.get("coin") or "").strip()
+        alias = (it.get("alias") or it.get("name") or symbol or "").strip()
+        v = it.get("value_usd")
+        if v is None:
+            v = it.get("usd_value")
+        value_usd = float(v or 0.0)
+        if value_usd < float(min_usd or 0.0):
+            continue
+        g = pick_group_for_alias(alias)
+        items.append({
+            "group": g,
+            "alias": alias or symbol,
+            "symbol": symbol,
+            "value_usd": value_usd,
+            "location": it.get("location") or "unknown",
+        })
+
+    total_usd = sum(x["value_usd"] for x in items) or 0.0
+
+    # Répartition courante par groupe
+    current_by_group: Dict[str, float] = {g: 0.0 for g in groups_order}
+    for it in items:
+        current_by_group[it["group"]] = current_by_group.get(it["group"], 0.0) + it["value_usd"]
+
+    current_weights_pct = {
+        g: round(100.0 * (current_by_group.get(g, 0.0) / total_usd), 3) if total_usd else 0.0
+        for g in groups_order
     }
 
-    # regrouper par (group -> alias -> [(symbol, usd)])
-    by_group_alias: Dict[str, Dict[str, List[Tuple[str, float]]]] = defaultdict(lambda: defaultdict(list))
-    for r in norm_rows:
-        by_group_alias[r["group"]][r["alias"]].append((r["symbol"], float(r["value_usd"])))
+    # Cibles
+    # On garde les pct tels que reçus (tu peux normaliser si tu veux)
+    target_weights_pct = {k: float(v) for k, v in (group_targets_pct or {}).items()}
+    targets_usd = {g: round(total_usd * (target_weights_pct.get(g, 0.0) / 100.0), 2) for g in groups_order}
+    deltas_by_group_usd = {g: round(targets_usd.get(g, 0.0) - current_by_group.get(g, 0.0), 2) for g in groups_order}
+
+    # Index par groupe (positions actuelles)
+    for it in items:
+        by_group[it["group"]].append(it)
+
+    # Helpers d’allocation
+    def allocate_proportional(total: float, buckets: List[Tuple[str, float]]) -> Dict[str, float]:
+        """
+        buckets: [(alias, poids_de_répartition >=0)]
+        Retourne {alias: usd_alloué} somme ≈ total
+        """
+        alloc: Dict[str, float] = {}
+        base = sum(max(w, 0.0) for _, w in buckets)
+        if base <= 0:
+            # si pas de base, on répartit à parts égales
+            n = len(buckets)
+            if n == 0:
+                return {}
+            q = round(total / n, 2)
+            # ajustement ultime sur le 1er pour retomber pile au total
+            running = 0.0
+            for i, (a, _) in enumerate(buckets):
+                if i < n - 1:
+                    alloc[a] = q
+                    running += q
+                else:
+                    alloc[a] = round(total - running, 2)
+            return alloc
+
+        # allocation proportionnelle
+        running = 0.0
+        for i, (a, w) in enumerate(buckets):
+            if i < len(buckets) - 1:
+                x = round(total * (max(w, 0.0) / base), 2)
+                alloc[a] = x
+                running += x
+            else:
+                alloc[a] = round(total - running, 2)
+        return alloc
 
     actions: List[Dict[str, Any]] = []
 
-    # VENTES : pour les groupes en excès (delta < 0), on vend proportionnellement aux positions détenues
-    for g, delta in deltas_by_group.items():
-        if delta >= 0:
+    # 1) VENTES (groupes surpondérés) – proportionnel au poids des positions du groupe
+    for g in groups_order:
+        delta = deltas_by_group_usd.get(g, 0.0)
+        if delta >= -1e-9:
             continue
-        sell_left = abs(delta)
-        # vente d'abord dans toutes les alias de ce groupe, proportionnelles
-        for alias, sym_list in by_group_alias.get(g, {}).items():
-            # proportion par symbole au sein de l'alias
-            for sym, usd in _proportions(sym_list):
-                amount = _round2(sell_left * usd)  # usd = proportion (0..1)
-                if amount >= min_trade_usd:
-                    actions.append({
-                        "group": g, "alias": alias, "symbol": sym,
-                        "action": "sell", "usd": -amount,
-                        "est_quantity": None, "price_used": None
-                    })
-            # on a vendu sur l'ensemble du groupe ; on stop après répartition
-            # car on a pris sell_left proportionnellement
-            break
+        to_sell = -delta  # positif
+        positions = by_group.get(g, [])
+        # buckets par alias dans ce groupe
+        buckets: Dict[str, float] = {}
+        for p in positions:
+            a = p["alias"]
+            buckets[a] = buckets.get(a, 0.0) + p["value_usd"]
+        alloc = allocate_proportional(to_sell, list(buckets.items()))
+        for alias, usd in alloc.items():
+            if abs(usd) < 1e-9:
+                continue
+            actions.append({
+                "group": g, "alias": alias, "symbol": alias,  # symbol = alias (agrégé)
+                "action": "sell",
+                "usd": -round(usd, 2),
+                "est_quantity": None,
+                "price_used": None,
+            })
 
-    # ACHATS : pour les groupes en manque (delta > 0)
-    prim = {k.upper(): [s.upper() for s in v] for k, v in (primary_symbols or {}).items()}
-    for g, delta in deltas_by_group.items():
-        if delta <= 0:
+    # 2) ACHATS (groupes sous-pondérés) – répartis sur primary_symbols[g] si fourni, sinon proportionnel aux alias existants
+    ps = primary_symbols or {}
+    for g in groups_order:
+        delta = deltas_by_group_usd.get(g, 0.0)
+        if delta <= 1e-9:
             continue
-        buy_left = float(delta)
+        to_buy = delta  # positif
+        positions = by_group.get(g, [])
 
-        # choix des symboles cibles :
-        # - si primary_symbols[g] existe : on achète sur cet ensemble (même s'ils ne sont pas déjà détenus)
-        # - sinon : on répartit proportionnellement aux positions détenues dans ce groupe
-        target_symbols: List[Tuple[str, str]] = []  # (alias, symbol)
-        if g in prim and prim[g]:
-            # alias de ce groupe = pour BTC -> "BTC", ETH -> "ETH", SOL -> "SOL", Stables -> on force "USD"
-            if g == "Stablecoins":
-                alias_name = "USD"
-                for sym in prim[g]:
-                    if sym in {"USD","USDT","USDC","EUR","TUSD"}:
-                        target_symbols.append((sym, sym))
-                if not target_symbols:
-                    target_symbols.append((alias_name, alias_name))
-            else:
-                alias_name = g if g in {"BTC","ETH","SOL"} else None
-                # si pas alias direct (L1/L0/ou Others), on achète proportionnellement à ce qu'on détient
-                if alias_name:
-                    for sym in prim[g]:
-                        target_symbols.append((alias_name, sym))
-        if not target_symbols:
-            # fallback: proportionnel sur ce qu'on détient
-            sym_list_all: List[Tuple[str, float]] = []
-            for alias, sym_list in by_group_alias.get(g, {}).items():
-                for sym, usd in sym_list:
-                    sym_list_all.append((f"{alias}:{sym}", usd))
-            if not sym_list_all:
-                # rien détenu ; si Stablecoins à acheter, on prend USD
-                if g == "Stablecoins":
-                    target_symbols = [("USD","USD")]
-                elif g in {"BTC","ETH","SOL"}:
-                    target_symbols = [(g, g)]
-                else:
-                    # groupe flou sans positions et sans primary -> on ne crée pas d'achats
-                    target_symbols = []
-            else:
-                for id_combined, prop in _proportions(sym_list_all):
-                    alias_name, sym = id_combined.split(":", 1)
-                    target_symbols.append((alias_name, sym))
+        primary_list = [s.strip() for s in (ps.get(g) or []) if isinstance(s, str) and s.strip()]
+        if primary_list:
+            # parts égales sur les primary
+            buckets = [(a, 1.0) for a in primary_list]
+        else:
+            # sinon proportionnel au poids existant des alias du groupe
+            agg: Dict[str, float] = {}
+            for p in positions:
+                a = p["alias"]
+                agg[a] = agg.get(a, 0.0) + p["value_usd"]
+            # si pas de positions (groupe vide), on met tout sur le nom du groupe
+            buckets = list(agg.items()) if agg else [(g, 1.0)]
 
-        # répartition des achats
-        if target_symbols:
-            # si target_symbols est une liste (alias,symbol), on répartit égalitairement
-            n = len(target_symbols)
-            for alias, sym in target_symbols:
-                amount = _round2(buy_left / n)
-                if amount >= min_trade_usd:
-                    actions.append({
-                        "group": g, "alias": alias, "symbol": sym,
-                        "action": "buy", "usd": amount,
-                        "est_quantity": None, "price_used": None
-                    })
+        alloc = allocate_proportional(to_buy, buckets)
+        for alias, usd in alloc.items():
+            if abs(usd) < 1e-9:
+                continue
+            actions.append({
+                "group": g, "alias": alias, "symbol": alias,
+                "action": "buy",
+                "usd": round(usd, 2),
+                "est_quantity": None,
+                "price_used": None,
+            })
 
-    # Filtre min_trade_usd (au cas où)
-    actions = [a for a in actions if abs(float(a["usd"])) >= float(min_trade_usd)]
+    # 3) Filtre min_trade_usd + petit rééquilibrage pour net ≈ 0
+    actions = [a for a in actions if abs(a["usd"]) >= float(min_trade_usd or 0.0)]
 
-    # Ajustement net → ~0
-    net = _round2(sum(a["usd"] for a in actions))
-    if abs(net) >= 0.01:
-        # On compense côté stablecoin USD si présent sinon on n'ajoute rien.
-        actions.append({
-            "group": "Stablecoins", "alias": "USD", "symbol": "USD",
-            "action": ("sell" if net > 0 else "buy"),
-            "usd": -net,
-            "est_quantity": None, "price_used": None
-        })
+    net = round(sum(a["usd"] for a in actions), 2)
+    if abs(net) >= 0.01 and actions:
+        # on compense sur la plus grosse action en valeur absolue
+        idx = max(range(len(actions)), key=lambda i: abs(actions[i]["usd"]))
+        actions[idx]["usd"] = round(actions[idx]["usd"] - net, 2)
+        net = round(sum(a["usd"] for a in actions), 2)
 
-    # unknown_aliases (dans ce plan) = symboles non mappés par taxonomy
-    unknown = sorted({
-        r["symbol"]
-        for r in rows
-        if r.get("symbol") and r["symbol"].upper() not in tx.aliases
-    })
+    # Unknown aliases (sur ce périmètre filtré min_usd)
+    known_aliases = set(tx.aliases.keys())
+    unknown_aliases_set = set()
+    for it in items:
+        a = it["alias"]
+        if a and a not in known_aliases:
+            unknown_aliases_set.add(a)
 
-    result = {
-        "total_usd": _round2(total_usd),
-        "current_by_group": {g: _round2(v) for g, v in curr_by_group.items()},
-        "current_weights_pct": curr_weights,
-        "target_weights_pct": {g: float(p) for g, p in group_targets_pct.items()},
-        "targets_usd": {g: _round2(v) for g, v in targets_usd.items()},
-        "deltas_by_group_usd": deltas_by_group,
+    return {
+        "total_usd": round(total_usd, 2),
+        "current_by_group": {g: round(current_by_group.get(g, 0.0), 2) for g in groups_order},
+        "current_weights_pct": current_weights_pct,
+        "target_weights_pct": {g: round(float(group_targets_pct.get(g, 0.0)), 3) for g in groups_order},
+        "targets_usd": {g: round(targets_usd.get(g, 0.0), 2) for g in groups_order},
+        "deltas_by_group_usd": {g: round(deltas_by_group_usd.get(g, 0.0), 2) for g in groups_order},
         "actions": actions,
         "advice": [],
-        "unknown_aliases": unknown,
+        "unknown_aliases": sorted(list(unknown_aliases_set)),
     }
-    return result
+
