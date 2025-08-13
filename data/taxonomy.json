@@ -1,0 +1,63 @@
+{
+  "groups_order": [
+    "BTC",
+    "ETH",
+    "Stablecoins",
+    "SOL",
+    "L1/L0 majors",
+    "Others"
+  ],
+  "aliases": {
+    "BTC": [
+      "BTC",
+      "TBTC",
+      "WBTC"
+    ],
+    "ETH": [
+      "ETH",
+      "RETH",
+      "STETH",
+      "WETH",
+      "WSTETH"
+    ],
+    "SOL": [
+      "JITOSOL",
+      "JUPSOL",
+      "SOL"
+    ],
+    "Stablecoins": [
+      "DAI",
+      "EUR",
+      "TUSD",
+      "USD",
+      "USDC",
+      "USDP",
+      "USDT"
+    ],
+    "L1/L0 majors": [
+      "ADA",
+      "ALGO",
+      "APT",
+      "ATOM",
+      "AVAX",
+      "BNB",
+      "DOT",
+      "EGLD",
+      "ETC",
+      "FIL",
+      "ICP",
+      "KAVA",
+      "LTC",
+      "NEAR",
+      "SUI",
+      "TIA",
+      "TON",
+      "TRX",
+      "XLM",
+      "XMR",
+      "XRP",
+      "XTZ"
+    ],
+    "Others": []
+  }
+}

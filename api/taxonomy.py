@@ -1,146 +1,156 @@
 # api/taxonomy.py
 from __future__ import annotations
-from dataclasses import dataclass
-from typing import Dict, List, Tuple, Any
-import re
+import json
+from pathlib import Path
+from typing import Dict, List, Optional, Any, DefaultDict
+from collections import defaultdict
 
-# ---------------------------
-# 1) Alias & Groupes par défaut
-# ---------------------------
+DATA_DIR = Path("data")
+DATA_DIR.mkdir(exist_ok=True)
+TAXO_PATH = DATA_DIR / "taxonomy.json"
 
-# Stablecoins (incluant devises fiat vues par CoinTracking)
-STABLES = {
-    "USDT","USDC","DAI","FDUSD","TUSD","BUSD","USDBC","USDCE","USDC.E",
-    "EURT","EUR","USD","CHF"
+_DEFAULT = {
+    "groups_order": ["BTC", "ETH", "Stablecoins", "SOL", "L1/L0 majors", "Others"],
+    "aliases": {
+        "BTC": ["BTC", "TBTC", "WBTC"],
+        "ETH": ["ETH", "WSTETH", "STETH", "RETH", "WETH"],
+        "SOL": ["SOL", "JUPSOL", "JITOSOL"],
+        "Stablecoins": ["USD", "USDT", "USDC", "DAI", "USDP", "EUR", "TUSD"],
+        "L1/L0 majors": [
+            "XRP","BNB","XMR","ADA","NEAR","ATOM","XLM","SUI","TRX","LTC","DOT","AVAX",
+            "XTZ","EGLD","ETC","TON","ALGO","KAVA","FIL","TIA","APT","ICP"
+        ],
+        "Others": []
+    }
 }
 
-# Variantes à re-mapper vers un alias "maître"
-VARIANTS = {
-    # BTC
-    "TBTC":"BTC", "WBTC":"BTC", "BTCB":"BTC",
-    # ETH
-    "WETH":"ETH","STETH":"ETH","WSTETH":"ETH","RETH":"ETH","CBETH":"ETH","BETH3":"ETH",
-    # SOL
-    "SOL2":"SOL","JITOSOL":"SOL","JUPSOL":"SOL",
-    # Autres cas fréquents vus dans ton dump
-    "ATOM2":"ATOM","DOT2":"DOT","IOTA2":"IOTA","ICP2":"ICP","EGLD3":"EGLD",
-    "FIL":"FIL","NEAR":"NEAR","AVAX":"AVAX","ADA":"ADA","BNB":"BNB","TRX":"TRX",
-    "XRP":"XRP","XLM":"XLM","LTC":"LTC","ETC":"ETC","TONCOIN":"TON","TIA3":"TIA",
-    "SUI3":"SUI","APT3":"APT"
-}
+def _load_json(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
 
-# L1/L0 majeurs (hors BTC/ETH/SOL)
-L1_L0_MAJORS = {
-    "ADA","AVAX","ATOM","NEAR","DOT","KAVA","ALGO","ICP","EGLD","FIL",
-    "TRX","XRP","XLM","LTC","ETC","TON","SUI","TIA","APT","BNB","XMR","XTZ"
-}
-
-# Ordre d’affichage
-GROUP_ORDER = ["BTC","ETH","Stablecoins","SOL","L1/L0 majors","Others"]
-
-@dataclass(frozen=True)
-class Row:
-    symbol: str
-    amount: float
-    value_usd: float
-    # facultatif: exchange/wallet pour la suite
-    location: str | None = None
+def _save_json(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 class Taxonomy:
-    def __init__(self,
-                 stables: set[str] = STABLES,
-                 variants: Dict[str,str] = VARIANTS,
-                 l1majors: set[str] = L1_L0_MAJORS):
-        self.stables = set(s.upper() for s in stables)
-        self.variants = {k.upper(): v.upper() for k,v in variants.items()}
-        self.l1majors = set(s.upper() for s in l1majors)
+    def __init__(self, groups_order: List[str], aliases: Dict[str, List[str]]):
+        # tout en MAJ
+        self.groups_order = list(groups_order)
+        self.aliases: Dict[str, List[str]] = {
+            g: sorted({a.upper() for a in lst}) for g, lst in aliases.items()
+        }
 
-    # --- Normalisation symboles -> alias maître
-    def normalize_symbol(self, sym: str) -> str:
-        s = (sym or "").upper().strip()
+    @classmethod
+    def load(cls) -> "Taxonomy":
+        data = _load_json(TAXO_PATH)
+        if not data:
+            _save_json(TAXO_PATH, _DEFAULT)
+            data = _DEFAULT
+        groups_order = data.get("groups_order") or _DEFAULT["groups_order"]
+        aliases = data.get("aliases") or _DEFAULT["aliases"]
+        # normalise les clés de groupes
+        aliases = {str(g): [a.upper() for a in lst] for g, lst in aliases.items()}
+        return cls(groups_order=groups_order, aliases=aliases)
 
-        # enlever suffixes purement numériques (ex: "ATOM2" -> "ATOM")
-        base = re.sub(r"\d+$", "", s)
+    def save(self) -> None:
+        _save_json(TAXO_PATH, {"groups_order": self.groups_order, "aliases": self.aliases})
 
-        # appliquer le mapping variantes -> alias
-        if s in self.variants:
-            return self.variants[s]
-        if base in self.variants:
-            return self.variants[base]
-        return base
+    def to_dict(self) -> dict:
+        return {"groups_order": self.groups_order, "aliases": self.aliases}
 
-    # --- Déterminer le groupe d’un alias
-    def group_of_alias(self, alias: str) -> str:
+    def group_of_alias(self, alias: str) -> Optional[str]:
+        if not alias:
+            return None
         a = alias.upper()
-        if a == "BTC":
-            return "BTC"
-        if a == "ETH":
-            return "ETH"
-        if a in self.stables:
-            return "Stablecoins"
-        if a == "SOL":
-            return "SOL"
-        if a in self.l1majors:
-            return "L1/L0 majors"
-        return "Others"
+        for g, lst in self.aliases.items():
+            if a in lst:
+                return g
+        return None
 
-    # --- Agrégation
-    def aggregate(self, rows: List[Dict[str, Any]], min_usd: float = 1.0) -> Dict[str, Any]:
-        """
-        rows: liste de dicts {"symbol","amount","value_usd", ...}
-        """
-        normalized: List[Tuple[Row, str, str]] = []
-        portfolio_total = 0.0
+    def add_mapping(self, alias: str, group: str) -> None:
+        a = alias.upper()
+        if group not in self.aliases:
+            self.aliases[group] = []
+        # enlever des autres groupes s'il existait
+        for gg, lst in self.aliases.items():
+            if gg != group and a in lst:
+                lst.remove(a)
+        if a not in self.aliases[group]:
+            self.aliases[group].append(a)
 
+    def unknown_aliases_from_rows(self, rows: List[Dict[str, Any]], min_usd: float = 0.0) -> List[Dict[str, Any]]:
+        acc: Dict[str, float] = {}
         for r in rows:
-            try:
-                symbol = str(r.get("symbol","")).upper()
-                amount = float(r.get("amount", 0) or 0)
-                value_usd = float(r.get("value_usd", 0) or 0)
-                location = r.get("location")
-            except Exception:
+            alias = (r.get("alias") or r.get("name") or r.get("symbol") or "").upper()
+            usd = float(r.get("value_usd") or r.get("usd_value") or r.get("usd") or 0.0)
+            if usd < min_usd:
+                continue
+            if self.group_of_alias(alias) is None:
+                acc[alias] = acc.get(alias, 0.0) + usd
+        return [{"alias": a, "total_usd": v} for a, v in sorted(acc.items(), key=lambda kv: kv[1], reverse=True)]
+
+    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    # Agrégation principale utilisée par /portfolio/groups et le plan
+    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    def aggregate(self, rows: List[Dict[str, Any]], min_usd: float = 1.0) -> Dict[str, Any]:
+        groups_map: Dict[str, Dict[str, Any]] = {
+            g: {"group": g, "total_usd": 0.0, "items": []} for g in self.groups_order
+        }
+        unknown_acc: DefaultDict[str, float] = defaultdict(float)
+
+        total_usd = 0.0
+
+        for r in rows or []:
+            symbol = (r.get("symbol") or r.get("name") or "").upper()
+            alias = (r.get("alias") or symbol).upper()
+            value_usd = float(r.get("value_usd") or r.get("usd_value") or r.get("usd") or 0.0)
+            amount = float(r.get("amount") or 0.0)
+            location = r.get("location")
+
+            if value_usd < float(min_usd):
                 continue
 
-            if value_usd < min_usd:
-                continue
-
-            alias = self.normalize_symbol(symbol)
             group = self.group_of_alias(alias)
-            normalized.append((Row(symbol, amount, value_usd, location), alias, group))
-            portfolio_total += value_usd
+            if group is None:
+                # on range en "Others" mais on remonte aussi dans unknown_aliases
+                unknown_acc[alias] += value_usd
+                group = "Others"
+                if group not in groups_map:
+                    groups_map[group] = {"group": group, "total_usd": 0.0, "items": []}
 
-        # totaux par groupe et détail
-        groups: Dict[str, Dict[str, Any]] = {g: {"group": g, "total_usd": 0.0, "items": []} for g in GROUP_ORDER}
-        groups.setdefault("Others", {"group":"Others","total_usd":0.0,"items":[]})
-
-        unknown_aliases = set()
-
-        for row, alias, group in normalized:
-            if group not in groups:
-                groups[group] = {"group": group, "total_usd": 0.0, "items": []}
-            groups[group]["total_usd"] += row.value_usd
-            groups[group]["items"].append({
-                "symbol": row.symbol,
+            groups_map[group]["items"].append({
+                "symbol": symbol,
                 "alias": alias,
-                "amount": row.amount,
-                "value_usd": row.value_usd,
-                "location": row.location
+                "amount": amount,
+                "value_usd": value_usd,
+                "location": location
             })
+            groups_map[group]["total_usd"] += value_usd
+            total_usd += value_usd
 
-            # tracer les alias qui finissent dans Others (potentiel need de mapping)
-            if group == "Others" and alias not in STABLES and alias not in {"BTC","ETH","SOL"} and alias not in L1_L0_MAJORS:
-                unknown_aliases.add(alias)
+        # ordonner les groupes dans l’ordre défini et calc % poids
+        ordered_groups: List[Dict[str, Any]] = []
+        for g in self.groups_order:
+            if g in groups_map:
+                ordered_groups.append(groups_map[g])
+        # ajouter les groupes éventuels ajoutés à chaud
+        for g, data in groups_map.items():
+            if g not in self.groups_order:
+                ordered_groups.append(data)
 
-        # formater la sortie
-        ordered_groups = [groups[g] for g in GROUP_ORDER if g in groups] + \
-                         [v for k,v in groups.items() if k not in GROUP_ORDER]
-
-        # poids %
         for g in ordered_groups:
-            g["weight_pct"] = (g["total_usd"] / portfolio_total * 100.0) if portfolio_total > 0 else 0.0
+            g["weight_pct"] = (g["total_usd"] / total_usd * 100.0) if total_usd > 0 else 0.0
+
+        unknown_aliases = [
+            {"alias": a, "total_usd": v} for a, v in sorted(unknown_acc.items(), key=lambda kv: kv[1], reverse=True)
+        ]
 
         return {
-            "total_usd": portfolio_total,
+            "total_usd": total_usd,
             "groups": ordered_groups,
-            "unknown_aliases": sorted(unknown_aliases),
+            "unknown_aliases": unknown_aliases,
         }
