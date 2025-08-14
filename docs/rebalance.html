@@ -49,7 +49,8 @@
           <div class="row">
             <div style="flex:1">
               <label for="source">Source</label>
-              <input id="source" type="text" value="cointracking" />
+              <!-- ⚠️ par défaut on force l’API -->
+              <input id="source" type="text" value="cointracking_api" />
             </div>
             <div style="flex:1">
               <label for="api_base">API URL</label>
@@ -214,7 +215,7 @@
         ETH: parseCsv(el('eth_syms').value),
         SOL: parseCsv(el('sol_syms').value),
       };
-}
+    }
 
     function renderPairsList(obj, containerId) {
       const cont = el(containerId); cont.innerHTML = "";
@@ -243,48 +244,35 @@
     }
 
     function getGroupsFromTargets(){
-      // On déduit la liste des groupes depuis les inputs cibles (clé = libellé visible)
-      return [
-        "BTC", "ETH", "Stablecoins", "SOL", "L1/L0 majors", "Others"
-      ];
+      return ["BTC", "ETH", "Stablecoins", "SOL", "L1/L0 majors", "Others"];
     }
 
     async function saveAliasMapping(alias, group){
       const apiBase = (document.getElementById('api_base').value || '').trim();
       const url = joinBase(apiBase, '/taxonomy/aliases');
 
-      // 1) format A (clé->groupe), ex: { "AAVE": "Others" }
+      // 1) format A (clé->groupe)
       try {
-        await postJson(url, { [alias]: group });
-        // Vérification immédiate : GET /taxonomy puis contrôle que l'alias est bien présent
+        await fetch(url, {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ [alias]: group })
+        });
         const tax = await fetch(joinBase(apiBase, '/taxonomy')).then(r=>r.json());
-        if (tax && tax.aliases && Object.prototype.hasOwnProperty.call(tax.aliases, alias)) {
-          return true;
-        }
-        // si pas présent, on essaie le format B
-      } catch (e) {
-        // on tombera sur le format B
-      }
+        if (tax && tax.aliases && Object.prototype.hasOwnProperty.call(tax.aliases, alias)) return true;
+      } catch (_) {}
 
-      // 2) format B (objet wrapper), ex: { "aliases": { "AAVE": "Others" } }
+      // 2) format B (wrapper)
       const respB = await fetch(url, {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
+        method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ aliases: { [alias]: group } })
       });
-      const txtB = await respB.text();
       if (!respB.ok){
-        const box = document.getElementById('errorBox') || ensureEl('errorBox', document.body, 'error-box');
-        box.textContent = `[${respB.status}] ${txtB || 'Erreur API lors du mapping alias (format B)'}`;
-        box.style.display = 'block';
-        throw new Error(txtB || 'Mapping alias failed (format B)');
+        const txtB = await respB.text();
+        throw new Error(`[${respB.status}] ${txtB || 'Erreur API lors du mapping alias (format B)'}`);
       }
 
-      // re-vérifier
       const tax2 = await fetch(joinBase(apiBase, '/taxonomy')).then(r=>r.json()).catch(()=>null);
-      if (tax2 && tax2.aliases && Object.prototype.hasOwnProperty.call(tax2.aliases, alias)) {
-        return true;
-      }
+      if (tax2 && tax2.aliases && Object.prototype.hasOwnProperty.call(tax2.aliases, alias)) return true;
       throw new Error("Le mapping n'apparaît pas dans /taxonomy après écriture.");
     }
 
@@ -302,9 +290,7 @@
       list.slice().sort().forEach(alias => {
         const tr = document.createElement('tr');
 
-        const tdA = document.createElement('td');
-        tdA.textContent = alias;
-        tr.appendChild(tdA);
+        const tdA = document.createElement('td'); tdA.textContent = alias; tr.appendChild(tdA);
 
         const tdG = document.createElement('td');
         const sel = document.createElement('select');
@@ -322,17 +308,14 @@
         btn.className = 'btn secondary';
         btn.textContent = 'Ajouter';
         btn.addEventListener('click', async () => {
-          const errBox = document.getElementById('errorBox'); if (errBox){ errBox.style.display='none'; errBox.textContent=''; }
           try{
             btn.disabled = true;
             await saveAliasMapping(alias, sel.value);
             tdBtn.innerHTML = "<span class='ok'>OK</span>";
-            await runPlan(false);           // régénère et rafraîchit la liste
+            await runPlan(false);
           }catch(e){
             btn.disabled = false;
-            const box = document.getElementById('errorBox') || ensureEl('errorBox', document.body, 'error-box');
-            box.textContent = e?.message || 'Erreur mapping alias';
-            box.style.display = 'block';
+            alert(e?.message || 'Erreur mapping alias');
           }
         });
         tdBtn.appendChild(btn);
@@ -341,7 +324,7 @@
         tb.appendChild(tr);
       });
 
-      // Bouton "Tout ajouter -> Others"
+      // Bouton "Tout ajouter → Others"
       const trAll = document.createElement('tr');
       const tdAll = document.createElement('td'); tdAll.colSpan = 3;
       const btnAll = document.createElement('button');
@@ -349,17 +332,12 @@
       btnAll.textContent = 'Tout ajouter → Others';
       btnAll.addEventListener('click', async ()=>{
         btnAll.disabled = true;
-        const errBox = document.getElementById('errorBox'); if (errBox){ errBox.style.display='none'; errBox.textContent=''; }
         try{
-          for(const alias of list){
-            await saveAliasMapping(alias, 'Others');
-          }
+          for(const alias of list){ await saveAliasMapping(alias, 'Others'); }
           await runPlan(false);
         }catch(e){
           btnAll.disabled = false;
-          const box = document.getElementById('errorBox') || ensureEl('errorBox', document.body, 'error-box');
-          box.textContent = e?.message || 'Erreur mapping (batch)';
-          box.style.display = 'block';
+          alert(e?.message || 'Erreur mapping (batch)');
         }
       });
       tdAll.appendChild(btnAll);
@@ -369,7 +347,6 @@
       tbl.appendChild(tb);
       box.appendChild(tbl);
     }
-
 
     function renderControl(actions) {
       let buys = 0, sells = 0;
@@ -393,7 +370,6 @@
         const min_usd = (el('min_usd').value || "1").trim();
         const min_trade_usd = parseFloat(el('min_trade').value || '25');
 
-        // radio par défaut…
         let sub_allocation = [...document.querySelectorAll('input[name="suballoc"]')]
           .find(r=>r.checked)?.value || "proportional";
 
@@ -407,7 +383,7 @@
 
         const primary_symbols = buildPrimarySymbols();
         const hasPrimary = Object.values(primary_symbols).some(arr => arr && arr.length);
-        if (hasPrimary) sub_allocation = "primary_first"; // <<< clé
+        if (hasPrimary) sub_allocation = "primary_first";
 
         const payload = {
           group_targets_pct: targets,
@@ -417,15 +393,17 @@
         };
 
         const apiBase = (el('api_base').value || '').trim();
-        const url = joinBase(apiBase, `/rebalance/plan?source=${encodeURIComponent(source)}&min_usd=${encodeURIComponent(min_usd)}`);
-        const csvUrl = joinBase(apiBase, `/rebalance/plan.csv?source=${encodeURIComponent(source)}&min_usd=${encodeURIComponent(min_usd)}`);
+        const qs = new URLSearchParams({ source, min_usd }).toString();
+        const url = joinBase(apiBase, `/rebalance/plan?${qs}`);
+        const csvUrl = joinBase(apiBase, `/rebalance/plan.csv?${qs}`);
 
         if (downloadCsv) {
+          // On génère d’abord pour rafraîchir l’UI…
           const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
           if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
           const plan = await resp.json();
 
-          // 👉 utiliser csvUrl (et pas un chemin absolu fixe)
+          // …puis on télécharge le CSV depuis le même endpoint/base
           const csvResp = await fetch(csvUrl, {
             method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
           });
@@ -437,7 +415,6 @@
           document.body.appendChild(a); a.click(); a.remove();
           URL.revokeObjectURL(a.href);
 
-          // rendu résumé
           renderPairsList(plan.target_weights_pct || {}, 'targets');
           renderPairsList(plan.deltas_by_group_usd || {}, 'deltas');
           renderTop(plan.actions||[], true, 'topBuys');
@@ -474,134 +451,9 @@
       }
     }
 
+    // Uniques handlers
     el('btnRun').addEventListener('click', ()=>runPlan(false));
     el('btnCsv').addEventListener('click', ()=>runPlan(true));
-
-  function parsePrimaryCSV(raw) {
-    // Format attendu (insensible aux espaces) :
-    // BTC: BTC, TBTC, WBTC
-    // ETH: ETH, WSTETH, RETH
-    // SOL: SOL, JUPSOL, JITOSOL
-    const map = {};
-    if (!raw) return map;
-
-    // coupe par lignes
-    const lines = raw.split(/\r?\n/);
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      const parts = line.split(':');
-      if (parts.length < 2) continue;
-
-      const alias = parts[0].trim(); // ex. "BTC", "ETH", "SOL"
-      const symbolsStr = parts.slice(1).join(':'); // tout ce qui suit
-      const symbols = symbolsStr
-        .split(/[,\s]+/)          // sépare par virgule ET/OU espaces
-        .map(s => s.trim().toUpperCase())
-        .filter(Boolean);
-
-      if (alias && symbols.length) {
-        map[alias.toUpperCase()] = symbols;
-      }
-    }
-    return map;
-  }
-
-  // utilitaire simple pour mettre à jour le statut
-  function setStatus(msg, isError=false){
-    const el = document.getElementById('statusText');
-    if (!el) return;
-    el.textContent = msg;
-    el.style.color = isError ? '#b00020' : '#2e7d32';
-  }
-
-  async function buildPayloadFromForm() {
-    // => adapte si tes IDs diffèrent; logique identique à ton bouton "Calculer"
-    // Exemples :
-    // - lecture des poids par groupe
-    // - sub_allocation
-    // - min_trade_usd
-    // - primary_symbols (BTC/ETH/SOL)
-    // Retourne un objet { group_targets_pct, sub_allocation, min_trade_usd, primary_symbols }
-    // -------------------------
-    // Ici, je montre le squelette ; remplace par ta lecture réelle des champs :
-    const group_targets_pct = {
-      BTC: parseFloat(document.getElementById('w_btc').value || '0'),
-      ETH: parseFloat(document.getElementById('w_eth').value || '0'),
-      'L1/L0 majors': parseFloat(document.getElementById('w_l1').value || '0'),
-      Others: parseFloat(document.getElementById('w_others').value || '0'),
-      SOL: parseFloat(document.getElementById('w_sol').value || '0'),
-      Stablecoins: parseFloat(document.getElementById('w_stable').value || '0'),
-    };
-
-    const sub_allocation = (document.querySelector('input[name="suballoc"]:checked')?.value) || 'proportional';
-    const min_trade_usd = parseFloat(document.getElementById('min_trade').value || '25');
-
-    // Primary symbols selon tes checkboxes / inputs
-    const prim_btc = [];
-    if (document.getElementById('p_btc').checked) prim_btc.push('BTC');
-    if (document.getElementById('p_tbtc').checked) prim_btc.push('TBTC');
-    if (document.getElementById('p_wbtc').checked) prim_btc.push('WBTC');
-
-    const prim_eth = [];
-    if (document.getElementById('p_eth').checked) prim_eth.push('ETH');
-    if (document.getElementById('p_wsteth').checked) prim_eth.push('WSTETH');
-    if (document.getElementById('p_steth').checked) prim_eth.push('STETH');
-    if (document.getElementById('p_reth').checked) prim_eth.push('RETH');
-    if (document.getElementById('p_weth').checked) prim_eth.push('WETH');
-
-    const prim_sol = [];
-    if (document.getElementById('p_sol').checked) prim_sol.push('SOL');
-    if (document.getElementById('p_jupsol').checked) prim_sol.push('JUPSOL');
-    if (document.getElementById('p_jitosol').checked) prim_sol.push('JITOSOL');
-
-    const primary_symbols = {};
-    if (prim_btc.length) primary_symbols['BTC'] = prim_btc;
-    if (prim_eth.length) primary_symbols['ETH'] = prim_eth;
-    if (prim_sol.length) primary_symbols['SOL'] = prim_sol;
-
-    return { group_targets_pct, sub_allocation, min_trade_usd, primary_symbols };
-  }
-
-  // Bouton Télécharger CSV
-  document.getElementById('btnCsv')?.addEventListener('click', async () => {
-    try {
-      setStatus('Calcul en cours…', false);
-
-      const payload = await buildPayloadFromForm();
-      const minUsd = encodeURIComponent(document.getElementById('min_usd').value || '1');
-      const source = encodeURIComponent((document.getElementById('source')?.value) || 'cointracking');
-
-      const url = `http://127.0.0.1:8000/rebalance/plan.csv?source=${source}&min_usd=${minUsd}`;
-      const resp = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (!resp.ok) {
-        const txt = await resp.text();
-        setStatus('Erreur calcul CSV', true);
-        alert('Erreur API CSV:\n' + txt);
-        return;
-      }
-
-      const blob = await resp.blob();
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'rebalance-actions.csv';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setStatus('OK');
-    } catch (e) {
-      console.error(e);
-      setStatus('Erreur réseau', true);
-      alert('Erreur réseau: ' + (e?.message || e));
-    }
-  });
-
-  // (Optionnel) dans ton bouton "Calculer", appelle setStatus('Calcul en cours…') au début,
-  // puis setStatus('OK') en succès, setStatus('Erreur') en catch.
   </script>
 </body>
 </html>
