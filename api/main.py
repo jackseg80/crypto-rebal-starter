@@ -58,7 +58,7 @@ async def resolve_current_balances(source: str = "cointracking") -> Dict[str, An
 def _to_rows(raw: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Normalise les lignes vers:
-      {symbol: str, alias?: str, value_usd: float, location?: str}
+      {symbol, alias?, value_usd, price_usd?, amount?, location?}
     """
     out: List[Dict[str, Any]] = []
     for r in raw or []:
@@ -77,13 +77,29 @@ def _to_rows(raw: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         except Exception:
             value_usd = 0.0
 
+        # >>> NOUVEAU : price_usd + amount si présents
+        price_usd = r.get("price_usd")
+        try:
+            price_usd = float(price_usd) if price_usd is not None else None
+        except Exception:
+            price_usd = None
+
+        amount = r.get("amount")
+        try:
+            amount = float(amount) if amount is not None else None
+        except Exception:
+            amount = None
+
         out.append({
             "symbol": symbol,
             "alias": (r.get("alias") or r.get("name") or symbol).strip(),
             "value_usd": value_usd,
+            "price_usd": price_usd,
+            "amount": amount,
             "location": r.get("location"),
         })
     return out
+
 
 def _parse_min_usd(s: str | None, default: float = 0.0) -> float:
     if not s: return default
@@ -92,18 +108,21 @@ def _parse_min_usd(s: str | None, default: float = 0.0) -> float:
     except Exception:
         return default
     
-def _enrich_actions_with_prices(plan: Dict[str, Any]) -> Dict[str, Any]:
+def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     Remplit price_used et est_quantity pour chaque action.
-    - USD/USDT/USDC => 1.0
-    - Aliases : TBTC/WBTC -> BTC ; WETH/STETH/WSTETH/RETH -> ETH ; JUPSOL/JITOSOL -> SOL
-    - Tickeurs finissant par un chiffre (ex: ATOM2, SOL2, IMX2, ...): on retire le suffixe numérique pour chercher un prix.
-    - get_prices_usd() pour le reste (provider(s) de pricing).
+    Ordre des sources de prix :
+      1) Stables (USD/USDT/USDC = 1)
+      2) Prix issus de CoinTracking (price_usd ou value_usd/amount déduits du portefeuille 'rows')
+      3) Provider externe get_prices_usd (stub éventuel)
+      4) Alias BTC/ETH/SOL (TBTC/WBTC -> BTC; WETH/STETH/WSTETH/RETH -> ETH; JUPSOL/JITOSOL -> SOL)
+      5) Strip suffixes numériques (ATOM2 -> ATOM, SOL2 -> SOL, ...)
     """
     actions = plan.get("actions") or []
     if not actions:
         return plan
 
+    import re
     FIAT_STABLE_FIXED = {"USD": 1.0, "USDT": 1.0, "USDC": 1.0}
     PRICE_SYMBOL_ALIAS = {
         "TBTC": "BTC", "WBTC": "BTC",
@@ -111,21 +130,41 @@ def _enrich_actions_with_prices(plan: Dict[str, Any]) -> Dict[str, Any]:
         "JUPSOL": "SOL", "JITOSOL": "SOL",
     }
 
-    # Liste des symboles à requêter
+    # --- (2) Carte de prix issue de CoinTracking (rows)
+    portfolio_price: Dict[str, float] = {}
+    for it in rows or []:
+        s = (it.get("symbol") or "").upper()
+        if not s:
+            continue
+        amt = it.get("amount")
+        val = it.get("value_usd")
+        p  = it.get("price_usd")
+        # calcule si besoin
+        if p is None and amt and val and float(amt) > 0:
+            try:
+                p = float(val) / float(amt)
+            except Exception:
+                p = None
+        if p and float(p) > 0:
+            portfolio_price[s] = float(p)
+            # alias et strip suffix
+            base = PRICE_SYMBOL_ALIAS.get(s)
+            if base and base not in portfolio_price:
+                portfolio_price[base] = float(p)
+            s_nosuf = re.sub(r"\d+$", "", s)
+            if s_nosuf and s_nosuf != s and s_nosuf not in portfolio_price:
+                portfolio_price[s_nosuf] = float(p)
+
+    # --- (3) Provider externe (stub possible)
     syms = set()
     for a in actions:
         s = (a.get("symbol") or "").upper()
         if s:
             syms.add(s)
-            # on ajoute aussi l'alias de base s'il existe
             base = PRICE_SYMBOL_ALIAS.get(s)
-            if base:
-                syms.add(base)
-            # on ajoute la version sans suffixe numérique (ATOM2 -> ATOM)
+            if base: syms.add(base)
             s_nosuf = re.sub(r"\d+$", "", s)
-            if s_nosuf and s_nosuf != s:
-                syms.add(s_nosuf)
-
+            if s_nosuf and s_nosuf != s: syms.add(s_nosuf)
     price_map = get_prices_usd(list(syms)) or {}
 
     def _resolve(sym: str) -> float | None:
@@ -135,28 +174,33 @@ def _enrich_actions_with_prices(plan: Dict[str, Any]) -> Dict[str, Any]:
         # 1) stables
         if s in FIAT_STABLE_FIXED:
             return FIAT_STABLE_FIXED[s]
-        # 2) direct
-        p = price_map.get(s)
-        if p and float(p) > 0:
-            return float(p)
-        # 3) alias (TBTC->BTC, etc.)
+        # 2) CoinTracking (direct / alias / sans suffixe)
+        p = portfolio_price.get(s)
+        if p: return p
         base = PRICE_SYMBOL_ALIAS.get(s)
         if base:
-            pb = price_map.get(base)
-            if pb and float(pb) > 0:
-                return float(pb)
-        # 4) enlever suffixe numérique (ATOM2 -> ATOM)
+            pb = portfolio_price.get(base)
+            if pb: return pb
         s_nosuf = re.sub(r"\d+$", "", s)
         if s_nosuf and s_nosuf != s:
-            p2 = price_map.get(s_nosuf)
-            if p2 and float(p2) > 0:
-                return float(p2)
-            # alias après strip
+            p2 = portfolio_price.get(s_nosuf)
+            if p2: return p2
             base2 = PRICE_SYMBOL_ALIAS.get(s_nosuf)
             if base2:
+                pb2 = portfolio_price.get(base2)
+                if pb2: return pb2
+        # 3) Provider (direct / alias / sans suffixe)
+        p = price_map.get(s)
+        if p and float(p) > 0: return float(p)
+        if base:
+            pb = price_map.get(base)
+            if pb and float(pb) > 0: return float(pb)
+        if s_nosuf and s_nosuf != s:
+            p2 = price_map.get(s_nosuf)
+            if p2 and float(p2) > 0: return float(p2)
+            if base2:
                 pb2 = price_map.get(base2)
-                if pb2 and float(pb2) > 0:
-                    return float(pb2)
+                if pb2 and float(pb2) > 0: return float(pb2)
         return None
 
     for a in actions:
@@ -283,7 +327,11 @@ async def rebalance_plan(
         primary_symbols=payload.get("primary_symbols"),
         min_trade_usd=float(payload.get("min_trade_usd", 25.0)),
     )
-    plan = _enrich_actions_with_prices(plan)
+    plan = _enrich_actions_with_prices(plan, rows)
+    try:
+        plan.setdefault("meta", {})["source_used"] = res.get("source_used")
+    except Exception:
+        pass
     return plan
 
 # CSV

@@ -106,7 +106,9 @@
           </div>
 
           <div style="height:8px"></div>
-          <div class="muted">La somme doit faire 100.</div>
+          <div class="muted">La somme doit faire 100.
+            <span id="srcBadge" class="pill" style="margin-left:6px;">source: ?</span>
+          </div>
 
           <div style="height:12px"></div>
           <div class="inline">
@@ -431,6 +433,8 @@
         const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const data = await resp.json();
+        document.getElementById('srcBadge').textContent =
+          'source: ' + (data?.meta?.source_used || (el('source').value || '?'));
 
         renderPairsList(data.target_weights_pct || {}, 'targets');
         renderPairsList(data.deltas_by_group_usd || {}, 'deltas');

@@ -103,14 +103,14 @@ def _ensure_list(x: Any) -> List[Any]:
 
 def _extract_rows_from_getBalance(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
-    getBalance: d'après la doc CT, le résultat contient souvent:
-      - account_currency
-      - details: liste/dict de monnaies avec {coin, amount, value_fiat, price_fiat, ...}
-      - summary: totaux
+    getBalance: typiquement:
+      - details: [{coin/symbol, amount, value_fiat, price_fiat, ...}, ...]
+    On renvoie symbol, amount, value_usd et price_usd (si possible).
     """
     details = payload.get("details")
     if details is None and isinstance(payload.get("result"), dict):
         details = payload["result"].get("details")
+
     rows = []
     for it in _ensure_list(details):
         if not isinstance(it, dict):
@@ -119,12 +119,17 @@ def _extract_rows_from_getBalance(payload: Dict[str, Any]) -> List[Dict[str, Any
         if not sym:
             continue
         amt = _num(it.get("amount"))
-        # 'value_fiat' est la valeur dans la devise du compte (souvent USD)
         val_fiat = _num(it.get("value_fiat") or it.get("fiat") or it.get("usd") or it.get("value"))
+        # prix direct si exposé, sinon calcule value/amount
+        px = _num(it.get("price_fiat") or it.get("fiat_price") or it.get("price_usd") or it.get("price"))
+        if px is None and val_fiat is not None and amt is not None and amt > 0:
+            px = val_fiat / amt
+
         rows.append({
             "symbol": sym,
             "amount": amt or 0.0,
-            "value_usd": val_fiat or 0.0,  # on suppose compte en USD
+            "value_usd": val_fiat or 0.0,         # on suppose le compte en USD
+            "price_usd": px if px and px > 0 else None,
             "location": _location(it) or "CoinTracking",
         })
     return rows
