@@ -242,11 +242,134 @@
       });
     }
 
-    function renderUnknowns(list) {
-      const box = el('unknowns'); box.innerHTML = "";
-      if (!list || !list.length) { box.innerHTML = "<span class='muted'>Aucun.</span>"; return; }
-      list.forEach(x => { const p = document.createElement('span'); p.className="pill"; p.textContent = x; box.appendChild(p); });
+    function getGroupsFromTargets(){
+      // On déduit la liste des groupes depuis les inputs cibles (clé = libellé visible)
+      return [
+        "BTC", "ETH", "Stablecoins", "SOL", "L1/L0 majors", "Others"
+      ];
     }
+
+    async function saveAliasMapping(alias, group){
+      const apiBase = (document.getElementById('api_base').value || '').trim();
+      const url = joinBase(apiBase, '/taxonomy/aliases');
+
+      // 1) format A (clé->groupe), ex: { "AAVE": "Others" }
+      try {
+        await postJson(url, { [alias]: group });
+        // Vérification immédiate : GET /taxonomy puis contrôle que l'alias est bien présent
+        const tax = await fetch(joinBase(apiBase, '/taxonomy')).then(r=>r.json());
+        if (tax && tax.aliases && Object.prototype.hasOwnProperty.call(tax.aliases, alias)) {
+          return true;
+        }
+        // si pas présent, on essaie le format B
+      } catch (e) {
+        // on tombera sur le format B
+      }
+
+      // 2) format B (objet wrapper), ex: { "aliases": { "AAVE": "Others" } }
+      const respB = await fetch(url, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ aliases: { [alias]: group } })
+      });
+      const txtB = await respB.text();
+      if (!respB.ok){
+        const box = document.getElementById('errorBox') || ensureEl('errorBox', document.body, 'error-box');
+        box.textContent = `[${respB.status}] ${txtB || 'Erreur API lors du mapping alias (format B)'}`;
+        box.style.display = 'block';
+        throw new Error(txtB || 'Mapping alias failed (format B)');
+      }
+
+      // re-vérifier
+      const tax2 = await fetch(joinBase(apiBase, '/taxonomy')).then(r=>r.json()).catch(()=>null);
+      if (tax2 && tax2.aliases && Object.prototype.hasOwnProperty.call(tax2.aliases, alias)) {
+        return true;
+      }
+      throw new Error("Le mapping n'apparaît pas dans /taxonomy après écriture.");
+    }
+
+    function renderUnknowns(list) {
+      const box = document.getElementById('unknowns');
+      box.innerHTML = "";
+      if (!list || !list.length) { box.innerHTML = "<span class='muted'>Aucun.</span>"; return; }
+
+      const tbl = document.createElement('table');
+      tbl.innerHTML = "<thead><tr><th>Alias</th><th>Groupe</th><th></th></tr></thead>";
+      const tb = document.createElement('tbody');
+
+      const groups = ["BTC","ETH","Stablecoins","SOL","L1/L0 majors","Others"];
+
+      list.slice().sort().forEach(alias => {
+        const tr = document.createElement('tr');
+
+        const tdA = document.createElement('td');
+        tdA.textContent = alias;
+        tr.appendChild(tdA);
+
+        const tdG = document.createElement('td');
+        const sel = document.createElement('select');
+        groups.forEach(g => {
+          const opt = document.createElement('option');
+          opt.value = g; opt.textContent = g;
+          if (g === "Others") opt.selected = true;
+          sel.appendChild(opt);
+        });
+        tdG.appendChild(sel);
+        tr.appendChild(tdG);
+
+        const tdBtn = document.createElement('td');
+        const btn = document.createElement('button');
+        btn.className = 'btn secondary';
+        btn.textContent = 'Ajouter';
+        btn.addEventListener('click', async () => {
+          const errBox = document.getElementById('errorBox'); if (errBox){ errBox.style.display='none'; errBox.textContent=''; }
+          try{
+            btn.disabled = true;
+            await saveAliasMapping(alias, sel.value);
+            tdBtn.innerHTML = "<span class='ok'>OK</span>";
+            await runPlan(false);           // régénère et rafraîchit la liste
+          }catch(e){
+            btn.disabled = false;
+            const box = document.getElementById('errorBox') || ensureEl('errorBox', document.body, 'error-box');
+            box.textContent = e?.message || 'Erreur mapping alias';
+            box.style.display = 'block';
+          }
+        });
+        tdBtn.appendChild(btn);
+        tr.appendChild(tdBtn);
+
+        tb.appendChild(tr);
+      });
+
+      // Bouton "Tout ajouter -> Others"
+      const trAll = document.createElement('tr');
+      const tdAll = document.createElement('td'); tdAll.colSpan = 3;
+      const btnAll = document.createElement('button');
+      btnAll.className = 'btn secondary';
+      btnAll.textContent = 'Tout ajouter → Others';
+      btnAll.addEventListener('click', async ()=>{
+        btnAll.disabled = true;
+        const errBox = document.getElementById('errorBox'); if (errBox){ errBox.style.display='none'; errBox.textContent=''; }
+        try{
+          for(const alias of list){
+            await saveAliasMapping(alias, 'Others');
+          }
+          await runPlan(false);
+        }catch(e){
+          btnAll.disabled = false;
+          const box = document.getElementById('errorBox') || ensureEl('errorBox', document.body, 'error-box');
+          box.textContent = e?.message || 'Erreur mapping (batch)';
+          box.style.display = 'block';
+        }
+      });
+      tdAll.appendChild(btnAll);
+      trAll.appendChild(tdAll);
+      tb.appendChild(trAll);
+
+      tbl.appendChild(tb);
+      box.appendChild(tbl);
+    }
+
 
     function renderControl(actions) {
       let buys = 0, sells = 0;
