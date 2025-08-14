@@ -6,91 +6,77 @@ Légende : ✔️ fait · ⬜ à faire · ~ estimation
 ---
 
 ## 1) Données & normalisation
-- ✔️ Connexion CoinTracking & récupération des soldes
-- ✔️ Normalisation (symbol, alias, value_usd)
+- ✔️ CoinTracking **API** (getBalance prioritaire, fallback grouped, placeholders filtrés)
+- ✔️ Normalisation (symbol, alias, value_usd, amount, price_usd)
 - ✔️ Filtre `< min_usd`
-- ✔️ Agrégation par groupes (BTC, ETH, Stablecoins, SOL, L1/L0 majors, Others)
-- ✔️ `GET /portfolio/groups?source=cointracking&min_usd=...`
-- ✔️ Remontée des `unknown_aliases`
-- ⬜ Persistance **taxonomie & config** (JSON/YAML) + rechargement à chaud + endpoints admin  
+- ✔️ Endpoint `GET /balances/current?source=cointracking_api&min_usd=...`
+- ✔️ Debug `GET /debug/ctapi`
+- ✔️ Cache CT API 60 s
+- ⬜ Persistance **taxonomie & config** (JSON) + reload à chaud + endpoints admin  
   ~ 0.5 j
 
 ## 2) Plan de rebalancement (simulation)
 - ✔️ `POST /rebalance/plan?source=...&min_usd=...`
-- ✔️ Compat `group_targets_pct` **ou** `targets` (dict/list)
-- ✔️ `primary_symbols` par groupe (BTC→ BTC/TBTC/WBTC, etc.)
-- ✔️ `sub_allocation="proportional"`
+- ✔️ Compat `group_targets_pct` **ou** `targets`
+- ✔️ `primary_symbols` par groupe
+- ✔️ `sub_allocation` (proportional / primary_first auto si primary_symbols saisis)
 - ✔️ `min_trade_usd`
-- ✔️ Ligne d’**équilibrage** pour Σ(usd)=0
-- ⬜ **Estimation des quantités** : `est_quantity` + `price_used` (fetch prix + cache)  
-  ~ 0.5 j
+- ✔️ CSV `/rebalance/plan.csv` aligné (usd, est_quantity, price_used)
+- ✔️ Enrichissement **price_used / est_quantity** :
+  - Stables 1.0 (USD/USDT/USDC)
+  - Prix **CoinTracking** (price_fiat ou value_fiat/amount)
+  - Aliases TBTC/WBTC→BTC, WETH/STETH/WSTETH/RETH→ETH, JUPSOL/JITOSOL→SOL
+  - Strip suffixes numériques: `ATOM2→ATOM`, `SOL2→SOL`, …
+  - Provider externe de prix (fallback)
+- ✔️ Ligne d’équilibrage Σ(usd)=0
 
-## 3) “Advisor” / couverture des cibles
-- ⬜ Module d’**auto-conseil** si une cible contient peu/pas d’actifs détenus  
-  (ex: proposer une short-list pour “Other L1/L0 majors”)  
-  ~ 0.5–1 j
+## 3) Alias & taxonomy
+- ✔️ `GET /taxonomy/unknown_aliases`
+- ✔️ `POST /taxonomy/aliases` (formats A/B)
+- ⬜ Mini page **Alias Manager** (vue dédiée, recherche, batch)  
+  ~ 0.5 j
+- ⬜ Persistance/chargement taxonomy.json (admin endpoints)  
+  ~ 0.5 j
 
 ## 4) Localisation & exécution
-- ⬜ **Localisation** des actifs (exchange, ledger, DeFi) dans la photo courante  
-  (via champs, tags ou mapping simple)  
+- ⬜ Localisation des actifs (exchange / ledger / DeFi)  
   ~ 0.5 j
-- ⬜ Plan **par lieu** (auto via API vs manuel)  
+- ⬜ Plan **par lieu** (regroupement auto)  
   ~ 0.5 j
-- ⬜ **Connecteur d’exécution** — phase 1 **dry-run** pour 1 exchange  
-  (tailles min, arrondis, frais, slippage, garde-fous, journalisation)  
+- ⬜ Connecteur d’exécution — phase 1 **dry-run** (1 exchange)  
   ~ 1–2 j
 - ⬜ Connecteurs supplémentaires (par exchange)  
   ~ 0.5–1 j / exchange
 
-## 5) Frontend (page HTML)
-- ✔️ Page sliders/phase (existante)
-- ⬜ Brancher la page sur `GET /portfolio/groups` et `POST /rebalance/plan`  
-  (bouton “Simuler”, affichage actions, export CSV/clipboard, params `primary_symbols`, `min_trade_usd`, mode d’alloc)  
-  ~ 0.5–1 j
-- ⬜ Mini page **Alias Manager** (lister unknowns, ajouter mapping, sauvegarder)  
+## 5) Frontend
+- ✔️ Page `rebalance.html` (API URL, source select, localStorage, CSV)
+- ✔️ Pastille **source utilisée** (+ avertissement si mismatch)
+- ✔️ Unknown aliases: ajout unitaire + “Tout ajouter → Others”
+- ✔️ Contrôles (Top, Deltas, Net≈0, micro-trades)
+- ⬜ Mini page **Alias Manager** séparée  
+  ~ 0.5 j
+- ⬜ Vue “Par lieu” (breakdown exécution)  
   ~ 0.5 j
 
 ## 6) Qualité, sécurité, ops
 - ✔️ Repo GitHub + PR/Merge OK
-- ⬜ Tests unitaires (taxonomie, planner, normalisation)  
+- ⬜ Tests unitaires (taxonomy, planner, normalisation, pricing)  
   ~ 0.5–1 j
 - ⬜ Tests d’intégration (endpoints avec fixtures)  
-  ~ 0.5 j
+  ~ 0.5–1 j
 - ⬜ Logging propre + messages d’erreurs utiles  
   ~ 0.25 j
 - ⬜ Config & secrets (.env), CORS, (option) auth basique  
   ~ 0.25–0.5 j
 - ⬜ Dockerfile & compose (dev)  
   ~ 0.25 j
-- ⬜ README / doc d’usage (API + UI + scripts PS)  
+- ⬜ README / doc d’usage (API + UI + scripts PS) — **MAJ faite**  
   ~ 0.25–0.5 j
 
 ---
 
-## Estimations globales
-
-- **MVP Simulation complète** (prix/qty + UI branchée + alias manager + persistance + localisation basique + tests & docs)  
-  **~ 2.5–4 jours**
-- **Phase Exécution** (plan par lieu + 1er connecteur en dry-run)  
+## Estimations globales (restant)
+- **MVP complet** (persistance taxonomy, Alias Manager, vue par lieu, tests & Docker)  
+  **~ 2–3 jours**
+- **Phase Exécution** (1er exchange en dry-run)  
   **~ 1.5–2.5 jours**
-- **Total** (MVP + 1 exchange dry-run)  
-  **~ 4–6.5 jours**
-
----
-
-## Priorités recommandées (ordre)
-1. **Estimation quantités/prix** (compléter `est_quantity`/`price_used`)
-2. **Persistance** taxonomie & config (+ endpoints admin)
-3. **Brancher la page HTML** sur l’API (simulateur + export)
-4. **Alias Manager** (résoudre les unknowns)
-5. **Localisation** des actifs & plan d’action par lieu
-6. **Connecteur dry-run** (1er exchange)
-7. **Advisor** (suggestions d’actifs pour cibles “floues”)
-8. **Tests / Docker / README**
-
----
-
-## Notes rapides
-- Les arrondis/équilibres côté plan sont en place (Σ(usd)=0).  
-- Les scripts PowerShell de test fonctionnent ; ajuster après ajout des prix/quantités.  
-- Garder une “liste blanche” des actifs éligibles par groupe dans la config persistée.

@@ -17,6 +17,34 @@ API_BASE = os.getenv("CT_API_BASE") or os.getenv("COINTRACKING_API_BASE") or "ht
 API_KEY = (os.getenv("CT_API_KEY") or os.getenv("COINTRACKING_API_KEY") or "").strip()
 API_SECRET = (os.getenv("CT_API_SECRET") or os.getenv("COINTRACKING_API_SECRET") or "").strip()
 
+# --- Tiny in-memory cache (anti-spam API) ------------------------------------
+_CACHE: dict[tuple, tuple[float, dict]] = {}  # key -> (ts, payload)
+
+def _cache_get(key: tuple, ttl: int) -> dict | None:
+    import time
+    item = _CACHE.get(key)
+    if not item:
+        return None
+    ts, payload = item
+    if time.time() - ts > ttl:
+        _CACHE.pop(key, None)
+        return None
+    return payload
+
+def _cache_set(key: tuple, payload: dict) -> None:
+    import time
+    _CACHE[key] = (time.time(), payload)
+
+def _post_api_cached(method: str, params: Optional[Dict[str, Any]] = None, ttl: int = 60) -> Dict[str, Any]:
+    key = (method, json.dumps(params or {}, sort_keys=True))
+    hit = _cache_get(key, ttl)
+    if hit is not None:
+        return hit
+    payload = _post_api(method, params)
+    if isinstance(payload, dict):
+        _cache_set(key, payload)
+    return payload
+
 def _now_ms() -> int:
     return int(time.time() * 1000)
 
@@ -213,7 +241,7 @@ async def get_current_balances(source: str = "cointracking_api") -> Dict[str, An
     """
     # 1) getBalance (par-coin, avec value_fiat)
     try:
-        p = _post_api("getBalance", {})
+        p = _post_api_cached("getBalance", {}, ttl=60)
         rows = _extract_rows_from_getBalance(p)
         # certaines intégrations enveloppent dans 'result'
         if not rows and isinstance(p, dict) and isinstance(p.get("result"), dict):
@@ -226,7 +254,7 @@ async def get_current_balances(source: str = "cointracking_api") -> Dict[str, An
 
     # 2) fallback: getGroupedBalance (par exchange/wallet) -> peut renvoyer des '... BALANCE' à 0
     try:
-        p = _post_api("getGroupedBalance", {"group": "exchange"})
+        p = _post_api_cached("getGroupedBalance", {"group": "exchange"}, ttl=60)
         rows = _extract_rows_from_groupedBalance(p)
         # nettoie les placeholders & garde uniquement les valeurs > 0
         cleaned = []
@@ -275,7 +303,7 @@ def _debug_probe() -> Dict[str, Any]:
     ]:
         entry: Dict[str, Any] = {"method": method, "params": params, "error": None, "rows_raw": 0, "rows_mapped": 0, "preview": []}
         try:
-            payload = _post_api(method, params)
+            payload = _post_api_cached(method, params, ttl=10)
             # essayer différentes poches
             raw_candidates: List[Any] = []
             if isinstance(payload, dict):
