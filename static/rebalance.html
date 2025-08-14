@@ -48,9 +48,11 @@
           <div class="section-title">Source & Filtres</div>
           <div class="row">
             <div style="flex:1">
-              <label for="source">Source</label>
-              <!-- ⚠️ par défaut on force l’API -->
-              <input id="source" type="text" value="cointracking_api" />
+              <<label for="source">Source</label>
+              <select id="source">
+                <option value="cointracking_api" selected>cointracking_api</option>
+                <option value="cointracking">cointracking (CSV/export)</option>
+              </select>
             </div>
             <div style="flex:1">
               <label for="api_base">API URL</label>
@@ -106,15 +108,14 @@
           </div>
 
           <div style="height:8px"></div>
-          <div class="muted">La somme doit faire 100.
-            <span id="srcBadge" class="pill" style="margin-left:6px;">source: ?</span>
-          </div>
+          <div class="muted">La somme doit faire 100.</div>
 
           <div style="height:12px"></div>
           <div class="inline">
             <button id="btnRun" class="btn">Générer le plan</button>
             <button id="btnCsv" class="btn secondary" disabled>Télécharger CSV</button>
             <span id="status" class="muted">Prêt.</span>
+            <span id="srcBadge" class="pill" style="margin-left:6px;">source: ?</span>
           </div>
         </div>
       </div>
@@ -185,279 +186,263 @@
     </div>
   </div>
 
-  <script>
-    const el = id => document.getElementById(id);
-    const prettyUsd = n => (typeof n === "number" ? n : parseFloat(n || 0)).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+<script>
+  const el = id => document.getElementById(id);
+  const prettyUsd = n => (typeof n === "number" ? n : parseFloat(n || 0)).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-    function joinBase(base, path) {
-      if (!base) return path;                 // même origine
-      return base.replace(/\/+$/,'') + path;  // nettoie le slash de fin
-    }
-    
-    function buildTargets() {
-      return {
-        BTC: parseFloat(el('pct_btc').value || '0'),
-        ETH: parseFloat(el('pct_eth').value || '0'),
-        "Stablecoins": parseFloat(el('pct_stables').value || '0'),
-        SOL: parseFloat(el('pct_sol').value || '0'),
-        "L1/L0 majors": parseFloat(el('pct_l1').value || '0'),
-        Others: parseFloat(el('pct_others').value || '0')
+  // ---------- Persistence UI ----------
+  const LS_KEY = 'rebal_settings_v1';
+  function saveSettings() {
+    try {
+      const data = {
+        api_base: el('api_base')?.value || '',
+        source: el('source')?.value || '',
+        min_usd: el('min_usd')?.value || '1',
+        min_trade: el('min_trade')?.value || '25',
+        pct: {
+          BTC: el('pct_btc')?.value || '35',
+          ETH: el('pct_eth')?.value || '25',
+          Stablecoins: el('pct_stables')?.value || '10',
+          SOL: el('pct_sol')?.value || '10',
+          L1: el('pct_l1')?.value || '10',
+          Others: el('pct_others')?.value || '10',
+        },
+        syms: {
+          BTC: el('btc_syms')?.value || 'BTC,TBTC,WBTC',
+          ETH: el('eth_syms')?.value || 'ETH,WSTETH,STETH,RETH,WETH',
+          SOL: el('sol_syms')?.value || 'SOL,JUPSOL,JITOSOL',
+        },
+        suballoc: [...document.querySelectorAll('input[name="suballoc"]')].find(r=>r.checked)?.value || 'proportional',
       };
-    }
-
-    function sum(obj) { return Object.values(obj).reduce((a,b)=>a+(+b||0),0); }
-
-    function buildPrimarySymbols() {
-      const parseCsv = s => (s||"")
-        .split(",")
-        .map(x => x.trim().toUpperCase())
-        .filter(Boolean);
-      return {
-        BTC: parseCsv(el('btc_syms').value),
-        ETH: parseCsv(el('eth_syms').value),
-        SOL: parseCsv(el('sol_syms').value),
-      };
-    }
-
-    function renderPairsList(obj, containerId) {
-      const cont = el(containerId); cont.innerHTML = "";
-      const tbl = document.createElement("table");
-      tbl.innerHTML = "<thead><tr><th>Groupe</th><th>Valeur</th></tr></thead>";
-      const tb = document.createElement("tbody");
-      Object.entries(obj||{}).forEach(([k,v])=>{
-        const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${k}</td><td>${prettyUsd(v)}</td>`;
-        tb.appendChild(tr);
-      });
-      tbl.appendChild(tb); cont.appendChild(tbl);
-    }
-
-    function renderTop(actions, isBuy, tableId) {
-      const rows = actions.filter(a => isBuy ? a.usd > 0 : a.usd < 0);
-      rows.sort((a,b)=> Math.abs(b.usd) - Math.abs(a.usd));
-      const top = rows.slice(0, 12);
-      const tb = document.querySelector(`#${tableId} tbody`);
-      tb.innerHTML = "";
-      top.forEach(a => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${a.group||""}</td><td>${a.alias||""}</td><td>${a.symbol||""}</td><td>${prettyUsd(a.usd)}</td>`;
-        tb.appendChild(tr);
-      });
-    }
-
-    function getGroupsFromTargets(){
-      return ["BTC", "ETH", "Stablecoins", "SOL", "L1/L0 majors", "Others"];
-    }
-
-    async function saveAliasMapping(alias, group){
-      const apiBase = (document.getElementById('api_base').value || '').trim();
-      const url = joinBase(apiBase, '/taxonomy/aliases');
-
-      // 1) format A (clé->groupe)
-      try {
-        await fetch(url, {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ [alias]: group })
-        });
-        const tax = await fetch(joinBase(apiBase, '/taxonomy')).then(r=>r.json());
-        if (tax && tax.aliases && Object.prototype.hasOwnProperty.call(tax.aliases, alias)) return true;
-      } catch (_) {}
-
-      // 2) format B (wrapper)
-      const respB = await fetch(url, {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ aliases: { [alias]: group } })
-      });
-      if (!respB.ok){
-        const txtB = await respB.text();
-        throw new Error(`[${respB.status}] ${txtB || 'Erreur API lors du mapping alias (format B)'}`);
+      localStorage.setItem(LS_KEY, JSON.stringify(data));
+    } catch {}
+  }
+  function loadSettings() {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (!raw) return;
+      const s = JSON.parse(raw);
+      if (s.api_base) el('api_base').value = s.api_base;
+      if (s.source) el('source').value = s.source;
+      if (s.min_usd) el('min_usd').value = s.min_usd;
+      if (s.min_trade) el('min_trade').value = s.min_trade;
+      if (s.pct) {
+        if (s.pct.BTC) el('pct_btc').value = s.pct.BTC;
+        if (s.pct.ETH) el('pct_eth').value = s.pct.ETH;
+        if (s.pct.Stablecoins) el('pct_stables').value = s.pct.Stablecoins;
+        if (s.pct.SOL) el('pct_sol').value = s.pct.SOL;
+        if (s.pct.L1) el('pct_l1').value = s.pct.L1;
+        if (s.pct.Others) el('pct_others').value = s.pct.Others;
       }
-
-      const tax2 = await fetch(joinBase(apiBase, '/taxonomy')).then(r=>r.json()).catch(()=>null);
-      if (tax2 && tax2.aliases && Object.prototype.hasOwnProperty.call(tax2.aliases, alias)) return true;
-      throw new Error("Le mapping n'apparaît pas dans /taxonomy après écriture.");
-    }
-
-    function renderUnknowns(list) {
-      const box = document.getElementById('unknowns');
-      box.innerHTML = "";
-      if (!list || !list.length) { box.innerHTML = "<span class='muted'>Aucun.</span>"; return; }
-
-      const tbl = document.createElement('table');
-      tbl.innerHTML = "<thead><tr><th>Alias</th><th>Groupe</th><th></th></tr></thead>";
-      const tb = document.createElement('tbody');
-
-      const groups = ["BTC","ETH","Stablecoins","SOL","L1/L0 majors","Others"];
-
-      list.slice().sort().forEach(alias => {
-        const tr = document.createElement('tr');
-
-        const tdA = document.createElement('td'); tdA.textContent = alias; tr.appendChild(tdA);
-
-        const tdG = document.createElement('td');
-        const sel = document.createElement('select');
-        groups.forEach(g => {
-          const opt = document.createElement('option');
-          opt.value = g; opt.textContent = g;
-          if (g === "Others") opt.selected = true;
-          sel.appendChild(opt);
-        });
-        tdG.appendChild(sel);
-        tr.appendChild(tdG);
-
-        const tdBtn = document.createElement('td');
-        const btn = document.createElement('button');
-        btn.className = 'btn secondary';
-        btn.textContent = 'Ajouter';
-        btn.addEventListener('click', async () => {
-          try{
-            btn.disabled = true;
-            await saveAliasMapping(alias, sel.value);
-            tdBtn.innerHTML = "<span class='ok'>OK</span>";
-            await runPlan(false);
-          }catch(e){
-            btn.disabled = false;
-            alert(e?.message || 'Erreur mapping alias');
-          }
-        });
-        tdBtn.appendChild(btn);
-        tr.appendChild(tdBtn);
-
-        tb.appendChild(tr);
-      });
-
-      // Bouton "Tout ajouter → Others"
-      const trAll = document.createElement('tr');
-      const tdAll = document.createElement('td'); tdAll.colSpan = 3;
-      const btnAll = document.createElement('button');
-      btnAll.className = 'btn secondary';
-      btnAll.textContent = 'Tout ajouter → Others';
-      btnAll.addEventListener('click', async ()=>{
-        btnAll.disabled = true;
-        try{
-          for(const alias of list){ await saveAliasMapping(alias, 'Others'); }
-          await runPlan(false);
-        }catch(e){
-          btnAll.disabled = false;
-          alert(e?.message || 'Erreur mapping (batch)');
-        }
-      });
-      tdAll.appendChild(btnAll);
-      trAll.appendChild(tdAll);
-      tb.appendChild(trAll);
-
-      tbl.appendChild(tb);
-      box.appendChild(tbl);
-    }
-
-    function renderControl(actions) {
-      let buys = 0, sells = 0;
-      for (const a of (actions||[])) {
-        if (a.usd > 0) buys += a.usd; else sells += a.usd;
+      if (s.syms) {
+        if (s.syms.BTC) el('btc_syms').value = s.syms.BTC;
+        if (s.syms.ETH) el('eth_syms').value = s.syms.ETH;
+        if (s.syms.SOL) el('sol_syms').value = s.syms.SOL;
       }
-      const net = buys + sells; // sells est négatif
-      el('control').innerHTML = `
-        Total achats USD : <b>${prettyUsd(buys)}</b><br/>
-        Total ventes USD : <b>${prettyUsd(sells)}</b><br/>
-        Net (doit ≈ 0) : <b class="${Math.abs(net) < 1 ? 'ok':'err'}">${prettyUsd(net)}</b>
-      `;
+      if (s.suballoc) {
+        const r = document.querySelector(`input[name="suballoc"][value="${s.suballoc}"]`);
+        if (r) r.checked = true;
+      }
+    } catch {}
+  }
+  function bindAutosave() {
+    ['api_base','source','min_usd','min_trade','pct_btc','pct_eth','pct_stables','pct_sol','pct_l1','pct_others','btc_syms','eth_syms','sol_syms']
+      .forEach(id => el(id)?.addEventListener('input', saveSettings));
+    document.querySelectorAll('input[name="suballoc"]').forEach(r=> r.addEventListener('change', saveSettings));
+  }
+
+  // ---------- Helpers ----------
+  function joinBase(base, path) { if (!base) return path; return base.replace(/\/+$/,'') + path; }
+  function buildTargets() {
+    return {
+      BTC: parseFloat(el('pct_btc').value || '0'),
+      ETH: parseFloat(el('pct_eth').value || '0'),
+      "Stablecoins": parseFloat(el('pct_stables').value || '0'),
+      SOL: parseFloat(el('pct_sol').value || '0'),
+      "L1/L0 majors": parseFloat(el('pct_l1').value || '0'),
+      Others: parseFloat(el('pct_others').value || '0')
+    };
+  }
+  function buildPrimarySymbols() {
+    const parseCsv = s => (s||"").split(",").map(x => x.trim().toUpperCase()).filter(Boolean);
+    return {
+      BTC: parseCsv(el('btc_syms').value),
+      ETH: parseCsv(el('eth_syms').value),
+      SOL: parseCsv(el('sol_syms').value),
+    };
+  }
+  function renderPairsList(obj, containerId) {
+    const cont = el(containerId); cont.innerHTML = "";
+    const tbl = document.createElement("table");
+    tbl.innerHTML = "<thead><tr><th>Groupe</th><th>Valeur</th></tr></thead>";
+    const tb = document.createElement("tbody");
+    Object.entries(obj||{}).forEach(([k,v])=>{
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${k}</td><td>${prettyUsd(v)}</td>`;
+      tb.appendChild(tr);
+    });
+    tbl.appendChild(tb); cont.appendChild(tbl);
+  }
+  function renderTop(actions, isBuy, tableId) {
+    const rows = actions.filter(a => isBuy ? a.usd > 0 : a.usd < 0);
+    rows.sort((a,b)=> Math.abs(b.usd) - Math.abs(a.usd));
+    const top = rows.slice(0, 12);
+    const tb = document.querySelector(`#${tableId} tbody`);
+    tb.innerHTML = "";
+    top.forEach(a => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${a.group||""}</td><td>${a.alias||""}</td><td>${a.symbol||""}</td><td>${prettyUsd(a.usd)}</td>`;
+      tb.appendChild(tr);
+    });
+  }
+  async function saveAliasMapping(alias, group){
+    const apiBase = (document.getElementById('api_base').value || '').trim();
+    const url = joinBase(apiBase, '/taxonomy/aliases');
+    try {
+      await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ [alias]: group }) });
+      const tax = await fetch(joinBase(apiBase, '/taxonomy')).then(r=>r.json());
+      if (tax && tax.aliases && Object.prototype.hasOwnProperty.call(tax.aliases, alias)) return true;
+    } catch (_) {}
+    const respB = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ aliases: { [alias]: group } }) });
+    if (!respB.ok){ const txtB = await respB.text(); throw new Error(`[${respB.status}] ${txtB || 'Erreur API lors du mapping alias (format B)'}`); }
+    const tax2 = await fetch(joinBase(apiBase, '/taxonomy')).then(r=>r.json()).catch(()=>null);
+    if (tax2 && tax2.aliases && Object.prototype.hasOwnProperty.call(tax2.aliases, alias)) return true;
+    throw new Error("Le mapping n'apparaît pas dans /taxonomy après écriture.");
+  }
+  function renderUnknowns(list) {
+    const box = document.getElementById('unknowns');
+    box.innerHTML = "";
+    if (!list || !list.length) { box.innerHTML = "<span class='muted'>Aucun.</span>"; return; }
+    const tbl = document.createElement('table');
+    tbl.innerHTML = "<thead><tr><th>Alias</th><th>Groupe</th><th></th></tr></thead>";
+    const tb = document.createElement('tbody');
+    const groups = ["BTC","ETH","Stablecoins","SOL","L1/L0 majors","Others"];
+    list.slice().sort().forEach(alias => {
+      const tr = document.createElement('tr');
+      const tdA = document.createElement('td'); tdA.textContent = alias; tr.appendChild(tdA);
+      const tdG = document.createElement('td');
+      const sel = document.createElement('select');
+      groups.forEach(g => { const opt = document.createElement('option'); opt.value = g; opt.textContent = g; if (g === "Others") opt.selected = true; sel.appendChild(opt); });
+      tdG.appendChild(sel); tr.appendChild(tdG);
+      const tdBtn = document.createElement('td');
+      const btn = document.createElement('button'); btn.className = 'btn secondary'; btn.textContent = 'Ajouter';
+      btn.addEventListener('click', async () => {
+        try{ btn.disabled = true; await saveAliasMapping(alias, sel.value); tdBtn.innerHTML = "<span class='ok'>OK</span>"; await runPlan(false); }
+        catch(e){ btn.disabled = false; alert(e?.message || 'Erreur mapping alias'); }
+      });
+      tdBtn.appendChild(btn); tr.appendChild(tdBtn);
+      tb.appendChild(tr);
+    });
+    const trAll = document.createElement('tr');
+    const tdAll = document.createElement('td'); tdAll.colSpan = 3;
+    const btnAll = document.createElement('button'); btnAll.className = 'btn secondary'; btnAll.textContent = 'Tout ajouter → Others';
+    btnAll.addEventListener('click', async ()=>{
+      btnAll.disabled = true;
+      try{ for(const alias of list){ await saveAliasMapping(alias, 'Others'); } await runPlan(false); }
+      catch(e){ btnAll.disabled = false; alert(e?.message || 'Erreur mapping (batch)'); }
+    });
+    tdAll.appendChild(btnAll); trAll.appendChild(tdAll); tb.appendChild(trAll);
+    tbl.appendChild(tb); box.appendChild(tbl);
+  }
+  function renderControl(actions) {
+    let buys = 0, sells = 0;
+    for (const a of (actions||[])) { if (a.usd > 0) buys += a.usd; else sells += a.usd; }
+    const net = buys + sells;
+    el('control').innerHTML = `
+      Total achats USD : <b>${prettyUsd(buys)}</b><br/>
+      Total ventes USD : <b>${prettyUsd(sells)}</b><br/>
+      Net (doit ≈ 0) : <b class="${Math.abs(net) < 1 ? 'ok':'err'}">${prettyUsd(net)}</b>
+    `;
+  }
+
+  // ---------- Core ----------
+function renderPairsListWrapper(data){
+  renderPairsList(data.target_weights_pct || {}, 'targets');
+  renderPairsList(data.deltas_by_group_usd || {}, 'deltas');
+  renderTop(data.actions||[], true, 'topBuys');
+  renderTop(data.actions||[], false, 'topSells');
+  renderUnknowns(data.unknown_aliases||[]);
+  renderControl(data.actions||[]);
+  el('raw').textContent = JSON.stringify(data, null, 2);
+
+  // --- Badge source : compare "saisi" vs "utilisé"
+  const inputSrc = (el('source').value || '?');
+  const used = (data?.meta?.source_used) || inputSrc;
+  const b = document.getElementById('srcBadge');
+  if (b){
+    if (used !== inputSrc) {
+      b.textContent = `source: ${used} (⚠ saisi: ${inputSrc})`;
+      b.style.border = '1px solid #ff6b6b';
+    } else {
+      b.textContent = `source: ${used}`;
+      b.style.border = '';
     }
+  }
+}
 
-    async function runPlan(downloadCsv=false) {
-      el('status').textContent = "Calcul en cours…";
-      el('btnRun').disabled = true; el('btnCsv').disabled = true;
+  async function runPlan(downloadCsv=false) {
+    el('status').textContent = "Calcul en cours…";
+    el('btnRun').disabled = true; el('btnCsv').disabled = true;
+    saveSettings();
 
-      try {
-        const source = el('source').value.trim() || "cointracking";
-        const min_usd = (el('min_usd').value || "1").trim();
-        const min_trade_usd = parseFloat(el('min_trade').value || '25');
+    try {
+      const source = el('source').value.trim() || "cointracking_api";
+      const min_usd = (el('min_usd').value || "1").trim();
+      const min_trade_usd = parseFloat(el('min_trade').value || '25');
+      let sub_allocation = [...document.querySelectorAll('input[name="suballoc"]')].find(r=>r.checked)?.value || "proportional";
+      const targets = buildTargets();
+      const s = Object.values(targets).reduce((a,b)=>a+(+b||0),0);
+      if (Math.abs(s - 100) > 0.0001) { alert("La somme des cibles doit être 100. Actuellement: " + s); el('status').textContent = "Erreur — somme ≠ 100."; return; }
+      const primary_symbols = buildPrimarySymbols();
+      const hasPrimary = Object.values(primary_symbols).some(arr => arr && arr.length);
+      if (hasPrimary) sub_allocation = "primary_first";
+      const payload = { group_targets_pct: targets, sub_allocation, min_trade_usd, primary_symbols };
 
-        let sub_allocation = [...document.querySelectorAll('input[name="suballoc"]')]
-          .find(r=>r.checked)?.value || "proportional";
+      const apiBase = (el('api_base').value || '').trim();
+      const qs = new URLSearchParams({ source, min_usd }).toString();
+      const url = joinBase(apiBase, `/rebalance/plan?${qs}`);
+      const csvUrl = joinBase(apiBase, `/rebalance/plan.csv?${qs}`);
 
-        const targets = buildTargets();
-        const s = Object.values(targets).reduce((a,b)=>a+(+b||0),0);
-        if (Math.abs(s - 100) > 0.0001) {
-          alert("La somme des cibles doit être 100. Actuellement: " + s);
-          el('status').textContent = "Erreur — somme ≠ 100.";
-          return;
-        }
-
-        const primary_symbols = buildPrimarySymbols();
-        const hasPrimary = Object.values(primary_symbols).some(arr => arr && arr.length);
-        if (hasPrimary) sub_allocation = "primary_first";
-
-        const payload = {
-          group_targets_pct: targets,
-          sub_allocation,
-          min_trade_usd,
-          primary_symbols
-        };
-
-        const apiBase = (el('api_base').value || '').trim();
-        const qs = new URLSearchParams({ source, min_usd }).toString();
-        const url = joinBase(apiBase, `/rebalance/plan?${qs}`);
-        const csvUrl = joinBase(apiBase, `/rebalance/plan.csv?${qs}`);
-
-        if (downloadCsv) {
-          // On génère d’abord pour rafraîchir l’UI…
-          const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-          const plan = await resp.json();
-
-          // …puis on télécharge le CSV depuis le même endpoint/base
-          const csvResp = await fetch(csvUrl, {
-            method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
-          });
-          if (!csvResp.ok) throw new Error(`CSV HTTP ${csvResp.status}`);
-          const blob = await csvResp.blob();
-          const a = document.createElement('a');
-          a.href = URL.createObjectURL(blob);
-          a.download = 'rebalance-actions.csv';
-          document.body.appendChild(a); a.click(); a.remove();
-          URL.revokeObjectURL(a.href);
-
-          renderPairsList(plan.target_weights_pct || {}, 'targets');
-          renderPairsList(plan.deltas_by_group_usd || {}, 'deltas');
-          renderTop(plan.actions||[], true, 'topBuys');
-          renderTop(plan.actions||[], false, 'topSells');
-          renderUnknowns(plan.unknown_aliases||[]);
-          renderControl(plan.actions||[]);
-          el('raw').textContent = JSON.stringify(plan, null, 2);
-
-          el('status').textContent = "CSV téléchargé.";
-          return;
-        }
-
-        // JSON normal
+      if (downloadCsv) {
         const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const data = await resp.json();
-        document.getElementById('srcBadge').textContent =
-          'source: ' + (data?.meta?.source_used || (el('source').value || '?'));
-
-        renderPairsList(data.target_weights_pct || {}, 'targets');
-        renderPairsList(data.deltas_by_group_usd || {}, 'deltas');
-        renderTop(data.actions||[], true, 'topBuys');
-        renderTop(data.actions||[], false, 'topSells');
-        renderUnknowns(data.unknown_aliases||[]);
-        renderControl(data.actions||[]);
-        el('raw').textContent = JSON.stringify(data, null, 2);
-
-        el('status').textContent = "OK.";
+        const plan = await resp.json();
+        const csvResp = await fetch(csvUrl, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        if (!csvResp.ok) throw new Error(`CSV HTTP ${csvResp.status}`);
+        const blob = await csvResp.blob();
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'rebalance-actions.csv';
+        document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+        renderPairsListWrapper(plan);
+        el('status').textContent = "CSV téléchargé.";
         el('btnCsv').disabled = false;
-      } catch (e) {
-        console.error(e);
-        el('status').textContent = "Erreur — voir console.";
-        alert("Erreur: " + (e?.message || e));
-      } finally {
-        el('btnRun').disabled = false;
+        return;
       }
-    }
 
-    // Uniques handlers
-    el('btnRun').addEventListener('click', ()=>runPlan(false));
-    el('btnCsv').addEventListener('click', ()=>runPlan(true));
-  </script>
+      const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      renderPairsListWrapper(data);
+      el('status').textContent = "OK.";
+      el('btnCsv').disabled = false;
+    } catch (e) {
+      console.error(e);
+      el('status').textContent = "Erreur — voir console.";
+      alert("Erreur: " + (e?.message || e));
+    } finally {
+      el('btnRun').disabled = false;
+    }
+  }
+
+  // ---------- Init ----------
+  window.addEventListener('DOMContentLoaded', () => {
+    loadSettings();
+    bindAutosave();
+    // valeur par défaut utile
+    if (!el('source').value) el('source').value = 'cointracking_api';
+  });
+  el('btnRun').addEventListener('click', ()=>runPlan(false));
+  el('btnCsv').addEventListener('click', ()=>runPlan(true));
+</script>
+
 </body>
 </html>
