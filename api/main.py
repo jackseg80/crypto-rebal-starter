@@ -13,10 +13,21 @@ from services.rebalance import plan_rebalance
 from services.taxonomy import Taxonomy
 from api.taxonomy_endpoints import router as taxonomy_router
 
+import os, re
+
+# Pricing (services.pricing -> fallback pricing.py -> fallback no-op)
+try:
+    from services.pricing import get_prices_usd
+except Exception:
+    try:
+        from pricing import get_prices_usd
+    except Exception:
+        def get_prices_usd(symbols):  # fallback si aucun provider dispo
+            return {}
+
 app = FastAPI(title="Crypto Rebal Starter")
 
 # CORS (config via .env si besoin)
-import os
 CORS_ORIGINS = (os.getenv("CORS_ORIGINS") or "").split(",") if os.getenv("CORS_ORIGINS") else ["*"]
 app.add_middleware(
     CORSMiddleware,
@@ -80,6 +91,84 @@ def _parse_min_usd(s: str | None, default: float = 0.0) -> float:
         return float(str(s).replace(",", "."))
     except Exception:
         return default
+    
+def _enrich_actions_with_prices(plan: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Remplit price_used et est_quantity pour chaque action.
+    - USD/USDT/USDC => 1.0
+    - Aliases : TBTC/WBTC -> BTC ; WETH/STETH/WSTETH/RETH -> ETH ; JUPSOL/JITOSOL -> SOL
+    - Tickeurs finissant par un chiffre (ex: ATOM2, SOL2, IMX2, ...): on retire le suffixe numérique pour chercher un prix.
+    - get_prices_usd() pour le reste (provider(s) de pricing).
+    """
+    actions = plan.get("actions") or []
+    if not actions:
+        return plan
+
+    FIAT_STABLE_FIXED = {"USD": 1.0, "USDT": 1.0, "USDC": 1.0}
+    PRICE_SYMBOL_ALIAS = {
+        "TBTC": "BTC", "WBTC": "BTC",
+        "WETH": "ETH", "STETH": "ETH", "WSTETH": "ETH", "RETH": "ETH",
+        "JUPSOL": "SOL", "JITOSOL": "SOL",
+    }
+
+    # Liste des symboles à requêter
+    syms = set()
+    for a in actions:
+        s = (a.get("symbol") or "").upper()
+        if s:
+            syms.add(s)
+            # on ajoute aussi l'alias de base s'il existe
+            base = PRICE_SYMBOL_ALIAS.get(s)
+            if base:
+                syms.add(base)
+            # on ajoute la version sans suffixe numérique (ATOM2 -> ATOM)
+            s_nosuf = re.sub(r"\d+$", "", s)
+            if s_nosuf and s_nosuf != s:
+                syms.add(s_nosuf)
+
+    price_map = get_prices_usd(list(syms)) or {}
+
+    def _resolve(sym: str) -> float | None:
+        s = (sym or "").upper()
+        if not s:
+            return None
+        # 1) stables
+        if s in FIAT_STABLE_FIXED:
+            return FIAT_STABLE_FIXED[s]
+        # 2) direct
+        p = price_map.get(s)
+        if p and float(p) > 0:
+            return float(p)
+        # 3) alias (TBTC->BTC, etc.)
+        base = PRICE_SYMBOL_ALIAS.get(s)
+        if base:
+            pb = price_map.get(base)
+            if pb and float(pb) > 0:
+                return float(pb)
+        # 4) enlever suffixe numérique (ATOM2 -> ATOM)
+        s_nosuf = re.sub(r"\d+$", "", s)
+        if s_nosuf and s_nosuf != s:
+            p2 = price_map.get(s_nosuf)
+            if p2 and float(p2) > 0:
+                return float(p2)
+            # alias après strip
+            base2 = PRICE_SYMBOL_ALIAS.get(s_nosuf)
+            if base2:
+                pb2 = price_map.get(base2)
+                if pb2 and float(pb2) > 0:
+                    return float(pb2)
+        return None
+
+    for a in actions:
+        p = _resolve(a.get("symbol"))
+        if p and p > 0:
+            a["price_used"] = float(p)
+            a["est_quantity"] = round(abs(float(a.get("usd") or 0.0)) / float(p), 8)
+        else:
+            a["price_used"] = None
+            a["est_quantity"] = None
+
+    return plan
 
 # --- Endpoints ---------------------------------------------------------------
 @app.get("/healthz")
@@ -194,6 +283,7 @@ async def rebalance_plan(
         primary_symbols=payload.get("primary_symbols"),
         min_trade_usd=float(payload.get("min_trade_usd", 25.0)),
     )
+    plan = _enrich_actions_with_prices(plan)
     return plan
 
 # CSV
