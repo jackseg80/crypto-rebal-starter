@@ -93,7 +93,7 @@ def _storage_path() -> str:
     - Si TAXONOMY_FILE est défini, on l'utilise.
     - Sinon, ./taxonomy.json (cwd).
     """
-    return os.environ.get("TAXONOMY_FILE", os.path.join(os.getcwd(), "taxonomy.json"))
+    return os.environ.get("TAXONOMY_FILE", os.path.join(os.getcwd(), "data", "taxonomy.json"))
 
 def _keynorm(s: str) -> str:
     # Normalisation pour comparer sans casse/espaces

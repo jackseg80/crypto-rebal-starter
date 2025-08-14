@@ -4,12 +4,22 @@ from __future__ import annotations
 from typing import Any, Dict, List
 from fastapi import FastAPI, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 
 from connectors.cointracking import get_current_balances
 from services.rebalance import plan_rebalance
 from services.taxonomy import Taxonomy
 from api.taxonomy_endpoints import router as taxonomy_router
 
+import io, csv
+
+# prix (fallback si le module n'existe pas encore)
+try:
+    from services.pricing import get_prices_usd
+except Exception:
+    def get_prices_usd(symbols):
+        # fallback neutre : pas de prix => pas d'est_quantity
+        return { (s or "").upper(): None for s in set([ (s or "").upper() for s in symbols if s ]) }
 
 app = FastAPI(title="Crypto Rebal Starter")
 
@@ -25,6 +35,68 @@ app.include_router(taxonomy_router)
 
 
 # --- Helpers ---------------------------------------------------------------
+
+# --- helper de normalisation ---
+def _norm_primary_symbols(obj: Dict[str, Any] | None) -> Dict[str, list[str]]:
+    out: Dict[str, list[str]] = {}
+    if not obj:
+        return out
+    for grp, v in obj.items():
+        if isinstance(v, str):
+            vals = [s.strip().upper() for s in v.split(",") if s.strip()]
+        elif isinstance(v, (list, tuple, set)):
+            vals = [str(s).strip().upper() for s in v if str(s).strip()]
+        else:
+            vals = []
+        out[str(grp)] = vals
+    return out
+
+def _enrich_actions_with_prices(plan: Dict[str, Any]) -> Dict[str, Any]:
+    actions = plan.get("actions") or []
+    symbols = [ (a.get("symbol") or "").upper() for a in actions if a.get("symbol") ]
+    price_map = get_prices_usd(symbols) or {}
+
+    FIAT_STABLE_FIXED = {"USD": 1.0, "USDT": 1.0, "USDC": 1.0}
+    PRICE_SYMBOL_ALIAS = {
+        "TBTC": "BTC", "WBTC": "BTC",
+        "WETH": "ETH", "STETH": "ETH", "WSTETH": "ETH", "RETH": "ETH",
+        "JUPSOL": "SOL", "JITOSOL": "SOL",
+    }
+
+    def _resolve(sym: str):
+        s = (sym or "").upper()
+        # fiat/stables
+        if s in FIAT_STABLE_FIXED:
+            return FIAT_STABLE_FIXED[s]
+        # direct
+        p = price_map.get(s)
+        if p and float(p) > 0:
+            return float(p)
+        # alias
+        base = PRICE_SYMBOL_ALIAS.get(s)
+        if base:
+            pb = price_map.get(base)
+            if pb is None:
+                extra = get_prices_usd([base]) or {}
+                pb = extra.get(base)
+                if pb is not None:
+                    price_map[base] = pb
+            if pb and float(pb) > 0:
+                return float(pb)
+        return None
+
+    for a in actions:
+        sym = (a.get("symbol") or "").upper()
+        p = _resolve(sym)
+        if p and p > 0:
+            a["price_used"] = float(p)
+            a["est_quantity"] = round(abs(float(a.get("usd") or 0.0)) / float(p), 8)
+        else:
+            a["price_used"] = None
+            a["est_quantity"] = None
+
+    return plan
+
 
 def _to_rows(raw: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
@@ -229,12 +301,50 @@ async def rebalance_plan(
             if g:
                 group_targets_pct[g] = p
 
+    primary_symbols = _norm_primary_symbols(payload.get("primary_symbols")) 
     plan = plan_rebalance(
         rows=rows,
         group_targets_pct=group_targets_pct,
         min_usd=min_usd,
         sub_allocation=payload.get("sub_allocation", "proportional"),
-        primary_symbols=payload.get("primary_symbols"),
+        primary_symbols=primary_symbols,
         min_trade_usd=float(payload.get("min_trade_usd", 25.0)),
     )
-    return plan
+    return _enrich_actions_with_prices(plan)
+
+# +++ ajout
+@app.post("/rebalance/plan.csv")
+async def rebalance_plan_csv(
+    source: str = Query("cointracking"),
+    min_usd_raw: str | None = Query(None, alias="min_usd"),
+    payload: Dict[str, Any] = Body(...),
+):
+    """
+    Retourne le plan au format CSV : group,alias,symbol,action,usd,est_quantity,price_used
+    """
+    # On réutilise la logique JSON pour garder 100% la même sortie
+    plan = await rebalance_plan(source=source, min_usd_raw=min_usd_raw, payload=payload)
+    actions = plan.get("actions") or []
+
+    # Prépare le CSV en mémoire
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["group", "alias", "symbol", "action", "usd", "est_quantity", "price_used"])
+    for a in actions:
+        w.writerow([
+            a.get("group"),
+            a.get("alias"),
+            a.get("symbol"),
+            a.get("action"),
+            a.get("usd"),
+            a.get("est_quantity"),
+            a.get("price_used"),
+        ])
+
+    buf.seek(0)
+    filename = "rebalance-actions.csv"
+    headers = {
+        "Content-Disposition": f'attachment; filename="{filename}"'
+    }
+    return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv", headers=headers)
+
