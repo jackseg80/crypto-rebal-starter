@@ -4,160 +4,102 @@ from __future__ import annotations
 from typing import Any, Dict, List
 from fastapi import FastAPI, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
 
-from connectors.cointracking import get_current_balances
+# Connecteurs
+from connectors import cointracking as ct_file
+from connectors.cointracking_api import get_current_balances as ct_api_get_current_balances, _debug_probe
+
 from services.rebalance import plan_rebalance
 from services.taxonomy import Taxonomy
 from api.taxonomy_endpoints import router as taxonomy_router
 
-import io, csv
-
-# prix (fallback si le module n'existe pas encore)
-try:
-    from services.pricing import get_prices_usd
-except Exception:
-    def get_prices_usd(symbols):
-        # fallback neutre : pas de prix => pas d'est_quantity
-        return { (s or "").upper(): None for s in set([ (s or "").upper() for s in symbols if s ]) }
-
 app = FastAPI(title="Crypto Rebal Starter")
 
+# CORS (config via .env si besoin)
+import os
+CORS_ORIGINS = (os.getenv("CORS_ORIGINS") or "").split(",") if os.getenv("CORS_ORIGINS") else ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[o.strip() for o in CORS_ORIGINS if o.strip()],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Le router Taxonomy a un prefix="/taxonomy"
-app.include_router(taxonomy_router)
+app.include_router(taxonomy_router, prefix="/taxonomy")
 
+# --- Résolveur de source -----------------------------------------------------
+async def resolve_current_balances(source: str = "cointracking") -> Dict[str, Any]:
+    s = (source or "").strip().lower()
+    if s in ("cointracking_api", "ctapi", "ct_api"):
+        res = await ct_api_get_current_balances()
+        if isinstance(res, dict):
+            return res
+        return {"source_used": "cointracking_api", "items": res or []}
+    else:
+        res = await ct_file.get_current_balances(source="cointracking")
+        if isinstance(res, dict):
+            res.setdefault("source_used", "cointracking")
+            return res
+        return {"source_used": "cointracking", "items": res or []}
 
-# --- Helpers ---------------------------------------------------------------
-
-# --- helper de normalisation ---
-def _norm_primary_symbols(obj: Dict[str, Any] | None) -> Dict[str, list[str]]:
-    out: Dict[str, list[str]] = {}
-    if not obj:
-        return out
-    for grp, v in obj.items():
-        if isinstance(v, str):
-            vals = [s.strip().upper() for s in v.split(",") if s.strip()]
-        elif isinstance(v, (list, tuple, set)):
-            vals = [str(s).strip().upper() for s in v if str(s).strip()]
-        else:
-            vals = []
-        out[str(grp)] = vals
-    return out
-
-def _enrich_actions_with_prices(plan: Dict[str, Any]) -> Dict[str, Any]:
-    actions = plan.get("actions") or []
-    symbols = [ (a.get("symbol") or "").upper() for a in actions if a.get("symbol") ]
-    price_map = get_prices_usd(symbols) or {}
-
-    FIAT_STABLE_FIXED = {"USD": 1.0, "USDT": 1.0, "USDC": 1.0}
-    PRICE_SYMBOL_ALIAS = {
-        "TBTC": "BTC", "WBTC": "BTC",
-        "WETH": "ETH", "STETH": "ETH", "WSTETH": "ETH", "RETH": "ETH",
-        "JUPSOL": "SOL", "JITOSOL": "SOL",
-    }
-
-    def _resolve(sym: str):
-        s = (sym or "").upper()
-        # fiat/stables
-        if s in FIAT_STABLE_FIXED:
-            return FIAT_STABLE_FIXED[s]
-        # direct
-        p = price_map.get(s)
-        if p and float(p) > 0:
-            return float(p)
-        # alias
-        base = PRICE_SYMBOL_ALIAS.get(s)
-        if base:
-            pb = price_map.get(base)
-            if pb is None:
-                extra = get_prices_usd([base]) or {}
-                pb = extra.get(base)
-                if pb is not None:
-                    price_map[base] = pb
-            if pb and float(pb) > 0:
-                return float(pb)
-        return None
-
-    for a in actions:
-        sym = (a.get("symbol") or "").upper()
-        p = _resolve(sym)
-        if p and p > 0:
-            a["price_used"] = float(p)
-            a["est_quantity"] = round(abs(float(a.get("usd") or 0.0)) / float(p), 8)
-        else:
-            a["price_used"] = None
-            a["est_quantity"] = None
-
-    return plan
-
-
+# --- Utils -------------------------------------------------------------------
 def _to_rows(raw: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    Normalise les lignes renvoyées par connecteurs (CoinTracking) vers :
-    { symbol: str, alias: Optional[str], value_usd: float, location: Optional[str] }
+    Normalise les lignes vers:
+      {symbol: str, alias?: str, value_usd: float, location?: str}
     """
     out: List[Dict[str, Any]] = []
     for r in raw or []:
-        symbol = r.get("symbol") or r.get("coin") or r.get("name")
+        if not isinstance(r, dict):
+            continue
+        symbol = (r.get("symbol") or r.get("coin") or r.get("name") or "").strip().upper()
         if not symbol:
             continue
 
-        # valeur en USD (différents noms possibles selon la source)
-        v = (
-            r.get("value_usd", None)
-            if isinstance(r, dict)
-            else None
-        )
-        if v is None:
-            v = r.get("usd_value")
-        if v is None:
-            v = r.get("usd")
-        if v is None:
-            v = r.get("value")
-
+        v = r.get("value_usd")
+        if v is None: v = r.get("usd_value")
+        if v is None: v = r.get("usd")
+        if v is None: v = r.get("value")
         try:
-            value_usd = float(v)
-        except (TypeError, ValueError):
+            value_usd = float(v or 0.0)
+        except Exception:
             value_usd = 0.0
 
         out.append({
-            "symbol": str(symbol),
-            "alias": r.get("alias") or None,   # l'alias sera (re)calculé côté Taxonomy si absent
+            "symbol": symbol,
+            "alias": (r.get("alias") or r.get("name") or symbol).strip(),
             "value_usd": value_usd,
             "location": r.get("location"),
         })
     return out
 
+def _parse_min_usd(s: str | None, default: float = 0.0) -> float:
+    if not s: return default
+    try:
+        return float(str(s).replace(",", "."))
+    except Exception:
+        return default
 
-def _parse_min_usd(min_usd_raw: str | None, default: float = 0.0) -> float:
-    if min_usd_raw and min_usd_raw.strip():
-        try:
-            return float(min_usd_raw)
-        except ValueError:
-            return default
-    return default
+# --- Endpoints ---------------------------------------------------------------
+@app.get("/healthz")
+async def healthz():
+    return {"ok": True}
 
-
-# --- Endpoints -------------------------------------------------------------
+@app.get("/debug/ctapi")
+async def debug_ctapi():
+    return _debug_probe()
 
 @app.get("/balances/current")
 async def balances_current(
     source: str = Query("cointracking"),
     min_usd: float = Query(0.0),
 ):
-    res = await get_current_balances(source=source)
+    res = await resolve_current_balances(source=source)
     raw = res.get("items", []) if isinstance(res, dict) else (res or [])
     rows = _to_rows(raw)
     rows = [r for r in rows if float(r.get("value_usd") or 0.0) >= min_usd]
-    return {"items": rows}
-
+    return {"source_used": res.get("source_used"), "items": rows}
 
 @app.get("/portfolio/groups")
 async def portfolio_groups(
@@ -165,83 +107,29 @@ async def portfolio_groups(
     min_usd: float = Query(0.0),
 ):
     tx = Taxonomy.load()
-
-    # 1) Récup data brute
-    res = await get_current_balances(source=source)
+    res = await resolve_current_balances(source=source)
     raw = res.get("items", []) if isinstance(res, dict) else (res or [])
 
-    # 2) Normalisation lignes
+    # normalisation
     rows: List[Dict[str, Any]] = []
     for it in raw:
-        symbol = (it.get("symbol") or it.get("name") or it.get("coin") or "").strip()
+        symbol = (it.get("symbol") or it.get("name") or it.get("coin") or "").strip().upper()
         alias = (it.get("alias") or it.get("name") or symbol or "").strip()
         val = it.get("value_usd")
-        if val is None:
-            val = it.get("usd_value")
+        if val is None: val = it.get("usd_value")
         value_usd = float(val or 0.0)
-        rows.append({
-            "symbol": symbol,
-            "alias": alias,
-            "value_usd": value_usd,
-            "location": it.get("location"),
-        })
+        rows.append({"symbol": symbol, "alias": alias, "value_usd": value_usd, "location": it.get("location")})
 
-    # 3) Filtre & total
+    # filtre & total
     items = [r for r in rows if float(r.get("value_usd") or 0.0) >= float(min_usd or 0.0)]
     total_usd = sum(r["value_usd"] for r in items) or 0.0
 
-    # 4) Prépare les groupes + fallback
-    groups_order = list(tx.groups_order or [])
-    if not groups_order:
-        groups_order = ["BTC", "ETH", "Stablecoins", "SOL", "L1/L0 majors", "Others"]
-    by_group: Dict[str, List[Dict[str, Any]]] = {g: [] for g in groups_order}
-    fallback = "Others" if "Others" in by_group else groups_order[0]
+    # groupes + unknowns
+    groups = tx.group_aliases(items)
+    known_aliases = set(tx.all_aliases())
 
-    def pick_group_for_alias(a: str) -> str:
-        g = tx.group_for_alias(a)
-        # g peut être une liste, un tuple, une string, ou None
-        if isinstance(g, (list, tuple)):
-            # on prend le 1er candidat connu
-            for cand in g:
-                if isinstance(cand, str) and cand in by_group:
-                    return cand
-            # sinon le 1er string dispo
-            for cand in g:
-                if isinstance(cand, str):
-                    return cand
-            return fallback
-        if isinstance(g, str):
-            return g if g in by_group else fallback
-        return fallback
-
-    # 5) Répartition par groupe
-    for r in items:
-        alias = (r.get("alias") or r.get("symbol") or "").strip()
-        g = pick_group_for_alias(alias)
-        by_group[g].append({
-            "symbol": r["symbol"],
-            "alias": alias or r["symbol"],
-            "amount": 0.0,
-            "value_usd": r["value_usd"],
-            "location": r.get("location") or "unknown",
-        })
-
-    groups = []
-    for g in groups_order:
-        g_items = by_group[g]
-        g_total = sum(x["value_usd"] for x in g_items)
-        groups.append({
-            "group": g,
-            "total_usd": round(g_total, 2),
-            "items": g_items,
-            "weight_pct": round(100.0 * g_total / total_usd, 6) if total_usd else 0.0,
-        })
-
-    # 6) alias_summary + unknown_aliases
-    alias_sum: Dict[str, Dict[str, Any]] = {}
-    known_aliases = set(tx.aliases.keys())
     unknown_aliases_acc: Dict[str, float] = {}
-
+    alias_sum: Dict[str, Dict[str, Any]] = {}
     for r in items:
         a = (r.get("alias") or r.get("symbol") or "").strip()
         v = float(r.get("value_usd") or 0.0)
@@ -255,7 +143,7 @@ async def portfolio_groups(
             "amount": 0.0,
             "value_usd": v,
             "price_usd": None,
-            "group": pick_group_for_alias(a),
+            "group": tx.pick_group_for_alias(a),
         })
         if a not in known_aliases:
             unknown_aliases_acc[a] = unknown_aliases_acc.get(a, 0.0) + v
@@ -264,12 +152,12 @@ async def portfolio_groups(
     unknown_aliases_sorted = sorted(unknown_aliases_acc.keys())
 
     return {
+        "source_used": res.get("source_used"),
         "total_usd": round(total_usd, 2),
         "groups": groups,
         "alias_summary": alias_summary_sorted,
         "unknown_aliases": unknown_aliases_sorted,
     }
-
 
 @app.post("/rebalance/plan")
 async def rebalance_plan(
@@ -277,20 +165,17 @@ async def rebalance_plan(
     min_usd_raw: str | None = Query(None, alias="min_usd"),
     payload: Dict[str, Any] = Body(...),
 ):
-    # parse min_usd (filtre sur les lignes d'entrée)
+    # parse filtre
     min_usd = _parse_min_usd(min_usd_raw, default=1.0)
 
     # portefeuille courant
-    res = await get_current_balances(source=source)
+    res = await resolve_current_balances(source=source)
     raw = res.get("items", []) if isinstance(res, dict) else (res or [])
     rows = _to_rows(raw)
     rows = [r for r in rows if float(r.get("value_usd") or 0.0) >= min_usd]
 
-    # compat : "group_targets_pct" ou "targets"
-    targets_raw = payload.get("group_targets_pct")
-    if targets_raw is None:
-        targets_raw = payload.get("targets")
-
+    # compat "group_targets_pct" ou "targets"
+    targets_raw = payload.get("group_targets_pct") or payload.get("targets")
     group_targets_pct: Dict[str, float] = {}
     if isinstance(targets_raw, dict):
         group_targets_pct = {str(k): float(v) for k, v in targets_raw.items()}
@@ -301,50 +186,38 @@ async def rebalance_plan(
             if g:
                 group_targets_pct[g] = p
 
-    primary_symbols = _norm_primary_symbols(payload.get("primary_symbols")) 
     plan = plan_rebalance(
         rows=rows,
         group_targets_pct=group_targets_pct,
         min_usd=min_usd,
         sub_allocation=payload.get("sub_allocation", "proportional"),
-        primary_symbols=primary_symbols,
+        primary_symbols=payload.get("primary_symbols"),
         min_trade_usd=float(payload.get("min_trade_usd", 25.0)),
     )
-    return _enrich_actions_with_prices(plan)
+    return plan
 
-# +++ ajout
-@app.post("/rebalance/plan.csv")
+# CSV
+from fastapi.responses import PlainTextResponse
+def _to_csv(rows: List[Dict[str, Any]]) -> str:
+    cols = ["group","alias","symbol","action","usd","est_quantity","price_used"]
+    out = [",".join(cols)]
+    for r in rows:
+        out.append(",".join([
+            str(r.get("group","")),
+            str(r.get("alias","")),
+            str(r.get("symbol","")),
+            str(r.get("action","")),
+            f'{float(r.get("usd") or 0.0):.2f}',
+            "" if r.get("est_quantity") is None else f'{float(r["est_quantity"]):.8f}',
+            "" if r.get("price_used") is None else f'{float(r["price_used"]):.6f}',
+        ]))
+    return "\n".join(out)
+
+@app.post("/rebalance/plan.csv", response_class=PlainTextResponse)
 async def rebalance_plan_csv(
     source: str = Query("cointracking"),
     min_usd_raw: str | None = Query(None, alias="min_usd"),
     payload: Dict[str, Any] = Body(...),
 ):
-    """
-    Retourne le plan au format CSV : group,alias,symbol,action,usd,est_quantity,price_used
-    """
-    # On réutilise la logique JSON pour garder 100% la même sortie
     plan = await rebalance_plan(source=source, min_usd_raw=min_usd_raw, payload=payload)
-    actions = plan.get("actions") or []
-
-    # Prépare le CSV en mémoire
-    buf = io.StringIO()
-    w = csv.writer(buf)
-    w.writerow(["group", "alias", "symbol", "action", "usd", "est_quantity", "price_used"])
-    for a in actions:
-        w.writerow([
-            a.get("group"),
-            a.get("alias"),
-            a.get("symbol"),
-            a.get("action"),
-            a.get("usd"),
-            a.get("est_quantity"),
-            a.get("price_used"),
-        ])
-
-    buf.seek(0)
-    filename = "rebalance-actions.csv"
-    headers = {
-        "Content-Disposition": f'attachment; filename="{filename}"'
-    }
-    return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv", headers=headers)
-
+    return _to_csv(plan.get("actions") or [])
