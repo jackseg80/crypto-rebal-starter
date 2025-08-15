@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List
-from fastapi import FastAPI, Query, Body
+from time import monotonic
+from fastapi import FastAPI, Query, Body, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 # Connecteurs
@@ -37,24 +38,72 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(taxonomy_router, prefix="/taxonomy")
+app.include_router(taxonomy_router)
+
+# ====== TTL CACHES (balances + prix) ======
+BALANCES_TTL_SEC = int(os.getenv("BALANCES_TTL_SEC", "60"))
+PRICES_TTL_SEC   = int(os.getenv("PRICES_TTL_SEC",   "120"))
+
+_BAL_CACHE: Dict[tuple, tuple] = {}   # (ts, value) par clé (source,)
+_PRICE_CACHE: Dict[str, tuple] = {}   # symbol -> (ts, price)
+
+def _cache_get(cache: dict, key: Any, ttl: int):
+    if ttl <= 0:  # TTL=0 => désactivé
+        return None
+    ent = cache.get(key)
+    if not ent:
+        return None
+    ts, val = ent
+    if monotonic() - ts > ttl:
+        cache.pop(key, None)
+        return None
+    return val
+
+def _cache_set(cache: dict, key: Any, val: Any):
+    cache[key] = (monotonic(), val)
+    
 
 # --- Résolveur de source -----------------------------------------------------
 async def resolve_current_balances(source: str = "cointracking") -> Dict[str, Any]:
     s = (source or "").strip().lower()
+    key = (s,)
+
+    # 1) cache
+    cached = _cache_get(_BAL_CACHE, key, BALANCES_TTL_SEC)
+    if cached is not None:
+        # s'assurer d'avoir un dict comme l’API attend
+        if isinstance(cached, dict):
+            return cached
+        return {"source_used": s, "items": cached or []}
+
+    # 2) fetch réel
     if s in ("cointracking_api", "ctapi", "ct_api"):
         res = await ct_api_get_current_balances()
-        if isinstance(res, dict):
-            return res
-        return {"source_used": "cointracking_api", "items": res or []}
+        out = res if isinstance(res, dict) else {"source_used": "cointracking_api", "items": res or []}
     else:
-        res = await ct_file.get_current_balances(source="cointracking")
-        if isinstance(res, dict):
-            res.setdefault("source_used", "cointracking")
-            return res
-        return {"source_used": "cointracking", "items": res or []}
+        res = await ct_file.get_current_balances(source=s)
+        out = res if isinstance(res, dict) else {"source_used": s or "cointracking", "items": res or []}
+
+    # 3) cache + retour
+    _cache_set(_BAL_CACHE, key, out)
+    return out
+
 
 # --- Utils -------------------------------------------------------------------
+def _norm_primary_symbols(raw: Dict[str, Any] | None) -> Dict[str, list[str]]:
+    out: Dict[str, list[str]] = {}
+    if not isinstance(raw, dict):
+        return out
+    for g, v in raw.items():
+        if isinstance(v, str):
+            parts = [s.strip().upper() for s in v.split(",") if str(s).strip()]
+        elif isinstance(v, list):
+            parts = [str(s).strip().upper() for s in v if str(s).strip()]
+        else:
+            parts = []
+        out[str(g)] = parts
+    return out
+
 def _to_rows(raw: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Normalise les lignes vers:
@@ -108,111 +157,189 @@ def _parse_min_usd(s: str | None, default: float = 0.0) -> float:
     except Exception:
         return default
     
-def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _build_implied_prices_from_rows(rows: List[Dict[str, Any]]) -> Dict[str, float]:
+    prices: Dict[str, float] = {}
+    for r in rows or []:
+        sym = str(r.get("symbol") or "").upper()
+        try:
+            amt = float(r.get("amount") or 0.0)
+            val = float(r.get("value_usd") or 0.0)
+        except Exception:
+            continue
+        if sym and amt > 0.0 and val > 0.0:
+            prices.setdefault(sym, val / amt)
+    for s in ("USD", "USDT", "USDC"):
+        prices.setdefault(s, 1.0)
+    return prices
+
+
+def _price_cache_get(sym: str) -> float | None:
+    ent = _PRICE_CACHE.get(sym)
+    if not ent:
+        return None
+    ts, price = ent
+    if monotonic() - ts > PRICES_TTL_SEC:
+        _PRICE_CACHE.pop(sym, None)
+        return None
+    return float(price)
+
+
+def _price_cache_set(sym: str, price: float):
+    _PRICE_CACHE[sym] = (monotonic(), float(price))
+
+
+def _try_fetch_prices(symbols: List[str]) -> Dict[str, float]:
     """
-    Remplit price_used et est_quantity pour chaque action.
-    Ordre des sources de prix :
-      1) Stables (USD/USDT/USDC = 1)
-      2) Prix issus de CoinTracking (price_usd ou value_usd/amount déduits du portefeuille 'rows')
-      3) Provider externe get_prices_usd (stub éventuel)
-      4) Alias BTC/ETH/SOL (TBTC/WBTC -> BTC; WETH/STETH/WSTETH/RETH -> ETH; JUPSOL/JITOSOL -> SOL)
-      5) Strip suffixes numériques (ATOM2 -> ATOM, SOL2 -> SOL, ...)
+    Essaie d'utiliser pricing.py si présent.
+    - Utilise get_prices([...]) si dispo, sinon get_price(sym) par sym.
+    - Retourne {} si pas de module ou erreur (fail-silent).
     """
+    out: Dict[str, float] = {}
+    if not symbols:
+        return out
+    try:
+        import pricing  # type: ignore
+    except Exception:
+        return out
+
+    # API facultative: get_prices([...])
+    if hasattr(pricing, "get_prices"):
+        try:
+            got = pricing.get_prices(symbols)  # attendu dict {sym:price}
+            if isinstance(got, dict):
+                for k, v in got.items():
+                    try:
+                        if float(v) > 0:
+                            out[str(k).upper()] = float(v)
+                    except Exception:
+                        pass
+                return out
+        except Exception:
+            pass
+
+    # Fallback: get_price(sym) un par un
+    if hasattr(pricing, "get_price"):
+        for s in symbols:
+            try:
+                p = pricing.get_price(s)
+                if p and float(p) > 0:
+                    out[s.upper()] = float(p)
+            except Exception:
+                continue
+    return out
+
+
+def _enrich_actions_with_prices(
+    plan: Dict[str, Any],
+    rows: List[Dict[str, Any]],
+    pricing_mode: str = "auto",
+) -> Dict[str, Any]:
     actions = plan.get("actions") or []
     if not actions:
         return plan
 
-    import re
-    FIAT_STABLE_FIXED = {"USD": 1.0, "USDT": 1.0, "USDC": 1.0}
-    PRICE_SYMBOL_ALIAS = {
-        "TBTC": "BTC", "WBTC": "BTC",
-        "WETH": "ETH", "STETH": "ETH", "WSTETH": "ETH", "RETH": "ETH",
-        "JUPSOL": "SOL", "JITOSOL": "SOL",
-    }
+    implied = _build_implied_prices_from_rows(rows)
 
-    # --- (2) Carte de prix issue de CoinTracking (rows)
-    portfolio_price: Dict[str, float] = {}
-    for it in rows or []:
-        s = (it.get("symbol") or "").upper()
-        if not s:
-            continue
-        amt = it.get("amount")
-        val = it.get("value_usd")
-        p  = it.get("price_usd")
-        # calcule si besoin
-        if p is None and amt and val and float(amt) > 0:
-            try:
-                p = float(val) / float(amt)
-            except Exception:
-                p = None
-        if p and float(p) > 0:
-            portfolio_price[s] = float(p)
-            # alias et strip suffix
-            base = PRICE_SYMBOL_ALIAS.get(s)
-            if base and base not in portfolio_price:
-                portfolio_price[base] = float(p)
-            s_nosuf = re.sub(r"\d+$", "", s)
-            if s_nosuf and s_nosuf != s and s_nosuf not in portfolio_price:
-                portfolio_price[s_nosuf] = float(p)
-
-    # --- (3) Provider externe (stub possible)
-    syms = set()
+    # 1) Injecter les prix implicites
     for a in actions:
-        s = (a.get("symbol") or "").upper()
-        if s:
-            syms.add(s)
-            base = PRICE_SYMBOL_ALIAS.get(s)
-            if base: syms.add(base)
-            s_nosuf = re.sub(r"\d+$", "", s)
-            if s_nosuf and s_nosuf != s: syms.add(s_nosuf)
-    price_map = get_prices_usd(list(syms)) or {}
+        sym = str(a.get("symbol") or "").upper()
+        if not a.get("price_used"):
+            p = implied.get(sym)
+            if p:
+                a["price_used"] = float(p)
 
-    def _resolve(sym: str) -> float | None:
-        s = (sym or "").upper()
-        if not s:
-            return None
-        # 1) stables
-        if s in FIAT_STABLE_FIXED:
-            return FIAT_STABLE_FIXED[s]
-        # 2) CoinTracking (direct / alias / sans suffixe)
-        p = portfolio_price.get(s)
-        if p: return p
-        base = PRICE_SYMBOL_ALIAS.get(s)
-        if base:
-            pb = portfolio_price.get(base)
-            if pb: return pb
-        s_nosuf = re.sub(r"\d+$", "", s)
-        if s_nosuf and s_nosuf != s:
-            p2 = portfolio_price.get(s_nosuf)
-            if p2: return p2
-            base2 = PRICE_SYMBOL_ALIAS.get(s_nosuf)
-            if base2:
-                pb2 = portfolio_price.get(base2)
-                if pb2: return pb2
-        # 3) Provider (direct / alias / sans suffixe)
-        p = price_map.get(s)
-        if p and float(p) > 0: return float(p)
-        if base:
-            pb = price_map.get(base)
-            if pb and float(pb) > 0: return float(pb)
-        if s_nosuf and s_nosuf != s:
-            p2 = price_map.get(s_nosuf)
-            if p2 and float(p2) > 0: return float(p2)
-            if base2:
-                pb2 = price_map.get(base2)
-                if pb2 and float(pb2) > 0: return float(pb2)
-        return None
+    # 2) Mode local -> pas de réseau
+    if str(pricing_mode or "auto").lower() == "local":
+        for a in actions:
+            price = float(a.get("price_used") or 0.0)
+            usd = float(a.get("usd") or 0.0)
+            a["est_quantity"] = abs(usd) / price if price > 0 else None
+        return plan
 
+    # 3) Mode auto -> compléter avec le cache et (optionnellement) pricing.py
+    missing: List[str] = []
     for a in actions:
-        p = _resolve(a.get("symbol"))
-        if p and p > 0:
-            a["price_used"] = float(p)
-            a["est_quantity"] = round(abs(float(a.get("usd") or 0.0)) / float(p), 8)
-        else:
-            a["price_used"] = None
-            a["est_quantity"] = None
+        sym = str(a.get("symbol") or "").upper()
+        if not a.get("price_used"):
+            cached = _price_cache_get(sym)
+            if cached and cached > 0:
+                a["price_used"] = float(cached)
+            else:
+                missing.append(sym)
+
+    # fetch de groupe (si possible) pour les manquants
+    missing = sorted(set([s for s in missing if s]))
+    if missing:
+        fetched = _try_fetch_prices(missing)
+        for s, p in fetched.items():
+            _price_cache_set(s, p)
+        for a in actions:
+            sym = str(a.get("symbol") or "").upper()
+            if not a.get("price_used"):
+                p = fetched.get(sym)
+                if p and p > 0:
+                    a["price_used"] = float(p)
+
+    # 4) Calcul des quantités
+    for a in actions:
+        price = float(a.get("price_used") or 0.0)
+        usd = float(a.get("usd") or 0.0)
+        a["est_quantity"] = abs(usd) / price if price > 0 else None
 
     return plan
+
+
+def _norm_primary_symbols(raw: Dict[str, Any] | None) -> Dict[str, list[str]]:
+    out: Dict[str, list[str]] = {}
+    if not isinstance(raw, dict):
+        return out
+    for g, v in raw.items():
+        if isinstance(v, str):
+            parts = [s.strip().upper() for s in v.split(",") if str(s).strip()]
+        elif isinstance(v, list):
+            parts = [str(s).strip().upper() for s in v if str(s).strip()]
+        else:
+            parts = []
+        out[str(g)] = parts
+    return out
+
+# CSV
+from fastapi.responses import PlainTextResponse
+def _to_csv(rows: List[Dict[str, Any]]) -> str:
+    cols = ["group","alias","symbol","action","usd","est_quantity","price_used"]
+    out = [",".join(cols)]
+    for r in rows:
+        out.append(",".join([
+            str(r.get("group","")),
+            str(r.get("alias","")),
+            str(r.get("symbol","")),
+            str(r.get("action","")),
+            f'{float(r.get("usd") or 0.0):.2f}',
+            "" if r.get("est_quantity") is None else f'{float(r["est_quantity"]):.8f}',
+            "" if r.get("price_used") is None else f'{float(r["price_used"]):.6f}',
+        ]))
+    return "\n".join(out)
+
+def _build_implied_prices_from_rows(rows: list[dict[str, Any]]) -> dict[str, float]:
+    """Construit un mapping symbol -> prix déduit (value_usd/amount), sans réseau."""
+    prices: dict[str, float] = {}
+    for r in rows or []:
+        sym = str(r.get("symbol") or "").upper()
+        try:
+            amt = float(r.get("amount") or 0.0)
+            val = float(r.get("value_usd") or 0.0)
+        except Exception:
+            continue
+        if sym and amt > 0.0 and val > 0.0:
+            prices.setdefault(sym, val / amt)
+
+    # Stables/fiat par défaut
+    for s in ("USD", "USDT", "USDC"):
+        prices.setdefault(s, 1.0)
+
+    # EUR : si présent dans rows, on l’a déjà calculé; sinon rien (ou lire EUR_USD depuis l'env si tu veux)
+    return prices
+
 
 # --- Endpoints ---------------------------------------------------------------
 @app.get("/healthz")
@@ -296,18 +423,16 @@ async def portfolio_groups(
 async def rebalance_plan(
     source: str = Query("cointracking"),
     min_usd_raw: str | None = Query(None, alias="min_usd"),
+    pricing: str = Query("auto"),   #  ⬅️  NOUVEAU  (auto | local)
     payload: Dict[str, Any] = Body(...),
 ):
-    # parse filtre
     min_usd = _parse_min_usd(min_usd_raw, default=1.0)
 
-    # portefeuille courant
     res = await resolve_current_balances(source=source)
     raw = res.get("items", []) if isinstance(res, dict) else (res or [])
     rows = _to_rows(raw)
     rows = [r for r in rows if float(r.get("value_usd") or 0.0) >= min_usd]
 
-    # compat "group_targets_pct" ou "targets"
     targets_raw = payload.get("group_targets_pct") or payload.get("targets")
     group_targets_pct: Dict[str, float] = {}
     if isinstance(targets_raw, dict):
@@ -319,43 +444,44 @@ async def rebalance_plan(
             if g:
                 group_targets_pct[g] = p
 
+    primary_symbols = _norm_primary_symbols(payload.get("primary_symbols"))
+
     plan = plan_rebalance(
         rows=rows,
         group_targets_pct=group_targets_pct,
         min_usd=min_usd,
         sub_allocation=payload.get("sub_allocation", "proportional"),
-        primary_symbols=payload.get("primary_symbols"),
+        primary_symbols=primary_symbols,
         min_trade_usd=float(payload.get("min_trade_usd", 25.0)),
     )
-    plan = _enrich_actions_with_prices(plan, rows)
-    try:
-        plan.setdefault("meta", {})["source_used"] = res.get("source_used")
-    except Exception:
-        pass
+
+    # ⚠️ Passe bien 'rows' ET le 'pricing'
+    plan = _enrich_actions_with_prices(plan, rows, pricing_mode=pricing)
+
+    # total_usd garanti
+    if "total_usd" not in plan or plan.get("total_usd") is None:
+        plan["total_usd"] = sum(float(r.get("value_usd") or 0.0) for r in rows)
+
+    # méta utile
+    plan.setdefault("meta", {})
+    plan["meta"]["source_used"] = (res.get("source_used") if isinstance(res, dict) else source) or source
+    plan["meta"]["items_count"] = len(rows)
+
     return plan
 
-# CSV
-from fastapi.responses import PlainTextResponse
-def _to_csv(rows: List[Dict[str, Any]]) -> str:
-    cols = ["group","alias","symbol","action","usd","est_quantity","price_used"]
-    out = [",".join(cols)]
-    for r in rows:
-        out.append(",".join([
-            str(r.get("group","")),
-            str(r.get("alias","")),
-            str(r.get("symbol","")),
-            str(r.get("action","")),
-            f'{float(r.get("usd") or 0.0):.2f}',
-            "" if r.get("est_quantity") is None else f'{float(r["est_quantity"]):.8f}',
-            "" if r.get("price_used") is None else f'{float(r["price_used"]):.6f}',
-        ]))
-    return "\n".join(out)
-
-@app.post("/rebalance/plan.csv", response_class=PlainTextResponse)
+@app.post("/rebalance/plan.csv")
 async def rebalance_plan_csv(
     source: str = Query("cointracking"),
     min_usd_raw: str | None = Query(None, alias="min_usd"),
+    pricing: str = Query("auto"),
     payload: Dict[str, Any] = Body(...),
 ):
-    plan = await rebalance_plan(source=source, min_usd_raw=min_usd_raw, payload=payload)
-    return _to_csv(plan.get("actions") or [])
+    # ... tu construis "csv_bytes" (bytes) comme aujourd’hui
+    headers = {
+        "Content-Disposition": 'attachment; filename="rebalance-actions.csv"'
+    }
+    return Response(content=csv_bytes, media_type="text/csv", headers=headers)
+
+
+
+
