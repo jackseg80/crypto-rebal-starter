@@ -7,12 +7,12 @@
 <style>
   :root{
     --bg:#0a0f14; --card:#0e1620; --muted:#8fa0b3; --text:#e7eef7;
-    --accent:#2dd4bf; --danger:#ef4444; --border:#1f2b3a;
+    --accent:#2dd4bf; --danger:#ef4444; --border:#1f2b3a; --pos:#22c55e;
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif}
   header{position:sticky;top:0;background:linear-gradient(180deg,rgba(10,15,20,.95),rgba(10,15,20,.85));backdrop-filter: blur(6px);border-bottom:1px solid var(--border);z-index:10}
-  .wrap{max-width:1100px;margin:0 auto;padding:16px}
+  .wrap{max-width:1200px;margin:0 auto;padding:16px}
   h1{margin:0 0 8px 0;font-size:20px}
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
   label{font-size:12px;color:var(--muted)}
@@ -20,6 +20,7 @@
   button{cursor:pointer}
   .btn{background:var(--accent);color:#07211e;font-weight:700;border:0}
   .btn.secondary{background:#223044;color:var(--text);border:1px solid var(--border)}
+  .btn.ghost{background:transparent;border:1px dashed var(--border);color:var(--muted)}
   .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px}
   .muted{color:var(--muted)}
   table{width:100%;border-collapse:collapse}
@@ -29,8 +30,13 @@
   .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;border:1px solid var(--border);background:#0b131d;font-size:12px}
   .right{text-align:right}
   .small{font-size:12px}
+  .mt8{margin-top:8px}
   .mt16{margin-top:16px}
-  .grow{flex:1}
+  .grid{display:grid;gap:10px}
+  @media(min-width:900px){ .grid.g3{grid-template-columns:repeat(3,1fr)} }
+  .delta-pos{color:var(--pos)}
+  .delta-neg{color:var(--danger)}
+  .badge{font-weight:700}
 </style>
 </head>
 <body>
@@ -62,7 +68,7 @@
       </div>
       <div style="align-self:flex-end">
         <button id="btnRun" class="btn">Générer le plan</button>
-        <button id="btnCsv" class="btn secondary">Télécharger CSV</button>
+        <button id="btnCsv" class="btn secondary" disabled>Télécharger CSV</button>
       </div>
       <div style="align-self:flex-end;margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
         <span id="total" class="pill">Total : —</span>
@@ -73,9 +79,16 @@
 </header>
 
 <main class="wrap">
+  <!-- Résumé -->
   <section class="card">
+    <h3>Résumé</h3>
+    <div id="summary" class="grid g3 mt8"></div>
+  </section>
+
+  <!-- Actions -->
+  <section class="card mt16">
     <h3>Actions</h3>
-    <div style="overflow:auto;max-height:55vh;border:1px solid var(--border);border-radius:10px">
+    <div style="overflow:auto;max-height:50vh;border:1px solid var(--border);border-radius:10px">
       <table id="tblActions">
         <thead>
           <tr>
@@ -88,9 +101,26 @@
     </div>
   </section>
 
+  <!-- Unknown aliases -->
   <section class="card mt16">
-    <h3>Unknown aliases</h3>
-    <div class="small">Par défaut, <strong>Others</strong> est présélectionné.</div>
+    <div class="row" style="justify-content:space-between;align-items:flex-end">
+      <div>
+        <h3>Unknown aliases</h3>
+        <div class="small">Par défaut, <strong>Others</strong> est présélectionné.</div>
+      </div>
+      <div>
+        <label class="small">Tout vers</label><br/>
+        <select id="bulk_group">
+          <option value="BTC">BTC</option>
+          <option value="ETH">ETH</option>
+          <option value="Stablecoins">Stablecoins</option>
+          <option value="SOL">SOL</option>
+          <option value="L1/L0 majors">L1/L0 majors</option>
+          <option value="Others" selected>Others</option>
+        </select>
+        <button id="btnBulkAdd" class="btn ghost">Ajouter tout</button>
+      </div>
+    </div>
     <div id="unknownList" class="small mt16"></div>
   </section>
 </main>
@@ -99,6 +129,7 @@
 const $ = sel => document.querySelector(sel);
 const el = id => document.getElementById(id);
 const fmt = n => (n==null || isNaN(n)) ? "" : Number(n).toLocaleString(undefined, {maximumFractionDigits: 8});
+const fmt2 = n => (n==null || isNaN(n)) ? "—" : Number(n).toLocaleString(undefined,{maximumFractionDigits:2});
 
 function setStatus(text){ el("status").textContent = text; }
 function setTotal(v){
@@ -145,6 +176,27 @@ function renderActions(actions){
   `).join("");
 }
 
+function renderSummary(plan){
+  const grp = plan?.current_by_group || {};
+  const cw  = plan?.current_weights_pct || {};
+  const tw  = plan?.target_weights_pct || {};
+  const dU  = plan?.deltas_by_group_usd || {};
+  const names = Object.keys(tw).length ? Object.keys(tw) : Object.keys(cw);
+  const html = (names||[]).map(g=>{
+    const cur = cw[g]; const tgt = tw[g]; const du = dU[g];
+    const cls = (du||0) >= 0 ? "delta-pos" : "delta-neg";
+    return `<div class="card">
+      <div class="row" style="justify-content:space-between">
+        <div class="badge">${g}</div>
+        <div class="muted small">${fmt2(grp[g])} $</div>
+      </div>
+      <div class="small mt8">Actuel: <strong>${fmt2(cur)}%</strong> • Cible: <strong>${fmt2(tgt)}%</strong></div>
+      <div class="small">Delta: <strong class="${cls}">${fmt2(du)} $</strong></div>
+    </div>`;
+  }).join("");
+  $("#summary").innerHTML = html || '<span class="muted">Aucun résumé disponible.</span>';
+}
+
 function renderUnknownAliases(list){
   const container = el("unknownList");
   if (!list || !list.length) { container.innerHTML = '<span class="muted">Aucun 🎉</span>'; return; }
@@ -168,6 +220,7 @@ function persistSourceInit(){
 
 async function runPlan(){
   try {
+    const t0 = performance.now();
     el("btnRun").disabled = true;
     el("btnCsv").disabled = true;
     setStatus("Calcul…");
@@ -175,8 +228,12 @@ async function runPlan(){
 
     const url = `${api}/rebalance/plan?${qs}`;
     const plan = await postJson(url, buildPayload());
+    renderSummary(plan);
     renderActions(plan.actions||[]);
     renderUnknownAliases(plan.unknown_aliases||[]);
+
+    const t1 = performance.now();
+    const ms = Math.round(t1 - t0);
 
     setTotal(plan?.total_usd);
     setStatus(`OK • source=${plan?.meta?.source_used||'(?)'} • items=${plan?.meta?.items_count??"-"}`);
@@ -192,6 +249,7 @@ async function runPlan(){
 
 async function downloadCsv(){
   try{
+    const t0 = performance.now();
     el("btnCsv").disabled = true;
     setStatus("Génération CSV…");
     const { api, qs } = currentQuery();
@@ -213,6 +271,7 @@ async function downloadCsv(){
     a.remove();
     setTimeout(()=>URL.revokeObjectURL(a.href), 1500);
 
+    const t1 = performance.now();
     setStatus("CSV téléchargé ✅");
   }catch(e){
     console.error(e);
@@ -226,30 +285,27 @@ async function downloadCsv(){
 el("btnRun").addEventListener("click", runPlan);
 el("btnCsv").addEventListener("click", downloadCsv);
 
-el("unknownList").addEventListener("click", async (ev) => {
-  const btn = ev.target.closest(".act-add");
-  if (!btn) return;
+// BULK unknown -> groupe choisi
+el("btnBulkAdd").addEventListener("click", async ()=>{
+  const group = el("bulk_group").value || "Others";
+  const items = [...document.querySelectorAll("#unknownList .act-add")].map(b => b.dataset.alias).filter(Boolean);
+  if(!items.length){ alert("Aucun alias inconnu."); return; }
+  if(!confirm(`Ajouter ${items.length} alias en ${group} ?`)) return;
   try{
-    el("btnRun").disabled = true;
-    const alias = btn.dataset.alias;
-    const group = btn.parentElement.querySelector(".u_group").value;
+    setStatus("Ajout en cours…");
     const api = el("api_base").value.trim().replace(/\/+$/,'');
-    const payload = { aliases: {} };
-    payload.aliases[alias] = group;
+    const payload = { aliases: Object.fromEntries(items.map(a => [a, group])) };
     const r = await fetch(`${api}/taxonomy/aliases`, {
       method:"POST",
       headers:{ "Content-Type":"application/json" },
       body: JSON.stringify(payload)
     });
     if(!r.ok){ throw new Error(`[${r.status}] ${await r.text()}`); }
-    setStatus("Ajouté");
     await runPlan();
-  } catch(e){
+  }catch(e){
     console.error(e);
     setStatus(`Erreur: ${e.message||e}`);
     alert(e.message||e);
-  } finally {
-    el("btnRun").disabled = false;
   }
 });
 
