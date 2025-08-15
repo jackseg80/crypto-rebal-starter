@@ -9,6 +9,9 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+data/
+*.csv
+!docs/*.csv
 .venv/
 venv/
 .env.*
