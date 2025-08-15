@@ -33,10 +33,12 @@
   .mt8{margin-top:8px}
   .mt16{margin-top:16px}
   .grid{display:grid;gap:10px}
-  @media(min-width:900px){ .grid.g3{grid-template-columns:repeat(3,1fr)} }
+  @media(min-width:900px){ .grid.g2{grid-template-columns:repeat(2,1fr)} .grid.g3{grid-template-columns:repeat(3,1fr)} }
   .delta-pos{color:var(--pos)}
   .delta-neg{color:var(--danger)}
   .badge{font-weight:700}
+  .legend{display:flex;gap:10px;flex-wrap:wrap}
+  .dot{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px}
 </style>
 </head>
 <body>
@@ -79,9 +81,25 @@
 </header>
 
 <main class="wrap">
-  <!-- Résumé -->
+  <!-- Donuts -->
   <section class="card">
-    <h3>Résumé</h3>
+    <h3>Répartition</h3>
+    <div class="grid g2">
+      <div>
+        <div class="small muted">Actuelle</div>
+        <div id="donutCurrent"></div>
+      </div>
+      <div>
+        <div class="small muted">Cible</div>
+        <div id="donutTarget"></div>
+      </div>
+    </div>
+    <div id="legend" class="legend mt8"></div>
+  </section>
+
+  <!-- Résumé -->
+  <section class="card mt16">
+    <h3>Résumé par groupe</h3>
     <div id="summary" class="grid g3 mt8"></div>
   </section>
 
@@ -136,13 +154,11 @@ function setTotal(v){
   const n = Number(v||0);
   el("total").textContent = "Total : " + (isFinite(n) ? n.toLocaleString(undefined,{maximumFractionDigits:2})+" $" : "—");
 }
-
 async function postJson(url, body){
   const r = await fetch(url, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(body||{}) });
   if(!r.ok){ throw new Error(`[${r.status}] ${await r.text()}`); }
   return r.json();
 }
-
 function buildPayload(){
   return {
     group_targets_pct: { BTC:35, ETH:25, Stablecoins:10, SOL:10, "L1/L0 majors":10, Others:10 },
@@ -151,7 +167,6 @@ function buildPayload(){
     min_trade_usd: 25
   };
 }
-
 function currentQuery(){
   const api = el("api_base").value.trim().replace(/\/+$/,'');
   const source = el("source").value;
@@ -161,6 +176,47 @@ function currentQuery(){
   return { api, qs };
 }
 
+/* ---------- Donuts (SVG arcs) ---------- */
+const COLORS = ["#60a5fa","#34d399","#f472b6","#f59e0b","#a78bfa","#f87171","#22d3ee","#eab308"];
+function donutSVG(weights, title){
+  const size = 160, r = 68, cx = 80, cy = 80, stroke = 22;
+  const names = Object.keys(weights||{});
+  let start = -Math.PI/2;
+  const segs = [];
+  names.forEach((name, i)=>{
+    const pct = Math.max(0, Number(weights[name]||0)) / 100;
+    const angle = pct * Math.PI*2;
+    const end = start + angle;
+    if (pct > 0){
+      const largeArc = angle > Math.PI ? 1 : 0;
+      const x1 = cx + r * Math.cos(start), y1 = cy + r * Math.sin(start);
+      const x2 = cx + r * Math.cos(end),   y2 = cy + r * Math.sin(end);
+      const path = `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}`;
+      segs.push(`<path d="${path}" stroke="${COLORS[i % COLORS.length]}" stroke-width="${stroke}" fill="none" />`);
+    }
+    start = end;
+  });
+  const total = (Object.values(weights||{}).reduce((a,b)=>a+Number(b||0),0)).toFixed(0);
+  return `<svg width="${size}" height="${size}" viewBox="0 0 160 160">
+    <circle cx="${cx}" cy="${cy}" r="${r}" stroke="#152232" stroke-width="${stroke}" fill="none"/>
+    ${segs.join("")}
+    <text x="${cx}" y="${cy-2}" text-anchor="middle" font-size="14" fill="#cbd5e1">${title||""}</text>
+    <text x="${cx}" y="${cy+14}" text-anchor="middle" font-size="12" fill="#93a3b5">${total}%</text>
+  </svg>`;
+}
+function renderDonuts(plan){
+  const cw = plan?.current_weights_pct || {};
+  const tw = plan?.target_weights_pct  || {};
+  $("#donutCurrent").innerHTML = donutSVG(cw, "Actuel");
+  $("#donutTarget").innerHTML  = donutSVG(tw, "Cible");
+
+  // légende (ordre stable)
+  const names = Object.keys(tw).length ? Object.keys(tw) : Object.keys(cw);
+  const html = (names||[]).map((g,i)=>`<span><span class="dot" style="background:${COLORS[i%COLORS.length]}"></span>${g}</span>`).join("");
+  $("#legend").innerHTML = html;
+}
+
+/* ---------- Résumé & Actions ---------- */
 function renderActions(actions){
   const tb = $("#tblActions tbody");
   tb.innerHTML = (actions||[]).map(a => `
@@ -175,7 +231,6 @@ function renderActions(actions){
     </tr>
   `).join("");
 }
-
 function renderSummary(plan){
   const grp = plan?.current_by_group || {};
   const cw  = plan?.current_weights_pct || {};
@@ -196,7 +251,6 @@ function renderSummary(plan){
   }).join("");
   $("#summary").innerHTML = html || '<span class="muted">Aucun résumé disponible.</span>';
 }
-
 function renderUnknownAliases(list){
   const container = el("unknownList");
   if (!list || !list.length) { container.innerHTML = '<span class="muted">Aucun 🎉</span>'; return; }
@@ -211,13 +265,13 @@ function renderUnknownAliases(list){
   `).join("");
 }
 
+/* ---------- Flow ---------- */
 function persistSourceInit(){
   const k = "reb_source";
   const saved = localStorage.getItem(k);
   el("source").value = saved || "stub"; // défaut: stub
   el("source").addEventListener("change", ()=> localStorage.setItem(k, el("source").value));
 }
-
 async function runPlan(){
   try {
     const t0 = performance.now();
@@ -228,15 +282,14 @@ async function runPlan(){
 
     const url = `${api}/rebalance/plan?${qs}`;
     const plan = await postJson(url, buildPayload());
+    renderDonuts(plan);
     renderSummary(plan);
     renderActions(plan.actions||[]);
     renderUnknownAliases(plan.unknown_aliases||[]);
 
-    const t1 = performance.now();
-    const ms = Math.round(t1 - t0);
-
     setTotal(plan?.total_usd);
-    setStatus(`OK • source=${plan?.meta?.source_used||'(?)'} • items=${plan?.meta?.items_count??"-"}`);
+    const ms = Math.round(performance.now() - t0);
+    setStatus(`OK • ${ms} ms • source=${plan?.meta?.source_used||'(?)'} • items=${plan?.meta?.items_count??"-"}`);
     el("btnCsv").disabled = false;
   } catch (e){
     console.error(e);
@@ -246,7 +299,6 @@ async function runPlan(){
     el("btnRun").disabled = false;
   }
 }
-
 async function downloadCsv(){
   try{
     const t0 = performance.now();
@@ -271,8 +323,8 @@ async function downloadCsv(){
     a.remove();
     setTimeout(()=>URL.revokeObjectURL(a.href), 1500);
 
-    const t1 = performance.now();
-    setStatus("CSV téléchargé ✅");
+    const ms = Math.round(performance.now() - t0);
+    setStatus(`CSV téléchargé ✅ • ${ms} ms`);
   }catch(e){
     console.error(e);
     setStatus(`Erreur: ${e.message||e}`);

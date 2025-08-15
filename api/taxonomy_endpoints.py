@@ -1,92 +1,125 @@
 # api/taxonomy_endpoints.py
 from __future__ import annotations
-from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, Body, Query, HTTPException
-
-from connectors.cointracking import get_current_balances
-from services.taxonomy import Taxonomy
+import os, json
+from typing import Dict, Any
+from fastapi import APIRouter, Body, HTTPException
+try:
+    import taxonomy  # DEFAULT_GROUPS, GROUP_ALIASES (mapping par défaut .py)
+except Exception:
+    # Fallback si pas dispo (évite crash)
+    class _T:
+        DEFAULT_GROUPS = ["BTC", "ETH", "Stablecoins", "SOL", "L1/L0 majors", "Others"]
+        GROUP_ALIASES: Dict[str, str] = {}
+    taxonomy = _T()
 
 router = APIRouter(prefix="/taxonomy", tags=["taxonomy"])
 
-def _to_rows(raw: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    Normalise des lignes balances -> {symbol, alias?, value_usd, location?}
-    """
-    out: List[Dict[str, Any]] = []
-    for r in raw or []:
-        symbol = r.get("symbol") or r.get("coin") or r.get("name")
-        if not symbol:
-            continue
-        alias = r.get("alias") or r.get("sym") or r.get("short") or None
-        value_usd = r.get("value_usd")
-        if value_usd is None:
-            # CT renvoie parfois amount + price_fiat
-            amount = float(r.get("amount") or r.get("qty") or 0.0)
-            price = float(r.get("price_usd") or r.get("price_fiat") or 0.0)
-            value_usd = amount * price if (amount and price) else float(r.get("value_fiat") or 0.0)
-        out.append({
-            "symbol": str(symbol).strip(),
-            "alias": (str(alias).strip() if alias else None),
-            "value_usd": float(value_usd or 0.0),
-            "location": r.get("location") or r.get("exchange") or None,
-        })
+DATA_DIR = os.getenv("DATA_DIR", "data")
+os.makedirs(DATA_DIR, exist_ok=True)
+ALIASES_JSON = os.path.join(DATA_DIR, os.getenv("TAXONOMY_ALIASES_JSON", "taxonomy_aliases.json"))
+
+# Mémoire process (vivant pendant le run)
+_MEM_ALIASES: Dict[str, str] = {}
+
+def _load_disk_aliases() -> Dict[str, str]:
+    if not os.path.exists(ALIASES_JSON):
+        return {}
+    try:
+        with open(ALIASES_JSON, "r", encoding="utf-8") as f:
+            data = json.load(f) or {}
+            if isinstance(data, dict):
+                return {str(k).upper(): str(v) for k,v in data.items()}
+    except Exception:
+        pass
+    return {}
+
+def _save_disk_aliases(aliases: Dict[str, str]) -> None:
+    tmp = {k.upper(): v for k, v in aliases.items()}
+    with open(ALIASES_JSON, "w", encoding="utf-8") as f:
+        json.dump(tmp, f, ensure_ascii=False, indent=2)
+
+def _all_groups() -> list[str]:
+    # source autoritaire = taxonomy.DEFAULT_GROUPS si dispo
+    try:
+        return list(taxonomy.DEFAULT_GROUPS)
+    except Exception:
+        return ["BTC","ETH","Stablecoins","SOL","L1/L0 majors","Others"]
+
+def _base_aliases() -> Dict[str, str]:
+    try:
+        return {str(k).upper(): str(v) for k, v in getattr(taxonomy, "GROUP_ALIASES", {}).items()}
+    except Exception:
+        return {}
+
+def _merged_aliases() -> Dict[str, str]:
+    # ordre de priorité: overrides mémoire -> JSON -> taxonomy.py (défaut)
+    out: Dict[str, str] = {}
+    out.update(_base_aliases())
+    disk = _load_disk_aliases()
+    out.update(disk)
+    out.update(_MEM_ALIASES)
     return out
 
-@router.get("/unknown_aliases")
-async def taxonomy_unknown_aliases(
-    source: str = Query("cointracking_api"),
-    min_usd: float = Query(1.0, alias="min_usd"),
-) -> Dict[str, Any]:
-    """
-    Liste des alias/symbols inconnus (non mappés dans la Taxonomy) avec filtre min_usd.
-    """
-    res = await get_current_balances(source=source)
-    raw = res.get("items", []) if isinstance(res, dict) else (res or [])
-    rows = _to_rows(raw)
-
-    tx = Taxonomy.load()
-    known = set(tx.aliases.keys())
-
-    agg: Dict[str, float] = {}
-    for r in rows:
-        v = float(r.get("value_usd") or 0.0)
-        if v < min_usd:
-            continue
-        a = r.get("alias") or r.get("symbol")
-        if not a or a in known:
-            continue
-        agg[a] = agg.get(a, 0.0) + v
-
-    unknown_aliases = [k for k, _ in sorted(agg.items(), key=lambda kv: -kv[1])]
-    return {"unknown_aliases": unknown_aliases}
+@router.get("")
+def get_taxonomy() -> Dict[str, Any]:
+    """Retourne les groupes et le mapping alias->groupe (merge défaut + disque + mémoire)."""
+    return {
+        "groups": _all_groups(),
+        "aliases": _merged_aliases(),
+        "storage": {
+            "file": ALIASES_JSON,
+            "in_memory_count": len(_MEM_ALIASES),
+        },
+    }
 
 @router.post("/aliases")
-async def taxonomy_upsert_aliases(
-    payload: Dict[str, Any] = Body(...),
-) -> Dict[str, Any]:
+def upsert_aliases(payload: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
     """
-    Ajoute/maj des mappings d'alias vers groupe.
-    Accepte:
-      - { "aliases": { "LINK":"Others", "AAVE":"Others" } }
-      - { "LINK":"Others", "AAVE":"Others" }
+    Upsert d'aliases (bulk ou unitaire).
+    Body attendu: { "aliases": { "LINK": "Others", "AAVE": "Others", ... } }
     """
-    mapping = payload.get("aliases") if isinstance(payload, dict) else None
-    if not isinstance(mapping, dict):
-        if isinstance(payload, dict):
-            # format clé->groupe direct
-            mapping = payload
-    if not isinstance(mapping, dict) or not mapping:
-        raise HTTPException(400, "Payload invalide. Attendu {'aliases': {...}} ou {...}.")
+    aliases = payload.get("aliases") or {}
+    if not isinstance(aliases, dict) or not aliases:
+        raise HTTPException(status_code=400, detail="Body attendu: { aliases: { ALIAS: GROUP, ... } }")
 
-    tx = Taxonomy.load()
-    added = 0
-    for alias, group in mapping.items():
-        a = str(alias).strip()
-        g = str(group).strip()
-        if not a or not g:
+    groups = set(_all_groups())
+    cur = _merged_aliases()
+
+    written = []
+    for raw_alias, raw_group in aliases.items():
+        if not raw_alias:
             continue
-        tx.aliases[a] = g
-        added += 1
-    Taxonomy.save(tx)
+        alias = str(raw_alias).upper().strip()
+        group = str(raw_group).strip()
+        if group not in groups:
+            raise HTTPException(status_code=400, detail=f"Groupe inconnu: {group}")
+        cur[alias] = group
+        _MEM_ALIASES[alias] = group
+        written.append(alias)
 
-    return {"ok": True, "added": added, "size": len(tx.aliases)}
+    # persist sur disque (JSON)
+    _save_disk_aliases({k: cur[k] for k in sorted(cur)})
+
+    return {"ok": True, "written": len(written), "aliases": written}
+
+@router.delete("/aliases/{alias}")
+def delete_alias(alias: str) -> Dict[str, Any]:
+    if not alias:
+        raise HTTPException(status_code=400, detail="Alias manquant")
+    alias = alias.upper()
+    cur = _merged_aliases()
+    if alias not in cur:
+        raise HTTPException(status_code=404, detail="Alias introuvable")
+
+    # Supprime en mémoire + disque
+    if alias in _MEM_ALIASES:
+        _MEM_ALIASES.pop(alias, None)
+
+    cur.pop(alias, None)
+    _save_disk_aliases({k: cur[k] for k in sorted(cur)})
+    return {"ok": True, "deleted": alias}
+
+# alias bulk explicite (compat)
+@router.post("/aliases/bulk")
+def bulk_aliases(payload: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
+    return upsert_aliases(payload)
