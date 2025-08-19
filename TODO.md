@@ -35,8 +35,7 @@ Légende : ✔️ fait · ⬜ à faire · ~ estimation
 ## 3) Alias & taxonomy
 - ✔️ `GET /taxonomy/unknown_aliases`
 - ✔️ `POST /taxonomy/aliases` (formats A/B)
-- ⬜ Mini page **Alias Manager** (vue dédiée, recherche, batch)  
-  ~ 0.5 j
+- ✔️ **Alias Manager** (interface dédiée avec recherche, filtrage, actions batch)
 - ⬜ Persistance/chargement taxonomy.json (admin endpoints)  
   ~ 0.5 j
 
@@ -56,9 +55,8 @@ Légende : ✔️ fait · ⬜ à faire · ~ estimation
 - ✔️ Pastille **source utilisée** (+ avertissement si mismatch)
 - ✔️ Unknown aliases: ajout unitaire + "Tout ajouter → Others"
 - ✔️ Contrôles (Top, Deltas, Net≈0, micro-trades)
-- ⬜ Mini page **Alias Manager** séparée  
-  ~ 0.5 j
-- ⬜ Vue “Par lieu” (breakdown exécution)  
+- ✔️ **Alias Manager** complet (recherche, filtrage, batch, navigation intégrée)
+- ⬜ Vue "Par lieu" (breakdown exécution)  
   ~ 0.5 j
 
 ## 6) Qualité, sécurité, ops
@@ -79,7 +77,7 @@ Légende : ✔️ fait · ⬜ à faire · ~ estimation
 ---
 
 ## Estimations globales (restant)
-- **MVP complet** (persistance taxonomy, Alias Manager, vue par lieu, tests & Docker)  
-  **~ 2–3 jours**
+- **MVP complet** (persistance taxonomy, vue par lieu, tests & Docker)  
+  **~ 1.5–2.5 jours**
 - **Phase Exécution** (1er exchange en dry-run)  
   **~ 1.5–2.5 jours**

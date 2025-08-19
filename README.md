@@ -80,6 +80,7 @@ data/
   taxonomy.json         # (optionnel) persistance des aliases/groupes si utilisée
 static/
   rebalance.html        # UI canonique (à ouvrir localement)
+  alias-manager.html    # Interface dédiée de gestion des taxonomies
 docs/
   rebalance.html        # (optionnel) copie pour GitHub Pages
 ```
@@ -164,16 +165,33 @@ GET /debug/ctapi
 
 ---
 
-## 5) UI : `static/rebalance.html`
+## 5) UI : Interfaces utilisateur
 
-- **API URL**, **source** (`cointracking_api` / `cointracking`), **min_usd**, **min_trade_usd**.
+### 5.1 `static/rebalance.html` - Interface principale
+
+- **API URL**, **source** (`cointracking_api` / `cointracking`), **min_usd**, **pricing mode** (local/hybride/auto).
 - **Sous-allocation** : `proportional` (par défaut) ou **`primary_first`** si des `primary_symbols` sont saisis.
 - **Persistance** (localStorage) : `api_base`, source, cibles %, primary symbols, min_trade, sous-allocation.
-- **Générer le plan** → affichage cibles, deltas par groupe, **Top achats/ventes**, **Unknown aliases** (ajout unitaire + “Tout ajouter → Others”), **Net≈0** et **pas de micro-trades**.
+- **Générer le plan** → affichage cibles, deltas par groupe, **Top achats/ventes**, **Unknown aliases** (ajout unitaire + "Tout ajouter → Others"), **Net≈0** et **pas de micro-trades**.
 - **Télécharger CSV** : export synchronisé (mêmes prix/quantités).
-- **Pastille “source”** : affiche la **source réelle** (`meta.source_used`) et **signale un mismatch** si différente du choix UI.
+- **Badge pricing** : affiche le mode utilisé (Prix locaux/Prix marché/Hybride).
+- **Pastille "source"** : affiche la **source réelle** (`meta.source_used`) et **signale un mismatch** si différente du choix UI.
+- **🏷️ Alias Manager** : bouton d'accès direct à l'interface de gestion des taxonomies.
 
-> Si vous servez l’UI depuis `docs/` (GitHub Pages), fixez **CORS_ORIGINS** dans `.env`.
+### 5.2 `static/alias-manager.html` - Gestion des taxonomies
+
+Interface dédiée pour la gestion complète des aliases crypto :
+
+- **Recherche en temps réel** et **filtrage par groupe**
+- **Édition individuelle** avec dropdown de sélection de groupe
+- **Actions batch** : assigner les filtrés vers un groupe, "Tout → Others"
+- **Statistiques** : nombre total d'aliases, groupes, éléments en mémoire
+- **Export JSON** pour backup de la taxonomie
+- **Navigation** retour vers le rebalancer principal
+- **Thème sombre** cohérent avec l'interface principale
+- **API intégrée** : sauvegarde automatique via `/taxonomy/aliases`
+
+> Si vous servez l'UI depuis `docs/` (GitHub Pages), fixez **CORS_ORIGINS** dans `.env`.
 
 ---
 
@@ -306,10 +324,11 @@ curl -s -X POST "http://127.0.0.1:8000/rebalance/plan?source=cointracking_api&mi
 
 ## 10) Roadmap courte
 
-- **Alias Manager** (UI dédiée) + persistance `taxonomy.json` et endpoints admin (reload/save)
-- Vue “Par lieu d’exécution” (exchange / ledger / DeFi) + plan par lieu
-- **Dry-run d’exécution** pour 1 exchange (arrondis, tailles mini, frais)
-- **Tests** unitaires & d’intégration, logs plus verbeux
-- **Docker** (dev & run)
+- ✅ **Alias Manager** (UI dédiée) avec recherche, filtrage et actions batch
+- ⬜ Persistance `taxonomy.json` et endpoints admin (reload/save)
+- ⬜ Vue "Par lieu d'exécution" (exchange / ledger / DeFi) + plan par lieu
+- ⬜ **Dry-run d'exécution** pour 1 exchange (arrondis, tailles mini, frais)
+- ⬜ **Tests** unitaires & d'intégration, logs plus verbeux
+- ⬜ **Docker** (dev & run)
 
 ---
