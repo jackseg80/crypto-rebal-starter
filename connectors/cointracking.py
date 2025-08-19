@@ -123,7 +123,7 @@ def _resolve_csv_path(candidates):
 
 def get_current_balances_from_csv() -> Dict[str, Any]:
     env_cur = os.getenv("COINTRACKING_CSV")
-    default_cur = "CoinTracking - Current Balance.csv"
+    default_cur = "CoinTracking - Current Balance_mini.csv"
     candidates_cur = [env_cur, os.path.join("data", default_cur), default_cur]
     p_cur = _resolve_csv_path([c for c in candidates_cur if c])
     rows_cur = _read_csv_safe(p_cur)
