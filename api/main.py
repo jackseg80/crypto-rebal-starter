@@ -151,7 +151,7 @@ async def resolve_current_balances(source: str) -> Dict[str, Any]:
 # ---------- health ----------
 @app.get("/healthz")
 async def healthz():
-    return {"ok": True}
+    return {"ok": True, "version": "1.2", "test": "AFTER_8080_KILL"}
 
 
 # ---------- balances ----------
