@@ -2,7 +2,7 @@
 from __future__ import annotations
 import os, json
 from typing import Dict, Any
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import APIRouter, Body, HTTPException, Query
 try:
     import taxonomy  # DEFAULT_GROUPS, GROUP_ALIASES (mapping par défaut .py)
 except Exception:

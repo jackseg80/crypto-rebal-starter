@@ -1,8 +1,7 @@
 # services/taxonomy.py
 from __future__ import annotations
 
-import json
-import os
+import json, os
 from dataclasses import dataclass, field
 from typing import Dict, List
 
@@ -133,8 +132,13 @@ class Taxonomy:
     # aliases: symbole/alias -> groupe (libellé exact)
     aliases: Dict[str, str] = field(default_factory=lambda: dict(DEFAULT_ALIASES))
 
+    _instance = None  # Singleton instance
+    
     @classmethod
-    def load(cls) -> "Taxonomy":
+    def load(cls, reload: bool = False) -> "Taxonomy":
+        if cls._instance and not reload:
+            return cls._instance
+            
         path = _storage_path()
         # Base par défaut
         t = cls()
