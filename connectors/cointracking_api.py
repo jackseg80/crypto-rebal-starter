@@ -10,6 +10,10 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
+from dotenv import load_dotenv
+
+# Charger .env au début pour que les variables soient disponibles
+load_dotenv()
 
 # --- Config (.env) -----------------------------------------------------------
 # On supporte les 2 variantes de noms d'env pour être tolérant :

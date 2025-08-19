@@ -142,33 +142,6 @@ _PROVIDERS = {
     "coingecko": _from_coingecko,
 }
 
-def get_price_usd(symbol: str):
-    if not symbol:
-        return None
-    symbol = symbol.upper()
-    base = SYMBOL_ALIAS.get(symbol, symbol)
-
-    # 1) fiat/stables fixes
-    if base in FIAT_STABLE_FIXED:
-        return FIAT_STABLE_FIXED[base]
-
-    # 2) cache mémoire
-    p = _get_from_cache(base)
-    if p:
-        return p
-
-    # 3) providers (dans l'ordre)
-    for name in PRICE_PROVIDER_ORDER:
-        fn = _PROVIDERS.get(name)
-        if not fn:
-            continue
-        p = fn(base)
-        if p and p > 0:
-            _set_cache(base, p)
-            return p
-
-    return None
-
 def get_prices_usd(symbols):
     out = {}
     for s in set([ (s or "").upper() for s in symbols ]):

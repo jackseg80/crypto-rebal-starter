@@ -1,6 +1,6 @@
 # Contributing – Crypto Rebal Starter
 
-Bienvenue ! Ce projet vise à automatiser le rééquilibrage de portefeuilles crypto avec :
+Ce projet vise à automatiser le rééquilibrage de portefeuilles crypto avec :
 - Récupération des soldes via CoinTracking
 - Normalisation et agrégation par groupes (BTC, ETH, Stablecoins, etc.)
 - Génération d’un plan de rééquilibrage (JSON / CSV)
@@ -90,4 +90,4 @@ Interface utilisateur :
 - Utiliser le template PR dans .github/
 
 ======================================================================
-Merci d’appliquer ces règles pour garantir un projet clair, stable et pro 🚀
+Merci d’appliquer ces règles pour garantir un projet clair, stable et pro.
