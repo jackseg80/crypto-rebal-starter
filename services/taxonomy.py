@@ -88,11 +88,11 @@ DEFAULT_ALIASES: Dict[str, str] = {
 
 def _storage_path() -> str:
     """
-    Emplacement de persistance.
+    Emplacement de persistance - utilise le même fichier que les endpoints API.
     - Si TAXONOMY_FILE est défini, on l'utilise.
-    - Sinon, ./taxonomy.json (cwd).
+    - Sinon, data/taxonomy_aliases.json (même que API endpoints).
     """
-    return os.environ.get("TAXONOMY_FILE", os.path.join(os.getcwd(), "data", "taxonomy.json"))
+    return os.environ.get("TAXONOMY_FILE", os.path.join(os.getcwd(), "data", "taxonomy_aliases.json"))
 
 def _keynorm(s: str) -> str:
     # Normalisation pour comparer sans casse/espaces
@@ -143,31 +143,37 @@ class Taxonomy:
         # Base par défaut
         t = cls()
 
-        if not os.path.exists(path):
-            # Pas de fichier => on garde les défauts
-            return t
+        if os.path.exists(path):
+            # Lecture tolerant BOM
+            with open(path, "r", encoding="utf-8-sig") as f:
+                data = json.load(f)
 
-        # Lecture tolerant BOM
-        with open(path, "r", encoding="utf-8-sig") as f:
-            data = json.load(f)
+            # Format des endpoints API : data = { "SYMBOL": "GROUP", ... }
+            # Format ancien : data = { "groups_order": [...], "aliases": {...} }
+            
+            if isinstance(data, dict):
+                if "groups_order" in data:
+                    # Format ancien (structure complète)
+                    groups = data.get("groups_order")
+                    if isinstance(groups, list) and groups:
+                        t.groups_order = [str(g) for g in groups]
+                    raw_aliases = data.get("aliases", {})
+                else:
+                    # Format nouveau des endpoints (direct aliases)
+                    raw_aliases = data
+                
+                if isinstance(raw_aliases, dict):
+                    # Merge avec défauts, puis canonisation
+                    merged = dict(DEFAULT_ALIASES)
+                    for k, v in raw_aliases.items():
+                        merged[str(k).upper()] = str(v)
+                    t.aliases = _canonicalize_alias_mapping(merged, t.groups_order)
+                else:
+                    # seulement canoniser les défauts
+                    t.aliases = _canonicalize_alias_mapping(t.aliases, t.groups_order)
 
-        # groups_order
-        groups = data.get("groups_order")
-        if isinstance(groups, list) and groups:
-            t.groups_order = [str(g) for g in groups]
-
-        # aliases (symbol/alias -> group)
-        raw_aliases = data.get("aliases")
-        if isinstance(raw_aliases, dict):
-            # Merge avec défauts, puis canonisation
-            merged = dict(DEFAULT_ALIASES)
-            for k, v in raw_aliases.items():
-                merged[str(k).upper()] = str(v)
-            t.aliases = _canonicalize_alias_mapping(merged, t.groups_order)
-        else:
-            # seulement canoniser les défauts
-            t.aliases = _canonicalize_alias_mapping(t.aliases, t.groups_order)
-
+        # Cache la nouvelle instance
+        cls._instance = t
         return t
 
     def save(self) -> None:

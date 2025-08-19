@@ -185,19 +185,12 @@ const fmt  = n => (n==null || isNaN(n)) ? "" : Number(n).toLocaleString(undefine
 const fmt2 = n => (n==null || isNaN(n)) ? "—" : Number(n).toLocaleString(undefined, {maximumFractionDigits: 2});
 
 function setStatus(text){ el("status").textContent = text; }
-function showNotification(text, type = 'info') {
+function showNotification(text, type = 'info', duration = 3000) {
   const notif = document.createElement('div');
   notif.className = `notification ${type}`;
   notif.textContent = text;
   document.body.appendChild(notif);
-  setTimeout(() => notif.remove(), 3000);
-}
-function showNotification(text, type = 'info') {
-  const notif = document.createElement('div');
-  notif.className = `notification ${type}`;
-  notif.textContent = text;
-  document.body.appendChild(notif);
-  setTimeout(() => notif.remove(), 3000);
+  setTimeout(() => notif.remove(), duration);
 }
 function setTotal(v){
   const n = Number(v||0);
@@ -335,10 +328,12 @@ function renderUnknownAliases(list){
     </div>
   `).join("");
 
-  // Gestion robuste des clics avec validation complète
+  // Gestion des clics sur les boutons Ajouter
   el("unknownList").addEventListener("click", async (ev) => {
     const btn = ev.target.closest('button.act-add');
     if (!btn || btn.disabled) return;
+
+    ev.preventDefault();
 
     try {
       btn.disabled = true;
@@ -367,35 +362,6 @@ function renderUnknownAliases(list){
     } catch (error) {
       console.error('Erreur:', error);
       showNotification(`❌ ${error.message}`, 'error', 5000);
-    } finally {
-      btn.disabled = false;
-    }
-    
-    ev.preventDefault();
-    try {
-      const alias = btn.dataset.alias.toUpperCase(); // Normalisation de la casse
-      const group = btn.closest(".row").querySelector(".u_group").value;
-      
-      // Feedback visuel immédiat
-      btn.disabled = true;
-      const { api } = currentQuery();
-      const response = await fetch(`${api}/taxonomy/aliases`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ aliases: { [alias]: group } })
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Erreur inconnue');
-      }
-
-      // Rafraîchissement ciblé
-      await runPlan();
-      showNotification(`✅ ${alias} ajouté à ${group}`, 'success');
-    } catch (error) {
-      console.error("Erreur d'ajout:", error);
-      showNotification(`❌ Échec: ${error.message}`, 'error');
     } finally {
       btn.disabled = false;
     }
