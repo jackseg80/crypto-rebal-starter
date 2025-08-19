@@ -89,6 +89,7 @@ def _to_rows(raw: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             "symbol": str(symbol),
             "alias": (r.get("alias") or r.get("name") or r.get("symbol")),
             "value_usd": float(r.get("value_usd") or r.get("value") or 0.0),
+            "amount": float(r.get("amount") or 0.0) if r.get("amount") else None,
             "location": r.get("location") or r.get("exchange") or "",
         })
     return out
@@ -198,10 +199,12 @@ async def rebalance_plan(
     # meta pour UI - fusionner avec les métadonnées pricing existantes
     if not plan.get("meta"):
         plan["meta"] = {}
-    plan["meta"].update({
+    # Préserver les métadonnées existantes et ajouter les nouvelles
+    meta_update = {
         "source_used": source_used,
         "items_count": len(rows)
-    })
+    }
+    plan["meta"].update(meta_update)
     return plan
 
 
@@ -293,7 +296,7 @@ def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str, Any]]
     # Enrichir les actions
     for a in plan.get("actions", []) or []:
         sym = a.get("symbol")
-        if not sym or not a.get("usd") or a.get("price_used"):
+        if not sym or a.get("usd") is None or a.get("price_used"):
             continue
             
         sym_upper = sym.upper()
