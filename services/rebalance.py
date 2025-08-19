@@ -201,7 +201,8 @@ def plan_rebalance(
       -> utilisé pour les ACHATS seulement. Les ventes se font proportionnellement
          aux positions actuelles dans chaque groupe (peu importe primary_symbols).
     """
-    tx = Taxonomy.load()
+    # Recharge la taxonomie pour avoir les dernières données
+    tx = Taxonomy.load(reload=True)
 
     # Ordre des groupes (fallback si vide)
     groups_order = list(tx.groups_order or [])
@@ -372,13 +373,16 @@ def plan_rebalance(
         actions[idx]["usd"] = round(actions[idx]["usd"] - net, 2)
         net = round(sum(a["usd"] for a in actions), 2)
 
-    # Unknown aliases (sur ce périmètre filtré min_usd)
+    # Vérifie à la fois les alias et groupes existants
     known_aliases = set(tx.aliases.keys())
-    unknown_aliases_set = set()
-    for it in items:
-        a = it["alias"]
-        if a and a not in known_aliases:
-            unknown_aliases_set.add(a)
+    known_groups = set(tx.groups_order or [])
+    
+    unknown_aliases_set = {
+        it["alias"] for it in items
+        if it["alias"]
+        and it["alias"] not in known_aliases
+        and it["alias"] not in known_groups
+    }
 
     return {
         "total_usd": round(total_usd, 2),
