@@ -272,8 +272,9 @@ def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str, Any]]
         data_age_min = _get_data_age_minutes(source_used)
         needs_market_correction = data_age_min > max_age_min
         
-        # Récupérer prix marché si besoin
-        if needs_market_correction or max_deviation_pct > 0:
+        # Récupérer prix marché SEULEMENT si données anciennes
+        # (pour la validation d'écart, on le fera plus tard si nécessaire)
+        if needs_market_correction:
             symbols = set()
             for a in plan.get("actions", []) or []:
                 sym = a.get("symbol")
@@ -305,24 +306,25 @@ def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str, Any]]
             final_price = market_price
             price_source = "market"
         elif pricing_mode == "hybrid":
-            # Logique hybride
-            if local_price and market_price:
-                deviation = _calculate_price_deviation(local_price, market_price)
-                data_age_min = _get_data_age_minutes(plan.get("meta", {}).get("source_used", ""))
-                
-                # Utiliser prix marché si données trop anciennes ou écart trop important
-                if data_age_min > max_age_min or deviation > max_deviation_pct:
+            # Logique hybride simplifiée
+            data_age_min = _get_data_age_minutes(plan.get("meta", {}).get("source_used", ""))
+            
+            if data_age_min > max_age_min:
+                # Données anciennes -> utiliser prix marché si disponible
+                if market_price:
                     final_price = market_price
                     price_source = "market"
-                else:
+                elif local_price:
                     final_price = local_price
                     price_source = "local"
-            elif local_price:
-                final_price = local_price
-                price_source = "local"
-            elif market_price:
-                final_price = market_price
-                price_source = "market"
+            else:
+                # Données fraîches -> utiliser prix local (rapide)
+                if local_price:
+                    final_price = local_price
+                    price_source = "local"
+                elif market_price:  # fallback peu probable
+                    final_price = market_price
+                    price_source = "market"
         
         # Appliquer le prix final
         if final_price and final_price > 0:
