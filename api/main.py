@@ -4,12 +4,17 @@ from typing import Any, Dict, List
 from time import monotonic
 from fastapi import FastAPI, Query, Body, Response
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+
+# Charger les variables d'environnement depuis .env
+load_dotenv()
 
 from connectors import cointracking as ct_file
 from connectors.cointracking_api import get_current_balances as ct_api_get_current_balances, _debug_probe
 
 from services.rebalance import plan_rebalance
 from services.taxonomy import Taxonomy
+from services.pricing import get_prices_usd
 from api.taxonomy_endpoints import router as taxonomy_router, _merged_aliases, _all_groups
 
 app = FastAPI()
@@ -192,19 +197,40 @@ async def rebalance_plan_csv(
 # ---------- helpers prix + csv ----------
 def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str, Any]], pricing_mode: str = "local") -> Dict[str, Any]:
     """
-    Si pricing_mode = "local", on dérive des prix simples à partir de rows (ou via cache local).
-    Si "auto", garde ton mécanisme existant (ex: pricing.py externe). Ici on met juste un placeholder local.
+    Si pricing_mode = "local", dérive des prix à partir de rows (amount/value_usd).
+    Si "auto", utilise services/pricing.py pour récupérer les prix via API.
     """
-    # mini map symbol->price (local) = total_usd / amount (si dispo); sinon laisse None
     price_map: Dict[str, float] = {}
-    # si tu as un fichier services/pricing.py avec get_prices, tu peux l'appeler ici selon pricing_mode
+    
+    if pricing_mode == "local":
+        # Prix locaux: dérivés des données de balance (value_usd / amount)
+        for row in rows or []:
+            sym = row.get("symbol")
+            if not sym:
+                continue
+            value_usd = float(row.get("value_usd") or 0.0)
+            amount = float(row.get("amount") or 0.0)
+            if value_usd > 0 and amount > 0:
+                price_map[sym.upper()] = value_usd / amount
+    else:
+        # Prix auto: utilise services/pricing.py pour récupérer les prix via API
+        symbols = set()
+        for a in plan.get("actions", []) or []:
+            sym = a.get("symbol")
+            if sym:
+                symbols.add(sym.upper())
+        
+        if symbols:
+            price_map = get_prices_usd(list(symbols))
+            # Filtrer les None
+            price_map = {k: v for k, v in price_map.items() if v is not None}
 
-    # enrichit plan.actions
+    # Enrichit plan.actions avec les prix
     for a in plan.get("actions", []) or []:
         sym = a.get("symbol")
         if sym and a.get("usd") and not a.get("price_used"):
-            price = price_map.get(sym)
-            if price:
+            price = price_map.get(sym.upper())
+            if price and price > 0:
                 a["price_used"] = float(price)
                 try:
                     a["est_quantity"] = round(float(a["usd"]) / float(price), 8)
@@ -225,6 +251,12 @@ def _to_csv(actions: List[Dict[str, Any]]) -> str:
             ("" if a.get("price_used")   is None else f",{a.get('price_used')}")
         ))
     return "\n".join(lines)
+
+# ---------- debug ----------
+@app.get("/debug/ctapi")
+async def debug_ctapi():
+    """Endpoint de debug pour CoinTracking API"""
+    return _debug_probe()
 
 # inclure les routes taxonomie
 app.include_router(taxonomy_router)
