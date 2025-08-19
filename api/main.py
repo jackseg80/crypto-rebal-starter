@@ -2,6 +2,8 @@
 from __future__ import annotations
 from typing import Any, Dict, List
 from time import monotonic
+import os
+import time
 from fastapi import FastAPI, Query, Body, Response
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -48,6 +50,33 @@ def _parse_min_usd(raw: str | None, default: float = 1.0) -> float:
         return float(raw) if raw is not None else default
     except Exception:
         return default
+
+def _get_data_age_minutes(source_used: str) -> float:
+    """Retourne l'âge approximatif des données en minutes selon la source"""
+    if source_used == "cointracking":
+        # Pour CSV local, vérifier la date de modification du fichier
+        csv_path = os.getenv("COINTRACKING_CSV", "./data/cointracking_balances.csv")
+        try:
+            if os.path.exists(csv_path):
+                mtime = os.path.getmtime(csv_path)
+                age_seconds = time.time() - mtime
+                return age_seconds / 60.0
+        except Exception:
+            pass
+        # Fallback : considérer les données CSV comme potentiellement anciennes
+        return 60.0  # 1 heure par défaut
+    elif source_used == "cointracking_api":
+        # API données fraîches (cache 60s)
+        return 1.0
+    else:
+        # Stub ou autres sources
+        return 0.0
+
+def _calculate_price_deviation(local_price: float, market_price: float) -> float:
+    """Calcule l'écart en pourcentage entre prix local et marché"""
+    if market_price <= 0:
+        return 0.0
+    return abs(local_price - market_price) / market_price * 100.0
 
 def _to_rows(raw: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Normalise les lignes connecteurs -> {symbol, alias, value_usd, location}"""
@@ -197,23 +226,34 @@ async def rebalance_plan_csv(
 # ---------- helpers prix + csv ----------
 def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str, Any]], pricing_mode: str = "local") -> Dict[str, Any]:
     """
-    Si pricing_mode = "local", dérive des prix à partir de rows (amount/value_usd).
-    Si "auto", utilise services/pricing.py pour récupérer les prix via API.
+    Enrichit les actions avec les prix selon 3 modes :
+    - "local" : utilise uniquement les prix dérivés des balances
+    - "auto" : utilise uniquement les prix d'API externes
+    - "hybrid" : commence par local, corrige avec marché si données anciennes ou écart important
     """
+    # Configuration hybride
+    max_age_min = float(os.getenv("PRICE_HYBRID_MAX_AGE_MIN", "30"))
+    max_deviation_pct = float(os.getenv("PRICE_HYBRID_DEVIATION_PCT", "5.0"))
+    
+    # Calculer les prix locaux (toujours nécessaire pour hybrid)
+    local_price_map: Dict[str, float] = {}
+    for row in rows or []:
+        sym = row.get("symbol")
+        if not sym:
+            continue
+        value_usd = float(row.get("value_usd") or 0.0)
+        amount = float(row.get("amount") or 0.0)
+        if value_usd > 0 and amount > 0:
+            local_price_map[sym.upper()] = value_usd / amount
+
+    # Préparer les prix selon le mode
     price_map: Dict[str, float] = {}
+    market_price_map: Dict[str, float] = {}
     
     if pricing_mode == "local":
-        # Prix locaux: dérivés des données de balance (value_usd / amount)
-        for row in rows or []:
-            sym = row.get("symbol")
-            if not sym:
-                continue
-            value_usd = float(row.get("value_usd") or 0.0)
-            amount = float(row.get("amount") or 0.0)
-            if value_usd > 0 and amount > 0:
-                price_map[sym.upper()] = value_usd / amount
-    else:
-        # Prix auto: utilise services/pricing.py pour récupérer les prix via API
+        price_map = local_price_map.copy()
+    elif pricing_mode == "auto":
+        # Récupérer tous les prix via API
         symbols = set()
         for a in plan.get("actions", []) or []:
             sym = a.get("symbol")
@@ -221,34 +261,104 @@ def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str, Any]]
                 symbols.add(sym.upper())
         
         if symbols:
-            price_map = get_prices_usd(list(symbols))
-            # Filtrer les None
-            price_map = {k: v for k, v in price_map.items() if v is not None}
+            market_price_map = get_prices_usd(list(symbols))
+            price_map = {k: v for k, v in market_price_map.items() if v is not None}
+    elif pricing_mode == "hybrid":
+        # Commencer par prix locaux
+        price_map = local_price_map.copy()
+        
+        # Déterminer si correction nécessaire
+        source_used = plan.get("meta", {}).get("source_used", "")
+        data_age_min = _get_data_age_minutes(source_used)
+        needs_market_correction = data_age_min > max_age_min
+        
+        # Récupérer prix marché si besoin
+        if needs_market_correction or max_deviation_pct > 0:
+            symbols = set()
+            for a in plan.get("actions", []) or []:
+                sym = a.get("symbol")
+                if sym:
+                    symbols.add(sym.upper())
+            
+            if symbols:
+                market_price_map = get_prices_usd(list(symbols))
+                market_price_map = {k: v for k, v in market_price_map.items() if v is not None}
 
-    # Enrichit plan.actions avec les prix
+    # Enrichir les actions
     for a in plan.get("actions", []) or []:
         sym = a.get("symbol")
-        if sym and a.get("usd") and not a.get("price_used"):
-            price = price_map.get(sym.upper())
-            if price and price > 0:
-                a["price_used"] = float(price)
-                try:
-                    a["est_quantity"] = round(float(a["usd"]) / float(price), 8)
-                except Exception:
-                    pass
+        if not sym or not a.get("usd") or a.get("price_used"):
+            continue
+            
+        sym_upper = sym.upper()
+        local_price = local_price_map.get(sym_upper)
+        market_price = market_price_map.get(sym_upper)
+        
+        # Déterminer le prix final et la source
+        final_price = None
+        price_source = "local"
+        
+        if pricing_mode == "local":
+            final_price = local_price
+            price_source = "local"
+        elif pricing_mode == "auto":
+            final_price = market_price
+            price_source = "market"
+        elif pricing_mode == "hybrid":
+            # Logique hybride
+            if local_price and market_price:
+                deviation = _calculate_price_deviation(local_price, market_price)
+                data_age_min = _get_data_age_minutes(plan.get("meta", {}).get("source_used", ""))
+                
+                # Utiliser prix marché si données trop anciennes ou écart trop important
+                if data_age_min > max_age_min or deviation > max_deviation_pct:
+                    final_price = market_price
+                    price_source = "market"
+                else:
+                    final_price = local_price
+                    price_source = "local"
+            elif local_price:
+                final_price = local_price
+                price_source = "local"
+            elif market_price:
+                final_price = market_price
+                price_source = "market"
+        
+        # Appliquer le prix final
+        if final_price and final_price > 0:
+            a["price_used"] = float(final_price)
+            a["price_source"] = price_source
+            try:
+                a["est_quantity"] = round(float(a["usd"]) / float(final_price), 8)
+            except Exception:
+                pass
+    
+    # Ajouter métadonnées sur le pricing
+    if not plan.get("meta"):
+        plan["meta"] = {}
+    
+    plan["meta"]["pricing_mode"] = pricing_mode
+    if pricing_mode == "hybrid":
+        plan["meta"]["pricing_hybrid"] = {
+            "max_age_min": max_age_min,
+            "max_deviation_pct": max_deviation_pct,
+            "data_age_min": _get_data_age_minutes(plan.get("meta", {}).get("source_used", ""))
+        }
+    
     return plan
 
 def _to_csv(actions: List[Dict[str, Any]]) -> str:
-    lines = ["group,alias,symbol,action,usd,est_quantity,price_used"]
+    lines = ["group,alias,symbol,action,usd,est_quantity,price_used,price_source"]
     for a in actions or []:
-        lines.append("{},{},{},{},{:.2f},{}{}".format(
+        lines.append("{},{},{},{},{:.2f},{},{},{}".format(
             a.get("group",""),
             a.get("alias",""),
             a.get("symbol",""),
             a.get("action",""),
             float(a.get("usd") or 0.0),
             ("" if a.get("est_quantity") is None else f"{a.get('est_quantity')}"),
-            ("" if a.get("price_used")   is None else f",{a.get('price_used')}")
+            ("" if a.get("price_used")   is None else f"{a.get('price_used')}"),
+            a.get("price_source", "")
         ))
     return "\n".join(lines)
 

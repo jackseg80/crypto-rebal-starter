@@ -96,11 +96,13 @@
         <label>min_usd</label><br/>
         <input id="min_usd" type="number" value="1" style="width:90px">
       </div>
-      <div class="grow" style="align-self:flex-end">
-        <label class="small">
-          <input type="checkbox" id="pricing_local" checked>
-          Prix locaux (rapide)
-        </label>
+      <div>
+        <label>Pricing</label><br/>
+        <select id="pricing_mode">
+          <option value="local">Local (rapide)</option>
+          <option value="hybrid" selected>Hybride (recommandé)</option>
+          <option value="auto">Marché (précis)</option>
+        </select>
       </div>
       <div style="align-self:flex-end">
         <button id="btnRun" class="btn">Générer le plan</button>
@@ -139,13 +141,19 @@
 
   <!-- Actions -->
   <section class="card mt16">
-    <h3>Actions</h3>
+    <div class="row" style="justify-content:space-between;align-items:flex-end">
+      <h3>Actions</h3>
+      <div class="legend small">
+        <span><span class="pill" style="background:#16a34a;border-color:#16a34a;color:white;font-size:10px">L</span> Prix local</span>
+        <span><span class="pill" style="background:#dc2626;border-color:#dc2626;color:white;font-size:10px">M</span> Prix marché</span>
+      </div>
+    </div>
     <div style="overflow:auto;max-height:50vh;border:1px solid var(--border);border-radius:10px">
       <table id="tblActions">
         <thead>
           <tr>
             <th>group</th><th>alias</th><th>symbol</th><th>action</th>
-            <th class="right">usd</th><th class="right">est_quantity</th><th class="right">price_used</th>
+            <th class="right">usd</th><th class="right">est_quantity</th><th class="right">price_used</th><th>source</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -235,7 +243,7 @@ function currentQuery(){
   const api = el("api_base").value.trim().replace(/\/+$/,'');
   const source = el("source").value;
   const min_usd = el("min_usd").value || "1";
-  const pricing = el("pricing_local").checked ? "local" : "auto";
+  const pricing = el("pricing_mode").value;
   const qs = new URLSearchParams({ source, min_usd, pricing }).toString();
   return { api, qs };
 }
@@ -282,7 +290,13 @@ function renderDonuts(plan){
 /* ---------- Résumé & Actions ---------- */
 function renderActions(actions){
   const tb = $("#tblActions tbody");
-  tb.innerHTML = (actions||[]).map(a => `
+  tb.innerHTML = (actions||[]).map(a => {
+    const priceSourceBadge = a.price_source === 'market' ? 
+      '<span class="pill" style="background:#dc2626;border-color:#dc2626;color:white;font-size:10px">M</span>' : 
+      a.price_source === 'local' ? 
+      '<span class="pill" style="background:#16a34a;border-color:#16a34a;color:white;font-size:10px">L</span>' : '';
+    
+    return `
     <tr>
       <td>${a.group||""}</td>
       <td>${a.alias||""}</td>
@@ -291,8 +305,10 @@ function renderActions(actions){
       <td class="right">${fmt(a.usd)}</td>
       <td class="right">${fmt(a.est_quantity)}</td>
       <td class="right">${fmt(a.price_used)}</td>
+      <td>${priceSourceBadge}</td>
     </tr>
-  `).join("");
+    `;
+  }).join("");
 }
 function renderSummary(plan){
   const grp = plan?.current_by_group || {};
@@ -403,7 +419,17 @@ async function runPlan(){
     setTotal(plan?.total_usd);
 
     const ms = Math.round(performance.now() - t0);
-    setStatus(`OK • ${ms} ms • source=${plan?.meta?.source_used||'(?)'} • items=${plan?.meta?.items_count??"-"}`);
+    let statusText = `OK • ${ms} ms • source=${plan?.meta?.source_used||'(?)'} • items=${plan?.meta?.items_count??"-"}`;
+    
+    // Ajouter infos pricing hybride si disponibles
+    if (plan?.meta?.pricing_mode === 'hybrid' && plan?.meta?.pricing_hybrid) {
+      const hybridInfo = plan.meta.pricing_hybrid;
+      statusText += ` • pricing=hybrid (âge=${Math.round(hybridInfo.data_age_min)}min, seuils=${hybridInfo.max_age_min}min/${hybridInfo.max_deviation_pct}%)`;
+    } else if (plan?.meta?.pricing_mode) {
+      statusText += ` • pricing=${plan.meta.pricing_mode}`;
+    }
+    
+    setStatus(statusText);
     el("btnCsv").disabled = false;
   } catch (e){
     console.error(e);
