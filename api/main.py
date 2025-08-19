@@ -192,11 +192,12 @@ async def rebalance_plan(
     )
 
     # enrichissement prix (selon "pricing")
-    plan = _enrich_actions_with_prices(plan, rows, pricing_mode=pricing)
+    source_used = res.get("source_used")
+    plan = _enrich_actions_with_prices(plan, rows, pricing_mode=pricing, source_used=source_used)
 
     # meta pour UI
     plan["meta"] = {
-        "source_used": res.get("source_used"),
+        "source_used": source_used,
         "items_count": len(rows)
     }
     return plan
@@ -224,7 +225,7 @@ async def rebalance_plan_csv(
 
 
 # ---------- helpers prix + csv ----------
-def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str, Any]], pricing_mode: str = "local") -> Dict[str, Any]:
+def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str, Any]], pricing_mode: str = "local", source_used: str = "") -> Dict[str, Any]:
     """
     Enrichit les actions avec les prix selon 3 modes :
     - "local" : utilise uniquement les prix dérivés des balances
@@ -267,8 +268,7 @@ def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str, Any]]
         # Commencer par prix locaux
         price_map = local_price_map.copy()
         
-        # Déterminer si correction nécessaire
-        source_used = plan.get("meta", {}).get("source_used", "")
+        # Déterminer si correction nécessaire  
         data_age_min = _get_data_age_minutes(source_used)
         needs_market_correction = data_age_min > max_age_min
         
@@ -307,7 +307,7 @@ def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str, Any]]
             price_source = "market"
         elif pricing_mode == "hybrid":
             # Logique hybride simplifiée
-            data_age_min = _get_data_age_minutes(plan.get("meta", {}).get("source_used", ""))
+            data_age_min = _get_data_age_minutes(source_used)
             
             if data_age_min > max_age_min:
                 # Données anciennes -> utiliser prix marché si disponible
@@ -344,7 +344,7 @@ def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str, Any]]
         plan["meta"]["pricing_hybrid"] = {
             "max_age_min": max_age_min,
             "max_deviation_pct": max_deviation_pct,
-            "data_age_min": _get_data_age_minutes(plan.get("meta", {}).get("source_used", ""))
+            "data_age_min": _get_data_age_minutes(source_used)
         }
     
     return plan
