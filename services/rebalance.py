@@ -3,6 +3,11 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple
 
 
+def _keynorm(s: str) -> str:
+    # Normalisation pour comparer sans casse/espaces
+    return "".join(str(s).split()).upper()
+
+
 def _normalize_targets(targets_raw: Any) -> Dict[str, float]:
     """
     Accepte différents formats:
@@ -373,16 +378,26 @@ def plan_rebalance(
         actions[idx]["usd"] = round(actions[idx]["usd"] - net, 2)
         net = round(sum(a["usd"] for a in actions), 2)
 
-    # Vérifie à la fois les alias et groupes existants
+    # Collecte les unknown aliases AVANT la transformation en items (avec assignation de groupe)
+    unknown_aliases_set = set()
     known_aliases = set(tx.aliases.keys())
     known_groups = set(tx.groups_order or [])
     
-    unknown_aliases_set = {
-        it["alias"] for it in items
-        if it["alias"]
-        and it["alias"] not in known_aliases
-        and it["alias"] not in known_groups
-    }
+    for it in rows or []:
+        symbol = (it.get("symbol") or it.get("name") or it.get("coin") or "").strip()
+        alias = (it.get("alias") or it.get("name") or symbol or "").strip()
+        v = it.get("value_usd")
+        if v is None:
+            v = it.get("usd_value")
+        value_usd = float(v or 0.0)
+        if value_usd < float(min_usd or 0.0):
+            continue
+            
+        # Vérifier si l'alias est vraiment inconnu (pas dans le mapping ET pas un nom de groupe)
+        if (alias and 
+            alias.upper() not in known_aliases and 
+            _keynorm(alias) not in {_keynorm(g) for g in known_groups}):
+            unknown_aliases_set.add(alias)
 
     return {
         "total_usd": round(total_usd, 2),
