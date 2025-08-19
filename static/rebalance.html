@@ -165,17 +165,24 @@
         <h3>Unknown aliases</h3>
         <div class="small">Par défaut, <strong>Others</strong> est présélectionné.</div>
       </div>
-      <div>
-        <label class="small">Tout vers</label><br/>
-        <select id="bulk_group">
-          <option value="BTC">BTC</option>
-          <option value="ETH">ETH</option>
-          <option value="Stablecoins">Stablecoins</option>
-          <option value="SOL">SOL</option>
-          <option value="L1/L0 majors">L1/L0 majors</option>
-          <option value="Others" selected>Others</option>
-        </select>
-        <button id="btnBulkAdd" class="btn ghost">Ajouter tout</button>
+      <div style="display:flex;gap:12px;align-items:flex-end">
+        <div>
+          <label class="small">Tout vers</label><br/>
+          <select id="bulk_group">
+            <option value="BTC">BTC</option>
+            <option value="ETH">ETH</option>
+            <option value="Stablecoins">Stablecoins</option>
+            <option value="SOL">SOL</option>
+            <option value="L1/L0 majors">L1/L0 majors</option>
+            <option value="Others" selected>Others</option>
+          </select>
+          <button id="btnBulkAdd" class="btn ghost">Ajouter tout</button>
+        </div>
+        <div>
+          <button class="btn secondary small" onclick="openAliasManager()" title="Ouvrir l'interface de gestion des aliases">
+            🏷️ Alias Manager
+          </button>
+        </div>
       </div>
     </div>
     <div id="unknownList" class="small mt16"></div>
@@ -493,6 +500,11 @@ async function bulkAddUnknown(){
   });
   await addAliases(map);
   await runPlan();
+}
+
+/* ---------- Alias Manager ---------- */
+function openAliasManager() {
+  window.open('alias-manager.html', '_blank');
 }
 
 /* ---------- Init ---------- */
