@@ -55,16 +55,25 @@ def _get_data_age_minutes(source_used: str) -> float:
     """Retourne l'âge approximatif des données en minutes selon la source"""
     if source_used == "cointracking":
         # Pour CSV local, vérifier la date de modification du fichier
-        csv_path = os.getenv("COINTRACKING_CSV", "./data/cointracking_balances.csv")
-        try:
-            if os.path.exists(csv_path):
+        csv_path = os.getenv("COINTRACKING_CSV")
+        if not csv_path:
+            # Utiliser le même path resolution que dans le connector
+            default_cur = "CoinTracking - Current Balance_mini.csv"
+            candidates = [os.path.join("data", default_cur), default_cur]
+            for candidate in candidates:
+                if candidate and os.path.exists(candidate):
+                    csv_path = candidate
+                    break
+        
+        if csv_path and os.path.exists(csv_path):
+            try:
                 mtime = os.path.getmtime(csv_path)
                 age_seconds = time.time() - mtime
                 return age_seconds / 60.0
-        except Exception:
-            pass
-        # Fallback : considérer les données CSV comme potentiellement anciennes
-        return 60.0  # 1 heure par défaut
+            except Exception:
+                pass
+        # Fallback : considérer les données CSV comme récentes pour utiliser prix locaux
+        return 5.0  # 5 minutes par défaut (récent)
     elif source_used == "cointracking_api":
         # API données fraîches (cache 60s)
         return 1.0
