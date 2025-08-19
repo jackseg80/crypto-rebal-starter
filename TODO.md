@@ -22,12 +22,14 @@ Légende : ✔️ fait · ⬜ à faire · ~ estimation
 - ✔️ `sub_allocation` (proportional / primary_first auto si primary_symbols saisis)
 - ✔️ `min_trade_usd`
 - ✔️ CSV `/rebalance/plan.csv` aligné (usd, est_quantity, price_used)
-- ✔️ Enrichissement **price_used / est_quantity** :
+- ✔️ **Système de pricing hybride** (3 modes intelligents) :
+  - **Local** (rapide) : prix calculés depuis balances (value_usd/amount)
+  - **Hybride** (recommandé) : local + basculement auto vers marché si données anciennes
+  - **Auto/Marché** (précis) : prix live CoinGecko/Binance exclusivement
   - Stables 1.0 (USD/USDT/USDC)
-  - Prix **CoinTracking** (price_fiat ou value_fiat/amount)
   - Aliases TBTC/WBTC→BTC, WETH/STETH/WSTETH/RETH→ETH, JUPSOL/JITOSOL→SOL
   - Strip suffixes numériques: `ATOM2→ATOM`, `SOL2→SOL`, …
-  - Provider externe de prix (fallback)
+  - Provider ordre configurable : coingecko,binance,file
 - ✔️ Ligne d’équilibrage Σ(usd)=0
 
 ## 3) Alias & taxonomy
@@ -50,8 +52,9 @@ Légende : ✔️ fait · ⬜ à faire · ~ estimation
 
 ## 5) Frontend
 - ✔️ Page `rebalance.html` (API URL, source select, localStorage, CSV)
+- ✔️ **Badge pricing intelligent** (Prix locaux/Prix marché selon mode actif)
 - ✔️ Pastille **source utilisée** (+ avertissement si mismatch)
-- ✔️ Unknown aliases: ajout unitaire + “Tout ajouter → Others”
+- ✔️ Unknown aliases: ajout unitaire + "Tout ajouter → Others"
 - ✔️ Contrôles (Top, Deltas, Net≈0, micro-trades)
 - ⬜ Mini page **Alias Manager** séparée  
   ~ 0.5 j

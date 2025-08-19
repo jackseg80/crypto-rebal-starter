@@ -177,19 +177,68 @@ GET /debug/ctapi
 
 ---
 
-## 6) Notes techniques de pricing
+## 6) Système de pricing hybride
 
-Ordre de priorité pour `price_used` & `est_quantity` :
-1. **Stables** : `USD/USDT/USDC = 1.0`.
-2. **Prix CoinTracking** : `price_fiat` s’il est fourni, sinon **`value_fiat / amount`**.
-3. **Aliases** : TBTC/WBTC→BTC, WETH/STETH/WSTETH/RETH→ETH, JUPSOL/JITOSOL→SOL.
-4. **Strip suffixes numériques** : `ATOM2→ATOM`, `SOL2→SOL`, `SUI3→SUI`, etc.
-5. **Provider externe** (dans `services/pricing.py`) en **fallback** uniquement.
+Le système de pricing offre **3 modes intelligents** pour enrichir les actions avec `price_used` et `est_quantity` :
+
+### 6.1 Modes de pricing
+
+**🚀 Local (rapide)** : `pricing=local`
+- Calcule les prix à partir des balances : `price = value_usd / amount`
+- Le plus rapide, idéal pour des données fraîches CoinTracking
+- Source affichée : **Prix locaux**
+
+**⚡ Hybride (recommandé)** : `pricing=hybrid` (défaut)
+- Commence par les prix locaux
+- Bascule automatiquement vers les prix marché si :
+  - Données > 30 min (configurable via `PRICE_HYBRID_MAX_AGE_MIN`)
+  - Écart > 5% entre local et marché (`PRICE_HYBRID_DEVIATION_PCT`)
+- Combine rapidité et précision
+
+**🎯 Auto/Marché (précis)** : `pricing=auto`
+- Utilise exclusivement les prix live des APIs (CoinGecko → Binance → cache)
+- Le plus précis mais plus lent
+- Source affichée : **Prix marché**
+
+### 6.2 Ordre de priorité pour tous les modes
+
+1. **Stables** : `USD/USDT/USDC = 1.0` (prix fixe)
+2. **Mode sélectionné** : local, hybride ou auto
+3. **Aliases intelligents** : TBTC/WBTC→BTC, WETH/STETH/WSTETH/RETH→ETH, JUPSOL/JITOSOL→SOL
+4. **Strip suffixes numériques** : `ATOM2→ATOM`, `SOL2→SOL`, `SUI3→SUI`
+5. **Provider externe** (fallback) : CoinGecko → Binance → cache fichier
+
+### 6.3 Configuration
+
+```env
+# Provider order (priorité)
+PRICE_PROVIDER_ORDER=coingecko,binance,file
+
+# Hybride : seuils de basculement
+PRICE_HYBRID_MAX_AGE_MIN=30
+PRICE_HYBRID_DEVIATION_PCT=5.0
+
+# Cache TTL pour prix externes
+PRICE_CACHE_TTL=120
+```
+
+### 6.4 Utilisation dans les endpoints
+
+```bash
+# Local (rapide)
+POST /rebalance/plan?pricing=local
+
+# Hybride (défaut, recommandé)
+POST /rebalance/plan?pricing=hybrid
+
+# Auto/Marché (précis)
+POST /rebalance/plan?pricing=auto
+```
 
 **Cache** : les appels `getBalance`/`getGroupedBalance` sont mémorisés **60 s** (anti-spam).
 
 **Invariants** :
-- Σ(usd) des actions **= 0** (ligne d’équilibrage).
+- Σ(usd) des actions **= 0** (ligne d'équilibrage).
 - Aucune action |usd| < `min_trade_usd` (si paramétrée).
 
 ---
