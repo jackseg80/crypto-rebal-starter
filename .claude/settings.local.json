@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip uninstall:*)",
+      "Bash(pip install:*)",
+      "Bash(uvicorn:*)",
+      "Bash(pip cache:*)",
+      "Bash(python:*)",
+      "Bash(where python)",
+      "Bash(echo $VIRTUAL_ENV)",
+      "Bash(mkdir:*)",
+      "Bash(rm:*)",
+      "Bash(git add:*)",
+      "Bash(git rm:*)",
+      "Bash(pkill:*)",
+      "Bash(curl:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "Bash(time curl:*)",
+      "Bash(git checkout:*)",
+      "Bash(git reset:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -195,11 +195,13 @@ async def rebalance_plan(
     source_used = res.get("source_used")
     plan = _enrich_actions_with_prices(plan, rows, pricing_mode=pricing, source_used=source_used)
 
-    # meta pour UI
-    plan["meta"] = {
+    # meta pour UI - fusionner avec les métadonnées pricing existantes
+    if not plan.get("meta"):
+        plan["meta"] = {}
+    plan["meta"].update({
         "source_used": source_used,
         "items_count": len(rows)
-    }
+    })
     return plan
 
 
@@ -272,18 +274,21 @@ def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str, Any]]
         data_age_min = _get_data_age_minutes(source_used)
         needs_market_correction = data_age_min > max_age_min
         
-        # Récupérer prix marché SEULEMENT si données anciennes
-        # (pour la validation d'écart, on le fera plus tard si nécessaire)
-        if needs_market_correction:
-            symbols = set()
-            for a in plan.get("actions", []) or []:
-                sym = a.get("symbol")
-                if sym:
-                    symbols.add(sym.upper())
-            
-            if symbols:
-                market_price_map = get_prices_usd(list(symbols))
-                market_price_map = {k: v for k, v in market_price_map.items() if v is not None}
+        # Récupérer les symboles nécessaires
+        symbols = set()
+        for a in plan.get("actions", []) or []:
+            sym = a.get("symbol")
+            if sym:
+                symbols.add(sym.upper())
+        
+        # Vérifier si on a des prix locaux pour les symboles nécessaires
+        missing_local_prices = symbols - set(local_price_map.keys())
+        needs_market_fallback = bool(missing_local_prices)
+        
+        # Récupérer prix marché si données anciennes OU si prix locaux manquants
+        if (needs_market_correction or needs_market_fallback) and symbols:
+            market_price_map = get_prices_usd(list(symbols))
+            market_price_map = {k: v for k, v in market_price_map.items() if v is not None}
 
     # Enrichir les actions
     for a in plan.get("actions", []) or []:
@@ -306,11 +311,11 @@ def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str, Any]]
             final_price = market_price
             price_source = "market"
         elif pricing_mode == "hybrid":
-            # Logique hybride simplifiée
+            # Logique hybride avec fallback intelligent
             data_age_min = _get_data_age_minutes(source_used)
             
             if data_age_min > max_age_min:
-                # Données anciennes -> utiliser prix marché si disponible
+                # Données anciennes -> privilégier prix marché
                 if market_price:
                     final_price = market_price
                     price_source = "market"
@@ -318,11 +323,11 @@ def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str, Any]]
                     final_price = local_price
                     price_source = "local"
             else:
-                # Données fraîches -> utiliser prix local (rapide)
+                # Données fraîches -> privilégier prix local, fallback marché
                 if local_price:
                     final_price = local_price
                     price_source = "local"
-                elif market_price:  # fallback peu probable
+                elif market_price:
                     final_price = market_price
                     price_source = "market"
         
@@ -350,17 +355,16 @@ def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str, Any]]
     return plan
 
 def _to_csv(actions: List[Dict[str, Any]]) -> str:
-    lines = ["group,alias,symbol,action,usd,est_quantity,price_used,price_source"]
+    lines = ["group,alias,symbol,action,usd,est_quantity,price_used"]
     for a in actions or []:
-        lines.append("{},{},{},{},{:.2f},{},{},{}".format(
+        lines.append("{},{},{},{},{:.2f},{},{}".format(
             a.get("group",""),
             a.get("alias",""),
             a.get("symbol",""),
             a.get("action",""),
             float(a.get("usd") or 0.0),
             ("" if a.get("est_quantity") is None else f"{a.get('est_quantity')}"),
-            ("" if a.get("price_used")   is None else f"{a.get('price_used')}"),
-            a.get("price_source", "")
+            ("" if a.get("price_used")   is None else f"{a.get('price_used')}")
         ))
     return "\n".join(lines)
 

@@ -1,53 +1,34 @@
-# Crypto Rebal Starter – Prompt IA
+# AGENT_PROMPT.md
 
 Tu es un assistant IA de développement dans VSCode.
 Projet : **Crypto Rebal Starter** (voir https://github.com/jackseg80/crypto-rebal-starter).
 
 ## Objectif
-- Automatiser le rééquilibrage de portefeuilles crypto multi-exchanges.
-- Sources : CoinTracking API + CSV.
-- Fonctionnalités :
-  - Normalisation des coins et regroupement par catégories.
-  - Génération de plan de rééquilibrage (JSON, CSV, HTML).
-  - Application manuelle ou via API d’exchanges.
-  - Dashboard HTML avec indicateurs.
+Outil de **rééquilibrage de portefeuille crypto** connecté à **CoinTracking**.  
+Il génère un plan de réallocation en **JSON/CSV/HTML**, basé sur taxonomie et configuration.
 
-## Structure du projet
-- main.py : API FastAPI
-- cointracking.py / cointracking_api.py : récupération & normalisation
-- taxonomy.py / taxonomy_endpoints.py : alias & regroupements
-- rebalance.py / rebalance.html : moteur & interface
-- pricing.py : gestion des prix
-- rapport_crypto_dashboard.html : tableau de bord
-- README.md, TODO.md : documentation & backlog
-- .github/ : règles de contribution, templates PR/Issues
+---
 
-## Règles de développement
-1. Branches
-   - main = stable (pas de commit direct)
-   - feature/... , fix/... , refactor/... , docs/... , chore/...
+## Fichiers de référence
+- `README.md` → Vue d’ensemble et installation  
+- `TODO.md` → Suivi des tâches  
+- `CONTRIBUTING.md` → Règles (branches, commits, PR)  
+- `.github/` → Automatisation CI/CD + templates (issues, PR, CODEOWNERS)
 
-2. Commits (Conventional Commits)
-   - Format : <type>(scope): message
-   - Types : feat, fix, refactor, docs, test, chore
-   - Exemple : feat(rebalance): add proportional sub-allocation strategy
+---
 
-3. Processus
-   - Toujours commencer par un Plan (3–5 commits max)
-   - Appliquer les changements par petits patchs
-   - Mettre à jour tests + README/TODO
+## Règles
+1. Respecter `CONTRIBUTING.md` (branches, commits `feat|fix|refactor`, workflow Git).  
+2. Suivre `.github/` (bug reports, feature requests, PR, CI).  
+3. Garder terminologie crypto cohérente (coin, wallet, airdrop, etc.).  
+4. Préserver structure et style des fichiers (`.po`, `.html`, `.py`).  
+5. Proposer des modifs **claires et atomiques** (1 commit = 1 changement cohérent).
 
-4. Invariants métier
-   - Somme des actions en USD = 0
-   - Pas d’action < min_trade_usd
-   - Stablecoins = valeur fixe 1.0
-   - Champs obligatoires : price_used, est_quantity, meta.source_used
+---
 
-## Rôle de l’IA
-- Lire et analyser README.md, TODO.md, .github/, code source
-- Expliquer ce qui a été compris avant toute modification
-- Respecter les règles ci-dessus (workflow git, commits, PR)
-- Proposer améliorations, simplifications, tests, documentation
-- Toujours structurer : Plan → Commits → PR
-
-👉 Ce document est un contrat : tu dois t’y référer en permanence sans que je le répète.
+## Instructions pour l’IA
+- Lire `README.md`, `TODO.md`, `CONTRIBUTING.md` et `.github/`.  
+- Expliquer **ce qui est fait et pourquoi** avant chaque modif.  
+- Prioriser **optimisation + clarté** sans changer la logique métier.  
+- Rédiger commits, PR et doc technique en **anglais**.  
+- Garder ce contexte en mémoire (ne pas redemander les règles).
