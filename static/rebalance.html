@@ -303,9 +303,9 @@ function renderActions(actions){
 function updatePricingBadge(actions, plan) {
   const badge = el("pricing-badge");
   
-  // Détecter le mode de pricing utilisé
-  const firstAction = (actions||[])[0];
-  const priceSource = firstAction?.price_source;
+  // Chercher une action avec price_source (pas forcément la première)
+  const actionWithPrice = (actions||[]).find(a => a.price_source && a.price_used);
+  const priceSource = actionWithPrice?.price_source;
   const pricingMode = plan?.meta?.pricing_mode || "unknown";
   
   let badgeHtml = "";
@@ -315,7 +315,12 @@ function updatePricingBadge(actions, plan) {
   } else if (priceSource === "market") {
     badgeHtml = '<span class="pill" style="background:#dc2626;border-color:#dc2626;color:white;font-size:12px">Prix marché</span>';
   } else if (pricingMode === "hybrid") {
+    // Fallback si aucune action n'a de prix encore
     badgeHtml = '<span class="pill" style="background:#f59e0b;border-color:#f59e0b;color:white;font-size:12px">Hybride</span>';
+  } else if (pricingMode === "local") {
+    badgeHtml = '<span class="pill" style="background:#16a34a;border-color:#16a34a;color:white;font-size:12px">Prix locaux</span>';
+  } else if (pricingMode === "auto") {
+    badgeHtml = '<span class="pill" style="background:#dc2626;border-color:#dc2626;color:white;font-size:12px">Prix marché</span>';
   }
   
   badge.innerHTML = badgeHtml;

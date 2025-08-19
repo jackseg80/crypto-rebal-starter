@@ -305,11 +305,14 @@ def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str, Any]]
         price_source = "local"
         
         if pricing_mode == "local":
-            final_price = local_price
-            price_source = "local"
+            if local_price:
+                final_price = local_price
+                price_source = "local"
+            # Pas de fallback en mode local pur
         elif pricing_mode == "auto":
-            final_price = market_price
-            price_source = "market"
+            if market_price:
+                final_price = market_price
+                price_source = "market"
         elif pricing_mode == "hybrid":
             # Logique hybride avec fallback intelligent
             data_age_min = _get_data_age_minutes(source_used)
