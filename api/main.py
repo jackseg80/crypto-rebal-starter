@@ -214,6 +214,16 @@ async def rebalance_plan(
         "items_count": len(rows)
     }
     plan["meta"].update(meta_update)
+    
+    # Mettre à jour le cache des unknown aliases pour les suggestions automatiques
+    unknown_aliases = plan.get("unknown_aliases", [])
+    if unknown_aliases:
+        try:
+            from api.taxonomy_endpoints import update_unknown_aliases_cache
+            update_unknown_aliases_cache(unknown_aliases)
+        except ImportError:
+            pass  # Ignore si pas disponible
+    
     return plan
 
 
