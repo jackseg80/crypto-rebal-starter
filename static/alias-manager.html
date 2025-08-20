@@ -119,6 +119,7 @@
       <div class="row mt8">
         <button class="btn small" onclick="clearFilters()">Effacer filtres</button>
         <button class="btn warning small" onclick="showOnlyUnassigned()">Voir non-assignés</button>
+        <button class="btn small" onclick="getAutoSuggestions()">🤖 Suggestions auto</button>
       </div>
     </div>
 
@@ -140,6 +141,7 @@
 
       <div class="row mt8">
         <button class="btn secondary small" onclick="assignAllToOthers()">Tout → Others</button>
+        <button class="btn small" onclick="autoClassifyUnknowns()">🚀 Auto-classifier</button>
         <button class="btn secondary small" onclick="exportAliases()">📥 Export JSON</button>
       </div>
     </div>
@@ -419,7 +421,65 @@ function exportAliases() {
   URL.revokeObjectURL(url);
 }
 
-function showNotification(message, type = 'info') {
+async function getAutoSuggestions() {
+  try {
+    const apiBase = document.getElementById('api_base').value;
+    const response = await fetch(`${apiBase}/taxonomy/suggestions`);
+    
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    
+    const data = await response.json();
+    const { suggestions, auto_classified_count, unknown_count, coverage } = data;
+    
+    if (auto_classified_count === 0) {
+      showNotification('Aucune suggestion automatique trouvée', 'info');
+      return;
+    }
+    
+    const coveragePercent = Math.round(coverage * 100);
+    const suggestionsList = Object.entries(suggestions)
+      .map(([symbol, group]) => `${symbol} → ${group}`)
+      .join(', ');
+    
+    showNotification(
+      `🤖 ${auto_classified_count}/${unknown_count} suggestions (${coveragePercent}%): ${suggestionsList}`, 
+      'info', 
+      8000
+    );
+    
+  } catch (error) {
+    showNotification(`❌ Erreur suggestions: ${error.message}`, 'error');
+  }
+}
+
+async function autoClassifyUnknowns() {
+  if (!confirm('Appliquer automatiquement la classification intelligente aux symboles inconnus ?')) {
+    return;
+  }
+  
+  try {
+    const apiBase = document.getElementById('api_base').value;
+    const response = await fetch(`${apiBase}/taxonomy/auto-classify`, {
+      method: 'POST'
+    });
+    
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    
+    const data = await response.json();
+    
+    if (data.classified === 0) {
+      showNotification(data.message || 'Aucune classification automatique appliquée', 'info');
+    } else {
+      showNotification(`✅ ${data.message}`, 'success');
+      await loadData(); // Recharger les données
+    }
+    
+  } catch (error) {
+    showNotification(`❌ Erreur classification auto: ${error.message}`, 'error');
+  }
+}
+
+function showNotification(message, type = 'info', duration = 3000) {
   const notification = document.createElement('div');
   notification.className = 'notification';
   notification.style.cssText = `
@@ -433,6 +493,8 @@ function showNotification(message, type = 'info') {
     background: ${type === 'success' ? 'var(--pos)' : type === 'error' ? 'var(--danger)' : 'var(--accent)'};
     color: white;
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    max-width: 400px;
+    word-wrap: break-word;
   `;
   notification.textContent = message;
   
@@ -440,7 +502,7 @@ function showNotification(message, type = 'info') {
   
   setTimeout(() => {
     notification.remove();
-  }, 3000);
+  }, duration);
 }
 </script>
 
