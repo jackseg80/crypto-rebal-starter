@@ -165,16 +165,16 @@
   <!-- Portfolio Performance -->
   <div class="card">
     <h3>📈 Performance du Portfolio</h3>
-    <div class="chart-container">
-      <canvas id="performance-chart" width="800" height="300" style="display: none;"></canvas>
-      <div class="chart-placeholder" id="performance-placeholder">
+    <div class="chart-container" style="position: relative;">
+      <canvas id="performance-chart" width="800" height="300" style="display: none; position: relative; z-index: 1;"></canvas>
+      <div class="chart-placeholder" id="performance-placeholder" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 2;">
         <span class="loading"></span>
       </div>
     </div>
     <div class="row" style="margin-top: 12px; gap: 8px;">
-      <button class="btn small" onclick="loadPerformanceChart(7)">7j</button>
-      <button class="btn small" onclick="loadPerformanceChart(30)">30j</button>
-      <button class="btn small" onclick="loadPerformanceChart(90)">90j</button>
+      <button class="btn small" onclick="loadPerformanceChart(7)" style="background: var(--accent); color: #07211e; border: 0; border-radius: 6px; padding: 6px 12px; cursor: pointer;">7j</button>
+      <button class="btn small" onclick="loadPerformanceChart(30)" style="background: var(--accent); color: #07211e; border: 0; border-radius: 6px; padding: 6px 12px; cursor: pointer;">30j</button>
+      <button class="btn small" onclick="loadPerformanceChart(90)" style="background: var(--accent); color: #07211e; border: 0; border-radius: 6px; padding: 6px 12px; cursor: pointer;">90j</button>
     </div>
   </div>
 
@@ -268,6 +268,25 @@ async function loadDashboard() {
 
     // Fetch balances data using global config
     dashboardData = await globalConfig.apiRequest('/balances/current');
+
+    // Fetch taxonomy pour enrichir avec les groupes
+    try {
+      const taxonomyData = await globalConfig.apiRequest('/taxonomy');
+      dashboardData.aliases = taxonomyData.aliases || {};
+      dashboardData.groups = taxonomyData.groups || [];
+    } catch (e) {
+      console.warn('Taxonomie non disponible:', e);
+      dashboardData.aliases = {};
+      dashboardData.groups = [];
+    }
+
+    // Enrichir les items avec les groupes
+    if (dashboardData.items && dashboardData.aliases) {
+      dashboardData.items.forEach(item => {
+        const alias = item.alias || item.symbol;
+        item.group = dashboardData.aliases[alias] || 'Others';
+      });
+    }
 
     // Fetch portfolio metrics using global config  
     try {
@@ -369,12 +388,12 @@ function updateMetrics() {
     let topHolding = { symbol: '', value: 0 };
     
     items.forEach(item => {
-      if (item.usd_value && item.usd_value > 0) {
-        totalValue += item.usd_value;
+      if (item.value_usd && item.value_usd > 0) {
+        totalValue += item.value_usd;
         assetCount++;
         
-        if (item.usd_value > topHolding.value) {
-          topHolding = { symbol: item.symbol, value: item.usd_value };
+        if (item.value_usd > topHolding.value) {
+          topHolding = { symbol: item.symbol, value: item.value_usd };
         }
       }
     });
@@ -400,7 +419,10 @@ function updateMetrics() {
 
 // Graphique de répartition (simple canvas)
 function updateAllocationChart() {
-  if (!dashboardData || !dashboardData.items) return;
+  if (!dashboardData || !dashboardData.items) {
+    document.getElementById('allocation-placeholder').innerHTML = 'Aucune donnée disponible';
+    return;
+  }
   
   const canvas = document.getElementById('allocation-chart');
   const ctx = canvas.getContext('2d');
@@ -411,10 +433,10 @@ function updateAllocationChart() {
   let totalValue = 0;
   
   dashboardData.items.forEach(item => {
-    if (item.usd_value && item.usd_value > 0) {
+    if (item.value_usd && item.value_usd > 0) {
       const group = item.group || 'Others';
-      groups[group] = (groups[group] || 0) + item.usd_value;
-      totalValue += item.usd_value;
+      groups[group] = (groups[group] || 0) + item.value_usd;
+      totalValue += item.value_usd;
     }
   });
   
@@ -475,18 +497,26 @@ function updateAllocationChart() {
 
 // Top Holdings
 function updateTopHoldings() {
-  if (!dashboardData || !dashboardData.items) return;
+  if (!dashboardData || !dashboardData.items) {
+    document.getElementById('top-holdings').innerHTML = '<div class="chart-placeholder">Aucune donnée disponible</div>';
+    return;
+  }
   
   const topHoldings = dashboardData.items
-    .filter(item => item.usd_value && item.usd_value > 0)
-    .sort((a, b) => b.usd_value - a.usd_value)
+    .filter(item => item.value_usd && item.value_usd > 0)
+    .sort((a, b) => b.value_usd - a.value_usd)
     .slice(0, 10);
   
+  if (topHoldings.length === 0) {
+    document.getElementById('top-holdings').innerHTML = '<div class="chart-placeholder">Aucun holding trouvé</div>';
+    return;
+  }
+  
   const totalValue = dashboardData.items.reduce((sum, item) => 
-    sum + (item.usd_value || 0), 0);
+    sum + (item.value_usd || 0), 0);
   
   const html = topHoldings.map((item, index) => {
-    const percentage = totalValue > 0 ? (item.usd_value / totalValue) : 0;
+    const percentage = totalValue > 0 ? (item.value_usd / totalValue) : 0;
     const group = item.group || 'Others';
     const color = GROUP_COLORS[group] || '#78909c';
     
@@ -500,49 +530,59 @@ function updateTopHoldings() {
           </div>
         </div>
         <div style="text-align: right;">
-          <div style="font-weight: 600;">${formatUSD(item.usd_value)}</div>
+          <div style="font-weight: 600;">${formatUSD(item.value_usd)}</div>
           <div style="font-size: 12px; color: var(--muted);">${formatPercent(percentage)}</div>
         </div>
       </div>
     `;
   }).join('');
   
-  document.getElementById('top-holdings').innerHTML = html || 'Aucune donnée';
+  document.getElementById('top-holdings').innerHTML = html;
 }
 
 // Tableau détaillé
 function updateHoldingsTable() {
-  if (!dashboardData || !dashboardData.items) return;
+  if (!dashboardData || !dashboardData.items) {
+    document.getElementById('holdings-tbody').innerHTML = '<tr><td colspan="6" style="text-align: center;">Aucune donnée disponible</td></tr>';
+    return;
+  }
   
   const tbody = document.getElementById('holdings-tbody');
   const totalValue = dashboardData.items.reduce((sum, item) => 
-    sum + (item.usd_value || 0), 0);
+    sum + (item.value_usd || 0), 0);
   
-  const rows = dashboardData.items
-    .filter(item => item.balance && item.balance > 0)
-    .sort((a, b) => (b.usd_value || 0) - (a.usd_value || 0))
-    .map(item => {
-      const percentage = totalValue > 0 && item.usd_value ? 
-        (item.usd_value / totalValue) : 0;
-      const group = item.group || 'Others';
-      
-      return `
-        <tr>
-          <td><strong>${item.symbol}</strong></td>
-          <td>
-            <span class="pill" style="border-color: ${GROUP_COLORS[group] || '#78909c'}">
-              ${group}
-            </span>
-          </td>
-          <td class="right">${formatNumber(item.balance, 4)}</td>
-          <td class="right">${formatUSD(item.usd_price || 0)}</td>
-          <td class="right"><strong>${formatUSD(item.usd_value || 0)}</strong></td>
-          <td class="right">${formatPercent(percentage)}</td>
-        </tr>
-      `;
-    }).join('');
+  const validItems = dashboardData.items
+    .filter(item => item.amount && item.amount > 0 && item.value_usd && item.value_usd > 0)
+    .sort((a, b) => (b.value_usd || 0) - (a.value_usd || 0));
   
-  tbody.innerHTML = rows || '<tr><td colspan="6" style="text-align: center;">Aucune donnée</td></tr>';
+  if (validItems.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">Aucun holding valide trouvé</td></tr>';
+    return;
+  }
+  
+  const rows = validItems.map(item => {
+    const percentage = totalValue > 0 && item.value_usd ? 
+      (item.value_usd / totalValue) : 0;
+    const group = item.group || 'Others';
+    const price = item.value_usd && item.amount ? (item.value_usd / item.amount) : 0;
+    
+    return `
+      <tr>
+        <td><strong>${item.symbol}</strong></td>
+        <td>
+          <span class="pill" style="border-color: ${GROUP_COLORS[group] || '#78909c'}">
+            ${group}
+          </span>
+        </td>
+        <td class="right">${formatNumber(item.amount, 4)}</td>
+        <td class="right">${formatUSD(price)}</td>
+        <td class="right"><strong>${formatUSD(item.value_usd || 0)}</strong></td>
+        <td class="right">${formatPercent(percentage)}</td>
+      </tr>
+    `;
+  }).join('');
+  
+  tbody.innerHTML = rows;
 }
 
 // Gestion des snapshots
