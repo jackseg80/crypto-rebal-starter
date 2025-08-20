@@ -453,11 +453,12 @@ async function getSuggestions() {
       .map(([symbol, group]) => `${symbol} → ${group}`)
       .join(', ');
     
-    const source = useCoingecko ? 'Intelligent (regex + CoinGecko)' : 'Patterns regex';
+    const sourceIcon = useCoingecko ? '🚀' : '🔍';
+    const sourceLabel = useCoingecko ? 'Mode intelligent (regex + CoinGecko)' : 'Mode regex seul';
     showNotification(
-      `🔍 ${auto_classified_count}/${unknown_count} suggestions (${coveragePercent}%) [${source}]: ${suggestionsList}`, 
+      `${sourceIcon} ${auto_classified_count}/${unknown_count} suggestions trouvées (${coveragePercent}%)\n📊 ${sourceLabel}\n💡 ${suggestionsList}`, 
       'info', 
-      8000
+      10000
     );
     
   } catch (error) {
@@ -467,9 +468,9 @@ async function getSuggestions() {
 
 async function autoClassify() {
   const useCoingecko = document.getElementById('coingecko-enabled').checked;
-  const source = useCoingecko ? 'intelligente (regex + CoinGecko)' : 'par patterns regex';
+  const modeDescription = useCoingecko ? 'intelligente (regex + CoinGecko)' : 'par patterns regex seuls';
   
-  if (!confirm(`Appliquer automatiquement la classification ${source} aux symboles inconnus ?`)) {
+  if (!confirm(`Appliquer automatiquement la classification ${modeDescription} aux symboles inconnus ?`)) {
     return;
   }
   
@@ -486,10 +487,21 @@ async function autoClassify() {
     const data = await response.json();
     
     if (data.classified === 0) {
-      showNotification(data.message || `Aucune classification ${source} appliquée`, 'info');
+      const sourceIcon = useCoingecko ? '🤖' : '📝';
+      const sourceLabel = useCoingecko ? 'Mode intelligent (regex + CoinGecko)' : 'Mode regex seul';
+      showNotification(`${sourceIcon} Aucune classification appliquée\n📊 ${sourceLabel}\n💭 ${data.message || 'Aucun symbole à classifier'}`, 'info', 8000);
     } else {
-      const sourceLabel = useCoingecko ? ' (Enhanced)' : '';
-      showNotification(`✅ ${data.message}${sourceLabel}`, 'success');
+      const sourceIcon = useCoingecko ? '🚀' : '✅';
+      const sourceLabel = useCoingecko ? 'Mode intelligent (regex + CoinGecko)' : 'Mode regex seul';
+      const appliedList = data.suggestions_applied ? 
+        Object.entries(data.suggestions_applied).map(([k,v]) => `${k}→${v}`).join(', ') : 
+        `${data.classified} aliases`;
+      
+      showNotification(
+        `${sourceIcon} ${data.classified} aliases classifiés avec succès !\n📊 ${sourceLabel}\n🎯 ${appliedList}`, 
+        'success', 
+        10000
+      );
       await loadData(); // Recharger les données
     }
     
@@ -516,7 +528,8 @@ function showNotification(message, type = 'info', duration = 3000) {
     max-width: 400px;
     word-wrap: break-word;
   `;
-  notification.textContent = message;
+  // Support des sauts de ligne et formatage
+  notification.innerHTML = message.replace(/\n/g, '<br>');
   
   document.body.appendChild(notification);
   
