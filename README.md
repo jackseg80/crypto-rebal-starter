@@ -63,6 +63,17 @@ Les deux paires de variables sont acceptées :
 - `CT_API_KEY` / `CT_API_SECRET`
 - `COINTRACKING_API_KEY` / `COINTRACKING_API_SECRET`
 
+# (Optionnel) Chemin CSV CoinTracking si vous utilisez la source "cointracking"
+# Si non défini, l'app cherchera automatiquement les fichiers ci-dessous
+# et prendra le plus récent trouvé :
+# - data/CoinTracking - Current Balance_mini.csv
+# - data/CoinTracking - Balance by Exchange_mini.csv
+# - data/CoinTracking - Current Balance.csv
+# - data/CoinTracking - Balance by Exchange.csv
+# puis les mêmes noms à la racine du projet.
+# Exemple :
+# COINTRACKING_CSV=/path/vers/CoinTracking - Balance by Exchange_mini.csv
+
 ---
 
 ## 3) Architecture
@@ -103,7 +114,7 @@ GET /balances/current?source=cointracking_api&min_usd=1
     ]
   }
   ```
-- `source_used` confirme la **source réellement utilisée** (utile si un fallback se produit).
+- Pour `source=cointracking` (CSV), si `COINTRACKING_CSV` n’est pas fourni, l’application scanne les exports CoinTracking les plus courants et utilise **le fichier existant le plus récent** parmi : *`Current Balance(_mini).csv`* et *`Balance by Exchange(_mini).csv`* dans `data/` puis à la racine.
 
 ### 4.2 Plan de rebalancement (JSON)
 ```
