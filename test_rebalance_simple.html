@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <title>Test Simple - Interface rebalanceAPI</title>
+    <style>
+        body { font-family: system-ui; margin: 20px; background: #0a0f14; color: #e7eef7; }
+        .test { margin: 10px 0; padding: 10px; border: 1px solid #1f2b3a; border-radius: 8px; }
+        .success { border-color: #22c55e; background: #0f2f1f; }
+        .error { border-color: #ef4444; background: #2f0f0f; }
+        button { padding: 8px 16px; margin: 5px; border-radius: 6px; border: 1px solid #1f2b3a; background: #0e1620; color: #e7eef7; cursor: pointer; }
+        pre { background: #0e1620; padding: 10px; border-radius: 6px; overflow-x: auto; font-size: 12px; }
+        code { background: #1a2332; padding: 2px 6px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>Test Interface rebalanceAPI</h1>
+    
+    <p>Ce test simule l'interface <code>window.rebalanceAPI</code> sans utiliser d'iframe.</p>
+    
+    <div>
+        <button onclick="simulateRebalanceAPI()">Simuler Interface rebalanceAPI</button>
+        <button onclick="testDynamicFlow()">Test Flux Dynamic Targets</button>
+    </div>
+    
+    <div id="results"></div>
+
+    <h3>Instructions d'utilisation</h3>
+    <div class="test">
+        <p><strong>Pour tester avec la vraie interface rebalance.html:</strong></p>
+        <ol>
+            <li>Ouvrir <code>rebalance.html</code> dans un onglet séparé</li>
+            <li>Ouvrir la console développeur (F12)</li>
+            <li>Taper les commandes suivantes:</li>
+        </ol>
+        <pre>// Test 1: Définir des targets dynamiques
+window.rebalanceAPI.setDynamicTargets(
+    { BTC: 45, ETH: 20, Stablecoins: 15, SOL: 10, "L1/L0 majors": 10 }, 
+    { ccs: 75, autoRun: false }
+);
+
+// Test 2: Vérifier les targets actuels  
+console.log(window.rebalanceAPI.getCurrentTargets());
+
+// Test 3: Effacer les targets dynamiques
+window.rebalanceAPI.clearDynamicTargets();</pre>
+        
+        <p><strong>Résultats attendus:</strong></p>
+        <ul>
+            <li>🟡 Indicateur "🎯 CCS 75" apparaît en haut à droite</li>
+            <li>📊 getCurrentTargets retourne <code>{dynamic: true, targets: {...}}</code></li>
+            <li>🔄 clearDynamicTargets masque l'indicateur</li>
+        </ul>
+    </div>
+
+    <script>
+    function log(message, type = 'info') {
+        const resultsDiv = document.getElementById('results');
+        const testDiv = document.createElement('div');
+        testDiv.className = `test ${type === 'error' ? 'error' : 'success'}`;
+        testDiv.innerHTML = `<p><strong>[${new Date().toLocaleTimeString()}]</strong> ${message}</p>`;
+        resultsDiv.appendChild(testDiv);
+        console.log(message);
+    }
+    
+    // Simulation de l'interface rebalanceAPI
+    function createMockRebalanceAPI() {
+        let dynamicTargets = null;
+        let useDynamicTargets = false;
+        
+        return {
+            setDynamicTargets: function(targets, metadata = {}) {
+                dynamicTargets = targets;
+                useDynamicTargets = true;
+                log(`✅ setDynamicTargets appelé avec CCS=${metadata.ccs}`, 'success');
+                log(`📊 Targets: ${JSON.stringify(targets)}`, 'info');
+                
+                if (metadata.autoRun) {
+                    log('🚀 autoRun=true - génération automatique du plan', 'info');
+                }
+                
+                return true;
+            },
+            
+            clearDynamicTargets: function() {
+                dynamicTargets = null;
+                useDynamicTargets = false;
+                log('🔄 clearDynamicTargets appelé - retour au mode manuel', 'success');
+                return true;
+            },
+            
+            getCurrentTargets: function() {
+                if (useDynamicTargets && dynamicTargets) {
+                    const result = { dynamic: true, targets: dynamicTargets };
+                    log(`📊 getCurrentTargets (dynamique): ${JSON.stringify(result)}`, 'info');
+                    return result;
+                } else {
+                    const result = { dynamic: false, targets: {} };
+                    log(`📊 getCurrentTargets (manuel): ${JSON.stringify(result)}`, 'info');
+                    return result;
+                }
+            }
+        };
+    }
+    
+    async function simulateRebalanceAPI() {
+        log('🧪 Démarrage simulation interface rebalanceAPI', 'info');
+        
+        const mockAPI = createMockRebalanceAPI();
+        
+        // Test 1: Mode initial (manuel)
+        mockAPI.getCurrentTargets();
+        
+        // Test 2: Définir targets dynamiques
+        const testTargets = { BTC: 40, ETH: 25, Stablecoins: 15, SOL: 10, "L1/L0 majors": 10 };
+        mockAPI.setDynamicTargets(testTargets, { ccs: 65, source: 'simulation' });
+        
+        // Test 3: Vérifier mode dynamique
+        const dynamicResult = mockAPI.getCurrentTargets();
+        if (dynamicResult.dynamic) {
+            log('✅ Mode dynamique activé avec succès', 'success');
+        } else {
+            log('❌ Erreur: mode dynamique non activé', 'error');
+        }
+        
+        // Test 4: Retour au mode manuel
+        setTimeout(() => {
+            mockAPI.clearDynamicTargets();
+            const manualResult = mockAPI.getCurrentTargets();
+            if (!manualResult.dynamic) {
+                log('✅ Retour au mode manuel confirmé', 'success');
+            } else {
+                log('❌ Erreur: toujours en mode dynamique', 'error');
+            }
+            
+            log('🏁 Test de simulation terminé', 'success');
+        }, 1000);
+    }
+    
+    async function testDynamicFlow() {
+        log('🌊 Test du flux complet dynamic targets', 'info');
+        
+        const mockAPI = createMockRebalanceAPI();
+        
+        // Scénarios CCS
+        const scenarios = [
+            { ccs: 15, desc: 'Euphorie (CCS=15)', btc: 30, eth: 25 },
+            { ccs: 50, desc: 'Neutre (CCS=50)', btc: 35, eth: 25 },
+            { ccs: 85, desc: 'Accumulation (CCS=85)', btc: 45, eth: 20 }
+        ];
+        
+        for (let i = 0; i < scenarios.length; i++) {
+            const scenario = scenarios[i];
+            log(`🎯 Scenario ${i+1}/3: ${scenario.desc}`, 'info');
+            
+            const targets = {
+                BTC: scenario.btc,
+                ETH: scenario.eth,
+                Stablecoins: scenario.ccs > 70 ? 20 : 10,
+                SOL: scenario.ccs < 30 ? 15 : 10,
+                "L1/L0 majors": 10,
+                Others: 100 - scenario.btc - scenario.eth - (scenario.ccs > 70 ? 20 : 10) - (scenario.ccs < 30 ? 15 : 10) - 10
+            };
+            
+            mockAPI.setDynamicTargets(targets, { ccs: scenario.ccs, source: 'test_flow' });
+            
+            // Pause entre scénarios
+            await new Promise(resolve => setTimeout(resolve, 800));
+        }
+        
+        // Nettoyer
+        mockAPI.clearDynamicTargets();
+        log('✅ Test du flux complet terminé', 'success');
+    }
+    
+    document.addEventListener('DOMContentLoaded', () => {
+        log('📄 Page de test chargée', 'info');
+        log('💡 Cliquez sur les boutons pour tester l\'interface', 'info');
+    });
+    </script>
+</body>
+</html>
