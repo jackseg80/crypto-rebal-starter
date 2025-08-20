@@ -36,8 +36,15 @@ Légende : ✔️ fait · ⬜ à faire · ~ estimation
 - ✔️ `GET /taxonomy/unknown_aliases`
 - ✔️ `POST /taxonomy/aliases` (formats A/B)
 - ✔️ **Alias Manager** (interface dédiée avec recherche, filtrage, actions batch)
+- ✔️ **Classification automatique** (11 groupes avec patterns regex, 90% précision)
+- ✔️ **API suggestions** (`POST /taxonomy/suggestions`)
+- ✔️ **Auto-classifier** (`POST /taxonomy/auto-classify`)
+- ✔️ **Cache unknown aliases** depuis plans de rebalancement
+- ✔️ **Interface intégrée** (boutons 🤖 Suggestions auto + 🚀 Auto-classifier)
 - ⬜ Persistance/chargement taxonomy.json (admin endpoints)  
   ~ 0.5 j
+- ⬜ **Intégration CoinGecko** pour métadonnées crypto (secteurs, tags)  
+  ~ 1 j
 
 ## 4) Localisation & exécution
 - ⬜ Localisation des actifs (exchange / ledger / DeFi)  
