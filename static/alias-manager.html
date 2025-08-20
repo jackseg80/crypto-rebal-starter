@@ -120,6 +120,7 @@
         <button class="btn small" onclick="clearFilters()">Effacer filtres</button>
         <button class="btn warning small" onclick="showOnlyUnassigned()">Voir non-assignés</button>
         <button class="btn small" onclick="getAutoSuggestions()">🤖 Suggestions auto</button>
+        <button class="btn small accent" onclick="getEnhancedSuggestions()">🥷 CoinGecko</button>
       </div>
     </div>
 
@@ -142,6 +143,7 @@
       <div class="row mt8">
         <button class="btn secondary small" onclick="assignAllToOthers()">Tout → Others</button>
         <button class="btn small" onclick="autoClassifyUnknowns()">🚀 Auto-classifier</button>
+        <button class="btn small accent" onclick="autoClassifyEnhanced()">🚀 Enhanced</button>
         <button class="btn secondary small" onclick="exportAliases()">📥 Export JSON</button>
       </div>
     </div>
@@ -476,6 +478,68 @@ async function autoClassifyUnknowns() {
     
   } catch (error) {
     showNotification(`❌ Erreur classification auto: ${error.message}`, 'error');
+  }
+}
+
+async function getEnhancedSuggestions() {
+  try {
+    const apiBase = document.getElementById('api_base').value;
+    const response = await fetch(`${apiBase}/taxonomy/suggestions-enhanced`, {
+      method: 'POST'
+    });
+    
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    
+    const data = await response.json();
+    const { suggestions, auto_classified_count, unknown_count, coverage, enhanced, coingecko_enabled } = data;
+    
+    if (auto_classified_count === 0) {
+      showNotification('🥷 Aucune suggestion CoinGecko trouvée', 'info');
+      return;
+    }
+    
+    const coveragePercent = Math.round(coverage * 100);
+    const suggestionsList = Object.entries(suggestions)
+      .map(([symbol, group]) => `${symbol} → ${group}`)
+      .join(', ');
+    
+    const enhancedBadge = enhanced && coingecko_enabled ? ' (Enhanced + CoinGecko)' : '';
+    showNotification(
+      `🥷 ${auto_classified_count}/${unknown_count} suggestions CoinGecko (${coveragePercent}%)${enhancedBadge}: ${suggestionsList}`, 
+      'info', 
+      8000
+    );
+    
+  } catch (error) {
+    showNotification(`❌ Erreur suggestions CoinGecko: ${error.message}`, 'error');
+  }
+}
+
+async function autoClassifyEnhanced() {
+  if (!confirm('Appliquer la classification intelligente ENHANCED (regex + CoinGecko) aux symboles inconnus ?')) {
+    return;
+  }
+  
+  try {
+    const apiBase = document.getElementById('api_base').value;
+    const response = await fetch(`${apiBase}/taxonomy/auto-classify-enhanced`, {
+      method: 'POST'
+    });
+    
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    
+    const data = await response.json();
+    
+    if (data.classified === 0) {
+      showNotification(data.message || 'Aucune classification enhanced appliquée', 'info');
+    } else {
+      const enhancedBadge = data.enhanced && data.coingecko_enabled ? ' (Enhanced + CoinGecko)' : '';
+      showNotification(`✅ ${data.message}${enhancedBadge}`, 'success');
+      await loadData(); // Recharger les données
+    }
+    
+  } catch (error) {
+    showNotification(`❌ Erreur classification enhanced: ${error.message}`, 'error');
   }
 }
 
