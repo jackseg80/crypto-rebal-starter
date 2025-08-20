@@ -7,7 +7,8 @@ Outil de **simulation de rebalancement** pour portefeuille crypto :
 - **Export CSV**
 - Gestion des **aliases** (WBTC→BTC, WETH→ETH, …) & détection `unknown_aliases`
 - **Classification automatique** par patterns regex (L2/Scaling, DeFi, AI/Data, Gaming/NFT, Memecoins)
-- **UI autonome** en HTML (`static/rebalance.html`) pour piloter l'API
+- **Interface unifiée** avec configuration centralisée et navigation cohérente
+- **Gestion intelligente des plans** avec persistance et restauration automatique
 
 ---
 
@@ -33,11 +34,18 @@ pip install -r requirements.txt
 uvicorn api.main:app --reload --port 8000
 ```
 
-- UI locale : ouvrez **`static/rebalance.html`** (une **copie** peut exister dans `docs/` pour GitHub Pages).
+### Interface unifiée disponible :
+
+- **🏠 Dashboard** : `static/dashboard.html` - Vue d'ensemble du portfolio 
+- **⚙️ Settings** : `static/settings.html` - Configuration centralisée (**commencez ici**)
+- **⚖️ Rebalancing** : `static/rebalance.html` - Génération des plans
+- **🏷️ Alias Manager** : `static/alias-manager.html` - Gestion des taxonomies
+
+### API :
 - Swagger / OpenAPI : http://127.0.0.1:8000/docs
 - Healthcheck : http://127.0.0.1:8000/healthz
 
-> 💡 Pensez à créer votre fichier `.env` (cf. section suivante).
+> 💡 **Workflow recommandé** : Commencez par Settings pour configurer vos clés API et paramètres, puis naviguez via les menus unifiés.
 
 ---
 
@@ -173,44 +181,98 @@ POST /taxonomy/auto-classify
 - `POST /taxonomy/suggestions` : génère suggestions automatiques par patterns
 - `POST /taxonomy/auto-classify` : applique automatiquement les suggestions
 
-### 4.5 Debug CoinTracking
+### 4.5 Portfolio Analytics
+```
+GET  /portfolio/metrics?source=cointracking_api
+GET  /portfolio/trend?days=30
+POST /portfolio/snapshot
+```
+- **Métriques** : valeur totale, nombre d'actifs, score de diversification, recommandations
+- **Tendances** : évolution historique sur X jours avec graphiques
+- **Snapshots** : sauvegarde de l'état actuel pour suivi historique
+
+### 4.6 Gestion des clés API
+```
+GET  /debug/api-keys
+POST /debug/api-keys
+```
+- **GET** : expose les clés API depuis .env pour auto-configuration
+- **POST** : met à jour les clés API dans le fichier .env (bidirectionnel)
+- Support : `COINGECKO_API_KEY`, `COINTRACKING_API_KEY`, `COINTRACKING_API_SECRET`
+
+### 4.7 Debug CoinTracking
 ```
 GET /debug/ctapi
 ```
-- Affiche l’état des clés (présence/longueur), la base API CT, les tentatives (`getBalance`, `getGroupedBalance`, …), et un **aperçu** des lignes mappées.  
+- Affiche l'état des clés (présence/longueur), la base API CT, les tentatives (`getBalance`, `getGroupedBalance`, …), et un **aperçu** des lignes mappées.  
 - Statut `ok: true/false`.
 
 ---
 
-## 5) UI : Interfaces utilisateur
+## 5) Interface utilisateur unifiée
 
-### 5.1 `static/rebalance.html` - Interface principale
+### 5.1 Configuration centralisée (`global-config.js`)
 
-- **API URL**, **source** (`cointracking_api` / `cointracking`), **min_usd**, **pricing mode** (local/hybride/auto).
-- **Sous-allocation** : `proportional` (par défaut) ou **`primary_first`** si des `primary_symbols` sont saisis.
-- **Persistance** (localStorage) : `api_base`, source, cibles %, primary symbols, min_trade, sous-allocation.
-- **Générer le plan** → affichage cibles, deltas par groupe, **Top achats/ventes**, **Unknown aliases** (ajout unitaire + "Tout ajouter → Others"), **Net≈0** et **pas de micro-trades**.
-- **Télécharger CSV** : export synchronisé (mêmes prix/quantités).
-- **Badge pricing** : affiche le mode utilisé (Prix locaux/Prix marché/Hybride).
-- **Pastille "source"** : affiche la **source réelle** (`meta.source_used`) et **signale un mismatch** si différente du choix UI.
-- **🏷️ Alias Manager** : bouton d'accès direct à l'interface de gestion des taxonomies.
+**Système unifié** de configuration partagée entre toutes les pages :
 
-### 5.2 `static/alias-manager.html` - Gestion des taxonomies
+- **Configuration globale** : API URL, source de données, pricing, seuils, clés API
+- **Persistance automatique** : localStorage avec synchronisation cross-page
+- **Indicateurs visuels** : status de configuration et validation des clés API
+- **Synchronisation .env** : détection et écriture bidirectionnelle des clés API
 
-Interface dédiée pour la gestion complète des aliases crypto :
+### 5.2 Navigation unifiée (`shared-header.js`)
 
-- **Recherche en temps réel** et **filtrage par groupe**
-- **Édition individuelle** avec dropdown de sélection de groupe
-- **Actions batch** : assigner les filtrés vers un groupe, "Tout → Others"
-- **🤖 Classification automatique** : suggestions intelligentes par patterns
-- **🚀 Auto-classifier** : application automatique des suggestions
-- **Statistiques** : nombre total d'aliases, groupes, éléments en mémoire
-- **Export JSON** pour backup de la taxonomie
-- **Navigation** retour vers le rebalancer principal
-- **Thème sombre** cohérent avec l'interface principale
-- **API intégrée** : sauvegarde automatique via `/taxonomy/aliases`
+**Menu cohérent** sur toutes les interfaces :
 
-> Si vous servez l'UI depuis `docs/` (GitHub Pages), fixez **CORS_ORIGINS** dans `.env`.
+- **🏠 Dashboard** : Vue d'ensemble du portfolio avec analytics
+- **⚖️ Rebalancing** : Génération des plans de rebalancement
+- **🏷️ Alias Manager** : Gestion des taxonomies (activé après génération d'un plan)
+- **⚙️ Settings** : Configuration centralisée des paramètres
+
+### 5.3 Interface principale - `static/rebalance.html`
+
+- **Configuration simplifiée** : utilise les paramètres globaux (API, source, pricing)
+- **Générer le plan** → affichage cibles, deltas, actions, unknown aliases
+- **Persistance intelligente** : plans sauvegardés avec restauration automatique (30min)
+- **Activation progressive** : Alias Manager s'active après génération d'un plan
+- **Export CSV** synchronisé avec affichage des prix et quantités
+- **Badges informatifs** : source utilisée, mode pricing, âge du plan
+
+### 5.4 Dashboard - `static/dashboard.html`
+
+**Vue d'ensemble** du portfolio avec analytics avancées :
+
+- **Métriques clés** : valeur totale, nombre d'actifs, score de diversification
+- **Graphiques interactifs** : distribution par groupes, tendances temporelles
+- **Analyse de performance** : évolution historique et métriques calculées
+- **Recommandations** : suggestions de rebalancement basées sur l'analyse
+
+### 5.5 Gestion des aliases - `static/alias-manager.html`
+
+Interface dédiée **accessible uniquement après génération d'un plan** :
+
+- **Recherche et filtrage** temps réel par groupe et mot-clé
+- **Mise en évidence** des nouveaux aliases détectés
+- **Classification automatique** : suggestions CoinGecko + patterns regex
+- **Actions batch** : assignation groupée, export JSON
+- **Statistiques** : couverture, nombre d'aliases, groupes disponibles
+
+### 5.6 Configuration - `static/settings.html`
+
+**Page centralisée** pour tous les paramètres :
+
+- **Sources de données** : stub, CSV CoinTracking, API CoinTracking
+- **Clés API** : auto-détection depuis .env, saisie masquée, synchronisation
+- **Paramètres de pricing** : modes local/hybride/auto avec seuils configurables
+- **Seuils et filtres** : montant minimum, trade minimum
+- **Validation en temps réel** : test des connexions API
+
+### 5.7 Gestion intelligente des plans
+
+- **Restauration automatique** : plans récents (< 30min) auto-restaurés
+- **Persistance cross-page** : navigation sans perte de données
+- **Âge des données** : affichage clair de la fraîcheur des informations
+- **Workflow logique** : progression naturelle de configuration → plan → classification
 
 ---
 
@@ -423,10 +485,20 @@ curl -s -X POST "http://127.0.0.1:8000/rebalance/plan?source=cointracking_api&mi
 
 ## 11) Roadmap courte
 
+### ✅ Fonctionnalités complétées
+
+- ✅ **Interface unifiée** avec configuration centralisée et navigation cohérente
+- ✅ **Dashboard portfolio** avec analytics avancées et visualisations interactives  
+- ✅ **Gestion intelligente des plans** avec persistance et restauration automatique
+- ✅ **API Key management** avec synchronisation bidirectionnelle .env
 - ✅ **Alias Manager** (UI dédiée) avec recherche, filtrage et actions batch
 - ✅ **Classification automatique** avec 11 groupes et patterns regex (90% précision)
 - ✅ **Cache des unknown aliases** depuis les plans de rebalancement
 - ✅ **API suggestions** et auto-classification pour l'interface
+- ✅ **Workflow progressif** : Settings → Dashboard → Rebalancing → Classification
+
+### ⬜ Prochaines améliorations
+
 - ⬜ Persistance `taxonomy.json` et endpoints admin (reload/save)
 - ⬜ **Intégration CoinGecko** pour métadonnées crypto (secteurs, tags)
 - ⬜ Vue "Par lieu d'exécution" (exchange / ledger / DeFi) + plan par lieu
