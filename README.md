@@ -9,6 +9,7 @@ Outil de **simulation de rebalancement** pour portefeuille crypto :
 - **Classification automatique** par patterns regex (L2/Scaling, DeFi, AI/Data, Gaming/NFT, Memecoins)
 - **Interface unifiée** avec configuration centralisée et navigation cohérente
 - **Gestion intelligente des plans** avec persistance et restauration automatique
+- **Intégration CCS → Rebalance** avec dynamic targets et exec_hint pour suggestions d'exécution
 
 ---
 
@@ -17,13 +18,14 @@ Outil de **simulation de rebalancement** pour portefeuille crypto :
 - [2) Configuration (.env)](#2-configuration-env)
 - [3) Architecture](#3-architecture)
 - [4) Endpoints principaux](#4-endpoints-principaux)
-- [5) UI : Interfaces utilisateur](#5-ui-interfaces-utilisateur)
-- [6) Classification automatique](#6-classification-automatique)
-- [7) Système de pricing hybride](#7-système-de-pricing-hybride)
-- [8) Scripts de test](#8-scripts-de-test)
-- [9) CORS, déploiement, GitHub Pages](#9-cors-déploiement-github-pages)
-- [10) Workflow Git recommandé](#10-workflow-git-recommandé)
-- [11) Roadmap courte](#11-roadmap-courte)
+- [5) Intégration CCS → Rebalance 🎯](#5-intégration-ccs--rebalance-)
+- [6) Interface utilisateur unifiée](#6-interface-utilisateur-unifiée)
+- [7) Classification automatique](#7-classification-automatique)
+- [8) Système de pricing hybride](#8-système-de-pricing-hybride)
+- [9) Scripts de test](#9-scripts-de-test)
+- [10) CORS, déploiement, GitHub Pages](#10-cors-déploiement-github-pages)
+- [11) Workflow Git recommandé](#11-workflow-git-recommandé)
+- [12) Roadmap courte](#12-roadmap-courte)
 
 ---
 
@@ -128,12 +130,15 @@ GET /balances/current?source=cointracking_api&min_usd=1
 
 ### 4.2 Plan de rebalancement (JSON)
 ```
-POST /rebalance/plan?source=cointracking_api&min_usd=1
+POST /rebalance/plan?source=cointracking_api&min_usd=1&dynamic_targets=true
 Content-Type: application/json
 
 {
   "group_targets_pct": {
     "BTC":35, "ETH":25, "Stablecoins":10, "SOL":10, "L1/L0 majors":10, "Others":10
+  },
+  "dynamic_targets_pct": {
+    "BTC":45, "ETH":20, "Stablecoins":15, "SOL":8, "L1/L0 majors":12
   },
   "primary_symbols": {
     "BTC": ["BTC","TBTC","WBTC"],
@@ -145,6 +150,10 @@ Content-Type: application/json
 }
 ```
 
+**Modes de targets:**
+- **Manuel** : Utilise `group_targets_pct` (standard)
+- **Dynamique** : Utilise `dynamic_targets_pct` si `dynamic_targets=true` (intégration CCS/cycles)
+
 - Réponse (extraits) :
   ```json
   {
@@ -152,7 +161,9 @@ Content-Type: application/json
     "target_weights_pct": {...},
     "deltas_by_group_usd": {...},
     "actions": [
-      { "group":"BTC", "alias":"BTC", "symbol":"BTC", "action":"sell", "usd":-1234.56, "price_used":117971.65, "est_quantity":0.01047 },
+      { "group":"BTC", "alias":"BTC", "symbol":"BTC", "action":"sell", 
+        "usd":-1234.56, "price_used":117971.65, "est_quantity":0.01047,
+        "exec_hint":"Sell on CEX Binance" },
       ...
     ],
     "unknown_aliases": ["XXX","YYY",...],
@@ -162,10 +173,11 @@ Content-Type: application/json
 
 ### 4.3 Export CSV (mêmes colonnes)
 ```
-POST /rebalance/plan.csv?source=cointracking_api&min_usd=1
+POST /rebalance/plan.csv?source=cointracking_api&min_usd=1&dynamic_targets=true
 Body: (même JSON que pour /rebalance/plan)
 ```
-- Colonnes : `group,alias,symbol,action,usd,est_quantity,price_used`
+- Colonnes : `group,alias,symbol,action,usd,est_quantity,price_used,exec_hint`
+- **exec_hint** : suggestions d'exécution basées sur les locations majoritaires (ex: "Sell on CEX Binance", "Mixed platforms")
 
 ### 4.4 Taxonomie / Aliases
 ```
@@ -209,9 +221,44 @@ GET /debug/ctapi
 
 ---
 
-## 5) Interface utilisateur unifiée
+## 5) Intégration CCS → Rebalance 🎯
 
-### 5.1 Configuration centralisée (`global-config.js`)
+### 5.1 Interface `window.rebalanceAPI`
+
+L'interface `rebalance.html` expose une API JavaScript pour l'intégration avec des modules externes (CCS/Cycles):
+
+```javascript
+// Définir des targets dynamiques depuis un module CCS
+window.rebalanceAPI.setDynamicTargets(
+    { BTC: 45, ETH: 20, Stablecoins: 15, SOL: 10, "L1/L0 majors": 10 }, 
+    { ccs: 75, autoRun: true, source: 'cycles_module' }
+);
+
+// Vérifier l'état actuel
+const current = window.rebalanceAPI.getCurrentTargets();
+// Retourne: {dynamic: true, targets: {...}}
+
+// Retour au mode manuel
+window.rebalanceAPI.clearDynamicTargets();
+```
+
+### 5.2 Indicateurs visuels
+
+- **🎯 CCS 75** : Indicateur affiché quand des targets dynamiques sont actifs
+- **Génération automatique** : Le plan peut se générer automatiquement (`autoRun: true`)
+- **Switching transparent** : Passage manuel ↔ dynamique sans conflit
+
+### 5.3 Tests & Documentation
+
+- **`test_dynamic_targets_e2e.html`** : Tests E2E complets de l'intégration API
+- **`test_rebalance_simple.html`** : Tests de l'interface JavaScript  
+- **`TEST_INTEGRATION_GUIDE.md`** : Guide détaillé d'intégration et d'usage
+
+---
+
+## 6) Interface utilisateur unifiée
+
+### 6.1 Configuration centralisée (`global-config.js`)
 
 **Système unifié** de configuration partagée entre toutes les pages :
 
@@ -339,7 +386,7 @@ Les tests montrent une **précision de ~90%** sur les échantillons types :
 
 ---
 
-## 7) Système de pricing hybride
+## 8) Système de pricing hybride
 
 Le système de pricing offre **3 modes intelligents** pour enrichir les actions avec `price_used` et `est_quantity` :
 
@@ -405,7 +452,7 @@ POST /rebalance/plan?pricing=auto
 
 ---
 
-## 8) Scripts de test
+## 9) Scripts de test
 
 ### PowerShell - Tests principaux
 ```powershell
@@ -460,7 +507,7 @@ curl -s -X POST "http://127.0.0.1:8000/rebalance/plan?source=cointracking_api&mi
 
 ---
 
-## 9) CORS, déploiement, GitHub Pages
+## 10) CORS, déploiement, GitHub Pages
 
 - **CORS** : si l’UI est servie depuis un domaine différent (ex. GitHub Pages), ajoutez ce domaine à `CORS_ORIGINS` dans `.env`.
 - **GitHub Pages** : placez une copie de `static/rebalance.html` dans `docs/`.  
@@ -469,7 +516,7 @@ curl -s -X POST "http://127.0.0.1:8000/rebalance/plan?source=cointracking_api&mi
 
 ---
 
-## 10) Workflow Git recommandé
+## 11) Workflow Git recommandé
 
 - Travaillez en branches de feature (ex. `feat-cointracking-api`, `feat-polish`).
 - Ouvrez une **PR** vers `main`, listez les tests manuels passés, puis **mergez**.
@@ -483,7 +530,7 @@ curl -s -X POST "http://127.0.0.1:8000/rebalance/plan?source=cointracking_api&mi
 
 ---
 
-## 11) Roadmap courte
+## 12) Roadmap courte
 
 ### ✅ Fonctionnalités complétées
 
