@@ -65,21 +65,18 @@
 </head>
 <body>
 
-<header>
-  <div class="wrap">
-    <h1>🏷️ Alias Manager</h1>
+<!-- Header sera injecté par shared-header.js -->
+
+<div class="wrap" style="margin-top: 20px;">
+  <!-- Actions rapides -->
+  <div class="card" style="margin-bottom: 16px;">
     <div class="row">
-      <div>
-        <label>API URL</label><br/>
-        <input id="api_base" value="http://127.0.0.1:8000" style="width:260px">
-      </div>
-      <div>
-        <button class="btn small" onclick="loadData()">🔄 Actualiser</button>
-        <button class="btn secondary small" onclick="window.open('rebalance.html', '_blank')">📊 Rebalancer</button>
-      </div>
+      <button class="btn small" onclick="loadData()">🔄 Actualiser</button>
+      <button class="btn small" onclick="getSuggestions()">🔍 Suggestions</button>
+      <button class="btn small" onclick="autoClassify()">🚀 Auto-classifier</button>
     </div>
   </div>
-</header>
+</div>
 
 <div class="wrap">
   <!-- Stats -->
@@ -119,7 +116,11 @@
       <div class="row mt8">
         <button class="btn small" onclick="clearFilters()">Effacer filtres</button>
         <button class="btn warning small" onclick="showOnlyUnassigned()">Voir non-assignés</button>
-        <button class="btn small" onclick="getAutoSuggestions()">🤖 Suggestions auto</button>
+        <button class="btn small" onclick="showOnlyNewAliases()" style="background: #f59e0b; color: white;">🆕 Voir nouveaux</button>
+        <div style="flex-grow: 1;"></div>
+        <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
+          <input type="checkbox" id="coingecko-enabled" checked>CoinGecko activé
+        </label>
       </div>
     </div>
 
@@ -141,7 +142,6 @@
 
       <div class="row mt8">
         <button class="btn secondary small" onclick="assignAllToOthers()">Tout → Others</button>
-        <button class="btn small" onclick="autoClassifyUnknowns()">🚀 Auto-classifier</button>
         <button class="btn secondary small" onclick="exportAliases()">📥 Export JSON</button>
       </div>
     </div>
@@ -176,6 +176,8 @@
   </div>
 </div>
 
+<script src="global-config.js"></script>
+<script src="shared-header.js"></script>
 <script>
 let allAliases = {};
 let allGroups = [];
@@ -183,33 +185,60 @@ let filteredAliases = {};
 
 // Charger données initiales
 window.addEventListener('DOMContentLoaded', () => {
+  // Vérifier si un plan a été généré
+  if (!window.globalConfig?.hasPlan()) {
+    // Rediriger vers la page de rebalancing si aucun plan n'existe
+    alert('⚠️ Vous devez d\'abord générer un plan de rebalancing pour utiliser l\'Alias Manager.');
+    window.location.href = 'rebalance.html';
+    return;
+  }
+  
+  // Initialiser le header partagé
+  initSharedHeader('alias-manager', { showConfigIndicators: true });
+  
   loadApiUrl();
   loadData();
 });
 
 function loadApiUrl() {
-  const saved = localStorage.getItem('alias_manager_api_url');
-  if (saved) {
-    document.getElementById('api_base').value = saved;
-  }
+  // Plus besoin de charger depuis localStorage - utilise globalConfig
+  return;
 }
 
 function saveApiUrl() {
-  const url = document.getElementById('api_base').value;
-  localStorage.setItem('alias_manager_api_url', url);
+  // Plus besoin de sauver - utilise globalConfig
+  return;
 }
 
 async function loadData() {
-  saveApiUrl();
-  const apiBase = document.getElementById('api_base').value;
+  const apiBase = globalConfig.get('api_base_url');
   
   try {
+    // Charger les aliases existants du serveur
     const response = await fetch(`${apiBase}/taxonomy`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     
     const data = await response.json();
     allAliases = data.aliases || {};
     allGroups = data.groups || [];
+    
+    // S'assurer qu'il y a au moins les groupes de base
+    const defaultGroups = ['BTC', 'ETH', 'Stablecoins', 'SOL', 'L1/L0 majors', 'L2/Scaling', 'DeFi', 'AI/Data', 'Gaming/NFT', 'Memecoins', 'Others'];
+    defaultGroups.forEach(group => {
+      if (!allGroups.includes(group)) {
+        allGroups.push(group);
+      }
+    });
+    
+    // Ajouter les unknown aliases du dernier plan s'ils existent
+    const lastPlan = window.globalConfig?.getLastPlanData();
+    if (lastPlan && lastPlan.unknown_aliases) {
+      lastPlan.unknown_aliases.forEach(alias => {
+        if (!allAliases[alias]) {
+          allAliases[alias] = 'Others'; // Groupe par défaut pour les unknown aliases
+        }
+      });
+    }
     
     updateStats(data);
     populateGroupSelectors();
@@ -273,10 +302,19 @@ function renderAliases() {
   
   const sorted = Object.entries(filteredAliases).sort(([a], [b]) => a.localeCompare(b));
   
+  // Récupérer la liste des unknown aliases pour les mettre en évidence
+  const lastPlan = window.globalConfig?.getLastPlanData();
+  const unknownAliases = new Set(lastPlan?.unknown_aliases || []);
+  
   sorted.forEach(([alias, group]) => {
     const tr = document.createElement('tr');
+    const isUnknown = unknownAliases.has(alias);
+    
     tr.innerHTML = `
-      <td><strong>${alias}</strong></td>
+      <td>
+        <strong>${alias}</strong>
+        ${isUnknown ? '<span style="color: #f59e0b; font-size: 10px; margin-left: 4px;">🆕 NOUVEAU</span>' : ''}
+      </td>
       <td><span class="group-badge ${group.toLowerCase().replace(/[^a-z]/g, '')}">${group}</span></td>
       <td class="alias-actions">
         <select onchange="changeGroup('${alias}', this.value)" style="width:120px">
@@ -285,6 +323,13 @@ function renderAliases() {
         <button class="btn danger small" onclick="deleteAlias('${alias}')">🗑️</button>
       </td>
     `;
+    
+    // Mettre en évidence les lignes des unknown aliases
+    if (isUnknown) {
+      tr.style.backgroundColor = 'rgba(245, 158, 11, 0.1)';
+      tr.style.borderLeft = '3px solid #f59e0b';
+    }
+    
     tbody.appendChild(tr);
   });
   
@@ -296,7 +341,7 @@ async function changeGroup(alias, newGroup) {
   if (!newGroup || allAliases[alias] === newGroup) return;
   
   try {
-    const apiBase = document.getElementById('api_base').value;
+    const apiBase = globalConfig.get('api_base_url');
     const response = await fetch(`${apiBase}/taxonomy/aliases`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -319,7 +364,7 @@ async function deleteAlias(alias) {
   if (!confirm(`Supprimer l'alias "${alias}" ?`)) return;
   
   try {
-    const apiBase = document.getElementById('api_base').value;
+    const apiBase = globalConfig.get('api_base_url');
     const response = await fetch(`${apiBase}/taxonomy/aliases/${alias}`, {
       method: 'DELETE'
     });
@@ -351,7 +396,7 @@ async function assignFiltered() {
   if (!confirm(`Assigner ${aliases.length} aliases au groupe "${group}" ?`)) return;
   
   try {
-    const apiBase = document.getElementById('api_base').value;
+    const apiBase = globalConfig.get('api_base_url');
     const payload = {};
     aliases.forEach(alias => payload[alias] = group);
     
@@ -378,7 +423,7 @@ async function assignAllToOthers() {
   if (!confirm(`Assigner TOUS les ${aliases.length} aliases au groupe "Others" ?`)) return;
   
   try {
-    const apiBase = document.getElementById('api_base').value;
+    const apiBase = globalConfig.get('api_base_url');
     const payload = {};
     aliases.forEach(alias => payload[alias] = 'Others');
     
@@ -411,6 +456,25 @@ function showOnlyUnassigned() {
   filterAliases();
 }
 
+function showOnlyNewAliases() {
+  // Effacer les filtres existants
+  document.getElementById('search').value = '';
+  document.getElementById('group-filter').value = '';
+  
+  // Filtrer pour ne montrer que les unknown aliases
+  const lastPlan = window.globalConfig?.getLastPlanData();
+  const unknownAliases = new Set(lastPlan?.unknown_aliases || []);
+  
+  filteredAliases = {};
+  Object.entries(allAliases).forEach(([alias, group]) => {
+    if (unknownAliases.has(alias)) {
+      filteredAliases[alias] = group;
+    }
+  });
+  
+  renderAliases();
+}
+
 function exportAliases() {
   const blob = new Blob([JSON.stringify(allAliases, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -421,10 +485,13 @@ function exportAliases() {
   URL.revokeObjectURL(url);
 }
 
-async function getAutoSuggestions() {
+// Nouvelles fonctions unifiées avec CoinGecko
+async function getSuggestions() {
   try {
-    const apiBase = document.getElementById('api_base').value;
-    const response = await fetch(`${apiBase}/taxonomy/suggestions`);
+    const apiBase = globalConfig.get('api_base_url');
+    const useCoingecko = document.getElementById('coingecko-enabled').checked;
+    const endpoint = useCoingecko ? '/taxonomy/suggestions-enhanced' : '/taxonomy/suggestions';
+    const response = await fetch(`${apiBase}${endpoint}`);
     
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     
@@ -439,12 +506,15 @@ async function getAutoSuggestions() {
     const coveragePercent = Math.round(coverage * 100);
     const suggestionsList = Object.entries(suggestions)
       .map(([symbol, group]) => `${symbol} → ${group}`)
+      .slice(0, 5)
       .join(', ');
     
+    const sourceIcon = useCoingecko ? '🚀' : '🔍';
+    const sourceLabel = useCoingecko ? 'Mode intelligent (regex + CoinGecko)' : 'Mode regex seul';
     showNotification(
-      `🤖 ${auto_classified_count}/${unknown_count} suggestions (${coveragePercent}%): ${suggestionsList}`, 
+      `${sourceIcon} ${auto_classified_count}/${unknown_count} suggestions trouvées (${coveragePercent}%)\n📊 ${sourceLabel}\n💡 ${suggestionsList}`, 
       'info', 
-      8000
+      10000
     );
     
   } catch (error) {
@@ -452,14 +522,16 @@ async function getAutoSuggestions() {
   }
 }
 
-async function autoClassifyUnknowns() {
+async function autoClassify() {
   if (!confirm('Appliquer automatiquement la classification intelligente aux symboles inconnus ?')) {
     return;
   }
   
   try {
-    const apiBase = document.getElementById('api_base').value;
-    const response = await fetch(`${apiBase}/taxonomy/auto-classify`, {
+    const apiBase = globalConfig.get('api_base_url');
+    const useCoingecko = document.getElementById('coingecko-enabled').checked;
+    const endpoint = useCoingecko ? '/taxonomy/auto-classify-enhanced' : '/taxonomy/auto-classify';
+    const response = await fetch(`${apiBase}${endpoint}`, {
       method: 'POST'
     });
     
@@ -470,7 +542,9 @@ async function autoClassifyUnknowns() {
     if (data.classified === 0) {
       showNotification(data.message || 'Aucune classification automatique appliquée', 'info');
     } else {
-      showNotification(`✅ ${data.message}`, 'success');
+      const sourceIcon = useCoingecko ? '🚀' : '🔍';
+      const sourceLabel = useCoingecko ? '(avec CoinGecko)' : '(regex seul)';
+      showNotification(`✅ ${data.classified} aliases classifiés automatiquement ${sourceLabel}`, 'success');
       await loadData(); // Recharger les données
     }
     
@@ -495,6 +569,7 @@ function showNotification(message, type = 'info', duration = 3000) {
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     max-width: 400px;
     word-wrap: break-word;
+    white-space: pre-line;
   `;
   notification.textContent = message;
   

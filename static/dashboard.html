@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Portfolio Analytics - Crypto Rebalancer</title>
+  <style>
+    :root{
+      --bg:#0a0f14; --card:#0e1620; --muted:#8fa0b3; --text:#e7eef7;
+      --accent:#2dd4bf; --danger:#ef4444; --border:#1f2b3a; --pos:#22c55e;
+      --warning:#f59e0b; --info:#3b82f6;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    
+    header{position:sticky;top:0;background:linear-gradient(180deg,rgba(10,15,20,.95),rgba(10,15,20,.85));backdrop-filter: blur(6px);border-bottom:1px solid var(--border);z-index:10}
+    .wrap{max-width:1400px;margin:0 auto;padding:16px}
+    h1{margin:0 0 8px 0;font-size:24px;font-weight:800}
+    h2{margin:0 0 12px 0;font-size:18px;font-weight:600}
+    h3{margin:0 0 8px 0;font-size:16px;font-weight:600}
+    
+    .nav{display:flex;gap:12px;margin:12px 0}
+    .nav a{padding:8px 16px;border-radius:8px;text-decoration:none;color:var(--muted);border:1px solid var(--border);transition:all 0.2s}
+    .nav a.active, .nav a:hover{background:var(--accent);color:#07211e;border-color:var(--accent)}
+    
+    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+    .col{flex:1;min-width:280px}
+    
+    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:16px}
+    .card.highlight{border-color:var(--accent);box-shadow:0 0 20px rgba(45,212,191,0.1)}
+    
+    .metric-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;margin-bottom:20px}
+    .metric{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center}
+    .metric-value{font-size:28px;font-weight:800;margin-bottom:4px}
+    .metric-label{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px}
+    .metric-change{font-size:14px;margin-top:8px}
+    .metric.positive .metric-value{color:var(--pos)}
+    .metric.negative .metric-value{color:var(--danger)}
+    .metric.neutral .metric-value{color:var(--accent)}
+    
+    .chart-container{position:relative;height:300px;margin:20px 0;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px}
+    .chart-placeholder{display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-style:italic}
+    
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px solid var(--border);padding:12px 8px;text-align:left;font-size:14px}
+    th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:0.5px}
+    tr:hover td{background:#0b131d}
+    .right{text-align:right}
+    
+    .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;border:1px solid var(--border);background:#0b131d;font-size:12px;font-weight:500}
+    
+    .loading{display:inline-block;width:20px;height:20px;border:2px solid var(--border);border-radius:50%;border-top-color:var(--accent);animation:spin 1s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    
+    .delta-pos{color:var(--pos);font-weight:600}
+    .delta-neg{color:var(--danger);font-weight:600}
+    .delta-neutral{color:var(--muted)}
+    
+    .refresh-btn{background:var(--accent);color:#07211e;border:0;border-radius:8px;padding:8px 16px;cursor:pointer;font-weight:600;display:flex;align-items:center;gap:8px}
+    .refresh-btn:disabled{opacity:0.6;cursor:not-allowed}
+    
+    .status-indicator{display:inline-flex;align-items:center;gap:6px;font-size:12px}
+    .status-dot{width:8px;height:8px;border-radius:50%;background:var(--pos)}
+    .status-dot.warning{background:var(--warning)}
+    .status-dot.error{background:var(--danger)}
+    
+    @media(max-width: 768px){
+      .wrap{padding:12px}
+      .metric-grid{grid-template-columns:1fr 1fr}
+      .nav{flex-direction:column;gap:8px}
+      .chart-container{height:250px}
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <h1>💎 Portfolio Analytics</h1>
+    <nav class="nav">
+      <a href="dashboard.html" class="active">📊 Dashboard</a>
+      <a href="rebalance.html">⚖️ Rebalancing</a>
+      <a href="alias-manager.html">🏷️ Classification</a>
+      <a href="settings.html">⚙️ Configuration</a>
+    </nav>
+    <div style="font-size: 12px; color: var(--muted); margin-top: 8px;">
+      <span id="data-source-indicator">Source: <span style="color: var(--accent);" id="current-source">...</span></span>
+      <span style="margin-left: 16px;" id="pricing-indicator">Pricing: <span style="color: var(--accent);" id="current-pricing">...</span></span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- Status & Controls -->
+  <div class="card">
+    <div class="row">
+      <div class="col">
+        <div class="status-indicator">
+          <div class="status-dot" id="status-dot"></div>
+          <span id="status-text">Chargement...</span>
+        </div>
+      </div>
+      <div>
+        <button class="refresh-btn" onclick="loadDashboard()" id="refresh-btn">
+          <span id="refresh-icon">🔄</span>
+          Actualiser
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Key Metrics -->
+  <div class="metric-grid" id="metrics-grid">
+    <div class="metric neutral">
+      <div class="metric-value" id="total-value">-</div>
+      <div class="metric-label">Valeur Totale</div>
+      <div class="metric-change" id="total-change">-</div>
+    </div>
+    <div class="metric neutral">
+      <div class="metric-value" id="total-assets">-</div>
+      <div class="metric-label">Assets</div>
+      <div class="metric-change" id="assets-change">Différents cryptos</div>
+    </div>
+    <div class="metric neutral">
+      <div class="metric-value" id="top-holding">-</div>
+      <div class="metric-label">Top Holding</div>
+      <div class="metric-change" id="top-percentage">-</div>
+    </div>
+    <div class="metric neutral">
+      <div class="metric-value" id="rebalance-score">-</div>
+      <div class="metric-label">Rebalance Score</div>
+      <div class="metric-change" id="rebalance-status">Analyse...</div>
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- Portfolio Allocation -->
+    <div class="col">
+      <div class="card">
+        <h3>📊 Répartition par Groupe</h3>
+        <div class="chart-container">
+          <canvas id="allocation-chart" width="400" height="260"></canvas>
+          <div class="chart-placeholder" id="allocation-placeholder">
+            <span class="loading"></span>
+          </div>
+        </div>
+        <div id="allocation-legend"></div>
+      </div>
+    </div>
+
+    <!-- Top Holdings -->
+    <div class="col">
+      <div class="card">
+        <h3>🥇 Top Holdings</h3>
+        <div id="top-holdings">
+          <div class="chart-placeholder">
+            <span class="loading"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Portfolio Performance -->
+  <div class="card">
+    <h3>📈 Performance du Portfolio</h3>
+    <div class="chart-container">
+      <canvas id="performance-chart" width="800" height="300" style="display: none;"></canvas>
+      <div class="chart-placeholder" id="performance-placeholder">
+        <span class="loading"></span>
+      </div>
+    </div>
+    <div class="row" style="margin-top: 12px; gap: 8px;">
+      <button class="btn small" onclick="loadPerformanceChart(7)">7j</button>
+      <button class="btn small" onclick="loadPerformanceChart(30)">30j</button>
+      <button class="btn small" onclick="loadPerformanceChart(90)">90j</button>
+    </div>
+  </div>
+
+  <!-- Detailed Holdings -->
+  <div class="card">
+    <h3>📋 Holdings Détaillés</h3>
+    <div style="overflow-x: auto;">
+      <table id="holdings-table">
+        <thead>
+          <tr>
+            <th>Symbol</th>
+            <th>Groupe</th>
+            <th class="right">Balance</th>
+            <th class="right">Prix USD</th>
+            <th class="right">Valeur USD</th>
+            <th class="right">% Portfolio</th>
+          </tr>
+        </thead>
+        <tbody id="holdings-tbody">
+          <tr>
+            <td colspan="6" style="text-align: center; padding: 40px;">
+              <span class="loading"></span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="global-config.js"></script>
+<script src="shared-header.js"></script>
+<script>
+// Configuration via globalConfig
+let dashboardData = null;
+let performanceChart = null;
+
+// Utilitaires
+function formatUSD(value) {
+  if (value === null || value === undefined) return '$0.00';
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value);
+}
+
+function formatNumber(value, decimals = 2) {
+  if (value === null || value === undefined) return '0';
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  }).format(value);
+}
+
+function formatPercent(value) {
+  if (value === null || value === undefined) return '0.0%';
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+// Couleurs pour les groupes
+const GROUP_COLORS = {
+  'BTC': '#f7931a',
+  'ETH': '#627eea', 
+  'SOL': '#14f195',
+  'Stablecoins': '#26a69a',
+  'L1/L0 majors': '#ab47bc',
+  'Others': '#78909c',
+  'DeFi': '#ff6b35',
+  'Gaming/NFT': '#e91e63',
+  'AI/Data': '#3f51b5',
+  'Memecoins': '#ff9800'
+};
+
+// Chargement des données
+async function loadDashboard() {
+  const refreshBtn = document.getElementById('refresh-btn');
+  const refreshIcon = document.getElementById('refresh-icon');
+  const statusDot = document.getElementById('status-dot');
+  const statusText = document.getElementById('status-text');
+
+  try {
+    // UI Loading
+    refreshBtn.disabled = true;
+    refreshIcon.textContent = '⏳';
+    statusDot.className = 'status-dot warning';
+    statusText.textContent = 'Chargement des données...';
+
+    // Fetch balances data using global config
+    dashboardData = await globalConfig.apiRequest('/balances/current');
+
+    // Fetch portfolio metrics using global config  
+    try {
+      const metricsData = await globalConfig.apiRequest('/portfolio/metrics');
+      if (metricsData.ok) {
+        dashboardData.analytics = metricsData;
+      }
+    } catch (e) {
+      console.warn('Portfolio metrics non disponibles:', e);
+    }
+    
+    // Update UI
+    updateMetrics();
+    updateAllocationChart();
+    updateTopHoldings();
+    updateHoldingsTable();
+    
+    // Success status
+    statusDot.className = 'status-dot';
+    statusText.textContent = `Dernière mise à jour: ${new Date().toLocaleTimeString()}`;
+    
+    // Auto-save snapshot (une fois par jour max)
+    if (shouldSaveSnapshot()) {
+      savePortfolioSnapshot();
+    }
+    
+  } catch (error) {
+    console.error('Erreur chargement dashboard:', error);
+    statusDot.className = 'status-dot error';
+    statusText.textContent = `Erreur: ${error.message}`;
+  } finally {
+    refreshBtn.disabled = false;
+    refreshIcon.textContent = '🔄';
+  }
+}
+
+// Mise à jour des métriques clés
+function updateMetrics() {
+  if (!dashboardData || !dashboardData.items) return;
+  
+  // Utiliser les analytics calculées si disponibles
+  const analytics = dashboardData.analytics;
+  const metrics = analytics?.metrics;
+  const performance = analytics?.performance;
+  
+  if (metrics) {
+    // Utiliser les métriques calculées côté serveur
+    document.getElementById('total-value').textContent = formatUSD(metrics.total_value_usd);
+    document.getElementById('total-assets').textContent = metrics.asset_count.toString();
+    document.getElementById('top-holding').textContent = metrics.top_holding.symbol || 'N/A';
+    document.getElementById('top-percentage').textContent = formatPercent(metrics.top_holding.percentage);
+    
+    // Score de diversification calculé
+    document.getElementById('rebalance-score').textContent = `${metrics.diversity_score}/10`;
+    
+    let scoreStatus = 'À analyser';
+    let scoreClass = 'neutral';
+    if (metrics.diversity_score >= 8) {
+      scoreStatus = 'Excellent';
+      scoreClass = 'positive';
+    } else if (metrics.diversity_score >= 6) {
+      scoreStatus = 'Bien équilibré';
+      scoreClass = 'positive';
+    } else if (metrics.diversity_score >= 4) {
+      scoreStatus = 'Modéré';
+      scoreClass = 'neutral';
+    } else {
+      scoreStatus = 'À rebalancer';
+      scoreClass = 'negative';
+    }
+    
+    const rebalanceStatusEl = document.getElementById('rebalance-status');
+    rebalanceStatusEl.textContent = scoreStatus;
+    rebalanceStatusEl.parentElement.className = `metric ${scoreClass}`;
+    
+    // Afficher les performances si disponibles
+    if (performance && performance.performance_available) {
+      const totalValueEl = document.getElementById('total-value').parentElement;
+      const changeEl = document.getElementById('total-change');
+      
+      const changeText = performance.absolute_change_usd >= 0 ? 
+        `+${formatUSD(performance.absolute_change_usd)} (${performance.percentage_change.toFixed(2)}%)` :
+        `${formatUSD(performance.absolute_change_usd)} (${performance.percentage_change.toFixed(2)}%)`;
+      
+      changeEl.textContent = changeText;
+      changeEl.className = performance.absolute_change_usd >= 0 ? 'metric-change delta-pos' : 'metric-change delta-neg';
+      
+      // Mettre à jour la classe de la métrique totale
+      totalValueEl.className = `metric ${performance.performance_status === 'gain' ? 'positive' : 
+                                          performance.performance_status === 'loss' ? 'negative' : 'neutral'}`;
+    }
+    
+  } else {
+    // Fallback sur calculs basiques côté client
+    const items = dashboardData.items;
+    
+    let totalValue = 0;
+    let assetCount = 0;
+    let topHolding = { symbol: '', value: 0 };
+    
+    items.forEach(item => {
+      if (item.usd_value && item.usd_value > 0) {
+        totalValue += item.usd_value;
+        assetCount++;
+        
+        if (item.usd_value > topHolding.value) {
+          topHolding = { symbol: item.symbol, value: item.usd_value };
+        }
+      }
+    });
+    
+    document.getElementById('total-value').textContent = formatUSD(totalValue);
+    document.getElementById('total-assets').textContent = assetCount.toString();
+    document.getElementById('top-holding').textContent = topHolding.symbol || 'N/A';
+    
+    const topPercentage = totalValue > 0 ? (topHolding.value / totalValue) : 0;
+    document.getElementById('top-percentage').textContent = formatPercent(topPercentage);
+    
+    // Score de rebalancing simplifié
+    const diversityScore = Math.min(10, assetCount);
+    const concentrationPenalty = topPercentage > 0.5 ? 3 : 0;
+    const rebalanceScore = Math.max(1, diversityScore - concentrationPenalty);
+    
+    document.getElementById('rebalance-score').textContent = `${rebalanceScore}/10`;
+    document.getElementById('rebalance-status').textContent = 
+      rebalanceScore >= 7 ? 'Bien équilibré' : 
+      rebalanceScore >= 4 ? 'Modéré' : 'À rebalancer';
+  }
+}
+
+// Graphique de répartition (simple canvas)
+function updateAllocationChart() {
+  if (!dashboardData || !dashboardData.items) return;
+  
+  const canvas = document.getElementById('allocation-chart');
+  const ctx = canvas.getContext('2d');
+  const placeholder = document.getElementById('allocation-placeholder');
+  
+  // Grouper par catégorie
+  const groups = {};
+  let totalValue = 0;
+  
+  dashboardData.items.forEach(item => {
+    if (item.usd_value && item.usd_value > 0) {
+      const group = item.group || 'Others';
+      groups[group] = (groups[group] || 0) + item.usd_value;
+      totalValue += item.usd_value;
+    }
+  });
+  
+  if (totalValue === 0) {
+    placeholder.innerHTML = 'Aucune donnée disponible';
+    return;
+  }
+  
+  // Masquer le placeholder
+  placeholder.style.display = 'none';
+  canvas.style.display = 'block';
+  
+  // Dessiner le graphique en secteurs (simple)
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  const centerX = canvas.width / 2;
+  const centerY = canvas.height / 2;
+  const radius = Math.min(centerX, centerY) - 20;
+  
+  let currentAngle = -Math.PI / 2;
+  const legendHTML = [];
+  
+  Object.entries(groups)
+    .sort(([,a], [,b]) => b - a)
+    .forEach(([group, value]) => {
+      const percentage = value / totalValue;
+      const sliceAngle = percentage * 2 * Math.PI;
+      const color = GROUP_COLORS[group] || '#78909c';
+      
+      // Dessiner le secteur
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.fill();
+      
+      // Bordure
+      ctx.strokeStyle = '#1f2b3a';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      
+      currentAngle += sliceAngle;
+      
+      // Légende
+      legendHTML.push(`
+        <div class="pill" style="border-color: ${color}">
+          <div class="dot" style="background: ${color}"></div>
+          ${group}: ${formatPercent(percentage)}
+        </div>
+      `);
+    });
+  
+  // Afficher la légende
+  document.getElementById('allocation-legend').innerHTML = 
+    `<div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px;">${legendHTML.join('')}</div>`;
+}
+
+// Top Holdings
+function updateTopHoldings() {
+  if (!dashboardData || !dashboardData.items) return;
+  
+  const topHoldings = dashboardData.items
+    .filter(item => item.usd_value && item.usd_value > 0)
+    .sort((a, b) => b.usd_value - a.usd_value)
+    .slice(0, 10);
+  
+  const totalValue = dashboardData.items.reduce((sum, item) => 
+    sum + (item.usd_value || 0), 0);
+  
+  const html = topHoldings.map((item, index) => {
+    const percentage = totalValue > 0 ? (item.usd_value / totalValue) : 0;
+    const group = item.group || 'Others';
+    const color = GROUP_COLORS[group] || '#78909c';
+    
+    return `
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border);">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="font-weight: 600; color: var(--muted); min-width: 20px;">${index + 1}</div>
+          <div>
+            <div style="font-weight: 600;">${item.symbol}</div>
+            <div style="font-size: 12px; color: var(--muted);">${group}</div>
+          </div>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-weight: 600;">${formatUSD(item.usd_value)}</div>
+          <div style="font-size: 12px; color: var(--muted);">${formatPercent(percentage)}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  document.getElementById('top-holdings').innerHTML = html || 'Aucune donnée';
+}
+
+// Tableau détaillé
+function updateHoldingsTable() {
+  if (!dashboardData || !dashboardData.items) return;
+  
+  const tbody = document.getElementById('holdings-tbody');
+  const totalValue = dashboardData.items.reduce((sum, item) => 
+    sum + (item.usd_value || 0), 0);
+  
+  const rows = dashboardData.items
+    .filter(item => item.balance && item.balance > 0)
+    .sort((a, b) => (b.usd_value || 0) - (a.usd_value || 0))
+    .map(item => {
+      const percentage = totalValue > 0 && item.usd_value ? 
+        (item.usd_value / totalValue) : 0;
+      const group = item.group || 'Others';
+      
+      return `
+        <tr>
+          <td><strong>${item.symbol}</strong></td>
+          <td>
+            <span class="pill" style="border-color: ${GROUP_COLORS[group] || '#78909c'}">
+              ${group}
+            </span>
+          </td>
+          <td class="right">${formatNumber(item.balance, 4)}</td>
+          <td class="right">${formatUSD(item.usd_price || 0)}</td>
+          <td class="right"><strong>${formatUSD(item.usd_value || 0)}</strong></td>
+          <td class="right">${formatPercent(percentage)}</td>
+        </tr>
+      `;
+    }).join('');
+  
+  tbody.innerHTML = rows || '<tr><td colspan="6" style="text-align: center;">Aucune donnée</td></tr>';
+}
+
+// Gestion des snapshots
+function shouldSaveSnapshot() {
+  const lastSnapshot = localStorage.getItem('lastPortfolioSnapshot');
+  if (!lastSnapshot) return true;
+  
+  const lastDate = new Date(lastSnapshot);
+  const now = new Date();
+  const hoursSinceSnapshot = (now - lastDate) / (1000 * 60 * 60);
+  
+  // Sauvegarder un snapshot toutes les 12 heures maximum
+  return hoursSinceSnapshot >= 12;
+}
+
+async function savePortfolioSnapshot() {
+  try {
+    const data = await globalConfig.apiRequest('/portfolio/snapshot', {
+      method: 'POST'
+    });
+    
+    if (data.ok) {
+      localStorage.setItem('lastPortfolioSnapshot', new Date().toISOString());
+      console.log('Snapshot portfolio sauvé');
+    }
+  } catch (error) {
+    console.warn('Erreur sauvegarde snapshot:', error);
+  }
+}
+
+// Action manuelle de sauvegarde (si nécessaire)
+async function manualSnapshot() {
+  const btn = document.getElementById('refresh-btn');
+  btn.disabled = true;
+  
+  try {
+    await savePortfolioSnapshot();
+    document.getElementById('status-text').textContent = 
+      `Snapshot sauvé - ${new Date().toLocaleTimeString()}`;
+  } catch (error) {
+    console.error('Erreur snapshot manuel:', error);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Graphique de performance temporelle
+async function loadPerformanceChart(days = 30) {
+  const performanceCanvas = document.getElementById('performance-chart');
+  const performancePlaceholder = document.getElementById('performance-placeholder');
+  
+  try {
+    performancePlaceholder.innerHTML = '<span class="loading"></span>';
+    performancePlaceholder.style.display = 'flex';
+    performanceCanvas.style.display = 'none';
+    
+    // Récupérer les données de tendance via global config
+    const data = await globalConfig.apiRequest('/portfolio/trend', { 
+      params: { days: days } 
+    });
+    if (!data.ok) throw new Error(data.error || 'Erreur inconnue');
+    
+    const trendData = data.trend.trend_data || [];
+    
+    if (trendData.length === 0) {
+      performancePlaceholder.innerHTML = `
+        <div style="text-align: center; color: var(--muted);">
+          <div>Pas assez de données historiques</div>
+          <div style="font-size: 12px; margin-top: 8px;">
+            Utilisez le dashboard quotidiennement pour construire l'historique
+          </div>
+        </div>
+      `;
+      return;
+    }
+    
+    // Préparer les données pour Chart.js
+    const labels = trendData.map(d => {
+      const date = new Date(d.date);
+      return date.toLocaleDateString('fr-FR', { 
+        month: 'short', 
+        day: 'numeric',
+        hour: trendData.length > 7 ? undefined : '2-digit',
+        minute: trendData.length > 7 ? undefined : '2-digit'
+      });
+    });
+    
+    const values = trendData.map(d => d.total_value);
+    const diversityScores = trendData.map(d => d.diversity_score);
+    
+    // Calculer les pourcentages de changement
+    const baseValue = values[0];
+    const percentageChanges = values.map(v => 
+      baseValue > 0 ? ((v - baseValue) / baseValue * 100) : 0
+    );
+    
+    // Détruire le graphique existant
+    if (performanceChart) {
+      performanceChart.destroy();
+    }
+    
+    // Créer le nouveau graphique
+    const ctx = performanceCanvas.getContext('2d');
+    performanceChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Valeur Portfolio ($)',
+            data: values,
+            borderColor: '#2dd4bf',
+            backgroundColor: 'rgba(45, 212, 191, 0.1)',
+            fill: true,
+            tension: 0.4,
+            yAxisID: 'y'
+          },
+          {
+            label: 'Performance (%)',
+            data: percentageChanges,
+            borderColor: '#3b82f6',
+            backgroundColor: 'transparent',
+            fill: false,
+            tension: 0.4,
+            yAxisID: 'y1'
+          },
+          {
+            label: 'Score Diversité',
+            data: diversityScores,
+            borderColor: '#f59e0b',
+            backgroundColor: 'transparent',
+            fill: false,
+            tension: 0.4,
+            yAxisID: 'y2'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            labels: {
+              color: '#e7eef7',
+              font: { size: 12 }
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: '#8fa0b3', font: { size: 11 } },
+            grid: { color: '#1f2b3a' }
+          },
+          y: {
+            type: 'linear',
+            display: true,
+            position: 'left',
+            ticks: { 
+              color: '#2dd4bf',
+              font: { size: 11 },
+              callback: function(value) {
+                return formatUSD(value);
+              }
+            },
+            grid: { color: '#1f2b3a' }
+          },
+          y1: {
+            type: 'linear',
+            display: true,
+            position: 'right',
+            ticks: { 
+              color: '#3b82f6',
+              font: { size: 11 },
+              callback: function(value) {
+                return value.toFixed(1) + '%';
+              }
+            },
+            grid: { drawOnChartArea: false }
+          },
+          y2: {
+            type: 'linear',
+            display: false,
+            min: 0,
+            max: 10
+          }
+        },
+        interaction: {
+          intersect: false,
+          mode: 'index'
+        }
+      }
+    });
+    
+    // Afficher le graphique
+    performancePlaceholder.style.display = 'none';
+    performanceCanvas.style.display = 'block';
+    
+  } catch (error) {
+    console.error('Erreur graphique performance:', error);
+    performancePlaceholder.innerHTML = `
+      <div style="color: var(--danger); text-align: center;">
+        Erreur: ${error.message}
+      </div>
+    `;
+  }
+}
+
+// La fonction updateConfigIndicators est maintenant dans shared-header.js
+
+// Initialisation
+document.addEventListener('DOMContentLoaded', () => {
+  // Initialiser le header partagé avec indicateurs de config
+  initSharedHeader('dashboard', { showConfigIndicators: true });
+  
+  // Charger le dashboard
+  loadDashboard();
+  
+  // Charger le graphique par défaut
+  setTimeout(() => loadPerformanceChart(30), 1000);
+  
+  // Auto-refresh selon la configuration
+  const refreshInterval = globalConfig.get('refresh_interval') * 60 * 1000;
+  setInterval(loadDashboard, refreshInterval);
+});
+
+// Écouter les changements de configuration
+window.addEventListener('configChanged', (e) => {
+  updateConfigIndicators();
+  // Recharger les données avec la nouvelle config
+  loadDashboard();
+});
+</script>
+
+</body>
+</html>

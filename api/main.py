@@ -17,6 +17,7 @@ from connectors.cointracking_api import get_current_balances as ct_api_get_curre
 from services.rebalance import plan_rebalance
 from services.taxonomy import Taxonomy
 from services.pricing import get_prices_usd
+from services.portfolio import portfolio_analytics
 from api.taxonomy_endpoints import router as taxonomy_router, _merged_aliases, _all_groups
 
 app = FastAPI()
@@ -399,5 +400,109 @@ async def debug_ctapi():
     """Endpoint de debug pour CoinTracking API"""
     return _debug_probe()
 
+@app.get("/debug/api-keys")
+async def debug_api_keys():
+    """Expose les clés API depuis .env pour auto-configuration"""
+    return {
+        "coingecko_api_key": os.getenv("COINGECKO_API_KEY", ""),
+        "cointracking_api_key": os.getenv("COINTRACKING_API_KEY", ""),
+        "cointracking_api_secret": os.getenv("COINTRACKING_API_SECRET", "")
+    }
+
+@app.post("/debug/api-keys")
+async def update_api_keys(payload: dict):
+    """Met à jour les clés API dans le fichier .env"""
+    import re
+    from pathlib import Path
+    
+    env_file = Path(".env")
+    if not env_file.exists():
+        # Créer le fichier .env s'il n'existe pas
+        env_file.write_text("# Clés API générées automatiquement\n")
+    
+    content = env_file.read_text()
+    
+    # Définir les mappings clé -> nom dans .env
+    key_mappings = {
+        "coingecko_api_key": "COINGECKO_API_KEY",
+        "cointracking_api_key": "COINTRACKING_API_KEY", 
+        "cointracking_api_secret": "COINTRACKING_API_SECRET"
+    }
+    
+    updated = False
+    for field_key, env_key in key_mappings.items():
+        if field_key in payload and payload[field_key]:
+            # Chercher si la clé existe déjà
+            pattern = rf"^{env_key}=.*$"
+            new_line = f"{env_key}={payload[field_key]}"
+            
+            if re.search(pattern, content, re.MULTILINE):
+                # Remplacer la ligne existante
+                content = re.sub(pattern, new_line, content, flags=re.MULTILINE)
+            else:
+                # Ajouter la nouvelle clé
+                content += f"\n{new_line}"
+            updated = True
+    
+    if updated:
+        env_file.write_text(content)
+        # Recharger les variables d'environnement
+        import os
+        for field_key, env_key in key_mappings.items():
+            if field_key in payload and payload[field_key]:
+                os.environ[env_key] = payload[field_key]
+    
+    return {"success": True, "updated": updated}
+
 # inclure les routes taxonomie
 app.include_router(taxonomy_router)
+
+# ---------- Portfolio Analytics ----------
+@app.get("/portfolio/metrics")
+async def portfolio_metrics(source: str = Query("cointracking")):
+    """Métriques calculées du portfolio"""
+    try:
+        # Récupérer les données de balance actuelles
+        res = await resolve_current_balances(source=source)
+        rows = _to_rows(res.get("items", []))
+        balances = {"source_used": res.get("source_used"), "items": rows}
+        
+        # Calculer les métriques
+        metrics = portfolio_analytics.calculate_portfolio_metrics(balances)
+        performance = portfolio_analytics.calculate_performance_metrics(metrics)
+        
+        return {
+            "ok": True,
+            "metrics": metrics,
+            "performance": performance
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+@app.post("/portfolio/snapshot")
+async def save_portfolio_snapshot(source: str = Query("cointracking")):
+    """Sauvegarde un snapshot du portfolio pour suivi historique"""
+    try:
+        # Récupérer les données actuelles
+        res = await resolve_current_balances(source=source)
+        rows = _to_rows(res.get("items", []))
+        balances = {"source_used": res.get("source_used"), "items": rows}
+        
+        # Sauvegarder le snapshot
+        success = portfolio_analytics.save_portfolio_snapshot(balances)
+        
+        if success:
+            return {"ok": True, "message": "Snapshot sauvegardé"}
+        else:
+            return {"ok": False, "error": "Erreur lors de la sauvegarde"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+@app.get("/portfolio/trend")
+async def portfolio_trend(days: int = Query(30, ge=1, le=365)):
+    """Données de tendance du portfolio pour graphiques"""
+    try:
+        trend_data = portfolio_analytics.get_portfolio_trend(days)
+        return {"ok": True, "trend": trend_data}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
