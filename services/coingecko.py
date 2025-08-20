@@ -123,12 +123,43 @@ class CoinGeckoService:
         data = await self._make_request("/coins/list")
         
         if data:
-            self._symbol_to_id_cache = {
-                coin['symbol'].upper(): coin['id'] 
-                for coin in data
+            # Mapping intelligent : prioriser les coins principaux
+            self._symbol_to_id_cache = {}
+            
+            # D'abord, ajouter les mappings prioritaires manuels
+            priority_mappings = {
+                'BTC': 'bitcoin',
+                'ETH': 'ethereum', 
+                'SOL': 'solana',
+                'ADA': 'cardano',
+                'BNB': 'binancecoin',
+                'XRP': 'ripple',
+                'USDT': 'tether',
+                'USDC': 'usd-coin',
+                'DOGE': 'dogecoin',
+                'MATIC': 'matic-network',
+                'DOT': 'polkadot',
+                'AVAX': 'avalanche-2',
+                'UNI': 'uniswap',
+                'LINK': 'chainlink',
+                'LTC': 'litecoin'
             }
+            
+            # Ajouter les mappings prioritaires
+            for symbol, coin_id in priority_mappings.items():
+                self._symbol_to_id_cache[symbol] = coin_id
+            
+            # Puis ajouter le reste, sans écraser les prioritaires
+            for coin in data:
+                symbol = coin['symbol'].upper()
+                coin_id = coin['id']
+                
+                # Ne pas écraser les mappings prioritaires
+                if symbol not in self._symbol_to_id_cache:
+                    self._symbol_to_id_cache[symbol] = coin_id
+            
             self._symbol_to_id_cached_at = now
-            logger.info(f"Mapping mis en cache: {len(self._symbol_to_id_cache)} coins")
+            logger.info(f"Mapping mis en cache: {len(self._symbol_to_id_cache)} coins (avec priorités)")
         
         return self._symbol_to_id_cache
 
