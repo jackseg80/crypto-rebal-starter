@@ -12,6 +12,11 @@ DEFAULT_GROUPS_ORDER: List[str] = [
     "Stablecoins",
     "SOL",
     "L1/L0 majors",
+    "L2/Scaling",
+    "DeFi",
+    "AI/Data",
+    "Gaming/NFT",
+    "Memecoins",
     "Others",
 ]
 
@@ -67,24 +72,187 @@ DEFAULT_ALIASES: Dict[str, str] = {
     "XRP": "L1/L0 majors",
     "XTZ": "L1/L0 majors",
 
-    # Divers alias techniques -> alias “humain”
+    # L2/Scaling
+    "ARB": "L2/Scaling",
+    "OP": "L2/Scaling",
+    "MATIC": "L2/Scaling",
+    "POL": "L2/Scaling", 
+    "STRK": "L2/Scaling",
+    "IMX": "L2/Scaling",
+    "LRC": "L2/Scaling",
+    "METIS": "L2/Scaling",
+
+    # DeFi
+    "UNI": "DeFi",
+    "AAVE": "DeFi",
+    "COMP": "DeFi",
+    "MKR": "DeFi",
+    "SNX": "DeFi",
+    "CRV": "DeFi",
+    "SUSHI": "DeFi",
+    "1INCH": "DeFi",
+    "YFI": "DeFi",
+    "LDO": "DeFi",
+    "RPL": "DeFi",
+    "PENDLE": "DeFi",
+    "RDNT": "DeFi",
+
+    # AI/Data
+    "FET": "AI/Data",
+    "RENDER": "AI/Data",
+    "TAO": "AI/Data",
+    "OCEAN": "AI/Data",
+    "GRT": "AI/Data",
+    "WLD": "AI/Data",
+
+    # Gaming/NFT
+    "AXS": "Gaming/NFT",
+    "SAND": "Gaming/NFT",
+    "MANA": "Gaming/NFT",
+    "ENJ": "Gaming/NFT",
+    "GALA": "Gaming/NFT",
+    "CHZ": "Gaming/NFT",
+    "FLOW": "Gaming/NFT",
+
+    # Memecoins
+    "DOGE": "Memecoins",
+    "SHIB": "Memecoins",
+    "PEPE": "Memecoins",
+    "BONK": "Memecoins",
+    "WIF": "Memecoins",
+    "FLOKI": "Memecoins",
+
+    # Divers alias techniques -> alias "humain"
     "TONCOIN": "L1/L0 majors",
     "APT3": "L1/L0 majors",
-    "TAO6": "Others",
+    "TAO6": "AI/Data",
     "VVV3": "Others",
-    "WLD3": "Others",
+    "WLD3": "AI/Data",
     "GMT5": "Others",
     "LUNA2": "Others",
     "LUNA3": "Others",
     "S5": "Others",
     "SPX3": "Others",
-    "SEI2": "Others",
-    "FLR2": "Others",
+    "SEI2": "L1/L0 majors",
+    "FLR2": "L1/L0 majors",
     "JUP2": "Others",
     "WAL3": "Others",
 
-    # Par défaut, tout ce qui n’est pas mappé => Others (géré dynamiquement)
+    # Par défaut, tout ce qui n'est pas mappé => Others (géré dynamiquement)
 }
+
+# === CLASSIFICATION AUTOMATIQUE ===
+
+# Règles de classification par motifs dans le symbole
+AUTO_CLASSIFICATION_RULES = {
+    # Stablecoins par pattern
+    "stablecoins_patterns": [
+        r".*USD[CT]?$",  # USDC, USDT, USD
+        r".*DAI$",       # DAI, FRAX_DAI
+        r".*BUSD$",      # BUSD
+        r".*TUSD$",      # TUSD
+        r".*GUSD$",      # GUSD
+        r".*USDD$",      # USDD
+        r".*FRAX$",      # FRAX
+    ],
+    
+    # L2/Scaling par pattern
+    "l2_patterns": [
+        r".*ARB.*",      # Arbitrum ecosystem
+        r".*OP$",        # Optimism
+        r".*MATIC.*",    # Polygon
+        r".*POL.*",      # POL tokens
+        r".*STRK.*",     # Starknet
+    ],
+    
+    # Memecoins par pattern
+    "meme_patterns": [
+        r".*DOGE.*",     # Dogecoin ecosystem
+        r".*SHIB.*",     # Shiba ecosystem 
+        r".*PEPE.*",     # Pepe variants
+        r".*BONK.*",     # Bonk variants
+        r".*WIF.*",      # WIF variants
+        r".*FLOKI.*",    # Floki variants
+        r".*MEME.*",     # Generic meme
+        r".*MOON.*",     # Moon tokens
+        r".*SAFE.*",     # Safe tokens (often memes)
+    ],
+    
+    # AI/Data par keywords
+    "ai_patterns": [
+        r".*AI.*",       # AI tokens
+        r".*GPT.*",      # GPT tokens
+        r".*RENDER.*",   # Render variants
+        r".*FET.*",      # Fetch.ai variants
+        r".*OCEAN.*",    # Ocean Protocol
+        r".*GRT.*",      # The Graph
+    ],
+    
+    # Gaming/NFT par keywords
+    "gaming_patterns": [
+        r".*GAME.*",     # Gaming tokens
+        r".*NFT.*",      # NFT tokens
+        r".*SAND.*",     # Sandbox variants
+        r".*MANA.*",     # Decentraland variants
+        r".*AXS.*",      # Axie Infinity
+        r".*ENJ.*",      # Enjin variants
+        r".*GALA.*",     # Gala variants
+    ]
+}
+
+def auto_classify_symbol(symbol: str) -> str:
+    """
+    Classification automatique d'un symbole crypto basée sur des patterns.
+    Retourne le groupe suggéré ou "Others" si aucun pattern ne correspond.
+    """
+    import re
+    
+    if not symbol:
+        return "Others"
+    
+    symbol_upper = symbol.upper()
+    
+    # Test patterns stablecoins
+    for pattern in AUTO_CLASSIFICATION_RULES["stablecoins_patterns"]:
+        if re.match(pattern, symbol_upper):
+            return "Stablecoins"
+    
+    # Test patterns L2/Scaling
+    for pattern in AUTO_CLASSIFICATION_RULES["l2_patterns"]:
+        if re.match(pattern, symbol_upper):
+            return "L2/Scaling"
+    
+    # Test patterns Memecoins
+    for pattern in AUTO_CLASSIFICATION_RULES["meme_patterns"]:
+        if re.match(pattern, symbol_upper):
+            return "Memecoins"
+    
+    # Test patterns AI/Data
+    for pattern in AUTO_CLASSIFICATION_RULES["ai_patterns"]:
+        if re.match(pattern, symbol_upper):
+            return "AI/Data"
+    
+    # Test patterns Gaming/NFT
+    for pattern in AUTO_CLASSIFICATION_RULES["gaming_patterns"]:
+        if re.match(pattern, symbol_upper):
+            return "Gaming/NFT"
+    
+    # Fallback
+    return "Others"
+
+def get_classification_suggestions(unknown_symbols: List[str]) -> Dict[str, str]:
+    """
+    Génère des suggestions de classification pour une liste de symboles inconnus.
+    Retourne un dictionnaire {symbol: suggested_group}
+    """
+    suggestions = {}
+    for symbol in unknown_symbols:
+        suggested_group = auto_classify_symbol(symbol)
+        # Ne suggère que si ce n'est pas "Others" (pas de pattern trouvé)
+        if suggested_group != "Others":
+            suggestions[symbol.upper()] = suggested_group
+    
+    return suggestions
 
 def _storage_path() -> str:
     """

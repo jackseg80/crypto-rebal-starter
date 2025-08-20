@@ -1,7 +1,7 @@
 # api/taxonomy_endpoints.py
 from __future__ import annotations
 import os, json
-from typing import Dict, Any
+from typing import Dict, Any, List
 from fastapi import APIRouter, Body, HTTPException, Query
 try:
     import taxonomy  # DEFAULT_GROUPS, GROUP_ALIASES (mapping par défaut .py)
@@ -21,6 +21,18 @@ ALIASES_JSON = os.path.join(DATA_DIR, os.getenv("TAXONOMY_ALIASES_JSON", "taxono
 # Mémoire process (vivant pendant le run)
 _MEM_ALIASES: Dict[str, str] = {}
 
+# Cache des unknown aliases du dernier plan généré
+_LAST_UNKNOWN_ALIASES: List[str] = []
+
+def update_unknown_aliases_cache(unknown_aliases: List[str]) -> None:
+    """Met à jour le cache des unknown aliases pour les suggestions automatiques."""
+    global _LAST_UNKNOWN_ALIASES
+    _LAST_UNKNOWN_ALIASES = list(unknown_aliases) if unknown_aliases else []
+
+def get_cached_unknown_aliases() -> List[str]:
+    """Récupère les unknown aliases du cache."""
+    return list(_LAST_UNKNOWN_ALIASES)
+
 def _load_disk_aliases() -> Dict[str, str]:
     if not os.path.exists(ALIASES_JSON):
         return {}
@@ -39,15 +51,18 @@ def _save_disk_aliases(aliases: Dict[str, str]) -> None:
         json.dump(tmp, f, ensure_ascii=False, indent=2)
 
 def _all_groups() -> list[str]:
-    # source autoritaire = taxonomy.DEFAULT_GROUPS si dispo
+    # source autoritaire = services.taxonomy.DEFAULT_GROUPS_ORDER
     try:
-        return list(taxonomy.DEFAULT_GROUPS)
+        from services.taxonomy import DEFAULT_GROUPS_ORDER
+        return list(DEFAULT_GROUPS_ORDER)
     except Exception:
-        return ["BTC","ETH","Stablecoins","SOL","L1/L0 majors","Others"]
+        # Fallback avec tous les nouveaux groupes
+        return ["BTC","ETH","Stablecoins","SOL","L1/L0 majors","L2/Scaling","DeFi","AI/Data","Gaming/NFT","Memecoins","Others"]
 
 def _base_aliases() -> Dict[str, str]:
     try:
-        return {str(k).upper(): str(v) for k, v in getattr(taxonomy, "GROUP_ALIASES", {}).items()}
+        from services.taxonomy import DEFAULT_ALIASES
+        return {str(k).upper(): str(v) for k, v in DEFAULT_ALIASES.items()}
     except Exception:
         return {}
 
@@ -123,3 +138,90 @@ def delete_alias(alias: str) -> Dict[str, Any]:
 @router.post("/aliases/bulk")
 def bulk_aliases(payload: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
     return upsert_aliases(payload)
+
+@router.get("/suggestions")
+def get_auto_classification_suggestions_get(sample_symbols: str = Query("", description="Symboles séparés par virgule pour test")) -> Dict[str, Any]:
+    """
+    Retourne des suggestions de classification automatique pour les symboles inconnus (GET).
+    Si sample_symbols est fourni, les utilise comme exemples.
+    Sinon utilise les unknown aliases du dernier plan généré.
+    """
+    return _get_suggestions_logic(sample_symbols)
+
+@router.post("/suggestions") 
+def get_auto_classification_suggestions_post(payload: Dict[str, Any] = Body(default={})) -> Dict[str, Any]:
+    """
+    Retourne des suggestions de classification automatique pour les symboles inconnus (POST).
+    Body peut contenir: {"sample_symbols": "DOGE,PEPE,ARBUSDT"} pour tester.
+    """
+    sample_symbols = payload.get("sample_symbols", "")
+    return _get_suggestions_logic(sample_symbols)
+
+def _get_suggestions_logic(sample_symbols: str) -> Dict[str, Any]:
+    """Logique commune pour les suggestions de classification."""
+    from services.taxonomy import get_classification_suggestions
+    
+    if sample_symbols:
+        # Mode test avec symboles fournis
+        unknown_aliases = [s.strip().upper() for s in sample_symbols.split(",") if s.strip()]
+        source = "sample_symbols"
+    else:
+        # Récupérer les unknown aliases du cache du dernier plan
+        unknown_aliases = get_cached_unknown_aliases()
+        source = "last_plan_cache"
+    
+    suggestions = get_classification_suggestions(unknown_aliases)
+    
+    return {
+        "suggestions": suggestions,
+        "auto_classified_count": len(suggestions),
+        "unknown_count": len(unknown_aliases),
+        "coverage": len(suggestions) / len(unknown_aliases) if unknown_aliases else 0,
+        "source": source,
+        "cached_unknowns": unknown_aliases,
+        "note": "Générez un plan de rebalancement pour mettre à jour les unknown aliases" if not sample_symbols and not unknown_aliases else None
+    }
+
+@router.post("/auto-classify")
+def auto_classify_unknowns(payload: Dict[str, Any] = Body(default={})) -> Dict[str, Any]:
+    """
+    Applique automatiquement la classification suggérée aux symboles inconnus.
+    Body peut contenir: {"sample_symbols": "DOGE,PEPE,ARBUSDT"} pour tester.
+    Sinon utilise les unknown aliases du dernier plan généré.
+    """
+    from services.taxonomy import get_classification_suggestions
+    
+    sample_symbols = payload.get("sample_symbols", "")
+    
+    if sample_symbols:
+        # Mode test avec symboles fournis
+        unknown_aliases = [s.strip().upper() for s in sample_symbols.split(",") if s.strip()]
+        source = "sample_symbols"
+    else:
+        # Récupérer les unknown aliases du cache du dernier plan
+        unknown_aliases = get_cached_unknown_aliases()
+        source = "last_plan_cache"
+        
+        if not unknown_aliases:
+            return {"ok": False, "message": "Aucun unknown alias trouvé. Générez d'abord un plan de rebalancement ou utilisez le paramètre sample_symbols pour tester", "classified": 0}
+    
+    if not unknown_aliases:
+        return {"ok": True, "message": "Aucun alias inconnu à classifier", "classified": 0}
+    
+    # Générer suggestions
+    suggestions = get_classification_suggestions(unknown_aliases)
+    
+    if not suggestions:
+        return {"ok": True, "message": f"Aucune suggestion automatique trouvée pour les {len(unknown_aliases)} aliases: {', '.join(unknown_aliases[:5])}", "classified": 0}
+    
+    # Appliquer les suggestions via l'endpoint existant
+    result = upsert_aliases({"aliases": suggestions})
+    
+    return {
+        "ok": True, 
+        "message": f"{len(suggestions)} aliases classifiés automatiquement",
+        "classified": len(suggestions),
+        "suggestions_applied": suggestions,
+        "source": source,
+        "upsert_result": result
+    }
