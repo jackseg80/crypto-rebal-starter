@@ -119,8 +119,13 @@
       <div class="row mt8">
         <button class="btn small" onclick="clearFilters()">Effacer filtres</button>
         <button class="btn warning small" onclick="showOnlyUnassigned()">Voir non-assignés</button>
-        <button class="btn small" onclick="getAutoSuggestions()">🤖 Suggestions auto</button>
-        <button class="btn small accent" onclick="getEnhancedSuggestions()">🥷 CoinGecko</button>
+        <button class="btn accent" onclick="getSuggestions()">🔍 Suggestions</button>
+      </div>
+      <div class="row mt4">
+        <label style="font-size: 12px; color: var(--text-secondary);">
+          <input type="checkbox" id="coingecko-enabled" checked style="margin-right: 6px;">
+          CoinGecko activé (recommandé)
+        </label>
       </div>
     </div>
 
@@ -142,8 +147,7 @@
 
       <div class="row mt8">
         <button class="btn secondary small" onclick="assignAllToOthers()">Tout → Others</button>
-        <button class="btn small" onclick="autoClassifyUnknowns()">🚀 Auto-classifier</button>
-        <button class="btn small accent" onclick="autoClassifyEnhanced()">🚀 Enhanced</button>
+        <button class="btn accent" onclick="autoClassify()">🚀 Auto-classifier</button>
         <button class="btn secondary small" onclick="exportAliases()">📥 Export JSON</button>
       </div>
     </div>
@@ -423,10 +427,16 @@ function exportAliases() {
   URL.revokeObjectURL(url);
 }
 
-async function getAutoSuggestions() {
+async function getSuggestions() {
   try {
     const apiBase = document.getElementById('api_base').value;
-    const response = await fetch(`${apiBase}/taxonomy/suggestions`);
+    const useCoingecko = document.getElementById('coingecko-enabled').checked;
+    
+    // Choisir l'endpoint selon le toggle CoinGecko
+    const endpoint = useCoingecko ? '/taxonomy/suggestions-enhanced' : '/taxonomy/suggestions';
+    const response = await fetch(`${apiBase}${endpoint}`, {
+      method: 'POST'
+    });
     
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     
@@ -443,8 +453,9 @@ async function getAutoSuggestions() {
       .map(([symbol, group]) => `${symbol} → ${group}`)
       .join(', ');
     
+    const source = useCoingecko ? 'Intelligent (regex + CoinGecko)' : 'Patterns regex';
     showNotification(
-      `🤖 ${auto_classified_count}/${unknown_count} suggestions (${coveragePercent}%): ${suggestionsList}`, 
+      `🔍 ${auto_classified_count}/${unknown_count} suggestions (${coveragePercent}%) [${source}]: ${suggestionsList}`, 
       'info', 
       8000
     );
@@ -454,14 +465,19 @@ async function getAutoSuggestions() {
   }
 }
 
-async function autoClassifyUnknowns() {
-  if (!confirm('Appliquer automatiquement la classification intelligente aux symboles inconnus ?')) {
+async function autoClassify() {
+  const useCoingecko = document.getElementById('coingecko-enabled').checked;
+  const source = useCoingecko ? 'intelligente (regex + CoinGecko)' : 'par patterns regex';
+  
+  if (!confirm(`Appliquer automatiquement la classification ${source} aux symboles inconnus ?`)) {
     return;
   }
   
   try {
     const apiBase = document.getElementById('api_base').value;
-    const response = await fetch(`${apiBase}/taxonomy/auto-classify`, {
+    const endpoint = useCoingecko ? '/taxonomy/auto-classify-enhanced' : '/taxonomy/auto-classify';
+    
+    const response = await fetch(`${apiBase}${endpoint}`, {
       method: 'POST'
     });
     
@@ -470,78 +486,18 @@ async function autoClassifyUnknowns() {
     const data = await response.json();
     
     if (data.classified === 0) {
-      showNotification(data.message || 'Aucune classification automatique appliquée', 'info');
+      showNotification(data.message || `Aucune classification ${source} appliquée`, 'info');
     } else {
-      showNotification(`✅ ${data.message}`, 'success');
+      const sourceLabel = useCoingecko ? ' (Enhanced)' : '';
+      showNotification(`✅ ${data.message}${sourceLabel}`, 'success');
       await loadData(); // Recharger les données
     }
     
   } catch (error) {
-    showNotification(`❌ Erreur classification auto: ${error.message}`, 'error');
+    showNotification(`❌ Erreur classification: ${error.message}`, 'error');
   }
 }
 
-async function getEnhancedSuggestions() {
-  try {
-    const apiBase = document.getElementById('api_base').value;
-    const response = await fetch(`${apiBase}/taxonomy/suggestions-enhanced`, {
-      method: 'POST'
-    });
-    
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    
-    const data = await response.json();
-    const { suggestions, auto_classified_count, unknown_count, coverage, enhanced, coingecko_enabled } = data;
-    
-    if (auto_classified_count === 0) {
-      showNotification('🥷 Aucune suggestion CoinGecko trouvée', 'info');
-      return;
-    }
-    
-    const coveragePercent = Math.round(coverage * 100);
-    const suggestionsList = Object.entries(suggestions)
-      .map(([symbol, group]) => `${symbol} → ${group}`)
-      .join(', ');
-    
-    const enhancedBadge = enhanced && coingecko_enabled ? ' (Enhanced + CoinGecko)' : '';
-    showNotification(
-      `🥷 ${auto_classified_count}/${unknown_count} suggestions CoinGecko (${coveragePercent}%)${enhancedBadge}: ${suggestionsList}`, 
-      'info', 
-      8000
-    );
-    
-  } catch (error) {
-    showNotification(`❌ Erreur suggestions CoinGecko: ${error.message}`, 'error');
-  }
-}
-
-async function autoClassifyEnhanced() {
-  if (!confirm('Appliquer la classification intelligente ENHANCED (regex + CoinGecko) aux symboles inconnus ?')) {
-    return;
-  }
-  
-  try {
-    const apiBase = document.getElementById('api_base').value;
-    const response = await fetch(`${apiBase}/taxonomy/auto-classify-enhanced`, {
-      method: 'POST'
-    });
-    
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    
-    const data = await response.json();
-    
-    if (data.classified === 0) {
-      showNotification(data.message || 'Aucune classification enhanced appliquée', 'info');
-    } else {
-      const enhancedBadge = data.enhanced && data.coingecko_enabled ? ' (Enhanced + CoinGecko)' : '';
-      showNotification(`✅ ${data.message}${enhancedBadge}`, 'success');
-      await loadData(); // Recharger les données
-    }
-    
-  } catch (error) {
-    showNotification(`❌ Erreur classification enhanced: ${error.message}`, 'error');
-  }
-}
 
 function showNotification(message, type = 'info', duration = 3000) {
   const notification = document.createElement('div');
