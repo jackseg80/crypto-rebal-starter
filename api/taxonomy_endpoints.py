@@ -1,6 +1,7 @@
 # api/taxonomy_endpoints.py
 from __future__ import annotations
-import os, json
+import os
+import json
 from typing import Dict, Any, List
 from fastapi import APIRouter, Body, HTTPException, Query
 try:

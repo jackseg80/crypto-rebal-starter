@@ -87,6 +87,7 @@
         <button id="btnCsv" class="btn secondary" disabled>Télécharger CSV</button>
       </div>
       <div style="align-self:flex-end;margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+        <span id="dynamicTargetsIndicator" class="pill" style="background:#f59e0b;color:white;display:none;">🎯 Targets dynamiques</span>
         <span id="total" class="pill">Total : —</span>
         <span id="status" class="pill">Prêt.</span>
       </div>
@@ -181,6 +182,60 @@ const el = id  => document.getElementById(id);
 const fmt  = n => (n==null || isNaN(n)) ? "" : Number(n).toLocaleString(undefined, {maximumFractionDigits: 8});
 const fmt2 = n => (n==null || isNaN(n)) ? "—" : Number(n).toLocaleString(undefined, {maximumFractionDigits: 2});
 
+/* ---------- Dynamic Targets Support ---------- */
+let dynamicTargets = null;
+let useDynamicTargets = false;
+
+// Interface for CCS/cycle module integration
+window.rebalanceAPI = {
+  setDynamicTargets: function(targets, metadata = {}) {
+    dynamicTargets = targets;
+    useDynamicTargets = true;
+    console.log('Dynamic targets set:', targets, metadata);
+    
+    // Update UI to show dynamic mode
+    const indicator = el("dynamicTargetsIndicator");
+    if (indicator) {
+      indicator.style.display = 'block';
+      if (metadata.ccs !== undefined) {
+        indicator.textContent = `🎯 CCS ${metadata.ccs}`;
+      }
+    }
+    setStatus(`Targets dynamiques appliqués (CCS: ${metadata.ccs || 'N/A'})`);
+    
+    // Auto-run plan if requested
+    if (metadata.autoRun) {
+      setTimeout(() => runPlan(), 100);
+    }
+  },
+  
+  clearDynamicTargets: function() {
+    dynamicTargets = null;
+    useDynamicTargets = false;
+    
+    // Hide UI indicator
+    const indicator = el("dynamicTargetsIndicator");
+    if (indicator) {
+      indicator.style.display = 'none';
+      indicator.textContent = '🎯 Targets dynamiques';
+    }
+    setStatus('Mode targets manuel rétabli');
+  },
+  
+  getCurrentTargets: function() {
+    if (useDynamicTargets && dynamicTargets) {
+      return { dynamic: true, targets: dynamicTargets };
+    } else {
+      return { dynamic: false, targets: getCurrentManualTargets() };
+    }
+  }
+};
+
+function getCurrentManualTargets() {
+  // Extract current manual targets from UI (placeholder for now)
+  return {};
+}
+
 function setStatus(text){ el("status").textContent = text; }
 function showNotification(text, type = 'info', duration = 3000) {
   const notif = document.createElement('div');
@@ -215,9 +270,8 @@ async function postCsv(url, body){
 }
 
 function buildPayload(){
-  // Tu peux brancher ça aux inputs si tu veux les rendre éditables
-  return {
-    group_targets_pct: { BTC:35, ETH:25, Stablecoins:10, SOL:10, "L1/L0 majors":10, Others:10 },
+  // Base payload
+  const payload = {
     primary_symbols: {
       BTC:["BTC","TBTC","WBTC"],
       ETH:["ETH","WSTETH","STETH","RETH","WETH"],
@@ -226,6 +280,15 @@ function buildPayload(){
     sub_allocation: "proportional",
     min_trade_usd: 25
   };
+  
+  // Use dynamic targets if available, otherwise default manual targets
+  if (useDynamicTargets && dynamicTargets) {
+    payload.dynamic_targets_pct = dynamicTargets;
+  } else {
+    payload.group_targets_pct = { BTC:35, ETH:25, Stablecoins:10, SOL:10, "L1/L0 majors":10, Others:10 };
+  }
+  
+  return payload;
 }
 
 function currentQuery(){
@@ -234,7 +297,14 @@ function currentQuery(){
   const source = globalConfig.get('data_source');
   const min_usd = globalConfig.get('min_usd_threshold') || 1;
   const pricing = globalConfig.get('pricing');
-  const qs = new URLSearchParams({ source, min_usd, pricing }).toString();
+  
+  // Add dynamic_targets parameter if we're using dynamic targets
+  const params = { source, min_usd, pricing };
+  if (useDynamicTargets && dynamicTargets) {
+    params.dynamic_targets = true;
+  }
+  
+  const qs = new URLSearchParams(params).toString();
   return { api, qs };
 }
 

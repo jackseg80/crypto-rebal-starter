@@ -15,10 +15,12 @@ from connectors import cointracking as ct_file
 from connectors.cointracking_api import get_current_balances as ct_api_get_current_balances, _debug_probe
 
 from services.rebalance import plan_rebalance
-from services.taxonomy import Taxonomy
 from services.pricing import get_prices_usd
 from services.portfolio import portfolio_analytics
-from api.taxonomy_endpoints import router as taxonomy_router, _merged_aliases, _all_groups
+from api.taxonomy_endpoints import router as taxonomy_router
+from api.execution_endpoints import router as execution_router
+from api.monitoring_endpoints import router as monitoring_router
+from api.analytics_endpoints import router as analytics_router
 
 app = FastAPI()
 # CORS large pour tests locaux + UI docs/
@@ -33,9 +35,11 @@ app.add_middleware(
 # petit cache prix optionnel (si tu l’as déjà chez toi, garde le tien)
 _PRICE_CACHE: Dict[str, tuple] = {}  # symbol -> (ts, price)
 def _cache_get(cache: dict, key: Any, ttl: int):
-    if ttl <= 0: return None
+    if ttl <= 0:
+        return None
     ent = cache.get(key)
-    if not ent: return None
+    if not ent:
+        return None
     ts, val = ent
     if monotonic() - ts > ttl:
         cache.pop(key, None)
@@ -172,6 +176,7 @@ async def rebalance_plan(
     source: str = Query("cointracking"),
     min_usd_raw: str | None = Query(None, alias="min_usd"),
     pricing: str = Query("local"),   # local | auto
+    dynamic_targets: bool = Query(False, description="Use dynamic targets from CCS/cycle module"),
     payload: Dict[str, Any] = Body(...)
 ):
     min_usd = _parse_min_usd(min_usd_raw, default=1.0)
@@ -180,16 +185,23 @@ async def rebalance_plan(
     res = await resolve_current_balances(source=source)
     rows = [r for r in _to_rows(res.get("items", [])) if float(r.get("value_usd") or 0.0) >= min_usd]
 
-    # targets
-    targets_raw = payload.get("group_targets_pct") or payload.get("targets") or {}
-    group_targets_pct: Dict[str, float] = {}
-    if isinstance(targets_raw, dict):
+    # targets - support for dynamic CCS-based targets
+    if dynamic_targets and payload.get("dynamic_targets_pct"):
+        # CCS/cycle module provides pre-calculated targets
+        targets_raw = payload.get("dynamic_targets_pct", {})
         group_targets_pct = {str(k): float(v) for k, v in targets_raw.items()}
-    elif isinstance(targets_raw, list):
-        for it in targets_raw:
-            g = str(it.get("group"))
-            p = float(it.get("weight_pct", 0.0))
-            if g: group_targets_pct[g] = p
+    else:
+        # Standard targets from user input
+        targets_raw = payload.get("group_targets_pct") or payload.get("targets") or {}
+        group_targets_pct: Dict[str, float] = {}
+        if isinstance(targets_raw, dict):
+            group_targets_pct = {str(k): float(v) for k, v in targets_raw.items()}
+        elif isinstance(targets_raw, list):
+            for it in targets_raw:
+                g = str(it.get("group"))
+                p = float(it.get("weight_pct", 0.0))
+                if g:
+                    group_targets_pct[g] = p
 
     primary_symbols = _norm_primary_symbols(payload.get("primary_symbols"))
 
@@ -239,10 +251,11 @@ async def rebalance_plan_csv(
     source: str = Query("cointracking"),
     min_usd_raw: str | None = Query(None, alias="min_usd"),
     pricing: str = Query("local"),
+    dynamic_targets: bool = Query(False, description="Use dynamic targets from CCS/cycle module"),
     payload: Dict[str, Any] = Body(...)
 ):
     # réutilise le JSON pour construire le CSV
-    plan = await rebalance_plan(source=source, min_usd_raw=min_usd_raw, pricing=pricing, payload=payload)
+    plan = await rebalance_plan(source=source, min_usd_raw=min_usd_raw, pricing=pricing, dynamic_targets=dynamic_targets, payload=payload)
     actions = plan.get("actions") or []
     csv_text = _to_csv(actions)
     headers = {"Content-Disposition": 'attachment; filename="rebalance-actions.csv"'}
@@ -381,16 +394,17 @@ def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str, Any]]
     return plan
 
 def _to_csv(actions: List[Dict[str, Any]]) -> str:
-    lines = ["group,alias,symbol,action,usd,est_quantity,price_used"]
+    lines = ["group,alias,symbol,action,usd,est_quantity,price_used,exec_hint"]
     for a in actions or []:
-        lines.append("{},{},{},{},{:.2f},{},{}".format(
+        lines.append("{},{},{},{},{:.2f},{},{},{}".format(
             a.get("group",""),
             a.get("alias",""),
             a.get("symbol",""),
             a.get("action",""),
             float(a.get("usd") or 0.0),
             ("" if a.get("est_quantity") is None else f"{a.get('est_quantity')}"),
-            ("" if a.get("price_used")   is None else f"{a.get('price_used')}")
+            ("" if a.get("price_used")   is None else f"{a.get('price_used')}"),
+            a.get("exec_hint", "")
         ))
     return "\n".join(lines)
 
@@ -454,8 +468,11 @@ async def update_api_keys(payload: dict):
     
     return {"success": True, "updated": updated}
 
-# inclure les routes taxonomie
+# inclure les routes taxonomie, execution, monitoring et analytics
 app.include_router(taxonomy_router)
+app.include_router(execution_router)
+app.include_router(monitoring_router)
+app.include_router(analytics_router)
 
 # ---------- Portfolio Analytics ----------
 @app.get("/portfolio/metrics")

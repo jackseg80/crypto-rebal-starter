@@ -8,6 +8,78 @@ def _keynorm(s: str) -> str:
     return "".join(str(s).split()).upper()
 
 
+def _get_exec_hint(action: Dict[str, Any], items_by_group: Dict[str, List[Dict[str, Any]]]) -> str:
+    """
+    Génère un hint d'exécution basé sur les locations majoritaires du groupe.
+    
+    Args:
+        action: action de buy/sell avec group, alias, symbol
+        items_by_group: positions actuelles par groupe
+        
+    Returns:
+        exec_hint: suggestion d'exécution (ex: "CEX Binance", "DEX Solana", "Mixed platforms")
+    """
+    group = action.get("group", "")
+    action_type = action.get("action", "")
+    
+    # Récupérer les positions du groupe
+    group_items = items_by_group.get(group, [])
+    if not group_items:
+        return "No current positions"
+    
+    # Analyser les locations
+    locations = [item.get("location", "unknown") for item in group_items if item.get("value_usd", 0) > 0]
+    if not locations:
+        return "Platform TBD"
+    
+    # Compter les locations par valeur pondérée
+    location_values = {}
+    for item in group_items:
+        loc = item.get("location", "unknown")
+        value = item.get("value_usd", 0)
+        location_values[loc] = location_values.get(loc, 0) + value
+    
+    # Trouver la location majoritaire
+    total_value = sum(location_values.values())
+    if total_value == 0:
+        return "Platform TBD"
+    
+    # Trier par valeur
+    sorted_locs = sorted(location_values.items(), key=lambda x: x[1], reverse=True)
+    main_loc, main_value = sorted_locs[0]
+    main_percentage = (main_value / total_value) * 100
+    
+    # Normaliser les noms de locations courants
+    loc_map = {
+        "CoinTracking": "CEX (multi-exchange)",
+        "Binance": "CEX Binance", 
+        "Coinbase": "CEX Coinbase",
+        "Kraken": "CEX Kraken",
+        "Ledger": "Hardware wallet",
+        "MetaMask": "Software wallet",
+        "DeFi": "DEX/DeFi protocols"
+    }
+    
+    main_loc_clean = loc_map.get(main_loc, main_loc)
+    
+    # Générer le hint selon le type d'action et concentration
+    if main_percentage >= 80:
+        # Location très majoritaire
+        if action_type == "sell":
+            return f"Sell on {main_loc_clean}"
+        else:
+            return f"Buy on {main_loc_clean}"
+    elif main_percentage >= 60:
+        # Location majoritaire mais pas exclusive
+        if action_type == "sell":
+            return f"Prefer {main_loc_clean} (vente {main_percentage:.0f}%)"
+        else:
+            return f"Prefer {main_loc_clean} (achat)"
+    else:
+        # Répartition mixte
+        return f"Mixed platforms ({main_loc_clean} {main_percentage:.0f}%)"
+
+
 def _normalize_targets(targets_raw: Any) -> Dict[str, float]:
     """
     Accepte différents formats:
@@ -123,17 +195,17 @@ def _sell_actions_for_group(items: List[Dict[str, Any]], sell_amount: float) -> 
         usd = round(-min(remaining, share * abs(sell_amount)), 2)
         if usd == 0:
             continue
-        actions.append(
-            {
-                "group": it["group"],
-                "alias": it["alias"],
-                "symbol": it["symbol"],
-                "action": "sell",
-                "usd": usd,  # négatif
-                "est_quantity": None,
-                "price_used": None,
-            }
-        )
+        action = {
+            "group": it["group"],
+            "alias": it["alias"],
+            "symbol": it["symbol"],
+            "action": "sell",
+            "usd": usd,  # négatif
+            "est_quantity": None,
+            "price_used": None,
+        }
+        action["exec_hint"] = _get_exec_hint(action, by_group)
+        actions.append(action)
         remaining -= abs(usd)
 
     return actions
@@ -166,17 +238,17 @@ def _buy_actions_for_group(
 
     share = round(buy_amount / n, 2)
     for sym in targets:
-        actions.append(
-            {
-                "group": group,
-                "alias": group,   # on regroupe par alias de groupe
-                "symbol": sym,
-                "action": "buy",
-                "usd": share,     # positif
-                "est_quantity": None,
-                "price_used": None,
-            }
-        )
+        action = {
+            "group": group,
+            "alias": group,   # on regroupe par alias de groupe
+            "symbol": sym,
+            "action": "buy",
+            "usd": share,     # positif
+            "est_quantity": None,
+            "price_used": None,
+        }
+        action["exec_hint"] = _get_exec_hint(action, by_group)
+        actions.append(action)
 
     # ajuster le dernier pour compenser les arrondis
     diff = round(buy_amount - sum(a["usd"] for a in actions), 2)
@@ -188,7 +260,6 @@ def _buy_actions_for_group(
 
 # services/rebalance.py
 
-from typing import Any, Dict, List, Tuple
 from services.taxonomy import Taxonomy
 
 def plan_rebalance(
@@ -326,13 +397,15 @@ def plan_rebalance(
         for alias, usd in alloc.items():
             if abs(usd) < 1e-9:
                 continue
-            actions.append({
+            action = {
                 "group": g, "alias": alias, "symbol": alias,  # symbol = alias (agrégé)
                 "action": "sell",
                 "usd": -round(usd, 2),
                 "est_quantity": None,
                 "price_used": None,
-            })
+            }
+            action["exec_hint"] = _get_exec_hint(action, by_group)
+            actions.append(action)
 
     # 2) ACHATS (groupes sous-pondérés) – répartis sur primary_symbols[g] si fourni, sinon proportionnel aux alias existants
     ps = primary_symbols or {}
@@ -360,13 +433,15 @@ def plan_rebalance(
         for alias, usd in alloc.items():
             if abs(usd) < 1e-9:
                 continue
-            actions.append({
+            action = {
                 "group": g, "alias": alias, "symbol": alias,
                 "action": "buy",
                 "usd": round(usd, 2),
                 "est_quantity": None,
                 "price_used": None,
-            })
+            }
+            action["exec_hint"] = _get_exec_hint(action, by_group)
+            actions.append(action)
 
     # 3) Filtre min_trade_usd + petit rééquilibrage pour net ≈ 0
     actions = [a for a in actions if abs(a["usd"]) >= float(min_trade_usd or 0.0)]

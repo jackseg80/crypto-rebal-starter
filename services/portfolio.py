@@ -5,7 +5,7 @@ Service de portfolio analytics - calculs de performance, métriques, etc.
 from __future__ import annotations
 import os
 import json
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Any
 from datetime import datetime, timedelta
 import logging
 
