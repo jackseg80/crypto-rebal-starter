@@ -32,7 +32,17 @@ Légende : ✔️ fait · ⬜ à faire · ~ estimation
   - Provider ordre configurable : coingecko,binance,file
 - ✔️ Ligne d’équilibrage Σ(usd)=0
 
-## 3) Alias & taxonomy
+## 3) Interface utilisateur unifiée
+- ✔️ **Configuration centralisée** (`global-config.js`) avec localStorage
+- ✔️ **Navigation unifiée** (`shared-header.js`) sur toutes les pages
+- ✔️ **Dashboard portfolio** avec analytics et visualisations interactives
+- ✔️ **Gestion des clés API** avec synchronisation bidirectionnelle .env
+- ✔️ **Persistance intelligente** des plans avec restauration automatique (30min)
+- ✔️ **Workflow progressif** : Settings → Dashboard → Rebalancing → Classification
+- ✔️ **Page Settings** centralisée pour tous les paramètres
+- ✔️ **Indicateurs visuels** de configuration et validation des clés
+
+## 4) Alias & taxonomy
 - ✔️ `GET /taxonomy/unknown_aliases`
 - ✔️ `POST /taxonomy/aliases` (formats A/B)
 - ✔️ **Alias Manager** (interface dédiée avec recherche, filtrage, actions batch)

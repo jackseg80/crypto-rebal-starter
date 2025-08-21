@@ -76,34 +76,12 @@
 </style>
 </head>
 <body>
-<header>
-  <div class="wrap">
-    <h1>⚖️ Crypto Rebalancer</h1>
+<!-- Header sera injecté par shared-header.js -->
+
+<div class="wrap" style="margin-top: 20px;">
+  <!-- Configuration simplifiée -->
+  <div class="card" style="margin-bottom: 16px;">
     <div class="row">
-      <div>
-        <label>API</label><br/>
-        <input id="api_base" value="http://127.0.0.1:8000" style="width:260px">
-      </div>
-      <div>
-        <label>Source</label><br/>
-        <select id="source">
-          <option value="stub">stub (démo)</option>
-          <option value="cointracking">cointracking (CSV)</option>
-          <option value="cointracking_api">cointracking_api</option>
-        </select>
-      </div>
-      <div>
-        <label>min_usd</label><br/>
-        <input id="min_usd" type="number" value="1" style="width:90px">
-      </div>
-      <div>
-        <label>Pricing</label><br/>
-        <select id="pricing_mode">
-          <option value="local">Local (rapide)</option>
-          <option value="hybrid" selected>Hybride (recommandé)</option>
-          <option value="auto">Marché (précis)</option>
-        </select>
-      </div>
       <div style="align-self:flex-end">
         <button id="btnRun" class="btn">Générer le plan</button>
         <button id="btnCsv" class="btn secondary" disabled>Télécharger CSV</button>
@@ -114,7 +92,7 @@
       </div>
     </div>
   </div>
-</header>
+</div>
 
 <main class="wrap">
   <!-- Donuts -->
@@ -183,7 +161,7 @@
           </select>
           <button id="btnBulkAdd" class="btn ghost">Ajouter tout</button>
         </div>
-        <div>
+        <div id="alias-manager-button" style="display: none;">
           <button class="btn secondary small" onclick="openAliasManager()" title="Ouvrir l'interface de gestion des aliases">
             🏷️ Alias Manager
           </button>
@@ -194,6 +172,8 @@
   </section>
 </main>
 
+<script src="global-config.js"></script>
+<script src="shared-header.js"></script>
 <script>
 /* ---------- Helpers ---------- */
 const $  = sel => document.querySelector(sel);
@@ -249,10 +229,11 @@ function buildPayload(){
 }
 
 function currentQuery(){
-  const api = el("api_base").value.trim().replace(/\/+$/,'');
-  const source = el("source").value;
-  const min_usd = el("min_usd").value || "1";
-  const pricing = el("pricing_mode").value;
+  // Utiliser la configuration globale au lieu des champs locaux
+  const api = globalConfig.get('api_base_url').trim().replace(/\/+$/,'');
+  const source = globalConfig.get('data_source');
+  const min_usd = globalConfig.get('min_usd_threshold') || 1;
+  const pricing = globalConfig.get('pricing');
   const qs = new URLSearchParams({ source, min_usd, pricing }).toString();
   return { api, qs };
 }
@@ -423,10 +404,72 @@ async function addAliases(map){
 
 /* ---------- Flow ---------- */
 function persistSourceInit(){
-  const k = "reb_source";
-  const saved = localStorage.getItem(k);
-  el("source").value = saved || "stub"; // défaut: stub (pas d’appel auto)
-  el("source").addEventListener("change", ()=> localStorage.setItem(k, el("source").value));
+  // Plus nécessaire - la configuration est centralisée dans globalConfig
+  return;
+}
+
+// Restaurer le dernier plan sauvegardé
+function restoreLastPlan() {
+  if (!window.globalConfig?.hasPlan()) return false;
+  
+  const savedPlan = window.globalConfig.getLastPlanData();
+  if (!savedPlan) return false;
+  
+  // Vérifier l'âge du plan - ne pas restaurer automatiquement s'il est trop ancien
+  const planAge = Date.now() - (window.globalConfig.get('last_plan_timestamp') || 0);
+  const maxAge = 30 * 60 * 1000; // 30 minutes
+  
+  if (planAge > maxAge) {
+    // Plan trop ancien, juste afficher le bouton Alias Manager s'il y a des unknown aliases
+    const unknownCount = (savedPlan.unknown_aliases || []).length;
+    if (unknownCount > 0) {
+      const aliasManagerButton = document.getElementById('alias-manager-button');
+      if (aliasManagerButton) {
+        aliasManagerButton.style.display = 'block';
+        const button = aliasManagerButton.querySelector('button');
+        if (button) {
+          button.innerHTML = `🏷️ Alias Manager (${unknownCount})`;
+          button.style.background = '#f59e0b';
+          button.style.color = 'white';
+        }
+      }
+    }
+    setStatus('Plan précédent disponible - Cliquez "Générer le plan" pour actualiser');
+    return false;
+  }
+  
+  try {
+    // Restaurer l'affichage du plan récent
+    renderDonuts(savedPlan);
+    renderSummary(savedPlan);
+    renderActions(savedPlan.actions||[]);
+    updatePricingBadge(savedPlan.actions||[], savedPlan);
+    renderUnknownAliases(savedPlan.unknown_aliases||[]);
+    setTotal(savedPlan?.total_usd);
+    
+    // Réactiver le bouton CSV
+    el("btnCsv").disabled = false;
+    
+    // Afficher le bouton Alias Manager si nécessaire
+    const unknownCount = (savedPlan.unknown_aliases || []).length;
+    const aliasManagerButton = document.getElementById('alias-manager-button');
+    if (aliasManagerButton && unknownCount > 0) {
+      aliasManagerButton.style.display = 'block';
+      const button = aliasManagerButton.querySelector('button');
+      if (button) {
+        button.innerHTML = `🏷️ Alias Manager (${unknownCount})`;
+        button.style.background = '#f59e0b';
+        button.style.color = 'white';
+      }
+    }
+    
+    const ageMin = Math.round(planAge / 60000);
+    setStatus(`Plan restauré (généré il y a ${ageMin}min)`);
+    return true;
+  } catch (error) {
+    console.error('Erreur restauration plan:', error);
+    return false;
+  }
 }
 
 async function runPlan(){
@@ -445,6 +488,25 @@ async function runPlan(){
     updatePricingBadge(plan.actions||[], plan);
     renderUnknownAliases(plan.unknown_aliases||[]);
     setTotal(plan?.total_usd);
+
+    // Marquer le plan comme généré et activer l'Alias Manager
+    const unknownAliasesCount = (plan.unknown_aliases || []).length;
+    if (window.globalConfig) {
+      window.globalConfig.markPlanGenerated(unknownAliasesCount, plan);
+    }
+    
+    // Afficher le bouton Alias Manager
+    const aliasManagerButton = document.getElementById('alias-manager-button');
+    if (aliasManagerButton) {
+      aliasManagerButton.style.display = 'block';
+      // Mettre à jour le texte du bouton si des unknown aliases sont détectés
+      const button = aliasManagerButton.querySelector('button');
+      if (button && unknownAliasesCount > 0) {
+        button.innerHTML = `🏷️ Alias Manager (${unknownAliasesCount} nouveaux)`;
+        button.style.background = '#f59e0b';
+        button.style.color = 'white';
+      }
+    }
 
     const ms = Math.round(performance.now() - t0);
     let statusText = `OK • ${ms} ms • source=${plan?.meta?.source_used||'(?)'} • items=${plan?.meta?.items_count??"-"}`;
@@ -514,11 +576,18 @@ function openAliasManager() {
 
 /* ---------- Init ---------- */
 window.addEventListener("DOMContentLoaded", ()=>{
+  // Initialiser le header partagé
+  initSharedHeader('rebalance', { showConfigIndicators: true });
+  
   persistSourceInit();
   el("btnRun").addEventListener("click", runPlan);
   el("btnCsv").addEventListener("click", downloadCsv);
   el("btnBulkAdd").addEventListener("click", bulkAddUnknown);
-  setStatus("Prêt.");
+  
+  // Essayer de restaurer le dernier plan
+  if (!restoreLastPlan()) {
+    setStatus("Prêt.");
+  }
 });
 </script>
 </body>

@@ -17,6 +17,7 @@ from connectors.cointracking_api import get_current_balances as ct_api_get_curre
 from services.rebalance import plan_rebalance
 from services.taxonomy import Taxonomy
 from services.pricing import get_prices_usd
+from services.portfolio import portfolio_analytics
 from api.taxonomy_endpoints import router as taxonomy_router, _merged_aliases, _all_groups
 
 app = FastAPI()
@@ -171,6 +172,7 @@ async def rebalance_plan(
     source: str = Query("cointracking"),
     min_usd_raw: str | None = Query(None, alias="min_usd"),
     pricing: str = Query("local"),   # local | auto
+    dynamic_targets: bool = Query(False, description="Use dynamic targets from CCS/cycle module"),
     payload: Dict[str, Any] = Body(...)
 ):
     min_usd = _parse_min_usd(min_usd_raw, default=1.0)
@@ -179,16 +181,22 @@ async def rebalance_plan(
     res = await resolve_current_balances(source=source)
     rows = [r for r in _to_rows(res.get("items", [])) if float(r.get("value_usd") or 0.0) >= min_usd]
 
-    # targets
-    targets_raw = payload.get("group_targets_pct") or payload.get("targets") or {}
-    group_targets_pct: Dict[str, float] = {}
-    if isinstance(targets_raw, dict):
+    # targets - support for dynamic CCS-based targets
+    if dynamic_targets and payload.get("dynamic_targets_pct"):
+        # CCS/cycle module provides pre-calculated targets
+        targets_raw = payload.get("dynamic_targets_pct", {})
         group_targets_pct = {str(k): float(v) for k, v in targets_raw.items()}
-    elif isinstance(targets_raw, list):
-        for it in targets_raw:
-            g = str(it.get("group"))
-            p = float(it.get("weight_pct", 0.0))
-            if g: group_targets_pct[g] = p
+    else:
+        # Standard targets from user input
+        targets_raw = payload.get("group_targets_pct") or payload.get("targets") or {}
+        group_targets_pct: Dict[str, float] = {}
+        if isinstance(targets_raw, dict):
+            group_targets_pct = {str(k): float(v) for k, v in targets_raw.items()}
+        elif isinstance(targets_raw, list):
+            for it in targets_raw:
+                g = str(it.get("group"))
+                p = float(it.get("weight_pct", 0.0))
+                if g: group_targets_pct[g] = p
 
     primary_symbols = _norm_primary_symbols(payload.get("primary_symbols"))
 
@@ -238,10 +246,11 @@ async def rebalance_plan_csv(
     source: str = Query("cointracking"),
     min_usd_raw: str | None = Query(None, alias="min_usd"),
     pricing: str = Query("local"),
+    dynamic_targets: bool = Query(False, description="Use dynamic targets from CCS/cycle module"),
     payload: Dict[str, Any] = Body(...)
 ):
     # réutilise le JSON pour construire le CSV
-    plan = await rebalance_plan(source=source, min_usd_raw=min_usd_raw, pricing=pricing, payload=payload)
+    plan = await rebalance_plan(source=source, min_usd_raw=min_usd_raw, pricing=pricing, dynamic_targets=dynamic_targets, payload=payload)
     actions = plan.get("actions") or []
     csv_text = _to_csv(actions)
     headers = {"Content-Disposition": 'attachment; filename="rebalance-actions.csv"'}
@@ -380,16 +389,17 @@ def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str, Any]]
     return plan
 
 def _to_csv(actions: List[Dict[str, Any]]) -> str:
-    lines = ["group,alias,symbol,action,usd,est_quantity,price_used"]
+    lines = ["group,alias,symbol,action,usd,est_quantity,price_used,exec_hint"]
     for a in actions or []:
-        lines.append("{},{},{},{},{:.2f},{},{}".format(
+        lines.append("{},{},{},{},{:.2f},{},{},{}".format(
             a.get("group",""),
             a.get("alias",""),
             a.get("symbol",""),
             a.get("action",""),
             float(a.get("usd") or 0.0),
             ("" if a.get("est_quantity") is None else f"{a.get('est_quantity')}"),
-            ("" if a.get("price_used")   is None else f"{a.get('price_used')}")
+            ("" if a.get("price_used")   is None else f"{a.get('price_used')}"),
+            a.get("exec_hint", "")
         ))
     return "\n".join(lines)
 
@@ -399,5 +409,109 @@ async def debug_ctapi():
     """Endpoint de debug pour CoinTracking API"""
     return _debug_probe()
 
+@app.get("/debug/api-keys")
+async def debug_api_keys():
+    """Expose les clés API depuis .env pour auto-configuration"""
+    return {
+        "coingecko_api_key": os.getenv("COINGECKO_API_KEY", ""),
+        "cointracking_api_key": os.getenv("COINTRACKING_API_KEY", ""),
+        "cointracking_api_secret": os.getenv("COINTRACKING_API_SECRET", "")
+    }
+
+@app.post("/debug/api-keys")
+async def update_api_keys(payload: dict):
+    """Met à jour les clés API dans le fichier .env"""
+    import re
+    from pathlib import Path
+    
+    env_file = Path(".env")
+    if not env_file.exists():
+        # Créer le fichier .env s'il n'existe pas
+        env_file.write_text("# Clés API générées automatiquement\n")
+    
+    content = env_file.read_text()
+    
+    # Définir les mappings clé -> nom dans .env
+    key_mappings = {
+        "coingecko_api_key": "COINGECKO_API_KEY",
+        "cointracking_api_key": "COINTRACKING_API_KEY", 
+        "cointracking_api_secret": "COINTRACKING_API_SECRET"
+    }
+    
+    updated = False
+    for field_key, env_key in key_mappings.items():
+        if field_key in payload and payload[field_key]:
+            # Chercher si la clé existe déjà
+            pattern = rf"^{env_key}=.*$"
+            new_line = f"{env_key}={payload[field_key]}"
+            
+            if re.search(pattern, content, re.MULTILINE):
+                # Remplacer la ligne existante
+                content = re.sub(pattern, new_line, content, flags=re.MULTILINE)
+            else:
+                # Ajouter la nouvelle clé
+                content += f"\n{new_line}"
+            updated = True
+    
+    if updated:
+        env_file.write_text(content)
+        # Recharger les variables d'environnement
+        import os
+        for field_key, env_key in key_mappings.items():
+            if field_key in payload and payload[field_key]:
+                os.environ[env_key] = payload[field_key]
+    
+    return {"success": True, "updated": updated}
+
 # inclure les routes taxonomie
 app.include_router(taxonomy_router)
+
+# ---------- Portfolio Analytics ----------
+@app.get("/portfolio/metrics")
+async def portfolio_metrics(source: str = Query("cointracking")):
+    """Métriques calculées du portfolio"""
+    try:
+        # Récupérer les données de balance actuelles
+        res = await resolve_current_balances(source=source)
+        rows = _to_rows(res.get("items", []))
+        balances = {"source_used": res.get("source_used"), "items": rows}
+        
+        # Calculer les métriques
+        metrics = portfolio_analytics.calculate_portfolio_metrics(balances)
+        performance = portfolio_analytics.calculate_performance_metrics(metrics)
+        
+        return {
+            "ok": True,
+            "metrics": metrics,
+            "performance": performance
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+@app.post("/portfolio/snapshot")
+async def save_portfolio_snapshot(source: str = Query("cointracking")):
+    """Sauvegarde un snapshot du portfolio pour suivi historique"""
+    try:
+        # Récupérer les données actuelles
+        res = await resolve_current_balances(source=source)
+        rows = _to_rows(res.get("items", []))
+        balances = {"source_used": res.get("source_used"), "items": rows}
+        
+        # Sauvegarder le snapshot
+        success = portfolio_analytics.save_portfolio_snapshot(balances)
+        
+        if success:
+            return {"ok": True, "message": "Snapshot sauvegardé"}
+        else:
+            return {"ok": False, "error": "Erreur lors de la sauvegarde"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+@app.get("/portfolio/trend")
+async def portfolio_trend(days: int = Query(30, ge=1, le=365)):
+    """Données de tendance du portfolio pour graphiques"""
+    try:
+        trend_data = portfolio_analytics.get_portfolio_trend(days)
+        return {"ok": True, "trend": trend_data}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
