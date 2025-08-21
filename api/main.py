@@ -7,6 +7,8 @@ import time
 from fastapi import FastAPI, Query, Body, Response
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
 
 # Charger les variables d'environnement depuis .env
 load_dotenv()
@@ -30,6 +32,19 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],         # important pour POST CSV + preflight
     allow_headers=["*"],
+)
+
+BASE_DIR = Path(__file__).resolve().parent     # répertoire du repo (main.py à la racine)
+STATIC_DIR = BASE_DIR / "static"               # D:\Python\crypto-rebal-starter\static
+
+if not STATIC_DIR.exists():
+    # fallback si l’arbo a changé
+    STATIC_DIR = Path.cwd() / "static"
+
+app.mount(
+    "/static",
+    StaticFiles(directory=str(STATIC_DIR), html=True),
+    name="static",
 )
 
 # petit cache prix optionnel (si tu l’as déjà chez toi, garde le tien)
