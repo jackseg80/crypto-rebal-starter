@@ -165,8 +165,9 @@ def test_execution_workflow():
         print(f"\n📋 Exemples d'ordres:")
         for i, order in enumerate(orders[:3]):
             status_emoji = "✅" if order["status"] == "filled" else "❌" if order["status"] == "failed" else "⏳"
+            avg_price = order.get('avg_fill_price') or 0
             print(f"   {status_emoji} {order['alias']}: {order['action']} ${abs(order['usd_amount']):.2f} "
-                  f"@ ${order.get('avg_fill_price', 0):.2f}")
+                  f"@ ${avg_price:.2f}")
     
     # 7. Statut global du pipeline
     print("\n7️⃣ Statut du pipeline...")
