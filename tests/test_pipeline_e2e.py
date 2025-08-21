@@ -10,8 +10,6 @@ Ce script démontre le pipeline complet:
 4. Tracking analytics et performance
 """
 
-import asyncio
-import json
 import requests
 import time
 from datetime import datetime
@@ -231,7 +229,6 @@ class PipelineE2ETester:
         self.log(f"OK Execution lancee: {execution_id[:8]}...")
         
         # Attendre un peu pour l'exécution simulée
-        import time
         time.sleep(2)
         
         # Étape 5c: Vérifier le statut d'exécution  

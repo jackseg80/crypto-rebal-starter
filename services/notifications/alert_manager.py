@@ -9,7 +9,7 @@ Ce module gère les alertes pour le pipeline de rebalancement :
 """
 
 from __future__ import annotations
-from typing import Dict, List, Any, Optional, Callable, Set
+from typing import Dict, List, Any, Optional, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from enum import Enum

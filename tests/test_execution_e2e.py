@@ -10,9 +10,7 @@ Ce script teste le workflow complet:
 """
 
 import requests
-import json
 import time
-import asyncio
 
 API_BASE = "http://localhost:8001"
 
@@ -156,13 +154,13 @@ def test_execution_workflow():
         failed = sum(1 for o in orders if o["status"] == "failed")
         total_fees = sum(o["fees"] for o in orders)
         
-        print(f"📈 Résultats détaillés:")
+        print("📈 Résultats détaillés:")
         print(f"   ✅ Complétés: {completed}/{len(orders)}")
         print(f"   ❌ Échecs: {failed}/{len(orders)}")
         print(f"   💰 Frais totaux: ${total_fees:.4f}")
         
         # Afficher quelques ordres exemple
-        print(f"\n📋 Exemples d'ordres:")
+        print("\n📋 Exemples d'ordres:")
         for i, order in enumerate(orders[:3]):
             status_emoji = "✅" if order["status"] == "filled" else "❌" if order["status"] == "failed" else "⏳"
             avg_price = order.get('avg_fill_price') or 0

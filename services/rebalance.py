@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
-from collections import Counter
 
 
 def _keynorm(s: str) -> str:
@@ -261,7 +260,6 @@ def _buy_actions_for_group(
 
 # services/rebalance.py
 
-from typing import Any, Dict, List, Tuple
 from services.taxonomy import Taxonomy
 
 def plan_rebalance(

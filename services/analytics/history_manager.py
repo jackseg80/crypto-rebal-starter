@@ -6,14 +6,13 @@ permettant l'analyse des performances et l'optimisation des stratégies.
 """
 
 from __future__ import annotations
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone, timedelta
 from enum import Enum
 import json
 import logging
 import uuid
-import os
 from pathlib import Path
 
 logger = logging.getLogger(__name__)

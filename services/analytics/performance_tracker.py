@@ -8,7 +8,7 @@ pour optimiser les stratégies de rebalancement.
 from __future__ import annotations
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 import logging
 try:
     import numpy as np

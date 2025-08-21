@@ -4,7 +4,6 @@ Test simple du système d'exécution
 """
 
 import requests
-import json
 import time
 
 API_BASE = "http://localhost:8001"

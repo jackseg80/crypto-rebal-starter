@@ -15,10 +15,9 @@ from connectors import cointracking as ct_file
 from connectors.cointracking_api import get_current_balances as ct_api_get_current_balances, _debug_probe
 
 from services.rebalance import plan_rebalance
-from services.taxonomy import Taxonomy
 from services.pricing import get_prices_usd
 from services.portfolio import portfolio_analytics
-from api.taxonomy_endpoints import router as taxonomy_router, _merged_aliases, _all_groups
+from api.taxonomy_endpoints import router as taxonomy_router
 from api.execution_endpoints import router as execution_router
 from api.monitoring_endpoints import router as monitoring_router
 from api.analytics_endpoints import router as analytics_router
@@ -36,9 +35,11 @@ app.add_middleware(
 # petit cache prix optionnel (si tu l’as déjà chez toi, garde le tien)
 _PRICE_CACHE: Dict[str, tuple] = {}  # symbol -> (ts, price)
 def _cache_get(cache: dict, key: Any, ttl: int):
-    if ttl <= 0: return None
+    if ttl <= 0:
+        return None
     ent = cache.get(key)
-    if not ent: return None
+    if not ent:
+        return None
     ts, val = ent
     if monotonic() - ts > ttl:
         cache.pop(key, None)
@@ -199,7 +200,8 @@ async def rebalance_plan(
             for it in targets_raw:
                 g = str(it.get("group"))
                 p = float(it.get("weight_pct", 0.0))
-                if g: group_targets_pct[g] = p
+                if g:
+                    group_targets_pct[g] = p
 
     primary_symbols = _norm_primary_symbols(payload.get("primary_symbols"))
 

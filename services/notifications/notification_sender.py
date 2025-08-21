@@ -11,7 +11,6 @@ Ce module gère l'envoi des notifications via différents canaux :
 from __future__ import annotations
 from typing import Dict, List, Any, Optional, Protocol
 from dataclasses import dataclass
-from abc import ABC, abstractmethod
 import logging
 import smtplib
 import requests
@@ -23,7 +22,6 @@ except ImportError:
     # Fallback pour certaines versions Python
     MimeText = None
     MimeMultipart = None
-from datetime import datetime
 
 from .alert_manager import Alert, AlertLevel
 

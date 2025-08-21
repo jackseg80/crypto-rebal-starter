@@ -6,15 +6,14 @@ en gérant la validation, l'exécution séquentielle, et le monitoring.
 """
 
 from __future__ import annotations
-from typing import Dict, List, Any, Optional, AsyncGenerator, Callable
+from typing import Dict, List, Any, Optional, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import asyncio
 import logging
-import uuid
 
 from .order_manager import OrderManager, Order, OrderStatus, ExecutionPlan
-from .exchange_adapter import ExchangeRegistry, ExchangeAdapter, OrderResult, exchange_registry
+from .exchange_adapter import ExchangeRegistry, exchange_registry
 
 logger = logging.getLogger(__name__)
 

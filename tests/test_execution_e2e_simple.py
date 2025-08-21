@@ -4,10 +4,8 @@ Test E2E Simple du système d'exécution
 Version simplifiée sans emojis pour compatibilité Windows
 """
 
-import asyncio
 import requests
 import time
-import json
 
 API_BASE = "http://localhost:8001"
 
@@ -134,13 +132,13 @@ def test_execution_workflow():
         failed = len([o for o in orders if o["status"] == "failed"])
         total_fees = sum(float(o.get("fees", 0)) for o in orders)
         
-        print(f"RESULTS Resultats detailles:")
+        print("RESULTS Resultats detailles:")
         print(f"   OK Completes: {completed}/{len(orders)}")
         print(f"   FAIL Echecs: {failed}/{len(orders)}")
         print(f"   FEES Frais totaux: ${total_fees:.4f}")
         
         # Afficher quelques ordres exemple
-        print(f"\nEXAMPLES Exemples d'ordres:")
+        print("\nEXAMPLES Exemples d'ordres:")
         for i, order in enumerate(orders[:3]):
             status_text = "OK" if order["status"] == "filled" else "FAIL" if order["status"] == "failed" else "WAIT"
             avg_price = order.get('avg_fill_price') or 0

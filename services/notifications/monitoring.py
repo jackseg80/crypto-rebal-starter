@@ -6,7 +6,7 @@ pour surveiller en continu l'état du système.
 """
 
 from __future__ import annotations
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any, Optional
 import asyncio
 import logging
 from datetime import datetime, timezone

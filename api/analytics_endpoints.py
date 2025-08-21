@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Query, Body
 from pydantic import BaseModel, Field
 from typing import Dict, List, Any, Optional, Tuple
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from services.analytics.history_manager import history_manager, SessionStatus, PortfolioSnapshot
 from services.analytics.performance_tracker import performance_tracker

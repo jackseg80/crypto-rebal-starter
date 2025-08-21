@@ -6,7 +6,7 @@ exchanges (CEX et DEX) de manière standardisée.
 """
 
 from __future__ import annotations
-from typing import Dict, List, Any, Optional, Protocol, Union
+from typing import Dict, List, Any, Optional
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
@@ -14,7 +14,7 @@ import logging
 import asyncio
 from datetime import datetime, timezone
 
-from .order_manager import Order, OrderStatus, OrderType
+from .order_manager import Order, OrderStatus
 
 logger = logging.getLogger(__name__)
 

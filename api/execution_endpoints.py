@@ -12,7 +12,6 @@ import logging
 from datetime import datetime
 
 from services.execution.execution_engine import execution_engine
-from services.execution.order_manager import OrderManager, ExecutionPlan
 from services.execution.exchange_adapter import exchange_registry
 
 logger = logging.getLogger(__name__)

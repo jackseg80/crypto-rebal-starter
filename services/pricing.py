@@ -1,5 +1,7 @@
 # services/pricing.py
-import json, os, time
+import json
+import os
+import time
 from urllib.request import urlopen
 from urllib.error import URLError
 
