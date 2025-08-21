@@ -178,6 +178,28 @@
     </div>
   </div>
 
+  <!-- Breakdown par Lieu -->
+  <div class="card">
+    <h3>🏢 Répartition par Lieu</h3>
+    <div class="row">
+      <div class="col">
+        <div id="locations-breakdown" style="min-height: 200px;">
+          <div style="text-align: center; padding: 40px;">
+            <span class="loading"></span>
+          </div>
+        </div>
+      </div>
+      <div class="col">
+        <div id="locations-chart-container" style="height: 200px; position: relative;">
+          <canvas id="locations-chart" width="200" height="200"></canvas>
+          <div id="locations-chart-placeholder" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center;">
+            <span class="loading"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Detailed Holdings -->
   <div class="card">
     <h3>📋 Holdings Détaillés</h3>
@@ -302,6 +324,7 @@ async function loadDashboard() {
     updateMetrics();
     updateAllocationChart();
     updateTopHoldings();
+    updateLocationsBreakdown();
     updateHoldingsTable();
     
     // Success status
@@ -538,6 +561,81 @@ function updateTopHoldings() {
   }).join('');
   
   document.getElementById('top-holdings').innerHTML = html;
+}
+
+// Breakdown par lieu
+async function updateLocationsBreakdown() {
+  const container = document.getElementById('locations-breakdown');
+  const chartPlaceholder = document.getElementById('locations-chart-placeholder');
+  const chartCanvas = document.getElementById('locations-chart');
+  
+  try {
+    // Fetch breakdown data
+    const breakdownData = await globalConfig.apiRequest('/portfolio/breakdown-locations');
+    
+    if (!breakdownData.ok || !breakdownData.breakdown) {
+      container.innerHTML = '<div style="text-align: center; color: var(--muted);">Aucune donnée de lieu disponible</div>';
+      return;
+    }
+    
+    const { locations, total_value_usd } = breakdownData.breakdown;
+    
+    if (!locations || locations.length === 0) {
+      container.innerHTML = '<div style="text-align: center; color: var(--muted);">Aucun lieu trouvé</div>';
+      return;
+    }
+    
+    // Render locations list
+    const locationsHtml = locations.map(location => `
+      <div style="padding: 12px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <div style="font-weight: 600; margin-bottom: 4px;">🏢 ${location.location}</div>
+          <div style="font-size: 12px; color: var(--muted);">${location.asset_count} assets</div>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-weight: 600;">${formatUSD(location.total_value_usd)}</div>
+          <div style="font-size: 12px; color: var(--muted);">${formatPercent(location.percentage)}</div>
+        </div>
+      </div>
+    `).join('');
+    
+    container.innerHTML = locationsHtml;
+    
+    // Create chart
+    const ctx = chartCanvas.getContext('2d');
+    const chartData = {
+      labels: locations.map(l => l.location),
+      datasets: [{
+        data: locations.map(l => l.total_value_usd),
+        backgroundColor: [
+          '#2dd4bf', '#f59e0b', '#ef4444', '#22c55e', '#3b82f6', 
+          '#a78bfa', '#f472b6', '#fb923c', '#14b8a6', '#84cc16'
+        ],
+        borderWidth: 2,
+        borderColor: '#1f2b3a'
+      }]
+    };
+    
+    new Chart(ctx, {
+      type: 'doughnut',
+      data: chartData,
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false
+          }
+        }
+      }
+    });
+    
+    chartPlaceholder.style.display = 'none';
+    
+  } catch (error) {
+    console.error('Erreur chargement breakdown locations:', error);
+    container.innerHTML = '<div style="text-align: center; color: var(--danger);">Erreur: ' + error.message + '</div>';
+  }
 }
 
 // Tableau détaillé

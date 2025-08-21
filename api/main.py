@@ -538,3 +538,64 @@ async def portfolio_trend(days: int = Query(30, ge=1, le=365)):
         return {"ok": True, "trend": trend_data}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+@app.get("/portfolio/breakdown-locations")
+async def portfolio_breakdown_locations(source: str = Query("cointracking")):
+    """Breakdown du portfolio par exchange/location"""
+    try:
+        res = await resolve_current_balances(source=source)
+        rows = _to_rows(res.get("items", []))
+        balances = {"source_used": res.get("source_used"), "items": rows}
+        
+        # Grouper par location
+        locations = {}
+        total_value = 0
+        
+        for item in balances.get("items", []):
+            location = item.get("location", "Unknown")
+            value_usd = item.get("value_usd", 0)
+            
+            if value_usd > 0:
+                if location not in locations:
+                    locations[location] = {
+                        "location": location,
+                        "total_value_usd": 0,
+                        "asset_count": 0,
+                        "assets": []
+                    }
+                
+                locations[location]["total_value_usd"] += value_usd
+                locations[location]["asset_count"] += 1
+                locations[location]["assets"].append({
+                    "symbol": item.get("symbol"),
+                    "alias": item.get("alias"),
+                    "value_usd": value_usd,
+                    "amount": item.get("amount"),
+                    "percentage": 0  # Will be calculated below
+                })
+                
+                total_value += value_usd
+        
+        # Calculer les pourcentages
+        for location_data in locations.values():
+            location_data["percentage"] = (location_data["total_value_usd"] / total_value) if total_value > 0 else 0
+            
+            # Calculer les pourcentages des assets dans cette location
+            location_total = location_data["total_value_usd"]
+            for asset in location_data["assets"]:
+                asset["percentage"] = (asset["value_usd"] / location_total) if location_total > 0 else 0
+        
+        # Trier par valeur décroissante
+        sorted_locations = sorted(locations.values(), key=lambda x: x["total_value_usd"], reverse=True)
+        
+        return {
+            "ok": True,
+            "breakdown": {
+                "total_value_usd": total_value,
+                "location_count": len(locations),
+                "locations": sorted_locations
+            }
+        }
+        
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
