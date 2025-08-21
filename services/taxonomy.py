@@ -241,6 +241,40 @@ def auto_classify_symbol(symbol: str) -> str:
     # Fallback
     return "Others"
 
+async def auto_classify_symbol_enhanced(symbol: str, use_coingecko: bool = True) -> str:
+    """
+    Classification automatique améliorée avec support CoinGecko.
+    
+    Args:
+        symbol: Le symbole crypto à classifier
+        use_coingecko: Utiliser CoinGecko comme source secondaire
+    
+    Returns:
+        Le groupe suggéré ou "Others" si aucune classification trouvée
+    """
+    if not symbol:
+        return "Others"
+    
+    # 1. D'abord, essayer les patterns regex existants
+    regex_result = auto_classify_symbol(symbol)
+    if regex_result != "Others":
+        return regex_result
+    
+    # 2. Si échec et CoinGecko activé, essayer l'enrichissement
+    if use_coingecko:
+        try:
+            from .coingecko import coingecko_service
+            coingecko_result = await coingecko_service.classify_symbol(symbol)
+            if coingecko_result:
+                return coingecko_result
+        except Exception as e:
+            # Log l'erreur mais continue sans CoinGecko
+            import logging
+            logging.getLogger(__name__).debug(f"Erreur CoinGecko pour {symbol}: {e}")
+    
+    # 3. Fallback vers "Others"
+    return "Others"
+
 def get_classification_suggestions(unknown_symbols: List[str]) -> Dict[str, str]:
     """
     Génère des suggestions de classification pour une liste de symboles inconnus.
@@ -249,6 +283,27 @@ def get_classification_suggestions(unknown_symbols: List[str]) -> Dict[str, str]
     suggestions = {}
     for symbol in unknown_symbols:
         suggested_group = auto_classify_symbol(symbol)
+        # Ne suggère que si ce n'est pas "Others" (pas de pattern trouvé)
+        if suggested_group != "Others":
+            suggestions[symbol.upper()] = suggested_group
+    
+    return suggestions
+
+async def get_classification_suggestions_enhanced(unknown_symbols: List[str], use_coingecko: bool = True) -> Dict[str, str]:
+    """
+    Version améliorée avec support CoinGecko pour les suggestions de classification.
+    
+    Args:
+        unknown_symbols: Liste des symboles à classifier
+        use_coingecko: Utiliser CoinGecko comme source secondaire
+    
+    Returns:
+        Dictionnaire {symbol: suggested_group} pour les symboles classifiés
+    """
+    suggestions = {}
+    
+    for symbol in unknown_symbols:
+        suggested_group = await auto_classify_symbol_enhanced(symbol, use_coingecko)
         # Ne suggère que si ce n'est pas "Others" (pas de pattern trouvé)
         if suggested_group != "Others":
             suggestions[symbol.upper()] = suggested_group

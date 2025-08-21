@@ -18,7 +18,10 @@
       "Bash(git push:*)",
       "Bash(time curl:*)",
       "Bash(git checkout:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "WebSearch",
+      "WebFetch(domain:docs.coingecko.com)",
+      "WebFetch(domain:www.coingecko.com)"
     ],
     "deny": [],
     "ask": []

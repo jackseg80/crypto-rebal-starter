@@ -2,7 +2,7 @@
 from __future__ import annotations
 import os
 import json
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, Body, HTTPException, Query
 try:
     import taxonomy  # DEFAULT_GROUPS, GROUP_ALIASES (mapping par défaut .py)
@@ -226,3 +226,143 @@ def auto_classify_unknowns(payload: Dict[str, Any] = Body(default={})) -> Dict[s
         "source": source,
         "upsert_result": result
     }
+
+# Nouveaux endpoints pour l'enrichissement CoinGecko
+
+@router.post("/suggestions-enhanced")
+async def suggestions_enhanced(payload: Dict[str, Any] = Body({})):
+    """
+    Version améliorée des suggestions avec support CoinGecko
+    """
+    from services.taxonomy import get_classification_suggestions_enhanced
+    
+    sample_symbols = payload.get("sample_symbols", "")
+    if sample_symbols:
+        # Utiliser les symboles fournis pour test
+        symbols_list = [s.strip().upper() for s in sample_symbols.split(",") if s.strip()]
+        source = "sample_symbols"
+    else:
+        # Récupérer les unknown aliases du cache du dernier plan
+        symbols_list = get_cached_unknown_aliases()
+        source = "last_plan_cache"
+        
+        if not symbols_list:
+            return {
+                "source": source,
+                "unknown_count": 0,
+                "auto_classified_count": 0,
+                "coverage": 0.0,
+                "suggestions": {},
+                "note": "Aucun unknown alias trouvé. Générez d'abord un plan de rebalancement ou utilisez sample_symbols pour tester"
+            }
+    
+    if not symbols_list:
+        return {
+            "source": source,
+            "unknown_count": 0,
+            "auto_classified_count": 0,
+            "coverage": 0.0,
+            "suggestions": {}
+        }
+    
+    # Générer suggestions avec CoinGecko
+    suggestions = await get_classification_suggestions_enhanced(symbols_list, use_coingecko=True)
+    
+    return {
+        "source": source,
+        "unknown_count": len(symbols_list),
+        "auto_classified_count": len(suggestions),
+        "coverage": len(suggestions) / len(symbols_list) if symbols_list else 0.0,
+        "suggestions": suggestions,
+        "enhanced": True,
+        "coingecko_enabled": True
+    }
+
+@router.post("/auto-classify-enhanced")
+async def auto_classify_enhanced(payload: Dict[str, Any] = Body({})):
+    """
+    Version améliorée de l'auto-classification avec support CoinGecko
+    """
+    from services.taxonomy import get_classification_suggestions_enhanced
+    
+    sample_symbols = payload.get("sample_symbols", "")
+    if sample_symbols:
+        # Utiliser les symboles fournis pour test
+        unknown_aliases = [s.strip().upper() for s in sample_symbols.split(",") if s.strip()]
+        source = "sample_symbols"
+    else:
+        # Récupérer les unknown aliases du cache du dernier plan
+        unknown_aliases = get_cached_unknown_aliases()
+        source = "last_plan_cache"
+        
+        if not unknown_aliases:
+            return {"ok": False, "message": "Aucun unknown alias trouvé. Générez d'abord un plan de rebalancement ou utilisez le paramètre sample_symbols pour tester", "classified": 0}
+    
+    if not unknown_aliases:
+        return {"ok": True, "message": "Aucun alias inconnu à classifier", "classified": 0}
+    
+    # Générer suggestions avec CoinGecko
+    suggestions = await get_classification_suggestions_enhanced(unknown_aliases, use_coingecko=True)
+    
+    if not suggestions:
+        return {"ok": True, "message": f"Aucune suggestion automatique trouvée pour les {len(unknown_aliases)} aliases: {', '.join(unknown_aliases[:5])}", "classified": 0}
+    
+    # Appliquer les suggestions via l'endpoint existant
+    result = upsert_aliases({"aliases": suggestions})
+    
+    return {
+        "ok": True, 
+        "message": f"{len(suggestions)} aliases classifiés automatiquement (avec CoinGecko)",
+        "classified": len(suggestions),
+        "suggestions_applied": suggestions,
+        "source": source,
+        "enhanced": True,
+        "coingecko_enabled": True,
+        "upsert_result": result
+    }
+
+@router.get("/coingecko-stats")
+async def coingecko_stats():
+    """
+    Statistiques sur le service CoinGecko
+    """
+    try:
+        from services.coingecko import coingecko_service
+        stats = await coingecko_service.get_enrichment_stats()
+        return {"ok": True, "stats": stats}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+@router.post("/enrich-from-coingecko")
+async def enrich_from_coingecko(payload: Dict[str, Any] = Body({})):
+    """
+    Enrichit directement des symboles via CoinGecko sans les patterns regex
+    """
+    sample_symbols = payload.get("sample_symbols", "")
+    if not sample_symbols:
+        return {"ok": False, "message": "Le paramètre sample_symbols est requis"}
+    
+    symbols_list = [s.strip().upper() for s in sample_symbols.split(",") if s.strip()]
+    
+    if not symbols_list:
+        return {"ok": False, "message": "Aucun symbole fourni"}
+    
+    try:
+        from services.coingecko import coingecko_service
+        results = await coingecko_service.classify_symbols_batch(symbols_list)
+        
+        # Filtrer les résultats non-null
+        classifications = {k: v for k, v in results.items() if v is not None}
+        
+        return {
+            "ok": True,
+            "message": f"{len(classifications)} symboles classifiés via CoinGecko sur {len(symbols_list)} demandés",
+            "total_requested": len(symbols_list),
+            "coingecko_classified": len(classifications),
+            "coverage": len(classifications) / len(symbols_list) if symbols_list else 0.0,
+            "classifications": classifications,
+            "unclassified": [k for k, v in results.items() if v is None]
+        }
+        
+    except Exception as e:
+        return {"ok": False, "error": str(e), "message": "Erreur lors de l'enrichissement CoinGecko"}
