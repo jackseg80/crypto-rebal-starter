@@ -196,7 +196,8 @@ async def rebalance_plan(
             for it in targets_raw:
                 g = str(it.get("group"))
                 p = float(it.get("weight_pct", 0.0))
-                if g: group_targets_pct[g] = p
+                if g:
+                    group_targets_pct[g] = p
 
     primary_symbols = _norm_primary_symbols(payload.get("primary_symbols"))
 
