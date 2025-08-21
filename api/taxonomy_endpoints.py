@@ -1,8 +1,9 @@
 # api/taxonomy_endpoints.py
 from __future__ import annotations
-import os, json
+import os
+import json
 from typing import Dict, Any, List, Optional
-from fastapi import APIRouter, Body, HTTPException, Query, Request
+from fastapi import APIRouter, Body, HTTPException, Query
 try:
     import taxonomy  # DEFAULT_GROUPS, GROUP_ALIASES (mapping par défaut .py)
 except Exception:

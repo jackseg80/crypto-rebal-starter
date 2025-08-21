@@ -1,7 +1,8 @@
 # services/taxonomy.py
 from __future__ import annotations
 
-import json, os
+import json
+import os
 from dataclasses import dataclass, field
 from typing import Dict, List
 

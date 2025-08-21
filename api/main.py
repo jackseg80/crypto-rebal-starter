@@ -15,10 +15,12 @@ from connectors import cointracking as ct_file
 from connectors.cointracking_api import get_current_balances as ct_api_get_current_balances, _debug_probe
 
 from services.rebalance import plan_rebalance
-from services.taxonomy import Taxonomy
 from services.pricing import get_prices_usd
 from services.portfolio import portfolio_analytics
-from api.taxonomy_endpoints import router as taxonomy_router, _merged_aliases, _all_groups
+from api.taxonomy_endpoints import router as taxonomy_router
+from api.execution_endpoints import router as execution_router
+from api.monitoring_endpoints import router as monitoring_router
+from api.analytics_endpoints import router as analytics_router
 
 app = FastAPI()
 # CORS large pour tests locaux + UI docs/
@@ -33,9 +35,11 @@ app.add_middleware(
 # petit cache prix optionnel (si tu l’as déjà chez toi, garde le tien)
 _PRICE_CACHE: Dict[str, tuple] = {}  # symbol -> (ts, price)
 def _cache_get(cache: dict, key: Any, ttl: int):
-    if ttl <= 0: return None
+    if ttl <= 0:
+        return None
     ent = cache.get(key)
-    if not ent: return None
+    if not ent:
+        return None
     ts, val = ent
     if monotonic() - ts > ttl:
         cache.pop(key, None)
@@ -464,8 +468,11 @@ async def update_api_keys(payload: dict):
     
     return {"success": True, "updated": updated}
 
-# inclure les routes taxonomie
+# inclure les routes taxonomie, execution, monitoring et analytics
 app.include_router(taxonomy_router)
+app.include_router(execution_router)
+app.include_router(monitoring_router)
+app.include_router(analytics_router)
 
 # ---------- Portfolio Analytics ----------
 @app.get("/portfolio/metrics")

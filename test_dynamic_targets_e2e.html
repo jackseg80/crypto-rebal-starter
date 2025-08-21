@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <title>Test E2E Dynamic Targets</title>
+    <style>
+        body { font-family: system-ui; margin: 20px; background: #0a0f14; color: #e7eef7; }
+        .test { margin: 10px 0; padding: 10px; border: 1px solid #1f2b3a; border-radius: 8px; }
+        .success { border-color: #22c55e; background: #0f2f1f; }
+        .error { border-color: #ef4444; background: #2f0f0f; }
+        .pending { border-color: #f59e0b; background: #2f2f0f; }
+        button { padding: 8px 16px; margin: 5px; border-radius: 6px; border: 1px solid #1f2b3a; background: #0e1620; color: #e7eef7; cursor: pointer; }
+        #results { margin-top: 20px; }
+        pre { background: #0e1620; padding: 10px; border-radius: 6px; overflow-x: auto; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <h1>Test E2E: Integration CCS → Rebalance</h1>
+    
+    <p>Ce test simule l'intégration complète entre le module CCS et le système de rebalancement.</p>
+    
+    <div>
+        <button onclick="runTest('manual')">Test 1: Mode Manuel (contrôle)</button>
+        <button onclick="runTest('dynamic')">Test 2: Dynamic Targets CCS=45</button>
+        <button onclick="runTest('dynamic_extreme')">Test 3: CCS Extrême (5 = euphorie)</button>
+        <button onclick="runTest('clear')">Test 4: Retour au manuel</button>
+        <button onclick="runAllTests()">Lancer tous les tests</button>
+    </div>
+    
+    <div id="results"></div>
+
+    <script>
+    const API_BASE = 'http://localhost:8001';
+    
+    // Mock targets based on CCS logic from rapport_crypto_dashboard_v70_2.html
+    function generateDynamicTargets(ccs) {
+        // Base targets
+        const base = { BTC: 35, ETH: 25, Stablecoins: 10, SOL: 10, "L1/L0 majors": 10, Others: 10 };
+        
+        // CCS logic: 0=euphoria (risky), 100=accumulation (conservative)
+        // Low CCS (0-30): reduce safe havens (BTC), increase alts
+        // High CCS (70-100): increase safe havens, reduce alts
+        const alpha = 0.3; // Strength factor
+        
+        const result = {};
+        Object.keys(base).forEach(group => {
+            let multiplier = 1;
+            
+            if (group === 'BTC') {
+                // BTC increases with higher CCS (more conservative)
+                multiplier = 1 + (ccs - 50) / 100 * alpha;
+            } else if (group === 'Stablecoins') {
+                // Stablecoins increase with higher CCS
+                multiplier = 1 + (ccs - 50) / 100 * alpha * 0.5;
+            } else if (group === 'SOL' || group === 'L1/L0 majors' || group === 'Others') {
+                // Alts decrease with higher CCS (less risky)
+                multiplier = 1 - (ccs - 50) / 100 * alpha;
+            }
+            // ETH stays relatively neutral
+            
+            result[group] = Math.max(1, base[group] * multiplier);
+        });
+        
+        // Normalize to 100%
+        const total = Object.values(result).reduce((sum, val) => sum + val, 0);
+        Object.keys(result).forEach(group => {
+            result[group] = Math.round((result[group] / total) * 100 * 100) / 100;
+        });
+        
+        return result;
+    }
+    
+    async function testApiCall(useDynamicTargets, ccsValue = null) {
+        const payload = {
+            primary_symbols: {
+                BTC: ["BTC", "TBTC", "WBTC"],
+                ETH: ["ETH", "WSTETH", "STETH", "RETH", "WETH"],
+                SOL: ["SOL", "JUPSOL", "JITOSOL"]
+            },
+            sub_allocation: "proportional",
+            min_trade_usd: 25
+        };
+        
+        let params = 'source=coingecko&min_usd=1&pricing=auto';
+        
+        if (useDynamicTargets && ccsValue !== null) {
+            payload.dynamic_targets_pct = generateDynamicTargets(ccsValue);
+            params += '&dynamic_targets=true';
+        } else {
+            payload.group_targets_pct = { BTC: 35, ETH: 25, Stablecoins: 10, SOL: 10, "L1/L0 majors": 10, Others: 10 };
+        }
+        
+        const response = await fetch(`${API_BASE}/rebalance/plan?${params}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status} - ${await response.text()}`);
+        }
+        
+        const result = await response.json();
+        return { payload, result };
+    }
+    
+    async function runTest(type) {
+        const resultsDiv = document.getElementById('results');
+        const testDiv = document.createElement('div');
+        testDiv.className = 'test pending';
+        testDiv.innerHTML = `<h3>Test ${type}</h3><p>En cours...</p>`;
+        resultsDiv.appendChild(testDiv);
+        
+        try {
+            let testResult;
+            
+            switch (type) {
+                case 'manual':
+                    testResult = await testApiCall(false);
+                    testDiv.innerHTML = `
+                        <h3>✅ Test Manuel - Succès</h3>
+                        <p><strong>Targets utilisés:</strong> Manuel (BTC: 35%, ETH: 25%, etc.)</p>
+                        <p><strong>Actions générées:</strong> ${testResult.result.actions?.length || 0}</p>
+                        <p><strong>Total portfolio:</strong> $${testResult.result.total_usd?.toFixed(2) || 'N/A'}</p>
+                        <details>
+                            <summary>Détails réponse API</summary>
+                            <pre>${JSON.stringify(testResult.result, null, 2)}</pre>
+                        </details>
+                    `;
+                    break;
+                    
+                case 'dynamic':
+                    testResult = await testApiCall(true, 45);
+                    const targets45 = generateDynamicTargets(45);
+                    testDiv.innerHTML = `
+                        <h3>✅ Test Dynamic CCS=45 - Succès</h3>
+                        <p><strong>CCS Score:</strong> 45 (neutre)</p>
+                        <p><strong>Targets dynamiques:</strong> ${JSON.stringify(targets45)}</p>
+                        <p><strong>Actions générées:</strong> ${testResult.result.actions?.length || 0}</p>
+                        <p><strong>Total portfolio:</strong> $${testResult.result.total_usd?.toFixed(2) || 'N/A'}</p>
+                        <details>
+                            <summary>Détails réponse API</summary>
+                            <pre>${JSON.stringify(testResult.result, null, 2)}</pre>
+                        </details>
+                    `;
+                    break;
+                    
+                case 'dynamic_extreme':
+                    testResult = await testApiCall(true, 5);
+                    const targets5 = generateDynamicTargets(5);
+                    testDiv.innerHTML = `
+                        <h3>✅ Test Dynamic CCS=5 - Succès</h3>
+                        <p><strong>CCS Score:</strong> 5 (euphorie - mode risqué)</p>
+                        <p><strong>Targets dynamiques:</strong> ${JSON.stringify(targets5)}</p>
+                        <p><strong>Actions générées:</strong> ${testResult.result.actions?.length || 0}</p>
+                        <p><strong>Total portfolio:</strong> $${testResult.result.total_usd?.toFixed(2) || 'N/A'}</p>
+                        <p><em>Note: BTC devrait être réduit, alts augmentés</em></p>
+                        <details>
+                            <summary>Détails réponse API</summary>
+                            <pre>${JSON.stringify(testResult.result, null, 2)}</pre>
+                        </details>
+                    `;
+                    break;
+                    
+                case 'clear':
+                    // Test que le mode manuel fonctionne après dynamic
+                    testResult = await testApiCall(false);
+                    testDiv.innerHTML = `
+                        <h3>✅ Test Retour Manuel - Succès</h3>
+                        <p><strong>Confirmation:</strong> Retour aux targets manuels après mode dynamique</p>
+                        <p><strong>Actions générées:</strong> ${testResult.result.actions?.length || 0}</p>
+                        <p><strong>Total portfolio:</strong> $${testResult.result.total_usd?.toFixed(2) || 'N/A'}</p>
+                    `;
+                    break;
+            }
+            
+            testDiv.className = 'test success';
+            
+        } catch (error) {
+            console.error('Test failed:', error);
+            testDiv.className = 'test error';
+            testDiv.innerHTML = `
+                <h3>❌ Test ${type} - Échec</h3>
+                <p><strong>Erreur:</strong> ${error.message}</p>
+                <pre>${error.stack || ''}</pre>
+            `;
+        }
+    }
+    
+    async function runAllTests() {
+        document.getElementById('results').innerHTML = '';
+        
+        const tests = ['manual', 'dynamic', 'dynamic_extreme', 'clear'];
+        for (const test of tests) {
+            await runTest(test);
+            await new Promise(resolve => setTimeout(resolve, 500)); // Pause entre tests
+        }
+        
+        const summaryDiv = document.createElement('div');
+        summaryDiv.className = 'test';
+        summaryDiv.innerHTML = `
+            <h3>🏁 Résumé des tests</h3>
+            <p>Tous les tests d'intégration CCS → Rebalance ont été exécutés.</p>
+            <p>Vérifiez ci-dessus que:</p>
+            <ul>
+                <li>✅ Mode manuel fonctionne (contrôle)</li>
+                <li>✅ Dynamic targets avec CCS=45 applique les bons pourcentages</li>
+                <li>✅ CCS extrême (euphorie) réduit BTC et augmente alts</li>
+                <li>✅ Retour au manuel après dynamique fonctionne</li>
+                <li>✅ Paramètre dynamic_targets=true est respecté par l'API</li>
+                <li>✅ exec_hint est présent dans les actions (si implémenté)</li>
+            </ul>
+        `;
+        document.getElementById('results').appendChild(summaryDiv);
+    }
+    
+    // Test simple au chargement
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log('Page de test E2E chargée');
+        console.log('API Base:', API_BASE);
+    });
+    </script>
+</body>
+</html>

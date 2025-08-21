@@ -1,6 +1,7 @@
 
 from __future__ import annotations
-import os, csv
+import os
+import csv
 from typing import Any, Dict, List, Optional
 
 # Optional API connector (not used for 'csv'/'stub' paths here but left for completeness)
@@ -54,7 +55,8 @@ def _read_csv_safe(path: Optional[str]) -> List[Dict[str, Any]]:
         try:
             dialect = csv.Sniffer().sniff(sample, delimiters=",;")
         except Exception:
-            class _D: delimiter = ","
+            class _D:
+                delimiter = ","
             dialect = _D()
         reader = csv.DictReader(f, dialect=dialect)
         for row in reader:
