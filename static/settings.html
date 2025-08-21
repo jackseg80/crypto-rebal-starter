@@ -222,7 +222,7 @@
     <div class="form-row">
       <div style="flex: 1;">
         <label>URL API Backend</label>
-        <input type="text" id="api_base_url" value="http://localhost:8001">
+        <input type="text" id="api_base_url" value="http://localhost:8000">
         <div class="help">URL du serveur FastAPI backend</div>
       </div>
       <div style="flex: 1;">
@@ -270,47 +270,25 @@
 
 </div>
 
+<script src="/static/global-config.js"></script>
+<script src="/static/shared-header.js"></script>
 <script>
-// Configuration globale centralisée
-let globalSettings = {
-  data_source: 'cointracking',
-  pricing: 'local',
-  display_currency: 'USD',
-  min_usd_threshold: 1.00,
-  coingecko_api_key: '',
-  cointracking_api_key: '',
-  cointracking_api_secret: '',
-  api_base_url: 'http://localhost:8001',
-  refresh_interval: 5,
-  enable_coingecko_classification: true,
-  enable_portfolio_snapshots: true,
-  enable_performance_tracking: true
-};
-
-// Charger les settings depuis localStorage
+// Charger les settings depuis globalConfig
 function loadSettings() {
-  const saved = localStorage.getItem('crypto_rebalancer_settings');
-  if (saved) {
-    try {
-      globalSettings = { ...globalSettings, ...JSON.parse(saved) };
-    } catch (e) {
-      console.error('Erreur chargement settings:', e);
-    }
-  }
-  
   // Mettre à jour l'interface
   updateUI();
   updateStatusSummary();
 }
 
-// Sauvegarder les settings dans localStorage
+// Sauvegarder les settings via globalConfig
 function saveSettings() {
-  localStorage.setItem('crypto_rebalancer_settings', JSON.stringify(globalSettings));
   updateStatusSummary();
 }
 
 // Mettre à jour l'interface avec les valeurs actuelles
 function updateUI() {
+  const globalSettings = globalConfig.getAll();
+  
   // Source de données
   document.getElementById(`source_${globalSettings.data_source}`).checked = true;
   document.querySelector(`.radio-option input[value="${globalSettings.data_source}"]`).parentElement.classList.add('selected');
@@ -343,6 +321,7 @@ function updateUI() {
 // Mettre à jour le résumé du statut
 function updateStatusSummary() {
   const summary = document.getElementById('status-summary');
+  const globalSettings = globalConfig.getAll();
   const sourceLabels = {
     'stub': '🧪 Données de démo',
     'cointracking': '📄 CoinTracking CSV',
@@ -372,7 +351,7 @@ function updateStatusSummary() {
 // Sélection de source de données
 function selectDataSource(source) {
   document.querySelectorAll('.radio-option').forEach(el => el.classList.remove('selected'));
-  globalSettings.data_source = source;
+  globalConfig.set('data_source', source);
   document.getElementById(`source_${source}`).checked = true;
   document.querySelector(`.radio-option input[value="${source}"]`).parentElement.classList.add('selected');
   updateStatusSummary();
@@ -380,7 +359,7 @@ function selectDataSource(source) {
 
 // Sélection de pricing
 function selectPricing(pricing) {
-  globalSettings.pricing = pricing;
+  globalConfig.set('pricing', pricing);
   document.getElementById(`pricing_${pricing}`).checked = true;
   document.querySelector(`.radio-option input[value="${pricing}"]`).parentElement.classList.add('selected');
   updateStatusSummary();
@@ -389,32 +368,33 @@ function selectPricing(pricing) {
 // Sauvegarder tous les settings
 function saveAllSettings() {
   // Récupérer toutes les valeurs des champs
-  globalSettings.display_currency = document.getElementById('display_currency').value;
-  globalSettings.min_usd_threshold = parseFloat(document.getElementById('min_usd_threshold').value);
+  globalConfig.set('display_currency', document.getElementById('display_currency').value);
+  globalConfig.set('min_usd_threshold', parseFloat(document.getElementById('min_usd_threshold').value));
   
   // Pour les clés API, utiliser la vraie valeur si le champ n'est pas masqué, sinon garder la valeur stockée
   const coingeckoField = document.getElementById('coingecko_api_key');
   if (coingeckoField.type === 'text') {
     // Champ visible, prendre la vraie valeur
-    globalSettings.coingecko_api_key = coingeckoField.value;
+    globalConfig.set('coingecko_api_key', coingeckoField.value);
   }
-  // Si masqué, garder la valeur existante dans globalSettings
   
   const ctKeyField = document.getElementById('cointracking_api_key');
   if (ctKeyField.type === 'text') {
-    globalSettings.cointracking_api_key = ctKeyField.value;
+    globalConfig.set('cointracking_api_key', ctKeyField.value);
   }
   
   const ctSecretField = document.getElementById('cointracking_api_secret');
   if (ctSecretField.type === 'text') {
-    globalSettings.cointracking_api_secret = ctSecretField.value;
+    globalConfig.set('cointracking_api_secret', ctSecretField.value);
   }
   
-  globalSettings.api_base_url = document.getElementById('api_base_url').value;
-  globalSettings.refresh_interval = parseInt(document.getElementById('refresh_interval').value);
-  globalSettings.enable_coingecko_classification = document.getElementById('enable_coingecko_classification').checked;
-  globalSettings.enable_portfolio_snapshots = document.getElementById('enable_portfolio_snapshots').checked;
-  globalSettings.enable_performance_tracking = document.getElementById('enable_performance_tracking').checked;
+  globalConfig.set('api_base_url', document.getElementById('api_base_url').value);
+  globalConfig.set('refresh_interval', parseInt(document.getElementById('refresh_interval').value));
+  globalConfig.set('enable_coingecko_classification', document.getElementById('enable_coingecko_classification').checked);
+  globalConfig.set('enable_portfolio_snapshots', document.getElementById('enable_portfolio_snapshots').checked);
+  globalConfig.set('enable_performance_tracking', document.getElementById('enable_performance_tracking').checked);
+  
+  const globalSettings = globalConfig.getAll();
   
   // Mettre à jour les statuts
   updateApiKeyStatus('coingecko', !!globalSettings.coingecko_api_key);
@@ -433,6 +413,7 @@ async function testDataSource() {
   testDiv.innerHTML = '<div class="test-result">🧪 Test en cours...</div>';
   
   try {
+    const globalSettings = globalConfig.getAll();
     const response = await fetch(`${globalSettings.api_base_url}/balances/current?source=${globalSettings.data_source}`);
     const data = await response.json();
     
@@ -466,6 +447,7 @@ async function testDataSource() {
 // Auto-détecter les clés depuis .env du serveur
 async function autoDetectApiKeys() {
   try {
+    const globalSettings = globalConfig.getAll();
     // Essayer de récupérer les clés depuis le backend
     const response = await fetch(`${globalSettings.api_base_url}/debug/api-keys`);
     if (response.ok) {
@@ -474,31 +456,31 @@ async function autoDetectApiKeys() {
       
       // CoinGecko - utiliser la clé du serveur si pas de clé locale
       if (data.coingecko_api_key && !globalSettings.coingecko_api_key) {
-        globalSettings.coingecko_api_key = data.coingecko_api_key;
+        globalConfig.set('coingecko_api_key', data.coingecko_api_key);
         foundKeys = true;
       }
-      if (globalSettings.coingecko_api_key) {
-        document.getElementById('coingecko_api_key').value = maskApiKey(globalSettings.coingecko_api_key);
+      if (globalConfig.get('coingecko_api_key')) {
+        document.getElementById('coingecko_api_key').value = maskApiKey(globalConfig.get('coingecko_api_key'));
         updateApiKeyStatus('coingecko', true);
       }
       
       // CoinTracking Key - utiliser la clé du serveur si pas de clé locale
       if (data.cointracking_api_key && !globalSettings.cointracking_api_key) {
-        globalSettings.cointracking_api_key = data.cointracking_api_key;
+        globalConfig.set('cointracking_api_key', data.cointracking_api_key);
         foundKeys = true;
       }
-      if (globalSettings.cointracking_api_key) {
-        document.getElementById('cointracking_api_key').value = maskApiKey(globalSettings.cointracking_api_key);
+      if (globalConfig.get('cointracking_api_key')) {
+        document.getElementById('cointracking_api_key').value = maskApiKey(globalConfig.get('cointracking_api_key'));
         updateApiKeyStatus('cointracking_key', true);
       }
       
       // CoinTracking Secret - utiliser la clé du serveur si pas de clé locale
       if (data.cointracking_api_secret && !globalSettings.cointracking_api_secret) {
-        globalSettings.cointracking_api_secret = data.cointracking_api_secret;
+        globalConfig.set('cointracking_api_secret', data.cointracking_api_secret);
         foundKeys = true;
       }
-      if (globalSettings.cointracking_api_secret) {
-        document.getElementById('cointracking_api_secret').value = maskApiKey(globalSettings.cointracking_api_secret);
+      if (globalConfig.get('cointracking_api_secret')) {
+        document.getElementById('cointracking_api_secret').value = maskApiKey(globalConfig.get('cointracking_api_secret'));
         updateApiKeyStatus('cointracking_secret', true);
       }
       
@@ -539,28 +521,28 @@ function toggleApiKeyVisibility(fieldId) {
   
   if (isPassword) {
     // Afficher la vraie clé
-    const settingKey = fieldId; // même nom que dans globalSettings
+    const settingKey = fieldId; // même nom que dans globalConfig
     field.type = 'text';
-    field.value = globalSettings[settingKey] || '';
+    field.value = globalConfig.get(settingKey) || '';
   } else {
     // Masquer avec des points
     field.type = 'password';
     const settingKey = fieldId;
-    field.value = globalSettings[settingKey] ? maskApiKey(globalSettings[settingKey]) : '';
+    field.value = globalConfig.get(settingKey) ? maskApiKey(globalConfig.get(settingKey)) : '';
   }
 }
 
 // Synchroniser depuis .env
 async function syncApiKeysFromEnv() {
   try {
-    const response = await fetch(`${globalSettings.api_base_url}/debug/api-keys`);
+    const response = await fetch(`${globalConfig.get('api_base_url')}/debug/api-keys`);
     if (response.ok) {
       const data = await response.json();
       let foundKeys = false;
       
       // Forcer le rechargement de toutes les clés depuis .env
       if (data.coingecko_api_key) {
-        globalSettings.coingecko_api_key = data.coingecko_api_key;
+        globalConfig.set('coingecko_api_key', data.coingecko_api_key);
         document.getElementById('coingecko_api_key').value = maskApiKey(data.coingecko_api_key);
         updateApiKeyStatus('coingecko', true);
         foundKeys = true;
@@ -569,7 +551,7 @@ async function syncApiKeysFromEnv() {
       }
       
       if (data.cointracking_api_key) {
-        globalSettings.cointracking_api_key = data.cointracking_api_key;
+        globalConfig.set('cointracking_api_key', data.cointracking_api_key);
         document.getElementById('cointracking_api_key').value = maskApiKey(data.cointracking_api_key);
         updateApiKeyStatus('cointracking_key', true);
         foundKeys = true;
@@ -578,7 +560,7 @@ async function syncApiKeysFromEnv() {
       }
       
       if (data.cointracking_api_secret) {
-        globalSettings.cointracking_api_secret = data.cointracking_api_secret;
+        globalConfig.set('cointracking_api_secret', data.cointracking_api_secret);
         document.getElementById('cointracking_api_secret').value = maskApiKey(data.cointracking_api_secret);
         updateApiKeyStatus('cointracking_secret', true);
         foundKeys = true;
@@ -603,13 +585,13 @@ async function syncApiKeysFromEnv() {
 // Synchroniser vers .env
 async function syncApiKeysToEnv() {
   const payload = {
-    coingecko_api_key: globalSettings.coingecko_api_key || '',
-    cointracking_api_key: globalSettings.cointracking_api_key || '',
-    cointracking_api_secret: globalSettings.cointracking_api_secret || ''
+    coingecko_api_key: globalConfig.get('coingecko_api_key') || '',
+    cointracking_api_key: globalConfig.get('cointracking_api_key') || '',
+    cointracking_api_secret: globalConfig.get('cointracking_api_secret') || ''
   };
   
   try {
-    const response = await fetch(`${globalSettings.api_base_url}/debug/api-keys`, {
+    const response = await fetch(`${globalConfig.get('api_base_url')}/debug/api-keys`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -636,6 +618,7 @@ async function testApiKeys() {
   testDiv.innerHTML = '<div class="test-result">🧪 Test des APIs...</div>';
   
   let results = [];
+  const globalSettings = globalConfig.getAll();
   
   // Test CoinGecko
   if (globalSettings.coingecko_api_key) {
@@ -677,6 +660,7 @@ async function runFullSystemTest() {
   testDiv.innerHTML = '<div class="test-result">🚀 Test complet en cours...</div>';
   
   let results = [];
+  const globalSettings = globalConfig.getAll();
   
   // Test backend
   try {
@@ -729,39 +713,28 @@ async function runFullSystemTest() {
 // Utilitaires
 function resetToDefaults() {
   if (confirm('Restaurer la configuration par défaut ?')) {
-    localStorage.removeItem('crypto_rebalancer_settings');
+    globalConfig.reset();
     location.reload();
   }
 }
 
 function exportSettings() {
-  const blob = new Blob([JSON.stringify(globalSettings, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'crypto_rebalancer_settings.json';
-  a.click();
-  URL.revokeObjectURL(url);
+  globalConfig.export();
 }
 
-function importSettings() {
+async function importSettings() {
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = '.json';
-  input.onchange = (e) => {
+  input.onchange = async (e) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          globalSettings = JSON.parse(e.target.result);
-          saveSettings();
-          location.reload();
-        } catch (err) {
-          alert('Erreur import: ' + err.message);
-        }
-      };
-      reader.readAsText(file);
+      try {
+        await globalConfig.importFromFile(file);
+        location.reload();
+      } catch (err) {
+        alert('Erreur import: ' + err.message);
+      }
     }
   };
   input.click();
@@ -794,15 +767,11 @@ function showNotification(message, type = 'info') {
   setTimeout(() => notification.remove(), 3000);
 }
 
-// API pour les autres pages
-window.getGlobalSettings = () => globalSettings;
-window.updateGlobalSetting = (key, value) => {
-  globalSettings[key] = value;
-  saveSettings();
-};
-
-// Initialisation
+// Ajouter le header partagé et initialiser
 document.addEventListener('DOMContentLoaded', () => {
+  // Initialiser le header partagé
+  initSharedHeader('settings', { showConfigIndicators: false });
+  
   loadSettings();
   // Tenter l'auto-détection des clés immédiatement
   autoDetectApiKeys();
