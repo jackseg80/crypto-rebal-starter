@@ -125,16 +125,18 @@ class GlobalConfig {
    */
   async apiRequest(endpoint, options = {}) {
     const url = this.getApiUrl(endpoint, options.params || {});
-    const { params, headers, ...rest } = options;
-
     const requestOptions = {
-      headers: { 'Content-Type': 'application/json', ...(headers || {}) },
-      ...rest
+      ...options, // ← d'abord
+      method: options.method || 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers || {})
+      }
     };
-
-    const res = await fetch(url, requestOptions);
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-    return res.json();
+    delete requestOptions.params;
+    const response = await fetch(url, requestOptions);
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    return await response.json();
   }
 
   /**
