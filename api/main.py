@@ -2,8 +2,7 @@
 from __future__ import annotations
 from typing import Any, Dict, List
 from time import monotonic
-import os
-import time
+import os, sys, inspect, hashlib, time
 from fastapi import FastAPI, Query, Body, Response
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -62,7 +61,129 @@ def _cache_get(cache: dict, key: Any, ttl: int):
     return val
 def _cache_set(cache: dict, key: Any, val: Any):
     _PRICE_CACHE[key] = (monotonic(), val)
+    
+    # >>> BEGIN: CT-API helpers (ADD THIS ONCE NEAR THE TOP) >>>
+try:
+    from connectors import cointracking_api as ct_api
+except Exception:
+    import cointracking_api as ct_api  # fallback au cas où le package n'est pas packagé "connectors"
 
+FAST_SELL_EXCHANGES = [
+    "Kraken", "Binance", "Coinbase", "Bitget", "OKX", "Bybit", "KuCoin", "Bittrex", "Bitstamp", "Gemini"
+]
+DEFI_HINTS = ["Aave", "Lido", "Rocket Pool", "Curve", "Uniswap", "Sushiswap", "Jupiter", "Osmosis", "Thorchain"]
+COLD_HINTS = ["Ledger", "Trezor", "Cold", "Vault", "Hardware"]
+
+def _normalize_loc(label: str) -> str:
+    if not label:
+        return "Unknown"
+    t = label.strip()
+    # CoinTracking renvoie souvent “KRaken Balance”, “Kraken Earn Balance”, “COINBASE BALANCE”, …
+    t = t.replace("_", " ").replace("-", " ")
+    t = t.title()
+    # Enlever suffixes fréquents
+    for suf in (" Balance", " Wallet", " Account"):
+        if t.endswith(suf):
+            t = t[: -len(suf)]
+    # Ex.: “Kraken Earn Balance” -> “Kraken Earn”
+    t = t.replace(" Earn", " Earn")
+    return t
+
+def _classify_location(loc: str) -> int:
+    L = _normalize_loc(loc)
+    if any(L.startswith(x) for x in FAST_SELL_EXCHANGES):
+        return 0  # CEX rapide
+    if any(h in L for h in DEFI_HINTS):
+        return 1  # DeFi
+    if any(h in L for h in COLD_HINTS):
+        return 2  # Cold/Hardware
+    return 3  # reste
+
+def _pick_primary_location_for_symbol(symbol: str, detailed_holdings: dict) -> str:
+    # Retourne l’exchange où ce symbole pèse le plus en USD
+    best_loc, best_val = "CoinTracking", 0.0
+    for loc, assets in (detailed_holdings or {}).items():
+        for a in assets or []:
+            if a.get("symbol") == symbol:
+                v = float(a.get("value_usd") or 0)
+                if v > best_val:
+                    best_val, best_loc = v, loc
+    return best_loc
+
+async def _load_ctapi_exchanges(min_usd: float = 0.0) -> dict:
+    """
+    Combine les données correctes de get_current_balances avec les locations de getGroupedBalance
+    pour éviter la duplication et obtenir les totaux corrects.
+    """
+    from connectors.cointracking import get_current_balances
+    
+    # 1) Données correctes de balances
+    balances_data = await get_current_balances("cointracking_api")
+    correct_items = balances_data.get("items", [])
+    
+    # 2) Locations depuis getGroupedBalance (pour mapping symbol -> location)
+    location_map: Dict[str, str] = {}
+    try:
+        import connectors.cointracking_api as ct_api
+        p_gb = ct_api._post_api_cached("getGroupedBalance", {"group": "exchange", "exclude_dep_with": "1"}, ttl=60)
+        rows_gb = ct_api._extract_rows_from_groupedBalance(p_gb)
+        
+        # Pour chaque symbole, trouver l'exchange avec la plus grande valeur
+        symbol_exchanges: Dict[str, List[Tuple[str, float]]] = {}
+        for r in rows_gb:
+            sym = str(r.get("symbol", "")).upper()
+            loc = str(r.get("location", "")).replace(" Balance", "").strip().title()
+            val = float(r.get("value_usd", 0))
+            if sym and loc and val > 0:
+                symbol_exchanges.setdefault(sym, []).append((loc, val))
+        
+        # Assign primary location (highest value)
+        for sym, exchanges in symbol_exchanges.items():
+            if exchanges:
+                primary_loc = max(exchanges, key=lambda x: x[1])[0]
+                location_map[sym] = primary_loc
+    except Exception:
+        pass
+    
+    # 3) Grouper par exchange en utilisant les données correctes
+    detailed: Dict[str, List[Dict[str, Any]]] = {}
+    
+    for item in correct_items:
+        sym = str(item.get("symbol", "")).upper()
+        val = float(item.get("value_usd", 0))
+        
+        # Appliquer le filtre min_usd
+        if val < min_usd:
+            continue
+            
+        # Determiner la location
+        location = location_map.get(sym, "CoinTracking")
+        
+        # Ajouter à detailed_holdings
+        detailed.setdefault(location, []).append({
+            "symbol": sym,
+            "alias": item.get("alias", sym),
+            "amount": item.get("amount", 0),
+            "value_usd": val,
+            "price_usd": None,  # On peut le calculer si besoin
+            "location": location
+        })
+    
+    # 4) Créer les exchanges summary
+    exchanges = []
+    for loc, assets in detailed.items():
+        total_val = sum(float(a.get("value_usd", 0)) for a in assets)
+        if total_val >= min_usd:
+            exchanges.append({
+                "location": loc,
+                "total_value_usd": round(total_val, 2),
+                "asset_count": len(assets),
+                "assets": sorted(assets, key=lambda x: float(x.get("value_usd", 0)), reverse=True)
+            })
+    
+    exchanges.sort(key=lambda x: x["total_value_usd"], reverse=True)
+    return {"exchanges": exchanges, "detailed_holdings": detailed}
+# <<< END: CT-API helpers <<<
 
 # ---------- utils ----------
 def _parse_min_usd(raw: str | None, default: float = 1.0) -> float:
@@ -136,75 +257,181 @@ def _norm_primary_symbols(x: Any) -> Dict[str, List[str]]:
 
 
 # ---------- source resolver ----------
-async def resolve_current_balances(source: str) -> Dict[str, Any]:
-    """
-    Retourne {source_used, items:[{symbol, value_usd, location, ...}]} avec informations de location
-    """
-    if source == "stub":
-        # mini portefeuille de démo avec locations corrected
-        items = [
-            {"symbol": "BTC", "value_usd": 117000.0, "location": "Demo Wallet"},
-            {"symbol": "ETH", "value_usd": 60000.0, "location": "Demo Wallet"},
-            {"symbol": "USDT", "value_usd": 5000.0, "location": "Demo Wallet"},
-            {"symbol": "USDC", "value_usd": 900.0, "location": "Demo Wallet"},
-            {"symbol": "SOL",  "value_usd": 3000.0, "location": "Demo Wallet"},
-            {"symbol": "LINK", "value_usd": 7000.0, "location": "Demo Wallet"},
-            {"symbol": "AAVE", "value_usd": 4500.0, "location": "Demo Wallet"},
-            {"symbol": "DOGE", "value_usd": 5000.0, "location": "Demo Wallet"},
-            {"symbol": "EUR",  "value_usd": 120.0, "location": "Demo Wallet"},
-        ]
-        return {"source_used": "stub", "items": items}
+# --- REPLACE THIS WHOLE FUNCTION IN main.py ---
 
-    # Pour les sources cointracking et cointracking_api, essayer d'abord d'obtenir les données avec locations
+async def resolve_current_balances(source: str = Query("cointracking")) -> Dict[str, Any]:
+    """
+    Retourne {source_used, items:[{symbol, alias, amount, value_usd, location}]}
+    - Si CT-API dispo: affecte une location “principale” par coin (échange avec la plus grosse part)
+    - Sinon: fallback CSV/local avec location=CoinTracking
+    """
+    if source in ("cointracking_api", "cointracking"):
+        try:
+            # 1) On charge le snapshot par exchange via CT-API
+            snap = await _load_ctapi_exchanges(min_usd=0.0)
+            detailed = snap.get("detailed_holdings") or {}
+
+            # 2) On récupère la vue “par coin” (totaux) via CT-API aussi (ou via pricing local si tu préfères)
+            api_bal = await ct_api.get_current_balances()  # items par coin (value_usd, amount)
+            items = api_bal.get("items") or []
+
+            # 3) Pour CHAQUE coin, on met la location = exchange principal (max value_usd)
+            out = []
+            for it in items:
+                sym = it.get("symbol")
+                loc = _pick_primary_location_for_symbol(sym, detailed)
+                o = {
+                    "symbol": sym,
+                    "alias": it.get("alias") or sym,
+                    "amount": it.get("amount"),
+                    "value_usd": it.get("value_usd"),
+                    "location": loc or "CoinTracking",
+                }
+                out.append(o)
+
+            return {"source_used": "cointracking_api", "items": out}
+        except Exception:
+            # Fallback silencieux CSV/local
+            pass
+
+    # --- Fallback CSV/local (ancienne logique) ---
+    items = []
     try:
-        from connectors.cointracking import get_unified_balances_by_exchange
-        exchange_data = await get_unified_balances_by_exchange(source=source)
-        
-        # Extraire tous les items avec leurs locations des detailed_holdings
-        items_with_location = []
-        detailed_holdings = exchange_data.get("detailed_holdings", {})
-        
-        for location, assets in detailed_holdings.items():
-            for asset in assets:
-                items_with_location.append(asset)  # asset contient déjà symbol, value_usd, location, amount
-        
-        if items_with_location:
-            return {
-                "source_used": exchange_data.get("source_used", source),
-                "items": items_with_location
-            }
-    except Exception as e:
-        # En cas d'erreur avec la fonction unifiée, fallback sur les anciennes méthodes
+        raw = await ct_file.get_current_balances()
+        for r in raw or []:
+            items.append({
+                "symbol": r.get("symbol"),
+                "alias": r.get("alias") or r.get("symbol"),
+                "amount": r.get("amount"),
+                "value_usd": r.get("value_usd"),
+                "location": r.get("location") or "CoinTracking",
+            })
+    except Exception:
         pass
 
-    # Fallback sur les méthodes originales sans location
-    if source == "cointracking":
-        res = await ct_file.get_current_balances(source="cointracking")
-        items = res.get("items", []) if isinstance(res, dict) else (res or [])
-        # Ajouter location par défaut
-        for item in items:
-            if "location" not in item or not item["location"]:
-                item["location"] = "Portfolio"
-        return {"source_used": "cointracking", "items": items}
-
-    if source == "cointracking_api":
-        res = await ct_api_get_current_balances()
-        items = res.get("items", []) if isinstance(res, dict) else (res or [])
-        # Ajouter location par défaut
-        for item in items:
-            if "location" not in item or not item["location"]:
-                item["location"] = "CoinTracking"
-        return {"source_used": "cointracking_api", "items": items}
-
-    # fallback: cointracking (CSV)
-    res = await ct_file.get_current_balances(source="cointracking")
-    items = res.get("items", []) if isinstance(res, dict) else (res or [])
-    # Ajouter location par défaut
-    for item in items:
-        if "location" not in item or not item["location"]:
-            item["location"] = "Portfolio"
     return {"source_used": "cointracking", "items": items}
 
+
+
+def _assign_locations_to_actions(plan: dict, rows: list[dict], min_trade_usd: float = 25.0) -> dict:
+    """
+    Ajoute la location aux actions. Pour les SELL, répartit par exchange
+    au prorata des avoirs réels (value_usd) sur chaque exchange.
+    """
+    # holdings[symbol][location] -> total value_usd
+    holdings: dict[str, dict[str, float]] = {}
+    locations_seen = set()
+    for r in rows or []:
+        sym = (r.get("symbol") or "").upper()
+        loc = r.get("location") or "Unknown"
+        locations_seen.add(loc)
+        val = float(r.get("value_usd") or 0.0)
+        if sym and val > 0:
+            holdings.setdefault(sym, {}).setdefault(loc, 0.0)
+            holdings[sym][loc] += val
+    
+
+    actions = plan.get("actions") or []
+    out_actions: list[dict] = []
+
+    for a in actions:
+        sym = (a.get("symbol") or "").upper()
+        usd = float(a.get("usd") or 0.0)
+        loc = a.get("location")
+
+        # Si la location est déjà définie (ex. imposée par UI), on garde.
+        if loc and loc != "Unknown":
+            out_actions.append(a)
+            continue
+
+        # SELL: on découpe par exchanges où le coin est détenu
+        if usd < 0 and sym in holdings and holdings[sym]:
+            to_sell = -usd
+            locs = [(ex, v) for ex, v in holdings[sym].items() if v > 0]
+            total_val = sum(v for _, v in locs)
+
+            # Pas d’avoirs détectés -> laisser 'Unknown'
+            if total_val <= 0:
+                a["location"] = "Unknown"
+                out_actions.append(a)
+                continue
+
+            # Tri par priorité CEX → DeFi → Cold, puis par valeur décroissante  
+            def get_exchange_priority(exchange_name: str) -> int:
+                priorities = {
+                    # CEX rapides (priorité 1-15)
+                    "Binance": 1, "Kraken": 2, "Coinbase": 3, "Bitget": 4, "Bybit": 5, "OKX": 6,
+                    "Huobi": 7, "KuCoin": 8, "Poloniex": 9, "Kraken Earn": 10, "Coinbase Pro": 11,
+                    "Bittrex": 12, "Ftx": 13, "Swissborg": 14,
+                    # Wallets software (priorité 20-29)
+                    "MetaMask": 20, "Phantom": 21, "Rabby": 22, "TrustWallet": 23,
+                    # DeFi (priorité 30-39)  
+                    "DeFi": 30, "Uniswap": 31, "PancakeSwap": 32, "SushiSwap": 33, "Curve": 34,
+                    # Hardware/Cold (priorité 40+)
+                    "Ledger": 40, "Trezor": 41, "Cold Storage": 42, "Ledger Wallets": 40,
+                    "Portfolio": 50, "CoinTracking": 51, "Demo Wallet": 52, "Unknown": 60
+                }
+                # Normalisation pour matcher les noms CoinTracking
+                clean_name = exchange_name.replace(" Balance", "").replace(" Wallets", "").strip()
+                for prefix in ["Metamask", "Solana", "Ron", "Siacoin", "Vsync"]:
+                    if clean_name.startswith(prefix):
+                        return 25  # Wallets spécialisés
+                return priorities.get(clean_name, 99)
+
+            # Tri par priorité, puis par valeur décroissante pour les mêmes priorités
+            locs_sorted = sorted(locs, key=lambda x: (get_exchange_priority(x[0]), -x[1]))
+            
+            # Répartition avec priorité intelligente
+            alloc_sum = 0.0
+            tmp_parts: list[dict] = []
+            remaining_to_sell = to_sell
+            
+            for i, (ex, available_val) in enumerate(locs_sorted):
+                if remaining_to_sell <= 0.01:
+                    break
+                    
+                # Prendre min(ce qui reste à vendre, ce qui est disponible)
+                can_sell = min(remaining_to_sell, available_val)
+                
+                # Respecter le min_trade_usd sauf si c'est le dernier exchange
+                if can_sell >= max(0.01, float(min_trade_usd or 0)) or i == len(locs_sorted) - 1:
+                    part = round(can_sell, 2)
+                    if part > 0.01:
+                        na = dict(a)
+                        na["usd"] = -part
+                        na["location"] = ex
+                        tmp_parts.append(na)
+                        remaining_to_sell -= part
+
+            # Si tout est sous le min_trade_usd, on regroupe sur le plus gros exchange
+            if not tmp_parts:
+                ex_big = max(locs, key=lambda t: t[1])[0]
+                na = dict(a)
+                na["location"] = ex_big
+                tmp_parts.append(na)
+
+            out_actions.extend(tmp_parts)
+        else:
+            # BUY ou symbole inconnu: on laisse tel quel (UI choisira l’exchange)
+            out_actions.append(a)
+
+    plan["actions"] = out_actions
+    
+    return plan
+
+
+# DEBUG: introspection rapide de la répartition par exchange (cointracking_api)
+@app.get("/debug/exchanges-snapshot")
+async def debug_exchanges_snapshot(source: str = "cointracking_api"):
+    from connectors.cointracking import get_unified_balances_by_exchange
+    data = await get_unified_balances_by_exchange(source=source)
+    return {
+        "has_exchanges": bool(data.get("exchanges")),
+        "exchanges_count": len(data.get("exchanges") or []),
+        "sample_exchanges": [e.get("location") for e in (data.get("exchanges") or [])[:5]],
+        "has_holdings": bool(data.get("detailed_holdings")),
+        "holdings_keys": list((data.get("detailed_holdings") or {}).keys())[:5]
+    }
 
 # ---------- health ----------
 @app.get("/healthz")
@@ -234,9 +461,28 @@ async def rebalance_plan(
 ):
     min_usd = _parse_min_usd(min_usd_raw, default=1.0)
 
-    # portefeuille - utiliser la méthode normale pour l'instant
-    res = await resolve_current_balances(source=source)
-    rows = [r for r in _to_rows(res.get("items", [])) if float(r.get("value_usd") or 0.0) >= min_usd]
+    # portefeuille - utiliser les données enrichies avec locations
+    try:
+        from connectors.cointracking import get_unified_balances_by_exchange
+        exchange_data = await get_unified_balances_by_exchange(source=source)
+        
+        # Extraire tous les items avec leurs locations des detailed_holdings
+        items_with_location = []
+        detailed_holdings = exchange_data.get("detailed_holdings", {})
+        
+        for location, assets in detailed_holdings.items():
+            for asset in assets:
+                # Ensure location is set on the asset
+                if "location" not in asset or not asset["location"]:
+                    asset["location"] = location
+                items_with_location.append(asset)  # asset contient déjà symbol, value_usd, location, amount
+        
+        rows = [r for r in _to_rows(items_with_location) if float(r.get("value_usd") or 0.0) >= min_usd]
+        
+    except Exception as e:
+        # Fallback sur la méthode originale en cas d'erreur
+        res = await resolve_current_balances(source=source)
+        rows = [r for r in _to_rows(res.get("items", [])) if float(r.get("value_usd") or 0.0) >= min_usd]
 
     # targets - support for dynamic CCS-based targets
     if dynamic_targets and payload.get("dynamic_targets_pct"):
@@ -267,9 +513,37 @@ async def rebalance_plan(
         min_trade_usd=float(payload.get("min_trade_usd", 25.0)),
     )
 
+    plan = _assign_locations_to_actions(plan, rows, min_trade_usd=float(payload.get("min_trade_usd", 25.0)))
+
     # enrichissement prix (selon "pricing")
-    source_used = res.get("source_used")
+    source_used = exchange_data.get("source_used") if 'exchange_data' in locals() else "unknown"
     plan = _enrich_actions_with_prices(plan, rows, pricing_mode=pricing, source_used=source_used)
+
+    # Mettre à jour les exec_hints basés sur les locations assignées (après enrichissement prix)
+    from services.rebalance import _format_hint_for_location, _get_exec_hint
+    
+    # Créer un index des holdings par groupe pour les actions sans location
+    holdings_by_group = {}
+    for row in rows:
+        group = row.get("group")
+        if not group:
+            continue
+        if group not in holdings_by_group:
+            holdings_by_group[group] = []
+        holdings_by_group[group].append(row)
+    
+    for action in plan.get("actions", []):
+        location = action.get("location")
+        action_type = action.get("action", "")
+        
+        if location and location not in ["Unknown", ""]:
+            # Action avec location spécifique - utiliser la nouvelle logique
+            action["exec_hint"] = _format_hint_for_location(location, action_type)
+        else:
+            # Action sans location spécifique - utiliser l'ancienne logique comme fallback
+            group = action.get("group", "")
+            group_items = holdings_by_group.get(group, [])
+            action["exec_hint"] = _get_exec_hint(action, {group: group_items})
 
     # meta pour UI - fusionner avec les métadonnées pricing existantes
     if not plan.get("meta"):
@@ -578,76 +852,90 @@ async def portfolio_trend(days: int = Query(30, ge=1, le=365)):
         return {"ok": False, "error": str(e)}
 
 @app.get("/portfolio/breakdown-locations")
-async def portfolio_breakdown_locations(source: str = Query("cointracking")):
-    """Breakdown du portfolio par exchange/location avec support de toutes les sources de données"""
+async def portfolio_breakdown_locations(
+    source: str = Query("cointracking"),
+    min_usd: float = Query(1.0)
+):
+    """
+    Renvoie la répartition par exchange à partir de la CT-API.
+    Pas de fallback “CoinTracking 100%” sauf si réellement aucune data.
+    """
     try:
-        from connectors.cointracking import get_unified_balances_by_exchange
-        
-        # Utiliser la fonction unifiée qui gère toutes les sources (CSV, API, stub)
-        exchange_data = await get_unified_balances_by_exchange(source=source)
-        exchanges = exchange_data.get("exchanges", [])
-        detailed_holdings = exchange_data.get("detailed_holdings", {})
-        
-        total_value = sum(ex.get("total_value_usd", 0) for ex in exchanges)
-        
-        # Si aucune donnée, créer une location par défaut avec 100%
-        if not exchanges or total_value == 0:
-            # Déterminer la location par défaut selon la source
-            default_location = "Portfolio" if source == "cointracking" else "Demo Wallet" if source in ("stub", "demo") else "CoinTracking"
+        if source == "cointracking":
+            # Utiliser CSV comme source
+            from connectors.cointracking import get_unified_balances_by_exchange
+            snap = await get_unified_balances_by_exchange(source="cointracking")
             
-            locations = [{
-                "location": default_location,
-                "total_value_usd": 0.0,
-                "asset_count": 0,
-                "percentage": 100.0,  # 100% même si valeur est 0
-                "assets": []
-            }]
-            
+            # Appliquer le filtrage min_usd pour CSV
+            if min_usd > 0 and snap.get("detailed_holdings"):
+                detailed = snap.get("detailed_holdings", {})
+                filtered_detailed = {}
+                for loc, assets in detailed.items():
+                    filtered_assets = [a for a in assets if float(a.get("value_usd", 0)) >= min_usd]
+                    if filtered_assets:
+                        filtered_detailed[loc] = filtered_assets
+                
+                # Recalculer les exchanges
+                exchanges = []
+                for loc, assets in filtered_detailed.items():
+                    total_val = sum(float(a.get("value_usd", 0)) for a in assets)
+                    if total_val >= min_usd:
+                        exchanges.append({
+                            "location": loc,
+                            "total_value_usd": round(total_val, 2),
+                            "asset_count": len(assets),
+                            "assets": sorted(assets, key=lambda x: float(x.get("value_usd", 0)), reverse=True)
+                        })
+                exchanges.sort(key=lambda x: x["total_value_usd"], reverse=True)
+                snap = {"exchanges": exchanges, "detailed_holdings": filtered_detailed}
+        else:
+            # Utiliser API
+            snap = await _load_ctapi_exchanges(min_usd=min_usd)
+        exchanges = snap.get("exchanges") or []
+        if exchanges:
+            total = sum(float(x.get("total_value_usd") or 0) for x in exchanges)
+            locs = []
+            for e in exchanges:
+                tv = float(e.get("total_value_usd") or 0)
+                locs.append({
+                    "location": e.get("location"),
+                    "total_value_usd": tv,
+                    "asset_count": int(e.get("asset_count") or len(e.get("assets") or [])),
+                    "percentage": (tv / total * 100.0) if total > 0 else 0.0,
+                    "assets": e.get("assets") or [],
+                })
             return {
                 "ok": True,
                 "breakdown": {
-                    "total_value_usd": 0.0,
-                    "location_count": 1,
-                    "locations": locations
+                    "total_value_usd": total,
+                    "location_count": len(locs),
+                    "locations": locs,
                 },
-                "fallback": True,
-                "message": "No location data available, using default location"
+                "fallback": False,
+                "message": "",
             }
-        
-        # Convertir au format attendu par le frontend
-        locations = []
-        for exchange in exchanges:
-            location_name = exchange.get("location", "Portfolio")
-            location_value = exchange.get("total_value_usd", 0)
-            
-            # Récupérer les assets détaillés pour cette location
-            assets = detailed_holdings.get(location_name, [])
-            
-            # Calculer les pourcentages des assets dans cette location
-            for asset in assets:
-                asset["percentage"] = (asset["value_usd"] / location_value) if location_value > 0 else 0
-                asset["alias"] = asset.get("symbol")  # Pour compatibilité frontend
-            
-            locations.append({
-                "location": location_name,
-                "total_value_usd": location_value,
-                "asset_count": exchange.get("asset_count", 0),
-                "percentage": (location_value / total_value) if total_value > 0 else 0,
-                "assets": assets
-            })
-        
-        return {
-            "ok": True,
-            "breakdown": {
-                "total_value_usd": total_value,
-                "location_count": len(locations),
-                "locations": locations
-            },
-            "source_used": exchange_data.get("source_used", source)
-        }
-        
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+    except Exception:
+        pass
+
+    # Fallback explicite si VRAIMENT rien
+    return {
+        "ok": True,
+        "breakdown": {
+            "total_value_usd": 0.0,
+            "location_count": 1,
+            "locations": [{
+                "location": "CoinTracking",
+                "total_value_usd": 0.0,
+                "asset_count": 0,
+                "percentage": 100.0,
+                "assets": []
+            }]
+        },
+        "fallback": True,
+        "message": "No location data available, using default location"
+    }
+
+
 
 # Stratégies de rebalancing prédéfinies
 REBALANCING_STRATEGIES = {
@@ -869,3 +1157,5 @@ async def get_portfolio_alerts(source: str = Query("cointracking"), drift_thresh
         
     except Exception as e:
         return {"ok": False, "error": str(e)}
+    
+

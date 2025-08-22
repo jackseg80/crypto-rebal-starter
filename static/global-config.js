@@ -103,30 +103,21 @@ class GlobalConfig {
    * Construit l'URL API avec les paramètres par défaut
    */
   getApiUrl(endpoint, additionalParams = {}) {
-    const baseUrl = this.settings.api_base_url;
-    // Construction plus simple de l'URL
-    const fullUrl = baseUrl.endsWith('/') ? baseUrl + endpoint.substring(1) : baseUrl + endpoint;
+    const base = this.settings.api_base_url;
+    const url = new URL(endpoint, base.endsWith('/') ? base : base + '/');
 
-    // Ajouter les paramètres par défaut
-    const defaultParams = {
+    const defaults = {
       source: this.settings.data_source,
       pricing: this.settings.pricing,
       min_usd: this.settings.min_usd_threshold
     };
 
-    // Fusionner avec les paramètres additionnels
-    const allParams = { ...defaultParams, ...additionalParams };
-
-    // Construire la query string
-    const params = new URLSearchParams();
-    Object.entries(allParams).forEach(([key, value]) => {
-      if (value !== null && value !== undefined && value !== '') {
-        params.set(key, value);
-      }
+    const all = { ...defaults, ...additionalParams };
+    Object.entries(all).forEach(([k, v]) => {
+      if (v !== null && v !== undefined && v !== '') url.searchParams.set(k, v);
     });
 
-    const queryString = params.toString();
-    return queryString ? `${fullUrl}?${queryString}` : fullUrl;
+    return url.toString();
   }
 
   /**
@@ -134,31 +125,16 @@ class GlobalConfig {
    */
   async apiRequest(endpoint, options = {}) {
     const url = this.getApiUrl(endpoint, options.params || {});
+    const { params, headers, ...rest } = options;
 
     const requestOptions = {
-      method: options.method || 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-      },
-      ...options
+      headers: { 'Content-Type': 'application/json', ...(headers || {}) },
+      ...rest
     };
 
-    // Supprimer params des options pour éviter les doublons
-    delete requestOptions.params;
-
-    try {
-      const response = await fetch(url, requestOptions);
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error(`API Error [${endpoint}]:`, error);
-      throw error;
-    }
+    const res = await fetch(url, requestOptions);
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    return res.json();
   }
 
   /**
