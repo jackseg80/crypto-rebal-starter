@@ -268,47 +268,252 @@ class SimulatorAdapter(ExchangeAdapter):
         )
 
 class BinanceAdapter(ExchangeAdapter):
-    """Adaptateur pour Binance (implémentation de base)"""
+    """Adaptateur pour Binance avec API réelle"""
     
     def __init__(self, config: ExchangeConfig):
         super().__init__(config)
-        # TODO: Initialiser client Binance
+        self.client = None
+        self._trading_pairs_cache = None
+        self._last_pairs_update = None
         
     async def connect(self) -> bool:
-        """Connexion à Binance"""
-        # TODO: Implémenter connexion réelle Binance
-        logger.warning("Binance adapter not fully implemented - using simulator mode")
-        self.connected = True
-        return True
+        """Connexion à Binance avec validation des credentials"""
+        try:
+            # Import dynamique pour éviter les erreurs si le package n'est pas installé
+            from binance.client import Client
+            from binance.exceptions import BinanceAPIException
+            
+            if not self.config.api_key or not self.config.api_secret:
+                logger.error("Binance API key/secret not provided")
+                return False
+            
+            # Créer le client Binance
+            self.client = Client(
+                api_key=self.config.api_key,
+                api_secret=self.config.api_secret,
+                testnet=self.config.sandbox  # Utilise testnet si sandbox=True
+            )
+            
+            # Test de connexion
+            account_info = self.client.get_account()
+            
+            if account_info:
+                self.connected = True
+                mode = "TESTNET" if self.config.sandbox else "MAINNET"
+                logger.info(f"Connected to Binance {mode} successfully")
+                return True
+            else:
+                logger.error("Failed to get account info from Binance")
+                return False
+                
+        except ImportError:
+            logger.error("python-binance package not installed. Run: pip install python-binance")
+            return False
+        except BinanceAPIException as e:
+            logger.error(f"Binance API error: {e}")
+            return False  
+        except Exception as e:
+            logger.error(f"Unexpected error connecting to Binance: {e}")
+            return False
     
     async def disconnect(self) -> None:
+        """Déconnexion propre"""
+        if self.client:
+            # Pas de méthode close() spécifique pour python-binance
+            self.client = None
         self.connected = False
+        logger.info("Disconnected from Binance")
     
     async def get_trading_pairs(self) -> List[TradingPair]:
-        # TODO: Récupérer vraies paires Binance
-        return []
+        """Récupérer les paires de trading Binance avec cache"""
+        if not self.connected or not self.client:
+            return []
+            
+        try:
+            from datetime import datetime, timedelta
+            
+            # Cache pendant 1 heure
+            if (self._trading_pairs_cache and self._last_pairs_update and 
+                datetime.now() - self._last_pairs_update < timedelta(hours=1)):
+                return self._trading_pairs_cache
+            
+            # Récupérer info sur les paires depuis Binance
+            exchange_info = self.client.get_exchange_info()
+            pairs = []
+            
+            for symbol_info in exchange_info['symbols']:
+                if symbol_info['status'] == 'TRADING':
+                    # Conversion format Binance → format standard
+                    base_asset = symbol_info['baseAsset']
+                    quote_asset = symbol_info['quoteAsset']
+                    symbol = f"{base_asset}/{quote_asset}"
+                    
+                    # Filtrer les paires USDT principales
+                    if quote_asset in ['USDT', 'BUSD', 'USD']:
+                        min_qty = None
+                        for filter in symbol_info.get('filters', []):
+                            if filter['filterType'] == 'MIN_NOTIONAL':
+                                min_qty = float(filter.get('minNotional', 10.0))
+                                break
+                        
+                        pairs.append(TradingPair(
+                            symbol=symbol,
+                            base_asset=base_asset,
+                            quote_asset=quote_asset,
+                            available=True,
+                            min_order_size=min_qty
+                        ))
+            
+            self._trading_pairs_cache = pairs
+            self._last_pairs_update = datetime.now()
+            
+            logger.info(f"Loaded {len(pairs)} trading pairs from Binance")
+            return pairs
+            
+        except Exception as e:
+            logger.error(f"Error getting trading pairs from Binance: {e}")
+            return []
     
     async def get_balance(self, asset: str) -> float:
-        # TODO: Vraie balance Binance  
-        return 0.0
+        """Récupérer balance réelle d'un asset"""
+        if not self.connected or not self.client:
+            return 0.0
+            
+        try:
+            account = self.client.get_account()
+            
+            for balance in account['balances']:
+                if balance['asset'] == asset.upper():
+                    free_balance = float(balance['free'])
+                    locked_balance = float(balance['locked'])
+                    total_balance = free_balance + locked_balance
+                    
+                    logger.debug(f"Balance {asset}: {total_balance} (free: {free_balance}, locked: {locked_balance})")
+                    return total_balance
+            
+            return 0.0
+            
+        except Exception as e:
+            logger.error(f"Error getting balance for {asset}: {e}")
+            return 0.0
     
     async def get_current_price(self, symbol: str) -> Optional[float]:
-        # TODO: Vrai prix Binance
-        return None
+        """Récupérer prix actuel depuis Binance"""
+        if not self.connected or not self.client:
+            return None
+            
+        try:
+            # Conversion format standard → format Binance
+            binance_symbol = symbol.replace('/', '').replace('USD', 'USDT')
+            
+            ticker = self.client.get_symbol_ticker(symbol=binance_symbol)
+            price = float(ticker['price'])
+            
+            logger.debug(f"Price for {symbol} ({binance_symbol}): ${price}")
+            return price
+            
+        except Exception as e:
+            logger.error(f"Error getting price for {symbol}: {e}")
+            return None
     
     async def place_order(self, order: Order) -> OrderResult:
-        # TODO: Vrai placement d'ordre Binance
-        return OrderResult(
-            success=False,
-            order_id=order.id,
-            error_message="Binance adapter not implemented"
-        )
+        """Placer un ordre réel sur Binance"""
+        if not self.connected or not self.client:
+            return OrderResult(
+                success=False,
+                order_id=order.id,
+                error_message="Not connected to Binance"
+            )
+        
+        try:
+            from binance.enums import SIDE_BUY, SIDE_SELL, ORDER_TYPE_MARKET
+            
+            # Préparation des paramètres
+            binance_symbol = order.symbol.replace('/', '').replace('USD', 'USDT')
+            side = SIDE_BUY if order.action == 'buy' else SIDE_SELL
+            
+            # Déterminer la quantité
+            if order.action == 'buy':
+                # Pour acheter, utiliser quoteOrderQty (montant en USDT)
+                quote_qty = abs(order.usd_amount)
+                result = self.client.order_market_buy(
+                    symbol=binance_symbol,
+                    quoteOrderQty=quote_qty
+                )
+            else:
+                # Pour vendre, utiliser quantity (quantité de l'asset)
+                quantity = order.quantity if order.quantity > 0 else abs(order.usd_amount) / await self.get_current_price(order.symbol)
+                result = self.client.order_market_sell(
+                    symbol=binance_symbol,
+                    quantity=quantity
+                )
+            
+            # Traitement du résultat
+            if result and result['status'] == 'FILLED':
+                filled_qty = float(result['executedQty'])
+                cumulative_quote = float(result['cummulativeQuoteQty'])
+                avg_price = cumulative_quote / filled_qty if filled_qty > 0 else 0
+                
+                # Calcul des frais
+                total_fee = 0.0
+                for fill in result.get('fills', []):
+                    total_fee += float(fill['commission'])
+                
+                return OrderResult(
+                    success=True,
+                    order_id=order.id,
+                    exchange_order_id=str(result['orderId']),
+                    filled_quantity=filled_qty,
+                    filled_usd=cumulative_quote,
+                    avg_price=avg_price,
+                    fees=total_fee,
+                    status=OrderStatus.FILLED,
+                    executed_at=datetime.now(timezone.utc),
+                    exchange_data=result
+                )
+            else:
+                return OrderResult(
+                    success=False,
+                    order_id=order.id,
+                    error_message=f"Order not filled. Status: {result.get('status', 'unknown')}",
+                    status=OrderStatus.FAILED
+                )
+                
+        except Exception as e:
+            logger.error(f"Error placing order on Binance: {e}")
+            return OrderResult(
+                success=False,
+                order_id=order.id,
+                error_message=f"Binance API error: {str(e)}"
+            )
     
     async def cancel_order(self, exchange_order_id: str) -> bool:
-        return False
+        """Annuler un ordre sur Binance"""
+        if not self.connected or not self.client:
+            return False
+            
+        try:
+            # TODO: Implémenter l'annulation d'ordre
+            # Nécessite de stocker le symbol avec l'ordre
+            logger.warning("Order cancellation not fully implemented")
+            return False
+        except Exception as e:
+            logger.error(f"Error canceling order {exchange_order_id}: {e}")
+            return False
     
     async def get_order_status(self, exchange_order_id: str) -> OrderResult:
-        return OrderResult(success=False, order_id="", error_message="Not implemented")
+        """Récupérer le statut d'un ordre"""
+        if not self.connected or not self.client:
+            return OrderResult(success=False, order_id="", error_message="Not connected")
+            
+        try:
+            # TODO: Implémenter la récupération de statut
+            # Nécessite de stocker le symbol avec l'ordre
+            logger.warning("Order status check not fully implemented")
+            return OrderResult(success=False, order_id="", error_message="Not implemented")
+        except Exception as e:
+            logger.error(f"Error getting order status {exchange_order_id}: {e}")
+            return OrderResult(success=False, order_id="", error_message=str(e))
 
 class ExchangeRegistry:
     """Registre des adaptateurs d'exchange disponibles"""
@@ -363,25 +568,41 @@ class ExchangeRegistry:
 exchange_registry = ExchangeRegistry()
 
 def setup_default_exchanges():
-    """Configuration par défaut des exchanges"""
+    """Configuration par défaut des exchanges avec support des variables d'environnement"""
+    import os
     
     # Simulateur (toujours disponible)
     simulator_config = ExchangeConfig(
         name="simulator",
         type=ExchangeType.SIMULATOR,
         fee_rate=0.001,
-        min_order_size=10.0
+        min_order_size=10.0,
+        sandbox=True
     )
     exchange_registry.register_exchange(simulator_config)
     
-    # Binance (nécessite clés API)
+    # Binance (avec credentials depuis environnement)
+    binance_api_key = os.getenv('BINANCE_API_KEY')
+    binance_api_secret = os.getenv('BINANCE_API_SECRET')
+    binance_sandbox = os.getenv('BINANCE_SANDBOX', 'true').lower() == 'true'
+    
     binance_config = ExchangeConfig(
         name="binance",
         type=ExchangeType.CEX,
+        api_key=binance_api_key,
+        api_secret=binance_api_secret,
+        sandbox=binance_sandbox,
         fee_rate=0.001,
-        min_order_size=10.0,
-        sandbox=True  # Mode sandbox par défaut
+        min_order_size=10.0
     )
+    
+    # Log de la configuration sans exposer les secrets
+    if binance_api_key:
+        masked_key = binance_api_key[:8] + "..." + binance_api_key[-4:] if len(binance_api_key) > 12 else "***"
+        mode = "TESTNET" if binance_sandbox else "MAINNET"
+        logger.info(f"Binance configured with API key {masked_key} in {mode} mode")
+    else:
+        logger.warning("Binance API key not found in environment - will use simulator mode")
     exchange_registry.register_exchange(binance_config)
     
     logger.info("Default exchanges configured")
