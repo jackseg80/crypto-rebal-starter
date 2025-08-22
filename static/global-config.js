@@ -14,7 +14,7 @@ const DEFAULT_SETTINGS = {
   coingecko_api_key: '',
   cointracking_api_key: '',
   cointracking_api_secret: '',
-  api_base_url: 'http://localhost:8000',
+  api_base_url: 'http://127.0.0.1:8000',
   refresh_interval: 5,
   enable_coingecko_classification: true,
   enable_portfolio_snapshots: true,
