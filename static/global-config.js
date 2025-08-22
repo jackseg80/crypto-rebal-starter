@@ -8,13 +8,13 @@
 // Configuration par défaut
 const DEFAULT_SETTINGS = {
   data_source: 'cointracking',
-  pricing: 'local', 
+  pricing: 'local',
   display_currency: 'USD',
   min_usd_threshold: 1.00,
   coingecko_api_key: '',
   cointracking_api_key: '',
   cointracking_api_secret: '',
-  api_base_url: 'http://localhost:8001',
+  api_base_url: 'http://localhost:8000',
   refresh_interval: 5,
   enable_coingecko_classification: true,
   enable_portfolio_snapshots: true,
@@ -104,26 +104,29 @@ class GlobalConfig {
    */
   getApiUrl(endpoint, additionalParams = {}) {
     const baseUrl = this.settings.api_base_url;
-    const url = new URL(endpoint, baseUrl.endsWith('/') ? baseUrl : baseUrl + '/');
-    
+    // Construction plus simple de l'URL
+    const fullUrl = baseUrl.endsWith('/') ? baseUrl + endpoint.substring(1) : baseUrl + endpoint;
+
     // Ajouter les paramètres par défaut
     const defaultParams = {
       source: this.settings.data_source,
       pricing: this.settings.pricing,
       min_usd: this.settings.min_usd_threshold
     };
-    
+
     // Fusionner avec les paramètres additionnels
     const allParams = { ...defaultParams, ...additionalParams };
-    
-    // Ajouter à l'URL
+
+    // Construire la query string
+    const params = new URLSearchParams();
     Object.entries(allParams).forEach(([key, value]) => {
       if (value !== null && value !== undefined && value !== '') {
-        url.searchParams.set(key, value);
+        params.set(key, value);
       }
     });
-    
-    return url.toString();
+
+    const queryString = params.toString();
+    return queryString ? `${fullUrl}?${queryString}` : fullUrl;
   }
 
   /**
@@ -131,7 +134,7 @@ class GlobalConfig {
    */
   async apiRequest(endpoint, options = {}) {
     const url = this.getApiUrl(endpoint, options.params || {});
-    
+
     const requestOptions = {
       method: options.method || 'GET',
       headers: {
@@ -146,11 +149,11 @@ class GlobalConfig {
 
     try {
       const response = await fetch(url, requestOptions);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-      
+
       return await response.json();
     } catch (error) {
       console.error(`API Error [${endpoint}]:`, error);
@@ -165,7 +168,7 @@ class GlobalConfig {
     try {
       const health = await this.apiRequest('/healthz');
       const balances = await this.apiRequest('/balances/current');
-      
+
       return {
         backend: health ? 'OK' : 'Erreur',
         balances: balances?.items?.length > 0 ? `OK (${balances.items.length} assets)` : 'Vide',
@@ -185,19 +188,19 @@ class GlobalConfig {
    */
   validate() {
     const issues = [];
-    
+
     if (!this.settings.api_base_url) {
       issues.push('URL API manquante');
     }
-    
+
     if (this.settings.data_source === 'cointracking_api' && (!this.settings.cointracking_api_key || !this.settings.cointracking_api_secret)) {
       issues.push('Clé API + Secret CoinTracking requis pour la source API');
     }
-    
+
     if (this.settings.min_usd_threshold < 0) {
       issues.push('Seuil minimum USD doit être positif');
     }
-    
+
     return {
       valid: issues.length === 0,
       issues
@@ -208,8 +211,8 @@ class GlobalConfig {
    * Exporte la configuration vers un fichier JSON
    */
   export() {
-    const blob = new Blob([JSON.stringify(this.settings, null, 2)], { 
-      type: 'application/json' 
+    const blob = new Blob([JSON.stringify(this.settings, null, 2)], {
+      type: 'application/json'
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -247,18 +250,18 @@ class GlobalConfig {
     this.set('has_generated_plan', true);
     this.set('unknown_aliases_count', unknownAliasesCount);
     this.set('last_plan_timestamp', Date.now());
-    
+
     // Sauvegarder les données du plan pour persistance
     if (planData) {
       this.set('last_plan_data', planData);
     }
-    
+
     // Déclencher un événement pour mettre à jour la navigation
-    window.dispatchEvent(new CustomEvent('planGenerated', { 
-      detail: { 
+    window.dispatchEvent(new CustomEvent('planGenerated', {
+      detail: {
         unknownAliasesCount,
-        timestamp: Date.now() 
-      } 
+        timestamp: Date.now()
+      }
     }));
   }
 
@@ -291,7 +294,7 @@ class GlobalConfig {
     this.set('unknown_aliases_count', 0);
     this.set('last_plan_timestamp', null);
     this.set('last_plan_data', null);
-    
+
     // Déclencher un événement pour mettre à jour la navigation
     window.dispatchEvent(new CustomEvent('planReset'));
   }
@@ -314,8 +317,8 @@ window.addEventListener('storage', (e) => {
   if (e.key === 'crypto_rebalancer_settings') {
     globalConfig.load();
     // Déclencher événement personnalisé pour les pages qui écoutent
-    window.dispatchEvent(new CustomEvent('configChanged', { 
-      detail: globalConfig.getAll() 
+    window.dispatchEvent(new CustomEvent('configChanged', {
+      detail: globalConfig.getAll()
     }));
   }
 });
