@@ -247,9 +247,9 @@ class OrderManager:
         
         # 2. Vérifier les ordres individuels
         for order in plan.orders:
-            # Quantité positive
-            if order.quantity != 0 and order.quantity * (1 if order.action == "buy" else -1) <= 0:
-                warnings.append(f"Order {order.alias}: suspicious quantity sign")
+            # Quantité positive (toujours positive, indépendamment de l'action)
+            if order.quantity != 0 and order.quantity <= 0:
+                warnings.append(f"Order {order.alias}: quantity must be positive")
             
             # Prix cohérent
             if order.target_price and order.target_price <= 0:
