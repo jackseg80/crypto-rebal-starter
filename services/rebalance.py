@@ -11,14 +11,15 @@ def _keynorm(s: str) -> str:
 
 def _get_exec_hint(action: Dict[str, Any], items_by_group: Dict[str, List[Dict[str, Any]]]) -> str:
     """
-    Génère un hint d'exécution basé sur les locations majoritaires du groupe.
+    Génère un hint d'exécution basé sur les locations avec priorités intelligentes.
+    CEX en priorité (plus simple à trader), puis DeFi/Hardware wallets.
     
     Args:
         action: action de buy/sell avec group, alias, symbol
         items_by_group: positions actuelles par groupe
         
     Returns:
-        exec_hint: suggestion d'exécution (ex: "CEX Binance", "DEX Solana", "Mixed platforms")
+        exec_hint: suggestion d'exécution avec nom de location spécifique
     """
     group = action.get("group", "")
     action_type = action.get("action", "")
@@ -26,59 +27,105 @@ def _get_exec_hint(action: Dict[str, Any], items_by_group: Dict[str, List[Dict[s
     # Récupérer les positions du groupe
     group_items = items_by_group.get(group, [])
     if not group_items:
-        return "No current positions"
+        return "Trade on primary exchange"
     
     # Analyser les locations
-    locations = [item.get("location", "unknown") for item in group_items if item.get("value_usd", 0) > 0]
-    if not locations:
-        return "Platform TBD"
-    
-    # Compter les locations par valeur pondérée
     location_values = {}
     for item in group_items:
-        loc = item.get("location", "unknown")
+        loc = item.get("location", "Portfolio")
         value = item.get("value_usd", 0)
-        location_values[loc] = location_values.get(loc, 0) + value
+        if value > 0:
+            location_values[loc] = location_values.get(loc, 0) + value
     
-    # Trouver la location majoritaire
-    total_value = sum(location_values.values())
-    if total_value == 0:
-        return "Platform TBD"
+    if not location_values:
+        return "Trade on primary exchange"
     
-    # Trier par valeur
-    sorted_locs = sorted(location_values.items(), key=lambda x: x[1], reverse=True)
-    main_loc, main_value = sorted_locs[0]
-    main_percentage = (main_value / total_value) * 100
-    
-    # Normaliser les noms de locations courants
-    loc_map = {
-        "CoinTracking": "CEX (multi-exchange)",
-        "Binance": "CEX Binance", 
-        "Coinbase": "CEX Coinbase",
-        "Kraken": "CEX Kraken",
-        "Ledger": "Hardware wallet",
-        "MetaMask": "Software wallet",
-        "DeFi": "DEX/DeFi protocols"
+    # Définir les priorités de locations pour le trading
+    # CEX d'abord (plus liquide, plus simple), puis autres
+    location_priorities = {
+        # CEX (priorité élevée - facile à trader)
+        "Binance": 1,
+        "Kraken": 2, 
+        "Coinbase": 3,
+        "Bitget": 4,
+        "Bybit": 5,
+        "OKX": 6,
+        "Huobi": 7,
+        "KuCoin": 8,
+        
+        # Exchanges avec liquidité moindre
+        "Kraken Earn": 10,
+        "Coinbase Pro": 11,
+        
+        # Wallets software (plus complexe mais faisable)
+        "MetaMask": 20,
+        "Phantom": 21,
+        "Rabby": 22,
+        "TrustWallet": 23,
+        
+        # DeFi protocols (plus complexe)
+        "DeFi": 30,
+        "Uniswap": 31,
+        "PancakeSwap": 32,
+        "SushiSwap": 33,
+        "Curve": 34,
+        
+        # Hardware wallets et cold storage (plus complexe/lent)
+        "Ledger": 40,
+        "Trezor": 41,
+        "Cold Storage": 42,
+        
+        # Fallbacks
+        "Portfolio": 50,
+        "CoinTracking": 51,
+        "Demo Wallet": 52,
+        "Unknown": 60,
+        "Manually": 61
     }
     
-    main_loc_clean = loc_map.get(main_loc, main_loc)
+    # Trier les locations par priorité de trading (priorité basse = plus facile)
+    def get_priority(loc):
+        return location_priorities.get(loc, 100)  # Default très bas
     
-    # Générer le hint selon le type d'action et concentration
-    if main_percentage >= 80:
-        # Location très majoritaire
-        if action_type == "sell":
-            return f"Sell on {main_loc_clean}"
+    # Trier par priorité puis par valeur
+    sorted_locations = sorted(
+        location_values.items(), 
+        key=lambda x: (get_priority(x[0]), -x[1])  # priorité puis valeur desc
+    )
+    
+    # Prendre les premières locations selon le type d'action
+    if action_type == "sell":
+        # Pour les ventes, prioriser les CEX (plus facile de vendre)
+        cex_locations = [loc for loc, val in sorted_locations if get_priority(loc) < 15]
+        if cex_locations:
+            main_loc = cex_locations[0]
+            return f"Sell on {main_loc}"
         else:
-            return f"Buy on {main_loc_clean}"
-    elif main_percentage >= 60:
-        # Location majoritaire mais pas exclusive
-        if action_type == "sell":
-            return f"Prefer {main_loc_clean} (vente {main_percentage:.0f}%)"
-        else:
-            return f"Prefer {main_loc_clean} (achat)"
-    else:
-        # Répartition mixte
-        return f"Mixed platforms ({main_loc_clean} {main_percentage:.0f}%)"
+            # Pas de CEX disponible, utiliser la première location disponible
+            main_loc = sorted_locations[0][0]
+            priority = get_priority(main_loc)
+            if priority >= 40:
+                return f"Sell on {main_loc} (complex)"
+            else:
+                return f"Sell on {main_loc}"
+    
+    elif action_type == "buy":
+        # Pour les achats, aussi prioriser les CEX mais être plus flexible
+        main_loc = sorted_locations[0][0]  # Première location par priorité
+        priority = get_priority(main_loc)
+        
+        if priority < 15:  # CEX
+            return f"Buy on {main_loc}"
+        elif priority < 30:  # Software wallet
+            return f"Buy on {main_loc} (DApp)"
+        elif priority < 40:  # DeFi
+            return f"Buy on {main_loc} (DeFi)"
+        else:  # Hardware wallet ou autres
+            return f"Buy on {main_loc} (manual)"
+    
+    # Fallback générique avec le nom de la location principale
+    main_loc = sorted_locations[0][0]
+    return f"Trade on {main_loc}"
 
 
 def _normalize_targets(targets_raw: Any) -> Dict[str, float]:

@@ -286,6 +286,96 @@ async def get_current_balances(source: str = "cointracking_api") -> Dict[str, An
 
     return {"source_used": "cointracking_api", "items": []}
 
+async def get_balances_by_exchange_via_api() -> Dict[str, Any]:
+    """
+    Récupère les balances groupées par exchange via l'API CoinTracking.
+    Utilise getGroupedBalance avec group=exchange pour obtenir les locations réelles.
+    """
+    try:
+        # Appel API selon la documentation officielle
+        payload = _post_api_cached("getGroupedBalance", {
+            "group": "exchange", 
+            "exclude_dep_with": "1"  # Exclut dépôts/retraits pour ne garder que les soldes effectifs
+        }, ttl=60)
+        
+        # Utiliser la fonction de parsing existante pour extraire les données
+        raw_items = _extract_rows_from_groupedBalance(payload)
+        
+        # Filtrer et transformer les données
+        filtered_items = []
+        for item in raw_items:
+            symbol = item.get("symbol", "")
+            amount = item.get("amount", 0)
+            value_usd = item.get("value_usd", 0)
+            location = item.get("location", "")
+            
+            # Les entrées qui finissent par " BALANCE" sont les résumés par exchange
+            # On les transforme pour utiliser le nom de l'exchange proprement
+            if symbol.endswith(" BALANCE"):
+                exchange_name = symbol.replace(" BALANCE", "").title()
+                
+                # Ne garder que les exchanges avec une valeur > 0
+                if value_usd > 0:
+                    filtered_items.append({
+                        "symbol": "USD",  # Représente la valeur totale de l'exchange
+                        "amount": 1.0,    # Nominal, la vraie valeur est dans value_usd
+                        "value_usd": value_usd,
+                        "location": exchange_name
+                    })
+                continue
+            
+            # Ignorer les entrées avec valeur zéro
+            if amount <= 0 or value_usd <= 0:
+                continue
+                
+            if not symbol:
+                continue
+                
+            filtered_items.append(item)
+        
+        # Grouper par exchange/location
+        exchange_summary = []
+        detailed_holdings = {}
+        
+        for item in filtered_items:
+            location = item.get("location", "Unknown")
+            
+            if location not in detailed_holdings:
+                detailed_holdings[location] = []
+            
+            detailed_holdings[location].append(item)
+        
+        # Créer le résumé des exchanges
+        for location, items in detailed_holdings.items():
+            total_value = sum(item.get("value_usd", 0) for item in items)
+            if total_value > 0:
+                exchange_summary.append({
+                    "location": location,
+                    "total_value_usd": round(total_value, 2),
+                    "asset_count": len(items)
+                })
+                
+                # Trier les assets par valeur décroissante
+                items.sort(key=lambda x: x.get("value_usd", 0), reverse=True)
+        
+        # Trier les exchanges par valeur décroissante
+        exchange_summary.sort(key=lambda x: x.get("total_value_usd", 0), reverse=True)
+        
+        return {
+            "source_used": "cointracking_api",
+            "exchanges": exchange_summary,
+            "detailed_holdings": detailed_holdings
+        }
+        
+    except Exception as e:
+        # En cas d'erreur API, retourner des données vides avec l'erreur
+        return {
+            "source_used": "cointracking_api",
+            "exchanges": [],
+            "detailed_holdings": {},
+            "error": str(e)
+        }
+
 # --- Petit endpoint de debug (utilisé par /debug/ctapi) ----------------------
 def _debug_probe() -> Dict[str, Any]:
     out: Dict[str, Any] = {

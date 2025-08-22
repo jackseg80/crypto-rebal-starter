@@ -35,6 +35,64 @@
   .mt16{margin-top:16px}
   .grid{display:grid;gap:10px}
   @media(min-width:900px){ .grid.g2{grid-template-columns:repeat(2,1fr)} .grid.g3{grid-template-columns:repeat(3,1fr)} }
+  /* Styles pour les cartes de stratégies */
+  .strategy-card {
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--card);
+  }
+  .strategy-card:hover {
+    border-color: var(--accent);
+    background: rgba(45, 212, 191, 0.05);
+  }
+  .strategy-card.selected {
+    border-color: var(--accent);
+    background: rgba(45, 212, 191, 0.1);
+    box-shadow: 0 0 20px rgba(45, 212, 191, 0.2);
+  }
+  .strategy-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .strategy-title {
+    font-weight: 700;
+    font-size: 16px;
+  }
+  .strategy-risk {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-weight: 600;
+  }
+  .risk-faible { background: #22c55e; color: white; }
+  .risk-moyen { background: #f59e0b; color: white; }
+  .risk-élevé { background: #ef4444; color: white; }
+  .risk-faible-moyen { background: #84cc16; color: white; }
+  .strategy-allocations {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .allocation-pill {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: rgba(45, 212, 191, 0.1);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+  }
+  @media(min-width: 768px) {
+    #strategies-container { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media(min-width: 1200px) {
+    #strategies-container { grid-template-columns: repeat(3, 1fr); }
+  }
   .delta-pos{color:var(--pos)}
   .delta-neg{color:var(--danger)}
   .badge{font-weight:700}
@@ -79,6 +137,30 @@
 <!-- Header sera injecté par shared-header.js -->
 
 <div class="wrap" style="margin-top: 20px;">
+  <!-- Stratégies de Rebalancing -->
+  <div class="card" style="margin-bottom: 16px;">
+    <h3>🎯 Stratégies Prédéfinies</h3>
+    <div id="strategies-container" style="display: grid; gap: 12px; margin-top: 12px;">
+      <div style="text-align: center; padding: 20px; color: var(--muted);">
+        Chargement des stratégies...
+      </div>
+    </div>
+    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);">
+      <div class="row">
+        <button id="apply-strategy-btn" class="btn small" style="background: #22c55e;" disabled>
+          ✅ Appliquer la Stratégie
+        </button>
+        <button id="reset-strategy-btn" class="btn small secondary">
+          🔄 Reset Manuel
+        </button>
+        <div style="flex-grow: 1;"></div>
+        <span id="selected-strategy-info" class="pill" style="display: none;">
+          Aucune stratégie sélectionnée
+        </span>
+      </div>
+    </div>
+  </div>
+
   <!-- Configuration simplifiée -->
   <div class="card" style="margin-bottom: 16px;">
     <div class="row">
@@ -129,7 +211,7 @@
         <thead>
           <tr>
             <th>group</th><th>alias</th><th>symbol</th><th>action</th>
-            <th class="right">usd</th><th class="right">est_quantity</th><th class="right">price_used</th>
+            <th class="right">usd</th><th class="right">est_quantity</th><th class="right">price_used</th><th>location</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -179,6 +261,138 @@
 /* ---------- Helpers ---------- */
 const $  = sel => document.querySelector(sel);
 const el = id  => document.getElementById(id);
+
+/* ---------- Variables globales pour stratégies ---------- */
+let availableStrategies = {};
+let selectedStrategyId = null;
+
+/* ---------- Fonctions Stratégies ---------- */
+async function loadStrategies() {
+  try {
+    const response = await globalConfig.apiRequest('/strategies/list');
+    if (response.ok && response.strategies) {
+      availableStrategies = response.strategies;
+      renderStrategiesUI();
+    } else {
+      showStrategiesError('Impossible de charger les stratégies');
+    }
+  } catch (error) {
+    console.error('Erreur chargement stratégies:', error);
+    showStrategiesError('Erreur réseau: ' + error.message);
+  }
+}
+
+function renderStrategiesUI() {
+  const container = el('strategies-container');
+  if (!container) return;
+  
+  const strategiesHtml = Object.entries(availableStrategies).map(([id, strategy]) => `
+    <div class="strategy-card" data-strategy-id="${id}" onclick="selectStrategy('${id}')">
+      <div class="strategy-header">
+        <div class="strategy-title">${strategy.icon} ${strategy.name}</div>
+        <div class="strategy-risk risk-${strategy.risk_level.toLowerCase().replace(/[^a-z]/g, '')}">${strategy.risk_level}</div>
+      </div>
+      <div style="font-size: 13px; color: var(--muted); margin-bottom: 8px;">
+        ${strategy.description}
+      </div>
+      <div class="strategy-allocations">
+        ${Object.entries(strategy.allocations).map(([group, pct]) => 
+          `<span class="allocation-pill">${group}: ${pct}%</span>`
+        ).join('')}
+      </div>
+    </div>
+  `).join('');
+  
+  container.innerHTML = strategiesHtml;
+}
+
+function selectStrategy(strategyId) {
+  // Désélectionner l'ancienne stratégie
+  document.querySelectorAll('.strategy-card').forEach(card => {
+    card.classList.remove('selected');
+  });
+  
+  // Sélectionner la nouvelle
+  const selectedCard = document.querySelector(`[data-strategy-id="${strategyId}"]`);
+  if (selectedCard) {
+    selectedCard.classList.add('selected');
+    selectedStrategyId = strategyId;
+    
+    // Mettre à jour les boutons
+    el('apply-strategy-btn').disabled = false;
+    el('selected-strategy-info').style.display = 'inline-block';
+    el('selected-strategy-info').textContent = `${availableStrategies[strategyId].icon} ${availableStrategies[strategyId].name}`;
+  }
+}
+
+function applyStrategy() {
+  if (!selectedStrategyId || !availableStrategies[selectedStrategyId]) {
+    showNotification('Aucune stratégie sélectionnée', 'warning');
+    return;
+  }
+  
+  const strategy = availableStrategies[selectedStrategyId];
+  
+  // Utiliser le système dynamicTargets pour appliquer la stratégie
+  dynamicTargets = strategy.allocations;
+  useDynamicTargets = true;
+  
+  // Mettre à jour l'indicateur UI
+  const indicator = el("dynamicTargetsIndicator");
+  if (indicator) {
+    indicator.style.display = 'inline-block';
+    indicator.textContent = `🎯 ${strategy.name}`;
+  }
+  
+  // Notification
+  showNotification(`✅ Stratégie "${strategy.name}" appliquée!`, 'success');
+  
+  // Régénérer automatiquement le plan
+  setTimeout(() => {
+    if (el('btnRun')) {
+      el('btnRun').click();
+    }
+  }, 500);
+}
+
+function resetToManual() {
+  // Désélectionner toutes les stratégies
+  document.querySelectorAll('.strategy-card').forEach(card => {
+    card.classList.remove('selected');
+  });
+  
+  selectedStrategyId = null;
+  el('apply-strategy-btn').disabled = true;
+  el('selected-strategy-info').style.display = 'none';
+  
+  // Désactiver les targets dynamiques
+  dynamicTargets = null;
+  useDynamicTargets = false;
+  
+  // Masquer l'indicateur
+  const indicator = el("dynamicTargetsIndicator");
+  if (indicator) {
+    indicator.style.display = 'none';
+  }
+  
+  showNotification('Mode manuel activé', 'info');
+  
+  // Régénérer le plan avec les targets par défaut
+  setTimeout(() => {
+    if (el('btnRun')) {
+      el('btnRun').click();
+    }
+  }, 500);
+}
+
+function showStrategiesError(message) {
+  el('strategies-container').innerHTML = `
+    <div style="text-align: center; padding: 20px; color: var(--danger);">
+      ❌ ${message}
+    </div>
+  `;
+}
+
 const fmt  = n => (n==null || isNaN(n)) ? "" : Number(n).toLocaleString(undefined, {maximumFractionDigits: 8});
 const fmt2 = n => (n==null || isNaN(n)) ? "—" : Number(n).toLocaleString(undefined, {maximumFractionDigits: 2});
 
@@ -359,6 +573,7 @@ function renderActions(actions){
       <td class="right">${fmt(a.usd)}</td>
       <td class="right">${fmt(a.est_quantity)}</td>
       <td class="right">${fmt(a.price_used)}</td>
+      <td>${a.exec_hint||a.location||""}</td>
     </tr>
   `).join("");
 }
@@ -648,6 +863,13 @@ function openAliasManager() {
 window.addEventListener("DOMContentLoaded", ()=>{
   // Initialiser le header partagé
   initSharedHeader('rebalance', { showConfigIndicators: true });
+  
+  // Charger les stratégies
+  loadStrategies();
+  
+  // Gestionnaires d'événements pour les stratégies
+  el("apply-strategy-btn").addEventListener("click", applyStrategy);
+  el("reset-strategy-btn").addEventListener("click", resetToManual);
   
   persistSourceInit();
   el("btnRun").addEventListener("click", runPlan);
