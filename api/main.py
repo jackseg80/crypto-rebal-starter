@@ -22,6 +22,7 @@ from api.taxonomy_endpoints import router as taxonomy_router
 from api.execution_endpoints import router as execution_router
 from api.monitoring_endpoints import router as monitoring_router
 from api.analytics_endpoints import router as analytics_router
+from constants import get_exchange_priority, normalize_exchange_name
 
 app = FastAPI()
 # CORS large pour tests locaux + UI docs/
@@ -68,36 +69,10 @@ try:
 except Exception:
     import cointracking_api as ct_api  # fallback au cas où le package n'est pas packagé "connectors"
 
-FAST_SELL_EXCHANGES = [
-    "Kraken", "Binance", "Coinbase", "Bitget", "OKX", "Bybit", "KuCoin", "Bittrex", "Bitstamp", "Gemini"
-]
-DEFI_HINTS = ["Aave", "Lido", "Rocket Pool", "Curve", "Uniswap", "Sushiswap", "Jupiter", "Osmosis", "Thorchain"]
-COLD_HINTS = ["Ledger", "Trezor", "Cold", "Vault", "Hardware"]
+# Constantes déplacées vers constants/exchanges.py
 
-def _normalize_loc(label: str) -> str:
-    if not label:
-        return "Unknown"
-    t = label.strip()
-    # CoinTracking renvoie souvent “KRaken Balance”, “Kraken Earn Balance”, “COINBASE BALANCE”, …
-    t = t.replace("_", " ").replace("-", " ")
-    t = t.title()
-    # Enlever suffixes fréquents
-    for suf in (" Balance", " Wallet", " Account"):
-        if t.endswith(suf):
-            t = t[: -len(suf)]
-    # Ex.: “Kraken Earn Balance” -> “Kraken Earn”
-    t = t.replace(" Earn", " Earn")
-    return t
-
-def _classify_location(loc: str) -> int:
-    L = _normalize_loc(loc)
-    if any(L.startswith(x) for x in FAST_SELL_EXCHANGES):
-        return 0  # CEX rapide
-    if any(h in L for h in DEFI_HINTS):
-        return 1  # DeFi
-    if any(h in L for h in COLD_HINTS):
-        return 2  # Cold/Hardware
-    return 3  # reste
+# Fonctions déplacées vers constants/exchanges.py
+# Utiliser normalize_exchange_name() au lieu de _normalize_loc()
 
 def _pick_primary_location_for_symbol(symbol: str, detailed_holdings: dict) -> str:
     # Retourne l’exchange où ce symbole pèse le plus en USD
@@ -356,27 +331,8 @@ def _assign_locations_to_actions(plan: dict, rows: list[dict], min_trade_usd: fl
                 out_actions.append(a)
                 continue
 
-            # Tri par priorité CEX → DeFi → Cold, puis par valeur décroissante  
-            def get_exchange_priority(exchange_name: str) -> int:
-                priorities = {
-                    # CEX rapides (priorité 1-15)
-                    "Binance": 1, "Kraken": 2, "Coinbase": 3, "Bitget": 4, "Bybit": 5, "OKX": 6,
-                    "Huobi": 7, "KuCoin": 8, "Poloniex": 9, "Kraken Earn": 10, "Coinbase Pro": 11,
-                    "Bittrex": 12, "Ftx": 13, "Swissborg": 14,
-                    # Wallets software (priorité 20-29)
-                    "MetaMask": 20, "Phantom": 21, "Rabby": 22, "TrustWallet": 23,
-                    # DeFi (priorité 30-39)  
-                    "DeFi": 30, "Uniswap": 31, "PancakeSwap": 32, "SushiSwap": 33, "Curve": 34,
-                    # Hardware/Cold (priorité 40+)
-                    "Ledger": 40, "Trezor": 41, "Cold Storage": 42, "Ledger Wallets": 40,
-                    "Portfolio": 50, "CoinTracking": 51, "Demo Wallet": 52, "Unknown": 60
-                }
-                # Normalisation pour matcher les noms CoinTracking
-                clean_name = exchange_name.replace(" Balance", "").replace(" Wallets", "").strip()
-                for prefix in ["Metamask", "Solana", "Ron", "Siacoin", "Vsync"]:
-                    if clean_name.startswith(prefix):
-                        return 25  # Wallets spécialisés
-                return priorities.get(clean_name, 99)
+            # Tri par priorité CEX → DeFi → Cold, puis par valeur décroissante
+            # Utilisation de la fonction centralisée
 
             # Tri par priorité, puis par valeur décroissante pour les mêmes priorités
             locs_sorted = sorted(locs, key=lambda x: (get_exchange_priority(x[0]), -x[1]))

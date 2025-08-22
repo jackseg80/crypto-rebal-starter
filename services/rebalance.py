@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
+from constants import get_exchange_priority, normalize_exchange_name
 from services.taxonomy import Taxonomy
 
 
@@ -50,25 +51,14 @@ def _get_exec_hint(action: Dict[str, Any], items_by_group: Dict[str, List[Dict[s
     if not group_items:
         return "Trade on primary exchange"
 
-    priorities = {
-        "Binance": 1, "Kraken": 2, "Coinbase": 3, "Bitget": 4, "Bybit": 5, "OKX": 6,
-        "Huobi": 7, "KuCoin": 8, "Kraken Earn": 10, "Coinbase Pro": 11,
-        "MetaMask": 20, "Phantom": 21, "Rabby": 22, "TrustWallet": 23,
-        "DeFi": 30, "Uniswap": 31, "PancakeSwap": 32, "SushiSwap": 33, "Curve": 34,
-        "Ledger": 40, "Trezor": 41, "Cold Storage": 42,
-        "Portfolio": 50, "CoinTracking": 51, "Demo Wallet": 52, "Unknown": 60, "Manually": 61,
-    }
-
+    # Utilisation des priorités centralisées
     def prio(loc: str) -> int:
-        return priorities.get(loc, 100)
+        return get_exchange_priority(loc)
 
     # somme des valeurs par location
     loc_vals: Dict[str, float] = {}
     for it in group_items:
-        loc = (it.get("location") or "Unknown").strip()
-        if loc.endswith(" Balance"):
-            loc = loc[:-8].strip()
-        loc = loc.title()
+        loc = normalize_exchange_name(it.get("location") or "Unknown")
         v = float(it.get("value_usd") or 0.0)
         if v > 0:
             loc_vals[loc] = loc_vals.get(loc, 0.0) + v
