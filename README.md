@@ -1,15 +1,16 @@
 # Crypto Rebal Starter — API + UI prêtes à l'emploi
 
 Outil de **simulation de rebalancement** pour portefeuille crypto :
-- Connexion **CoinTracking API** (méthode `getBalance` prioritaire, fallback `getGroupedBalance`)
-- Calcul d’un **plan d’actions** (ventes/achats) par groupes cibles
-- **Enrichissement des prix** & **quantités estimées**
-- **Export CSV**
+- Connexion **CoinTracking CSV** (prioritaire) et **API** (fallback) avec support location-aware
+- Calcul d'un **plan d'actions** (ventes/achats) par groupes cibles avec **exec_hints spécifiques** par exchange
+- **Enrichissement des prix** & **quantités estimées** avec pricing hybride
+- **Export CSV** avec actions détaillées par location
 - Gestion des **aliases** (WBTC→BTC, WETH→ETH, …) & détection `unknown_aliases`
-- **Classification automatique** par patterns regex (L2/Scaling, DeFi, AI/Data, Gaming/NFT, Memecoins)
+- **Classification automatique** par patterns regex (11 groupes incluant L2/Scaling, DeFi, AI/Data, Gaming/NFT, Memecoins)
 - **Interface unifiée** avec configuration centralisée et navigation cohérente
 - **Gestion intelligente des plans** avec persistance et restauration automatique
 - **Intégration CCS → Rebalance** avec dynamic targets et exec_hint pour suggestions d'exécution
+- **Rebalancing location-aware** : "Sell on Kraken", "Sell on Binance", "Sell on Ledger (complex)" avec priorité CEX→DeFi→Cold
 
 ---
 
@@ -75,16 +76,18 @@ Les deux paires de variables sont acceptées :
 - `CT_API_KEY` / `CT_API_SECRET`
 - `COINTRACKING_API_KEY` / `COINTRACKING_API_SECRET`
 
-# (Optionnel) Chemin CSV CoinTracking si vous utilisez la source "cointracking"
-# Si non défini, l'app cherchera automatiquement les fichiers ci-dessous
-# et prendra le plus récent trouvé :
-# - data/CoinTracking - Current Balance_mini.csv
-# - data/CoinTracking - Balance by Exchange_mini.csv
-# - data/CoinTracking - Current Balance.csv
-# - data/CoinTracking - Balance by Exchange.csv
-# puis les mêmes noms à la racine du projet.
+# (Optionnel) Chemin CSV CoinTracking si vous utilisez la source "cointracking" 
+# Si non défini, l'app recherche automatiquement en priorité les fichiers :
+# 1. Balance by Exchange (priorité) : data/raw/CoinTracking - Balance by Exchange - *.csv
+# 2. Current Balance (fallback) : data/raw/CoinTracking - Current Balance.csv
+# 
+# Formats CSV supportés pour exports CoinTracking :
+# - Balance by Exchange : contient les vraies locations par asset (recommandé)
+# - Current Balance : totaux globaux sans location
+# - Coins by Exchange : détails des holdings par exchange
+# 
 # Exemple :
-# COINTRACKING_CSV=/path/vers/CoinTracking - Balance by Exchange_mini.csv
+# COINTRACKING_CSV=/path/vers/CoinTracking - Balance by Exchange - 22.08.2025.csv
 
 ---
 
@@ -114,23 +117,26 @@ docs/
 
 ### 4.1 Balances courantes
 ```
-GET /balances/current?source=cointracking_api&min_usd=1
+GET /balances/current?source=cointracking&min_usd=1
 ```
+- **Source par défaut** : `cointracking` (CSV) - recommandé car plus fiable que l'API
 - Réponse :  
   ```json
   {
-    "source_used": "cointracking_api",
+    "source_used": "cointracking",
     "items": [
-      { "symbol":"BTC", "amount":1.23, "value_usd":12345.67, "price_usd":10036.8, "location":"CoinTracking" },
+      { "symbol":"BTC", "amount":1.23, "value_usd":12345.67, "location":"Kraken" },
+      { "symbol":"ETH", "amount":2.45, "value_usd":5678.90, "location":"Binance" },
       ...
     ]
   }
   ```
-- Pour `source=cointracking` (CSV), si `COINTRACKING_CSV` n’est pas fourni, l’application scanne les exports CoinTracking les plus courants et utilise **le fichier existant le plus récent** parmi : *`Current Balance(_mini).csv`* et *`Balance by Exchange(_mini).csv`* dans `data/` puis à la racine.
+- **Locations automatiques** : Les CSV "Balance by Exchange" assignent les locations réelles (Kraken, Binance, Ledger, etc.)
+- **Recherche intelligente** : L'application privilégie automatiquement "Balance by Exchange" puis utilise "Current Balance" en fallback
 
 ### 4.2 Plan de rebalancement (JSON)
 ```
-POST /rebalance/plan?source=cointracking_api&min_usd=1&dynamic_targets=true
+POST /rebalance/plan?source=cointracking&min_usd=1&dynamic_targets=true
 Content-Type: application/json
 
 {
@@ -163,7 +169,9 @@ Content-Type: application/json
     "actions": [
       { "group":"BTC", "alias":"BTC", "symbol":"BTC", "action":"sell", 
         "usd":-1234.56, "price_used":117971.65, "est_quantity":0.01047,
-        "exec_hint":"Sell on CEX Binance" },
+        "location":"Kraken", "exec_hint":"Sell on Kraken" },
+      { "group":"ETH", "alias":"WSTETH", "symbol":"WSTETH", "action":"sell",
+        "usd":-2500.00, "location":"Ledger Wallets", "exec_hint":"Sell on Ledger Wallets (complex)" },
       ...
     ],
     "unknown_aliases": ["XXX","YYY",...],
@@ -173,11 +181,13 @@ Content-Type: application/json
 
 ### 4.3 Export CSV (mêmes colonnes)
 ```
-POST /rebalance/plan.csv?source=cointracking_api&min_usd=1&dynamic_targets=true
+POST /rebalance/plan.csv?source=cointracking&min_usd=1&dynamic_targets=true
 Body: (même JSON que pour /rebalance/plan)
 ```
-- Colonnes : `group,alias,symbol,action,usd,est_quantity,price_used,exec_hint`
-- **exec_hint** : suggestions d'exécution basées sur les locations majoritaires (ex: "Sell on CEX Binance", "Mixed platforms")
+- Colonnes : `group,alias,symbol,action,usd,est_quantity,price_used,location,exec_hint`
+- **Location-aware** : Chaque action indique l'exchange spécifique (Kraken, Binance, Ledger Wallets, etc.)
+- **exec_hint intelligent** : "Sell on Kraken", "Sell on Binance", "Sell on Ledger Wallets (complex)"
+- **Priorité CEX→DeFi→Cold** : Actions optimisées pour facilité d'exécution
 
 ### 4.4 Taxonomie / Aliases
 ```
@@ -219,11 +229,70 @@ GET /debug/ctapi
 - Affiche l'état des clés (présence/longueur), la base API CT, les tentatives (`getBalance`, `getGroupedBalance`, …), et un **aperçu** des lignes mappées.  
 - Statut `ok: true/false`.
 
+### 4.8 Portfolio breakdown par exchanges
+```
+GET /portfolio/breakdown-locations?source=cointracking&min_usd=1
+```
+- **Répartition réelle** : Totaux par exchange basés sur les vrais exports CoinTracking
+- Réponse :
+  ```json
+  {
+    "breakdown": {
+      "total_value_usd": 453041.15,
+      "locations": [
+        { "location": "Ledger Wallets", "total_value_usd": 302839.23, "asset_count": 35 },
+        { "location": "Kraken", "total_value_usd": 29399.50, "asset_count": 29 },
+        { "location": "Binance", "total_value_usd": 36535.39, "asset_count": 89 },
+        ...
+      ]
+    }
+  }
+  ```
+
 ---
 
-## 5) Intégration CCS → Rebalance 🎯
+## 5) Rebalancing Location-Aware 🎯
 
-### 5.1 Interface `window.rebalanceAPI`
+### 5.1 Fonctionnement intelligent des locations
+
+Le système privilégie **les exports CSV CoinTracking** qui contiennent les vraies informations de location :
+
+**🔍 Sources de données (par priorité) :**
+1. **Balance by Exchange CSV** : Données exactes avec vraies locations (recommandé)
+2. **API CoinTracking** : Utilisée en fallback mais peut avoir des problèmes de classification
+3. **Current Balance CSV** : Totaux globaux sans information de location
+
+**🎯 Génération d'actions intelligentes :**
+- Chaque action indique l'**exchange spécifique** : Kraken, Binance, Ledger Wallets, etc.
+- **Découpe proportionnelle** : Si BTC est sur Kraken (200$) et Binance (100$), une vente de 150$ devient : "Sell on Kraken 100$" + "Sell on Binance 50$"
+- **Priorité d'exécution** : CEX (rapide) → DeFi (moyen) → Cold Storage (complexe)
+
+**🚀 Exemple concret :**
+```json
+// Au lieu de "Sell BTC 1000$ on Multiple exchanges"
+{ "action": "sell", "symbol": "BTC", "usd": -600, "location": "Kraken", "exec_hint": "Sell on Kraken" }
+{ "action": "sell", "symbol": "BTC", "usd": -400, "location": "Binance", "exec_hint": "Sell on Binance" }
+```
+
+### 5.2 Classification des exchanges par priorité
+
+**🟢 CEX (Centralized Exchanges) - Priorité 1-15 :**
+- Binance, Kraken, Coinbase, Bitget, Bybit, OKX, Huobi, KuCoin
+- **exec_hint** : `"Sell on Binance"`, `"Buy on Kraken"`
+
+**🟡 Wallets/DeFi - Priorité 20-39 :**
+- MetaMask, Phantom, Uniswap, PancakeSwap, Curve, Aave
+- **exec_hint** : `"Sell on MetaMask (DApp)"`, `"Sell on Uniswap (DeFi)"`
+
+**🔴 Hardware/Cold - Priorité 40+ :**
+- Ledger Wallets, Trezor, Cold Storage
+- **exec_hint** : `"Sell on Ledger Wallets (complex)"`
+
+---
+
+## 6) Intégration CCS → Rebalance 🎯
+
+### 6.1 Interface `window.rebalanceAPI`
 
 L'interface `rebalance.html` expose une API JavaScript pour l'intégration avec des modules externes (CCS/Cycles):
 
@@ -242,13 +311,13 @@ const current = window.rebalanceAPI.getCurrentTargets();
 window.rebalanceAPI.clearDynamicTargets();
 ```
 
-### 5.2 Indicateurs visuels
+### 6.2 Indicateurs visuels
 
 - **🎯 CCS 75** : Indicateur affiché quand des targets dynamiques sont actifs
 - **Génération automatique** : Le plan peut se générer automatiquement (`autoRun: true`)
 - **Switching transparent** : Passage manuel ↔ dynamique sans conflit
 
-### 5.3 Tests & Documentation
+### 6.3 Tests & Documentation
 
 - **`test_dynamic_targets_e2e.html`** : Tests E2E complets de l'intégration API
 - **`test_rebalance_simple.html`** : Tests de l'interface JavaScript  
@@ -256,9 +325,9 @@ window.rebalanceAPI.clearDynamicTargets();
 
 ---
 
-## 6) Interface utilisateur unifiée
+## 7) Interface utilisateur unifiée
 
-### 6.1 Configuration centralisée (`global-config.js`)
+### 7.1 Configuration centralisée (`global-config.js`)
 
 **Système unifié** de configuration partagée entre toutes les pages :
 
@@ -457,7 +526,7 @@ POST /rebalance/plan?pricing=auto
 ### PowerShell - Tests principaux
 ```powershell
 $base = "http://127.0.0.1:8000"
-$qs = "source=cointracking_api&min_usd=1"
+$qs = "source=cointracking&min_usd=1"  # CSV par défaut
 
 $body = @{
   group_targets_pct = @{ BTC=35; ETH=25; Stablecoins=10; SOL=10; "L1/L0 majors"=10; "L2/Scaling"=5; DeFi=5; "AI/Data"=3; "Gaming/NFT"=2; Memecoins=2; Others=8 }
@@ -468,13 +537,21 @@ $body = @{
 
 irm "$base/healthz"
 
-irm "$base/balances/current?source=cointracking_api&min_usd=1" |
+# Test avec CSV (recommandé)
+irm "$base/balances/current?source=cointracking&min_usd=1" |
   Select-Object source_used, @{n="count";e={$_.items.Count}},
                          @{n="sum";e={("{0:N2}" -f (($_.items | Measure-Object value_usd -Sum).Sum))}}
+
+# Test breakdown par exchanges
+irm "$base/portfolio/breakdown-locations?source=cointracking&min_usd=1" |
+  Select-Object -ExpandProperty breakdown | Select-Object total_value_usd, location_count
 
 $plan = irm -Method POST -ContentType 'application/json' -Uri "$base/rebalance/plan?$qs" -Body $body
 ("{0:N2}" -f (($plan.actions | Measure-Object -Property usd -Sum).Sum))  # -> 0,00
 ($plan.actions | ? { [math]::Abs($_.usd) -lt 25 }).Count                   # -> 0
+
+# Vérifier les locations dans les actions
+$plan.actions | Where-Object location | Select-Object symbol, action, usd, location, exec_hint | Format-Table
 
 $csvPath = "$env:USERPROFILE\Desktop\rebalance-actions.csv"
 irm -Method POST -ContentType 'application/json' -Uri "$base/rebalance/plan.csv?$qs" -Body $body -OutFile $csvPath
@@ -501,8 +578,11 @@ irm -Method POST -Uri "$base/taxonomy/auto-classify" -Body "{\"sample_symbols\":
 ### cURL (exemple)
 ```bash
 curl -s "http://127.0.0.1:8000/healthz"
-curl -s "http://127.0.0.1:8000/balances/current?source=cointracking_api&min_usd=1" | jq .
-curl -s -X POST "http://127.0.0.1:8000/rebalance/plan?source=cointracking_api&min_usd=1"   -H "Content-Type: application/json"   -d '{"group_targets_pct":{"BTC":35,"ETH":25,"Stablecoins":10,"SOL":10,"L1/L0 majors":10,"Others":10},"primary_symbols":{"BTC":["BTC","TBTC","WBTC"],"ETH":["ETH","WSTETH","STETH","RETH","WETH"],"SOL":["SOL","JUPSOL","JITOSOL"]},"sub_allocation":"proportional","min_trade_usd":25}' | jq .
+curl -s "http://127.0.0.1:8000/balances/current?source=cointracking&min_usd=1" | jq .
+curl -s -X POST "http://127.0.0.1:8000/rebalance/plan?source=cointracking&min_usd=1"   -H "Content-Type: application/json"   -d '{"group_targets_pct":{"BTC":35,"ETH":25,"Stablecoins":10,"SOL":10,"L1/L0 majors":10,"Others":10},"primary_symbols":{"BTC":["BTC","TBTC","WBTC"],"ETH":["ETH","WSTETH","STETH","RETH","WETH"],"SOL":["SOL","JUPSOL","JITOSOL"]},"sub_allocation":"proportional","min_trade_usd":25}' | jq .
+
+# Test location-aware breakdown
+curl -s "http://127.0.0.1:8000/portfolio/breakdown-locations?source=cointracking&min_usd=1" | jq '.breakdown.locations[] | {location, total_value_usd, asset_count}'
 ```
 
 ---
@@ -543,12 +623,16 @@ curl -s -X POST "http://127.0.0.1:8000/rebalance/plan?source=cointracking_api&mi
 - ✅ **Cache des unknown aliases** depuis les plans de rebalancement
 - ✅ **API suggestions** et auto-classification pour l'interface
 - ✅ **Workflow progressif** : Settings → Dashboard → Rebalancing → Classification
+- ✅ **🎯 Rebalancing Location-Aware** : Actions spécifiques par exchange (Kraken, Binance, Ledger)
+- ✅ **📊 Portfolio breakdown par exchanges** : Répartition réelle basée sur exports CoinTracking
+- ✅ **🔄 Priorité CSV sur API** : Fiabilité améliorée avec exports directs CoinTracking
+- ✅ **⚡ Exec hints intelligents** : "Sell on Kraken", "Sell on Ledger (complex)" avec priorité CEX→DeFi→Cold
 
 ### ⬜ Prochaines améliorations
 
 - ⬜ Persistance `taxonomy.json` et endpoints admin (reload/save)
 - ⬜ **Intégration CoinGecko** pour métadonnées crypto (secteurs, tags)
-- ⬜ Vue "Par lieu d'exécution" (exchange / ledger / DeFi) + plan par lieu
+- ⬜ **Fix API CoinTracking** : Résoudre les problèmes de classification getGroupedBalance
 - ⬜ **Dry-run d'exécution** pour 1 exchange (arrondis, tailles mini, frais)
 - ⬜ **Tests** unitaires & d'intégration, logs plus verbeux
 - ⬜ **Docker** (dev & run)

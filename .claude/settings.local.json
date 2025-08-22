@@ -21,7 +21,11 @@
       "Bash(git reset:*)",
       "WebSearch",
       "WebFetch(domain:docs.coingecko.com)",
-      "WebFetch(domain:www.coingecko.com)"
+      "WebFetch(domain:www.coingecko.com)",
+      "Bash(git commit:*)",
+      "Bash(grep:*)",
+      "Bash(taskkill:*)",
+      "WebFetch(domain:cointracking.info)"
     ],
     "deny": [],
     "ask": []

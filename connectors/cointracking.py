@@ -1,17 +1,20 @@
-
 from __future__ import annotations
 import os
 import csv
 from typing import Any, Dict, List, Optional
 
-# Optional API connector (not used for 'csv'/'stub' paths here but left for completeness)
 try:
-    from .cointracking_api import get_balances_via_api, get_balances_by_exchange_via_api  # type: ignore
+    # API (si présent)
+    from .cointracking_api import (  # type: ignore
+        get_current_balances as get_balances_via_api,
+        get_balances_by_exchange_via_api,
+    )
 except Exception:
     get_balances_via_api = None  # type: ignore
     get_balances_by_exchange_via_api = None  # type: ignore
 
-# ---------------- Demo data ----------------
+
+# ---------- Demo ----------
 _DEMO_ITEMS: List[Dict[str, Any]] = [
     {"symbol": "BTC", "amount": 1.2345, "value_usd": 75000.0, "location": "Demo"},
     {"symbol": "ETH", "amount": 20.0,   "value_usd": 60000.0, "location": "Demo"},
@@ -27,15 +30,15 @@ _DEMO_ITEMS: List[Dict[str, Any]] = [
 def get_demo_balances() -> Dict[str, Any]:
     return {"source_used": "stub", "items": list(_DEMO_ITEMS)}
 
-# ---------------- CSV helpers ----------------
+
+# ---------- CSV helpers ----------
 def _norm_float(s: Any) -> float:
     if s is None:
         return 0.0
     if isinstance(s, (int, float)):
         return float(s)
     txt = str(s).strip().replace("\xa0", "").replace(" ", "")
-    txt = txt.replace("'", "")  # thousands separator in some locales
-    # Handle "1,234.56" and "1234,56"
+    txt = txt.replace("'", "")
     if "," in txt and "." not in txt:
         txt = txt.replace(",", ".")
     if "," in txt and "." in txt:
@@ -45,11 +48,11 @@ def _norm_float(s: Any) -> float:
     except Exception:
         return 0.0
 
+
 def _read_csv_safe(path: Optional[str]) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     if not path or not os.path.exists(path):
         return rows
-    # Keep file open while consuming DictReader
     with open(path, "r", encoding="utf-8-sig", newline="") as f:
         sample = f.read(4096)
         f.seek(0)
@@ -65,19 +68,16 @@ def _read_csv_safe(path: Optional[str]) -> List[Dict[str, Any]]:
             rows.append(norm)
     return rows
 
-# Accept various header names exported by CoinTracking
-_SYMBOL_KEYS = (
-    "Ticker", "Currency", "Coin", "Symbol", "Asset",
-    "ticker", "currency", "coin", "symbol", "asset"
-)
+
+_SYMBOL_KEYS = ("Ticker", "Currency", "Coin", "Symbol", "Asset",
+                "ticker", "currency", "coin", "symbol", "asset")
 _AMOUNT_KEYS = ("Amount", "amount", "Qty", "Quantity", "quantity")
-_VALUE_USD_KEYS = (
-    "Value in USD", "Value (USD)", "USD Value",
-    "Current Value (USD)", "Total Value (USD)",
-    "Current value in USD", "value_usd", "Value", "value"
-)
+_VALUE_USD_KEYS = ("Value in USD", "Value (USD)", "USD Value",
+                   "Current Value (USD)", "Total Value (USD)",
+                   "Current value in USD", "value_usd", "Value", "value")
 _PRICE_USD_KEYS = ("Price (USD)", "price_usd", "Price", "price")
 _EXCHANGE_KEYS = ("Exchange", "exchange", "Location", "location", "Wallet", "wallet")
+
 
 def _get_first(row: Dict[str, Any], keys) -> Optional[str]:
     for k in keys:
@@ -85,27 +85,32 @@ def _get_first(row: Dict[str, Any], keys) -> Optional[str]:
             return row[k]
     return None
 
+
 def _guess_symbol(row: Dict[str, Any]) -> Optional[str]:
-    val = _get_first(row, _SYMBOL_KEYS)
-    return str(val).strip().upper() if val is not None else None
+    v = _get_first(row, _SYMBOL_KEYS)
+    return str(v).strip().upper() if v is not None else None
+
 
 def _guess_amount(row: Dict[str, Any]) -> float:
-    val = _get_first(row, _AMOUNT_KEYS)
-    return _norm_float(val) if val is not None else 0.0
+    v = _get_first(row, _AMOUNT_KEYS)
+    return _norm_float(v) if v is not None else 0.0
+
 
 def _guess_value_usd(row: Dict[str, Any]) -> float:
-    val = _get_first(row, _VALUE_USD_KEYS)
-    if val is not None:
-        return _norm_float(val)
+    v = _get_first(row, _VALUE_USD_KEYS)
+    if v is not None:
+        return _norm_float(v)
     amt = _guess_amount(row)
     price = _get_first(row, _PRICE_USD_KEYS)
     if price is not None:
         return _norm_float(price) * amt
     return 0.0
 
+
 def _guess_exchange(row: Dict[str, Any]) -> str:
-    val = _get_first(row, _EXCHANGE_KEYS)
-    return str(val).strip() if val is not None else "Unknown"
+    v = _get_first(row, _EXCHANGE_KEYS)
+    return str(v).strip() if v is not None else "Unknown"
+
 
 def _aggregate_by_symbol(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     agg: Dict[str, Dict[str, float]] = {}
@@ -119,9 +124,13 @@ def _aggregate_by_symbol(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             agg[sym] = {"amount": 0.0, "value_usd": 0.0}
         agg[sym]["amount"] += amt
         agg[sym]["value_usd"] += val
-    out = [ {"symbol": s, "amount": round(v["amount"], 12), "value_usd": round(v["value_usd"], 8), "location": "CoinTracking"} for s, v in agg.items() ]
+    out = [
+        {"symbol": s, "amount": round(v["amount"], 12), "value_usd": round(v["value_usd"], 8), "location": "CoinTracking"}
+        for s, v in agg.items()
+    ]
     out.sort(key=lambda x: x.get("value_usd", 0.0), reverse=True)
     return out
+
 
 def _aggregate_by_exchange(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     agg: Dict[str, Dict[str, float]] = {}
@@ -132,24 +141,18 @@ def _aggregate_by_exchange(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         amt = _guess_amount(r)
         val = _guess_value_usd(r)
         exchange = _guess_exchange(r)
-        
         if exchange not in agg:
             agg[exchange] = {"total_value_usd": 0.0, "asset_count": 0}
         agg[exchange]["total_value_usd"] += val
-        if amt > 0:  # Only count assets with positive amounts
+        if amt > 0:
             agg[exchange]["asset_count"] += 1
-    
     out = []
-    for exchange, data in agg.items():
-        if data["total_value_usd"] > 0:  # Only include exchanges with positive value
-            out.append({
-                "location": exchange,
-                "total_value_usd": round(data["total_value_usd"], 2),
-                "asset_count": data["asset_count"]
-            })
-    
+    for ex, data in agg.items():
+        if data["total_value_usd"] > 0:
+            out.append({"location": ex, "total_value_usd": round(data["total_value_usd"], 2), "asset_count": data["asset_count"]})
     out.sort(key=lambda x: x.get("total_value_usd", 0.0), reverse=True)
     return out
+
 
 def _get_detailed_holdings_by_exchange(rows: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
     holdings: Dict[str, List[Dict[str, Any]]] = {}
@@ -160,296 +163,223 @@ def _get_detailed_holdings_by_exchange(rows: List[Dict[str, Any]]) -> Dict[str, 
         amt = _guess_amount(r)
         val = _guess_value_usd(r)
         exchange = _guess_exchange(r)
-        
-        if amt <= 0:  # Skip zero or negative amounts
+        if amt <= 0:
             continue
-            
-        if exchange not in holdings:
-            holdings[exchange] = []
-        
-        holdings[exchange].append({
-            "symbol": sym,
-            "amount": round(amt, 12),
-            "value_usd": round(val, 8),
-            "location": exchange
+        holdings.setdefault(exchange, []).append({
+            "symbol": sym, "amount": round(amt, 12), "value_usd": round(val, 8), "location": exchange
         })
-    
-    # Sort holdings within each exchange by value
-    for exchange in holdings:
-        holdings[exchange].sort(key=lambda x: x.get("value_usd", 0.0), reverse=True)
-    
+    for ex in holdings:
+        holdings[ex].sort(key=lambda x: x.get("value_usd", 0.0), reverse=True)
     return holdings
 
-def _resolve_csv_path(candidates):
-    for c in candidates:
-        if c and os.path.exists(c):
-            return c
-    return None
+
+def _resolve_csv_path(cands):
+    ex = [c for c in cands if c and os.path.exists(c)]
+    if not ex:
+        return None
+    ex.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+    return ex[0]
+
 
 def get_current_balances_from_csv() -> Dict[str, Any]:
     env_cur = os.getenv("COINTRACKING_CSV")
-    # Noms d'exports CoinTracking courants (mini + full) :
-    default_names = [
-        "CoinTracking - Current Balance_mini.csv",
-        "CoinTracking - Balance by Exchange_mini.csv",
-        "CoinTracking - Current Balance.csv",
-        "CoinTracking - Balance by Exchange.csv",
-    ]
-    candidates_cur = []
-    # 1) priorité à la variable d'env explicite
+    names = ["CoinTracking - Current Balance_mini.csv", "CoinTracking - Current Balance.csv"]
+    cands = []
     if env_cur:
-        candidates_cur.append(env_cur)
-    # 2) chercher dans data/ puis dans cwd pour chaque nom connu
-    for name in default_names:
-        candidates_cur.append(os.path.join("data", name))
-        candidates_cur.append(name)
-    # 3) choisir le plus récent parmi ceux qui existent
-    p_cur = _resolve_csv_path([c for c in candidates_cur if c])
-    rows_cur = _read_csv_safe(p_cur)
-    items = _aggregate_by_symbol(rows_cur)
+        cands.append(env_cur)
+    for n in names:
+        cands += [os.path.join("data", n), n]
+    p = _resolve_csv_path([c for c in cands if c])
+    rows = _read_csv_safe(p)
+    items = _aggregate_by_symbol(rows)
     return {"source_used": "cointracking", "items": items}
+
 
 def get_balances_by_exchange_from_csv() -> Dict[str, Any]:
     env_cur = os.getenv("COINTRACKING_CSV")
-    # Prioriser UNIQUEMENT les fichiers "Balance by Exchange" pour avoir les infos d'exchange
-    exchange_names = [
-        "CoinTracking - Balance by Exchange_mini.csv",
-        "CoinTracking - Balance by Exchange.csv",
+    ex_names = [
+        "CoinTracking - Balance by Exchange - 22.08.2025.csv",
+        "CoinTracking - Balance by Exchange_mini.csv", 
+        "CoinTracking - Balance by Exchange.csv"
     ]
-    fallback_names = [
-        "CoinTracking - Current Balance_mini.csv",
-        "CoinTracking - Current Balance.csv",
-    ]
+    fb_names = ["CoinTracking - Current Balance_mini.csv", "CoinTracking - Current Balance.csv"]
     
-    candidates_cur = []
-    
-    # Seulement utiliser la variable d'env si c'est un fichier "Balance by Exchange"
+    # Privilégier les fichiers "Balance by Exchange" d'abord
+    cands = []
     if env_cur and "Balance by Exchange" in env_cur:
-        candidates_cur.append(env_cur)
+        cands.append(env_cur)
     
-    # Prioriser les fichiers Exchange, puis fallback sur les autres
-    for name in exchange_names + fallback_names:
-        # Chercher d'abord dans data/raw puis data puis racine
-        candidates_cur.append(os.path.join("data", "raw", name))
-        candidates_cur.append(os.path.join("data", name))
-        candidates_cur.append(name)
+    # Chercher d'abord les fichiers "Balance by Exchange"
+    for n in ex_names:
+        cands += [os.path.join("data", "raw", n), os.path.join("data", n), n]
     
-    p_cur = _resolve_csv_path([c for c in candidates_cur if c])
-    rows_cur = _read_csv_safe(p_cur)
+    # Si aucun fichier "Balance by Exchange" trouvé, utiliser Current Balance en fallback
+    p = _resolve_csv_path([c for c in cands if c])
+    if not p:
+        for n in fb_names:
+            cands += [os.path.join("data", "raw", n), os.path.join("data", n), n]
+        p = _resolve_csv_path([c for c in cands if c])
     
-    # Retourner les données agrégées par exchange
-    exchange_summary = _aggregate_by_exchange(rows_cur)
-    detailed_holdings = _get_detailed_holdings_by_exchange(rows_cur)
-    
+    rows = _read_csv_safe(p)
     return {
-        "source_used": "cointracking", 
-        "exchanges": exchange_summary,
-        "detailed_holdings": detailed_holdings
+        "source_used": "cointracking",
+        "exchanges": _aggregate_by_exchange(rows),
+        "detailed_holdings": _get_detailed_holdings_by_exchange(rows),
     }
+
 
 def get_combined_balances_with_locations() -> Dict[str, Any]:
-    """
-    Combine les données du Current Balance (portfolio complet) avec les informations
-    d'exchange du Balance by Exchange pour avoir toutes les positions avec leurs locations.
-    """
-    # 1. Récupérer le portfolio complet
-    current_balance = get_current_balances_from_csv()
-    current_items = current_balance.get("items", [])
-    
-    # 2. Récupérer les données d'exchange
-    exchange_data = get_balances_by_exchange_from_csv()
-    detailed_holdings = exchange_data.get("detailed_holdings", {})
-    
-    # 3. Créer un mapping symbol -> location basé sur les données d'exchange
-    symbol_to_location = {}
-    for exchange, holdings in detailed_holdings.items():
-        for holding in holdings:
-            symbol = holding.get("symbol", "").upper()
-            if symbol:
-                symbol_to_location[symbol] = exchange
-    
-    # 4. Enrichir les données du portfolio complet avec les informations de location
-    enriched_items = []
-    for item in current_items:
-        symbol = str(item.get("symbol", "")).upper()
-        # Chercher la location dans les données d'exchange
-        location = symbol_to_location.get(symbol, "Portfolio")  # Default fallback location
-        
-        # Créer une copie enrichie de l'item
-        enriched_item = dict(item)
-        enriched_item["location"] = location
-        enriched_items.append(enriched_item)
-    
-    return {
-        "source_used": "cointracking_combined",
-        "items": enriched_items,
-        "exchange_mapping_count": len(symbol_to_location)
-    }
+    current_items = get_current_balances_from_csv().get("items", [])
+    detailed = get_balances_by_exchange_from_csv().get("detailed_holdings", {})
+    sym2loc: Dict[str, str] = {}
+    for ex, items in detailed.items():
+        for it in items:
+            s = str(it.get("symbol", "")).upper()
+            if s:
+                sym2loc[s] = ex
+    enriched = []
+    for it in current_items:
+        s = str(it.get("symbol", "")).upper()
+        loc = sym2loc.get(s, "Portfolio")
+        e = dict(it); e["location"] = loc
+        enriched.append(e)
+    return {"source_used": "cointracking_combined", "items": enriched, "exchange_mapping_count": len(sym2loc)}
 
+
+# ---------- helpers API exchange parsing ----------
+def _clean_exchange_name(x: Any) -> str:
+    s = str(x or "").strip().replace("_", " ").replace("-", " ")
+    # drop suffixes
+    for suf in (" BALANCE", " Balance", " WALLET", " Wallet", " EXCHANGE", " Exchange"):
+        if s.upper().endswith(suf.strip().upper()):
+            s = s[: -len(suf)].strip()
+    s = s.title()
+    # fix acronyms
+    fixes = {"Okx": "OKX", "Ftx": "FTX", "Mexc": "MEXC", "Btcturk": "BTCTurk"}
+    return fixes.get(s, s)
+
+
+def _exchanges_from_grouped_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    for r in rows or []:
+        name = r.get("symbol") or r.get("name") or r.get("exchange") or r.get("location")
+        loc = _clean_exchange_name(name)
+        val = _norm_float(r.get("value_usd") or r.get("usd_value") or r.get("total_value_usd") or r.get("value"))
+        amt = _norm_float(r.get("amount") or 0)
+        if val <= 0 and amt <= 0:
+            continue
+        out.append({"location": loc, "total_value_usd": round(val, 2), "asset_count": int(r.get("asset_count") or 0)})
+    out.sort(key=lambda x: x["total_value_usd"], reverse=True)
+    return out
+
+
+# ---------- Dispatcher ----------
 async def get_unified_balances_by_exchange(source: str = "cointracking") -> Dict[str, Any]:
-    """
-    Fonction unifiée pour récupérer les balances par exchange selon la source de données.
-    Gère les fallbacks en cas de données manquantes.
-    """
     s = (source or "").lower()
-    
+
     if s in ("stub", "demo"):
-        # Demo data avec locations fictives
         return {
             "source_used": "stub",
-            "exchanges": [
-                {"location": "Demo Wallet", "total_value_usd": 189000.0, "asset_count": 9}
-            ],
-            "detailed_holdings": {
-                "Demo Wallet": _DEMO_ITEMS.copy()
-            }
+            "exchanges": [{"location": "Demo Wallet", "total_value_usd": 189000.0, "asset_count": 9}],
+            "detailed_holdings": {"Demo Wallet": _DEMO_ITEMS.copy()},
         }
-    
-    elif s == "cointracking":
-        # Source CSV
-        try:
-            exchange_data = get_balances_by_exchange_from_csv()
-            exchanges = exchange_data.get("exchanges", [])
-            detailed_holdings = exchange_data.get("detailed_holdings", {})
-            
-            # Fallback si pas de données d'exchange dans le CSV
-            if not exchanges or not detailed_holdings:
-                # Utiliser les balances générales avec une location par défaut
-                current_balance = get_current_balances_from_csv()
-                current_items = current_balance.get("items", [])
-                
-                if current_items:
-                    total_value = sum(item.get("value_usd", 0) for item in current_items)
-                    # Assigner la location par défaut à tous les items
-                    for item in current_items:
-                        item["location"] = "Portfolio"
-                    
-                    return {
-                        "source_used": "cointracking",
-                        "exchanges": [
-                            {"location": "Portfolio", "total_value_usd": round(total_value, 2), "asset_count": len(current_items)}
-                        ],
-                        "detailed_holdings": {
-                            "Portfolio": current_items
-                        }
-                    }
-                else:
-                    # Pas de données du tout
-                    return {
-                        "source_used": "cointracking",
-                        "exchanges": [],
-                        "detailed_holdings": {}
-                    }
-            
-            return exchange_data
-            
-        except Exception as e:
-            # Erreur lors de la lecture CSV - fallback sur location par défaut
-            return {
-                "source_used": "cointracking",
-                "exchanges": [],
-                "detailed_holdings": {},
-                "error": str(e)
-            }
-    
-    elif s == "cointracking_api":
-        # Source API
-        if get_balances_by_exchange_via_api is None:
-            # API non disponible - fallback sur une location par défaut
-            try:
-                if get_balances_via_api is not None:
-                    # Au moins récupérer les balances générales
-                    current_balance = await get_balances_via_api()
-                    current_items = current_balance.get("items", [])
-                    
-                    if current_items:
-                        total_value = sum(item.get("value_usd", 0) for item in current_items)
-                        # Assigner la location par défaut à tous les items
-                        for item in current_items:
-                            item["location"] = "CoinTracking"
-                        
-                        return {
-                            "source_used": "cointracking_api",
-                            "exchanges": [
-                                {"location": "CoinTracking", "total_value_usd": round(total_value, 2), "asset_count": len(current_items)}
-                            ],
-                            "detailed_holdings": {
-                                "CoinTracking": current_items
-                            }
-                        }
-                
-                return {
-                    "source_used": "cointracking_api",
-                    "exchanges": [],
-                    "detailed_holdings": {},
-                    "error": "API connector not available"
-                }
-                
-            except Exception as e:
-                return {
-                    "source_used": "cointracking_api",
-                    "exchanges": [],
-                    "detailed_holdings": {},
-                    "error": str(e)
-                }
-        
-        try:
-            # Utiliser l'API pour récupérer les données d'exchange
-            api_result = await get_balances_by_exchange_via_api()
-            exchanges = api_result.get("exchanges", [])
-            detailed_holdings = api_result.get("detailed_holdings", {})
-            
-            # Fallback si l'API ne retourne pas de données d'exchange
-            if not exchanges or not detailed_holdings:
-                # Essayer de récupérer les balances générales via API
-                current_balance = await get_balances_via_api()
-                current_items = current_balance.get("items", [])
-                
-                if current_items:
-                    total_value = sum(item.get("value_usd", 0) for item in current_items)
-                    # Assigner la location par défaut à tous les items
-                    for item in current_items:
-                        item["location"] = "CoinTracking"
-                    
-                    return {
-                        "source_used": "cointracking_api",
-                        "exchanges": [
-                            {"location": "CoinTracking", "total_value_usd": round(total_value, 2), "asset_count": len(current_items)}
-                        ],
-                        "detailed_holdings": {
-                            "CoinTracking": current_items
-                        }
-                    }
-            
-            return api_result
-            
-        except Exception as e:
-            return {
-                "source_used": "cointracking_api",
-                "exchanges": [],
-                "detailed_holdings": {},
-                "error": str(e)
-            }
-    
-    else:
-        # Fallback sur CSV par défaut
-        return await get_unified_balances_by_exchange("cointracking")
-
-# ---------------- Dispatcher ----------------
-async def get_current_balances(source: str = "cointracking") -> Dict[str, Any]:
-    s = (source or "").lower()
-
-    if s in ("stub", "demo"):
-        return get_demo_balances()
 
     if s == "cointracking":
-        return get_current_balances_from_csv()
+        try:
+            ex_data = get_balances_by_exchange_from_csv()
+            exchanges = ex_data.get("exchanges", [])
+            detailed = ex_data.get("detailed_holdings", {})
+            cur_items = get_current_balances_from_csv().get("items", [])
+            tot_cur = sum(i.get("value_usd", 0) for i in cur_items)
+            tot_ex = sum(e.get("total_value_usd", 0) for e in exchanges)
+            if not detailed or (tot_cur > 0 and tot_ex < tot_cur * 0.8):
+                # enrich à partir des items
+                if cur_items:
+                    sym2ex: Dict[str, str] = {}
+                    for ex, hold in detailed.items():
+                        for h in hold:
+                            s = str(h.get("symbol", "")).upper()
+                            if s:
+                                sym2ex[s] = ex
+                    buckets: Dict[str, List[Dict[str, Any]]] = {}
+                    for it in cur_items:
+                        s = str(it.get("symbol", "")).upper()
+                        ex = sym2ex.get(s, "Portfolio")
+                        it2 = dict(it); it2["location"] = ex
+                        buckets.setdefault(ex, []).append(it2)
+                    ex_list = []
+                    for ex, arr in buckets.items():
+                        val = sum(x.get("value_usd", 0) for x in arr)
+                        if val > 0:
+                            ex_list.append({"location": ex, "total_value_usd": round(val, 2), "asset_count": len(arr)})
+                    ex_list.sort(key=lambda x: x["total_value_usd"], reverse=True)
+                    return {"source_used": "cointracking", "exchanges": ex_list, "detailed_holdings": buckets}
+                return {"source_used": "cointracking", "exchanges": [], "detailed_holdings": {}}
+            return ex_data
+        except Exception as e:
+            return {"source_used": "cointracking", "exchanges": [], "detailed_holdings": {}, "error": str(e)}
 
+    if s == "cointracking_api":
+        # 1) tenter l’API “by exchange” si dispo
+        if get_balances_by_exchange_via_api is not None:
+            try:
+                raw = await get_balances_by_exchange_via_api()
+
+                # a) déjà structuré ?
+                if isinstance(raw, dict) and isinstance(raw.get("exchanges"), list) and raw["exchanges"]:
+                    return {"source_used": "cointracking_api",
+                            "exchanges": raw["exchanges"],
+                            "detailed_holdings": raw.get("detailed_holdings") or {}}
+
+                # b) liste brute de lignes groupées ?
+                rows: Optional[List[Dict[str, Any]]] = None
+                if isinstance(raw, list):
+                    rows = raw
+                elif isinstance(raw, dict):
+                    for key in ("rows", "items", "data", "grouped", "grouped_rows", "balances"):
+                        v = raw.get(key)
+                        if isinstance(v, list) and v:
+                            rows = v
+                            break
+                if rows:
+                    ex_list = _exchanges_from_grouped_rows(rows)
+                    if ex_list:
+                        return {"source_used": "cointracking_api", "exchanges": ex_list, "detailed_holdings": {}}
+            except Exception as e:
+                # on tombera sur le fallback ci-dessous
+                pass
+
+        # 2) fallback: balances simples (un seul “CoinTracking”)
+        try:
+            if get_balances_via_api is not None:
+                cur = await get_balances_via_api()
+                items = cur.get("items", [])
+                if items:
+                    total = sum(float(i.get("value_usd") or 0) for i in items)
+                    for it in items:
+                        it["location"] = "CoinTracking"
+                    return {
+                        "source_used": "cointracking_api",
+                        "exchanges": [{"location": "CoinTracking", "total_value_usd": round(total, 2), "asset_count": len(items)}],
+                        "detailed_holdings": {"CoinTracking": items},
+                    }
+            return {"source_used": "cointracking_api", "exchanges": [], "detailed_holdings": {}, "error": "API connector not available"}
+        except Exception as e:
+            return {"source_used": "cointracking_api", "exchanges": [], "detailed_holdings": {}, "error": str(e)}
+
+    # fallback CSV
+    return await get_unified_balances_by_exchange("cointracking")
+
+
+async def get_current_balances(source: str = "cointracking") -> Dict[str, Any]:
+    s = (source or "").lower()
+    if s in ("stub", "demo"):
+        return get_demo_balances()
+    if s == "cointracking":
+        return get_current_balances_from_csv()
     if s == "cointracking_api":
         if get_balances_via_api is None:
             return {"source_used": "cointracking_api", "items": []}
         res = await get_balances_via_api()
         return res or {"source_used": "cointracking_api", "items": []}
-
-    # fallback to CSV
     return get_current_balances_from_csv()
