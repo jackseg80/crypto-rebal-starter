@@ -167,6 +167,8 @@
       <div style="align-self:flex-end">
         <button id="btnRun" class="btn">Générer le plan</button>
         <button id="btnCsv" class="btn secondary" disabled>Télécharger CSV</button>
+        <button id="btnJson" class="btn secondary" disabled>Export JSON</button>
+        <button id="btnCopyJson" class="btn secondary" disabled>📋 Copier JSON</button>
       </div>
       <div style="align-self:flex-end;margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
         <span id="dynamicTargetsIndicator" class="pill" style="background:#f59e0b;color:white;display:none;">🎯 Targets dynamiques</span>
@@ -732,8 +734,13 @@ function restoreLastPlan() {
     renderUnknownAliases(savedPlan.unknown_aliases||[]);
     setTotal(savedPlan?.total_usd);
     
-    // Réactiver le bouton CSV
+    // Sauvegarder les actions pour l'export JSON
+    lastPlanActions = savedPlan.actions || [];
+    
+    // Réactiver les boutons
     el("btnCsv").disabled = false;
+    el("btnJson").disabled = false;
+    el("btnCopyJson").disabled = false;
     
     // Afficher le bouton Alias Manager si nécessaire
     const unknownCount = (savedPlan.unknown_aliases || []).length;
@@ -762,6 +769,8 @@ async function runPlan(){
     const t0 = performance.now();
     el("btnRun").disabled = true;
     el("btnCsv").disabled = true;
+    el("btnJson").disabled = true;
+    el("btnCopyJson").disabled = true;
     setStatus("Calcul…");
     const { api, qs } = currentQuery();
     const url = `${api}/rebalance/plan?${qs}`;
@@ -773,6 +782,9 @@ async function runPlan(){
     updatePricingBadge(plan.actions||[], plan);
     renderUnknownAliases(plan.unknown_aliases||[]);
     setTotal(plan?.total_usd);
+
+    // Sauvegarder les actions pour l'export JSON
+    lastPlanActions = plan.actions || [];
 
     // Marquer le plan comme généré et activer l'Alias Manager
     const unknownAliasesCount = (plan.unknown_aliases || []).length;
@@ -806,6 +818,8 @@ async function runPlan(){
     
     setStatus(statusText);
     el("btnCsv").disabled = false;
+    el("btnJson").disabled = false;
+    el("btnCopyJson").disabled = false;
   } catch (e){
     console.error(e);
     setStatus("Erreur: " + (e?.message || e));
@@ -836,6 +850,90 @@ async function downloadCsv(){
   } finally{
     el("btnCsv").disabled = false;
   }
+}
+
+// Variable globale pour stocker les actions du dernier plan
+let lastPlanActions = [];
+
+function exportJsonForExecution() {
+  if (!lastPlanActions || lastPlanActions.length === 0) {
+    showNotification('❌ Aucun plan généré - Cliquez d\'abord sur "Générer le plan"', 'error');
+    return;
+  }
+  
+  try {
+    // Format array direct pour l'interface d'exécution (plus simple)
+    const jsonString = JSON.stringify(lastPlanActions, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    const ts = new Date().toISOString().replace(/[:.]/g,'-');
+    a.href = url;
+    a.download = `execution-plan-${ts}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    
+    showNotification(`✅ Plan d'exécution JSON téléchargé (${lastPlanActions.length} actions)`, 'success');
+    
+  } catch (error) {
+    console.error('Erreur export JSON:', error);
+    showNotification('❌ Erreur lors de l\'export JSON: ' + error.message, 'error');
+  }
+}
+
+function copyJsonToClipboard() {
+  if (!lastPlanActions || lastPlanActions.length === 0) {
+    showNotification('❌ Aucun plan généré - Cliquez d\'abord sur "Générer le plan"', 'error');
+    return;
+  }
+  
+  try {
+    // Format array direct pour l'interface d'exécution
+    const jsonString = JSON.stringify(lastPlanActions, null, 2);
+    
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(jsonString).then(() => {
+        showNotification(`📋 JSON copié (${lastPlanActions.length} actions) - Collez dans l'interface d'exécution`, 'success');
+      }).catch(() => {
+        // Fallback pour les navigateurs sans clipboard API
+        fallbackCopyTextToClipboard(jsonString);
+      });
+    } else {
+      fallbackCopyTextToClipboard(jsonString);
+    }
+    
+  } catch (error) {
+    console.error('Erreur copie JSON:', error);
+    showNotification('❌ Erreur lors de la copie JSON: ' + error.message, 'error');
+  }
+}
+
+function fallbackCopyTextToClipboard(text) {
+  // Méthode fallback pour navigateurs anciens
+  const textArea = document.createElement("textarea");
+  textArea.value = text;
+  textArea.style.position = "fixed";
+  textArea.style.left = "-999999px";
+  textArea.style.top = "-999999px";
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+  
+  try {
+    const successful = document.execCommand('copy');
+    if (successful) {
+      showNotification(`📋 JSON copié (${lastPlanActions.length} actions) - Collez dans l'interface d'exécution`, 'success');
+    } else {
+      showNotification('❌ Impossible de copier - utilisez Export JSON', 'error');
+    }
+  } catch (err) {
+    showNotification('❌ Impossible de copier - utilisez Export JSON', 'error');
+  }
+  
+  document.body.removeChild(textArea);
 }
 
 async function bulkAddUnknown(){
@@ -874,6 +972,8 @@ window.addEventListener("DOMContentLoaded", ()=>{
   persistSourceInit();
   el("btnRun").addEventListener("click", runPlan);
   el("btnCsv").addEventListener("click", downloadCsv);
+  el("btnJson").addEventListener("click", exportJsonForExecution);
+  el("btnCopyJson").addEventListener("click", copyJsonToClipboard);
   el("btnBulkAdd").addEventListener("click", bulkAddUnknown);
   
   // Essayer de restaurer le dernier plan

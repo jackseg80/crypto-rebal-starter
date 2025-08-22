@@ -495,8 +495,8 @@
   <script src="/static/global-config.js"></script>
   <script src="/static/shared-header.js"></script>
   <script>
-    // Configuration globale
-    const globalConfig = new GlobalConfig();
+    // Configuration globale déjà chargée par global-config.js
+    // const globalConfig est déjà disponible
     let validatedPlan = null;
     let activeMonitoring = null;
 
@@ -595,16 +595,33 @@
       }
       
       try {
-        const actions = JSON.parse(actionsText);
+        const parsedInput = JSON.parse(actionsText);
+        
+        // Support two formats: direct actions array or complete execution data
+        let actions, metadata;
+        if (Array.isArray(parsedInput)) {
+          // Format 1: Direct actions array
+          actions = parsedInput;
+          metadata = {
+            source: 'manual_input',
+            timestamp: new Date().toISOString()
+          };
+        } else if (parsedInput.rebalance_actions) {
+          // Format 2: Complete execution data from rebalance export
+          actions = parsedInput.rebalance_actions;
+          metadata = parsedInput.metadata || {
+            source: 'imported_plan',
+            timestamp: new Date().toISOString()
+          };
+        } else {
+          throw new Error('Format JSON invalide. Attendu: array d\'actions ou objet avec rebalance_actions');
+        }
         
         const response = await globalConfig.apiRequest('/execution/validate-plan', {
           method: 'POST',
           body: JSON.stringify({
             rebalance_actions: actions,
-            metadata: {
-              source: 'manual_input',
-              timestamp: new Date().toISOString()
-            }
+            metadata: metadata
           })
         });
         
@@ -912,6 +929,8 @@
     // ========== INITIALISATION ==========
 
     document.addEventListener('DOMContentLoaded', () => {
+      console.log('🚀 Execution interface DOM loaded');
+      
       // Charger les échanges par défaut
       loadExchanges();
       
