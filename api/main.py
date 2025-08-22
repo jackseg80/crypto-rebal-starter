@@ -119,7 +119,7 @@ def _to_rows(raw: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             "alias": (r.get("alias") or r.get("name") or r.get("symbol")),
             "value_usd": float(r.get("value_usd") or r.get("value") or 0.0),
             "amount": float(r.get("amount") or 0.0) if r.get("amount") else None,
-            "location": r.get("location") or r.get("exchange") or "",
+            "location": r.get("location") or r.get("exchange") or "Unknown",
         })
     return out
 
@@ -138,34 +138,72 @@ def _norm_primary_symbols(x: Any) -> Dict[str, List[str]]:
 # ---------- source resolver ----------
 async def resolve_current_balances(source: str) -> Dict[str, Any]:
     """
-    Retourne {source_used, items:[{symbol, value_usd, ...}]}
+    Retourne {source_used, items:[{symbol, value_usd, location, ...}]} avec informations de location
     """
     if source == "stub":
-        # mini portefeuille de démo
+        # mini portefeuille de démo avec locations corrected
         items = [
-            {"symbol": "BTC", "value_usd": 117000.0},
-            {"symbol": "ETH", "value_usd": 60000.0},
-            {"symbol": "USDT", "value_usd": 5000.0},
-            {"symbol": "USDC", "value_usd": 900.0},
-            {"symbol": "SOL",  "value_usd": 3000.0},
-            {"symbol": "LINK", "value_usd": 7000.0},
-            {"symbol": "AAVE", "value_usd": 4500.0},
-            {"symbol": "DOGE", "value_usd": 5000.0},
-            {"symbol": "EUR",  "value_usd": 120.0},
+            {"symbol": "BTC", "value_usd": 117000.0, "location": "Demo Wallet"},
+            {"symbol": "ETH", "value_usd": 60000.0, "location": "Demo Wallet"},
+            {"symbol": "USDT", "value_usd": 5000.0, "location": "Demo Wallet"},
+            {"symbol": "USDC", "value_usd": 900.0, "location": "Demo Wallet"},
+            {"symbol": "SOL",  "value_usd": 3000.0, "location": "Demo Wallet"},
+            {"symbol": "LINK", "value_usd": 7000.0, "location": "Demo Wallet"},
+            {"symbol": "AAVE", "value_usd": 4500.0, "location": "Demo Wallet"},
+            {"symbol": "DOGE", "value_usd": 5000.0, "location": "Demo Wallet"},
+            {"symbol": "EUR",  "value_usd": 120.0, "location": "Demo Wallet"},
         ]
         return {"source_used": "stub", "items": items}
 
+    # Pour les sources cointracking et cointracking_api, essayer d'abord d'obtenir les données avec locations
+    try:
+        from connectors.cointracking import get_unified_balances_by_exchange
+        exchange_data = await get_unified_balances_by_exchange(source=source)
+        
+        # Extraire tous les items avec leurs locations des detailed_holdings
+        items_with_location = []
+        detailed_holdings = exchange_data.get("detailed_holdings", {})
+        
+        for location, assets in detailed_holdings.items():
+            for asset in assets:
+                items_with_location.append(asset)  # asset contient déjà symbol, value_usd, location, amount
+        
+        if items_with_location:
+            return {
+                "source_used": exchange_data.get("source_used", source),
+                "items": items_with_location
+            }
+    except Exception as e:
+        # En cas d'erreur avec la fonction unifiée, fallback sur les anciennes méthodes
+        pass
+
+    # Fallback sur les méthodes originales sans location
     if source == "cointracking":
         res = await ct_file.get_current_balances(source="cointracking")
-        return {"source_used": "cointracking", "items": res.get("items", []) if isinstance(res, dict) else (res or [])}
+        items = res.get("items", []) if isinstance(res, dict) else (res or [])
+        # Ajouter location par défaut
+        for item in items:
+            if "location" not in item or not item["location"]:
+                item["location"] = "Portfolio"
+        return {"source_used": "cointracking", "items": items}
 
     if source == "cointracking_api":
         res = await ct_api_get_current_balances()
-        return {"source_used": "cointracking_api", "items": res.get("items", []) if isinstance(res, dict) else (res or [])}
+        items = res.get("items", []) if isinstance(res, dict) else (res or [])
+        # Ajouter location par défaut
+        for item in items:
+            if "location" not in item or not item["location"]:
+                item["location"] = "CoinTracking"
+        return {"source_used": "cointracking_api", "items": items}
 
     # fallback: cointracking (CSV)
     res = await ct_file.get_current_balances(source="cointracking")
-    return {"source_used": "cointracking", "items": res.get("items", []) if isinstance(res, dict) else (res or [])}
+    items = res.get("items", []) if isinstance(res, dict) else (res or [])
+    # Ajouter location par défaut
+    for item in items:
+        if "location" not in item or not item["location"]:
+            item["location"] = "Portfolio"
+    return {"source_used": "cointracking", "items": items}
 
 
 # ---------- health ----------
@@ -196,7 +234,7 @@ async def rebalance_plan(
 ):
     min_usd = _parse_min_usd(min_usd_raw, default=1.0)
 
-    # portefeuille
+    # portefeuille - utiliser la méthode normale pour l'instant
     res = await resolve_current_balances(source=source)
     rows = [r for r in _to_rows(res.get("items", [])) if float(r.get("value_usd") or 0.0) >= min_usd]
 
@@ -536,5 +574,298 @@ async def portfolio_trend(days: int = Query(30, ge=1, le=365)):
     try:
         trend_data = portfolio_analytics.get_portfolio_trend(days)
         return {"ok": True, "trend": trend_data}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+@app.get("/portfolio/breakdown-locations")
+async def portfolio_breakdown_locations(source: str = Query("cointracking")):
+    """Breakdown du portfolio par exchange/location avec support de toutes les sources de données"""
+    try:
+        from connectors.cointracking import get_unified_balances_by_exchange
+        
+        # Utiliser la fonction unifiée qui gère toutes les sources (CSV, API, stub)
+        exchange_data = await get_unified_balances_by_exchange(source=source)
+        exchanges = exchange_data.get("exchanges", [])
+        detailed_holdings = exchange_data.get("detailed_holdings", {})
+        
+        total_value = sum(ex.get("total_value_usd", 0) for ex in exchanges)
+        
+        # Si aucune donnée, créer une location par défaut avec 100%
+        if not exchanges or total_value == 0:
+            # Déterminer la location par défaut selon la source
+            default_location = "Portfolio" if source == "cointracking" else "Demo Wallet" if source in ("stub", "demo") else "CoinTracking"
+            
+            locations = [{
+                "location": default_location,
+                "total_value_usd": 0.0,
+                "asset_count": 0,
+                "percentage": 100.0,  # 100% même si valeur est 0
+                "assets": []
+            }]
+            
+            return {
+                "ok": True,
+                "breakdown": {
+                    "total_value_usd": 0.0,
+                    "location_count": 1,
+                    "locations": locations
+                },
+                "fallback": True,
+                "message": "No location data available, using default location"
+            }
+        
+        # Convertir au format attendu par le frontend
+        locations = []
+        for exchange in exchanges:
+            location_name = exchange.get("location", "Portfolio")
+            location_value = exchange.get("total_value_usd", 0)
+            
+            # Récupérer les assets détaillés pour cette location
+            assets = detailed_holdings.get(location_name, [])
+            
+            # Calculer les pourcentages des assets dans cette location
+            for asset in assets:
+                asset["percentage"] = (asset["value_usd"] / location_value) if location_value > 0 else 0
+                asset["alias"] = asset.get("symbol")  # Pour compatibilité frontend
+            
+            locations.append({
+                "location": location_name,
+                "total_value_usd": location_value,
+                "asset_count": exchange.get("asset_count", 0),
+                "percentage": (location_value / total_value) if total_value > 0 else 0,
+                "assets": assets
+            })
+        
+        return {
+            "ok": True,
+            "breakdown": {
+                "total_value_usd": total_value,
+                "location_count": len(locations),
+                "locations": locations
+            },
+            "source_used": exchange_data.get("source_used", source)
+        }
+        
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+# Stratégies de rebalancing prédéfinies
+REBALANCING_STRATEGIES = {
+    "conservative": {
+        "name": "Conservative",
+        "description": "Stratégie prudente privilégiant la stabilité",
+        "risk_level": "Faible",
+        "icon": "🛡️",
+        "allocations": {
+            "BTC": 40,
+            "ETH": 25,
+            "Stablecoins": 20,
+            "L1/L0 majors": 10,
+            "Others": 5
+        },
+        "characteristics": [
+            "Forte allocation en Bitcoin et Ethereum",
+            "20% en stablecoins pour la stabilité", 
+            "Exposition limitée aux altcoins"
+        ]
+    },
+    "balanced": {
+        "name": "Balanced", 
+        "description": "Équilibre entre croissance et stabilité",
+        "risk_level": "Moyen",
+        "icon": "⚖️",
+        "allocations": {
+            "BTC": 35,
+            "ETH": 30,
+            "Stablecoins": 10,
+            "L1/L0 majors": 15,
+            "DeFi": 5,
+            "Others": 5
+        },
+        "characteristics": [
+            "Répartition équilibrée majors/altcoins",
+            "Exposition modérée aux nouveaux secteurs",
+            "Reserve de stabilité réduite"
+        ]
+    },
+    "growth": {
+        "name": "Growth",
+        "description": "Croissance agressive avec plus d'altcoins", 
+        "risk_level": "Élevé",
+        "icon": "🚀",
+        "allocations": {
+            "BTC": 25,
+            "ETH": 25,
+            "L1/L0 majors": 20,
+            "DeFi": 15,
+            "AI/Data": 10,
+            "Others": 5
+        },
+        "characteristics": [
+            "Réduction de la dominance BTC/ETH",
+            "Forte exposition aux secteurs émergents",
+            "Potentiel de croissance élevé"
+        ]
+    },
+    "defi_focus": {
+        "name": "DeFi Focus",
+        "description": "Spécialisé dans l'écosystème DeFi",
+        "risk_level": "Élevé", 
+        "icon": "🔄",
+        "allocations": {
+            "ETH": 30,
+            "DeFi": 35,
+            "L2/Scaling": 15,
+            "BTC": 15,
+            "Others": 5
+        },
+        "characteristics": [
+            "Forte exposition DeFi et Layer 2",
+            "Ethereum comme base principale",
+            "Bitcoin comme réserve de valeur"
+        ]
+    },
+    "accumulation": {
+        "name": "Accumulation",
+        "description": "Accumulation long terme des majors",
+        "risk_level": "Faible-Moyen",
+        "icon": "📈", 
+        "allocations": {
+            "BTC": 50,
+            "ETH": 35,
+            "L1/L0 majors": 10,
+            "Stablecoins": 5
+        },
+        "characteristics": [
+            "Très forte dominance BTC/ETH",
+            "Vision long terme",
+            "Minimum de diversification"
+        ]
+    }
+}
+
+@app.get("/strategies/list")
+async def get_rebalancing_strategies():
+    """Liste des stratégies de rebalancing prédéfinies"""
+    return {
+        "ok": True,
+        "strategies": REBALANCING_STRATEGIES
+    }
+
+@app.get("/strategies/{strategy_id}")
+async def get_strategy_details(strategy_id: str):
+    """Détails d'une stratégie spécifique"""
+    if strategy_id not in REBALANCING_STRATEGIES:
+        return {"ok": False, "error": "Stratégie non trouvée"}
+    
+    return {
+        "ok": True,
+        "strategy": REBALANCING_STRATEGIES[strategy_id]
+    }
+
+@app.get("/portfolio/alerts")
+async def get_portfolio_alerts(source: str = Query("cointracking"), drift_threshold: float = Query(10.0)):
+    """Calcule les alertes de dérive du portfolio par rapport aux targets"""
+    try:
+        # Récupérer les données de portfolio
+        res = await resolve_current_balances(source=source)
+        rows = _to_rows(res.get("items", []))
+        balances = {"source_used": res.get("source_used"), "items": rows}
+        
+        # Calculer les métriques actuelles
+        metrics = portfolio_analytics.calculate_portfolio_metrics(balances)
+        
+        if not metrics.get("ok"):
+            return {"ok": False, "error": "Impossible de calculer les métriques"}
+        
+        current_distribution = metrics["metrics"]["group_distribution"]
+        total_value = metrics["metrics"]["total_value_usd"]
+        
+        # Targets par défaut (peuvent être dynamiques dans le futur)
+        default_targets = {
+            "BTC": 35,
+            "ETH": 25, 
+            "Stablecoins": 10,
+            "SOL": 10,
+            "L1/L0 majors": 10,
+            "Others": 10
+        }
+        
+        # Calculer les déviations
+        alerts = []
+        max_drift = 0
+        critical_count = 0
+        warning_count = 0
+        
+        for group, target_pct in default_targets.items():
+            current_value = current_distribution.get(group, 0)
+            current_pct = (current_value / total_value * 100) if total_value > 0 else 0
+            
+            drift = abs(current_pct - target_pct)
+            drift_direction = "over" if current_pct > target_pct else "under"
+            
+            # Déterminer le niveau d'alerte
+            if drift > drift_threshold * 1.5:  # > 15% par défaut
+                level = "critical"
+                critical_count += 1
+            elif drift > drift_threshold:  # > 10% par défaut
+                level = "warning" 
+                warning_count += 1
+            else:
+                level = "ok"
+            
+            if drift > max_drift:
+                max_drift = drift
+            
+            # Calculer l'action recommandée
+            value_diff = (target_pct - current_pct) / 100 * total_value
+            action = "buy" if value_diff > 0 else "sell"
+            action_amount = abs(value_diff)
+            
+            alerts.append({
+                "group": group,
+                "target_pct": target_pct,
+                "current_pct": round(current_pct, 2),
+                "current_value": current_value,
+                "drift": round(drift, 2),
+                "drift_direction": drift_direction,
+                "level": level,
+                "action": action,
+                "action_amount_usd": round(action_amount, 2),
+                "priority": round(drift, 2)  # Plus la dérive est grande, plus c'est prioritaire
+            })
+        
+        # Trier par priorité (dérive décroissante)
+        alerts.sort(key=lambda x: x["priority"], reverse=True)
+        
+        # Statut global
+        if critical_count > 0:
+            global_status = "critical"
+            global_message = f"{critical_count} groupe(s) en dérive critique"
+        elif warning_count > 0:
+            global_status = "warning"
+            global_message = f"{warning_count} groupe(s) nécessitent attention"
+        else:
+            global_status = "healthy"
+            global_message = "Portfolio équilibré"
+        
+        return {
+            "ok": True,
+            "alerts": {
+                "global_status": global_status,
+                "global_message": global_message,
+                "max_drift": round(max_drift, 2),
+                "drift_threshold": drift_threshold,
+                "total_value_usd": total_value,
+                "critical_count": critical_count,
+                "warning_count": warning_count,
+                "groups": alerts,
+                "recommendations": [
+                    alert for alert in alerts[:3] 
+                    if alert["level"] in ["critical", "warning"]
+                ]
+            }
+        }
+        
     except Exception as e:
         return {"ok": False, "error": str(e)}

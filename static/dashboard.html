@@ -70,6 +70,74 @@
       .nav{flex-direction:column;gap:8px}
       .chart-container{height:250px}
     }
+    
+    /* Styles pour les alertes */
+    .alert-status {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+    }
+    .alert-status.healthy {
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid var(--pos);
+      color: var(--pos);
+    }
+    .alert-status.warning {
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid var(--warning);
+      color: var(--warning);
+    }
+    .alert-status.critical {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid var(--danger);
+      color: var(--danger);
+    }
+    
+    .alert-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      border-left: 4px solid;
+    }
+    .alert-item.ok {
+      background: rgba(34, 197, 94, 0.05);
+      border-left-color: var(--pos);
+    }
+    .alert-item.warning {
+      background: rgba(245, 158, 11, 0.1);
+      border-left-color: var(--warning);
+    }
+    .alert-item.critical {
+      background: rgba(239, 68, 68, 0.1);
+      border-left-color: var(--danger);
+    }
+    
+    .recommendation-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      background: rgba(45, 212, 191, 0.05);
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+    
+    .drift-indicator {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .drift-ok { background: var(--pos); color: white; }
+    .drift-warning { background: var(--warning); color: white; }
+    .drift-critical { background: var(--danger); color: white; }
   </style>
 </head>
 <body>
@@ -106,6 +174,46 @@
           <span id="refresh-icon">🔄</span>
           Actualiser
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alertes Portfolio -->
+  <div class="card" id="alerts-section" style="display: none;">
+    <div class="row">
+      <h3>⚠️ Alertes de Rebalancing</h3>
+      <div style="margin-left: auto;">
+        <button class="btn small secondary" onclick="toggleAlertsSettings()">⚙️ Seuils</button>
+      </div>
+    </div>
+    
+    <div id="global-alert-status" class="mt8">
+      <div style="text-align: center; padding: 20px; color: var(--muted);">
+        Chargement des alertes...
+      </div>
+    </div>
+    
+    <div id="alerts-list" class="mt16" style="display: none;">
+      <!-- Alertes par groupe -->
+    </div>
+    
+    <div id="recommendations" class="mt16" style="display: none;">
+      <h4 style="margin-bottom: 8px;">💡 Actions Recommandées</h4>
+      <div id="recommendations-list">
+        <!-- Recommandations -->
+      </div>
+    </div>
+    
+    <!-- Configuration des seuils -->
+    <div id="alerts-settings" class="mt16" style="display: none; padding-top: 16px; border-top: 1px solid var(--border);">
+      <div class="row">
+        <div>
+          <label>Seuil d'alerte (%)</label><br>
+          <input type="number" id="drift-threshold" min="1" max="50" value="10" style="width: 80px;">
+        </div>
+        <div>
+          <button class="btn small" onclick="updateAlerts()">Appliquer</button>
+        </div>
       </div>
     </div>
   </div>
@@ -175,6 +283,28 @@
       <button class="btn small" onclick="loadPerformanceChart(7)" style="background: var(--accent); color: #07211e; border: 0; border-radius: 6px; padding: 6px 12px; cursor: pointer;">7j</button>
       <button class="btn small" onclick="loadPerformanceChart(30)" style="background: var(--accent); color: #07211e; border: 0; border-radius: 6px; padding: 6px 12px; cursor: pointer;">30j</button>
       <button class="btn small" onclick="loadPerformanceChart(90)" style="background: var(--accent); color: #07211e; border: 0; border-radius: 6px; padding: 6px 12px; cursor: pointer;">90j</button>
+    </div>
+  </div>
+
+  <!-- Breakdown par Lieu -->
+  <div class="card">
+    <h3>🏢 Répartition par Lieu</h3>
+    <div class="row">
+      <div class="col">
+        <div id="locations-breakdown" style="min-height: 200px;">
+          <div style="text-align: center; padding: 40px;">
+            <span class="loading"></span>
+          </div>
+        </div>
+      </div>
+      <div class="col">
+        <div id="locations-chart-container" style="height: 200px; position: relative;">
+          <canvas id="locations-chart" width="200" height="200"></canvas>
+          <div id="locations-chart-placeholder" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center;">
+            <span class="loading"></span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -302,6 +432,8 @@ async function loadDashboard() {
     updateMetrics();
     updateAllocationChart();
     updateTopHoldings();
+    updateLocationsBreakdown();
+    updateAlertsSection();
     updateHoldingsTable();
     
     // Success status
@@ -538,6 +670,199 @@ function updateTopHoldings() {
   }).join('');
   
   document.getElementById('top-holdings').innerHTML = html;
+}
+
+// Breakdown par lieu
+async function updateLocationsBreakdown() {
+  const container = document.getElementById('locations-breakdown');
+  const chartPlaceholder = document.getElementById('locations-chart-placeholder');
+  const chartCanvas = document.getElementById('locations-chart');
+  
+  try {
+    // Fetch breakdown data
+    const breakdownData = await globalConfig.apiRequest('/portfolio/breakdown-locations');
+    
+    if (!breakdownData.ok || !breakdownData.breakdown) {
+      container.innerHTML = '<div style="text-align: center; color: var(--muted);">Aucune donnée de lieu disponible</div>';
+      return;
+    }
+    
+    const { locations, total_value_usd } = breakdownData.breakdown;
+    
+    if (!locations || locations.length === 0) {
+      container.innerHTML = '<div style="text-align: center; color: var(--muted);">Aucun lieu trouvé</div>';
+      return;
+    }
+    
+    // Render locations list
+    const locationsHtml = locations.map(location => `
+      <div style="padding: 12px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <div style="font-weight: 600; margin-bottom: 4px;">🏢 ${location.location}</div>
+          <div style="font-size: 12px; color: var(--muted);">${location.asset_count} assets</div>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-weight: 600;">${formatUSD(location.total_value_usd)}</div>
+          <div style="font-size: 12px; color: var(--muted);">${formatPercent(location.percentage)}</div>
+        </div>
+      </div>
+    `).join('');
+    
+    container.innerHTML = locationsHtml;
+    
+    // Create chart
+    const ctx = chartCanvas.getContext('2d');
+    const chartData = {
+      labels: locations.map(l => l.location),
+      datasets: [{
+        data: locations.map(l => l.total_value_usd),
+        backgroundColor: [
+          '#2dd4bf', '#f59e0b', '#ef4444', '#22c55e', '#3b82f6', 
+          '#a78bfa', '#f472b6', '#fb923c', '#14b8a6', '#84cc16'
+        ],
+        borderWidth: 2,
+        borderColor: '#1f2b3a'
+      }]
+    };
+    
+    new Chart(ctx, {
+      type: 'doughnut',
+      data: chartData,
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false
+          }
+        }
+      }
+    });
+    
+    chartPlaceholder.style.display = 'none';
+    
+  } catch (error) {
+    console.error('Erreur chargement breakdown locations:', error);
+    container.innerHTML = '<div style="text-align: center; color: var(--danger);">Erreur: ' + error.message + '</div>';
+  }
+}
+
+// Section Alertes
+async function updateAlertsSection() {
+  const alertsSection = document.getElementById('alerts-section');
+  const globalStatusDiv = document.getElementById('global-alert-status');
+  const alertsList = document.getElementById('alerts-list');
+  const recommendations = document.getElementById('recommendations');
+  
+  try {
+    const thresholdInput = document.getElementById('drift-threshold');
+    const threshold = thresholdInput ? thresholdInput.value : 10;
+    
+    const alertsData = await globalConfig.apiRequest(`/portfolio/alerts?drift_threshold=${threshold}`);
+    
+    if (!alertsData.ok || !alertsData.alerts) {
+      globalStatusDiv.innerHTML = '<div style="text-align: center; color: var(--muted);">Données d\'alertes non disponibles</div>';
+      return;
+    }
+    
+    const alerts = alertsData.alerts;
+    
+    // Afficher la section
+    alertsSection.style.display = 'block';
+    
+    // Status global
+    const statusIcon = alerts.global_status === 'healthy' ? '✅' : 
+                       alerts.global_status === 'warning' ? '⚠️' : '🚨';
+    
+    globalStatusDiv.innerHTML = `
+      <div class="alert-status ${alerts.global_status}">
+        <div style="font-size: 24px;">${statusIcon}</div>
+        <div>
+          <div style="font-weight: 600; margin-bottom: 4px;">${alerts.global_message}</div>
+          <div style="font-size: 12px; opacity: 0.8;">
+            Dérive max: ${alerts.max_drift}% | Seuil: ${alerts.drift_threshold}%
+          </div>
+        </div>
+        <div style="margin-left: auto; text-align: right;">
+          <div style="font-size: 18px; font-weight: 700;">${formatUSD(alerts.total_value_usd)}</div>
+          <div style="font-size: 11px;">Portfolio Total</div>
+        </div>
+      </div>
+    `;
+    
+    // Liste des alertes par groupe
+    if (alerts.groups && alerts.groups.length > 0) {
+      const alertsHtml = alerts.groups.map(alert => {
+        const icon = alert.level === 'ok' ? '✅' : alert.level === 'warning' ? '⚠️' : '🚨';
+        const actionIcon = alert.action === 'buy' ? '📈' : '📉';
+        
+        return `
+          <div class="alert-item ${alert.level}">
+            <div>
+              <div style="font-weight: 600; margin-bottom: 2px;">
+                ${icon} ${alert.group}
+              </div>
+              <div style="font-size: 11px; color: var(--muted);">
+                Actuel: ${alert.current_pct}% | Cible: ${alert.target_pct}%
+              </div>
+            </div>
+            <div style="text-align: right;">
+              <div class="drift-indicator drift-${alert.level}">
+                ${alert.drift_direction === 'over' ? '+' : '-'}${alert.drift}%
+              </div>
+              <div style="font-size: 11px; margin-top: 2px;">
+                ${actionIcon} ${formatUSD(alert.action_amount_usd)}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+      
+      alertsList.innerHTML = alertsHtml;
+      alertsList.style.display = 'block';
+    }
+    
+    // Recommandations prioritaires
+    if (alerts.recommendations && alerts.recommendations.length > 0) {
+      const recsHtml = alerts.recommendations.map(rec => {
+        const actionText = rec.action === 'buy' ? 'Acheter' : 'Vendre';
+        const actionIcon = rec.action === 'buy' ? '🟢' : '🔴';
+        
+        return `
+          <div class="recommendation-item">
+            <div>
+              <div style="font-weight: 600; margin-bottom: 2px;">
+                ${actionIcon} ${actionText} ${rec.group}
+              </div>
+              <div style="font-size: 12px; color: var(--muted);">
+                Dérive de ${rec.drift}% (${rec.drift_direction === 'over' ? 'surplus' : 'déficit'})
+              </div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-weight: 600;">${formatUSD(rec.action_amount_usd)}</div>
+              <div style="font-size: 11px; color: var(--muted);">Priorité ${rec.priority}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+      
+      document.getElementById('recommendations-list').innerHTML = recsHtml;
+      recommendations.style.display = 'block';
+    }
+    
+  } catch (error) {
+    console.error('Erreur chargement alertes:', error);
+    globalStatusDiv.innerHTML = '<div style="text-align: center; color: var(--danger);">Erreur: ' + error.message + '</div>';
+  }
+}
+
+function toggleAlertsSettings() {
+  const settings = document.getElementById('alerts-settings');
+  settings.style.display = settings.style.display === 'none' ? 'block' : 'none';
+}
+
+function updateAlerts() {
+  updateAlertsSection();
 }
 
 // Tableau détaillé
