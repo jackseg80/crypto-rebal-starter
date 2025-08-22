@@ -150,13 +150,17 @@ class OrderManager:
     def _action_to_order(self, action: Dict[str, Any], plan_id: str) -> Order:
         """Convertir une action de rebalancement en ordre"""
         
+        # Quantité toujours positive (valeur absolue)
+        raw_quantity = action.get('est_quantity', 0.0)
+        quantity = abs(float(raw_quantity)) if raw_quantity is not None else 0.0
+        
         order = Order(
             symbol=action.get('symbol', ''),
             alias=action.get('alias', ''),
             group=action.get('group', ''),
             action=action.get('action', ''),
             usd_amount=float(action.get('usd', 0.0)),
-            quantity=float(action.get('est_quantity', 0.0)) if action.get('est_quantity') else 0.0,
+            quantity=quantity,
             target_price=float(action.get('price_used', 0.0)) if action.get('price_used') else None,
             exec_hint=action.get('exec_hint', ''),
             rebalance_session_id=plan_id
@@ -184,16 +188,41 @@ class OrderManager:
         """Extraire la plateforme recommandée depuis exec_hint"""
         hint_lower = exec_hint.lower()
         
+        # Exchanges centralisés majeurs
         if "binance" in hint_lower:
             return "binance"
         elif "coinbase" in hint_lower:
             return "coinbase"
         elif "kraken" in hint_lower:
             return "kraken"
+        elif "bitget" in hint_lower:
+            return "bitget"
+        elif "swissborg" in hint_lower:
+            return "swissborg"
+        elif "hatom" in hint_lower:
+            return "hatom"
+        
+        # Wallets et stockage
+        elif "ledger" in hint_lower:
+            return "ledger"
+        elif "metamask" in hint_lower:
+            return "metamask"
+        elif "solana" in hint_lower:
+            return "solana"
+        
+        # Services génériques
+        elif "earn" in hint_lower:
+            return "earn_service"
         elif "dex" in hint_lower or "uniswap" in hint_lower:
             return "dex"
-        elif "cex" in hint_lower:
-            return "cex_generic"
+        elif "manual" in hint_lower:
+            return "manual"
+        elif "complex" in hint_lower:
+            return "complex_operation"
+        
+        # Fallback générique
+        elif any(word in hint_lower for word in ["buy", "sell", "on", "exchange"]):
+            return "generic_exchange"
         else:
             return "unknown"
     
@@ -242,8 +271,14 @@ class OrderManager:
         
         # 1. Vérifier l'équilibrage
         total_usd = sum(order.usd_amount for order in plan.orders)
-        if abs(total_usd) > 1.0:  # Tolérance de $1
-            errors.append(f"Plan not balanced: total USD = {total_usd:.2f}")
+        total_volume = sum(abs(order.usd_amount) for order in plan.orders)
+        
+        # Tolérance dynamique : 0.1% du volume total ou minimum $100
+        tolerance = max(100.0, total_volume * 0.001)
+        
+        if abs(total_usd) > tolerance:
+            percentage = (abs(total_usd) / total_volume * 100) if total_volume > 0 else 0
+            errors.append(f"Plan not balanced: total USD = {total_usd:.2f} ({percentage:.2f}% of volume, tolerance: ${tolerance:.2f})")
         
         # 2. Vérifier les ordres individuels
         for order in plan.orders:

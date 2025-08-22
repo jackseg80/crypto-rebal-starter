@@ -5,3 +5,4 @@ python-dotenv>=1.0.1
 aiohttp>=3.9.0
 numpy>=1.21.0
 requests>=2.28.0
+python-binance>=1.0.19
