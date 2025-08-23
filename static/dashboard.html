@@ -267,7 +267,10 @@
                         <span class="card-icon">💰</span>
                         Portfolio Overview
                     </div>
-                    <span class="status-badge status-active" id="portfolio-status">Loading</span>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <button class="action-btn secondary" style="padding: 4px 8px; font-size: 12px;" onclick="forceRefreshData()">🔄</button>
+                        <span class="status-badge status-active" id="portfolio-status">Loading</span>
+                    </div>
                 </div>
                 
                 <div class="metric">
@@ -447,7 +450,16 @@
         // Charger les données du portfolio
         async function loadPortfolioData() {
             try {
-                const response = await fetch('http://localhost:8000/portfolio/metrics');
+                // S'assurer que globalConfig est disponible
+                if (typeof globalConfig === 'undefined') {
+                    console.warn('globalConfig non disponible, utilisation source par défaut');
+                    var source = 'cointracking';
+                } else {
+                    var source = globalConfig.get('data_source') || 'cointracking';
+                }
+                
+                console.log(`📊 Chargement portfolio avec source: ${source}`);
+                const response = await fetch(`http://localhost:8000/portfolio/metrics?source=${source}`);
                 const data = await response.json();
                 return data;
             } catch (error) {
@@ -693,6 +705,13 @@
 
         function showError(message) {
             console.error(message);
+        }
+
+        // Forcer un refresh des données avec la source actuelle
+        async function forceRefreshData() {
+            console.log('🔄 Force refresh demandé par utilisateur');
+            // Vider le cache si nécessaire
+            await loadDashboardData();
         }
     </script>
 </body>
