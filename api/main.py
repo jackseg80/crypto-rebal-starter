@@ -25,6 +25,7 @@ from api.analytics_endpoints import router as analytics_router
 from api.kraken_endpoints import router as kraken_router
 from api.smart_taxonomy_endpoints import router as smart_taxonomy_router
 from api.advanced_rebalancing_endpoints import router as advanced_rebalancing_router
+from api.risk_endpoints import router as risk_router
 
 app = FastAPI()
 # CORS large pour tests locaux + UI docs/
@@ -735,6 +736,7 @@ app.include_router(analytics_router)
 app.include_router(kraken_router)
 app.include_router(smart_taxonomy_router)
 app.include_router(advanced_rebalancing_router)
+app.include_router(risk_router)
 
 # ---------- Portfolio Analytics ----------
 @app.get("/portfolio/metrics")

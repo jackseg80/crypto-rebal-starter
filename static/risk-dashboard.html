@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Risk Dashboard - Crypto Portfolio</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="shared-header.js"></script>
+    <link rel="stylesheet" href="shared-theme.css">
+    <style>
+        .risk-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .risk-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .risk-card h3 {
+            margin-top: 0;
+            color: var(--text-primary);
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 8px;
+        }
+        
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .metric-label {
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+        
+        .metric-value {
+            font-weight: bold;
+            font-family: 'Monaco', 'Consolas', monospace;
+        }
+        
+        .risk-level {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 16px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        .risk-low { background: #d4edda; color: #155724; }
+        .risk-medium { background: #fff3cd; color: #856404; }
+        .risk-high { background: #f8d7da; color: #721c24; }
+        .risk-very-high { background: #f5c6cb; color: #491217; }
+        .risk-critical { background: #dc3545; color: white; }
+        
+        .alert {
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 4px;
+            border-left: 4px solid;
+        }
+        
+        .alert-high {
+            background: #f8d7da;
+            color: #721c24;
+            border-color: #dc3545;
+        }
+        
+        .alert-medium {
+            background: #fff3cd;
+            color: #856404;
+            border-color: #ffc107;
+        }
+        
+        .alert-low {
+            background: #d1ecf1;
+            color: #0c5460;
+            border-color: #17a2b8;
+        }
+        
+        .correlation-heatmap {
+            width: 100%;
+            height: 300px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-secondary);
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .refresh-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 10px 5px;
+        }
+        
+        .refresh-btn:hover {
+            background: var(--primary-dark);
+        }
+        
+        .refresh-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .timestamp {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-align: right;
+            margin-bottom: 10px;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 250px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="shared-header"></div>
+    
+    <div class="container">
+        <h1>🛡️ Risk Dashboard</h1>
+        
+        <div class="controls">
+            <button class="refresh-btn" onclick="refreshDashboard()" id="refresh-btn">
+                🔄 Refresh Data
+            </button>
+            <button class="refresh-btn" onclick="enableAutoRefresh()" id="auto-refresh-btn">
+                ⏱️ Enable Auto-Refresh (30s)
+            </button>
+            <button class="refresh-btn" onclick="testEndpoint()" style="background: #007bff;">
+                🧪 Test API
+            </button>
+            <div class="timestamp" id="last-update"></div>
+        </div>
+        
+        <div id="dashboard-content">
+            <div class="loading">Loading risk metrics...</div>
+        </div>
+    </div>
+
+    <script>
+        let autoRefreshInterval = null;
+        let isRefreshing = false;
+        
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeSharedHeader('risk-dashboard');
+            refreshDashboard();
+        });
+        
+        async function refreshDashboard() {
+            if (isRefreshing) return;
+            
+            isRefreshing = true;
+            const refreshBtn = document.getElementById('refresh-btn');
+            refreshBtn.disabled = true;
+            refreshBtn.textContent = '🔄 Refreshing...';
+            
+            try {
+                console.log('Fetching risk dashboard data...');
+                const response = await fetch('http://localhost:8001/api/risk/dashboard');
+                console.log('Response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Dashboard data received:', data);
+                
+                if (data && data.success) {
+                    renderDashboard(data);
+                    if (data.timestamp && data.calculation_time) {
+                        updateTimestamp(data.timestamp, data.calculation_time);
+                    }
+                } else {
+                    renderError(data?.message || 'Failed to load risk dashboard');
+                }
+            } catch (error) {
+                console.error('Dashboard error:', error);
+                renderError('Network error: ' + error.message);
+            } finally {
+                isRefreshing = false;
+                refreshBtn.disabled = false;
+                refreshBtn.textContent = '🔄 Refresh Data';
+            }
+        }
+        
+        function renderDashboard(data) {
+            const container = document.getElementById('dashboard-content');
+            
+            // Vérifier si les données sont complètes
+            if (!data || !data.risk_metrics || !data.correlation_metrics || !data.portfolio_summary) {
+                renderError('Incomplete data received from API');
+                return;
+            }
+            
+            const metrics = data.risk_metrics;
+            const correlation = data.correlation_metrics;
+            const portfolio = data.portfolio_summary;
+            
+            container.innerHTML = `
+                <!-- Portfolio Summary -->
+                <div class="risk-card">
+                    <h3>📊 Portfolio Summary</h3>
+                    <div class="metric-row">
+                        <span class="metric-label">Total Value:</span>
+                        <span class="metric-value">$${formatNumber(portfolio.total_value)}</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Number of Assets:</span>
+                        <span class="metric-value">${portfolio.num_assets}</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Data Confidence:</span>
+                        <span class="metric-value">${safeFixed((portfolio.confidence_level || 0) * 100, 1)}%</span>
+                    </div>
+                </div>
+                
+                <div class="risk-grid">
+                    <!-- VaR/CVaR Metrics -->
+                    <div class="risk-card">
+                        <h3>📉 Value at Risk (VaR)</h3>
+                        <div class="metric-row">
+                            <span class="metric-label">VaR 95% (1 day):</span>
+                            <span class="metric-value text-danger">${formatPercent(metrics.var_95_1d)}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">VaR 99% (1 day):</span>
+                            <span class="metric-value text-danger">${formatPercent(metrics.var_99_1d)}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">CVaR 95% (1 day):</span>
+                            <span class="metric-value text-danger">${formatPercent(metrics.cvar_95_1d)}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">CVaR 99% (1 day):</span>
+                            <span class="metric-value text-danger">${formatPercent(metrics.cvar_99_1d)}</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Performance Metrics -->
+                    <div class="risk-card">
+                        <h3>📈 Risk-Adjusted Performance</h3>
+                        <div class="metric-row">
+                            <span class="metric-label">Volatility (Annual):</span>
+                            <span class="metric-value">${formatPercent(metrics.volatility_annualized)}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Sharpe Ratio:</span>
+                            <span class="metric-value ${(metrics.sharpe_ratio || 0) >= 0 ? 'text-success' : 'text-danger'}">${safeFixed(metrics.sharpe_ratio)}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Sortino Ratio:</span>
+                            <span class="metric-value ${(metrics.sortino_ratio || 0) >= 0 ? 'text-success' : 'text-danger'}">${safeFixed(metrics.sortino_ratio)}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Calmar Ratio:</span>
+                            <span class="metric-value">${safeFixed(metrics.calmar_ratio)}</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Drawdown Metrics -->
+                    <div class="risk-card">
+                        <h3>📊 Drawdown Analysis</h3>
+                        <div class="metric-row">
+                            <span class="metric-label">Max Drawdown:</span>
+                            <span class="metric-value text-danger">${formatPercent(metrics.max_drawdown)}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Current Drawdown:</span>
+                            <span class="metric-value ${metrics.current_drawdown > 0.1 ? 'text-danger' : 'text-warning'}">${formatPercent(metrics.current_drawdown)}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Risk Score:</span>
+                            <span class="metric-value">${safeFixed(metrics.risk_score, 1)}/100</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Risk Level:</span>
+                            <span class="risk-level risk-${(metrics.overall_risk_level || 'unknown').replace('_', '-')}">${(metrics.overall_risk_level || 'Unknown').replace('_', ' ')}</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Correlation Metrics -->
+                    <div class="risk-card">
+                        <h3>🔗 Diversification Analysis</h3>
+                        <div class="metric-row">
+                            <span class="metric-label">Diversification Ratio:</span>
+                            <span class="metric-value ${(correlation.diversification_ratio || 0) > 1.5 ? 'text-success' : 'text-warning'}">${safeFixed(correlation.diversification_ratio)}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Effective Assets:</span>
+                            <span class="metric-value">${safeFixed(correlation.effective_assets, 1)}</span>
+                        </div>
+                        
+                        ${correlation.top_correlations && correlation.top_correlations.length > 0 ? `
+                            <h4>Top Asset Correlations:</h4>
+                            ${correlation.top_correlations.slice(0, 3).map(corr => `
+                                <div class="metric-row">
+                                    <span class="metric-label">${corr.asset1} - ${corr.asset2}:</span>
+                                    <span class="metric-value ${Math.abs(corr.correlation || 0) > 0.7 ? 'text-warning' : 'text-success'}">${safeFixed((corr.correlation || 0) * 100, 1)}%</span>
+                                </div>
+                            `).join('')}
+                        ` : ''}
+                    </div>
+                </div>
+                
+                <!-- Alerts Section -->
+                ${data.alerts && data.alerts.length > 0 ? `
+                    <div class="risk-card">
+                        <h3>⚠️ Risk Alerts</h3>
+                        ${data.alerts.map(alert => `
+                            <div class="alert alert-${alert.level}">
+                                <strong>${alert.message}</strong><br>
+                                <em>Recommendation: ${alert.recommendation}</em>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : `
+                    <div class="risk-card">
+                        <h3>✅ All Clear</h3>
+                        <p>No significant risk alerts at this time.</p>
+                    </div>
+                `}
+            `;
+        }
+        
+        function renderError(message) {
+            document.getElementById('dashboard-content').innerHTML = `
+                <div class="error">
+                    <h3>❌ Error Loading Dashboard</h3>
+                    <p>${message}</p>
+                    <button class="refresh-btn" onclick="refreshDashboard()">Try Again</button>
+                </div>
+            `;
+        }
+        
+        function updateTimestamp(timestamp, calcTime) {
+            const updateDiv = document.getElementById('last-update');
+            const date = new Date(timestamp);
+            updateDiv.textContent = `Last updated: ${date.toLocaleString()} (${calcTime})`;
+        }
+        
+        function enableAutoRefresh() {
+            const btn = document.getElementById('auto-refresh-btn');
+            
+            if (autoRefreshInterval) {
+                // Disable auto-refresh
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+                btn.textContent = '⏱️ Enable Auto-Refresh (30s)';
+                btn.style.background = '';
+            } else {
+                // Enable auto-refresh
+                autoRefreshInterval = setInterval(refreshDashboard, 30000); // 30 seconds
+                btn.textContent = '⏹️ Disable Auto-Refresh';
+                btn.style.background = '#28a745';
+            }
+        }
+        
+        function formatPercent(value) {
+            if (value == null || isNaN(value)) return 'N/A';
+            return (value * 100).toFixed(2) + '%';
+        }
+        
+        function formatNumber(value) {
+            if (value == null || isNaN(value)) return 'N/A';
+            return new Intl.NumberFormat('en-US', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(value);
+        }
+        
+        function safeFixed(value, digits = 2) {
+            if (value == null || isNaN(value)) return 'N/A';
+            return Number(value).toFixed(digits);
+        }
+        
+        // Test endpoint function
+        async function testEndpoint() {
+            console.log('Testing API endpoint...');
+            try {
+                const response = await fetch('http://localhost:8001/api/risk/dashboard');
+                console.log('Status:', response.status);
+                console.log('Headers:', response.headers);
+                
+                const text = await response.text();
+                console.log('Response text:', text);
+                
+                try {
+                    const json = JSON.parse(text);
+                    console.log('Parsed JSON:', json);
+                    alert('API Response received. Check console for details.');
+                } catch (parseError) {
+                    console.error('JSON parse error:', parseError);
+                    alert('API returned non-JSON response: ' + text.substring(0, 200));
+                }
+            } catch (error) {
+                console.error('Test error:', error);
+                alert('API test failed: ' + error.message);
+            }
+        }
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+            }
+        });
+    </script>
+</body>
+</html>
