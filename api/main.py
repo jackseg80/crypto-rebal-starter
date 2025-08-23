@@ -22,6 +22,7 @@ from api.taxonomy_endpoints import router as taxonomy_router
 from api.execution_endpoints import router as execution_router
 from api.execution_dashboard import router as execution_dashboard_router
 from api.monitoring_endpoints import router as monitoring_router
+from api.monitoring_advanced import router as monitoring_advanced_router
 from api.analytics_endpoints import router as analytics_router
 from constants import get_exchange_priority, normalize_exchange_name
 
@@ -757,6 +758,7 @@ app.include_router(taxonomy_router)
 app.include_router(execution_router)
 app.include_router(execution_dashboard_router)
 app.include_router(monitoring_router)
+app.include_router(monitoring_advanced_router)
 app.include_router(analytics_router)
 
 # ---------- Portfolio Analytics ----------
