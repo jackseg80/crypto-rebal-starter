@@ -23,6 +23,7 @@ from api.execution_endpoints import router as execution_router
 from api.monitoring_endpoints import router as monitoring_router
 from api.analytics_endpoints import router as analytics_router
 from api.kraken_endpoints import router as kraken_router
+from api.smart_taxonomy_endpoints import router as smart_taxonomy_router
 
 app = FastAPI()
 # CORS large pour tests locaux + UI docs/
@@ -731,6 +732,7 @@ app.include_router(execution_router)
 app.include_router(monitoring_router)
 app.include_router(analytics_router)
 app.include_router(kraken_router)
+app.include_router(smart_taxonomy_router)
 
 # ---------- Portfolio Analytics ----------
 @app.get("/portfolio/metrics")
