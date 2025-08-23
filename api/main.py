@@ -20,12 +20,9 @@ from services.pricing import get_prices_usd
 from services.portfolio import portfolio_analytics
 from api.taxonomy_endpoints import router as taxonomy_router
 from api.execution_endpoints import router as execution_router
-from api.execution_dashboard import router as execution_dashboard_router
-from api.execution_history import router as execution_history_router
 from api.monitoring_endpoints import router as monitoring_router
-from api.monitoring_advanced import router as monitoring_advanced_router
 from api.analytics_endpoints import router as analytics_router
-from constants import get_exchange_priority, normalize_exchange_name
+from api.kraken_endpoints import router as kraken_router
 
 app = FastAPI()
 # CORS large pour tests locaux + UI docs/
@@ -72,10 +69,36 @@ try:
 except Exception:
     import cointracking_api as ct_api  # fallback au cas où le package n'est pas packagé "connectors"
 
-# Constantes déplacées vers constants/exchanges.py
+FAST_SELL_EXCHANGES = [
+    "Kraken", "Binance", "Coinbase", "Bitget", "OKX", "Bybit", "KuCoin", "Bittrex", "Bitstamp", "Gemini"
+]
+DEFI_HINTS = ["Aave", "Lido", "Rocket Pool", "Curve", "Uniswap", "Sushiswap", "Jupiter", "Osmosis", "Thorchain"]
+COLD_HINTS = ["Ledger", "Trezor", "Cold", "Vault", "Hardware"]
 
-# Fonctions déplacées vers constants/exchanges.py
-# Utiliser normalize_exchange_name() au lieu de _normalize_loc()
+def _normalize_loc(label: str) -> str:
+    if not label:
+        return "Unknown"
+    t = label.strip()
+    # CoinTracking renvoie souvent “KRaken Balance”, “Kraken Earn Balance”, “COINBASE BALANCE”, …
+    t = t.replace("_", " ").replace("-", " ")
+    t = t.title()
+    # Enlever suffixes fréquents
+    for suf in (" Balance", " Wallet", " Account"):
+        if t.endswith(suf):
+            t = t[: -len(suf)]
+    # Ex.: “Kraken Earn Balance” -> “Kraken Earn”
+    t = t.replace(" Earn", " Earn")
+    return t
+
+def _classify_location(loc: str) -> int:
+    L = _normalize_loc(loc)
+    if any(L.startswith(x) for x in FAST_SELL_EXCHANGES):
+        return 0  # CEX rapide
+    if any(h in L for h in DEFI_HINTS):
+        return 1  # DeFi
+    if any(h in L for h in COLD_HINTS):
+        return 2  # Cold/Hardware
+    return 3  # reste
 
 def _pick_primary_location_for_symbol(symbol: str, detailed_holdings: dict) -> str:
     # Retourne l’exchange où ce symbole pèse le plus en USD
@@ -90,76 +113,35 @@ def _pick_primary_location_for_symbol(symbol: str, detailed_holdings: dict) -> s
 
 async def _load_ctapi_exchanges(min_usd: float = 0.0) -> dict:
     """
-    Combine les données correctes de get_current_balances avec les locations de getGroupedBalance
-    pour éviter la duplication et obtenir les totaux corrects.
+    Appelle la CT-API pour obtenir:
+      - exchanges: [{location, total_value_usd, asset_count, assets:[...]}]
+      - detailed_holdings: { location -> [ {symbol, amount, value_usd, price_usd, location} ] }
     """
-    from connectors.cointracking import get_current_balances
-    
-    # 1) Données correctes de balances
-    balances_data = await get_current_balances("cointracking_api")
-    correct_items = balances_data.get("items", [])
-    
-    # 2) Locations depuis getGroupedBalance (pour mapping symbol -> location)
-    location_map: Dict[str, str] = {}
-    try:
-        import connectors.cointracking_api as ct_api
-        p_gb = ct_api._post_api_cached("getGroupedBalance", {"group": "exchange", "exclude_dep_with": "1"}, ttl=60)
-        rows_gb = ct_api._extract_rows_from_groupedBalance(p_gb)
-        
-        # Pour chaque symbole, trouver l'exchange avec la plus grande valeur
-        symbol_exchanges: Dict[str, List[Tuple[str, float]]] = {}
-        for r in rows_gb:
-            sym = str(r.get("symbol", "")).upper()
-            loc = str(r.get("location", "")).replace(" Balance", "").strip().title()
-            val = float(r.get("value_usd", 0))
-            if sym and loc and val > 0:
-                symbol_exchanges.setdefault(sym, []).append((loc, val))
-        
-        # Assign primary location (highest value)
-        for sym, exchanges in symbol_exchanges.items():
-            if exchanges:
-                primary_loc = max(exchanges, key=lambda x: x[1])[0]
-                location_map[sym] = primary_loc
-    except Exception:
-        pass
-    
-    # 3) Grouper par exchange en utilisant les données correctes
-    detailed: Dict[str, List[Dict[str, Any]]] = {}
-    
-    for item in correct_items:
-        sym = str(item.get("symbol", "")).upper()
-        val = float(item.get("value_usd", 0))
-        
-        # Appliquer le filtre min_usd
-        if val < min_usd:
-            continue
-            
-        # Determiner la location
-        location = location_map.get(sym, "CoinTracking")
-        
-        # Ajouter à detailed_holdings
-        detailed.setdefault(location, []).append({
-            "symbol": sym,
-            "alias": item.get("alias", sym),
-            "amount": item.get("amount", 0),
-            "value_usd": val,
-            "price_usd": None,  # On peut le calculer si besoin
-            "location": location
-        })
-    
-    # 4) Créer les exchanges summary
-    exchanges = []
-    for loc, assets in detailed.items():
-        total_val = sum(float(a.get("value_usd", 0)) for a in assets)
-        if total_val >= min_usd:
-            exchanges.append({
-                "location": loc,
-                "total_value_usd": round(total_val, 2),
-                "asset_count": len(assets),
-                "assets": sorted(assets, key=lambda x: float(x.get("value_usd", 0)), reverse=True)
-            })
-    
-    exchanges.sort(key=lambda x: x["total_value_usd"], reverse=True)
+    payload = await ct_api.get_balances_by_exchange_via_api()  # utilise getGroupedBalance + getBalance
+    exchanges = payload.get("exchanges") or []
+    detailed = payload.get("detailed_holdings") or {}
+
+    # Filtre min_usd si demandé
+    if min_usd and detailed:
+        filtered = {}
+        for loc, assets in detailed.items():
+            keep = [a for a in (assets or []) if float(a.get("value_usd") or 0) >= min_usd]
+            if keep:
+                filtered[loc] = keep
+        detailed = filtered
+        # Recalcule les totaux
+        ex2 = []
+        for loc, assets in detailed.items():
+            tv = sum(float(a.get("value_usd") or 0) for a in assets)
+            if tv >= min_usd:
+                ex2.append({
+                    "location": loc,
+                    "total_value_usd": tv,
+                    "asset_count": len(assets),
+                    "assets": sorted(assets, key=lambda x: float(x.get("value_usd") or 0), reverse=True)
+                })
+        exchanges = sorted(ex2, key=lambda x: x["total_value_usd"], reverse=True)
+
     return {"exchanges": exchanges, "detailed_holdings": detailed}
 # <<< END: CT-API helpers <<<
 
@@ -237,7 +219,7 @@ def _norm_primary_symbols(x: Any) -> Dict[str, List[str]]:
 # ---------- source resolver ----------
 # --- REPLACE THIS WHOLE FUNCTION IN main.py ---
 
-async def resolve_current_balances(source: str = Query("cointracking")) -> Dict[str, Any]:
+async def resolve_current_balances(source: str = Query("cointracking_api")) -> Dict[str, Any]:
     """
     Retourne {source_used, items:[{symbol, alias, amount, value_usd, location}]}
     - Si CT-API dispo: affecte une location “principale” par coin (échange avec la plus grosse part)
@@ -334,33 +316,22 @@ def _assign_locations_to_actions(plan: dict, rows: list[dict], min_trade_usd: fl
                 out_actions.append(a)
                 continue
 
-            # Tri par priorité CEX → DeFi → Cold, puis par valeur décroissante
-            # Utilisation de la fonction centralisée
-
-            # Tri par priorité, puis par valeur décroissante pour les mêmes priorités
-            locs_sorted = sorted(locs, key=lambda x: (get_exchange_priority(x[0]), -x[1]))
-            
-            # Répartition avec priorité intelligente
+            # Répartition proportionnelle par value_usd
             alloc_sum = 0.0
             tmp_parts: list[dict] = []
-            remaining_to_sell = to_sell
-            
-            for i, (ex, available_val) in enumerate(locs_sorted):
-                if remaining_to_sell <= 0.01:
-                    break
-                    
-                # Prendre min(ce qui reste à vendre, ce qui est disponible)
-                can_sell = min(remaining_to_sell, available_val)
-                
-                # Respecter le min_trade_usd sauf si c'est le dernier exchange
-                if can_sell >= max(0.01, float(min_trade_usd or 0)) or i == len(locs_sorted) - 1:
-                    part = round(can_sell, 2)
-                    if part > 0.01:
-                        na = dict(a)
-                        na["usd"] = -part
-                        na["location"] = ex
-                        tmp_parts.append(na)
-                        remaining_to_sell -= part
+            for i, (ex, val) in enumerate(locs):
+                share = to_sell * (val / total_val)
+                if i < len(locs) - 1:
+                    part = round(share, 2)
+                    alloc_sum += part
+                else:
+                    part = round(to_sell - alloc_sum, 2)  # dernier = reste pour somme exacte
+
+                if part >= max(0.01, float(min_trade_usd or 0)):
+                    na = dict(a)
+                    na["usd"] = -part
+                    na["location"] = ex
+                    tmp_parts.append(na)
 
             # Si tout est sous le min_trade_usd, on regroupe sur le plus gros exchange
             if not tmp_parts:
@@ -757,11 +728,9 @@ async def update_api_keys(payload: dict):
 # inclure les routes taxonomie, execution, monitoring et analytics
 app.include_router(taxonomy_router)
 app.include_router(execution_router)
-app.include_router(execution_dashboard_router)
-app.include_router(execution_history_router)
 app.include_router(monitoring_router)
-app.include_router(monitoring_advanced_router)
 app.include_router(analytics_router)
+app.include_router(kraken_router)
 
 # ---------- Portfolio Analytics ----------
 @app.get("/portfolio/metrics")
@@ -815,7 +784,7 @@ async def portfolio_trend(days: int = Query(30, ge=1, le=365)):
 
 @app.get("/portfolio/breakdown-locations")
 async def portfolio_breakdown_locations(
-    source: str = Query("cointracking"),
+    source: str = Query("cointracking_api"),
     min_usd: float = Query(1.0)
 ):
     """
@@ -823,36 +792,7 @@ async def portfolio_breakdown_locations(
     Pas de fallback “CoinTracking 100%” sauf si réellement aucune data.
     """
     try:
-        if source == "cointracking":
-            # Utiliser CSV comme source
-            from connectors.cointracking import get_unified_balances_by_exchange
-            snap = await get_unified_balances_by_exchange(source="cointracking")
-            
-            # Appliquer le filtrage min_usd pour CSV
-            if min_usd > 0 and snap.get("detailed_holdings"):
-                detailed = snap.get("detailed_holdings", {})
-                filtered_detailed = {}
-                for loc, assets in detailed.items():
-                    filtered_assets = [a for a in assets if float(a.get("value_usd", 0)) >= min_usd]
-                    if filtered_assets:
-                        filtered_detailed[loc] = filtered_assets
-                
-                # Recalculer les exchanges
-                exchanges = []
-                for loc, assets in filtered_detailed.items():
-                    total_val = sum(float(a.get("value_usd", 0)) for a in assets)
-                    if total_val >= min_usd:
-                        exchanges.append({
-                            "location": loc,
-                            "total_value_usd": round(total_val, 2),
-                            "asset_count": len(assets),
-                            "assets": sorted(assets, key=lambda x: float(x.get("value_usd", 0)), reverse=True)
-                        })
-                exchanges.sort(key=lambda x: x["total_value_usd"], reverse=True)
-                snap = {"exchanges": exchanges, "detailed_holdings": filtered_detailed}
-        else:
-            # Utiliser API
-            snap = await _load_ctapi_exchanges(min_usd=min_usd)
+        snap = await _load_ctapi_exchanges(min_usd=min_usd)
         exchanges = snap.get("exchanges") or []
         if exchanges:
             total = sum(float(x.get("total_value_usd") or 0) for x in exchanges)
@@ -896,7 +836,6 @@ async def portfolio_breakdown_locations(
         "fallback": True,
         "message": "No location data available, using default location"
     }
-
 
 
 # Stratégies de rebalancing prédéfinies
