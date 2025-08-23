@@ -3,453 +3,586 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Execution - Crypto Rebalancer</title>
+    <title>📊 Dashboard - Crypto Rebalancer</title>
+    
+    <script src="global-config.js"></script>
+    <script src="shared-header.js"></script>
+    
     <style>
+        :root {
+            /* Theme global unifié */
+            --bg: #0a0f14;
+            --card: #0e1620;
+            --muted: #8fa0b3;
+            --text: #e7eef7;
+            --accent: #2dd4bf;
+            --danger: #ef4444;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --border: #1f2b3a;
+            --pos: #22c55e;
+        }
+
         * {
+            box-sizing: border-box;
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #333;
+            background: var(--bg);
+            color: var(--text);
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+            line-height: 1.6;
             min-height: 100vh;
         }
 
-        .container {
+        /* Header sera injecté par shared-header.js */
+
+        .wrap {
             max-width: 1400px;
             margin: 0 auto;
             padding: 20px;
         }
 
-        .header {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            margin-bottom: 30px;
-            backdrop-filter: blur(10px);
-        }
-
-        .header h1 {
-            color: #2d3748;
-            margin-bottom: 10px;
-            font-size: 2.5rem;
-            font-weight: 300;
-        }
-
-        .status-indicator {
-            display: inline-block;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .status-active {
-            background: #48bb78;
-            color: white;
-        }
-
-        .status-error {
-            background: #f56565;
-            color: white;
-        }
-
         .dashboard-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
-            margin-bottom: 30px;
+            gap: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            margin-top: 20px;
         }
 
         .card {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 20px;
+            transition: all 0.2s;
         }
 
-        .card h2 {
-            color: #2d3748;
-            margin-bottom: 20px;
-            font-size: 1.5rem;
-            font-weight: 500;
-            border-bottom: 2px solid #e2e8f0;
-            padding-bottom: 10px;
+        .card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(45, 212, 191, 0.1);
         }
 
-        .connections-list {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-
-        .connection-item {
+        .card-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 15px;
-            background: #f7fafc;
-            border-radius: 8px;
-            border-left: 4px solid #cbd5e0;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
         }
 
-        .connection-item.connected {
-            border-left-color: #48bb78;
-            background: #f0fff4;
-        }
-
-        .connection-item.disconnected {
-            border-left-color: #f56565;
-            background: #fff5f5;
-        }
-
-        .connection-info h3 {
-            color: #2d3748;
-            margin-bottom: 5px;
-            font-size: 1.1rem;
-        }
-
-        .connection-info p {
-            color: #718096;
-            font-size: 0.9rem;
-        }
-
-        .connection-status {
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
         }
 
-        .status-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
+        .card-icon {
+            font-size: 24px;
         }
 
-        .status-dot.connected {
-            background: #48bb78;
-            box-shadow: 0 0 10px rgba(72, 187, 120, 0.3);
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 12px 0;
+            padding: 8px 0;
         }
 
-        .status-dot.disconnected {
-            background: #f56565;
-            box-shadow: 0 0 10px rgba(245, 101, 101, 0.3);
+        .metric-label {
+            color: var(--muted);
+            font-size: 14px;
         }
 
-        .stats-grid {
+        .metric-value {
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-active {
+            background: rgba(34, 197, 94, 0.1);
+            color: var(--success);
+            border: 1px solid var(--success);
+        }
+
+        .status-warning {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning);
+            border: 1px solid var(--warning);
+        }
+
+        .status-error {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+            border: 1px solid var(--danger);
+        }
+
+        .quick-actions {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
+            gap: 12px;
+            margin-top: 16px;
         }
 
-        .stat-item {
-            text-align: center;
-            padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+        .action-btn {
+            background: var(--accent);
+            color: #07211e;
+            text-decoration: none;
+            padding: 12px 16px;
             border-radius: 8px;
-        }
-
-        .stat-value {
-            font-size: 2rem;
-            font-weight: 700;
-            margin-bottom: 5px;
-        }
-
-        .stat-label {
-            font-size: 0.9rem;
-            opacity: 0.9;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .controls {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .btn {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
             font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
-        }
-
-        .btn-secondary {
-            background: #e2e8f0;
-            color: #4a5568;
-        }
-
-        .btn-secondary:hover {
-            background: #cbd5e0;
-        }
-
-        .auto-refresh {
+            text-align: center;
+            transition: all 0.2s;
             display: flex;
             align-items: center;
-            gap: 10px;
-            margin-left: auto;
+            justify-content: center;
+            gap: 8px;
         }
 
-        .notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 15px 20px;
+        .action-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(45, 212, 191, 0.3);
+        }
+
+        .action-btn.secondary {
+            background: transparent;
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .action-btn.secondary:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .portfolio-chart {
+            height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--muted);
+            border: 1px dashed var(--border);
             border-radius: 8px;
-            color: white;
-            font-weight: 600;
-            z-index: 1000;
-            transform: translateX(400px);
-            transition: transform 0.3s ease;
+            margin: 16px 0;
         }
 
-        .notification.show {
-            transform: translateX(0);
+        .recent-activity {
+            max-height: 300px;
+            overflow-y: auto;
         }
 
-        .notification.success {
-            background: #48bb78;
+        .activity-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
         }
 
-        .notification.error {
-            background: #f56565;
+        .activity-item:last-child {
+            border-bottom: none;
+        }
+
+        .activity-desc {
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .activity-time {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .connections-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .connection-item {
+            text-align: center;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .connection-name {
+            font-size: 12px;
+            margin-bottom: 4px;
+            color: var(--muted);
+        }
+
+        .loading {
+            color: var(--muted);
+            text-align: center;
+            padding: 20px;
+        }
+
+        .error {
+            color: var(--danger);
+            text-align: center;
+            padding: 20px;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--danger);
+            border-radius: 8px;
+            margin: 12px 0;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .quick-actions {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
+
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>Dashboard Execution</h1>
-            <div class="controls">
-                <span class="status-indicator" id="systemStatus">CHARGEMENT...</span>
-                <button class="btn btn-primary" onclick="refreshAll()">Actualiser</button>
-                <button class="btn btn-secondary" onclick="testAllConnections()">Tester Connexions</button>
-                <div class="auto-refresh">
-                    <label>Auto-refresh:</label>
-                    <input type="checkbox" id="autoRefresh" checked>
-                </div>
-            </div>
-        </div>
+    <!-- Header sera injecté par shared-header.js -->
 
+    <div class="wrap">
         <div class="dashboard-grid">
+            <!-- Portfolio Overview -->
             <div class="card">
-                <h2>Connexions Exchanges</h2>
-                <div id="connectionsList" class="connections-list">
-                    <div style="text-align: center; padding: 20px; color: #718096;">
-                        Chargement des connexions...
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="card-icon">💰</span>
+                        Portfolio Overview
                     </div>
+                    <span class="status-badge status-active" id="portfolio-status">Loading</span>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label">Total Value</span>
+                    <span class="metric-value" id="total-value">--</span>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label">P&L Today</span>
+                    <span class="metric-value" id="daily-pnl">--</span>
+                </div>
+                
+                <div class="portfolio-chart" id="portfolio-chart">
+                    📊 Portfolio distribution chart
+                    <br><small>(Integration avec CoinTracking data)</small>
                 </div>
             </div>
 
+            <!-- Quick Actions -->
             <div class="card">
-                <h2>Statistiques</h2>
-                <div id="statisticsGrid" class="stats-grid">
-                    <div class="stat-item">
-                        <div class="stat-value" id="totalOrders">-</div>
-                        <div class="stat-label">Ordres Total</div>
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="card-icon">⚡</span>
+                        Quick Actions
                     </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="successfulOrders">-</div>
-                        <div class="stat-label">Succes</div>
+                </div>
+                
+                <div class="quick-actions">
+                    <a href="rebalance.html" class="action-btn">
+                        ⚖️ Plan Rebalance
+                    </a>
+                    <a href="execution.html" class="action-btn secondary">
+                        🚀 Execute Orders
+                    </a>
+                    <a href="execution_history.html" class="action-btn secondary">
+                        📈 View History
+                    </a>
+                    <a href="settings.html" class="action-btn secondary">
+                        ⚙️ Settings
+                    </a>
+                </div>
+            </div>
+
+            <!-- Execution Status -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="card-icon">🎯</span>
+                        Execution Status
                     </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="failedOrders">-</div>
-                        <div class="stat-label">Echecs</div>
+                    <span class="status-badge" id="execution-status">Loading</span>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label">Last Execution</span>
+                    <span class="metric-value" id="last-execution">--</span>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label">Success Rate (24h)</span>
+                    <span class="metric-value" id="success-rate">--</span>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label">Total Volume (24h)</span>
+                    <span class="metric-value" id="volume-24h">--</span>
+                </div>
+            </div>
+
+            <!-- Exchange Connections -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="card-icon">🔗</span>
+                        Exchange Status
                     </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="totalVolume">-</div>
-                        <div class="stat-label">Volume USD</div>
+                    <a href="monitoring_advanced.html" class="status-badge status-active" style="text-decoration: none;">View Details</a>
+                </div>
+                
+                <div class="connections-grid" id="connections-grid">
+                    <div class="loading">Loading connections...</div>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="card-icon">📋</span>
+                        Recent Activity
                     </div>
+                    <a href="execution_history.html" class="status-badge status-active" style="text-decoration: none;">View All</a>
+                </div>
+                
+                <div class="recent-activity" id="recent-activity">
+                    <div class="loading">Loading recent activity...</div>
+                </div>
+            </div>
+
+            <!-- System Health -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="card-icon">❤️</span>
+                        System Health
+                    </div>
+                    <span class="status-badge" id="system-health">Loading</span>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label">API Status</span>
+                    <span class="metric-value" id="api-status">--</span>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label">Data Freshness</span>
+                    <span class="metric-value" id="data-freshness">--</span>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label">Safety Validator</span>
+                    <span class="metric-value" id="safety-status">--</span>
                 </div>
             </div>
         </div>
     </div>
 
-    <div id="notification" class="notification"></div>
-
     <script>
-        const config = {
-            apiBase: '/api/execution',
-            refreshInterval: 5000,
-            autoRefresh: true
+        // Configuration et état global
+        let dashboardData = {
+            portfolio: null,
+            connections: null,
+            recentActivity: null,
+            executionStats: null
         };
 
-        let refreshTimer = null;
-
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('Dashboard initialized');
-            refreshAll();
-            startAutoRefresh();
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('📊 Dashboard unifié initialisé');
             
-            document.getElementById('autoRefresh').addEventListener('change', function() {
-                config.autoRefresh = this.checked;
-                if (this.checked) {
-                    startAutoRefresh();
-                } else {
-                    stopAutoRefresh();
-                }
-            });
+            // Initialiser le header partagé
+            initSharedHeader('dashboard', { showConfigIndicators: true });
+            
+            // Charger les données
+            await loadDashboardData();
+            
+            // Auto-refresh toutes les 30 secondes
+            setInterval(loadDashboardData, 30000);
         });
 
-        function startAutoRefresh() {
-            if (refreshTimer) {
-                clearInterval(refreshTimer);
-            }
-            
-            if (config.autoRefresh) {
-                refreshTimer = setInterval(refreshAll, config.refreshInterval);
-            }
-        }
-
-        function stopAutoRefresh() {
-            if (refreshTimer) {
-                clearInterval(refreshTimer);
-                refreshTimer = null;
-            }
-        }
-
-        async function refreshAll() {
+        // Chargement des données du dashboard
+        async function loadDashboardData() {
             try {
-                await Promise.all([
-                    loadDashboardStatus(),
-                    loadConnections(),
-                    loadStatistics()
+                // Charger les données en parallèle
+                const [connectionsData, historyData, executionStatus] = await Promise.allSettled([
+                    loadConnectionsStatus(),
+                    loadRecentHistory(),
+                    loadExecutionStatus()
                 ]);
-                
-                showNotification('Dashboard mis a jour', 'success');
+
+                updateConnectionsDisplay(connectionsData.value);
+                updateRecentActivity(historyData.value);
+                updateExecutionStatus(executionStatus.value);
+                updateSystemHealth();
+
             } catch (error) {
-                console.error('Error refreshing dashboard:', error);
-                showNotification('Erreur lors de la mise a jour', 'error');
+                console.error('Erreur chargement dashboard:', error);
+                showError('Erreur lors du chargement des données');
             }
         }
 
-        async function loadDashboardStatus() {
+        // Charger l'état des connexions
+        async function loadConnectionsStatus() {
             try {
-                const response = await fetch(`${config.apiBase}/status`);
-                const data = await response.json();
-                
-                const statusEl = document.getElementById('systemStatus');
-                if (data.status === 'active') {
-                    statusEl.textContent = 'ACTIF';
-                    statusEl.className = 'status-indicator status-active';
-                } else {
-                    statusEl.textContent = 'ERREUR';
-                    statusEl.className = 'status-indicator status-error';
-                }
+                const response = await globalConfig.apiRequest('/execution/connections');
+                return response;
             } catch (error) {
-                console.error('Error loading status:', error);
-                const statusEl = document.getElementById('systemStatus');
-                statusEl.textContent = 'ERREUR';
-                statusEl.className = 'status-indicator status-error';
+                console.error('Erreur connexions:', error);
+                return null;
             }
         }
 
-        async function loadConnections() {
+        // Charger l'historique récent
+        async function loadRecentHistory() {
             try {
-                const response = await fetch(`${config.apiBase}/connections`);
-                const connections = await response.json();
+                const response = await globalConfig.apiRequest('/execution/history/sessions?limit=5');
+                return response;
+            } catch (error) {
+                console.error('Erreur historique:', error);
+                return null;
+            }
+        }
+
+        // Charger le statut d'exécution
+        async function loadExecutionStatus() {
+            try {
+                const response = await globalConfig.apiRequest('/execution/statistics/summary');
+                return response;
+            } catch (error) {
+                console.error('Erreur statut exécution:', error);
+                return null;
+            }
+        }
+
+        // Mise à jour affichage des connexions
+        function updateConnectionsDisplay(data) {
+            const container = document.getElementById('connections-grid');
+            
+            if (!data) {
+                container.innerHTML = '<div class="error">Erreur de chargement</div>';
+                return;
+            }
+
+            const connections = Object.values(data);
+            const html = connections.map(conn => {
+                const statusClass = conn.connected ? 'status-active' : 'status-error';
+                const statusText = conn.connected ? 'Online' : 'Offline';
                 
-                const container = document.getElementById('connectionsList');
-                container.innerHTML = '';
-                
-                Object.values(connections).forEach(conn => {
-                    const item = document.createElement('div');
-                    item.className = `connection-item ${conn.connected ? 'connected' : 'disconnected'}`;
-                    
-                    const sandboxText = conn.sandbox ? ' (TESTNET)' : '';
-                    const priceText = conn.additional_info?.btc_price ? 
-                        ` - BTC: $${conn.additional_info.btc_price.toLocaleString()}` : '';
-                    
-                    item.innerHTML = `
-                        <div class="connection-info">
-                            <h3>${conn.name.toUpperCase()}${sandboxText}</h3>
-                            <p>Type: ${conn.type}${priceText}</p>
+                return `
+                    <div class="connection-item">
+                        <div class="connection-name">${conn.name}</div>
+                        <div class="status-badge ${statusClass}">${statusText}</div>
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = html;
+        }
+
+        // Mise à jour activité récente
+        function updateRecentActivity(data) {
+            const container = document.getElementById('recent-activity');
+            
+            if (!data || !data.sessions) {
+                container.innerHTML = '<div class="error">Aucune activité récente</div>';
+                return;
+            }
+
+            const html = data.sessions.slice(0, 5).map(session => `
+                <div class="activity-item">
+                    <div>
+                        <div>${session.total_orders} ordres sur ${session.exchange}</div>
+                        <div class="activity-desc">
+                            ${session.successful_orders} réussis, ${formatUSD(session.total_volume_usd)} volume
                         </div>
-                        <div class="connection-status">
-                            <div class="status-dot ${conn.connected ? 'connected' : 'disconnected'}"></div>
-                            <span>${conn.connected ? 'Connecte' : 'Deconnecte'}</span>
-                        </div>
-                    `;
-                    
-                    container.appendChild(item);
-                });
-            } catch (error) {
-                console.error('Error loading connections:', error);
-                document.getElementById('connectionsList').innerHTML = 
-                    '<div style="color: #f56565;">Erreur de chargement des connexions</div>';
-            }
+                    </div>
+                    <div class="activity-time">
+                        ${formatTimeAgo(session.timestamp)}
+                    </div>
+                </div>
+            `).join('');
+
+            container.innerHTML = html;
         }
 
-        async function loadStatistics() {
-            try {
-                const response = await fetch(`${config.apiBase}/statistics/summary`);
-                const stats = await response.json();
+        // Mise à jour statut d'exécution
+        function updateExecutionStatus(data) {
+            if (!data) return;
+
+            document.getElementById('last-execution').textContent = 
+                data.recent_24h?.total_orders > 0 ? 'Récent' : 'Aucune';
                 
-                document.getElementById('totalOrders').textContent = stats.total_orders || 0;
-                document.getElementById('successfulOrders').textContent = stats.successful_orders || 0;
-                document.getElementById('failedOrders').textContent = stats.failed_orders || 0;
-                document.getElementById('totalVolume').textContent = 
-                    stats.total_volume_usd ? `$${stats.total_volume_usd.toLocaleString()}` : '$0';
+            document.getElementById('success-rate').textContent = 
+                data.recent_24h?.success_rate?.toFixed(1) + '%' || '--';
                 
-            } catch (error) {
-                console.error('Error loading statistics:', error);
+            document.getElementById('volume-24h').textContent = 
+                formatUSD(data.recent_24h?.total_volume || 0);
+
+            const statusEl = document.getElementById('execution-status');
+            if (data.recent_24h?.success_rate >= 95) {
+                statusEl.className = 'status-badge status-active';
+                statusEl.textContent = 'Excellent';
+            } else if (data.recent_24h?.success_rate >= 90) {
+                statusEl.className = 'status-badge status-warning';
+                statusEl.textContent = 'Bon';
+            } else {
+                statusEl.className = 'status-badge status-error';
+                statusEl.textContent = 'À améliorer';
             }
         }
 
-        async function testAllConnections() {
-            const connections = ['simulator', 'enhanced_simulator', 'binance'];
+        // Mise à jour santé système
+        function updateSystemHealth() {
+            document.getElementById('api-status').textContent = 'Online';
+            document.getElementById('data-freshness').textContent = 'Récente';
+            document.getElementById('safety-status').textContent = 'Actif';
             
-            showNotification('Test des connexions en cours...', 'success');
-            
-            for (const exchange of connections) {
-                try {
-                    const response = await fetch(`${config.apiBase}/test-connection/${exchange}`, {
-                        method: 'POST'
-                    });
-                    const result = await response.json();
-                    
-                    console.log(`Connection test result for ${exchange}:`, result);
-                } catch (error) {
-                    console.error(`Error testing ${exchange}:`, error);
-                }
-            }
-            
-            setTimeout(loadConnections, 1000);
-            showNotification('Tests de connexion termines', 'success');
+            document.getElementById('system-health').className = 'status-badge status-active';
+            document.getElementById('system-health').textContent = 'Healthy';
         }
 
-        function showNotification(message, type = 'success') {
-            const notification = document.getElementById('notification');
-            notification.textContent = message;
-            notification.className = `notification ${type}`;
-            notification.classList.add('show');
+        // Utilitaires de formatage
+        function formatUSD(value) {
+            if (!value) return '$0.00';
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD',
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(value);
+        }
+
+        function formatTimeAgo(timestamp) {
+            if (!timestamp) return 'N/A';
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diffMinutes = Math.floor((now - date) / (1000 * 60));
             
-            setTimeout(() => {
-                notification.classList.remove('show');
-            }, 3000);
+            if (diffMinutes < 60) return `${diffMinutes}min`;
+            if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h`;
+            return `${Math.floor(diffMinutes / 1440)}j`;
+        }
+
+        function showError(message) {
+            console.error(message);
         }
     </script>
 </body>

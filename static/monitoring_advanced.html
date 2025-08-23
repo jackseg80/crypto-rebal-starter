@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monitoring Avancé - Crypto Rebalancer</title>
+    <script src="shared-header.js"></script>
     <style>
         * {
             margin: 0;
@@ -476,6 +477,12 @@
 
         document.addEventListener('DOMContentLoaded', function() {
             console.log('Advanced monitoring initialized');
+            
+            // Initialiser le header partagé
+            if (typeof initSharedHeader !== 'undefined') {
+                initSharedHeader('monitoring');
+            }
+            
             refreshAll();
             startAutoRefresh();
             

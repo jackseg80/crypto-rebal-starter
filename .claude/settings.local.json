@@ -31,6 +31,9 @@
       "Bash(git pull:*)"
     ],
     "deny": [],
-    "ask": []
+    "ask": [],
+    "additionalDirectories": [
+      "D:\\d D:\\Python"
+    ]
   }
 }
