@@ -222,7 +222,7 @@
 
             try {
                 console.log('Fetching risk dashboard data...');
-                const response = await fetch('http://localhost:8001/api/risk/dashboard');
+                const response = await fetch('http://localhost:8000/api/risk/dashboard');
                 console.log('Response status:', response.status);
 
                 if (!response.ok) {
@@ -444,7 +444,7 @@
         async function testEndpoint() {
             console.log('Testing API endpoint...');
             try {
-                const response = await fetch('http://localhost:8001/api/risk/dashboard');
+                const response = await fetch('http://localhost:8000/api/risk/dashboard');
                 console.log('Status:', response.status);
                 console.log('Headers:', response.headers);
 
