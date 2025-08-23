@@ -38,8 +38,22 @@ _EX_ALIAS_FIXES = {
     # ... complète au besoin (regarde ce qui remonte chez toi)
 }
 
-# --- Tiny in-memory cache (anti-spam API) ------------------------------------
+# --- Bounded in-memory cache (anti-spam API) ------------------------------------
 _CACHE: dict[tuple, tuple[float, dict]] = {}  # key -> (ts, payload)
+_MAX_CACHE_SIZE = 1000  # Limite de 1000 entrées
+_CACHE_CLEANUP_THRESHOLD = 1200  # Nettoyer quand on dépasse ce seuil
+
+def _cleanup_cache() -> None:
+    """Nettoie le cache en gardant seulement les entrées les plus récentes"""
+    import time
+    if len(_CACHE) <= _MAX_CACHE_SIZE:
+        return
+    
+    # Trier par timestamp et garder les plus récents
+    sorted_items = sorted(_CACHE.items(), key=lambda x: x[1][0], reverse=True)
+    _CACHE.clear()
+    for key, value in sorted_items[:_MAX_CACHE_SIZE]:
+        _CACHE[key] = value
 
 def _cache_get(key: tuple, ttl: int) -> dict | None:
     import time
@@ -55,6 +69,10 @@ def _cache_get(key: tuple, ttl: int) -> dict | None:
 def _cache_set(key: tuple, payload: dict) -> None:
     import time
     _CACHE[key] = (time.time(), payload)
+    
+    # Nettoyer si nécessaire
+    if len(_CACHE) > _CACHE_CLEANUP_THRESHOLD:
+        _cleanup_cache()
 
 def _post_api_cached(method: str, params: Optional[Dict[str, Any]] = None, ttl: int = 60) -> Dict[str, Any]:
     key = (method, json.dumps(params or {}, sort_keys=True))
