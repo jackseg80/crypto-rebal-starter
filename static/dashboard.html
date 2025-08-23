@@ -419,6 +419,13 @@
             
             // Auto-refresh toutes les 30 secondes
             setInterval(loadDashboardData, 30000);
+            
+            // Écouter les changements de configuration
+            window.addEventListener('dataSourceChanged', function(event) {
+                console.log(`🔄 Source changée: ${event.detail.oldSource} → ${event.detail.newSource}`);
+                // Recharger immédiatement les données avec la nouvelle source
+                loadDashboardData();
+            });
         });
 
         // Chargement des données du dashboard

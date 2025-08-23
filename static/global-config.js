@@ -72,8 +72,32 @@ class GlobalConfig {
    * Définit une valeur de configuration
    */
   set(key, value) {
+    const oldValue = this.settings[key];
     this.settings[key] = value;
     this.save();
+    
+    // Émettre un événement si la valeur a changé
+    if (oldValue !== value) {
+      this.emitConfigChange(key, value, oldValue);
+    }
+  }
+  
+  /**
+   * Émet un événement de changement de configuration
+   */
+  emitConfigChange(key, newValue, oldValue) {
+    const event = new CustomEvent('configChanged', {
+      detail: { key, newValue, oldValue }
+    });
+    window.dispatchEvent(event);
+    
+    // Événement spécifique pour les changements de source de données
+    if (key === 'data_source') {
+      const dataSourceEvent = new CustomEvent('dataSourceChanged', {
+        detail: { newSource: newValue, oldSource: oldValue }
+      });
+      window.dispatchEvent(dataSourceEvent);
+    }
   }
 
   /**
