@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Historique Exécutions - Crypto Rebalancer</title>
+    <script src="global-config.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            color: #2d3748;
+            font-size: 2.5rem;
+            font-weight: 300;
+        }
+
+        .performance-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .performance-excellent { background: #48bb78; color: white; }
+        .performance-good { background: #38a169; color: white; }
+        .performance-needs_improvement { background: #ed8936; color: white; }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .card h2 {
+            color: #2d3748;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+            font-weight: 500;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 10px;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .metric-item {
+            text-align: center;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px;
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .metric-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .sessions-list {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .session-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            margin-bottom: 10px;
+            background: #f7fafc;
+            border-radius: 8px;
+            border-left: 4px solid #cbd5e0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .session-item:hover {
+            background: #edf2f7;
+            transform: translateX(5px);
+        }
+
+        .session-item.success { border-left-color: #48bb78; }
+        .session-item.partial { border-left-color: #ed8936; }
+        .session-item.failed { border-left-color: #f56565; }
+
+        .session-info h3 {
+            color: #2d3748;
+            margin-bottom: 5px;
+            font-size: 1.1rem;
+        }
+
+        .session-info p {
+            color: #718096;
+            font-size: 0.9rem;
+        }
+
+        .session-metrics {
+            display: flex;
+            gap: 20px;
+            text-align: center;
+        }
+
+        .session-metric {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .session-metric .value {
+            font-weight: 600;
+            color: #2d3748;
+            font-size: 1.1rem;
+        }
+
+        .session-metric .label {
+            color: #718096;
+            font-size: 0.8rem;
+            margin-top: 2px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .btn-secondary:hover {
+            background: #cbd5e0;
+        }
+
+        .filters {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f7fafc;
+            border-radius: 8px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .filter-group label {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #4a5568;
+        }
+
+        .filter-group select,
+        .filter-group input {
+            padding: 8px 12px;
+            border: 1px solid #cbd5e0;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+
+        .chart-container {
+            height: 300px;
+            background: #f7fafc;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #718096;
+            font-size: 1.1rem;
+        }
+
+        .tab-container {
+            margin-bottom: 20px;
+        }
+
+        .tab-buttons {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 20px;
+        }
+
+        .tab-button {
+            padding: 12px 24px;
+            border: none;
+            background: #e2e8f0;
+            color: #4a5568;
+            border-radius: 8px 8px 0 0;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .tab-button.active {
+            background: white;
+            color: #2d3748;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .insights-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .insights-list li {
+            padding: 10px 15px;
+            margin-bottom: 8px;
+            background: #f0fff4;
+            border-left: 4px solid #48bb78;
+            border-radius: 4px;
+            font-size: 0.95rem;
+        }
+
+        .insights-list li.warning {
+            background: #fffbf0;
+            border-left-color: #ed8936;
+        }
+
+        .insights-list li.info {
+            background: #ebf8ff;
+            border-left-color: #4299e1;
+        }
+
+        .session-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            overflow-y: auto;
+        }
+
+        .session-modal.show {
+            display: block;
+        }
+
+        .modal-content {
+            background: white;
+            margin: 50px auto;
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 1000px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .close-modal {
+            background: #f56565;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+            font-size: 1.2rem;
+        }
+
+        .order-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .order-table th,
+        .order-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .order-table th {
+            background: #f7fafc;
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .status-success { color: #48bb78; font-weight: 600; }
+        .status-failed { color: #f56565; font-weight: 600; }
+        .status-rejected { color: #ed8936; font-weight: 600; }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #718096;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            z-index: 1001;
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification.success { background: #48bb78; }
+        .notification.error { background: #f56565; }
+        .notification.warning { background: #ed8936; }
+
+        .auto-refresh {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-left: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>Historique Exécutions</h1>
+                <span id="performanceBadge" class="performance-badge performance-excellent">CHARGEMENT...</span>
+            </div>
+            <div class="controls">
+                <button class="btn btn-primary" onclick="refreshAll()">Actualiser</button>
+                <button class="btn btn-secondary" onclick="exportData()">Export CSV</button>
+                <button class="btn btn-secondary" onclick="showFilters()">Filtres</button>
+                <div class="auto-refresh">
+                    <label>Auto-refresh:</label>
+                    <input type="checkbox" id="autoRefresh" checked>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filtres -->
+        <div id="filtersPanel" class="card" style="display: none; margin-bottom: 30px;">
+            <h2>Filtres</h2>
+            <div class="filters">
+                <div class="filter-group">
+                    <label>Période (jours)</label>
+                    <select id="periodFilter">
+                        <option value="7">7 jours</option>
+                        <option value="30" selected>30 jours</option>
+                        <option value="90">90 jours</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Exchange</label>
+                    <select id="exchangeFilter">
+                        <option value="">Tous</option>
+                        <option value="enhanced_simulator">Enhanced Simulator</option>
+                        <option value="simulator">Simulator</option>
+                        <option value="binance">Binance</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Limite</label>
+                    <select id="limitFilter">
+                        <option value="20">20</option>
+                        <option value="50" selected>50</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" onclick="applyFilters()">Appliquer</button>
+            </div>
+        </div>
+
+        <!-- Métriques Principales -->
+        <div class="dashboard-grid">
+            <div class="card">
+                <h2>Métriques de Performance</h2>
+                <div id="performanceMetrics" class="metrics-grid">
+                    <div class="metric-item">
+                        <div class="metric-value" id="totalSessions">-</div>
+                        <div class="metric-label">Sessions Total</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-value" id="totalVolume">-</div>
+                        <div class="metric-label">Volume Total</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-value" id="avgSuccessRate">-</div>
+                        <div class="metric-label">Taux Succès</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-value" id="totalFees">-</div>
+                        <div class="metric-label">Frais Total</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Résumé Récent</h2>
+                <div id="recentStats">
+                    <div class="loading">Chargement des statistiques...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Onglets Principaux -->
+        <div class="full-width">
+            <div class="card">
+                <div class="tab-container">
+                    <div class="tab-buttons">
+                        <button class="tab-button active" onclick="showTab('sessions')">Sessions</button>
+                        <button class="tab-button" onclick="showTab('trends')">Tendances</button>
+                        <button class="tab-button" onclick="showTab('insights')">Insights</button>
+                    </div>
+
+                    <!-- Onglet Sessions -->
+                    <div id="sessions-tab" class="tab-content active">
+                        <h2>Sessions Récentes</h2>
+                        <div id="sessionsList" class="sessions-list">
+                            <div class="loading">Chargement des sessions...</div>
+                        </div>
+                    </div>
+
+                    <!-- Onglet Tendances -->
+                    <div id="trends-tab" class="tab-content">
+                        <h2>Tendances d'Exécution</h2>
+                        <div id="trendsChart" class="chart-container">
+                            Graphiques de tendances (à implémenter avec Chart.js)
+                        </div>
+                        <div id="trendsData">
+                            <div class="loading">Chargement des tendances...</div>
+                        </div>
+                    </div>
+
+                    <!-- Onglet Insights -->
+                    <div id="insights-tab" class="tab-content">
+                        <h2>Insights Automatiques</h2>
+                        <ul id="insightsList" class="insights-list">
+                            <li class="loading">Chargement des insights...</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Détails Session -->
+    <div id="sessionModal" class="session-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Détails de la Session</h2>
+                <button class="close-modal" onclick="closeModal()">&times;</button>
+            </div>
+            <div id="modalContent">
+                <div class="loading">Chargement...</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="notification" class="notification"></div>
+
+    <script>
+        const config = {
+            apiBase: '/api/execution/history',
+            refreshInterval: 30000, // 30 secondes
+            autoRefresh: true
+        };
+
+        let refreshTimer = null;
+        let currentTab = 'sessions';
+        let currentFilters = {
+            period: 30,
+            exchange: '',
+            limit: 50
+        };
+
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Execution History Dashboard initialized');
+            refreshAll();
+            startAutoRefresh();
+            
+            document.getElementById('autoRefresh').addEventListener('change', function() {
+                config.autoRefresh = this.checked;
+                if (this.checked) {
+                    startAutoRefresh();
+                } else {
+                    stopAutoRefresh();
+                }
+            });
+        });
+
+        function startAutoRefresh() {
+            if (refreshTimer) {
+                clearInterval(refreshTimer);
+            }
+            
+            if (config.autoRefresh) {
+                refreshTimer = setInterval(refreshAll, config.refreshInterval);
+            }
+        }
+
+        function stopAutoRefresh() {
+            if (refreshTimer) {
+                clearInterval(refreshTimer);
+                refreshTimer = null;
+            }
+        }
+
+        async function refreshAll() {
+            try {
+                await Promise.all([
+                    loadDashboardData(),
+                    currentTab === 'trends' ? loadTrends() : Promise.resolve(),
+                    currentTab === 'insights' ? loadInsights() : Promise.resolve()
+                ]);
+                
+                showNotification('Données mises à jour', 'success');
+            } catch (error) {
+                console.error('Error refreshing data:', error);
+                showNotification('Erreur lors de la mise à jour', 'error');
+            }
+        }
+
+        async function loadDashboardData() {
+            try {
+                const response = await fetch(`${config.apiBase}/dashboard-data`);
+                const data = await response.json();
+                
+                // Métriques de performance
+                const stats = data.statistics;
+                const perf30d = data.performance?.last_30_days || {};
+                
+                document.getElementById('totalSessions').textContent = stats.total_sessions || 0;
+                document.getElementById('totalVolume').textContent = 
+                    stats.total_volume_usd ? `$${stats.total_volume_usd.toLocaleString()}` : '$0';
+                document.getElementById('avgSuccessRate').textContent = 
+                    stats.avg_success_rate ? `${stats.avg_success_rate.toFixed(1)}%` : '0%';
+                document.getElementById('totalFees').textContent = 
+                    stats.total_fees ? `$${stats.total_fees.toFixed(2)}` : '$0';
+                
+                // Badge de performance
+                const rating = stats.performance_rating || 'needs_improvement';
+                const badge = document.getElementById('performanceBadge');
+                badge.textContent = rating.toUpperCase().replace('_', ' ');
+                badge.className = `performance-badge performance-${rating}`;
+                
+                // Résumé récent
+                const recentStatsContainer = document.getElementById('recentStats');
+                recentStatsContainer.innerHTML = `
+                    <div class="metrics-grid" style="grid-template-columns: 1fr;">
+                        <div class="metric-item" style="background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);">
+                            <div class="metric-value">${stats.exchanges ? Object.keys(stats.exchanges).length : 0}</div>
+                            <div class="metric-label">Exchanges Actifs</div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 15px; padding: 15px; background: #f7fafc; border-radius: 8px;">
+                        <p><strong>Dernière session:</strong> ${stats.last_session ? new Date(stats.last_session).toLocaleString('fr-FR') : 'Aucune'}</p>
+                        <p><strong>Cache période:</strong> ${stats.cache_period_hours || 24}h</p>
+                    </div>
+                `;
+                
+                // Charger les sessions
+                await loadSessions();
+                
+            } catch (error) {
+                console.error('Error loading dashboard data:', error);
+                showNotification('Erreur chargement dashboard', 'error');
+            }
+        }
+
+        async function loadSessions() {
+            try {
+                const params = new URLSearchParams({
+                    limit: currentFilters.limit.toString(),
+                    days: currentFilters.period.toString()
+                });
+                
+                if (currentFilters.exchange) {
+                    params.append('exchange', currentFilters.exchange);
+                }
+                
+                const response = await fetch(`${config.apiBase}/sessions?${params}`);
+                const data = await response.json();
+                
+                const container = document.getElementById('sessionsList');
+                container.innerHTML = '';
+                
+                if (!data.sessions || data.sessions.length === 0) {
+                    container.innerHTML = '<div style="text-align: center; padding: 40px; color: #718096;">Aucune session trouvée pour la période sélectionnée</div>';
+                    return;
+                }
+                
+                data.sessions.forEach(session => {
+                    const successRate = session.total_orders > 0 
+                        ? (session.successful_orders / session.total_orders * 100) 
+                        : 0;
+                    
+                    let statusClass = 'success';
+                    if (successRate < 50) statusClass = 'failed';
+                    else if (successRate < 90) statusClass = 'partial';
+                    
+                    const item = document.createElement('div');
+                    item.className = `session-item ${statusClass}`;
+                    item.onclick = () => showSessionDetails(session.id);
+                    
+                    const timestamp = new Date(session.timestamp).toLocaleString('fr-FR');
+                    
+                    item.innerHTML = `
+                        <div class="session-info">
+                            <h3>${session.exchange.toUpperCase()} - ${timestamp}</h3>
+                            <p>${session.total_orders} ordres • ${session.successful_orders} succès • ${session.failed_orders} échecs</p>
+                        </div>
+                        <div class="session-metrics">
+                            <div class="session-metric">
+                                <div class="value">${successRate.toFixed(1)}%</div>
+                                <div class="label">Succès</div>
+                            </div>
+                            <div class="session-metric">
+                                <div class="value">$${session.total_volume_usd.toLocaleString()}</div>
+                                <div class="label">Volume</div>
+                            </div>
+                            <div class="session-metric">
+                                <div class="value">$${session.total_fees.toFixed(2)}</div>
+                                <div class="label">Frais</div>
+                            </div>
+                            <div class="session-metric">
+                                <div class="value">${session.avg_slippage_bps.toFixed(1)}bps</div>
+                                <div class="label">Slippage</div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    container.appendChild(item);
+                });
+                
+            } catch (error) {
+                console.error('Error loading sessions:', error);
+                document.getElementById('sessionsList').innerHTML = 
+                    '<div style="color: #f56565;">Erreur de chargement des sessions</div>';
+            }
+        }
+
+        async function loadTrends() {
+            try {
+                const response = await fetch(`${config.apiBase}/trends?days=${currentFilters.period}&interval=daily`);
+                const trends = await response.json();
+                
+                if (trends.error) {
+                    document.getElementById('trendsData').innerHTML = 
+                        `<div style="color: #f56565;">Erreur: ${trends.error}</div>`;
+                    return;
+                }
+                
+                // Afficher les données de tendance (version simplifiée sans graphique)
+                const trendsContainer = document.getElementById('trendsData');
+                const trendInfo = trends.trends || {};
+                
+                trendsContainer.innerHTML = `
+                    <div class="metrics-grid">
+                        <div class="metric-item">
+                            <div class="metric-value">${trendInfo.total_sessions || 0}</div>
+                            <div class="metric-label">Sessions Analysées</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-value">${trendInfo.volume_trend || 'stable'}</div>
+                            <div class="metric-label">Tendance Volume</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-value">${trendInfo.success_trend || 'stable'}</div>
+                            <div class="metric-label">Tendance Succès</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-value">${(trendInfo.overall_success_rate || 0).toFixed(1)}%</div>
+                            <div class="metric-label">Taux Global</div>
+                        </div>
+                    </div>
+                `;
+                
+            } catch (error) {
+                console.error('Error loading trends:', error);
+                document.getElementById('trendsData').innerHTML = 
+                    '<div style="color: #f56565;">Erreur de chargement des tendances</div>';
+            }
+        }
+
+        async function loadInsights() {
+            try {
+                const response = await fetch(`${config.apiBase}/trends?days=${currentFilters.period}&interval=daily`);
+                const trends = await response.json();
+                
+                const container = document.getElementById('insightsList');
+                container.innerHTML = '';
+                
+                if (trends.insights && trends.insights.length > 0) {
+                    trends.insights.forEach(insight => {
+                        const li = document.createElement('li');
+                        
+                        // Déterminer la classe CSS basée sur le contenu
+                        let className = 'info';
+                        if (insight.includes('⚠️') || insight.includes('degrading') || insight.includes('needs improvement')) {
+                            className = 'warning';
+                        } else if (insight.includes('✅') || insight.includes('📈') || insight.includes('🎯')) {
+                            className = '';  // Success (default)
+                        }
+                        
+                        li.className = className;
+                        li.textContent = insight;
+                        container.appendChild(li);
+                    });
+                } else {
+                    container.innerHTML = '<li class="info">Aucun insight disponible pour la période sélectionnée</li>';
+                }
+                
+            } catch (error) {
+                console.error('Error loading insights:', error);
+                document.getElementById('insightsList').innerHTML = 
+                    '<li style="color: #f56565;">Erreur de chargement des insights</li>';
+            }
+        }
+
+        async function showSessionDetails(sessionId) {
+            try {
+                const response = await fetch(`${config.apiBase}/sessions/${sessionId}`);
+                const session = await response.json();
+                
+                const modal = document.getElementById('sessionModal');
+                const modalTitle = document.getElementById('modalTitle');
+                const modalContent = document.getElementById('modalContent');
+                
+                modalTitle.textContent = `Session ${session.exchange.toUpperCase()} - ${new Date(session.timestamp).toLocaleString('fr-FR')}`;
+                
+                // Analytics de la session
+                const analytics = session.analytics || {};
+                const costAnalysis = analytics.cost_analysis || {};
+                const symbolBreakdown = analytics.symbol_breakdown || {};
+                
+                let modalHTML = `
+                    <div class="metrics-grid" style="margin-bottom: 20px;">
+                        <div class="metric-item">
+                            <div class="metric-value">${session.total_orders}</div>
+                            <div class="metric-label">Total Ordres</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-value">${session.successful_orders}</div>
+                            <div class="metric-label">Succès</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-value">$${session.total_volume_usd.toLocaleString()}</div>
+                            <div class="metric-label">Volume</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-value">${costAnalysis.cost_percentage ? costAnalysis.cost_percentage.toFixed(3) : 0}%</div>
+                            <div class="metric-label">Coût Total</div>
+                        </div>
+                    </div>
+                    
+                    <h3>Ordres Détaillés</h3>
+                    <table class="order-table">
+                        <thead>
+                            <tr>
+                                <th>Symbole</th>
+                                <th>Action</th>
+                                <th>Quantité</th>
+                                <th>Volume USD</th>
+                                <th>Prix Moy.</th>
+                                <th>Frais</th>
+                                <th>Statut</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                session.orders.forEach(order => {
+                    const statusClass = `status-${order.status}`;
+                    modalHTML += `
+                        <tr>
+                            <td>${order.symbol || 'N/A'}</td>
+                            <td>${order.action || 'N/A'}</td>
+                            <td>${order.quantity || 0}</td>
+                            <td>$${(order.filled_usd || 0).toLocaleString()}</td>
+                            <td>$${(order.avg_price || 0).toLocaleString()}</td>
+                            <td>$${(order.fees || 0).toFixed(4)}</td>
+                            <td class="${statusClass}">${order.status || 'unknown'}</td>
+                        </tr>
+                    `;
+                });
+                
+                modalHTML += `
+                        </tbody>
+                    </table>
+                `;
+                
+                modalContent.innerHTML = modalHTML;
+                modal.classList.add('show');
+                
+            } catch (error) {
+                console.error('Error loading session details:', error);
+                showNotification('Erreur chargement détails session', 'error');
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('sessionModal').classList.remove('show');
+        }
+
+        function showTab(tabName) {
+            // Cacher tous les onglets
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Montrer l'onglet sélectionné
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+            document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active');
+            
+            currentTab = tabName;
+            
+            // Charger les données si nécessaire
+            if (tabName === 'trends') {
+                loadTrends();
+            } else if (tabName === 'insights') {
+                loadInsights();
+            }
+        }
+
+        function showFilters() {
+            const panel = document.getElementById('filtersPanel');
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function applyFilters() {
+            currentFilters.period = parseInt(document.getElementById('periodFilter').value);
+            currentFilters.exchange = document.getElementById('exchangeFilter').value;
+            currentFilters.limit = parseInt(document.getElementById('limitFilter').value);
+            
+            refreshAll();
+            showNotification('Filtres appliqués', 'success');
+        }
+
+        async function exportData() {
+            try {
+                const params = new URLSearchParams({
+                    days: currentFilters.period.toString()
+                });
+                
+                if (currentFilters.exchange) {
+                    params.append('exchange', currentFilters.exchange);
+                }
+                
+                const url = `${config.apiBase}/export/sessions?${params}`;
+                window.open(url, '_blank');
+                
+                showNotification('Export en cours...', 'success');
+                
+            } catch (error) {
+                console.error('Error exporting data:', error);
+                showNotification('Erreur lors de l\'export', 'error');
+            }
+        }
+
+        function showNotification(message, type = 'success') {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification ${type}`;
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+
+        // Fermer modal en cliquant à l'extérieur
+        document.getElementById('sessionModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>

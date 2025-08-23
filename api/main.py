@@ -21,6 +21,7 @@ from services.portfolio import portfolio_analytics
 from api.taxonomy_endpoints import router as taxonomy_router
 from api.execution_endpoints import router as execution_router
 from api.execution_dashboard import router as execution_dashboard_router
+from api.execution_history import router as execution_history_router
 from api.monitoring_endpoints import router as monitoring_router
 from api.monitoring_advanced import router as monitoring_advanced_router
 from api.analytics_endpoints import router as analytics_router
@@ -757,6 +758,7 @@ async def update_api_keys(payload: dict):
 app.include_router(taxonomy_router)
 app.include_router(execution_router)
 app.include_router(execution_dashboard_router)
+app.include_router(execution_history_router)
 app.include_router(monitoring_router)
 app.include_router(monitoring_advanced_router)
 app.include_router(analytics_router)

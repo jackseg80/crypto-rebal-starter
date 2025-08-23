@@ -17,6 +17,7 @@ from datetime import datetime, timezone, timedelta
 from services.execution.exchange_adapter import setup_default_exchanges, exchange_registry
 from services.execution.order_manager import Order, OrderStatus
 from services.execution.safety_validator import safety_validator
+from services.analytics.execution_history import execution_history
 
 logger = logging.getLogger(__name__)
 
@@ -342,6 +343,25 @@ async def execute_orders_background(orders: List[Order], adapter):
         
         # Mise à jour finale
         dashboard_state["statistics"]["last_updated"] = datetime.now(timezone.utc).isoformat()
+        
+        # Enregistrer la session d'exécution dans l'historique
+        try:
+            session_metadata = {
+                "total_orders_requested": len(orders),
+                "execution_type": "dashboard",
+                "timestamp_started": execution_results[0].get("timestamp") if execution_results else datetime.now(timezone.utc).isoformat()
+            }
+            
+            await execution_history.record_execution_session(
+                orders=execution_results,
+                exchange=adapter.config.name,
+                metadata=session_metadata
+            )
+            
+            logger.info(f"Execution session recorded in history")
+            
+        except Exception as history_error:
+            logger.error(f"Error recording execution session in history: {history_error}")
         
         logger.info(f"Background execution completed: {len(execution_results)} orders processed")
         
