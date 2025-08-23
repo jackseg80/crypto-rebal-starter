@@ -20,6 +20,7 @@ from services.pricing import get_prices_usd
 from services.portfolio import portfolio_analytics
 from api.taxonomy_endpoints import router as taxonomy_router
 from api.execution_endpoints import router as execution_router
+from api.execution_dashboard import router as execution_dashboard_router
 from api.monitoring_endpoints import router as monitoring_router
 from api.analytics_endpoints import router as analytics_router
 from constants import get_exchange_priority, normalize_exchange_name
@@ -754,6 +755,7 @@ async def update_api_keys(payload: dict):
 # inclure les routes taxonomie, execution, monitoring et analytics
 app.include_router(taxonomy_router)
 app.include_router(execution_router)
+app.include_router(execution_dashboard_router)
 app.include_router(monitoring_router)
 app.include_router(analytics_router)
 
