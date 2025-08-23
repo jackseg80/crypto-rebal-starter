@@ -722,6 +722,9 @@ class ExchangeRegistry:
         # Créer l'adaptateur approprié
         if config.name == "simulator":
             adapter = SimulatorAdapter(config)
+        elif config.name == "enhanced_simulator":
+            from .enhanced_simulator import EnhancedSimulator
+            adapter = EnhancedSimulator(config)
         elif config.name == "binance":
             adapter = BinanceAdapter(config)
         else:
@@ -764,15 +767,25 @@ def setup_default_exchanges():
     """Configuration par défaut des exchanges avec support des variables d'environnement"""
     import os
     
-    # Simulateur (toujours disponible)
+    # Simulateur amélioré (toujours disponible)
     simulator_config = ExchangeConfig(
-        name="simulator",
+        name="simulator", 
         type=ExchangeType.SIMULATOR,
         fee_rate=0.001,
         min_order_size=10.0,
         sandbox=True
     )
     exchange_registry.register_exchange(simulator_config)
+    
+    # Simulateur avancé avec conditions de marché réalistes
+    enhanced_simulator_config = ExchangeConfig(
+        name="enhanced_simulator",
+        type=ExchangeType.SIMULATOR,
+        fee_rate=0.001,
+        min_order_size=10.0,
+        sandbox=True
+    )
+    exchange_registry.register_exchange(enhanced_simulator_config)
     
     # Binance (avec credentials depuis environnement)
     binance_api_key = os.getenv('BINANCE_API_KEY')
