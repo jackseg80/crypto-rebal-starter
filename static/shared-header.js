@@ -7,6 +7,7 @@ function createSharedHeader(activePageId, showConfigIndicators = false) {
   // Section 1: Analytics & Decision Making (Interface Business)
   const analyticsPages = {
     'dashboard': { title: '📊 Dashboard', url: 'dashboard.html', icon: '📊' },
+    'risk-dashboard': { title: '🛡️ Risk Dashboard', url: 'risk-dashboard.html', icon: '🛡️' },
     'rebalance': { title: '⚖️ Rebalance', url: 'rebalance.html', icon: '⚖️' },
     'alias-manager': { title: '🏷️ Aliases', url: 'alias-manager.html', icon: '🏷️' },
     'settings': { title: '⚙️ Settings', url: 'settings.html', icon: '⚙️' }
@@ -30,7 +31,7 @@ function createSharedHeader(activePageId, showConfigIndicators = false) {
       let linkClass = `nav-link ${sectionClass}`;
       if (isActive) linkClass += ' active';
       
-      let linkContent = `${page.icon} ${page.title.replace(/[📊⚖️🏷️⚙️🚀📈🔍]\s*/, '')}`;
+      let linkContent = `${page.icon} ${page.title.replace(/[📊🛡️⚖️🏷️⚙️🚀📈🔍]\s*/, '')}`;
       
       // Logique spéciale pour Alias Manager
       if (pageId === 'alias-manager') {
@@ -316,6 +317,12 @@ function updateConfigIndicators() {
   }
 }
 
+// Alias pour compatibilité
+function initializeSharedHeader(activePageId, options = {}) {
+  return initSharedHeader(activePageId, options);
+}
+
 // Export pour utilisation
 window.initSharedHeader = initSharedHeader;
+window.initializeSharedHeader = initializeSharedHeader;
 window.updateConfigIndicators = updateConfigIndicators;
