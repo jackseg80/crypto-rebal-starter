@@ -12,11 +12,65 @@ from dataclasses import dataclass
 from enum import Enum
 import logging
 import asyncio
+import time
+import random
 from datetime import datetime, timezone
 
 from .order_manager import Order, OrderStatus
 
 logger = logging.getLogger(__name__)
+
+# Error handling and retry utilities
+class RetryableError(Exception):
+    """Exception raised for errors that can be retried"""
+    pass
+
+class RateLimitError(RetryableError):
+    """Exception raised when rate limit is exceeded"""
+    def __init__(self, retry_after: Optional[int] = None):
+        self.retry_after = retry_after
+        super().__init__(f"Rate limit exceeded. Retry after {retry_after} seconds" if retry_after else "Rate limit exceeded")
+
+def calculate_backoff_delay(attempt: int, base_delay: float = 1.0, max_delay: float = 60.0) -> float:
+    """Calculate exponential backoff delay with jitter"""
+    delay = min(base_delay * (2 ** attempt), max_delay)
+    # Add jitter (±25%)
+    jitter = delay * 0.25 * (random.random() * 2 - 1)
+    return max(0.1, delay + jitter)
+
+def retry_on_error(max_attempts: int = 3, base_delay: float = 1.0, 
+                   retryable_errors: tuple = (RetryableError, ConnectionError, TimeoutError)):
+    """Decorator to retry async functions on specific errors"""
+    def decorator(func):
+        async def wrapper(*args, **kwargs):
+            last_exception = None
+            
+            for attempt in range(max_attempts):
+                try:
+                    return await func(*args, **kwargs)
+                except retryable_errors as e:
+                    last_exception = e
+                    
+                    if attempt == max_attempts - 1:
+                        logger.error(f"Function {func.__name__} failed after {max_attempts} attempts")
+                        break
+                    
+                    # Handle rate limit with specific delay
+                    if isinstance(e, RateLimitError) and e.retry_after:
+                        delay = e.retry_after
+                        logger.warning(f"Rate limit hit, waiting {delay}s before retry {attempt + 1}")
+                    else:
+                        delay = calculate_backoff_delay(attempt, base_delay)
+                        logger.warning(f"Attempt {attempt + 1} failed, retrying in {delay:.1f}s: {e}")
+                    
+                    await asyncio.sleep(delay)
+                except Exception as e:
+                    logger.error(f"Non-retryable error in {func.__name__}: {e}")
+                    raise
+            
+            raise last_exception
+        return wrapper
+    return decorator
 
 class ExchangeType(Enum):
     """Types d'exchanges supportés"""
@@ -268,20 +322,71 @@ class SimulatorAdapter(ExchangeAdapter):
         )
 
 class BinanceAdapter(ExchangeAdapter):
-    """Adaptateur pour Binance avec API réelle"""
+    """Adaptateur pour Binance avec API réelle et gestion d'erreurs robuste"""
     
     def __init__(self, config: ExchangeConfig):
         super().__init__(config)
         self.client = None
         self._trading_pairs_cache = None
         self._last_pairs_update = None
+        self._connection_attempts = 0
+        self._last_connection_attempt = None
+        self._rate_limit_reset_time = None
+    
+    def _handle_binance_exception(self, e) -> None:
+        """Convert Binance API exceptions to our custom error types"""
+        try:
+            from binance.exceptions import BinanceAPIException, BinanceRequestException
+            
+            if isinstance(e, BinanceAPIException):
+                error_code = e.code
+                error_msg = e.message
+                
+                # Rate limit errors (HTTP 429)
+                if error_code == -1003 or "Too many requests" in error_msg or e.status_code == 429:
+                    # Extract retry-after from headers if available
+                    retry_after = getattr(e, 'retry_after', None) or 60
+                    raise RateLimitError(retry_after)
+                
+                # IP banned (usually temporary)
+                elif error_code == -1002:
+                    raise RateLimitError(300)  # Wait 5 minutes for IP ban
+                
+                # Connection/network errors that can be retried
+                elif error_code in [-1001, -1006, -1007, -1014, -1015]:
+                    raise RetryableError(f"Binance connection error: {error_msg}")
+                
+                # Account/permission issues (not retryable)
+                elif error_code in [-2010, -2011, -2013, -2014, -2015]:
+                    raise ValueError(f"Binance account error: {error_msg}")
+                
+                # Generic API error (not retryable)
+                else:
+                    raise ValueError(f"Binance API error {error_code}: {error_msg}")
+            
+            elif isinstance(e, BinanceRequestException):
+                # Network/connection errors that can be retried
+                raise RetryableError(f"Binance request error: {str(e)}")
+            
+        except ImportError:
+            # python-binance not available, treat as generic error
+            pass
         
+        # Fallback for unknown exceptions
+        if "timeout" in str(e).lower() or "connection" in str(e).lower():
+            raise RetryableError(str(e))
+        else:
+            raise e
+        
+    @retry_on_error(max_attempts=3, base_delay=2.0)
     async def connect(self) -> bool:
-        """Connexion à Binance avec validation des credentials"""
+        """Connexion à Binance avec validation des credentials et retry automatique"""
+        self._connection_attempts += 1
+        self._last_connection_attempt = time.time()
+        
         try:
             # Import dynamique pour éviter les erreurs si le package n'est pas installé
             from binance.client import Client
-            from binance.exceptions import BinanceAPIException
             
             if not self.config.api_key or not self.config.api_secret:
                 logger.error("Binance API key/secret not provided")
@@ -299,8 +404,9 @@ class BinanceAdapter(ExchangeAdapter):
             
             if account_info:
                 self.connected = True
+                self._connection_attempts = 0  # Reset counter on success
                 mode = "TESTNET" if self.config.sandbox else "MAINNET"
-                logger.info(f"Connected to Binance {mode} successfully")
+                logger.info(f"Connected to Binance {mode} successfully (attempt {self._connection_attempts})")
                 return True
             else:
                 logger.error("Failed to get account info from Binance")
@@ -309,12 +415,18 @@ class BinanceAdapter(ExchangeAdapter):
         except ImportError:
             logger.error("python-binance package not installed. Run: pip install python-binance")
             return False
-        except BinanceAPIException as e:
-            logger.error(f"Binance API error: {e}")
-            return False  
         except Exception as e:
-            logger.error(f"Unexpected error connecting to Binance: {e}")
-            return False
+            # Convert to our custom error types for retry handling
+            try:
+                self._handle_binance_exception(e)
+            except (RetryableError, RateLimitError):
+                # Let the retry decorator handle these
+                raise
+            except Exception as converted_e:
+                logger.error(f"Non-retryable error connecting to Binance: {converted_e}")
+                return False
+            
+        return False
     
     async def disconnect(self) -> None:
         """Déconnexion propre"""
@@ -324,10 +436,13 @@ class BinanceAdapter(ExchangeAdapter):
         self.connected = False
         logger.info("Disconnected from Binance")
     
+    @retry_on_error(max_attempts=2, base_delay=2.0)
     async def get_trading_pairs(self) -> List[TradingPair]:
-        """Récupérer les paires de trading Binance avec cache"""
+        """Récupérer les paires de trading Binance avec cache et retry"""
         if not self.connected or not self.client:
-            return []
+            logger.warning("Not connected to Binance, attempting reconnection...")
+            if not await self.connect():
+                return []
             
         try:
             from datetime import datetime, timedelta
@@ -371,13 +486,22 @@ class BinanceAdapter(ExchangeAdapter):
             return pairs
             
         except Exception as e:
-            logger.error(f"Error getting trading pairs from Binance: {e}")
-            return []
+            try:
+                self._handle_binance_exception(e)
+            except (RetryableError, RateLimitError):
+                # Let the retry decorator handle these
+                raise
+            except Exception as converted_e:
+                logger.error(f"Non-retryable error getting trading pairs: {converted_e}")
+                return []
     
+    @retry_on_error(max_attempts=3, base_delay=1.0)
     async def get_balance(self, asset: str) -> float:
-        """Récupérer balance réelle d'un asset"""
+        """Récupérer balance réelle d'un asset avec retry automatique"""
         if not self.connected or not self.client:
-            return 0.0
+            logger.warning("Not connected to Binance, attempting reconnection...")
+            if not await self.connect():
+                return 0.0
             
         try:
             account = self.client.get_account()
@@ -394,13 +518,22 @@ class BinanceAdapter(ExchangeAdapter):
             return 0.0
             
         except Exception as e:
-            logger.error(f"Error getting balance for {asset}: {e}")
-            return 0.0
+            try:
+                self._handle_binance_exception(e)
+            except (RetryableError, RateLimitError):
+                # Let the retry decorator handle these
+                raise
+            except Exception as converted_e:
+                logger.error(f"Non-retryable error getting balance for {asset}: {converted_e}")
+                return 0.0
     
+    @retry_on_error(max_attempts=3, base_delay=0.5)
     async def get_current_price(self, symbol: str) -> Optional[float]:
-        """Récupérer prix actuel depuis Binance"""
+        """Récupérer prix actuel depuis Binance avec retry automatique"""
         if not self.connected or not self.client:
-            return None
+            logger.warning("Not connected to Binance, attempting reconnection...")
+            if not await self.connect():
+                return None
             
         try:
             # Conversion format standard → format Binance
@@ -413,17 +546,27 @@ class BinanceAdapter(ExchangeAdapter):
             return price
             
         except Exception as e:
-            logger.error(f"Error getting price for {symbol}: {e}")
-            return None
+            try:
+                self._handle_binance_exception(e)
+            except (RetryableError, RateLimitError):
+                # Let the retry decorator handle these
+                raise
+            except Exception as converted_e:
+                logger.error(f"Non-retryable error getting price for {symbol}: {converted_e}")
+                return None
     
+    @retry_on_error(max_attempts=2, base_delay=1.0)
     async def place_order(self, order: Order) -> OrderResult:
-        """Placer un ordre réel sur Binance"""
+        """Placer un ordre réel sur Binance avec gestion d'erreurs robuste"""
         if not self.connected or not self.client:
-            return OrderResult(
-                success=False,
-                order_id=order.id,
-                error_message="Not connected to Binance"
-            )
+            logger.warning("Not connected to Binance for order placement, attempting reconnection...")
+            if not await self.connect():
+                return OrderResult(
+                    success=False,
+                    order_id=order.id,
+                    error_message="Failed to connect to Binance for order placement",
+                    status=OrderStatus.FAILED
+                )
         
         try:
             from binance.enums import SIDE_BUY, SIDE_SELL, ORDER_TYPE_MARKET
@@ -431,6 +574,9 @@ class BinanceAdapter(ExchangeAdapter):
             # Préparation des paramètres
             binance_symbol = order.symbol.replace('/', '').replace('USD', 'USDT')
             side = SIDE_BUY if order.action == 'buy' else SIDE_SELL
+            
+            # Log de l'ordre avant placement (pour debugging)
+            logger.info(f"Placing {order.action} order: {order.quantity} {order.symbol} (~${order.usd_amount})")
             
             # Déterminer la quantité
             if order.action == 'buy':
@@ -442,7 +588,20 @@ class BinanceAdapter(ExchangeAdapter):
                 )
             else:
                 # Pour vendre, utiliser quantity (quantité de l'asset)
-                quantity = order.quantity if order.quantity > 0 else abs(order.usd_amount) / await self.get_current_price(order.symbol)
+                if order.quantity > 0:
+                    quantity = order.quantity
+                else:
+                    # Calculer quantité à partir du montant USD
+                    current_price = await self.get_current_price(order.symbol)
+                    if not current_price:
+                        return OrderResult(
+                            success=False,
+                            order_id=order.id,
+                            error_message=f"Could not get current price for {order.symbol}",
+                            status=OrderStatus.FAILED
+                        )
+                    quantity = abs(order.usd_amount) / current_price
+                
                 result = self.client.order_market_sell(
                     symbol=binance_symbol,
                     quantity=quantity
@@ -459,6 +618,8 @@ class BinanceAdapter(ExchangeAdapter):
                 for fill in result.get('fills', []):
                     total_fee += float(fill['commission'])
                 
+                logger.info(f"Order filled: {filled_qty} @ ${avg_price:.2f} (fees: ${total_fee:.4f})")
+                
                 return OrderResult(
                     success=True,
                     order_id=order.id,
@@ -472,20 +633,29 @@ class BinanceAdapter(ExchangeAdapter):
                     exchange_data=result
                 )
             else:
+                error_msg = f"Order not filled. Status: {result.get('status', 'unknown')}"
+                logger.warning(error_msg)
                 return OrderResult(
                     success=False,
                     order_id=order.id,
-                    error_message=f"Order not filled. Status: {result.get('status', 'unknown')}",
+                    error_message=error_msg,
                     status=OrderStatus.FAILED
                 )
                 
         except Exception as e:
-            logger.error(f"Error placing order on Binance: {e}")
-            return OrderResult(
-                success=False,
-                order_id=order.id,
-                error_message=f"Binance API error: {str(e)}"
-            )
+            try:
+                self._handle_binance_exception(e)
+            except (RetryableError, RateLimitError):
+                # Let the retry decorator handle these
+                raise
+            except Exception as converted_e:
+                logger.error(f"Non-retryable error placing order: {converted_e}")
+                return OrderResult(
+                    success=False,
+                    order_id=order.id,
+                    error_message=str(converted_e),
+                    status=OrderStatus.FAILED
+                )
     
     async def cancel_order(self, exchange_order_id: str) -> bool:
         """Annuler un ordre sur Binance"""
