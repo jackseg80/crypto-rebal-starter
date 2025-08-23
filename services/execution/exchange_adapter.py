@@ -17,6 +17,7 @@ import random
 from datetime import datetime, timezone
 
 from .order_manager import Order, OrderStatus
+from .safety_validator import safety_validator, SafetyResult
 
 logger = logging.getLogger(__name__)
 
@@ -557,7 +558,29 @@ class BinanceAdapter(ExchangeAdapter):
     
     @retry_on_error(max_attempts=2, base_delay=1.0)
     async def place_order(self, order: Order) -> OrderResult:
-        """Placer un ordre réel sur Binance avec gestion d'erreurs robuste"""
+        """Placer un ordre réel sur Binance avec gestion d'erreurs robuste et validation de sécurité"""
+        
+        # ÉTAPE 1: Validation de sécurité AVANT toute connexion
+        logger.info(f"Validation de sécurité pour ordre {order.id}")
+        safety_result = safety_validator.validate_order(order, {"adapter": self})
+        
+        if not safety_result.passed:
+            error_msg = f"Ordre rejeté par validation de sécurité: {'; '.join(safety_result.errors)}"
+            logger.error(error_msg)
+            return OrderResult(
+                success=False,
+                order_id=order.id,
+                error_message=error_msg,
+                status=OrderStatus.FAILED
+            )
+        
+        # Log des avertissements de sécurité
+        for warning in safety_result.warnings:
+            logger.warning(f"Avertissement sécurité ordre {order.id}: {warning}")
+        
+        logger.info(f"✓ Ordre {order.id} validé par sécurité (score: {safety_result.total_score:.1f}/100)")
+        
+        # ÉTAPE 2: Vérification de connexion
         if not self.connected or not self.client:
             logger.warning("Not connected to Binance for order placement, attempting reconnection...")
             if not await self.connect():
