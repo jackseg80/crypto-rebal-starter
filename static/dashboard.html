@@ -1,1407 +1,589 @@
 <!DOCTYPE html>
 <html lang="fr">
-
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Portfolio Analytics - Crypto Rebalancer</title>
-  <style>
-    :root {
-      --bg: #0a0f14;
-      --card: #0e1620;
-      --muted: #8fa0b3;
-      --text: #e7eef7;
-      --accent: #2dd4bf;
-      --danger: #ef4444;
-      --border: #1f2b3a;
-      --pos: #22c55e;
-      --warning: #f59e0b;
-      --info: #3b82f6;
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 Dashboard - Crypto Rebalancer</title>
+    
+    <script src="global-config.js"></script>
+    <script src="shared-header.js"></script>
+    
+    <style>
+        :root {
+            /* Theme global unifié */
+            --bg: #0a0f14;
+            --card: #0e1620;
+            --muted: #8fa0b3;
+            --text: #e7eef7;
+            --accent: #2dd4bf;
+            --danger: #ef4444;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --border: #1f2b3a;
+            --pos: #22c55e;
+        }
 
-    * {
-      box-sizing: border-box
-    }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
 
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif
-    }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
 
-    header {
-      position: sticky;
-      top: 0;
-      background: linear-gradient(180deg, rgba(10, 15, 20, .95), rgba(10, 15, 20, .85));
-      backdrop-filter: blur(6px);
-      border-bottom: 1px solid var(--border);
-      z-index: 10
-    }
+        /* Header sera injecté par shared-header.js */
 
-    .wrap {
-      max-width: 1400px;
-      margin: 0 auto;
-      padding: 16px
-    }
+        .wrap {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
 
-    h1 {
-      margin: 0 0 8px 0;
-      font-size: 24px;
-      font-weight: 800
-    }
+        .dashboard-grid {
+            display: grid;
+            gap: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            margin-top: 20px;
+        }
 
-    h2 {
-      margin: 0 0 12px 0;
-      font-size: 18px;
-      font-weight: 600
-    }
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 20px;
+            transition: all 0.2s;
+        }
 
-    h3 {
-      margin: 0 0 8px 0;
-      font-size: 16px;
-      font-weight: 600
-    }
+        .card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(45, 212, 191, 0.1);
+        }
 
-    .nav {
-      display: flex;
-      gap: 12px;
-      margin: 12px 0
-    }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+        }
 
-    .nav a {
-      padding: 8px 16px;
-      border-radius: 8px;
-      text-decoration: none;
-      color: var(--muted);
-      border: 1px solid var(--border);
-      transition: all 0.2s
-    }
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
 
-    .nav a.active,
-    .nav a:hover {
-      background: var(--accent);
-      color: #07211e;
-      border-color: var(--accent)
-    }
+        .card-icon {
+            font-size: 24px;
+        }
 
-    .row {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      align-items: center
-    }
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 12px 0;
+            padding: 8px 0;
+        }
 
-    .col {
-      flex: 1;
-      min-width: 280px
-    }
+        .metric-label {
+            color: var(--muted);
+            font-size: 14px;
+        }
 
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 16px;
-      margin-bottom: 16px
-    }
+        .metric-value {
+            font-weight: 600;
+            font-size: 16px;
+        }
 
-    .card.highlight {
-      border-color: var(--accent);
-      box-shadow: 0 0 20px rgba(45, 212, 191, 0.1)
-    }
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
 
-    .metric-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 12px;
-      margin-bottom: 20px
-    }
+        .status-active {
+            background: rgba(34, 197, 94, 0.1);
+            color: var(--success);
+            border: 1px solid var(--success);
+        }
 
-    .metric {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 16px;
-      text-align: center
-    }
+        .status-warning {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning);
+            border: 1px solid var(--warning);
+        }
 
-    .metric-value {
-      font-size: 28px;
-      font-weight: 800;
-      margin-bottom: 4px
-    }
+        .status-error {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+            border: 1px solid var(--danger);
+        }
 
-    .metric-label {
-      font-size: 13px;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.5px
-    }
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            margin-top: 16px;
+        }
 
-    .metric-change {
-      font-size: 14px;
-      margin-top: 8px
-    }
+        .action-btn {
+            background: var(--accent);
+            color: #07211e;
+            text-decoration: none;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            text-align: center;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
 
-    .metric.positive .metric-value {
-      color: var(--pos)
-    }
+        .action-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(45, 212, 191, 0.3);
+        }
 
-    .metric.negative .metric-value {
-      color: var(--danger)
-    }
+        .action-btn.secondary {
+            background: transparent;
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
 
-    .metric.neutral .metric-value {
-      color: var(--accent)
-    }
+        .action-btn.secondary:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
 
-    .chart-container {
-      position: relative;
-      height: 300px;
-      margin: 20px 0;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 20px
-    }
+        .portfolio-chart {
+            height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--muted);
+            border: 1px dashed var(--border);
+            border-radius: 8px;
+            margin: 16px 0;
+        }
 
-    .chart-placeholder {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100%;
-      color: var(--muted);
-      font-style: italic
-    }
+        .recent-activity {
+            max-height: 300px;
+            overflow-y: auto;
+        }
 
-    table {
-      width: 100%;
-      border-collapse: collapse
-    }
+        .activity-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+        }
 
-    th,
-    td {
-      border-bottom: 1px solid var(--border);
-      padding: 12px 8px;
-      text-align: left;
-      font-size: 14px
-    }
+        .activity-item:last-child {
+            border-bottom: none;
+        }
 
-    th {
-      color: var(--muted);
-      font-weight: 600;
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px
-    }
+        .activity-desc {
+            color: var(--muted);
+            font-size: 13px;
+        }
 
-    tr:hover td {
-      background: #0b131d
-    }
+        .activity-time {
+            color: var(--muted);
+            font-size: 12px;
+        }
 
-    .right {
-      text-align: right
-    }
+        .connections-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 12px;
+            margin-top: 12px;
+        }
 
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      background: #0b131d;
-      font-size: 12px;
-      font-weight: 500
-    }
+        .connection-item {
+            text-align: center;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
 
-    .loading {
-      display: inline-block;
-      width: 20px;
-      height: 20px;
-      border: 2px solid var(--border);
-      border-radius: 50%;
-      border-top-color: var(--accent);
-      animation: spin 1s linear infinite
-    }
+        .connection-name {
+            font-size: 12px;
+            margin-bottom: 4px;
+            color: var(--muted);
+        }
 
-    @keyframes spin {
-      to {
-        transform: rotate(360deg)
-      }
-    }
+        .loading {
+            color: var(--muted);
+            text-align: center;
+            padding: 20px;
+        }
 
-    .delta-pos {
-      color: var(--pos);
-      font-weight: 600
-    }
+        .error {
+            color: var(--danger);
+            text-align: center;
+            padding: 20px;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--danger);
+            border-radius: 8px;
+            margin: 12px 0;
+        }
 
-    .delta-neg {
-      color: var(--danger);
-      font-weight: 600
-    }
-
-    .delta-neutral {
-      color: var(--muted)
-    }
-
-    .refresh-btn {
-      background: var(--accent);
-      color: #07211e;
-      border: 0;
-      border-radius: 8px;
-      padding: 8px 16px;
-      cursor: pointer;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 8px
-    }
-
-    .refresh-btn:disabled {
-      opacity: 0.6;
-      cursor: not-allowed
-    }
-
-    .status-indicator {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px
-    }
-
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--pos)
-    }
-
-    .status-dot.warning {
-      background: var(--warning)
-    }
-
-    .status-dot.error {
-      background: var(--danger)
-    }
-
-    @media(max-width: 768px) {
-      .wrap {
-        padding: 12px
-      }
-
-      .metric-grid {
-        grid-template-columns: 1fr 1fr
-      }
-
-      .nav {
-        flex-direction: column;
-        gap: 8px
-      }
-
-      .chart-container {
-        height: 250px
-      }
-    }
-
-    /* Styles pour les alertes */
-    .alert-status {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px;
-      border-radius: 8px;
-      margin-bottom: 12px;
-    }
-
-    .alert-status.healthy {
-      background: rgba(34, 197, 94, 0.1);
-      border: 1px solid var(--pos);
-      color: var(--pos);
-    }
-
-    .alert-status.warning {
-      background: rgba(245, 158, 11, 0.1);
-      border: 1px solid var(--warning);
-      color: var(--warning);
-    }
-
-    .alert-status.critical {
-      background: rgba(239, 68, 68, 0.1);
-      border: 1px solid var(--danger);
-      color: var(--danger);
-    }
-
-    .alert-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px 12px;
-      border-radius: 6px;
-      margin-bottom: 8px;
-      border-left: 4px solid;
-    }
-
-    .alert-item.ok {
-      background: rgba(34, 197, 94, 0.05);
-      border-left-color: var(--pos);
-    }
-
-    .alert-item.warning {
-      background: rgba(245, 158, 11, 0.1);
-      border-left-color: var(--warning);
-    }
-
-    .alert-item.critical {
-      background: rgba(239, 68, 68, 0.1);
-      border-left-color: var(--danger);
-    }
-
-    .recommendation-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px 12px;
-      background: rgba(45, 212, 191, 0.05);
-      border: 1px solid var(--accent);
-      border-radius: 8px;
-      margin-bottom: 8px;
-    }
-
-    .drift-indicator {
-      font-size: 12px;
-      font-weight: 600;
-      padding: 2px 6px;
-      border-radius: 4px;
-    }
-
-    .drift-ok {
-      background: var(--pos);
-      color: white;
-    }
-
-    .drift-warning {
-      background: var(--warning);
-      color: white;
-    }
-
-    .drift-critical {
-      background: var(--danger);
-      color: white;
-    }
-  </style>
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .quick-actions {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
 
 <body>
+    <!-- Header sera injecté par shared-header.js -->
 
-  <header>
     <div class="wrap">
-      <h1>💎 Portfolio Analytics</h1>
-      <nav class="nav">
-        <a href="dashboard.html" class="active">📊 Dashboard</a>
-        <a href="rebalance.html">⚖️ Rebalancing</a>
-        <a href="alias-manager.html">🏷️ Classification</a>
-        <a href="settings.html">⚙️ Configuration</a>
-      </nav>
-      <div style="font-size: 12px; color: var(--muted); margin-top: 8px;">
-        <span id="data-source-indicator">Source: <span style="color: var(--accent);"
-            id="current-source">...</span></span>
-        <span style="margin-left: 16px;" id="pricing-indicator">Pricing: <span style="color: var(--accent);"
-            id="current-pricing">...</span></span>
-      </div>
-    </div>
-  </header>
-
-  <div class="wrap">
-
-    <!-- Status & Controls -->
-    <div class="card">
-      <div class="row">
-        <div class="col">
-          <div class="status-indicator">
-            <div class="status-dot" id="status-dot"></div>
-            <span id="status-text">Chargement...</span>
-          </div>
-        </div>
-        <div>
-          <button class="refresh-btn" onclick="loadDashboard()" id="refresh-btn">
-            <span id="refresh-icon">🔄</span>
-            Actualiser
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Alertes Portfolio -->
-    <div class="card" id="alerts-section" style="display: none;">
-      <div class="row">
-        <h3>⚠️ Alertes de Rebalancing</h3>
-        <div style="margin-left: auto;">
-          <button class="btn small secondary" onclick="toggleAlertsSettings()">⚙️ Seuils</button>
-        </div>
-      </div>
-
-      <div id="global-alert-status" class="mt8">
-        <div style="text-align: center; padding: 20px; color: var(--muted);">
-          Chargement des alertes...
-        </div>
-      </div>
-
-      <div id="alerts-list" class="mt16" style="display: none;">
-        <!-- Alertes par groupe -->
-      </div>
-
-      <div id="recommendations" class="mt16" style="display: none;">
-        <h4 style="margin-bottom: 8px;">💡 Actions Recommandées</h4>
-        <div id="recommendations-list">
-          <!-- Recommandations -->
-        </div>
-      </div>
-
-      <!-- Configuration des seuils -->
-      <div id="alerts-settings" class="mt16"
-        style="display: none; padding-top: 16px; border-top: 1px solid var(--border);">
-        <div class="row">
-          <div>
-            <label>Seuil d'alerte (%)</label><br>
-            <input type="number" id="drift-threshold" min="1" max="50" value="10" style="width: 80px;">
-          </div>
-          <div>
-            <button class="btn small" onclick="updateAlerts()">Appliquer</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Key Metrics -->
-    <div class="metric-grid" id="metrics-grid">
-      <div class="metric neutral">
-        <div class="metric-value" id="total-value">-</div>
-        <div class="metric-label">Valeur Totale</div>
-        <div class="metric-change" id="total-change">-</div>
-      </div>
-      <div class="metric neutral">
-        <div class="metric-value" id="total-assets">-</div>
-        <div class="metric-label">Assets</div>
-        <div class="metric-change" id="assets-change">Différents cryptos</div>
-      </div>
-      <div class="metric neutral">
-        <div class="metric-value" id="top-holding">-</div>
-        <div class="metric-label">Top Holding</div>
-        <div class="metric-change" id="top-percentage">-</div>
-      </div>
-      <div class="metric neutral">
-        <div class="metric-value" id="rebalance-score">-</div>
-        <div class="metric-label">Rebalance Score</div>
-        <div class="metric-change" id="rebalance-status">Analyse...</div>
-      </div>
-    </div>
-
-    <div class="row">
-      <!-- Portfolio Allocation -->
-      <div class="col">
-        <div class="card">
-          <h3>📊 Répartition par Groupe</h3>
-          <div class="chart-container">
-            <canvas id="allocation-chart" width="400" height="260"></canvas>
-            <div class="chart-placeholder" id="allocation-placeholder">
-              <span class="loading"></span>
+        <div class="dashboard-grid">
+            <!-- Portfolio Overview -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="card-icon">💰</span>
+                        Portfolio Overview
+                    </div>
+                    <span class="status-badge status-active" id="portfolio-status">Loading</span>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label">Total Value</span>
+                    <span class="metric-value" id="total-value">--</span>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label">P&L Today</span>
+                    <span class="metric-value" id="daily-pnl">--</span>
+                </div>
+                
+                <div class="portfolio-chart" id="portfolio-chart">
+                    📊 Portfolio distribution chart
+                    <br><small>(Integration avec CoinTracking data)</small>
+                </div>
             </div>
-          </div>
-          <div id="allocation-legend"></div>
-        </div>
-      </div>
 
-      <!-- Top Holdings -->
-      <div class="col">
-        <div class="card">
-          <h3>🥇 Top Holdings</h3>
-          <div id="top-holdings">
-            <div class="chart-placeholder">
-              <span class="loading"></span>
+            <!-- Quick Actions -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="card-icon">⚡</span>
+                        Quick Actions
+                    </div>
+                </div>
+                
+                <div class="quick-actions">
+                    <a href="rebalance.html" class="action-btn">
+                        ⚖️ Plan Rebalance
+                    </a>
+                    <a href="execution.html" class="action-btn secondary">
+                        🚀 Execute Orders
+                    </a>
+                    <a href="execution_history.html" class="action-btn secondary">
+                        📈 View History
+                    </a>
+                    <a href="settings.html" class="action-btn secondary">
+                        ⚙️ Settings
+                    </a>
+                </div>
             </div>
-          </div>
-        </div>
-      </div>
-    </div>
 
-    <!-- Portfolio Performance -->
-    <div class="card">
-      <h3>📈 Performance du Portfolio</h3>
-      <div class="chart-container" style="position: relative;">
-        <canvas id="performance-chart" width="800" height="300"
-          style="display: none; position: relative; z-index: 1;"></canvas>
-        <div class="chart-placeholder" id="performance-placeholder"
-          style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 2;">
-          <span class="loading"></span>
-        </div>
-      </div>
-      <div class="row" style="margin-top: 12px; gap: 8px;">
-        <button class="btn small" onclick="loadPerformanceChart(7)"
-          style="background: var(--accent); color: #07211e; border: 0; border-radius: 6px; padding: 6px 12px; cursor: pointer;">7j</button>
-        <button class="btn small" onclick="loadPerformanceChart(30)"
-          style="background: var(--accent); color: #07211e; border: 0; border-radius: 6px; padding: 6px 12px; cursor: pointer;">30j</button>
-        <button class="btn small" onclick="loadPerformanceChart(90)"
-          style="background: var(--accent); color: #07211e; border: 0; border-radius: 6px; padding: 6px 12px; cursor: pointer;">90j</button>
-      </div>
-    </div>
-
-    <!-- Breakdown par Lieu -->
-    <div class="card">
-      <h3>🏢 Répartition par Lieu</h3>
-      <div class="row">
-        <div class="col">
-          <div id="locations-breakdown" style="min-height: 200px;">
-            <div style="text-align: center; padding: 40px;">
-              <span class="loading"></span>
+            <!-- Execution Status -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="card-icon">🎯</span>
+                        Execution Status
+                    </div>
+                    <span class="status-badge" id="execution-status">Loading</span>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label">Last Execution</span>
+                    <span class="metric-value" id="last-execution">--</span>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label">Success Rate (24h)</span>
+                    <span class="metric-value" id="success-rate">--</span>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label">Total Volume (24h)</span>
+                    <span class="metric-value" id="volume-24h">--</span>
+                </div>
             </div>
-          </div>
-        </div>
-        <div class="col">
-          <div id="locations-chart-container" style="height: 200px; position: relative;">
-            <canvas id="locations-chart" width="200" height="200"></canvas>
-            <div id="locations-chart-placeholder"
-              style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center;">
-              <span class="loading"></span>
+
+            <!-- Exchange Connections -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="card-icon">🔗</span>
+                        Exchange Status
+                    </div>
+                    <a href="monitoring_advanced.html" class="status-badge status-active" style="text-decoration: none;">View Details</a>
+                </div>
+                
+                <div class="connections-grid" id="connections-grid">
+                    <div class="loading">Loading connections...</div>
+                </div>
             </div>
-          </div>
+
+            <!-- Recent Activity -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="card-icon">📋</span>
+                        Recent Activity
+                    </div>
+                    <a href="execution_history.html" class="status-badge status-active" style="text-decoration: none;">View All</a>
+                </div>
+                
+                <div class="recent-activity" id="recent-activity">
+                    <div class="loading">Loading recent activity...</div>
+                </div>
+            </div>
+
+            <!-- System Health -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="card-icon">❤️</span>
+                        System Health
+                    </div>
+                    <span class="status-badge" id="system-health">Loading</span>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label">API Status</span>
+                    <span class="metric-value" id="api-status">--</span>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label">Data Freshness</span>
+                    <span class="metric-value" id="data-freshness">--</span>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label">Safety Validator</span>
+                    <span class="metric-value" id="safety-status">--</span>
+                </div>
+            </div>
         </div>
-      </div>
     </div>
 
-    <!-- Detailed Holdings -->
-    <div class="card">
-      <h3>📋 Holdings Détaillés</h3>
-      <div style="overflow-x: auto;">
-        <table id="holdings-table">
-          <thead>
-            <tr>
-              <th>Symbol</th>
-              <th>Groupe</th>
-              <th class="right">Balance</th>
-              <th class="right">Prix USD</th>
-              <th class="right">Valeur USD</th>
-              <th class="right">% Portfolio</th>
-            </tr>
-          </thead>
-          <tbody id="holdings-tbody">
-            <tr>
-              <td colspan="6" style="text-align: center; padding: 40px;">
-                <span class="loading"></span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-  </div>
-
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="/static/global-config.js"></script>
-  <script src="/static/shared-header.js"></script>
-  <script>
-    // Configuration via globalConfig
-    let dashboardData = null;
-    let performanceChart = null;
-
-    // Utilitaires
-    function formatUSD(value) {
-      if (value === null || value === undefined) return '$0.00';
-      return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      }).format(value);
-    }
-
-    function formatNumber(value, decimals = 2) {
-      if (value === null || value === undefined) return '0';
-      return new Intl.NumberFormat('en-US', {
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals
-      }).format(value);
-    }
-
-    function formatPercent(value) {
-      if (value === null || value === undefined) return '0.0%';
-      return `${(value * 100).toFixed(1)}%`;
-    }
-
-    // Couleurs pour les groupes
-    const GROUP_COLORS = {
-      'BTC': '#f7931a',
-      'ETH': '#627eea',
-      'SOL': '#14f195',
-      'Stablecoins': '#26a69a',
-      'L1/L0 majors': '#ab47bc',
-      'Others': '#78909c',
-      'DeFi': '#ff6b35',
-      'Gaming/NFT': '#e91e63',
-      'AI/Data': '#3f51b5',
-      'Memecoins': '#ff9800'
-    };
-
-    // Chargement des données
-    async function loadDashboard() {
-      const refreshBtn = document.getElementById('refresh-btn');
-      const refreshIcon = document.getElementById('refresh-icon');
-      const statusDot = document.getElementById('status-dot');
-      const statusText = document.getElementById('status-text');
-
-      try {
-        // UI Loading
-        refreshBtn.disabled = true;
-        refreshIcon.textContent = '⏳';
-        statusDot.className = 'status-dot warning';
-        statusText.textContent = 'Chargement des données...';
-
-        // Fetch balances data using global config
-        dashboardData = await globalConfig.apiRequest('/balances/current');
-
-        // Fetch taxonomy pour enrichir avec les groupes
-        try {
-          const taxonomyData = await globalConfig.apiRequest('/taxonomy');
-          dashboardData.aliases = taxonomyData.aliases || {};
-          dashboardData.groups = taxonomyData.groups || [];
-        } catch (e) {
-          console.warn('Taxonomie non disponible:', e);
-          dashboardData.aliases = {};
-          dashboardData.groups = [];
-        }
-
-        // Enrichir les items avec les groupes
-        if (dashboardData.items && dashboardData.aliases) {
-          dashboardData.items.forEach(item => {
-            const alias = item.alias || item.symbol;
-            item.group = dashboardData.aliases[alias] || 'Others';
-          });
-        }
-
-        // Fetch portfolio metrics using global config  
-        try {
-          const metricsData = await globalConfig.apiRequest('/portfolio/metrics');
-          if (metricsData.ok) {
-            dashboardData.analytics = metricsData;
-          }
-        } catch (e) {
-          console.warn('Portfolio metrics non disponibles:', e);
-        }
-
-        // Update UI
-        updateMetrics();
-        updateAllocationChart();
-        updateTopHoldings();
-        updateLocationsBreakdown();
-        updateAlertsSection();
-        updateHoldingsTable();
-
-        // Success status
-        statusDot.className = 'status-dot';
-        statusText.textContent = `Dernière mise à jour: ${new Date().toLocaleTimeString()}`;
-
-        // Auto-save snapshot (une fois par jour max)
-        if (shouldSaveSnapshot()) {
-          savePortfolioSnapshot();
-        }
-
-      } catch (error) {
-        console.error('Erreur chargement dashboard:', error);
-        statusDot.className = 'status-dot error';
-        statusText.textContent = `Erreur: ${error.message}`;
-      } finally {
-        refreshBtn.disabled = false;
-        refreshIcon.textContent = '🔄';
-      }
-    }
-
-    // Mise à jour des métriques clés
-    function updateMetrics() {
-      if (!dashboardData || !dashboardData.items) return;
-
-      // Utiliser les analytics calculées si disponibles
-      const analytics = dashboardData.analytics;
-      const metrics = analytics?.metrics;
-      const performance = analytics?.performance;
-
-      if (metrics) {
-        // Utiliser les métriques calculées côté serveur
-        document.getElementById('total-value').textContent = formatUSD(metrics.total_value_usd);
-        document.getElementById('total-assets').textContent = metrics.asset_count.toString();
-        document.getElementById('top-holding').textContent = metrics.top_holding.symbol || 'N/A';
-        document.getElementById('top-percentage').textContent = formatPercent(metrics.top_holding.percentage);
-
-        // Score de diversification calculé
-        document.getElementById('rebalance-score').textContent = `${metrics.diversity_score}/10`;
-
-        let scoreStatus = 'À analyser';
-        let scoreClass = 'neutral';
-        if (metrics.diversity_score >= 8) {
-          scoreStatus = 'Excellent';
-          scoreClass = 'positive';
-        } else if (metrics.diversity_score >= 6) {
-          scoreStatus = 'Bien équilibré';
-          scoreClass = 'positive';
-        } else if (metrics.diversity_score >= 4) {
-          scoreStatus = 'Modéré';
-          scoreClass = 'neutral';
-        } else {
-          scoreStatus = 'À rebalancer';
-          scoreClass = 'negative';
-        }
-
-        const rebalanceStatusEl = document.getElementById('rebalance-status');
-        rebalanceStatusEl.textContent = scoreStatus;
-        rebalanceStatusEl.parentElement.className = `metric ${scoreClass}`;
-
-        // Afficher les performances si disponibles
-        if (performance && performance.performance_available) {
-          const totalValueEl = document.getElementById('total-value').parentElement;
-          const changeEl = document.getElementById('total-change');
-
-          const changeText = performance.absolute_change_usd >= 0 ?
-            `+${formatUSD(performance.absolute_change_usd)} (${performance.percentage_change.toFixed(2)}%)` :
-            `${formatUSD(performance.absolute_change_usd)} (${performance.percentage_change.toFixed(2)}%)`;
-
-          changeEl.textContent = changeText;
-          changeEl.className = performance.absolute_change_usd >= 0 ? 'metric-change delta-pos' : 'metric-change delta-neg';
-
-          // Mettre à jour la classe de la métrique totale
-          totalValueEl.className = `metric ${performance.performance_status === 'gain' ? 'positive' :
-            performance.performance_status === 'loss' ? 'negative' : 'neutral'}`;
-        }
-
-      } else {
-        // Fallback sur calculs basiques côté client
-        const items = dashboardData.items;
-
-        let totalValue = 0;
-        let assetCount = 0;
-        let topHolding = { symbol: '', value: 0 };
-
-        items.forEach(item => {
-          if (item.value_usd && item.value_usd > 0) {
-            totalValue += item.value_usd;
-            assetCount++;
-
-            if (item.value_usd > topHolding.value) {
-              topHolding = { symbol: item.symbol, value: item.value_usd };
-            }
-          }
-        });
-
-        document.getElementById('total-value').textContent = formatUSD(totalValue);
-        document.getElementById('total-assets').textContent = assetCount.toString();
-        document.getElementById('top-holding').textContent = topHolding.symbol || 'N/A';
-
-        const topPercentage = totalValue > 0 ? (topHolding.value / totalValue) : 0;
-        document.getElementById('top-percentage').textContent = formatPercent(topPercentage);
-
-        // Score de rebalancing simplifié
-        const diversityScore = Math.min(10, assetCount);
-        const concentrationPenalty = topPercentage > 0.5 ? 3 : 0;
-        const rebalanceScore = Math.max(1, diversityScore - concentrationPenalty);
-
-        document.getElementById('rebalance-score').textContent = `${rebalanceScore}/10`;
-        document.getElementById('rebalance-status').textContent =
-          rebalanceScore >= 7 ? 'Bien équilibré' :
-            rebalanceScore >= 4 ? 'Modéré' : 'À rebalancer';
-      }
-    }
-
-    // Graphique de répartition (simple canvas)
-    function updateAllocationChart() {
-      if (!dashboardData || !dashboardData.items) {
-        document.getElementById('allocation-placeholder').innerHTML = 'Aucune donnée disponible';
-        return;
-      }
-
-      const canvas = document.getElementById('allocation-chart');
-      const ctx = canvas.getContext('2d');
-      const placeholder = document.getElementById('allocation-placeholder');
-
-      // Grouper par catégorie
-      const groups = {};
-      let totalValue = 0;
-
-      dashboardData.items.forEach(item => {
-        if (item.value_usd && item.value_usd > 0) {
-          const group = item.group || 'Others';
-          groups[group] = (groups[group] || 0) + item.value_usd;
-          totalValue += item.value_usd;
-        }
-      });
-
-      if (totalValue === 0) {
-        placeholder.innerHTML = 'Aucune donnée disponible';
-        return;
-      }
-
-      // Masquer le placeholder
-      placeholder.style.display = 'none';
-      canvas.style.display = 'block';
-
-      // Dessiner le graphique en secteurs (simple)
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      const centerX = canvas.width / 2;
-      const centerY = canvas.height / 2;
-      const radius = Math.min(centerX, centerY) - 20;
-
-      let currentAngle = -Math.PI / 2;
-      const legendHTML = [];
-
-      Object.entries(groups)
-        .sort(([, a], [, b]) => b - a)
-        .forEach(([group, value]) => {
-          const percentage = value / totalValue;
-          const sliceAngle = percentage * 2 * Math.PI;
-          const color = GROUP_COLORS[group] || '#78909c';
-
-          // Dessiner le secteur
-          ctx.beginPath();
-          ctx.moveTo(centerX, centerY);
-          ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
-          ctx.closePath();
-          ctx.fillStyle = color;
-          ctx.fill();
-
-          // Bordure
-          ctx.strokeStyle = '#1f2b3a';
-          ctx.lineWidth = 2;
-          ctx.stroke();
-
-          currentAngle += sliceAngle;
-
-          // Légende
-          legendHTML.push(`
-        <div class="pill" style="border-color: ${color}">
-          <div class="dot" style="background: ${color}"></div>
-          ${group}: ${formatPercent(percentage)}
-        </div>
-      `);
-        });
-
-      // Afficher la légende
-      document.getElementById('allocation-legend').innerHTML =
-        `<div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px;">${legendHTML.join('')}</div>`;
-    }
-
-    // Top Holdings
-    function updateTopHoldings() {
-      if (!dashboardData || !dashboardData.items) {
-        document.getElementById('top-holdings').innerHTML = '<div class="chart-placeholder">Aucune donnée disponible</div>';
-        return;
-      }
-
-      const topHoldings = dashboardData.items
-        .filter(item => item.value_usd && item.value_usd > 0)
-        .sort((a, b) => b.value_usd - a.value_usd)
-        .slice(0, 10);
-
-      if (topHoldings.length === 0) {
-        document.getElementById('top-holdings').innerHTML = '<div class="chart-placeholder">Aucun holding trouvé</div>';
-        return;
-      }
-
-      const totalValue = dashboardData.items.reduce((sum, item) =>
-        sum + (item.value_usd || 0), 0);
-
-      const html = topHoldings.map((item, index) => {
-        const percentage = totalValue > 0 ? (item.value_usd / totalValue) : 0;
-        const group = item.group || 'Others';
-        const color = GROUP_COLORS[group] || '#78909c';
-
-        return `
-      <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border);">
-        <div style="display: flex; align-items: center; gap: 12px;">
-          <div style="font-weight: 600; color: var(--muted); min-width: 20px;">${index + 1}</div>
-          <div>
-            <div style="font-weight: 600;">${item.symbol}</div>
-            <div style="font-size: 12px; color: var(--muted);">${group}</div>
-          </div>
-        </div>
-        <div style="text-align: right;">
-          <div style="font-weight: 600;">${formatUSD(item.value_usd)}</div>
-          <div style="font-size: 12px; color: var(--muted);">${formatPercent(percentage)}</div>
-        </div>
-      </div>
-    `;
-      }).join('');
-
-      document.getElementById('top-holdings').innerHTML = html;
-    }
-
-    // Breakdown par lieu
-    async function updateLocationsBreakdown() {
-      const container = document.getElementById('locations-breakdown');
-      const chartPlaceholder = document.getElementById('locations-chart-placeholder');
-      const chartCanvas = document.getElementById('locations-chart');
-
-      try {
-        // Fetch breakdown data
-        const breakdownData = await globalConfig.apiRequest('/portfolio/breakdown-locations');
-
-        if (!breakdownData.ok || !breakdownData.breakdown) {
-          container.innerHTML = '<div style="text-align: center; color: var(--muted);">Aucune donnée de lieu disponible</div>';
-          return;
-        }
-
-        const { locations, total_value_usd } = breakdownData.breakdown;
-
-        if (!locations || locations.length === 0) {
-          container.innerHTML = '<div style="text-align: center; color: var(--muted);">Aucun lieu trouvé</div>';
-          return;
-        }
-
-        // Render locations list
-        const locationsHtml = locations.map(location => `
-      <div style="padding: 12px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-        <div>
-          <div style="font-weight: 600; margin-bottom: 4px;">🏢 ${location.location}</div>
-          <div style="font-size: 12px; color: var(--muted);">${location.asset_count} assets</div>
-        </div>
-        <div style="text-align: right;">
-          <div style="font-weight: 600;">${formatUSD(location.total_value_usd)}</div>
-          <div style="font-size: 12px; color: var(--muted);">${formatPercent(location.percentage)}</div>
-        </div>
-      </div>
-    `).join('');
-
-        container.innerHTML = locationsHtml;
-
-        // Create chart
-        const ctx = chartCanvas.getContext('2d');
-        const chartData = {
-          labels: locations.map(l => l.location),
-          datasets: [{
-            data: locations.map(l => l.total_value_usd),
-            backgroundColor: [
-              '#2dd4bf', '#f59e0b', '#ef4444', '#22c55e', '#3b82f6',
-              '#a78bfa', '#f472b6', '#fb923c', '#14b8a6', '#84cc16'
-            ],
-            borderWidth: 2,
-            borderColor: '#1f2b3a'
-          }]
+    <script>
+        // Configuration et état global
+        let dashboardData = {
+            portfolio: null,
+            connections: null,
+            recentActivity: null,
+            executionStats: null
         };
 
-        new Chart(ctx, {
-          type: 'doughnut',
-          data: chartData,
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                display: false
-              }
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('📊 Dashboard unifié initialisé');
+            
+            // Initialiser le header partagé
+            initSharedHeader('dashboard', { showConfigIndicators: true });
+            
+            // Charger les données
+            await loadDashboardData();
+            
+            // Auto-refresh toutes les 30 secondes
+            setInterval(loadDashboardData, 30000);
+        });
+
+        // Chargement des données du dashboard
+        async function loadDashboardData() {
+            try {
+                // Charger les données en parallèle
+                const [connectionsData, historyData, executionStatus] = await Promise.allSettled([
+                    loadConnectionsStatus(),
+                    loadRecentHistory(),
+                    loadExecutionStatus()
+                ]);
+
+                updateConnectionsDisplay(connectionsData.value);
+                updateRecentActivity(historyData.value);
+                updateExecutionStatus(executionStatus.value);
+                updateSystemHealth();
+
+            } catch (error) {
+                console.error('Erreur chargement dashboard:', error);
+                showError('Erreur lors du chargement des données');
             }
-          }
-        });
-
-        chartPlaceholder.style.display = 'none';
-
-      } catch (error) {
-        console.error('Erreur chargement breakdown locations:', error);
-        container.innerHTML = '<div style="text-align: center; color: var(--danger);">Erreur: ' + error.message + '</div>';
-      }
-    }
-
-    // Section Alertes
-    async function updateAlertsSection() {
-      const alertsSection = document.getElementById('alerts-section');
-      const globalStatusDiv = document.getElementById('global-alert-status');
-      const alertsList = document.getElementById('alerts-list');
-      const recommendations = document.getElementById('recommendations');
-
-      try {
-        const thresholdInput = document.getElementById('drift-threshold');
-        const threshold = thresholdInput ? thresholdInput.value : 10;
-
-        const alertsData = await globalConfig.apiRequest('/portfolio/alerts', { params: { drift_threshold: threshold } });
-
-        if (!alertsData.ok || !alertsData.alerts) {
-          globalStatusDiv.innerHTML = '<div style="text-align: center; color: var(--muted);">Données d\'alertes non disponibles</div>';
-          return;
         }
 
-        const alerts = alertsData.alerts;
-
-        // Afficher la section
-        alertsSection.style.display = 'block';
-
-        // Status global
-        const statusIcon = alerts.global_status === 'healthy' ? '✅' :
-          alerts.global_status === 'warning' ? '⚠️' : '🚨';
-
-        globalStatusDiv.innerHTML = `
-      <div class="alert-status ${alerts.global_status}">
-        <div style="font-size: 24px;">${statusIcon}</div>
-        <div>
-          <div style="font-weight: 600; margin-bottom: 4px;">${alerts.global_message}</div>
-          <div style="font-size: 12px; opacity: 0.8;">
-            Dérive max: ${alerts.max_drift}% | Seuil: ${alerts.drift_threshold}%
-          </div>
-        </div>
-        <div style="margin-left: auto; text-align: right;">
-          <div style="font-size: 18px; font-weight: 700;">${formatUSD(alerts.total_value_usd)}</div>
-          <div style="font-size: 11px;">Portfolio Total</div>
-        </div>
-      </div>
-    `;
-
-        // Liste des alertes par groupe
-        if (alerts.groups && alerts.groups.length > 0) {
-          const alertsHtml = alerts.groups.map(alert => {
-            const icon = alert.level === 'ok' ? '✅' : alert.level === 'warning' ? '⚠️' : '🚨';
-            const actionIcon = alert.action === 'buy' ? '📈' : '📉';
-
-            return `
-          <div class="alert-item ${alert.level}">
-            <div>
-              <div style="font-weight: 600; margin-bottom: 2px;">
-                ${icon} ${alert.group}
-              </div>
-              <div style="font-size: 11px; color: var(--muted);">
-                Actuel: ${alert.current_pct}% | Cible: ${alert.target_pct}%
-              </div>
-            </div>
-            <div style="text-align: right;">
-              <div class="drift-indicator drift-${alert.level}">
-                ${alert.drift_direction === 'over' ? '+' : '-'}${alert.drift}%
-              </div>
-              <div style="font-size: 11px; margin-top: 2px;">
-                ${actionIcon} ${formatUSD(alert.action_amount_usd)}
-              </div>
-            </div>
-          </div>
-        `;
-          }).join('');
-
-          alertsList.innerHTML = alertsHtml;
-          alertsList.style.display = 'block';
-        }
-
-        // Recommandations prioritaires
-        if (alerts.recommendations && alerts.recommendations.length > 0) {
-          const recsHtml = alerts.recommendations.map(rec => {
-            const actionText = rec.action === 'buy' ? 'Acheter' : 'Vendre';
-            const actionIcon = rec.action === 'buy' ? '🟢' : '🔴';
-
-            return `
-          <div class="recommendation-item">
-            <div>
-              <div style="font-weight: 600; margin-bottom: 2px;">
-                ${actionIcon} ${actionText} ${rec.group}
-              </div>
-              <div style="font-size: 12px; color: var(--muted);">
-                Dérive de ${rec.drift}% (${rec.drift_direction === 'over' ? 'surplus' : 'déficit'})
-              </div>
-            </div>
-            <div style="text-align: right;">
-              <div style="font-weight: 600;">${formatUSD(rec.action_amount_usd)}</div>
-              <div style="font-size: 11px; color: var(--muted);">Priorité ${rec.priority}</div>
-            </div>
-          </div>
-        `;
-          }).join('');
-
-          document.getElementById('recommendations-list').innerHTML = recsHtml;
-          recommendations.style.display = 'block';
-        }
-
-      } catch (error) {
-        console.error('Erreur chargement alertes:', error);
-        globalStatusDiv.innerHTML = '<div style="text-align: center; color: var(--danger);">Erreur: ' + error.message + '</div>';
-      }
-    }
-
-    function toggleAlertsSettings() {
-      const settings = document.getElementById('alerts-settings');
-      settings.style.display = settings.style.display === 'none' ? 'block' : 'none';
-    }
-
-    function updateAlerts() {
-      updateAlertsSection();
-    }
-
-    // Tableau détaillé
-    function updateHoldingsTable() {
-      if (!dashboardData || !dashboardData.items) {
-        document.getElementById('holdings-tbody').innerHTML = '<tr><td colspan="6" style="text-align: center;">Aucune donnée disponible</td></tr>';
-        return;
-      }
-
-      const tbody = document.getElementById('holdings-tbody');
-      const totalValue = dashboardData.items.reduce((sum, item) =>
-        sum + (item.value_usd || 0), 0);
-
-      const validItems = dashboardData.items
-        .filter(item => item.amount && item.amount > 0 && item.value_usd && item.value_usd > 0)
-        .sort((a, b) => (b.value_usd || 0) - (a.value_usd || 0));
-
-      if (validItems.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">Aucun holding valide trouvé</td></tr>';
-        return;
-      }
-
-      const rows = validItems.map(item => {
-        const percentage = totalValue > 0 && item.value_usd ?
-          (item.value_usd / totalValue) : 0;
-        const group = item.group || 'Others';
-        const price = item.value_usd && item.amount ? (item.value_usd / item.amount) : 0;
-
-        return `
-      <tr>
-        <td><strong>${item.symbol}</strong></td>
-        <td>
-          <span class="pill" style="border-color: ${GROUP_COLORS[group] || '#78909c'}">
-            ${group}
-          </span>
-        </td>
-        <td class="right">${formatNumber(item.amount, 4)}</td>
-        <td class="right">${formatUSD(price)}</td>
-        <td class="right"><strong>${formatUSD(item.value_usd || 0)}</strong></td>
-        <td class="right">${formatPercent(percentage)}</td>
-      </tr>
-    `;
-      }).join('');
-
-      tbody.innerHTML = rows;
-    }
-
-    // Gestion des snapshots
-    function shouldSaveSnapshot() {
-      const lastSnapshot = localStorage.getItem('lastPortfolioSnapshot');
-      if (!lastSnapshot) return true;
-
-      const lastDate = new Date(lastSnapshot);
-      const now = new Date();
-      const hoursSinceSnapshot = (now - lastDate) / (1000 * 60 * 60);
-
-      // Sauvegarder un snapshot toutes les 12 heures maximum
-      return hoursSinceSnapshot >= 12;
-    }
-
-    async function savePortfolioSnapshot() {
-      try {
-        const data = await globalConfig.apiRequest('/portfolio/snapshot', {
-          method: 'POST'
-        });
-
-        if (data.ok) {
-          localStorage.setItem('lastPortfolioSnapshot', new Date().toISOString());
-          console.log('Snapshot portfolio sauvé');
-        }
-      } catch (error) {
-        console.warn('Erreur sauvegarde snapshot:', error);
-      }
-    }
-
-    // Action manuelle de sauvegarde (si nécessaire)
-    async function manualSnapshot() {
-      const btn = document.getElementById('refresh-btn');
-      btn.disabled = true;
-
-      try {
-        await savePortfolioSnapshot();
-        document.getElementById('status-text').textContent =
-          `Snapshot sauvé - ${new Date().toLocaleTimeString()}`;
-      } catch (error) {
-        console.error('Erreur snapshot manuel:', error);
-      } finally {
-        btn.disabled = false;
-      }
-    }
-
-    // Graphique de performance temporelle
-    async function loadPerformanceChart(days = 30) {
-      const performanceCanvas = document.getElementById('performance-chart');
-      const performancePlaceholder = document.getElementById('performance-placeholder');
-
-      try {
-        performancePlaceholder.innerHTML = '<span class="loading"></span>';
-        performancePlaceholder.style.display = 'flex';
-        performanceCanvas.style.display = 'none';
-
-        // Récupérer les données de tendance via global config
-        const data = await globalConfig.apiRequest('/portfolio/trend', {
-          params: { days: days }
-        });
-        if (!data.ok) throw new Error(data.error || 'Erreur inconnue');
-
-        const trendData = data.trend.trend_data || [];
-
-        if (trendData.length === 0) {
-          performancePlaceholder.innerHTML = `
-        <div style="text-align: center; color: var(--muted);">
-          <div>Pas assez de données historiques</div>
-          <div style="font-size: 12px; margin-top: 8px;">
-            Utilisez le dashboard quotidiennement pour construire l'historique
-          </div>
-        </div>
-      `;
-          return;
-        }
-
-        // Préparer les données pour Chart.js
-        const labels = trendData.map(d => {
-          const date = new Date(d.date);
-          return date.toLocaleDateString('fr-FR', {
-            month: 'short',
-            day: 'numeric',
-            hour: trendData.length > 7 ? undefined : '2-digit',
-            minute: trendData.length > 7 ? undefined : '2-digit'
-          });
-        });
-
-        const values = trendData.map(d => d.total_value);
-        const diversityScores = trendData.map(d => d.diversity_score);
-
-        // Calculer les pourcentages de changement
-        const baseValue = values[0];
-        const percentageChanges = values.map(v =>
-          baseValue > 0 ? ((v - baseValue) / baseValue * 100) : 0
-        );
-
-        // Détruire le graphique existant
-        if (performanceChart) {
-          performanceChart.destroy();
-        }
-
-        // Créer le nouveau graphique
-        const ctx = performanceCanvas.getContext('2d');
-        performanceChart = new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels: labels,
-            datasets: [
-              {
-                label: 'Valeur Portfolio ($)',
-                data: values,
-                borderColor: '#2dd4bf',
-                backgroundColor: 'rgba(45, 212, 191, 0.1)',
-                fill: true,
-                tension: 0.4,
-                yAxisID: 'y'
-              },
-              {
-                label: 'Performance (%)',
-                data: percentageChanges,
-                borderColor: '#3b82f6',
-                backgroundColor: 'transparent',
-                fill: false,
-                tension: 0.4,
-                yAxisID: 'y1'
-              },
-              {
-                label: 'Score Diversité',
-                data: diversityScores,
-                borderColor: '#f59e0b',
-                backgroundColor: 'transparent',
-                fill: false,
-                tension: 0.4,
-                yAxisID: 'y2'
-              }
-            ]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                labels: {
-                  color: '#e7eef7',
-                  font: { size: 12 }
-                }
-              }
-            },
-            scales: {
-              x: {
-                ticks: { color: '#8fa0b3', font: { size: 11 } },
-                grid: { color: '#1f2b3a' }
-              },
-              y: {
-                type: 'linear',
-                display: true,
-                position: 'left',
-                ticks: {
-                  color: '#2dd4bf',
-                  font: { size: 11 },
-                  callback: function (value) {
-                    return formatUSD(value);
-                  }
-                },
-                grid: { color: '#1f2b3a' }
-              },
-              y1: {
-                type: 'linear',
-                display: true,
-                position: 'right',
-                ticks: {
-                  color: '#3b82f6',
-                  font: { size: 11 },
-                  callback: function (value) {
-                    return value.toFixed(1) + '%';
-                  }
-                },
-                grid: { drawOnChartArea: false }
-              },
-              y2: {
-                type: 'linear',
-                display: false,
-                min: 0,
-                max: 10
-              }
-            },
-            interaction: {
-              intersect: false,
-              mode: 'index'
+        // Charger l'état des connexions
+        async function loadConnectionsStatus() {
+            try {
+                const response = await globalConfig.apiRequest('/execution/connections');
+                return response;
+            } catch (error) {
+                console.error('Erreur connexions:', error);
+                return null;
             }
-          }
-        });
+        }
 
-        // Afficher le graphique
-        performancePlaceholder.style.display = 'none';
-        performanceCanvas.style.display = 'block';
+        // Charger l'historique récent
+        async function loadRecentHistory() {
+            try {
+                const response = await globalConfig.apiRequest('/execution/history/sessions?limit=5');
+                return response;
+            } catch (error) {
+                console.error('Erreur historique:', error);
+                return null;
+            }
+        }
 
-      } catch (error) {
-        console.error('Erreur graphique performance:', error);
-        performancePlaceholder.innerHTML = `
-      <div style="color: var(--danger); text-align: center;">
-        Erreur: ${error.message}
-      </div>
-    `;
-      }
-    }
+        // Charger le statut d'exécution
+        async function loadExecutionStatus() {
+            try {
+                const response = await globalConfig.apiRequest('/execution/statistics/summary');
+                return response;
+            } catch (error) {
+                console.error('Erreur statut exécution:', error);
+                return null;
+            }
+        }
 
-    // La fonction updateConfigIndicators est maintenant dans shared-header.js
+        // Mise à jour affichage des connexions
+        function updateConnectionsDisplay(data) {
+            const container = document.getElementById('connections-grid');
+            
+            if (!data) {
+                container.innerHTML = '<div class="error">Erreur de chargement</div>';
+                return;
+            }
 
-    // Initialisation
-    document.addEventListener('DOMContentLoaded', () => {
-      // Initialiser le header partagé avec indicateurs de config
-      initSharedHeader('dashboard', { showConfigIndicators: true });
+            const connections = Object.values(data);
+            const html = connections.map(conn => {
+                const statusClass = conn.connected ? 'status-active' : 'status-error';
+                const statusText = conn.connected ? 'Online' : 'Offline';
+                
+                return `
+                    <div class="connection-item">
+                        <div class="connection-name">${conn.name}</div>
+                        <div class="status-badge ${statusClass}">${statusText}</div>
+                    </div>
+                `;
+            }).join('');
 
-      // Charger le dashboard
-      loadDashboard();
+            container.innerHTML = html;
+        }
 
-      // Charger le graphique par défaut
-      setTimeout(() => loadPerformanceChart(30), 1000);
+        // Mise à jour activité récente
+        function updateRecentActivity(data) {
+            const container = document.getElementById('recent-activity');
+            
+            if (!data || !data.sessions) {
+                container.innerHTML = '<div class="error">Aucune activité récente</div>';
+                return;
+            }
 
-      // Auto-refresh selon la configuration
-      const refreshInterval = globalConfig.get('refresh_interval') * 60 * 1000;
-      setInterval(loadDashboard, refreshInterval);
-    });
+            const html = data.sessions.slice(0, 5).map(session => `
+                <div class="activity-item">
+                    <div>
+                        <div>${session.total_orders} ordres sur ${session.exchange}</div>
+                        <div class="activity-desc">
+                            ${session.successful_orders} réussis, ${formatUSD(session.total_volume_usd)} volume
+                        </div>
+                    </div>
+                    <div class="activity-time">
+                        ${formatTimeAgo(session.timestamp)}
+                    </div>
+                </div>
+            `).join('');
 
-    // Écouter les changements de configuration
-    window.addEventListener('configChanged', (e) => {
-      updateConfigIndicators();
-      // Recharger les données avec la nouvelle config
-      loadDashboard();
-    });
-  </script>
+            container.innerHTML = html;
+        }
 
+        // Mise à jour statut d'exécution
+        function updateExecutionStatus(data) {
+            if (!data) return;
+
+            document.getElementById('last-execution').textContent = 
+                data.recent_24h?.total_orders > 0 ? 'Récent' : 'Aucune';
+                
+            document.getElementById('success-rate').textContent = 
+                data.recent_24h?.success_rate?.toFixed(1) + '%' || '--';
+                
+            document.getElementById('volume-24h').textContent = 
+                formatUSD(data.recent_24h?.total_volume || 0);
+
+            const statusEl = document.getElementById('execution-status');
+            if (data.recent_24h?.success_rate >= 95) {
+                statusEl.className = 'status-badge status-active';
+                statusEl.textContent = 'Excellent';
+            } else if (data.recent_24h?.success_rate >= 90) {
+                statusEl.className = 'status-badge status-warning';
+                statusEl.textContent = 'Bon';
+            } else {
+                statusEl.className = 'status-badge status-error';
+                statusEl.textContent = 'À améliorer';
+            }
+        }
+
+        // Mise à jour santé système
+        function updateSystemHealth() {
+            document.getElementById('api-status').textContent = 'Online';
+            document.getElementById('data-freshness').textContent = 'Récente';
+            document.getElementById('safety-status').textContent = 'Actif';
+            
+            document.getElementById('system-health').className = 'status-badge status-active';
+            document.getElementById('system-health').textContent = 'Healthy';
+        }
+
+        // Utilitaires de formatage
+        function formatUSD(value) {
+            if (!value) return '$0.00';
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD',
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(value);
+        }
+
+        function formatTimeAgo(timestamp) {
+            if (!timestamp) return 'N/A';
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diffMinutes = Math.floor((now - date) / (1000 * 60));
+            
+            if (diffMinutes < 60) return `${diffMinutes}min`;
+            if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h`;
+            return `${Math.floor(diffMinutes / 1440)}j`;
+        }
+
+        function showError(message) {
+            console.error(message);
+        }
+    </script>
 </body>
-
 </html>

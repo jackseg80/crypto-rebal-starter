@@ -25,9 +25,15 @@
       "Bash(git commit:*)",
       "Bash(grep:*)",
       "Bash(taskkill:*)",
-      "WebFetch(domain:cointracking.info)"
+      "WebFetch(domain:cointracking.info)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(git pull:*)"
     ],
     "deny": [],
-    "ask": []
+    "ask": [],
+    "additionalDirectories": [
+      "D:\\d D:\\Python"
+    ]
   }
 }

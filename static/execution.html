@@ -350,7 +350,7 @@
 </head>
 
 <body>
-  <div id="shared-header"></div>
+  <!-- Header sera injecté par shared-header.js -->
 
   <div class="container">
     <div class="header">
@@ -930,6 +930,9 @@
 
     document.addEventListener('DOMContentLoaded', () => {
       console.log('🚀 Execution interface DOM loaded');
+      
+      // Initialiser le header partagé
+      initSharedHeader('execution');
       
       // Charger les échanges par défaut
       loadExchanges();
