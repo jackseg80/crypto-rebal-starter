@@ -4,39 +4,56 @@
  */
 
 function createSharedHeader(activePageId, showConfigIndicators = false) {
-  const pages = {
-    'dashboard': { title: '💎 Portfolio Analytics', url: 'dashboard.html', icon: '📊' },
-    'rebalance': { title: '⚖️ Crypto Rebalancer', url: 'rebalance.html', icon: '⚖️' },
-    'alias-manager': { title: '🏷️ Alias Manager', url: 'alias-manager.html', icon: '🏷️' },
-    'settings': { title: '⚙️ Configuration', url: 'settings.html', icon: '⚙️' }
+  // Section 1: Analytics & Decision Making (Interface Business)
+  const analyticsPages = {
+    'dashboard': { title: '📊 Dashboard', url: 'dashboard.html', icon: '📊' },
+    'rebalance': { title: '⚖️ Rebalance', url: 'rebalance.html', icon: '⚖️' },
+    'alias-manager': { title: '🏷️ Aliases', url: 'alias-manager.html', icon: '🏷️' },
+    'settings': { title: '⚙️ Settings', url: 'settings.html', icon: '⚙️' }
   };
   
-  const activePage = pages[activePageId];
+  // Section 2: Execution Engine & Diagnostics (Interface Technique)
+  const enginePages = {
+    'execution': { title: '🚀 Execute', url: 'execution.html', icon: '🚀' },
+    'execution-history': { title: '📈 History', url: 'execution_history.html', icon: '📈' },
+    'monitoring': { title: '🔍 Monitor', url: 'monitoring_advanced.html', icon: '🔍' }
+  };
+  
+  const allPages = { ...analyticsPages, ...enginePages };
+  const activePage = allPages[activePageId];
   const title = activePage ? activePage.title : '🚀 Crypto Rebalancer';
   
-  // Navigation links avec gestion de l'état Alias Manager
-  const navLinks = Object.entries(pages).map(([pageId, page]) => {
-    const isActive = pageId === activePageId;
-    let linkClass = isActive ? 'active' : '';
-    let linkContent = `${page.icon} ${page.title.replace(/[💎⚖️🏷️⚙️]\s*/, '')}`;
-    
-    // Logique spéciale pour Alias Manager
-    if (pageId === 'alias-manager') {
-      const hasPlan = window.globalConfig?.hasPlan() || false;
-      const unknownCount = window.globalConfig?.getUnknownAliasesCount() || 0;
+  // Fonction pour créer les liens d'une section
+  const createSectionLinks = (pages, sectionClass = '') => {
+    return Object.entries(pages).map(([pageId, page]) => {
+      const isActive = pageId === activePageId;
+      let linkClass = `nav-link ${sectionClass}`;
+      if (isActive) linkClass += ' active';
       
-      if (!hasPlan) {
-        linkClass += ' disabled';
-        linkContent += ' (Générez un plan d\'abord)';
-        return `<span class="${linkClass}" title="Générez d'abord un plan de rebalancing pour activer cette fonctionnalité">${linkContent}</span>`;
-      } else if (unknownCount > 0) {
-        linkContent += ` (${unknownCount})`;
-        linkClass += ' has-badge';
+      let linkContent = `${page.icon} ${page.title.replace(/[📊⚖️🏷️⚙️🚀📈🔍]\s*/, '')}`;
+      
+      // Logique spéciale pour Alias Manager
+      if (pageId === 'alias-manager') {
+        const hasPlan = window.globalConfig?.hasPlan() || false;
+        const unknownCount = window.globalConfig?.getUnknownAliasesCount() || 0;
+        
+        if (!hasPlan) {
+          linkClass += ' disabled';
+          linkContent += ' (Générez un plan d\'abord)';
+          return `<span class="${linkClass}" title="Générez d'abord un plan de rebalancing pour activer cette fonctionnalité">${linkContent}</span>`;
+        } else if (unknownCount > 0) {
+          linkContent += ` (${unknownCount})`;
+          linkClass += ' has-badge';
+        }
       }
-    }
-    
-    return `<a href="${page.url}" class="${linkClass}">${linkContent}</a>`;
-  }).join('');
+      
+      return `<a href="${page.url}" class="${linkClass}">${linkContent}</a>`;
+    }).join('');
+  };
+  
+  // Créer les sections de navigation
+  const analyticsLinks = createSectionLinks(analyticsPages, 'section-analytics');
+  const engineLinks = createSectionLinks(enginePages, 'section-engine');
   
   // Configuration indicators (pour dashboard principalement)
   let configIndicators = '';
@@ -68,7 +85,19 @@ function createSharedHeader(activePageId, showConfigIndicators = false) {
       <div class="wrap">
         <h1>${title}</h1>
         <nav class="nav">
-          ${navLinks}
+          <div class="nav-section analytics-section">
+            <div class="section-label">Analytics & Decisions</div>
+            <div class="section-links">
+              ${analyticsLinks}
+            </div>
+          </div>
+          <div class="nav-separator">|</div>
+          <div class="nav-section engine-section">
+            <div class="section-label">Execution & Diagnostics</div>
+            <div class="section-links">
+              ${engineLinks}
+            </div>
+          </div>
         </nav>
         ${configIndicators}
       </div>
@@ -76,21 +105,108 @@ function createSharedHeader(activePageId, showConfigIndicators = false) {
   `;
 }
 
-// CSS partagé pour la navigation
+// CSS partagé pour la navigation bi-section
 const SHARED_NAV_CSS = `
-  .nav{display:flex;gap:12px;margin:12px 0;flex-wrap:wrap}
-  .nav a{padding:8px 16px;border-radius:8px;text-decoration:none;color:var(--muted);border:1px solid var(--border);transition:all 0.2s}
-  .nav a.active, .nav a:hover{background:var(--accent);color:#07211e;border-color:var(--accent)}
+  .nav{
+    display:flex;
+    gap:20px;
+    margin:12px 0;
+    flex-wrap:wrap;
+    align-items:flex-start;
+  }
   
-  /* Style pour Alias Manager désactivé */
-  .nav span.disabled{
-    padding:8px 16px;border-radius:8px;color:#4a5568;border:1px dashed #2d3748;
-    cursor:not-allowed;font-style:italic;opacity:0.6;
+  /* Structure des sections */
+  .nav-section{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  
+  .section-label{
+    font-size:11px;
+    color:var(--muted);
+    opacity:0.7;
+    font-weight:600;
+    text-transform:uppercase;
+    letter-spacing:0.5px;
+    margin-bottom:4px;
+  }
+  
+  .section-links{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  
+  /* Séparateur entre sections */
+  .nav-separator{
+    color:var(--border);
+    font-size:20px;
+    opacity:0.3;
+    margin:0 8px;
+    align-self:center;
+  }
+  
+  /* Styles des liens par section */
+  .nav-link{
+    padding:8px 14px;
+    border-radius:8px;
+    text-decoration:none;
+    font-size:13px;
+    font-weight:500;
+    transition:all 0.2s;
+    border:1px solid transparent;
+  }
+  
+  /* Section Analytics - Couleurs bleues/vertes */
+  .section-analytics .nav-link{
+    color:#64748b;
+    background:rgba(59, 130, 246, 0.05);
+    border-color:rgba(59, 130, 246, 0.1);
+  }
+  .section-analytics .nav-link:hover{
+    background:rgba(59, 130, 246, 0.1);
+    border-color:rgba(59, 130, 246, 0.3);
+    color:#3b82f6;
+  }
+  .section-analytics .nav-link.active{
+    background:#3b82f6;
+    color:white;
+    border-color:#3b82f6;
+  }
+  
+  /* Section Engine - Couleurs oranges/rouges */
+  .section-engine .nav-link{
+    color:#64748b;
+    background:rgba(249, 115, 22, 0.05);
+    border-color:rgba(249, 115, 22, 0.1);
+  }
+  .section-engine .nav-link:hover{
+    background:rgba(249, 115, 22, 0.1);
+    border-color:rgba(249, 115, 22, 0.3);
+    color:#f97316;
+  }
+  .section-engine .nav-link.active{
+    background:#f97316;
+    color:white;
+    border-color:#f97316;
+  }
+  
+  /* Style pour éléments désactivés */
+  .nav-link.disabled{
+    color:#4a5568 !important;
+    background:rgba(55, 65, 81, 0.1) !important;
+    border:1px dashed rgba(55, 65, 81, 0.3) !important;
+    cursor:not-allowed;
+    font-style:italic;
+    opacity:0.6;
   }
   
   /* Style pour badge avec count */
-  .nav a.has-badge{
-    background:#1a202c;border-color:#f59e0b;color:#f59e0b;
+  .nav-link.has-badge{
+    background:rgba(245, 158, 11, 0.15) !important;
+    border-color:#f59e0b !important;
+    color:#f59e0b !important;
     animation:pulse 2s infinite;
   }
   
@@ -99,9 +215,32 @@ const SHARED_NAV_CSS = `
     50% { opacity: 0.7; }
   }
   
+  /* Responsive */
+  @media(max-width: 1024px){
+    .nav{
+      flex-direction:column;
+      gap:16px;
+    }
+    .nav-separator{
+      display:none;
+    }
+    .section-links{
+      gap:6px;
+    }
+    .nav-link{
+      padding:6px 12px;
+      font-size:12px;
+    }
+  }
+  
   @media(max-width: 768px){
-    .nav{gap:8px}
-    .nav a, .nav span{padding:6px 12px;font-size:12px}
+    .section-label{
+      font-size:10px;
+    }
+    .nav-link{
+      padding:6px 10px;
+      font-size:11px;
+    }
   }
 `;
 

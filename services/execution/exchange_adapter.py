@@ -708,6 +708,404 @@ class BinanceAdapter(ExchangeAdapter):
             logger.error(f"Error getting order status {exchange_order_id}: {e}")
             return OrderResult(success=False, order_id="", error_message=str(e))
 
+class KrakenAdapter(ExchangeAdapter):
+    """Adaptateur pour Kraken avec API réelle et gestion d'erreurs robuste"""
+    
+    def __init__(self, config: ExchangeConfig):
+        super().__init__(config)
+        self.kraken_client = None
+        self._trading_pairs_cache = None
+        self._last_pairs_update = None
+        self._asset_pairs_info = {}
+        
+        # Mapping des frais Kraken (approximatif)
+        self.kraken_fees = {
+            'maker': 0.0016,  # 0.16%
+            'taker': 0.0026   # 0.26%
+        }
+    
+    async def connect(self) -> bool:
+        """Connexion à Kraken avec validation des credentials"""
+        try:
+            from connectors.kraken_api import KrakenAPI, KrakenConfig
+            
+            if not self.config.api_key or not self.config.api_secret:
+                logger.error("Kraken API key/secret not provided")
+                return False
+            
+            # Créer le client Kraken
+            kraken_config = KrakenConfig(
+                api_key=self.config.api_key,
+                api_secret=self.config.api_secret
+            )
+            self.kraken_client = KrakenAPI(kraken_config)
+            
+            # Test de connexion
+            if await self.kraken_client.connect():
+                # Test avec un appel privé pour valider les credentials
+                try:
+                    balance = await self.kraken_client.get_account_balance()
+                    self.connected = True
+                    logger.info(f"Connected to Kraken successfully (found {len(balance)} assets)")
+                    return True
+                except Exception as e:
+                    logger.error(f"Kraken credentials validation failed: {e}")
+                    return False
+            else:
+                logger.error("Failed to connect to Kraken")
+                return False
+                
+        except ImportError:
+            logger.error("Kraken connector not available")
+            return False
+        except Exception as e:
+            logger.error(f"Error connecting to Kraken: {e}")
+            return False
+    
+    async def disconnect(self) -> None:
+        """Déconnexion propre"""
+        if self.kraken_client:
+            await self.kraken_client.disconnect()
+            self.kraken_client = None
+        self.connected = False
+        logger.info("Disconnected from Kraken")
+    
+    async def get_trading_pairs(self) -> List[TradingPair]:
+        """Récupérer les paires de trading Kraken avec cache"""
+        if not self.connected or not self.kraken_client:
+            logger.warning("Not connected to Kraken, attempting reconnection...")
+            if not await self.connect():
+                return []
+        
+        try:
+            from datetime import datetime, timedelta
+            
+            # Cache pendant 1 heure
+            if (self._trading_pairs_cache and self._last_pairs_update and 
+                datetime.now() - self._last_pairs_update < timedelta(hours=1)):
+                return self._trading_pairs_cache
+            
+            # Récupérer info sur les paires depuis Kraken
+            pairs_info = await self.kraken_client.get_tradable_asset_pairs()
+            pairs = []
+            
+            self._asset_pairs_info = pairs_info  # Sauvegarder pour plus tard
+            
+            for pair_name, pair_info in pairs_info.items():
+                if pair_info.get('status') == 'online':
+                    # Normaliser les noms d'assets
+                    base_asset = self.kraken_client.normalize_asset(pair_info['base'])
+                    quote_asset = self.kraken_client.normalize_asset(pair_info['quote'])
+                    
+                    # Filtrer les paires USD/EUR principales
+                    if quote_asset in ['USD', 'EUR', 'USDT', 'USDC']:
+                        symbol = f"{base_asset}/{quote_asset}"
+                        
+                        # Extraire la taille minimale d'ordre
+                        min_order_size = float(pair_info.get('ordermin', '0.0001'))
+                        
+                        pairs.append(TradingPair(
+                            symbol=symbol,
+                            base_asset=base_asset,
+                            quote_asset=quote_asset,
+                            available=True,
+                            min_order_size=min_order_size,
+                            price_precision=int(pair_info.get('pair_decimals', 8)),
+                            quantity_precision=int(pair_info.get('lot_decimals', 8))
+                        ))
+            
+            self._trading_pairs_cache = pairs
+            self._last_pairs_update = datetime.now()
+            
+            logger.info(f"Loaded {len(pairs)} trading pairs from Kraken")
+            return pairs
+            
+        except Exception as e:
+            logger.error(f"Error getting Kraken trading pairs: {e}")
+            return []
+    
+    async def get_balance(self, asset: str) -> float:
+        """Récupérer balance réelle d'un asset depuis Kraken"""
+        if not self.connected or not self.kraken_client:
+            logger.warning("Not connected to Kraken, attempting reconnection...")
+            if not await self.connect():
+                return 0.0
+        
+        try:
+            balance_dict = await self.kraken_client.get_account_balance()
+            return balance_dict.get(asset.upper(), 0.0)
+            
+        except Exception as e:
+            logger.error(f"Error getting Kraken balance for {asset}: {e}")
+            return 0.0
+    
+    async def get_current_price(self, symbol: str) -> Optional[float]:
+        """Récupérer prix actuel depuis Kraken"""
+        if not self.connected or not self.kraken_client:
+            logger.warning("Not connected to Kraken, attempting reconnection...")
+            if not await self.connect():
+                return None
+        
+        try:
+            # Conversion format standard → format Kraken
+            base, quote = symbol.split('/')
+            kraken_base = self.kraken_client.kraken_asset(base)
+            kraken_quote = self.kraken_client.kraken_asset(quote)
+            kraken_pair = f"{kraken_base}{kraken_quote}"
+            
+            # Chercher dans les paires connues
+            if self._asset_pairs_info:
+                for pair_name, pair_info in self._asset_pairs_info.items():
+                    if (self.kraken_client.normalize_asset(pair_info['base']) == base and 
+                        self.kraken_client.normalize_asset(pair_info['quote']) == quote):
+                        kraken_pair = pair_name
+                        break
+            
+            ticker = await self.kraken_client.get_ticker([kraken_pair])
+            
+            if kraken_pair in ticker:
+                # Kraken retourne [ask, bid, last_trade]
+                last_price = ticker[kraken_pair].get('c', ['0', '0'])[0]  # 'c' = last trade closed
+                price = float(last_price)
+                
+                logger.debug(f"Price for {symbol} ({kraken_pair}): ${price}")
+                return price
+            else:
+                logger.warning(f"No price data for {symbol} ({kraken_pair})")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error getting Kraken price for {symbol}: {e}")
+            return None
+    
+    async def place_order(self, order: Order) -> OrderResult:
+        """Placer un ordre réel sur Kraken avec validation de sécurité"""
+        
+        # ÉTAPE 1: Validation de sécurité AVANT toute connexion
+        logger.info(f"Validation de sécurité pour ordre {order.id}")
+        safety_result = safety_validator.validate_order(order, {"adapter": self})
+        
+        if not safety_result.passed:
+            error_msg = f"Ordre rejeté par validation de sécurité: {'; '.join(safety_result.errors)}"
+            logger.error(error_msg)
+            return OrderResult(
+                success=False,
+                order_id=order.id,
+                error_message=error_msg,
+                status=OrderStatus.FAILED
+            )
+        
+        # Log des avertissements de sécurité
+        for warning in safety_result.warnings:
+            logger.warning(f"Avertissement sécurité ordre {order.id}: {warning}")
+        
+        logger.info(f"✓ Ordre {order.id} validé par sécurité (score: {safety_result.total_score:.1f}/100)")
+        
+        # ÉTAPE 2: Vérification de connexion
+        if not self.connected or not self.kraken_client:
+            logger.warning("Not connected to Kraken for order placement, attempting reconnection...")
+            if not await self.connect():
+                return OrderResult(
+                    success=False,
+                    order_id=order.id,
+                    error_message="Failed to connect to Kraken for order placement",
+                    status=OrderStatus.FAILED
+                )
+        
+        try:
+            # Conversion format standard → format Kraken
+            base, quote = order.symbol.split('/')
+            kraken_base = self.kraken_client.kraken_asset(base)
+            kraken_quote = self.kraken_client.kraken_asset(quote)
+            
+            # Trouver la paire exacte dans Kraken
+            kraken_pair = None
+            if self._asset_pairs_info:
+                for pair_name, pair_info in self._asset_pairs_info.items():
+                    if (self.kraken_client.normalize_asset(pair_info['base']) == base and 
+                        self.kraken_client.normalize_asset(pair_info['quote']) == quote):
+                        kraken_pair = pair_name
+                        break
+            
+            if not kraken_pair:
+                # Fallback
+                kraken_pair = f"{kraken_base}{kraken_quote}"
+            
+            # Déterminer le volume
+            if order.action == 'buy':
+                # Pour acheter, calculer le volume depuis le montant USD
+                current_price = await self.get_current_price(order.symbol)
+                if not current_price:
+                    return OrderResult(
+                        success=False,
+                        order_id=order.id,
+                        error_message=f"Could not get current price for {order.symbol}",
+                        status=OrderStatus.FAILED
+                    )
+                volume = abs(order.usd_amount) / current_price
+            else:
+                # Pour vendre, utiliser la quantité directement
+                volume = abs(order.quantity) if order.quantity != 0 else abs(order.usd_amount) / current_price
+            
+            # Log de l'ordre avant placement
+            logger.info(f"Placing {order.action} order on Kraken: {volume:.8f} {base} ({kraken_pair})")
+            
+            # Placer l'ordre sur Kraken
+            result = await self.kraken_client.add_order(
+                pair=kraken_pair,
+                type_=order.action,
+                ordertype='market',  # Ordre au marché
+                volume=f"{volume:.8f}",
+                validate=False  # False = ordre réel, True = validation seulement
+            )
+            
+            if result and 'txid' in result:
+                txids = result['txid']
+                exchange_order_id = txids[0] if txids else 'unknown'
+                
+                # Kraken ne retourne pas immédiatement les détails d'exécution
+                # Il faut interroger l'ordre pour les détails
+                try:
+                    await asyncio.sleep(0.5)  # Petit délai
+                    order_details = await self.kraken_client.query_orders(exchange_order_id, trades=True)
+                    
+                    if exchange_order_id in order_details:
+                        order_info = order_details[exchange_order_id]
+                        
+                        filled_qty = float(order_info.get('vol_exec', 0))
+                        filled_usd = float(order_info.get('cost', 0))
+                        avg_price = filled_usd / filled_qty if filled_qty > 0 else 0
+                        fees = float(order_info.get('fee', 0))
+                        
+                        # Déterminer le statut
+                        status_map = {
+                            'closed': OrderStatus.FILLED,
+                            'open': OrderStatus.PENDING,
+                            'canceled': OrderStatus.CANCELLED
+                        }
+                        status = status_map.get(order_info.get('status'), OrderStatus.PENDING)
+                        
+                        logger.info(f"Order executed: {filled_qty:.8f} @ ${avg_price:.2f} (fees: ${fees:.4f})")
+                        
+                        return OrderResult(
+                            success=True,
+                            order_id=order.id,
+                            exchange_order_id=exchange_order_id,
+                            filled_quantity=filled_qty,
+                            filled_usd=filled_usd,
+                            avg_price=avg_price,
+                            fees=fees,
+                            status=status,
+                            executed_at=datetime.now(timezone.utc),
+                            exchange_data=result
+                        )
+                    else:
+                        logger.warning(f"Could not get execution details for order {exchange_order_id}")
+                        return OrderResult(
+                            success=True,
+                            order_id=order.id,
+                            exchange_order_id=exchange_order_id,
+                            status=OrderStatus.PENDING,
+                            executed_at=datetime.now(timezone.utc),
+                            exchange_data=result
+                        )
+                        
+                except Exception as e:
+                    logger.warning(f"Error querying order details: {e}")
+                    # L'ordre a été placé mais on n'a pas les détails
+                    return OrderResult(
+                        success=True,
+                        order_id=order.id,
+                        exchange_order_id=exchange_order_id,
+                        status=OrderStatus.PENDING,
+                        executed_at=datetime.now(timezone.utc),
+                        exchange_data=result
+                    )
+            else:
+                error_msg = f"Order placement failed: {result}"
+                logger.error(error_msg)
+                return OrderResult(
+                    success=False,
+                    order_id=order.id,
+                    error_message=error_msg,
+                    status=OrderStatus.FAILED
+                )
+                
+        except Exception as e:
+            logger.error(f"Error placing Kraken order: {e}")
+            return OrderResult(
+                success=False,
+                order_id=order.id,
+                error_message=str(e),
+                status=OrderStatus.FAILED
+            )
+    
+    async def cancel_order(self, exchange_order_id: str) -> bool:
+        """Annuler un ordre sur Kraken"""
+        if not self.connected or not self.kraken_client:
+            return False
+        
+        try:
+            result = await self.kraken_client.cancel_order(exchange_order_id)
+            success = 'count' in result and int(result['count']) > 0
+            
+            if success:
+                logger.info(f"Successfully cancelled Kraken order {exchange_order_id}")
+            else:
+                logger.warning(f"Failed to cancel Kraken order {exchange_order_id}")
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"Error canceling Kraken order {exchange_order_id}: {e}")
+            return False
+    
+    async def get_order_status(self, exchange_order_id: str) -> OrderResult:
+        """Récupérer le statut d'un ordre sur Kraken"""
+        if not self.connected or not self.kraken_client:
+            return OrderResult(success=False, order_id="", error_message="Not connected")
+        
+        try:
+            result = await self.kraken_client.query_orders(exchange_order_id, trades=True)
+            
+            if exchange_order_id in result:
+                order_info = result[exchange_order_id]
+                
+                filled_qty = float(order_info.get('vol_exec', 0))
+                filled_usd = float(order_info.get('cost', 0))
+                avg_price = filled_usd / filled_qty if filled_qty > 0 else 0
+                fees = float(order_info.get('fee', 0))
+                
+                # Déterminer le statut
+                status_map = {
+                    'closed': OrderStatus.FILLED,
+                    'open': OrderStatus.PENDING,
+                    'canceled': OrderStatus.CANCELLED
+                }
+                status = status_map.get(order_info.get('status'), OrderStatus.PENDING)
+                
+                return OrderResult(
+                    success=True,
+                    order_id="",
+                    exchange_order_id=exchange_order_id,
+                    filled_quantity=filled_qty,
+                    filled_usd=filled_usd,
+                    avg_price=avg_price,
+                    fees=fees,
+                    status=status,
+                    exchange_data=order_info
+                )
+            else:
+                return OrderResult(
+                    success=False, 
+                    order_id="", 
+                    error_message=f"Order {exchange_order_id} not found"
+                )
+                
+        except Exception as e:
+            logger.error(f"Error getting Kraken order status {exchange_order_id}: {e}")
+            return OrderResult(success=False, order_id="", error_message=str(e))
+
 class ExchangeRegistry:
     """Registre des adaptateurs d'exchange disponibles"""
     
@@ -727,6 +1125,8 @@ class ExchangeRegistry:
             adapter = EnhancedSimulator(config)
         elif config.name == "binance":
             adapter = BinanceAdapter(config)
+        elif config.name == "kraken":
+            adapter = KrakenAdapter(config)
         else:
             raise ValueError(f"Unknown exchange: {config.name}")
         
@@ -810,6 +1210,29 @@ def setup_default_exchanges():
     else:
         logger.warning("Binance API key not found in environment - will use simulator mode")
     exchange_registry.register_exchange(binance_config)
+    
+    # Kraken (avec credentials depuis environnement)
+    kraken_api_key = os.getenv('KRAKEN_API_KEY')
+    kraken_api_secret = os.getenv('KRAKEN_API_SECRET')
+    
+    kraken_config = ExchangeConfig(
+        name="kraken",
+        type=ExchangeType.CEX,
+        api_key=kraken_api_key,
+        api_secret=kraken_api_secret,
+        sandbox=False,  # Kraken n'a pas de testnet public
+        fee_rate=0.0026,  # Fee taker Kraken
+        min_order_size=5.0,  # Minimum plus bas que Binance
+        base_url="https://api.kraken.com"
+    )
+    
+    # Log de la configuration sans exposer les secrets
+    if kraken_api_key:
+        masked_key = kraken_api_key[:8] + "..." + kraken_api_key[-4:] if len(kraken_api_key) > 12 else "***"
+        logger.info(f"Kraken configured with API key {masked_key}")
+    else:
+        logger.warning("Kraken API key not found in environment - will use simulator mode")
+    exchange_registry.register_exchange(kraken_config)
     
     logger.info("Default exchanges configured")
 
