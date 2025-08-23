@@ -38,7 +38,7 @@ class APIKeysRequest(BaseModel):
 
 class PortfolioMetricsRequest(BaseModel):
     """Modèle pour les requêtes de métriques de portfolio"""
-    source: str = Field(default="cointracking", regex="^(cointracking|stub|cointracking_api)$")
+    source: str = Field(default="cointracking", pattern="^(cointracking|stub|cointracking_api)$")
     include_performance: bool = True
     cache_ttl: int = Field(default=300, ge=0, le=3600)  # 0-1 heure
 
@@ -77,7 +77,7 @@ class TradingPairRequest(BaseModel):
     """Modèle pour les paires de trading"""
     base_asset: str = Field(..., min_length=1, max_length=20)
     quote_asset: str = Field(..., min_length=1, max_length=20)
-    exchange: str = Field(..., regex="^(binance|kraken|coinbase)$")
+    exchange: str = Field(..., pattern="^(binance|kraken|coinbase)$")
     
     @validator('base_asset', 'quote_asset')
     def uppercase_symbols(cls, v):
@@ -87,11 +87,11 @@ class TradingPairRequest(BaseModel):
 class OrderRequest(BaseModel):
     """Modèle pour les ordres de trading"""
     symbol: str = Field(..., min_length=1, max_length=20)
-    side: str = Field(..., regex="^(buy|sell)$")
-    order_type: str = Field(default="market", regex="^(market|limit)$")
+    side: str = Field(..., pattern="^(buy|sell)$")
+    order_type: str = Field(default="market", pattern="^(market|limit)$")
     quantity: float = Field(..., gt=0)
     price: Optional[float] = Field(None, gt=0)
-    exchange: str = Field(..., regex="^(binance|kraken|coinbase)$")
+    exchange: str = Field(..., pattern="^(binance|kraken|coinbase)$")
     dry_run: bool = True
     
     @validator('price')
@@ -103,8 +103,8 @@ class OrderRequest(BaseModel):
 
 class ConfigUpdateRequest(BaseModel):
     """Modèle pour la mise à jour de configuration"""
-    data_source: Optional[str] = Field(None, regex="^(cointracking|stub|cointracking_api)$")
-    pricing_source: Optional[str] = Field(None, regex="^(local|auto)$")
+    data_source: Optional[str] = Field(None, pattern="^(cointracking|stub|cointracking_api)$")
+    pricing_source: Optional[str] = Field(None, pattern="^(local|auto)$")
     cache_ttl: Optional[int] = Field(None, ge=0, le=3600)
     max_retries: Optional[int] = Field(None, ge=0, le=10)
 
@@ -115,7 +115,7 @@ class HistoryRequest(BaseModel):
     offset: int = Field(default=0, ge=0)
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
-    exchange: Optional[str] = Field(None, regex="^(binance|kraken|coinbase)$")
+    exchange: Optional[str] = Field(None, pattern="^(binance|kraken|coinbase)$")
     
     @validator('end_date')
     def end_date_after_start(cls, v, values):
