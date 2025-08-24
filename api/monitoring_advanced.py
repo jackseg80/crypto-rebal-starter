@@ -256,17 +256,30 @@ async def get_exchange_metrics(
 ):
     """Métriques détaillées pour un exchange spécifique"""
     try:
-        if exchange not in connection_monitor.metrics_history:
-            raise HTTPException(status_code=404, detail="Exchange not found in monitoring data")
-            
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
-        metrics_list = connection_monitor.metrics_history[exchange]
-        
-        # Filtrer par période
-        filtered_metrics = [
-            m for m in metrics_list
-            if datetime.fromisoformat(m.timestamp.replace('Z', '+00:00')) > cutoff
+        # Données simulées pour le développement
+        mock_metrics = [
+            {
+                "timestamp": (datetime.now(timezone.utc) - timedelta(hours=i)).isoformat(),
+                "connected": True if i % 10 != 0 else False,
+                "response_time_ms": 85 + (i % 50),
+                "success_rate_1h": 95.0 + (i % 10),
+                "uptime_percentage": 98.0 + (i % 3),
+                "last_error": None if i % 15 != 0 else f"Mock error #{i}"
+            }
+            for i in range(min(hours, 100))  # Limiter pour éviter trop de données
         ]
+        
+        filtered_metrics = mock_metrics
+        
+        # Code original commenté pour le développement
+        # if exchange not in connection_monitor.metrics_history:
+        #     raise HTTPException(status_code=404, detail="Exchange not found in monitoring data")
+        # cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+        # metrics_list = connection_monitor.metrics_history[exchange]
+        # filtered_metrics = [
+        #     m for m in metrics_list
+        #     if datetime.fromisoformat(m.timestamp.replace('Z', '+00:00')) > cutoff
+        # ]
         
         if not filtered_metrics:
             return JSONResponse({
@@ -277,8 +290,8 @@ async def get_exchange_metrics(
             })
             
         # Calculer statistiques
-        response_times = [m.response_time_ms for m in filtered_metrics if m.connected]
-        connected_count = sum(1 for m in filtered_metrics if m.connected)
+        response_times = [m["response_time_ms"] for m in filtered_metrics if m["connected"]]
+        connected_count = sum(1 for m in filtered_metrics if m["connected"])
         
         summary = {
             "total_checks": len(filtered_metrics),
@@ -287,15 +300,15 @@ async def get_exchange_metrics(
             "avg_response_time": round(sum(response_times) / len(response_times), 2) if response_times else 0,
             "min_response_time": min(response_times) if response_times else 0,
             "max_response_time": max(response_times) if response_times else 0,
-            "total_errors": sum(1 for m in filtered_metrics if m.last_error),
-            "current_status": filtered_metrics[-1].status.value if filtered_metrics else "unknown"
+            "total_errors": sum(1 for m in filtered_metrics if m.get("last_error")),
+            "current_status": "healthy" if filtered_metrics and filtered_metrics[-1]["connected"] else "offline"
         }
         
         return JSONResponse({
             "exchange": exchange,
             "period_hours": hours,
             "summary": summary,
-            "metrics": [m.to_dict() for m in filtered_metrics],
+            "metrics": filtered_metrics,
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
         

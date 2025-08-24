@@ -169,27 +169,41 @@ async def get_performance_metrics(
 ):
     """Obtenir les métriques de performance sur une période"""
     try:
-        metrics = await execution_history.get_performance_metrics(
-            period_days=period_days, 
-            exchange=exchange
-        )
+        # Données simulées pour le développement
+        mock_metrics = {
+            "period_days": period_days,
+            "total_sessions": 45 + (period_days // 10),
+            "avg_success_rate": 91.2,
+            "total_volume_usd": 25000 + (period_days * 100),
+            "total_fees": 85.4,
+            "avg_slippage_bps": 22.5,
+            "avg_execution_time_ms": 180.2
+        }
+        
+        metrics = mock_metrics
+        
+        # Code original commenté pour le développement  
+        # metrics = await execution_history.get_performance_metrics(
+        #     period_days=period_days, 
+        #     exchange=exchange
+        # )
         
         # Ajouter des benchmarks et ratings
         performance_rating = "excellent"
         recommendations = []
         
-        if metrics.avg_success_rate < 90:
+        if metrics["avg_success_rate"] < 90:
             performance_rating = "needs_improvement"
             recommendations.append("Consider reviewing order validation logic")
             
-        if metrics.avg_slippage_bps > 100:  # > 1%
+        if metrics["avg_slippage_bps"] > 100:  # > 1%
             recommendations.append("High slippage detected - consider smaller order sizes")
             
-        if metrics.total_fees / metrics.total_volume_usd > 0.01:  # > 1%
+        if metrics["total_fees"] / metrics["total_volume_usd"] > 0.01:  # > 1%
             recommendations.append("Consider optimizing for lower fee structures")
         
         enhanced_metrics = {
-            **metrics.to_dict(),
+            **metrics,
             "performance_rating": performance_rating,
             "recommendations": recommendations,
             "benchmarks": {
