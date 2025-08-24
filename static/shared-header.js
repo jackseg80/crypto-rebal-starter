@@ -12,32 +12,32 @@ function createSharedHeader(activePageId, showConfigIndicators = false) {
     'alias-manager': { title: '🏷️ Aliases', url: 'alias-manager.html', icon: '🏷️' },
     'settings': { title: '⚙️ Settings', url: 'settings.html', icon: '⚙️' }
   };
-
+  
   // Section 2: Execution Engine & Diagnostics (Interface Technique)
   const enginePages = {
     'execution': { title: '🚀 Execute', url: 'execution.html', icon: '🚀' },
     'execution-history': { title: '📈 History', url: 'execution_history.html', icon: '📈' },
     'monitoring': { title: '🔍 Monitor', url: 'monitoring_advanced.html', icon: '🔍' }
   };
-
+  
   const allPages = { ...analyticsPages, ...enginePages };
   const activePage = allPages[activePageId];
   const title = activePage ? activePage.title : '🚀 Crypto Rebalancer';
-
+  
   // Fonction pour créer les liens d'une section
   const createSectionLinks = (pages, sectionClass = '') => {
     return Object.entries(pages).map(([pageId, page]) => {
       const isActive = pageId === activePageId;
       let linkClass = `nav-link ${sectionClass}`;
       if (isActive) linkClass += ' active';
-
+      
       let linkContent = `${page.icon} ${page.title.replace(/[📊🛡️⚖️🏷️⚙️🚀📈🔍]\s*/, '')}`;
-
+      
       // Logique spéciale pour Alias Manager
       if (pageId === 'alias-manager') {
         const hasPlan = window.globalConfig?.hasPlan() || false;
         const unknownCount = window.globalConfig?.getUnknownAliasesCount() || 0;
-
+        
         if (!hasPlan) {
           linkClass += ' disabled';
           linkContent += ' (Générez un plan d\'abord)';
@@ -47,15 +47,15 @@ function createSharedHeader(activePageId, showConfigIndicators = false) {
           linkClass += ' has-badge';
         }
       }
-
+      
       return `<a href="${page.url}" class="${linkClass}">${linkContent}</a>`;
     }).join('');
   };
-
+  
   // Créer les sections de navigation
   const analyticsLinks = createSectionLinks(analyticsPages, 'section-analytics');
   const engineLinks = createSectionLinks(enginePages, 'section-engine');
-
+  
   // Configuration indicators (pour dashboard principalement)
   let configIndicators = '';
   if (showConfigIndicators && window.globalConfig) {
@@ -64,15 +64,15 @@ function createSharedHeader(activePageId, showConfigIndicators = false) {
       'cointracking': '📄 CSV',
       'cointracking_api': '🌐 API'
     };
-
+    
     const pricingLabels = {
       'local': '🏠 Local',
       'auto': '🚀 Auto'
     };
-
+    
     const currentSource = window.globalConfig?.get('data_source') || 'cointracking';
     const currentPricing = window.globalConfig?.get('pricing') || 'local';
-
+    
     configIndicators = `
       <div style="font-size: 12px; color: var(--muted); margin-top: 8px;">
         <span>Source: <span style="color: var(--accent);" id="current-source">${sourceLabels[currentSource] || 'Inconnu'}</span></span>
@@ -80,7 +80,7 @@ function createSharedHeader(activePageId, showConfigIndicators = false) {
       </div>
     `;
   }
-
+  
   return `
     <header>
       <div class="wrap">
@@ -260,33 +260,33 @@ function initSharedHeader(activePageId, options = {}) {
     style.textContent = SHARED_NAV_CSS;
     document.head.appendChild(style);
   }
-
+  
   // Remplacer le header existant ou l'injecter au début du body
   const existingHeader = document.querySelector('header');
   const headerHTML = createSharedHeader(activePageId, options.showConfigIndicators);
-
+  
   if (existingHeader) {
     existingHeader.outerHTML = headerHTML;
   } else {
     document.body.insertAdjacentHTML('afterbegin', headerHTML);
   }
-
+  
   // Écouter les changements de configuration pour mettre à jour les indicateurs
   if (options.showConfigIndicators && window.globalConfig) {
     window.addEventListener('configChanged', () => {
       updateConfigIndicators();
     });
   }
-
+  
   // Écouter les événements de génération de plan pour rafraîchir la navigation
   window.addEventListener('planGenerated', () => {
     refreshNavigation(activePageId, options);
   });
-
+  
   window.addEventListener('planReset', () => {
     refreshNavigation(activePageId, options);
   });
-
+  
   // Initialize theme after header is created
   setTimeout(() => {
     initTheme();
@@ -305,21 +305,21 @@ function refreshNavigation(activePageId, options = {}) {
 // Mise à jour des indicateurs de configuration
 function updateConfigIndicators() {
   if (!window.globalConfig) return;
-
+  
   const sourceLabels = {
     'stub': '🧪 Démo',
     'cointracking': '📄 CSV',
     'cointracking_api': '🌐 API'
   };
-
+  
   const pricingLabels = {
     'local': '🏠 Local',
     'auto': '🚀 Auto'
   };
-
+  
   const sourceEl = document.getElementById('current-source');
   const pricingEl = document.getElementById('current-pricing');
-
+  
   if (sourceEl) {
     sourceEl.textContent = sourceLabels[globalConfig.get('data_source')] || 'Inconnu';
   }
@@ -343,7 +343,7 @@ function initTheme() {
 function toggleTheme() {
   const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
   const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-
+  
   document.documentElement.setAttribute('data-theme', newTheme);
   localStorage.setItem('theme', newTheme);
   updateThemeIcons(newTheme);
@@ -352,7 +352,7 @@ function toggleTheme() {
 function updateThemeIcons(theme) {
   const lightIcon = document.getElementById('light-icon');
   const darkIcon = document.getElementById('dark-icon');
-
+  
   if (lightIcon && darkIcon) {
     if (theme === 'light') {
       lightIcon.classList.add('active');
