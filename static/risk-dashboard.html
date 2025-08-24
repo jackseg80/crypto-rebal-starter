@@ -14,8 +14,149 @@
   <script src="global-config.js"></script>
   <script src="shared-header.js"></script>
   <script src="appearance.js"></script>
+  
+  <!-- Core modules ESM -->
+  <script type="module" src="core/risk-dashboard-store.js"></script>
+  <script type="module" src="core/fetcher.js"></script>
 
   <style>
+    /* ===== Layout Hybride: Sidebar + Main ===== */
+    .dashboard-layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: var(--space-lg);
+      min-height: calc(100vh - 200px);
+    }
+
+    .sidebar {
+      background: var(--theme-surface);
+      border: 1px solid var(--theme-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-lg);
+      box-shadow: var(--shadow-sm);
+      position: sticky;
+      top: var(--space-lg);
+      max-height: calc(100vh - 120px);
+      overflow-y: auto;
+    }
+
+    .main-content {
+      background: var(--theme-surface);
+      border: 1px solid var(--theme-border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* ===== Sidebar Components ===== */
+    .sidebar-section {
+      margin-bottom: var(--space-xl);
+    }
+
+    .sidebar-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .sidebar-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--theme-text-muted);
+      margin-bottom: var(--space-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .ccs-gauge {
+      text-align: center;
+      padding: var(--space-lg);
+      background: var(--theme-bg);
+      border-radius: var(--radius-md);
+      border: 2px solid var(--brand-primary);
+    }
+
+    .ccs-score {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--brand-primary);
+      line-height: 1;
+      margin-bottom: var(--space-xs);
+    }
+
+    .ccs-label {
+      font-size: 0.75rem;
+      color: var(--theme-text-muted);
+      font-weight: 500;
+    }
+
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: var(--space-xs);
+      padding: var(--space-sm);
+      background: var(--theme-bg);
+      border-radius: var(--radius-sm);
+      margin-bottom: var(--space-sm);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--theme-text-muted);
+    }
+
+    .status-dot.healthy { background: var(--success); }
+    .status-dot.warning { background: var(--warning); }
+    .status-dot.error { background: var(--danger); }
+
+    .status-text {
+      font-size: 0.75rem;
+      color: var(--theme-text-muted);
+    }
+
+    /* ===== Onglets ===== */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--theme-border);
+      background: var(--theme-bg);
+    }
+
+    .tab-button {
+      flex: 1;
+      padding: var(--space-lg);
+      background: none;
+      border: none;
+      color: var(--theme-text-muted);
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--transition-normal);
+      border-bottom: 3px solid transparent;
+    }
+
+    .tab-button:hover {
+      color: var(--theme-text);
+      background: var(--theme-surface);
+    }
+
+    .tab-button.active {
+      color: var(--brand-primary);
+      border-bottom-color: var(--brand-primary);
+      background: var(--theme-surface);
+    }
+
+    .tab-content {
+      padding: var(--space-xl);
+      min-height: 400px;
+    }
+
+    .tab-pane {
+      display: none;
+    }
+
+    .tab-pane.active {
+      display: block;
+    }
+
+    /* ===== Risk Components (existants) ===== */
     .risk-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -236,16 +377,95 @@
   <div id="shared-header"></div>
 
   <div class="container">
+    <!-- Controls Header -->
     <div class="controls">
       <button class="refresh-btn" onclick="refreshDashboard()" id="refresh-btn">🔄 Refresh Data</button>
-      <button class="refresh-btn" onclick="enableAutoRefresh()" id="auto-refresh-btn">⏱️ Enable Auto-Refresh
-        (30s)</button>
+      <button class="refresh-btn" onclick="enableAutoRefresh()" id="auto-refresh-btn">⏱️ Enable Auto-Refresh (30s)</button>
       <button class="refresh-btn" onclick="testEndpoint()" style="background:#007bff">🧪 Test API</button>
       <div class="timestamp" id="last-update"></div>
     </div>
 
-    <div id="dashboard-content">
-      <div class="loading">Loading risk metrics.</div>
+    <!-- Layout Hybride: Sidebar + Main -->
+    <div class="dashboard-layout">
+      <!-- Sidebar Fixe -->
+      <div class="sidebar">
+        <!-- CCS Gauge -->
+        <div class="sidebar-section">
+          <div class="sidebar-title">Market Score CCS</div>
+          <div class="ccs-gauge" id="ccs-gauge">
+            <div class="ccs-score" id="ccs-score">--</div>
+            <div class="ccs-label">Loading...</div>
+          </div>
+        </div>
+
+        <!-- Cycle Indicator -->
+        <div class="sidebar-section">
+          <div class="sidebar-title">Cycle Position</div>
+          <div id="cycle-indicator">
+            <div class="status-indicator">
+              <div class="status-dot" id="cycle-dot"></div>
+              <div class="status-text" id="cycle-text">Loading cycle data...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Targets Summary -->
+        <div class="sidebar-section">
+          <div class="sidebar-title">Target Changes</div>
+          <div id="targets-summary">
+            <div class="status-text">No changes proposed</div>
+          </div>
+        </div>
+
+        <!-- API Status -->
+        <div class="sidebar-section">
+          <div class="sidebar-title">API Health</div>
+          <div id="api-status">
+            <div class="status-indicator">
+              <div class="status-dot" id="backend-dot"></div>
+              <div class="status-text">Backend API</div>
+            </div>
+            <div class="status-indicator">
+              <div class="status-dot" id="signals-dot"></div>
+              <div class="status-text">Market Signals</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Content avec Onglets -->
+      <div class="main-content">
+        <div class="tabs">
+          <button class="tab-button active" data-tab="risk" onclick="switchTab('risk')">Risk Overview</button>
+          <button class="tab-button" data-tab="cycles" onclick="switchTab('cycles')">Market Cycles</button>
+          <button class="tab-button" data-tab="targets" onclick="switchTab('targets')">Strategic Targets</button>
+        </div>
+
+        <div class="tab-content">
+          <!-- Risk Overview Tab -->
+          <div class="tab-pane active" id="risk-tab">
+            <div id="risk-dashboard-content">
+              <div class="loading">Loading risk metrics...</div>
+            </div>
+          </div>
+
+          <!-- Market Cycles Tab -->
+          <div class="tab-pane" id="cycles-tab">
+            <div id="cycles-content">
+              <h3>🔄 Market Cycle Analysis</h3>
+              <p>Cycle navigation will be implemented here...</p>
+            </div>
+          </div>
+
+          <!-- Strategic Targets Tab -->
+          <div class="tab-pane" id="targets-tab">
+            <div id="targets-content">
+              <h3>🎯 Strategic Targets</h3>
+              <p>Target management will be implemented here...</p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -255,37 +475,120 @@
     <div class="tip-body"></div>
   </div>
 
-  <script>
+  <script type="module">
+    // Import core modules
+    import { store } from './core/risk-dashboard-store.js';
+    import { fetchCached } from './core/fetcher.js';
+
+    // Global state
     let autoRefreshInterval = null;
     let isRefreshing = false;
+
+    // ====== Tab Management ======
+    window.switchTab = function(tabName) {
+      // Update UI state
+      document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+      
+      document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+      document.getElementById(`${tabName}-tab`).classList.add('active');
+      
+      // Update store
+      store.set('ui.activeTab', tabName);
+      
+      console.log(`Switched to tab: ${tabName}`);
+    };
 
     // ====== Tooltip helpers ======
     const $tip = document.getElementById('tooltip');
     const $tipTitle = $tip?.querySelector('.tip-title');
     const $tipBody = $tip?.querySelector('.tip-body');
-    function showTip(title, body, x, y) { if (!$tip) return; $tipTitle.textContent = title || ''; $tipBody.textContent = body || ''; $tip.style.left = x + 'px'; $tip.style.top = y + 'px'; $tip.classList.add('show'); $tip.setAttribute('aria-hidden', 'false'); }
-    function moveTip(x, y) { if (!$tip) return; $tip.style.left = x + 'px'; $tip.style.top = y + 'px'; }
-    function hideTip() { if (!$tip) return; $tip.classList.remove('show'); $tip.setAttribute('aria-hidden', 'true'); }
-    function attachTip(el, title, body) { if (!el) return; el.addEventListener('mouseenter', e => showTip(title, body, e.clientX, e.clientY)); el.addEventListener('mousemove', e => moveTip(e.clientX, e.clientY)); el.addEventListener('mouseleave', hideTip); el.classList.add('hinted'); }
+    
+    function showTip(title, body, x, y) { 
+      if (!$tip) return; 
+      $tipTitle.textContent = title || ''; 
+      $tipBody.textContent = body || ''; 
+      $tip.style.left = x + 'px'; 
+      $tip.style.top = y + 'px'; 
+      $tip.classList.add('show'); 
+      $tip.setAttribute('aria-hidden', 'false'); 
+    }
+    
+    function moveTip(x, y) { 
+      if (!$tip) return; 
+      $tip.style.left = x + 'px'; 
+      $tip.style.top = y + 'px'; 
+    }
+    
+    function hideTip() { 
+      if (!$tip) return; 
+      $tip.classList.remove('show'); 
+      $tip.setAttribute('aria-hidden', 'true'); 
+    }
+    
+    function attachTip(el, title, body) { 
+      if (!el) return; 
+      el.addEventListener('mouseenter', e => showTip(title, body, e.clientX, e.clientY)); 
+      el.addEventListener('mousemove', e => moveTip(e.clientX, e.clientY)); 
+      el.addEventListener('mouseleave', hideTip); 
+      el.classList.add('hinted'); 
+    }
 
-    // ====== Barème et textes d'aide ======
+    // ====== Formatters ======
     const pct = v => (v == null || isNaN(v) ? 'N/A' : (v * 100).toFixed(2) + '%');
     const num = v => (v == null || isNaN(v) ? 'N/A' : Number(v).toFixed(2));
-
-    // Bornes heuristiques (ajuste selon tes préférences)
-    const RISK_RULES = {
-      var95_1d: { label: 'VaR 95% (1j)', good: [0, 0.01], warn: [0.01, 0.02], bad: [0.02, Infinity], explain: "Perte 1j que tu ne dépasses qu'1x sur 20.\nPlus bas = mieux." },
-      var99_1d: { label: 'VaR 99% (1j)', good: [0, 0.015], warn: [0.015, 0.03], bad: [0.03, Infinity], explain: "Perte 1j que tu ne dépasses qu'1x sur 100.\nPlus bas = mieux." },
-      cvar95_1d: { label: 'cVaR 95% (1j)', good: [0, 0.013], warn: [0.013, 0.025], bad: [0.025, Infinity], explain: "Perte moyenne dans les pires 5% des jours.\nPlus bas = mieux." },
-      cvar99_1d: { label: 'cVaR 99% (1j)', good: [0, 0.018], warn: [0.018, 0.035], bad: [0.035, Infinity], explain: "Perte moyenne dans les pires 1% des jours.\nPlus bas = mieux." },
-      volatility_ann: { label: 'Volatilité (ann.)', good: [0, 0.40], warn: [0.40, 0.80], bad: [0.80, Infinity], explain: "Variabilité annualisée du portefeuille.\nPlus bas = plus défensif." },
-      sharpe: { label: 'Sharpe', good: [1.5, Infinity], warn: [0.8, 1.5], bad: [-Infinity, 0.8], explain: "Rendement excédentaire / risque.\n>1.0 correct • >1.5 bon • >2.0 excellent." },
-      sortino: { label: 'Sortino', good: [1.8, Infinity], warn: [1.0, 1.8], bad: [-Infinity, 1.0], explain: "Comme Sharpe mais pénalise seulement la baisse.\n>1.5 bon." },
-      max_drawdown: { label: 'Max Drawdown', good: [0, 0.35], warn: [0.35, 0.60], bad: [0.60, Infinity], explain: "Pire chute historique.\nPlus bas = trajectoire plus lisse." },
-      current_drawdown: { label: 'Drawdown courant', good: [0, 0.10], warn: [0.10, 0.25], bad: [0.25, Infinity], explain: "Écart actuel au dernier sommet.\nPlus bas = mieux." },
-      diversification_ratio: { label: 'Diversification Ratio', good: [1.5, Infinity], warn: [1.2, 1.5], bad: [-Infinity, 1.2], explain: "Plus élevé = meilleure diversification." },
-      effective_assets: { label: 'Effective Assets', good: [8, Infinity], warn: [4, 8], bad: [-Infinity, 4], explain: "Nombre effectif d'actifs indépendants." }
-    };
+    
+    // ====== API Functions ======
+    async function fetchRiskData() {
+      return fetchCached(
+        'risk-dashboard',
+        () => fetch('http://localhost:8000/api/risk/dashboard?source=cointracking&pricing=local&min_usd=1.00')
+          .then(r => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+            return r.json();
+          }),
+        'risk'
+      );
+    }
+    
+    // ====== Sidebar Updates ======
+    function updateSidebar(state) {
+      // Update CCS gauge
+      const ccsScore = state.ccs?.score;
+      const ccsScoreEl = document.getElementById('ccs-score');
+      const ccsLabelEl = ccsScoreEl?.nextElementSibling;
+      
+      if (ccsScore !== null && ccsScore !== undefined) {
+        ccsScoreEl.textContent = Math.round(ccsScore);
+        ccsLabelEl.textContent = `CCS Score (${new Date().toLocaleTimeString()})`;
+      } else {
+        ccsScoreEl.textContent = '--';
+        ccsLabelEl.textContent = 'Loading...';
+      }
+      
+      // Update API status
+      const backendDot = document.getElementById('backend-dot');
+      const signalsDot = document.getElementById('signals-dot');
+      
+      if (backendDot) {
+        backendDot.className = `status-dot ${state.ui?.apiStatus?.backend || 'unknown'}`;
+      }
+      if (signalsDot) {
+        signalsDot.className = `status-dot ${state.ui?.apiStatus?.signals || 'unknown'}`;
+      }
+      
+      // Update cycle indicator
+      const cycleText = document.getElementById('cycle-text');
+      const cycleDot = document.getElementById('cycle-dot');
+      
+      if (state.cycle?.months) {
+        cycleText.textContent = `Month ${state.cycle.months} after halving`;
+        cycleDot.className = 'status-dot healthy';
+      } else {
+        cycleText.textContent = 'Loading cycle data...';
+        cycleDot.className = 'status-dot';
+      }
+    }
 
     function rate(key, value) {
       const r = RISK_RULES[key]; if (!r || value == null || isNaN(value)) return { dot: 'orange', verdict: 'Indisponible', body: 'Donnée indisponible.' };
@@ -299,39 +602,60 @@
       return { dot, verdict, body, label: r.label };
     }
 
-    // ====== Initialisation ======
-    document.addEventListener('DOMContentLoaded', function () {
-      initSharedHeader('risk-dashboard'); // conserve ton menu/header existant
-      refreshDashboard();
-    });
+    // Note: Initialization moved to the bottom of the script
 
+    // ====== Main Functions ======
     async function refreshDashboard() {
       if (isRefreshing) return;
       isRefreshing = true;
+      
       const refreshBtn = document.getElementById('refresh-btn');
-      refreshBtn.disabled = true; refreshBtn.textContent = '🔄 Refreshing…';
+      refreshBtn.disabled = true; 
+      refreshBtn.textContent = '🔄 Refreshing…';
+      
+      // Update loading state
+      store.set('ui.loading', true);
+      store.set('ui.apiStatus.backend', 'unknown');
 
       try {
-        const resp = await fetch('http://localhost:8000/api/risk/dashboard?source=cointracking&pricing=local&min_usd=1.00');
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
-        const data = await resp.json();
+        // Fetch risk data using cached fetcher
+        const data = await fetchRiskData();
+        
         if (data && data.success) {
-          renderDashboard(data);
-          if (data.timestamp && data.calculation_time) { updateTimestamp(data.timestamp, data.calculation_time); }
+          // Update store with risk data
+          store.set('riskMetrics', data.risk_metrics);
+          store.set('portfolioSummary', data.portfolio_summary);
+          store.set('correlationMetrics', data.correlation_metrics);
+          store.set('ui.apiStatus.backend', 'healthy');
+          
+          // Render risk dashboard in the active tab
+          renderRiskDashboard(data);
+          
+          // Update timestamp
+          if (data.timestamp && data.calculation_time) { 
+            updateTimestamp(data.timestamp, data.calculation_time); 
+          }
+          
+          console.log('Risk dashboard refreshed successfully');
+          
         } else {
-          renderError(data?.message || 'Failed to load risk dashboard');
+          throw new Error(data?.message || 'Failed to load risk dashboard');
         }
+        
       } catch (err) {
         console.error('Dashboard error:', err);
+        store.set('ui.apiStatus.backend', 'error');
         renderError('Network error: ' + err.message);
       } finally {
         isRefreshing = false;
-        refreshBtn.disabled = false; refreshBtn.textContent = '🔄 Refresh Data';
+        store.set('ui.loading', false);
+        refreshBtn.disabled = false; 
+        refreshBtn.textContent = '🔄 Refresh Data';
       }
     }
 
-    function renderDashboard(data) {
-      const container = document.getElementById('dashboard-content');
+    function renderRiskDashboard(data) {
+      const container = document.getElementById('risk-dashboard-content');
       if (!data || !data.risk_metrics || !data.correlation_metrics || !data.portfolio_summary) {
         renderError('Incomplete data received from API'); return;
       }
@@ -477,7 +801,7 @@
     }
 
     function renderError(message) {
-      document.getElementById('dashboard-content').innerHTML = `
+      document.getElementById('risk-dashboard-content').innerHTML = `
         <div class="error">
           <h3>❌ Error Loading Dashboard</h3>
           <p>${message}</p>
@@ -555,6 +879,37 @@
         el.classList.add('hinted');
       });
     }
+
+    // ====== Initialization & Store Connection ======
+    
+    // Subscribe to store changes for sidebar updates
+    store.subscribe((state) => {
+      updateSidebar(state);
+    });
+    
+    // Global functions for backwards compatibility
+    window.refreshDashboard = refreshDashboard;
+    window.enableAutoRefresh = enableAutoRefresh;
+    window.testEndpoint = testEndpoint;
+    
+    // Initialize on DOM ready
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('Risk Dashboard CCS MVP initializing...');
+      
+      // Initialize shared header
+      initSharedHeader('risk-dashboard');
+      
+      // Hydrate store from localStorage
+      store.hydrate();
+      
+      // Initial sidebar update
+      updateSidebar(store.snapshot());
+      
+      // Load initial data
+      refreshDashboard();
+      
+      console.log('Risk Dashboard CCS MVP initialized');
+    });
   </script>
 </body>
 
