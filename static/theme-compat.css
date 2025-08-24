@@ -1,0 +1,86 @@
+/*!
+ * Compat thème + presets UI
+ * - Alias manquants pour fond/survols
+ * - Token “on-primary” pour le texte sur fonds colorés
+ * - Presets data-style: modern (défaut) | glass | terminal | minimal
+ */
+
+:root {
+    /* Aliases / compat */
+    --theme-background: var(--theme-bg);
+    --muted: var(--theme-text-muted);
+    --accent: var(--brand-primary);
+    --border: var(--theme-border);
+    --focus-ring: 0 0 0 3px rgba(59, 130, 246, .25);
+
+    /* Survols + texte sur primaires */
+    --theme-surface-hover: #f8fafc;
+    --brand-primary-subtle: rgba(59, 130, 246, .12);
+    --on-primary: #ffffff;
+    --on-primary-muted: rgba(255, 255, 255, .85);
+}
+
+[data-theme="dark"] {
+    --theme-surface-hover: #111827;
+    --brand-primary-subtle: rgba(59, 130, 246, .20);
+}
+
+/* ================== PRESETS UI ================== */
+/* modern (défaut) → rien à faire */
+
+/* Glass */
+[data-style="glass"] {
+    --shadow-lg: 0 8px 30px rgba(0, 0, 0, .15);
+    --shadow-md: 0 6px 18px rgba(0, 0, 0, .12);
+}
+
+[data-theme="light"][data-style="glass"] {
+    --theme-surface: rgba(255, 255, 255, .65);
+    --theme-surface-elevated: rgba(255, 255, 255, .8);
+    --theme-border: rgba(0, 0, 0, .08);
+}
+
+[data-theme="dark"][data-style="glass"] {
+    --theme-surface: rgba(17, 24, 39, .55);
+    --theme-surface-elevated: rgba(17, 24, 39, .7);
+    --theme-border: rgba(255, 255, 255, .08);
+}
+
+/* Terminal */
+[data-style="terminal"] {
+    --brand-primary: #22c55e;
+    --brand-primary-hover: #16a34a;
+    --theme-text-subtle: #9ca3af;
+}
+
+[data-theme="light"][data-style="terminal"],
+[data-theme="dark"][data-style="terminal"] {
+    --theme-bg: #0b0f14;
+    --theme-surface: #0e1620;
+    --theme-surface-elevated: #121a24;
+    --theme-border: #1f2b3a;
+}
+
+/* Minimal — clairement différent : coins + ombres à zéro, surfaces à plat */
+[data-style="minimal"] {
+    --radius-sm: .25rem;
+    --radius-md: .375rem;
+    --radius-lg: .5rem;
+    --radius-xl: .75rem;
+
+    --shadow-sm: none;
+    --shadow-md: none;
+    --shadow-lg: none;
+    --shadow-xl: none;
+
+    /* surfaces sans elevation (flat) */
+    --theme-surface-elevated: var(--theme-surface);
+
+    /* accent plus discret pour les states “subtle” */
+    --brand-primary-subtle: rgba(59, 130, 246, .06);
+}
+
+/* Helpers UI communs (si besoin d’override léger) */
+.card-flat {
+    box-shadow: none !important;
+}
