@@ -440,8 +440,8 @@ async def get_dashboard_data():
             "recent_sessions": recent_sessions[:10],  # Dernières 10 sessions
             "statistics": stats,
             "performance": {
-                "last_7_days": metrics_7d.to_dict(),
-                "last_30_days": metrics_30d.to_dict()
+                "last_7_days": metrics_7d,
+                "last_30_days": metrics_30d
             },
             "trends": trends,
             "refresh_timestamp": datetime.now(timezone.utc).isoformat()
