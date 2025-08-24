@@ -334,7 +334,11 @@ async def run_custom_stress_test(
         )
 
 @router.get("/dashboard")
-async def get_risk_dashboard():
+async def get_risk_dashboard(
+    source: str = Query("cointracking", description="Source de données: cointracking ou cointracking_api"),
+    pricing: str = Query("local", description="Source de prix: local ou coingecko"),
+    min_usd: float = Query(1.0, description="Seuil minimum en USD")
+):
     """
     Endpoint pour dashboard de risque temps réel
     Combine toutes les métriques de risque en une seule réponse
@@ -342,17 +346,28 @@ async def get_risk_dashboard():
     try:
         start_time = datetime.now()
         
-        # Import des balances CoinTracking
-        from connectors.cointracking_api import get_current_balances
+        # FORCE: Utiliser exactement la même logique que /balances/current
+        # Au lieu d'utiliser notre fonction, copions directement la logique
+        from api.main import resolve_current_balances, _to_rows
         
-        # Récupération des holdings actuels
-        balances_response = await get_current_balances()
+        # DEBUG: Log de début
+        print(f"DEBUG: Risk Dashboard starting with source={source}, min_usd={min_usd}")
+        
+        res = await resolve_current_balances(source=source)
+        rows = [r for r in _to_rows(res.get("items", [])) if float(r.get("value_usd") or 0.0) >= float(min_usd)]
+        balances_response = {"source_used": res.get("source_used"), "items": rows}
+        
+        # DEBUG: Log du résultat
+        items_count = len(balances_response.get('items', []))
+        print(f"DEBUG: Risk Dashboard received {items_count} items after filtering")
+        
         if not balances_response or not isinstance(balances_response, dict):
             return {
                 "success": False,
-                "message": "Erreur lors de la récupération des données CoinTracking"
+                "message": "Erreur lors de la récupération des données"
             }
         
+        # Utiliser les items filtrés
         balances = balances_response.get('items', [])
         if not balances or len(balances) == 0:
             return {

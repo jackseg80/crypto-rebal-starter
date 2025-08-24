@@ -3,8 +3,9 @@ from __future__ import annotations
 from typing import Any, Dict, List
 from time import monotonic
 import os, sys, inspect, hashlib, time
-from fastapi import FastAPI, Query, Body, Response
+from fastapi import FastAPI, Query, Body, Response, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from pathlib import Path
 from fastapi.staticfiles import StaticFiles
@@ -26,14 +27,70 @@ from api.kraken_endpoints import router as kraken_router
 from api.smart_taxonomy_endpoints import router as smart_taxonomy_router
 from api.advanced_rebalancing_endpoints import router as advanced_rebalancing_router
 from api.risk_endpoints import router as risk_router
+from api.execution_history import router as execution_history_router
+from api.monitoring_advanced import router as monitoring_advanced_router
+from api.exceptions import (
+    CryptoRebalancerException, APIException, ValidationException, 
+    ConfigurationException, TradingException, DataException, ErrorCodes
+)
+from api.models import APIKeysRequest, PortfolioMetricsRequest
 
 app = FastAPI()
-# CORS large pour tests locaux + UI docs/
+
+# Gestionnaires d'exceptions globaux
+@app.exception_handler(CryptoRebalancerException)
+async def crypto_exception_handler(request: Request, exc: CryptoRebalancerException):
+    """Gestionnaire pour toutes les exceptions personnalisées"""
+    status_code = 400
+    if isinstance(exc, APIException):
+        status_code = exc.status_code or 500
+    elif isinstance(exc, ValidationException):
+        status_code = ErrorCodes.INVALID_INPUT
+    elif isinstance(exc, ConfigurationException):
+        status_code = ErrorCodes.INVALID_CONFIG
+    elif isinstance(exc, TradingException):
+        status_code = ErrorCodes.INSUFFICIENT_BALANCE
+    elif isinstance(exc, DataException):
+        status_code = ErrorCodes.DATA_NOT_FOUND
+    
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "ok": False,
+            "error": exc.__class__.__name__,
+            "message": exc.message,
+            "details": exc.details,
+            "path": request.url.path
+        }
+    )
+
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    """Gestionnaire pour toutes les autres exceptions"""
+    return JSONResponse(
+        status_code=500,
+        content={
+            "ok": False,
+            "error": "InternalServerError",
+            "message": "An unexpected error occurred",
+            "details": str(exc) if app.debug else None,
+            "path": request.url.path
+        }
+    )
+
+# CORS sécurisé pour développement local
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:8000", 
+        "http://localhost:8080",
+        "http://127.0.0.1:8000",
+        "http://127.0.0.1:8080",
+        "file://"  # Pour les fichiers HTML statiques
+    ],
     allow_credentials=True,
-    allow_methods=["*"],         # important pour POST CSV + preflight
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -372,15 +429,18 @@ async def healthz():
     return {"ok": True}
 
 
+# Helper function moved to unified_data.py to avoid circular imports
+
+# Debug endpoint removed
+
 # ---------- balances ----------
 @app.get("/balances/current")
 async def balances_current(
     source: str = Query("cointracking"),
     min_usd: float = Query(1.0)
 ):
-    res = await resolve_current_balances(source=source)
-    rows = [r for r in _to_rows(res.get("items", [])) if float(r.get("value_usd") or 0.0) >= float(min_usd)]
-    return {"source_used": res.get("source_used"), "items": rows}
+    from api.unified_data import get_unified_filtered_balances
+    return await get_unified_filtered_balances(source=source, min_usd=min_usd)
 
 
 # ---------- rebalance (JSON) ----------
@@ -394,28 +454,10 @@ async def rebalance_plan(
 ):
     min_usd = _parse_min_usd(min_usd_raw, default=1.0)
 
-    # portefeuille - utiliser les données enrichies avec locations
-    try:
-        from connectors.cointracking import get_unified_balances_by_exchange
-        exchange_data = await get_unified_balances_by_exchange(source=source)
-        
-        # Extraire tous les items avec leurs locations des detailed_holdings
-        items_with_location = []
-        detailed_holdings = exchange_data.get("detailed_holdings", {})
-        
-        for location, assets in detailed_holdings.items():
-            for asset in assets:
-                # Ensure location is set on the asset
-                if "location" not in asset or not asset["location"]:
-                    asset["location"] = location
-                items_with_location.append(asset)  # asset contient déjà symbol, value_usd, location, amount
-        
-        rows = [r for r in _to_rows(items_with_location) if float(r.get("value_usd") or 0.0) >= min_usd]
-        
-    except Exception as e:
-        # Fallback sur la méthode originale en cas d'erreur
-        res = await resolve_current_balances(source=source)
-        rows = [r for r in _to_rows(res.get("items", [])) if float(r.get("value_usd") or 0.0) >= min_usd]
+    # portefeuille - utiliser la fonction helper unifiée
+    from api.unified_data import get_unified_filtered_balances
+    unified_data = await get_unified_filtered_balances(source=source, min_usd=min_usd)
+    rows = unified_data.get("items", [])
 
     # targets - support for dynamic CCS-based targets
     if dynamic_targets and payload.get("dynamic_targets_pct"):
@@ -675,17 +717,25 @@ async def debug_ctapi():
     return _debug_probe()
 
 @app.get("/debug/api-keys")
-async def debug_api_keys():
-    """Expose les clés API depuis .env pour auto-configuration"""
+async def debug_api_keys(debug_token: str = None):
+    """Expose les clés API depuis .env pour auto-configuration (sécurisé)"""
+    # Simple protection pour développement
+    if debug_token != os.getenv("DEBUG_TOKEN", "dev-secret-2024"):
+        raise HTTPException(status_code=403, detail="Debug token required")
+    
     return {
-        "coingecko_api_key": os.getenv("COINGECKO_API_KEY", ""),
-        "cointracking_api_key": os.getenv("COINTRACKING_API_KEY", ""),
-        "cointracking_api_secret": os.getenv("COINTRACKING_API_SECRET", "")
+        "coingecko_api_key": os.getenv("COINGECKO_API_KEY", "")[:8] + "...",  # Masquer partiellement
+        "cointracking_api_key": os.getenv("COINTRACKING_API_KEY", "")[:8] + "...",
+        "cointracking_api_secret": "***masked***"
     }
 
 @app.post("/debug/api-keys")
-async def update_api_keys(payload: dict):
-    """Met à jour les clés API dans le fichier .env"""
+async def update_api_keys(payload: APIKeysRequest, debug_token: str = None):
+    """Met à jour les clés API dans le fichier .env (sécurisé)"""
+    # Simple protection pour développement
+    if debug_token != os.getenv("DEBUG_TOKEN", "dev-secret-2024"):
+        raise HTTPException(status_code=403, detail="Debug token required")
+    
     import re
     from pathlib import Path
     
@@ -704,11 +754,12 @@ async def update_api_keys(payload: dict):
     }
     
     updated = False
+    payload_dict = payload.dict(exclude_none=True)  # Convertir le modèle Pydantic en dict
     for field_key, env_key in key_mappings.items():
-        if field_key in payload and payload[field_key]:
+        if field_key in payload_dict and payload_dict[field_key]:
             # Chercher si la clé existe déjà
             pattern = rf"^{env_key}=.*$"
-            new_line = f"{env_key}={payload[field_key]}"
+            new_line = f"{env_key}={payload_dict[field_key]}"
             
             if re.search(pattern, content, re.MULTILINE):
                 # Remplacer la ligne existante
@@ -737,6 +788,8 @@ app.include_router(kraken_router)
 app.include_router(smart_taxonomy_router)
 app.include_router(advanced_rebalancing_router)
 app.include_router(risk_router)
+app.include_router(execution_history_router)
+app.include_router(monitoring_advanced_router)
 
 # ---------- Portfolio Analytics ----------
 @app.get("/portfolio/metrics")

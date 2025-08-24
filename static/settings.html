@@ -449,7 +449,7 @@ async function autoDetectApiKeys() {
   try {
     const globalSettings = globalConfig.getAll();
     // Essayer de récupérer les clés depuis le backend
-    const response = await fetch(`${globalSettings.api_base_url}/debug/api-keys`);
+    const response = await fetch(`${globalSettings.api_base_url}/debug/api-keys?debug_token=dev-secret-2024`);
     if (response.ok) {
       const data = await response.json();
       let foundKeys = false;
@@ -535,7 +535,7 @@ function toggleApiKeyVisibility(fieldId) {
 // Synchroniser depuis .env
 async function syncApiKeysFromEnv() {
   try {
-    const response = await fetch(`${globalConfig.get('api_base_url')}/debug/api-keys`);
+    const response = await fetch(`${globalConfig.get('api_base_url')}/debug/api-keys?debug_token=dev-secret-2024`);
     if (response.ok) {
       const data = await response.json();
       let foundKeys = false;
@@ -591,7 +591,7 @@ async function syncApiKeysToEnv() {
   };
   
   try {
-    const response = await fetch(`${globalConfig.get('api_base_url')}/debug/api-keys`, {
+    const response = await fetch(`${globalConfig.get('api_base_url')}/debug/api-keys?debug_token=dev-secret-2024`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
