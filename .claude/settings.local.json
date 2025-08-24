@@ -29,7 +29,9 @@
       "Bash(gh pr create:*)",
       "Bash(gh pr merge:*)",
       "Bash(git pull:*)",
-      "Bash(git merge:*)"
+      "Bash(git merge:*)",
+      "WebFetch(domain:localhost)",
+      "Read(/D:\\d D:\\Python/**)"
     ],
     "deny": [],
     "ask": [],

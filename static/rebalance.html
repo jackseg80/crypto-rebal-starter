@@ -1,294 +1,492 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Crypto Rebalancer</title>
-<style>
-  :root{
-    --bg:#0a0f14; --card:#0e1620; --muted:#8fa0b3; --text:#e7eef7;
-    --accent:#2dd4bf; --danger:#ef4444; --border:#1f2b3a; --pos:#22c55e;
-  }
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-  header{position:sticky;top:0;background:linear-gradient(180deg,rgba(10,15,20,.95),rgba(10,15,20,.85));backdrop-filter: blur(6px);border-bottom:1px solid var(--border);z-index:10}
-  .wrap{max-width:1200px;margin:0 auto;padding:16px}
-  h1{margin:0 0 8px 0;font-size:20px}
-  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-  label{font-size:12px;color:var(--muted)}
-  input,select,button,textarea{padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text)}
-  button{cursor:pointer}
-  .btn{background:var(--accent);color:#07211e;font-weight:700;border:0}
-  .btn.secondary{background:#223044;color:var(--text);border:1px solid var(--border)}
-  .btn.ghost{background:transparent;border:1px dashed var(--border);color:var(--muted)}
-  .btn.small{padding:6px 8px;font-size:12px;border-radius:8px}
-  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px}
-  .muted{color:var(--muted)}
-  table{width:100%;border-collapse:collapse}
-  th,td{border-bottom:1px solid var(--border);padding:6px 8px;text-align:left;font-size:13px}
-  th{color:var(--muted);font-weight:600}
-  tr:hover td{background:#0b131d}
-  .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;border:1px solid var(--border);background:#0b131d;font-size:12px}
-  .right{text-align:right}
-  .small{font-size:12px}
-  .mt8{margin-top:8px}
-  .mt16{margin-top:16px}
-  .grid{display:grid;gap:10px}
-  @media(min-width:900px){ .grid.g2{grid-template-columns:repeat(2,1fr)} .grid.g3{grid-template-columns:repeat(3,1fr)} }
-  /* Styles pour les cartes de stratégies */
-  .strategy-card {
-    border: 2px solid var(--border);
-    border-radius: 12px;
-    padding: 16px;
-    cursor: pointer;
-    transition: all 0.2s;
-    background: var(--card);
-  }
-  .strategy-card:hover {
-    border-color: var(--accent);
-    background: rgba(45, 212, 191, 0.05);
-  }
-  .strategy-card.selected {
-    border-color: var(--accent);
-    background: rgba(45, 212, 191, 0.1);
-    box-shadow: 0 0 20px rgba(45, 212, 191, 0.2);
-  }
-  .strategy-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-  }
-  .strategy-title {
-    font-weight: 700;
-    font-size: 16px;
-  }
-  .strategy-risk {
-    font-size: 11px;
-    padding: 2px 6px;
-    border-radius: 6px;
-    font-weight: 600;
-  }
-  .risk-faible { background: #22c55e; color: white; }
-  .risk-moyen { background: #f59e0b; color: white; }
-  .risk-élevé { background: #ef4444; color: white; }
-  .risk-faible-moyen { background: #84cc16; color: white; }
-  .strategy-allocations {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 8px;
-  }
-  .allocation-pill {
-    font-size: 11px;
-    padding: 2px 6px;
-    border-radius: 6px;
-    background: rgba(45, 212, 191, 0.1);
-    border: 1px solid var(--accent);
-    color: var(--accent);
-  }
-  @media(min-width: 768px) {
-    #strategies-container { grid-template-columns: repeat(2, 1fr); }
-  }
-  @media(min-width: 1200px) {
-    #strategies-container { grid-template-columns: repeat(3, 1fr); }
-  }
-  .delta-pos{color:var(--pos)}
-  .delta-neg{color:var(--danger)}
-  .badge{font-weight:700}
-  .legend{display:flex;gap:10px;flex-wrap:wrap}
-  .dot{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px}
-  /* Notifications stylisées */
-  .notification {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    padding: 12px 16px;
-    border-radius: 8px;
-    font-size: 14px;
-    z-index: 1000;
-    background: var(--card);
-    border: 1px solid var(--border);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    animation: slideIn 0.3s ease-out;
-  }
-  @keyframes slideIn {
-    from { transform: translateX(100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-  }
-  .notification.success { border-left: 4px solid #22c55e; }
-  .notification.error { border-left: 4px solid #ef4444; }
-  .notification {
-    position: fixed; bottom: 20px; right: 20px; padding: 12px 16px;
-    border-radius: 8px; font-size: 14px; z-index: 1000;
-    background: #0e1620; border: 1px solid #1f2b3a;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    animation: slideIn 0.3s ease-out;
-  }
-  @keyframes slideIn {
-    from { transform: translateX(100%); }
-    to { transform: translateX(0); }
-  }
-  .notification.success { border-left: 4px solid #22c55e; }
-  .notification.error { border-left: 4px solid #ef4444; }
-</style>
-</head>
-<body>
-<!-- Header sera injecté par shared-header.js -->
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Crypto Rebalancer</title>
+  <link rel="stylesheet" href="shared-theme.css">
+  <link rel="stylesheet" href="theme-compat.css">
 
-<div class="wrap" style="margin-top: 20px;">
-  <!-- Stratégies de Rebalancing -->
-  <div class="card" style="margin-bottom: 16px;">
-    <h3>🎯 Stratégies Prédéfinies</h3>
-    <div id="strategies-container" style="display: grid; gap: 12px; margin-top: 12px;">
-      <div style="text-align: center; padding: 20px; color: var(--muted);">
-        Chargement des stratégies...
-      </div>
-    </div>
-    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);">
-      <div class="row">
-        <button id="apply-strategy-btn" class="btn small" style="background: #22c55e;" disabled>
-          ✅ Appliquer la Stratégie
-        </button>
-        <button id="reset-strategy-btn" class="btn small secondary">
-          🔄 Reset Manuel
-        </button>
-        <div style="flex-grow: 1;"></div>
-        <span id="selected-strategy-info" class="pill" style="display: none;">
-          Aucune stratégie sélectionnée
-        </span>
-      </div>
-    </div>
-  </div>
-
-  <!-- Configuration simplifiée -->
-  <div class="card" style="margin-bottom: 16px;">
-    <div class="row">
-      <div style="align-self:flex-end">
-        <button id="btnRun" class="btn">Générer le plan</button>
-        <button id="btnCsv" class="btn secondary" disabled>Télécharger CSV</button>
-        <button id="btnJson" class="btn secondary" disabled>Export JSON</button>
-        <button id="btnCopyJson" class="btn secondary" disabled>📋 Copier JSON</button>
-      </div>
-      <div style="align-self:flex-end;margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
-        <span id="dynamicTargetsIndicator" class="pill" style="background:#f59e0b;color:white;display:none;">🎯 Targets dynamiques</span>
-        <span id="total" class="pill">Total : —</span>
-        <span id="status" class="pill">Prêt.</span>
-      </div>
-    </div>
-  </div>
-</div>
-
-<main class="wrap">
-  <!-- Donuts -->
-  <section class="card">
-    <h3>Répartition</h3>
-    <div class="grid g2">
-      <div>
-        <div class="small muted">Actuelle</div>
-        <div id="donutCurrent"></div>
-      </div>
-      <div>
-        <div class="small muted">Cible</div>
-        <div id="donutTarget"></div>
-      </div>
-    </div>
-    <div id="legend" class="legend mt8"></div>
-  </section>
-
-  <!-- Résumé -->
-  <section class="card mt16">
-    <h3>Résumé par groupe</h3>
-    <div id="summary" class="grid g3 mt8"></div>
-  </section>
-
-  <!-- Actions -->
-  <section class="card mt16">
-    <div class="row" style="justify-content:space-between;align-items:flex-end">
-      <h3>Actions</h3>
-      <div id="pricing-badge"></div>
-    </div>
-    <div style="overflow:auto;max-height:50vh;border:1px solid var(--border);border-radius:10px">
-      <table id="tblActions">
-        <thead>
-          <tr>
-            <th>group</th><th>alias</th><th>symbol</th><th>action</th>
-            <th class="right">usd</th><th class="right">est_quantity</th><th class="right">price_used</th><th>location</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </section>
-
-  <!-- Unknown aliases -->
-  <section class="card mt16">
-    <div class="row" style="justify-content:space-between;align-items:flex-end">
-      <div>
-        <h3>Unknown aliases</h3>
-        <div class="small">Par défaut, <strong>Others</strong> est présélectionné.</div>
-      </div>
-      <div style="display:flex;gap:12px;align-items:flex-end">
-        <div>
-          <label class="small">Tout vers</label><br/>
-          <select id="bulk_group">
-            <option value="BTC">BTC</option>
-            <option value="ETH">ETH</option>
-            <option value="Stablecoins">Stablecoins</option>
-            <option value="SOL">SOL</option>
-            <option value="L1/L0 majors">L1/L0 majors</option>
-            <option value="L2/Scaling">L2/Scaling</option>
-            <option value="DeFi">DeFi</option>
-            <option value="AI/Data">AI/Data</option>
-            <option value="Gaming/NFT">Gaming/NFT</option>
-            <option value="Memecoins">Memecoins</option>
-            <option value="Others" selected>Others</option>
-          </select>
-          <button id="btnBulkAdd" class="btn ghost">Ajouter tout</button>
-        </div>
-        <div id="alias-manager-button" style="display: none;">
-          <button class="btn secondary small" onclick="openAliasManager()" title="Ouvrir l'interface de gestion des aliases">
-            🏷️ Alias Manager
-          </button>
-        </div>
-      </div>
-    </div>
-    <div id="unknownList" class="small mt16"></div>
-  </section>
-</main>
-
-<script src="/static/global-config.js"></script>
-<script src="/static/shared-header.js"></script>
-<script>
-/* ---------- Helpers ---------- */
-const $  = sel => document.querySelector(sel);
-const el = id  => document.getElementById(id);
-
-/* ---------- Variables globales pour stratégies ---------- */
-let availableStrategies = {};
-let selectedStrategyId = null;
-
-/* ---------- Fonctions Stratégies ---------- */
-async function loadStrategies() {
-  try {
-    const response = await globalConfig.apiRequest('/strategies/list');
-    if (response.ok && response.strategies) {
-      availableStrategies = response.strategies;
-      renderStrategiesUI();
-    } else {
-      showStrategiesError('Impossible de charger les stratégies');
+  <script src="global-config.js"></script>
+  <script src="shared-header.js"></script>
+  <script src="appearance.js"></script>
+  <style>
+    * {
+      box-sizing: border-box
     }
-  } catch (error) {
-    console.error('Erreur chargement stratégies:', error);
-    showStrategiesError('Erreur réseau: ' + error.message);
-  }
-}
 
-function renderStrategiesUI() {
-  const container = el('strategies-container');
-  if (!container) return;
-  
-  const strategiesHtml = Object.entries(availableStrategies).map(([id, strategy]) => `
+    body {
+      margin: 0;
+      background: var(--theme-background);
+      color: var(--theme-text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      background: var(--theme-surface-elevated);
+      backdrop-filter: blur(6px);
+      border-bottom: 1px solid var(--theme-border);
+      z-index: 10
+    }
+
+    .wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 16px
+    }
+
+    h1 {
+      margin: 0 0 8px 0;
+      font-size: 20px
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center
+    }
+
+    label {
+      font-size: 12px;
+      color: var(--theme-text-muted)
+    }
+
+    input,
+    select,
+    button,
+    textarea {
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--theme-border);
+      background: var(--theme-surface);
+      color: var(--theme-text)
+    }
+
+    button {
+      cursor: pointer
+    }
+
+    .btn {
+      background: var(--brand-primary);
+      color: white;
+      font-weight: 700;
+      border: 0
+    }
+
+    .btn.secondary {
+      background: var(--theme-surface-elevated);
+      color: var(--theme-text);
+      border: 1px solid var(--theme-border)
+    }
+
+    .btn.ghost {
+      background: transparent;
+      border: 1px dashed var(--theme-border);
+      color: var(--theme-text-muted)
+    }
+
+    .btn.small {
+      padding: 6px 8px;
+      font-size: 12px;
+      border-radius: 8px
+    }
+
+    .card {
+      background: var(--theme-surface);
+      border: 1px solid var(--theme-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-md)
+    }
+
+    .muted {
+      color: var(--theme-text-muted)
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--theme-border);
+      padding: 6px 8px;
+      text-align: left;
+      font-size: 13px;
+      color: var(--theme-text)
+    }
+
+    th {
+      color: var(--theme-text-muted);
+      font-weight: 600
+    }
+
+    tr:hover td {
+      background: var(--theme-surface-hover)
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--theme-border);
+      background: var(--theme-surface-elevated);
+      font-size: 12px
+    }
+
+    .right {
+      text-align: right
+    }
+
+    .small {
+      font-size: 12px
+    }
+
+    .mt8 {
+      margin-top: 8px
+    }
+
+    .mt16 {
+      margin-top: 16px
+    }
+
+    .grid {
+      display: grid;
+      gap: 10px
+    }
+
+    @media(min-width:900px) {
+      .grid.g2 {
+        grid-template-columns: repeat(2, 1fr)
+      }
+
+      .grid.g3 {
+        grid-template-columns: repeat(3, 1fr)
+      }
+    }
+
+    /* Styles pour les cartes de stratégies */
+    .strategy-card {
+      border: 2px solid var(--theme-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-lg);
+      cursor: pointer;
+      transition: all var(--transition-normal);
+      background: var(--theme-surface);
+    }
+
+    .strategy-card:hover {
+      border-color: var(--brand-primary);
+      background: var(--theme-surface-hover);
+    }
+
+    .strategy-card.selected {
+      border-color: var(--brand-primary);
+      background: var(--brand-primary-subtle);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .strategy-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .strategy-title {
+      font-weight: 700;
+      font-size: 16px;
+    }
+
+    .strategy-risk {
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+
+    .risk-faible {
+      background: var(--success);
+      color: white;
+    }
+
+    .risk-moyen {
+      background: var(--warning);
+      color: white;
+    }
+
+    .risk-élevé {
+      background: var(--danger);
+      color: white;
+    }
+
+    .risk-faible-moyen {
+      background: var(--success);
+      color: white;
+    }
+
+    .strategy-allocations {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .allocation-pill {
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: var(--brand-primary-subtle);
+      border: 1px solid var(--brand-primary);
+      color: var(--brand-primary);
+    }
+
+    @media(min-width: 768px) {
+      #strategies-container {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media(min-width: 1200px) {
+      #strategies-container {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    .delta-pos {
+      color: var(--success)
+    }
+
+    .delta-neg {
+      color: var(--danger)
+    }
+
+    .badge {
+      font-weight: 700
+    }
+
+    .legend {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap
+    }
+
+    .dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      margin-right: 4px
+    }
+
+    /* Notifications stylisées */
+    .notification {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      padding: 12px 16px;
+      border-radius: var(--radius-md);
+      font-size: 14px;
+      z-index: 1000;
+      background: var(--theme-surface);
+      border: 1px solid var(--theme-border);
+      box-shadow: var(--shadow-lg);
+      animation: slideIn 0.3s ease-out;
+      color: var(--theme-text);
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    .notification.success {
+      border-left: 4px solid var(--success);
+    }
+
+    .notification.error {
+      border-left: 4px solid var(--danger);
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Header sera injecté par shared-header.js -->
+
+  <div class="wrap" style="margin-top: 20px;">
+    <!-- Stratégies de Rebalancing -->
+    <div class="card" style="margin-bottom: 16px;">
+      <h3>🎯 Stratégies Prédéfinies</h3>
+      <div id="strategies-container" style="display: grid; gap: 12px; margin-top: 12px;">
+        <div style="text-align: center; padding: 20px; color: var(--theme-text-muted);">
+          Chargement des stratégies...
+        </div>
+      </div>
+      <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--theme-border);">
+        <div class="row">
+          <button id="apply-strategy-btn" class="btn small" style="background: var(--success);" disabled>
+            ✅ Appliquer la Stratégie
+          </button>
+          <button id="reset-strategy-btn" class="btn small secondary">
+            🔄 Reset Manuel
+          </button>
+          <div style="flex-grow: 1;"></div>
+          <span id="selected-strategy-info" class="pill" style="display: none;">
+            Aucune stratégie sélectionnée
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Configuration simplifiée -->
+    <div class="card" style="margin-bottom: 16px;">
+      <div class="row">
+        <div style="align-self:flex-end">
+          <button id="btnRun" class="btn">Générer le plan</button>
+          <button id="btnCsv" class="btn secondary" disabled>Télécharger CSV</button>
+          <button id="btnJson" class="btn secondary" disabled>Export JSON</button>
+          <button id="btnCopyJson" class="btn secondary" disabled>📋 Copier JSON</button>
+        </div>
+        <div style="align-self:flex-end;margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+          <span id="dynamicTargetsIndicator" class="pill" style="background:var(--warning);color:white;display:none;">🎯
+            Targets dynamiques</span>
+          <span id="total" class="pill">Total : —</span>
+          <span id="status" class="pill">Prêt.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <main class="wrap">
+    <!-- Donuts -->
+    <section class="card">
+      <h3>Répartition</h3>
+      <div class="grid g2">
+        <div>
+          <div class="small muted">Actuelle</div>
+          <div id="donutCurrent"></div>
+        </div>
+        <div>
+          <div class="small muted">Cible</div>
+          <div id="donutTarget"></div>
+        </div>
+      </div>
+      <div id="legend" class="legend mt8"></div>
+    </section>
+
+    <!-- Résumé -->
+    <section class="card mt16">
+      <h3>Résumé par groupe</h3>
+      <div id="summary" class="grid g3 mt8"></div>
+    </section>
+
+    <!-- Actions -->
+    <section class="card mt16">
+      <div class="row" style="justify-content:space-between;align-items:flex-end">
+        <h3>Actions</h3>
+        <div id="pricing-badge"></div>
+      </div>
+      <div style="overflow:auto;max-height:50vh;border:1px solid var(--theme-border);border-radius:var(--radius-md)">
+        <table id="tblActions">
+          <thead>
+            <tr>
+              <th>group</th>
+              <th>alias</th>
+              <th>symbol</th>
+              <th>action</th>
+              <th class="right">usd</th>
+              <th class="right">est_quantity</th>
+              <th class="right">price_used</th>
+              <th>location</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Unknown aliases -->
+    <section class="card mt16">
+      <div class="row" style="justify-content:space-between;align-items:flex-end">
+        <div>
+          <h3>Unknown aliases</h3>
+          <div class="small">Par défaut, <strong>Others</strong> est présélectionné.</div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-end">
+          <div>
+            <label class="small">Tout vers</label><br />
+            <select id="bulk_group">
+              <option value="BTC">BTC</option>
+              <option value="ETH">ETH</option>
+              <option value="Stablecoins">Stablecoins</option>
+              <option value="SOL">SOL</option>
+              <option value="L1/L0 majors">L1/L0 majors</option>
+              <option value="L2/Scaling">L2/Scaling</option>
+              <option value="DeFi">DeFi</option>
+              <option value="AI/Data">AI/Data</option>
+              <option value="Gaming/NFT">Gaming/NFT</option>
+              <option value="Memecoins">Memecoins</option>
+              <option value="Others" selected>Others</option>
+            </select>
+            <button id="btnBulkAdd" class="btn ghost">Ajouter tout</button>
+          </div>
+          <div id="alias-manager-button" style="display: none;">
+            <button class="btn secondary small" onclick="openAliasManager()"
+              title="Ouvrir l'interface de gestion des aliases">
+              🏷️ Alias Manager
+            </button>
+          </div>
+        </div>
+      </div>
+      <div id="unknownList" class="small mt16"></div>
+    </section>
+  </main>
+
+  <script src="/static/global-config.js"></script>
+  <script src="/static/shared-header.js"></script>
+  <script>
+    /* ---------- Helpers ---------- */
+    const $ = sel => document.querySelector(sel);
+    const el = id => document.getElementById(id);
+
+    /* ---------- Variables globales pour stratégies ---------- */
+    let availableStrategies = {};
+    let selectedStrategyId = null;
+
+    /* ---------- Fonctions Stratégies ---------- */
+    async function loadStrategies() {
+      try {
+        const response = await globalConfig.apiRequest('/strategies/list');
+        if (response.ok && response.strategies) {
+          availableStrategies = response.strategies;
+          renderStrategiesUI();
+        } else {
+          showStrategiesError('Impossible de charger les stratégies');
+        }
+      } catch (error) {
+        console.error('Erreur chargement stratégies:', error);
+        showStrategiesError('Erreur réseau: ' + error.message);
+      }
+    }
+
+    function renderStrategiesUI() {
+      const container = el('strategies-container');
+      if (!container) return;
+
+      const strategiesHtml = Object.entries(availableStrategies).map(([id, strategy]) => `
     <div class="strategy-card" data-strategy-id="${id}" onclick="selectStrategy('${id}')">
       <div class="strategy-header">
         <div class="strategy-title">${strategy.icon} ${strategy.name}</div>
@@ -298,323 +496,323 @@ function renderStrategiesUI() {
         ${strategy.description}
       </div>
       <div class="strategy-allocations">
-        ${Object.entries(strategy.allocations).map(([group, pct]) => 
-          `<span class="allocation-pill">${group}: ${pct}%</span>`
-        ).join('')}
+        ${Object.entries(strategy.allocations).map(([group, pct]) =>
+        `<span class="allocation-pill">${group}: ${pct}%</span>`
+      ).join('')}
       </div>
     </div>
   `).join('');
-  
-  container.innerHTML = strategiesHtml;
-}
 
-function selectStrategy(strategyId) {
-  // Désélectionner l'ancienne stratégie
-  document.querySelectorAll('.strategy-card').forEach(card => {
-    card.classList.remove('selected');
-  });
-  
-  // Sélectionner la nouvelle
-  const selectedCard = document.querySelector(`[data-strategy-id="${strategyId}"]`);
-  if (selectedCard) {
-    selectedCard.classList.add('selected');
-    selectedStrategyId = strategyId;
-    
-    // Mettre à jour les boutons
-    el('apply-strategy-btn').disabled = false;
-    el('selected-strategy-info').style.display = 'inline-block';
-    el('selected-strategy-info').textContent = `${availableStrategies[strategyId].icon} ${availableStrategies[strategyId].name}`;
-  }
-}
-
-function applyStrategy() {
-  if (!selectedStrategyId || !availableStrategies[selectedStrategyId]) {
-    showNotification('Aucune stratégie sélectionnée', 'warning');
-    return;
-  }
-  
-  const strategy = availableStrategies[selectedStrategyId];
-  
-  // Utiliser le système dynamicTargets pour appliquer la stratégie
-  dynamicTargets = strategy.allocations;
-  useDynamicTargets = true;
-  
-  // Mettre à jour l'indicateur UI
-  const indicator = el("dynamicTargetsIndicator");
-  if (indicator) {
-    indicator.style.display = 'inline-block';
-    indicator.textContent = `🎯 ${strategy.name}`;
-  }
-  
-  // Notification
-  showNotification(`✅ Stratégie "${strategy.name}" appliquée!`, 'success');
-  
-  // Régénérer automatiquement le plan
-  setTimeout(() => {
-    if (el('btnRun')) {
-      el('btnRun').click();
+      container.innerHTML = strategiesHtml;
     }
-  }, 500);
-}
 
-function resetToManual() {
-  // Désélectionner toutes les stratégies
-  document.querySelectorAll('.strategy-card').forEach(card => {
-    card.classList.remove('selected');
-  });
-  
-  selectedStrategyId = null;
-  el('apply-strategy-btn').disabled = true;
-  el('selected-strategy-info').style.display = 'none';
-  
-  // Désactiver les targets dynamiques
-  dynamicTargets = null;
-  useDynamicTargets = false;
-  
-  // Masquer l'indicateur
-  const indicator = el("dynamicTargetsIndicator");
-  if (indicator) {
-    indicator.style.display = 'none';
-  }
-  
-  showNotification('Mode manuel activé', 'info');
-  
-  // Régénérer le plan avec les targets par défaut
-  setTimeout(() => {
-    if (el('btnRun')) {
-      el('btnRun').click();
+    function selectStrategy(strategyId) {
+      // Désélectionner l'ancienne stratégie
+      document.querySelectorAll('.strategy-card').forEach(card => {
+        card.classList.remove('selected');
+      });
+
+      // Sélectionner la nouvelle
+      const selectedCard = document.querySelector(`[data-strategy-id="${strategyId}"]`);
+      if (selectedCard) {
+        selectedCard.classList.add('selected');
+        selectedStrategyId = strategyId;
+
+        // Mettre à jour les boutons
+        el('apply-strategy-btn').disabled = false;
+        el('selected-strategy-info').style.display = 'inline-block';
+        el('selected-strategy-info').textContent = `${availableStrategies[strategyId].icon} ${availableStrategies[strategyId].name}`;
+      }
     }
-  }, 500);
-}
 
-function showStrategiesError(message) {
-  el('strategies-container').innerHTML = `
+    function applyStrategy() {
+      if (!selectedStrategyId || !availableStrategies[selectedStrategyId]) {
+        showNotification('Aucune stratégie sélectionnée', 'warning');
+        return;
+      }
+
+      const strategy = availableStrategies[selectedStrategyId];
+
+      // Utiliser le système dynamicTargets pour appliquer la stratégie
+      dynamicTargets = strategy.allocations;
+      useDynamicTargets = true;
+
+      // Mettre à jour l'indicateur UI
+      const indicator = el("dynamicTargetsIndicator");
+      if (indicator) {
+        indicator.style.display = 'inline-block';
+        indicator.textContent = `🎯 ${strategy.name}`;
+      }
+
+      // Notification
+      showNotification(`✅ Stratégie "${strategy.name}" appliquée!`, 'success');
+
+      // Régénérer automatiquement le plan
+      setTimeout(() => {
+        if (el('btnRun')) {
+          el('btnRun').click();
+        }
+      }, 500);
+    }
+
+    function resetToManual() {
+      // Désélectionner toutes les stratégies
+      document.querySelectorAll('.strategy-card').forEach(card => {
+        card.classList.remove('selected');
+      });
+
+      selectedStrategyId = null;
+      el('apply-strategy-btn').disabled = true;
+      el('selected-strategy-info').style.display = 'none';
+
+      // Désactiver les targets dynamiques
+      dynamicTargets = null;
+      useDynamicTargets = false;
+
+      // Masquer l'indicateur
+      const indicator = el("dynamicTargetsIndicator");
+      if (indicator) {
+        indicator.style.display = 'none';
+      }
+
+      showNotification('Mode manuel activé', 'info');
+
+      // Régénérer le plan avec les targets par défaut
+      setTimeout(() => {
+        if (el('btnRun')) {
+          el('btnRun').click();
+        }
+      }, 500);
+    }
+
+    function showStrategiesError(message) {
+      el('strategies-container').innerHTML = `
     <div style="text-align: center; padding: 20px; color: var(--danger);">
       ❌ ${message}
     </div>
   `;
-}
+    }
 
-const fmt  = n => (n==null || isNaN(n)) ? "" : Number(n).toLocaleString(undefined, {maximumFractionDigits: 8});
-const fmt2 = n => (n==null || isNaN(n)) ? "—" : Number(n).toLocaleString(undefined, {maximumFractionDigits: 2});
+    const fmt = n => (n == null || isNaN(n)) ? "" : Number(n).toLocaleString(undefined, { maximumFractionDigits: 8 });
+    const fmt2 = n => (n == null || isNaN(n)) ? "—" : Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
 
-/* ---------- Dynamic Targets Support ---------- */
-let dynamicTargets = null;
-let useDynamicTargets = false;
+    /* ---------- Dynamic Targets Support ---------- */
+    let dynamicTargets = null;
+    let useDynamicTargets = false;
 
-// Interface for CCS/cycle module integration
-window.rebalanceAPI = {
-  setDynamicTargets: function(targets, metadata = {}) {
-    dynamicTargets = targets;
-    useDynamicTargets = true;
-    console.log('Dynamic targets set:', targets, metadata);
-    
-    // Update UI to show dynamic mode
-    const indicator = el("dynamicTargetsIndicator");
-    if (indicator) {
-      indicator.style.display = 'block';
-      if (metadata.ccs !== undefined) {
-        indicator.textContent = `🎯 CCS ${metadata.ccs}`;
+    // Interface for CCS/cycle module integration
+    window.rebalanceAPI = {
+      setDynamicTargets: function (targets, metadata = {}) {
+        dynamicTargets = targets;
+        useDynamicTargets = true;
+        console.log('Dynamic targets set:', targets, metadata);
+
+        // Update UI to show dynamic mode
+        const indicator = el("dynamicTargetsIndicator");
+        if (indicator) {
+          indicator.style.display = 'block';
+          if (metadata.ccs !== undefined) {
+            indicator.textContent = `🎯 CCS ${metadata.ccs}`;
+          }
+        }
+        setStatus(`Targets dynamiques appliqués (CCS: ${metadata.ccs || 'N/A'})`);
+
+        // Auto-run plan if requested
+        if (metadata.autoRun) {
+          setTimeout(() => runPlan(), 100);
+        }
+      },
+
+      clearDynamicTargets: function () {
+        dynamicTargets = null;
+        useDynamicTargets = false;
+
+        // Hide UI indicator
+        const indicator = el("dynamicTargetsIndicator");
+        if (indicator) {
+          indicator.style.display = 'none';
+          indicator.textContent = '🎯 Targets dynamiques';
+        }
+        setStatus('Mode targets manuel rétabli');
+      },
+
+      getCurrentTargets: function () {
+        if (useDynamicTargets && dynamicTargets) {
+          return { dynamic: true, targets: dynamicTargets };
+        } else {
+          return { dynamic: false, targets: getCurrentManualTargets() };
+        }
       }
+    };
+
+    function getCurrentManualTargets() {
+      // Extract current manual targets from UI (placeholder for now)
+      return {};
     }
-    setStatus(`Targets dynamiques appliqués (CCS: ${metadata.ccs || 'N/A'})`);
-    
-    // Auto-run plan if requested
-    if (metadata.autoRun) {
-      setTimeout(() => runPlan(), 100);
+
+    function setStatus(text) { el("status").textContent = text; }
+    function showNotification(text, type = 'info', duration = 3000) {
+      const notif = document.createElement('div');
+      notif.className = `notification ${type}`;
+      notif.textContent = text;
+      document.body.appendChild(notif);
+      setTimeout(() => notif.remove(), duration);
     }
-  },
-  
-  clearDynamicTargets: function() {
-    dynamicTargets = null;
-    useDynamicTargets = false;
-    
-    // Hide UI indicator
-    const indicator = el("dynamicTargetsIndicator");
-    if (indicator) {
-      indicator.style.display = 'none';
-      indicator.textContent = '🎯 Targets dynamiques';
+    function setTotal(v) {
+      const n = Number(v || 0);
+      el("total").textContent = "Total : " + (isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) + " $" : "—");
     }
-    setStatus('Mode targets manuel rétabli');
-  },
-  
-  getCurrentTargets: function() {
-    if (useDynamicTargets && dynamicTargets) {
-      return { dynamic: true, targets: dynamicTargets };
-    } else {
-      return { dynamic: false, targets: getCurrentManualTargets() };
+
+    async function postJson(url, body) {
+      const r = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body || {})
+      });
+      if (!r.ok) { throw new Error(`[${r.status}] ${await r.text()}`); }
+      return r.json();
     }
-  }
-};
 
-function getCurrentManualTargets() {
-  // Extract current manual targets from UI (placeholder for now)
-  return {};
-}
-
-function setStatus(text){ el("status").textContent = text; }
-function showNotification(text, type = 'info', duration = 3000) {
-  const notif = document.createElement('div');
-  notif.className = `notification ${type}`;
-  notif.textContent = text;
-  document.body.appendChild(notif);
-  setTimeout(() => notif.remove(), duration);
-}
-function setTotal(v){
-  const n = Number(v||0);
-  el("total").textContent = "Total : " + (isFinite(n) ? n.toLocaleString(undefined,{maximumFractionDigits:2})+" $" : "—");
-}
-
-async function postJson(url, body){
-  const r = await fetch(url, {
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify(body || {})
-  });
-  if(!r.ok){ throw new Error(`[${r.status}] ${await r.text()}`); }
-  return r.json();
-}
-
-async function postCsv(url, body){
-  const r = await fetch(url, {
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify(body || {})
-  });
-  if(!r.ok){ throw new Error(`[${r.status}] ${await r.text()}`); }
-  return r.blob();
-}
-
-function buildPayload(){
-  // Base payload
-  const payload = {
-    primary_symbols: {
-      BTC:["BTC","TBTC","WBTC"],
-      ETH:["ETH","WSTETH","STETH","RETH","WETH"],
-      SOL:["SOL","JUPSOL","JITOSOL"]
-    },
-    sub_allocation: "proportional",
-    min_trade_usd: 25
-  };
-  
-  // Use dynamic targets if available, otherwise default manual targets
-  if (useDynamicTargets && dynamicTargets) {
-    payload.dynamic_targets_pct = dynamicTargets;
-  } else {
-    payload.group_targets_pct = { BTC:35, ETH:25, Stablecoins:10, SOL:10, "L1/L0 majors":10, Others:10 };
-  }
-  
-  return payload;
-}
-
-function currentQuery(){
-  // Utiliser la configuration globale au lieu des champs locaux
-  const api = globalConfig.get('api_base_url').trim().replace(/\/+$/,'');
-  const source = globalConfig.get('data_source');
-  const min_usd = globalConfig.get('min_usd_threshold') || 1;
-  const pricing = globalConfig.get('pricing');
-  
-  // Add dynamic_targets parameter if we're using dynamic targets
-  const params = { source, min_usd, pricing };
-  if (useDynamicTargets && dynamicTargets) {
-    params.dynamic_targets = true;
-  }
-  
-  const qs = new URLSearchParams(params).toString();
-  return { api, qs };
-}
-
-/* ---------- Donuts (SVG) ---------- */
-const COLORS = ["#60a5fa","#34d399","#f472b6","#f59e0b","#a78bfa","#f87171","#22d3ee","#eab308"];
-function donutSVG(weights, title){
-  const size = 160, r = 68, cx = 80, cy = 80, stroke = 22;
-  const names = Object.keys(weights||{});
-  let start = -Math.PI/2;
-  const segs = [];
-  names.forEach((name, i)=>{
-    const pct = Math.max(0, Number(weights[name]||0)) / 100;
-    const angle = pct * Math.PI*2;
-    const end = start + angle;
-    if (pct > 0){
-      const largeArc = angle > Math.PI ? 1 : 0;
-      const x1 = cx + r * Math.cos(start), y1 = cy + r * Math.sin(start);
-      const x2 = cx + r * Math.cos(end),   y2 = cy + r * Math.sin(end);
-      const path = `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}`;
-      segs.push(`<path d="${path}" stroke="${COLORS[i % COLORS.length]}" stroke-width="${stroke}" fill="none" />`);
+    async function postCsv(url, body) {
+      const r = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body || {})
+      });
+      if (!r.ok) { throw new Error(`[${r.status}] ${await r.text()}`); }
+      return r.blob();
     }
-    start = end;
-  });
-  const total = (Object.values(weights||{}).reduce((a,b)=>a+Number(b||0),0)).toFixed(0);
-  return `<svg width="${size}" height="${size}" viewBox="0 0 160 160">
+
+    function buildPayload() {
+      // Base payload
+      const payload = {
+        primary_symbols: {
+          BTC: ["BTC", "TBTC", "WBTC"],
+          ETH: ["ETH", "WSTETH", "STETH", "RETH", "WETH"],
+          SOL: ["SOL", "JUPSOL", "JITOSOL"]
+        },
+        sub_allocation: "proportional",
+        min_trade_usd: 25
+      };
+
+      // Use dynamic targets if available, otherwise default manual targets
+      if (useDynamicTargets && dynamicTargets) {
+        payload.dynamic_targets_pct = dynamicTargets;
+      } else {
+        payload.group_targets_pct = { BTC: 35, ETH: 25, Stablecoins: 10, SOL: 10, "L1/L0 majors": 10, Others: 10 };
+      }
+
+      return payload;
+    }
+
+    function currentQuery() {
+      // Utiliser la configuration globale au lieu des champs locaux
+      const api = globalConfig.get('api_base_url').trim().replace(/\/+$/, '');
+      const source = globalConfig.get('data_source');
+      const min_usd = globalConfig.get('min_usd_threshold') || 1;
+      const pricing = globalConfig.get('pricing');
+
+      // Add dynamic_targets parameter if we're using dynamic targets
+      const params = { source, min_usd, pricing };
+      if (useDynamicTargets && dynamicTargets) {
+        params.dynamic_targets = true;
+      }
+
+      const qs = new URLSearchParams(params).toString();
+      return { api, qs };
+    }
+
+    /* ---------- Donuts (SVG) ---------- */
+    const COLORS = ["#60a5fa", "#34d399", "#f472b6", "#f59e0b", "#a78bfa", "#f87171", "#22d3ee", "#eab308"];
+    function donutSVG(weights, title) {
+      const size = 160, r = 68, cx = 80, cy = 80, stroke = 22;
+      const names = Object.keys(weights || {});
+      let start = -Math.PI / 2;
+      const segs = [];
+      names.forEach((name, i) => {
+        const pct = Math.max(0, Number(weights[name] || 0)) / 100;
+        const angle = pct * Math.PI * 2;
+        const end = start + angle;
+        if (pct > 0) {
+          const largeArc = angle > Math.PI ? 1 : 0;
+          const x1 = cx + r * Math.cos(start), y1 = cy + r * Math.sin(start);
+          const x2 = cx + r * Math.cos(end), y2 = cy + r * Math.sin(end);
+          const path = `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}`;
+          segs.push(`<path d="${path}" stroke="${COLORS[i % COLORS.length]}" stroke-width="${stroke}" fill="none" />`);
+        }
+        start = end;
+      });
+      const total = (Object.values(weights || {}).reduce((a, b) => a + Number(b || 0), 0)).toFixed(0);
+      return `<svg width="${size}" height="${size}" viewBox="0 0 160 160">
     <circle cx="${cx}" cy="${cy}" r="${r}" stroke="#152232" stroke-width="${stroke}" fill="none"/>
     ${segs.join("")}
-    <text x="${cx}" y="${cy-2}" text-anchor="middle" font-size="14" fill="#cbd5e1">${title||""}</text>
-    <text x="${cx}" y="${cy+14}" text-anchor="middle" font-size="12" fill="#93a3b5">${total}%</text>
+    <text x="${cx}" y="${cy - 2}" text-anchor="middle" font-size="14" fill="#cbd5e1">${title || ""}</text>
+    <text x="${cx}" y="${cy + 14}" text-anchor="middle" font-size="12" fill="#93a3b5">${total}%</text>
   </svg>`;
-}
-function renderDonuts(plan){
-  const cw = plan?.current_weights_pct || {};
-  const tw = plan?.target_weights_pct  || {};
-  $("#donutCurrent").innerHTML = donutSVG(cw, "Actuel");
-  $("#donutTarget").innerHTML  = donutSVG(tw, "Cible");
+    }
+    function renderDonuts(plan) {
+      const cw = plan?.current_weights_pct || {};
+      const tw = plan?.target_weights_pct || {};
+      $("#donutCurrent").innerHTML = donutSVG(cw, "Actuel");
+      $("#donutTarget").innerHTML = donutSVG(tw, "Cible");
 
-  const names = Object.keys(tw).length ? Object.keys(tw) : Object.keys(cw);
-  const html = (names||[]).map((g,i)=>`<span><span class="dot" style="background:${COLORS[i%COLORS.length]}"></span>${g}</span>`).join("");
-  $("#legend").innerHTML = html;
-}
+      const names = Object.keys(tw).length ? Object.keys(tw) : Object.keys(cw);
+      const html = (names || []).map((g, i) => `<span><span class="dot" style="background:${COLORS[i % COLORS.length]}"></span>${g}</span>`).join("");
+      $("#legend").innerHTML = html;
+    }
 
-/* ---------- Résumé & Actions ---------- */
-function renderActions(actions){
-  const tb = $("#tblActions tbody");
-  tb.innerHTML = (actions||[]).map(a => `
+    /* ---------- Résumé & Actions ---------- */
+    function renderActions(actions) {
+      const tb = $("#tblActions tbody");
+      tb.innerHTML = (actions || []).map(a => `
     <tr>
-      <td>${a.group||""}</td>
-      <td>${a.alias||""}</td>
-      <td>${a.symbol||""}</td>
-      <td>${a.action||""}</td>
+      <td>${a.group || ""}</td>
+      <td>${a.alias || ""}</td>
+      <td>${a.symbol || ""}</td>
+      <td>${a.action || ""}</td>
       <td class="right">${fmt(a.usd)}</td>
       <td class="right">${fmt(a.est_quantity)}</td>
       <td class="right">${fmt(a.price_used)}</td>
-      <td>${a.exec_hint||a.location||""}</td>
+      <td>${a.exec_hint || a.location || ""}</td>
     </tr>
   `).join("");
-}
+    }
 
-function updatePricingBadge(actions, plan) {
-  const badge = el("pricing-badge");
-  
-  // Chercher une action avec price_source (pas forcément la première)
-  const actionWithPrice = (actions||[]).find(a => a.price_source && a.price_used);
-  const priceSource = actionWithPrice?.price_source;
-  const pricingMode = plan?.meta?.pricing_mode || "unknown";
-  
-  let badgeHtml = "";
-  
-  if (priceSource === "local") {
-    badgeHtml = '<span class="pill" style="background:#16a34a;border-color:#16a34a;color:white;font-size:12px">Prix locaux</span>';
-  } else if (priceSource === "market") {
-    badgeHtml = '<span class="pill" style="background:#dc2626;border-color:#dc2626;color:white;font-size:12px">Prix marché</span>';
-  } else if (pricingMode === "hybrid") {
-    // Fallback si aucune action n'a de prix encore
-    badgeHtml = '<span class="pill" style="background:#f59e0b;border-color:#f59e0b;color:white;font-size:12px">Hybride</span>';
-  } else if (pricingMode === "local") {
-    badgeHtml = '<span class="pill" style="background:#16a34a;border-color:#16a34a;color:white;font-size:12px">Prix locaux</span>';
-  } else if (pricingMode === "auto") {
-    badgeHtml = '<span class="pill" style="background:#dc2626;border-color:#dc2626;color:white;font-size:12px">Prix marché</span>';
-  }
-  
-  badge.innerHTML = badgeHtml;
-}
-function renderSummary(plan){
-  const grp = plan?.current_by_group || {};
-  const cw  = plan?.current_weights_pct || {};
-  const tw  = plan?.target_weights_pct || {};
-  const dU  = plan?.deltas_by_group_usd || {};
-  const names = Object.keys(tw).length ? Object.keys(tw) : Object.keys(cw);
-  const html = (names||[]).map(g=>{
-    const cur = cw[g]; const tgt = tw[g]; const du = dU[g];
-    const cls = (du||0) >= 0 ? "delta-pos" : "delta-neg";
-    return `<div class="card">
+    function updatePricingBadge(actions, plan) {
+      const badge = el("pricing-badge");
+
+      // Chercher une action avec price_source (pas forcément la première)
+      const actionWithPrice = (actions || []).find(a => a.price_source && a.price_used);
+      const priceSource = actionWithPrice?.price_source;
+      const pricingMode = plan?.meta?.pricing_mode || "unknown";
+
+      let badgeHtml = "";
+
+      if (priceSource === "local") {
+        badgeHtml = '<span class="pill" style="background:#16a34a;border-color:#16a34a;color:white;font-size:12px">Prix locaux</span>';
+      } else if (priceSource === "market") {
+        badgeHtml = '<span class="pill" style="background:#dc2626;border-color:#dc2626;color:white;font-size:12px">Prix marché</span>';
+      } else if (pricingMode === "hybrid") {
+        // Fallback si aucune action n'a de prix encore
+        badgeHtml = '<span class="pill" style="background:#f59e0b;border-color:#f59e0b;color:white;font-size:12px">Hybride</span>';
+      } else if (pricingMode === "local") {
+        badgeHtml = '<span class="pill" style="background:#16a34a;border-color:#16a34a;color:white;font-size:12px">Prix locaux</span>';
+      } else if (pricingMode === "auto") {
+        badgeHtml = '<span class="pill" style="background:#dc2626;border-color:#dc2626;color:white;font-size:12px">Prix marché</span>';
+      }
+
+      badge.innerHTML = badgeHtml;
+    }
+    function renderSummary(plan) {
+      const grp = plan?.current_by_group || {};
+      const cw = plan?.current_weights_pct || {};
+      const tw = plan?.target_weights_pct || {};
+      const dU = plan?.deltas_by_group_usd || {};
+      const names = Object.keys(tw).length ? Object.keys(tw) : Object.keys(cw);
+      const html = (names || []).map(g => {
+        const cur = cw[g]; const tgt = tw[g]; const du = dU[g];
+        const cls = (du || 0) >= 0 ? "delta-pos" : "delta-neg";
+        return `<div class="card">
       <div class="row" style="justify-content:space-between">
         <div class="badge">${g}</div>
         <div class="muted small">${fmt2(grp[g])} $</div>
@@ -622,16 +820,16 @@ function renderSummary(plan){
       <div class="small mt8">Actuel: <strong>${fmt2(cur)}%</strong> • Cible: <strong>${fmt2(tgt)}%</strong></div>
       <div class="small">Delta: <strong class="${cls}">${fmt2(du)} $</strong></div>
     </div>`;
-  }).join("");
-  $("#summary").innerHTML = html || '<span class="muted">Aucun résumé disponible.</span>';
-}
+      }).join("");
+      $("#summary").innerHTML = html || '<span class="muted">Aucun résumé disponible.</span>';
+    }
 
-function renderUnknownAliases(list){
-  const container = el("unknownList");
-  if (!list || !list.length) { container.innerHTML = '<span class="muted">Aucun 🎉</span>'; return; }
-  const options = ["BTC","ETH","Stablecoins","SOL","L1/L0 majors","L2/Scaling","DeFi","AI/Data","Gaming/NFT","Memecoins","Others"]
-    .map(g => `<option value="${g}" ${g==="Others"?'selected':''}>${g}</option>`).join("");
-  container.innerHTML = list.map(a => `
+    function renderUnknownAliases(list) {
+      const container = el("unknownList");
+      if (!list || !list.length) { container.innerHTML = '<span class="muted">Aucun 🎉</span>'; return; }
+      const options = ["BTC", "ETH", "Stablecoins", "SOL", "L1/L0 majors", "L2/Scaling", "DeFi", "AI/Data", "Gaming/NFT", "Memecoins", "Others"]
+        .map(g => `<option value="${g}" ${g === "Others" ? 'selected' : ''}>${g}</option>`).join("");
+      container.innerHTML = list.map(a => `
     <div class="row">
       <div class="pill">${a}</div>
       <select class="u_group">${options}</select>
@@ -639,348 +837,349 @@ function renderUnknownAliases(list){
     </div>
   `).join("");
 
-  // Gestion des clics sur les boutons Ajouter
-  el("unknownList").addEventListener("click", async (ev) => {
-    const btn = ev.target.closest('button.act-add');
-    if (!btn || btn.disabled) return;
+      // Gestion des clics sur les boutons Ajouter
+      el("unknownList").addEventListener("click", async (ev) => {
+        const btn = ev.target.closest('button.act-add');
+        if (!btn || btn.disabled) return;
 
-    ev.preventDefault();
+        ev.preventDefault();
 
-    try {
-      btn.disabled = true;
-      const row = btn.closest('.row');
-      const alias = (btn.dataset.alias || '').toUpperCase().trim();
-      const groupSelect = row.querySelector('select.u_group');
-      const group = groupSelect?.value || 'Others';
+        try {
+          btn.disabled = true;
+          const row = btn.closest('.row');
+          const alias = (btn.dataset.alias || '').toUpperCase().trim();
+          const groupSelect = row.querySelector('select.u_group');
+          const group = groupSelect?.value || 'Others';
 
-      if (!alias) throw new Error('Alias invalide');
-      
-      const { api } = currentQuery();
-      const response = await fetch(`${api}/taxonomy/aliases`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ aliases: { [alias]: group } })
-      });
+          if (!alias) throw new Error('Alias invalide');
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || `Erreur HTTP ${response.status}`);
-      }
+          const { api } = currentQuery();
+          const response = await fetch(`${api}/taxonomy/aliases`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ aliases: { [alias]: group } })
+          });
 
-      await runPlan(); // Rafraîchit les données
-      showNotification(`✅ ${alias} assigné à ${group}`, 'success');
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || `Erreur HTTP ${response.status}`);
+          }
 
-    } catch (error) {
-      console.error('Erreur:', error);
-      showNotification(`❌ ${error.message}`, 'error', 5000);
-    } finally {
-      btn.disabled = false;
-    }
-  });
-}
+          await runPlan(); // Rafraîchit les données
+          showNotification(`✅ ${alias} assigné à ${group}`, 'success');
 
-/* ---------- Taxonomy calls ---------- */
-async function addAliases(map){
-  const { api } = currentQuery();
-  setStatus("Écriture…");
-  const body = { aliases: map || {} };
-  const res = await postJson(`${api}/taxonomy/aliases`, body);
-  setStatus(`OK (${res?.written||Object.keys(map||{}).length} alias)`);
-  return res;
-}
-
-/* ---------- Flow ---------- */
-function persistSourceInit(){
-  // Plus nécessaire - la configuration est centralisée dans globalConfig
-  return;
-}
-
-// Restaurer le dernier plan sauvegardé
-function restoreLastPlan() {
-  if (!window.globalConfig?.hasPlan()) return false;
-  
-  const savedPlan = window.globalConfig.getLastPlanData();
-  if (!savedPlan) return false;
-  
-  // Vérifier l'âge du plan - ne pas restaurer automatiquement s'il est trop ancien
-  const planAge = Date.now() - (window.globalConfig.get('last_plan_timestamp') || 0);
-  const maxAge = 30 * 60 * 1000; // 30 minutes
-  
-  if (planAge > maxAge) {
-    // Plan trop ancien, juste afficher le bouton Alias Manager s'il y a des unknown aliases
-    const unknownCount = (savedPlan.unknown_aliases || []).length;
-    if (unknownCount > 0) {
-      const aliasManagerButton = document.getElementById('alias-manager-button');
-      if (aliasManagerButton) {
-        aliasManagerButton.style.display = 'block';
-        const button = aliasManagerButton.querySelector('button');
-        if (button) {
-          button.innerHTML = `🏷️ Alias Manager (${unknownCount})`;
-          button.style.background = '#f59e0b';
-          button.style.color = 'white';
+        } catch (error) {
+          console.error('Erreur:', error);
+          showNotification(`❌ ${error.message}`, 'error', 5000);
+        } finally {
+          btn.disabled = false;
         }
-      }
-    }
-    setStatus('Plan précédent disponible - Cliquez "Générer le plan" pour actualiser');
-    return false;
-  }
-  
-  try {
-    // Restaurer l'affichage du plan récent
-    renderDonuts(savedPlan);
-    renderSummary(savedPlan);
-    renderActions(savedPlan.actions||[]);
-    updatePricingBadge(savedPlan.actions||[], savedPlan);
-    renderUnknownAliases(savedPlan.unknown_aliases||[]);
-    setTotal(savedPlan?.total_usd);
-    
-    // Sauvegarder les actions pour l'export JSON
-    lastPlanActions = savedPlan.actions || [];
-    
-    // Réactiver les boutons
-    el("btnCsv").disabled = false;
-    el("btnJson").disabled = false;
-    el("btnCopyJson").disabled = false;
-    
-    // Afficher le bouton Alias Manager si nécessaire
-    const unknownCount = (savedPlan.unknown_aliases || []).length;
-    const aliasManagerButton = document.getElementById('alias-manager-button');
-    if (aliasManagerButton && unknownCount > 0) {
-      aliasManagerButton.style.display = 'block';
-      const button = aliasManagerButton.querySelector('button');
-      if (button) {
-        button.innerHTML = `🏷️ Alias Manager (${unknownCount})`;
-        button.style.background = '#f59e0b';
-        button.style.color = 'white';
-      }
-    }
-    
-    const ageMin = Math.round(planAge / 60000);
-    setStatus(`Plan restauré (généré il y a ${ageMin}min)`);
-    return true;
-  } catch (error) {
-    console.error('Erreur restauration plan:', error);
-    return false;
-  }
-}
-
-async function runPlan(){
-  try {
-    const t0 = performance.now();
-    el("btnRun").disabled = true;
-    el("btnCsv").disabled = true;
-    el("btnJson").disabled = true;
-    el("btnCopyJson").disabled = true;
-    setStatus("Calcul…");
-    const { api, qs } = currentQuery();
-    const url = `${api}/rebalance/plan?${qs}`;
-    const plan = await postJson(url, buildPayload());
-
-    renderDonuts(plan);
-    renderSummary(plan);
-    renderActions(plan.actions||[]);
-    updatePricingBadge(plan.actions||[], plan);
-    renderUnknownAliases(plan.unknown_aliases||[]);
-    setTotal(plan?.total_usd);
-
-    // Sauvegarder les actions pour l'export JSON
-    lastPlanActions = plan.actions || [];
-
-    // Marquer le plan comme généré et activer l'Alias Manager
-    const unknownAliasesCount = (plan.unknown_aliases || []).length;
-    if (window.globalConfig) {
-      window.globalConfig.markPlanGenerated(unknownAliasesCount, plan);
-    }
-    
-    // Afficher le bouton Alias Manager
-    const aliasManagerButton = document.getElementById('alias-manager-button');
-    if (aliasManagerButton) {
-      aliasManagerButton.style.display = 'block';
-      // Mettre à jour le texte du bouton si des unknown aliases sont détectés
-      const button = aliasManagerButton.querySelector('button');
-      if (button && unknownAliasesCount > 0) {
-        button.innerHTML = `🏷️ Alias Manager (${unknownAliasesCount} nouveaux)`;
-        button.style.background = '#f59e0b';
-        button.style.color = 'white';
-      }
-    }
-
-    const ms = Math.round(performance.now() - t0);
-    let statusText = `OK • ${ms} ms • source=${plan?.meta?.source_used||'(?)'} • items=${plan?.meta?.items_count??"-"}`;
-    
-    // Ajouter infos pricing hybride si disponibles
-    if (plan?.meta?.pricing_mode === 'hybrid' && plan?.meta?.pricing_hybrid) {
-      const hybridInfo = plan.meta.pricing_hybrid;
-      statusText += ` • pricing=hybrid (âge=${Math.round(hybridInfo.data_age_min)}min, seuils=${hybridInfo.max_age_min}min/${hybridInfo.max_deviation_pct}%)`;
-    } else if (plan?.meta?.pricing_mode) {
-      statusText += ` • pricing=${plan.meta.pricing_mode}`;
-    }
-    
-    setStatus(statusText);
-    el("btnCsv").disabled = false;
-    el("btnJson").disabled = false;
-    el("btnCopyJson").disabled = false;
-  } catch (e){
-    console.error(e);
-    setStatus("Erreur: " + (e?.message || e));
-  } finally {
-    el("btnRun").disabled = false;
-  }
-}
-
-async function downloadCsv(){
-  try{
-    el("btnCsv").disabled = true;
-    setStatus("Génération CSV…");
-    const { api, qs } = currentQuery();
-    const blob = await postCsv(`${api}/rebalance/plan.csv?${qs}`, buildPayload());
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    const ts = new Date().toISOString().replace(/[:.]/g,"-");
-    a.href = url;
-    a.download = `rebalance-actions-${ts}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    setStatus("CSV téléchargé.");
-  } catch(e){
-    console.error(e);
-    setStatus("Erreur CSV: " + (e?.message || e));
-  } finally{
-    el("btnCsv").disabled = false;
-  }
-}
-
-// Variable globale pour stocker les actions du dernier plan
-let lastPlanActions = [];
-
-function exportJsonForExecution() {
-  if (!lastPlanActions || lastPlanActions.length === 0) {
-    showNotification('❌ Aucun plan généré - Cliquez d\'abord sur "Générer le plan"', 'error');
-    return;
-  }
-  
-  try {
-    // Format array direct pour l'interface d'exécution (plus simple)
-    const jsonString = JSON.stringify(lastPlanActions, null, 2);
-    const blob = new Blob([jsonString], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    
-    const a = document.createElement('a');
-    const ts = new Date().toISOString().replace(/[:.]/g,'-');
-    a.href = url;
-    a.download = `execution-plan-${ts}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    
-    showNotification(`✅ Plan d'exécution JSON téléchargé (${lastPlanActions.length} actions)`, 'success');
-    
-  } catch (error) {
-    console.error('Erreur export JSON:', error);
-    showNotification('❌ Erreur lors de l\'export JSON: ' + error.message, 'error');
-  }
-}
-
-function copyJsonToClipboard() {
-  if (!lastPlanActions || lastPlanActions.length === 0) {
-    showNotification('❌ Aucun plan généré - Cliquez d\'abord sur "Générer le plan"', 'error');
-    return;
-  }
-  
-  try {
-    // Format array direct pour l'interface d'exécution
-    const jsonString = JSON.stringify(lastPlanActions, null, 2);
-    
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(jsonString).then(() => {
-        showNotification(`📋 JSON copié (${lastPlanActions.length} actions) - Collez dans l'interface d'exécution`, 'success');
-      }).catch(() => {
-        // Fallback pour les navigateurs sans clipboard API
-        fallbackCopyTextToClipboard(jsonString);
       });
-    } else {
-      fallbackCopyTextToClipboard(jsonString);
     }
-    
-  } catch (error) {
-    console.error('Erreur copie JSON:', error);
-    showNotification('❌ Erreur lors de la copie JSON: ' + error.message, 'error');
-  }
-}
 
-function fallbackCopyTextToClipboard(text) {
-  // Méthode fallback pour navigateurs anciens
-  const textArea = document.createElement("textarea");
-  textArea.value = text;
-  textArea.style.position = "fixed";
-  textArea.style.left = "-999999px";
-  textArea.style.top = "-999999px";
-  document.body.appendChild(textArea);
-  textArea.focus();
-  textArea.select();
-  
-  try {
-    const successful = document.execCommand('copy');
-    if (successful) {
-      showNotification(`📋 JSON copié (${lastPlanActions.length} actions) - Collez dans l'interface d'exécution`, 'success');
-    } else {
-      showNotification('❌ Impossible de copier - utilisez Export JSON', 'error');
+    /* ---------- Taxonomy calls ---------- */
+    async function addAliases(map) {
+      const { api } = currentQuery();
+      setStatus("Écriture…");
+      const body = { aliases: map || {} };
+      const res = await postJson(`${api}/taxonomy/aliases`, body);
+      setStatus(`OK (${res?.written || Object.keys(map || {}).length} alias)`);
+      return res;
     }
-  } catch (err) {
-    showNotification('❌ Impossible de copier - utilisez Export JSON', 'error');
-  }
-  
-  document.body.removeChild(textArea);
-}
 
-async function bulkAddUnknown(){
-  const container = el("unknownList");
-  const rows = Array.from(container.querySelectorAll(".row"));
-  if (!rows.length){ return; }
-  const defaultGroup = el("bulk_group").value || "Others";
-  const map = {};
-  rows.forEach(r=>{
-    const alias = (r.querySelector(".act-add")?.getAttribute("data-alias")) || "";
-    const sel = r.querySelector(".u_group");
-    const group = sel ? sel.value : defaultGroup;
-    if (alias) map[alias] = group || defaultGroup;
-  });
-  await addAliases(map);
-  await runPlan();
-}
+    /* ---------- Flow ---------- */
+    function persistSourceInit() {
+      // Plus nécessaire - la configuration est centralisée dans globalConfig
+      return;
+    }
 
-/* ---------- Alias Manager ---------- */
-function openAliasManager() {
-  window.open('alias-manager.html', '_blank');
-}
+    // Restaurer le dernier plan sauvegardé
+    function restoreLastPlan() {
+      if (!window.globalConfig?.hasPlan()) return false;
 
-/* ---------- Init ---------- */
-window.addEventListener("DOMContentLoaded", ()=>{
-  // Initialiser le header partagé
-  initSharedHeader('rebalance', { showConfigIndicators: true });
-  
-  // Charger les stratégies
-  loadStrategies();
-  
-  // Gestionnaires d'événements pour les stratégies
-  el("apply-strategy-btn").addEventListener("click", applyStrategy);
-  el("reset-strategy-btn").addEventListener("click", resetToManual);
-  
-  persistSourceInit();
-  el("btnRun").addEventListener("click", runPlan);
-  el("btnCsv").addEventListener("click", downloadCsv);
-  el("btnJson").addEventListener("click", exportJsonForExecution);
-  el("btnCopyJson").addEventListener("click", copyJsonToClipboard);
-  el("btnBulkAdd").addEventListener("click", bulkAddUnknown);
-  
-  // Essayer de restaurer le dernier plan
-  if (!restoreLastPlan()) {
-    setStatus("Prêt.");
-  }
-});
-</script>
+      const savedPlan = window.globalConfig.getLastPlanData();
+      if (!savedPlan) return false;
+
+      // Vérifier l'âge du plan - ne pas restaurer automatiquement s'il est trop ancien
+      const planAge = Date.now() - (window.globalConfig.get('last_plan_timestamp') || 0);
+      const maxAge = 30 * 60 * 1000; // 30 minutes
+
+      if (planAge > maxAge) {
+        // Plan trop ancien, juste afficher le bouton Alias Manager s'il y a des unknown aliases
+        const unknownCount = (savedPlan.unknown_aliases || []).length;
+        if (unknownCount > 0) {
+          const aliasManagerButton = document.getElementById('alias-manager-button');
+          if (aliasManagerButton) {
+            aliasManagerButton.style.display = 'block';
+            const button = aliasManagerButton.querySelector('button');
+            if (button) {
+              button.innerHTML = `🏷️ Alias Manager (${unknownCount})`;
+              button.style.background = '#f59e0b';
+              button.style.color = 'white';
+            }
+          }
+        }
+        setStatus('Plan précédent disponible - Cliquez "Générer le plan" pour actualiser');
+        return false;
+      }
+
+      try {
+        // Restaurer l'affichage du plan récent
+        renderDonuts(savedPlan);
+        renderSummary(savedPlan);
+        renderActions(savedPlan.actions || []);
+        updatePricingBadge(savedPlan.actions || [], savedPlan);
+        renderUnknownAliases(savedPlan.unknown_aliases || []);
+        setTotal(savedPlan?.total_usd);
+
+        // Sauvegarder les actions pour l'export JSON
+        lastPlanActions = savedPlan.actions || [];
+
+        // Réactiver les boutons
+        el("btnCsv").disabled = false;
+        el("btnJson").disabled = false;
+        el("btnCopyJson").disabled = false;
+
+        // Afficher le bouton Alias Manager si nécessaire
+        const unknownCount = (savedPlan.unknown_aliases || []).length;
+        const aliasManagerButton = document.getElementById('alias-manager-button');
+        if (aliasManagerButton && unknownCount > 0) {
+          aliasManagerButton.style.display = 'block';
+          const button = aliasManagerButton.querySelector('button');
+          if (button) {
+            button.innerHTML = `🏷️ Alias Manager (${unknownCount})`;
+            button.style.background = '#f59e0b';
+            button.style.color = 'white';
+          }
+        }
+
+        const ageMin = Math.round(planAge / 60000);
+        setStatus(`Plan restauré (généré il y a ${ageMin}min)`);
+        return true;
+      } catch (error) {
+        console.error('Erreur restauration plan:', error);
+        return false;
+      }
+    }
+
+    async function runPlan() {
+      try {
+        const t0 = performance.now();
+        el("btnRun").disabled = true;
+        el("btnCsv").disabled = true;
+        el("btnJson").disabled = true;
+        el("btnCopyJson").disabled = true;
+        setStatus("Calcul…");
+        const { api, qs } = currentQuery();
+        const url = `${api}/rebalance/plan?${qs}`;
+        const plan = await postJson(url, buildPayload());
+
+        renderDonuts(plan);
+        renderSummary(plan);
+        renderActions(plan.actions || []);
+        updatePricingBadge(plan.actions || [], plan);
+        renderUnknownAliases(plan.unknown_aliases || []);
+        setTotal(plan?.total_usd);
+
+        // Sauvegarder les actions pour l'export JSON
+        lastPlanActions = plan.actions || [];
+
+        // Marquer le plan comme généré et activer l'Alias Manager
+        const unknownAliasesCount = (plan.unknown_aliases || []).length;
+        if (window.globalConfig) {
+          window.globalConfig.markPlanGenerated(unknownAliasesCount, plan);
+        }
+
+        // Afficher le bouton Alias Manager
+        const aliasManagerButton = document.getElementById('alias-manager-button');
+        if (aliasManagerButton) {
+          aliasManagerButton.style.display = 'block';
+          // Mettre à jour le texte du bouton si des unknown aliases sont détectés
+          const button = aliasManagerButton.querySelector('button');
+          if (button && unknownAliasesCount > 0) {
+            button.innerHTML = `🏷️ Alias Manager (${unknownAliasesCount} nouveaux)`;
+            button.style.background = '#f59e0b';
+            button.style.color = 'white';
+          }
+        }
+
+        const ms = Math.round(performance.now() - t0);
+        let statusText = `OK • ${ms} ms • source=${plan?.meta?.source_used || '(?)'} • items=${plan?.meta?.items_count ?? "-"}`;
+
+        // Ajouter infos pricing hybride si disponibles
+        if (plan?.meta?.pricing_mode === 'hybrid' && plan?.meta?.pricing_hybrid) {
+          const hybridInfo = plan.meta.pricing_hybrid;
+          statusText += ` • pricing=hybrid (âge=${Math.round(hybridInfo.data_age_min)}min, seuils=${hybridInfo.max_age_min}min/${hybridInfo.max_deviation_pct}%)`;
+        } else if (plan?.meta?.pricing_mode) {
+          statusText += ` • pricing=${plan.meta.pricing_mode}`;
+        }
+
+        setStatus(statusText);
+        el("btnCsv").disabled = false;
+        el("btnJson").disabled = false;
+        el("btnCopyJson").disabled = false;
+      } catch (e) {
+        console.error(e);
+        setStatus("Erreur: " + (e?.message || e));
+      } finally {
+        el("btnRun").disabled = false;
+      }
+    }
+
+    async function downloadCsv() {
+      try {
+        el("btnCsv").disabled = true;
+        setStatus("Génération CSV…");
+        const { api, qs } = currentQuery();
+        const blob = await postCsv(`${api}/rebalance/plan.csv?${qs}`, buildPayload());
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        const ts = new Date().toISOString().replace(/[:.]/g, "-");
+        a.href = url;
+        a.download = `rebalance-actions-${ts}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        setStatus("CSV téléchargé.");
+      } catch (e) {
+        console.error(e);
+        setStatus("Erreur CSV: " + (e?.message || e));
+      } finally {
+        el("btnCsv").disabled = false;
+      }
+    }
+
+    // Variable globale pour stocker les actions du dernier plan
+    let lastPlanActions = [];
+
+    function exportJsonForExecution() {
+      if (!lastPlanActions || lastPlanActions.length === 0) {
+        showNotification('❌ Aucun plan généré - Cliquez d\'abord sur "Générer le plan"', 'error');
+        return;
+      }
+
+      try {
+        // Format array direct pour l'interface d'exécution (plus simple)
+        const jsonString = JSON.stringify(lastPlanActions, null, 2);
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        const ts = new Date().toISOString().replace(/[:.]/g, '-');
+        a.href = url;
+        a.download = `execution-plan-${ts}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+
+        showNotification(`✅ Plan d'exécution JSON téléchargé (${lastPlanActions.length} actions)`, 'success');
+
+      } catch (error) {
+        console.error('Erreur export JSON:', error);
+        showNotification('❌ Erreur lors de l\'export JSON: ' + error.message, 'error');
+      }
+    }
+
+    function copyJsonToClipboard() {
+      if (!lastPlanActions || lastPlanActions.length === 0) {
+        showNotification('❌ Aucun plan généré - Cliquez d\'abord sur "Générer le plan"', 'error');
+        return;
+      }
+
+      try {
+        // Format array direct pour l'interface d'exécution
+        const jsonString = JSON.stringify(lastPlanActions, null, 2);
+
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(jsonString).then(() => {
+            showNotification(`📋 JSON copié (${lastPlanActions.length} actions) - Collez dans l'interface d'exécution`, 'success');
+          }).catch(() => {
+            // Fallback pour les navigateurs sans clipboard API
+            fallbackCopyTextToClipboard(jsonString);
+          });
+        } else {
+          fallbackCopyTextToClipboard(jsonString);
+        }
+
+      } catch (error) {
+        console.error('Erreur copie JSON:', error);
+        showNotification('❌ Erreur lors de la copie JSON: ' + error.message, 'error');
+      }
+    }
+
+    function fallbackCopyTextToClipboard(text) {
+      // Méthode fallback pour navigateurs anciens
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-999999px";
+      textArea.style.top = "-999999px";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+
+      try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+          showNotification(`📋 JSON copié (${lastPlanActions.length} actions) - Collez dans l'interface d'exécution`, 'success');
+        } else {
+          showNotification('❌ Impossible de copier - utilisez Export JSON', 'error');
+        }
+      } catch (err) {
+        showNotification('❌ Impossible de copier - utilisez Export JSON', 'error');
+      }
+
+      document.body.removeChild(textArea);
+    }
+
+    async function bulkAddUnknown() {
+      const container = el("unknownList");
+      const rows = Array.from(container.querySelectorAll(".row"));
+      if (!rows.length) { return; }
+      const defaultGroup = el("bulk_group").value || "Others";
+      const map = {};
+      rows.forEach(r => {
+        const alias = (r.querySelector(".act-add")?.getAttribute("data-alias")) || "";
+        const sel = r.querySelector(".u_group");
+        const group = sel ? sel.value : defaultGroup;
+        if (alias) map[alias] = group || defaultGroup;
+      });
+      await addAliases(map);
+      await runPlan();
+    }
+
+    /* ---------- Alias Manager ---------- */
+    function openAliasManager() {
+      window.open('alias-manager.html', '_blank');
+    }
+
+    /* ---------- Init ---------- */
+    window.addEventListener("DOMContentLoaded", () => {
+      // Initialiser le header partagé
+      initSharedHeader('rebalance', { showConfigIndicators: true });
+
+      // Charger les stratégies
+      loadStrategies();
+
+      // Gestionnaires d'événements pour les stratégies
+      el("apply-strategy-btn").addEventListener("click", applyStrategy);
+      el("reset-strategy-btn").addEventListener("click", resetToManual);
+
+      persistSourceInit();
+      el("btnRun").addEventListener("click", runPlan);
+      el("btnCsv").addEventListener("click", downloadCsv);
+      el("btnJson").addEventListener("click", exportJsonForExecution);
+      el("btnCopyJson").addEventListener("click", copyJsonToClipboard);
+      el("btnBulkAdd").addEventListener("click", bulkAddUnknown);
+
+      // Essayer de restaurer le dernier plan
+      if (!restoreLastPlan()) {
+        setStatus("Prêt.");
+      }
+    });
+  </script>
 </body>
+
 </html>
