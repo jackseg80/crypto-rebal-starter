@@ -1,28 +1,19 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>📊 Dashboard - Crypto Rebalancer</title>
-    
+    <link rel="stylesheet" href="shared-theme.css">
+    <link rel="stylesheet" href="theme-compat.css">
+
     <script src="global-config.js"></script>
     <script src="shared-header.js"></script>
-    
-    <style>
-        :root {
-            /* Theme global unifié */
-            --bg: #0a0f14;
-            --card: #0e1620;
-            --muted: #8fa0b3;
-            --text: #e7eef7;
-            --accent: #2dd4bf;
-            --danger: #ef4444;
-            --success: #22c55e;
-            --warning: #f59e0b;
-            --border: #1f2b3a;
-            --pos: #22c55e;
-        }
+    <script src="appearance.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+    <style>
         * {
             box-sizing: border-box;
             margin: 0;
@@ -30,14 +21,12 @@
         }
 
         body {
-            background: var(--bg);
-            color: var(--text);
+            background: var(--theme-background);
+            color: var(--theme-text);
             font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
             line-height: 1.6;
             min-height: 100vh;
         }
-
-        /* Header sera injecté par shared-header.js */
 
         .wrap {
             max-width: 1400px;
@@ -53,26 +42,27 @@
         }
 
         .card {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 20px;
-            transition: all 0.2s;
+            background: var(--theme-surface);
+            border: 1px solid var(--theme-border);
+            border-radius: var(--radius-lg);
+            padding: var(--space-xl);
+            transition: all var(--transition-normal);
+            box-shadow: var(--shadow-sm);
         }
 
         .card:hover {
-            border-color: var(--accent);
+            border-color: var(--brand-primary);
             transform: translateY(-2px);
-            box-shadow: 0 4px 20px rgba(45, 212, 191, 0.1);
+            box-shadow: var(--shadow-lg);
         }
 
         .card-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 16px;
-            padding-bottom: 12px;
-            border-bottom: 1px solid var(--border);
+            margin-bottom: var(--space-lg);
+            padding-bottom: var(--space-md);
+            border-bottom: 1px solid var(--theme-border);
         }
 
         .card-title {
@@ -96,13 +86,14 @@
         }
 
         .metric-label {
-            color: var(--muted);
+            color: var(--theme-text-muted);
             font-size: 14px;
         }
 
         .metric-value {
             font-weight: 600;
             font-size: 16px;
+            color: var(--theme-text);
         }
 
         .status-badge {
@@ -114,19 +105,19 @@
         }
 
         .status-active {
-            background: rgba(34, 197, 94, 0.1);
+            background: var(--success-bg);
             color: var(--success);
             border: 1px solid var(--success);
         }
 
         .status-warning {
-            background: rgba(245, 158, 11, 0.1);
+            background: var(--warning-bg);
             color: var(--warning);
             border: 1px solid var(--warning);
         }
 
         .status-error {
-            background: rgba(239, 68, 68, 0.1);
+            background: var(--danger-bg);
             color: var(--danger);
             border: 1px solid var(--danger);
         }
@@ -139,45 +130,51 @@
         }
 
         .action-btn {
-            background: var(--accent);
-            color: #07211e;
+            background: var(--brand-primary);
+            color: white;
             text-decoration: none;
-            padding: 12px 16px;
-            border-radius: 8px;
+            padding: var(--space-md) var(--space-lg);
+            border-radius: var(--radius-md);
             font-weight: 600;
             text-align: center;
-            transition: all 0.2s;
+            transition: all var(--transition-normal);
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
+            gap: var(--space-sm);
         }
 
         .action-btn:hover {
             transform: translateY(-1px);
-            box-shadow: 0 4px 15px rgba(45, 212, 191, 0.3);
+            box-shadow: var(--shadow-lg);
+            background: var(--brand-primary-hover);
         }
 
         .action-btn.secondary {
-            background: transparent;
-            color: var(--text);
-            border: 1px solid var(--border);
+            background: var(--theme-surface-elevated);
+            color: var(--theme-text);
+            border: 1px solid var(--theme-border);
         }
 
         .action-btn.secondary:hover {
-            border-color: var(--accent);
-            color: var(--accent);
+            border-color: var(--brand-primary);
+            color: var(--brand-primary);
+            background: var(--theme-surface-hover);
         }
 
+        /* Container pour graphique Chart.js */
         .portfolio-chart {
-            height: 200px;
+            height: 250px;
+            position: relative;
+            margin: var(--space-lg) 0;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: var(--muted);
-            border: 1px dashed var(--border);
-            border-radius: 8px;
-            margin: 16px 0;
+        }
+        
+        .portfolio-chart canvas {
+            max-height: 100%;
+            max-width: 100%;
         }
 
         .recent-activity {
@@ -189,8 +186,8 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 8px 0;
-            border-bottom: 1px solid var(--border);
+            padding: var(--space-sm) 0;
+            border-bottom: 1px solid var(--theme-border);
         }
 
         .activity-item:last-child {
@@ -198,12 +195,12 @@
         }
 
         .activity-desc {
-            color: var(--muted);
+            color: var(--theme-text-muted);
             font-size: 13px;
         }
 
         .activity-time {
-            color: var(--muted);
+            color: var(--theme-text-muted);
             font-size: 12px;
         }
 
@@ -216,38 +213,39 @@
 
         .connection-item {
             text-align: center;
-            padding: 12px;
-            border-radius: 8px;
-            border: 1px solid var(--border);
+            padding: var(--space-md);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--theme-border);
+            background: var(--theme-surface-elevated);
         }
 
         .connection-name {
             font-size: 12px;
             margin-bottom: 4px;
-            color: var(--muted);
+            color: var(--theme-text-muted);
         }
 
         .loading {
-            color: var(--muted);
+            color: var(--theme-text-muted);
             text-align: center;
-            padding: 20px;
+            padding: var(--space-xl);
         }
 
         .error {
             color: var(--danger);
             text-align: center;
-            padding: 20px;
-            background: rgba(239, 68, 68, 0.1);
+            padding: var(--space-xl);
+            background: var(--danger-bg);
             border: 1px solid var(--danger);
-            border-radius: 8px;
-            margin: 12px 0;
+            border-radius: var(--radius-md);
+            margin: var(--space-md) 0;
         }
 
         @media (max-width: 768px) {
             .dashboard-grid {
                 grid-template-columns: 1fr;
             }
-            
+
             .quick-actions {
                 grid-template-columns: 1fr;
             }
@@ -256,33 +254,36 @@
 </head>
 
 <body>
-    <!-- Header sera injecté par shared-header.js -->
-
+    <!-- Header injecté par shared-header.js -->
     <div class="wrap">
         <div class="dashboard-grid">
+
             <!-- Portfolio Overview -->
             <div class="card">
                 <div class="card-header">
-                    <div class="card-title">
-                        <span class="card-icon">💰</span>
-                        Portfolio Overview
-                    </div>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                        <button class="action-btn secondary" style="padding: 4px 8px; font-size: 12px;" onclick="forceRefreshData()">🔄</button>
+                    <div class="card-title"><span class="card-icon">💰</span>Portfolio Overview</div>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <button class="action-btn secondary" style="padding:4px 8px;font-size:12px;"
+                            onclick="forceRefreshData()">🔄</button>
                         <span class="status-badge status-active" id="portfolio-status">Loading</span>
                     </div>
                 </div>
-                
+
                 <div class="metric">
                     <span class="metric-label">Total Value</span>
                     <span class="metric-value" id="total-value">--</span>
                 </div>
-                
+
                 <div class="metric">
                     <span class="metric-label">P&L Today</span>
                     <span class="metric-value" id="daily-pnl">--</span>
                 </div>
-                
+
+                <div class="metric">
+                    <span class="metric-label">Assets Count</span>
+                    <span class="metric-value" id="assets-count">--</span>
+                </div>
+
                 <div class="portfolio-chart" id="portfolio-chart">
                     <canvas id="portfolioChartCanvas"></canvas>
                 </div>
@@ -291,48 +292,30 @@
             <!-- Quick Actions -->
             <div class="card">
                 <div class="card-header">
-                    <div class="card-title">
-                        <span class="card-icon">⚡</span>
-                        Quick Actions
-                    </div>
+                    <div class="card-title"><span class="card-icon">⚡</span>Quick Actions</div>
                 </div>
-                
                 <div class="quick-actions">
-                    <a href="rebalance.html" class="action-btn">
-                        ⚖️ Plan Rebalance
-                    </a>
-                    <a href="execution.html" class="action-btn secondary">
-                        🚀 Execute Orders
-                    </a>
-                    <a href="execution_history.html" class="action-btn secondary">
-                        📈 View History
-                    </a>
-                    <a href="settings.html" class="action-btn secondary">
-                        ⚙️ Settings
-                    </a>
+                    <a href="rebalance.html" class="action-btn">⚖️ Plan Rebalance</a>
+                    <a href="execution.html" class="action-btn secondary">🚀 Execute Orders</a>
+                    <a href="execution_history.html" class="action-btn secondary">📈 View History</a>
+                    <a href="settings.html" class="action-btn secondary">⚙️ Settings</a>
                 </div>
             </div>
 
             <!-- Execution Status -->
             <div class="card">
                 <div class="card-header">
-                    <div class="card-title">
-                        <span class="card-icon">🎯</span>
-                        Execution Status
-                    </div>
+                    <div class="card-title"><span class="card-icon">🎯</span>Execution Status</div>
                     <span class="status-badge" id="execution-status">Loading</span>
                 </div>
-                
                 <div class="metric">
                     <span class="metric-label">Last Execution</span>
                     <span class="metric-value" id="last-execution">--</span>
                 </div>
-                
                 <div class="metric">
                     <span class="metric-label">Success Rate (24h)</span>
                     <span class="metric-value" id="success-rate">--</span>
                 </div>
-                
                 <div class="metric">
                     <span class="metric-label">Total Volume (24h)</span>
                     <span class="metric-value" id="volume-24h">--</span>
@@ -342,13 +325,10 @@
             <!-- Exchange Connections -->
             <div class="card">
                 <div class="card-header">
-                    <div class="card-title">
-                        <span class="card-icon">🔗</span>
-                        Exchange Status
-                    </div>
-                    <a href="monitoring_advanced.html" class="status-badge status-active" style="text-decoration: none;">View Details</a>
+                    <div class="card-title"><span class="card-icon">🔗</span>Exchange Status</div>
+                    <a href="monitoring_advanced.html" class="status-badge status-active"
+                        style="text-decoration:none;">View Details</a>
                 </div>
-                
                 <div class="connections-grid" id="connections-grid">
                     <div class="loading">Loading connections...</div>
                 </div>
@@ -357,13 +337,10 @@
             <!-- Recent Activity -->
             <div class="card">
                 <div class="card-header">
-                    <div class="card-title">
-                        <span class="card-icon">📋</span>
-                        Recent Activity
-                    </div>
-                    <a href="execution_history.html" class="status-badge status-active" style="text-decoration: none;">View All</a>
+                    <div class="card-title"><span class="card-icon">📋</span>Recent Activity</div>
+                    <a href="execution_history.html" class="status-badge status-active"
+                        style="text-decoration:none;">View All</a>
                 </div>
-                
                 <div class="recent-activity" id="recent-activity">
                     <div class="loading">Loading recent activity...</div>
                 </div>
@@ -372,73 +349,52 @@
             <!-- System Health -->
             <div class="card">
                 <div class="card-header">
-                    <div class="card-title">
-                        <span class="card-icon">❤️</span>
-                        System Health
-                    </div>
+                    <div class="card-title"><span class="card-icon">❤️</span>System Health</div>
                     <span class="status-badge" id="system-health">Loading</span>
                 </div>
-                
                 <div class="metric">
                     <span class="metric-label">API Status</span>
                     <span class="metric-value" id="api-status">--</span>
                 </div>
-                
                 <div class="metric">
                     <span class="metric-label">Data Freshness</span>
                     <span class="metric-value" id="data-freshness">--</span>
                 </div>
-                
                 <div class="metric">
                     <span class="metric-label">Safety Validator</span>
                     <span class="metric-value" id="safety-status">--</span>
                 </div>
             </div>
+
         </div>
     </div>
 
     <script>
-        // Configuration et état global
-        let dashboardData = {
-            portfolio: null,
-            connections: null,
-            recentActivity: null,
-            executionStats: null
-        };
+        // État global
+        let dashboardData = { portfolio: null, connections: null, recentActivity: null, executionStats: null };
+        let portfolioChart = null;
 
-        // Initialisation
-        document.addEventListener('DOMContentLoaded', async function() {
+        document.addEventListener('DOMContentLoaded', async () => {
             console.log('📊 Dashboard unifié initialisé');
-            
-            // Initialiser le header partagé
             initSharedHeader('dashboard', { showConfigIndicators: true });
             
-            // Charger les données
+            // Configuration Chart.js avec thème
+            initChartTheme();
+            
             await loadDashboardData();
-            
-            // Auto-refresh toutes les 30 secondes
             setInterval(loadDashboardData, 30000);
-            
-            // Écouter les changements de configuration
-            window.addEventListener('dataSourceChanged', function(event) {
+
+            window.addEventListener('dataSourceChanged', (event) => {
                 console.log(`🔄 Source changée: ${event.detail.oldSource} → ${event.detail.newSource}`);
-                // Recharger immédiatement les données avec la nouvelle source
                 loadDashboardData();
             });
         });
 
-        // Chargement des données du dashboard
         async function loadDashboardData() {
             try {
-                // Charger les données en parallèle
                 const [portfolioData, connectionsData, historyData, executionStatus] = await Promise.allSettled([
-                    loadPortfolioData(),
-                    loadConnectionsStatus(),
-                    loadRecentHistory(),
-                    loadExecutionStatus()
+                    loadPortfolioData(), loadConnectionsStatus(), loadRecentHistory(), loadExecutionStatus()
                 ]);
-
-                // Mise à jour avec gestion des erreurs individuelles
                 updatePortfolioDisplay(portfolioData.status === 'fulfilled' ? portfolioData.value : null);
                 updateConnectionsDisplay(connectionsData.status === 'fulfilled' ? connectionsData.value : null);
                 updateRecentActivity(historyData.status === 'fulfilled' ? historyData.value : null);
@@ -446,286 +402,260 @@
                 updateSystemHealth();
 
                 console.log('✅ Dashboard data loaded successfully');
-
-            } catch (error) {
-                console.error('Erreur chargement dashboard:', error);
+            } catch (e) {
+                console.error('Erreur chargement dashboard:', e);
                 showError('Erreur lors du chargement des données');
             }
         }
 
-        // Charger les données du portfolio
         async function loadPortfolioData() {
             try {
-                // S'assurer que globalConfig est disponible
-                if (typeof globalConfig === 'undefined') {
-                    console.warn('globalConfig non disponible, utilisation source par défaut');
-                    var source = 'cointracking';
-                } else {
-                    var source = globalConfig.get('data_source') || 'cointracking';
-                }
-                
+                const source = (typeof globalConfig !== 'undefined' ? (globalConfig.get('data_source') || 'cointracking') : 'cointracking');
                 console.log(`📊 Chargement portfolio avec source: ${source}`);
-                const response = await fetch(`http://localhost:8000/balances/current?source=${source}&pricing=local&min_usd=1.00`);
-                const balancesData = await response.json();
-                
-                // Transform balances data to match expected portfolio structure
-                const total_value = balancesData.items.reduce((sum, item) => sum + parseFloat(item.value_usd || 0), 0);
-                const data = {
+                const resp = await fetch(`http://localhost:8000/balances/current?source=${source}&pricing=local&min_usd=1.00`);
+                const balancesData = await resp.json();
+
+                const total_value = (balancesData.items || []).reduce((s, it) => s + parseFloat(it.value_usd || 0), 0);
+                return {
                     ok: true,
-                    metrics: {
-                        total_value_usd: total_value,
-                        asset_count: balancesData.items.length,
-                        last_updated: new Date().toISOString()
-                    },
-                    performance: {
-                        performance_available: false,
-                        current_value_usd: total_value
-                    }
+                    metrics: { total_value_usd: total_value, asset_count: (balancesData.items || []).length, last_updated: new Date().toISOString() },
+                    performance: { performance_available: false, current_value_usd: total_value },
+                    balances: balancesData
                 };
-                return data;
-            } catch (error) {
-                console.error('Erreur portfolio:', error);
-                return null;
-            }
+            } catch (e) { console.error('Erreur portfolio:', e); return null; }
         }
 
-        // Charger l'état des connexions
         async function loadConnectionsStatus() {
             try {
-                // Endpoint temporaire - remplacer quand disponible
-                // const response = await fetch('http://localhost:8000/execution/connections');
-                // return await response.json();
-                
-                // Données simulées pour l'instant
-                return {
-                    binance: { name: "Binance", connected: true },
-                    kraken: { name: "Kraken", connected: true },
-                    coinbase: { name: "Coinbase", connected: false }
-                };
-            } catch (error) {
-                console.error('Erreur connexions:', error);
-                return null;
-            }
+                return { binance: { name: "Binance", connected: true }, kraken: { name: "Kraken", connected: true }, coinbase: { name: "Coinbase", connected: false } };
+            } catch (e) { console.error('Erreur connexions:', e); return null; }
         }
 
-        // Charger l'historique récent
         async function loadRecentHistory() {
             try {
-                // Endpoint temporaire - remplacer quand disponible
-                // const response = await fetch('http://localhost:8000/execution/history/sessions?limit=5');
-                // return await response.json();
-                
-                // Données simulées pour l'instant
                 return {
                     sessions: [
-                        {
-                            exchange: "Binance",
-                            total_orders: 3,
-                            successful_orders: 3,
-                            total_volume_usd: 1250.50,
-                            timestamp: new Date(Date.now() - 3600000).toISOString() // 1h ago
-                        },
-                        {
-                            exchange: "Kraken",
-                            total_orders: 2,
-                            successful_orders: 2,
-                            total_volume_usd: 890.25,
-                            timestamp: new Date(Date.now() - 7200000).toISOString() // 2h ago
-                        }
+                        { exchange: "Binance", total_orders: 3, successful_orders: 3, total_volume_usd: 1250.50, timestamp: new Date(Date.now() - 3600000).toISOString() },
+                        { exchange: "Kraken", total_orders: 2, successful_orders: 2, total_volume_usd: 890.25, timestamp: new Date(Date.now() - 7200000).toISOString() }
                     ]
                 };
-            } catch (error) {
-                console.error('Erreur historique:', error);
-                return null;
-            }
+            } catch (e) { console.error('Erreur historique:', e); return null; }
         }
 
-        // Charger le statut d'exécution
         async function loadExecutionStatus() {
             try {
-                // Endpoint temporaire - remplacer quand disponible
-                // const response = await fetch('http://localhost:8000/execution/statistics/summary');
-                // return await response.json();
-                
-                // Données simulées pour l'instant
-                return {
-                    recent_24h: {
-                        total_orders: 5,
-                        success_rate: 96.5,
-                        total_volume: 2140.75
-                    }
-                };
-            } catch (error) {
-                console.error('Erreur statut exécution:', error);
-                return null;
-            }
+                return { recent_24h: { total_orders: 5, success_rate: 96.5, total_volume: 2140.75 } };
+            } catch (e) { console.error('Erreur statut exécution:', e); return null; }
         }
 
-        // Mise à jour affichage du portfolio
         function updatePortfolioDisplay(data) {
             if (!data || !data.ok) {
                 document.getElementById('total-value').textContent = 'Erreur';
                 document.getElementById('daily-pnl').textContent = 'Erreur';
-                document.getElementById('portfolio-status').className = 'status-badge status-error';
-                document.getElementById('portfolio-status').textContent = 'Erreur';
+                const st = document.getElementById('portfolio-status');
+                st.className = 'status-badge status-error'; st.textContent = 'Erreur';
                 return;
             }
+            const { metrics, performance } = data;
 
-            const metrics = data.metrics;
-            const performance = data.performance;
-
-            // Mettre à jour la valeur totale
             document.getElementById('total-value').textContent = formatUSD(metrics.total_value_usd || 0);
-            
-            // Mettre à jour le P&L réel depuis les données de performance
-            const dailyPnl = performance?.absolute_change_usd || 0;
-            const pnlElement = document.getElementById('daily-pnl');
-            pnlElement.textContent = formatUSD(dailyPnl);
-            pnlElement.style.color = dailyPnl >= 0 ? 'var(--success)' : 'var(--danger)';
-            
-            // Mettre à jour le statut basé sur les données
-            const statusEl = document.getElementById('portfolio-status');
-            if (metrics.total_value_usd > 0) {
-                statusEl.className = 'status-badge status-active';
-                statusEl.textContent = 'Actif';
-            } else {
-                statusEl.className = 'status-badge status-warning';
-                statusEl.textContent = 'Vide';
-            }
-        }
 
-        // Mise à jour affichage des connexions
+            const dailyPnl = performance?.absolute_change_usd || 0;
+            const pnlEl = document.getElementById('daily-pnl');
+            pnlEl.textContent = formatUSD(dailyPnl);
+            pnlEl.style.color = dailyPnl >= 0 ? 'var(--success)' : 'var(--danger)';
+
+            document.getElementById('assets-count').textContent = metrics.asset_count || 0;
+
+            const statusEl = document.getElementById('portfolio-status');
+            if ((metrics.total_value_usd || 0) > 0) { statusEl.className = 'status-badge status-active'; statusEl.textContent = 'Actif'; }
+            else { statusEl.className = 'status-badge status-warning'; statusEl.textContent = 'Vide'; }
+
+            updatePortfolioChart(data.balances);
+        }
         function updateConnectionsDisplay(data) {
             const container = document.getElementById('connections-grid');
-            
-            if (!data) {
-                container.innerHTML = '<div class="error">Erreur de chargement</div>';
-                return;
-            }
+            if (!data) { container.innerHTML = '<div class="error">Erreur de chargement</div>'; return; }
 
-            const connections = Object.values(data);
-            const html = connections.map(conn => {
-                const statusClass = conn.connected ? 'status-active' : 'status-error';
-                const statusText = conn.connected ? 'Online' : 'Offline';
-                
+            const html = Object.values(data).map(conn => {
+                const cls = conn.connected ? 'status-active' : 'status-error';
+                const txt = conn.connected ? 'Online' : 'Offline';
                 return `
-                    <div class="connection-item">
-                        <div class="connection-name">${conn.name}</div>
-                        <div class="status-badge ${statusClass}">${statusText}</div>
-                    </div>
-                `;
+          <div class="connection-item">
+            <div class="connection-name">${conn.name}</div>
+            <div class="status-badge ${cls}">${txt}</div>
+          </div>`;
             }).join('');
-
             container.innerHTML = html;
         }
 
-        // Mise à jour activité récente
         function updateRecentActivity(data) {
             const container = document.getElementById('recent-activity');
-            
             if (!data || !data.sessions || data.sessions.length === 0) {
                 container.innerHTML = `
-                    <div class="activity-item">
-                        <div>
-                            <div>Aucune activité récente</div>
-                            <div class="activity-desc">Les sessions d'exécution apparaîtront ici</div>
-                        </div>
-                        <div class="activity-time">--</div>
-                    </div>
-                `;
+          <div class="activity-item">
+            <div>
+              <div>Aucune activité récente</div>
+              <div class="activity-desc">Les sessions d'exécution apparaîtront ici</div>
+            </div>
+            <div class="activity-time">--</div>
+          </div>`;
                 return;
             }
-
-            const html = data.sessions.slice(0, 5).map(session => `
-                <div class="activity-item">
-                    <div>
-                        <div>${session.total_orders || 0} ordres sur ${session.exchange || 'Exchange'}</div>
-                        <div class="activity-desc">
-                            ${session.successful_orders || 0} réussis, ${formatUSD(session.total_volume_usd || 0)} volume
-                        </div>
-                    </div>
-                    <div class="activity-time">
-                        ${formatTimeAgo(session.timestamp)}
-                    </div>
-                </div>
-            `).join('');
-
+            const html = data.sessions.slice(0, 5).map(s => `
+        <div class="activity-item">
+          <div>
+            <div>${s.total_orders || 0} ordres sur ${s.exchange || 'Exchange'}</div>
+            <div class="activity-desc">${s.successful_orders || 0} réussis, ${formatUSD(s.total_volume_usd || 0)} volume</div>
+          </div>
+          <div class="activity-time">${formatTimeAgo(s.timestamp)}</div>
+        </div>`).join('');
             container.innerHTML = html;
         }
 
-        // Mise à jour statut d'exécution
         function updateExecutionStatus(data) {
             if (!data || !data.recent_24h) {
                 document.getElementById('last-execution').textContent = 'Aucune';
                 document.getElementById('success-rate').textContent = '--';
                 document.getElementById('volume-24h').textContent = '$0.00';
-                
-                const statusEl = document.getElementById('execution-status');
-                statusEl.className = 'status-badge status-warning';
-                statusEl.textContent = 'En attente';
+                const st = document.getElementById('execution-status'); st.className = 'status-badge status-warning'; st.textContent = 'En attente';
                 return;
             }
+            document.getElementById('last-execution').textContent = data.recent_24h?.total_orders > 0 ? 'Récent' : 'Aucune';
+            const sr = data.recent_24h?.success_rate;
+            document.getElementById('success-rate').textContent = (sr !== undefined) ? sr.toFixed(1) + '%' : '--';
+            document.getElementById('volume-24h').textContent = formatUSD(data.recent_24h?.total_volume || 0);
 
-            document.getElementById('last-execution').textContent = 
-                data.recent_24h?.total_orders > 0 ? 'Récent' : 'Aucune';
-                
-            const successRate = data.recent_24h?.success_rate;
-            document.getElementById('success-rate').textContent = 
-                successRate !== undefined ? successRate.toFixed(1) + '%' : '--';
-                
-            document.getElementById('volume-24h').textContent = 
-                formatUSD(data.recent_24h?.total_volume || 0);
-
-            const statusEl = document.getElementById('execution-status');
-            if (successRate >= 95) {
-                statusEl.className = 'status-badge status-active';
-                statusEl.textContent = 'Excellent';
-            } else if (successRate >= 90) {
-                statusEl.className = 'status-badge status-warning';
-                statusEl.textContent = 'Bon';
-            } else if (successRate !== undefined) {
-                statusEl.className = 'status-badge status-error';
-                statusEl.textContent = 'À améliorer';
-            } else {
-                statusEl.className = 'status-badge status-warning';
-                statusEl.textContent = 'En attente';
-            }
+            const st = document.getElementById('execution-status');
+            if (sr >= 95) { st.className = 'status-badge status-active'; st.textContent = 'Excellent'; }
+            else if (sr >= 90) { st.className = 'status-badge status-warning'; st.textContent = 'Bon'; }
+            else if (sr !== undefined) { st.className = 'status-badge status-error'; st.textContent = 'À améliorer'; }
+            else { st.className = 'status-badge status-warning'; st.textContent = 'En attente'; }
         }
 
-        // Mise à jour santé système
         function updateSystemHealth() {
             document.getElementById('api-status').textContent = 'Online';
             document.getElementById('data-freshness').textContent = 'Récente';
             document.getElementById('safety-status').textContent = 'Actif';
+            const st = document.getElementById('system-health'); st.className = 'status-badge status-active'; st.textContent = 'Healthy';
+        }
+
+        function formatUSD(v) {
+            if (!v) return '$0.00';
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
+        }
+        function formatTimeAgo(ts) {
+            if (!ts) return 'N/A';
+            const d = new Date(ts), now = new Date(), dm = Math.floor((now - d) / (1000 * 60));
+            if (dm < 60) return `${dm}min`;
+            if (dm < 1440) return `${Math.floor(dm / 60)}h`;
+            return `${Math.floor(dm / 1440)}j`;
+        }
+        function showError(m) { console.error(m); }
+        async function forceRefreshData() { console.log('🔄 Force refresh demandé par utilisateur'); await loadDashboardData(); }
+
+        // Configuration Chart.js avec thème adaptatif
+        function initChartTheme() {
+            if (typeof Chart !== 'undefined') {
+                Chart.defaults.color = 'var(--theme-text)';
+                Chart.defaults.borderColor = 'var(--theme-border)';
+                Chart.defaults.backgroundColor = 'var(--theme-surface)';
+                Chart.defaults.plugins.tooltip.backgroundColor = 'var(--theme-surface-elevated)';
+                Chart.defaults.plugins.tooltip.titleColor = 'var(--theme-text)';
+                Chart.defaults.plugins.tooltip.bodyColor = 'var(--theme-text)';
+                Chart.defaults.plugins.tooltip.borderColor = 'var(--theme-border)';
+                Chart.defaults.plugins.tooltip.borderWidth = 1;
+            }
+        }
+
+        // Couleurs pour le graphique portfolio
+        const PORTFOLIO_COLORS = [
+            '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', 
+            '#06b6d4', '#84cc16', '#f97316', '#ec4899', '#6366f1'
+        ];
+
+        // Créer ou mettre à jour le graphique portfolio
+        function updatePortfolioChart(balancesData) {
+            if (!balancesData || !balancesData.items) return;
             
-            document.getElementById('system-health').className = 'status-badge status-active';
-            document.getElementById('system-health').textContent = 'Healthy';
-        }
+            const canvas = document.getElementById('portfolioChartCanvas');
+            if (!canvas) return;
 
-        // Utilitaires de formatage
-        function formatUSD(value) {
-            if (!value) return '$0.00';
-            return new Intl.NumberFormat('en-US', {
-                style: 'currency',
-                currency: 'USD',
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-            }).format(value);
-        }
-
-        function formatTimeAgo(timestamp) {
-            if (!timestamp) return 'N/A';
-            const date = new Date(timestamp);
-            const now = new Date();
-            const diffMinutes = Math.floor((now - date) / (1000 * 60));
+            const ctx = canvas.getContext('2d');
             
-            if (diffMinutes < 60) return `${diffMinutes}min`;
-            if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h`;
-            return `${Math.floor(diffMinutes / 1440)}j`;
-        }
+            // Traiter les données pour le graphique
+            const items = balancesData.items || [];
+            const sortedItems = items
+                .filter(item => parseFloat(item.value_usd || 0) > 0)
+                .sort((a, b) => parseFloat(b.value_usd || 0) - parseFloat(a.value_usd || 0));
 
-        function showError(message) {
-            console.error(message);
+            // Prendre les top 8 + regrouper le reste dans "Others"
+            const topItems = sortedItems.slice(0, 8);
+            const otherItems = sortedItems.slice(8);
+            const otherTotal = otherItems.reduce((sum, item) => sum + parseFloat(item.value_usd || 0), 0);
+
+            const chartData = topItems.map(item => ({
+                label: item.symbol || item.name || 'Unknown',
+                value: parseFloat(item.value_usd || 0)
+            }));
+
+            if (otherTotal > 0) {
+                chartData.push({
+                    label: 'Others',
+                    value: otherTotal
+                });
+            }
+
+            const labels = chartData.map(item => item.label);
+            const values = chartData.map(item => item.value);
+            const total = values.reduce((sum, val) => sum + val, 0);
+
+            // Détruire l'ancien graphique s'il existe
+            if (portfolioChart) {
+                portfolioChart.destroy();
+            }
+
+            // Créer le nouveau graphique
+            portfolioChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: values,
+                        backgroundColor: PORTFOLIO_COLORS.slice(0, values.length),
+                        borderColor: 'var(--theme-border)',
+                        borderWidth: 1,
+                        hoverBorderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false // Masquer la légende par défaut
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.parsed;
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    return `${context.label}: ${formatUSD(value)} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    },
+                    cutout: '60%', // Taille du trou central
+                    animation: {
+                        animateRotate: true,
+                        duration: 1000
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'point'
+                    }
+                }
+            });
         }
 
         // Forcer un refresh des données avec la source actuelle
@@ -736,4 +666,5 @@
         }
     </script>
 </body>
+
 </html>
