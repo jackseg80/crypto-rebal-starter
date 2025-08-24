@@ -346,34 +346,45 @@ async def get_risk_dashboard(
     try:
         start_time = datetime.now()
         
-        # FORCE: Utiliser exactement la même logique que /balances/current
-        # Au lieu d'utiliser notre fonction, copions directement la logique
-        from api.main import resolve_current_balances, _to_rows
+        # Utiliser directement la fonction get_current_balances de cointracking_api
+        from connectors.cointracking_api import get_current_balances
         
         # DEBUG: Log de début
         print(f"DEBUG: Risk Dashboard starting with source={source}, min_usd={min_usd}")
         
-        res = await resolve_current_balances(source=source)
-        rows = [r for r in _to_rows(res.get("items", [])) if float(r.get("value_usd") or 0.0) >= float(min_usd)]
-        balances_response = {"source_used": res.get("source_used"), "items": rows}
-        
-        # DEBUG: Log du résultat
-        items_count = len(balances_response.get('items', []))
-        print(f"DEBUG: Risk Dashboard received {items_count} items after filtering")
-        
+        # Récupération des balances directement depuis l'API
+        balances_response = await get_current_balances()
         if not balances_response or not isinstance(balances_response, dict):
+            print("DEBUG: balances_response is invalid")
             return {
                 "success": False,
                 "message": "Erreur lors de la récupération des données"
             }
         
-        # Utiliser les items filtrés
-        balances = balances_response.get('items', [])
+        # DEBUG: Vérifier la structure des données
+        print(f"DEBUG: balances_response keys: {list(balances_response.keys())}")
+        print(f"DEBUG: balances_response items type: {type(balances_response.get('items'))}")
+        print(f"DEBUG: balances_response items count: {len(balances_response.get('items', []))}")
+        
+        # Filtrer les balances selon le seuil minimum
+        balances = [r for r in balances_response.get("items", []) if float(r.get("value_usd") or 0.0) >= float(min_usd)]
+        
+        # DEBUG: Log du résultat
+        items_count = len(balances)
+        print(f"DEBUG: Risk Dashboard received {items_count} items after filtering")
+        
         if not balances or len(balances) == 0:
+            print("DEBUG: No balances after filtering")
             return {
                 "success": False,
-                "message": "Aucun holding trouvé dans le portfolio"
+                "message": "Aucun holding trouvé dans le portfolio après filtrage"
             }
+        
+        # DEBUG: Afficher les balances pour diagnostic
+        print(f"DEBUG: Balances sample: {balances[:3] if balances else 'No balances'}")
+        
+        # DEBUG: Vérifier la structure des données pour le calcul de risque
+        print(f"DEBUG: First balance structure: {balances[0] if balances else 'None'}")
         
         # Calcul en parallèle de toutes les métriques
         import asyncio
@@ -385,6 +396,10 @@ async def get_risk_dashboard(
             risk_metrics_task,
             correlation_task
         )
+        
+        # DEBUG: Afficher les résultats des calculs
+        print(f"DEBUG: Risk metrics confidence: {risk_metrics.confidence_level}")
+        print(f"DEBUG: Correlation matrix diversification: {correlation_matrix.diversification_ratio}")
         
         # Construction de la réponse dashboard
         dashboard_data = {

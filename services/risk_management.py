@@ -600,59 +600,37 @@ class AdvancedRiskManager:
     ) -> List[Dict[str, float]]:
         """Génère l'historique des returns (simulation - en production: vraies données)"""
         
-        # En production, ici on ferait appel à une API de données historiques
-        # Pour la démo, on simule des returns basés sur les caractéristiques de chaque asset
+        # Extraire les symboles des holdings
+        symbols = [h.get("symbol", "") for h in holdings if h.get("symbol")]
+        if not symbols:
+            logger.warning("Aucun symbole trouvé dans les holdings")
+            return []
         
-        taxonomy = Taxonomy.load()
+        # Pour la démo, retourner des données de test réalistes
         returns_series = []
         
-        # Paramètres de simulation par groupe d'assets
-        asset_params = {
-            "BTC": {"mean_return": 0.0005, "volatility": 0.04, "fat_tail": True},
-            "ETH": {"mean_return": 0.0008, "volatility": 0.05, "fat_tail": True},
-            "Stablecoins": {"mean_return": 0.0001, "volatility": 0.002, "fat_tail": False},
-            "L1/L0 majors": {"mean_return": 0.0003, "volatility": 0.06, "fat_tail": True},
-            "L2/Scaling": {"mean_return": 0.0010, "volatility": 0.08, "fat_tail": True},
-            "DeFi": {"mean_return": 0.0012, "volatility": 0.09, "fat_tail": True},
-            "AI/Data": {"mean_return": 0.0015, "volatility": 0.12, "fat_tail": True},
-            "Gaming/NFT": {"mean_return": 0.0008, "volatility": 0.10, "fat_tail": True},
-            "Memecoins": {"mean_return": 0.0000, "volatility": 0.15, "fat_tail": True},
-            "Others": {"mean_return": 0.0005, "volatility": 0.08, "fat_tail": True}
-        }
-        
-        # Génération des séries de returns
+        # Générer des returns aléatoires mais réalistes pour chaque jour
         np.random.seed(42)  # Reproductibilité
         
         for day in range(days):
             day_returns = {}
             
-            for holding in holdings:
-                symbol = holding.get("symbol", "")
-                alias = holding.get("alias", symbol)
-                group = taxonomy.group_for_alias(alias)
-                
-                params = asset_params.get(group, asset_params["Others"])
-                
-                if params["fat_tail"]:
-                    # Distribution t de Student pour fat tails
-                    return_val = stats.t.rvs(df=4) * params["volatility"] + params["mean_return"]
+            for symbol in symbols:
+                # Générer des returns réalistes basés sur le type d'asset
+                if symbol == "BTC":
+                    return_val = np.random.normal(0.0005, 0.04)  # BTC: moyenne 0.05%, volatilité 4%
+                elif symbol == "ETH":
+                    return_val = np.random.normal(0.0008, 0.05)  # ETH: moyenne 0.08%, volatilité 5%
+                elif symbol in ["USDT", "USDC", "DAI"]:
+                    return_val = np.random.normal(0.0001, 0.002)  # Stablecoins: très faible volatilité
                 else:
-                    # Distribution normale pour stablecoins
-                    return_val = np.random.normal(params["mean_return"], params["volatility"])
+                    return_val = np.random.normal(0.0010, 0.08)  # Altcoins: plus volatile
                 
-                # Correlation entre assets (simplifiée)
-                if day > 0 and len(returns_series) > 0:
-                    # Ajouter corrélation avec BTC pour les autres cryptos
-                    if group != "Stablecoins" and "BTC" in returns_series[-1]:
-                        btc_return = returns_series[-1]["BTC"]
-                        correlation = 0.7 if group in ["ETH", "L1/L0 majors"] else 0.4
-                        return_val += btc_return * correlation * 0.5
-                
-                day_returns[symbol] = return_val
+                day_returns[symbol] = float(return_val)
             
             returns_series.append(day_returns)
         
-        logger.info(f"Généré {len(returns_series)} jours de données historiques simulées")
+        logger.info(f"Généré {len(returns_series)} jours de données historiques simulées pour {len(symbols)} symboles")
         return returns_series
     
     def _calculate_portfolio_returns(
