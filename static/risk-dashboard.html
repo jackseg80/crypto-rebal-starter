@@ -22,6 +22,7 @@
   <!-- CCS modules ESM -->
   <script type="module" src="modules/signals-engine.js"></script>
   <script type="module" src="modules/cycle-navigator.js"></script>
+  <script type="module" src="modules/targets-coordinator.js"></script>
 
   <style>
     /* ===== Layout Hybride: Sidebar + Main ===== */
@@ -486,6 +487,7 @@
     // Import CCS modules
     import { fetchAndComputeCCS, interpretCCS, DEFAULT_CCS_WEIGHTS } from './modules/signals-engine.js';
     import { estimateCyclePosition, blendCCS, getCyclePhase } from './modules/cycle-navigator.js';
+    import { proposeTargets, applyTargets, computePlan, DEFAULT_MACRO_TARGETS, getDecisionLog } from './modules/targets-coordinator.js';
 
     // Global state
     let autoRefreshInterval = null;
@@ -512,8 +514,7 @@
           renderCyclesContent();
           break;
         case 'targets':
-          // TODO: renderTargetsContent();
-          document.getElementById('targets-content').innerHTML = '<h3>🎯 Strategic Targets</h3><p>Target management coming soon...</p>';
+          renderTargetsContent();
           break;
       }
       
@@ -1048,6 +1049,173 @@
         </div>
       `;
     }
+    
+    // ====== Targets Content ======
+    function renderTargetsContent() {
+      const container = document.getElementById('targets-content');
+      const state = store.snapshot();
+      
+      // Propose different targeting strategies
+      const macroProposal = proposeTargets('macro');
+      const ccsProposal = proposeTargets('ccs');
+      const cycleProposal = proposeTargets('cycle');
+      const blendedProposal = proposeTargets('blend');
+      
+      // Current targets from store or use macro as baseline
+      const currentTargets = state.targets?.proposed || DEFAULT_MACRO_TARGETS;
+      
+      container.innerHTML = `
+        <div class="risk-grid">
+          <!-- Strategy Selection -->
+          <div class="risk-card" style="grid-column: 1 / -1;">
+            <h3>🎯 Strategic Targeting</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-sm); margin: var(--space-lg) 0;">
+              <button class="refresh-btn" onclick="applyStrategy('macro')" style="background: #6b7280;">
+                📊 Macro Only<br>
+                <small>${macroProposal.strategy}</small>
+              </button>
+              <button class="refresh-btn" onclick="applyStrategy('ccs')" style="background: #3b82f6;">
+                📈 CCS Based<br>
+                <small>${ccsProposal.strategy}</small>
+              </button>
+              <button class="refresh-btn" onclick="applyStrategy('cycle')" style="background: #f59e0b;">
+                🔄 Cycle Adjusted<br>
+                <small>${cycleProposal.strategy}</small>
+              </button>
+              <button class="refresh-btn" onclick="applyStrategy('blend')" style="background: #10b981;">
+                ⚖️ Blended Strategy<br>
+                <small>${blendedProposal.strategy}</small>
+              </button>
+            </div>
+          </div>
+          
+          <!-- Current vs Proposed -->
+          <div class="risk-card">
+            <h3>📋 Current Allocation</h3>
+            ${renderTargetsTable(DEFAULT_MACRO_TARGETS, 'Baseline Macro')}
+          </div>
+          
+          <div class="risk-card">
+            <h3>🎯 Proposed Targets</h3>
+            ${renderTargetsTable(blendedProposal.targets, blendedProposal.strategy)}
+            <div style="margin-top: var(--space-lg); text-align: center;">
+              <button class="refresh-btn" onclick="applyTargetsAction()" style="background: var(--success);">
+                ✅ Apply Targets
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Action Plan -->
+        ${renderActionPlan(DEFAULT_MACRO_TARGETS, blendedProposal.targets)}
+        
+        <!-- Decision History -->
+        ${renderDecisionHistory()}
+      `;
+    }
+    
+    function renderTargetsTable(targets, strategy) {
+      const { model_version, ...allocations } = targets;
+      
+      return `
+        <div style="font-size: 0.75rem; color: var(--theme-text-muted); margin-bottom: var(--space-sm);">
+          ${strategy} (${model_version})
+        </div>
+        <div class="risk-grid">
+          ${Object.entries(allocations)
+            .sort(([,a], [,b]) => b - a)
+            .map(([asset, allocation]) => `
+              <div class="metric-row">
+                <span class="metric-label">${asset}:</span>
+                <span class="metric-value">${allocation.toFixed(1)}%</span>
+              </div>
+            `).join('')}
+        </div>
+      `;
+    }
+    
+    function renderActionPlan(current, proposed) {
+      if (!current || !proposed) return '';
+      
+      try {
+        const plan = computePlan(current, proposed);
+        
+        if (plan.actions.length === 0) {
+          return `
+            <div class="risk-card">
+              <h3>📝 Action Plan</h3>
+              <p style="text-align: center; color: var(--success);">✅ No changes needed - targets already optimal</p>
+            </div>
+          `;
+        }
+        
+        return `
+          <div class="risk-card">
+            <h3>📝 Action Plan</h3>
+            <div style="font-size: 0.875rem; color: var(--theme-text-muted); margin-bottom: var(--space-lg);">
+              ${plan.num_changes} changes needed • ${plan.total_reallocation.toFixed(1)}% to reallocate • Complexity: ${plan.complexity}
+            </div>
+            <div class="risk-grid">
+              ${plan.actions.map(action => {
+                const color = action.action === 'buy' ? 'var(--success)' : 'var(--danger)';
+                const icon = action.action === 'buy' ? '📈' : '📉';
+                return `
+                  <div class="metric-row">
+                    <span class="metric-label">${icon} ${action.asset}:</span>
+                    <span class="metric-value" style="color: ${color};">
+                      ${action.current_pct.toFixed(1)}% → ${action.target_pct.toFixed(1)}%
+                      <span style="font-size: 0.75rem;">(${action.change_pct > 0 ? '+' : ''}${action.change_pct.toFixed(1)}%)</span>
+                    </span>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+        
+      } catch (error) {
+        return `
+          <div class="risk-card">
+            <h3>📝 Action Plan</h3>
+            <div class="error">Error computing plan: ${error.message}</div>
+          </div>
+        `;
+      }
+    }
+    
+    function renderDecisionHistory() {
+      const history = getDecisionLog(5);
+      
+      if (history.length === 0) {
+        return `
+          <div class="risk-card">
+            <h3>📚 Decision History</h3>
+            <p style="text-align: center; color: var(--theme-text-muted);">No previous decisions</p>
+          </div>
+        `;
+      }
+      
+      return `
+        <div class="risk-card">
+          <h3>📚 Decision History</h3>
+          <div style="font-size: 0.75rem; color: var(--theme-text-muted); margin-bottom: var(--space-sm);">
+            Last ${history.length} decisions
+          </div>
+          ${history.map(entry => `
+            <div class="metric-row" style="border-bottom: 1px solid var(--theme-border); padding: var(--space-sm) 0;">
+              <div>
+                <div style="font-weight: 500;">${entry.strategy}</div>
+                <div style="font-size: 0.75rem; opacity: 0.7;">
+                  ${new Date(entry.timestamp).toLocaleString()} • 
+                  CCS: ${Math.round(entry.ccs_score || 0)} • 
+                  Confidence: ${Math.round((entry.confidence || 0) * 100)}%
+                </div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
 
     function renderError(message) {
       document.getElementById('risk-dashboard-content').innerHTML = `
@@ -1140,8 +1308,60 @@
       if (activeTab === 'cycles' && state.ccs?.score && state.cycle?.months) {
         renderCyclesContent();
       }
+      if (activeTab === 'targets' && state.ccs?.score) {
+        renderTargetsContent();
+      }
     });
     
+    // ====== Global Functions for UI Interaction ======
+    
+    // Apply specific strategy
+    window.applyStrategy = async function(mode) {
+      try {
+        const proposal = proposeTargets(mode);
+        await applyTargets(proposal);
+        
+        // Refresh targets content to show updated data
+        if (store.get('ui.activeTab') === 'targets') {
+          renderTargetsContent();
+        }
+        
+        // Update sidebar
+        updateSidebar(store.snapshot());
+        
+        console.log(`Applied strategy: ${mode} - ${proposal.strategy}`);
+        
+      } catch (error) {
+        console.error('Failed to apply strategy:', error);
+        alert('Failed to apply strategy: ' + error.message);
+      }
+    };
+    
+    // Apply current targets (from the Apply Targets button)
+    window.applyTargetsAction = async function() {
+      try {
+        const blendedProposal = proposeTargets('blend');
+        await applyTargets(blendedProposal);
+        
+        // Show success feedback
+        const button = event.target;
+        const originalText = button.innerHTML;
+        button.innerHTML = '✅ Applied!';
+        button.style.background = 'var(--success)';
+        
+        setTimeout(() => {
+          button.innerHTML = originalText;
+          button.style.background = 'var(--success)';
+        }, 2000);
+        
+        console.log('Targets applied successfully');
+        
+      } catch (error) {
+        console.error('Failed to apply targets:', error);
+        alert('Failed to apply targets: ' + error.message);
+      }
+    };
+
     // Global functions for backwards compatibility
     window.refreshDashboard = refreshDashboard;
     window.enableAutoRefresh = enableAutoRefresh;
