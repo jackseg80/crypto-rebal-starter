@@ -395,7 +395,6 @@
                 const [portfolioData, connectionsData, historyData, executionStatus] = await Promise.allSettled([
                     loadPortfolioData(), loadConnectionsStatus(), loadRecentHistory(), loadExecutionStatus()
                 ]);
-
                 updatePortfolioDisplay(portfolioData.status === 'fulfilled' ? portfolioData.value : null);
                 updateConnectionsDisplay(connectionsData.status === 'fulfilled' ? connectionsData.value : null);
                 updateRecentActivity(historyData.status === 'fulfilled' ? historyData.value : null);
@@ -421,7 +420,7 @@
                     ok: true,
                     metrics: { total_value_usd: total_value, asset_count: (balancesData.items || []).length, last_updated: new Date().toISOString() },
                     performance: { performance_available: false, current_value_usd: total_value },
-                    balances: balancesData // Ajouter les données complètes pour le graphique
+                    balances: balancesData
                 };
             } catch (e) { console.error('Erreur portfolio:', e); return null; }
         }
@@ -466,17 +465,14 @@
             pnlEl.textContent = formatUSD(dailyPnl);
             pnlEl.style.color = dailyPnl >= 0 ? 'var(--success)' : 'var(--danger)';
 
-            // Mettre à jour le nombre d'assets
             document.getElementById('assets-count').textContent = metrics.asset_count || 0;
 
             const statusEl = document.getElementById('portfolio-status');
             if ((metrics.total_value_usd || 0) > 0) { statusEl.className = 'status-badge status-active'; statusEl.textContent = 'Actif'; }
             else { statusEl.className = 'status-badge status-warning'; statusEl.textContent = 'Vide'; }
 
-            // Mettre à jour le graphique portfolio
             updatePortfolioChart(data.balances);
         }
-
         function updateConnectionsDisplay(data) {
             const container = document.getElementById('connections-grid');
             if (!data) { container.innerHTML = '<div class="error">Erreur de chargement</div>'; return; }
@@ -660,6 +656,13 @@
                     }
                 }
             });
+        }
+
+        // Forcer un refresh des données avec la source actuelle
+        async function forceRefreshData() {
+            console.log('🔄 Force refresh demandé par utilisateur');
+            // Vider le cache si nécessaire
+            await loadDashboardData();
         }
     </script>
 </body>

@@ -19,6 +19,8 @@ const DEFAULT_SETTINGS = {
   enable_coingecko_classification: true,
   enable_portfolio_snapshots: true,
   enable_performance_tracking: true,
+  // Thème centralisé
+  theme: 'auto', // 'auto', 'light', 'dark'
   // État du workflow
   has_generated_plan: false,
   unknown_aliases_count: 0,
@@ -97,6 +99,14 @@ class GlobalConfig {
         detail: { newSource: newValue, oldSource: oldValue }
       });
       window.dispatchEvent(dataSourceEvent);
+    }
+    
+    // Événement spécifique pour les changements de thème
+    if (key === 'theme') {
+      const themeEvent = new CustomEvent('themeChanged', {
+        detail: { newTheme: newValue, oldTheme: oldValue }
+      });
+      window.dispatchEvent(themeEvent);
     }
   }
 
@@ -300,6 +310,43 @@ class GlobalConfig {
     // Déclencher un événement pour mettre à jour la navigation
     window.dispatchEvent(new CustomEvent('planReset'));
   }
+
+  /**
+   * Récupère le thème effectif (résout 'auto' vers 'light'/'dark')
+   */
+  getEffectiveTheme() {
+    const theme = this.settings.theme;
+    if (theme === 'auto') {
+      // Détecter les préférences système
+      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        return 'dark';
+      } else {
+        return 'light';
+      }
+    }
+    return theme;
+  }
+
+  /**
+   * Définit le thème et l'applique immédiatement
+   */
+  setTheme(theme) {
+    this.set('theme', theme);
+    this.applyTheme();
+  }
+
+  /**
+   * Applique le thème effectif au document
+   */
+  applyTheme() {
+    const effectiveTheme = this.getEffectiveTheme();
+    document.documentElement.setAttribute('data-theme', effectiveTheme);
+    
+    // Sauvegarder le thème effectif pour les CSS qui en ont besoin
+    document.documentElement.style.setProperty('--effective-theme', effectiveTheme);
+    
+    console.log(`🎨 Thème appliqué: ${this.settings.theme} (effectif: ${effectiveTheme})`);
+  }
 }
 
 // Instance globale
@@ -322,7 +369,29 @@ window.addEventListener('storage', (e) => {
     window.dispatchEvent(new CustomEvent('configChanged', {
       detail: globalConfig.getAll()
     }));
+    // Réappliquer le thème après changement cross-tab
+    globalConfig.applyTheme();
   }
 });
+
+// Écouter les changements de préférences système pour le thème auto
+if (window.matchMedia) {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (globalConfig.get('theme') === 'auto') {
+      globalConfig.applyTheme();
+      // Émettre un événement pour que les pages se mettent à jour
+      window.dispatchEvent(new CustomEvent('themeChanged', {
+        detail: { 
+          newTheme: 'auto', 
+          oldTheme: 'auto',
+          effectiveTheme: globalConfig.getEffectiveTheme()
+        }
+      }));
+    }
+  });
+}
+
+// Appliquer le thème au chargement
+globalConfig.applyTheme();
 
 console.log('🚀 Configuration globale chargée:', globalConfig.getAll());

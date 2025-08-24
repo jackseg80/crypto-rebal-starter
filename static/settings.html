@@ -1,424 +1,723 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Configuration - Crypto Rebalancer</title>
+  <link rel="stylesheet" href="shared-theme.css">
+  <link rel="stylesheet" href="theme-compat.css">
+
+  <script src="global-config.js"></script>
+  <script src="shared-header.js"></script>
+  <script src="appearance.js"></script>
   <style>
-    :root{
-      --bg:#0a0f14; --card:#0e1620; --muted:#8fa0b3; --text:#e7eef7;
-      --accent:#2dd4bf; --danger:#ef4444; --border:#1f2b3a; --pos:#22c55e;
-      --warning:#f59e0b; --info:#3b82f6;
+    * {
+      box-sizing: border-box
     }
-    *{box-sizing:border-box}
-    body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-    
-    header{position:sticky;top:0;background:linear-gradient(180deg,rgba(10,15,20,.95),rgba(10,15,20,.85));backdrop-filter: blur(6px);border-bottom:1px solid var(--border);z-index:10}
-    .wrap{max-width:1200px;margin:0 auto;padding:16px}
-    h1{margin:0 0 8px 0;font-size:24px;font-weight:800}
-    h2{margin:0 0 12px 0;font-size:18px;font-weight:600}
-    h3{margin:0 0 8px 0;font-size:16px;font-weight:600}
-    
-    .nav{display:flex;gap:12px;margin:12px 0}
-    .nav a{padding:8px 16px;border-radius:8px;text-decoration:none;color:var(--muted);border:1px solid var(--border);transition:all 0.2s}
-    .nav a.active, .nav a:hover{background:var(--accent);color:#07211e;border-color:var(--accent)}
-    
-    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:20px}
-    .card.success{border-color:var(--pos);background:rgba(34,197,94,0.05)}
-    .card.warning{border-color:var(--warning);background:rgba(245,158,11,0.05)}
-    
-    .form-group{margin-bottom:20px}
-    .form-group label{display:block;margin-bottom:6px;font-weight:600;color:var(--text)}
-    .form-group .help{font-size:13px;color:var(--muted);margin-top:4px}
-    
-    .form-row{display:flex;gap:16px;align-items:center;margin-bottom:12px}
-    .form-row.vertical{flex-direction:column;align-items:flex-start}
-    
-    input,select,textarea{
-      padding:10px 12px;border-radius:10px;border:1px solid var(--border);
-      background:var(--card);color:var(--text);width:100%;max-width:400px;
-      font-size:14px;
+
+    body {
+      margin: 0;
+      background: var(--theme-background);
+      color: var(--theme-text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif
     }
-    input:focus,select:focus,textarea:focus{
-      outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(45,212,191,0.2);
+
+    header {
+      position: sticky;
+      top: 0;
+      background: var(--theme-surface-elevated);
+      backdrop-filter: blur(6px);
+      border-bottom: 1px solid var(--theme-border);
+      z-index: 10
     }
-    
-    button{
-      padding:10px 20px;border-radius:10px;border:0;cursor:pointer;
-      font-weight:600;transition:all 0.2s;
+
+    .wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 16px
     }
-    .btn{background:var(--accent);color:#07211e}
-    .btn:hover{background:#26baa4}
-    .btn.secondary{background:#223044;color:var(--text);border:1px solid var(--border)}
-    .btn.danger{background:var(--danger);color:white}
-    .btn.small{padding:6px 12px;font-size:13px}
-    
-    .radio-group{display:flex;gap:16px;flex-wrap:wrap}
-    .radio-option{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:all 0.2s}
-    .radio-option:hover{background:rgba(45,212,191,0.1);border-color:var(--accent)}
-    .radio-option input[type="radio"]{width:auto;margin:0}
-    .radio-option.selected{background:rgba(45,212,191,0.1);border-color:var(--accent)}
-    
-    .status-indicator{
-      display:inline-flex;align-items:center;gap:8px;padding:6px 12px;
-      border-radius:999px;font-size:12px;font-weight:600;
+
+    h1 {
+      margin: 0 0 8px 0;
+      font-size: 24px;
+      font-weight: 800
     }
-    .status-ok{background:var(--pos);color:white}
-    .status-warning{background:var(--warning);color:white}
-    .status-error{background:var(--danger);color:white}
-    
-    .test-section{background:#0b131d;border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:12px}
-    .test-result{font-family:monospace;background:#060a0e;border:1px solid var(--border);border-radius:6px;padding:12px;margin-top:8px;font-size:12px}
-    
-    @media(max-width: 768px){
-      .wrap{padding:12px}
-      .form-row{flex-direction:column;align-items:flex-start;gap:8px}
-      .radio-group{flex-direction:column;gap:8px}
-      input,select,textarea{max-width:100%}
+
+    h2 {
+      margin: 0 0 12px 0;
+      font-size: 18px;
+      font-weight: 600
+    }
+
+    h3 {
+      margin: 0 0 8px 0;
+      font-size: 16px;
+      font-weight: 600
+    }
+
+    .nav {
+      display: flex;
+      gap: 12px;
+      margin: 12px 0
+    }
+
+    .nav a {
+      padding: 8px 16px;
+      border-radius: 8px;
+      text-decoration: none;
+      color: var(--theme-text-muted);
+      border: 1px solid var(--theme-border);
+      transition: all 0.2s
+    }
+
+    .nav a.active,
+    .nav a:hover {
+      background: var(--brand-primary);
+      color: white;
+      border-color: var(--brand-primary)
+    }
+
+    .card {
+      background: var(--theme-surface);
+      border: 1px solid var(--theme-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-xl);
+      margin-bottom: var(--space-xl)
+    }
+
+    .card.success {
+      border-color: var(--success);
+      background: var(--success-bg)
+    }
+
+    .card.warning {
+      border-color: var(--warning);
+      background: var(--warning-bg)
+    }
+
+    .form-group {
+      margin-bottom: 20px
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 600;
+      color: var(--theme-text)
+    }
+
+    .form-group .help {
+      font-size: 13px;
+      color: var(--theme-text-muted);
+      margin-top: 4px
+    }
+
+    .form-row {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 12px
+    }
+
+    .form-row.vertical {
+      flex-direction: column;
+      align-items: flex-start
+    }
+
+    input,
+    select,
+    textarea {
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--theme-border);
+      background: var(--theme-surface);
+      color: var(--theme-text);
+      width: 100%;
+      max-width: 400px;
+      font-size: 14px;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      outline: none;
+      border-color: var(--brand-primary);
+      box-shadow: var(--focus-ring);
+    }
+
+    button {
+      padding: 10px 20px;
+      border-radius: 10px;
+      border: 0;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+
+    .btn {
+      background: var(--brand-primary);
+      color: white
+    }
+
+    .btn:hover {
+      background: var(--brand-primary-hover)
+    }
+
+    .btn.secondary {
+      background: var(--theme-surface-elevated);
+      color: var(--theme-text);
+      border: 1px solid var(--theme-border)
+    }
+
+    .btn.danger {
+      background: var(--danger);
+      color: white
+    }
+
+    .btn.small {
+      padding: 6px 12px;
+      font-size: 13px
+    }
+
+    .radio-group {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap
+    }
+
+    .radio-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border: 1px solid var(--theme-border);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s
+    }
+
+    .radio-option:hover {
+      background: var(--brand-primary-subtle);
+      border-color: var(--brand-primary)
+    }
+
+    .radio-option input[type="radio"] {
+      width: auto;
+      margin: 0
+    }
+
+    .radio-option.selected {
+      background: var(--brand-primary-subtle);
+      border-color: var(--brand-primary)
+    }
+
+    .status-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .status-ok {
+      background: var(--success);
+      color: white
+    }
+
+    .status-warning {
+      background: var(--warning);
+      color: white
+    }
+
+    .status-error {
+      background: var(--danger);
+      color: white
+    }
+
+    .test-section {
+      background: var(--theme-surface-elevated);
+      border: 1px solid var(--theme-border);
+      border-radius: 10px;
+      padding: 16px;
+      margin-top: 12px
+    }
+
+    .test-result {
+      font-family: monospace;
+      background: var(--theme-surface);
+      border: 1px solid var(--theme-border);
+      border-radius: 6px;
+      padding: 12px;
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--theme-text)
+    }
+
+    @media(max-width: 768px) {
+      .wrap {
+        padding: 12px
+      }
+
+      .form-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px
+      }
+
+      .radio-group {
+        flex-direction: column;
+        gap: 8px
+      }
+
+      input,
+      select,
+      textarea {
+        max-width: 100%
+      }
     }
   </style>
 </head>
+
 <body>
 
-<header>
+  <header>
+    <div class="wrap">
+      <h1>⚙️ Configuration</h1>
+      <nav class="nav">
+        <a href="dashboard.html">📊 Dashboard</a>
+        <a href="rebalance.html">⚖️ Rebalancing</a>
+        <a href="alias-manager.html">🏷️ Classification</a>
+        <a href="settings.html" class="active">⚙️ Configuration</a>
+      </nav>
+    </div>
+  </header>
+
   <div class="wrap">
-    <h1>⚙️ Configuration</h1>
-    <nav class="nav">
-      <a href="dashboard.html">📊 Dashboard</a>
-      <a href="rebalance.html">⚖️ Rebalancing</a>
-      <a href="alias-manager.html">🏷️ Classification</a>
-      <a href="settings.html" class="active">⚙️ Configuration</a>
-    </nav>
-  </div>
-</header>
 
-<div class="wrap">
-
-  <!-- Status Global -->
-  <div class="card" id="global-status">
-    <div style="display: flex; align-items: center; justify-content: space-between;">
-      <div>
-        <h3>📊 Statut Global</h3>
-        <div id="status-summary">Chargement de la configuration...</div>
-      </div>
-      <div>
-        <button class="btn" onclick="saveAllSettings()">💾 Sauvegarder</button>
-        <button class="btn secondary small" onclick="resetToDefaults()">🔄 Défaut</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Source de Données -->
-  <div class="card">
-    <h3>📡 Source de Données</h3>
-    <div class="form-group">
-      <label>Source principale des balances</label>
-      <div class="radio-group">
-        <div class="radio-option" onclick="selectDataSource('stub')">
-          <input type="radio" name="data_source" value="stub" id="source_stub">
-          <label for="source_stub">🧪 <strong>Stub</strong> - Données de démo</label>
+    <!-- Status Global -->
+    <div class="card" id="global-status">
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <div>
+          <h3>📊 Statut Global</h3>
+          <div id="status-summary">Chargement de la configuration...</div>
         </div>
-        <div class="radio-option" onclick="selectDataSource('cointracking')">
-          <input type="radio" name="data_source" value="cointracking" id="source_cointracking">
-          <label for="source_cointracking">📄 <strong>CoinTracking CSV</strong> - Fichier local</label>
-        </div>
-        <div class="radio-option" onclick="selectDataSource('cointracking_api')">
-          <input type="radio" name="data_source" value="cointracking_api" id="source_cointracking_api">
-          <label for="source_cointracking_api">🌐 <strong>CoinTracking API</strong> - Temps réel</label>
+        <div>
+          <button class="btn" onclick="saveAllSettings()">💾 Sauvegarder</button>
+          <button class="btn secondary small" onclick="resetToDefaults()">🔄 Défaut</button>
         </div>
       </div>
-      <div class="help">Cette source sera utilisée par défaut pour le Dashboard, Rebalancing et toutes les analytics.</div>
     </div>
 
-    <div class="test-section">
-      <button class="btn secondary small" onclick="testDataSource()">🧪 Tester la Source</button>
-      <div id="data-source-test"></div>
-    </div>
-  </div>
-
-  <!-- Pricing -->
-  <div class="card">
-    <h3>💰 Pricing & Devises</h3>
-    <div class="form-group">
-      <label>Mode de pricing</label>
-      <div class="radio-group">
-        <div class="radio-option" onclick="selectPricing('local')">
-          <input type="radio" name="pricing" value="local" id="pricing_local">
-          <label for="pricing_local">🏠 <strong>Local</strong> - Prix depuis les données</label>
+    <!-- Source de Données -->
+    <div class="card">
+      <h3>📡 Source de Données</h3>
+      <div class="form-group">
+        <label>Source principale des balances</label>
+        <div class="radio-group">
+          <div class="radio-option" onclick="selectDataSource('stub')">
+            <input type="radio" name="data_source" value="stub" id="source_stub">
+            <label for="source_stub">🧪 <strong>Stub</strong> - Données de démo</label>
+          </div>
+          <div class="radio-option" onclick="selectDataSource('cointracking')">
+            <input type="radio" name="data_source" value="cointracking" id="source_cointracking">
+            <label for="source_cointracking">📄 <strong>CoinTracking CSV</strong> - Fichier local</label>
+          </div>
+          <div class="radio-option" onclick="selectDataSource('cointracking_api')">
+            <input type="radio" name="data_source" value="cointracking_api" id="source_cointracking_api">
+            <label for="source_cointracking_api">🌐 <strong>CoinTracking API</strong> - Temps réel</label>
+          </div>
         </div>
-        <div class="radio-option" onclick="selectPricing('auto')">
-          <input type="radio" name="pricing" value="auto" id="pricing_auto">
-          <label for="pricing_auto">🚀 <strong>Auto</strong> - Prix automatiques</label>
+        <div class="help">Cette source sera utilisée par défaut pour le Dashboard, Rebalancing et toutes les analytics.
         </div>
       </div>
-      <div class="help">Local utilise les prix dans vos données, Auto récupère les prix actuels via API.</div>
+
+      <div class="test-section">
+        <button class="btn secondary small" onclick="testDataSource()">🧪 Tester la Source</button>
+        <div id="data-source-test"></div>
+      </div>
     </div>
 
-    <div class="form-row">
-      <div style="flex: 1;">
-        <label>Devise d'affichage</label>
-        <select id="display_currency">
-          <option value="USD">USD ($)</option>
-          <option value="EUR">EUR (€)</option>
-          <option value="BTC">BTC (₿)</option>
-        </select>
+    <!-- Pricing -->
+    <div class="card">
+      <h3>💰 Pricing & Devises</h3>
+      <div class="form-group">
+        <label>Mode de pricing</label>
+        <div class="radio-group">
+          <div class="radio-option" onclick="selectPricing('local')">
+            <input type="radio" name="pricing" value="local" id="pricing_local">
+            <label for="pricing_local">🏠 <strong>Local</strong> - Prix depuis les données</label>
+          </div>
+          <div class="radio-option" onclick="selectPricing('auto')">
+            <input type="radio" name="pricing" value="auto" id="pricing_auto">
+            <label for="pricing_auto">🚀 <strong>Auto</strong> - Prix automatiques</label>
+          </div>
+        </div>
+        <div class="help">Local utilise les prix dans vos données, Auto récupère les prix actuels via API.</div>
       </div>
-      <div style="flex: 1;">
-        <label>Seuil minimum (USD)</label>
-        <input type="number" id="min_usd_threshold" min="0" step="0.01" value="1.00">
+
+      <div class="form-row">
+        <div style="flex: 1;">
+          <label>Devise d'affichage</label>
+          <select id="display_currency">
+            <option value="USD">USD ($)</option>
+            <option value="EUR">EUR (€)</option>
+            <option value="BTC">BTC (₿)</option>
+          </select>
+        </div>
+        <div style="flex: 1;">
+          <label>Seuil minimum (USD)</label>
+          <input type="number" id="min_usd_threshold" min="0" step="0.01" value="1.00">
+        </div>
       </div>
     </div>
+
+    <!-- API Keys -->
+    <div class="card">
+      <h3>🔑 Clés API</h3>
+
+      <div class="form-group">
+        <label>CoinGecko API Key</label>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <input type="password" id="coingecko_api_key" placeholder="Optionnel - pour plus de requêtes"
+            style="flex: 1;">
+          <button class="btn small secondary" onclick="toggleApiKeyVisibility('coingecko_api_key')"
+            style="min-width: 60px;">👁️</button>
+          <span id="coingecko_status" class="status-indicator status-warning" style="font-size: 10px;">Vide</span>
+        </div>
+        <div class="help">Clé Demo API CoinGecko pour la classification automatique et données de marché.</div>
+      </div>
+
+      <div class="form-group">
+        <label>CoinTracking API Key</label>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <input type="password" id="cointracking_api_key" placeholder="Obligatoire pour source API" style="flex: 1;">
+          <button class="btn small secondary" onclick="toggleApiKeyVisibility('cointracking_api_key')"
+            style="min-width: 60px;">👁️</button>
+          <span id="cointracking_key_status" class="status-indicator status-warning"
+            style="font-size: 10px;">Vide</span>
+        </div>
+        <div class="help">Clé API CoinTracking pour accès temps réel à vos balances.</div>
+      </div>
+
+      <div class="form-group">
+        <label>CoinTracking API Secret</label>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <input type="password" id="cointracking_api_secret" placeholder="Obligatoire pour source API"
+            style="flex: 1;">
+          <button class="btn small secondary" onclick="toggleApiKeyVisibility('cointracking_api_secret')"
+            style="min-width: 60px;">👁️</button>
+          <span id="cointracking_secret_status" class="status-indicator status-warning"
+            style="font-size: 10px;">Vide</span>
+        </div>
+        <div class="help">Clé secrète CoinTracking (générée avec la clé API).</div>
+      </div>
+
+      <div style="display: flex; gap: 8px; margin-top: 12px;">
+        <button class="btn secondary small" onclick="syncApiKeysFromEnv()">📥 Charger depuis .env</button>
+        <button class="btn small" onclick="syncApiKeysToEnv()">💾 Sauver vers .env</button>
+      </div>
+
+      <div class="test-section">
+        <button class="btn secondary small" onclick="testApiKeys()">🧪 Tester les APIs</button>
+        <div id="api-keys-test"></div>
+      </div>
+    </div>
+
+    <!-- Préférences Interface -->
+    <div class="card">
+      <h3>🎨 Interface & Préférences</h3>
+
+      <div class="form-group">
+        <label>Thème de l'interface</label>
+        <div class="radio-group">
+          <div class="radio-option" onclick="selectTheme('auto')">
+            <input type="radio" name="theme" value="auto" id="theme_auto">
+            <label for="theme_auto">🌓 <strong>Automatique</strong> - Suit les préférences système</label>
+          </div>
+          <div class="radio-option" onclick="selectTheme('light')">
+            <input type="radio" name="theme" value="light" id="theme_light">
+            <label for="theme_light">☀️ <strong>Clair</strong> - Mode jour</label>
+          </div>
+          <div class="radio-option" onclick="selectTheme('dark')">
+            <input type="radio" name="theme" value="dark" id="theme_dark">
+            <label for="theme_dark">🌙 <strong>Sombre</strong> - Mode nuit</label>
+          </div>
+        </div>
+        <div class="help">Le thème s'applique automatiquement sur toutes les pages de l'application.</div>
+      </div>
+
+      <!-- ====== Apparence / Style UI ====== -->
+      <div class="card">
+        <h2>Apparence</h2>
+        <div class="form-group">
+          <label>Style UI</label>
+          <div class="style-grid" style="display:flex;gap:12px;flex-wrap:wrap">
+            <label class="style-card"
+              style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:1px solid var(--theme-border);background:var(--theme-surface-elevated);cursor:pointer">
+              <input type="radio" name="ui-style" value="modern"> Modern
+            </label>
+            <label class="style-card"
+              style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:1px solid var(--theme-border);background:var(--theme-surface-elevated);cursor:pointer">
+              <input type="radio" name="ui-style" value="glass"> Glass
+            </label>
+            <label class="style-card"
+              style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:1px solid var(--theme-border);background:var(--theme-surface-elevated);cursor:pointer">
+              <input type="radio" name="ui-style" value="terminal"> Terminal
+            </label>
+            <label class="style-card"
+              style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:1px solid var(--theme-border);background:var(--theme-surface-elevated);cursor:pointer">
+              <input type="radio" name="ui-style" value="minimal"> Minimal
+            </label>
+          </div>
+          <div class="help">Change uniquement l’habillage (coins/ombres/surfaces). Aucune incidence sur la logique.
+          </div>
+        </div>
+      </div>
+
+      <script>
+        document.addEventListener('DOMContentLoaded', () => {
+          const saved = window.globalConfig?.get?.('style') || 'modern';
+          document.querySelectorAll('input[name="ui-style"]').forEach(r => {
+            r.checked = (r.value === saved);
+            r.addEventListener('change', e => {
+              window.globalConfig?.set?.('style', e.target.value);
+              window.applyAppearance?.();
+            });
+          });
+          // s’assure que le style s’applique si on arrive direct
+          window.applyAppearance?.();
+        });
+      </script>
+
+      <div class="form-row">
+        <div style="flex: 1;">
+          <label>URL API Backend</label>
+          <input type="text" id="api_base_url" value="http://127.0.0.1:8000">
+          <div class="help">URL du serveur FastAPI backend</div>
+        </div>
+        <div style="flex: 1;">
+          <label>Fréquence auto-refresh (min)</label>
+          <input type="number" id="refresh_interval" min="1" max="60" value="5">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Fonctionnalités actives</label>
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+          <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
+            <input type="checkbox" id="enable_coingecko_classification" checked>
+            Classification automatique CoinGecko
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
+            <input type="checkbox" id="enable_portfolio_snapshots" checked>
+            Snapshots automatiques du portfolio
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
+            <input type="checkbox" id="enable_performance_tracking" checked>
+            Suivi de performance historique
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions Avancées -->
+    <div class="card">
+      <h3>🔧 Actions Avancées</h3>
+
+      <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+        <button class="btn secondary" onclick="exportSettings()">📤 Exporter Config</button>
+        <button class="btn secondary" onclick="importSettings()">📥 Importer Config</button>
+        <button class="btn secondary" onclick="clearCache()">🗑️ Vider Cache</button>
+        <button class="btn danger" onclick="resetAllData()">⚠️ Reset Complet</button>
+      </div>
+
+      <div class="test-section" style="margin-top: 16px;">
+        <h4>🧪 Test Complet du Système</h4>
+        <button class="btn" onclick="runFullSystemTest()">🚀 Lancer Test Complet</button>
+        <div id="full-system-test"></div>
+      </div>
+    </div>
+
   </div>
 
-  <!-- API Keys -->
-  <div class="card">
-    <h3>🔑 Clés API</h3>
-    
-    <div class="form-group">
-      <label>CoinGecko API Key</label>
-      <div style="display: flex; gap: 8px; align-items: center;">
-        <input type="password" id="coingecko_api_key" placeholder="Optionnel - pour plus de requêtes" style="flex: 1;">
-        <button class="btn small secondary" onclick="toggleApiKeyVisibility('coingecko_api_key')" style="min-width: 60px;">👁️</button>
-        <span id="coingecko_status" class="status-indicator status-warning" style="font-size: 10px;">Vide</span>
+  <script src="/static/global-config.js"></script>
+  <script src="/static/shared-header.js"></script>
+  <script>
+    // Charger les settings depuis globalConfig
+    function loadSettings() {
+      // Mettre à jour l'interface
+      updateUI();
+      updateStatusSummary();
+    }
+
+    // Sauvegarder les settings via globalConfig
+    function saveSettings() {
+      updateStatusSummary();
+    }
+
+    // Mettre à jour l'interface avec les valeurs actuelles
+    function updateUI() {
+      const globalSettings = globalConfig.getAll();
+
+      // Nettoyer les sélections précédentes
+      document.querySelectorAll('.radio-option').forEach(el => el.classList.remove('selected'));
+
+      // Source de données
+      document.getElementById(`source_${globalSettings.data_source}`).checked = true;
+      document.querySelector(`.radio-option input[value="${globalSettings.data_source}"]`).parentElement.classList.add('selected');
+
+      // Pricing
+      document.getElementById(`pricing_${globalSettings.pricing}`).checked = true;
+      document.querySelector(`.radio-option input[value="${globalSettings.pricing}"]`).parentElement.classList.add('selected');
+
+      // Thème
+      document.getElementById(`theme_${globalSettings.theme}`).checked = true;
+      document.querySelector(`.radio-option input[value="${globalSettings.theme}"]`).parentElement.classList.add('selected');
+
+      // Autres champs
+      document.getElementById('display_currency').value = globalSettings.display_currency;
+      document.getElementById('min_usd_threshold').value = globalSettings.min_usd_threshold;
+
+      // Clés API masquées
+      document.getElementById('coingecko_api_key').value = globalSettings.coingecko_api_key ? maskApiKey(globalSettings.coingecko_api_key) : '';
+      document.getElementById('cointracking_api_key').value = globalSettings.cointracking_api_key ? maskApiKey(globalSettings.cointracking_api_key) : '';
+      document.getElementById('cointracking_api_secret').value = globalSettings.cointracking_api_secret ? maskApiKey(globalSettings.cointracking_api_secret) : '';
+
+      // Mettre à jour les statuts des clés
+      updateApiKeyStatus('coingecko', !!globalSettings.coingecko_api_key);
+      updateApiKeyStatus('cointracking_key', !!globalSettings.cointracking_api_key);
+      updateApiKeyStatus('cointracking_secret', !!globalSettings.cointracking_api_secret);
+
+      document.getElementById('api_base_url').value = globalSettings.api_base_url;
+      document.getElementById('refresh_interval').value = globalSettings.refresh_interval;
+      document.getElementById('enable_coingecko_classification').checked = globalSettings.enable_coingecko_classification;
+      document.getElementById('enable_portfolio_snapshots').checked = globalSettings.enable_portfolio_snapshots;
+      document.getElementById('enable_performance_tracking').checked = globalSettings.enable_performance_tracking;
+    }
+
+    // Mettre à jour le résumé du statut
+    function updateStatusSummary() {
+      const summary = document.getElementById('status-summary');
+      const globalSettings = globalConfig.getAll();
+      const sourceLabels = {
+        'stub': '🧪 Données de démo',
+        'cointracking': '📄 CoinTracking CSV',
+        'cointracking_api': '🌐 CoinTracking API'
+      };
+
+      const pricingLabels = {
+        'local': '🏠 Prix locaux',
+        'auto': '🚀 Prix automatiques'
+      };
+
+      const themeLabels = {
+        'auto': '🌓 Auto',
+        'light': '☀️ Clair',
+        'dark': '🌙 Sombre'
+      };
+
+      summary.innerHTML = `
+      <div style="display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px;">
+        <span class="status-indicator status-ok">
+          ${sourceLabels[globalSettings.data_source]}
+        </span>
+        <span class="status-indicator status-ok">
+          ${pricingLabels[globalSettings.pricing]}
+        </span>
+        <span class="status-indicator status-ok">
+          ${themeLabels[globalSettings.theme]}
+        </span>
+        <span class="status-indicator status-ok">
+          ${globalSettings.display_currency}
+        </span>
       </div>
-      <div class="help">Clé Demo API CoinGecko pour la classification automatique et données de marché.</div>
-    </div>
+      `;
+    }
 
-    <div class="form-group">
-      <label>CoinTracking API Key</label>
-      <div style="display: flex; gap: 8px; align-items: center;">
-        <input type="password" id="cointracking_api_key" placeholder="Obligatoire pour source API" style="flex: 1;">
-        <button class="btn small secondary" onclick="toggleApiKeyVisibility('cointracking_api_key')" style="min-width: 60px;">👁️</button>
-        <span id="cointracking_key_status" class="status-indicator status-warning" style="font-size: 10px;">Vide</span>
-      </div>
-      <div class="help">Clé API CoinTracking pour accès temps réel à vos balances.</div>
-    </div>
+    // Sélection de source de données
+    function selectDataSource(source) {
+      document.querySelectorAll('.radio-option').forEach(el => el.classList.remove('selected'));
+      globalConfig.set('data_source', source);
+      document.getElementById(`source_${source}`).checked = true;
+      document.querySelector(`.radio-option input[value="${source}"]`).parentElement.classList.add('selected');
+      updateStatusSummary();
+    }
 
-    <div class="form-group">
-      <label>CoinTracking API Secret</label>
-      <div style="display: flex; gap: 8px; align-items: center;">
-        <input type="password" id="cointracking_api_secret" placeholder="Obligatoire pour source API" style="flex: 1;">
-        <button class="btn small secondary" onclick="toggleApiKeyVisibility('cointracking_api_secret')" style="min-width: 60px;">👁️</button>
-        <span id="cointracking_secret_status" class="status-indicator status-warning" style="font-size: 10px;">Vide</span>
-      </div>
-      <div class="help">Clé secrète CoinTracking (générée avec la clé API).</div>
-    </div>
+    // Sélection de pricing
+    function selectPricing(pricing) {
+      document.querySelectorAll('.radio-option').forEach(el => el.classList.remove('selected'));
+      globalConfig.set('pricing', pricing);
+      document.getElementById(`pricing_${pricing}`).checked = true;
+      document.querySelector(`.radio-option input[value="${pricing}"]`).parentElement.classList.add('selected');
+      updateStatusSummary();
+    }
 
-    <div style="display: flex; gap: 8px; margin-top: 12px;">
-      <button class="btn secondary small" onclick="syncApiKeysFromEnv()">📥 Charger depuis .env</button>
-      <button class="btn small" onclick="syncApiKeysToEnv()">💾 Sauver vers .env</button>
-    </div>
+    // Sélection de thème
+    function selectTheme(theme) {
+      document.querySelectorAll('.radio-option').forEach(el => el.classList.remove('selected'));
+      globalConfig.setTheme(theme);
+      document.getElementById(`theme_${theme}`).checked = true;
+      document.querySelector(`.radio-option input[value="${theme}"]`).parentElement.classList.add('selected');
+      updateStatusSummary();
+    }
 
-    <div class="test-section">
-      <button class="btn secondary small" onclick="testApiKeys()">🧪 Tester les APIs</button>
-      <div id="api-keys-test"></div>
-    </div>
-  </div>
+    // Sauvegarder tous les settings
+    function saveAllSettings() {
+      // Récupérer toutes les valeurs des champs
+      globalConfig.set('display_currency', document.getElementById('display_currency').value);
+      globalConfig.set('min_usd_threshold', parseFloat(document.getElementById('min_usd_threshold').value));
 
-  <!-- Préférences Interface -->
-  <div class="card">
-    <h3>🎨 Interface & Préférences</h3>
-    
-    <div class="form-row">
-      <div style="flex: 1;">
-        <label>URL API Backend</label>
-        <input type="text" id="api_base_url" value="http://127.0.0.1:8000">
-        <div class="help">URL du serveur FastAPI backend</div>
-      </div>
-      <div style="flex: 1;">
-        <label>Fréquence auto-refresh (min)</label>
-        <input type="number" id="refresh_interval" min="1" max="60" value="5">
-      </div>
-    </div>
+      // Pour les clés API, utiliser la vraie valeur si le champ n'est pas masqué, sinon garder la valeur stockée
+      const coingeckoField = document.getElementById('coingecko_api_key');
+      if (coingeckoField.type === 'text') {
+        // Champ visible, prendre la vraie valeur
+        globalConfig.set('coingecko_api_key', coingeckoField.value);
+      }
 
-    <div class="form-group">
-      <label>Fonctionnalités actives</label>
-      <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
-        <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
-          <input type="checkbox" id="enable_coingecko_classification" checked>
-          Classification automatique CoinGecko
-        </label>
-        <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
-          <input type="checkbox" id="enable_portfolio_snapshots" checked>
-          Snapshots automatiques du portfolio
-        </label>
-        <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
-          <input type="checkbox" id="enable_performance_tracking" checked>
-          Suivi de performance historique
-        </label>
-      </div>
-    </div>
-  </div>
+      const ctKeyField = document.getElementById('cointracking_api_key');
+      if (ctKeyField.type === 'text') {
+        globalConfig.set('cointracking_api_key', ctKeyField.value);
+      }
 
-  <!-- Actions Avancées -->
-  <div class="card">
-    <h3>🔧 Actions Avancées</h3>
-    
-    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-      <button class="btn secondary" onclick="exportSettings()">📤 Exporter Config</button>
-      <button class="btn secondary" onclick="importSettings()">📥 Importer Config</button>
-      <button class="btn secondary" onclick="clearCache()">🗑️ Vider Cache</button>
-      <button class="btn danger" onclick="resetAllData()">⚠️ Reset Complet</button>
-    </div>
+      const ctSecretField = document.getElementById('cointracking_api_secret');
+      if (ctSecretField.type === 'text') {
+        globalConfig.set('cointracking_api_secret', ctSecretField.value);
+      }
 
-    <div class="test-section" style="margin-top: 16px;">
-      <h4>🧪 Test Complet du Système</h4>
-      <button class="btn" onclick="runFullSystemTest()">🚀 Lancer Test Complet</button>
-      <div id="full-system-test"></div>
-    </div>
-  </div>
+      globalConfig.set('api_base_url', document.getElementById('api_base_url').value);
+      globalConfig.set('refresh_interval', parseInt(document.getElementById('refresh_interval').value));
+      globalConfig.set('enable_coingecko_classification', document.getElementById('enable_coingecko_classification').checked);
+      globalConfig.set('enable_portfolio_snapshots', document.getElementById('enable_portfolio_snapshots').checked);
+      globalConfig.set('enable_performance_tracking', document.getElementById('enable_performance_tracking').checked);
 
-</div>
+      const globalSettings = globalConfig.getAll();
 
-<script src="/static/global-config.js"></script>
-<script src="/static/shared-header.js"></script>
-<script>
-// Charger les settings depuis globalConfig
-function loadSettings() {
-  // Mettre à jour l'interface
-  updateUI();
-  updateStatusSummary();
-}
+      // Mettre à jour les statuts
+      updateApiKeyStatus('coingecko', !!globalSettings.coingecko_api_key);
+      updateApiKeyStatus('cointracking_key', !!globalSettings.cointracking_api_key);
+      updateApiKeyStatus('cointracking_secret', !!globalSettings.cointracking_api_secret);
 
-// Sauvegarder les settings via globalConfig
-function saveSettings() {
-  updateStatusSummary();
-}
+      saveSettings();
 
-// Mettre à jour l'interface avec les valeurs actuelles
-function updateUI() {
-  const globalSettings = globalConfig.getAll();
-  
-  // Source de données
-  document.getElementById(`source_${globalSettings.data_source}`).checked = true;
-  document.querySelector(`.radio-option input[value="${globalSettings.data_source}"]`).parentElement.classList.add('selected');
-  
-  // Pricing
-  document.getElementById(`pricing_${globalSettings.pricing}`).checked = true;
-  document.querySelector(`.radio-option input[value="${globalSettings.pricing}"]`).parentElement.classList.add('selected');
-  
-  // Autres champs
-  document.getElementById('display_currency').value = globalSettings.display_currency;
-  document.getElementById('min_usd_threshold').value = globalSettings.min_usd_threshold;
-  
-  // Clés API masquées
-  document.getElementById('coingecko_api_key').value = globalSettings.coingecko_api_key ? maskApiKey(globalSettings.coingecko_api_key) : '';
-  document.getElementById('cointracking_api_key').value = globalSettings.cointracking_api_key ? maskApiKey(globalSettings.cointracking_api_key) : '';
-  document.getElementById('cointracking_api_secret').value = globalSettings.cointracking_api_secret ? maskApiKey(globalSettings.cointracking_api_secret) : '';
-  
-  // Mettre à jour les statuts des clés
-  updateApiKeyStatus('coingecko', !!globalSettings.coingecko_api_key);
-  updateApiKeyStatus('cointracking_key', !!globalSettings.cointracking_api_key);
-  updateApiKeyStatus('cointracking_secret', !!globalSettings.cointracking_api_secret);
-  
-  document.getElementById('api_base_url').value = globalSettings.api_base_url;
-  document.getElementById('refresh_interval').value = globalSettings.refresh_interval;
-  document.getElementById('enable_coingecko_classification').checked = globalSettings.enable_coingecko_classification;
-  document.getElementById('enable_portfolio_snapshots').checked = globalSettings.enable_portfolio_snapshots;
-  document.getElementById('enable_performance_tracking').checked = globalSettings.enable_performance_tracking;
-}
+      // Notification
+      showNotification('⚙️ Configuration sauvegardée !', 'success');
+    }
 
-// Mettre à jour le résumé du statut
-function updateStatusSummary() {
-  const summary = document.getElementById('status-summary');
-  const globalSettings = globalConfig.getAll();
-  const sourceLabels = {
-    'stub': '🧪 Données de démo',
-    'cointracking': '📄 CoinTracking CSV',
-    'cointracking_api': '🌐 CoinTracking API'
-  };
-  
-  const pricingLabels = {
-    'local': '🏠 Prix locaux',
-    'auto': '🚀 Prix automatiques'
-  };
-  
-  summary.innerHTML = `
-    <div style="display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px;">
-      <span class="status-indicator status-ok">
-        ${sourceLabels[globalSettings.data_source]}
-      </span>
-      <span class="status-indicator status-ok">
-        ${pricingLabels[globalSettings.pricing]}
-      </span>
-      <span class="status-indicator status-ok">
-        ${globalSettings.display_currency}
-      </span>
-    </div>
-  `;
-}
+    // Test de la source de données
+    async function testDataSource() {
+      const testDiv = document.getElementById('data-source-test');
+      testDiv.innerHTML = '<div class="test-result">🧪 Test en cours...</div>';
 
-// Sélection de source de données
-function selectDataSource(source) {
-  document.querySelectorAll('.radio-option').forEach(el => el.classList.remove('selected'));
-  globalConfig.set('data_source', source);
-  document.getElementById(`source_${source}`).checked = true;
-  document.querySelector(`.radio-option input[value="${source}"]`).parentElement.classList.add('selected');
-  updateStatusSummary();
-}
+      try {
+        const globalSettings = globalConfig.getAll();
+        const response = await fetch(`${globalSettings.api_base_url}/balances/current?source=${globalSettings.data_source}`);
+        const data = await response.json();
 
-// Sélection de pricing
-function selectPricing(pricing) {
-  globalConfig.set('pricing', pricing);
-  document.getElementById(`pricing_${pricing}`).checked = true;
-  document.querySelector(`.radio-option input[value="${pricing}"]`).parentElement.classList.add('selected');
-  updateStatusSummary();
-}
-
-// Sauvegarder tous les settings
-function saveAllSettings() {
-  // Récupérer toutes les valeurs des champs
-  globalConfig.set('display_currency', document.getElementById('display_currency').value);
-  globalConfig.set('min_usd_threshold', parseFloat(document.getElementById('min_usd_threshold').value));
-  
-  // Pour les clés API, utiliser la vraie valeur si le champ n'est pas masqué, sinon garder la valeur stockée
-  const coingeckoField = document.getElementById('coingecko_api_key');
-  if (coingeckoField.type === 'text') {
-    // Champ visible, prendre la vraie valeur
-    globalConfig.set('coingecko_api_key', coingeckoField.value);
-  }
-  
-  const ctKeyField = document.getElementById('cointracking_api_key');
-  if (ctKeyField.type === 'text') {
-    globalConfig.set('cointracking_api_key', ctKeyField.value);
-  }
-  
-  const ctSecretField = document.getElementById('cointracking_api_secret');
-  if (ctSecretField.type === 'text') {
-    globalConfig.set('cointracking_api_secret', ctSecretField.value);
-  }
-  
-  globalConfig.set('api_base_url', document.getElementById('api_base_url').value);
-  globalConfig.set('refresh_interval', parseInt(document.getElementById('refresh_interval').value));
-  globalConfig.set('enable_coingecko_classification', document.getElementById('enable_coingecko_classification').checked);
-  globalConfig.set('enable_portfolio_snapshots', document.getElementById('enable_portfolio_snapshots').checked);
-  globalConfig.set('enable_performance_tracking', document.getElementById('enable_performance_tracking').checked);
-  
-  const globalSettings = globalConfig.getAll();
-  
-  // Mettre à jour les statuts
-  updateApiKeyStatus('coingecko', !!globalSettings.coingecko_api_key);
-  updateApiKeyStatus('cointracking_key', !!globalSettings.cointracking_api_key);
-  updateApiKeyStatus('cointracking_secret', !!globalSettings.cointracking_api_secret);
-  
-  saveSettings();
-  
-  // Notification
-  showNotification('⚙️ Configuration sauvegardée !', 'success');
-}
-
-// Test de la source de données
-async function testDataSource() {
-  const testDiv = document.getElementById('data-source-test');
-  testDiv.innerHTML = '<div class="test-result">🧪 Test en cours...</div>';
-  
-  try {
-    const globalSettings = globalConfig.getAll();
-    const response = await fetch(`${globalSettings.api_base_url}/balances/current?source=${globalSettings.data_source}`);
-    const data = await response.json();
-    
-    if (response.ok && data.items && data.items.length > 0) {
-      testDiv.innerHTML = `
+        if (response.ok && data.items && data.items.length > 0) {
+          testDiv.innerHTML = `
         <div class="test-result" style="color: var(--pos);">
           ✅ <strong>Succès</strong><br>
           Source: ${data.source_used}<br>
@@ -426,357 +725,364 @@ async function testDataSource() {
           Premier asset: ${data.items[0].symbol} (${data.items[0].value_usd || 0} USD)
         </div>
       `;
-    } else {
-      testDiv.innerHTML = `
+        } else {
+          testDiv.innerHTML = `
         <div class="test-result" style="color: var(--warning);">
           ⚠️ <strong>Aucune donnée</strong><br>
           La source répond mais ne retourne pas d'assets
         </div>
       `;
-    }
-  } catch (error) {
-    testDiv.innerHTML = `
+        }
+      } catch (error) {
+        testDiv.innerHTML = `
       <div class="test-result" style="color: var(--danger);">
         ❌ <strong>Erreur</strong><br>
         ${error.message}
       </div>
     `;
-  }
-}
-
-// Auto-détecter les clés depuis .env du serveur
-async function autoDetectApiKeys() {
-  try {
-    const globalSettings = globalConfig.getAll();
-    // Essayer de récupérer les clés depuis le backend
-    const response = await fetch(`${globalSettings.api_base_url}/debug/api-keys?debug_token=dev-secret-2024`);
-    if (response.ok) {
-      const data = await response.json();
-      let foundKeys = false;
-      
-      // CoinGecko - utiliser la clé du serveur si pas de clé locale
-      if (data.coingecko_api_key && !globalSettings.coingecko_api_key) {
-        globalConfig.set('coingecko_api_key', data.coingecko_api_key);
-        foundKeys = true;
-      }
-      if (globalConfig.get('coingecko_api_key')) {
-        document.getElementById('coingecko_api_key').value = maskApiKey(globalConfig.get('coingecko_api_key'));
-        updateApiKeyStatus('coingecko', true);
-      }
-      
-      // CoinTracking Key - utiliser la clé du serveur si pas de clé locale
-      if (data.cointracking_api_key && !globalSettings.cointracking_api_key) {
-        globalConfig.set('cointracking_api_key', data.cointracking_api_key);
-        foundKeys = true;
-      }
-      if (globalConfig.get('cointracking_api_key')) {
-        document.getElementById('cointracking_api_key').value = maskApiKey(globalConfig.get('cointracking_api_key'));
-        updateApiKeyStatus('cointracking_key', true);
-      }
-      
-      // CoinTracking Secret - utiliser la clé du serveur si pas de clé locale
-      if (data.cointracking_api_secret && !globalSettings.cointracking_api_secret) {
-        globalConfig.set('cointracking_api_secret', data.cointracking_api_secret);
-        foundKeys = true;
-      }
-      if (globalConfig.get('cointracking_api_secret')) {
-        document.getElementById('cointracking_api_secret').value = maskApiKey(globalConfig.get('cointracking_api_secret'));
-        updateApiKeyStatus('cointracking_secret', true);
-      }
-      
-      if (foundKeys) {
-        saveSettings(); // Sauvegarder les nouvelles clés
-        showNotification('🔑 Clés API détectées depuis .env', 'success');
       }
     }
-  } catch (e) {
-    console.log('Auto-détection des clés non disponible:', e.message);
-  }
-}
 
-// Masquer une clé API pour l'affichage
-function maskApiKey(key) {
-  if (!key || key.length < 8) return key;
-  return key.substring(0, 4) + '•'.repeat(key.length - 8) + key.substring(key.length - 4);
-}
-
-// Mettre à jour le statut d'une clé API
-function updateApiKeyStatus(keyType, hasKey) {
-  const statusEl = document.getElementById(`${keyType}_status`);
-  if (statusEl) {
-    if (hasKey) {
-      statusEl.textContent = 'Configurée';
-      statusEl.className = 'status-indicator status-ok';
-    } else {
-      statusEl.textContent = 'Vide';
-      statusEl.className = 'status-indicator status-warning';
-    }
-  }
-}
-
-// Basculer la visibilité d'une clé API
-function toggleApiKeyVisibility(fieldId) {
-  const field = document.getElementById(fieldId);
-  const isPassword = field.type === 'password';
-  
-  if (isPassword) {
-    // Afficher la vraie clé
-    const settingKey = fieldId; // même nom que dans globalConfig
-    field.type = 'text';
-    field.value = globalConfig.get(settingKey) || '';
-  } else {
-    // Masquer avec des points
-    field.type = 'password';
-    const settingKey = fieldId;
-    field.value = globalConfig.get(settingKey) ? maskApiKey(globalConfig.get(settingKey)) : '';
-  }
-}
-
-// Synchroniser depuis .env
-async function syncApiKeysFromEnv() {
-  try {
-    const response = await fetch(`${globalConfig.get('api_base_url')}/debug/api-keys?debug_token=dev-secret-2024`);
-    if (response.ok) {
-      const data = await response.json();
-      let foundKeys = false;
-      
-      // Forcer le rechargement de toutes les clés depuis .env
-      if (data.coingecko_api_key) {
-        globalConfig.set('coingecko_api_key', data.coingecko_api_key);
-        document.getElementById('coingecko_api_key').value = maskApiKey(data.coingecko_api_key);
-        updateApiKeyStatus('coingecko', true);
-        foundKeys = true;
-      } else {
-        updateApiKeyStatus('coingecko', false);
-      }
-      
-      if (data.cointracking_api_key) {
-        globalConfig.set('cointracking_api_key', data.cointracking_api_key);
-        document.getElementById('cointracking_api_key').value = maskApiKey(data.cointracking_api_key);
-        updateApiKeyStatus('cointracking_key', true);
-        foundKeys = true;
-      } else {
-        updateApiKeyStatus('cointracking_key', false);
-      }
-      
-      if (data.cointracking_api_secret) {
-        globalConfig.set('cointracking_api_secret', data.cointracking_api_secret);
-        document.getElementById('cointracking_api_secret').value = maskApiKey(data.cointracking_api_secret);
-        updateApiKeyStatus('cointracking_secret', true);
-        foundKeys = true;
-      } else {
-        updateApiKeyStatus('cointracking_secret', false);
-      }
-      
-      if (foundKeys) {
-        saveSettings();
-        showNotification('📥 Clés rechargées depuis .env', 'success');
-      } else {
-        showNotification('⚠️ Aucune clé trouvée dans .env', 'warning');
-      }
-    } else {
-      showNotification('❌ Erreur lecture .env', 'error');
-    }
-  } catch (e) {
-    showNotification(`❌ Erreur: ${e.message}`, 'error');
-  }
-}
-
-// Synchroniser vers .env
-async function syncApiKeysToEnv() {
-  const payload = {
-    coingecko_api_key: globalConfig.get('coingecko_api_key') || '',
-    cointracking_api_key: globalConfig.get('cointracking_api_key') || '',
-    cointracking_api_secret: globalConfig.get('cointracking_api_secret') || ''
-  };
-  
-  try {
-    const response = await fetch(`${globalConfig.get('api_base_url')}/debug/api-keys?debug_token=dev-secret-2024`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    
-    if (response.ok) {
-      const result = await response.json();
-      if (result.updated) {
-        showNotification('💾 Clés sauvées vers .env', 'success');
-      } else {
-        showNotification('⚪ Aucune clé à sauvegarder', 'info');
-      }
-    } else {
-      throw new Error(`HTTP ${response.status}`);
-    }
-  } catch (e) {
-    showNotification(`❌ Erreur sauvegarde: ${e.message}`, 'error');
-  }
-}
-
-// Test des clés API
-async function testApiKeys() {
-  const testDiv = document.getElementById('api-keys-test');
-  testDiv.innerHTML = '<div class="test-result">🧪 Test des APIs...</div>';
-  
-  let results = [];
-  const globalSettings = globalConfig.getAll();
-  
-  // Test CoinGecko
-  if (globalSettings.coingecko_api_key) {
-    try {
-      const response = await fetch(`${globalSettings.api_base_url}/taxonomy/coingecko-stats`);
-      const data = await response.json();
-      results.push(`🥷 CoinGecko: ${data.ok ? '✅ OK' : '❌ Erreur'}`);
-    } catch (e) {
-      results.push(`🥷 CoinGecko: ❌ ${e.message}`);
-    }
-  } else {
-    results.push(`🥷 CoinGecko: ⚪ Pas de clé configurée`);
-  }
-  
-  // Test CoinTracking API
-  if (globalSettings.cointracking_api_key && globalSettings.cointracking_api_secret && globalSettings.data_source === 'cointracking_api') {
-    try {
-      const response = await fetch(`${globalSettings.api_base_url}/debug/ctapi`);
-      const data = await response.json();
-      results.push(`📊 CoinTracking API: ${response.ok ? '✅ OK' : '❌ Erreur'}`);
-    } catch (e) {
-      results.push(`📊 CoinTracking API: ❌ ${e.message}`);
-    }
-  } else {
-    results.push(`📊 CoinTracking API: ⚪ Pas activé`);
-  }
-  
-  testDiv.innerHTML = `
-    <div class="test-result">
-      <strong>Résultats des tests:</strong><br>
-      ${results.join('<br>')}
-    </div>
-  `;
-}
-
-// Test complet du système
-async function runFullSystemTest() {
-  const testDiv = document.getElementById('full-system-test');
-  testDiv.innerHTML = '<div class="test-result">🚀 Test complet en cours...</div>';
-  
-  let results = [];
-  const globalSettings = globalConfig.getAll();
-  
-  // Test backend
-  try {
-    const healthResponse = await fetch(`${globalSettings.api_base_url}/healthz`);
-    results.push(`🏥 Backend: ${healthResponse.ok ? '✅ OK' : '❌ Erreur'}`);
-  } catch (e) {
-    results.push(`🏥 Backend: ❌ ${e.message}`);
-  }
-  
-  // Test source de données
-  try {
-    const balanceResponse = await fetch(`${globalSettings.api_base_url}/balances/current?source=${globalSettings.data_source}`);
-    const balanceData = await balanceResponse.json();
-    results.push(`📊 Balances: ${balanceData.items?.length > 0 ? '✅ OK (' + balanceData.items.length + ' assets)' : '❌ Vide'}`);
-  } catch (e) {
-    results.push(`📊 Balances: ❌ ${e.message}`);
-  }
-  
-  // Test portfolio analytics
-  try {
-    const metricsResponse = await fetch(`${globalSettings.api_base_url}/portfolio/metrics?source=${globalSettings.data_source}`);
-    const metricsData = await metricsResponse.json();
-    results.push(`📈 Analytics: ${metricsData.ok && metricsData.metrics?.total_value_usd > 0 ? '✅ OK' : '❌ Erreur'}`);
-  } catch (e) {
-    results.push(`📈 Analytics: ❌ ${e.message}`);
-  }
-  
-  // Test taxonomie
-  try {
-    const taxResponse = await fetch(`${globalSettings.api_base_url}/taxonomy/suggestions`);
-    const taxData = await taxResponse.json();
-    results.push(`🏷️ Taxonomie: ${taxResponse.ok ? '✅ OK' : '❌ Erreur'}`);
-  } catch (e) {
-    results.push(`🏷️ Taxonomie: ❌ ${e.message}`);
-  }
-  
-  testDiv.innerHTML = `
-    <div class="test-result">
-      <strong>🧪 Résultats du test complet:</strong><br>
-      ${results.join('<br>')}
-      <br><br>
-      <strong>Configuration testée:</strong><br>
-      Source: ${globalSettings.data_source}<br>
-      Pricing: ${globalSettings.pricing}<br>
-      API: ${globalSettings.api_base_url}
-    </div>
-  `;
-}
-
-// Utilitaires
-function resetToDefaults() {
-  if (confirm('Restaurer la configuration par défaut ?')) {
-    globalConfig.reset();
-    location.reload();
-  }
-}
-
-function exportSettings() {
-  globalConfig.export();
-}
-
-async function importSettings() {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.json';
-  input.onchange = async (e) => {
-    const file = e.target.files[0];
-    if (file) {
+    // Auto-détecter les clés depuis .env du serveur
+    async function autoDetectApiKeys() {
       try {
-        await globalConfig.importFromFile(file);
-        location.reload();
-      } catch (err) {
-        alert('Erreur import: ' + err.message);
+        const globalSettings = globalConfig.getAll();
+        // Essayer de récupérer les clés depuis le backend
+        const response = await fetch(`${globalSettings.api_base_url}/debug/api-keys?debug_token=dev-secret-2024`);
+        if (response.ok) {
+          const data = await response.json();
+          let foundKeys = false;
+
+          // CoinGecko - utiliser la clé du serveur si pas de clé locale
+          if (data.coingecko_api_key && !globalSettings.coingecko_api_key) {
+            globalConfig.set('coingecko_api_key', data.coingecko_api_key);
+            foundKeys = true;
+          }
+          if (globalConfig.get('coingecko_api_key')) {
+            document.getElementById('coingecko_api_key').value = maskApiKey(globalConfig.get('coingecko_api_key'));
+            updateApiKeyStatus('coingecko', true);
+          }
+
+          // CoinTracking Key - utiliser la clé du serveur si pas de clé locale
+          if (data.cointracking_api_key && !globalSettings.cointracking_api_key) {
+            globalConfig.set('cointracking_api_key', data.cointracking_api_key);
+            foundKeys = true;
+          }
+          if (globalConfig.get('cointracking_api_key')) {
+            document.getElementById('cointracking_api_key').value = maskApiKey(globalConfig.get('cointracking_api_key'));
+            updateApiKeyStatus('cointracking_key', true);
+          }
+
+          // CoinTracking Secret - utiliser la clé du serveur si pas de clé locale
+          if (data.cointracking_api_secret && !globalSettings.cointracking_api_secret) {
+            globalConfig.set('cointracking_api_secret', data.cointracking_api_secret);
+            foundKeys = true;
+          }
+          if (globalConfig.get('cointracking_api_secret')) {
+            document.getElementById('cointracking_api_secret').value = maskApiKey(globalConfig.get('cointracking_api_secret'));
+            updateApiKeyStatus('cointracking_secret', true);
+          }
+
+          if (foundKeys) {
+            saveSettings(); // Sauvegarder les nouvelles clés
+            showNotification('🔑 Clés API détectées depuis .env', 'success');
+          }
+        }
+      } catch (e) {
+        console.log('Auto-détection des clés non disponible:', e.message);
       }
     }
-  };
-  input.click();
-}
 
-function clearCache() {
-  if (confirm('Vider tout le cache local ?')) {
-    localStorage.removeItem('lastPortfolioSnapshot');
-    showNotification('🗑️ Cache vidé !', 'success');
-  }
-}
+    // Masquer une clé API pour l'affichage
+    function maskApiKey(key) {
+      if (!key || key.length < 8) return key;
+      return key.substring(0, 4) + '•'.repeat(key.length - 8) + key.substring(key.length - 4);
+    }
 
-function resetAllData() {
-  if (confirm('⚠️ ATTENTION: Supprimer TOUTES les données et configurations ?')) {
-    localStorage.clear();
-    showNotification('⚠️ Toutes les données supprimées !', 'warning');
-    setTimeout(() => location.reload(), 1000);
-  }
-}
+    // Mettre à jour le statut d'une clé API
+    function updateApiKeyStatus(keyType, hasKey) {
+      const statusEl = document.getElementById(`${keyType}_status`);
+      if (statusEl) {
+        if (hasKey) {
+          statusEl.textContent = 'Configurée';
+          statusEl.className = 'status-indicator status-ok';
+        } else {
+          statusEl.textContent = 'Vide';
+          statusEl.className = 'status-indicator status-warning';
+        }
+      }
+    }
 
-function showNotification(message, type = 'info') {
-  const notification = document.createElement('div');
-  notification.textContent = message;
-  notification.style.cssText = `
-    position: fixed; bottom: 20px; right: 20px; z-index: 1000;
-    padding: 12px 16px; border-radius: 8px; color: white; font-weight: 600;
-    background: ${type === 'success' ? 'var(--pos)' : type === 'warning' ? 'var(--warning)' : 'var(--accent)'};
-  `;
-  document.body.appendChild(notification);
-  setTimeout(() => notification.remove(), 3000);
-}
+    // Basculer la visibilité d'une clé API
+    function toggleApiKeyVisibility(fieldId) {
+      const field = document.getElementById(fieldId);
+      const isPassword = field.type === 'password';
 
-// Ajouter le header partagé et initialiser
-document.addEventListener('DOMContentLoaded', () => {
-  // Initialiser le header partagé
-  initSharedHeader('settings', { showConfigIndicators: false });
-  
-  loadSettings();
-  // Tenter l'auto-détection des clés immédiatement
-  autoDetectApiKeys();
-});
-</script>
+      if (isPassword) {
+        // Afficher la vraie clé
+        const settingKey = fieldId; // même nom que dans globalConfig
+        field.type = 'text';
+        field.value = globalConfig.get(settingKey) || '';
+      } else {
+        // Masquer avec des points
+        field.type = 'password';
+        const settingKey = fieldId;
+        field.value = globalConfig.get(settingKey) ? maskApiKey(globalConfig.get(settingKey)) : '';
+      }
+    }
+
+    // Synchroniser depuis .env
+    async function syncApiKeysFromEnv() {
+      try {
+        const response = await fetch(`${globalConfig.get('api_base_url')}/debug/api-keys?debug_token=dev-secret-2024`);
+        if (response.ok) {
+          const data = await response.json();
+          let foundKeys = false;
+
+          // Forcer le rechargement de toutes les clés depuis .env
+          if (data.coingecko_api_key) {
+            globalConfig.set('coingecko_api_key', data.coingecko_api_key);
+            document.getElementById('coingecko_api_key').value = maskApiKey(data.coingecko_api_key);
+            updateApiKeyStatus('coingecko', true);
+            foundKeys = true;
+          } else {
+            updateApiKeyStatus('coingecko', false);
+          }
+
+          if (data.cointracking_api_key) {
+            globalConfig.set('cointracking_api_key', data.cointracking_api_key);
+            document.getElementById('cointracking_api_key').value = maskApiKey(data.cointracking_api_key);
+            updateApiKeyStatus('cointracking_key', true);
+            foundKeys = true;
+          } else {
+            updateApiKeyStatus('cointracking_key', false);
+          }
+
+          if (data.cointracking_api_secret) {
+            globalConfig.set('cointracking_api_secret', data.cointracking_api_secret);
+            document.getElementById('cointracking_api_secret').value = maskApiKey(data.cointracking_api_secret);
+            updateApiKeyStatus('cointracking_secret', true);
+            foundKeys = true;
+          } else {
+            updateApiKeyStatus('cointracking_secret', false);
+          }
+
+          if (foundKeys) {
+            saveSettings();
+            showNotification('📥 Clés rechargées depuis .env', 'success');
+          } else {
+            showNotification('⚠️ Aucune clé trouvée dans .env', 'warning');
+          }
+        } else {
+          showNotification('❌ Erreur lecture .env', 'error');
+        }
+      } catch (e) {
+        showNotification(`❌ Erreur: ${e.message}`, 'error');
+      }
+    }
+
+    // Synchroniser vers .env
+    async function syncApiKeysToEnv() {
+      const payload = {
+        coingecko_api_key: globalConfig.get('coingecko_api_key') || '',
+        cointracking_api_key: globalConfig.get('cointracking_api_key') || '',
+        cointracking_api_secret: globalConfig.get('cointracking_api_secret') || ''
+      };
+
+      try {
+        const response = await fetch(`${globalConfig.get('api_base_url')}/debug/api-keys?debug_token=dev-secret-2024`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.updated) {
+            showNotification('💾 Clés sauvées vers .env', 'success');
+          } else {
+            showNotification('⚪ Aucune clé à sauvegarder', 'info');
+          }
+        } else {
+          throw new Error(`HTTP ${response.status}`);
+        }
+      } catch (e) {
+        showNotification(`❌ Erreur sauvegarde: ${e.message}`, 'error');
+      }
+    }
+
+    // Test des clés API
+    async function testApiKeys() {
+      const testDiv = document.getElementById('api-keys-test');
+      testDiv.innerHTML = '<div class="test-result">🧪 Test des APIs...</div>';
+
+      let results = [];
+      const globalSettings = globalConfig.getAll();
+
+      // Test CoinGecko
+      if (globalSettings.coingecko_api_key) {
+        try {
+          const response = await fetch(`${globalSettings.api_base_url}/taxonomy/coingecko-stats`);
+          const data = await response.json();
+          results.push(`🥷 CoinGecko: ${data.ok ? '✅ OK' : '❌ Erreur'}`);
+        } catch (e) {
+          results.push(`🥷 CoinGecko: ❌ ${e.message}`);
+        }
+      } else {
+        results.push(`🥷 CoinGecko: ⚪ Pas de clé configurée`);
+      }
+
+      // Test CoinTracking API
+      if (globalSettings.cointracking_api_key && globalSettings.cointracking_api_secret && globalSettings.data_source === 'cointracking_api') {
+        try {
+          const response = await fetch(`${globalSettings.api_base_url}/debug/ctapi`);
+          const data = await response.json();
+          results.push(`📊 CoinTracking API: ${response.ok ? '✅ OK' : '❌ Erreur'}`);
+        } catch (e) {
+          results.push(`📊 CoinTracking API: ❌ ${e.message}`);
+        }
+      } else {
+        results.push(`📊 CoinTracking API: ⚪ Pas activé`);
+      }
+
+      testDiv.innerHTML = `
+      <div class="test-result">
+        <strong>Résultats des tests:</strong><br>
+          ${results.join('<br>')}
+      </div>
+      `;
+    }
+
+    // Test complet du système
+    async function runFullSystemTest() {
+      const testDiv = document.getElementById('full-system-test');
+      testDiv.innerHTML = '<div class="test-result">🚀 Test complet en cours...</div>';
+
+      let results = [];
+      const globalSettings = globalConfig.getAll();
+
+      // Test backend
+      try {
+        const healthResponse = await fetch(`${globalSettings.api_base_url}/healthz`);
+        results.push(`🏥 Backend: ${healthResponse.ok ? '✅ OK' : '❌ Erreur'}`);
+      } catch (e) {
+        results.push(`🏥 Backend: ❌ ${e.message}`);
+      }
+
+      // Test source de données
+      try {
+        const balanceResponse = await fetch(`${globalSettings.api_base_url}/balances/current?source=${globalSettings.data_source}`);
+        const balanceData = await balanceResponse.json();
+        results.push(`📊 Balances: ${balanceData.items?.length > 0 ? '✅ OK (' + balanceData.items.length + ' assets)' : '❌ Vide'}`);
+      } catch (e) {
+        results.push(`📊 Balances: ❌ ${e.message}`);
+      }
+
+      // Test portfolio analytics
+      try {
+        const metricsResponse = await fetch(`${globalSettings.api_base_url}/portfolio/metrics?source=${globalSettings.data_source}`);
+        const metricsData = await metricsResponse.json();
+        results.push(`📈 Analytics: ${metricsData.ok && metricsData.metrics?.total_value_usd > 0 ? '✅ OK' : '❌ Erreur'}`);
+      } catch (e) {
+        results.push(`📈 Analytics: ❌ ${e.message}`);
+      }
+
+      // Test taxonomie
+      try {
+        const taxResponse = await fetch(`${globalSettings.api_base_url}/taxonomy/suggestions`);
+        const taxData = await taxResponse.json();
+        results.push(`🏷️ Taxonomie: ${taxResponse.ok ? '✅ OK' : '❌ Erreur'}`);
+      } catch (e) {
+        results.push(`🏷️ Taxonomie: ❌ ${e.message}`);
+      }
+
+      testDiv.innerHTML = `
+      <div class="test-result">
+        <strong>🧪 Résultats du test complet:</strong><br>
+          ${results.join('<br>')}
+          <br><br>
+            <strong>Configuration testée:</strong><br>
+              Source: ${globalSettings.data_source}<br>
+                Pricing: ${globalSettings.pricing}<br>
+                  API: ${globalSettings.api_base_url}
+                </div>
+                `;
+    }
+
+    // Utilitaires
+    function resetToDefaults() {
+      if (confirm('Restaurer la configuration par défaut ?')) {
+        globalConfig.reset();
+        location.reload();
+      }
+    }
+
+    function exportSettings() {
+      globalConfig.export();
+    }
+
+    async function importSettings() {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json';
+      input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          try {
+            await globalConfig.importFromFile(file);
+            location.reload();
+          } catch (err) {
+            alert('Erreur import: ' + err.message);
+          }
+        }
+      };
+      input.click();
+    }
+
+    function clearCache() {
+      if (confirm('Vider tout le cache local ?')) {
+        localStorage.removeItem('lastPortfolioSnapshot');
+        showNotification('🗑️ Cache vidé !', 'success');
+      }
+    }
+
+    function resetAllData() {
+      if (confirm('⚠️ ATTENTION: Supprimer TOUTES les données et configurations ?')) {
+        localStorage.clear();
+        showNotification('⚠️ Toutes les données supprimées !', 'warning');
+        setTimeout(() => location.reload(), 1000);
+      }
+    }
+
+    function showNotification(message, type = 'info') {
+      const notification = document.createElement('div');
+      notification.textContent = message;
+      notification.style.cssText = `
+                position: fixed; bottom: 20px; right: 20px; z-index: 1000;
+                padding: 12px 16px; border-radius: 8px; color: white; font-weight: 600;
+                background: ${type === 'success' ? 'var(--pos)' : type === 'warning' ? 'var(--warning)' : 'var(--accent)'};
+                `;
+      document.body.appendChild(notification);
+      setTimeout(() => notification.remove(), 3000);
+    }
+
+    // Ajouter le header partagé et initialiser
+    document.addEventListener('DOMContentLoaded', () => {
+      // Initialiser le header partagé
+      initSharedHeader('settings', { showConfigIndicators: false });
+
+      loadSettings();
+      // Tenter l'auto-détection des clés immédiatement
+      autoDetectApiKeys();
+
+      // Écouter les changements de thème système pour mettre à jour l'interface
+      window.addEventListener('themeChanged', (event) => {
+        console.log('🎨 Thème changé:', event.detail);
+        // L'interface n'a pas besoin d'être mise à jour car elle suit déjà globalConfig
+      });
+    });
+  </script>
 
 </body>
+
 </html>
