@@ -466,8 +466,23 @@
                 }
                 
                 console.log(`📊 Chargement portfolio avec source: ${source}`);
-                const response = await fetch(`http://localhost:8000/portfolio/metrics?source=${source}`);
-                const data = await response.json();
+                const response = await fetch(`http://localhost:8000/balances/current?source=${source}&pricing=local&min_usd=1.00`);
+                const balancesData = await response.json();
+                
+                // Transform balances data to match expected portfolio structure
+                const total_value = balancesData.items.reduce((sum, item) => sum + parseFloat(item.value_usd || 0), 0);
+                const data = {
+                    ok: true,
+                    metrics: {
+                        total_value_usd: total_value,
+                        asset_count: balancesData.items.length,
+                        last_updated: new Date().toISOString()
+                    },
+                    performance: {
+                        performance_available: false,
+                        current_value_usd: total_value
+                    }
+                };
                 return data;
             } catch (error) {
                 console.error('Erreur portfolio:', error);

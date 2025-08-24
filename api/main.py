@@ -427,15 +427,18 @@ async def healthz():
     return {"ok": True}
 
 
+# Helper function moved to unified_data.py to avoid circular imports
+
+# Debug endpoint removed
+
 # ---------- balances ----------
 @app.get("/balances/current")
 async def balances_current(
     source: str = Query("cointracking"),
     min_usd: float = Query(1.0)
 ):
-    res = await resolve_current_balances(source=source)
-    rows = [r for r in _to_rows(res.get("items", [])) if float(r.get("value_usd") or 0.0) >= float(min_usd)]
-    return {"source_used": res.get("source_used"), "items": rows}
+    from api.unified_data import get_unified_filtered_balances
+    return await get_unified_filtered_balances(source=source, min_usd=min_usd)
 
 
 # ---------- rebalance (JSON) ----------
@@ -449,28 +452,10 @@ async def rebalance_plan(
 ):
     min_usd = _parse_min_usd(min_usd_raw, default=1.0)
 
-    # portefeuille - utiliser les données enrichies avec locations
-    try:
-        from connectors.cointracking import get_unified_balances_by_exchange
-        exchange_data = await get_unified_balances_by_exchange(source=source)
-        
-        # Extraire tous les items avec leurs locations des detailed_holdings
-        items_with_location = []
-        detailed_holdings = exchange_data.get("detailed_holdings", {})
-        
-        for location, assets in detailed_holdings.items():
-            for asset in assets:
-                # Ensure location is set on the asset
-                if "location" not in asset or not asset["location"]:
-                    asset["location"] = location
-                items_with_location.append(asset)  # asset contient déjà symbol, value_usd, location, amount
-        
-        rows = [r for r in _to_rows(items_with_location) if float(r.get("value_usd") or 0.0) >= min_usd]
-        
-    except Exception as e:
-        # Fallback sur la méthode originale en cas d'erreur
-        res = await resolve_current_balances(source=source)
-        rows = [r for r in _to_rows(res.get("items", [])) if float(r.get("value_usd") or 0.0) >= min_usd]
+    # portefeuille - utiliser la fonction helper unifiée
+    from api.unified_data import get_unified_filtered_balances
+    unified_data = await get_unified_filtered_balances(source=source, min_usd=min_usd)
+    rows = unified_data.get("items", [])
 
     # targets - support for dynamic CCS-based targets
     if dynamic_targets and payload.get("dynamic_targets_pct"):
