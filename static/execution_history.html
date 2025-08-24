@@ -604,7 +604,7 @@
                 console.log('Execution History Dashboard initialized');
 
                 // Initialiser le header partagé
-                initSharedHeader('history');
+                initSharedHeader('execution-history');
 
                 refreshAll();
                 startAutoRefresh();
@@ -654,6 +654,9 @@
             async function loadDashboardData() {
                 try {
                     const response = await fetch(`${config.apiBase}/dashboard-data`);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
                     const data = await response.json();
 
                     // Métriques de performance
@@ -694,8 +697,125 @@
 
                 } catch (error) {
                     console.error('Error loading dashboard data:', error);
-                    showNotification('Erreur chargement dashboard', 'error');
+                    showNotification('API non disponible - Données simulées', 'warning');
+                    
+                    // Charger des données simulées
+                    loadMockData();
                 }
+            }
+
+            function loadMockData() {
+                // Données simulées pour démonstration
+                document.getElementById('totalSessions').textContent = '24';
+                document.getElementById('totalVolume').textContent = '$127,450';
+                document.getElementById('avgSuccessRate').textContent = '94.2%';
+                document.getElementById('totalFees').textContent = '$342.18';
+
+                const badge = document.getElementById('performanceBadge');
+                badge.textContent = 'GOOD';
+                badge.className = 'performance-badge performance-good';
+
+                const recentStatsContainer = document.getElementById('recentStats');
+                recentStatsContainer.innerHTML = `
+                    <div class="metrics-grid" style="grid-template-columns: 1fr;">
+                        <div class="metric-item" style="background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);">
+                            <div class="metric-value">3</div>
+                            <div class="metric-label">Exchanges Actifs</div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 15px; padding: 15px; background: var(--theme-surface-elevated); border: 1px solid var(--theme-border); border-radius: var(--radius-md); color: var(--theme-text);">
+                        <p><strong>Dernière session:</strong> ${new Date().toLocaleString('fr-FR')}</p>
+                        <p><strong>Cache période:</strong> 24h</p>
+                        <p><strong>Mode:</strong> Données de démonstration</p>
+                    </div>
+                `;
+
+                // Charger des sessions simulées
+                loadMockSessions();
+            }
+
+            function loadMockSessions() {
+                const container = document.getElementById('sessionsList');
+                const mockSessions = [
+                    {
+                        id: '1',
+                        exchange: 'enhanced_simulator',
+                        timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(), // 30 min ago
+                        total_orders: 8,
+                        successful_orders: 8,
+                        failed_orders: 0,
+                        total_volume_usd: 15750,
+                        total_fees: 47.25,
+                        avg_slippage_bps: 2.3
+                    },
+                    {
+                        id: '2',
+                        exchange: 'simulator',
+                        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2h ago
+                        total_orders: 12,
+                        successful_orders: 11,
+                        failed_orders: 1,
+                        total_volume_usd: 8925,
+                        total_fees: 26.78,
+                        avg_slippage_bps: 1.8
+                    },
+                    {
+                        id: '3',
+                        exchange: 'enhanced_simulator',
+                        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(), // 4h ago
+                        total_orders: 6,
+                        successful_orders: 6,
+                        failed_orders: 0,
+                        total_volume_usd: 22100,
+                        total_fees: 66.30,
+                        avg_slippage_bps: 1.5
+                    }
+                ];
+
+                container.innerHTML = '';
+                
+                mockSessions.forEach(session => {
+                    const successRate = session.total_orders > 0
+                        ? (session.successful_orders / session.total_orders * 100)
+                        : 0;
+
+                    let statusClass = 'success';
+                    if (successRate < 50) statusClass = 'failed';
+                    else if (successRate < 90) statusClass = 'partial';
+
+                    const item = document.createElement('div');
+                    item.className = `session-item ${statusClass}`;
+                    item.onclick = () => showSessionDetails(session.id);
+
+                    const timestamp = new Date(session.timestamp).toLocaleString('fr-FR');
+
+                    item.innerHTML = `
+                        <div class="session-info">
+                            <h3>${session.exchange.toUpperCase()} - ${timestamp}</h3>
+                            <p>${session.total_orders} ordres • ${session.successful_orders} succès • ${session.failed_orders} échecs</p>
+                        </div>
+                        <div class="session-metrics">
+                            <div class="session-metric">
+                                <div class="value">${successRate.toFixed(1)}%</div>
+                                <div class="label">Succès</div>
+                            </div>
+                            <div class="session-metric">
+                                <div class="value">$${session.total_volume_usd.toLocaleString()}</div>
+                                <div class="label">Volume</div>
+                            </div>
+                            <div class="session-metric">
+                                <div class="value">$${session.total_fees.toFixed(2)}</div>
+                                <div class="label">Frais</div>
+                            </div>
+                            <div class="session-metric">
+                                <div class="value">${session.avg_slippage_bps.toFixed(1)}bps</div>
+                                <div class="label">Slippage</div>
+                            </div>
+                        </div>
+                    `;
+
+                    container.appendChild(item);
+                });
             }
 
             async function loadSessions() {
