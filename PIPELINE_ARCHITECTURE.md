@@ -73,31 +73,50 @@ api/
 ### 1. **Ingestion Continue**
 ```python
 # Collecte automatique des données
-portfolio_data = ingestion_service.collect_portfolio()
-price_data = pricing_service.get_current_prices()
+from services.portfolio import portfolio_analytics
+from services.pricing import get_prices_usd
+from connectors.cointracking_api import get_current_balances
+
+portfolio_data = portfolio_analytics.get_portfolio()
+price_data = get_prices_usd(symbols_list, mode="hybrid")
+balances = get_current_balances(source="cointracking_api")
 ```
 
 ### 2. **Analyse & Planning**
 ```python
 # Génération du plan de rebalancement
-plan = rebalance_service.generate_plan(portfolio_data, targets)
-ccs_score = cycles_service.calculate_ccs()
-dynamic_targets = cycles_service.get_dynamic_targets(ccs_score)
+from services.rebalance import plan_rebalance
+from services.smart_classification import smart_classification_service
+from services.risk_management import risk_manager
+
+plan = plan_rebalance(balances, target_allocations)
+risk_metrics = risk_manager.calculate_metrics(portfolio_data)
+classification = smart_classification_service.classify_unknown_assets(symbols)
 ```
 
 ### 3. **Validation & Exécution**
 ```python
 # Validation et exécution des ordres
-validated_plan = execution_service.validate_plan(plan)
-execution_results = execution_service.execute_orders(validated_plan)
+from services.execution.safety_validator import safety_validator
+from services.execution.execution_engine import execution_engine
+from services.execution.order_manager import OrderManager
+
+safety_result = safety_validator.validate_plan(plan)
+if safety_result.is_safe:
+    execution_result = execution_engine.execute_plan(plan)
+    order_manager.track_orders(execution_result.orders)
 ```
 
 ### 4. **Monitoring & Historique**
 ```python
 # Suivi et sauvegarde
-performance_tracker.track_execution(execution_results)
-history_manager.save_rebalance_session(plan, results)
-notification_service.send_completion_alert(results)
+from services.analytics.performance_tracker import performance_tracker
+from services.analytics.history_manager import history_manager
+from services.notifications.alert_manager import alert_manager
+
+performance_tracker.track_execution(execution_result)
+history_manager.save_rebalance_session(plan, execution_result)
+alert_manager.send_completion_alert(execution_result)
 ```
 
 ## 🎨 Interface Pipeline
@@ -163,9 +182,159 @@ Le pipeline complet offre maintenant:
 - ✅ **Analytics avancés** pour optimisation continue des stratégies
 - ✅ **Architecture modulaire** prête pour automation complète
 
-## 🎯 Extensions Possibles
+## 🚀 Nouveaux Modules Intégrés (Phase 5-8)
 
-- **Exchanges réels** : Ajouter des adapters Binance, Coinbase, etc.
-- **Scheduling avancé** : Triggers basés sur conditions de marché
-- **ML/AI Integration** : Amélioration des prédictions CCS
-- **Interface web** : Dashboard temps réel pour monitoring pipeline
+### 🛡️ **Risk Management System** (services/risk_management.py)
+```python
+# Système institutionnel complet d'analyse des risques
+risk_metrics = risk_manager.calculate_metrics(portfolio)
+# - VaR/CVaR 95%/99% et Expected Shortfall  
+# - Performance Ratios: Sharpe, Sortino, Calmar
+# - Correlation Matrix avec analyse PCA
+# - Stress Testing avec scénarios crypto historiques
+
+stress_results = risk_manager.stress_test(portfolio, scenario="covid2020")
+attribution = risk_manager.performance_attribution(portfolio, benchmark="BTC")
+```
+
+### 🧠 **Smart Classification System** (services/smart_classification.py)
+```python
+# Classification IA-powered avec 11 catégories
+classification_result = smart_classification_service.classify_symbol("DOGE")
+# → {'group': 'Memecoins', 'confidence': 0.95, 'pattern': 'meme_patterns'}
+
+auto_suggestions = smart_classification_service.generate_suggestions(unknown_symbols)
+# Précision ~90% sur échantillons types
+```
+
+### 🚀 **Advanced Rebalancing** (services/advanced_rebalancing.py)
+```python
+# Rebalancement multi-stratégie avec détection de régime
+strategy = advanced_rebalancer.detect_market_regime()
+# → 'bull_market' | 'bear_market' | 'sideways' | 'high_volatility'
+
+optimized_plan = advanced_rebalancer.optimize_plan(
+    portfolio, targets, strategy="momentum_based"
+)
+# Optimisation sous contraintes de risque et coûts de transaction
+```
+
+### 🔍 **Connection Monitor** (services/monitoring/connection_monitor.py)
+```python
+# Surveillance multi-dimensionnelle des services
+health_status = connection_monitor.get_global_health()
+# → {'status': 'healthy', 'services': {...}, 'alerts': [...]}
+
+performance_metrics = connection_monitor.get_endpoint_metrics("kraken")
+# Métriques détaillées: latence, uptime, taux d'erreur, trends
+```
+
+### 📊 **Analytics Engine** (services/analytics/)
+```python
+# Performance tracking et analytics avancés
+from services.analytics.performance_tracker import performance_tracker
+from services.analytics.history_manager import history_manager
+
+# Tracking des sessions de rebalancement
+session_id = history_manager.create_session(plan, portfolio_snapshot)
+performance_data = performance_tracker.analyze_execution(session_id)
+# → Attribution, win/loss ratio, impact analysis
+
+# Backtesting et optimisation de stratégies  
+backtest_results = performance_tracker.backtest_strategy(
+    strategy_params, historical_data, period_days=365
+)
+```
+
+### 🔔 **Notification System** (services/notifications/)
+```python
+# Système d'alertes intelligent multi-canaux
+from services.notifications.alert_manager import alert_manager
+from services.notifications.monitoring import monitoring_service
+
+# Alertes avec règles et cooldown
+alert = alert_manager.create_alert(
+    type="portfolio_risk",
+    severity="warning", 
+    message="VaR 95% exceeds threshold",
+    cooldown_minutes=30
+)
+
+# Envoi multi-canal (email, webhook, console)
+notification_result = alert_manager.send_alert(alert)
+```
+
+### 🏗️ **Execution Engine** (services/execution/)
+```python
+# Moteur d'exécution complet avec multi-exchange
+from services.execution.execution_engine import execution_engine
+from services.execution.exchange_adapter import exchange_registry
+
+# Setup des exchanges
+kraken_adapter = exchange_registry.get_adapter("kraken")
+binance_adapter = exchange_registry.get_adapter("binance")
+
+# Exécution avec routage intelligent
+execution_result = execution_engine.execute_plan(
+    plan, 
+    mode="live",  # ou "simulation"
+    max_slippage=0.005,
+    timeout_minutes=30
+)
+
+# Résultats détaillés avec métriques
+# → fees_paid, slippage_achieved, execution_time, success_rate
+```
+
+## 🎯 Pipeline Architecture Évoluée
+
+### **Microservices Ready Architecture**
+```
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│   API Gateway   │  │ Config Service  │  │  Auth Service   │
+└─────────────────┘  └─────────────────┘  └─────────────────┘
+         │                     │                     │
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│Portfolio Service│  │ Risk Service    │  │Trading Service  │
+└─────────────────┘  └─────────────────┘  └─────────────────┘
+         │                     │                     │
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│Analytics Service│  │Monitor Service  │  │Notification Svc │
+└─────────────────┘  └─────────────────┘  └─────────────────┘
+```
+
+### **Event-Driven Architecture**
+```python
+# Système d'événements pour communication inter-services
+from services.notifications.alert_manager import AlertEvent
+
+# Publisher
+execution_engine.emit_event("trade_completed", {
+    "session_id": session_id,
+    "trade_result": result,
+    "portfolio_impact": impact
+})
+
+# Subscribers
+performance_tracker.on("trade_completed", update_metrics)
+alert_manager.on("trade_completed", check_thresholds)
+history_manager.on("trade_completed", save_trade_record)
+```
+
+## 🎯 Extensions Possibles (Phase 9+)
+
+### **Real-Time Infrastructure**
+- **WebSocket Streaming** : Données temps réel pour tous les dashboards
+- **Event Sourcing** : Historique complet et replay des événements  
+- **CQRS Pattern** : Séparation command/query pour performance
+
+### **AI/ML Integration**
+- **Reinforcement Learning** : Agents IA pour stratégies automatisées
+- **Sentiment Analysis** : Intégration Twitter/Reddit pour signaux
+- **Predictive Models** : Modèles de prédiction de prix avec deep learning
+
+### **Enterprise Features**
+- **Multi-Tenant** : Support multi-utilisateurs avec isolation
+- **Compliance Reporting** : Rapports réglementaires automatisés
+- **White-Label** : Solution customisable pour clients institutionnels
+- **Cloud-Native** : Déploiement Kubernetes avec auto-scaling
