@@ -31,7 +31,8 @@
       "Bash(git pull:*)",
       "Bash(git merge:*)",
       "WebFetch(domain:localhost)",
-      "Read(/D:\\d D:\\Python/**)"
+      "Read(/D:\\d D:\\Python/**)",
+      "Bash(git fetch:*)"
     ],
     "deny": [],
     "ask": [],

@@ -574,6 +574,54 @@
             '#06b6d4', '#84cc16', '#f97316', '#ec4899', '#6366f1'
         ];
 
+        // Regroupement par aliases (BTC/TBTC/WBTC, ETH/stETH/wstETH, etc.)
+        const ASSET_GROUPS = {
+            'BTC': ['BTC', 'TBTC', 'WBTC'],
+            'ETH': ['ETH', 'WETH', 'STETH', 'WSTETH', 'RETH', 'CBETH'],
+            'SOL': ['SOL', 'JUPSOL', 'JITOSOL'],
+            'MATIC': ['MATIC', 'POL'],
+            'ATOM': ['ATOM', 'ATOM2'],
+            'DOT': ['DOT', 'DOT2']
+        };
+
+        function groupAssetsByAliases(items) {
+            const groups = new Map();
+            const ungrouped = [];
+
+            items.forEach(item => {
+                const symbol = (item.symbol || '').toUpperCase();
+                let foundGroup = null;
+                
+                // Chercher dans quel groupe appartient ce symbol
+                for (const [groupName, aliases] of Object.entries(ASSET_GROUPS)) {
+                    if (aliases.includes(symbol)) {
+                        foundGroup = groupName;
+                        break;
+                    }
+                }
+                
+                if (foundGroup) {
+                    if (!groups.has(foundGroup)) {
+                        groups.set(foundGroup, {
+                            label: foundGroup,
+                            value: 0,
+                            assets: []
+                        });
+                    }
+                    const group = groups.get(foundGroup);
+                    group.value += parseFloat(item.value_usd || 0);
+                    group.assets.push(symbol);
+                } else {
+                    ungrouped.push({
+                        label: symbol,
+                        value: parseFloat(item.value_usd || 0)
+                    });
+                }
+            });
+
+            return [...Array.from(groups.values()), ...ungrouped];
+        }
+
         // Créer ou mettre à jour le graphique portfolio
         function updatePortfolioChart(balancesData) {
             if (!balancesData || !balancesData.items) return;
@@ -583,37 +631,32 @@
 
             const ctx = canvas.getContext('2d');
             
-            // Traiter les données pour le graphique
+            // Traiter les données pour le graphique avec regroupement par aliases
             const items = balancesData.items || [];
-            const sortedItems = items
-                .filter(item => parseFloat(item.value_usd || 0) > 0)
-                .sort((a, b) => parseFloat(b.value_usd || 0) - parseFloat(a.value_usd || 0));
+            const filteredItems = items.filter(item => parseFloat(item.value_usd || 0) > 0);
+            
+            // Regrouper par aliases
+            const groupedData = groupAssetsByAliases(filteredItems);
+            
+            // Trier par valeur et prendre les top 8
+            const sortedData = groupedData
+                .sort((a, b) => b.value - a.value)
+                .slice(0, 8);
 
-            // Prendre les top 8 + regrouper le reste dans "Others"
-            const topItems = sortedItems.slice(0, 8);
-            const otherItems = sortedItems.slice(8);
-            const otherTotal = otherItems.reduce((sum, item) => sum + parseFloat(item.value_usd || 0), 0);
-
-            const chartData = topItems.map(item => ({
-                label: item.symbol || item.name || 'Unknown',
-                value: parseFloat(item.value_usd || 0)
-            }));
-
-            if (otherTotal > 0) {
-                chartData.push({
-                    label: 'Others',
-                    value: otherTotal
-                });
-            }
-
-            const labels = chartData.map(item => item.label);
-            const values = chartData.map(item => item.value);
+            const labels = sortedData.map(item => item.label);
+            const values = sortedData.map(item => item.value);
             const total = values.reduce((sum, val) => sum + val, 0);
 
             // Détruire l'ancien graphique s'il existe
             if (portfolioChart) {
                 portfolioChart.destroy();
             }
+
+            // Obtenir les couleurs du thème actuel
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            const tooltipBg = isDark ? '#374151' : '#f9fafb';
+            const tooltipText = isDark ? '#f9fafb' : '#1f2937';
+            const tooltipBorder = isDark ? '#6b7280' : '#d1d5db';
 
             // Créer le nouveau graphique
             portfolioChart = new Chart(ctx, {
@@ -623,9 +666,9 @@
                     datasets: [{
                         data: values,
                         backgroundColor: PORTFOLIO_COLORS.slice(0, values.length),
-                        borderColor: 'var(--theme-border)',
-                        borderWidth: 1,
-                        hoverBorderWidth: 2
+                        borderColor: isDark ? '#374151' : '#ffffff',
+                        borderWidth: 2,
+                        hoverBorderWidth: 3
                     }]
                 },
                 options: {
@@ -633,19 +676,34 @@
                     maintainAspectRatio: false,
                     plugins: {
                         legend: {
-                            display: false // Masquer la légende par défaut
+                            display: false
                         },
                         tooltip: {
+                            backgroundColor: tooltipBg,
+                            titleColor: tooltipText,
+                            bodyColor: tooltipText,
+                            borderColor: tooltipBorder,
+                            borderWidth: 1,
+                            cornerRadius: 8,
+                            padding: 12,
                             callbacks: {
                                 label: function(context) {
                                     const value = context.parsed;
                                     const percentage = ((value / total) * 100).toFixed(1);
-                                    return `${context.label}: ${formatUSD(value)} (${percentage}%)`;
+                                    const groupData = sortedData[context.dataIndex];
+                                    let label = `${context.label}: ${formatUSD(value)} (${percentage}%)`;
+                                    
+                                    // Ajouter les assets du groupe si c'est un groupe
+                                    if (groupData.assets && groupData.assets.length > 1) {
+                                        label += `\nAssets: ${groupData.assets.join(', ')}`;
+                                    }
+                                    
+                                    return label;
                                 }
                             }
                         }
                     },
-                    cutout: '60%', // Taille du trou central
+                    cutout: '60%',
                     animation: {
                         animateRotate: true,
                         duration: 1000

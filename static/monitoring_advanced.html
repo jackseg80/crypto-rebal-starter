@@ -1,27 +1,34 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monitoring Avancé - Crypto Rebalancer</title>
+    <script src="global-config.js"></script>
     <script src="shared-header.js"></script>
     <link rel="stylesheet" href="shared-theme.css">
+    <script src="appearance.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        .status-healthy { 
-            background: var(--success-bg); 
-            color: var(--success); 
+        .status-healthy {
+            background: var(--success-bg);
+            color: var(--success);
         }
-        .status-degraded { 
-            background: var(--warning-bg); 
-            color: var(--warning); 
+
+        .status-degraded {
+            background: var(--warning-bg);
+            color: var(--warning);
         }
-        .status-critical { 
-            background: var(--danger-bg); 
-            color: var(--danger); 
+
+        .status-critical {
+            background: var(--danger-bg);
+            color: var(--danger);
         }
-        .status-warning { 
-            background: var(--warning-bg); 
-            color: var(--warning); 
+
+        .status-warning {
+            background: var(--warning-bg);
+            color: var(--warning);
         }
 
         .monitoring-grid {
@@ -88,21 +95,24 @@
             box-shadow: var(--shadow-md);
         }
 
-        .exchange-item.healthy { 
-            border-left-color: var(--success); 
-            background: var(--success-bg); 
+        .exchange-item.healthy {
+            border-left-color: var(--success);
+            background: var(--success-bg);
         }
-        .exchange-item.degraded { 
-            border-left-color: var(--warning); 
-            background: var(--warning-bg); 
+
+        .exchange-item.degraded {
+            border-left-color: var(--warning);
+            background: var(--warning-bg);
         }
-        .exchange-item.critical { 
-            border-left-color: var(--danger); 
-            background: var(--danger-bg); 
+
+        .exchange-item.critical {
+            border-left-color: var(--danger);
+            background: var(--danger-bg);
         }
-        .exchange-item.offline { 
-            border-left-color: var(--theme-text-muted); 
-            background: var(--theme-border-subtle); 
+
+        .exchange-item.offline {
+            border-left-color: var(--theme-text-muted);
+            background: var(--theme-border-subtle);
         }
 
         .exchange-info h3 {
@@ -156,9 +166,20 @@
             border-left: 4px solid;
         }
 
-        .alert-item.info { border-left-color: #4299e1; background: #ebf8ff; }
-        .alert-item.warning { border-left-color: #ed8936; background: #fffbf0; }
-        .alert-item.critical { border-left-color: #f56565; background: #fff5f5; }
+        .alert-item.info {
+            border-left-color: #4299e1;
+            background: #ebf8ff;
+        }
+
+        .alert-item.warning {
+            border-left-color: #ed8936;
+            background: #fffbf0;
+        }
+
+        .alert-item.critical {
+            border-left-color: #f56565;
+            background: #fff5f5;
+        }
 
         .alert-icon {
             width: 24px;
@@ -173,9 +194,17 @@
             flex-shrink: 0;
         }
 
-        .alert-icon.info { background: #4299e1; }
-        .alert-icon.warning { background: #ed8936; }
-        .alert-icon.critical { background: #f56565; }
+        .alert-icon.info {
+            background: #4299e1;
+        }
+
+        .alert-icon.warning {
+            background: #ed8936;
+        }
+
+        .alert-icon.critical {
+            background: #f56565;
+        }
 
         .alert-content {
             flex: 1;
@@ -301,9 +330,17 @@
             transform: translateX(0);
         }
 
-        .notification.success { background: #48bb78; }
-        .notification.error { background: #f56565; }
-        .notification.warning { background: #ed8936; }
+        .notification.success {
+            background: #48bb78;
+        }
+
+        .notification.error {
+            background: #f56565;
+        }
+
+        .notification.warning {
+            background: #ed8936;
+        }
 
         .loading {
             text-align: center;
@@ -337,10 +374,12 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
                 <div>
                     <span id="globalStatus" class="badge badge-success">CHARGEMENT...</span>
                 </div>
@@ -443,18 +482,18 @@
         let refreshTimer = null;
         let currentTab = 'alerts';
 
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             console.log('Advanced monitoring initialized');
-            
+
             // Initialiser le header partagé
             if (typeof initSharedHeader !== 'undefined') {
                 initSharedHeader('monitoring');
             }
-            
+
             refreshAll();
             startAutoRefresh();
-            
-            document.getElementById('autoRefresh').addEventListener('change', function() {
+
+            document.getElementById('autoRefresh').addEventListener('change', function () {
                 config.autoRefresh = this.checked;
                 if (this.checked) {
                     startAutoRefresh();
@@ -468,7 +507,7 @@
             if (refreshTimer) {
                 clearInterval(refreshTimer);
             }
-            
+
             if (config.autoRefresh) {
                 refreshTimer = setInterval(refreshAll, config.refreshInterval);
             }
@@ -490,7 +529,7 @@
                     currentTab === 'analytics' ? loadAnalytics() : Promise.resolve(),
                     currentTab === 'trends' ? loadTrends() : Promise.resolve()
                 ]);
-                
+
                 showNotification('Monitoring mis à jour', 'success');
             } catch (error) {
                 console.error('Error refreshing monitoring:', error);
@@ -502,12 +541,12 @@
             try {
                 const response = await fetch(`${config.apiBase}/health`);
                 const data = await response.json();
-                
+
                 // Statut global
                 const statusEl = document.getElementById('globalStatus');
                 statusEl.textContent = data.global_status.toUpperCase();
                 statusEl.className = `status-badge status-${data.global_status}`;
-                
+
                 // Métriques globales
                 const summary = data.summary;
                 document.getElementById('totalExchanges').textContent = summary.total_exchanges || 0;
@@ -515,7 +554,7 @@
                 document.getElementById('avgResponseTime').textContent = Math.round(summary.average_response_time || 0);
                 document.getElementById('overallUptime').textContent = (summary.overall_uptime || 0).toFixed(1);
                 document.getElementById('activeAlerts').textContent = data.active_alerts_count || 0;
-                
+
             } catch (error) {
                 console.error('Error loading system health:', error);
                 document.getElementById('globalStatus').textContent = 'ERREUR';
@@ -527,16 +566,16 @@
             try {
                 const response = await fetch(`${config.apiBase}/status/detailed`);
                 const data = await response.json();
-                
+
                 const container = document.getElementById('exchangeStatus');
                 container.innerHTML = '';
-                
+
                 Object.entries(data.exchanges).forEach(([exchange, status]) => {
                     const item = document.createElement('div');
                     item.className = `exchange-item ${status.status}`;
-                    
+
                     const responseTrend = getTrendIndicator(status.response_trend);
-                    
+
                     item.innerHTML = `
                         <div class="exchange-info">
                             <h3>${exchange.toUpperCase()}</h3>
@@ -561,13 +600,13 @@
                             </div>
                         </div>
                     `;
-                    
+
                     container.appendChild(item);
                 });
-                
+
             } catch (error) {
                 console.error('Error loading detailed status:', error);
-                document.getElementById('exchangeStatus').innerHTML = 
+                document.getElementById('exchangeStatus').innerHTML =
                     '<div style="color: #f56565;">Erreur de chargement du statut détaillé</div>';
             }
         }
@@ -576,21 +615,21 @@
             try {
                 const response = await fetch(`${config.apiBase}/alerts?limit=20`);
                 const data = await response.json();
-                
+
                 const container = document.getElementById('alertsList');
                 container.innerHTML = '';
-                
+
                 if (data.alerts.length === 0) {
                     container.innerHTML = '<div style="text-align: center; padding: 20px; color: #718096;">Aucune alerte récente</div>';
                     return;
                 }
-                
+
                 data.alerts.forEach(alert => {
                     const item = document.createElement('div');
                     item.className = `alert-item ${alert.level}`;
-                    
+
                     const timestamp = new Date(alert.timestamp).toLocaleString('fr-FR');
-                    
+
                     item.innerHTML = `
                         <div class="alert-icon ${alert.level}">
                             ${alert.level === 'critical' ? '!' : alert.level === 'warning' ? '⚠' : 'i'}
@@ -602,13 +641,13 @@
                         </div>
                         ${!alert.resolved ? `<button class="btn btn-secondary btn-sm" onclick="resolveAlert('${alert.id}')">Résoudre</button>` : ''}
                     `;
-                    
+
                     container.appendChild(item);
                 });
-                
+
             } catch (error) {
                 console.error('Error loading alerts:', error);
-                document.getElementById('alertsList').innerHTML = 
+                document.getElementById('alertsList').innerHTML =
                     '<div style="color: #f56565;">Erreur de chargement des alertes</div>';
             }
         }
@@ -617,10 +656,10 @@
             try {
                 const response = await fetch(`${config.apiBase}/analytics/performance?period_hours=24`);
                 const data = await response.json();
-                
+
                 const container = document.getElementById('analyticsContent');
                 let html = '';
-                
+
                 // Stats globales
                 html += `
                     <div class="metrics-grid">
@@ -642,11 +681,11 @@
                         </div>
                     </div>
                 `;
-                
+
                 // Performances par exchange
                 html += '<h3 style="margin: 20px 0;">Performances par Exchange</h3>';
                 html += '<div class="exchange-status">';
-                
+
                 Object.entries(data.exchanges).forEach(([exchange, stats]) => {
                     html += `
                         <div class="exchange-item">
@@ -675,13 +714,13 @@
                         </div>
                     `;
                 });
-                
+
                 html += '</div>';
                 container.innerHTML = html;
-                
+
             } catch (error) {
                 console.error('Error loading analytics:', error);
-                document.getElementById('analyticsContent').innerHTML = 
+                document.getElementById('analyticsContent').innerHTML =
                     '<div style="color: #f56565;">Erreur de chargement des analytics</div>';
             }
         }
@@ -690,10 +729,10 @@
             try {
                 const response = await fetch(`${config.apiBase}/analytics/trends?hours=24`);
                 const data = await response.json();
-                
+
                 const container = document.getElementById('trendsContent');
                 let html = '';
-                
+
                 Object.entries(data.trends).forEach(([exchange, trend]) => {
                     if (trend.message) {
                         html += `
@@ -706,11 +745,11 @@
                         `;
                         return;
                     }
-                    
+
                     const uptimeTrend = getTrendIndicator(trend.uptime_trend);
                     const responseTrend = getTrendIndicator(trend.response_trend);
                     const overallTrend = getTrendIndicator(trend.overall_direction);
-                    
+
                     html += `
                         <div class="exchange-item ${trend.overall_direction === 'degrading' ? 'critical' : trend.overall_direction === 'improving' ? 'healthy' : ''}">
                             <div class="exchange-info">
@@ -730,18 +769,18 @@
                         </div>
                     `;
                 });
-                
+
                 container.innerHTML = html;
-                
+
             } catch (error) {
                 console.error('Error loading trends:', error);
-                document.getElementById('trendsContent').innerHTML = 
+                document.getElementById('trendsContent').innerHTML =
                     '<div style="color: #f56565;">Erreur de chargement des tendances</div>';
             }
         }
 
         function getTrendIndicator(trend) {
-            switch(trend) {
+            switch (trend) {
                 case 'improving':
                 case 'decreasing':
                     return '<span class="trend-indicator trend-up"></span>';
@@ -762,13 +801,13 @@
             document.querySelectorAll('.tab-button').forEach(btn => {
                 btn.classList.remove('active');
             });
-            
+
             // Montrer l'onglet sélectionné
             document.getElementById(`${tabName}-tab`).classList.add('active');
             document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active');
-            
+
             currentTab = tabName;
-            
+
             // Charger les données si nécessaire
             if (tabName === 'analytics') {
                 loadAnalytics();
@@ -782,7 +821,7 @@
                 const response = await fetch(`${config.apiBase}/alerts/${alertId}/resolve`, {
                     method: 'POST'
                 });
-                
+
                 if (response.ok) {
                     showNotification('Alerte résolue', 'success');
                     await loadAlerts();
@@ -800,7 +839,7 @@
                 const response = await fetch(`${config.apiBase}/monitoring/restart`, {
                     method: 'POST'
                 });
-                
+
                 if (response.ok) {
                     showNotification('Monitoring redémarré', 'success');
                     setTimeout(refreshAll, 2000);
@@ -823,11 +862,12 @@
             notification.textContent = message;
             notification.className = `notification ${type}`;
             notification.classList.add('show');
-            
+
             setTimeout(() => {
                 notification.classList.remove('show');
             }, 3000);
         }
     </script>
 </body>
+
 </html>
