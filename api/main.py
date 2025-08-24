@@ -27,6 +27,8 @@ from api.kraken_endpoints import router as kraken_router
 from api.smart_taxonomy_endpoints import router as smart_taxonomy_router
 from api.advanced_rebalancing_endpoints import router as advanced_rebalancing_router
 from api.risk_endpoints import router as risk_router
+from api.execution_history import router as execution_history_router
+from api.monitoring_advanced import router as monitoring_advanced_router
 from api.exceptions import (
     CryptoRebalancerException, APIException, ValidationException, 
     ConfigurationException, TradingException, DataException, ErrorCodes
@@ -786,6 +788,8 @@ app.include_router(kraken_router)
 app.include_router(smart_taxonomy_router)
 app.include_router(advanced_rebalancing_router)
 app.include_router(risk_router)
+app.include_router(execution_history_router)
+app.include_router(monitoring_advanced_router)
 
 # ---------- Portfolio Analytics ----------
 @app.get("/portfolio/metrics")

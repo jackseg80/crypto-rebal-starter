@@ -84,7 +84,13 @@ function createSharedHeader(activePageId, showConfigIndicators = false) {
   return `
     <header>
       <div class="wrap">
-        <h1>${title}</h1>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h1>${title}</h1>
+          <div class="theme-toggle" onclick="toggleTheme()">
+            <div class="theme-toggle-icon" id="light-icon">☀️</div>
+            <div class="theme-toggle-icon" id="dark-icon">🌙</div>
+          </div>
+        </div>
         <nav class="nav">
           <div class="nav-section analytics-section">
             <div class="section-label">Analytics & Decisions</div>
@@ -280,6 +286,11 @@ function initSharedHeader(activePageId, options = {}) {
   window.addEventListener('planReset', () => {
     refreshNavigation(activePageId, options);
   });
+  
+  // Initialize theme after header is created
+  setTimeout(() => {
+    initTheme();
+  }, 100);
 }
 
 // Fonction pour rafraîchir dynamiquement la navigation
@@ -322,7 +333,40 @@ function initializeSharedHeader(activePageId, options = {}) {
   return initSharedHeader(activePageId, options);
 }
 
+// Theme management functions
+function initTheme() {
+  const savedTheme = localStorage.getItem('theme') || 'light';
+  document.documentElement.setAttribute('data-theme', savedTheme);
+  updateThemeIcons(savedTheme);
+}
+
+function toggleTheme() {
+  const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+  const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+  
+  document.documentElement.setAttribute('data-theme', newTheme);
+  localStorage.setItem('theme', newTheme);
+  updateThemeIcons(newTheme);
+}
+
+function updateThemeIcons(theme) {
+  const lightIcon = document.getElementById('light-icon');
+  const darkIcon = document.getElementById('dark-icon');
+  
+  if (lightIcon && darkIcon) {
+    if (theme === 'light') {
+      lightIcon.classList.add('active');
+      darkIcon.classList.remove('active');
+    } else {
+      lightIcon.classList.remove('active');
+      darkIcon.classList.add('active');
+    }
+  }
+}
+
 // Export pour utilisation
 window.initSharedHeader = initSharedHeader;
 window.initializeSharedHeader = initializeSharedHeader;
 window.updateConfigIndicators = updateConfigIndicators;
+window.toggleTheme = toggleTheme;
+window.initTheme = initTheme;

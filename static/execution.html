@@ -4,309 +4,113 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>🚀 Exécution - Crypto Rebalancer</title>
+  <script src="shared-header.js"></script>
+  <link rel="stylesheet" href="shared-theme.css">
   
   <style>
-    :root {
-      --primary: #2563eb;
-      --success: #059669;
-      --warning: #d97706;
-      --danger: #dc2626;
-      --muted: #64748b;
-      --border: #e2e8f0;
-      --bg-light: #f8fafc;
-      --text: #1e293b;
-    }
-
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-      line-height: 1.6;
-      color: var(--text);
-      background: #f8fafc;
-    }
-
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 20px;
-    }
-
-    .header {
-      background: white;
-      padding: 24px;
-      border-radius: 12px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      margin-bottom: 24px;
-      border-left: 4px solid var(--primary);
-    }
-
-    .header h1 {
-      color: var(--primary);
-      margin-bottom: 8px;
-      font-size: 2rem;
-    }
-
-    .header p {
-      color: var(--muted);
-      font-size: 1.1rem;
-    }
-
     .section {
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      margin-bottom: 24px;
+      background: var(--theme-surface);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      margin-bottom: var(--space-lg);
       overflow: hidden;
+      border: 1px solid var(--theme-border);
     }
 
     .section-header {
-      padding: 20px 24px;
-      border-bottom: 1px solid var(--border);
-      background: var(--bg-light);
+      padding: var(--space-lg) var(--space-xl);
+      border-bottom: 1px solid var(--theme-border);
+      background: var(--theme-surface-elevated);
     }
 
     .section-header h2 {
-      color: var(--text);
-      font-size: 1.5rem;
-      margin-bottom: 4px;
+      color: var(--theme-text);
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: var(--space-xs);
     }
 
     .section-header p {
-      color: var(--muted);
+      color: var(--theme-text-muted);
+      font-size: 0.875rem;
     }
 
     .section-content {
-      padding: 24px;
+      padding: var(--space-xl);
     }
 
     .tab-nav {
       display: flex;
-      border-bottom: 1px solid var(--border);
-      background: var(--bg-light);
+      border-bottom: 1px solid var(--theme-border);
+      background: var(--theme-surface-elevated);
     }
 
     .tab-button {
-      padding: 16px 24px;
+      padding: var(--space-md) var(--space-lg);
       background: none;
       border: none;
       cursor: pointer;
       font-weight: 500;
-      color: var(--muted);
+      color: var(--theme-text-muted);
       border-bottom: 2px solid transparent;
-      transition: all 0.2s;
+      transition: all var(--transition-normal);
     }
 
     .tab-button.active {
-      color: var(--primary);
-      border-bottom-color: var(--primary);
-      background: white;
+      color: var(--brand-primary);
+      border-bottom-color: var(--brand-primary);
+      background: var(--theme-surface);
     }
 
     .tab-content {
       display: none;
-      padding: 24px;
+      padding: var(--space-xl);
     }
 
     .tab-content.active {
       display: block;
     }
 
-    .btn {
-      padding: 12px 24px;
-      border: none;
-      border-radius: 8px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s;
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .btn-primary {
-      background: var(--primary);
-      color: white;
-    }
-
-    .btn-success {
-      background: var(--success);
-      color: white;
-    }
-
-    .btn-warning {
-      background: var(--warning);
-      color: white;
-    }
-
-    .btn-danger {
-      background: var(--danger);
-      color: white;
-    }
-
-    .btn:hover {
-      opacity: 0.9;
-      transform: translateY(-1px);
-    }
-
-    .status-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
-      border-radius: 20px;
-      font-size: 0.875rem;
-      font-weight: 500;
-    }
-
-    .status-pending { background: #fef3c7; color: #92400e; }
-    .status-executing { background: #dbeafe; color: #1d4ed8; }
-    .status-completed { background: #d1fae5; color: #065f46; }
-    .status-failed { background: #fee2e2; color: #991b1b; }
-    .status-cancelled { background: #f3f4f6; color: #374151; }
-
-    .progress-bar {
-      width: 100%;
-      height: 8px;
-      background: var(--border);
-      border-radius: 4px;
-      overflow: hidden;
-      margin: 16px 0;
-    }
-
-    .progress-fill {
-      height: 100%;
-      background: var(--success);
-      transition: width 0.3s ease;
-      border-radius: 4px;
-    }
-
-    .grid {
-      display: grid;
-      gap: 20px;
-    }
-
-    .grid-2 {
-      grid-template-columns: 1fr 1fr;
-    }
-
-    .grid-3 {
-      grid-template-columns: 1fr 1fr 1fr;
-    }
-
-    .metric-card {
-      background: var(--bg-light);
-      padding: 20px;
-      border-radius: 8px;
-      text-align: center;
-    }
-
-    .metric-value {
-      font-size: 2rem;
-      font-weight: 700;
-      color: var(--primary);
-      margin-bottom: 4px;
-    }
-
-    .metric-label {
-      color: var(--muted);
-      font-size: 0.875rem;
-    }
+    .status-executing { background: var(--info-bg); color: var(--info); }
+    .status-completed { background: var(--success-bg); color: var(--success); }
+    .status-failed { background: var(--danger-bg); color: var(--danger); }
+    .status-cancelled { background: var(--theme-border-subtle); color: var(--theme-text-muted); }
 
     .orders-table {
       width: 100%;
       border-collapse: collapse;
+      background: var(--theme-surface);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
     }
 
     .orders-table th,
     .orders-table td {
-      padding: 12px;
+      padding: 0.75rem 1rem;
       text-align: left;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid var(--theme-border);
     }
 
     .orders-table th {
-      background: var(--bg-light);
+      background: var(--theme-surface-elevated);
       font-weight: 600;
-      color: var(--text);
+      color: var(--theme-text);
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .orders-table tbody tr:hover {
+      background: var(--theme-border-subtle);
     }
 
     .amount-positive { color: var(--success); }
     .amount-negative { color: var(--danger); }
 
-    .loading-spinner {
-      display: inline-block;
-      width: 20px;
-      height: 20px;
-      border: 2px solid #f3f3f3;
-      border-top: 2px solid var(--primary);
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
+    /* Custom execution-specific styles - leveraging shared theme */
 
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-
-    .alert {
-      padding: 16px;
-      border-radius: 8px;
-      margin-bottom: 16px;
-    }
-
-    .alert-info {
-      background: #dbeafe;
-      color: #1e40af;
-      border-left: 4px solid #3b82f6;
-    }
-
-    .alert-success {
-      background: #d1fae5;
-      color: #065f46;
-      border-left: 4px solid #059669;
-    }
-
-    .alert-warning {
-      background: #fef3c7;
-      color: #92400e;
-      border-left: 4px solid #d97706;
-    }
-
-    .alert-danger {
-      background: #fee2e2;
-      color: #991b1b;
-      border-left: 4px solid #dc2626;
-    }
-
-    .form-group {
-      margin-bottom: 20px;
-    }
-
-    .form-label {
-      display: block;
-      margin-bottom: 8px;
-      font-weight: 500;
-      color: var(--text);
-    }
-
-    .form-input {
-      width: 100%;
-      padding: 12px 16px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      font-size: 1rem;
-    }
-
-    .form-textarea {
-      resize: vertical;
-      min-height: 120px;
-    }
+    /* Form styles are now inherited from shared-theme.css */
 
     .checkbox-group {
       display: flex;
@@ -353,10 +157,6 @@
   <!-- Header sera injecté par shared-header.js -->
 
   <div class="container">
-    <div class="header">
-      <h1>🚀 Exécution de Plans</h1>
-      <p>Validation, exécution et monitoring en temps réel de vos plans de rebalancement</p>
-    </div>
 
     <!-- Navigation par onglets -->
     <div class="section">
@@ -493,7 +293,6 @@
   </div>
 
   <script src="/static/global-config.js"></script>
-  <script src="/static/shared-header.js"></script>
   <script>
     // Configuration globale déjà chargée par global-config.js
     // const globalConfig est déjà disponible

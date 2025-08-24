@@ -6,113 +6,58 @@
     <title>Historique Exécutions - Crypto Rebalancer</title>
     <script src="global-config.js"></script>
     <script src="shared-header.js"></script>
+    <link rel="stylesheet" href="shared-theme.css">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #333;
-            min-height: 100vh;
-        }
-
-        .container {
-            max-width: 1600px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        .header {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            margin-bottom: 30px;
-            backdrop-filter: blur(10px);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .header h1 {
-            color: #2d3748;
-            font-size: 2.5rem;
-            font-weight: 300;
-        }
-
-        .performance-badge {
-            display: inline-block;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .performance-excellent { background: #48bb78; color: white; }
-        .performance-good { background: #38a169; color: white; }
-        .performance-needs_improvement { background: #ed8936; color: white; }
-
         .dashboard-grid {
             display: grid;
             grid-template-columns: 2fr 1fr;
-            gap: 30px;
-            margin-bottom: 30px;
+            gap: var(--space-xl);
+            margin-bottom: var(--space-xl);
         }
 
         .full-width {
             grid-column: 1 / -1;
         }
 
-        .card {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+        .performance-excellent { 
+            background: var(--success-bg); 
+            color: var(--success); 
         }
-
-        .card h2 {
-            color: #2d3748;
-            margin-bottom: 20px;
-            font-size: 1.5rem;
-            font-weight: 500;
-            border-bottom: 2px solid #e2e8f0;
-            padding-bottom: 10px;
+        .performance-good { 
+            background: var(--success-bg); 
+            color: var(--success); 
+        }
+        .performance-needs_improvement { 
+            background: var(--warning-bg); 
+            color: var(--warning); 
         }
 
         .metrics-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
+            gap: var(--space-lg);
+            margin-bottom: var(--space-lg);
         }
 
         .metric-item {
             text-align: center;
-            padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: var(--space-lg);
+            background: var(--brand-primary);
             color: white;
-            border-radius: 8px;
+            border-radius: var(--radius-md);
         }
 
         .metric-value {
             font-size: 2rem;
             font-weight: 700;
-            margin-bottom: 5px;
+            margin-bottom: var(--space-xs);
         }
 
         .metric-label {
-            font-size: 0.9rem;
+            font-size: 0.875rem;
             opacity: 0.9;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.05em;
         }
 
         .sessions-list {
@@ -124,38 +69,41 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 15px;
-            margin-bottom: 10px;
-            background: #f7fafc;
-            border-radius: 8px;
-            border-left: 4px solid #cbd5e0;
+            padding: var(--space-lg);
+            margin-bottom: var(--space-sm);
+            background: var(--theme-surface-elevated);
+            border-radius: var(--radius-md);
+            border-left: 4px solid var(--theme-border);
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all var(--transition-normal);
+            border: 1px solid var(--theme-border);
         }
 
         .session-item:hover {
-            background: #edf2f7;
+            background: var(--theme-border-subtle);
             transform: translateX(5px);
+            box-shadow: var(--shadow-md);
         }
 
-        .session-item.success { border-left-color: #48bb78; }
-        .session-item.partial { border-left-color: #ed8936; }
-        .session-item.failed { border-left-color: #f56565; }
+        .session-item.success { border-left-color: var(--success); }
+        .session-item.partial { border-left-color: var(--warning); }
+        .session-item.failed { border-left-color: var(--danger); }
 
         .session-info h3 {
-            color: #2d3748;
-            margin-bottom: 5px;
+            color: var(--theme-text);
+            margin-bottom: var(--space-xs);
             font-size: 1.1rem;
+            font-weight: 600;
         }
 
         .session-info p {
-            color: #718096;
-            font-size: 0.9rem;
+            color: var(--theme-text-muted);
+            font-size: 0.875rem;
         }
 
         .session-metrics {
             display: flex;
-            gap: 20px;
+            gap: var(--space-lg);
             text-align: center;
         }
 
@@ -417,18 +365,18 @@
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <div>
-                <h1>Historique Exécutions</h1>
-                <span id="performanceBadge" class="performance-badge performance-excellent">CHARGEMENT...</span>
-            </div>
-            <div class="controls">
-                <button class="btn btn-primary" onclick="refreshAll()">Actualiser</button>
-                <button class="btn btn-secondary" onclick="exportData()">Export CSV</button>
-                <button class="btn btn-secondary" onclick="showFilters()">Filtres</button>
-                <div class="auto-refresh">
-                    <label>Auto-refresh:</label>
-                    <input type="checkbox" id="autoRefresh" checked>
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
+                <div>
+                    <span id="performanceBadge" class="badge badge-success">CHARGEMENT...</span>
+                </div>
+                <div style="display: flex; gap: var(--space-sm);">
+                    <button class="btn btn-primary" onclick="refreshAll()">Actualiser</button>
+                    <button class="btn btn-secondary" onclick="exportData()">Export CSV</button>
+                    <button class="btn btn-secondary" onclick="showFilters()">Filtres</button>
+                    <div style="display: flex; align-items: center; gap: var(--space-sm);">
+                        <label style="font-size: 0.875rem; color: var(--theme-text-muted);">Auto-refresh:</label>
+                        <input type="checkbox" id="autoRefresh" checked>
                 </div>
             </div>
         </div>

@@ -5,144 +5,111 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monitoring Avancé - Crypto Rebalancer</title>
     <script src="shared-header.js"></script>
+    <link rel="stylesheet" href="shared-theme.css">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        .status-healthy { 
+            background: var(--success-bg); 
+            color: var(--success); 
         }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #333;
-            min-height: 100vh;
+        .status-degraded { 
+            background: var(--warning-bg); 
+            color: var(--warning); 
         }
-
-        .container {
-            max-width: 1600px;
-            margin: 0 auto;
-            padding: 20px;
+        .status-critical { 
+            background: var(--danger-bg); 
+            color: var(--danger); 
         }
-
-        .header {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            margin-bottom: 30px;
-            backdrop-filter: blur(10px);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        .status-warning { 
+            background: var(--warning-bg); 
+            color: var(--warning); 
         }
-
-        .header h1 {
-            color: #2d3748;
-            font-size: 2.5rem;
-            font-weight: 300;
-        }
-
-        .status-badge {
-            display: inline-block;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .status-healthy { background: #48bb78; color: white; }
-        .status-degraded { background: #ed8936; color: white; }
-        .status-critical { background: #f56565; color: white; }
-        .status-warning { background: #ecc94b; color: #2d3748; }
 
         .monitoring-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 30px;
-            margin-bottom: 30px;
+            gap: var(--space-xl);
+            margin-bottom: var(--space-xl);
         }
 
         .monitoring-full-width {
             display: grid;
             grid-template-columns: 1fr;
-            gap: 30px;
-            margin-bottom: 30px;
-        }
-
-        .card {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .card h2 {
-            color: #2d3748;
-            margin-bottom: 20px;
-            font-size: 1.5rem;
-            font-weight: 500;
-            border-bottom: 2px solid #e2e8f0;
-            padding-bottom: 10px;
+            gap: var(--space-xl);
+            margin-bottom: var(--space-xl);
         }
 
         .metrics-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
+            gap: var(--space-lg);
+            margin-bottom: var(--space-lg);
         }
 
         .metric-item {
             text-align: center;
-            padding: 15px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: var(--space-lg);
+            background: var(--brand-primary);
             color: white;
-            border-radius: 8px;
+            border-radius: var(--radius-md);
         }
 
         .metric-value {
             font-size: 1.8rem;
             font-weight: 700;
-            margin-bottom: 5px;
+            margin-bottom: var(--space-xs);
         }
 
         .metric-label {
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             opacity: 0.9;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.05em;
         }
 
         .exchange-status {
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: var(--space-lg);
         }
 
         .exchange-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 15px;
-            background: #f7fafc;
-            border-radius: 8px;
-            border-left: 4px solid #cbd5e0;
+            padding: var(--space-lg);
+            background: var(--theme-surface-elevated);
+            border-radius: var(--radius-md);
+            border-left: 4px solid var(--theme-border);
+            border: 1px solid var(--theme-border);
+            transition: all var(--transition-normal);
         }
 
-        .exchange-item.healthy { border-left-color: #48bb78; background: #f0fff4; }
-        .exchange-item.degraded { border-left-color: #ed8936; background: #fffbf0; }
-        .exchange-item.critical { border-left-color: #f56565; background: #fff5f5; }
-        .exchange-item.offline { border-left-color: #a0aec0; background: #f7fafc; }
+        .exchange-item:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+        .exchange-item.healthy { 
+            border-left-color: var(--success); 
+            background: var(--success-bg); 
+        }
+        .exchange-item.degraded { 
+            border-left-color: var(--warning); 
+            background: var(--warning-bg); 
+        }
+        .exchange-item.critical { 
+            border-left-color: var(--danger); 
+            background: var(--danger-bg); 
+        }
+        .exchange-item.offline { 
+            border-left-color: var(--theme-text-muted); 
+            background: var(--theme-border-subtle); 
+        }
 
         .exchange-info h3 {
-            color: #2d3748;
-            margin-bottom: 5px;
+            color: var(--theme-text);
+            margin-bottom: var(--space-xs);
             font-size: 1.1rem;
+            font-weight: 600;
         }
 
         .exchange-info p {
@@ -372,18 +339,19 @@
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <div>
-                <h1>Monitoring Avancé</h1>
-                <span id="globalStatus" class="status-badge status-healthy">CHARGEMENT...</span>
-            </div>
-            <div class="controls">
-                <button class="btn btn-primary" onclick="refreshAll()">Actualiser</button>
-                <button class="btn btn-secondary" onclick="showConfig()">Configuration</button>
-                <button class="btn btn-danger" onclick="restartMonitoring()">Redémarrer</button>
-                <div class="auto-refresh">
-                    <label>Auto-refresh:</label>
-                    <input type="checkbox" id="autoRefresh" checked>
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
+                <div>
+                    <span id="globalStatus" class="badge badge-success">CHARGEMENT...</span>
+                </div>
+                <div style="display: flex; gap: var(--space-sm);">
+                    <button class="btn btn-primary" onclick="refreshAll()">Actualiser</button>
+                    <button class="btn btn-secondary" onclick="showConfig()">Configuration</button>
+                    <button class="btn btn-danger" onclick="restartMonitoring()">Redémarrer</button>
+                    <div style="display: flex; align-items: center; gap: var(--space-sm);">
+                        <label style="font-size: 0.875rem; color: var(--theme-text-muted);">Auto-refresh:</label>
+                        <input type="checkbox" id="autoRefresh" checked>
+                    </div>
                 </div>
             </div>
         </div>

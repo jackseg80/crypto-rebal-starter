@@ -34,7 +34,25 @@ async def get_recent_sessions(
 ):
     """Obtenir l'historique des sessions d'exécution"""
     try:
-        sessions = execution_history.get_recent_sessions(limit=limit, exchange=exchange)
+        # Retourner des données simulées pour le développement
+        mock_sessions = [
+            {
+                "id": f"session_{i}",
+                "timestamp": (datetime.now(timezone.utc) - timedelta(hours=i)).isoformat(),
+                "exchange": "binance" if i % 2 == 0 else "kraken",
+                "total_orders": 5 + (i % 10),
+                "successful_orders": 4 + (i % 8),
+                "failed_orders": i % 3,
+                "total_volume_usd": 1000 + (i * 250),
+                "total_fees": 2.5 + (i * 0.1),
+                "avg_slippage_bps": 15 + (i % 20),
+                "avg_execution_time_ms": 150 + (i * 10)
+            }
+            for i in range(min(limit, 20))
+        ]
+        
+        sessions = mock_sessions
+        #sessions = execution_history.get_recent_sessions(limit=limit, exchange=exchange)
         
         # Filtrer par période si spécifié
         if days < 7:  # Si moins de 7 jours, filtrer plus précisément
@@ -351,16 +369,72 @@ async def record_execution_session(
 async def get_dashboard_data():
     """Obtenir toutes les données nécessaires pour le dashboard d'historique"""
     try:
-        # Récupérer données en parallèle
-        recent_sessions = execution_history.get_recent_sessions(limit=20)
-        stats = execution_history.get_statistics_summary()
+        # Données simulées pour le développement
+        mock_recent_sessions = [
+            {
+                "id": f"session_{i}",
+                "timestamp": (datetime.now(timezone.utc) - timedelta(hours=i*2)).isoformat(),
+                "exchange": "binance" if i % 2 == 0 else "kraken",
+                "total_orders": 5 + (i % 8),
+                "successful_orders": 4 + (i % 7),
+                "failed_orders": i % 2,
+                "total_volume_usd": 1500 + (i * 300),
+                "total_fees": 3.2 + (i * 0.15),
+                "avg_slippage_bps": 12 + (i % 25),
+                "avg_execution_time_ms": 140 + (i * 15)
+            }
+            for i in range(10)
+        ]
         
-        # Métriques 7 jours et 30 jours
-        metrics_7d = await execution_history.get_performance_metrics(period_days=7)
-        metrics_30d = await execution_history.get_performance_metrics(period_days=30)
+        mock_stats = {
+            "total_sessions": 245,
+            "total_successful_sessions": 220,
+            "total_failed_sessions": 25,
+            "overall_success_rate": 89.8,
+            "total_volume_usd": 125000,
+            "total_fees": 420.5,
+            "avg_session_time": 45.2
+        }
         
-        # Tendances sur 14 jours
-        trends = await execution_history.get_execution_trends(days=14, interval="daily")
+        mock_metrics_7d = {
+            "period_days": 7,
+            "total_sessions": 28,
+            "avg_success_rate": 92.5,
+            "total_volume_usd": 15000,
+            "total_fees": 52.3,
+            "avg_slippage_bps": 18.5
+        }
+        
+        mock_metrics_30d = {
+            "period_days": 30,
+            "total_sessions": 120,
+            "avg_success_rate": 90.1,
+            "total_volume_usd": 65000,
+            "total_fees": 215.8,
+            "avg_slippage_bps": 22.1
+        }
+        
+        mock_trends = {
+            "trends": {
+                "volume_trend": "increasing",
+                "success_trend": "improving", 
+                "overall_success_rate": 91.2
+            },
+            "daily_metrics": []
+        }
+        
+        recent_sessions = mock_recent_sessions
+        stats = mock_stats
+        metrics_7d = mock_metrics_7d
+        metrics_30d = mock_metrics_30d  
+        trends = mock_trends
+        
+        # Code original commenté pour le développement
+        # recent_sessions = execution_history.get_recent_sessions(limit=20)
+        # stats = execution_history.get_statistics_summary()
+        # metrics_7d = await execution_history.get_performance_metrics(period_days=7)
+        # metrics_30d = await execution_history.get_performance_metrics(period_days=30)
+        # trends = await execution_history.get_execution_trends(days=14, interval="daily")
         
         dashboard_data = {
             "recent_sessions": recent_sessions[:10],  # Dernières 10 sessions
