@@ -1,6 +1,6 @@
 // static/appearance.js
 (function () {
-    const SETTINGS_KEY = 'crypto_rebal_settings_v1'; // même clé que global-config
+    const SETTINGS_KEY = 'crypto_rebalancer_settings'; // même clé que global-config
 
     function getTheme() {
         try {

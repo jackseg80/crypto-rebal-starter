@@ -260,6 +260,16 @@
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       initSharedHeader('alias-manager', { showConfigIndicators: true });
+
+      // Appliquer le thème immédiatement
+      console.log('Initializing theme for alias-manager page...');
+      if (window.globalConfig && window.globalConfig.applyTheme) {
+        window.globalConfig.applyTheme();
+      }
+      if (window.applyAppearance) {
+        window.applyAppearance();
+      }
+      console.log('Current theme after alias-manager init:', document.documentElement.getAttribute('data-theme'));
     });
   </script>
 
@@ -372,6 +382,21 @@
         return;
       }
       loadData();
+
+      // Écouter les changements de thème pour synchronisation cross-tab
+      window.addEventListener('storage', function(e) {
+        if (e.key === 'crypto_rebalancer_settings') {
+          console.log('Settings changed in another tab, reapplying theme...');
+          setTimeout(() => {
+            if (window.globalConfig && window.globalConfig.applyTheme) {
+              window.globalConfig.applyTheme();
+            }
+            if (window.applyAppearance) {
+              window.applyAppearance();
+            }
+          }, 100);
+        }
+      });
     });
 
     async function loadData() {

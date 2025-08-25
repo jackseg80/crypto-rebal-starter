@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🔧 Debug CCS Sync - Strategic Dynamic Strategy</title>
+    <style>
+        body { font-family: monospace; margin: 20px; background: #f5f5f5; }
+        .section { background: white; padding: 20px; margin: 10px 0; border-radius: 8px; border: 1px solid #ddd; }
+        .success { color: #22c55e; font-weight: bold; }
+        .error { color: #ef4444; font-weight: bold; }
+        .warning { color: #f59e0b; font-weight: bold; }
+        .info { color: #3b82f6; font-weight: bold; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+        button { padding: 8px 16px; margin: 4px; border: none; border-radius: 4px; cursor: pointer; }
+        .btn-test { background: #3b82f6; color: white; }
+        .btn-clear { background: #ef4444; color: white; }
+        .btn-mock { background: #22c55e; color: white; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Debug Strategic (Dynamic) Strategy & CCS Sync</h1>
+    
+    <div class="section">
+        <h2>📋 Actions de Test</h2>
+        <button class="btn-test" onclick="checkLocalStorage()">🔍 Vérifier localStorage</button>
+        <button class="btn-mock" onclick="createMockCCSData()">🎯 Créer données CCS de test</button>
+        <button class="btn-clear" onclick="clearCCSData()">🧹 Effacer données CCS</button>
+        <button class="btn-test" onclick="testSyncFunction()">⚙️ Tester fonction syncCCSTargets</button>
+        <button class="btn-test" onclick="compareAllocations()">📊 Comparer allocations observées</button>
+    </div>
+
+    <div class="section">
+        <h2>📊 État du localStorage</h2>
+        <div id="localStorage-status">Cliquez sur "Vérifier localStorage" pour voir l'état</div>
+    </div>
+
+    <div class="section">
+        <h2>🎯 Test de la fonction syncCCSTargets</h2>
+        <div id="sync-test-result">Cliquez sur "Tester fonction" pour voir le résultat</div>
+    </div>
+
+    <div class="section">
+        <h2>📊 Comparaison des allocations</h2>
+        <div id="allocation-comparison">Cliquez sur "Comparer allocations" pour analyser les différences</div>
+    </div>
+
+    <div class="section">
+        <h2>⚙️ Recommandations</h2>
+        <div id="recommendations"></div>
+    </div>
+
+    <script>
+        // Copie de la fonction syncCCSTargets depuis rebalance.html
+        function syncCCSTargets() {
+            const storedTargets = localStorage.getItem('last_targets');
+            if (!storedTargets) return null;
+            
+            try {
+                const targetsData = JSON.parse(storedTargets);
+                console.log('Checking stored CCS targets:', targetsData);
+                
+                if (targetsData.source === 'risk-dashboard-ccs' && targetsData.targets && targetsData.timestamp) {
+                    // Vérifier que les données ne sont pas trop anciennes (30 minutes)
+                    const dataAge = Date.now() - new Date(targetsData.timestamp).getTime();
+                    const maxAge = 30 * 60 * 1000; // 30 minutes
+                    
+                    if (dataAge < maxAge) {
+                        // Filtrer les targets pour ne garder que les valeurs numériques
+                        const cleanTargets = {};
+                        Object.entries(targetsData.targets).forEach(([key, value]) => {
+                            if (typeof value === 'number' && key !== 'model_version') {
+                                cleanTargets[key] = value;
+                            }
+                        });
+                        
+                        console.log('Valid CCS targets found:', cleanTargets);
+                        return {
+                            targets: cleanTargets,
+                            strategy: targetsData.strategy,
+                            timestamp: targetsData.timestamp
+                        };
+                    } else {
+                        console.log('CCS targets too old, ignoring');
+                    }
+                }
+            } catch (error) {
+                console.error('Error parsing stored targets:', error);
+            }
+            
+            return null;
+        }
+
+        function checkLocalStorage() {
+            const status = document.getElementById('localStorage-status');
+            const lastTargets = localStorage.getItem('last_targets');
+            
+            if (!lastTargets) {
+                status.innerHTML = `
+                    <div class="error">❌ Aucune donnée 'last_targets' trouvée dans localStorage</div>
+                    <p>Ceci explique pourquoi Strategic (Dynamic) n'apparaît pas.</p>
+                `;
+                return;
+            }
+            
+            try {
+                const data = JSON.parse(lastTargets);
+                const now = new Date();
+                const timestamp = new Date(data.timestamp);
+                const ageMinutes = Math.floor((now - timestamp) / (1000 * 60));
+                
+                status.innerHTML = `
+                    <div class="success">✅ Données trouvées dans localStorage</div>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                    <p><strong>Âge des données:</strong> ${ageMinutes} minutes</p>
+                    <p><strong>Source:</strong> ${data.source || 'Non spécifiée'}</p>
+                    <p><strong>Validité:</strong> ${ageMinutes < 30 ? '✅ Valide' : '❌ Trop ancien (>30min)'}</p>
+                `;
+            } catch (error) {
+                status.innerHTML = `
+                    <div class="error">❌ Erreur parsing des données localStorage</div>
+                    <p>Erreur: ${error.message}</p>
+                    <pre>${lastTargets}</pre>
+                `;
+            }
+        }
+
+        function createMockCCSData() {
+            const mockData = {
+                source: 'risk-dashboard-ccs',
+                strategy: 'Blended CCS* (72)',
+                timestamp: new Date().toISOString(),
+                targets: {
+                    'BTC': 32.1,
+                    'ETH': 24.2,
+                    'Stablecoins': 21.3,
+                    'L1/L0 majors': 11.1,
+                    'L2/Scaling': 5.6,
+                    'DeFi': 3.5,
+                    'AI/Data': 2.2,
+                    'Others': 0.0,
+                    'model_version': 'ccs-blend-v1'
+                }
+            };
+            
+            localStorage.setItem('last_targets', JSON.stringify(mockData));
+            
+            const status = document.getElementById('localStorage-status');
+            status.innerHTML = `
+                <div class="success">✅ Données CCS réelles créées (Risk Dashboard: 32.1% BTC)</div>
+                <p>Testez maintenant dans rebalance.html pour voir si vous obtenez les mêmes allocations</p>
+                <pre>${JSON.stringify(mockData, null, 2)}</pre>
+            `;
+        }
+
+        function clearCCSData() {
+            localStorage.removeItem('last_targets');
+            
+            const status = document.getElementById('localStorage-status');
+            status.innerHTML = `
+                <div class="warning">🧹 Données CCS effacées du localStorage</div>
+                <p>Strategic (Dynamic) ne devrait plus apparaître</p>
+            `;
+        }
+
+        function testSyncFunction() {
+            const result = syncCCSTargets();
+            const resultDiv = document.getElementById('sync-test-result');
+            
+            if (result) {
+                resultDiv.innerHTML = `
+                    <div class="success">✅ syncCCSTargets() fonctionne</div>
+                    <pre>${JSON.stringify(result, null, 2)}</pre>
+                    <p>Strategic (Dynamic) devrait apparaître dans rebalance.html</p>
+                `;
+            } else {
+                resultDiv.innerHTML = `
+                    <div class="error">❌ syncCCSTargets() retourne null</div>
+                    <p>Raisons possibles:</p>
+                    <ul>
+                        <li>Pas de données 'last_targets' dans localStorage</li>
+                        <li>Source différente de 'risk-dashboard-ccs'</li>
+                        <li>Données plus anciennes que 30 minutes</li>
+                        <li>Format de données incorrect</li>
+                    </ul>
+                `;
+            }
+            
+            updateRecommendations();
+        }
+
+        function compareAllocations() {
+            const compDiv = document.getElementById('allocation-comparison');
+            
+            // Allocations observées par l'utilisateur
+            const riskObserved = {
+                'BTC': 32.1,
+                'ETH': 24.2,
+                'Stablecoins': 21.3,
+                'L1/L0 majors': 11.1,
+                'L2/Scaling': 5.6,
+                'DeFi': 3.5,
+                'AI/Data': 2.2,
+                'Others': 0.0
+            };
+
+            const rebalanceObserved = {
+                'BTC': 29.4,
+                'ETH': 19.6,
+                'Stablecoins': 29.4,
+                'L1/L0 majors': 7.8,
+                'L2/Scaling': 3.9,
+                'DeFi': 7.8,
+                'AI/Data': 2.0,
+                'Others': 0.0
+            };
+            
+            // Lire les données actuelles du localStorage
+            let storedAllocations = null;
+            const storedData = localStorage.getItem('last_targets');
+            if (storedData) {
+                try {
+                    const parsed = JSON.parse(storedData);
+                    storedAllocations = parsed.targets;
+                } catch (error) {
+                    console.error('Error parsing localStorage:', error);
+                }
+            }
+            
+            let html = `<div class="info">📊 Analyse des différences d'allocations:</div>`;
+            html += `<table style="width:100%; border-collapse: collapse; margin: 10px 0;">`;
+            html += `<tr style="background: #f0f0f0;">
+                <th style="border: 1px solid #ddd; padding: 8px;">Asset</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Risk Dashboard</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Rebalance</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">localStorage</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Différence</th>
+            </tr>`;
+            
+            Object.keys(riskObserved).forEach(asset => {
+                const risk = riskObserved[asset];
+                const rebalance = rebalanceObserved[asset];
+                const stored = storedAllocations ? storedAllocations[asset] || 'N/A' : 'N/A';
+                const diff = Math.abs(risk - rebalance);
+                
+                const diffClass = diff > 5 ? 'error' : diff > 1 ? 'warning' : 'success';
+                
+                html += `<tr>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${asset}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${risk}%</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${rebalance}%</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${stored}${typeof stored === 'number' ? '%' : ''}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;" class="${diffClass}">${diff.toFixed(1)}%</td>
+                </tr>`;
+            });
+            html += `</table>`;
+            
+            // Analyse des totaux
+            const riskTotal = Object.values(riskObserved).reduce((sum, val) => sum + val, 0);
+            const rebalanceTotal = Object.values(rebalanceObserved).reduce((sum, val) => sum + val, 0);
+            const storedTotal = storedAllocations ? 
+                Object.values(storedAllocations).filter(v => typeof v === 'number').reduce((sum, val) => sum + val, 0) : 0;
+            
+            html += `<div style="margin: 15px 0;">
+                <div><strong>Totaux:</strong></div>
+                <div>Risk Dashboard: ${riskTotal.toFixed(1)}%</div>
+                <div>Rebalance: ${rebalanceTotal.toFixed(1)}%</div>
+                <div>localStorage: ${storedTotal.toFixed(1)}%</div>
+            </div>`;
+            
+            // Diagnostic
+            html += `<div class="info">🔍 Diagnostic:</div>`;
+            if (Math.abs(riskTotal - 100) < 0.1 && Math.abs(rebalanceTotal - 100) < 0.1) {
+                html += `<div class="warning">⚠️ Les deux totalisent ~100% mais avec des répartitions différentes</div>`;
+                html += `<div>→ Possible problème de transformation/normalisation des données</div>`;
+            }
+            
+            // Vérifier si localStorage contient les bonnes données
+            if (storedAllocations) {
+                if (storedAllocations.BTC === riskObserved.BTC) {
+                    html += `<div class="success">✅ localStorage contient les données Risk Dashboard</div>`;
+                } else if (storedAllocations.BTC === rebalanceObserved.BTC) {
+                    html += `<div class="warning">⚠️ localStorage contient les données Rebalance transformées</div>`;
+                } else {
+                    html += `<div class="error">❌ localStorage contient des données différentes (BTC: ${storedAllocations.BTC}%)</div>`;
+                }
+            } else {
+                html += `<div class="error">❌ Pas de données dans localStorage</div>`;
+            }
+            
+            compDiv.innerHTML = html;
+        }
+
+        function updateRecommendations() {
+            const recDiv = document.getElementById('recommendations');
+            const hasData = localStorage.getItem('last_targets');
+            const syncResult = syncCCSTargets();
+            
+            let recommendations = [];
+            
+            if (!hasData) {
+                recommendations.push('📝 Créer des données CCS de test avec le bouton vert');
+                recommendations.push('🔄 Ou aller dans Risk Dashboard pour générer de vraies données');
+            }
+            
+            if (hasData && !syncResult) {
+                const data = JSON.parse(hasData);
+                const age = Math.floor((Date.now() - new Date(data.timestamp)) / (1000 * 60));
+                
+                if (age >= 30) {
+                    recommendations.push('⏰ Données trop anciennes - Augmenter maxAge ou regénérer');
+                }
+                
+                if (data.source !== 'risk-dashboard-ccs') {
+                    recommendations.push('🎯 Source incorrecte - Doit être "risk-dashboard-ccs"');
+                }
+            }
+            
+            if (syncResult) {
+                recommendations.push('✅ Tout fonctionne - Strategic (Dynamic) devrait apparaître');
+                recommendations.push('🔄 Testez le bouton "Sync CCS" dans rebalance.html');
+            }
+            
+            recDiv.innerHTML = recommendations.map(r => `<div>${r}</div>`).join('');
+        }
+
+        // Test initial au chargement
+        window.addEventListener('load', () => {
+            checkLocalStorage();
+            updateRecommendations();
+        });
+    </script>
+</body>
+</html>

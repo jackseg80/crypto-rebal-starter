@@ -14,8 +14,154 @@
   <script src="global-config.js"></script>
   <script src="shared-header.js"></script>
   <script src="appearance.js"></script>
+  
+  <!-- Core modules ESM -->
+  <script type="module" src="core/risk-dashboard-store.js"></script>
+  <script type="module" src="core/fetcher.js"></script>
+  
+  <!-- CCS modules ESM -->
+  <script type="module" src="modules/signals-engine.js"></script>
+  <script type="module" src="modules/cycle-navigator.js"></script>
+  <script type="module" src="modules/targets-coordinator.js"></script>
 
   <style>
+    /* ===== Layout Hybride: Sidebar + Main ===== */
+    .dashboard-layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: var(--space-lg);
+      min-height: calc(100vh - 200px);
+    }
+
+    .sidebar {
+      background: var(--theme-surface);
+      border: 1px solid var(--theme-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-lg);
+      box-shadow: var(--shadow-sm);
+      position: sticky;
+      top: var(--space-lg);
+      max-height: calc(100vh - 120px);
+      overflow-y: auto;
+    }
+
+    .main-content {
+      background: var(--theme-surface);
+      border: 1px solid var(--theme-border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* ===== Sidebar Components ===== */
+    .sidebar-section {
+      margin-bottom: var(--space-xl);
+    }
+
+    .sidebar-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .sidebar-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--theme-text-muted);
+      margin-bottom: var(--space-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .ccs-gauge {
+      text-align: center;
+      padding: var(--space-lg);
+      background: var(--theme-bg);
+      border-radius: var(--radius-md);
+      border: 2px solid var(--brand-primary);
+    }
+
+    .ccs-score {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--brand-primary);
+      line-height: 1;
+      margin-bottom: var(--space-xs);
+    }
+
+    .ccs-label {
+      font-size: 0.75rem;
+      color: var(--theme-text-muted);
+      font-weight: 500;
+    }
+
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: var(--space-xs);
+      padding: var(--space-sm);
+      background: var(--theme-bg);
+      border-radius: var(--radius-sm);
+      margin-bottom: var(--space-sm);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--theme-text-muted);
+    }
+
+    .status-dot.healthy { background: var(--success); }
+    .status-dot.warning { background: var(--warning); }
+    .status-dot.error { background: var(--danger); }
+
+    .status-text {
+      font-size: 0.75rem;
+      color: var(--theme-text-muted);
+    }
+
+    /* ===== Onglets ===== */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--theme-border);
+      background: var(--theme-bg);
+    }
+
+    .tab-button {
+      flex: 1;
+      padding: var(--space-lg);
+      background: none;
+      border: none;
+      color: var(--theme-text-muted);
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--transition-normal);
+      border-bottom: 3px solid transparent;
+    }
+
+    .tab-button:hover {
+      color: var(--theme-text);
+      background: var(--theme-surface);
+    }
+
+    .tab-button.active {
+      color: var(--brand-primary);
+      border-bottom-color: var(--brand-primary);
+      background: var(--theme-surface);
+    }
+
+    .tab-content {
+      padding: var(--space-xl);
+      min-height: 400px;
+    }
+
+    .tab-pane {
+      display: none;
+    }
+
+    .tab-pane.active {
+      display: block;
+    }
+
+    /* ===== Risk Components (existants) ===== */
     .risk-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -236,16 +382,94 @@
   <div id="shared-header"></div>
 
   <div class="container">
+    <!-- Controls Header -->
     <div class="controls">
       <button class="refresh-btn" onclick="refreshDashboard()" id="refresh-btn">🔄 Refresh Data</button>
-      <button class="refresh-btn" onclick="enableAutoRefresh()" id="auto-refresh-btn">⏱️ Enable Auto-Refresh
-        (30s)</button>
+      <button class="refresh-btn" onclick="enableAutoRefresh()" id="auto-refresh-btn">⏱️ Enable Auto-Refresh (30s)</button>
       <button class="refresh-btn" onclick="testEndpoint()" style="background:#007bff">🧪 Test API</button>
       <div class="timestamp" id="last-update"></div>
     </div>
 
-    <div id="dashboard-content">
-      <div class="loading">Loading risk metrics.</div>
+    <!-- Layout Hybride: Sidebar + Main -->
+    <div class="dashboard-layout">
+      <!-- Sidebar Fixe -->
+      <div class="sidebar">
+        <!-- CCS Gauge -->
+        <div class="sidebar-section">
+          <div class="sidebar-title">Market Score CCS</div>
+          <div class="ccs-gauge" id="ccs-gauge">
+            <div class="ccs-score" id="ccs-score">--</div>
+            <div class="ccs-label">Loading...</div>
+          </div>
+        </div>
+
+        <!-- Cycle Indicator -->
+        <div class="sidebar-section">
+          <div class="sidebar-title">Cycle Position</div>
+          <div id="cycle-indicator">
+            <div class="status-indicator">
+              <div class="status-dot" id="cycle-dot"></div>
+              <div class="status-text" id="cycle-text">Loading cycle data...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Targets Summary -->
+        <div class="sidebar-section">
+          <div class="sidebar-title">Target Changes</div>
+          <div id="targets-summary">
+            <div class="status-text">No changes proposed</div>
+          </div>
+        </div>
+
+        <!-- API Status -->
+        <div class="sidebar-section">
+          <div class="sidebar-title">API Health</div>
+          <div id="api-status">
+            <div class="status-indicator">
+              <div class="status-dot" id="backend-dot"></div>
+              <div class="status-text">Backend API</div>
+            </div>
+            <div class="status-indicator">
+              <div class="status-dot" id="signals-dot"></div>
+              <div class="status-text">Market Signals</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Content avec Onglets -->
+      <div class="main-content">
+        <div class="tabs">
+          <button class="tab-button active" data-tab="risk" onclick="switchTab('risk')">Risk Overview</button>
+          <button class="tab-button" data-tab="cycles" onclick="switchTab('cycles')">Market Cycles</button>
+          <button class="tab-button" data-tab="targets" onclick="switchTab('targets')">Strategic Targets</button>
+        </div>
+
+        <div class="tab-content">
+          <!-- Risk Overview Tab -->
+          <div class="tab-pane active" id="risk-tab">
+            <div id="risk-dashboard-content">
+              <div class="loading">Loading risk metrics...</div>
+            </div>
+          </div>
+
+          <!-- Market Cycles Tab -->
+          <div class="tab-pane" id="cycles-tab">
+            <div id="cycles-content">
+              <div class="loading">Loading cycle analysis...</div>
+            </div>
+          </div>
+
+          <!-- Strategic Targets Tab -->
+          <div class="tab-pane" id="targets-tab">
+            <div id="targets-content">
+              <h3>🎯 Strategic Targets</h3>
+              <p>Target management will be implemented here...</p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -255,36 +479,236 @@
     <div class="tip-body"></div>
   </div>
 
-  <script>
+  <script type="module">
+    // Import core modules
+    import { store } from './core/risk-dashboard-store.js';
+    import { fetchCached } from './core/fetcher.js';
+    
+    // Import CCS modules
+    import { fetchAndComputeCCS, interpretCCS, DEFAULT_CCS_WEIGHTS } from './modules/signals-engine.js';
+    import { estimateCyclePosition, blendCCS, getCyclePhase } from './modules/cycle-navigator.js';
+    import { proposeTargets, applyTargets, computePlan, DEFAULT_MACRO_TARGETS, getDecisionLog } from './modules/targets-coordinator.js';
+
+    // Global state
     let autoRefreshInterval = null;
     let isRefreshing = false;
+
+    // ====== Tab Management ======
+    window.switchTab = function(tabName) {
+      // Update UI state
+      document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+      
+      document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+      document.getElementById(`${tabName}-tab`).classList.add('active');
+      
+      // Update store
+      store.set('ui.activeTab', tabName);
+      
+      // Render content based on active tab
+      switch (tabName) {
+        case 'risk':
+          // Risk content is already rendered by refreshDashboard
+          break;
+        case 'cycles':
+          renderCyclesContent();
+          break;
+        case 'targets':
+          renderTargetsContent();
+          break;
+      }
+      
+      console.log(`Switched to tab: ${tabName}`);
+    };
 
     // ====== Tooltip helpers ======
     const $tip = document.getElementById('tooltip');
     const $tipTitle = $tip?.querySelector('.tip-title');
     const $tipBody = $tip?.querySelector('.tip-body');
-    function showTip(title, body, x, y) { if (!$tip) return; $tipTitle.textContent = title || ''; $tipBody.textContent = body || ''; $tip.style.left = x + 'px'; $tip.style.top = y + 'px'; $tip.classList.add('show'); $tip.setAttribute('aria-hidden', 'false'); }
-    function moveTip(x, y) { if (!$tip) return; $tip.style.left = x + 'px'; $tip.style.top = y + 'px'; }
-    function hideTip() { if (!$tip) return; $tip.classList.remove('show'); $tip.setAttribute('aria-hidden', 'true'); }
-    function attachTip(el, title, body) { if (!el) return; el.addEventListener('mouseenter', e => showTip(title, body, e.clientX, e.clientY)); el.addEventListener('mousemove', e => moveTip(e.clientX, e.clientY)); el.addEventListener('mouseleave', hideTip); el.classList.add('hinted'); }
+    
+    function showTip(title, body, x, y) { 
+      if (!$tip) return; 
+      $tipTitle.textContent = title || ''; 
+      $tipBody.textContent = body || ''; 
+      $tip.style.left = x + 'px'; 
+      $tip.style.top = y + 'px'; 
+      $tip.classList.add('show'); 
+      $tip.setAttribute('aria-hidden', 'false'); 
+    }
+    
+    function moveTip(x, y) { 
+      if (!$tip) return; 
+      $tip.style.left = x + 'px'; 
+      $tip.style.top = y + 'px'; 
+    }
+    
+    function hideTip() { 
+      if (!$tip) return; 
+      $tip.classList.remove('show'); 
+      $tip.setAttribute('aria-hidden', 'true'); 
+    }
+    
+    function attachTip(el, title, body) { 
+      if (!el) return; 
+      el.addEventListener('mouseenter', e => showTip(title, body, e.clientX, e.clientY)); 
+      el.addEventListener('mousemove', e => moveTip(e.clientX, e.clientY)); 
+      el.addEventListener('mouseleave', hideTip); 
+      el.classList.add('hinted'); 
+    }
 
-    // ====== Barème et textes d'aide ======
+    // ====== Formatters ======
     const pct = v => (v == null || isNaN(v) ? 'N/A' : (v * 100).toFixed(2) + '%');
     const num = v => (v == null || isNaN(v) ? 'N/A' : Number(v).toFixed(2));
+    
+    // ====== API Functions ======
+    async function fetchRiskData() {
+      return fetchCached(
+        'risk-dashboard',
+        () => fetch('http://localhost:8000/api/risk/dashboard?source=cointracking&pricing=local&min_usd=1.00')
+          .then(r => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+            return r.json();
+          }),
+        'risk'
+      );
+    }
+    
+    // ====== CCS Functions ======
+    async function loadCCSData() {
+      try {
+        console.log('Loading CCS data...');
+        
+        // Fetch CCS and cycle data in parallel
+        const [ccsResult, cycleData] = await Promise.all([
+          fetchAndComputeCCS(DEFAULT_CCS_WEIGHTS),
+          estimateCyclePosition()
+        ]);
+        
+        // Update store with CCS data
+        store.set('ccs.score', ccsResult.score);
+        store.set('ccs.signals', ccsResult.signals);
+        store.set('ccs.weights', ccsResult.weights);
+        store.set('ccs.lastUpdate', new Date().toISOString());
+        store.set('ccs.model_version', ccsResult.model_version);
+        
+        // Update store with cycle data
+        store.set('cycle.months', cycleData.months);
+        store.set('cycle.phase', cycleData.phase);
+        store.set('cycle.score', cycleData.score);
+        store.set('cycle.confidence', cycleData.confidence);
+        store.set('cycle.multipliers', cycleData.multipliers);
+        
+        // Update API status
+        store.set('ui.apiStatus.signals', 'healthy');
+        
+        console.log(`CCS loaded: ${ccsResult.score}, Cycle: ${cycleData.phase.phase} (${Math.round(cycleData.months)}m)`);
+        
+        return { ccs: ccsResult, cycle: cycleData };
+        
+      } catch (error) {
+        console.error('Failed to load CCS data:', error);
+        store.set('ui.apiStatus.signals', 'error');
+        throw error;
+      }
+    }
+    
+    async function loadBlendedCCS() {
+      try {
+        const state = store.snapshot();
+        const ccsScore = state.ccs?.score;
+        const cycleMonths = state.cycle?.months;
+        const cycleWeight = state.cycle?.weight || 0.3;
+        
+        if (ccsScore && cycleMonths) {
+          const blended = blendCCS(ccsScore, cycleMonths, cycleWeight);
+          store.set('cycle.ccsStar', blended.blendedCCS);
+          return blended;
+        }
+        
+        return null;
+      } catch (error) {
+        console.error('Failed to blend CCS:', error);
+        return null;
+      }
+    }
+    
+    // ====== Sidebar Updates ======
+    function updateSidebar(state) {
+      // Update CCS gauge
+      const ccsScore = state.ccs?.score;
+      const ccsScoreEl = document.getElementById('ccs-score');
+      const ccsLabelEl = ccsScoreEl?.nextElementSibling;
+      
+      if (ccsScore !== null && ccsScore !== undefined) {
+        ccsScoreEl.textContent = Math.round(ccsScore);
+        
+        // Interpret CCS for color coding
+        const interpretation = interpretCCS(ccsScore);
+        ccsScoreEl.style.color = interpretation.color;
+        ccsLabelEl.textContent = `${interpretation.label} (${new Date().toLocaleTimeString()})`;
+      } else {
+        ccsScoreEl.textContent = '--';
+        ccsScoreEl.style.color = 'var(--brand-primary)';
+        ccsLabelEl.textContent = 'Loading...';
+      }
+      
+      // Update API status
+      const backendDot = document.getElementById('backend-dot');
+      const signalsDot = document.getElementById('signals-dot');
+      
+      if (backendDot) {
+        backendDot.className = `status-dot ${state.ui?.apiStatus?.backend || 'unknown'}`;
+      }
+      if (signalsDot) {
+        signalsDot.className = `status-dot ${state.ui?.apiStatus?.signals || 'unknown'}`;
+      }
+      
+      // Update cycle indicator with enhanced info
+      const cycleText = document.getElementById('cycle-text');
+      const cycleDot = document.getElementById('cycle-dot');
+      
+      if (state.cycle?.months && state.cycle?.phase) {
+        const months = Math.round(state.cycle.months);
+        const phase = state.cycle.phase;
+        
+        cycleText.innerHTML = `
+          <div style="font-size: 11px; font-weight: 600;">${phase.emoji} ${phase.phase.replace('_', ' ').toUpperCase()}</div>
+          <div style="font-size: 10px; opacity: 0.8;">Month ${months} post-halving</div>
+        `;
+        
+        // Color based on phase
+        cycleDot.style.backgroundColor = phase.color;
+        cycleDot.className = 'status-dot';
+      } else {
+        cycleText.textContent = 'Loading cycle data...';
+        cycleDot.className = 'status-dot';
+      }
+      
+      // Update targets summary placeholder
+      const targetsSummary = document.getElementById('targets-summary');
+      if (targetsSummary) {
+        const ccsStar = state.cycle?.ccsStar;
+        if (ccsStar && ccsScore) {
+          targetsSummary.innerHTML = `
+            <div style="font-size: 11px;">
+              <div>CCS: ${Math.round(ccsScore)} → ${Math.round(ccsStar)} (blended)</div>
+              <div style="font-size: 10px; opacity: 0.8; margin-top: 2px;">Cycle weight: ${Math.round((state.cycle?.weight || 0.3) * 100)}%</div>
+            </div>
+          `;
+        } else {
+          targetsSummary.innerHTML = '<div class="status-text">Loading targets...</div>';
+        }
+      }
+    }
 
-    // Bornes heuristiques (ajuste selon tes préférences)
+
+    // Risk rating rules for different metrics
     const RISK_RULES = {
-      var95_1d: { label: 'VaR 95% (1j)', good: [0, 0.01], warn: [0.01, 0.02], bad: [0.02, Infinity], explain: "Perte 1j que tu ne dépasses qu'1x sur 20.\nPlus bas = mieux." },
-      var99_1d: { label: 'VaR 99% (1j)', good: [0, 0.015], warn: [0.015, 0.03], bad: [0.03, Infinity], explain: "Perte 1j que tu ne dépasses qu'1x sur 100.\nPlus bas = mieux." },
-      cvar95_1d: { label: 'cVaR 95% (1j)', good: [0, 0.013], warn: [0.013, 0.025], bad: [0.025, Infinity], explain: "Perte moyenne dans les pires 5% des jours.\nPlus bas = mieux." },
-      cvar99_1d: { label: 'cVaR 99% (1j)', good: [0, 0.018], warn: [0.018, 0.035], bad: [0.035, Infinity], explain: "Perte moyenne dans les pires 1% des jours.\nPlus bas = mieux." },
-      volatility_ann: { label: 'Volatilité (ann.)', good: [0, 0.40], warn: [0.40, 0.80], bad: [0.80, Infinity], explain: "Variabilité annualisée du portefeuille.\nPlus bas = plus défensif." },
-      sharpe: { label: 'Sharpe', good: [1.5, Infinity], warn: [0.8, 1.5], bad: [-Infinity, 0.8], explain: "Rendement excédentaire / risque.\n>1.0 correct • >1.5 bon • >2.0 excellent." },
-      sortino: { label: 'Sortino', good: [1.8, Infinity], warn: [1.0, 1.8], bad: [-Infinity, 1.0], explain: "Comme Sharpe mais pénalise seulement la baisse.\n>1.5 bon." },
-      max_drawdown: { label: 'Max Drawdown', good: [0, 0.35], warn: [0.35, 0.60], bad: [0.60, Infinity], explain: "Pire chute historique.\nPlus bas = trajectoire plus lisse." },
-      current_drawdown: { label: 'Drawdown courant', good: [0, 0.10], warn: [0.10, 0.25], bad: [0.25, Infinity], explain: "Écart actuel au dernier sommet.\nPlus bas = mieux." },
-      diversification_ratio: { label: 'Diversification Ratio', good: [1.5, Infinity], warn: [1.2, 1.5], bad: [-Infinity, 1.2], explain: "Plus élevé = meilleure diversification." },
-      effective_assets: { label: 'Effective Assets', good: [8, Infinity], warn: [4, 8], bad: [-Infinity, 4], explain: "Nombre effectif d'actifs indépendants." }
+      sharpe: { good: [0.5, 999], warn: [0.2, 0.5], label: 'Ratio de Sharpe', explain: 'Mesure le rendement ajusté au risque' },
+      sortino: { good: [0.5, 999], warn: [0.2, 0.5], label: 'Ratio de Sortino', explain: 'Mesure le rendement par rapport au risque de baisse' },
+      volatility: { good: [0, 0.3], warn: [0.3, 0.6], label: 'Volatilité', explain: 'Mesure la variation des prix' },
+      max_drawdown: { good: [0, 0.2], warn: [0.2, 0.4], label: 'Drawdown Maximum', explain: 'Plus grande perte depuis un sommet' },
+      concentration: { good: [0, 0.5], warn: [0.5, 0.8], label: 'Concentration', explain: 'Répartition des actifs' }
     };
 
     function rate(key, value) {
@@ -293,45 +717,77 @@
       const inR = ([a, b]) => v >= a && v < b;
       let dot = 'red', verdict = 'Élevé / risqué';
       if (inR(r.good)) { dot = 'green'; verdict = 'Plutôt bas / maîtrisé'; }
-      else if (inR(r.warn)) { dot: 'orange'; verdict = 'Intermédiaire / à surveiller'; }
+      else if (inR(r.warn)) { dot = 'orange'; verdict = 'Intermédiaire / à surveiller'; }
       const fmt = (key === 'sharpe' || key === 'sortino') ? num : pct;
       const body = `${r.explain}\n\nValeur actuelle : ${fmt(value)}\nLecture : ${verdict}`;
       return { dot, verdict, body, label: r.label };
     }
 
-    // ====== Initialisation ======
-    document.addEventListener('DOMContentLoaded', function () {
-      initSharedHeader('risk-dashboard'); // conserve ton menu/header existant
-      refreshDashboard();
-    });
+    // Note: Initialization moved to the bottom of the script
 
+    // ====== Main Functions ======
     async function refreshDashboard() {
       if (isRefreshing) return;
       isRefreshing = true;
+      
       const refreshBtn = document.getElementById('refresh-btn');
-      refreshBtn.disabled = true; refreshBtn.textContent = '🔄 Refreshing…';
+      refreshBtn.disabled = true; 
+      refreshBtn.textContent = '🔄 Refreshing…';
+      
+      // Update loading state
+      store.set('ui.loading', true);
+      store.set('ui.apiStatus.backend', 'unknown');
 
       try {
-        const resp = await fetch('http://localhost:8000/api/risk/dashboard?source=cointracking&pricing=local&min_usd=1.00');
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
-        const data = await resp.json();
-        if (data && data.success) {
-          renderDashboard(data);
-          if (data.timestamp && data.calculation_time) { updateTimestamp(data.timestamp, data.calculation_time); }
+        // Fetch risk data and CCS data in parallel
+        const [riskData, ccsData] = await Promise.all([
+          fetchRiskData(),
+          loadCCSData().catch(err => {
+            console.warn('CCS data failed, continuing with risk only:', err);
+            return null;
+          })
+        ]);
+        
+        if (riskData && riskData.success) {
+          // Update store with risk data
+          store.set('riskMetrics', riskData.risk_metrics);
+          store.set('portfolioSummary', riskData.portfolio_summary);
+          store.set('correlationMetrics', riskData.correlation_metrics);
+          store.set('ui.apiStatus.backend', 'healthy');
+          
+          // Render risk dashboard in the active tab
+          renderRiskDashboard(riskData);
+          
+          // Update timestamp
+          if (riskData.timestamp && riskData.calculation_time) { 
+            updateTimestamp(riskData.timestamp, riskData.calculation_time); 
+          }
+          
+          // If CCS data loaded successfully, compute blended CCS
+          if (ccsData) {
+            await loadBlendedCCS();
+          }
+          
+          console.log('Risk dashboard refreshed successfully');
+          
         } else {
-          renderError(data?.message || 'Failed to load risk dashboard');
+          throw new Error(riskData?.message || 'Failed to load risk dashboard');
         }
+        
       } catch (err) {
         console.error('Dashboard error:', err);
+        store.set('ui.apiStatus.backend', 'error');
         renderError('Network error: ' + err.message);
       } finally {
         isRefreshing = false;
-        refreshBtn.disabled = false; refreshBtn.textContent = '🔄 Refresh Data';
+        store.set('ui.loading', false);
+        refreshBtn.disabled = false; 
+        refreshBtn.textContent = '🔄 Refresh Data';
       }
     }
 
-    function renderDashboard(data) {
-      const container = document.getElementById('dashboard-content');
+    function renderRiskDashboard(data) {
+      const container = document.getElementById('risk-dashboard-content');
       if (!data || !data.risk_metrics || !data.correlation_metrics || !data.portfolio_summary) {
         renderError('Incomplete data received from API'); return;
       }
@@ -475,9 +931,312 @@
       // Après rendu : brancher les info-bulles et verdicts
       decorateRiskTooltips();
     }
+    
+    // ====== Cycles Content ======
+    function renderCyclesContent() {
+      const container = document.getElementById('cycles-content');
+      const state = store.snapshot();
+      const ccsData = state.ccs;
+      const cycleData = state.cycle;
+      
+      if (!ccsData?.score || !cycleData?.months) {
+        container.innerHTML = '<div class="loading">Loading cycle data...</div>';
+        return;
+      }
+      
+      const blended = cycleData.ccsStar || ccsData.score;
+      const interpretation = interpretCCS(blended);
+      
+      container.innerHTML = `
+        <div class="risk-grid">
+          <!-- CCS Overview -->
+          <div class="risk-card">
+            <h3>📊 CCS Market Score</h3>
+            <div style="text-align: center; margin: var(--space-lg) 0;">
+              <div style="font-size: 3rem; font-weight: 700; color: ${interpretation.color};">
+                ${Math.round(ccsData.score)}
+              </div>
+              <div style="font-size: 1rem; color: var(--theme-text-muted);">
+                ${interpretation.label}
+              </div>
+            </div>
+            
+            <div class="metric-row">
+              <span class="metric-label">Model Version:</span>
+              <span class="metric-value">${ccsData.model_version}</span>
+            </div>
+            <div class="metric-row">
+              <span class="metric-label">Last Update:</span>
+              <span class="metric-value">${new Date(ccsData.lastUpdate).toLocaleTimeString()}</span>
+            </div>
+          </div>
+          
+          <!-- Cycle Position -->
+          <div class="risk-card">
+            <h3>🔄 Cycle Position</h3>
+            <div style="text-align: center; margin: var(--space-lg) 0;">
+              <div style="font-size: 2rem;">
+                ${cycleData.phase?.emoji || '⚫'} 
+              </div>
+              <div style="font-size: 1rem; font-weight: 600; color: ${cycleData.phase?.color || '#6b7280'};">
+                ${cycleData.phase?.phase?.replace('_', ' ').toUpperCase() || 'UNKNOWN'}
+              </div>
+              <div style="font-size: 0.875rem; color: var(--theme-text-muted);">
+                Month ${Math.round(cycleData.months)} post-halving
+              </div>
+            </div>
+            
+            <div class="metric-row">
+              <span class="metric-label">Cycle Score:</span>
+              <span class="metric-value">${Math.round(cycleData.score)}/100</span>
+            </div>
+            <div class="metric-row">
+              <span class="metric-label">Confidence:</span>
+              <span class="metric-value">${Math.round(cycleData.confidence * 100)}%</span>
+            </div>
+          </div>
+          
+          <!-- Blended Analysis -->
+          <div class="risk-card">
+            <h3>⚖️ Blended Strategy</h3>
+            <div class="metric-row">
+              <span class="metric-label">Original CCS:</span>
+              <span class="metric-value">${Math.round(ccsData.score)}</span>
+            </div>
+            <div class="metric-row">
+              <span class="metric-label">Cycle Weight:</span>
+              <span class="metric-value">${Math.round((cycleData.weight || 0.3) * 100)}%</span>
+            </div>
+            <div class="metric-row">
+              <span class="metric-label">Blended CCS*:</span>
+              <span class="metric-value" style="color: ${interpretation.color}; font-weight: 700;">
+                ${Math.round(blended)}
+              </span>
+            </div>
+            <div class="metric-row">
+              <span class="metric-label">Strategy:</span>
+              <span class="metric-value">${interpretation.label}</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Signal Details -->
+        <div class="risk-card">
+          <h3>📡 Signal Breakdown</h3>
+          <div class="risk-grid">
+            ${Object.entries(ccsData.signals || {}).map(([key, signal]) => `
+              <div class="metric-row">
+                <span class="metric-label">${key.replace('_', ' ').toUpperCase()}:</span>
+                <span class="metric-value">
+                  ${Math.round(signal.normalized || 0)} 
+                  <span style="font-size: 0.75rem; opacity: 0.7;">(${Math.round((signal.weight || 0) * 100)}%)</span>
+                </span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+        
+        <!-- Cycle Multipliers -->
+        <div class="risk-card">
+          <h3>🎯 Asset Class Multipliers</h3>
+          <div style="font-size: 0.875rem; color: var(--theme-text-muted); margin-bottom: var(--space-sm);">
+            Based on current cycle phase: <strong>${cycleData.phase?.phase?.replace('_', ' ')}</strong>
+          </div>
+          <div class="risk-grid">
+            ${Object.entries(cycleData.multipliers || {}).map(([asset, multiplier]) => {
+              const color = multiplier > 1.1 ? 'var(--success)' : 
+                           multiplier < 0.9 ? 'var(--danger)' : 'var(--theme-text)';
+              return `
+                <div class="metric-row">
+                  <span class="metric-label">${asset}:</span>
+                  <span class="metric-value" style="color: ${color};">
+                    ${multiplier.toFixed(2)}x
+                  </span>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
+    
+    // ====== Targets Content ======
+    function renderTargetsContent() {
+      const container = document.getElementById('targets-content');
+      const state = store.snapshot();
+      
+      // Propose different targeting strategies
+      const macroProposal = proposeTargets('macro');
+      const ccsProposal = proposeTargets('ccs');
+      const cycleProposal = proposeTargets('cycle');
+      const blendedProposal = proposeTargets('blend');
+      
+      // DEBUG: Log what blended proposal contains for display
+      console.log('🔍 DEBUG renderTargetsContent - blendedProposal for DISPLAY:', blendedProposal);
+      console.log('🔍 DEBUG renderTargetsContent - BTC allocation for DISPLAY:', blendedProposal.targets.BTC);
+      
+      // Current targets from store or use macro as baseline
+      const currentTargets = state.targets?.proposed || DEFAULT_MACRO_TARGETS;
+      
+      container.innerHTML = `
+        <div class="risk-grid">
+          <!-- Strategy Selection -->
+          <div class="risk-card" style="grid-column: 1 / -1;">
+            <h3>🎯 Strategic Targeting</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-sm); margin: var(--space-lg) 0;">
+              <button class="refresh-btn" onclick="applyStrategy('macro')" style="background: #6b7280;">
+                📊 Macro Only<br>
+                <small>${macroProposal.strategy}</small>
+              </button>
+              <button class="refresh-btn" onclick="applyStrategy('ccs')" style="background: #3b82f6;">
+                📈 CCS Based<br>
+                <small>${ccsProposal.strategy}</small>
+              </button>
+              <button class="refresh-btn" onclick="applyStrategy('cycle')" style="background: #f59e0b;">
+                🔄 Cycle Adjusted<br>
+                <small>${cycleProposal.strategy}</small>
+              </button>
+              <button class="refresh-btn" onclick="applyStrategy('blend')" style="background: #10b981;">
+                ⚖️ Blended Strategy<br>
+                <small>${blendedProposal.strategy}</small>
+              </button>
+            </div>
+          </div>
+          
+          <!-- Current vs Proposed -->
+          <div class="risk-card">
+            <h3>📋 Current Allocation</h3>
+            ${renderTargetsTable(DEFAULT_MACRO_TARGETS, 'Baseline Macro')}
+          </div>
+          
+          <div class="risk-card">
+            <h3>🎯 Proposed Targets</h3>
+            ${renderTargetsTable(blendedProposal.targets, blendedProposal.strategy)}
+            <div style="margin-top: var(--space-lg); text-align: center; padding: var(--space-sm); background: var(--info-bg); border-radius: var(--radius-md); border: 1px solid var(--info);">
+              <div style="font-size: 0.875rem; color: var(--info); font-weight: 600; margin-bottom: var(--space-xs);">
+                💡 Nouvelle méthode d'application
+              </div>
+              <div style="font-size: 0.75rem; color: var(--theme-text-muted);">
+                Les targets sont maintenant synchronisés via <strong>rebalance.html</strong><br>
+                Utilisez le bouton "🎯 Sync CCS" dans les stratégies prédéfinies
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Action Plan -->
+        ${renderActionPlan(DEFAULT_MACRO_TARGETS, blendedProposal.targets)}
+        
+        <!-- Decision History -->
+        ${renderDecisionHistory()}
+      `;
+    }
+    
+    function renderTargetsTable(targets, strategy) {
+      const { model_version, ...allocations } = targets;
+      
+      return `
+        <div style="font-size: 0.75rem; color: var(--theme-text-muted); margin-bottom: var(--space-sm);">
+          ${strategy} (${model_version})
+        </div>
+        <div class="risk-grid">
+          ${Object.entries(allocations)
+            .sort(([,a], [,b]) => b - a)
+            .map(([asset, allocation]) => `
+              <div class="metric-row">
+                <span class="metric-label">${asset}:</span>
+                <span class="metric-value">${allocation.toFixed(1)}%</span>
+              </div>
+            `).join('')}
+        </div>
+      `;
+    }
+    
+    function renderActionPlan(current, proposed) {
+      if (!current || !proposed) return '';
+      
+      try {
+        const plan = computePlan(current, proposed);
+        
+        if (plan.actions.length === 0) {
+          return `
+            <div class="risk-card">
+              <h3>📝 Action Plan</h3>
+              <p style="text-align: center; color: var(--success);">✅ No changes needed - targets already optimal</p>
+            </div>
+          `;
+        }
+        
+        return `
+          <div class="risk-card">
+            <h3>📝 Action Plan</h3>
+            <div style="font-size: 0.875rem; color: var(--theme-text-muted); margin-bottom: var(--space-lg);">
+              ${plan.num_changes} changes needed • ${plan.total_reallocation.toFixed(1)}% to reallocate • Complexity: ${plan.complexity}
+            </div>
+            <div class="risk-grid">
+              ${plan.actions.map(action => {
+                const color = action.action === 'buy' ? 'var(--success)' : 'var(--danger)';
+                const icon = action.action === 'buy' ? '📈' : '📉';
+                return `
+                  <div class="metric-row">
+                    <span class="metric-label">${icon} ${action.asset}:</span>
+                    <span class="metric-value" style="color: ${color};">
+                      ${action.current_pct.toFixed(1)}% → ${action.target_pct.toFixed(1)}%
+                      <span style="font-size: 0.75rem;">(${action.change_pct > 0 ? '+' : ''}${action.change_pct.toFixed(1)}%)</span>
+                    </span>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+        
+      } catch (error) {
+        return `
+          <div class="risk-card">
+            <h3>📝 Action Plan</h3>
+            <div class="error">Error computing plan: ${error.message}</div>
+          </div>
+        `;
+      }
+    }
+    
+    function renderDecisionHistory() {
+      const history = getDecisionLog(5);
+      
+      if (history.length === 0) {
+        return `
+          <div class="risk-card">
+            <h3>📚 Decision History</h3>
+            <p style="text-align: center; color: var(--theme-text-muted);">No previous decisions</p>
+          </div>
+        `;
+      }
+      
+      return `
+        <div class="risk-card">
+          <h3>📚 Decision History</h3>
+          <div style="font-size: 0.75rem; color: var(--theme-text-muted); margin-bottom: var(--space-sm);">
+            Last ${history.length} decisions
+          </div>
+          ${history.map(entry => `
+            <div class="metric-row" style="border-bottom: 1px solid var(--theme-border); padding: var(--space-sm) 0;">
+              <div>
+                <div style="font-weight: 500;">${entry.strategy}</div>
+                <div style="font-size: 0.75rem; opacity: 0.7;">
+                  ${new Date(entry.timestamp).toLocaleString()} • 
+                  CCS: ${Math.round(entry.ccs_score || 0)} • 
+                  Confidence: ${Math.round((entry.confidence || 0) * 100)}%
+                </div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
 
     function renderError(message) {
-      document.getElementById('dashboard-content').innerHTML = `
+      document.getElementById('risk-dashboard-content').innerHTML = `
         <div class="error">
           <h3>❌ Error Loading Dashboard</h3>
           <p>${message}</p>
@@ -555,6 +1314,102 @@
         el.classList.add('hinted');
       });
     }
+
+    // ====== Initialization & Store Connection ======
+    
+    // Subscribe to store changes for sidebar and content updates
+    store.subscribe((state) => {
+      updateSidebar(state);
+      
+      // Auto-update active tab content when data changes
+      const activeTab = state.ui?.activeTab;
+      if (activeTab === 'cycles' && state.ccs?.score && state.cycle?.months) {
+        renderCyclesContent();
+      }
+      if (activeTab === 'targets') {
+        renderTargetsContent();
+      }
+    });
+    
+    // ====== Global Functions for UI Interaction ======
+    
+    // Apply specific strategy
+    window.applyStrategy = async function(mode) {
+      try {
+        console.log('🔍 DEBUG applyStrategy called with mode:', mode);
+        console.log('🔍 DEBUG store state before:', store.snapshot());
+        
+        const proposal = proposeTargets(mode);
+        console.log('🔍 DEBUG proposal result:', proposal);
+        console.log('🔍 DEBUG proposal BTC allocation:', proposal.targets.BTC);
+        
+        await applyTargets(proposal);
+        
+        // Refresh targets content to show updated data
+        if (store.get('ui.activeTab') === 'targets') {
+          renderTargetsContent();
+        }
+        
+        // Update sidebar
+        updateSidebar(store.snapshot());
+        
+        console.log(`Applied strategy: ${mode} - ${proposal.strategy}`);
+        
+      } catch (error) {
+        console.error('Failed to apply strategy:', error);
+        alert('Failed to apply strategy: ' + error.message);
+      }
+    };
+    
+
+    // Global functions for backwards compatibility
+    window.refreshDashboard = refreshDashboard;
+    window.enableAutoRefresh = enableAutoRefresh;
+    window.testEndpoint = testEndpoint;
+    
+    // Initialize on DOM ready
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('Risk Dashboard CCS MVP initializing...');
+      
+      // Initialize shared header
+      initSharedHeader('risk-dashboard');
+
+      // Appliquer le thème immédiatement
+      console.log('Initializing theme for risk-dashboard page...');
+      if (window.globalConfig && window.globalConfig.applyTheme) {
+        window.globalConfig.applyTheme();
+      }
+      if (window.applyAppearance) {
+        window.applyAppearance();
+      }
+      console.log('Current theme after risk-dashboard init:', document.documentElement.getAttribute('data-theme'));
+      
+      // Hydrate store from localStorage
+      store.hydrate();
+      
+      // Initial sidebar update
+      updateSidebar(store.snapshot());
+      
+      // Load initial data
+      refreshDashboard();
+      
+      // Écouter les changements de thème pour synchronisation cross-tab
+      window.addEventListener('storage', function(e) {
+        if (e.key === 'crypto_rebalancer_settings') {
+          console.log('Settings changed in another tab, reapplying theme...');
+          setTimeout(() => {
+            if (window.globalConfig && window.globalConfig.applyTheme) {
+              window.globalConfig.applyTheme();
+            }
+            if (window.applyAppearance) {
+              window.applyAppearance();
+            }
+          }, 100);
+        }
+      });
+      
+      console.log('Risk Dashboard CCS MVP initialized');
+    });
   </script>
 </body>
 

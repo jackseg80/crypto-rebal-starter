@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test CCS Sync</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #e0e0e0; }
+        .success { color: #4ade80; }
+        .error { color: #f87171; }
+        .warning { color: #fbbf24; }
+        .info { color: #60a5fa; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #374151; border-radius: 8px; }
+        pre { background: #2d3748; padding: 10px; border-radius: 4px; overflow-x: auto; }
+        button { padding: 10px 15px; margin: 5px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #2563eb; }
+        button.success { background: #10b981; }
+        button.warning { background: #f59e0b; }
+        button.error { background: #ef4444; }
+    </style>
+</head>
+<body>
+    <h1>🔄 Test de synchronisation CCS</h1>
+    <p>Ce test vérifie la communication entre Risk Dashboard et Rebalance.html</p>
+
+    <div class="test-section">
+        <h2>1. État actuel du localStorage</h2>
+        <div id="current-storage"></div>
+        <button onclick="checkCurrentStorage()">🔍 Analyser localStorage</button>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Simulation Risk Dashboard</h2>
+        <p>Simule la sauvegarde de targets par Risk Dashboard</p>
+        <button onclick="simulateRiskDashboard()" class="success">💾 Sauvegarder targets CCS</button>
+        <div id="save-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Test lecture Rebalance</h2>
+        <p>Simule la lecture des targets par rebalance.html</p>
+        <button onclick="testRebalanceReading()">📖 Lire targets CCS</button>
+        <div id="read-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Test complet</h2>
+        <p>Test bout-en-bout de la synchronisation</p>
+        <button onclick="runFullTest()">🚀 Test complet</button>
+        <div id="full-test-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>5. Nettoyage</h2>
+        <button onclick="cleanup()" class="warning">🧹 Nettoyer localStorage</button>
+    </div>
+
+    <script>
+        function log(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type;
+            element.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            console.log(`[${timestamp}] ${message}`);
+        }
+
+        function checkCurrentStorage() {
+            const element = document.getElementById('current-storage');
+            element.innerHTML = '<h3>Analyse du localStorage:</h3>';
+            
+            const allKeys = Object.keys(localStorage);
+            const ccsKeys = allKeys.filter(key => 
+                key.includes('ccs') || key.includes('target') || key.includes('risk') || key.includes('dashboard') || key.includes('last_targets')
+            );
+
+            if (ccsKeys.length === 0) {
+                log('current-storage', 'Aucune donnée CCS trouvée dans localStorage', 'warning');
+            } else {
+                log('current-storage', `Trouvé ${ccsKeys.length} clés liées au CCS:`, 'success');
+                ccsKeys.forEach(key => {
+                    const value = localStorage.getItem(key);
+                    try {
+                        const parsed = JSON.parse(value);
+                        log('current-storage', `${key}: ${typeof parsed === 'object' ? JSON.stringify(parsed, null, 2) : parsed}`, 'info');
+                    } catch {
+                        log('current-storage', `${key}: ${value ? value.substring(0, 100) + '...' : 'empty'}`, 'info');
+                    }
+                });
+            }
+        }
+
+        function simulateRiskDashboard() {
+            const element = document.getElementById('save-result');
+            element.innerHTML = '<h3>Simulation sauvegarde Risk Dashboard:</h3>';
+
+            // Simuler les données que Risk Dashboard devrait sauvegarder
+            const mockCCSTargets = {
+                targets: {
+                    'BTC': 38.5,
+                    'ETH': 28.2,
+                    'Stablecoins': 15.0,
+                    'L1/L0 majors': 11.3,
+                    'L2/Scaling': 4.8,
+                    'DeFi': 2.2,
+                    'model_version': 'ccs-blend-v1'
+                },
+                strategy: 'Blended CCS* (72)',
+                source: 'risk-dashboard-ccs',
+                timestamp: new Date().toISOString()
+            };
+
+            log('save-result', 'Données à sauvegarder:', 'info');
+            log('save-result', `<pre>${JSON.stringify(mockCCSTargets, null, 2)}</pre>`, 'info');
+
+            try {
+                localStorage.setItem('last_targets', JSON.stringify(mockCCSTargets));
+                log('save-result', '✅ Données sauvegardées avec succès dans localStorage["last_targets"]', 'success');
+            } catch (error) {
+                log('save-result', `❌ Erreur sauvegarde: ${error.message}`, 'error');
+            }
+        }
+
+        function testRebalanceReading() {
+            const element = document.getElementById('read-result');
+            element.innerHTML = '<h3>Test lecture par Rebalance:</h3>';
+
+            // Reproduire exactement la fonction syncCCSTargets de rebalance.html
+            function syncCCSTargets() {
+                const storedTargets = localStorage.getItem('last_targets');
+                if (!storedTargets) return null;
+                
+                try {
+                    const targetsData = JSON.parse(storedTargets);
+                    log('read-result', 'Données brutes lues:', 'info');
+                    log('read-result', `<pre>${JSON.stringify(targetsData, null, 2)}</pre>`, 'info');
+                    
+                    if (targetsData.source === 'risk-dashboard-ccs' && targetsData.targets && targetsData.timestamp) {
+                        // Vérifier que les données ne sont pas trop anciennes (2 heures)
+                        const dataAge = Date.now() - new Date(targetsData.timestamp).getTime();
+                        const maxAge = 2 * 60 * 60 * 1000; // 2 heures
+                        
+                        log('read-result', `Âge des données: ${Math.round(dataAge / 1000)}s (max: ${maxAge / 1000}s)`, 'info');
+                        
+                        if (dataAge < maxAge) {
+                            // Filtrer les targets pour ne garder que les valeurs numériques
+                            const cleanTargets = {};
+                            Object.entries(targetsData.targets).forEach(([key, value]) => {
+                                if (typeof value === 'number' && key !== 'model_version') {
+                                    cleanTargets[key] = value;
+                                }
+                            });
+                            
+                            log('read-result', 'Targets nettoyées:', 'info');
+                            log('read-result', `<pre>${JSON.stringify(cleanTargets, null, 2)}</pre>`, 'info');
+                            
+                            return {
+                                targets: cleanTargets,
+                                strategy: targetsData.strategy,
+                                timestamp: targetsData.timestamp
+                            };
+                        } else {
+                            log('read-result', '❌ Données trop anciennes', 'error');
+                        }
+                    } else {
+                        log('read-result', '❌ Format de données invalide', 'error');
+                    }
+                } catch (error) {
+                    log('read-result', `❌ Erreur parsing: ${error.message}`, 'error');
+                }
+                
+                return null;
+            }
+
+            const result = syncCCSTargets();
+            
+            if (result) {
+                log('read-result', '✅ Lecture réussie!', 'success');
+                log('read-result', `Stratégie: ${result.strategy}`, 'success');
+                
+                const totalAllocation = Object.values(result.targets).reduce((sum, val) => sum + val, 0);
+                log('read-result', `Total allocation: ${totalAllocation.toFixed(1)}%`, totalAllocation > 99 && totalAllocation < 101 ? 'success' : 'warning');
+            } else {
+                log('read-result', '❌ Échec de lecture', 'error');
+            }
+        }
+
+        function runFullTest() {
+            const element = document.getElementById('full-test-result');
+            element.innerHTML = '<h3>Test complet bout-en-bout:</h3>';
+
+            log('full-test-result', '🚀 Début du test complet', 'info');
+            
+            // Étape 1: Nettoyer
+            localStorage.removeItem('last_targets');
+            log('full-test-result', '1️⃣ localStorage nettoyé', 'info');
+
+            // Étape 2: Risk Dashboard sauvegarde
+            const mockTargets = {
+                targets: {
+                    'BTC': 40.0,
+                    'ETH': 30.0,
+                    'Stablecoins': 15.0,
+                    'L1/L0 majors': 10.0,
+                    'DeFi': 5.0,
+                    'model_version': 'test-v1'
+                },
+                strategy: 'Test Strategy (85)',
+                source: 'risk-dashboard-ccs',
+                timestamp: new Date().toISOString()
+            };
+
+            localStorage.setItem('last_targets', JSON.stringify(mockTargets));
+            log('full-test-result', '2️⃣ Risk Dashboard: données sauvegardées', 'success');
+
+            // Étape 3: Rebalance lit
+            const storedTargets = localStorage.getItem('last_targets');
+            if (!storedTargets) {
+                log('full-test-result', '❌ Étape 3: Aucune donnée trouvée', 'error');
+                return;
+            }
+
+            const parsed = JSON.parse(storedTargets);
+            if (parsed.source !== 'risk-dashboard-ccs') {
+                log('full-test-result', '❌ Étape 3: Source incorrecte', 'error');
+                return;
+            }
+
+            const cleanTargets = {};
+            Object.entries(parsed.targets).forEach(([key, value]) => {
+                if (typeof value === 'number' && key !== 'model_version') {
+                    cleanTargets[key] = value;
+                }
+            });
+
+            const total = Object.values(cleanTargets).reduce((sum, val) => sum + val, 0);
+            
+            log('full-test-result', '3️⃣ Rebalance: données lues et nettoyées', 'success');
+            log('full-test-result', `Targets finaux: ${JSON.stringify(cleanTargets, null, 2)}`, 'info');
+            log('full-test-result', `Total: ${total}%`, 'info');
+
+            // Étape 4: Validation
+            if (Math.abs(total - 100) < 0.1) {
+                log('full-test-result', '✅ Test complet RÉUSSI - La synchronisation CCS fonctionne!', 'success');
+            } else {
+                log('full-test-result', '⚠️ Test complet partiellement réussi - Allocations non normalisées', 'warning');
+            }
+        }
+
+        function cleanup() {
+            localStorage.removeItem('last_targets');
+            ['ccs-decision-log', 'risk-dashboard-store'].forEach(key => {
+                localStorage.removeItem(key);
+            });
+            
+            const allKeys = Object.keys(localStorage);
+            const ccsKeys = allKeys.filter(key => key.includes('ccs') || key.includes('target'));
+            ccsKeys.forEach(key => localStorage.removeItem(key));
+            
+            alert(`Nettoyé localStorage (${ccsKeys.length + 1} clés supprimées)`);
+            location.reload();
+        }
+
+        // Auto-analyse au chargement
+        document.addEventListener('DOMContentLoaded', () => {
+            checkCurrentStorage();
+        });
+    </script>
+</body>
+</html>

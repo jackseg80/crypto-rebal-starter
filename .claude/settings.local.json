@@ -33,12 +33,19 @@
       "WebFetch(domain:localhost)",
       "Read(/D:\\d D:\\Python/**)",
       "Bash(git fetch:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(chcp 65001)",
+      "Bash(for file in dashboard.html rebalance.html execution.html alias-manager.html risk-dashboard.html execution_history.html)",
+      "Bash(do echo \"=== $file ===\")",
+      "Bash(done)",
+      "Bash(start debug_ccs_check.html)",
+      "Bash(start diagnostic_test.html)"
     ],
     "deny": [],
     "ask": [],
     "additionalDirectories": [
-      "D:\\d D:\\Python"
+      "D:\\d D:\\Python",
+      "D:\\d D:\\Python\\crypto-rebal-starter"
     ]
   }
 }
