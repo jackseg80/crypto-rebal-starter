@@ -502,9 +502,9 @@
         console.log('Checking stored CCS targets:', targetsData);
         
         if (targetsData.source === 'risk-dashboard-ccs' && targetsData.targets && targetsData.timestamp) {
-          // Vérifier que les données ne sont pas trop anciennes (30 minutes)
+          // Vérifier que les données ne sont pas trop anciennes (2 heures)
           const dataAge = Date.now() - new Date(targetsData.timestamp).getTime();
-          const maxAge = 30 * 60 * 1000; // 30 minutes
+          const maxAge = 2 * 60 * 60 * 1000; // 2 heures
           
           if (dataAge < maxAge) {
             // Filtrer les targets pour ne garder que les valeurs numériques
@@ -535,7 +535,7 @@
     /* ---------- Fonctions Stratégies ---------- */
     async function loadStrategies() {
       try {
-        const response = await globalConfig.apiRequest('/strategies/list');
+        const response = await globalConfig.apiRequest('/api/strategies/list');
         if (response.ok && response.strategies) {
           availableStrategies = response.strategies;
           
@@ -1313,29 +1313,90 @@
 
 
       // Ajouter une fonction pour rafraîchir la stratégie dynamique
-      window.refreshDynamicStrategy = function() {
-        const ccsTargets = syncCCSTargets();
-        if (ccsTargets) {
-          // Mettre à jour ou ajouter la stratégie dynamique
-          availableStrategies['ccs-dynamic'] = {
-            name: 'Strategic (Dynamic)',
-            icon: '🎯',
-            description: `Targets CCS du Risk Dashboard - ${ccsTargets.strategy}`,
-            risk_level: 'Variable',
-            allocations: ccsTargets.targets,
-            _isDynamic: true,
-            _ccsData: ccsTargets
-          };
-          renderStrategiesUI();
-          showNotification('🎯 Stratégie dynamique mise à jour!', 'success');
-          console.log('Dynamic strategy refreshed:', ccsTargets);
-        } else {
-          // Supprimer la stratégie dynamique si pas de données
-          if (availableStrategies['ccs-dynamic']) {
-            delete availableStrategies['ccs-dynamic'];
-            renderStrategiesUI();
-            showNotification('📭 Aucune donnée CCS récente trouvée', 'info');
+      window.refreshDynamicStrategy = async function() {
+        try {
+          // D'abord essayer depuis localStorage
+          let ccsTargets = syncCCSTargets();
+          
+          // Si pas de données localStorage récentes, générer depuis Risk Dashboard
+          if (!ccsTargets) {
+            showNotification('🔄 Génération des targets CCS depuis Risk Dashboard...', 'info', 2000);
+            
+            try {
+              // Utiliser le nouvel endpoint pour générer une stratégie CCS
+              console.log('Generating CCS strategy from Risk Dashboard...');
+              
+              const response = await fetch('/api/strategies/generate-ccs', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                }
+              });
+              
+              if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+              }
+              
+              const ccsData = await response.json();
+              console.log('Generated CCS data:', ccsData);
+              
+              const ccsTargetsData = {
+                source: ccsData.source,
+                strategy: ccsData.strategy,
+                timestamp: ccsData.timestamp,
+                targets: ccsData.targets
+              };
+              
+              // Sauvegarder dans localStorage 
+              localStorage.setItem('last_targets', JSON.stringify(ccsTargetsData));
+              ccsTargets = syncCCSTargets();
+              console.log('Generated CCS targets:', ccsTargets);
+              
+            } catch (fetchError) {
+              console.warn('Could not generate CCS targets:', fetchError);
+              throw fetchError;
+            }
           }
+          
+          if (ccsTargets) {
+            // Mettre à jour ou ajouter la stratégie dynamique
+            availableStrategies['ccs-dynamic'] = {
+              name: 'Strategic (Dynamic)',
+              icon: '🎯',
+              description: `Targets CCS du Risk Dashboard - ${ccsTargets.strategy}`,
+              risk_level: 'Variable',
+              allocations: ccsTargets.targets,
+              _isDynamic: true,
+              _ccsData: ccsTargets
+            };
+            
+            // Supprimer les anciennes versions placeholder/error s'il y en a
+            delete availableStrategies['ccs-dynamic-placeholder'];
+            delete availableStrategies['ccs-dynamic-error'];
+            
+            renderStrategiesUI();
+            showNotification('🎯 Stratégie dynamique mise à jour!', 'success');
+            console.log('Dynamic strategy refreshed:', ccsTargets);
+          } else {
+            // Ajouter stratégie placeholder si toujours pas de données
+            availableStrategies['ccs-dynamic-placeholder'] = {
+              name: 'Strategic (Dynamic)',
+              icon: '📭',
+              description: 'Aucune donnée CCS trouvée - Allez dans Risk Dashboard pour générer des targets',
+              risk_level: 'N/A',
+              allocations: {},
+              _isPlaceholder: true
+            };
+            
+            // Supprimer l'ancienne version dynamique s'il y en a une
+            delete availableStrategies['ccs-dynamic'];
+            
+            renderStrategiesUI();
+            showNotification('📭 Aucune donnée CCS récente trouvée. Générez des targets dans Risk Dashboard.', 'info', 4000);
+          }
+        } catch (error) {
+          console.error('Error refreshing dynamic strategy:', error);
+          showNotification('❌ Erreur lors du rafraîchissement: ' + error.message, 'error');
         }
       };
 
