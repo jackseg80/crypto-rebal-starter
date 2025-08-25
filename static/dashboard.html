@@ -171,7 +171,7 @@
             align-items: center;
             justify-content: center;
         }
-        
+
         .portfolio-chart canvas {
             max-height: 100%;
             max-width: 100%;
@@ -289,18 +289,6 @@
                 </div>
             </div>
 
-            <!-- Quick Actions -->
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-title"><span class="card-icon">⚡</span>Quick Actions</div>
-                </div>
-                <div class="quick-actions">
-                    <a href="rebalance.html" class="action-btn">⚖️ Plan Rebalance</a>
-                    <a href="execution.html" class="action-btn secondary">🚀 Execute Orders</a>
-                    <a href="execution_history.html" class="action-btn secondary">📈 View History</a>
-                    <a href="settings.html" class="action-btn secondary">⚙️ Settings</a>
-                </div>
-            </div>
 
             <!-- Execution Status -->
             <div class="card">
@@ -387,15 +375,15 @@
                 window.applyAppearance();
             }
             console.log('Current theme after dashboard init:', document.documentElement.getAttribute('data-theme'));
-            
+
             // Configuration Chart.js avec thème
             initChartTheme();
-            
+
             await loadDashboardData();
             setInterval(loadDashboardData, 30000);
 
             // Écouter les changements de thème pour synchronisation cross-tab
-            window.addEventListener('storage', function(e) {
+            window.addEventListener('storage', function (e) {
                 if (e.key === 'crypto_rebalancer_settings') {
                     console.log('Settings changed in another tab, reapplying theme...');
                     setTimeout(() => {
@@ -439,41 +427,45 @@
             try {
                 const source = (typeof globalConfig !== 'undefined' ? (globalConfig.get('data_source') || 'cointracking') : 'cointracking');
                 console.log(`📊 Chargement portfolio avec source: ${source}`);
-                
-                // Utiliser vos vraies valeurs (en attendant l'API backend)
-                const realPortfolioData = {
-                    items: [
-                        { symbol: 'BTC', value_usd: 156000, amount: 3.12 },  // ~36% de 435k
-                        { symbol: 'ETH', value_usd: 95000, amount: 28.3 },   // ~22% de 435k
-                        { symbol: 'USDT', value_usd: 87000, amount: 87000 }, // ~20% stables
-                        { symbol: 'SOL', value_usd: 35000, amount: 300 },    // ~8%
-                        { symbol: 'MATIC', value_usd: 26000, amount: 40000 },// ~6%
-                        { symbol: 'DOT', value_usd: 17000, amount: 2500 },   // ~4%
-                        { symbol: 'ATOM', value_usd: 13000, amount: 1600 },  // ~3%
-                        { symbol: 'ADA', value_usd: 6211, amount: 15000 }    // ~1.4% (pour arriver à 435,211)
-                    ],
-                    total_count: 8,
-                    timestamp: new Date().toISOString()
-                };
-                
-                const total_value = 435211; // Votre vraie valeur
+
+                // Utiliser l'API réelle pour obtenir les données du portefeuille
+                const response = await fetch(`http://localhost:8000/api/risk/dashboard?source=${source}&pricing=local&min_usd=1.00`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.message || 'Failed to load portfolio data');
+                }
+
+                // Extraire les données nécessaires pour le dashboard
+                const portfolioSummary = data.portfolio_summary;
+                // Les balances sont maintenant dans data.balances directement
+                const balances = data.balances || [];
+
                 return {
                     ok: true,
-                    metrics: { 
-                        total_value_usd: total_value, 
-                        asset_count: realPortfolioData.items.length, 
-                        last_updated: new Date().toISOString() 
+                    metrics: {
+                        total_value_usd: portfolioSummary.total_value || 0,
+                        asset_count: portfolioSummary.num_assets || 0,
+                        last_updated: data.timestamp || new Date().toISOString()
                     },
-                    performance: { 
-                        performance_available: true, 
-                        current_value_usd: total_value, 
-                        absolute_change_usd: 2847 // P&L exemple
+                    performance: {
+                        performance_available: true,
+                        current_value_usd: portfolioSummary.total_value || 0,
+                        absolute_change_usd: 0 // P&L à implémenter si disponible
                     },
-                    balances: realPortfolioData
+                    balances: {
+                        items: balances,
+                        total_count: balances.length,
+                        timestamp: data.timestamp || new Date().toISOString()
+                    }
                 };
-            } catch (e) { 
-                console.error('Erreur portfolio:', e); 
-                return null; 
+            } catch (e) {
+                console.error('Erreur portfolio:', e);
+                return null;
             }
         }
 
@@ -622,7 +614,7 @@
 
         // Couleurs pour le graphique portfolio
         const PORTFOLIO_COLORS = [
-            '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', 
+            '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6',
             '#06b6d4', '#84cc16', '#f97316', '#ec4899', '#6366f1'
         ];
 
@@ -643,7 +635,7 @@
             items.forEach(item => {
                 const symbol = (item.symbol || '').toUpperCase();
                 let foundGroup = null;
-                
+
                 // Chercher dans quel groupe appartient ce symbol
                 for (const [groupName, aliases] of Object.entries(ASSET_GROUPS)) {
                     if (aliases.includes(symbol)) {
@@ -651,7 +643,7 @@
                         break;
                     }
                 }
-                
+
                 if (foundGroup) {
                     if (!groups.has(foundGroup)) {
                         groups.set(foundGroup, {
@@ -676,20 +668,29 @@
 
         // Créer ou mettre à jour le graphique portfolio
         function updatePortfolioChart(balancesData) {
-            if (!balancesData || !balancesData.items) return;
-            
+            console.log('🔍 DEBUG updatePortfolioChart - balancesData:', balancesData);
+
+            if (!balancesData || !balancesData.items) {
+                console.log('❌ No balances data or items');
+                return;
+            }
+
             const canvas = document.getElementById('portfolioChartCanvas');
-            if (!canvas) return;
+            if (!canvas) {
+                console.log('❌ Canvas element not found');
+                return;
+            }
 
             const ctx = canvas.getContext('2d');
-            
+            console.log('🔍 DEBUG - Number of items:', balancesData.items.length);
+
             // Traiter les données pour le graphique avec regroupement par aliases
             const items = balancesData.items || [];
             const filteredItems = items.filter(item => parseFloat(item.value_usd || 0) > 0);
-            
+
             // Regrouper par aliases
             const groupedData = groupAssetsByAliases(filteredItems);
-            
+
             // Trier par valeur et prendre les top 8
             const sortedData = groupedData
                 .sort((a, b) => b.value - a.value)
@@ -739,17 +740,17 @@
                             cornerRadius: 8,
                             padding: 12,
                             callbacks: {
-                                label: function(context) {
+                                label: function (context) {
                                     const value = context.parsed;
                                     const percentage = ((value / total) * 100).toFixed(1);
                                     const groupData = sortedData[context.dataIndex];
                                     let label = `${context.label}: ${formatUSD(value)} (${percentage}%)`;
-                                    
+
                                     // Ajouter les assets du groupe si c'est un groupe
                                     if (groupData.assets && groupData.assets.length > 1) {
                                         label += `\nAssets: ${groupData.assets.join(', ')}`;
                                     }
-                                    
+
                                     return label;
                                 }
                             }
