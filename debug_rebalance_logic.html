@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Rebalance Logic</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        .log { padding: 8px; margin: 4px 0; border-radius: 4px; }
+        .info { background: #e3f2fd; border-left: 4px solid #2196f3; }
+        .success { background: #e8f5e9; border-left: 4px solid #4caf50; }
+        .error { background: #ffebee; border-left: 4px solid #f44336; }
+        .warning { background: #fff3e0; border-left: 4px solid #ff9800; }
+        button { padding: 10px; margin: 5px; cursor: pointer; }
+        .test-btn { background: #2196f3; color: white; border: none; border-radius: 4px; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Debug Rebalance Logic</h1>
+    <div id="logs"></div>
+    
+    <h3>Tests:</h3>
+    <button class="test-btn" onclick="testLocalStoragePolling()">Test localStorage Polling</button>
+    <button class="test-btn" onclick="simulateApplyTargets()">Simulate Apply Targets</button>
+    <button class="test-btn" onclick="testDynamicTargets()">Test Dynamic Targets API</button>
+    <button class="test-btn" onclick="checkCurrentState()">Check Current State</button>
+    
+    <script>
+        const logs = document.getElementById('logs');
+        
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `log ${type}`;
+            div.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${message}`;
+            logs.appendChild(div);
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+        
+        // Variables simulées pour tester la logique
+        let dynamicTargets = null;
+        let useDynamicTargets = false;
+        let lastTargetsCheck = localStorage.getItem('last_targets');
+        
+        // Simuler l'API rebalanceAPI
+        window.rebalanceAPI = {
+            setDynamicTargets: function (targets, metadata = {}) {
+                dynamicTargets = targets;
+                useDynamicTargets = true;
+                log(`✅ Dynamic targets set: ${JSON.stringify(targets)}`, 'success');
+                log(`📊 Metadata: ${JSON.stringify(metadata)}`, 'info');
+                
+                // Simuler l'indicateur UI
+                log(`🎯 UI Indicator would show: "CCS ${metadata.ccs || 'N/A'}"`, 'info');
+                
+                // Auto-run si demandé
+                if (metadata.autoRun) {
+                    log('🔄 Auto-run requested, would call runPlan()', 'info');
+                }
+                
+                return { success: true, targets, metadata };
+            },
+            
+            getCurrentTargets: function() {
+                if (useDynamicTargets && dynamicTargets) {
+                    return { dynamic: true, targets: dynamicTargets };
+                } else {
+                    return { dynamic: false, targets: {} };
+                }
+            }
+        };
+        
+        // Simuler la fonction checkForNewTargets de rebalance.html
+        function checkForNewTargets() {
+            const currentTargets = localStorage.getItem('last_targets');
+            
+            log(`🔍 Checking localStorage: current=${currentTargets?.substring(0, 50)}...`, 'info');
+            log(`🔍 Last check was: ${lastTargetsCheck?.substring(0, 50)}...`, 'info');
+            
+            // Si nouveaux targets détectés
+            if (currentTargets && currentTargets !== lastTargetsCheck) {
+                lastTargetsCheck = currentTargets;
+                log('🆕 New targets detected!', 'success');
+                
+                try {
+                    const targetsData = JSON.parse(currentTargets);
+                    log(`📋 Parsed data: ${JSON.stringify(targetsData, null, 2)}`, 'info');
+                    
+                    if (targetsData.source === 'risk-dashboard-ccs' && targetsData.targets) {
+                        // Filtrer les targets
+                        const cleanTargets = {};
+                        Object.entries(targetsData.targets).forEach(([key, value]) => {
+                            if (typeof value === 'number' && key !== 'model_version') {
+                                cleanTargets[key] = value;
+                            }
+                        });
+                        
+                        log(`🧹 Clean targets: ${JSON.stringify(cleanTargets)}`, 'success');
+                        
+                        // Appliquer via l'API rebalance
+                        if (window.rebalanceAPI) {
+                            const result = window.rebalanceAPI.setDynamicTargets(cleanTargets, {
+                                ccs: Math.round(parseFloat(targetsData.strategy.match(/\\d+/)?.[0] || 0)),
+                                strategy: targetsData.strategy,
+                                source: targetsData.source,
+                                autoRun: true
+                            });
+                            
+                            log(`✅ Applied via rebalanceAPI: ${JSON.stringify(result)}`, 'success');
+                        } else {
+                            log('❌ rebalanceAPI not available!', 'error');
+                        }
+                    } else {
+                        log(`⚠️ Invalid data: source=${targetsData.source}, has targets=${!!targetsData.targets}`, 'warning');
+                    }
+                } catch (error) {
+                    log(`❌ Error parsing targets: ${error.message}`, 'error');
+                }
+            } else {
+                log('📭 No new targets detected', 'info');
+            }
+        }
+        
+        // Fonction de test de polling
+        function testLocalStoragePolling() {
+            log('🧪 Testing localStorage polling logic...', 'info');
+            checkForNewTargets();
+        }
+        
+        // Simuler Apply Targets depuis le risk dashboard
+        function simulateApplyTargets() {
+            log('🧪 Simulating Apply Targets from risk dashboard...', 'info');
+            
+            const mockTargetsData = {
+                targets: {
+                    'BTC': 40.0,
+                    'ETH': 30.0,
+                    'Stablecoins': 15.0,
+                    'L1/L0 majors': 10.0,
+                    'Others': 5.0,
+                    'model_version': 'macro-1'
+                },
+                timestamp: new Date().toISOString(),
+                strategy: 'Test CCS 65',
+                source: 'risk-dashboard-ccs'
+            };
+            
+            log('💾 Saving mock data to localStorage...', 'info');
+            localStorage.setItem('last_targets', JSON.stringify(mockTargetsData));
+            
+            log('⏳ Waiting 1 second then checking...', 'info');
+            setTimeout(() => {
+                checkForNewTargets();
+            }, 1000);
+        }
+        
+        // Tester l'API dynamic targets directement
+        function testDynamicTargets() {
+            log('🧪 Testing Dynamic Targets API directly...', 'info');
+            
+            const testTargets = {
+                'BTC': 45.0,
+                'ETH': 25.0,
+                'Stablecoins': 20.0,
+                'Others': 10.0
+            };
+            
+            const result = window.rebalanceAPI.setDynamicTargets(testTargets, {
+                ccs: 72,
+                strategy: 'Direct Test Strategy',
+                source: 'manual-test',
+                autoRun: false
+            });
+            
+            // Vérifier l'état
+            const currentTargets = window.rebalanceAPI.getCurrentTargets();
+            log(`📊 Current targets after set: ${JSON.stringify(currentTargets)}`, 'success');
+        }
+        
+        // Vérifier l'état actuel
+        function checkCurrentState() {
+            log('🔍 Checking current state...', 'info');
+            
+            log(`📭 localStorage last_targets: ${localStorage.getItem('last_targets')?.substring(0, 100)}...`, 'info');
+            log(`🎯 useDynamicTargets: ${useDynamicTargets}`, 'info');
+            log(`📊 dynamicTargets: ${JSON.stringify(dynamicTargets)}`, 'info');
+            
+            const current = window.rebalanceAPI.getCurrentTargets();
+            log(`📋 getCurrentTargets(): ${JSON.stringify(current)}`, 'info');
+        }
+        
+        // Auto-test au chargement
+        setTimeout(() => {
+            log('🚀 Starting auto-tests...', 'info');
+            checkCurrentState();
+        }, 500);
+    </script>
+</body>
+</html>

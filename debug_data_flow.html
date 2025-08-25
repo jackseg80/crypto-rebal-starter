@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🔬 Debug Data Flow - Risk vs Rebalance</title>
+    <style>
+        body { font-family: monospace; margin: 20px; background: #f5f5f5; }
+        .section { background: white; padding: 20px; margin: 10px 0; border-radius: 8px; }
+        .success { color: #22c55e; font-weight: bold; }
+        .error { color: #ef4444; font-weight: bold; }
+        .warning { color: #f59e0b; font-weight: bold; }
+        .info { color: #3b82f6; font-weight: bold; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background: #f0f0f0; }
+        button { padding: 8px 16px; margin: 4px; border: none; border-radius: 4px; cursor: pointer; }
+        .btn-test { background: #3b82f6; color: white; }
+        .btn-clear { background: #ef4444; color: white; }
+    </style>
+</head>
+<body>
+    <h1>🔬 Debug Data Flow - Risk Dashboard vs Rebalance</h1>
+    
+    <div class="section">
+        <h2>🎯 Test Scenario</h2>
+        <p>Reproduire le problème observé par l'utilisateur :</p>
+        <ul>
+            <li><strong>Risk Dashboard "Proposed Targets":</strong> BTC: 32.1%, ETH: 24.2%, Stablecoins: 21.3%</li>
+            <li><strong>Rebalance après sync:</strong> BTC: 29.4%, ETH: 19.6%, Stablecoins: 29.4%</li>
+        </ul>
+        
+        <button class="btn-test" onclick="simulateRiskDashboard()">🎯 Simuler Risk Dashboard</button>
+        <button class="btn-test" onclick="testDataPipeline()">⚙️ Tester Pipeline de Données</button>
+        <button class="btn-clear" onclick="clearData()">🧹 Nettoyer</button>
+    </div>
+    
+    <div class="section">
+        <h2>📊 Résultats</h2>
+        <div id="results">Cliquez sur un bouton de test pour commencer</div>
+    </div>
+    
+    <script type="module">
+        // Import functions from targets-coordinator.js
+        import { proposeTargets, normalizeTargets, generateCCSTargets } from './static/modules/targets-coordinator.js';
+        
+        window.simulateRiskDashboard = function() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<div class="info">🔄 Simulation en cours...</div>';
+            
+            try {
+                // Simuler les conditions CCS observées
+                // Based on debug files, user has CCS* of 72
+                const mockCCSScore = 72;
+                const mockBlendedCCS = 72;
+                
+                // Mock store state
+                window.mockStore = {
+                    get: function(key) {
+                        const data = {
+                            'ccs.score': mockCCSScore,
+                            'cycle.ccsStar': mockBlendedCCS,
+                            'cycle.multipliers': null, // No cycle multipliers initially
+                            'cycle.weight': 0.3
+                        };
+                        return data[key];
+                    },
+                    snapshot: function() {
+                        return {
+                            ccs: { score: mockCCSScore },
+                            cycle: { ccsStar: mockBlendedCCS, multipliers: null, weight: 0.3 }
+                        };
+                    }
+                };
+                
+                // Test the blend strategy (what Risk Dashboard uses)
+                console.log('Testing blend strategy with CCS*=72');
+                const blendProposal = proposeTargets('blend');
+                
+                let html = '<div class="success">✅ Simulation terminée</div>';
+                html += '<h3>🎯 Résultats de proposeTargets(\'blend\'):</h3>';
+                html += '<table>';
+                html += '<tr><th>Asset</th><th>Allocation (%)</th><th>Attendu par utilisateur</th><th>Match</th></tr>';
+                
+                const expectedValues = {
+                    'BTC': 32.1,
+                    'ETH': 24.2,
+                    'Stablecoins': 21.3,
+                    'L1/L0 majors': 11.1,
+                    'L2/Scaling': 5.6,
+                    'DeFi': 3.5,
+                    'AI/Data': 2.2,
+                    'Others': 0.0
+                };
+                
+                const { targets } = blendProposal;
+                const { model_version, ...allocations } = targets;
+                
+                Object.entries(allocations).forEach(([asset, value]) => {
+                    const expected = expectedValues[asset] || 0;
+                    const match = Math.abs(value - expected) < 0.1;
+                    const matchStyle = match ? 'color: green;' : 'color: red; font-weight: bold;';
+                    
+                    html += `<tr>
+                        <td>${asset}</td>
+                        <td>${value.toFixed(1)}%</td>
+                        <td>${expected}%</td>
+                        <td style="${matchStyle}">${match ? '✅' : '❌'}</td>
+                    </tr>`;
+                });
+                
+                html += '</table>';
+                html += `<div style="margin: 15px 0;"><strong>Strategy:</strong> ${blendProposal.strategy}</div>`;
+                html += `<div><strong>Model Version:</strong> ${model_version}</div>`;
+                
+                resultsDiv.innerHTML = html;
+                
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">❌ Erreur: ${error.message}</div>
+                                     <pre>${error.stack}</pre>`;
+            }
+        };
+        
+        window.testDataPipeline = function() {
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                // Test the full data pipeline
+                const testData = {
+                    'BTC': 32.1,
+                    'ETH': 24.2,
+                    'Stablecoins': 21.3,
+                    'L1/L0 majors': 11.1,
+                    'L2/Scaling': 5.6,
+                    'DeFi': 3.5,
+                    'AI/Data': 2.2,
+                    'Others': 0.0,
+                    'model_version': 'test-v1'
+                };
+                
+                console.log('Original data:', testData);
+                
+                // Test normalization
+                const normalized = normalizeTargets(testData);
+                console.log('Normalized data:', normalized);
+                
+                let html = '<div class="info">🔬 Test du pipeline de normalisation</div>';
+                html += '<h3>Données originales vs normalisées:</h3>';
+                html += '<table>';
+                html += '<tr><th>Asset</th><th>Original (%)</th><th>Normalized (%)</th><th>Différence</th></tr>';
+                
+                Object.entries(testData).forEach(([asset, original]) => {
+                    if (asset === 'model_version') return;
+                    
+                    const norm = normalized[asset];
+                    const diff = Math.abs(original - norm);
+                    const diffStyle = diff > 0.1 ? 'color: red; font-weight: bold;' : 'color: green;';
+                    
+                    html += `<tr>
+                        <td>${asset}</td>
+                        <td>${original.toFixed(1)}%</td>
+                        <td>${norm.toFixed(1)}%</td>
+                        <td style="${diffStyle}">${diff.toFixed(3)}%</td>
+                    </tr>`;
+                });
+                
+                html += '</table>';
+                
+                const originalTotal = Object.values(testData).filter(v => typeof v === 'number').reduce((s, v) => s + v, 0);
+                const normalizedTotal = Object.values(normalized).filter(v => typeof v === 'number').reduce((s, v) => s + v, 0);
+                
+                html += `<div style="margin: 15px 0;">
+                    <div><strong>Total Original:</strong> ${originalTotal.toFixed(1)}%</div>
+                    <div><strong>Total Normalisé:</strong> ${normalizedTotal.toFixed(1)}%</div>
+                </div>`;
+                
+                if (Math.abs(originalTotal - 100) < 0.1) {
+                    html += '<div class="success">✅ Les données originales totalisent déjà 100% - la normalisation ne devrait rien changer</div>';
+                } else {
+                    html += '<div class="warning">⚠️ Les données originales ne totalisent pas 100% - normalisation nécessaire</div>';
+                }
+                
+                resultsDiv.innerHTML = html;
+                
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">❌ Erreur: ${error.message}</div>`;
+            }
+        };
+        
+        window.clearData = function() {
+            localStorage.removeItem('last_targets');
+            document.getElementById('results').innerHTML = '<div class="warning">🧹 Données effacées</div>';
+        };
+        
+    </script>
+</body>
+</html>

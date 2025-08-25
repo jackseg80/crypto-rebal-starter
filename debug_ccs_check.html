@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="utf-8" />
+    <title>Debug CCS Check</title>
+    <style>
+        body {
+            font-family: system-ui;
+            padding: 20px;
+        }
+
+        .card {
+            background: #f5f5f5;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+        }
+
+        .success {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+        }
+
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+        }
+
+        .error {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+        }
+
+        pre {
+            background: #fff;
+            padding: 10px;
+            border-radius: 4px;
+            overflow: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Debug CCS Data Check</h1>
+
+    <div class="card" id="localstorage-check">
+        <h2>1. Vérification localStorage</h2>
+        <div id="ls-result">Checking...</div>
+    </div>
+
+    <div class="card" id="sync-check">
+        <h2>2. Test Synchronisation CCS</h2>
+        <button onclick="testSyncCCS()">Tester syncCCSTargets()</button>
+        <div id="sync-result"></div>
+    </div>
+
+    <div class="card" id="manual-test">
+        <h2>3. Test Manuel</h2>
+        <button onclick="simulateCCSData()">Simuler données CCS</button>
+        <div id="manual-result"></div>
+    </div>
+
+    <div class="card" id="comparison-test">
+        <h2>4. Comparaison des allocations</h2>
+        <button onclick="compareAllocations()">Comparer Risk vs Rebalance</button>
+        <div id="comparison-result"></div>
+    </div>
+
+    <script>
+        function checkLocalStorage() {
+            const resultDiv = document.getElementById('ls-result');
+            try {
+                const ccsData = localStorage.getItem('last_targets');
+                if (!ccsData) {
+                    resultDiv.innerHTML = '<div class="warning">❌ Aucune donnée CCS trouvée dans localStorage</div>';
+                    resultDiv.innerHTML += '<p>Clé recherchée: <code>last_targets</code></p>';
+                    return;
+                }
+
+                let parsedData;
+                try {
+                    parsedData = JSON.parse(ccsData);
+                } catch (e) {
+                    resultDiv.innerHTML = '<div class="error">❌ Données CCS corrompues (JSON invalide)</div>';
+                    resultDiv.innerHTML += `<pre>${e.message}</pre>`;
+                    return;
+                }
+
+                resultDiv.innerHTML = '<div class="success">✅ Données CCS trouvées!</div>';
+                resultDiv.innerHTML += `<pre>${JSON.stringify(parsedData, null, 2)}</pre>`;
+
+                // Vérifier la structure
+                if (parsedData.source !== 'risk-dashboard-ccs') {
+                    resultDiv.innerHTML += '<div class="warning">⚠️ Source incorrecte (attendu: risk-dashboard-ccs)</div>';
+                }
+
+                if (!parsedData.targets) {
+                    resultDiv.innerHTML += '<div class="error">❌ Targets manquantes</div>';
+                }
+
+                if (!parsedData.timestamp) {
+                    resultDiv.innerHTML += '<div class="warning">⚠️ Timestamp manquant</div>';
+                } else {
+                    const age = Date.now() - new Date(parsedData.timestamp).getTime();
+                    const ageMin = Math.round(age / 60000);
+                    resultDiv.innerHTML += `<div>Âge des données: ${ageMin} minutes</div>`;
+
+                    if (age > 30 * 60 * 1000) {
+                        resultDiv.innerHTML += '<div class="warning">⚠️ Données trop anciennes (>30min)</div>';
+                    }
+                }
+
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Erreur: ${error.message}</div>`;
+            }
+        }
+
+        function testSyncCCS() {
+            const resultDiv = document.getElementById('sync-result');
+            resultDiv.innerHTML = 'Testing...';
+
+            // Recréer la fonction syncCCSTargets de rebalance.html
+            function syncCCSTargets() {
+                const storedTargets = localStorage.getItem('last_targets');
+                if (!storedTargets) {
+                    console.log('No stored targets found');
+                    return null;
+                }
+
+                try {
+                    const targetsData = JSON.parse(storedTargets);
+                    console.log('Checking stored CCS targets:', targetsData);
+
+                    if (targetsData.source === 'risk-dashboard-ccs' && targetsData.targets && targetsData.timestamp) {
+                        // Vérifier l'âge des données (30 minutes max)
+                        const dataAge = Date.now() - new Date(targetsData.timestamp).getTime();
+                        const maxAge = 30 * 60 * 1000;
+
+                        if (dataAge < maxAge) {
+                            // Filtrer les targets pour valeurs numériques
+                            const cleanTargets = {};
+                            Object.entries(targetsData.targets).forEach(([key, value]) => {
+                                if (typeof value === 'number' && key !== 'model_version') {
+                                    cleanTargets[key] = value;
+                                }
+                            });
+
+                            console.log('Valid CCS targets found:', cleanTargets);
+                            return {
+                                targets: cleanTargets,
+                                strategy: targetsData.strategy,
+                                timestamp: targetsData.timestamp
+                            };
+                        } else {
+                            console.log('CCS targets too old, ignoring');
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error parsing stored targets:', error);
+                }
+
+                return null;
+            }
+
+            const result = syncCCSTargets();
+            if (result) {
+                resultDiv.innerHTML = `
+                    <div class="success">✅ syncCCSTargets() fonctionne!</div>
+                    <pre>${JSON.stringify(result, null, 2)}</pre>
+                    <div>Strategy: ${result.strategy || 'N/A'}</div>
+                    <div>Timestamp: ${result.timestamp}</div>
+                `;
+            } else {
+                resultDiv.innerHTML = '<div class="warning">❌ syncCCSTargets() retourne null</div>';
+            }
+        }
+
+        function simulateCCSData() {
+            const resultDiv = document.getElementById('manual-result');
+
+            // Données CCS exactes observées dans Risk Dashboard
+            const testData = {
+                source: 'risk-dashboard-ccs',
+                strategy: 'Blended CCS* (72)',
+                timestamp: new Date().toISOString(),
+                targets: {
+                    'BTC': 32.1,
+                    'ETH': 24.2,
+                    'Stablecoins': 21.3,
+                    'L1/L0 majors': 11.1,
+                    'L2/Scaling': 5.6,
+                    'DeFi': 3.5,
+                    'AI/Data': 2.2,
+                    'Others': 0.0,
+                    'model_version': 'ccs-blend-v1'
+                }
+            };
+
+            try {
+                localStorage.setItem('last_targets', JSON.stringify(testData));
+                resultDiv.innerHTML = `
+                    <div class="success">✅ Données Risk Dashboard sauvegardées (32.1% BTC)!</div>
+                    <pre>${JSON.stringify(testData, null, 2)}</pre>
+                    <p><strong>Test:</strong> Allez maintenant dans rebalance.html et vérifiez si vous voyez 32.1% BTC ou 29.4% BTC</p>
+                    <button onclick="checkLocalStorage(); testSyncCCS();">Vérifier + Tester Sync</button>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Erreur: ${error.message}</div>`;
+            }
+        }
+
+        function compareAllocations() {
+            const resultDiv = document.getElementById('comparison-result');
+            
+            // Allocations observées par l'utilisateur
+            const riskObserved = {
+                'BTC': 32.1,
+                'ETH': 24.2,
+                'Stablecoins': 21.3,
+                'L1/L0 majors': 11.1,
+                'L2/Scaling': 5.6,
+                'DeFi': 3.5,
+                'AI/Data': 2.2,
+                'Others': 0.0
+            };
+
+            const rebalanceObserved = {
+                'BTC': 29.4,
+                'ETH': 19.6,
+                'Stablecoins': 29.4,
+                'L1/L0 majors': 7.8,
+                'L2/Scaling': 3.9,
+                'DeFi': 7.8,
+                'AI/Data': 2.0,
+                'Others': 0.0
+            };
+            
+            // Lire localStorage
+            let storedAllocations = null;
+            const storedData = localStorage.getItem('last_targets');
+            if (storedData) {
+                try {
+                    const parsed = JSON.parse(storedData);
+                    storedAllocations = parsed.targets;
+                } catch (error) {
+                    console.error('Error parsing localStorage:', error);
+                }
+            }
+            
+            let html = '<h3>📊 Comparaison des allocations:</h3>';
+            html += '<table border="1" cellpadding="8" style="border-collapse: collapse; width: 100%;">';
+            html += '<tr style="background: #f0f0f0;"><th>Asset</th><th>Risk Dashboard</th><th>Rebalance</th><th>localStorage</th><th>Différence</th></tr>';
+            
+            Object.keys(riskObserved).forEach(asset => {
+                const risk = riskObserved[asset];
+                const rebalance = rebalanceObserved[asset];
+                const stored = storedAllocations ? storedAllocations[asset] || 'N/A' : 'N/A';
+                const diff = Math.abs(risk - rebalance);
+                
+                const diffStyle = diff > 5 ? 'color: red; font-weight: bold;' : 
+                                 diff > 1 ? 'color: orange; font-weight: bold;' : 'color: green;';
+                
+                html += `<tr>
+                    <td>${asset}</td>
+                    <td>${risk}%</td>
+                    <td>${rebalance}%</td>
+                    <td>${stored}${typeof stored === 'number' ? '%' : ''}</td>
+                    <td style="${diffStyle}">${diff.toFixed(1)}%</td>
+                </tr>`;
+            });
+            html += '</table>';
+            
+            // Analyse
+            const riskTotal = Object.values(riskObserved).reduce((sum, val) => sum + val, 0);
+            const rebalanceTotal = Object.values(rebalanceObserved).reduce((sum, val) => sum + val, 0);
+            
+            html += `<div style="margin-top: 15px;">
+                <div><strong>Totaux:</strong> Risk=${riskTotal.toFixed(1)}%, Rebalance=${rebalanceTotal.toFixed(1)}%</div>
+            `;
+            
+            // Diagnostic
+            if (storedAllocations) {
+                if (storedAllocations.BTC === riskObserved.BTC) {
+                    html += '<div class="success">✅ localStorage contient les données Risk Dashboard</div>';
+                    html += '<div>→ Le problème est dans rebalance.html qui transforme les données</div>';
+                } else if (Math.abs(storedAllocations.BTC - rebalanceObserved.BTC) < 0.1) {
+                    html += '<div class="warning">⚠️ localStorage contient les données Rebalance transformées</div>';
+                    html += '<div>→ Le problème est dans Risk Dashboard qui sauvegarde des données déjà transformées</div>';
+                } else {
+                    html += `<div class="error">❌ localStorage contient des données différentes (BTC: ${storedAllocations.BTC}%)</div>`;
+                }
+            } else {
+                html += '<div class="error">❌ Pas de données dans localStorage</div>';
+            }
+            
+            html += '</div>';
+            resultDiv.innerHTML = html;
+        }
+
+        // Vérifier le localStorage au chargement
+        checkLocalStorage();
+    </script>
+</body>
+
+</html>

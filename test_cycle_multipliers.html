@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🔄 Test Cycle Multipliers Impact</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        .test { background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 8px; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background: #f0f0f0; }
+        .match { background: #dcfce7; color: #16a34a; font-weight: bold; }
+        .close { background: #fef3c7; color: #d97706; }
+        .diff { background: #fecaca; color: #b91c1c; }
+    </style>
+</head>
+<body>
+    <h1>🔄 Test Cycle Multipliers Impact</h1>
+    <p>Calculer les multipliers qui transformeraient les targets CCS(72) en valeurs observées par l'utilisateur</p>
+    
+    <div class="test">
+        <h2>📊 Calcul Reverse Engineering</h2>
+        <p>Si generateCCSTargets(72) produit certaines valeurs, quels multipliers donneraient les valeurs observées ?</p>
+        
+        <div id="calculations"></div>
+    </div>
+    
+    <div class="test">
+        <h2>🎯 Test avec Multipliers Calculés</h2>
+        <div id="test-results"></div>
+    </div>
+    
+    <script type="module">
+        import { generateCCSTargets, applyCycleMultipliers, normalizeTargets } from './static/modules/targets-coordinator.js';
+        
+        // Valeurs observées par l'utilisateur dans Risk Dashboard
+        const userObserved = {
+            'BTC': 32.1,
+            'ETH': 24.2,
+            'Stablecoins': 21.3,
+            'L1/L0 majors': 11.1,
+            'L2/Scaling': 5.6,
+            'DeFi': 3.5,
+            'AI/Data': 2.2,
+            'Others': 0.0
+        };
+        
+        // Générer les targets CCS pour score 72
+        const rawCCSTargets = generateCCSTargets(72);
+        console.log('Raw CCS targets for score 72:', rawCCSTargets);
+        
+        // Calculer les multipliers nécessaires
+        const calculatedMultipliers = {};
+        let html = '<h3>Multipliers calculés:</h3>';
+        html += '<table>';
+        html += '<tr><th>Asset</th><th>CCS Raw</th><th>Observé</th><th>Multiplier</th><th>Évaluation</th></tr>';
+        
+        Object.entries(userObserved).forEach(([asset, observed]) => {
+            const raw = rawCCSTargets[asset];
+            const multiplier = raw > 0 ? observed / raw : 1.0;
+            calculatedMultipliers[asset] = multiplier;
+            
+            let evaluation = '';
+            if (Math.abs(multiplier - 1.0) < 0.05) {
+                evaluation = 'Pas de changement';
+            } else if (multiplier < 1.0) {
+                evaluation = `Réduction de ${((1-multiplier)*100).toFixed(1)}%`;
+            } else {
+                evaluation = `Augmentation de ${((multiplier-1)*100).toFixed(1)}%`;
+            }
+            
+            html += `<tr>
+                <td>${asset}</td>
+                <td>${raw.toFixed(1)}%</td>
+                <td>${observed}%</td>
+                <td>${multiplier.toFixed(3)}</td>
+                <td>${evaluation}</td>
+            </tr>`;
+        });
+        
+        html += '</table>';
+        html += `<p><strong>Pattern détecté:</strong></p>`;
+        html += `<ul>`;
+        html += `<li>BTC: ${calculatedMultipliers['BTC'].toFixed(3)} (${calculatedMultipliers['BTC'] < 1 ? 'réduction' : 'augmentation'})</li>`;
+        html += `<li>ETH: ${calculatedMultipliers['ETH'].toFixed(3)} (${calculatedMultipliers['ETH'] < 1 ? 'réduction' : 'augmentation'})</li>`;
+        html += `<li>Stablecoins: ${calculatedMultipliers['Stablecoins'].toFixed(3)} (${calculatedMultipliers['Stablecoins'] > 1 ? 'augmentation' : 'réduction'})</li>`;
+        html += `</ul>`;
+        
+        document.getElementById('calculations').innerHTML = html;
+        
+        // Test avec ces multipliers
+        const testWithMultipliers = applyCycleMultipliers(rawCCSTargets, calculatedMultipliers);
+        
+        let testHtml = '<h3>Résultat avec multipliers calculés:</h3>';
+        testHtml += '<table>';
+        testHtml += '<tr><th>Asset</th><th>CCS Raw</th><th>Avec Multipliers</th><th>Observé</th><th>Match?</th></tr>';
+        
+        Object.entries(userObserved).forEach(([asset, observed]) => {
+            const raw = rawCCSTargets[asset];
+            const withMultipliers = testWithMultipliers[asset];
+            const diff = Math.abs(withMultipliers - observed);
+            
+            const matchClass = diff < 0.1 ? 'match' : diff < 1 ? 'close' : 'diff';
+            const match = diff < 0.1 ? '✅ Exact' : diff < 1 ? '🔶 Proche' : '❌ Différent';
+            
+            testHtml += `<tr>
+                <td>${asset}</td>
+                <td>${raw.toFixed(1)}%</td>
+                <td class="${matchClass}">${withMultipliers.toFixed(1)}%</td>
+                <td>${observed}%</td>
+                <td>${match}</td>
+            </tr>`;
+        });
+        
+        testHtml += '</table>';
+        
+        // Analyser le pattern des multipliers
+        const btcMult = calculatedMultipliers['BTC'];
+        const ethMult = calculatedMultipliers['ETH'];
+        const stableMult = calculatedMultipliers['Stablecoins'];
+        
+        testHtml += '<h3>💡 Analyse:</h3>';
+        if (btcMult < 1.0 && ethMult < 1.0 && stableMult > 1.0) {
+            testHtml += '<div style="background: #fef3c7; padding: 10px; border-radius: 4px; margin: 10px 0;">';
+            testHtml += '<strong>🔍 Pattern détecté:</strong> Réduction des cryptos risqués (BTC, ETH) et augmentation des stablecoins.<br>';
+            testHtml += 'Cela ressemble à un ajustement de cycle <strong>baissier/défensif</strong>.';
+            testHtml += '</div>';
+        }
+        
+        testHtml += '<h3>🎯 Conclusion:</h3>';
+        testHtml += '<div style="background: #dbeafe; padding: 10px; border-radius: 4px;">';
+        testHtml += 'Si Risk Dashboard utilise des multipliers de cycle, cela expliquerait la différence.<br>';
+        testHtml += 'Il faut vérifier si <code>store.get("cycle.multipliers")</code> retourne ces valeurs.';
+        testHtml += '</div>';
+        
+        document.getElementById('test-results').innerHTML = testHtml;
+        
+    </script>
+</body>
+</html>
