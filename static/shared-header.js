@@ -9,16 +9,19 @@ function createSharedHeader(activePageId, showConfigIndicators = false) {
     'dashboard': { title: '📊 Dashboard', url: 'dashboard.html', icon: '📊' },
     'risk-dashboard': { title: '🛡️ Risk Dashboard', url: 'risk-dashboard.html', icon: '🛡️' },
     'rebalance': { title: '⚖️ Rebalance', url: 'rebalance.html', icon: '⚖️' },
-    'alias-manager': { title: '🏷️ Aliases', url: 'alias-manager.html', icon: '🏷️' },
-    'settings': { title: '⚙️ Settings', url: 'settings.html', icon: '⚙️' }
+    'alias-manager': { title: '🏷️ Aliases', url: 'alias-manager.html', icon: '🏷️' }
   };
 
   // Section 2: Execution Engine & Diagnostics (Interface Technique)
   const enginePages = {
     'execution': { title: '🚀 Execute', url: 'execution.html', icon: '🚀' },
     'execution-history': { title: '📈 History', url: 'execution_history.html', icon: '📈' },
-    'monitoring': { title: '🔍 Monitor', url: 'monitoring_advanced.html', icon: '🔍' },
-    'monitoring-dashboard': { title: '📊 Dashboard Monitor', url: 'monitoring-dashboard.html', icon: '📊' }
+    'monitoring-unified': { title: '📊 Monitor', url: 'monitoring-unified.html', icon: '📊' }
+  };
+
+  // Section 3: Configuration (Settings à droite)
+  const configPages = {
+    'settings': { title: '⚙️ Settings', url: 'settings.html', icon: '⚙️' }
   };
 
   const allPages = { ...analyticsPages, ...enginePages };
@@ -56,6 +59,7 @@ function createSharedHeader(activePageId, showConfigIndicators = false) {
   // Créer les sections de navigation
   const analyticsLinks = createSectionLinks(analyticsPages, 'section-analytics');
   const engineLinks = createSectionLinks(enginePages, 'section-engine');
+  const configLinks = createSectionLinks(configPages, 'section-config');
 
   // Configuration indicators (pour dashboard principalement)
   let configIndicators = '';
@@ -94,16 +98,20 @@ function createSharedHeader(activePageId, showConfigIndicators = false) {
         </div>
         <nav class="nav">
           <div class="nav-section analytics-section">
-            <div class="section-label">Analytics & Decisions</div>
             <div class="section-links">
               ${analyticsLinks}
             </div>
           </div>
           <div class="nav-separator">|</div>
           <div class="nav-section engine-section">
-            <div class="section-label">Execution & Diagnostics</div>
             <div class="section-links">
               ${engineLinks}
+            </div>
+          </div>
+          <div class="nav-separator">|</div>
+          <div class="nav-section config-section">
+            <div class="section-links">
+              ${configLinks}
             </div>
           </div>
         </nav>
@@ -113,31 +121,22 @@ function createSharedHeader(activePageId, showConfigIndicators = false) {
   `;
 }
 
-// CSS partagé pour la navigation bi-section
+// CSS partagé pour la navigation tri-section
 const SHARED_NAV_CSS = `
   .nav{
     display:flex;
-    gap:20px;
+    gap:12px;
     margin:12px 0;
     flex-wrap:wrap;
-    align-items:flex-start;
+    align-items:center;
+    justify-content:space-between;
   }
   
   /* Structure des sections */
   .nav-section{
     display:flex;
-    flex-direction:column;
+    align-items:center;
     gap:8px;
-  }
-  
-  .section-label{
-    font-size:11px;
-    color:var(--muted);
-    opacity:0.7;
-    font-weight:600;
-    text-transform:uppercase;
-    letter-spacing:0.5px;
-    margin-bottom:4px;
   }
   
   .section-links{
@@ -151,7 +150,7 @@ const SHARED_NAV_CSS = `
     color:var(--border);
     font-size:20px;
     opacity:0.3;
-    margin:0 8px;
+    margin:0 4px;
     align-self:center;
   }
   
@@ -164,6 +163,7 @@ const SHARED_NAV_CSS = `
     font-weight:500;
     transition:all 0.2s;
     border:1px solid transparent;
+    white-space:nowrap;
   }
   
   /* Section Analytics - Couleurs bleues/vertes */
@@ -200,6 +200,23 @@ const SHARED_NAV_CSS = `
     border-color:#f97316;
   }
   
+  /* Section Configuration - Couleurs violettes */
+  .section-config .nav-link{
+    color:#64748b;
+    background:rgba(139, 92, 246, 0.05);
+    border-color:rgba(139, 92, 246, 0.1);
+  }
+  .section-config .nav-link:hover{
+    background:rgba(139, 92, 246, 0.1);
+    border-color:rgba(139, 92, 246, 0.3);
+    color:#8b5cf6;
+  }
+  .section-config .nav-link.active{
+    background:#8b5cf6;
+    color:white;
+    border-color:#8b5cf6;
+  }
+  
   /* Style pour éléments désactivés */
   .nav-link.disabled{
     color:#4a5568 !important;
@@ -228,6 +245,7 @@ const SHARED_NAV_CSS = `
     .nav{
       flex-direction:column;
       gap:16px;
+      align-items:flex-start;
     }
     .nav-separator{
       display:none;
@@ -242,9 +260,6 @@ const SHARED_NAV_CSS = `
   }
   
   @media(max-width: 768px){
-    .section-label{
-      font-size:10px;
-    }
     .nav-link{
       padding:6px 10px;
       font-size:11px;
