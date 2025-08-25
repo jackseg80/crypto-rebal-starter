@@ -1525,10 +1525,15 @@
       // Initialize shared header avec le bon ID de page
       initSharedHeader('monitoring-unified', { showConfigIndicators: false });
       
-      // Appliquer le thème depuis la configuration globale
+      // Appliquer le thème depuis la configuration globale - forcer l'application
+      console.log('Initializing theme for monitoring dashboard...');
+      if (window.globalConfig && window.globalConfig.applyTheme) {
+        window.globalConfig.applyTheme();
+      }
       if (window.applyAppearance) {
         window.applyAppearance();
       }
+      console.log('Current theme after initialization:', document.documentElement.getAttribute('data-theme'));
       
       // Load alert configuration
       const saved = localStorage.getItem('monitoring-config');
@@ -1563,7 +1568,22 @@
         updateMetrics(fallbackData);
       }, 100);
       
-      console.log('Unified Monitoring Dashboard initialized');
+      // Écouter les changements de thème pour synchronisation
+      window.addEventListener('storage', function(e) {
+        if (e.key === 'crypto_rebalancer_settings') {
+          console.log('Settings changed, reapplying theme...');
+          setTimeout(() => {
+            if (window.globalConfig && window.globalConfig.applyTheme) {
+              window.globalConfig.applyTheme();
+            }
+            if (window.applyAppearance) {
+              window.applyAppearance();
+            }
+          }, 100);
+        }
+      });
+      
+      console.log('Unified Monitoring Dashboard initialized with theme:', document.documentElement.getAttribute('data-theme'));
     });
   </script>
 </body>

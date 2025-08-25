@@ -303,10 +303,14 @@ function initSharedHeader(activePageId, options = {}) {
     refreshNavigation(activePageId, options);
   });
 
-  // Initialize theme after header is created
+  // Initialize theme after header is created using centralized system
   setTimeout(() => {
-    initTheme();
-  }, 100);
+    if (window.globalConfig && window.globalConfig.applyTheme) {
+      window.globalConfig.applyTheme();
+    } else if (window.applyAppearance) {
+      window.applyAppearance();
+    }
+  }, 50);
 }
 
 // Fonction pour rafraîchir dynamiquement la navigation
@@ -350,19 +354,30 @@ function initializeSharedHeader(activePageId, options = {}) {
 }
 
 // Theme management functions
-function initTheme() {
-  const savedTheme = localStorage.getItem('theme') || 'light';
-  document.documentElement.setAttribute('data-theme', savedTheme);
-  updateThemeIcons(savedTheme);
-}
-
 function toggleTheme() {
-  const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
-  const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+  if (window.globalConfig && window.globalConfig.setTheme) {
+    const currentTheme = window.globalConfig.get('theme') || 'auto';
+    let newTheme;
 
-  document.documentElement.setAttribute('data-theme', newTheme);
-  localStorage.setItem('theme', newTheme);
-  updateThemeIcons(newTheme);
+    if (currentTheme === 'auto') {
+      // Si en mode auto, basculer vers le thème opposé au thème effectif actuel
+      const effectiveTheme = window.globalConfig.getEffectiveTheme();
+      newTheme = effectiveTheme === 'light' ? 'dark' : 'light';
+    } else {
+      // Si en mode manuel, basculer entre light et dark
+      newTheme = currentTheme === 'light' ? 'dark' : 'light';
+    }
+
+    window.globalConfig.setTheme(newTheme);
+    updateThemeIcons(window.globalConfig.getEffectiveTheme());
+  } else {
+    // Fallback pour compatibilité
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+    updateThemeIcons(newTheme);
+  }
 }
 
 function updateThemeIcons(theme) {
@@ -385,4 +400,3 @@ window.initSharedHeader = initSharedHeader;
 window.initializeSharedHeader = initializeSharedHeader;
 window.updateConfigIndicators = updateConfigIndicators;
 window.toggleTheme = toggleTheme;
-window.initTheme = initTheme;

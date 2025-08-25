@@ -282,18 +282,7 @@
 </head>
 
 <body>
-
-  <header>
-    <div class="wrap">
-      <h1>⚙️ Configuration</h1>
-      <nav class="nav">
-        <a href="dashboard.html">📊 Dashboard</a>
-        <a href="rebalance.html">⚖️ Rebalancing</a>
-        <a href="alias-manager.html">🏷️ Classification</a>
-        <a href="settings.html" class="active">⚙️ Configuration</a>
-      </nav>
-    </div>
-  </header>
+  <!-- Header sera injecté par shared-header.js -->
 
   <div class="wrap">
 
@@ -657,11 +646,23 @@
 
     // Sélection de thème
     function selectTheme(theme) {
+      console.log('Setting theme to:', theme);
       document.querySelectorAll('.radio-option').forEach(el => el.classList.remove('selected'));
+      
+      // Utiliser globalConfig.setTheme pour gérer le changement de thème
       globalConfig.setTheme(theme);
+      
+      // Mettre à jour l'interface
       document.getElementById(`theme_${theme}`).checked = true;
       document.querySelector(`.radio-option input[value="${theme}"]`).parentElement.classList.add('selected');
       updateStatusSummary();
+      
+      // Appliquer immédiatement le thème
+      if (window.applyAppearance) {
+        window.applyAppearance();
+      }
+      
+      console.log('Theme applied, current globalConfig theme:', globalConfig.get('theme'));
     }
 
     // Sauvegarder tous les settings
@@ -1069,8 +1070,18 @@
     // Ajouter le header partagé et initialiser
     document.addEventListener('DOMContentLoaded', () => {
       // Initialiser le header partagé
-      initSharedHeader('settings', { showConfigIndicators: false });
+      initSharedHeader('settings', { showConfigIndicators: true });
 
+      // Appliquer le thème immédiatement
+      console.log('Initializing theme for settings page...');
+      if (window.globalConfig && window.globalConfig.applyTheme) {
+        window.globalConfig.applyTheme();
+      }
+      if (window.applyAppearance) {
+        window.applyAppearance();
+      }
+      console.log('Current theme after settings init:', document.documentElement.getAttribute('data-theme'));
+      
       loadSettings();
       // Tenter l'auto-détection des clés immédiatement
       autoDetectApiKeys();

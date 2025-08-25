@@ -202,8 +202,14 @@ export function proposeTargets(mode = 'blend', options = {}) {
         break;
     }
     
+    // DEBUG: Log before normalization
+    console.log('🔍 DEBUG proposeTargets - before normalization BTC:', proposedTargets.BTC);
+    
     // Final normalization
     proposedTargets = normalizeTargets(proposedTargets);
+    
+    // DEBUG: Log after normalization
+    console.log('🔍 DEBUG proposeTargets - after normalization BTC:', proposedTargets.BTC);
     
     return {
       targets: proposedTargets,
@@ -288,7 +294,11 @@ export async function applyTargets(proposalResult) {
   }
   
   try {
-    // Update store with new targets
+    // DEBUG: Log what we're about to save
+    console.log('🔍 DEBUG applyTargets - proposalResult.targets:', proposalResult.targets);
+    console.log('🔍 DEBUG applyTargets - BTC allocation:', proposalResult.targets.BTC);
+    
+    // Update store with new targets (normalized version for display)
     store.set('targets.proposed', proposalResult.targets);
     store.set('targets.strategy', proposalResult.strategy);
     store.set('targets.confidence', proposalResult.confidence);
@@ -310,12 +320,19 @@ export async function applyTargets(proposalResult) {
     appendToDecisionLog(decisionEntry);
     
     // Save to last_targets for rebalance.html communication
-    localStorage.setItem('last_targets', JSON.stringify({
+    const dataToSave = {
       targets: proposalResult.targets,
       timestamp: decisionEntry.timestamp,
       strategy: proposalResult.strategy,
       source: 'risk-dashboard-ccs'
-    }));
+    };
+    
+    console.log('🔍 DEBUG localStorage save - BTC before save:', dataToSave.targets.BTC);
+    localStorage.setItem('last_targets', JSON.stringify(dataToSave));
+    
+    // Verify what was actually saved
+    const savedData = JSON.parse(localStorage.getItem('last_targets'));
+    console.log('🔍 DEBUG localStorage verify - BTC after save:', savedData.targets.BTC);
     
     // Dispatch event for external listeners (rebalance.html)
     window.dispatchEvent(new CustomEvent('targetsUpdated', {

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Apply Targets Button</title>
+</head>
+<body>
+    <h1>Test CCS Apply Targets Button</h1>
+    <p>Open browser console (F12) to see debug output</p>
+    <button id="testBtn" onclick="testApplyTargets()">🧪 Test Apply Targets Function</button>
+    
+    <script type="module">
+        // Import the necessary functions  
+        import { proposeTargets, applyTargets } from './modules/targets-coordinator.js';
+        
+        // Make available globally for testing
+        window.proposeTargets = proposeTargets;
+        window.applyTargets = applyTargets;
+        
+        window.testApplyTargets = async function() {
+            console.log('🧪 Testing Apply Targets...');
+            
+            try {
+                console.log('1. Testing proposeTargets...');
+                const proposal = proposeTargets('blend');
+                console.log('✅ Proposal:', proposal);
+                
+                console.log('2. Testing applyTargets...');
+                await applyTargets(proposal);
+                console.log('✅ Apply completed!');
+                
+                console.log('3. Checking localStorage...');
+                const lastTargets = localStorage.getItem('last_targets');
+                console.log('✅ localStorage last_targets:', lastTargets);
+                
+                alert('✅ Test completed! Check console for details.');
+                
+            } catch (error) {
+                console.error('❌ Test failed:', error);
+                alert('❌ Test failed: ' + error.message);
+            }
+        };
+    </script>
+</body>
+</html>

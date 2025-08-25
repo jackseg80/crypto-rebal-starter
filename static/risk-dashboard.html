@@ -1071,6 +1071,10 @@
       const cycleProposal = proposeTargets('cycle');
       const blendedProposal = proposeTargets('blend');
       
+      // DEBUG: Log what blended proposal contains for display
+      console.log('🔍 DEBUG renderTargetsContent - blendedProposal for DISPLAY:', blendedProposal);
+      console.log('🔍 DEBUG renderTargetsContent - BTC allocation for DISPLAY:', blendedProposal.targets.BTC);
+      
       // Current targets from store or use macro as baseline
       const currentTargets = state.targets?.proposed || DEFAULT_MACRO_TARGETS;
       
@@ -1332,7 +1336,13 @@
     // Apply specific strategy
     window.applyStrategy = async function(mode) {
       try {
+        console.log('🔍 DEBUG applyStrategy called with mode:', mode);
+        console.log('🔍 DEBUG store state before:', store.snapshot());
+        
         const proposal = proposeTargets(mode);
+        console.log('🔍 DEBUG proposal result:', proposal);
+        console.log('🔍 DEBUG proposal BTC allocation:', proposal.targets.BTC);
+        
         await applyTargets(proposal);
         
         // Refresh targets content to show updated data
@@ -1363,6 +1373,16 @@
       
       // Initialize shared header
       initSharedHeader('risk-dashboard');
+
+      // Appliquer le thème immédiatement
+      console.log('Initializing theme for risk-dashboard page...');
+      if (window.globalConfig && window.globalConfig.applyTheme) {
+        window.globalConfig.applyTheme();
+      }
+      if (window.applyAppearance) {
+        window.applyAppearance();
+      }
+      console.log('Current theme after risk-dashboard init:', document.documentElement.getAttribute('data-theme'));
       
       // Hydrate store from localStorage
       store.hydrate();
@@ -1372,6 +1392,21 @@
       
       // Load initial data
       refreshDashboard();
+      
+      // Écouter les changements de thème pour synchronisation cross-tab
+      window.addEventListener('storage', function(e) {
+        if (e.key === 'crypto_rebalancer_settings') {
+          console.log('Settings changed in another tab, reapplying theme...');
+          setTimeout(() => {
+            if (window.globalConfig && window.globalConfig.applyTheme) {
+              window.globalConfig.applyTheme();
+            }
+            if (window.applyAppearance) {
+              window.applyAppearance();
+            }
+          }, 100);
+        }
+      });
       
       console.log('Risk Dashboard CCS MVP initialized');
     });
