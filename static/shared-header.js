@@ -17,7 +17,8 @@ function createSharedHeader(activePageId, showConfigIndicators = false) {
   const enginePages = {
     'execution': { title: '🚀 Execute', url: 'execution.html', icon: '🚀' },
     'execution-history': { title: '📈 History', url: 'execution_history.html', icon: '📈' },
-    'monitoring': { title: '🔍 Monitor', url: 'monitoring_advanced.html', icon: '🔍' }
+    'monitoring': { title: '🔍 Monitor', url: 'monitoring_advanced.html', icon: '🔍' },
+    'monitoring-dashboard': { title: '📊 Dashboard Monitor', url: 'monitoring-dashboard.html', icon: '📊' }
   };
 
   const allPages = { ...analyticsPages, ...enginePages };
