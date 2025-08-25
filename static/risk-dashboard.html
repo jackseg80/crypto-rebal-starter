@@ -701,13 +701,23 @@
       }
     }
 
+
+    // Risk rating rules for different metrics
+    const RISK_RULES = {
+      sharpe: { good: [0.5, 999], warn: [0.2, 0.5], label: 'Ratio de Sharpe', explain: 'Mesure le rendement ajusté au risque' },
+      sortino: { good: [0.5, 999], warn: [0.2, 0.5], label: 'Ratio de Sortino', explain: 'Mesure le rendement par rapport au risque de baisse' },
+      volatility: { good: [0, 0.3], warn: [0.3, 0.6], label: 'Volatilité', explain: 'Mesure la variation des prix' },
+      max_drawdown: { good: [0, 0.2], warn: [0.2, 0.4], label: 'Drawdown Maximum', explain: 'Plus grande perte depuis un sommet' },
+      concentration: { good: [0, 0.5], warn: [0.5, 0.8], label: 'Concentration', explain: 'Répartition des actifs' }
+    };
+
     function rate(key, value) {
       const r = RISK_RULES[key]; if (!r || value == null || isNaN(value)) return { dot: 'orange', verdict: 'Indisponible', body: 'Donnée indisponible.' };
       const v = Math.abs(value);
       const inR = ([a, b]) => v >= a && v < b;
       let dot = 'red', verdict = 'Élevé / risqué';
       if (inR(r.good)) { dot = 'green'; verdict = 'Plutôt bas / maîtrisé'; }
-      else if (inR(r.warn)) { dot: 'orange'; verdict = 'Intermédiaire / à surveiller'; }
+      else if (inR(r.warn)) { dot = 'orange'; verdict = 'Intermédiaire / à surveiller'; }
       const fmt = (key === 'sharpe' || key === 'sortino') ? num : pct;
       const body = `${r.explain}\n\nValeur actuelle : ${fmt(value)}\nLecture : ${verdict}`;
       return { dot, verdict, body, label: r.label };
@@ -1098,10 +1108,14 @@
           <div class="risk-card">
             <h3>🎯 Proposed Targets</h3>
             ${renderTargetsTable(blendedProposal.targets, blendedProposal.strategy)}
-            <div style="margin-top: var(--space-lg); text-align: center;">
-              <button class="refresh-btn" onclick="applyTargetsAction()" style="background: var(--success);">
-                ✅ Apply Targets
-              </button>
+            <div style="margin-top: var(--space-lg); text-align: center; padding: var(--space-sm); background: var(--info-bg); border-radius: var(--radius-md); border: 1px solid var(--info);">
+              <div style="font-size: 0.875rem; color: var(--info); font-weight: 600; margin-bottom: var(--space-xs);">
+                💡 Nouvelle méthode d'application
+              </div>
+              <div style="font-size: 0.75rem; color: var(--theme-text-muted);">
+                Les targets sont maintenant synchronisés via <strong>rebalance.html</strong><br>
+                Utilisez le bouton "🎯 Sync CCS" dans les stratégies prédéfinies
+              </div>
             </div>
           </div>
         </div>
@@ -1308,7 +1322,7 @@
       if (activeTab === 'cycles' && state.ccs?.score && state.cycle?.months) {
         renderCyclesContent();
       }
-      if (activeTab === 'targets' && state.ccs?.score) {
+      if (activeTab === 'targets') {
         renderTargetsContent();
       }
     });
@@ -1337,30 +1351,6 @@
       }
     };
     
-    // Apply current targets (from the Apply Targets button)
-    window.applyTargetsAction = async function() {
-      try {
-        const blendedProposal = proposeTargets('blend');
-        await applyTargets(blendedProposal);
-        
-        // Show success feedback
-        const button = event.target;
-        const originalText = button.innerHTML;
-        button.innerHTML = '✅ Applied!';
-        button.style.background = 'var(--success)';
-        
-        setTimeout(() => {
-          button.innerHTML = originalText;
-          button.style.background = 'var(--success)';
-        }, 2000);
-        
-        console.log('Targets applied successfully');
-        
-      } catch (error) {
-        console.error('Failed to apply targets:', error);
-        alert('Failed to apply targets: ' + error.message);
-      }
-    };
 
     // Global functions for backwards compatibility
     window.refreshDashboard = refreshDashboard;

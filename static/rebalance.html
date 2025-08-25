@@ -329,33 +329,40 @@
   <div class="wrap" style="margin-top: 20px;">
     <!-- Stratégies de Rebalancing -->
     <div class="card" style="margin-bottom: 16px;">
-      <h3>🎯 Stratégies Prédéfinies</h3>
-      <div id="strategies-container" style="display: grid; gap: 12px; margin-top: 12px;">
-        <div style="text-align: center; padding: 20px; color: var(--theme-text-muted);">
-          Chargement des stratégies...
+      <h3 style="cursor: pointer; display: flex; align-items: center; justify-content: space-between;" onclick="toggleStrategiesSection()">
+        <span>🎯 Stratégies Prédéfinies</span>
+        <span id="strategies-toggle" style="transition: transform 0.3s;">▼</span>
+      </h3>
+      <div id="strategies-content">
+        <div id="strategies-container" style="display: grid; gap: 12px; margin-top: 12px;">
+          <div style="text-align: center; padding: 20px; color: var(--theme-text-muted);">
+            Chargement des stratégies...
+          </div>
         </div>
-      </div>
-      <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--theme-border);">
-        <div class="row">
-          <button id="apply-strategy-btn" class="btn small" style="background: var(--success);" disabled>
-            ✅ Appliquer la Stratégie
-          </button>
-          <button id="reset-strategy-btn" class="btn small secondary">
-            🔄 Reset Manuel
-          </button>
-          <div style="flex-grow: 1;"></div>
-          <span id="selected-strategy-info" class="pill" style="display: none;">
-            Aucune stratégie sélectionnée
-          </span>
+        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--theme-border);">
+          <div class="row">
+            <button id="apply-strategy-btn" class="btn small" style="background: var(--success);" disabled>
+              ✅ Appliquer la Stratégie
+            </button>
+            <button id="reset-strategy-btn" class="btn small secondary">
+              🔄 Reset Manuel
+            </button>
+            <button id="refresh-dynamic-btn" class="btn small" style="background: var(--warning);" onclick="window.refreshDynamicStrategy()">
+              🎯 Sync CCS
+            </button>
+            <div style="flex-grow: 1;"></div>
+            <span id="selected-strategy-info" class="pill" style="display: none;">
+              Aucune stratégie sélectionnée
+            </span>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Configuration simplifiée -->
+    <!-- Actions et Export -->
     <div class="card" style="margin-bottom: 16px;">
       <div class="row">
         <div style="align-self:flex-end">
-          <button id="btnRun" class="btn">Générer le plan</button>
           <button id="btnCsv" class="btn secondary" disabled>Télécharger CSV</button>
           <button id="btnJson" class="btn secondary" disabled>Export JSON</button>
           <button id="btnCopyJson" class="btn secondary" disabled>📋 Copier JSON</button>
@@ -466,12 +473,110 @@
     let availableStrategies = {};
     let selectedStrategyId = null;
 
+    /* ---------- Fonction de toggle section stratégies ---------- */
+    function toggleStrategiesSection() {
+      const content = el('strategies-content');
+      const toggle = el('strategies-toggle');
+      const isCollapsed = content.style.display === 'none';
+      
+      if (isCollapsed) {
+        content.style.display = 'block';
+        toggle.style.transform = 'rotate(0deg)';
+        toggle.textContent = '▼';
+        localStorage.setItem('strategies_section_collapsed', 'false');
+      } else {
+        content.style.display = 'none';
+        toggle.style.transform = 'rotate(-90deg)';
+        toggle.textContent = '▶';
+        localStorage.setItem('strategies_section_collapsed', 'true');
+      }
+    }
+
+    /* ---------- Fonction de synchronisation CCS ---------- */
+    function syncCCSTargets() {
+      const storedTargets = localStorage.getItem('last_targets');
+      if (!storedTargets) return null;
+      
+      try {
+        const targetsData = JSON.parse(storedTargets);
+        console.log('Checking stored CCS targets:', targetsData);
+        
+        if (targetsData.source === 'risk-dashboard-ccs' && targetsData.targets && targetsData.timestamp) {
+          // Vérifier que les données ne sont pas trop anciennes (30 minutes)
+          const dataAge = Date.now() - new Date(targetsData.timestamp).getTime();
+          const maxAge = 30 * 60 * 1000; // 30 minutes
+          
+          if (dataAge < maxAge) {
+            // Filtrer les targets pour ne garder que les valeurs numériques
+            const cleanTargets = {};
+            Object.entries(targetsData.targets).forEach(([key, value]) => {
+              if (typeof value === 'number' && key !== 'model_version') {
+                cleanTargets[key] = value;
+              }
+            });
+            
+            console.log('Valid CCS targets found:', cleanTargets);
+            return {
+              targets: cleanTargets,
+              strategy: targetsData.strategy,
+              timestamp: targetsData.timestamp
+            };
+          } else {
+            console.log('CCS targets too old, ignoring');
+          }
+        }
+      } catch (error) {
+        console.error('Error parsing stored targets:', error);
+      }
+      
+      return null;
+    }
+
     /* ---------- Fonctions Stratégies ---------- */
     async function loadStrategies() {
       try {
         const response = await globalConfig.apiRequest('/strategies/list');
         if (response.ok && response.strategies) {
           availableStrategies = response.strategies;
+          
+          // Tenter d'ajouter la stratégie dynamique CCS (sans bloquer en cas d'erreur)
+          try {
+            const ccsTargets = syncCCSTargets();
+            if (ccsTargets) {
+              availableStrategies['ccs-dynamic'] = {
+                name: 'Strategic (Dynamic)',
+                icon: '🎯',
+                description: `Targets CCS du Risk Dashboard - ${ccsTargets.strategy}`,
+                risk_level: 'Variable',
+                allocations: ccsTargets.targets,
+                _isDynamic: true,
+                _ccsData: ccsTargets
+              };
+              console.log('Added dynamic CCS strategy:', ccsTargets);
+            } else {
+              // Ajouter une stratégie placeholder pour indiquer qu'il faut sync
+              availableStrategies['ccs-dynamic-placeholder'] = {
+                name: 'Strategic (Dynamic)',
+                icon: '🎯',
+                description: 'Cliquez "🎯 Sync CCS" pour charger les targets du Risk Dashboard',
+                risk_level: 'N/A',
+                allocations: {},
+                _isPlaceholder: true
+              };
+            }
+          } catch (syncError) {
+            console.warn('Erreur synchronisation CCS (non bloquante):', syncError);
+            // Ajouter une stratégie d'erreur pour informer l'utilisateur
+            availableStrategies['ccs-dynamic-error'] = {
+              name: 'Strategic (Dynamic)',
+              icon: '⚠️',
+              description: 'Erreur de synchronisation CCS - Cliquez "🎯 Sync CCS" pour réessayer',
+              risk_level: 'Erreur',
+              allocations: {},
+              _isError: true
+            };
+          }
+          
           renderStrategiesUI();
         } else {
           showStrategiesError('Impossible de charger les stratégies');
@@ -486,22 +591,54 @@
       const container = el('strategies-container');
       if (!container) return;
 
-      const strategiesHtml = Object.entries(availableStrategies).map(([id, strategy]) => `
-    <div class="strategy-card" data-strategy-id="${id}" onclick="selectStrategy('${id}')">
+      const strategiesHtml = Object.entries(availableStrategies).map(([id, strategy]) => {
+        const isDynamic = strategy._isDynamic;
+        const isPlaceholder = strategy._isPlaceholder;
+        const isError = strategy._isError;
+        
+        let cardClass = 'strategy-card';
+        let borderStyle = '';
+        let clickable = true;
+        
+        if (isDynamic) {
+          cardClass += ' dynamic-strategy';
+          borderStyle = 'border: 2px solid var(--warning); background: linear-gradient(135deg, var(--theme-surface), var(--warning-bg));';
+        } else if (isPlaceholder) {
+          cardClass += ' placeholder-strategy';
+          borderStyle = 'border: 2px dashed var(--theme-border); opacity: 0.7;';
+          clickable = true; // Permettre la sélection pour montrer le message
+        } else if (isError) {
+          cardClass += ' error-strategy';
+          borderStyle = 'border: 2px solid var(--danger); background: linear-gradient(135deg, var(--theme-surface), var(--danger-bg));';
+          clickable = true; // Permettre la sélection pour montrer le message
+        }
+        
+        const onclickAttr = clickable ? `onclick="selectStrategy('${id}')"` : '';
+        const cursorStyle = clickable ? '' : 'cursor: not-allowed;';
+        
+        return `
+    <div class="${cardClass}" data-strategy-id="${id}" ${onclickAttr} style="${borderStyle} ${cursorStyle}">
       <div class="strategy-header">
         <div class="strategy-title">${strategy.icon} ${strategy.name}</div>
         <div class="strategy-risk risk-${strategy.risk_level.toLowerCase().replace(/[^a-z]/g, '')}">${strategy.risk_level}</div>
       </div>
       <div style="font-size: 13px; color: var(--muted); margin-bottom: 8px;">
         ${strategy.description}
+        ${isDynamic ? '<div style="font-size: 11px; color: var(--warning); font-weight: 600; margin-top: 4px;">⏰ Données récentes du Risk Dashboard</div>' : ''}
+        ${isPlaceholder ? '<div style="font-size: 11px; color: var(--theme-text-muted); font-weight: 600; margin-top: 4px;">📭 En attente de synchronisation</div>' : ''}
+        ${isError ? '<div style="font-size: 11px; color: var(--danger); font-weight: 600; margin-top: 4px;">⚠️ Synchronisation requise</div>' : ''}
       </div>
       <div class="strategy-allocations">
-        ${Object.entries(strategy.allocations).map(([group, pct]) =>
-        `<span class="allocation-pill">${group}: ${pct}%</span>`
-      ).join('')}
+        ${Object.keys(strategy.allocations).length > 0 ? 
+          Object.entries(strategy.allocations).map(([group, pct]) =>
+          `<span class="allocation-pill">${group}: ${typeof pct === 'number' ? pct.toFixed(1) : pct}%</span>`
+          ).join('') :
+          '<span style="font-size: 11px; color: var(--theme-text-muted);">Aucune allocation disponible</span>'
+        }
       </div>
     </div>
-  `).join('');
+  `;
+      }).join('');
 
       container.innerHTML = strategiesHtml;
     }
@@ -549,9 +686,7 @@
 
       // Régénérer automatiquement le plan
       setTimeout(() => {
-        if (el('btnRun')) {
-          el('btnRun').click();
-        }
+        runPlan();
       }, 500);
     }
 
@@ -579,9 +714,7 @@
 
       // Régénérer le plan avec les targets par défaut
       setTimeout(() => {
-        if (el('btnRun')) {
-          el('btnRun').click();
-        }
+        runPlan();
       }, 500);
     }
 
@@ -919,7 +1052,7 @@
             }
           }
         }
-        setStatus('Plan précédent disponible - Cliquez "Générer le plan" pour actualiser');
+        setStatus('Plan précédent disponible - Sélectionnez une stratégie pour actualiser');
         return false;
       }
 
@@ -965,7 +1098,6 @@
     async function runPlan() {
       try {
         const t0 = performance.now();
-        el("btnRun").disabled = true;
         el("btnCsv").disabled = true;
         el("btnJson").disabled = true;
         el("btnCopyJson").disabled = true;
@@ -1022,7 +1154,7 @@
         console.error(e);
         setStatus("Erreur: " + (e?.message || e));
       } finally {
-        el("btnRun").disabled = false;
+        // Plus de bouton btnRun à réactiver
       }
     }
 
@@ -1055,7 +1187,7 @@
 
     function exportJsonForExecution() {
       if (!lastPlanActions || lastPlanActions.length === 0) {
-        showNotification('❌ Aucun plan généré - Cliquez d\'abord sur "Générer le plan"', 'error');
+        showNotification('❌ Aucun plan généré - Sélectionnez et appliquez d\'abord une stratégie', 'error');
         return;
       }
 
@@ -1084,7 +1216,7 @@
 
     function copyJsonToClipboard() {
       if (!lastPlanActions || lastPlanActions.length === 0) {
-        showNotification('❌ Aucun plan généré - Cliquez d\'abord sur "Générer le plan"', 'error');
+        showNotification('❌ Aucun plan généré - Sélectionnez et appliquez d\'abord une stratégie', 'error');
         return;
       }
 
@@ -1163,16 +1295,49 @@
       // Charger les stratégies
       loadStrategies();
 
+      // Restaurer l'état de la section stratégies
+      const isCollapsed = localStorage.getItem('strategies_section_collapsed') === 'true';
+      if (isCollapsed) {
+        toggleStrategiesSection();
+      }
+
       // Gestionnaires d'événements pour les stratégies
       el("apply-strategy-btn").addEventListener("click", applyStrategy);
       el("reset-strategy-btn").addEventListener("click", resetToManual);
 
       persistSourceInit();
-      el("btnRun").addEventListener("click", runPlan);
       el("btnCsv").addEventListener("click", downloadCsv);
       el("btnJson").addEventListener("click", exportJsonForExecution);
       el("btnCopyJson").addEventListener("click", copyJsonToClipboard);
       el("btnBulkAdd").addEventListener("click", bulkAddUnknown);
+
+
+      // Ajouter une fonction pour rafraîchir la stratégie dynamique
+      window.refreshDynamicStrategy = function() {
+        const ccsTargets = syncCCSTargets();
+        if (ccsTargets) {
+          // Mettre à jour ou ajouter la stratégie dynamique
+          availableStrategies['ccs-dynamic'] = {
+            name: 'Strategic (Dynamic)',
+            icon: '🎯',
+            description: `Targets CCS du Risk Dashboard - ${ccsTargets.strategy}`,
+            risk_level: 'Variable',
+            allocations: ccsTargets.targets,
+            _isDynamic: true,
+            _ccsData: ccsTargets
+          };
+          renderStrategiesUI();
+          showNotification('🎯 Stratégie dynamique mise à jour!', 'success');
+          console.log('Dynamic strategy refreshed:', ccsTargets);
+        } else {
+          // Supprimer la stratégie dynamique si pas de données
+          if (availableStrategies['ccs-dynamic']) {
+            delete availableStrategies['ccs-dynamic'];
+            renderStrategiesUI();
+            showNotification('📭 Aucune donnée CCS récente trouvée', 'info');
+          }
+        }
+      };
 
       // Essayer de restaurer le dernier plan
       if (!restoreLastPlan()) {

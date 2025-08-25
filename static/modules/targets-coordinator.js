@@ -153,15 +153,23 @@ export function proposeTargets(mode = 'blend', options = {}) {
         break;
         
       case 'ccs':
-        if (!ccsScore) throw new Error('CCS score not available');
-        proposedTargets = generateCCSTargets(ccsScore);
-        strategy = `CCS-based (${Math.round(ccsScore)})`;
+        if (!ccsScore) {
+          proposedTargets = { ...DEFAULT_MACRO_TARGETS };
+          strategy = 'Macro (CCS unavailable)';
+        } else {
+          proposedTargets = generateCCSTargets(ccsScore);
+          strategy = `CCS-based (${Math.round(ccsScore)})`;
+        }
         break;
         
       case 'cycle':
-        if (!cycleMultipliers) throw new Error('Cycle multipliers not available');
-        proposedTargets = applyCycleMultipliers(DEFAULT_MACRO_TARGETS, cycleMultipliers);
-        strategy = `Cycle-adjusted (${state.cycle?.phase?.phase || 'unknown'})`;
+        if (!cycleMultipliers) {
+          proposedTargets = { ...DEFAULT_MACRO_TARGETS };
+          strategy = 'Macro (Cycle unavailable)';
+        } else {
+          proposedTargets = applyCycleMultipliers(DEFAULT_MACRO_TARGETS, cycleMultipliers);
+          strategy = `Cycle-adjusted (${state.cycle?.phase?.phase || 'unknown'})`;
+        }
         break;
         
       case 'blend':
