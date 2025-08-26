@@ -1,25 +1,52 @@
-.venv/
-__pycache__/
-*.pyc
-.env
-.DS_Store
-.vscode/
+# Python
 __pycache__/
 *.py[cod]
+*.pyc
+*.pyo
 *.egg-info/
 build/
 dist/
-data/
-*.csv
-!docs/*.csv
 .venv/
 venv/
-.env.*
-.idea/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Environment & Config
+.env
+.env.*
+!.env.example
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
 .DS_Store
 Thumbs.db
-tests/fixtures/
-devtools/
+
+# Temporary files
+temp_*.json
+*_temp.json
+*.tmp
+*.log
+*.bak
+rebalance-actions.csv
+
+# Data files (keep raw data, exclude generated/temp)
+data/monitoring/metrics_*.json
+data/execution_history/sessions_*.json
+data/*_backup_*.json
+*.csv
+!data/raw/*.csv
+!docs/*.csv
+
+# Test artifacts
+tests/fixtures/temp_*.json
+tests/fixtures/diagnostic_*.html
+
+# Debug output (keep tools, exclude output)
+debug_output/
+*.debug
