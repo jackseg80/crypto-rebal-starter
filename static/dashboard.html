@@ -287,6 +287,15 @@
                 <div class="portfolio-chart" id="portfolio-chart">
                     <canvas id="portfolioChartCanvas"></canvas>
                 </div>
+                
+                <!-- Liste détaillée des allocations (collapsible) -->
+                <div id="portfolio-breakdown" style="margin-top: var(--space-lg); font-size: 0.875rem;">
+                    <div onclick="toggleBreakdown()" style="font-weight: 600; margin-bottom: var(--space-sm); color: var(--theme-text-muted); cursor: pointer; display: flex; align-items: center; gap: var(--space-xs);">
+                        <span id="breakdown-arrow">▶️</span>
+                        <span>📊 Breakdown détaillé</span>
+                    </div>
+                    <div id="breakdown-list" style="display: none;">Loading...</div>
+                </div>
             </div>
 
 
@@ -407,6 +416,9 @@
 
         async function loadDashboardData() {
             try {
+                // Charger d'abord les groupes depuis alias-manager
+                await loadAssetGroups();
+                
                 const [portfolioData, connectionsData, historyData, executionStatus] = await Promise.allSettled([
                     loadPortfolioData(), loadConnectionsStatus(), loadRecentHistory(), loadExecutionStatus()
                 ]);
@@ -505,24 +517,24 @@
                     }
                 } catch (csvError) {
                     console.warn('Impossible de lire le CSV, utilisation de données simulées:', csvError);
-                    // Fallback avec toutes les données principales du CSV
+                    // Fallback avec les nouvelles données du CSV mis à jour
                     csvBalances = [
-                        { symbol: 'BTC', value_usd: 178928.46, balance: 1.53239697 },
-                        { symbol: 'WSTETH', value_usd: 49364.65, balance: 8.53967597 },
-                        { symbol: 'ETH', value_usd: 32519.42, balance: 6.74661300 },
-                        { symbol: 'RETH', value_usd: 22388.20, balance: 4.10095164 },
-                        { symbol: 'TBTC', value_usd: 15045.92, balance: 0.13008938 },
-                        { symbol: 'USDT', value_usd: 13989.01, balance: 13989.00 },
-                        { symbol: 'USD', value_usd: 11441.37, balance: 11441.37 },
-                        { symbol: 'LINK', value_usd: 8854.77, balance: 326.39 },
-                        { symbol: 'BNB', value_usd: 8517.85, balance: 9.52 },
-                        { symbol: 'XRP', value_usd: 8423.70, balance: 2721.80 },
-                        { symbol: 'DOGE', value_usd: 6046.59, balance: 25321.58 },
-                        { symbol: 'XMR', value_usd: 5907.20, balance: 22.13 },
-                        { symbol: 'AAVE', value_usd: 5664.14, balance: 16.81 },
-                        { symbol: 'BGB', value_usd: 5416.53, balance: 1134.44 },
-                        { symbol: 'STETH', value_usd: 4011.01, balance: 0.84 },
-                        { symbol: 'SOL2', value_usd: 3850.98, balance: 19.45 }
+                        { symbol: 'BTC', value_usd: 167140.44, balance: 1.52191480 },
+                        { symbol: 'WSTETH', value_usd: 45849.45, balance: 8.53967597 },
+                        { symbol: 'ETH', value_usd: 31142.35, balance: 7.04373146 },
+                        { symbol: 'RETH', value_usd: 20683.69, balance: 4.10095164 },
+                        { symbol: 'TBTC', value_usd: 14354.50, balance: 0.13008938 },
+                        { symbol: 'USDT', value_usd: 14166.41, balance: 14166.40 },
+                        { symbol: 'USD', value_usd: 11414.63, balance: 11414.63 },
+                        { symbol: 'BNB', value_usd: 8013.54, balance: 9.52 },
+                        { symbol: 'XRP', value_usd: 7807.37, balance: 2694.98 },
+                        { symbol: 'LINK', value_usd: 7632.63, balance: 326.39 },
+                        { symbol: 'XMR', value_usd: 5799.14, balance: 22.06 },
+                        { symbol: 'AAVE', value_usd: 5555.24, balance: 16.81 },
+                        { symbol: 'DOGE', value_usd: 5294.04, balance: 25215.73 },
+                        { symbol: 'BGB', value_usd: 5189.49, balance: 1134.62 },
+                        { symbol: 'STETH', value_usd: 3726.08, balance: 0.84 },
+                        { symbol: 'SOL2', value_usd: 3621.38, balance: 19.34 }
                     ];
                     console.log('🔍 DEBUG: Using fallback CSV data with', csvBalances.length, 'assets');
                 }
@@ -611,6 +623,7 @@
 
             console.log('🔍 DEBUG: About to call updatePortfolioChart with:', data.balances);
             updatePortfolioChart(data.balances);
+            updatePortfolioBreakdown(data.balances);
         }
         function updateConnectionsDisplay(data) {
             const container = document.getElementById('connections-grid');
@@ -713,32 +726,58 @@
             '#06b6d4', '#84cc16', '#f97316', '#ec4899', '#6366f1'
         ];
 
-        // Regroupement par aliases basé sur les vraies données CSV - COMPLET
-        const ASSET_GROUPS = {
-            'BTC': ['BTC', 'TBTC', 'WBTC', 'BCH'], // Bitcoin et dérivés
-            'ETH': ['ETH', 'WETH', 'STETH', 'WSTETH', 'RETH', 'CBETH'], // Ethereum et liquid staking
-            'Stablecoins': ['USDT', 'USDC', 'USD', 'DAI', 'BUSD', 'TUSD', 'FDUSD', 'PAXG', 'USTC'], // Stablecoins et gold
-            'SOL': ['SOL', 'SOL2', 'JUPSOL', 'JITOSOL'], // Solana écosystème
-            'L1/L0 majors': [
-                // Layer 1 blockchains majors
-                'ATOM', 'ATOM2', 'DOT', 'DOT2', 'ADA', 'AVAX', 'NEAR', 'XRP', 'LINK', 'BNB', 
-                'LTC', 'XLM', 'EGLD3', 'XTZ', 'VET', 'SUI3', 'INJ2', 'TRX', 'CRO', 'ERA'
-            ],
-            'L2/Scaling': ['OP', 'ARB', 'LRC', 'MATIC', 'POL'], // Layer 2 et scaling
-            'DeFi': [
-                // DeFi tokens
-                'UNI', 'UNI2', 'SUSHI', 'AAVE', 'COMP', 'CAKE', 'CFG'
-            ],
-            'AI/Data': ['FET', 'OCEAN', 'GRT', 'RENDER', 'TAO6'], // AI et Data
-            'Privacy': ['XMR'], // Privacy coins
-            'Memecoins': ['DOGE', 'PENGU7'], // Meme tokens
-            'Gaming/NFT': ['S5'], // Gaming et NFTs  
-            'Exchange Tokens': ['BGB', 'BNB', 'CHSB'], // Exchange tokens
-            'Others': [
-                // Tous les autres assets non classifiés
-                'IMO', 'VVV3', 'OXT', 'BAT', 'YFII', 'ANC2'
-            ]
-        };
+        // Classification dynamique - sera chargée depuis alias-manager
+        let ASSET_GROUPS = null;
+
+        // Charger la classification depuis alias-manager
+        async function loadAssetGroups() {
+            try {
+                const apiBase = globalConfig?.get('api_base_url') || 'http://localhost:8765';
+                const response = await fetch(`${apiBase}/taxonomy`);
+                if (response.ok) {
+                    const data = await response.json();
+                    const aliases = data.aliases || {};
+                    
+                    // Convertir les aliases en groupes inversés
+                    ASSET_GROUPS = {};
+                    Object.entries(aliases).forEach(([asset, group]) => {
+                        if (!ASSET_GROUPS[group]) {
+                            ASSET_GROUPS[group] = [];
+                        }
+                        ASSET_GROUPS[group].push(asset);
+                    });
+                    
+                    console.log('🔍 DEBUG: Loaded asset groups from alias-manager:', Object.keys(ASSET_GROUPS));
+                    return true;
+                }
+            } catch (error) {
+                console.warn('Could not load from alias-manager API, using fallback:', error);
+            }
+            
+            // Fallback: utiliser la même logique que alias-manager.html
+            const fallbackAliases = {
+                'BTC': 'BTC', 'TBTC': 'BTC', 'WBTC': 'BTC',
+                'ETH': 'ETH', 'WETH': 'ETH', 'STETH': 'ETH', 'WSTETH': 'ETH', 'RETH': 'ETH', 'CBETH': 'ETH',
+                'USDC': 'Stablecoins', 'USDT': 'Stablecoins', 'USD': 'Stablecoins', 'DAI': 'Stablecoins',
+                'SOL': 'L1/L0 majors', 'SOL2': 'L1/L0 majors',
+                'ATOM': 'L1/L0 majors', 'ATOM2': 'L1/L0 majors', 'DOT': 'L1/L0 majors', 'ADA': 'L1/L0 majors',
+                'AVAX': 'L1/L0 majors', 'NEAR': 'L1/L0 majors', 'LINK': 'L1/L0 majors', 'XRP': 'L1/L0 majors',
+                'BNB': 'Exchange Tokens', 'BGB': 'Exchange Tokens',
+                'AAVE': 'DeFi', 'DOGE': 'Memecoins', 'XMR': 'Privacy',
+                'IMO': 'Others'
+            };
+            
+            ASSET_GROUPS = {};
+            Object.entries(fallbackAliases).forEach(([asset, group]) => {
+                if (!ASSET_GROUPS[group]) {
+                    ASSET_GROUPS[group] = [];
+                }
+                ASSET_GROUPS[group].push(asset);
+            });
+            
+            console.log('🔍 DEBUG: Using fallback asset groups:', Object.keys(ASSET_GROUPS));
+            return false;
+        }
 
         // Parser pour le fichier CSV CoinTracking - corrigé pour lire TOUS les assets
         function parseCSVBalances(csvText) {
@@ -859,6 +898,17 @@
             const ungrouped = [];
 
             console.log('🔍 DEBUG: Grouping', items.length, 'assets by aliases');
+            
+            // Si ASSET_GROUPS n'est pas encore chargé, mettre tout dans "Others"
+            if (!ASSET_GROUPS) {
+                console.warn('⚠️ ASSET_GROUPS not loaded yet, putting all assets in Others');
+                const totalValue = items.reduce((sum, item) => sum + parseFloat(item.value_usd || 0), 0);
+                return [{
+                    label: 'Others',
+                    value: totalValue,
+                    assets: items.map(item => item.symbol)
+                }];
+            }
 
             items.forEach(item => {
                 const symbol = (item.symbol || '').toUpperCase();
@@ -908,6 +958,9 @@
             result.forEach(group => {
                 if (group.value > 1000) {
                     console.log('🔍 DEBUG: Final group:', group.label, '- value:', group.value.toFixed(2));
+                    if (group.assets && group.assets.length > 1) {
+                        console.log('  └─ Assets:', group.assets.join(', '));
+                    }
                 }
             });
             
@@ -1022,6 +1075,58 @@
                     }
                 }
             });
+        }
+
+        // Afficher la liste détaillée des allocations pour debug
+        function updatePortfolioBreakdown(balancesData) {
+            const container = document.getElementById('breakdown-list');
+            
+            if (!balancesData || !balancesData.items) {
+                container.innerHTML = '<div style="color: var(--danger);">❌ Pas de données</div>';
+                return;
+            }
+
+            const items = balancesData.items || [];
+            const filteredItems = items.filter(item => parseFloat(item.value_usd || 0) > 0);
+            
+            // Regrouper par aliases comme le graphique
+            const groupedData = groupAssetsByAliases(filteredItems);
+            const sortedData = groupedData.sort((a, b) => b.value - a.value);
+            const total = sortedData.reduce((sum, item) => sum + item.value, 0);
+            
+            console.log('🔍 DEBUG updatePortfolioBreakdown - total:', total, 'groups:', sortedData.length);
+            
+            const html = sortedData.map((group, index) => {
+                const percentage = ((group.value / total) * 100).toFixed(1);
+                const assets = group.assets ? ` (${group.assets.join(', ')})` : '';
+                return `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--theme-border);">
+                        <span style="color: var(--theme-text);">${group.label}${assets}</span>
+                        <span style="font-weight: 600; color: var(--theme-text);">${formatUSD(group.value)} (${percentage}%)</span>
+                    </div>
+                `;
+            }).join('');
+            
+            container.innerHTML = html + `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; margin-top: 8px; font-weight: 700; border-top: 2px solid var(--theme-border);">
+                    <span>TOTAL</span>
+                    <span>${formatUSD(total)} (100%)</span>
+                </div>
+            `;
+        }
+
+        // Toggle pour afficher/cacher le breakdown détaillé
+        function toggleBreakdown() {
+            const list = document.getElementById('breakdown-list');
+            const arrow = document.getElementById('breakdown-arrow');
+            
+            if (list.style.display === 'none') {
+                list.style.display = 'block';
+                arrow.textContent = '▼️';
+            } else {
+                list.style.display = 'none';
+                arrow.textContent = '▶️';
+            }
         }
 
         // Forcer un refresh des données avec la source actuelle

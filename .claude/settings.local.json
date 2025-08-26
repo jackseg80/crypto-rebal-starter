@@ -50,7 +50,9 @@
       "Bash(start static/dashboard.html)",
       "Bash(start static/alias-manager.html)",
       "Bash(start test_csv_access.html)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Bash(start dashboard.html)",
+      "Bash(start risk-dashboard.html)"
     ],
     "deny": [],
     "ask": [],

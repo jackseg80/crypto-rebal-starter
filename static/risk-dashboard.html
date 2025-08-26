@@ -1326,46 +1326,32 @@
 
       const totalValue = realBalances.reduce((sum, item) => sum + item.value_usd, 0);
 
-      // Classification des assets (avec TBTC inclus dans BTC)
-      const classification = {
-        'BTC': ['BTC', 'TBTC', 'WBTC'],
-        'ETH': ['ETH', 'WETH', 'STETH', 'WSTETH', 'RETH', 'CBETH'],
-        'Stablecoins': ['USDT', 'USDC', 'DAI', 'BUSD', 'TUSD', 'FDUSD'],
-        'L1/L0 majors': ['SOL', 'ATOM', 'DOT', 'AVAX', 'NEAR', 'FTM'],
-        'L2/Scaling': ['MATIC', 'POL', 'ARB', 'OP', 'LRC'],
-        'DeFi': ['UNI', 'AAVE', 'COMP', 'MKR', 'CRV'],
-        'AI/Data': ['FET', 'OCEAN', 'GRT', 'RNDR'],
-        'Others': []
-      };
+      // Use the same ASSET_GROUPS classification as dashboard.html for consistency
+      const classification = ASSET_GROUPS;
 
-      const allocation = {
-        'BTC': 0,
-        'ETH': 0,
-        'Stablecoins': 0,
-        'L1/L0 majors': 0,
-        'L2/Scaling': 0,
-        'DeFi': 0,
-        'AI/Data': 0,
-        'Others': 0,
-        model_version: 'portfolio-actuel'
-      };
+      // Initialize allocation object with all ASSET_GROUPS categories
+      const allocation = {};
+      Object.keys(ASSET_GROUPS).forEach(category => {
+        allocation[category] = 0;
+      });
+      allocation.model_version = 'portfolio-actuel';
 
-      // Classifier chaque asset
+      // Classifier chaque asset using the same logic as dashboard.html
       realBalances.forEach(item => {
         const symbol = item.symbol.toUpperCase();
-        let classified = false;
-
-        for (const [category, symbols] of Object.entries(classification)) {
-          if (symbols.includes(symbol)) {
-            allocation[category] += (item.value_usd / totalValue) * 100;
-            classified = true;
+        let foundGroup = null;
+        
+        // Find which group this asset belongs to
+        for (const [groupName, aliases] of Object.entries(classification)) {
+          if (aliases.includes(symbol)) {
+            foundGroup = groupName;
             break;
           }
         }
-
-        if (!classified) {
-          allocation.Others += (item.value_usd / totalValue) * 100;
-        }
+        
+        // Add to appropriate group or Others
+        const targetGroup = foundGroup || 'Others';
+        allocation[targetGroup] += (item.value_usd / totalValue) * 100;
       });
 
       return allocation;
