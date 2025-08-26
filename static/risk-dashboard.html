@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 
 <head>
   <meta charset="UTF-8">
@@ -14,11 +14,11 @@
   <script src="global-config.js"></script>
   <script src="shared-header.js"></script>
   <script src="appearance.js"></script>
-  
+
   <!-- Core modules ESM -->
   <script type="module" src="core/risk-dashboard-store.js"></script>
   <script type="module" src="core/fetcher.js"></script>
-  
+
   <!-- CCS modules ESM -->
   <script type="module" src="modules/signals-engine.js"></script>
   <script type="module" src="modules/cycle-navigator.js"></script>
@@ -109,9 +109,17 @@
       background: var(--theme-text-muted);
     }
 
-    .status-dot.healthy { background: var(--success); }
-    .status-dot.warning { background: var(--warning); }
-    .status-dot.error { background: var(--danger); }
+    .status-dot.healthy {
+      background: var(--success);
+    }
+
+    .status-dot.warning {
+      background: var(--warning);
+    }
+
+    .status-dot.error {
+      background: var(--danger);
+    }
 
     .status-text {
       font-size: 0.75rem;
@@ -385,7 +393,8 @@
     <!-- Controls Header -->
     <div class="controls">
       <button class="refresh-btn" onclick="refreshDashboard()" id="refresh-btn">🔄 Refresh Data</button>
-      <button class="refresh-btn" onclick="enableAutoRefresh()" id="auto-refresh-btn">⏱️ Enable Auto-Refresh (30s)</button>
+      <button class="refresh-btn" onclick="enableAutoRefresh()" id="auto-refresh-btn">⏱️ Enable Auto-Refresh
+        (30s)</button>
       <button class="refresh-btn" onclick="testEndpoint()" style="background:#007bff">🧪 Test API</button>
       <div class="timestamp" id="last-update"></div>
     </div>
@@ -483,7 +492,7 @@
     // Import core modules
     import { store } from './core/risk-dashboard-store.js';
     import { fetchCached } from './core/fetcher.js';
-    
+
     // Import CCS modules
     import { fetchAndComputeCCS, interpretCCS, DEFAULT_CCS_WEIGHTS } from './modules/signals-engine.js';
     import { estimateCyclePosition, blendCCS, getCyclePhase } from './modules/cycle-navigator.js';
@@ -494,17 +503,17 @@
     let isRefreshing = false;
 
     // ====== Tab Management ======
-    window.switchTab = function(tabName) {
+    window.switchTab = function (tabName) {
       // Update UI state
       document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
       document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
-      
+
       document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
       document.getElementById(`${tabName}-tab`).classList.add('active');
-      
+
       // Update store
       store.set('ui.activeTab', tabName);
-      
+
       // Render content based on active tab
       switch (tabName) {
         case 'risk':
@@ -517,7 +526,7 @@
           renderTargetsContent();
           break;
       }
-      
+
       console.log(`Switched to tab: ${tabName}`);
     };
 
@@ -525,41 +534,41 @@
     const $tip = document.getElementById('tooltip');
     const $tipTitle = $tip?.querySelector('.tip-title');
     const $tipBody = $tip?.querySelector('.tip-body');
-    
-    function showTip(title, body, x, y) { 
-      if (!$tip) return; 
-      $tipTitle.textContent = title || ''; 
-      $tipBody.textContent = body || ''; 
-      $tip.style.left = x + 'px'; 
-      $tip.style.top = y + 'px'; 
-      $tip.classList.add('show'); 
-      $tip.setAttribute('aria-hidden', 'false'); 
+
+    function showTip(title, body, x, y) {
+      if (!$tip) return;
+      $tipTitle.textContent = title || '';
+      $tipBody.textContent = body || '';
+      $tip.style.left = x + 'px';
+      $tip.style.top = y + 'px';
+      $tip.classList.add('show');
+      $tip.setAttribute('aria-hidden', 'false');
     }
-    
-    function moveTip(x, y) { 
-      if (!$tip) return; 
-      $tip.style.left = x + 'px'; 
-      $tip.style.top = y + 'px'; 
+
+    function moveTip(x, y) {
+      if (!$tip) return;
+      $tip.style.left = x + 'px';
+      $tip.style.top = y + 'px';
     }
-    
-    function hideTip() { 
-      if (!$tip) return; 
-      $tip.classList.remove('show'); 
-      $tip.setAttribute('aria-hidden', 'true'); 
+
+    function hideTip() {
+      if (!$tip) return;
+      $tip.classList.remove('show');
+      $tip.setAttribute('aria-hidden', 'true');
     }
-    
-    function attachTip(el, title, body) { 
-      if (!el) return; 
-      el.addEventListener('mouseenter', e => showTip(title, body, e.clientX, e.clientY)); 
-      el.addEventListener('mousemove', e => moveTip(e.clientX, e.clientY)); 
-      el.addEventListener('mouseleave', hideTip); 
-      el.classList.add('hinted'); 
+
+    function attachTip(el, title, body) {
+      if (!el) return;
+      el.addEventListener('mouseenter', e => showTip(title, body, e.clientX, e.clientY));
+      el.addEventListener('mousemove', e => moveTip(e.clientX, e.clientY));
+      el.addEventListener('mouseleave', hideTip);
+      el.classList.add('hinted');
     }
 
     // ====== Formatters ======
     const pct = v => (v == null || isNaN(v) ? 'N/A' : (v * 100).toFixed(2) + '%');
     const num = v => (v == null || isNaN(v) ? 'N/A' : Number(v).toFixed(2));
-    
+
     // ====== API Functions ======
     async function fetchRiskData() {
       try {
@@ -582,7 +591,7 @@
     async function getMockRiskData() {
       let totalValue = 451898; // Fallback value
       let assetCount = 20; // Fallback count
-      
+
       try {
         // Try to read CSV data for consistent totals across pages
         // Essayer d'abord le chemin uvicorn, puis le chemin local
@@ -599,18 +608,18 @@
           const csvText = await csvResponse.text();
           const balances = parseCSVBalances(csvText);
           totalValue = balances.reduce((sum, item) => sum + item.value_usd, 0);
-          
+
           // Calculer le nombre de groupes d'assets (SAME as dashboard.html)
           const groupedData = groupAssetsByAliases(balances);
           assetCount = groupedData.length; // C'est un array, pas une Map
-          
+
           console.log('🔍 DEBUG Risk Dashboard: Using CSV data - total:', totalValue.toFixed(2), 'groups:', assetCount);
           console.log('🔍 DEBUG Risk Dashboard: Individual assets parsed:', balances.length);
         }
       } catch (error) {
         console.warn('Could not load CSV in risk dashboard, using fallback:', error);
       }
-      
+
       return {
         success: true,
         timestamp: new Date().toISOString(),
@@ -637,29 +646,29 @@
         }
       };
     }
-    
+
     // CSV parser for risk dashboard - identique à dashboard.html
     function parseCSVBalances(csvText) {
       // Remove BOM if present (SAME as dashboard.html)
       const cleanedText = csvText.replace(/^\ufeff/, '');
       const lines = cleanedText.split('\n');
       const balances = [];
-      
+
       console.log('🔍 DEBUG Risk Dashboard: Parsing CSV with', lines.length, 'total lines');
       console.log('🔍 DEBUG Risk Dashboard: Original first char code:', csvText.charCodeAt(0));
       console.log('🔍 DEBUG Risk Dashboard: Cleaned first char code:', cleanedText.charCodeAt(0));
-      
+
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim();
         if (!line) continue;
-        
+
         try {
           const columns = parseCSVLine(line);
           if (columns.length >= 5) {
             const ticker = columns[0];
             const amount = parseFloat(columns[3]);
             const valueUSD = parseFloat(columns[4]);
-            
+
             // Même logique que dashboard.html - accepter assets >= 0.50$
             if (ticker && !isNaN(amount) && !isNaN(valueUSD) && valueUSD >= 0.50) {
               balances.push({
@@ -673,22 +682,22 @@
           console.warn('Error parsing CSV line in risk dashboard:', error);
         }
       }
-      
+
       const totalParsed = balances.reduce((sum, item) => sum + item.value_usd, 0);
       console.log('🔍 DEBUG Risk Dashboard: CSV parsing complete -', balances.length, 'assets, total:', totalParsed.toFixed(2), '$');
-      
+
       return balances;
     }
-    
+
     // CSV line parser (same as dashboard.html)
     function parseCSVLine(line) {
       const result = [];
       let current = '';
       let inQuotes = false;
-      
+
       for (let i = 0; i < line.length; i++) {
         const char = line[i];
-        
+
         if (char === '"') {
           inQuotes = !inQuotes;
         } else if (char === ';' && !inQuotes) {
@@ -698,14 +707,14 @@
           current += char;
         }
       }
-      
+
       if (current) {
         result.push(current.trim().replace(/^"|"$/g, ''));
       }
-      
+
       return result;
     }
-    
+
     // Asset grouping function (SAME as dashboard.html)
     const ASSET_GROUPS = {
       'BTC': ['BTC', 'TBTC', 'WBTC', 'BCH'], // Bitcoin et dérivés
@@ -714,7 +723,7 @@
       'SOL': ['SOL', 'SOL2', 'JUPSOL', 'JITOSOL'], // Solana écosystème
       'L1/L0 majors': [
         // Layer 1 blockchains majors
-        'ATOM', 'ATOM2', 'DOT', 'DOT2', 'ADA', 'AVAX', 'NEAR', 'XRP', 'LINK', 'BNB', 
+        'ATOM', 'ATOM2', 'DOT', 'DOT2', 'ADA', 'AVAX', 'NEAR', 'XRP', 'LINK', 'BNB',
         'LTC', 'XLM', 'EGLD3', 'XTZ', 'VET', 'SUI3', 'INJ2', 'TRX', 'CRO', 'ERA'
       ],
       'L2/Scaling': ['OP', 'ARB', 'LRC', 'MATIC', 'POL'], // Layer 2 et scaling
@@ -762,7 +771,7 @@
           const group = groups.get(foundGroup);
           group.value += parseFloat(item.value_usd || 0);
           group.assets.push(symbol);
-          
+
           // Debug log for significant groupings
           if (item.value_usd > 5000) {
             console.log('🔍 DEBUG Risk Dashboard: Grouped', symbol, 'into', foundGroup, '- value:', item.value_usd.toFixed(2));
@@ -772,7 +781,7 @@
             label: symbol,
             value: parseFloat(item.value_usd || 0)
           });
-          
+
           // Debug log for ungrouped assets
           if (item.value_usd > 1000) {
             console.log('⚠️ DEBUG Risk Dashboard: UNGROUPED asset:', symbol, '- value:', item.value_usd.toFixed(2));
@@ -782,79 +791,79 @@
 
       console.log('🔍 DEBUG Risk Dashboard: Final groups:', groups.size, 'grouped +', ungrouped.length, 'ungrouped');
       const result = [...Array.from(groups.values()), ...ungrouped];
-      
+
       return result;
     }
-    
+
     // ====== CCS Functions ======
     async function loadCCSData() {
       try {
         console.log('Loading CCS data...');
-        
+
         // Fetch CCS and cycle data in parallel
         const [ccsResult, cycleData] = await Promise.all([
           fetchAndComputeCCS(DEFAULT_CCS_WEIGHTS),
           estimateCyclePosition()
         ]);
-        
+
         // Update store with CCS data
         store.set('ccs.score', ccsResult.score);
         store.set('ccs.signals', ccsResult.signals);
         store.set('ccs.weights', ccsResult.weights);
         store.set('ccs.lastUpdate', new Date().toISOString());
         store.set('ccs.model_version', ccsResult.model_version);
-        
+
         // Update store with cycle data
         store.set('cycle.months', cycleData.months);
         store.set('cycle.phase', cycleData.phase);
         store.set('cycle.score', cycleData.score);
         store.set('cycle.confidence', cycleData.confidence);
         store.set('cycle.multipliers', cycleData.multipliers);
-        
+
         // Update API status
         store.set('ui.apiStatus.signals', 'healthy');
-        
+
         console.log(`CCS loaded: ${ccsResult.score}, Cycle: ${cycleData.phase.phase} (${Math.round(cycleData.months)}m)`);
-        
+
         return { ccs: ccsResult, cycle: cycleData };
-        
+
       } catch (error) {
         console.error('Failed to load CCS data:', error);
         store.set('ui.apiStatus.signals', 'error');
         throw error;
       }
     }
-    
+
     async function loadBlendedCCS() {
       try {
         const state = store.snapshot();
         const ccsScore = state.ccs?.score;
         const cycleMonths = state.cycle?.months;
         const cycleWeight = state.cycle?.weight || 0.3;
-        
+
         if (ccsScore && cycleMonths) {
           const blended = blendCCS(ccsScore, cycleMonths, cycleWeight);
           store.set('cycle.ccsStar', blended.blendedCCS);
           return blended;
         }
-        
+
         return null;
       } catch (error) {
         console.error('Failed to blend CCS:', error);
         return null;
       }
     }
-    
+
     // ====== Sidebar Updates ======
     function updateSidebar(state) {
       // Update CCS gauge
       const ccsScore = state.ccs?.score;
       const ccsScoreEl = document.getElementById('ccs-score');
       const ccsLabelEl = ccsScoreEl?.nextElementSibling;
-      
+
       if (ccsScore !== null && ccsScore !== undefined) {
         ccsScoreEl.textContent = Math.round(ccsScore);
-        
+
         // Interpret CCS for color coding
         const interpretation = interpretCCS(ccsScore);
         ccsScoreEl.style.color = interpretation.color;
@@ -864,31 +873,31 @@
         ccsScoreEl.style.color = 'var(--brand-primary)';
         ccsLabelEl.textContent = 'Loading...';
       }
-      
+
       // Update API status
       const backendDot = document.getElementById('backend-dot');
       const signalsDot = document.getElementById('signals-dot');
-      
+
       if (backendDot) {
         backendDot.className = `status-dot ${state.ui?.apiStatus?.backend || 'unknown'}`;
       }
       if (signalsDot) {
         signalsDot.className = `status-dot ${state.ui?.apiStatus?.signals || 'unknown'}`;
       }
-      
+
       // Update cycle indicator with enhanced info
       const cycleText = document.getElementById('cycle-text');
       const cycleDot = document.getElementById('cycle-dot');
-      
+
       if (state.cycle?.months && state.cycle?.phase) {
         const months = Math.round(state.cycle.months);
         const phase = state.cycle.phase;
-        
+
         cycleText.innerHTML = `
           <div style="font-size: 11px; font-weight: 600;">${phase.emoji} ${phase.phase.replace('_', ' ').toUpperCase()}</div>
           <div style="font-size: 10px; opacity: 0.8;">Month ${months} post-halving</div>
         `;
-        
+
         // Color based on phase
         cycleDot.style.backgroundColor = phase.color;
         cycleDot.className = 'status-dot';
@@ -896,7 +905,7 @@
         cycleText.textContent = 'Loading cycle data...';
         cycleDot.className = 'status-dot';
       }
-      
+
       // Update targets summary placeholder
       const targetsSummary = document.getElementById('targets-summary');
       if (targetsSummary) {
@@ -942,11 +951,11 @@
     async function refreshDashboard() {
       if (isRefreshing) return;
       isRefreshing = true;
-      
+
       const refreshBtn = document.getElementById('refresh-btn');
-      refreshBtn.disabled = true; 
+      refreshBtn.disabled = true;
       refreshBtn.textContent = '🔄 Refreshing…';
-      
+
       // Update loading state
       store.set('ui.loading', true);
       store.set('ui.apiStatus.backend', 'unknown');
@@ -960,33 +969,33 @@
             return null;
           })
         ]);
-        
+
         if (riskData && riskData.success) {
           // Update store with risk data
           store.set('riskMetrics', riskData.risk_metrics);
           store.set('portfolioSummary', riskData.portfolio_summary);
           store.set('correlationMetrics', riskData.correlation_metrics);
           store.set('ui.apiStatus.backend', 'healthy');
-          
+
           // Render risk dashboard in the active tab
           renderRiskDashboard(riskData);
-          
+
           // Update timestamp
-          if (riskData.timestamp && riskData.calculation_time) { 
-            updateTimestamp(riskData.timestamp, riskData.calculation_time); 
+          if (riskData.timestamp && riskData.calculation_time) {
+            updateTimestamp(riskData.timestamp, riskData.calculation_time);
           }
-          
+
           // If CCS data loaded successfully, compute blended CCS
           if (ccsData) {
             await loadBlendedCCS();
           }
-          
+
           console.log('Risk dashboard refreshed successfully');
-          
+
         } else {
           throw new Error(riskData?.message || 'Failed to load risk dashboard');
         }
-        
+
       } catch (err) {
         console.error('Dashboard error:', err);
         store.set('ui.apiStatus.backend', 'error');
@@ -994,7 +1003,7 @@
       } finally {
         isRefreshing = false;
         store.set('ui.loading', false);
-        refreshBtn.disabled = false; 
+        refreshBtn.disabled = false;
         refreshBtn.textContent = '🔄 Refresh Data';
       }
     }
@@ -1144,22 +1153,22 @@
       // Après rendu : brancher les info-bulles et verdicts
       decorateRiskTooltips();
     }
-    
+
     // ====== Cycles Content ======
     function renderCyclesContent() {
       const container = document.getElementById('cycles-content');
       const state = store.snapshot();
       const ccsData = state.ccs;
       const cycleData = state.cycle;
-      
+
       if (!ccsData?.score || !cycleData?.months) {
         container.innerHTML = '<div class="loading">Loading cycle data...</div>';
         return;
       }
-      
+
       const blended = cycleData.ccsStar || ccsData.score;
       const interpretation = interpretCCS(blended);
-      
+
       container.innerHTML = `
         <div class="risk-grid">
           <!-- CCS Overview -->
@@ -1257,9 +1266,9 @@
           </div>
           <div class="risk-grid">
             ${Object.entries(cycleData.multipliers || {}).map(([asset, multiplier]) => {
-              const color = multiplier > 1.1 ? 'var(--success)' : 
-                           multiplier < 0.9 ? 'var(--danger)' : 'var(--theme-text)';
-              return `
+        const color = multiplier > 1.1 ? 'var(--success)' :
+          multiplier < 0.9 ? 'var(--danger)' : 'var(--theme-text)';
+        return `
                 <div class="metric-row">
                   <span class="metric-label">${asset}:</span>
                   <span class="metric-value" style="color: ${color};">
@@ -1267,12 +1276,12 @@
                   </span>
                 </div>
               `;
-            }).join('')}
+      }).join('')}
           </div>
         </div>
       `;
     }
-    
+
     // ====== Portfolio Allocation Helper ======
     function getCurrentPortfolioAllocation() {
       // Données mockées réalistes - BTC+tBTC = 42-44%
@@ -1340,20 +1349,20 @@
     function renderTargetsContent() {
       const container = document.getElementById('targets-content');
       const state = store.snapshot();
-      
+
       // Propose different targeting strategies
       const macroProposal = proposeTargets('macro');
       const ccsProposal = proposeTargets('ccs');
       const cycleProposal = proposeTargets('cycle');
       const blendedProposal = proposeTargets('blend');
-      
+
       // DEBUG: Log what blended proposal contains for display
       console.log('🔍 DEBUG renderTargetsContent - blendedProposal for DISPLAY:', blendedProposal);
       console.log('🔍 DEBUG renderTargetsContent - BTC allocation for DISPLAY:', blendedProposal.targets.BTC);
-      
+
       // Current targets from store or use macro as baseline
       const currentTargets = state.targets?.proposed || DEFAULT_MACRO_TARGETS;
-      
+
       container.innerHTML = `
         <div class="risk-grid">
           <!-- Strategy Selection -->
@@ -1407,18 +1416,18 @@
         ${renderDecisionHistory()}
       `;
     }
-    
+
     function renderTargetsTable(targets, strategy) {
       const { model_version, ...allocations } = targets;
-      
+
       return `
         <div style="font-size: 0.75rem; color: var(--theme-text-muted); margin-bottom: var(--space-sm);">
           ${strategy} (${model_version})
         </div>
         <div class="risk-grid">
           ${Object.entries(allocations)
-            .sort(([,a], [,b]) => b - a)
-            .map(([asset, allocation]) => `
+          .sort(([, a], [, b]) => b - a)
+          .map(([asset, allocation]) => `
               <div class="metric-row">
                 <span class="metric-label">${asset}:</span>
                 <span class="metric-value">${allocation.toFixed(1)}%</span>
@@ -1427,13 +1436,13 @@
         </div>
       `;
     }
-    
+
     function renderActionPlan(current, proposed) {
       if (!current || !proposed) return '';
-      
+
       try {
         const plan = computePlan(current, proposed);
-        
+
         if (plan.actions.length === 0) {
           return `
             <div class="risk-card">
@@ -1442,7 +1451,7 @@
             </div>
           `;
         }
-        
+
         return `
           <div class="risk-card">
             <h3>📝 Action Plan</h3>
@@ -1451,9 +1460,9 @@
             </div>
             <div class="risk-grid">
               ${plan.actions.map(action => {
-                const color = action.action === 'buy' ? 'var(--success)' : 'var(--danger)';
-                const icon = action.action === 'buy' ? '📈' : '📉';
-                return `
+          const color = action.action === 'buy' ? 'var(--success)' : 'var(--danger)';
+          const icon = action.action === 'buy' ? '📈' : '📉';
+          return `
                   <div class="metric-row">
                     <span class="metric-label">${icon} ${action.asset}:</span>
                     <span class="metric-value" style="color: ${color};">
@@ -1462,11 +1471,11 @@
                     </span>
                   </div>
                 `;
-              }).join('')}
+        }).join('')}
             </div>
           </div>
         `;
-        
+
       } catch (error) {
         return `
           <div class="risk-card">
@@ -1476,10 +1485,10 @@
         `;
       }
     }
-    
+
     function renderDecisionHistory() {
       const history = getDecisionLog(5);
-      
+
       if (history.length === 0) {
         return `
           <div class="risk-card">
@@ -1488,7 +1497,7 @@
           </div>
         `;
       }
-      
+
       return `
         <div class="risk-card">
           <h3>📚 Decision History</h3>
@@ -1592,11 +1601,11 @@
     }
 
     // ====== Initialization & Store Connection ======
-    
+
     // Subscribe to store changes for sidebar and content updates
     store.subscribe((state) => {
       updateSidebar(state);
-      
+
       // Auto-update active tab content when data changes
       const activeTab = state.ui?.activeTab;
       if (activeTab === 'cycles' && state.ccs?.score && state.cycle?.months) {
@@ -1606,47 +1615,47 @@
         renderTargetsContent();
       }
     });
-    
+
     // ====== Global Functions for UI Interaction ======
-    
+
     // Apply specific strategy
-    window.applyStrategy = async function(mode) {
+    window.applyStrategy = async function (mode) {
       try {
         console.log('🔍 DEBUG applyStrategy called with mode:', mode);
         console.log('🔍 DEBUG store state before:', store.snapshot());
-        
+
         const proposal = proposeTargets(mode);
         console.log('🔍 DEBUG proposal result:', proposal);
         console.log('🔍 DEBUG proposal BTC allocation:', proposal.targets.BTC);
-        
+
         await applyTargets(proposal);
-        
+
         // Refresh targets content to show updated data
         if (store.get('ui.activeTab') === 'targets') {
           renderTargetsContent();
         }
-        
+
         // Update sidebar
         updateSidebar(store.snapshot());
-        
+
         console.log(`Applied strategy: ${mode} - ${proposal.strategy}`);
-        
+
       } catch (error) {
         console.error('Failed to apply strategy:', error);
         alert('Failed to apply strategy: ' + error.message);
       }
     };
-    
+
 
     // Global functions for backwards compatibility
     window.refreshDashboard = refreshDashboard;
     window.enableAutoRefresh = enableAutoRefresh;
     window.testEndpoint = testEndpoint;
-    
+
     // Initialize on DOM ready
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
       console.log('Risk Dashboard CCS MVP initializing...');
-      
+
       // Initialize shared header
       initSharedHeader('risk-dashboard');
 
@@ -1659,18 +1668,18 @@
         window.applyAppearance();
       }
       console.log('Current theme after risk-dashboard init:', document.documentElement.getAttribute('data-theme'));
-      
+
       // Hydrate store from localStorage
       store.hydrate();
-      
+
       // Initial sidebar update
       updateSidebar(store.snapshot());
-      
+
       // Load initial data
       refreshDashboard();
-      
+
       // Écouter les changements de thème pour synchronisation cross-tab
-      window.addEventListener('storage', function(e) {
+      window.addEventListener('storage', function (e) {
         if (e.key === 'crypto_rebalancer_settings') {
           console.log('Settings changed in another tab, reapplying theme...');
           setTimeout(() => {
@@ -1683,7 +1692,7 @@
           }, 100);
         }
       });
-      
+
       console.log('Risk Dashboard CCS MVP initialized');
     });
   </script>
