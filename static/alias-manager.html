@@ -374,13 +374,185 @@
     let allGroups = [];
     let filteredAliases = {};
 
+    // Mock taxonomy data when API is unavailable - enhanced with CSV data
+    async function getMockTaxonomyData() {
+      let mockAliases = {
+        'BTC': 'BTC',
+        'TBTC': 'BTC', 
+        'WBTC': 'BTC',
+        'ETH': 'ETH',
+        'WETH': 'ETH',
+        'STETH': 'ETH',
+        'WSTETH': 'ETH',
+        'RETH': 'ETH',
+        'CBETH': 'ETH',
+        'USDC': 'Stablecoins',
+        'USDT': 'Stablecoins',
+        'USD': 'Stablecoins',
+        'DAI': 'Stablecoins',
+        'BUSD': 'Stablecoins',
+        'TUSD': 'Stablecoins',
+        'FDUSD': 'Stablecoins',
+        'SOL': 'L1/L0 majors',
+        'SOL2': 'L1/L0 majors',
+        'JUPSOL': 'L1/L0 majors',
+        'JITOSOL': 'L1/L0 majors',
+        'MATIC': 'L1/L0 majors',
+        'POL': 'L1/L0 majors',
+        'ATOM': 'L1/L0 majors',
+        'DOT': 'L1/L0 majors',
+        'ADA': 'L1/L0 majors',
+        'AVAX': 'L1/L0 majors',
+        'NEAR': 'L1/L0 majors',
+        'LINK': 'L1/L0 majors',
+        'BNB': 'Exchange Tokens',
+        'XRP': 'L1/L0 majors',
+        'OP': 'L2/Scaling',
+        'ARB': 'L2/Scaling',
+        'LRC': 'L2/Scaling',
+        'UNI': 'DeFi',
+        'SUSHI': 'DeFi',
+        'AAVE': 'DeFi',
+        'COMP': 'DeFi',
+        'FET': 'AI/Data',
+        'OCEAN': 'AI/Data',
+        'GRT': 'AI/Data',
+        'RENDER': 'AI/Data',
+        'DOGE': 'Memecoins',
+        'XMR': 'Privacy',
+        'BGB': 'Exchange Tokens',
+        'IMO': 'Others'
+      };
+      
+      // Try to enhance with real CSV data
+      try {
+        // Essayer d'abord le chemin uvicorn, puis le chemin local
+        let csvResponse;
+        try {
+          csvResponse = await fetch('/data/raw/CoinTracking - Current Balance.csv');
+          if (!csvResponse.ok) {
+            throw new Error('Uvicorn path failed');
+          }
+        } catch {
+          csvResponse = await fetch('./data/raw/CoinTracking - Current Balance.csv');
+        }
+        if (csvResponse.ok) {
+          const csvText = await csvResponse.text();
+          const balances = parseCSVBalances(csvText);
+          
+          console.log('🔍 DEBUG Alias Manager: Found', balances.length, 'assets in CSV');
+          
+          // Add any missing assets from CSV to mockAliases
+          balances.forEach(item => {
+            const symbol = item.symbol.toUpperCase();
+            if (!mockAliases[symbol]) {
+              // Auto-classify based on known patterns
+              if (symbol.includes('BTC') || symbol.includes('WBTC')) {
+                mockAliases[symbol] = 'BTC';
+              } else if (symbol.includes('ETH') || symbol.includes('STETH') || symbol.includes('RETH')) {
+                mockAliases[symbol] = 'ETH';
+              } else if (['USDT', 'USDC', 'DAI', 'USD', 'BUSD'].includes(symbol)) {
+                mockAliases[symbol] = 'Stablecoins';
+              } else if (symbol.includes('SOL')) {
+                mockAliases[symbol] = 'L1/L0 majors';
+              } else {
+                mockAliases[symbol] = 'Others';
+              }
+              console.log('🔍 DEBUG: Auto-classified', symbol, 'as', mockAliases[symbol]);
+            }
+          });
+        }
+      } catch (error) {
+        console.warn('Could not enhance with CSV data:', error);
+      }
+
+      const mockGroups = ['BTC', 'ETH', 'Stablecoins', 'SOL', 'L1/L0 majors', 'L2/Scaling', 'DeFi', 'AI/Data', 'Gaming/NFT', 'Memecoins', 'Others'];
+
+      // Add any unknown aliases from last plan
+      const lastPlan = window.globalConfig?.getLastPlanData();
+      if (lastPlan && lastPlan.unknown_aliases) {
+        lastPlan.unknown_aliases.forEach(alias => {
+          if (!mockAliases[alias]) {
+            mockAliases[alias] = 'Others';
+          }
+        });
+      }
+
+      return {
+        aliases: mockAliases,
+        groups: mockGroups,
+        storage: {
+          in_memory_count: Object.keys(mockAliases).length
+        }
+      };
+    }
+    
+    // CSV parsing functions - identique à dashboard.html  
+    function parseCSVBalances(csvText) {
+      const lines = csvText.split('\n');
+      const balances = [];
+      
+      console.log('🔍 DEBUG Alias Manager: Parsing CSV with', lines.length, 'total lines');
+      
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        
+        try {
+          const columns = parseCSVLine(line);
+          if (columns.length >= 5) {
+            const ticker = columns[0];
+            const amount = parseFloat(columns[3]);
+            const valueUSD = parseFloat(columns[4]);
+            
+            // Même logique - accepter assets >= 0.50$
+            if (ticker && !isNaN(amount) && !isNaN(valueUSD) && valueUSD >= 0.50) {
+              balances.push({
+                symbol: ticker.toUpperCase(),
+                balance: amount,
+                value_usd: valueUSD
+              });
+            }
+          }
+        } catch (error) {
+          console.warn('Error parsing CSV line in alias manager:', error);
+        }
+      }
+      
+      const totalParsed = balances.reduce((sum, item) => sum + item.value_usd, 0);
+      console.log('🔍 DEBUG Alias Manager: CSV parsing complete -', balances.length, 'assets, total:', totalParsed.toFixed(2), '$');
+      
+      return balances;
+    }
+    
+    function parseCSVLine(line) {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
+      
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ';' && !inQuotes) {
+          result.push(current.trim().replace(/^"|"$/g, ''));
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      
+      if (current) {
+        result.push(current.trim().replace(/^"|"$/g, ''));
+      }
+      
+      return result;
+    }
+
     // Chargement initial
     window.addEventListener('DOMContentLoaded', () => {
-      if (!window.globalConfig?.hasPlan()) {
-        alert('⚠️ Vous devez d\'abord générer un plan de rebalancing pour utiliser l\'Alias Manager.');
-        window.location.href = 'rebalance.html';
-        return;
-      }
+      // Supprimer la vérification du plan - fonctionne maintenant indépendamment
       loadData();
 
       // Écouter les changements de thème pour synchronisation cross-tab
@@ -400,11 +572,18 @@
     });
 
     async function loadData() {
-      const apiBase = globalConfig.get('api_base_url');
       try {
-        const response = await fetch(`${apiBase}/taxonomy`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
+        const apiBase = globalConfig?.get('api_base_url') || 'http://localhost:8765';
+        let data;
+        
+        try {
+          const response = await fetch(`${apiBase}/taxonomy`);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          data = await response.json();
+        } catch (apiError) {
+          console.warn('Taxonomy API unavailable, using mock data:', apiError);
+          data = await getMockTaxonomyData();
+        }
 
         allAliases = data.aliases || {};
         allGroups = data.groups || [];
@@ -426,7 +605,26 @@
         document.getElementById('stats').style.display = 'flex';
 
       } catch (e) {
+        console.error('Critical error in loadData:', e);
         document.getElementById('loading').innerHTML = `❌ Erreur: ${e.message}`;
+        
+        // Fallback to ensure basic functionality
+        try {
+          const fallbackData = await getMockTaxonomyData();
+          allAliases = fallbackData.aliases || {};
+          allGroups = fallbackData.groups || [];
+          
+          updateStats(fallbackData);
+          populateGroupSelectors();
+          filterAliases();
+          
+          document.getElementById('loading').style.display = 'none';
+          document.getElementById('aliases-container').style.display = 'block';
+          document.getElementById('stats').style.display = 'flex';
+        } catch (fallbackError) {
+          console.error('Even fallback failed:', fallbackError);
+          document.getElementById('loading').innerHTML = `❌ Erreur critique: ${fallbackError.message}`;
+        }
       }
     }
 
@@ -487,7 +685,7 @@
     async function changeGroup(alias, newGroup) {
       if (!newGroup || allAliases[alias] === newGroup) return;
       try {
-        const apiBase = globalConfig.get('api_base_url');
+        const apiBase = globalConfig?.get('api_base_url') || 'http://localhost:8765';
         const resp = await fetch(`${apiBase}/taxonomy/aliases`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ aliases: { [alias]: newGroup } })
@@ -495,18 +693,28 @@
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         allAliases[alias] = newGroup; filterAliases();
         showNotification(`✅ ${alias} → ${newGroup}`, 'success');
-      } catch (e) { showNotification(`❌ Erreur: ${e.message}`, 'error'); loadData(); }
+      } catch (e) { 
+        console.warn('Taxonomy API unavailable, simulating change:', e);
+        allAliases[alias] = newGroup; 
+        filterAliases();
+        showNotification(`📝 ${alias} → ${newGroup} (mode hors ligne)`, 'info');
+      }
     }
 
     async function deleteAlias(alias) {
       if (!confirm(`Supprimer l'alias "${alias}" ?`)) return;
       try {
-        const apiBase = globalConfig.get('api_base_url');
+        const apiBase = globalConfig?.get('api_base_url') || 'http://localhost:8765';
         const resp = await fetch(`${apiBase}/taxonomy/aliases/${alias}`, { method: 'DELETE' });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         delete allAliases[alias]; filterAliases();
         showNotification(`🗑️ ${alias} supprimé`, 'success');
-      } catch (e) { showNotification(`❌ Erreur: ${e.message}`, 'error'); }
+      } catch (e) { 
+        console.warn('Delete API unavailable, simulating deletion:', e);
+        delete allAliases[alias]; 
+        filterAliases();
+        showNotification(`🗑️ ${alias} supprimé (mode hors ligne)`, 'info');
+      }
     }
 
     async function assignFiltered() {
@@ -516,26 +724,36 @@
       if (aliases.length === 0) return alert('Aucun alias à assigner');
       if (!confirm(`Assigner ${aliases.length} aliases au groupe "${group}" ?`)) return;
       try {
-        const apiBase = globalConfig.get('api_base_url');
+        const apiBase = globalConfig?.get('api_base_url') || 'http://localhost:8765';
         const payload = {}; aliases.forEach(a => payload[a] = group);
         const resp = await fetch(`${apiBase}/taxonomy/aliases`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ aliases: payload }) });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         aliases.forEach(a => allAliases[a] = group); filterAliases();
         showNotification(`✅ ${aliases.length} aliases → ${group}`, 'success');
-      } catch (e) { showNotification(`❌ Erreur: ${e.message}`, 'error'); }
+      } catch (e) { 
+        console.warn('Batch assign API unavailable:', e);
+        aliases.forEach(a => allAliases[a] = group); 
+        filterAliases();
+        showNotification(`📝 ${aliases.length} aliases → ${group} (mode hors ligne)`, 'info');
+      }
     }
 
     async function assignAllToOthers() {
       const aliases = Object.keys(allAliases);
       if (!confirm(`Assigner TOUS les ${aliases.length} aliases au groupe "Others" ?`)) return;
       try {
-        const apiBase = globalConfig.get('api_base_url');
+        const apiBase = globalConfig?.get('api_base_url') || 'http://localhost:8765';
         const payload = {}; aliases.forEach(a => payload[a] = 'Others');
         const resp = await fetch(`${apiBase}/taxonomy/aliases`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ aliases: payload }) });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         Object.keys(allAliases).forEach(a => allAliases[a] = 'Others'); filterAliases();
         showNotification(`✅ Tous les aliases → Others`, 'success');
-      } catch (e) { showNotification(`❌ Erreur: ${e.message}`, 'error'); }
+      } catch (e) { 
+        console.warn('Assign all API unavailable:', e);
+        Object.keys(allAliases).forEach(a => allAliases[a] = 'Others'); 
+        filterAliases();
+        showNotification(`📝 Tous les aliases → Others (mode hors ligne)`, 'info');
+      }
     }
 
     function clearFilters() { document.getElementById('search').value = ''; document.getElementById('group-filter').value = ''; filterAliases(); }
@@ -556,7 +774,7 @@
     // Suggestions & auto-classify
     async function getSuggestions() {
       try {
-        const apiBase = globalConfig.get('api_base_url');
+        const apiBase = globalConfig?.get('api_base_url') || 'http://localhost:8765';
         const useCG = document.getElementById('coingecko-enabled').checked;
         const ep = useCG ? '/taxonomy/suggestions-enhanced' : '/taxonomy/suggestions';
         const resp = await fetch(`${apiBase}${ep}`); if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -567,13 +785,16 @@
         const list = Object.entries(suggestions).map(([s, g]) => `${s} → ${g}`).slice(0, 5).join(', ');
         const icon = useCG ? '🚀' : '🔍'; const label = useCG ? 'Mode intelligent (regex + CoinGecko)' : 'Mode regex seul';
         showNotification(`${icon} ${auto_classified_count}/${unknown_count} suggestions (${cov}%)\n📊 ${label}\n💡 ${list}`, 'info', 10000);
-      } catch (e) { showNotification(`❌ Erreur suggestions: ${e.message}`, 'error'); }
+      } catch (e) { 
+        console.warn('Suggestions API unavailable:', e);
+        showNotification(`🔍 Suggestions non disponibles en mode hors ligne`, 'info');
+      }
     }
 
     async function autoClassify() {
       if (!confirm('Appliquer automatiquement la classification intelligente aux symboles inconnus ?')) return;
       try {
-        const apiBase = globalConfig.get('api_base_url');
+        const apiBase = globalConfig?.get('api_base_url') || 'http://localhost:8765';
         const useCG = document.getElementById('coingecko-enabled').checked;
         const ep = useCG ? '/taxonomy/auto-classify-enhanced' : '/taxonomy/auto-classify';
         const resp = await fetch(`${apiBase}${ep}`, { method: 'POST' }); if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -584,7 +805,10 @@
           showNotification(`✅ ${data.classified} aliases classifiés automatiquement ${label}`, 'success');
           await loadData();
         }
-      } catch (e) { showNotification(`❌ Erreur classification auto: ${e.message}`, 'error'); }
+      } catch (e) { 
+        console.warn('Auto-classify API unavailable:', e);
+        showNotification(`🚀 Classification automatique non disponible en mode hors ligne`, 'info');
+      }
     }
 
     function showNotification(message, type = 'info', duration = 3000) {

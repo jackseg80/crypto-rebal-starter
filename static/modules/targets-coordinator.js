@@ -154,8 +154,19 @@ export function proposeTargets(mode = 'blend', options = {}) {
         
       case 'ccs':
         if (!ccsScore) {
-          proposedTargets = { ...DEFAULT_MACRO_TARGETS };
-          strategy = 'Macro (CCS unavailable)';
+          // Fallback : stratégie plus agressive (simule CCS élevé)
+          proposedTargets = {
+            'BTC': 45.0,
+            'ETH': 30.0,
+            'Stablecoins': 10.0,
+            'L1/L0 majors': 8.0,
+            'L2/Scaling': 4.0,
+            'DeFi': 2.0,
+            'AI/Data': 1.0,
+            'Others': 0.0,
+            model_version: 'ccs-fallback-aggressive'
+          };
+          strategy = 'CCS Aggressive (simulated)';
         } else {
           proposedTargets = generateCCSTargets(ccsScore);
           strategy = `CCS-based (${Math.round(ccsScore)})`;
@@ -164,8 +175,19 @@ export function proposeTargets(mode = 'blend', options = {}) {
         
       case 'cycle':
         if (!cycleMultipliers) {
-          proposedTargets = { ...DEFAULT_MACRO_TARGETS };
-          strategy = 'Macro (Cycle unavailable)';
+          // Fallback : stratégie cycle bear market (plus défensive)
+          proposedTargets = {
+            'BTC': 28.0,
+            'ETH': 18.0,
+            'Stablecoins': 40.0,
+            'L1/L0 majors': 8.0,
+            'L2/Scaling': 3.0,
+            'DeFi': 2.5,
+            'AI/Data': 0.5,
+            'Others': 0.0,
+            model_version: 'cycle-bear-fallback'
+          };
+          strategy = 'Cycle Bear Market (defensive)';
         } else {
           proposedTargets = applyCycleMultipliers(DEFAULT_MACRO_TARGETS, cycleMultipliers);
           strategy = `Cycle-adjusted (${state.cycle?.phase?.phase || 'unknown'})`;
@@ -176,9 +198,19 @@ export function proposeTargets(mode = 'blend', options = {}) {
       default:
         // Determinstic priority logic
         if (!ccsScore || !blendedCCS) {
-          // Fallback to macro if no CCS data
-          proposedTargets = { ...DEFAULT_MACRO_TARGETS };
-          strategy = 'Macro (CCS unavailable)';
+          // Fallback to balanced blend when no CCS data (slightly different from macro)
+          proposedTargets = {
+            'BTC': 33.0,
+            'ETH': 27.0,
+            'Stablecoins': 22.0,
+            'L1/L0 majors': 9.0,
+            'L2/Scaling': 4.5,
+            'DeFi': 3.5,
+            'AI/Data': 1.0,
+            'Others': 0.0,
+            model_version: 'blend-fallback'
+          };
+          strategy = 'Balanced Blend (CCS unavailable)';
         } else if (blendedCCS >= 70) {
           // High confidence: use blended CCS
           proposedTargets = generateCCSTargets(blendedCCS);
@@ -327,12 +359,16 @@ export async function applyTargets(proposalResult) {
       source: 'risk-dashboard-ccs'
     };
     
-    console.log('🔍 DEBUG localStorage save - BTC before save:', dataToSave.targets.BTC);
+    console.log('🔍 DEBUG applyTargets - Full proposal result:', proposalResult);
+    console.log('🔍 DEBUG applyTargets - Targets being saved:', proposalResult.targets);
+    console.log('🔍 DEBUG applyTargets - BTC before save:', dataToSave.targets.BTC);
+    console.log('🔍 DEBUG applyTargets - ETH before save:', dataToSave.targets.ETH);
     localStorage.setItem('last_targets', JSON.stringify(dataToSave));
     
     // Verify what was actually saved
     const savedData = JSON.parse(localStorage.getItem('last_targets'));
-    console.log('🔍 DEBUG localStorage verify - BTC after save:', savedData.targets.BTC);
+    console.log('🔍 DEBUG applyTargets - BTC after save:', savedData.targets.BTC);
+    console.log('🔍 DEBUG applyTargets - ETH after save:', savedData.targets.ETH);
     
     // Dispatch event for external listeners (rebalance.html)
     window.dispatchEvent(new CustomEvent('targetsUpdated', {

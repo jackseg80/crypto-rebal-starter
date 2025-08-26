@@ -95,18 +95,57 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-BASE_DIR = Path(__file__).resolve().parent     # répertoire du repo (main.py à la racine)
-STATIC_DIR = BASE_DIR / "static"               # D:\Python\crypto-rebal-starter\static
+BASE_DIR = Path(__file__).resolve().parent.parent  # répertoire du repo (niveau au-dessus d'api/)
+STATIC_DIR = BASE_DIR / "static"                    # D:\Python\crypto-rebal-starter\static
+DATA_DIR = BASE_DIR / "data"                        # D:\Python\crypto-rebal-starter\data
+
+print(f"🔍 DEBUG: BASE_DIR = {BASE_DIR}")
+print(f"🔍 DEBUG: STATIC_DIR = {STATIC_DIR}, exists = {STATIC_DIR.exists()}")
+print(f"🔍 DEBUG: DATA_DIR = {DATA_DIR}, exists = {DATA_DIR.exists()}")
 
 if not STATIC_DIR.exists():
-    # fallback si l’arbo a changé
+    print("⚠️ STATIC_DIR not found, using fallback")
+    # fallback si l'arbo a changé
     STATIC_DIR = Path.cwd() / "static"
+    
+if not DATA_DIR.exists():
+    print("⚠️ DATA_DIR not found, using fallback")
+    DATA_DIR = Path.cwd() / "data"
+    
+print(f"🔍 DEBUG: Final STATIC_DIR = {STATIC_DIR}")
+print(f"🔍 DEBUG: Final DATA_DIR = {DATA_DIR}")
+
+# Vérifier le fichier CSV spécifiquement
+csv_file = DATA_DIR / "raw" / "CoinTracking - Current Balance.csv"
+print(f"🔍 DEBUG: CSV file = {csv_file}, exists = {csv_file.exists()}")
 
 app.mount(
     "/static",
     StaticFiles(directory=str(STATIC_DIR), html=True),
     name="static",
 )
+
+# Mount data directory for CSV access
+app.mount(
+    "/data",
+    StaticFiles(directory=str(DATA_DIR)),
+    name="data",
+)
+
+@app.get("/debug/paths")
+async def debug_paths():
+    """Endpoint de diagnostic pour vérifier les chemins"""
+    csv_file = DATA_DIR / "raw" / "CoinTracking - Current Balance.csv"
+    return {
+        "BASE_DIR": str(BASE_DIR),
+        "STATIC_DIR": str(STATIC_DIR),
+        "DATA_DIR": str(DATA_DIR),
+        "static_exists": STATIC_DIR.exists(),
+        "data_exists": DATA_DIR.exists(),
+        "csv_file": str(csv_file),
+        "csv_exists": csv_file.exists(),
+        "csv_size": csv_file.stat().st_size if csv_file.exists() else 0
+    }
 
 # petit cache prix optionnel (si tu l’as déjà chez toi, garde le tien)
 _PRICE_CACHE: Dict[str, tuple] = {}  # symbol -> (ts, price)
