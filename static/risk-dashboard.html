@@ -1360,15 +1360,16 @@
       console.log('🔍 DEBUG renderTargetsContent - blendedProposal for DISPLAY:', blendedProposal);
       console.log('🔍 DEBUG renderTargetsContent - BTC allocation for DISPLAY:', blendedProposal.targets.BTC);
 
-      // Current targets from store or use macro as baseline
-      const currentTargets = state.targets?.proposed || DEFAULT_MACRO_TARGETS;
+      // Current targets from store or use blended as default display
+      const appliedTargets = state.targets?.proposed || blendedProposal.targets;
+      const appliedStrategy = state.targets?.strategy || blendedProposal.strategy;
 
       container.innerHTML = `
         <div class="risk-grid">
           <!-- Strategy Selection -->
           <div class="risk-card" style="grid-column: 1 / -1;">
             <h3>🎯 Strategic Targeting</h3>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-sm); margin: var(--space-lg) 0;">
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-sm); margin: var(--space-lg) 0;">
               <button class="refresh-btn" onclick="applyStrategy('macro')" style="background: #6b7280;">
                 📊 Macro Only<br>
                 <small>${macroProposal.strategy}</small>
@@ -1396,7 +1397,7 @@
           
           <div class="risk-card">
             <h3>🎯 Proposed Targets</h3>
-            ${renderTargetsTable(blendedProposal.targets, blendedProposal.strategy)}
+            ${renderTargetsTable(appliedTargets, appliedStrategy)}
             <div style="margin-top: var(--space-lg); text-align: center; padding: var(--space-sm); background: var(--info-bg); border-radius: var(--radius-md); border: 1px solid var(--info);">
               <div style="font-size: 0.875rem; color: var(--info); font-weight: 600; margin-bottom: var(--space-xs);">
                 💡 Nouvelle méthode d'application
@@ -1410,7 +1411,7 @@
         </div>
         
         <!-- Action Plan -->
-        ${renderActionPlan(DEFAULT_MACRO_TARGETS, blendedProposal.targets)}
+        ${renderActionPlan(getCurrentPortfolioAllocation(), appliedTargets)}
         
         <!-- Decision History -->
         ${renderDecisionHistory()}
@@ -1677,6 +1678,15 @@
 
       // Load initial data
       refreshDashboard();
+      
+      // Apply blended strategy as default if no strategy is already selected
+      setTimeout(() => {
+        const currentStrategy = store.get('targets.strategy');
+        if (!currentStrategy) {
+          console.log('No strategy found, applying Blended as default...');
+          applyStrategy('blend');
+        }
+      }, 1000);
 
       // Écouter les changements de thème pour synchronisation cross-tab
       window.addEventListener('storage', function (e) {
