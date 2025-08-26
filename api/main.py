@@ -13,6 +13,10 @@ from fastapi.staticfiles import StaticFiles
 # Charger les variables d'environnement depuis .env
 load_dotenv()
 
+# Configuration sécurisée
+DEBUG = (os.getenv("DEBUG", "false").lower() == "true")
+CORS_ORIGINS = [o.strip() for o in (os.getenv("CORS_ORIGINS", "")).split(",") if o.strip()]
+
 from connectors import cointracking as ct_file
 from connectors.cointracking_api import get_current_balances as ct_api_get_current_balances, _debug_probe
 
@@ -79,17 +83,18 @@ async def generic_exception_handler(request: Request, exc: Exception):
         }
     )
 
-# CORS sécurisé pour développement local
+# CORS sécurisé avec configuration dynamique
+default_origins = [
+    "http://localhost:3000",
+    "http://localhost:8000", 
+    "http://localhost:8080",
+    "http://127.0.0.1:8000",
+    "http://127.0.0.1:8080",
+    "file://"  # Pour les fichiers HTML statiques
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:8000", 
-        "http://localhost:8080",
-        "http://127.0.0.1:8000",
-        "http://127.0.0.1:8080",
-        "file://"  # Pour les fichiers HTML statiques
-    ],
+    allow_origins=(CORS_ORIGINS or default_origins),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
@@ -125,16 +130,20 @@ app.mount(
     name="static",
 )
 
-# Mount data directory for CSV access
-app.mount(
-    "/data",
-    StaticFiles(directory=str(DATA_DIR)),
-    name="data",
-)
+# Mount data directory for CSV access (développement seulement)
+if DEBUG:
+    app.mount(
+        "/data",
+        StaticFiles(directory=str(DATA_DIR)),
+        name="data",
+    )
 
 @app.get("/debug/paths")
 async def debug_paths():
     """Endpoint de diagnostic pour vérifier les chemins"""
+    if not DEBUG:
+        raise HTTPException(status_code=404, detail="Debug endpoint not available")
+    
     csv_file = DATA_DIR / "raw" / "CoinTracking - Current Balance.csv"
     return {
         "BASE_DIR": str(BASE_DIR),
@@ -453,6 +462,9 @@ def _assign_locations_to_actions(plan: dict, rows: list[dict], min_trade_usd: fl
 # DEBUG: introspection rapide de la répartition par exchange (cointracking_api)
 @app.get("/debug/exchanges-snapshot")
 async def debug_exchanges_snapshot(source: str = "cointracking_api"):
+    if not DEBUG:
+        raise HTTPException(status_code=404, detail="Debug endpoint not available")
+    
     from connectors.cointracking import get_unified_balances_by_exchange
     data = await get_unified_balances_by_exchange(source=source)
     return {
@@ -754,11 +766,17 @@ def _to_csv(actions: List[Dict[str, Any]]) -> str:
 @app.get("/debug/ctapi")
 async def debug_ctapi():
     """Endpoint de debug pour CoinTracking API"""
+    if not DEBUG:
+        raise HTTPException(status_code=404, detail="Debug endpoint not available")
+    
     return _debug_probe()
 
 @app.get("/debug/api-keys")
 async def debug_api_keys(debug_token: str = None):
     """Expose les clés API depuis .env pour auto-configuration (sécurisé)"""
+    if not DEBUG:
+        raise HTTPException(status_code=404, detail="Debug endpoint not available")
+    
     # Simple protection pour développement
     if debug_token != os.getenv("DEBUG_TOKEN", "dev-secret-2024"):
         raise HTTPException(status_code=403, detail="Debug token required")
@@ -772,6 +790,9 @@ async def debug_api_keys(debug_token: str = None):
 @app.post("/debug/api-keys")
 async def update_api_keys(payload: APIKeysRequest, debug_token: str = None):
     """Met à jour les clés API dans le fichier .env (sécurisé)"""
+    if not DEBUG:
+        raise HTTPException(status_code=404, detail="Debug endpoint not available")
+    
     # Simple protection pour développement
     if debug_token != os.getenv("DEBUG_TOKEN", "dev-secret-2024"):
         raise HTTPException(status_code=403, detail="Debug token required")

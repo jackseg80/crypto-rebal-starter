@@ -21,4 +21,5 @@ venv/
 htmlcov/
 .DS_Store
 Thumbs.db
-nul
+tests/fixtures/
+devtools/

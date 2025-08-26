@@ -1,13 +1,14 @@
 # connectors/cointracking_api.py
 from __future__ import annotations
 
-import os, time, hmac, hashlib, json, re
+import os, time, hmac, hashlib, json, re, asyncio
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 from dotenv import load_dotenv
 from collections import defaultdict
+from functools import partial
 
 print("CT-API parser version:", "2025-08-22-1")
 
@@ -74,6 +75,22 @@ def _cache_set(key: tuple, payload: dict) -> None:
     if len(_CACHE) > _CACHE_CLEANUP_THRESHOLD:
         _cleanup_cache()
 
+async def _post_api_cached_async(method: str, params: Optional[Dict[str, Any]] = None, ttl: int = 60) -> Dict[str, Any]:
+    """Version async de _post_api_cached utilisant un executor pour éviter le blocking I/O"""
+    key = (method, json.dumps(params or {}, sort_keys=True))
+    hit = _cache_get(key, ttl)
+    if hit is not None:
+        return hit
+    
+    # Utiliser un executor pour ne pas bloquer la boucle d'événements
+    loop = asyncio.get_running_loop()
+    payload = await loop.run_in_executor(None, partial(_post_api, method, params))
+    
+    if isinstance(payload, dict):
+        _cache_set(key, payload)
+    return payload
+
+# Garde la version synchrone pour compatibilité
 def _post_api_cached(method: str, params: Optional[Dict[str, Any]] = None, ttl: int = 60) -> Dict[str, Any]:
     key = (method, json.dumps(params or {}, sort_keys=True))
     hit = _cache_get(key, ttl)
@@ -653,7 +670,7 @@ async def get_balances_by_exchange_via_api() -> Dict[str, Any]:
             return 0.0
 
     # 1) Récupération des données groupées et déduplication intelligente
-    p_gb = _post_api_cached("getGroupedBalance", {"group": "exchange", "exclude_dep_with": "1"}, ttl=60)
+    p_gb = await _post_api_cached_async("getGroupedBalance", {"group": "exchange", "exclude_dep_with": "1"}, ttl=60)
     rows_gb = _extract_rows_from_groupedBalance(p_gb)
     
     # 2) Déduplication: pour chaque symbol, aggréger les quantités mais garder la location principale
