@@ -523,7 +523,7 @@
           renderCyclesContent();
           break;
         case 'targets':
-          renderTargetsContent();
+          renderTargetsContent().catch(err => console.error('Failed to render targets:', err));
           break;
       }
 
@@ -1283,22 +1283,48 @@
     }
 
     // ====== Portfolio Allocation Helper ======
-    function getCurrentPortfolioAllocation() {
-      // Données mockées réalistes - BTC+tBTC = 42-44%
-      const mockBalances = [
-        { symbol: 'BTC', value_usd: 139797.52 }, // ~32.1%
-        { symbol: 'TBTC', value_usd: 50000.00 }, // ~11.5% -> Total BTC = 43.6%
-        { symbol: 'ETH', value_usd: 85310.25 }, // ~19.6%
-        { symbol: 'STETH', value_usd: 20000.00 }, // ~4.6% -> Total ETH = 24.2%
-        { symbol: 'USDT', value_usd: 72750.00 }, // ~16.7%
-        { symbol: 'USDC', value_usd: 20000.00 }, // ~4.6% -> Total Stablecoins = 21.3%
-        { symbol: 'SOL', value_usd: 28291.75 }, // ~6.5%
-        { symbol: 'ATOM', value_usd: 14145.88 }, // ~3.2%
-        { symbol: 'DOT', value_usd: 9316.70 }, // ~2.1% -> Total L1/L0 = 11.8%
-        { symbol: 'MATIC', value_usd: 5599.12 } // ~1.3% L2/Scaling
-      ];
+    async function getCurrentPortfolioAllocation() {
+      let realBalances = [];
+      
+      try {
+        // Utiliser les vraies données CSV comme dans le dashboard principal
+        let csvResponse;
+        try {
+          csvResponse = await fetch('/data/raw/CoinTracking - Current Balance.csv');
+          if (!csvResponse.ok) {
+            throw new Error('Uvicorn path failed');
+          }
+        } catch {
+          csvResponse = await fetch('./data/raw/CoinTracking - Current Balance.csv');
+        }
+        
+        if (csvResponse.ok) {
+          const csvText = await csvResponse.text();
+          const balances = parseCSVBalances(csvText);
+          realBalances = balances.map(item => ({
+            symbol: item.symbol,
+            value_usd: item.value_usd
+          }));
+          console.log('🔍 DEBUG getCurrentPortfolioAllocation: Using real CSV data -', realBalances.length, 'assets');
+        }
+      } catch (error) {
+        console.warn('Could not load real CSV data in risk dashboard, using fallback:', error);
+        // Fallback données mockées si CSV indisponible
+        realBalances = [
+          { symbol: 'BTC', value_usd: 139797.52 },
+          { symbol: 'TBTC', value_usd: 50000.00 },
+          { symbol: 'ETH', value_usd: 85310.25 },
+          { symbol: 'STETH', value_usd: 20000.00 },
+          { symbol: 'USDT', value_usd: 72750.00 },
+          { symbol: 'USDC', value_usd: 20000.00 },
+          { symbol: 'SOL', value_usd: 28291.75 },
+          { symbol: 'ATOM', value_usd: 14145.88 },
+          { symbol: 'DOT', value_usd: 9316.70 },
+          { symbol: 'MATIC', value_usd: 5599.12 }
+        ];
+      }
 
-      const totalValue = mockBalances.reduce((sum, item) => sum + item.value_usd, 0);
+      const totalValue = realBalances.reduce((sum, item) => sum + item.value_usd, 0);
 
       // Classification des assets (avec TBTC inclus dans BTC)
       const classification = {
@@ -1325,7 +1351,7 @@
       };
 
       // Classifier chaque asset
-      mockBalances.forEach(item => {
+      realBalances.forEach(item => {
         const symbol = item.symbol.toUpperCase();
         let classified = false;
 
@@ -1346,7 +1372,7 @@
     }
 
     // ====== Targets Content ======
-    function renderTargetsContent() {
+    async function renderTargetsContent() {
       const container = document.getElementById('targets-content');
       const state = store.snapshot();
 
@@ -1363,6 +1389,9 @@
       // Current targets from store or use blended as default display
       const appliedTargets = state.targets?.proposed || blendedProposal.targets;
       const appliedStrategy = state.targets?.strategy || blendedProposal.strategy;
+      
+      // Get real current portfolio allocation
+      const currentAllocation = await getCurrentPortfolioAllocation();
 
       container.innerHTML = `
         <div class="risk-grid">
@@ -1392,7 +1421,7 @@
           <!-- Current vs Proposed -->
           <div class="risk-card">
             <h3>📋 Current Allocation</h3>
-            ${renderTargetsTable(getCurrentPortfolioAllocation(), 'Portfolio Actuel')}
+            ${renderTargetsTable(currentAllocation, 'Portfolio Actuel')}
           </div>
           
           <div class="risk-card">
@@ -1411,7 +1440,7 @@
         </div>
         
         <!-- Action Plan -->
-        ${renderActionPlan(getCurrentPortfolioAllocation(), appliedTargets)}
+        ${renderActionPlan(currentAllocation, appliedTargets)}
         
         <!-- Decision History -->
         ${renderDecisionHistory()}
@@ -1613,7 +1642,7 @@
         renderCyclesContent();
       }
       if (activeTab === 'targets') {
-        renderTargetsContent();
+        renderTargetsContent().catch(err => console.error('Failed to render targets on store change:', err));
       }
     });
 
@@ -1633,7 +1662,7 @@
 
         // Refresh targets content to show updated data
         if (store.get('ui.activeTab') === 'targets') {
-          renderTargetsContent();
+          renderTargetsContent().catch(err => console.error('Failed to render targets after strategy apply:', err));
         }
 
         // Update sidebar
