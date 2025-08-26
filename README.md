@@ -43,14 +43,16 @@ uvicorn api.main:app --reload --port 8000
 
 ### Interface unifiée disponible :
 
-- **🏠 Dashboard** : `static/dashboard.html` - Vue d'ensemble du portfolio 
-- **🛡️ Risk Dashboard** : `static/risk-dashboard.html` - Analyse de risque institutionnelle
+- **🏠 Dashboard** : `static/dashboard.html` - Vue d'ensemble du portfolio avec graphique synchronisé
+- **🛡️ Risk Dashboard** : `static/risk-dashboard.html` - Analyse de risque institutionnelle (données de référence)
 - **🚀 Execution** : `static/execution.html` - Dashboard d'exécution temps réel
 - **📈 Execution History** : `static/execution_history.html` - Historique et analytics des trades
 - **🔍 Advanced Monitoring** : `static/monitoring_advanced.html` - Surveillance des connexions
-- **⚖️ Rebalancing** : `static/rebalance.html` - Génération des plans intelligents
+- **⚖️ Rebalancing** : `static/rebalance.html` - Génération des plans intelligents avec sync CCS
 - **🏷️ Alias Manager** : `static/alias-manager.html` - Gestion des taxonomies
 - **⚙️ Settings** : `static/settings.html` - Configuration centralisée (**commencez ici**)
+
+> 🔧 **Nouvelles fonctionnalités** : Synchronisation complète des données entre dashboards, support uvicorn, et stratégies CCS différenciées
 
 ### API :
 - Swagger / OpenAPI : http://127.0.0.1:8000/docs
@@ -128,6 +130,7 @@ docs/
 GET /balances/current?source=cointracking&min_usd=1
 ```
 - **Source par défaut** : `cointracking` (CSV) - recommandé car plus fiable que l'API
+- **Accès via uvicorn** : Support complet avec mount `/data/` pour http://localhost:8000/static/
 - Réponse :  
   ```json
   {
@@ -141,6 +144,7 @@ GET /balances/current?source=cointracking&min_usd=1
   ```
 - **Locations automatiques** : Les CSV "Balance by Exchange" assignent les locations réelles (Kraken, Binance, Ledger, etc.)
 - **Recherche intelligente** : L'application privilégie automatiquement "Balance by Exchange" puis utilise "Current Balance" en fallback
+- **Gestion BOM** : Parsing automatique des caractères BOM pour compatibilité Windows/Excel
 
 ### 4.2 Plan de rebalancement (JSON)
 ```
@@ -747,7 +751,79 @@ POST /api/monitoring/test          # Tests manuels de connexions
 
 ---
 
-## 16) Roadmap & Prochaines étapes
+## 16) Corrections récentes & Améliorations critiques
+
+### 🔧 Corrections Dashboard & Synchronisation (Août 2025)
+
+**Problèmes résolus :**
+- **Portfolio overview chart** : Correction de l'affichage du graphique dans dashboard.html
+- **Synchronisation des données** : Alignement des totaux entre dashboard.html et risk-dashboard.html (422431$, 183 assets)
+- **Accès CSV via uvicorn** : Support complet des fichiers CSV lors de l'accès via http://localhost:8000/static/
+- **Groupement d'assets** : BTC+tBTC+WBTC traités comme un seul groupe dans les calculs
+- **Stratégies différenciées** : Les boutons CCS/Cycle retournent maintenant des allocations distinctes
+
+**Améliorations techniques :**
+- **FastAPI data mount** : Ajout du mount `/data/` dans api/main.py pour accès CSV via uvicorn
+- **Parsing CSV unifié** : Gestion BOM et parsing identique entre dashboard.html et risk-dashboard.html
+- **Architecture hybride** : API + CSV fallback pour garantir la cohérence des données
+- **Asset grouping** : Fonction `groupAssetsByAliases()` unifiée pour comptage cohérent des assets
+
+### 📊 Architecture Hybride API + CSV
+
+Le système utilise maintenant une approche hybride intelligente :
+
+```javascript
+// Dashboard.html - Approche hybride
+const response = await fetch(`/api/risk/dashboard?source=${source}&pricing=local&min_usd=1.00`);
+if (response.ok) {
+    const data = await response.json();
+    // Utilise les totaux de l'API + données CSV pour le graphique
+    csvBalances = parseCSVBalances(csvText);
+    return {
+        metrics: {
+            total_value_usd: portfolioSummary.total_value || 0,
+            asset_count: portfolioSummary.num_assets || 0,
+        },
+        balances: { items: csvBalances }
+    };
+}
+```
+
+### 🔍 Accès CSV via Uvicorn
+
+**Configuration FastAPI** mise à jour dans `api/main.py` :
+```python
+# Mount des données CSV pour accès via uvicorn
+BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = BASE_DIR / "data"
+app.mount("/data", StaticFiles(directory=str(DATA_DIR)), name="data")
+```
+
+**Fallback intelligent** dans les interfaces :
+- Chemin principal : `/data/raw/CoinTracking - Current Balance.csv`
+- Fallback local : `../data/raw/CoinTracking - Current Balance.csv`
+- Gestion automatique selon le contexte d'exécution
+
+### 🎯 Stratégies CCS Différenciées
+
+Les boutons de stratégie retournent maintenant des allocations distinctes :
+- **CCS Aggressive** : BTC 45%, ETH 30%, Stablecoins 10%, SOL 8%, L1/L0 7%
+- **Cycle Bear Market** : BTC 28%, ETH 18%, Stablecoins 40%, SOL 6%, L1/L0 8%
+- **Cycle Bull Market** : BTC 55%, ETH 25%, Stablecoins 5%, SOL 10%, L1/L0 5%
+- **Blended Strategy** : Moyenne pondérée des stratégies
+
+### ✅ Tests de Validation
+
+Tous les cas d'usage critiques ont été testés et validés :
+- ✅ Affichage du graphique portfolio overview
+- ✅ Totaux identiques entre dashboards (422431$, 183 assets)
+- ✅ Accès CSV fonctionnel via uvicorn
+- ✅ Sync CCS vers rebalance.html opérationnelle
+- ✅ Stratégies différenciées actives
+
+---
+
+## 17) Roadmap & Prochaines étapes
 
 ### ✅ Fonctionnalités complétées (Phase 1-4)
 

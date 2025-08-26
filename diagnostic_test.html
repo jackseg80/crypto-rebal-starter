@@ -1,195 +1,181 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>🔬 CCS Diagnostic - Exact Issue Reproduction</title>
+    <meta charset="UTF-8">
+    <title>Strategy Button Diagnostic Test</title>
     <style>
-        body { font-family: monospace; margin: 20px; background: #f5f5f5; }
-        .result { background: white; padding: 15px; margin: 10px 0; border-radius: 8px; border-left: 4px solid #3b82f6; }
-        .success { border-left-color: #22c55e; }
-        .error { border-left-color: #ef4444; }
-        .warning { border-left-color: #f59e0b; }
-        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background: #f0f0f0; }
-        .diff-high { background: #fecaca; color: #b91c1c; font-weight: bold; }
-        .diff-medium { background: #fed7aa; color: #c2410c; }
-        .diff-low { background: #dcfce7; color: #16a34a; }
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-section { margin: 20px 0; border: 1px solid #ccc; padding: 15px; }
+        .btn { padding: 10px 20px; margin: 5px; cursor: pointer; border: none; border-radius: 4px; background: #3b82f6; color: white; }
+        .btn:hover { background: #2563eb; }
+        .success { background: #10b981; color: white; }
+        .error { background: #dc2626; color: white; }
+        .warning { background: #f59e0b; color: white; }
+        #results { background: #f3f4f6; padding: 10px; min-height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px; }
     </style>
 </head>
 <body>
-    <h1>🔬 CCS Diagnostic Test</h1>
-    <p>Ce test reproduit exactement le problème observé par l'utilisateur</p>
+    <h1>Strategy Button Diagnostic Test</h1>
     
-    <div id="results">Chargement...</div>
+    <div class="test-section">
+        <h3>Module Loading Test</h3>
+        <button id="loadModulesBtn" class="btn">Test Module Loading</button>
+        <div id="moduleResults"></div>
+    </div>
     
+    <div class="test-section">
+        <h3>Strategy Application Test</h3>
+        <button id="testMacroBtn" class="btn">Test Macro Strategy</button>
+        <button id="testCcsBtn" class="btn">Test CCS Strategy</button>
+        <button id="testCycleBtn" class="btn">Test Cycle Strategy</button>
+        <button id="testBlendBtn" class="btn">Test Blended Strategy</button>
+        <div id="strategyResults"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>localStorage Communication Test</h3>
+        <button id="testStorageBtn" class="btn">Test Storage Save/Load</button>
+        <div id="storageResults"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Full Debug Log</h3>
+        <div id="results"></div>
+    </div>
+
     <script type="module">
-        import { proposeTargets, generateCCSTargets, interpretCCS, normalizeTargets, DEFAULT_MACRO_TARGETS } from './static/modules/targets-coordinator.js';
-        import { store } from './static/core/risk-dashboard-store.js';
+        const results = document.getElementById('results');
+        const moduleResults = document.getElementById('moduleResults');
+        const strategyResults = document.getElementById('strategyResults');
+        const storageResults = document.getElementById('storageResults');
         
-        function runDiagnostic() {
-            const resultsDiv = document.getElementById('results');
-            let html = '';
-            
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'error' ? '#dc2626' : type === 'success' ? '#10b981' : '#374151';
+            results.innerHTML += `<div style="color: ${color}; margin: 5px 0;">[${timestamp}] ${message}</div>`;
+            results.scrollTop = results.scrollHeight;
+        }
+
+        function updateSection(sectionElement, message, type = 'info') {
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : 'warning';
+            sectionElement.innerHTML = `<div class="${className}" style="padding: 10px; margin: 10px 0;">${message}</div>`;
+        }
+
+        // Test module loading
+        document.getElementById('loadModulesBtn').onclick = async function() {
             try {
-                // 1. Test les interprétations CCS
-                html += '<div class="result"><h2>🎯 Test 1: Interprétation CCS Score 72</h2>';
+                log('Testing module imports...');
                 
-                const ccsScore = 72;
-                const interpretation = interpretCCS(ccsScore);
-                html += `<p><strong>CCS Score:</strong> ${ccsScore}</p>`;
-                html += `<p><strong>Interpretation:</strong> ${interpretation.level} (${interpretation.label})</p>`;
+                const { fetchAndComputeCCS, DEFAULT_CCS_WEIGHTS } = await import('./static/modules/signals-engine.js');
+                const { estimateCyclePosition, blendCCS } = await import('./static/modules/cycle-navigator.js');
+                const { proposeTargets, applyTargets } = await import('./static/modules/targets-coordinator.js');
+                const { store } = await import('./static/core/risk-dashboard-store.js');
                 
-                // 2. Test generateCCSTargets direct
-                html += '<h3>generateCCSTargets(72) direct:</h3>';
-                const directCCSTargets = generateCCSTargets(ccsScore);
+                log('✅ All modules imported successfully', 'success');
+                updateSection(moduleResults, '✅ All modules loaded successfully', 'success');
                 
-                html += '<table>';
-                html += '<tr><th>Asset</th><th>Valeur</th><th>Attendu par utilisateur</th><th>Match?</th></tr>';
+                // Test basic function calls
+                const ccs = await fetchAndComputeCCS();
+                log(`✅ CCS computed: ${ccs.score}`, 'success');
                 
-                const expectedByUser = {
-                    'BTC': 32.1,
-                    'ETH': 24.2,
-                    'Stablecoins': 21.3,
-                    'L1/L0 majors': 11.1,
-                    'L2/Scaling': 5.6,
-                    'DeFi': 3.5,
-                    'AI/Data': 2.2,
-                    'Others': 0.0
-                };
+                const cycle = estimateCyclePosition();
+                log(`✅ Cycle estimated: ${cycle.phase.phase} (${Math.round(cycle.months)}m)`, 'success');
                 
-                Object.entries(directCCSTargets).forEach(([asset, value]) => {
-                    if (asset === 'model_version') return;
-                    
-                    const expected = expectedByUser[asset] || 0;
-                    const diff = Math.abs(value - expected);
-                    const matchClass = diff < 0.1 ? 'diff-low' : diff < 2 ? 'diff-medium' : 'diff-high';
-                    const match = diff < 0.1 ? '✅' : '❌';
-                    
-                    html += `<tr>
-                        <td>${asset}</td>
-                        <td class="${matchClass}">${value.toFixed(1)}%</td>
-                        <td>${expected}%</td>
-                        <td>${match}</td>
-                    </tr>`;
-                });
-                html += '</table></div>';
+                // Set up store
+                store.set('ccs', ccs);
+                store.set('cycle', cycle);
                 
-                // 3. Simuler store state et tester proposeTargets
-                html += '<div class="result"><h2>🔬 Test 2: Simulation Store State</h2>';
+                const blended = blendCCS(ccs.score, cycle.months, 0.3);
+                store.set('cycle.ccsStar', blended.blendedCCS);
+                log(`✅ Blended CCS: ${blended.blendedCCS.toFixed(1)}`, 'success');
                 
-                // Mock store state like the user might have
-                const mockState = {
-                    ccs: { score: 72 },
-                    cycle: { 
-                        ccsStar: 72,  // This should trigger blendedCCS >= 70 case
-                        multipliers: null,
-                        weight: 0.3 
-                    }
-                };
+                // Store functions globally for strategy tests
+                window.testProposeTargets = proposeTargets;
+                window.testApplyTargets = applyTargets;
+                window.testStore = store;
                 
-                // Override store temporarily
-                const originalGet = store.get;
-                const originalSnapshot = store.snapshot;
-                
-                store.get = function(path) {
-                    const keys = path.split('.');
-                    return keys.reduce((obj, key) => obj?.[key], mockState);
-                };
-                
-                store.snapshot = function() {
-                    return mockState;
-                };
-                
-                html += `<p><strong>Mock Store State:</strong></p>`;
-                html += `<pre>${JSON.stringify(mockState, null, 2)}</pre>`;
-                
-                // Test blend strategy
-                const blendProposal = proposeTargets('blend');
-                
-                html += '<h3>proposeTargets("blend") result:</h3>';
-                html += `<p><strong>Strategy:</strong> ${blendProposal.strategy}</p>`;
-                
-                html += '<table>';
-                html += '<tr><th>Asset</th><th>Blend Result</th><th>Attendu</th><th>Direct CCS</th><th>Analyse</th></tr>';
-                
-                Object.entries(blendProposal.targets).forEach(([asset, value]) => {
-                    if (asset === 'model_version') return;
-                    
-                    const expected = expectedByUser[asset] || 0;
-                    const directValue = directCCSTargets[asset];
-                    const diff = Math.abs(value - expected);
-                    const matchClass = diff < 0.1 ? 'diff-low' : diff < 2 ? 'diff-medium' : 'diff-high';
-                    
-                    let analysis = '';
-                    if (Math.abs(value - directValue) < 0.1) {
-                        analysis = 'Match CCS direct';
-                    } else if (Math.abs(value - expected) < 0.1) {
-                        analysis = 'Match utilisateur ✅';
-                    } else {
-                        analysis = 'Valeur différente ❌';
-                    }
-                    
-                    html += `<tr>
-                        <td>${asset}</td>
-                        <td class="${matchClass}">${value.toFixed(1)}%</td>
-                        <td>${expected}%</td>
-                        <td>${directValue.toFixed(1)}%</td>
-                        <td>${analysis}</td>
-                    </tr>`;
-                });
-                html += '</table>';
-                
-                // Restore store
-                store.get = originalGet;
-                store.snapshot = originalSnapshot;
-                
-                html += '</div>';
-                
-                // 4. Test what happens when we save to localStorage
-                html += '<div class="result"><h2>💾 Test 3: localStorage Save</h2>';
-                
-                const testSaveData = {
-                    targets: blendProposal.targets,
-                    strategy: blendProposal.strategy,
-                    timestamp: new Date().toISOString(),
-                    source: 'risk-dashboard-ccs'
-                };
-                
-                localStorage.setItem('test_targets', JSON.stringify(testSaveData));
-                const retrievedData = JSON.parse(localStorage.getItem('test_targets'));
-                
-                html += '<h3>Données sauvegardées vs récupérées:</h3>';
-                html += '<table>';
-                html += '<tr><th>Asset</th><th>Avant Save</th><th>Après Retrieve</th><th>Identique?</th></tr>';
-                
-                Object.entries(blendProposal.targets).forEach(([asset, originalValue]) => {
-                    if (asset === 'model_version') return;
-                    
-                    const retrievedValue = retrievedData.targets[asset];
-                    const identical = Math.abs(originalValue - retrievedValue) < 0.001;
-                    
-                    html += `<tr>
-                        <td>${asset}</td>
-                        <td>${originalValue.toFixed(3)}%</td>
-                        <td>${retrievedValue.toFixed(3)}%</td>
-                        <td>${identical ? '✅' : '❌'}</td>
-                    </tr>`;
-                });
-                html += '</table>';
-                
-                localStorage.removeItem('test_targets');
-                html += '</div>';
+                updateSection(moduleResults, '✅ All modules loaded and initialized successfully', 'success');
                 
             } catch (error) {
-                html += `<div class="result error"><h2>❌ Erreur</h2><pre>${error.message}\n${error.stack}</pre></div>`;
+                log(`❌ Module loading error: ${error.message}`, 'error');
+                updateSection(moduleResults, `❌ Module loading failed: ${error.message}`, 'error');
             }
-            
-            resultsDiv.innerHTML = html;
+        };
+        
+        // Test strategy functions
+        async function testStrategy(mode) {
+            try {
+                if (!window.testProposeTargets) {
+                    throw new Error('Modules not loaded. Run module test first.');
+                }
+                
+                log(`Testing ${mode} strategy...`);
+                
+                const proposal = window.testProposeTargets(mode);
+                log(`✅ Proposal generated: ${proposal.strategy}`, 'success');
+                log(`   BTC: ${proposal.targets.BTC?.toFixed(1)}%`, 'info');
+                log(`   ETH: ${proposal.targets.ETH?.toFixed(1)}%`, 'info');
+                log(`   Confidence: ${(proposal.confidence * 100).toFixed(1)}%`, 'info');
+                
+                await window.testApplyTargets(proposal);
+                log(`✅ Strategy ${mode} applied successfully`, 'success');
+                
+                // Check localStorage
+                const saved = localStorage.getItem('last_targets');
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    log(`✅ Data saved to localStorage: BTC=${data.targets.BTC?.toFixed(1)}%`, 'success');
+                }
+                
+                updateSection(strategyResults, `✅ ${mode} strategy test passed`, 'success');
+                
+            } catch (error) {
+                log(`❌ Strategy ${mode} error: ${error.message}`, 'error');
+                updateSection(strategyResults, `❌ ${mode} strategy failed: ${error.message}`, 'error');
+            }
         }
         
-        // Run diagnostic automatically
-        runDiagnostic();
+        document.getElementById('testMacroBtn').onclick = () => testStrategy('macro');
+        document.getElementById('testCcsBtn').onclick = () => testStrategy('ccs');
+        document.getElementById('testCycleBtn').onclick = () => testStrategy('cycle');
+        document.getElementById('testBlendBtn').onclick = () => testStrategy('blend');
         
+        // Test localStorage communication
+        document.getElementById('testStorageBtn').onclick = function() {
+            try {
+                log('Testing localStorage communication...');
+                
+                const testData = {
+                    targets: { BTC: 45.5, ETH: 25.3, 'Stablecoins': 15.2 },
+                    timestamp: new Date().toISOString(),
+                    strategy: 'test-strategy',
+                    source: 'diagnostic-test'
+                };
+                
+                localStorage.setItem('last_targets', JSON.stringify(testData));
+                log('✅ Data saved to localStorage', 'success');
+                
+                const retrieved = JSON.parse(localStorage.getItem('last_targets'));
+                if (retrieved.targets.BTC === testData.targets.BTC) {
+                    log('✅ Data retrieved correctly from localStorage', 'success');
+                    updateSection(storageResults, '✅ localStorage communication working', 'success');
+                } else {
+                    throw new Error('Data mismatch in localStorage');
+                }
+                
+                // Test event dispatching
+                window.dispatchEvent(new CustomEvent('targetsUpdated', {
+                    detail: { targets: testData.targets, strategy: testData.strategy, source: 'test' }
+                }));
+                log('✅ Event dispatched successfully', 'success');
+                
+            } catch (error) {
+                log(`❌ localStorage test error: ${error.message}`, 'error');
+                updateSection(storageResults, `❌ localStorage test failed: ${error.message}`, 'error');
+            }
+        };
+        
+        log('Diagnostic test ready. Click buttons to run tests.');
     </script>
 </body>
 </html>

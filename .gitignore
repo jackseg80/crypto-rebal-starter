@@ -20,4 +20,4 @@ venv/
 .coverage
 htmlcov/
 .DS_Store
-Thumbs.db
+Thumbs.dbnul
