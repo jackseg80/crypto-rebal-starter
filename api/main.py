@@ -778,7 +778,8 @@ async def debug_api_keys(debug_token: str = None):
         raise HTTPException(status_code=404, detail="Debug endpoint not available")
     
     # Simple protection pour développement
-    if debug_token != os.getenv("DEBUG_TOKEN", "dev-secret-2024"):
+    expected_token = os.getenv("DEBUG_TOKEN")
+    if not expected_token or debug_token != expected_token:
         raise HTTPException(status_code=403, detail="Debug token required")
     
     return {
@@ -794,7 +795,8 @@ async def update_api_keys(payload: APIKeysRequest, debug_token: str = None):
         raise HTTPException(status_code=404, detail="Debug endpoint not available")
     
     # Simple protection pour développement
-    if debug_token != os.getenv("DEBUG_TOKEN", "dev-secret-2024"):
+    expected_token = os.getenv("DEBUG_TOKEN")
+    if not expected_token or debug_token != expected_token:
         raise HTTPException(status_code=403, detail="Debug token required")
     
     import re
@@ -1055,7 +1057,7 @@ REBALANCING_STRATEGIES = {
     }
 }
 
-@app.get("/api/strategies/list")
+@app.get("/strategies/list")
 async def get_rebalancing_strategies():
     """Liste des stratégies de rebalancing prédéfinies"""
     return {
@@ -1063,7 +1065,7 @@ async def get_rebalancing_strategies():
         "strategies": REBALANCING_STRATEGIES
     }
 
-@app.post("/api/strategies/generate-ccs")
+@app.post("/strategies/generate-ccs")
 async def generate_ccs_strategy():
     """Génère une stratégie CCS-based comme le fait Risk Dashboard"""
     try:
