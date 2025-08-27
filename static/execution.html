@@ -8,6 +8,9 @@
   <link rel="stylesheet" href="shared-theme.css">
   <link rel="stylesheet" href="theme-compat.css">
 
+  <script src="debug-logger.js"></script>
+  <script src="input-validator.js"></script>
+  <script src="performance-optimizer.js"></script>
   <script src="global-config.js"></script>
   <script src="shared-header.js"></script>
   <script src="appearance.js"></script>
@@ -437,15 +440,30 @@
 
         // Validation côté client pour détecter les quantités invalides
         const invalidActions = actions.filter(action => {
-          const quantity = parseFloat(action.quantity || 0);
-          return isNaN(quantity) || quantity <= 0;
+          // Supporter plusieurs formats: quantity, est_quantity, ou usd (valeur absolue)
+          const quantity = parseFloat(action.quantity || action.est_quantity || 0);
+          const usdAmount = Math.abs(parseFloat(action.usd || 0));
+          
+          // Valide si on a soit une quantité > 0, soit un montant USD > 0
+          const hasValidQuantity = !isNaN(quantity) && quantity > 0;
+          const hasValidUSD = !isNaN(usdAmount) && usdAmount > 0;
+          
+          return !hasValidQuantity && !hasValidUSD;
         });
         
         if (invalidActions.length > 0) {
-          const invalidDetails = invalidActions.map(action => 
-            `${action.symbol}: quantité ${action.quantity} (doit être > 0)`
-          ).join(', ');
-          throw new Error(`Actions avec quantités invalides détectées: ${invalidDetails}`);
+          const invalidDetails = invalidActions.map(action => {
+            const qty = action.quantity || action.est_quantity;
+            const usd = action.usd;
+            if (qty !== undefined) {
+              return `${action.symbol}: quantité ${qty} (doit être > 0)`;
+            } else if (usd !== undefined) {
+              return `${action.symbol}: montant USD ${usd} (doit être != 0)`;
+            } else {
+              return `${action.symbol}: aucune quantité ou montant USD spécifié`;
+            }
+          }).join(', ');
+          throw new Error(`Actions avec quantités/montants invalides détectées: ${invalidDetails}`);
         }
 
         const response = await globalConfig.apiRequest('/execution/validate-plan', {
@@ -487,7 +505,7 @@
         }
 
       } catch (error) {
-        console.error('Validation error:', error);
+        log.error('Validation error:', error);
         showAlert(resultContainer, 'danger', `Erreur de validation: ${error.message}`);
       }
     }
@@ -532,7 +550,7 @@
         }
 
       } catch (error) {
-        console.error('Execution error:', error);
+        log.error('Execution error:', error);
         alert(`Erreur d'exécution: ${error.message}`);
       }
     }
@@ -551,7 +569,7 @@
           const progress = await globalConfig.apiRequest(`/execution/status/${planId}`);
           updateMonitoringDisplay(planId, progress);
         } catch (error) {
-          console.error('Monitoring error:', error);
+          log.error('Monitoring error:', error);
           // Arrêter le monitoring en cas d'erreur persistante
           clearInterval(activeMonitoring);
         }
@@ -638,7 +656,7 @@
         }
 
       } catch (error) {
-        console.error('Monitoring refresh error:', error);
+        log.error('Monitoring refresh error:', error);
       }
     }
 
@@ -681,7 +699,7 @@
         container.innerHTML = plansHtml;
 
       } catch (error) {
-        console.error('History loading error:', error);
+        log.error('History loading error:', error);
       }
     }
 

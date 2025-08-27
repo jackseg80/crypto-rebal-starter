@@ -58,6 +58,12 @@ uvicorn api.main:app --reload --port 8000
 - Swagger / OpenAPI : http://127.0.0.1:8000/docs
 - Healthcheck : http://127.0.0.1:8000/healthz
 
+### 🔧 Outils de debug et diagnostic :
+- **Mode debug** : `toggleDebug()` dans la console pour activer/désactiver les logs
+- **Validation** : Système automatique de validation des inputs avec feedback utilisateur
+- **Performance** : Optimisations automatiques pour portfolios volumineux (>500 assets)
+- **Troubleshooting** : Guide complet dans `TROUBLESHOOTING.md`
+
 > 💡 **Workflow recommandé** : Commencez par Settings pour configurer vos clés API et paramètres, puis naviguez via les menus unifiés.
 
 ---
@@ -877,13 +883,20 @@ Tous les cas d'usage critiques ont été testés et validés :
 - ⬜ **Docker & Kubernetes**: Containerisation et orchestration
 - ⬜ **Cloud Deployment**: Déploiement multi-cloud avec HA
 
-### 🔧 Améliorations techniques immédiates
+### 🔧 Améliorations techniques récentes (Août 2025)
+
+- ✅ **Système de logging conditionnel** : Debug désactivable en production via `toggleDebug()`
+- ✅ **Validation des inputs** : Système complet de validation côté frontend
+- ✅ **Performance optimization** : Support optimisé pour portfolios 1000+ assets
+- ✅ **Error handling** renforcé avec try/catch appropriés et feedback UI
+- ✅ **Documentation troubleshooting** : Guide complet de résolution des problèmes
+
+### 🔧 Prochaines améliorations
 
 - ⬜ **Tests unitaires complets** pour tous les modules
 - ⬜ **Documentation API** avec exemples et tutoriels
-- ⬜ **Performance optimization** pour portfolios 1000+ assets
-- ⬜ **Error handling** renforcé avec retry mechanisms
-- ⬜ **Logging** structuré avec monitoring et alerting
+- ⬜ **Retry mechanisms** automatiques sur échec réseau
+- ⬜ **Cache intelligent** avec TTL adaptatif
 
 ---
 

@@ -581,13 +581,13 @@
             }),
           'risk'
         );
-        
+
         // If API returns success:false, use CSV fallback instead
         if (!apiResult.success) {
           console.warn('Risk API returned error:', apiResult.message, '- using CSV fallback');
           return getMockRiskData();
         }
-        
+
         return apiResult;
       } catch (error) {
         console.warn('Risk API unavailable, using fallback data:', error);
@@ -595,68 +595,74 @@
       }
     }
 
-    // Fallback mock data when API is unavailable - uses real CSV data ONLY
+    // Fallback mock data when API is unavailable - uses configured data source
     async function getMockRiskData() {
       try {
-        // Try to read CSV data - NO HARDCODED FALLBACK
-        let csvResponse;
-        try {
-          csvResponse = await fetch('/data/raw/CoinTracking - Current Balance.csv');
-          if (!csvResponse.ok) {
-            throw new Error('Uvicorn path failed');
-          }
-        } catch {
-          csvResponse = await fetch('./data/raw/CoinTracking - Current Balance.csv');
+        console.log('🔍 Loading risk data using configured source...');
+        const balanceResult = await window.loadBalanceData();
+
+        if (!balanceResult.success) {
+          throw new Error(balanceResult.error);
         }
-        
-        if (!csvResponse.ok) {
-          throw new Error('CSV not available');
+
+        let balances;
+
+        if (balanceResult.csvText) {
+          // Source CSV locale
+          balances = window.parseCSVBalances(balanceResult.csvText);
+        } else if (balanceResult.data && balanceResult.data.items) {
+          // Source API (stub ou cointracking_api)
+          balances = balanceResult.data.items.map(item => ({
+            symbol: item.symbol,
+            balance: item.balance,
+            value_usd: item.value_usd
+          }));
+        } else {
+          throw new Error('Invalid data format received');
         }
-        
-        const csvText = await csvResponse.text();
-        const balances = parseCSVBalances(csvText);
+
         const totalValue = balances.reduce((sum, item) => sum + item.value_usd, 0);
-        const assetCount = balances.length; // Dynamic calculation from CSV (>=1$)
+        const assetCount = balances.length; // Dynamic calculation (>=configured threshold)
 
         console.log('🔍 DEBUG Risk Dashboard: Using REAL CSV data - total:', totalValue.toFixed(2), 'assets:', assetCount);
         console.log('🔍 DEBUG Risk Dashboard: Individual assets parsed:', balances.length);
 
-      return {
-        success: true,
-        timestamp: new Date().toISOString(),
-        calculation_time: '0.15s',
-        risk_metrics: {
-          // Metrics based on crypto portfolio composition
-          volatility_annualized: 0.42, // 42% annualized volatility (typical for mixed crypto)
-          sharpe_ratio: 1.15, // Good risk-adjusted return
-          sortino_ratio: 1.78, // Better downside-only metric
-          max_drawdown: -0.28, // 28% max drawdown
-          current_drawdown: -0.05, // Currently 5% below ATH
-          var_95_1d: -0.08, // 8% daily VaR at 95%
-          var_99_1d: -0.12, // 12% daily VaR at 99%
-          cvar_95_1d: -0.11, // 11% conditional VaR
-          cvar_99_1d: -0.16, // 16% conditional VaR
-          calmar_ratio: 0.65, // Return/Max Drawdown
-          risk_score: 68.5, // Medium-high risk score
-          overall_risk_level: 'medium_high'
-        },
-        portfolio_summary: {
-          total_value: totalValue,
-          num_assets: assetCount,
-          confidence_level: 0.78, // 78% confidence in data quality
-          diversification_score: 0.72,
-          rebalancing_drift: 0.08
-        },
-        correlation_metrics: {
-          diversification_ratio: 0.68, // Good diversification
-          effective_assets: 12.4, // Effective number of independent bets
-          top_correlations: [
-            { asset1: 'BTC', asset2: 'TBTC', correlation: 0.98 },
-            { asset1: 'ETH', asset2: 'WSTETH', correlation: 0.95 },
-            { asset1: 'ETH', asset2: 'RETH', correlation: 0.94 }
-          ]
-        }
-      };
+        return {
+          success: true,
+          timestamp: new Date().toISOString(),
+          calculation_time: '0.15s',
+          risk_metrics: {
+            // Metrics based on crypto portfolio composition
+            volatility_annualized: 0.42, // 42% annualized volatility (typical for mixed crypto)
+            sharpe_ratio: 1.15, // Good risk-adjusted return
+            sortino_ratio: 1.78, // Better downside-only metric
+            max_drawdown: -0.28, // 28% max drawdown
+            current_drawdown: -0.05, // Currently 5% below ATH
+            var_95_1d: -0.08, // 8% daily VaR at 95%
+            var_99_1d: -0.12, // 12% daily VaR at 99%
+            cvar_95_1d: -0.11, // 11% conditional VaR
+            cvar_99_1d: -0.16, // 16% conditional VaR
+            calmar_ratio: 0.65, // Return/Max Drawdown
+            risk_score: 68.5, // Medium-high risk score
+            overall_risk_level: 'medium_high'
+          },
+          portfolio_summary: {
+            total_value: totalValue,
+            num_assets: assetCount,
+            confidence_level: 0.78, // 78% confidence in data quality
+            diversification_score: 0.72,
+            rebalancing_drift: 0.08
+          },
+          correlation_metrics: {
+            diversification_ratio: 0.68, // Good diversification
+            effective_assets: 12.4, // Effective number of independent bets
+            top_correlations: [
+              { asset1: 'BTC', asset2: 'TBTC', correlation: 0.98 },
+              { asset1: 'ETH', asset2: 'WSTETH', correlation: 0.95 },
+              { asset1: 'ETH', asset2: 'RETH', correlation: 0.94 }
+            ]
+          }
+        };
       } catch (error) {
         console.error('CSV not available for risk dashboard:', error);
         // Return null instead of hardcoded fallback
@@ -664,86 +670,7 @@
       }
     }
 
-    // CSV parser for risk dashboard - identique à dashboard.html
-    function parseCSVBalances(csvText) {
-      // Remove BOM if present (SAME as dashboard.html)
-      const cleanedText = csvText.replace(/^\ufeff/, '');
-      const lines = cleanedText.split('\n');
-      const balances = [];
-
-      console.log('🔍 DEBUG Risk Dashboard: Parsing CSV with', lines.length, 'total lines');
-      console.log('🔍 DEBUG Risk Dashboard: Original first char code:', csvText.charCodeAt(0));
-      console.log('🔍 DEBUG Risk Dashboard: Cleaned first char code:', cleanedText.charCodeAt(0));
-
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) continue;
-
-        try {
-          const columns = parseCSVLine(line);
-          if (columns.length >= 5) {
-            const ticker = columns[0];
-            const amount = parseFloat(columns[3]);
-            const valueUSD = parseFloat(columns[4]);
-
-            // Debug parsing for first few assets
-            if (i <= 5) {
-              console.log('🔍 DEBUG Line', i, 'ticker:', ticker, 'amount:', amount, 'valueUSD:', valueUSD, 'raw columns:', columns);
-            }
-
-            // Même logique que dashboard.html - accepter assets >= 1.0$
-            if (ticker && !isNaN(amount) && !isNaN(valueUSD) && valueUSD >= 1.0) {
-              balances.push({
-                symbol: ticker.toUpperCase(),
-                balance: amount,
-                value_usd: valueUSD
-              });
-              
-              if (i <= 10) {
-                console.log('✅ DEBUG Asset added:', ticker, 'value:', valueUSD);
-              }
-            } else {
-              if (i <= 10) {
-                console.log('❌ DEBUG Asset rejected:', ticker, 'amount valid:', !isNaN(amount), 'valueUSD valid:', !isNaN(valueUSD), 'valueUSD >= 1.0:', valueUSD >= 1.0);
-              }
-            }
-          }
-        } catch (error) {
-          console.warn('Error parsing CSV line in risk dashboard:', error);
-        }
-      }
-
-      const totalParsed = balances.reduce((sum, item) => sum + item.value_usd, 0);
-      console.log('🔍 DEBUG Risk Dashboard: CSV parsing complete -', balances.length, 'assets, total:', totalParsed.toFixed(2), '$');
-
-      return balances;
-    }
-
-    // CSV line parser (same as dashboard.html)
-    function parseCSVLine(line) {
-      const result = [];
-      let current = '';
-      let inQuotes = false;
-
-      for (let i = 0; i < line.length; i++) {
-        const char = line[i];
-
-        if (char === '"') {
-          inQuotes = !inQuotes;
-        } else if (char === ';' && !inQuotes) {
-          result.push(current.trim().replace(/^"|"$/g, ''));
-          current = '';
-        } else {
-          current += char;
-        }
-      }
-
-      if (current) {
-        result.push(current.trim().replace(/^"|"$/g, ''));
-      }
-
-      return result;
-    }
+    // CSV parsing functions are now centralized in global-config.js
 
     // Asset grouping function (EXACTLY SAME as dashboard.html fallback)
     const ASSET_GROUPS = {
@@ -942,23 +869,30 @@
 
     // Risk rating rules for different metrics
     const RISK_RULES = {
-      sharpe: { good: [0.5, 999], warn: [0.2, 0.5], label: 'Ratio de Sharpe', explain: 'Mesure le rendement ajusté au risque' },
-      sortino: { good: [0.5, 999], warn: [0.2, 0.5], label: 'Ratio de Sortino', explain: 'Mesure le rendement par rapport au risque de baisse' },
-      volatility: { good: [0, 0.3], warn: [0.3, 0.6], label: 'Volatilité', explain: 'Mesure la variation des prix' },
-      max_drawdown: { good: [0, 0.2], warn: [0.2, 0.4], label: 'Drawdown Maximum', explain: 'Plus grande perte depuis un sommet' },
-      concentration: { good: [0, 0.5], warn: [0.5, 0.8], label: 'Concentration', explain: 'Répartition des actifs' }
+      sharpe: { good: [0.5, 999], warn: [0.2, 0.5] },
+      sortino: { good: [0.5, 999], warn: [0.2, 0.5] },
+      volatility: { good: [0, 0.3], warn: [0.3, 0.6] },
+      max_drawdown: { good: [0, 0.2], warn: [0.2, 0.4] },
+      var95_1d: { good: [0, 0.05], warn: [0.05, 0.10] },
+      var99_1d: { good: [0, 0.08], warn: [0.08, 0.15] },
+      cvar95_1d: { good: [0, 0.07], warn: [0.07, 0.12] },
+      cvar99_1d: { good: [0, 0.10], warn: [0.10, 0.18] },
+      diversification_ratio: { good: [0.6, 1.0], warn: [0.4, 0.6] },
+      effective_assets: { good: [10, 999], warn: [5, 10] }
     };
 
     function rate(key, value) {
-      const r = RISK_RULES[key]; if (!r || value == null || isNaN(value)) return { dot: 'orange', verdict: 'Indisponible', body: 'Donnée indisponible.' };
-      const v = Math.abs(value);
+      const r = RISK_RULES[key];
+      if (!r || value == null || isNaN(value)) return { dot: 'orange', verdict: 'Indisponible', body: 'Donnée indisponible.' };
+      const signed = value;
+      let v = signed;
+      // Pour ces métriques, on évalue la magnitude (valeur absolue) :
+      if (['volatility', 'max_drawdown', 'var95_1d', 'var99_1d', 'cvar95_1d', 'cvar99_1d'].includes(key)) v = Math.abs(signed);
       const inR = ([a, b]) => v >= a && v < b;
       let dot = 'red', verdict = 'Élevé / risqué';
       if (inR(r.good)) { dot = 'green'; verdict = 'Plutôt bas / maîtrisé'; }
       else if (inR(r.warn)) { dot = 'orange'; verdict = 'Intermédiaire / à surveiller'; }
-      const fmt = (key === 'sharpe' || key === 'sortino') ? num : pct;
-      const body = `${r.explain}\n\nValeur actuelle : ${fmt(value)}\nLecture : ${verdict}`;
-      return { dot, verdict, body, label: r.label };
+      return { dot, verdict, body: '', label: key };
     }
 
     // Note: Initialization moved to the bottom of the script
@@ -1301,31 +1235,38 @@
     // ====== Portfolio Allocation Helper ======
     async function getCurrentPortfolioAllocation() {
       let realBalances = [];
-      
+
       try {
-        // Utiliser les vraies données CSV comme dans le dashboard principal
-        let csvResponse;
-        try {
-          csvResponse = await fetch('/data/raw/CoinTracking - Current Balance.csv');
-          if (!csvResponse.ok) {
-            throw new Error('Uvicorn path failed');
-          }
-        } catch {
-          csvResponse = await fetch('./data/raw/CoinTracking - Current Balance.csv');
+        // Utiliser la source de données configurée
+        console.log('🔍 Loading portfolio allocation using configured source...');
+        const balanceResult = await window.loadBalanceData();
+
+        if (!balanceResult.success) {
+          throw new Error(balanceResult.error);
         }
-        
-        if (!csvResponse.ok) {
-          throw new Error('CSV not available from either path');
+
+        let balances;
+
+        if (balanceResult.csvText) {
+          // Source CSV locale
+          balances = window.parseCSVBalances(balanceResult.csvText);
+        } else if (balanceResult.data && balanceResult.data.items) {
+          // Source API (stub ou cointracking_api)
+          balances = balanceResult.data.items.map(item => ({
+            symbol: item.symbol,
+            balance: item.balance,
+            value_usd: item.value_usd
+          }));
+        } else {
+          throw new Error('Invalid data format received');
         }
-        
-        const csvText = await csvResponse.text();
-        const balances = parseCSVBalances(csvText);
+
         realBalances = balances.map(item => ({
           symbol: item.symbol,
           value_usd: item.value_usd
         }));
-        console.log('🔍 DEBUG getCurrentPortfolioAllocation: Using real CSV data -', realBalances.length, 'assets, total:', realBalances.reduce((s,i) => s + i.value_usd, 0).toFixed(2), '$');
-        
+        console.log('🔍 DEBUG getCurrentPortfolioAllocation: Using real CSV data -', realBalances.length, 'assets, total:', realBalances.reduce((s, i) => s + i.value_usd, 0).toFixed(2), '$');
+
       } catch (error) {
         console.error('CRITICAL: Could not load CSV data in getCurrentPortfolioAllocation:', error);
         throw error; // Don't fallback - fail properly so we know there's an issue
@@ -1347,7 +1288,7 @@
       realBalances.forEach(item => {
         const symbol = item.symbol.toUpperCase();
         let foundGroup = null;
-        
+
         // Find which group this asset belongs to
         for (const [groupName, aliases] of Object.entries(classification)) {
           if (aliases.includes(symbol)) {
@@ -1355,7 +1296,7 @@
             break;
           }
         }
-        
+
         // Add to appropriate group or Others
         const targetGroup = foundGroup || 'Others';
         allocation[targetGroup] += (item.value_usd / totalValue) * 100;
@@ -1382,7 +1323,7 @@
       // Current targets from store or use blended as default display
       const appliedTargets = state.targets?.proposed || blendedProposal.targets;
       const appliedStrategy = state.targets?.strategy || blendedProposal.strategy;
-      
+
       // Get real current portfolio allocation
       const currentAllocation = await getCurrentPortfolioAllocation();
 
@@ -1700,7 +1641,7 @@
 
       // Load initial data
       refreshDashboard();
-      
+
       // Apply blended strategy as default if no strategy is already selected
       setTimeout(() => {
         const currentStrategy = store.get('targets.strategy');

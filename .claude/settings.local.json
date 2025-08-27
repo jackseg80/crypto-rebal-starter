@@ -61,7 +61,14 @@
       "Bash(start http://localhost:8000/static/monitoring-unified.html)",
       "Bash(node:*)",
       "Bash(start http://localhost:8000/debug_csv_values.html)",
-      "Bash(del debug_csv_values.html)"
+      "Bash(del debug_csv_values.html)",
+      "Bash(start http://localhost:8000/static/rebalance.html)",
+      "Bash(start http://localhost:8000/static/settings.html)",
+      "Bash(start http://localhost:8000/static/test-data-sources.html)",
+      "Bash(del:*)",
+      "Bash(start http://localhost:8000/static/debug-test.html)",
+      "Bash(git log:*)",
+      "Bash(start http://localhost:8080/static/settings.html)"
     ],
     "deny": [],
     "ask": [],

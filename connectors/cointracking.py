@@ -182,26 +182,164 @@ def _resolve_csv_path(cands):
 
 
 def get_current_balances_from_csv() -> Dict[str, Any]:
+    """Charge les données Current Balance depuis CSV avec support dynamique des dates"""
+    import glob
     env_cur = os.getenv("COINTRACKING_CSV")
-    names = ["CoinTracking - Current Balance_mini.csv", "CoinTracking - Current Balance.csv"]
+    
+    # Recherche dynamique des fichiers "Current Balance" avec dates
+    data_raw_dir = os.path.join("data", "raw")
+    current_patterns = [
+        "CoinTracking - Current Balance - *.csv",  # Avec date quelconque
+        "CoinTracking - Current Balance_*.csv",    # Autres variantes
+        "CoinTracking - Current Balance.csv"       # Sans date
+    ]
+    
+    # Chercher tous les fichiers correspondants aux patterns
+    found_files = []
+    if os.path.exists(data_raw_dir):
+        for pattern in current_patterns:
+            pattern_path = os.path.join(data_raw_dir, pattern)
+            found_files.extend(glob.glob(pattern_path))
+    
+    # Trier par date de modification (plus récent en premier)
+    found_files.sort(key=lambda f: os.path.getmtime(f) if os.path.exists(f) else 0, reverse=True)
+    
+    # Construire la liste des candidats
     cands = []
-    if env_cur:
+    if env_cur and "Current Balance" in env_cur:
         cands.append(env_cur)
-    for n in names:
-        cands += [os.path.join("data", n), n]
+    
+    # Ajouter tous les fichiers trouvés (triés par date)
+    cands.extend(found_files)
+    
+    # Ajouter aussi les anciens noms fixes pour compatibilité
+    legacy_names = ["CoinTracking - Current Balance_mini.csv", "CoinTracking - Current Balance.csv"]
+    for n in legacy_names:
+        cands += [os.path.join("data", "raw", n), os.path.join("data", n), n]
+    
     p = _resolve_csv_path([c for c in cands if c])
     rows = _read_csv_safe(p)
     items = _aggregate_by_symbol(rows)
     return {"source_used": "cointracking", "items": items}
 
 
-def get_balances_by_exchange_from_csv() -> Dict[str, Any]:
+def get_coins_by_exchange_from_csv() -> Dict[str, Any]:
+    """Charge les données 'Coins by Exchange' depuis CSV avec support dynamique des dates"""
+    import glob
     env_cur = os.getenv("COINTRACKING_CSV")
-    ex_names = [
-        "CoinTracking - Balance by Exchange - 22.08.2025.csv",
-        "CoinTracking - Balance by Exchange_mini.csv", 
-        "CoinTracking - Balance by Exchange.csv"
+    
+    # Recherche dynamique des fichiers "Coins by Exchange" avec dates
+    data_raw_dir = os.path.join("data", "raw")
+    coins_patterns = [
+        "CoinTracking - Coins by Exchange - *.csv",  # Avec date quelconque
+        "CoinTracking - Coins by Exchange_*.csv",    # Autres variantes
+        "CoinTracking - Coins by Exchange.csv"       # Sans date
     ]
+    
+    # Chercher tous les fichiers correspondants aux patterns
+    found_files = []
+    if os.path.exists(data_raw_dir):
+        for pattern in coins_patterns:
+            pattern_path = os.path.join(data_raw_dir, pattern)
+            found_files.extend(glob.glob(pattern_path))
+    
+    # Trier par date de modification (plus récent en premier)
+    found_files.sort(key=lambda f: os.path.getmtime(f) if os.path.exists(f) else 0, reverse=True)
+    
+    # Fallback vers Current Balance si aucun Coins by Exchange
+    fb_names = ["CoinTracking - Current Balance_mini.csv", "CoinTracking - Current Balance.csv"]
+    
+    # Construire la liste des candidats
+    cands = []
+    if env_cur and "Coins by Exchange" in env_cur:
+        cands.append(env_cur)
+    
+    # Ajouter tous les fichiers trouvés (triés par date)
+    cands.extend(found_files)
+    
+    # Ajouter aussi les anciens noms fixes pour compatibilité
+    legacy_names = [
+        "CoinTracking - Coins by Exchange_mini.csv", 
+        "CoinTracking - Coins by Exchange.csv"
+    ]
+    for n in legacy_names:
+        cands += [os.path.join("data", "raw", n), os.path.join("data", n), n]
+    
+    # Fallback vers Current Balance si aucun Coins by Exchange trouvé
+    for n in fb_names:
+        cands += [os.path.join("data", "raw", n), os.path.join("data", n), n]
+    
+    p = _resolve_csv_path([c for c in cands if c])
+    rows = _read_csv_safe(p)
+    items = _build_coins_by_exchange_structure(rows)
+    return {"source_used": "cointracking_coins", "items": items}
+
+
+def _build_coins_by_exchange_structure(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Construit la structure coins par exchange à partir des lignes CSV"""
+    # Dictionnaire pour grouper par exchange puis par coin
+    exchanges = {}
+    
+    for row in rows:
+        symbol = _guess_symbol(row)
+        amount = _guess_amount(row) 
+        value_usd = _guess_value_usd(row)
+        exchange = _get_first(row, _EXCHANGE_KEYS) or "Unknown"
+        
+        if not symbol or amount <= 0 or value_usd <= 0:
+            continue
+            
+        # Initialiser exchange si pas encore présent
+        if exchange not in exchanges:
+            exchanges[exchange] = {}
+        
+        # Ajouter ou cumuler le coin dans cet exchange
+        if symbol in exchanges[exchange]:
+            exchanges[exchange][symbol]["amount"] += amount
+            exchanges[exchange][symbol]["value_usd"] += value_usd
+        else:
+            exchanges[exchange][symbol] = {
+                "symbol": symbol,
+                "amount": amount,
+                "value_usd": value_usd
+            }
+    
+    # Convertir en structure de liste pour l'API
+    result = []
+    for exchange, coins in exchanges.items():
+        for symbol, data in coins.items():
+            result.append({
+                "symbol": symbol,
+                "amount": data["amount"],
+                "value_usd": data["value_usd"],
+                "location": exchange
+            })
+    
+    return result
+
+
+def get_balances_by_exchange_from_csv() -> Dict[str, Any]:
+    import glob
+    env_cur = os.getenv("COINTRACKING_CSV")
+    
+    # Recherche dynamique des fichiers "Balance by Exchange" avec dates
+    data_raw_dir = os.path.join("data", "raw")
+    balance_patterns = [
+        "CoinTracking - Balance by Exchange - *.csv",  # Avec date quelconque
+        "CoinTracking - Balance by Exchange_*.csv",    # Autres variantes
+        "CoinTracking - Balance by Exchange.csv"       # Sans date
+    ]
+    
+    # Chercher tous les fichiers correspondants aux patterns
+    found_files = []
+    if os.path.exists(data_raw_dir):
+        for pattern in balance_patterns:
+            pattern_path = os.path.join(data_raw_dir, pattern)
+            found_files.extend(glob.glob(pattern_path))
+    
+    # Trier par date de modification (plus récent en premier)
+    found_files.sort(key=lambda f: os.path.getmtime(f) if os.path.exists(f) else 0, reverse=True)
+    
     fb_names = ["CoinTracking - Current Balance_mini.csv", "CoinTracking - Current Balance.csv"]
     
     # Privilégier les fichiers "Balance by Exchange" d'abord
@@ -209,8 +347,15 @@ def get_balances_by_exchange_from_csv() -> Dict[str, Any]:
     if env_cur and "Balance by Exchange" in env_cur:
         cands.append(env_cur)
     
-    # Chercher d'abord les fichiers "Balance by Exchange"
-    for n in ex_names:
+    # Ajouter tous les fichiers trouvés (triés par date)
+    cands.extend(found_files)
+    
+    # Ajouter aussi les anciens noms fixes pour compatibilité
+    legacy_names = [
+        "CoinTracking - Balance by Exchange_mini.csv", 
+        "CoinTracking - Balance by Exchange.csv"
+    ]
+    for n in legacy_names:
         cands += [os.path.join("data", "raw", n), os.path.join("data", n), n]
     
     # Si aucun fichier "Balance by Exchange" trouvé, utiliser Current Balance en fallback

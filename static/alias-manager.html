@@ -424,23 +424,29 @@
         'IMO': 'Others'
       };
       
-      // Try to enhance with real CSV data
+      // Try to enhance with configured data source
       try {
-        // Essayer d'abord le chemin uvicorn, puis le chemin local
-        let csvResponse;
-        try {
-          csvResponse = await fetch('/data/raw/CoinTracking - Current Balance.csv');
-          if (!csvResponse.ok) {
-            throw new Error('Uvicorn path failed');
-          }
-        } catch {
-          csvResponse = await fetch('./data/raw/CoinTracking - Current Balance.csv');
-        }
-        if (csvResponse.ok) {
-          const csvText = await csvResponse.text();
-          const balances = parseCSVBalances(csvText);
+        console.log('🔍 Loading alias data using configured source...');
+        const balanceResult = await window.loadBalanceData();
+        
+        if (balanceResult.success) {
+          let balances;
           
-          console.log('🔍 DEBUG Alias Manager: Found', balances.length, 'assets in CSV');
+          if (balanceResult.csvText) {
+            // Source CSV locale
+            balances = window.parseCSVBalances(balanceResult.csvText);
+          } else if (balanceResult.data && balanceResult.data.items) {
+            // Source API (stub ou cointracking_api)
+            balances = balanceResult.data.items.map(item => ({
+              symbol: item.symbol,
+              balance: item.balance,
+              value_usd: item.value_usd
+            }));
+          } else {
+            throw new Error('Invalid data format received');
+          }
+          
+          console.log('🔍 DEBUG Alias Manager: Found', balances.length, 'assets using source:', balanceResult.source);
           
           // Add any missing assets from CSV to mockAliases
           balances.forEach(item => {

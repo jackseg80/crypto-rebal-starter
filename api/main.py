@@ -34,6 +34,7 @@ from api.risk_endpoints import router as risk_router
 from api.execution_history import router as execution_history_router
 from api.monitoring_advanced import router as monitoring_advanced_router
 from api.portfolio_monitoring import router as portfolio_monitoring_router
+from api.csv_endpoints import router as csv_router
 from api.exceptions import (
     CryptoRebalancerException, APIException, ValidationException, 
     ConfigurationException, TradingException, DataException, ErrorCodes
@@ -366,7 +367,7 @@ async def resolve_current_balances(source: str = Query("cointracking_api")) -> D
     items = []
     try:
         raw = await ct_file.get_current_balances()
-        for r in raw or []:
+        for r in raw.get("items", []):
             items.append({
                 "symbol": r.get("symbol"),
                 "alias": r.get("alias") or r.get("symbol"),
@@ -851,6 +852,7 @@ app.include_router(risk_router)
 app.include_router(execution_history_router)
 app.include_router(monitoring_advanced_router)
 app.include_router(portfolio_monitoring_router)
+app.include_router(csv_router)
 
 # ---------- Portfolio Analytics ----------
 @app.get("/portfolio/metrics")

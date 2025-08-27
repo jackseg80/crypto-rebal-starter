@@ -734,25 +734,31 @@
     }
 
     async function loadRealCSVPortfolioData() {
-      console.log('🔄 Loading REAL CSV data for monitoring consistency...');
+      console.log('🔄 Loading monitoring data using configured source...');
       
-      // Lire le vrai CSV comme les autres dashboards - PAS DE FALLBACK
-      let csvResponse;
-      try {
-        csvResponse = await fetch('/data/raw/CoinTracking - Current Balance.csv');
-        if (!csvResponse.ok) {
-          throw new Error('Uvicorn path failed');
-        }
-      } catch {
-        csvResponse = await fetch('./data/raw/CoinTracking - Current Balance.csv');
+      const balanceResult = await window.loadBalanceData();
+      
+      if (!balanceResult.success) {
+        console.error('❌ Failed to load balance data:', balanceResult.error);
+        throw new Error(balanceResult.error);
       }
       
-      if (!csvResponse.ok) {
-        throw new Error('CSV not available');
+      let balances;
+      
+      if (balanceResult.csvText) {
+        // Source CSV locale
+        balances = window.parseCSVBalances(balanceResult.csvText);
+      } else if (balanceResult.data && balanceResult.data.items) {
+        // Source API (stub ou cointracking_api)
+        balances = balanceResult.data.items.map(item => ({
+          symbol: item.symbol,
+          balance: item.balance,
+          value_usd: item.value_usd
+        }));
+      } else {
+        throw new Error('Invalid data format received');
       }
       
-      const csvText = await csvResponse.text();
-      const balances = parseCSVBalances(csvText);
       const totalValue = balances.reduce((sum, item) => sum + item.value_usd, 0);
       
       console.log(`✅ REAL CSV monitoring data: total: $${totalValue.toFixed(2)}`);

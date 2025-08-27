@@ -361,6 +361,132 @@ window.updateGlobalSetting = (key, value) => globalConfig.set(key, value);
 window.getApiUrl = (endpoint, params) => globalConfig.getApiUrl(endpoint, params);
 window.apiRequest = (endpoint, options) => globalConfig.apiRequest(endpoint, options);
 
+/**
+ * Fonction centralisée pour charger les données de balance selon la source configurée
+ */
+window.loadBalanceData = async function() {
+  const dataSource = globalConfig.get('data_source');
+  const apiBaseUrl = globalConfig.get('api_base_url');
+  
+  console.log(`🔍 Loading balance data using source: ${dataSource}`);
+  
+  try {
+    switch (dataSource) {
+      case 'cointracking_api':
+        // Source API CoinTracking - via backend
+        console.log('📡 Using CoinTracking API source');
+        const apiResponse = await fetch(`${apiBaseUrl}/balances/current?source=cointracking_api`);
+        if (!apiResponse.ok) {
+          throw new Error(`API Error: ${apiResponse.status}`);
+        }
+        const apiData = await apiResponse.json();
+        return {
+          success: true,
+          data: apiData,
+          source: 'cointracking_api'
+        };
+        
+      case 'stub':
+        // Source stub - données de démo via backend
+        console.log('🧪 Using stub data source');
+        const stubResponse = await fetch(`${apiBaseUrl}/balances/current?source=stub`);
+        if (!stubResponse.ok) {
+          throw new Error(`Stub Error: ${stubResponse.status}`);
+        }
+        const stubData = await stubResponse.json();
+        return {
+          success: true,
+          data: stubData,
+          source: 'stub'
+        };
+        
+      case 'cointracking':
+      default:
+        // Source CSV locale - via API backend
+        console.log('📄 Using local CoinTracking CSV files via API');
+        const csvResponse = await fetch(`${apiBaseUrl}/balances/current?source=cointracking`);
+        if (!csvResponse.ok) {
+          throw new Error(`CSV API Error: ${csvResponse.status}`);
+        }
+        
+        const csvData = await csvResponse.json();
+        return {
+          success: true,
+          data: csvData,
+          source: 'cointracking'
+        };
+    }
+  } catch (error) {
+    console.error(`❌ Error loading balance data (source: ${dataSource}):`, error);
+    return {
+      success: false,
+      error: error.message,
+      source: dataSource
+    };
+  }
+};
+
+/**
+ * Fonction pour parser les données CSV de balance (commune à toutes les pages)
+ */
+window.parseCSVBalances = function(csvText) {
+  const cleanedText = csvText.replace(/^\ufeff/, '');
+  const lines = cleanedText.split('\n');
+  const balances = [];
+  const minThreshold = globalConfig.get('min_usd_threshold') || 1.0;
+
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+
+    try {
+      const columns = window.parseCSVLine(line);
+      if (columns.length >= 5) {
+        const ticker = columns[0];
+        const amount = parseFloat(columns[3]);
+        const valueUSD = parseFloat(columns[4]);
+        
+        if (ticker && !isNaN(amount) && !isNaN(valueUSD) && valueUSD >= minThreshold) {
+          balances.push({
+            symbol: ticker.toUpperCase(),
+            balance: amount,
+            value_usd: valueUSD
+          });
+        }
+      }
+    } catch (error) {
+      console.warn('Error parsing CSV line:', error);
+    }
+  }
+
+  return balances;
+};
+
+/**
+ * Fonction pour parser une ligne CSV (gère les guillemets et points-virgules)
+ */
+window.parseCSVLine = function(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ';' && !inQuotes) {
+      result.push(current);
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  
+  result.push(current);
+  return result.map(item => item.replace(/^"|"$/g, ''));
+};
+
 // Événements pour synchronisation cross-tab
 window.addEventListener('storage', (e) => {
   if (e.key === 'crypto_rebalancer_settings') {

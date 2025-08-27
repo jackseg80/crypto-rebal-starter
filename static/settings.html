@@ -8,6 +8,9 @@
   <link rel="stylesheet" href="shared-theme.css">
   <link rel="stylesheet" href="theme-compat.css">
 
+  <script src="debug-logger.js"></script>
+  <script src="input-validator.js"></script>
+  <script src="performance-optimizer.js"></script>
   <script src="global-config.js"></script>
   <script src="shared-header.js"></script>
   <script src="appearance.js"></script>
@@ -412,6 +415,60 @@
       <div class="test-section">
         <button class="btn secondary small" onclick="testApiKeys()">🧪 Tester les APIs</button>
         <div id="api-keys-test"></div>
+      </div>
+    </div>
+
+    <!-- Téléchargement Automatique CSV -->
+    <div class="card">
+      <h3>📥 Téléchargement Automatique CSV</h3>
+      <div class="help" style="margin-bottom: 16px;">
+        Télécharge automatiquement les derniers fichiers CSV depuis CoinTracking avec les noms corrects.
+      </div>
+
+      <div class="form-group">
+        <label>Fichiers à télécharger</label>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
+            <input type="checkbox" id="download_current_balance" checked>
+            <span>📄 Current Balance - Balance actuelle totale</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
+            <input type="checkbox" id="download_balance_by_exchange" checked>
+            <span>🏦 Balance by Exchange - Balance par exchange</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
+            <input type="checkbox" id="download_coins_by_exchange">
+            <span>🪙 Coins by Exchange - Détail par exchange</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Dossier de destination</label>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <input type="text" id="csv_download_path" value="data/raw/" placeholder="data/raw/" style="flex: 1;">
+          <button class="btn small secondary" onclick="browseDownloadFolder()">📁</button>
+        </div>
+        <div class="help">Dossier où sauvegarder les fichiers CSV téléchargés.</div>
+      </div>
+
+      <div class="form-group">
+        <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
+          <input type="checkbox" id="auto_download_enabled">
+          <span>🔄 Téléchargement automatique quotidien</span>
+        </label>
+        <div class="help">Télécharge automatiquement les nouveaux CSV chaque jour à 08h00.</div>
+      </div>
+
+      <div style="display: flex; gap: 8px; margin-top: 16px;">
+        <button class="btn primary" onclick="downloadCSVFiles()">
+          <span id="download-btn-text">📥 Télécharger Maintenant</span>
+        </button>
+        <button class="btn secondary" onclick="checkCSVStatus()">📊 Vérifier Fichiers</button>
+      </div>
+
+      <div id="csv-download-status" class="test-section">
+        <div class="help">Status des fichiers CSV locaux apparaîtra ici.</div>
       </div>
     </div>
 
@@ -1092,6 +1149,203 @@
         // L'interface n'a pas besoin d'être mise à jour car elle suit déjà globalConfig
       });
     });
+
+    // ===== FONCTIONS TÉLÉCHARGEMENT CSV =====
+
+    async function downloadCSVFiles() {
+      const downloadBtn = document.getElementById('download-btn-text');
+      const statusDiv = document.getElementById('csv-download-status');
+      
+      // Vérifier les clés API
+      const apiKey = globalConfig.get('cointracking_api_key');
+      const apiSecret = globalConfig.get('cointracking_api_secret');
+      
+      if (!apiKey || !apiSecret) {
+        statusDiv.innerHTML = '<div class="error">❌ Clés API CoinTracking requises pour le téléchargement automatique.</div>';
+        return;
+      }
+
+      downloadBtn.textContent = '⏳ Téléchargement...';
+      statusDiv.innerHTML = '<div class="info">🔄 Téléchargement en cours...</div>';
+
+      try {
+        const selectedFiles = getSelectedFiles();
+        const downloadPath = document.getElementById('csv_download_path').value || 'data/raw/';
+        
+        const results = [];
+        
+        for (const fileType of selectedFiles) {
+          try {
+            const result = await downloadSingleCSV(fileType, downloadPath);
+            results.push(result);
+          } catch (error) {
+            results.push({
+              type: fileType,
+              success: false,
+              error: error.message
+            });
+          }
+        }
+        
+        displayDownloadResults(results);
+        
+      } catch (error) {
+        statusDiv.innerHTML = `<div class="error">❌ Erreur téléchargement: ${error.message}</div>`;
+      } finally {
+        downloadBtn.textContent = '📥 Télécharger Maintenant';
+      }
+    }
+
+    function getSelectedFiles() {
+      const files = [];
+      if (document.getElementById('download_current_balance').checked) {
+        files.push('current_balance');
+      }
+      if (document.getElementById('download_balance_by_exchange').checked) {
+        files.push('balance_by_exchange');
+      }
+      if (document.getElementById('download_coins_by_exchange').checked) {
+        files.push('coins_by_exchange');
+      }
+      return files;
+    }
+
+    async function downloadSingleCSV(fileType, downloadPath) {
+      // Appeler l'API backend pour télécharger le CSV
+      const response = await globalConfig.apiRequest('/csv/download', {
+        method: 'POST',
+        body: JSON.stringify({
+          file_type: fileType,
+          download_path: downloadPath,
+          auto_name: true  // Utilise automatiquement le nom avec date
+        })
+      });
+
+      if (response.success) {
+        return {
+          type: fileType,
+          success: true,
+          filename: response.filename,
+          path: response.path,
+          size: response.size
+        };
+      } else {
+        throw new Error(response.error || 'Téléchargement échoué');
+      }
+    }
+
+    function displayDownloadResults(results) {
+      const statusDiv = document.getElementById('csv-download-status');
+      let html = '<div style="margin-top: 16px;"><h4>Résultats du téléchargement:</h4><ul>';
+      
+      results.forEach(result => {
+        const icon = result.success ? '✅' : '❌';
+        const fileLabel = getFileLabel(result.type);
+        
+        if (result.success) {
+          html += `<li>${icon} <strong>${fileLabel}</strong>: ${result.filename} (${formatFileSize(result.size)})</li>`;
+        } else {
+          html += `<li>${icon} <strong>${fileLabel}</strong>: ${result.error}</li>`;
+        }
+      });
+      
+      html += '</ul></div>';
+      statusDiv.innerHTML = html;
+      
+      // Actualiser le status des fichiers après téléchargement
+      setTimeout(checkCSVStatus, 1000);
+    }
+
+    function getFileLabel(type) {
+      const labels = {
+        'current_balance': 'Current Balance',
+        'balance_by_exchange': 'Balance by Exchange', 
+        'coins_by_exchange': 'Coins by Exchange'
+      };
+      return labels[type] || type;
+    }
+
+    function formatFileSize(bytes) {
+      if (!bytes) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    async function checkCSVStatus() {
+      const statusDiv = document.getElementById('csv-download-status');
+      
+      try {
+        const response = await globalConfig.apiRequest('/csv/status');
+        
+        if (response.success) {
+          displayCSVStatus(response.files);
+        } else {
+          statusDiv.innerHTML = '<div class="error">❌ Impossible de vérifier le status des fichiers CSV.</div>';
+        }
+      } catch (error) {
+        statusDiv.innerHTML = `<div class="error">❌ Erreur vérification: ${error.message}</div>`;
+      }
+    }
+
+    function displayCSVStatus(files) {
+      const statusDiv = document.getElementById('csv-download-status');
+      
+      if (!files || files.length === 0) {
+        statusDiv.innerHTML = '<div class="warning">⚠️ Aucun fichier CSV trouvé dans data/raw/</div>';
+        return;
+      }
+      
+      let html = '<div style="margin-top: 16px;"><h4>Fichiers CSV disponibles:</h4><ul>';
+      
+      files.forEach(file => {
+        const age = getFileAge(file.modified);
+        const ageClass = age.days > 1 ? 'warning' : age.hours > 12 ? 'info' : 'success';
+        
+        html += `<li>
+          <span class="status-indicator status-${ageClass}">📄</span>
+          <strong>${file.name}</strong> 
+          (${formatFileSize(file.size)}, ${age.text})
+        </li>`;
+      });
+      
+      html += '</ul></div>';
+      statusDiv.innerHTML = html;
+    }
+
+    function getFileAge(modifiedTimestamp) {
+      const now = Date.now();
+      const modified = new Date(modifiedTimestamp).getTime();
+      const diffMs = now - modified;
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffDays = Math.floor(diffHours / 24);
+      
+      if (diffDays > 0) {
+        return { days: diffDays, hours: diffHours, text: `${diffDays}j` };
+      } else if (diffHours > 0) {
+        return { days: 0, hours: diffHours, text: `${diffHours}h` };
+      } else {
+        const diffMinutes = Math.floor(diffMs / (1000 * 60));
+        return { days: 0, hours: 0, text: `${diffMinutes}min` };
+      }
+    }
+
+    function browseDownloadFolder() {
+      // Pour l'instant, juste permettre de saisir manuellement
+      // Dans une vraie application, on utiliserait l'API File System
+      const currentPath = document.getElementById('csv_download_path').value;
+      const newPath = prompt('Chemin du dossier de téléchargement:', currentPath);
+      if (newPath) {
+        document.getElementById('csv_download_path').value = newPath;
+      }
+    }
+
+    // Charger le status des CSV au chargement de la page
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(checkCSVStatus, 1000); // Attendre que globalConfig soit prêt
+    });
+
   </script>
 
 </body>

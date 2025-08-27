@@ -8,6 +8,9 @@
     <link rel="stylesheet" href="shared-theme.css">
     <link rel="stylesheet" href="theme-compat.css">
 
+    <script src="debug-logger.js"></script>
+    <script src="input-validator.js"></script>
+    <script src="performance-optimizer.js"></script>
     <script src="global-config.js"></script>
     <script src="shared-header.js"></script>
     <script src="appearance.js"></script>
@@ -671,7 +674,7 @@
 
                     showNotification('Données mises à jour', 'success');
                 } catch (error) {
-                    console.error('Error refreshing data:', error);
+                    log.error('Error refreshing data:', error);
                     showNotification('Erreur lors de la mise à jour', 'error');
                 }
             }
@@ -721,7 +724,7 @@
                     await loadSessions();
 
                 } catch (error) {
-                    console.error('Error loading dashboard data:', error);
+                    log.error('Error loading dashboard data:', error);
                     showNotification('API non disponible - Données simulées', 'warning');
                     
                     // Charger des données simulées
@@ -909,7 +912,7 @@
                     });
 
                 } catch (error) {
-                    console.error('Error loading sessions:', error);
+                    log.error('Error loading sessions:', error);
                     document.getElementById('sessionsList').innerHTML =
                         '<div style="color: var(--danger);">Erreur de chargement des sessions</div>';
                 }
@@ -1090,7 +1093,7 @@
                 `;
 
                 } catch (error) {
-                    console.error('Error loading trends:', error);
+                    log.error('Error loading trends:', error);
                     document.getElementById('trendsData').innerHTML =
                         '<div style="color: var(--danger);">Erreur de chargement des tendances</div>';
                 }
@@ -1125,7 +1128,7 @@
                     }
 
                 } catch (error) {
-                    console.error('Error loading insights:', error);
+                    log.error('Error loading insights:', error);
                     document.getElementById('insightsList').innerHTML =
                         '<li style="color: var(--danger);">Erreur de chargement des insights</li>';
                 }
@@ -1207,7 +1210,7 @@
                     modal.classList.add('show');
 
                 } catch (error) {
-                    console.error('Error loading session details:', error);
+                    log.error('Error loading session details:', error);
                     showNotification('Erreur chargement détails session', 'error');
                 }
             }
@@ -1269,7 +1272,7 @@
                     showNotification('Export en cours...', 'success');
 
                 } catch (error) {
-                    console.error('Error exporting data:', error);
+                    log.error('Error exporting data:', error);
                     showNotification('Erreur lors de l\'export', 'error');
                 }
             }

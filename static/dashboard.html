@@ -8,6 +8,9 @@
     <link rel="stylesheet" href="shared-theme.css">
     <link rel="stylesheet" href="theme-compat.css">
 
+    <script src="debug-logger.js"></script>
+    <script src="input-validator.js"></script>
+    <script src="performance-optimizer.js"></script>
     <script src="global-config.js"></script>
     <script src="shared-header.js"></script>
     <script src="appearance.js"></script>
@@ -258,8 +261,8 @@
     <div class="wrap">
         <div class="dashboard-grid">
 
-            <!-- Portfolio Overview -->
-            <div class="card">
+            <!-- Portfolio Overview - Disposition améliorée pour gagner de la place -->
+            <div class="card" style="grid-column: span 2;">
                 <div class="card-header">
                     <div class="card-title"><span class="card-icon">💰</span>Portfolio Overview</div>
                     <div style="display:flex;gap:8px;align-items:center;">
@@ -269,32 +272,48 @@
                     </div>
                 </div>
 
-                <div class="metric">
-                    <span class="metric-label">Total Value</span>
-                    <span class="metric-value" id="total-value">--</span>
-                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg);">
+                    <!-- Colonne gauche : Métriques -->
+                    <div>
+                        <div class="metric">
+                            <span class="metric-label">Total Value</span>
+                            <span class="metric-value" id="total-value">--</span>
+                        </div>
 
-                <div class="metric">
-                    <span class="metric-label">P&L Today</span>
-                    <span class="metric-value" id="daily-pnl">--</span>
-                </div>
+                        <div class="metric">
+                            <span class="metric-label">P&L Today</span>
+                            <span class="metric-value" id="daily-pnl">--</span>
+                        </div>
 
-                <div class="metric">
-                    <span class="metric-label">Assets Count</span>
-                    <span class="metric-value" id="assets-count">--</span>
-                </div>
-
-                <div class="portfolio-chart" id="portfolio-chart">
-                    <canvas id="portfolioChartCanvas"></canvas>
-                </div>
-                
-                <!-- Liste détaillée des allocations (collapsible) -->
-                <div id="portfolio-breakdown" style="margin-top: var(--space-lg); font-size: 0.875rem;">
-                    <div onclick="toggleBreakdown()" style="font-weight: 600; margin-bottom: var(--space-sm); color: var(--theme-text-muted); cursor: pointer; display: flex; align-items: center; gap: var(--space-xs);">
-                        <span id="breakdown-arrow">▶️</span>
-                        <span>📊 Breakdown détaillé</span>
+                        <div class="metric">
+                            <span class="metric-label">Assets Count</span>
+                            <span class="metric-value" id="assets-count">--</span>
+                        </div>
                     </div>
-                    <div id="breakdown-list" style="display: none;">Loading...</div>
+
+                    <!-- Colonne droite : Graphique et Breakdown -->
+                    <div>
+                        <!-- Contrôle pour cacher/afficher le graphique -->
+                        <div onclick="togglePortfolioChart()"
+                            style="font-weight: 600; margin-bottom: var(--space-sm); color: var(--theme-text-muted); cursor: pointer; display: flex; align-items: center; gap: var(--space-xs);">
+                            <span id="chart-arrow">▶️</span>
+                            <span>📊 Graphique portfolio</span>
+                        </div>
+
+                        <div class="portfolio-chart" id="portfolio-chart" style="display: none;">
+                            <canvas id="portfolioChartCanvas"></canvas>
+                        </div>
+
+                        <!-- Liste détaillée des allocations (collapsible) -->
+                        <div id="portfolio-breakdown" style="margin-top: var(--space-lg); font-size: 0.875rem;">
+                            <div onclick="toggleBreakdown()"
+                                style="font-weight: 600; margin-bottom: var(--space-sm); color: var(--theme-text-muted); cursor: pointer; display: flex; align-items: center; gap: var(--space-xs);">
+                                <span id="breakdown-arrow">▶️</span>
+                                <span>📊 Breakdown détaillé</span>
+                            </div>
+                            <div id="breakdown-list" style="display: none;">Loading...</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -393,7 +412,8 @@
 
             // Écouter les changements de thème pour synchronisation cross-tab
             window.addEventListener('storage', function (e) {
-                if (e.key === 'crypto_rebalancer_settings') {
+                const expectedKey = (window.globalConfig?.getStorageKey && window.globalConfig.getStorageKey()) || 'crypto_rebal_settings_v1';
+                if (e.key === expectedKey) {
                     console.log('Settings changed in another tab, reapplying theme...');
                     setTimeout(() => {
                         if (window.globalConfig && window.globalConfig.applyTheme) {
@@ -418,7 +438,7 @@
             try {
                 // Charger d'abord les groupes depuis alias-manager
                 await loadAssetGroups();
-                
+
                 const [portfolioData, connectionsData, historyData, executionStatus] = await Promise.allSettled([
                     loadPortfolioData(), loadConnectionsStatus(), loadRecentHistory(), loadExecutionStatus()
                 ]);
@@ -430,7 +450,8 @@
 
                 console.log('✅ Dashboard data loaded successfully');
             } catch (e) {
-                console.error('Erreur chargement dashboard:', e);
+                log.error('Erreur chargement dashboard:', e);
+                showError('Impossible de charger les données du dashboard. Vérifiez votre connexion.');
                 showError('Erreur lors du chargement des données');
             }
         }
@@ -440,59 +461,69 @@
                 console.log('📊 Loading REAL CSV data for consistency');
                 return await loadRealCSVPortfolioData();
             } catch (e) {
-                console.error('Erreur portfolio CSV non disponible:', e);
+                log.error('Erreur portfolio CSV non disponible:', e);
+                showError('Fichier CSV du portfolio non accessible.');
                 return null; // Pas de fallback hardcodé
             }
         }
 
         async function loadRealCSVPortfolioData() {
-            console.log('🔄 Loading REAL CSV portfolio data...');
-            
-            let csvResponse;
-            try {
-                csvResponse = await fetch('/data/raw/CoinTracking - Current Balance.csv');
-                if (!csvResponse.ok) {
-                    throw new Error('Uvicorn path failed');
-                }
-            } catch {
-                csvResponse = await fetch('./data/raw/CoinTracking - Current Balance.csv');
+            console.log('🔄 Loading portfolio data using configured source...');
+            const balanceResult = await window.loadBalanceData();
+
+            if (!balanceResult || !balanceResult.success) {
+                const msg = balanceResult?.error || 'Failed to load balance data';
+                log.error(msg);
+                throw new Error(msg);
             }
-            
-            if (csvResponse.ok) {
-                const csvText = await csvResponse.text();
-                const balances = parseCSVBalances(csvText);
-                const totalValue = balances.reduce((sum, item) => sum + item.value_usd, 0);
-                const assetCount = balances.length; // Dynamic calculation from CSV (>=1$)
-                
-                console.log(`✅ REAL CSV data loaded: ${balances.length} assets parsed, total: $${totalValue.toFixed(2)}`);
-                
-                return {
-                    ok: true,
-                    metrics: {
-                        total_value_usd: totalValue,
-                        asset_count: assetCount,
-                        last_updated: new Date().toISOString()
-                    },
-                    performance: {
-                        performance_available: true,
-                        current_value_usd: totalValue,
-                        absolute_change_usd: 2547.33
-                    },
-                    balances: {
-                        items: balances, // Tous les assets pour calcul correct des %
-                        total_count: balances.length,
-                        timestamp: new Date().toISOString()
-                    }
-                };
+
+            let balances;
+
+            if (balanceResult.csvText) {
+                // Source CSV locale
+                const csvText = balanceResult.csvText;
+                balances = parseCSVBalancesLocal(csvText, { thresholdUSD: (window.globalConfig?.get('min_usd_threshold')) ?? 1.0 });
+            } else if (balanceResult.data && Array.isArray(balanceResult.data.items)) {
+                // Source API
+                balances = balanceResult.data.items.map(item => ({
+                    symbol: item.symbol,
+                    balance: item.balance,
+                    value_usd: item.value_usd
+                }));
             } else {
-                throw new Error('Failed to fetch CSV data');
+                throw new Error('Invalid data format received');
             }
+
+            const totalValue = balances.reduce((sum, it) => sum + (parseFloat(it.value_usd) || 0), 0);
+            const assetCount = balances.length;
+
+            console.log(`✅ REAL data loaded: ${assetCount} assets, total: $${totalValue.toFixed(2)}`);
+
+            return {
+                ok: true,
+                metrics: {
+                    total_value_usd: totalValue,
+                    asset_count: assetCount,
+                    last_updated: new Date().toISOString()
+                },
+                performance: {
+                    performance_available: true,
+                    current_value_usd: totalValue,
+                    absolute_change_usd: 2547.33 // mock dev
+                },
+                balances: {
+                    items: balances,
+                    total_count: balances.length,
+                    timestamp: new Date().toISOString()
+                }
+            };
         }
+
 
         async function loadConnectionsStatus() {
             try {
                 return { binance: { name: "Binance", connected: true }, kraken: { name: "Kraken", connected: true }, coinbase: { name: "Coinbase", connected: false } };
-            } catch (e) { console.error('Erreur connexions:', e); return null; }
+            } catch (e) { log.error('Erreur connexions:', e); return null; }
         }
 
 
@@ -504,13 +535,13 @@
                         { exchange: "Kraken", total_orders: 2, successful_orders: 2, total_volume_usd: 890.25, timestamp: new Date(Date.now() - 7200000).toISOString() }
                     ]
                 };
-            } catch (e) { console.error('Erreur historique:', e); return null; }
+            } catch (e) { log.error('Erreur historique:', e); return null; }
         }
 
         async function loadExecutionStatus() {
             try {
                 return { recent_24h: { total_orders: 5, success_rate: 96.5, total_volume: 2140.75 } };
-            } catch (e) { console.error('Erreur statut exécution:', e); return null; }
+            } catch (e) { log.error('Erreur statut exécution:', e); return null; }
         }
 
         async function updatePortfolioDisplay(data) {
@@ -536,7 +567,7 @@
             if ((metrics.total_value_usd || 0) > 0) { statusEl.className = 'status-badge status-active'; statusEl.textContent = 'Actif'; }
             else { statusEl.className = 'status-badge status-warning'; statusEl.textContent = 'Vide'; }
 
-            console.log('🔍 DEBUG: About to call updatePortfolioChart with:', data.balances);
+            log.debug('About to call updatePortfolioChart with:', data.balances);
             await updatePortfolioChart(data.balances);
             updatePortfolioBreakdown(data.balances);
         }
@@ -618,8 +649,27 @@
             if (dm < 1440) return `${Math.floor(dm / 60)}h`;
             return `${Math.floor(dm / 1440)}j`;
         }
-        function showError(m) { console.error(m); }
-        async function forceRefreshData() { console.log('🔄 Force refresh demandé par utilisateur'); await loadDashboardData(); }
+        function showError(m) { 
+            log.error(m);
+            // Afficher l'erreur à l'utilisateur via UI
+            const errorDiv = document.getElementById('error-display') || createErrorDisplay();
+            errorDiv.textContent = m;
+            errorDiv.style.display = 'block';
+            setTimeout(() => errorDiv.style.display = 'none', 5000);
+        }
+
+        function createErrorDisplay() {
+            const div = document.createElement('div');
+            div.id = 'error-display';
+            div.style.cssText = `
+                position: fixed; top: 20px; right: 20px; z-index: 9999;
+                background: var(--theme-error, #ff4444); color: white;
+                padding: 12px 16px; border-radius: 8px; max-width: 400px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.2); display: none;
+            `;
+            document.body.appendChild(div);
+            return div;
+        }
 
         // Configuration Chart.js avec thème adaptatif
         function initChartTheme() {
@@ -649,7 +699,7 @@
             console.log('🔍 Loading asset groups...');
             await useFallbackAssetGroups();
         }
-        
+
         async function useFallbackAssetGroups() {
             const fallbackAliases = {
                 'BTC': 'BTC', 'TBTC': 'BTC',
@@ -664,7 +714,7 @@
                 'DOGE': 'Memecoins', 'XMR': 'Privacy', 'TRX': 'L1/L0 majors',
                 'IMO': 'Others', 'VVV3': 'Others', 'TAO6': 'Others', 'OTHERS': 'Others'
             };
-            
+
             ASSET_GROUPS = {};
             Object.entries(fallbackAliases).forEach(([asset, group]) => {
                 if (!ASSET_GROUPS[group]) {
@@ -672,106 +722,57 @@
                 }
                 ASSET_GROUPS[group].push(asset);
             });
-            
+
             console.log('✅ Asset groups loaded:', Object.keys(ASSET_GROUPS));
         }
 
-        // Parser pour le fichier CSV CoinTracking - corrigé pour lire TOUS les assets
-        function parseCSVBalances(csvText) {
-            // Remove BOM if present
+        // Parser pour le fichier CSV CoinTracking - uses centralized config
+        function parseCSVBalancesLocal(csvText, { thresholdUSD = 1.0 } = {}) {
+            return window.parseCSVBalances ? window.parseCSVBalances(csvText) : parseCSVBalancesLocal(csvText);
+        }
+
+        function parseCSVBalancesLocal(csvText) {
             const cleanedText = csvText.replace(/^\ufeff/, '');
-            const lines = cleanedText.split('\n');
+            const lines = cleanedText.split(/\r?\n/);
             const balances = [];
-            
-            console.log('🔍 DEBUG: Parsing CSV with', lines.length, 'total lines');
-            console.log('🔍 DEBUG: Original first char code:', csvText.charCodeAt(0));
-            console.log('🔍 DEBUG: Cleaned first char code:', cleanedText.charCodeAt(0));
-            console.log('🔍 DEBUG: First line (header):', lines[0]);
-            console.log('🔍 DEBUG: Second line (first data):', lines[1]);
-            
-            // Skip header line (ligne 1)
+            const minThreshold = (window.globalConfig && window.globalConfig.get('min_usd_threshold')) || 1.0;
+
             for (let i = 1; i < lines.length; i++) {
                 const line = lines[i].trim();
-                if (!line) {
-                    console.log('🔍 DEBUG: Skipping empty line', i);
-                    continue;
-                }
-                
-                // Debug first few lines in detail
-                if (i <= 5) {
-                    console.log('🔍 DEBUG: Processing line', i, ':', line);
-                }
-                
+                if (!line) continue;
+
                 try {
-                    // Parse CSV avec des guillemets et point-virgules
                     const columns = parseCSVLine(line);
-                    
-                    if (i <= 5) {
-                        console.log('🔍 DEBUG: Line', i, 'parsed to', columns.length, 'columns:', columns);
-                    }
-                    
                     if (columns.length >= 5) {
                         const ticker = columns[0];
-                        const name = columns[1];
-                        const type = columns[2];
-                        const amount = parseFloat(columns[3]);
-                        const valueUSD = parseFloat(columns[4]);
-                        
-                        if (i <= 5) {
-                            console.log('🔍 DEBUG: Line', i, 'data:', { ticker, name, type, amount, valueUSD });
-                        }
-                        
-                        // Accepter TOUS les assets avec value >= 1.0$
-                        if (ticker && !isNaN(amount) && !isNaN(valueUSD) && valueUSD >= 1.0) {
-                            const balance = {
+                        const norm = s => parseFloat(String(s).replace(/[,\u00A0]/g, ''));
+                        const amount = norm(columns[3]);
+                        const valueUSD = norm(columns[4]);
+
+                        if (ticker && !isNaN(amount) && !isNaN(valueUSD) && valueUSD >= minThreshold) {
+                            balances.push({
                                 symbol: ticker.toUpperCase(),
                                 balance: amount,
                                 value_usd: valueUSD
-                            };
-                            balances.push(balance);
-                            
-                            // Debug log for significant assets
-                            if (valueUSD > 1000 || i <= 5) {
-                                console.log('🔍 DEBUG: Asset added:', ticker, '-', valueUSD.toFixed(2), '$');
-                            }
-                        } else if (ticker) {
-                            // Log des assets exclus pour debug
-                            if ((valueUSD < 1.0 && valueUSD > 0) || i <= 5) {
-                                console.log('🔍 DEBUG: Excluded asset:', ticker, '-', valueUSD, '$', 'reason:', !ticker ? 'no ticker' : isNaN(amount) ? 'invalid amount' : isNaN(valueUSD) ? 'invalid value' : 'value < 1.0');
-                            }
-                        }
-                    } else {
-                        if (i <= 5) {
-                            console.log('🔍 DEBUG: Invalid line format, columns:', columns.length, 'in line:', line);
+                            });
                         }
                     }
                 } catch (error) {
                     console.warn('Erreur parsing ligne CSV:', error.message);
                 }
             }
-            
-            const totalParsed = balances.reduce((sum, item) => sum + item.value_usd, 0);
-            console.log('🔍 DEBUG: CSV parsing complete -', balances.length, 'assets, total:', totalParsed.toFixed(2), '$');
-            
-            // Afficher les 10 plus gros assets pour vérification
-            const sortedBalances = [...balances].sort((a, b) => b.value_usd - a.value_usd).slice(0, 10);
-            console.log('🔍 DEBUG: Top 10 assets:');
-            sortedBalances.forEach((asset, i) => {
-                console.log(`  ${i+1}. ${asset.symbol}: ${asset.value_usd.toFixed(2)}$`);
-            });
-            
+
             return balances;
         }
-        
-        // Parser une ligne CSV avec guillemets et point-virgules
-        function parseCSVLine(line) {
+
+        function parseCSVLineLocal(line) {
             const result = [];
             let current = '';
             let inQuotes = false;
-            
+
             for (let i = 0; i < line.length; i++) {
                 const char = line[i];
-                
+
                 if (char === '"') {
                     inQuotes = !inQuotes;
                 } else if (char === ';' && !inQuotes) {
@@ -781,12 +782,11 @@
                     current += char;
                 }
             }
-            
-            // Ajouter le dernier élément
+
             if (current) {
                 result.push(current.trim().replace(/^"|"$/g, ''));
             }
-            
+
             return result;
         }
 
@@ -794,8 +794,8 @@
             const groups = new Map();
             const ungrouped = [];
 
-            console.log('🔍 DEBUG: Grouping', items.length, 'assets by aliases');
-            
+            log.debug('Grouping', items.length, 'assets by aliases');
+
             // Si ASSET_GROUPS n'est pas encore chargé, mettre tout dans "Others"
             if (!ASSET_GROUPS) {
                 console.warn('⚠️ ASSET_GROUPS not loaded yet, putting all assets in Others');
@@ -830,50 +830,50 @@
                     const group = groups.get(foundGroup);
                     group.value += parseFloat(item.value_usd || 0);
                     group.assets.push(symbol);
-                    
+
                     // Debug log for BTC group specifically
                     if (foundGroup === 'BTC') {
-                        console.log('🔍 DEBUG BTC GROUP: Added', symbol, 'value:', item.value_usd.toFixed(2), 'new total:', group.value.toFixed(2));
+                        log.debug('BTC GROUP: Added', symbol, 'value:', item.value_usd.toFixed(2), 'new total:', group.value.toFixed(2));
                     }
-                    
+
                     // Debug log for significant groupings
                     if (item.value_usd > 5000) {
-                        console.log('🔍 DEBUG: Grouped', symbol, 'into', foundGroup, '- value:', item.value_usd.toFixed(2));
+                        log.debug('Grouped', symbol, 'into', foundGroup, '- value:', item.value_usd.toFixed(2));
                     }
                 } else {
                     ungrouped.push({
                         label: symbol,
                         value: parseFloat(item.value_usd || 0)
                     });
-                    
+
                     // Debug log for ungrouped assets
                     if (item.value_usd > 1000) {
-                        console.log('⚠️ DEBUG: UNGROUPED asset:', symbol, '- value:', item.value_usd.toFixed(2));
+                        log.debug('UNGROUPED asset:', symbol, '- value:', item.value_usd.toFixed(2));
                     }
                 }
             });
 
-            console.log('🔍 DEBUG: Final groups:', groups.size, 'grouped +', ungrouped.length, 'ungrouped');
+            log.debug('Final groups:', groups.size, 'grouped +', ungrouped.length, 'ungrouped');
             const result = [...Array.from(groups.values()), ...ungrouped];
-            
+
             // Debug final result - especially BTC group
             result.forEach(group => {
                 if (group.label === 'BTC') {
-                    console.log('🔍 DEBUG FINAL BTC GROUP: value:', group.value.toFixed(2), 'assets:', group.assets.join(', '));
+                    log.debug('FINAL BTC GROUP: value:', group.value.toFixed(2), 'assets:', group.assets.join(', '));
                 } else if (group.value > 1000) {
-                    console.log('🔍 DEBUG: Final group:', group.label, '- value:', group.value.toFixed(2));
+                    log.debug('Final group:', group.label, '- value:', group.value.toFixed(2));
                     if (group.assets && group.assets.length > 1) {
                         console.log('  └─ Assets:', group.assets.join(', '));
                     }
                 }
             });
-            
+
             return result;
         }
 
         // Créer ou mettre à jour le graphique portfolio
         async function updatePortfolioChart(balancesData) {
-            console.log('🔍 DEBUG updatePortfolioChart - balancesData:', balancesData);
+            log.debug('updatePortfolioChart - balancesData:', balancesData);
 
             if (!balancesData || !balancesData.items) {
                 console.log('❌ No balances data or items');
@@ -911,16 +911,16 @@
             }
 
             const ctx = canvas.getContext('2d');
-            console.log('🔍 DEBUG - Number of items:', balancesData.items.length);
+            log.debug('Number of items:', balancesData.items.length);
 
             // Traiter les données pour le graphique avec regroupement par aliases
             const items = balancesData.items || [];
             const filteredItems = items.filter(item => parseFloat(item.value_usd || 0) > 0);
 
             // Regrouper par aliases
-            console.log('🔍 DEBUG: Filtered items for chart:', filteredItems.length);
+            log.debug('Filtered items for chart:', filteredItems.length);
             const groupedData = groupAssetsByAliases(filteredItems);
-            console.log('🔍 DEBUG: Grouped data:', groupedData.length, 'groups');
+            log.debug('Grouped data:', groupedData.length, 'groups');
 
             // Trier par valeur et prendre les top 8
             const sortedData = groupedData
@@ -929,13 +929,13 @@
 
             const labels = sortedData.map(item => item.label);
             const values = sortedData.map(item => item.value);
-            
+
             // Use real total from ALL assets, not just top 8 groups shown
             const realTotal = groupedData.reduce((sum, item) => sum + item.value, 0);
             const total = realTotal;
-            
-            console.log('🔍 DEBUG Chart data:', { labels, values, total: total.toFixed(2) });
-            
+
+            log.debug('Chart data:', { labels, values, total: total.toFixed(2) });
+
             // Si aucune donnée, afficher un message explicatif
             if (labels.length === 0 || total === 0) {
                 console.log('❌ No chart data available, showing placeholder');
@@ -1021,7 +1021,7 @@
         // Afficher la liste détaillée des allocations pour debug
         function updatePortfolioBreakdown(balancesData) {
             const container = document.getElementById('breakdown-list');
-            
+
             if (!balancesData || !balancesData.items) {
                 container.innerHTML = '<div style="color: var(--danger);">❌ Pas de données</div>';
                 return;
@@ -1029,14 +1029,14 @@
 
             const items = balancesData.items || [];
             const filteredItems = items.filter(item => parseFloat(item.value_usd || 0) > 0);
-            
+
             // Regrouper par aliases comme le graphique
             const groupedData = groupAssetsByAliases(filteredItems);
             const sortedData = groupedData.sort((a, b) => b.value - a.value);
             const total = sortedData.reduce((sum, item) => sum + item.value, 0);
-            
-            console.log('🔍 DEBUG updatePortfolioBreakdown - total:', total, 'groups:', sortedData.length);
-            
+
+            log.debug('updatePortfolioBreakdown - total:', total, 'groups:', sortedData.length);
+
             const html = sortedData.map((group, index) => {
                 const percentage = ((group.value / total) * 100).toFixed(1);
                 const assets = group.assets ? ` (${group.assets.join(', ')})` : '';
@@ -1047,7 +1047,7 @@
                     </div>
                 `;
             }).join('');
-            
+
             container.innerHTML = html + `
                 <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; margin-top: 8px; font-weight: 700; border-top: 2px solid var(--theme-border);">
                     <span>TOTAL</span>
@@ -1060,12 +1060,26 @@
         function toggleBreakdown() {
             const list = document.getElementById('breakdown-list');
             const arrow = document.getElementById('breakdown-arrow');
-            
+
             if (list.style.display === 'none') {
                 list.style.display = 'block';
                 arrow.textContent = '▼️';
             } else {
                 list.style.display = 'none';
+                arrow.textContent = '▶️';
+            }
+        }
+
+        // Toggle pour afficher/cacher le graphique portfolio
+        function togglePortfolioChart() {
+            const chart = document.getElementById('portfolio-chart');
+            const arrow = document.getElementById('chart-arrow');
+
+            if (chart.style.display === 'none') {
+                chart.style.display = 'flex';
+                arrow.textContent = '▼️';
+            } else {
+                chart.style.display = 'none';
                 arrow.textContent = '▶️';
             }
         }
