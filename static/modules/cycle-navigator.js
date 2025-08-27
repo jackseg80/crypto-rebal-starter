@@ -187,19 +187,43 @@ export function blendCCS(ccsScore, cycleMonths, cycleWeight = 0.3) {
 }
 
 /**
- * Get current months after halving (mock for MVP)
- * In production, this would calculate from actual halving dates
+ * Get current months after halving (real calculation)
+ * Calculates actual months since the last Bitcoin halving
  */
 export function getCurrentCycleMonths() {
-  // Mock data for MVP - simulate we're ~18 months after last halving
-  // You can adjust this for testing different phases
-  const mockMonthsAfterHalving = 18 + Math.random() * 6; // 18-24 months (peak phase)
+  // Real Bitcoin halving date (April 20, 2024)
+  const lastHalvingDate = new Date('2024-04-20');
+  const now = new Date();
+  
+  // Calculate months difference
+  const yearDiff = now.getFullYear() - lastHalvingDate.getFullYear();
+  const monthDiff = now.getMonth() - lastHalvingDate.getMonth();
+  const dayDiff = now.getDate() - lastHalvingDate.getDate();
+  
+  // Total months (with fraction for days)
+  let totalMonths = yearDiff * 12 + monthDiff;
+  if (dayDiff > 0) {
+    totalMonths += dayDiff / 30; // Approximate days to month fraction
+  }
+  
+  // Ensure non-negative
+  totalMonths = Math.max(0, totalMonths);
+  
+  console.log('🔍 DEBUG getCurrentCycleMonths:', {
+    lastHalving: lastHalvingDate.toISOString(),
+    now: now.toISOString(),
+    yearDiff,
+    monthDiff,
+    dayDiff,
+    totalMonths,
+    rounded: Math.round(totalMonths)
+  });
   
   return {
-    months: mockMonthsAfterHalving,
-    lastHalving: '2024-04-19', // Approximate last halving
-    nextHalving: '2028-04-19', // Approximate next halving
-    source: 'mock_calculation'
+    months: totalMonths,
+    lastHalving: '2024-04-20', // Actual last halving
+    nextHalving: '2028-04-20', // Estimated next halving (~4 years)
+    source: 'real_calculation'
   };
 }
 
