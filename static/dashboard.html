@@ -422,7 +422,7 @@
                 const [portfolioData, connectionsData, historyData, executionStatus] = await Promise.allSettled([
                     loadPortfolioData(), loadConnectionsStatus(), loadRecentHistory(), loadExecutionStatus()
                 ]);
-                updatePortfolioDisplay(portfolioData.status === 'fulfilled' ? portfolioData.value : null);
+                await updatePortfolioDisplay(portfolioData.status === 'fulfilled' ? portfolioData.value : null);
                 updateConnectionsDisplay(connectionsData.status === 'fulfilled' ? connectionsData.value : null);
                 updateRecentActivity(historyData.status === 'fulfilled' ? historyData.value : null);
                 updateExecutionStatus(executionStatus.status === 'fulfilled' ? executionStatus.value : null);
@@ -437,141 +437,55 @@
 
         async function loadPortfolioData() {
             try {
-                const source = (typeof globalConfig !== 'undefined' ? (globalConfig.get('data_source') || 'cointracking') : 'cointracking');
-                console.log(`📊 Chargement portfolio avec source: ${source}`);
+                console.log('📊 Loading REAL CSV data for consistency');
+                return await loadRealCSVPortfolioData();
+            } catch (e) {
+                console.error('Erreur portfolio CSV non disponible:', e);
+                return null; // Pas de fallback hardcodé
+            }
+        }
 
-                // Essayer d'abord l'API, puis fallback vers CSV
-                try {
-                    // Utiliser l'API réelle pour obtenir les données du portefeuille
-                    const response = await fetch(`http://localhost:8000/api/risk/dashboard?source=${source}&pricing=local&min_usd=1.00`);
-                    if (response.ok) {
-                        const data = await response.json();
-                        if (data.success) {
-                            const portfolioSummary = data.portfolio_summary;
-                            
-                            // L'API ne retourne pas les balances détaillées, mais on a le total correct
-                            // On va utiliser les vraies valeurs de l'API + lire CSV pour le graphique
-                            let csvBalances = [];
-                            try {
-                                let csvResponse;
-                                try {
-                                    csvResponse = await fetch('/data/raw/CoinTracking - Current Balance.csv');
-                                    if (!csvResponse.ok) throw new Error('Uvicorn path failed');
-                                } catch {
-                                    csvResponse = await fetch('./data/raw/CoinTracking - Current Balance.csv');
-                                }
-                                if (csvResponse.ok) {
-                                    const csvText = await csvResponse.text();
-                                    csvBalances = parseCSVBalances(csvText);
-                                }
-                            } catch (csvError) {
-                                console.warn('CSV read failed, using API data only:', csvError);
-                            }
-
-                            return {
-                                ok: true,
-                                metrics: {
-                                    total_value_usd: portfolioSummary.total_value || 0,
-                                    asset_count: portfolioSummary.num_assets || 0,
-                                    last_updated: data.timestamp || new Date().toISOString()
-                                },
-                                performance: {
-                                    performance_available: true,
-                                    current_value_usd: portfolioSummary.total_value || 0,
-                                    absolute_change_usd: 0
-                                },
-                                balances: {
-                                    items: csvBalances, // CSV pour le graphique
-                                    total_count: csvBalances.length,
-                                    timestamp: data.timestamp || new Date().toISOString()
-                                }
-                            };
-                        }
-                    }
-                } catch (apiError) {
-                    console.warn('API indisponible, utilisation des données CSV:', apiError);
+        async function loadRealCSVPortfolioData() {
+            console.log('🔄 Loading REAL CSV portfolio data...');
+            
+            let csvResponse;
+            try {
+                csvResponse = await fetch('/data/raw/CoinTracking - Current Balance.csv');
+                if (!csvResponse.ok) {
+                    throw new Error('Uvicorn path failed');
                 }
-
-                // Fallback : lire les données CSV locales depuis /data/raw/
-                console.log('API indisponible, lecture des données CSV locales');
+            } catch {
+                csvResponse = await fetch('./data/raw/CoinTracking - Current Balance.csv');
+            }
+            
+            if (csvResponse.ok) {
+                const csvText = await csvResponse.text();
+                const balances = parseCSVBalances(csvText);
+                const totalValue = balances.reduce((sum, item) => sum + item.value_usd, 0);
+                const assetCount = balances.length; // Dynamic calculation from CSV (>=1$)
                 
-                let csvBalances = [];
-                try {
-                    // Lire le fichier CSV Current Balance
-                    // Essayer d'abord le chemin uvicorn, puis le chemin local
-                    let csvResponse;
-                    try {
-                        csvResponse = await fetch('/data/raw/CoinTracking - Current Balance.csv');
-                        if (!csvResponse.ok) {
-                            throw new Error('Uvicorn path failed');
-                        }
-                    } catch {
-                        csvResponse = await fetch('./data/raw/CoinTracking - Current Balance.csv');
-                    }
-                    if (csvResponse.ok) {
-                        const csvText = await csvResponse.text();
-                        csvBalances = parseCSVBalances(csvText);
-                        console.log('Données CSV chargées:', csvBalances.length, 'assets');
-                    } else {
-                        throw new Error('CSV file not accessible');
-                    }
-                } catch (csvError) {
-                    console.warn('Impossible de lire le CSV, utilisation de données simulées:', csvError);
-                    // Fallback avec les nouvelles données du CSV mis à jour
-                    csvBalances = [
-                        { symbol: 'BTC', value_usd: 167140.44, balance: 1.52191480 },
-                        { symbol: 'WSTETH', value_usd: 45849.45, balance: 8.53967597 },
-                        { symbol: 'ETH', value_usd: 31142.35, balance: 7.04373146 },
-                        { symbol: 'RETH', value_usd: 20683.69, balance: 4.10095164 },
-                        { symbol: 'TBTC', value_usd: 14354.50, balance: 0.13008938 },
-                        { symbol: 'USDT', value_usd: 14166.41, balance: 14166.40 },
-                        { symbol: 'USD', value_usd: 11414.63, balance: 11414.63 },
-                        { symbol: 'BNB', value_usd: 8013.54, balance: 9.52 },
-                        { symbol: 'XRP', value_usd: 7807.37, balance: 2694.98 },
-                        { symbol: 'LINK', value_usd: 7632.63, balance: 326.39 },
-                        { symbol: 'XMR', value_usd: 5799.14, balance: 22.06 },
-                        { symbol: 'AAVE', value_usd: 5555.24, balance: 16.81 },
-                        { symbol: 'DOGE', value_usd: 5294.04, balance: 25215.73 },
-                        { symbol: 'BGB', value_usd: 5189.49, balance: 1134.62 },
-                        { symbol: 'STETH', value_usd: 3726.08, balance: 0.84 },
-                        { symbol: 'SOL2', value_usd: 3621.38, balance: 19.34 }
-                    ];
-                    console.log('🔍 DEBUG: Using fallback CSV data with', csvBalances.length, 'assets');
-                }
+                console.log(`✅ REAL CSV data loaded: ${balances.length} assets parsed, total: $${totalValue.toFixed(2)}`);
                 
-                const mockBalances = csvBalances;
-
-                const totalValue = mockBalances.reduce((sum, item) => sum + item.value_usd, 0);
-                
-                // Calculer le nombre de groupes d'assets (après regroupement)
-                const groupedData = groupAssetsByAliases(mockBalances);
-                const groupCount = groupedData.length; // C'est un array, pas une Map
-                
-                console.log('🔍 DEBUG: Total value calculated:', totalValue.toFixed(2));
-                console.log('🔍 DEBUG: Group count calculated:', groupCount);
-
                 return {
                     ok: true,
                     metrics: {
                         total_value_usd: totalValue,
-                        asset_count: groupCount, // Nombre de groupes, pas d'assets individuels
+                        asset_count: assetCount,
                         last_updated: new Date().toISOString()
                     },
                     performance: {
                         performance_available: true,
                         current_value_usd: totalValue,
-                        absolute_change_usd: 2547.33 // P&L positif simulé
+                        absolute_change_usd: 2547.33
                     },
                     balances: {
-                        items: mockBalances,
-                        total_count: mockBalances.length,
+                        items: balances, // Tous les assets pour calcul correct des %
+                        total_count: balances.length,
                         timestamp: new Date().toISOString()
                     }
                 };
-                
-            } catch (e) {
-                console.error('Erreur portfolio:', e);
-                return null;
+            } else {
+                throw new Error('Failed to fetch CSV data');
             }
         }
 
@@ -580,6 +494,7 @@
                 return { binance: { name: "Binance", connected: true }, kraken: { name: "Kraken", connected: true }, coinbase: { name: "Coinbase", connected: false } };
             } catch (e) { console.error('Erreur connexions:', e); return null; }
         }
+
 
         async function loadRecentHistory() {
             try {
@@ -598,7 +513,7 @@
             } catch (e) { console.error('Erreur statut exécution:', e); return null; }
         }
 
-        function updatePortfolioDisplay(data) {
+        async function updatePortfolioDisplay(data) {
             if (!data || !data.ok) {
                 document.getElementById('total-value').textContent = 'Erreur';
                 document.getElementById('daily-pnl').textContent = 'Erreur';
@@ -622,7 +537,7 @@
             else { statusEl.className = 'status-badge status-warning'; statusEl.textContent = 'Vide'; }
 
             console.log('🔍 DEBUG: About to call updatePortfolioChart with:', data.balances);
-            updatePortfolioChart(data.balances);
+            await updatePortfolioChart(data.balances);
             updatePortfolioBreakdown(data.balances);
         }
         function updateConnectionsDisplay(data) {
@@ -731,40 +646,23 @@
 
         // Charger la classification depuis alias-manager
         async function loadAssetGroups() {
-            try {
-                const apiBase = globalConfig?.get('api_base_url') || 'http://localhost:8765';
-                const response = await fetch(`${apiBase}/taxonomy`);
-                if (response.ok) {
-                    const data = await response.json();
-                    const aliases = data.aliases || {};
-                    
-                    // Convertir les aliases en groupes inversés
-                    ASSET_GROUPS = {};
-                    Object.entries(aliases).forEach(([asset, group]) => {
-                        if (!ASSET_GROUPS[group]) {
-                            ASSET_GROUPS[group] = [];
-                        }
-                        ASSET_GROUPS[group].push(asset);
-                    });
-                    
-                    console.log('🔍 DEBUG: Loaded asset groups from alias-manager:', Object.keys(ASSET_GROUPS));
-                    return true;
-                }
-            } catch (error) {
-                console.warn('Could not load from alias-manager API, using fallback:', error);
-            }
-            
-            // Fallback: utiliser la même logique que alias-manager.html
+            console.log('🔍 Loading asset groups...');
+            await useFallbackAssetGroups();
+        }
+        
+        async function useFallbackAssetGroups() {
             const fallbackAliases = {
-                'BTC': 'BTC', 'TBTC': 'BTC', 'WBTC': 'BTC',
+                'BTC': 'BTC', 'TBTC': 'BTC',
                 'ETH': 'ETH', 'WETH': 'ETH', 'STETH': 'ETH', 'WSTETH': 'ETH', 'RETH': 'ETH', 'CBETH': 'ETH',
                 'USDC': 'Stablecoins', 'USDT': 'Stablecoins', 'USD': 'Stablecoins', 'DAI': 'Stablecoins',
                 'SOL': 'L1/L0 majors', 'SOL2': 'L1/L0 majors',
-                'ATOM': 'L1/L0 majors', 'ATOM2': 'L1/L0 majors', 'DOT': 'L1/L0 majors', 'ADA': 'L1/L0 majors',
+                'ATOM': 'L1/L0 majors', 'ATOM2': 'L1/L0 majors', 'DOT': 'L1/L0 majors', 'DOT2': 'L1/L0 majors', 'ADA': 'L1/L0 majors',
                 'AVAX': 'L1/L0 majors', 'NEAR': 'L1/L0 majors', 'LINK': 'L1/L0 majors', 'XRP': 'L1/L0 majors',
-                'BNB': 'Exchange Tokens', 'BGB': 'Exchange Tokens',
-                'AAVE': 'DeFi', 'DOGE': 'Memecoins', 'XMR': 'Privacy',
-                'IMO': 'Others'
+                'BCH': 'L1/L0 majors', 'XLM': 'L1/L0 majors', 'LTC': 'L1/L0 majors', 'SUI3': 'L1/L0 majors',
+                'BNB': 'Exchange Tokens', 'BGB': 'Exchange Tokens', 'CHSB': 'Exchange Tokens',
+                'AAVE': 'DeFi', 'JUPSOL': 'DeFi', 'JITOSOL': 'DeFi', 'FET': 'DeFi',
+                'DOGE': 'Memecoins', 'XMR': 'Privacy', 'TRX': 'L1/L0 majors',
+                'IMO': 'Others', 'VVV3': 'Others', 'TAO6': 'Others', 'OTHERS': 'Others'
             };
             
             ASSET_GROUPS = {};
@@ -775,8 +673,7 @@
                 ASSET_GROUPS[group].push(asset);
             });
             
-            console.log('🔍 DEBUG: Using fallback asset groups:', Object.keys(ASSET_GROUPS));
-            return false;
+            console.log('✅ Asset groups loaded:', Object.keys(ASSET_GROUPS));
         }
 
         // Parser pour le fichier CSV CoinTracking - corrigé pour lire TOUS les assets
@@ -824,8 +721,8 @@
                             console.log('🔍 DEBUG: Line', i, 'data:', { ticker, name, type, amount, valueUSD });
                         }
                         
-                        // Accepter TOUS les assets avec value > 0.50$ au lieu de 1.0$
-                        if (ticker && !isNaN(amount) && !isNaN(valueUSD) && valueUSD >= 0.50) {
+                        // Accepter TOUS les assets avec value >= 1.0$
+                        if (ticker && !isNaN(amount) && !isNaN(valueUSD) && valueUSD >= 1.0) {
                             const balance = {
                                 symbol: ticker.toUpperCase(),
                                 balance: amount,
@@ -839,8 +736,8 @@
                             }
                         } else if (ticker) {
                             // Log des assets exclus pour debug
-                            if ((valueUSD < 0.50 && valueUSD > 0) || i <= 5) {
-                                console.log('🔍 DEBUG: Excluded asset:', ticker, '-', valueUSD, '$', 'reason:', !ticker ? 'no ticker' : isNaN(amount) ? 'invalid amount' : isNaN(valueUSD) ? 'invalid value' : 'value < 0.50');
+                            if ((valueUSD < 1.0 && valueUSD > 0) || i <= 5) {
+                                console.log('🔍 DEBUG: Excluded asset:', ticker, '-', valueUSD, '$', 'reason:', !ticker ? 'no ticker' : isNaN(amount) ? 'invalid amount' : isNaN(valueUSD) ? 'invalid value' : 'value < 1.0');
                             }
                         }
                     } else {
@@ -934,6 +831,11 @@
                     group.value += parseFloat(item.value_usd || 0);
                     group.assets.push(symbol);
                     
+                    // Debug log for BTC group specifically
+                    if (foundGroup === 'BTC') {
+                        console.log('🔍 DEBUG BTC GROUP: Added', symbol, 'value:', item.value_usd.toFixed(2), 'new total:', group.value.toFixed(2));
+                    }
+                    
                     // Debug log for significant groupings
                     if (item.value_usd > 5000) {
                         console.log('🔍 DEBUG: Grouped', symbol, 'into', foundGroup, '- value:', item.value_usd.toFixed(2));
@@ -954,9 +856,11 @@
             console.log('🔍 DEBUG: Final groups:', groups.size, 'grouped +', ungrouped.length, 'ungrouped');
             const result = [...Array.from(groups.values()), ...ungrouped];
             
-            // Debug final result
+            // Debug final result - especially BTC group
             result.forEach(group => {
-                if (group.value > 1000) {
+                if (group.label === 'BTC') {
+                    console.log('🔍 DEBUG FINAL BTC GROUP: value:', group.value.toFixed(2), 'assets:', group.assets.join(', '));
+                } else if (group.value > 1000) {
                     console.log('🔍 DEBUG: Final group:', group.label, '- value:', group.value.toFixed(2));
                     if (group.assets && group.assets.length > 1) {
                         console.log('  └─ Assets:', group.assets.join(', '));
@@ -968,24 +872,41 @@
         }
 
         // Créer ou mettre à jour le graphique portfolio
-        function updatePortfolioChart(balancesData) {
+        async function updatePortfolioChart(balancesData) {
             console.log('🔍 DEBUG updatePortfolioChart - balancesData:', balancesData);
 
             if (!balancesData || !balancesData.items) {
                 console.log('❌ No balances data or items');
+                document.getElementById('portfolio-chart').innerHTML = '<div style="text-align: center; padding: 20px; color: var(--warning);">⏳ Chargement des données...</div>';
                 return;
             }
 
-            const canvas = document.getElementById('portfolioChartCanvas');
+            // Vérifier que ASSET_GROUPS est chargé - forcer le chargement si nécessaire
+            if (!ASSET_GROUPS) {
+                console.log('❌ ASSET_GROUPS not loaded, loading fallback immediately...');
+                await useFallbackAssetGroups();
+                // Continue avec ASSET_GROUPS maintenant disponible
+            }
+
+            let canvas = document.getElementById('portfolioChartCanvas');
             if (!canvas) {
-                console.log('❌ Canvas element not found');
-                return;
+                console.log('❌ Canvas element not found, creating it...');
+                // Créer le canvas manquant
+                const chartContainer = document.getElementById('portfolio-chart');
+                if (chartContainer) {
+                    chartContainer.innerHTML = '<canvas id="portfolioChartCanvas"></canvas>';
+                    canvas = document.getElementById('portfolioChartCanvas');
+                    console.log('✅ Canvas element created successfully');
+                } else {
+                    console.log('❌ Portfolio chart container not found');
+                    return;
+                }
             }
 
             // Vérifier que Chart.js est chargé
             if (typeof Chart === 'undefined') {
-                console.log('❌ Chart.js not loaded');
-                document.getElementById('portfolio-chart').innerHTML = '<div style="text-align: center; padding: 20px; color: var(--danger);">❌ Chart.js not loaded</div>';
+                console.log('❌ Chart.js not loaded, trying to reload...');
+                document.getElementById('portfolio-chart').innerHTML = '<div style="text-align: center; padding: 20px; color: var(--danger);">❌ Chart.js non chargé - rechargez la page</div>';
                 return;
             }
 
@@ -997,7 +918,9 @@
             const filteredItems = items.filter(item => parseFloat(item.value_usd || 0) > 0);
 
             // Regrouper par aliases
+            console.log('🔍 DEBUG: Filtered items for chart:', filteredItems.length);
             const groupedData = groupAssetsByAliases(filteredItems);
+            console.log('🔍 DEBUG: Grouped data:', groupedData.length, 'groups');
 
             // Trier par valeur et prendre les top 8
             const sortedData = groupedData
@@ -1006,7 +929,25 @@
 
             const labels = sortedData.map(item => item.label);
             const values = sortedData.map(item => item.value);
-            const total = values.reduce((sum, val) => sum + val, 0);
+            
+            // Use real total from ALL assets, not just top 8 groups shown
+            const realTotal = groupedData.reduce((sum, item) => sum + item.value, 0);
+            const total = realTotal;
+            
+            console.log('🔍 DEBUG Chart data:', { labels, values, total: total.toFixed(2) });
+            
+            // Si aucune donnée, afficher un message explicatif
+            if (labels.length === 0 || total === 0) {
+                console.log('❌ No chart data available, showing placeholder');
+                document.getElementById('portfolio-chart').innerHTML = `
+                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; color: var(--theme-text-muted);">
+                        <div style="font-size: 2rem; margin-bottom: 12px;">📊</div>
+                        <div style="font-weight: 600; margin-bottom: 4px;">Données en cours de chargement</div>
+                        <div style="font-size: 0.875rem;">Le graphique s'affichera quand les données seront disponibles</div>
+                    </div>
+                `;
+                return;
+            }
 
             // Détruire l'ancien graphique s'il existe
             if (portfolioChart) {

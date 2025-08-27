@@ -104,25 +104,25 @@ BASE_DIR = Path(__file__).resolve().parent.parent  # répertoire du repo (niveau
 STATIC_DIR = BASE_DIR / "static"                    # D:\Python\crypto-rebal-starter\static
 DATA_DIR = BASE_DIR / "data"                        # D:\Python\crypto-rebal-starter\data
 
-print(f"🔍 DEBUG: BASE_DIR = {BASE_DIR}")
-print(f"🔍 DEBUG: STATIC_DIR = {STATIC_DIR}, exists = {STATIC_DIR.exists()}")
-print(f"🔍 DEBUG: DATA_DIR = {DATA_DIR}, exists = {DATA_DIR.exists()}")
+print(f"DEBUG: BASE_DIR = {BASE_DIR}")
+print(f"DEBUG: STATIC_DIR = {STATIC_DIR}, exists = {STATIC_DIR.exists()}")
+print(f"DEBUG: DATA_DIR = {DATA_DIR}, exists = {DATA_DIR.exists()}")
 
 if not STATIC_DIR.exists():
-    print("⚠️ STATIC_DIR not found, using fallback")
+    print("WARNING: STATIC_DIR not found, using fallback")
     # fallback si l'arbo a changé
     STATIC_DIR = Path.cwd() / "static"
     
 if not DATA_DIR.exists():
-    print("⚠️ DATA_DIR not found, using fallback")
+    print("WARNING: DATA_DIR not found, using fallback")
     DATA_DIR = Path.cwd() / "data"
     
-print(f"🔍 DEBUG: Final STATIC_DIR = {STATIC_DIR}")
-print(f"🔍 DEBUG: Final DATA_DIR = {DATA_DIR}")
+print(f"DEBUG: Final STATIC_DIR = {STATIC_DIR}")
+print(f"DEBUG: Final DATA_DIR = {DATA_DIR}")
 
 # Vérifier le fichier CSV spécifiquement
 csv_file = DATA_DIR / "raw" / "CoinTracking - Current Balance.csv"
-print(f"🔍 DEBUG: CSV file = {csv_file}, exists = {csv_file.exists()}")
+print(f"DEBUG: CSV file = {csv_file}, exists = {csv_file.exists()}")
 
 app.mount(
     "/static",
@@ -130,13 +130,12 @@ app.mount(
     name="static",
 )
 
-# Mount data directory for CSV access (développement seulement)
-if DEBUG:
-    app.mount(
-        "/data",
-        StaticFiles(directory=str(DATA_DIR)),
-        name="data",
-    )
+# Mount data directory for CSV access (nécessaire en production pour les dashboards)
+app.mount(
+    "/data",
+    StaticFiles(directory=str(DATA_DIR)),
+    name="data",
+)
 
 @app.get("/debug/paths")
 async def debug_paths():

@@ -166,16 +166,16 @@
     <!-- Navigation par onglets -->
     <div class="section">
       <div class="tab-nav">
-        <button class="tab-button active" onclick="switchTab('create')">
+        <button class="tab-button active" onclick="switchTab('create', this)">
           📝 Créer Plan
         </button>
-        <button class="tab-button" onclick="switchTab('monitor')">
+        <button class="tab-button" onclick="switchTab('monitor', this)">
           📊 Monitoring
         </button>
-        <button class="tab-button" onclick="switchTab('history')">
+        <button class="tab-button" onclick="switchTab('history', this)">
           📜 Historique
         </button>
-        <button class="tab-button" onclick="switchTab('exchanges')">
+        <button class="tab-button" onclick="switchTab('exchanges', this)">
           🏢 Exchanges
         </button>
       </div>
@@ -345,7 +345,7 @@
 
     // ========== NAVIGATION ONGLETS ==========
 
-    function switchTab(tabName) {
+    function switchTab(tabName, buttonElement = null) {
       // Masquer tous les onglets
       document.querySelectorAll('.tab-content').forEach(tab => {
         tab.classList.remove('active');
@@ -358,7 +358,23 @@
 
       // Activer l'onglet sélectionné
       document.getElementById(`tab-${tabName}`).classList.add('active');
-      event.target.classList.add('active');
+      
+      // Activer le bouton correspondant
+      if (buttonElement) {
+        // Cas d'un appel événementiel avec event.target
+        buttonElement.classList.add('active');
+      } else if (typeof event !== 'undefined' && event.target) {
+        // Cas d'un appel événementiel direct
+        event.target.classList.add('active');
+      } else {
+        // Cas d'un appel programmatique - trouver le bon bouton
+        const targetButton = document.querySelector(`[onclick*="switchTab('${tabName}'"]`);
+        if (targetButton) {
+          targetButton.classList.add('active');
+        } else {
+          console.warn('Could not find button for tab:', tabName);
+        }
+      }
 
       // Charger les données selon l'onglet
       switch (tabName) {
@@ -417,6 +433,19 @@
           };
         } else {
           throw new Error('Format JSON invalide. Attendu: array d\'actions ou objet avec rebalance_actions');
+        }
+
+        // Validation côté client pour détecter les quantités invalides
+        const invalidActions = actions.filter(action => {
+          const quantity = parseFloat(action.quantity || 0);
+          return isNaN(quantity) || quantity <= 0;
+        });
+        
+        if (invalidActions.length > 0) {
+          const invalidDetails = invalidActions.map(action => 
+            `${action.symbol}: quantité ${action.quantity} (doit être > 0)`
+          ).join(', ');
+          throw new Error(`Actions avec quantités invalides détectées: ${invalidDetails}`);
         }
 
         const response = await globalConfig.apiRequest('/execution/validate-plan', {
