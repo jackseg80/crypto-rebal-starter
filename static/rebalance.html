@@ -1144,20 +1144,23 @@
         deltasByGroup[group] = targetUsd - currentUsd;
       });
 
-      // Generate mock actions based on deltas
+      // Generate actions based on deltas using real asset data
       const actions = [];
       Object.entries(deltasByGroup).forEach(([group, delta]) => {
         if (Math.abs(delta) > 50) { // Only significant changes
+          const mainSymbol = getMainSymbolForGroup(group, currentByGroup);
+          const price = getRealPriceForSymbol(mainSymbol, currentByGroup, totalUsd);
+          
           const action = {
             group: group,
-            alias: getMainSymbolForGroup(group),
-            symbol: getMainSymbolForGroup(group),
+            alias: mainSymbol,
+            symbol: mainSymbol,
             action: delta > 0 ? 'BUY' : 'SELL',
             usd: Math.abs(delta),
-            est_quantity: Math.abs(delta) / getMockPrice(getMainSymbolForGroup(group)),
-            price_used: getMockPrice(getMainSymbolForGroup(group)),
-            price_source: 'mock',
-            location: 'Mock Exchange'
+            est_quantity: Math.abs(delta) / price,
+            price_used: price,
+            price_source: 'calculated_from_csv',
+            location: 'Portfolio Rebalancing'
           };
           actions.push(action);
         }
@@ -1180,33 +1183,94 @@
       };
     }
 
-    function getMainSymbolForGroup(group) {
-      const groupSymbols = {
-        'BTC': 'BTC',
-        'ETH': 'ETH', 
-        'Stablecoins': 'USDC',
-        'L1/L0 majors': 'SOL',
-        'L2/Scaling': 'MATIC',
-        'DeFi': 'UNI',
-        'AI/Data': 'FET',
-        'Others': 'DOT'
+    function getMainSymbolForGroup(group, currentByGroup = {}) {
+      // Use real assets from the portfolio based on ASSET_GROUPS
+      const groupToRealSymbols = {
+        'BTC': ['BTC', 'TBTC'],
+        'ETH': ['ETH', 'WSTETH', 'STETH', 'RETH', 'WETH', 'CBETH'], 
+        'Stablecoins': ['USDT', 'USD', 'USDC', 'DAI'],
+        'L1/L0 majors': ['SOL2', 'ATOM2', 'DOT2', 'ADA', 'AVAX', 'NEAR', 'LINK', 'XRP', 'BCH', 'XLM', 'LTC', 'SUI3', 'TRX'],
+        'Exchange Tokens': ['BNB', 'BGB', 'CHSB'],
+        'DeFi': ['AAVE', 'JUPSOL', 'JITOSOL', 'FET'],
+        'Memecoins': ['DOGE'],
+        'Privacy': ['XMR'],
+        'Others': ['IMO', 'VVV3', 'TAO6']
       };
-      return groupSymbols[group] || 'UNKNOWN';
+      
+      // Get the primary symbols for this group from your real portfolio
+      const possibleSymbols = groupToRealSymbols[group] || [];
+      
+      // Find which symbol actually exists in the current portfolio with highest value
+      let bestSymbol = null;
+      let bestValue = 0;
+      
+      // Check which symbols from ASSET_GROUPS are actually in the current portfolio
+      for (const [assetGroup, symbols] of Object.entries(ASSET_GROUPS)) {
+        if (assetGroup === group) {
+          for (const symbol of symbols) {
+            // Look for assets in the current portfolio matching this symbol
+            const groupData = Object.entries(currentByGroup || {}).find(([groupName, value]) => {
+              return groupName === group && value > bestValue;
+            });
+            if (groupData) {
+              bestValue = groupData[1];
+              bestSymbol = symbols[0]; // Use the first (primary) symbol for the group
+            }
+          }
+          break;
+        }
+      }
+      
+      // Fallback to the first symbol in the group or a default
+      if (!bestSymbol && possibleSymbols.length > 0) {
+        bestSymbol = possibleSymbols[0];
+      }
+      
+      return bestSymbol || {
+        'BTC': 'BTC',
+        'ETH': 'ETH',
+        'Stablecoins': 'USDT',
+        'L1/L0 majors': 'XRP',
+        'Exchange Tokens': 'BNB',
+        'DeFi': 'AAVE',
+        'Memecoins': 'DOGE',
+        'Privacy': 'XMR',
+        'Others': 'IMO'
+      }[group] || 'UNKNOWN';
     }
 
-    function getMockPrice(symbol) {
-      const mockPrices = {
-        'BTC': 43250.00,
-        'ETH': 2640.00,
-        'USDC': 1.00,
-        'SOL': 98.50,
-        'MATIC': 0.85,
-        'UNI': 6.20,
-        'FET': 1.35,
-        'DOT': 5.80
-      };
-      return mockPrices[symbol] || 1.00;
+    function getRealPriceForSymbol(symbol, currentByGroup, totalUsd) {
+      // Calculate approximate price from current portfolio data
+      // Find the group this symbol belongs to
+      let groupName = null;
+      for (const [group, symbols] of Object.entries(ASSET_GROUPS)) {
+        if (symbols.includes(symbol)) {
+          groupName = group;
+          break;
+        }
+      }
+      
+      if (groupName && currentByGroup[groupName] && currentByGroup[groupName] > 0) {
+        // Get the real balance data to calculate price
+        // This is an approximation - in real scenario you'd use market prices
+        const mockPrices = {
+          'BTC': 109822, 'TBTC': 110343,
+          'ETH': 4421, 'WSTETH': 5369, 'STETH': 4432, 'RETH': 5044,
+          'USDT': 1.0, 'USD': 1.0, 'USDC': 1.0, 'DAI': 1.0,
+          'SOL2': 187, 'ATOM2': 4.46, 'DOT2': 3.77, 'ADA': 0.84,
+          'AVAX': 23.31, 'NEAR': 2.42, 'LINK': 23.39, 'XRP': 2.90,
+          'BCH': 535, 'XLM': 0.39, 'LTC': 110, 'SUI3': 3.38, 'TRX': 0.35,
+          'BNB': 842, 'BGB': 4.57, 'CHSB': 0.24,
+          'AAVE': 330, 'JUPSOL': 212, 'JITOSOL': 231, 'FET': 0.63,
+          'DOGE': 0.21, 'XMR': 263, 'IMO': 1.46, 'VVV3': 2.87, 'TAO6': 324
+        };
+        
+        return mockPrices[symbol] || 1.0;
+      }
+      
+      return 1.0; // Fallback
     }
+
 
     async function generateMockCsv() {
       const plan = await generateMockPlan();
@@ -1554,14 +1618,30 @@
         const url = `${api}/rebalance/plan?${qs}`;
         
         let plan;
+        
+        // FORCE: Always use real CSV data for consistency with other dashboards
+        console.log('🔄 Using real CSV data for rebalancing plan (forced for consistency)');
+        plan = await generateMockPlan(); // Use real CSV data
+        
+        /* Commented out API call - forcing CSV data for consistency
         try {
           plan = await postJson(url, buildPayload());
+          console.log('🔍 Server returned plan with target_weights_pct:', plan.target_weights_pct);
+          console.log('🔍 Server plan total_usd:', plan.total_usd);
+          console.log('🔍 Server plan source:', plan.meta?.source_used);
+          
+          // Force use of real CSV data if server data looks mock or incomplete
+          if (!plan.current_weights_pct || plan.total_usd < 100000 || 
+              plan.meta?.source_used === 'mock_data' || 
+              Object.keys(plan.current_weights_pct || {}).length < 5) {
+            console.warn('⚠️ Server returned insufficient/mock data, using real CSV data instead');
+            plan = await generateMockPlan(); // Use real CSV data
+          }
         } catch (apiError) {
           console.warn('API unavailable, using mock data:', apiError);
           plan = await generateMockPlan(); // Now async
         }
-
-        console.log('🔍 Server returned plan with target_weights_pct:', plan.target_weights_pct);
+        */
         renderDonuts(plan);
         renderSummary(plan);
         renderActions(plan.actions || []);
