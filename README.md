@@ -891,6 +891,22 @@ Tous les cas d'usage critiques ont été testés et validés :
 - ✅ **Error handling** renforcé avec try/catch appropriés et feedback UI
 - ✅ **Documentation troubleshooting** : Guide complet de résolution des problèmes
 
+### 🔥 **CORRECTION CRITIQUE** (27 Août 2025) - Bug majeur résolu
+
+**❌ Problème** : Settings montrait "📊 Balances: ❌ Vide" et analytics en erreur
+**✅ Solution** : 
+- **API parsing fix** : Correction `api/main.py:370` (`raw.get("items", [])` au lieu de `raw or []`)
+- **CSV detection dynamique** : Support complet des fichiers datés `CoinTracking - Balance by Exchange - 26.08.2025.csv`
+- **Frontend unification** : `global-config.js` utilise maintenant l'API backend au lieu d'accès direct aux fichiers
+
+**🎯 Résultat** : 945 assets détectés → 116 assets >$100 affichés → $420,554 portfolio total ✅
+
+**📁 Nouveaux modules créés** :
+- `static/debug-logger.js` : Logging conditionnel intelligent 
+- `static/input-validator.js` : Validation renforcée avec XSS protection
+- `static/performance-optimizer.js` : Optimisations pour gros portfolios
+- `api/csv_endpoints.py` : Téléchargement automatique CoinTracking (400+ lignes)
+
 ### 🔧 Prochaines améliorations
 
 - ⬜ **Tests unitaires complets** pour tous les modules

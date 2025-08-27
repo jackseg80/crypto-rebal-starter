@@ -4,6 +4,52 @@ Ce guide vous aide à diagnostiquer et résoudre les problèmes courants avec l'
 
 ---
 
+## 🔥 **CORRECTION RÉCENTE** - Balances vides (27 Août 2025)
+
+### ❌ **Problème résolu** : "📊 Balances: ❌ Vide" dans Settings
+
+**Symptômes identifiés :**
+- Settings.html affichait "📊 Balances: ❌ Vide"
+- Analytics retournaient des erreurs à cause des balances vides  
+- API `/balances/current` retournait 0 items au lieu de 945 assets
+
+**✅ **Solution appliquée** :**
+1. **Correction API backend** (`api/main.py:370`) :
+   ```python
+   # AVANT (bug)
+   for r in raw or []:  # raw est un dict, pas une liste !
+   
+   # APRÈS (corrigé)
+   for r in raw.get("items", []):  # Accès correct aux items
+   ```
+
+2. **CSV detection améliorée** (`connectors/cointracking.py`) :
+   - Support des fichiers datés : `CoinTracking - Balance by Exchange - 26.08.2025.csv`
+   - Recherche dans `data/raw/` avec patterns dynamiques
+   - Tri par date de modification (plus récent en premier)
+
+3. **Frontend unifié** (`global-config.js`) :
+   ```javascript
+   // AVANT - accès direct aux fichiers (échec)
+   csvResponse = await fetch('/data/raw/CoinTracking - Current Balance.csv');
+   
+   // APRÈS - via API backend (succès)
+   csvResponse = await fetch(`${apiBaseUrl}/balances/current?source=cointracking`);
+   ```
+
+**🧪 Test de validation :**
+```bash
+# Tester l'API directement
+curl -s "http://localhost:8080/balances/current?source=cointracking&min_usd=100"
+# Doit retourner : {"items": [...], "source_used": "cointracking"} avec 116+ items
+
+# Tester dans la console navigateur
+window.loadBalanceData().then(console.log)
+# Doit retourner : {success: true, data: {...}}
+```
+
+---
+
 ## 🚨 Problèmes critiques
 
 ### 1. "Impossible de charger les données du portfolio"
