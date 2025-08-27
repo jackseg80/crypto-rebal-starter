@@ -917,33 +917,207 @@
       return {};
     }
 
+    // Load real portfolio data from CSV (same as dashboard.html)
+    async function loadRealPortfolioData() {
+      try {
+        let csvResponse;
+        try {
+          csvResponse = await fetch('/data/raw/CoinTracking - Current Balance.csv');
+          if (!csvResponse.ok) {
+            throw new Error('Uvicorn path failed');
+          }
+        } catch {
+          csvResponse = await fetch('./data/raw/CoinTracking - Current Balance.csv');
+        }
+        
+        if (!csvResponse.ok) {
+          throw new Error('CSV not available from either path');
+        }
+        
+        const csvText = await csvResponse.text();
+        const balances = parseCSVBalances(csvText);
+        const totalValue = balances.reduce((sum, item) => sum + item.value_usd, 0);
+        
+        console.log(`🔍 Loaded ${balances.length} assets from CSV, total: $${totalValue.toFixed(2)}`);
+        
+        // Group assets by ASSET_GROUPS
+        const groupedData = groupAssetsByAliases(balances);
+        
+        // Convert to format expected by rebalancing logic
+        const currentByGroup = {};
+        const currentWeights = {};
+        
+        groupedData.forEach(group => {
+          currentByGroup[group.label] = group.value;
+          currentWeights[group.label] = (group.value / totalValue) * 100;
+        });
+        
+        return {
+          currentByGroup,
+          currentWeights, 
+          totalValue,
+          assetCount: balances.length
+        };
+        
+      } catch (error) {
+        console.error('Failed to load real portfolio data:', error);
+        return null;
+      }
+    }
+
+    // CSV parsing functions (same as dashboard.html)
+    function parseCSVBalances(csvText) {
+      const cleanedText = csvText.replace(/^\ufeff/, '');
+      const lines = cleanedText.split('\n');
+      const balances = [];
+      
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        
+        try {
+          const columns = parseCSVLine(line);
+          if (columns.length >= 5) {
+            const ticker = columns[0];
+            const amount = parseFloat(columns[3]);
+            const valueUSD = parseFloat(columns[4]);
+            
+            if (ticker && !isNaN(amount) && !isNaN(valueUSD) && valueUSD >= 1.0) {
+              balances.push({
+                symbol: ticker.toUpperCase(),
+                balance: amount,
+                value_usd: valueUSD
+              });
+            }
+          }
+        } catch (error) {
+          console.warn('Error parsing CSV line:', error);
+        }
+      }
+      
+      return balances;
+    }
+
+    function parseCSVLine(line) {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
+      
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ';' && !inQuotes) {
+          result.push(current.trim().replace(/^"|"$/g, ''));
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      
+      if (current) {
+        result.push(current.trim().replace(/^"|"$/g, ''));
+      }
+      
+      return result;
+    }
+
+    // Asset grouping function (same as other dashboards)
+    const ASSET_GROUPS = {
+      'BTC': ['BTC', 'TBTC'], 
+      'ETH': ['ETH', 'WETH', 'STETH', 'WSTETH', 'RETH', 'CBETH'],
+      'Stablecoins': ['USDC', 'USDT', 'USD', 'DAI'],
+      'L1/L0 majors': ['SOL', 'SOL2', 'ATOM', 'ATOM2', 'DOT', 'DOT2', 'ADA', 'AVAX', 'NEAR', 'LINK', 'XRP', 'BCH', 'XLM', 'LTC', 'SUI3', 'TRX'],
+      'Exchange Tokens': ['BNB', 'BGB', 'CHSB'],
+      'DeFi': ['AAVE', 'JUPSOL', 'JITOSOL', 'FET'],
+      'Memecoins': ['DOGE'],
+      'Privacy': ['XMR'],
+      'Others': ['IMO', 'VVV3', 'TAO6']
+    };
+
+    function groupAssetsByAliases(items) {
+      const groups = new Map();
+      const ungrouped = [];
+
+      items.forEach(item => {
+        const symbol = (item.symbol || '').toUpperCase();
+        let foundGroup = null;
+
+        for (const [groupName, aliases] of Object.entries(ASSET_GROUPS)) {
+          if (aliases.includes(symbol)) {
+            foundGroup = groupName;
+            break;
+          }
+        }
+
+        if (foundGroup) {
+          if (!groups.has(foundGroup)) {
+            groups.set(foundGroup, {
+              label: foundGroup,
+              value: 0,
+              assets: []
+            });
+          }
+          const group = groups.get(foundGroup);
+          group.value += parseFloat(item.value_usd || 0);
+          group.assets.push(symbol);
+        } else {
+          ungrouped.push({
+            label: symbol,
+            value: parseFloat(item.value_usd || 0)
+          });
+        }
+      });
+
+      return [...Array.from(groups.values()), ...ungrouped];
+    }
+
     // Generate mock rebalancing plan when API is unavailable
-    function generateMockPlan() {
-      // Current portfolio allocation (mock data - updated to match dashboard)
-      const currentWeights = {
-        'BTC': 44.3,
-        'ETH': 24.5,
-        'Stablecoins': 20.0,
-        'L1/L0 majors': 6.1,
-        'L2/Scaling': 3.1,
-        'DeFi': 1.2,
-        'AI/Data': 0.8,
-        'Others': 0.0
-      };
+    async function generateMockPlan() {
+      // Try to load real CSV data first
+      let currentByGroup = {};
+      let currentWeights = {};
+      let totalUsd = 0;
+      
+      try {
+        const realPortfolioData = await loadRealPortfolioData();
+        if (realPortfolioData && realPortfolioData.totalValue > 0) {
+          currentByGroup = realPortfolioData.currentByGroup;
+          currentWeights = realPortfolioData.currentWeights;
+          totalUsd = realPortfolioData.totalValue;
+          console.log('✅ Using real CSV data for rebalancing plan:', { totalUsd, groups: Object.keys(currentByGroup).length });
+        } else {
+          throw new Error('No real portfolio data available');
+        }
+      } catch (error) {
+        console.warn('⚠️ Could not load real portfolio data, using fallback mock data:', error);
+        
+        // Fallback mock data
+        currentWeights = {
+          'BTC': 44.3,
+          'ETH': 24.5,
+          'Stablecoins': 20.0,
+          'L1/L0 majors': 6.1,
+          'L2/Scaling': 3.1,
+          'DeFi': 1.2,
+          'AI/Data': 0.8,
+          'Others': 0.0
+        };
 
-      // Current portfolio values (mock - updated to match dashboard 423,798$)
-      const currentByGroup = {
-        'BTC': 187170.00,  // BTC + tBTC (44.2%)
-        'ETH': 103050.00,  // ETH + stETH (24.3%)
-        'Stablecoins': 83000.00,  // USDC + USDT (19.6%)
-        'L1/L0 majors': 27100.00,  // SOL (6.4%)
-        'L2/Scaling': 13850.00,  // MATIC (3.3%)
-        'DeFi': 6128.00,   // UNI (1.4%)
-        'AI/Data': 3400.00, // FET (0.8%)
-        'Others': 0.00
-      };
-
-      const totalUsd = Object.values(currentByGroup).reduce((sum, val) => sum + val, 0);
+        currentByGroup = {
+          'BTC': 187170.00,  // BTC + tBTC (44.2%)
+          'ETH': 103050.00,  // ETH + stETH (24.3%)
+          'Stablecoins': 83000.00,  // USDC + USDT (19.6%)
+          'L1/L0 majors': 27100.00,  // SOL (6.4%)
+          'L2/Scaling': 13850.00,  // MATIC (3.3%)
+          'DeFi': 6128.00,   // UNI (1.4%)
+          'AI/Data': 3400.00, // FET (0.8%)
+          'Others': 0.00
+        };
+        
+        totalUsd = Object.values(currentByGroup).reduce((sum, val) => sum + val, 0);
+      }
 
       // Target weights from selected strategy or default
       let targetWeights;
@@ -1034,8 +1208,8 @@
       return mockPrices[symbol] || 1.00;
     }
 
-    function generateMockCsv() {
-      const plan = generateMockPlan();
+    async function generateMockCsv() {
+      const plan = await generateMockPlan();
       const headers = 'group,alias,symbol,action,usd,est_quantity,price_used,location\n';
       const rows = plan.actions.map(action => 
         `${action.group},${action.alias},${action.symbol},${action.action},${action.usd},${action.est_quantity},${action.price_used},${action.location}`
@@ -1384,7 +1558,7 @@
           plan = await postJson(url, buildPayload());
         } catch (apiError) {
           console.warn('API unavailable, using mock data:', apiError);
-          plan = generateMockPlan();
+          plan = await generateMockPlan(); // Now async
         }
 
         console.log('🔍 Server returned plan with target_weights_pct:', plan.target_weights_pct);
@@ -1451,7 +1625,7 @@
           blob = await postCsv(`${api}/rebalance/plan.csv?${qs}`, buildPayload());
         } catch (apiError) {
           console.warn('CSV API unavailable, generating mock CSV:', apiError);
-          blob = generateMockCsv();
+          blob = await generateMockCsv(); // Now async
         }
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
