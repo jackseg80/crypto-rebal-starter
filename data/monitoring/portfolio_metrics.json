@@ -2,7 +2,7 @@
   "total_value": 433032.21,
   "change_24h": 2.34,
   "change_7d": -5.67,
-  "last_update": "2025-08-26T11:10:00.235966+00:00",
+  "last_update": "2025-08-27T00:17:10.325412+00:00",
   "assets": {
     "Bitcoin": {
       "current_allocation": 45.2,
@@ -35,6 +35,6 @@
   },
   "max_deviation": 5.2,
   "portfolio_status": "warning",
-  "last_rebalance": "2025-08-25T17:10:00.235980+00:00",
-  "timestamp": "2025-08-26T11:10:00.235986+00:00"
+  "last_rebalance": "2025-08-26T06:17:10.325426+00:00",
+  "timestamp": "2025-08-27T00:17:10.325431+00:00"
 }

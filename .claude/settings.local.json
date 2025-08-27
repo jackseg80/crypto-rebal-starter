@@ -52,13 +52,23 @@
       "Bash(start test_csv_access.html)",
       "Bash(mv:*)",
       "Bash(start dashboard.html)",
-      "Bash(start risk-dashboard.html)"
+      "Bash(start risk-dashboard.html)",
+      "Bash(start static/execution.html)",
+      "Bash(start http://localhost:8080/static/dashboard.html)",
+      "Bash(start http://localhost:8000/static/dashboard.html)",
+      "Bash(dir:*)",
+      "Bash(start http://localhost:8000/static/risk-dashboard.html)",
+      "Bash(start http://localhost:8000/static/monitoring-unified.html)",
+      "Bash(node:*)",
+      "Bash(start http://localhost:8000/debug_csv_values.html)",
+      "Bash(del debug_csv_values.html)"
     ],
     "deny": [],
     "ask": [],
     "additionalDirectories": [
       "D:\\d D:\\Python",
-      "D:\\d D:\\Python\\crypto-rebal-starter"
+      "D:\\d D:\\Python\\crypto-rebal-starter",
+      "D:\\"
     ]
   }
 }
