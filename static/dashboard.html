@@ -167,7 +167,7 @@
 
         /* Container pour graphique Chart.js */
         .portfolio-chart {
-            height: 250px;
+            height: 210px;
             position: relative;
             margin: var(--space-lg) 0;
             display: flex;
@@ -262,7 +262,7 @@
         <div class="dashboard-grid">
 
             <!-- Portfolio Overview - Disposition améliorée pour gagner de la place -->
-            <div class="card" style="grid-column: span 2;">
+            <div class="card" id="card-portfolio" draggable="true" style="grid-column: span 2;">
                 <div class="card-header">
                     <div class="card-title"><span class="card-icon">💰</span>Portfolio Overview</div>
                     <div style="display:flex;gap:8px;align-items:center;">
@@ -289,29 +289,34 @@
                             <span class="metric-label">Assets Count</span>
                             <span class="metric-value" id="assets-count">--</span>
                         </div>
+                        <div onclick="togglePortfolioDetails()"
+                            style="font-weight: 600; margin-top: var(--space-md); margin-bottom: var(--space-sm); color: var(--theme-text-muted); cursor: pointer; display: flex; align-items: center; gap: var(--space-xs);">
+                            <span id="details-arrow">▶️</span>
+                            <span>📋 Détails du portfolio</span>
+                        </div>
+
+                        <!-- Section portfolio détaillé (cachée par défaut) -->
+                        <div id="portfolio-details" style="display: none;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Coin</th>
+                                        <th>Quantité</th>
+                                        <th>Valeur (USD)</th>
+                                        <th>% du portefeuille</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="portfolio-details-body">
+                                    <!-- Les lignes sont injectées par ton JS -->
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
 
                     <!-- Colonne droite : Graphique et Breakdown -->
                     <div>
-                        <!-- Contrôle pour cacher/afficher le graphique -->
-                        <div onclick="togglePortfolioChart()"
-                            style="font-weight: 600; margin-bottom: var(--space-sm); color: var(--theme-text-muted); cursor: pointer; display: flex; align-items: center; gap: var(--space-xs);">
-                            <span id="chart-arrow">▶️</span>
-                            <span>📊 Graphique portfolio</span>
-                        </div>
-
-                        <div class="portfolio-chart" id="portfolio-chart" style="display: none;">
+                        <div class="portfolio-chart" id="portfolio-chart">
                             <canvas id="portfolioChartCanvas"></canvas>
-                        </div>
-
-                        <!-- Liste détaillée des allocations (collapsible) -->
-                        <div id="portfolio-breakdown" style="margin-top: var(--space-lg); font-size: 0.875rem;">
-                            <div onclick="toggleBreakdown()"
-                                style="font-weight: 600; margin-bottom: var(--space-sm); color: var(--theme-text-muted); cursor: pointer; display: flex; align-items: center; gap: var(--space-xs);">
-                                <span id="breakdown-arrow">▶️</span>
-                                <span>📊 Breakdown détaillé</span>
-                            </div>
-                            <div id="breakdown-list" style="display: none;">Loading...</div>
                         </div>
                     </div>
                 </div>
@@ -319,7 +324,7 @@
 
 
             <!-- Execution Status -->
-            <div class="card">
+            <div class="card" id="card-execution" draggable="true">
                 <div class="card-header">
                     <div class="card-title"><span class="card-icon">🎯</span>Execution Status</div>
                     <span class="status-badge" id="execution-status">Loading</span>
@@ -339,7 +344,7 @@
             </div>
 
             <!-- Exchange Connections -->
-            <div class="card">
+            <div class="card" id="card-exchange" draggable="true">
                 <div class="card-header">
                     <div class="card-title"><span class="card-icon">🔗</span>Exchange Status</div>
                     <a href="monitoring_advanced.html" class="status-badge status-active"
@@ -351,7 +356,7 @@
             </div>
 
             <!-- Recent Activity -->
-            <div class="card">
+            <div class="card" id="card-activity" draggable="true">
                 <div class="card-header">
                     <div class="card-title"><span class="card-icon">📋</span>Recent Activity</div>
                     <a href="execution_history.html" class="status-badge status-active"
@@ -363,7 +368,7 @@
             </div>
 
             <!-- System Health -->
-            <div class="card">
+            <div class="card" id="card-health" draggable="true">
                 <div class="card-header">
                     <div class="card-title"><span class="card-icon">❤️</span>System Health</div>
                     <span class="status-badge" id="system-health">Loading</span>
@@ -408,7 +413,7 @@
             initChartTheme();
 
             await loadDashboardData();
-            setInterval(loadDashboardData, 30000);
+            setInterval(loadDashboardData, 60000);
 
             // Écouter les changements de thème pour synchronisation cross-tab
             window.addEventListener('storage', function (e) {
@@ -482,7 +487,7 @@
             if (balanceResult.csvText) {
                 // Source CSV locale
                 const csvText = balanceResult.csvText;
-                balances = parseCSVBalancesLocal(csvText, { thresholdUSD: (window.globalConfig?.get('min_usd_threshold')) ?? 1.0 });
+                balances = parseCSVBalancesAuto(csvText, { thresholdUSD: (window.globalConfig?.get('min_usd_threshold')) ?? 1.0 });
             } else if (balanceResult.data && Array.isArray(balanceResult.data.items)) {
                 // Source API
                 balances = balanceResult.data.items.map(item => ({
@@ -569,7 +574,10 @@
 
             log.debug('About to call updatePortfolioChart with:', data.balances);
             await updatePortfolioChart(data.balances);
-            updatePortfolioBreakdown(data.balances);
+            // N'appeler le breakdown que si le conteneur est présent dans le DOM
+            if (document.getElementById('breakdown-list')) {
+                updatePortfolioBreakdown(data.balances);
+            }
         }
         function updateConnectionsDisplay(data) {
             const container = document.getElementById('connections-grid');
@@ -649,7 +657,7 @@
             if (dm < 1440) return `${Math.floor(dm / 60)}h`;
             return `${Math.floor(dm / 1440)}j`;
         }
-        function showError(m) { 
+        function showError(m) {
             log.error(m);
             // Afficher l'erreur à l'utilisateur via UI
             const errorDiv = document.getElementById('error-display') || createErrorDisplay();
@@ -726,23 +734,27 @@
             console.log('✅ Asset groups loaded:', Object.keys(ASSET_GROUPS));
         }
 
-        // Parser pour le fichier CSV CoinTracking - uses centralized config
-        function parseCSVBalancesLocal(csvText, { thresholdUSD = 1.0 } = {}) {
-            return window.parseCSVBalances ? window.parseCSVBalances(csvText) : parseCSVBalancesLocal(csvText);
+        // Parser CSV : wrapper auto qui utilise window.parseCSVBalances si dispo, sinon notre local
+        function parseCSVBalancesAuto(csvText, { thresholdUSD = 1.0 } = {}) {
+            if (typeof window.parseCSVBalances === 'function') {
+                return window.parseCSVBalances(csvText);
+            }
+            return parseCSVBalancesLocal(csvText, { thresholdUSD });
         }
 
-        function parseCSVBalancesLocal(csvText) {
+        // Implémentation locale robuste
+        function parseCSVBalancesLocal(csvText, { thresholdUSD = 1.0 } = {}) {
             const cleanedText = csvText.replace(/^\ufeff/, '');
             const lines = cleanedText.split(/\r?\n/);
             const balances = [];
-            const minThreshold = (window.globalConfig && window.globalConfig.get('min_usd_threshold')) || 1.0;
+            const minThreshold = (window.globalConfig && window.globalConfig.get('min_usd_threshold')) || thresholdUSD || 1.0;
 
             for (let i = 1; i < lines.length; i++) {
                 const line = lines[i].trim();
                 if (!line) continue;
 
                 try {
-                    const columns = parseCSVLine(line);
+                    const columns = parseCSVLineLocal(line);
                     if (columns.length >= 5) {
                         const ticker = columns[0];
                         const norm = s => parseFloat(String(s).replace(/[,\u00A0]/g, ''));
@@ -1018,10 +1030,13 @@
             });
         }
 
-        // Afficher la liste détaillée des allocations pour debug
+        // Afficher la liste détaillée des allocations
         function updatePortfolioBreakdown(balancesData) {
             const container = document.getElementById('breakdown-list');
-
+            // Si le conteneur n'existe pas sur cette page, on sort proprement
+            if (!container) {
+                return;
+            }
             if (!balancesData || !balancesData.items) {
                 container.innerHTML = '<div style="color: var(--danger);">❌ Pas de données</div>';
                 return;
@@ -1056,30 +1071,16 @@
             `;
         }
 
-        // Toggle pour afficher/cacher le breakdown détaillé
-        function toggleBreakdown() {
-            const list = document.getElementById('breakdown-list');
-            const arrow = document.getElementById('breakdown-arrow');
-
-            if (list.style.display === 'none') {
-                list.style.display = 'block';
-                arrow.textContent = '▼️';
+        // Toggle pour afficher/cacher la table "Détails du portfolio"
+        function togglePortfolioDetails() {
+            const section = document.getElementById('portfolio-details');
+            const arrow = document.getElementById('details-arrow');
+            if (!section || !arrow) return;
+            if (section.style.display === 'none' || section.style.display === '') {
+                section.style.display = 'block';
+                arrow.textContent = '🔽';
             } else {
-                list.style.display = 'none';
-                arrow.textContent = '▶️';
-            }
-        }
-
-        // Toggle pour afficher/cacher le graphique portfolio
-        function togglePortfolioChart() {
-            const chart = document.getElementById('portfolio-chart');
-            const arrow = document.getElementById('chart-arrow');
-
-            if (chart.style.display === 'none') {
-                chart.style.display = 'flex';
-                arrow.textContent = '▼️';
-            } else {
-                chart.style.display = 'none';
+                section.style.display = 'none';
                 arrow.textContent = '▶️';
             }
         }
@@ -1090,6 +1091,137 @@
             // Vider le cache si nécessaire
             await loadDashboardData();
         }
+
+
+        // ---- Drag & Drop des cartes du dashboard ----
+        (function () {
+            const GRID_SELECTOR = '.dashboard-grid';
+            const STORAGE_KEY = 'dashboard_card_order_v1';
+
+            let dragEl = null;
+            let usingHandle = false;
+
+            document.addEventListener('DOMContentLoaded', () => {
+                initCardOrdering();
+            });
+
+            function initCardOrdering() {
+                const grid = document.querySelector(GRID_SELECTOR);
+                if (!grid) return;
+
+                // 1) Restaurer l'ordre sauvegardé
+                restoreOrder(grid);
+
+                // 2) Brancher les events
+                grid.querySelectorAll('.card[draggable="true"]').forEach(card => {
+                    // Si tu veux drag uniquement via l'entête:
+                    const handle = card.querySelector('.card-header');
+                    if (handle) {
+                        handle.setAttribute('data-drag-handle', 'true');
+                        handle.style.cursor = 'move';
+                        handle.addEventListener('mousedown', () => usingHandle = true);
+                        handle.addEventListener('mouseup', () => usingHandle = false);
+                        handle.addEventListener('mouseleave', () => usingHandle = false);
+                    }
+
+                    card.addEventListener('dragstart', onDragStart);
+                    card.addEventListener('dragend', onDragEnd);
+                    card.addEventListener('dragover', onDragOver);
+                    card.addEventListener('dragleave', onDragLeave);
+                    card.addEventListener('drop', onDrop);
+                });
+
+                // Permettre le drop partout dans la grille
+                grid.addEventListener('dragover', e => e.preventDefault());
+                grid.addEventListener('drop', e => {
+                    e.preventDefault();
+                    clearDropIndicators(grid);
+                    saveOrder(grid);
+                });
+            }
+
+            function onDragStart(e) {
+                // Si handle requis : empêcher le drag initié ailleurs que sur le handle
+                const wantsHandle = true; // passe à false pour autoriser drag partout
+                if (wantsHandle) {
+                    const isOnHandle = e.target.closest('[data-drag-handle="true"]');
+                    if (!isOnHandle && !usingHandle) {
+                        e.preventDefault();
+                        return;
+                    }
+                }
+                dragEl = e.currentTarget;
+                e.dataTransfer.effectAllowed = 'move';
+                // Set data (certains navigateurs exigent une data)
+                e.dataTransfer.setData('text/plain', dragEl.id || '');
+                dragEl.classList.add('dragging');
+            }
+
+            function onDragEnd() {
+                if (dragEl) dragEl.classList.remove('dragging');
+                dragEl = null;
+                usingHandle = false;
+            }
+
+            function onDragOver(e) {
+                e.preventDefault();
+                const card = e.currentTarget;
+                if (!dragEl || card === dragEl) return;
+
+                // Feedback visuel
+                card.classList.add('drop-target');
+
+                // Insertion live : on calcule si on met avant ou après la carte survolée
+                const grid = card.parentElement;
+                const above = shouldInsertBefore(e, card);
+                if (above) grid.insertBefore(dragEl, card);
+                else grid.insertBefore(dragEl, card.nextSibling);
+            }
+
+            function onDragLeave(e) {
+                e.currentTarget.classList.remove('drop-target');
+            }
+
+            function onDrop(e) {
+                e.preventDefault();
+                e.currentTarget.classList.remove('drop-target');
+                const grid = e.currentTarget.parentElement;
+                saveOrder(grid);
+            }
+
+            function shouldInsertBefore(e, targetCard) {
+                const rect = targetCard.getBoundingClientRect();
+                // Heuristique : si on est sur la moitié supérieure, on insère avant
+                return (e.clientY - rect.top) < (rect.height / 2);
+            }
+
+            function saveOrder(grid) {
+                const order = Array.from(grid.querySelectorAll('.card[draggable="true"]')).map(c => c.id);
+                try {
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(order));
+                } catch { }
+            }
+
+            function restoreOrder(grid) {
+                let raw = null;
+                try { raw = localStorage.getItem(STORAGE_KEY); } catch { }
+                if (!raw) return;
+
+                try {
+                    const order = JSON.parse(raw);
+                    const map = new Map(Array.from(grid.children).map(el => [el.id, el]));
+                    order.forEach(id => {
+                        const el = map.get(id);
+                        if (el) grid.appendChild(el);
+                    });
+                } catch { }
+            }
+
+            function clearDropIndicators(root) {
+                root.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
+            }
+        })();
+
     </script>
 </body>
 
