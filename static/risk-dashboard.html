@@ -26,15 +26,42 @@
 
   <!-- Chart.js for Bitcoin Cycle Visualization -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <script
+    src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 
   <style>
+    /* ===== Container responsive ===== */
+    .container {
+      width: 100%;
+      max-width: 95vw;
+      margin: 0 auto;
+      padding: 0 var(--space-lg);
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        padding: 0 var(--space-md);
+      }
+    }
+
     /* ===== Layout Hybride: Sidebar + Main ===== */
     .dashboard-layout {
       display: grid;
-      grid-template-columns: 280px 1fr;
+      grid-template-columns: 320px 1fr;
       gap: var(--space-lg);
       min-height: calc(100vh - 200px);
+    }
+
+    @media (max-width: 1024px) {
+      .dashboard-layout {
+        grid-template-columns: 1fr;
+        gap: var(--space-md);
+      }
+
+      .sidebar {
+        max-height: none;
+        position: relative;
+      }
     }
 
     .sidebar {
@@ -579,6 +606,28 @@
   </div>
 
   <script type="module">
+    // ⚙️ Unifier l’URL d’import du module (pas de ?v=3 ici)
+    import { cycleScoreFromMonths, getCurrentCycleMonths } from './modules/cycle-navigator.js';
+    // Note: calibrateCycleParams & getCycleParams seront importés à la volée, ce qui
+    // évite tout problème si le bouton est injecté après coup.
+
+    // 🔗 Écoute déléguée (le bouton est ajouté dynamiquement)
+    document.addEventListener('click', async (e) => {
+      const btn = e.target?.closest('#btn-calibrate');
+      if (!btn) return;
+      try {
+        const { calibrateCycleParams, getCycleParams } = await import('./modules/cycle-navigator.js');
+        const res = calibrateCycleParams(); // ancres par défaut
+        console.log('Cycle params calibrés:', getCycleParams(), 'score=', res.score);
+        // ✅ Redessiner le même canvas
+        await createBitcoinCycleChart('bitcoin-cycle-chart');
+        window.showToast?.('Cycle calibré sur historiques', 'success');
+      } catch (e) {
+        console.error(e);
+        window.showToast?.('Échec calibration', 'error');
+      }
+    });
+
     // Helper functions (must be defined first)
     function safeFixed(v, d = 2) { return (v == null || isNaN(v)) ? 'N/A' : Number(v).toFixed(d); }
     function formatPercent(v) { return (v == null || isNaN(v)) ? 'N/A' : (v * 100).toFixed(2) + '%'; }
@@ -733,18 +782,18 @@
         try {
           const groups = groupAssetsByAliases(balances);
           console.log('🔍 DEBUG Risk Dashboard: Groups created:', groups.length);
-          
+
           const riskMetrics = calculateRealRiskMetrics(balances, totalValue);
           console.log('🔍 DEBUG Risk Dashboard: Risk metrics calculated:', riskMetrics);
-          
+
           const groupWeights = {};
-          
+
           // Calculate weights for correlation metrics
           groups.forEach(group => {
             groupWeights[group.label] = group.value / totalValue;
           });
           console.log('🔍 DEBUG Risk Dashboard: Group weights calculated:', groupWeights);
-          
+
           const correlationMetrics = calculateCorrelationMetrics(groups, groupWeights);
           console.log('🔍 DEBUG Risk Dashboard: Correlation metrics calculated:', correlationMetrics);
 
@@ -815,7 +864,7 @@
       // Group assets by risk categories
       const groups = groupAssetsByAliases(balances);
       const groupWeights = {};
-      
+
       // Calculate weights for each group
       groups.forEach(group => {
         groupWeights[group.label] = group.value / totalValue;
@@ -851,13 +900,13 @@
 
       for (const [groupName, weight] of Object.entries(groupWeights)) {
         const profile = RISK_PROFILES[groupName] || RISK_PROFILES['Others'];
-        
+
         // Weight-adjusted contributions
         portfolioVolatility += weight * profile.volatility;
         portfolioSharpe += weight * profile.sharpe_base;
         portfolioMaxDrawdown += weight * profile.max_drawdown_base;
         portfolioCorrelation += weight * profile.correlation_to_market;
-        
+
         // Risk score (0-100, higher = more risky)
         const groupRisk = (profile.volatility * 0.4 + profile.max_drawdown_base * 0.4 + (1 - profile.sharpe_base) * 0.2) * 100;
         portfolioRiskScore += weight * groupRisk;
@@ -871,33 +920,33 @@
       // Apply diversification benefit (reduce volatility and drawdown)
       const numSignificantGroups = Object.values(groupWeights).filter(w => w > 0.05).length;
       const diversificationBenefit = Math.min(0.85, 0.5 + (numSignificantGroups * 0.05)); // Max 15% reduction
-      
+
       portfolioVolatility *= diversificationBenefit;
       portfolioMaxDrawdown *= diversificationBenefit;
-      
+
       console.log('🔍 DEBUG Risk Calculation: Diversification benefit:', diversificationBenefit, 'Groups:', numSignificantGroups);
 
       // Calculate concentration risk
       const concentrationRisk = Math.max(...Object.values(groupWeights)); // Largest allocation
       const concentrationPenalty = Math.max(1.0, 1 + (concentrationRisk - 0.4) * 0.5); // Penalty if >40% in one group
-      
+
       if (concentrationRisk > 0.4) {
         portfolioVolatility *= concentrationPenalty;
         portfolioRiskScore *= concentrationPenalty;
-        console.log('🔍 DEBUG Risk Calculation: Concentration penalty applied:', concentrationPenalty, 'Max allocation:', (concentrationRisk*100).toFixed(1) + '%');
+        console.log('🔍 DEBUG Risk Calculation: Concentration penalty applied:', concentrationPenalty, 'Max allocation:', (concentrationRisk * 100).toFixed(1) + '%');
       }
 
       // Derive other metrics from base calculations
       const sortino = portfolioSharpe * 1.4; // Sortino typically higher than Sharpe
       const currentDrawdown = -Math.min(0.05, portfolioMaxDrawdown * 0.2); // Current drawdown usually smaller
-      
+
       // VaR calculations based on volatility
       const dailyVol = portfolioVolatility / Math.sqrt(252); // Convert annual to daily
       const var95_1d = -1.645 * dailyVol; // 95% VaR (1.645 standard deviations)
       const var99_1d = -2.326 * dailyVol; // 99% VaR (2.326 standard deviations)
       const cvar95_1d = var95_1d * 1.3; // CVaR typically 30% worse than VaR
       const cvar99_1d = var99_1d * 1.2;
-      
+
       // Calmar ratio
       const calmar = portfolioMaxDrawdown > 0 ? portfolioSharpe / portfolioMaxDrawdown : 0;
 
@@ -1025,7 +1074,7 @@
       // Check which range the value falls into
       for (const [level, range] of Object.entries(rule)) {
         if (level === 'interpretation') continue;
-        
+
         const [min, max] = range;
         if (value >= min && value <= max) {
           const color = level === 'good' ? '#10b981' : level === 'warning' ? '#f59e0b' : '#ef4444';
@@ -1073,7 +1122,7 @@
 
     function generateRecommendations(metrics, correlations, groups) {
       const recommendations = [];
-      
+
       // VaR recommendations
       if (metrics.var_95_1d < -0.08) {
         recommendations.push({
@@ -1084,7 +1133,7 @@
           action: 'Ciblez 15-25% de stablecoins pour stabiliser le portfolio'
         });
       }
-      
+
       // Sharpe ratio recommendations
       if (metrics.sharpe_ratio < 1.0) {
         recommendations.push({
@@ -1095,7 +1144,7 @@
           action: 'Considérez réduire les memecoins, augmenter BTC/ETH'
         });
       }
-      
+
       // Diversification recommendations
       if (correlations.diversification_ratio < 0.5) {
         recommendations.push({
@@ -1106,7 +1155,7 @@
           action: 'Ajoutez des actifs décorrélés: privacy coins, stablecoins, secteurs différents'
         });
       }
-      
+
       // Effective assets recommendations  
       if (correlations.effective_assets < 3) {
         recommendations.push({
@@ -1117,7 +1166,7 @@
           action: 'Rééquilibrez: limitez tout actif à <20% du portfolio'
         });
       }
-      
+
       // Drawdown recommendations
       if (metrics.max_drawdown < -0.6) {
         recommendations.push({
@@ -1128,7 +1177,7 @@
           action: 'Stratégie défensive: DCA, stop-loss, ou hedging avec stablecoins'
         });
       }
-      
+
       // High correlation recommendations
       if (correlations.top_correlations) {
         const highCorrels = correlations.top_correlations.filter(c => Math.abs(c.correlation) > 0.75);
@@ -1142,7 +1191,7 @@
           });
         }
       }
-      
+
       // If everything is good, add positive reinforcement
       if (recommendations.length === 0) {
         recommendations.push({
@@ -1153,7 +1202,7 @@
           action: 'Continuez le monitoring et ajustez selon les conditions de marché'
         });
       }
-      
+
       // Sort by priority
       const priorityOrder = { 'high': 0, 'medium': 1, 'low': 2 };
       return recommendations.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
@@ -1180,9 +1229,9 @@
       let weightedCorrelation = 0;
       let totalWeight = 0;
       let effectiveAssets = 0;
-      
+
       const groupNames = Object.keys(groupWeights).filter(g => groupWeights[g] > 0.01);
-      
+
       // Calculate diversification ratio using correlation matrix
       for (let i = 0; i < groupNames.length; i++) {
         for (let j = i + 1; j < groupNames.length; j++) {
@@ -1190,7 +1239,7 @@
           const group2 = groupNames[j];
           const weight1 = groupWeights[group1] || 0;
           const weight2 = groupWeights[group2] || 0;
-          
+
           const correlation = CORRELATION_MATRIX[group1]?.[group2] || 0.5;
           weightedCorrelation += 2 * weight1 * weight2 * correlation; // 2x because we're only doing upper triangle
           totalWeight += 2 * weight1 * weight2;
@@ -1198,7 +1247,7 @@
       }
 
       const avgCorrelation = totalWeight > 0 ? weightedCorrelation / totalWeight : 0;
-      
+
       // Calculate effective number of assets (diversification measure)
       let sumOfSquares = 0;
       for (const weight of Object.values(groupWeights)) {
@@ -1207,10 +1256,10 @@
         }
       }
       effectiveAssets = sumOfSquares > 0 ? 1 / sumOfSquares : 1;
-      
+
       // Diversification ratio (higher is better, max = 1.0)
       const diversificationRatio = Math.max(0.1, 1 - avgCorrelation * 0.8); // Adjust for crypto's high correlations
-      
+
       // Find top correlations from actual portfolio groups
       const topCorrelations = [];
       for (let i = 0; i < groupNames.length; i++) {
@@ -1219,7 +1268,7 @@
           const group2 = groupNames[j];
           const correlation = CORRELATION_MATRIX[group1]?.[group2] || 0.5;
           const combinedWeight = (groupWeights[group1] || 0) + (groupWeights[group2] || 0);
-          
+
           if (combinedWeight > 0.1) { // Only show significant pairs
             topCorrelations.push({
               asset1: group1,
@@ -1572,34 +1621,34 @@
               <div style="font-weight: 600; color: var(--theme-text);">🎯 Niveau de risque</div>
               <div style="color: var(--theme-text-muted); margin-top: 0.25rem;">
                 ${(() => {
-                  const riskLevel = m.overall_risk_level || 'unknown';
-                  const riskScore = m.risk_score || 0;
-                  if (riskScore > 70) return 'Élevé - Attention aux corrections brutales';
-                  if (riskScore > 50) return 'Modéré - Typique pour crypto';
-                  return 'Contrôlé - Bon équilibre risque/rendement';
-                })()}
+          const riskLevel = m.overall_risk_level || 'unknown';
+          const riskScore = m.risk_score || 0;
+          if (riskScore > 70) return 'Élevé - Attention aux corrections brutales';
+          if (riskScore > 50) return 'Modéré - Typique pour crypto';
+          return 'Contrôlé - Bon équilibre risque/rendement';
+        })()}
               </div>
             </div>
             <div class="insight-item">
               <div style="font-weight: 600; color: var(--theme-text);">📊 Diversification</div>
               <div style="color: var(--theme-text-muted); margin-top: 0.25rem;">
                 ${(() => {
-                  const div = c.diversification_ratio || 0;
-                  if (div > 0.7) return 'Excellente - Portfolio bien réparti';
-                  if (div > 0.4) return 'Limitée - Possibilité d\'amélioration';
-                  return 'Faible - Trop corrélé, diversifiez';
-                })()}
+          const div = c.diversification_ratio || 0;
+          if (div > 0.7) return 'Excellente - Portfolio bien réparti';
+          if (div > 0.4) return 'Limitée - Possibilité d\'amélioration';
+          return 'Faible - Trop corrélé, diversifiez';
+        })()}
               </div>
             </div>
             <div class="insight-item">
               <div style="font-weight: 600; color: var(--theme-text);">⚡ Performance/Risque</div>
               <div style="color: var(--theme-text-muted); margin-top: 0.25rem;">
                 ${(() => {
-                  const sharpe = m.sharpe_ratio || 0;
-                  if (sharpe > 1.2) return 'Excellent - Rendement supérieur pour le risque pris';
-                  if (sharpe > 0.8) return 'Bon - Rendement acceptable pour le risque';
-                  return 'À améliorer - Risque élevé vs rendement';
-                })()}
+          const sharpe = m.sharpe_ratio || 0;
+          if (sharpe > 1.2) return 'Excellent - Rendement supérieur pour le risque pris';
+          if (sharpe > 0.8) return 'Bon - Rendement acceptable pour le risque';
+          return 'À améliorer - Risque élevé vs rendement';
+        })()}
               </div>
             </div>
           </div>
@@ -1749,8 +1798,8 @@
         <div class="risk-card" style="margin-top: 2rem;">
           <h3>💡 Recommandations d'amélioration</h3>
           ${(() => {
-            const recommendations = generateRecommendations(m, c, p.groups || {});
-            return recommendations.map(rec => `
+          const recommendations = generateRecommendations(m, c, p.groups || {});
+          return recommendations.map(rec => `
               <div class="recommendation recommendation-${rec.priority}">
                 <div class="recommendation-header">
                   <span class="recommendation-icon">${rec.icon}</span>
@@ -1761,7 +1810,7 @@
                 <div class="recommendation-action">▶️ ${rec.action}</div>
               </div>
             `).join('');
-          })()}
+        })()}
         </div>
 
         <!-- Alerts -->
@@ -1788,7 +1837,7 @@
     }
 
     // ====== Bitcoin Cycle Chart Functions ======
-    
+
     // Bitcoin halving historical data
     const BITCOIN_HALVINGS = [
       { date: '2012-11-28', block: 210000, reward_before: 50, reward_after: 25 },
@@ -1798,71 +1847,111 @@
       { date: '2028-04-20', block: 1050000, reward_before: 3.125, reward_after: 1.5625, estimated: true }
     ];
 
-    // Fetch historical Bitcoin price data from CoinGecko
+    // ----------- Fetch historique BTC fiable (sans mock) -----------
     async function fetchBitcoinHistoricalData() {
+      console.log('🏛️ Tentative de récupération historique Bitcoin...');
+      
+      // 1) FRED via Proxy Backend (résout les problèmes CORS)
       try {
-        console.log('🔍 Fetching Bitcoin historical price data...');
+        console.log('🏛️ Récupération historique Bitcoin depuis FRED via proxy...');
+        const proxyUrl = '/proxy/fred/bitcoin?start_date=2014-01-01';
+        const r = await fetch(proxyUrl);
+        if (!r.ok) throw new Error(`Proxy HTTP ${r.status}: ${r.statusText}`);
+        const result = await r.json();
         
-        // Fetch data from 2012 to present (4+ years of data)
-        const response = await fetch('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=max&interval=daily');
-        
-        if (!response.ok) {
-          throw new Error(`CoinGecko API failed: ${response.status}`);
+        if (result.success && result.data && result.data.length > 0) {
+          console.log(`✅ FRED Proxy: ${result.data.length} points récupérés (première: $${result.data[0].price}, dernière: $${result.data[result.data.length-1].price})`);
+          console.log(`📊 Total disponible: ${result.raw_count} observations`);
+          
+          // Vérifier que les données commencent bien en 2014
+          const firstDate = new Date(result.data[0].time);
+          if (firstDate.getFullYear() <= 2014) {
+            console.log(`🎯 HISTORIQUE COMPLET: Données depuis ${firstDate.getFullYear()}!`);
+          }
+          
+          return { 
+            data: result.data.map(point => ({ time: point.time, price: point.price })), 
+            source: result.source 
+          };
+        } else {
+          console.warn('⚠️ FRED Proxy: Aucune donnée ou erreur -', result.error);
         }
-        
-        const data = await response.json();
-        console.log('✅ Bitcoin historical data loaded:', data.prices.length, 'data points');
-        
-        // Transform to our format: [timestamp, price]
-        return data.prices.filter(([timestamp, price]) => {
-          const date = new Date(timestamp);
-          return date >= new Date('2012-01-01'); // Only data from 2012 onwards
-        });
-        
-      } catch (error) {
-        console.warn('⚠️ Failed to fetch real Bitcoin data, using fallback:', error);
-        
-        // Fallback mock data - approximate Bitcoin prices at key points
-        const mockData = [];
-        const startDate = new Date('2012-01-01');
-        const endDate = new Date();
-        const dayMs = 24 * 60 * 60 * 1000;
-        
-        // Generate approximate data points
-        for (let d = startDate; d <= endDate; d.setTime(d.getTime() + dayMs * 30)) {
-          const timestamp = d.getTime();
-          let price = 10; // Starting price in 2012
-          
-          // Approximate price evolution
-          if (d >= new Date('2013-01-01')) price = 100;
-          if (d >= new Date('2014-01-01')) price = 400;
-          if (d >= new Date('2015-01-01')) price = 200;
-          if (d >= new Date('2016-07-09')) price = 650;
-          if (d >= new Date('2017-01-01')) price = 1000;
-          if (d >= new Date('2018-01-01')) price = 15000;
-          if (d >= new Date('2019-01-01')) price = 4000;
-          if (d >= new Date('2020-05-11')) price = 9000;
-          if (d >= new Date('2021-01-01')) price = 30000;
-          if (d >= new Date('2022-01-01')) price = 45000;
-          if (d >= new Date('2023-01-01')) price = 20000;
-          if (d >= new Date('2024-04-20')) price = 65000;
-          if (d >= new Date('2024-07-01')) price = 70000;
-          
-          // Add some volatility
-          price *= (0.8 + Math.random() * 0.4);
-          
-          mockData.push([timestamp, price]);
-        }
-        
-        return mockData;
+      } catch (e) {
+        console.warn('❌ FRED Proxy échoué, passage à Binance:', e.message);
       }
+
+      // 2) Binance Klines (BTCUSDT) — 2017+, sans clé, paginé
+      try {
+        console.log('🟡 Récupération historique Bitcoin depuis Binance API...');
+        const ONE_DAY = 24 * 60 * 60 * 1000;
+        const LIMIT = 1000;
+        const out = [];
+        let start = Date.UTC(2017, 6, 1); // 1er juillet 2017
+        const end = Date.now();
+        let requestCount = 0;
+        
+        while (start < end) {
+          const next = Math.min(start + ONE_DAY * (LIMIT - 1), end);
+          const u = new URL('https://api.binance.com/api/v3/klines');
+          u.searchParams.set('symbol', 'BTCUSDT');
+          u.searchParams.set('interval', '1d');
+          u.searchParams.set('startTime', String(start));
+          u.searchParams.set('endTime', String(next));
+          u.searchParams.set('limit', String(LIMIT));
+          const r = await fetch(u.toString());
+          if (!r.ok) throw new Error(`Binance HTTP ${r.status}: ${r.statusText}`);
+          const rows = await r.json();
+          if (!Array.isArray(rows) || rows.length === 0) break;
+          for (const k of rows) {
+            const openTime = k[0];           // ms
+            const close = parseFloat(k[4]);  // close
+            if (Number.isFinite(close)) out.push({ time: openTime, price: close });
+          }
+          start = rows[rows.length - 1][0] + ONE_DAY;
+          requestCount++;
+          await new Promise(res => setTimeout(res, 120)); // éviter rate limit
+        }
+        if (out.length > 0) {
+          console.log(`✅ Binance: ${out.length} points récupérés en ${requestCount} requêtes (${out[0].price}$ à ${out[out.length-1].price}$)`);
+          return { data: out, source: 'Binance BTCUSDT (1d close)' };
+        } else {
+          console.warn('⚠️ Binance: Aucune donnée récupérée');
+        }
+      } catch (e) {
+        console.error('❌ Binance fetch échoué:', e.message);
+      }
+
+      // 3) CoinGecko 365 jours (si on veut au moins la dernière année)
+      try {
+        console.log('🦎 Récupération historique Bitcoin depuis CoinGecko API (365j)...');
+        const r = await fetch('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=365&interval=daily');
+        if (!r.ok) throw new Error(`CoinGecko HTTP ${r.status}: ${r.statusText}`);
+        const j = await r.json();
+        if (Array.isArray(j.prices)) {
+          const data = j.prices.map(([t, p]) => ({ time: t, price: p }));
+          if (data.length > 0) {
+            console.log(`✅ CoinGecko: ${data.length} points récupérés (${data[0].price.toFixed(0)}$ à ${data[data.length-1].price.toFixed(0)}$)`);
+            return { data, source: 'CoinGecko (365j)' };
+          } else {
+            console.warn('⚠️ CoinGecko: Aucune donnée dans la réponse');
+          }
+        } else {
+          console.warn('⚠️ CoinGecko: Format de réponse inattendu');
+        }
+      } catch (e) {
+        console.error('❌ CoinGecko fetch échoué:', e.message);
+      }
+
+      // 4) Rien trouvé → renvoyer vide (pas de courbe prix)
+      console.warn('❌ Aucune source d\'historique Bitcoin disponible');
+      return { data: [], source: 'Aucune (toutes les APIs ont échoué)' };
     }
 
     // Create Bitcoin cycle chart
-    async function createBitcoinCycleChart(containerId) {
-      const canvas = document.getElementById(containerId);
+    async function createBitcoinCycleChart(canvasId) {
+      const canvas = document.getElementById(canvasId);
       if (!canvas) {
-        console.error('Canvas not found:', containerId);
+        console.error('Canvas not found:', canvasId);
         return null;
       }
 
@@ -1882,50 +1971,65 @@
 
       try {
         // Fetch historical data
-        const historicalData = await fetchBitcoinHistoricalData();
-        
+        const { data: historicalData, source } = await fetchBitcoinHistoricalData();
+
         // Get current cycle state
         const state = store.snapshot();
         const cycleData = state.cycle;
-        
-        // Prepare chart data
-        const priceData = historicalData.map(([timestamp, price]) => ({
-          x: timestamp,
-          y: price
+
+        // Prepare chart data (Bitcoin price - transparent background)
+        const priceData = historicalData.map(point => ({
+          x: point.time,
+          y: point.price
         }));
 
-        // Import cycle navigator functions
+        // Import cycle navigator functions (même URL que partout)
         const { cycleScoreFromMonths, getCyclePhase } = await import('./modules/cycle-navigator.js');
 
+        // 🎯 CALIBRATION HISTORIQUE AUTOMATIQUE
+        try {
+          const { calibrateCycleParams } = await import('./modules/cycle-navigator.js');
+          const calibRes = calibrateCycleParams();
+          console.log('🎯 Calibration historique automatique:', calibRes);
+        } catch (e) {
+          console.warn('⚠️ Calibration automatique échouée:', e.message);
+        }
+
         // Calculate cycle score for each data point
-        const cycleScoreData = historicalData.map(([timestamp, price]) => {
-          const date = new Date(timestamp);
-          
+        const cycleScoreData = historicalData.map(point => {
+          const date = new Date(point.time);
+
           // Find which cycle period this date falls into
           let monthsAfterHalving = 0;
           for (let i = BITCOIN_HALVINGS.length - 1; i >= 0; i--) {
             const halving = BITCOIN_HALVINGS[i];
             const halvingDate = new Date(halving.date);
-            
+
             if (date >= halvingDate && !halving.estimated) {
               const diffTime = date.getTime() - halvingDate.getTime();
               monthsAfterHalving = diffTime / (1000 * 60 * 60 * 24 * 30.44); // Convert to months
               break;
             }
           }
-          
+
           // Calculate cycle score using the existing function
           const cycleScore = cycleScoreFromMonths(monthsAfterHalving);
-          
+
           return {
-            x: timestamp,
+            x: point.time,
             y: cycleScore
           };
         });
 
         // Current position marker
         const currentTimestamp = Date.now();
-        const currentPrice = priceData[priceData.length - 1]?.y || 70000;
+        const currentPrice = priceData[priceData.length - 1]?.y || 108000; // Prix actuel ~$108k
+
+        console.log('📊 Bitcoin price data loaded:', {
+          dataPoints: priceData.length,
+          latestPrice: currentPrice,
+          dataSource: priceData.length > 100 ? 'CoinGecko API' : 'Fallback mock data'
+        });
 
         // Chart configuration
         const config = {
@@ -1935,30 +2039,37 @@
               {
                 label: 'Bitcoin Price (USD)',
                 data: priceData,
-                borderColor: '#f7931a', // Bitcoin orange
-                backgroundColor: 'rgba(247, 147, 26, 0.1)',
-                borderWidth: 2,
+                borderColor: 'rgba(247, 147, 26, 0.15)', // Bitcoin orange très transparent (arrière-plan)
+                backgroundColor: 'rgba(247, 147, 26, 0.02)',
+                borderWidth: 1,
                 fill: false,
                 yAxisID: 'y',
-                pointRadius: 0,
-                pointHoverRadius: 4
+                pointRadius: 0, // Pas de points visibles
+                pointHoverRadius: 3,
+                order: 2 // Afficher en arrière-plan
               },
               {
                 label: 'Cycle Score',
                 data: cycleScoreData,
-                borderColor: '#10b981', // Green
+                borderColor: '#10b981', // Green - ligne principale visible
                 backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                borderWidth: 2,
+                borderWidth: 3, // Plus épaisse pour être la ligne principale
                 fill: false,
                 yAxisID: 'y1',
                 pointRadius: 0,
-                pointHoverRadius: 4
+                pointHoverRadius: 4,
+                order: 1 // Afficher au premier plan
               }
             ]
           },
           options: {
             responsive: true,
             maintainAspectRatio: false,
+            layout: {
+              padding: {
+                bottom: 80  // Reserve space for timeline
+              }
+            },
             interaction: {
               intersect: false,
               mode: 'index'
@@ -1975,14 +2086,14 @@
               },
               tooltip: {
                 callbacks: {
-                  title: function(context) {
+                  title: function (context) {
                     const date = new Date(context[0].parsed.x);
                     return date.toLocaleDateString('fr-FR');
                   },
-                  label: function(context) {
+                  label: function (context) {
                     const dataset = context.dataset;
                     const value = context.parsed.y;
-                    
+
                     if (dataset.label.includes('Price')) {
                       return `Prix: $${value.toLocaleString()}`;
                     } else {
@@ -2004,7 +2115,8 @@
                 title: {
                   display: true,
                   text: 'Date'
-                }
+                },
+                max: new Date(Date.now() + (30 * 24 * 60 * 60 * 1000)) // Add 30 days padding to the right
               },
               y: {
                 type: 'logarithmic',
@@ -2014,7 +2126,7 @@
                   text: 'Prix Bitcoin (USD, échelle log)'
                 },
                 ticks: {
-                  callback: function(value) {
+                  callback: function (value) {
                     return '$' + value.toLocaleString();
                   }
                 }
@@ -2036,67 +2148,249 @@
           },
           plugins: [{
             id: 'halvingLines',
-            afterDraw: function(chart) {
+            afterDraw: function (chart) {
               const ctx = chart.ctx;
               const xAxis = chart.scales.x;
               const yAxis = chart.scales.y;
-              
+
               // Draw halving vertical lines
               BITCOIN_HALVINGS.forEach((halving, index) => {
                 if (halving.estimated) return; // Skip estimated future halving
-                
+
                 const halvingDate = new Date(halving.date);
                 const x = xAxis.getPixelForValue(halvingDate.getTime());
-                
+
                 if (x >= xAxis.left && x <= xAxis.right) {
                   ctx.save();
                   ctx.strokeStyle = '#8b5cf6'; // Purple color
                   ctx.lineWidth = 2;
                   ctx.setLineDash([5, 5]);
-                  
+
                   ctx.beginPath();
-                  ctx.moveTo(x, yAxis.top);
+                  ctx.moveTo(x, yAxis.top + 10);
                   ctx.lineTo(x, yAxis.bottom);
                   ctx.stroke();
-                  
+
                   // Label
                   ctx.fillStyle = '#8b5cf6';
                   ctx.font = '12px sans-serif';
                   ctx.textAlign = 'center';
                   ctx.fillText(
-                    `Halving ${index + 1}`, 
-                    x, 
-                    yAxis.top - 10
+                    `Halving ${index + 1}`,
+                    x,
+                    yAxis.top + 10
                   );
                   ctx.restore();
                 }
               });
-              
-              // Draw current position line
-              if (cycleData?.months !== undefined) {
-                const currentX = xAxis.getPixelForValue(currentTimestamp);
-                
-                if (currentX >= xAxis.left && currentX <= xAxis.right) {
+
+              // Historical cycle highs data
+              const CYCLE_INTERVALS = [
+                {
+                  halving: { date: '2012-11-28', name: 'Halving 1' },
+                  peak: { date: '2013-11-30', name: 'ATH Cycle 1' },
+                  cycle: 1
+                },
+                {
+                  halving: { date: '2016-07-09', name: 'Halving 2' },
+                  peak: { date: '2017-12-17', name: 'ATH Cycle 2' },
+                  cycle: 2
+                },
+                {
+                  halving: { date: '2020-05-11', name: 'Halving 3' },
+                  peak: { date: '2021-11-10', name: 'ATH Cycle 3' },
+                  cycle: 3
+                },
+                {
+                  halving: { date: '2024-04-20', name: 'Halving 4' },
+                  peak: { date: new Date().toISOString().split('T')[0], name: 'Aujourd\'hui' },
+                  cycle: 4,
+                  isCurrent: true
+                }
+              ];
+
+
+              // Calculate days until next halving
+              const nextHalving = BITCOIN_HALVINGS.find(h => h.estimated);
+              const daysUntilHalving = nextHalving ?
+                Math.ceil((new Date(nextHalving.date).getTime() - currentTimestamp) / (1000 * 60 * 60 * 24)) :
+                null;
+
+              // Draw timeline bar at bottom
+              const timelineY = yAxis.bottom + 40;
+              const timelineHeight = 50;
+
+              // Draw background bar
+              ctx.save();
+              ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+              ctx.fillRect(xAxis.left, timelineY, xAxis.right - xAxis.left, timelineHeight);
+              ctx.restore();
+
+              // Draw historical cycle intervals (1, 2, 3)
+              CYCLE_INTERVALS.filter(interval => !interval.isCurrent).forEach((interval) => {
+                const halvingDate = new Date(interval.halving.date);
+                const peakDate = new Date(interval.peak.date);
+
+                const halvingX = xAxis.getPixelForValue(halvingDate.getTime());
+                const peakX = xAxis.getPixelForValue(peakDate.getTime());
+
+                if (halvingX >= xAxis.left && peakX <= xAxis.right) {
+                  const daysDiff = Math.ceil((peakDate.getTime() - halvingDate.getTime()) / (1000 * 60 * 60 * 24));
+
                   ctx.save();
-                  ctx.strokeStyle = '#ef4444'; // Red color for current position
+
+                  // Draw arrow line
+                  const arrowY = timelineY + timelineHeight / 2;
+                  ctx.strokeStyle = `hsl(${120 + interval.cycle * 60}, 70%, 50%)`;
                   ctx.lineWidth = 3;
-                  
+
                   ctx.beginPath();
-                  ctx.moveTo(currentX, yAxis.top);
-                  ctx.lineTo(currentX, yAxis.bottom);
+                  ctx.moveTo(halvingX, arrowY);
+                  ctx.lineTo(peakX, arrowY);
                   ctx.stroke();
-                  
-                  // Current position label
-                  ctx.fillStyle = '#ef4444';
-                  ctx.font = 'bold 12px sans-serif';
+
+                  // Draw arrow head
+                  const arrowSize = 8;
+                  ctx.fillStyle = ctx.strokeStyle;
+                  ctx.beginPath();
+                  ctx.moveTo(peakX, arrowY);
+                  ctx.lineTo(peakX - arrowSize, arrowY - arrowSize / 2);
+                  ctx.lineTo(peakX - arrowSize, arrowY + arrowSize / 2);
+                  ctx.closePath();
+                  ctx.fill();
+
+                  // Draw start point (halving)
+                  ctx.fillStyle = '#8b5cf6';
+                  ctx.beginPath();
+                  ctx.arc(halvingX, arrowY, 4, 0, 2 * Math.PI);
+                  ctx.fill();
+
+                  // Draw end point (peak)  
+                  ctx.fillStyle = '#f59e0b';
+                  ctx.beginPath();
+                  ctx.arc(peakX, arrowY, 4, 0, 2 * Math.PI);
+                  ctx.fill();
+
+                  // Add days label in the middle
+                  const midX = (halvingX + peakX) / 2;
+                  ctx.fillStyle = '#6b7280';
+                  ctx.font = 'bold 11px sans-serif';
                   ctx.textAlign = 'center';
                   ctx.fillText(
-                    'Position Actuelle', 
-                    currentX, 
-                    yAxis.top - 10
+                    `${daysDiff} jours`,
+                    midX,
+                    arrowY - 8
                   );
+
+                  // Add cycle label below
+                  ctx.font = '9px sans-serif';
+                  ctx.fillStyle = '#6b7280';
+                  ctx.fillText(
+                    `Cycle ${interval.cycle}`,
+                    midX,
+                    arrowY + 15
+                  );
+
                   ctx.restore();
                 }
+              });
+
+              // Draw current cycle (4) from last halving to current position
+              const currentCycle = CYCLE_INTERVALS.find(interval => interval.isCurrent);
+              if (currentCycle) {
+                const halvingDate = new Date(currentCycle.halving.date);
+                const halvingX = xAxis.getPixelForValue(halvingDate.getTime());
+                const currentX_timeline = xAxis.getPixelForValue(currentTimestamp);
+
+                if (halvingX >= xAxis.left && currentX_timeline <= xAxis.right + 10) {
+                  const daysSinceHalving = Math.ceil((currentTimestamp - halvingDate.getTime()) / (1000 * 60 * 60 * 24));
+
+                  ctx.save();
+
+                  // Draw current cycle arrow (same style as other cycles)
+                  const arrowY = timelineY + timelineHeight / 2;
+                  ctx.strokeStyle = `hsl(${120 + 4 * 60}, 70%, 50%)`; // Same color pattern as other cycles
+                  ctx.lineWidth = 3; // Same width as other cycles
+
+                  ctx.beginPath();
+                  ctx.moveTo(halvingX, arrowY);
+                  ctx.lineTo(currentX_timeline, arrowY);
+                  ctx.stroke();
+
+                  // Draw arrow head (same size as other cycles)
+                  const arrowSize = 8;
+                  ctx.fillStyle = ctx.strokeStyle;
+                  ctx.beginPath();
+                  ctx.moveTo(currentX_timeline, arrowY);
+                  ctx.lineTo(currentX_timeline - arrowSize, arrowY - arrowSize / 2);
+                  ctx.lineTo(currentX_timeline - arrowSize, arrowY + arrowSize / 2);
+                  ctx.closePath();
+                  ctx.fill();
+
+                  // Draw start point (halving 4)
+                  ctx.fillStyle = '#8b5cf6';
+                  ctx.beginPath();
+                  ctx.arc(halvingX, arrowY, 4, 0, 2 * Math.PI);
+                  ctx.fill();
+
+                  // Draw end point (current position)  
+                  ctx.fillStyle = '#f59e0b';
+                  ctx.beginPath();
+                  ctx.arc(currentX_timeline, arrowY, 4, 0, 2 * Math.PI);
+                  ctx.fill();
+
+                  // Add days label in the middle (same style as other cycles)
+                  const midX = (halvingX + currentX_timeline) / 2;
+                  ctx.fillStyle = '#6b7280';
+                  ctx.font = 'bold 11px sans-serif';
+                  ctx.textAlign = 'center';
+                  ctx.fillText(
+                    `${daysSinceHalving} jours (en cours)`,
+                    midX,
+                    arrowY - 8
+                  );
+
+                  // Add cycle label below
+                  ctx.font = '9px sans-serif';
+                  ctx.fillStyle = '#6b7280';
+                  ctx.fillText(
+                    'Cycle 4 (actuel)',
+                    midX,
+                    arrowY + 15
+                  );
+
+                  ctx.restore();
+                }
+              }
+
+              // Draw current position line - ALWAYS show it
+              const currentX = xAxis.getPixelForValue(currentTimestamp);
+
+              if (currentX >= xAxis.left && currentX <= xAxis.right) {
+                ctx.save();
+                ctx.strokeStyle = '#ef4444'; // Red color for current position
+                ctx.lineWidth = 2;
+
+                ctx.beginPath();
+                ctx.moveTo(currentX, yAxis.top);
+                ctx.lineTo(currentX, yAxis.bottom);
+                ctx.stroke();
+
+                // Current position label
+                ctx.fillStyle = '#ef4444';
+                ctx.font = 'bold 12px sans-serif';
+                ctx.textAlign = 'center';
+
+                // Add current date info
+                ctx.font = '10px sans-serif';
+                const currentDateStr = new Date(currentTimestamp).toLocaleDateString('fr-FR');
+                ctx.fillText(
+                  currentDateStr,
+                  currentX,
+                  yAxis.top - 25
+                );
+
+                ctx.restore();
               }
             }
           }]
@@ -2105,12 +2399,12 @@
         // Create chart
         window.bitcoinCycleChart = new Chart(canvas, config);
         console.log('✅ Bitcoin cycle chart created successfully');
-        
+
         return window.bitcoinCycleChart;
-        
+
       } catch (error) {
         console.error('❌ Failed to create Bitcoin cycle chart:', error);
-        
+
         // Show error message in canvas container
         const container = canvas.parentElement;
         container.innerHTML = `
@@ -2120,7 +2414,7 @@
             <div style="font-size: 0.8rem; margin-top: 0.5rem;">Essayez de rafraîchir la page ou vérifiez votre connexion.</div>
           </div>
         `;
-        
+
         return null;
       }
     }
@@ -2144,7 +2438,9 @@
         <!-- Bitcoin Cycle Chart -->
         <div class="risk-card" style="margin-bottom: 2rem;">
           <h3>📈 Graphique des Cycles Bitcoin</h3>
-          <div style="height: 500px; position: relative; margin: 1rem 0;">
+          <!-- Label de source injecté dynamiquement -->
+          <div id="btc-source-label" style="margin-left:auto;color:var(--theme-text-muted);font-size:12px;"></div>
+          <div style="height: 520px; position: relative; margin: 1rem 0;">
             <canvas id="bitcoin-cycle-chart" style="width: 100%; height: 100%;"></canvas>
           </div>
           <div style="font-size: 0.85rem; color: var(--theme-text-muted); text-align: center; margin-top: 1rem;">
@@ -2246,7 +2542,7 @@
             ${Object.entries(cycleData.multipliers || {}).map(([asset, multiplier]) => {
         const color = multiplier > 1.1 ? 'var(--success)' :
           multiplier < 0.9 ? 'var(--danger)' : 'var(--theme-text)';
-        const recommendation = multiplier > 1.1 ? 'Surpondérer' : 
+        const recommendation = multiplier > 1.1 ? 'Surpondérer' :
           multiplier < 0.9 ? 'Sous-pondérer' : 'Neutre';
         return `
                 <div class="metric-row">
@@ -2271,7 +2567,7 @@
           console.log('⚠️ Bitcoin chart creation already in progress, skipping...');
           return;
         }
-        
+
         window.bitcoinChartCreating = true;
         try {
           await createBitcoinCycleChart('bitcoin-cycle-chart');

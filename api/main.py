@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Any, Dict, List
 from time import monotonic
 import os, sys, inspect, hashlib, time
+from datetime import datetime
+import httpx
 from fastapi import FastAPI, Query, Body, Response, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -785,8 +787,70 @@ async def debug_api_keys(debug_token: str = None):
     return {
         "coingecko_api_key": os.getenv("COINGECKO_API_KEY", "")[:8] + "...",  # Masquer partiellement
         "cointracking_api_key": os.getenv("COINTRACKING_API_KEY", "")[:8] + "...",
-        "cointracking_api_secret": "***masked***"
+        "cointracking_api_secret": "***masked***",
+        "fred_api_key": os.getenv("FRED_API_KEY", "")[:8] + "..."
     }
+
+@app.get("/proxy/fred/bitcoin")
+async def proxy_fred_bitcoin(start_date: str = "2014-01-01", limit: int = None):
+    """Proxy pour récupérer les données Bitcoin historiques via FRED API"""
+    
+    fred_api_key = os.getenv("FRED_API_KEY")
+    if not fred_api_key:
+        raise HTTPException(status_code=503, detail="FRED API key not configured")
+    
+    try:
+        url = "https://api.stlouisfed.org/fred/series/observations"
+        params = {
+            "series_id": "CBBTCUSD",
+            "api_key": fred_api_key,
+            "file_type": "json",
+            "observation_start": start_date
+        }
+        if limit:
+            params["limit"] = limit
+            
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, params=params)
+            
+        if response.status_code == 200:
+            data = response.json()
+            if "observations" in data:
+                # Transformer les données au format attendu par le frontend
+                bitcoin_data = []
+                for obs in data["observations"]:
+                    if obs["value"] != "." and obs["value"] is not None:
+                        try:
+                            price = float(obs["value"])
+                            timestamp = int(datetime.fromisoformat(obs["date"]).timestamp() * 1000)
+                            bitcoin_data.append({
+                                "time": timestamp,
+                                "price": price,
+                                "date": obs["date"]
+                            })
+                        except (ValueError, TypeError):
+                            continue
+                
+                return {
+                    "success": True,
+                    "source": "FRED (CBBTCUSD)",
+                    "data": bitcoin_data,
+                    "count": len(bitcoin_data),
+                    "raw_count": data.get("count", 0)
+                }
+        
+        return {
+            "success": False, 
+            "error": f"FRED API error: HTTP {response.status_code}",
+            "data": []
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Proxy error: {str(e)}",
+            "data": []
+        }
 
 @app.post("/debug/api-keys")
 async def update_api_keys(payload: APIKeysRequest, debug_token: str = None):
@@ -813,7 +877,8 @@ async def update_api_keys(payload: APIKeysRequest, debug_token: str = None):
     key_mappings = {
         "coingecko_api_key": "COINGECKO_API_KEY",
         "cointracking_api_key": "COINTRACKING_API_KEY", 
-        "cointracking_api_secret": "COINTRACKING_API_SECRET"
+        "cointracking_api_secret": "COINTRACKING_API_SECRET",
+        "fred_api_key": "FRED_API_KEY"
     }
     
     updated = False

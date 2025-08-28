@@ -28,6 +28,7 @@ class APIKeysRequest(BaseModel):
     coingecko_api_key: Optional[str] = Field(None, min_length=10, max_length=100)
     cointracking_api_key: Optional[str] = Field(None, min_length=10, max_length=100)
     cointracking_api_secret: Optional[str] = Field(None, min_length=10, max_length=100)
+    fred_api_key: Optional[str] = Field(None, min_length=10, max_length=100)
     
     @validator('*', pre=True)
     def remove_whitespace(cls, v):

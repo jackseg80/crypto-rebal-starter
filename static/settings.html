@@ -36,7 +36,7 @@
     }
 
     .wrap {
-      max-width: 1200px;
+      max-width: 95vw;
       margin: 0 auto;
       padding: 16px
     }
@@ -408,6 +408,16 @@
       </div>
 
       <div class="form-group">
+        <label>FRED API Key (Federal Reserve Economic Data)</label>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <input type="password" id="fred_api_key" placeholder="Clé pour données Bitcoin historiques" style="flex: 1;">
+          <button class="btn small secondary" onclick="toggleApiKeyVisibility('fred_api_key')" style="min-width: 60px;">👁️</button>
+          <span id="fred_status" class="status-indicator status-warning" style="font-size: 10px;">Vide</span>
+        </div>
+        <div class="help">Clé API gratuite FRED pour historique Bitcoin complet depuis 2014 (vs 365j CoinGecko).</div>
+      </div>
+
+      <div class="form-group">
         <label>Debug Token (requis pour sync .env)</label>
         <div style="display: flex; gap: 8px; align-items: center;">
           <input type="password" id="debug_token" placeholder="Token sécurisé pour accès debug" style="flex: 1;">
@@ -640,12 +650,14 @@
       document.getElementById('coingecko_api_key').value = globalSettings.coingecko_api_key ? maskApiKey(globalSettings.coingecko_api_key) : '';
       document.getElementById('cointracking_api_key').value = globalSettings.cointracking_api_key ? maskApiKey(globalSettings.cointracking_api_key) : '';
       document.getElementById('cointracking_api_secret').value = globalSettings.cointracking_api_secret ? maskApiKey(globalSettings.cointracking_api_secret) : '';
+      document.getElementById('fred_api_key').value = globalSettings.fred_api_key ? maskApiKey(globalSettings.fred_api_key) : '';
       document.getElementById('debug_token').value = globalSettings.debug_token ? maskApiKey(globalSettings.debug_token) : '';
 
       // Mettre à jour les statuts des clés
       updateApiKeyStatus('coingecko', !!globalSettings.coingecko_api_key);
       updateApiKeyStatus('cointracking_key', !!globalSettings.cointracking_api_key);
       updateApiKeyStatus('cointracking_secret', !!globalSettings.cointracking_api_secret);
+      updateApiKeyStatus('fred', !!globalSettings.fred_api_key);
 
       document.getElementById('api_base_url').value = globalSettings.api_base_url;
       document.getElementById('refresh_interval').value = globalSettings.refresh_interval;
@@ -755,6 +767,11 @@
         globalConfig.set('cointracking_api_secret', ctSecretField.value);
       }
 
+      const fredKeyField = document.getElementById('fred_api_key');
+      if (fredKeyField.type === 'text') {
+        globalConfig.set('fred_api_key', fredKeyField.value);
+      }
+
       const debugTokenField = document.getElementById('debug_token');
       if (debugTokenField.type === 'text') {
         globalConfig.set('debug_token', debugTokenField.value);
@@ -772,6 +789,7 @@
       updateApiKeyStatus('coingecko', !!globalSettings.coingecko_api_key);
       updateApiKeyStatus('cointracking_key', !!globalSettings.cointracking_api_key);
       updateApiKeyStatus('cointracking_secret', !!globalSettings.cointracking_api_secret);
+      updateApiKeyStatus('fred', !!globalSettings.fred_api_key);
 
       saveSettings();
 
@@ -868,6 +886,16 @@
             updateApiKeyStatus('coingecko', true);
           }
 
+          // FRED - utiliser la clé du serveur si pas de clé locale
+          if (data.fred_api_key && !globalSettings.fred_api_key) {
+            globalConfig.set('fred_api_key', data.fred_api_key);
+            foundKeys = true;
+          }
+          if (globalConfig.get('fred_api_key')) {
+            document.getElementById('fred_api_key').value = maskApiKey(globalConfig.get('fred_api_key'));
+            updateApiKeyStatus('fred', true);
+          }
+
           // CoinTracking Key - utiliser la clé du serveur si pas de clé locale
           if (data.cointracking_api_key && !globalSettings.cointracking_api_key) {
             globalConfig.set('cointracking_api_key', data.cointracking_api_key);
@@ -959,6 +987,15 @@
             updateApiKeyStatus('coingecko', false);
           }
 
+          if (data.fred_api_key) {
+            globalConfig.set('fred_api_key', data.fred_api_key);
+            document.getElementById('fred_api_key').value = maskApiKey(data.fred_api_key);
+            updateApiKeyStatus('fred', true);
+            foundKeys = true;
+          } else {
+            updateApiKeyStatus('fred', false);
+          }
+
           if (data.cointracking_api_key) {
             globalConfig.set('cointracking_api_key', data.cointracking_api_key);
             document.getElementById('cointracking_api_key').value = maskApiKey(data.cointracking_api_key);
@@ -996,7 +1033,8 @@
       const payload = {
         coingecko_api_key: globalConfig.get('coingecko_api_key') || '',
         cointracking_api_key: globalConfig.get('cointracking_api_key') || '',
-        cointracking_api_secret: globalConfig.get('cointracking_api_secret') || ''
+        cointracking_api_secret: globalConfig.get('cointracking_api_secret') || '',
+        fred_api_key: globalConfig.get('fred_api_key') || ''
       };
 
       try {
@@ -1045,6 +1083,20 @@
         }
       } else {
         results.push(`🥷 CoinGecko: ⚪ Pas de clé configurée`);
+      }
+
+      // Test FRED
+      if (globalSettings.fred_api_key) {
+        try {
+          const testUrl = `https://api.stlouisfed.org/fred/series/observations?series_id=CBBTCUSD&api_key=${globalSettings.fred_api_key}&file_type=json&limit=1`;
+          const response = await fetch(testUrl, { mode: 'cors' });
+          const data = await response.json();
+          results.push(`🏛️ FRED: ${response.ok && data.observations ? '✅ OK' : '❌ Erreur'}`);
+        } catch (e) {
+          results.push(`🏛️ FRED: ❌ ${e.message}`);
+        }
+      } else {
+        results.push(`🏛️ FRED: ⚪ Pas de clé configurée`);
       }
 
       // Test CoinTracking API
