@@ -21,7 +21,32 @@ let CYCLE_PARAMS = {
 };
 
 export function getCycleParams() { return { ...CYCLE_PARAMS }; }
-export function setCycleParams(p) { CYCLE_PARAMS = { ...CYCLE_PARAMS, ...p }; }
+export function setCycleParams(p) { 
+  CYCLE_PARAMS = { ...CYCLE_PARAMS, ...p }; 
+  console.log('🔄 Cycle parameters updated:', CYCLE_PARAMS);
+}
+
+// Auto-load calibrated parameters on module initialization
+function autoLoadCalibrationParams() {
+  try {
+    const saved = localStorage.getItem('bitcoin_cycle_params');
+    if (saved) {
+      const data = JSON.parse(saved);
+      // Check data is not too old (24h)
+      if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
+        CYCLE_PARAMS = { ...CYCLE_PARAMS, ...data.params };
+        console.log('✅ Auto-loaded calibrated cycle parameters', CYCLE_PARAMS);
+        return true;
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error auto-loading cycle parameters:', error);
+  }
+  return false;
+}
+
+// Initialize on module load
+autoLoadCalibrationParams();
 
 export function cycleScoreFromMonths(monthsAfterHalving, opts = {}) {
 

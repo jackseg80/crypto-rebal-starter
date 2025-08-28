@@ -141,6 +141,7 @@ export function proposeTargets(mode = 'blend', options = {}) {
   const cycleMultipliers = state.cycle?.multipliers;
   const cycleWeight = state.cycle?.weight || 0.3;
   const blendedCCS = state.cycle?.ccsStar;
+  const finalBlendedScore = state.scores?.blended;
   
   let proposedTargets;
   let strategy;
@@ -196,9 +197,12 @@ export function proposeTargets(mode = 'blend', options = {}) {
         
       case 'blend':
       default:
-        // Determinstic priority logic
-        if (!ccsScore || !blendedCCS) {
-          // Fallback to balanced blend when no CCS data (slightly different from macro)
+        // Use final blended score if available, fallback to blendedCCS
+        const effectiveScore = finalBlendedScore || blendedCCS;
+        
+        // Deterministic priority logic
+        if (!ccsScore || (!finalBlendedScore && !blendedCCS)) {
+          // Fallback to balanced blend when no score data
           proposedTargets = {
             'BTC': 33.0,
             'ETH': 27.0,
@@ -210,14 +214,14 @@ export function proposeTargets(mode = 'blend', options = {}) {
             'Others': 0.0,
             model_version: 'blend-fallback'
           };
-          strategy = 'Balanced Blend (CCS unavailable)';
-        } else if (blendedCCS >= 70) {
+          strategy = 'Balanced Blend (no scores available)';
+        } else if (effectiveScore >= 70) {
           // High confidence: use blended CCS
           proposedTargets = generateCCSTargets(blendedCCS);
           if (cycleMultipliers) {
             proposedTargets = applyCycleMultipliers(proposedTargets, cycleMultipliers);
           }
-          strategy = `Blended CCS* (${Math.round(blendedCCS)})`;
+          strategy = `High Score: Blended (${Math.round(effectiveScore)})`;
         } else {
           // Medium/low confidence: macro + light cycle adjustment
           proposedTargets = { ...DEFAULT_MACRO_TARGETS };
@@ -229,7 +233,7 @@ export function proposeTargets(mode = 'blend', options = {}) {
             });
             proposedTargets = applyCycleMultipliers(proposedTargets, dilutedMultipliers);
           }
-          strategy = `Conservative blend (${Math.round(blendedCCS || ccsScore)})`;
+          strategy = `Conservative: Blended (${Math.round(effectiveScore)})`;
         }
         break;
     }

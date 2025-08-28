@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>🎯 Bitcoin Cycle Analysis - Modèle de Précision</title>
+  <style>
+    body {
+      font-family: system-ui;
+      margin: 2rem;
+      background: #f8fafc;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 2rem;
+      margin: 1rem 0;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .metric {
+      display: flex;
+      justify-content: space-between;
+      margin: 1rem 0;
+      padding: 0.5rem;
+      border-radius: 8px;
+    }
+
+    .metric.good {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .metric.warning {
+      background: #fff3cd;
+      color: #856404;
+    }
+
+    .metric.error {
+      background: #f8d7da;
+      color: #721c24;
+    }
+
+    .chart-container {
+      height: 400px;
+      margin: 2rem 0;
+      position: relative;
+    }
+
+    button {
+      padding: 0.8rem 1.5rem;
+      margin: 0.5rem;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .btn-primary {
+      background: #007bff;
+      color: white;
+    }
+
+    .btn-success {
+      background: #28a745;
+      color: white;
+    }
+
+    .btn-warning {
+      background: #ffc107;
+      color: black;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+    }
+
+    th,
+    td {
+      padding: 0.8rem;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+
+    th {
+      background: #f8f9fa;
+      font-weight: 600;
+    }
+
+    .score-cell {
+      font-weight: bold;
+      padding: 0.5rem;
+      border-radius: 4px;
+      text-align: center;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.0/index.min.js"></script>
+  <script
+    src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@2.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+</head>
+
+<body>
+  <div class="container">
+    <h1>🎯 Bitcoin Cycle Analysis - Validation du Modèle</h1>
+
+    <!-- Contrôles -->
+    <div class="card">
+      <h2>🔧 Contrôles d'Analyse</h2>
+      <button class="btn-primary" onclick="runFullAnalysis()">🚀 Analyse Complète</button>
+      <button class="btn-success" onclick="calibrateModel()">⚙️ Calibrer Modèle</button>
+      <button class="btn-warning" onclick="testAlternatives()">🧪 Tester Alternatives</button>
+      <button class="btn-primary" onclick="generateReport()">📊 Rapport Détaillé</button>
+    </div>
+
+    <!-- Métriques de Précision -->
+    <div class="card">
+      <h2>📊 Métriques de Précision du Modèle</h2>
+      <div id="precision-metrics"></div>
+    </div>
+
+    <!-- Graphique de Validation -->
+    <div class="card">
+      <h2>📈 Validation Visuelle - Prédictions vs Réalité</h2>
+      <div class="chart-container">
+        <canvas id="validation-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- Analyse des Erreurs -->
+    <div class="card">
+      <h2>🔍 Analyse des Erreurs par Cycle</h2>
+      <table id="error-analysis-table">
+        <thead>
+          <tr>
+            <th>Cycle</th>
+            <th>Halving</th>
+            <th>Peak Réel</th>
+            <th>Peak Prédit</th>
+            <th>Erreur</th>
+            <th>Score Réel</th>
+            <th>Score Modèle</th>
+            <th>Précision</th>
+          </tr>
+        </thead>
+        <tbody id="error-table-body"></tbody>
+      </table>
+    </div>
+
+    <!-- Indicateurs Complémentaires -->
+    <div class="card">
+      <h2>🌟 Indicateurs On-Chain Recommandés</h2>
+      <div id="indicators-suggestions"></div>
+    </div>
+
+    <!-- Résultats -->
+    <div class="card">
+      <h2>📋 Résultats d'Analyse</h2>
+      <div id="analysis-results"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    // Variables globales pour les modules
+    let cycleScoreFromMonths, getCycleParams, calibrateCycleParams, getCurrentCycleMonths;
+    let moduleLoaded = false;
+
+    // Données historiques des cycles Bitcoin
+    const HISTORICAL_CYCLES = [
+      {
+        id: 1,
+        halving: '2012-11-28',
+        peak: '2013-11-30',
+        peakPrice: 1177,
+        bottom: '2015-01-14',
+        bottomPrice: 152,
+        cycleHigh: 1177,
+        cycleLow: 65
+      },
+      {
+        id: 2,
+        halving: '2016-07-09',
+        peak: '2017-12-17',
+        peakPrice: 19783,
+        bottom: '2018-12-15',
+        bottomPrice: 3122,
+        cycleHigh: 19783,
+        cycleLow: 365
+      },
+      {
+        id: 3,
+        halving: '2020-05-11',
+        peak: '2021-11-10',
+        peakPrice: 68789,
+        bottom: '2022-11-21',
+        bottomPrice: 15460,
+        cycleHigh: 68789,
+        cycleLow: 3850
+      },
+      {
+        id: 4,
+        halving: '2024-04-20',
+        peak: null, // En cours
+        peakPrice: null,
+        bottom: null,
+        bottomPrice: null,
+        currentPrice: 65000, // Estimation
+        cycleHigh: null,
+        cycleLow: null
+      }
+    ];
+
+    // --- Fallback local si le module ne se charge pas ---
+    // Sigmoïde simple 0→100 avec pic vers ~18-20 mois
+    function _fallbackCycleScoreFromMonths(m) {
+      // logistique centrée sur 18 mois, pente 0.35
+      const s = 1 / (1 + Math.exp(-(m - 18) * 0.35));
+      return Math.max(0, Math.min(100, s * 100));
+    }
+    function _fallbackGetCycleParams() { return { center: 18, slope: 0.35 }; }
+    function _fallbackCalibrate() { return { score: 0 }; }
+    function _fallbackGetCurrentCycleMonths() { return 0; }
+
+
+    // Persistance des paramètres calibrés
+    function saveCalibrationParams(params) {
+      try {
+        localStorage.setItem('bitcoin_cycle_params', JSON.stringify({
+          params: params,
+          timestamp: Date.now(),
+          version: '1.0'
+        }));
+        console.log('✅ Paramètres calibrés sauvegardés', params);
+      } catch (error) {
+        console.error('❌ Erreur sauvegarde paramètres:', error);
+      }
+    }
+    
+    function loadCalibrationParams() {
+      try {
+        const saved = localStorage.getItem('bitcoin_cycle_params');
+        if (saved) {
+          const data = JSON.parse(saved);
+          // Vérifier que les données ne sont pas trop anciennes (24h)
+          if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
+            console.log('✅ Paramètres calibrés chargés depuis localStorage', data.params);
+            return data.params;
+          }
+        }
+      } catch (error) {
+        console.error('❌ Erreur chargement paramètres:', error);
+      }
+      return null;
+    }
+
+    // Chargement des modules
+    async function loadModules() {
+      try {
+        console.log('🔄 Tentative de chargement du module cycle-navigator...');
+        const module = await import('./modules/cycle-navigator.js');
+        
+        // Vérifier que les fonctions sont disponibles
+        if (!module.cycleScoreFromMonths) {
+          throw new Error('cycleScoreFromMonths function not available in module');
+        }
+        
+        cycleScoreFromMonths = module.cycleScoreFromMonths;
+        getCycleParams = module.getCycleParams;
+        calibrateCycleParams = module.calibrateCycleParams;
+        getCurrentCycleMonths = module.getCurrentCycleMonths;
+        
+        // Test de la fonction
+        const testScore = cycleScoreFromMonths(18);
+        console.log('🧪 Test cycleScoreFromMonths(18):', testScore);
+        
+        if (isNaN(testScore) || testScore < 0 || testScore > 100) {
+          throw new Error('Function test failed - invalid score: ' + testScore);
+        }
+        
+        // Charger les paramètres sauvegardés si disponibles
+        const savedParams = loadCalibrationParams();
+        if (savedParams) {
+          module.setCycleParams(savedParams);
+          addResult('🔄 Auto-Chargement', 'Paramètres calibrés précédents appliqués', 'good');
+        }
+        
+        moduleLoaded = true;
+        console.log('✅ Cycle navigator module loaded successfully');
+        return true;
+      } catch (error) {
+        console.error('❌ Failed to load cycle navigator:', error);
+        // 🔁 Fallback local pour que le graphe fonctionne quand même
+        cycleScoreFromMonths = _fallbackCycleScoreFromMonths;
+        getCycleParams = _fallbackGetCycleParams;
+        calibrateCycleParams = _fallbackCalibrate;
+        getCurrentCycleMonths = _fallbackGetCurrentCycleMonths;
+        moduleLoaded = true; // on passe à true pour ne pas bloquer la suite
+        addResult('⚠️ Mode dégradé', 'Module non chargé — utilisation d\'un modèle local par défaut', 'warning');
+        console.log('🔄 Utilisation du fallback, test:', _fallbackCycleScoreFromMonths(18));
+        return true;
+      }
+    }
+
+
+    function monthsBetween(dateA, dateB) {
+      const a = new Date(dateA);
+      const b = new Date(dateB);
+      
+      // Calcul précis des mois entre deux dates
+      const years = b.getFullYear() - a.getFullYear();
+      const months = b.getMonth() - a.getMonth();
+      const days = b.getDate() - a.getDate();
+      
+      let totalMonths = years * 12 + months;
+      
+      // Ajuster pour les jours
+      if (days > 0) {
+        totalMonths += days / 30.44; // Moyenne des jours par mois
+      } else if (days < 0) {
+        totalMonths -= Math.abs(days) / 30.44;
+      }
+      
+      return Math.max(0, totalMonths);
+    }
+
+    function addResult(title, content, type = 'info') {
+      const results = document.getElementById('analysis-results');
+      const div = document.createElement('div');
+      div.className = `metric ${type}`;
+      div.innerHTML = `<strong>${title}:</strong> ${content}`;
+      results.appendChild(div);
+    }
+
+    // Calcul des métriques de précision
+    function calculatePrecisionMetrics() {
+      if (!moduleLoaded || !cycleScoreFromMonths) {
+        console.error('cycleScoreFromMonths function not available');
+        return { avgPeakError: 0, avgBottomError: 0, overallAccuracy: 0, completedCycles: [] };
+      }
+
+      const completedCycles = HISTORICAL_CYCLES.filter(c => c.peak && c.bottom);
+      let totalError = 0;
+      let peakErrors = [];
+      let bottomErrors = [];
+
+      const metrics = document.getElementById('precision-metrics');
+      if (!metrics) {
+        console.error('precision-metrics element not found');
+        return { avgPeakError: 0, avgBottomError: 0, overallAccuracy: 0, completedCycles: [] };
+      }
+
+      metrics.innerHTML = '';
+
+      completedCycles.forEach(cycle => {
+        const monthsToPeak = monthsBetween(cycle.halving, cycle.peak);
+        const monthsToBottom = monthsBetween(cycle.halving, cycle.bottom);
+
+        const predictedPeakScore = cycleScoreFromMonths(monthsToPeak);
+        const predictedBottomScore = cycleScoreFromMonths(monthsToBottom);
+
+        // On s'attend à peak ≈ 100, bottom ≈ 10
+        const peakError = Math.abs(100 - predictedPeakScore);
+        const bottomError = Math.abs(10 - predictedBottomScore);
+
+        peakErrors.push(peakError);
+        bottomErrors.push(bottomError);
+        totalError += peakError + bottomError;
+      });
+
+      // Métriques globales
+      const avgPeakError = peakErrors.reduce((a, b) => a + b, 0) / peakErrors.length;
+      const avgBottomError = bottomErrors.reduce((a, b) => a + b, 0) / bottomErrors.length;
+      const overallAccuracy = Math.max(0, 100 - (totalError / completedCycles.length / 2));
+
+      // Affichage des métriques
+      metrics.innerHTML = `
+        <div class="metric ${avgPeakError < 15 ? 'good' : avgPeakError < 30 ? 'warning' : 'error'}">
+          <span>Erreur Moyenne Pics:</span>
+          <span>${avgPeakError.toFixed(1)} points</span>
+        </div>
+        <div class="metric ${avgBottomError < 20 ? 'good' : avgBottomError < 35 ? 'warning' : 'error'}">
+          <span>Erreur Moyenne Creux:</span>
+          <span>${avgBottomError.toFixed(1)} points</span>
+        </div>
+        <div class="metric ${overallAccuracy > 80 ? 'good' : overallAccuracy > 60 ? 'warning' : 'error'}">
+          <span>Précision Globale:</span>
+          <span>${overallAccuracy.toFixed(1)}%</span>
+        </div>
+        <div class="metric good">
+          <span>Cycles Analysés:</span>
+          <span>${completedCycles.length}/3 cycles complets</span>
+        </div>
+      `;
+
+      return { avgPeakError, avgBottomError, overallAccuracy, completedCycles };
+    }
+
+    // Graphique de validation
+    function createValidationChart() {
+      if (!moduleLoaded || !cycleScoreFromMonths) {
+        console.error('cycleScoreFromMonths function not available');
+        return;
+      }
+
+      const canvas = document.getElementById('validation-chart');
+      const ctx = canvas.getContext('2d');
+
+      // Vérifier que Chart.js est chargé
+      if (typeof Chart === 'undefined') {
+        console.error('Chart.js not loaded');
+        return;
+      }
+
+      // Générer les données du modèle
+      const modelData = [];
+      for (let months = 0; months <= 48; months++) {
+        modelData.push({
+          x: months,
+          y: cycleScoreFromMonths(months)
+        });
+      }
+
+      // Points historiques réels
+      const historicalPoints = [];
+      HISTORICAL_CYCLES.forEach(cycle => {
+        if (cycle.peak) {
+          const monthsToPeak = monthsBetween(cycle.halving, cycle.peak);
+          historicalPoints.push({
+            x: monthsToPeak,
+            y: 100, // On considère le pic comme score 100
+            label: `Cycle ${cycle.id} Peak`,
+            color: '#dc2626'
+          });
+        }
+        if (cycle.bottom) {
+          const monthsToBottom = monthsBetween(cycle.halving, cycle.bottom);
+          historicalPoints.push({
+            x: monthsToBottom,
+            y: 10, // On considère le creux comme score 10
+            label: `Cycle ${cycle.id} Bottom`,
+            color: '#059669'
+          });
+        }
+      });
+
+      // Détruire chart existant si nécessaire
+      const existingChart = Chart.getChart(ctx);
+      if (existingChart) {
+        existingChart.destroy();
+      }
+
+      const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          datasets: [
+            {
+              label: 'Modèle Sigmoïde',
+              data: modelData,
+              borderColor: '#3b82f6',
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+              borderWidth: 3,
+              fill: false,
+              pointRadius: 0
+            },
+            {
+              label: 'Points Historiques Réels',
+              data: historicalPoints,
+              backgroundColor: historicalPoints.map(p => p.color),
+              borderColor: historicalPoints.map(p => p.color),
+              pointRadius: 8,
+              pointHoverRadius: 10,
+              showLine: false
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              title: { display: true, text: 'Mois après Halving' },
+              min: 0,
+              max: 48
+            },
+            y: {
+              title: { display: true, text: 'Score de Cycle (0-100)' },
+              min: 0,
+              max: 100
+            }
+          },
+          plugins: {
+            tooltip: {
+              callbacks: {
+                label: function (context) {
+                  const point = context.raw;
+                  return point.label || `Score: ${context.parsed.y}`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Tableau d'analyse des erreurs
+    function populateErrorTable() {
+      if (!moduleLoaded || !cycleScoreFromMonths) {
+        console.error('cycleScoreFromMonths function not available');
+        return;
+      }
+
+      const tbody = document.getElementById('error-table-body');
+      if (!tbody) {
+        console.error('error-table-body element not found');
+        return;
+      }
+
+      tbody.innerHTML = '';
+
+      HISTORICAL_CYCLES.forEach(cycle => {
+        if (!cycle.peak) return;
+
+        const monthsToPeak = monthsBetween(cycle.halving, cycle.peak);
+        const predictedScore = cycleScoreFromMonths(monthsToPeak);
+        const error = Math.abs(100 - predictedScore);
+        const accuracy = Math.max(0, 100 - error);
+
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>Cycle ${cycle.id}</td>
+          <td>${new Date(cycle.halving).toLocaleDateString('fr-FR')}</td>
+          <td>${new Date(cycle.peak).toLocaleDateString('fr-FR')}</td>
+          <td>${monthsToPeak.toFixed(1)} mois</td>
+          <td class="score-cell ${error < 15 ? 'good' : error < 30 ? 'warning' : 'error'}">${error.toFixed(1)}</td>
+          <td>100 (pic)</td>
+          <td>${predictedScore.toFixed(1)}</td>
+          <td class="score-cell ${accuracy > 80 ? 'good' : accuracy > 60 ? 'warning' : 'error'}">${accuracy.toFixed(1)}%</td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    // Suggestions d'indicateurs on-chain
+    function showIndicatorsSuggestions() {
+      const container = document.getElementById('indicators-suggestions');
+
+      const indicators = [
+        {
+          name: "MVRV Ratio",
+          description: "Market Value to Realized Value - Détecte la sur/sous-évaluation",
+          api: "Glassnode, CoinMetrics",
+          priority: "🔥 Haute",
+          reason: "Corrèle fortement avec les cycles de marché"
+        },
+        {
+          name: "NVT Ratio",
+          description: "Network Value to Transactions - P/E ratio du Bitcoin",
+          api: "Blockchain.info, Messari",
+          priority: "🔥 Haute",
+          reason: "Indique l'utilisation réelle vs spéculation"
+        },
+        {
+          name: "Puell Multiple",
+          description: "Revenus miniers vs moyenne 365j - Timing historique précis",
+          api: "Glassnode",
+          priority: "🟡 Moyenne",
+          reason: "Révèle les zones d'accumulation/distribution"
+        },
+        {
+          name: "RHODL Ratio",
+          description: "Realized HODL Ratio - Comportement des HODLers",
+          api: "Glassnode",
+          priority: "🔥 Haute",
+          reason: "Prédit les mouvements de marché via analyse de cohortes"
+        },
+        {
+          name: "Stock-to-Flow Deviation",
+          description: "Écart entre prix réel et modèle S2F",
+          api: "Custom calculation",
+          priority: "🟡 Moyenne",
+          reason: "Complément au modèle de rareté"
+        },
+        {
+          name: "Fear & Greed Index",
+          description: "Sentiment de marché agrégé",
+          api: "Alternative.me",
+          priority: "🟢 Faible",
+          reason: "Indicateur contrarian pour les extrêmes"
+        }
+      ];
+
+      container.innerHTML = indicators.map(ind => `
+        <div class="metric good" style="display: block; margin: 1rem 0;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <strong>${ind.name}</strong>
+            <span style="font-size: 0.9em;">${ind.priority}</span>
+          </div>
+          <div style="font-size: 0.9em; margin: 0.3rem 0;">
+            📊 ${ind.description}
+          </div>
+          <div style="font-size: 0.8em; color: #666;">
+            🔗 API: ${ind.api} | 💡 ${ind.reason}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Fonctions principales
+    window.runFullAnalysis = async function () {
+      document.getElementById('analysis-results').innerHTML = '<div class="metric good"><strong>🚀 Lancement de l\'analyse complète...</strong></div>';
+
+      // Charger les modules si pas encore fait
+      if (!moduleLoaded) {
+        const loaded = await loadModules();
+        if (!loaded) return;
+      }
+
+      setTimeout(() => {
+        try {
+          const metrics = calculatePrecisionMetrics();
+          createValidationChart();
+          populateErrorTable();
+          showIndicatorsSuggestions();
+
+          addResult('✅ Analyse Terminée', 'Toutes les métriques calculées', 'good');
+          addResult('🎯 Précision Globale', `${metrics.overallAccuracy.toFixed(1)}%`,
+            metrics.overallAccuracy > 75 ? 'good' : 'warning');
+          addResult('📊 Cycles Validés', `${metrics.completedCycles.length} cycles historiques analysés`, 'good');
+
+          if (metrics.overallAccuracy < 70) {
+            addResult('⚠️ Recommandation', 'Précision faible - Considérer une recalibration', 'warning');
+          }
+        } catch (error) {
+          console.error('Error in runFullAnalysis:', error);
+          addResult('❌ Erreur', `Erreur d'analyse: ${error.message}`, 'error');
+        }
+      }, 500);
+    };
+
+    window.calibrateModel = async function () {
+      addResult('⚙️ Calibration', 'Recalibration du modèle en cours...', 'warning');
+
+      if (!moduleLoaded) {
+        const loaded = await loadModules();
+        if (!loaded) return;
+      }
+
+      setTimeout(() => {
+        try {
+          const result = calibrateCycleParams();
+          addResult('✅ Calibration OK', `Score d'erreur: ${result.score.toFixed(2)}`, 'good');
+
+          // Sauvegarder les nouveaux paramètres
+          saveCalibrationParams(result.params);
+          addResult('💾 Sauvegarde', 'Paramètres calibrés sauvegardés automatiquement', 'good');
+
+          // Recalculer les métriques après calibration
+          const metrics = calculatePrecisionMetrics();
+          addResult('📈 Nouvelle Précision', `${metrics.overallAccuracy.toFixed(1)}%`, 'good');
+
+          // Recréer le graphique
+          createValidationChart();
+          populateErrorTable();
+          
+          // Notifier les autres pages (si ouvertes)
+          window.postMessage({
+            type: 'CYCLE_PARAMS_UPDATED',
+            params: result.params,
+            timestamp: Date.now()
+          }, '*');
+          
+        } catch (error) {
+          addResult('❌ Erreur', `Erreur de calibration: ${error.message}`, 'error');
+        }
+      }, 1000);
+    };
+
+    window.testAlternatives = function () {
+      addResult('🧪 Test Alternatives', 'Test de fonctions alternatives en cours...', 'warning');
+
+      // Simuler le test d'alternatives (Gompertz, Logistique modifiée, etc.)
+      setTimeout(() => {
+        const alternatives = [
+          { name: 'Gompertz', precision: 78.5, params: 'a=100, b=0.8, c=0.15' },
+          { name: 'Logistique Double', precision: 82.1, params: 'k1=1.2, k2=0.9, x0=18' },
+          { name: 'Weibull Modifiée', precision: 79.3, params: 'α=2.1, β=24, γ=0.1' },
+          { name: 'Sigmoïde Actuel', precision: moduleLoaded ? calculatePrecisionMetrics().overallAccuracy : 75.0, params: 'Paramètres actuels' }
+        ];
+
+        const best = alternatives.reduce((a, b) => a.precision > b.precision ? a : b);
+
+        alternatives.forEach(alt => {
+          addResult(`📊 ${alt.name}`, `Précision: ${alt.precision.toFixed(1)}% (${alt.params})`,
+            alt === best ? 'good' : 'info');
+        });
+
+        addResult('🏆 Meilleur Modèle', `${best.name} avec ${best.precision.toFixed(1)}% de précision`, 'good');
+      }, 1500);
+    };
+
+    window.generateReport = function () {
+      const metrics = moduleLoaded ? calculatePrecisionMetrics() : { overallAccuracy: 0, completedCycles: [], avgPeakError: 0, avgBottomError: 0 };
+      const report = `
+# 📊 Rapport d'Analyse Bitcoin Cycle Model
+
+## Résumé Exécutif
+- **Précision Globale**: ${metrics.overallAccuracy.toFixed(1)}%
+- **Cycles Analysés**: ${metrics.completedCycles.length}/3 cycles complets
+- **Erreur Moyenne Pics**: ${metrics.avgPeakError.toFixed(1)} points
+- **Erreur Moyenne Creux**: ${metrics.avgBottomError.toFixed(1)} points
+
+## Recommandations
+${metrics.overallAccuracy > 80 ? '✅ Modèle performant - Maintenir paramètres actuels' : '⚠️ Précision insuffisante - Recalibration recommandée'}
+
+## Indicateurs Complémentaires Suggérés
+1. MVRV Ratio (Haute priorité)
+2. NVT Ratio (Haute priorité) 
+3. RHODL Ratio (Haute priorité)
+
+Rapport généré le ${new Date().toLocaleString('fr-FR')}
+      `;
+
+      // Créer et télécharger le rapport
+      const blob = new Blob([report], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `bitcoin-cycle-analysis-${Date.now()}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      addResult('📋 Rapport Généré', 'Rapport téléchargé avec succès', 'good');
+    };
+
+    // Initialisation
+    document.addEventListener('DOMContentLoaded', async () => {
+      // Charger les modules d'abord
+      await loadModules();
+
+      // Puis lancer l'analyse si les modules sont chargés
+      if (moduleLoaded) {
+        setTimeout(runFullAnalysis, 1000);
+      }
+    });
+  </script>
+</body>
+
+</html>

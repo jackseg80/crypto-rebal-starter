@@ -23,6 +23,7 @@
   <script type="module" src="modules/signals-engine.js"></script>
   <script type="module" src="modules/cycle-navigator.js"></script>
   <script type="module" src="modules/targets-coordinator.js"></script>
+  <script type="module" src="modules/onchain-indicators.js"></script>
 
   <!-- Chart.js for Bitcoin Cycle Visualization -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
@@ -522,11 +523,39 @@
       <div class="sidebar">
         <!-- CCS Gauge -->
         <div class="sidebar-section">
-          <div class="sidebar-title">Market Score CCS</div>
+          <div class="sidebar-title">CCS Score</div>
           <div class="ccs-gauge" id="ccs-gauge">
             <div class="ccs-score" id="ccs-score">--</div>
             <div class="ccs-label">Loading...</div>
           </div>
+        </div>
+
+        <!-- CCS Mixte (Technique + Cycle) -->
+        <div class="sidebar-section">
+          <div class="sidebar-title">CCS Score Mixte</div>
+          <div class="ccs-gauge"><span id="ccs-ccs-mix">--</span>/100</div>
+          <div class="ccs-label">Loading...</div>
+        </div>
+
+        <!-- Score On-Chain -->
+        <div class="sidebar-section">
+          <div class="sidebar-title">On-Chain (Composite)</div>
+          <div class="ccs-gauge"><span id="kpi-onchain">--</span>/100</div>
+          <div class="ccs-label">Loading...</div>
+        </div>
+
+        <!-- Risk Score (du portefeuille) -->
+        <div class="sidebar-section">
+          <div class="sidebar-title">Risk Score (Portefeuille)</div>
+          <div class="ccs-gauge"><span id="kpi-risk">--</span>/100</div>
+          <div class="ccs-label">Loading...</div>
+        </div>
+
+        <!-- Blended (pour décision) -->
+        <div class="sidebar-section">
+          <div class="sidebar-title">Blended (Décision)</div>
+          <div class="ccs-gauge"><span id="kpi-blended">--</span>/100</div>
+          <div class="ccs-label">Loading...</div>
         </div>
 
         <!-- Cycle Indicator -->
@@ -644,10 +673,43 @@
     import { fetchAndComputeCCS, interpretCCS, DEFAULT_CCS_WEIGHTS } from './modules/signals-engine.js';
     import { estimateCyclePosition, blendCCS, getCyclePhase } from './modules/cycle-navigator.js';
     import { proposeTargets, applyTargets, computePlan, DEFAULT_MACRO_TARGETS, getDecisionLog } from './modules/targets-coordinator.js';
+    import { fetchAllIndicators, calculateCompositeScore, enhanceCycleScore } from './modules/onchain-indicators.js';
 
     // Global state
     let autoRefreshInterval = null;
     let isRefreshing = false;
+    
+    // Variables pour les scores
+    let onchainScore = null;
+    let riskScore = null;
+    let blendedScore = null;
+    
+    // Fonction pour charger les paramètres de calibration depuis localStorage
+    function loadCalibrationParams() {
+      try {
+        const saved = localStorage.getItem('bitcoin_cycle_params');
+        if (saved) {
+          const data = JSON.parse(saved);
+          // Vérifier que les données ne sont pas trop anciennes (24h)
+          if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
+            console.log('✅ Paramètres calibrés chargés depuis localStorage', data.params);
+            return data.params;
+          }
+        }
+      } catch (error) {
+        console.error('❌ Erreur chargement paramètres:', error);
+      }
+      return null;
+    }
+    
+    // Écouter les mises à jour de paramètres depuis d'autres pages
+    window.addEventListener('message', (event) => {
+      if (event.data.type === 'CYCLE_PARAMS_UPDATED') {
+        console.log('🔄 Paramètres de cycle mis à jour depuis autre page');
+        // Recharger les données avec les nouveaux paramètres
+        setTimeout(refreshDashboard, 1000);
+      }
+    });
 
     // ====== Tab Management ======
     window.switchTab = function (tabName) {
@@ -1475,6 +1537,70 @@
         cycleDot.className = 'status-dot';
       }
 
+      // Update CCS Mixte score
+      const ccsMixEl = document.getElementById('ccs-ccs-mix');
+      const ccsMixLabel = ccsMixEl?.parentElement?.nextElementSibling;
+      if (state.cycle?.ccsStar && ccsScore) {
+        ccsMixEl.textContent = Math.round(state.cycle.ccsStar);
+        if (ccsMixLabel) {
+          ccsMixLabel.textContent = `CCS + Cycle (${Math.round((state.cycle?.weight || 0.3) * 100)}%)`;
+        }
+      } else {
+        ccsMixEl.textContent = '--';
+        if (ccsMixLabel) ccsMixLabel.textContent = 'Loading...';
+      }
+
+      // Update On-Chain score
+      const onchainEl = document.getElementById('kpi-onchain');
+      const onchainLabel = onchainEl?.parentElement?.nextElementSibling;
+      console.log('📊 Updating On-Chain score:', onchainScore, 'Element:', !!onchainEl);
+      if (onchainScore !== null && onchainScore !== undefined) {
+        onchainEl.textContent = Math.round(onchainScore);
+        if (onchainLabel) {
+          onchainLabel.textContent = `Composite (${new Date().toLocaleTimeString()})`;
+        }
+        console.log('✅ On-Chain score updated:', Math.round(onchainScore));
+      } else {
+        onchainEl.textContent = '--';
+        if (onchainLabel) onchainLabel.textContent = 'Loading...';
+        console.log('⚠️ On-Chain score not available');
+      }
+
+      // Update Risk Score
+      const riskEl = document.getElementById('kpi-risk');
+      const riskLabel = riskEl?.parentElement?.nextElementSibling;
+      console.log('🛡️ Updating Risk score:', riskScore, 'Element:', !!riskEl);
+      if (riskScore !== null && riskScore !== undefined) {
+        riskEl.textContent = Math.round(riskScore);
+        if (riskLabel) {
+          const riskLevel = riskScore > 70 ? 'Low Risk' : riskScore > 40 ? 'Medium' : 'High Risk';
+          riskLabel.textContent = riskLevel;
+        }
+        console.log('✅ Risk score updated:', Math.round(riskScore));
+      } else {
+        riskEl.textContent = '--';
+        if (riskLabel) riskLabel.textContent = 'Loading...';
+        console.log('⚠️ Risk score not available');
+      }
+
+      // Update Blended Score (final decision)
+      const blendedEl = document.getElementById('kpi-blended');
+      const blendedLabel = blendedEl?.parentElement?.nextElementSibling;
+      console.log('🎯 Updating Blended score:', blendedScore, 'Element:', !!blendedEl);
+      if (blendedScore !== null && blendedScore !== undefined) {
+        blendedEl.textContent = Math.round(blendedScore);
+        if (blendedLabel) {
+          const signal = blendedScore > 70 ? 'Buy Zone' : blendedScore > 30 ? 'Hold' : 'Sell Zone';
+          blendedLabel.textContent = signal;
+          blendedEl.style.color = blendedScore > 70 ? '#10b981' : blendedScore > 30 ? '#f59e0b' : '#ef4444';
+        }
+        console.log('✅ Blended score updated:', Math.round(blendedScore));
+      } else {
+        blendedEl.textContent = '--';
+        if (blendedLabel) blendedLabel.textContent = 'Loading...';
+        console.log('⚠️ Blended score not available');
+      }
+
       // Update targets summary placeholder
       const targetsSummary = document.getElementById('targets-summary');
       if (targetsSummary) {
@@ -1483,7 +1609,7 @@
           targetsSummary.innerHTML = `
             <div style="font-size: 11px;">
               <div>CCS: ${Math.round(ccsScore)} → ${Math.round(ccsStar)} (blended)</div>
-              <div style="font-size: 10px; opacity: 0.8; margin-top: 2px;">Cycle weight: ${Math.round((state.cycle?.weight || 0.3) * 100)}%</div>
+              <div style="font-size: 10px; opacity: 0.8; margin-top: 2px;">Final: ${blendedScore ? Math.round(blendedScore) : '--'}/100</div>
             </div>
           `;
         } else {
@@ -1524,6 +1650,149 @@
     // Note: Initialization moved to the bottom of the script
 
     // ====== Main Functions ======
+    // ====== Score Calculation Functions ======
+    
+    // Calculate On-Chain Score
+    async function calculateOnChainScore() {
+      try {
+        const indicators = await fetchAllIndicators();
+        const composite = calculateCompositeScore(indicators);
+        console.log('📊 On-Chain Score calculated:', composite.score);
+        return composite.score;
+      } catch (error) {
+        console.error('❌ Erreur calcul On-Chain Score:', error);
+        return 50; // Neutral fallback
+      }
+    }
+    
+    // Calculate Risk Score from portfolio metrics
+    function calculateRiskScore(riskData) {
+      if (!riskData?.risk_metrics) return 50;
+      
+      const metrics = riskData.risk_metrics;
+      let score = 50; // Start neutral
+      let factors = 0;
+      
+      // Sharpe ratio (higher is better)
+      if (metrics.sharpe_ratio != null) {
+        score += metrics.sharpe_ratio > 1 ? 20 : metrics.sharpe_ratio > 0.5 ? 10 : -10;
+        factors++;
+      }
+      
+      // Volatility (lower is better for risk score)
+      if (metrics.volatility != null) {
+        const vol = Math.abs(metrics.volatility);
+        score += vol < 0.2 ? 15 : vol < 0.4 ? 5 : -15;
+        factors++;
+      }
+      
+      // Max Drawdown (lower is better)
+      if (metrics.max_drawdown != null) {
+        const dd = Math.abs(metrics.max_drawdown);
+        score += dd < 0.1 ? 15 : dd < 0.2 ? 5 : -15;
+        factors++;
+      }
+      
+      // VaR 95% (lower is better)
+      if (metrics.var95_1d != null) {
+        const var95 = Math.abs(metrics.var95_1d);
+        score += var95 < 0.05 ? 10 : var95 < 0.1 ? 0 : -10;
+        factors++;
+      }
+      
+      return Math.max(0, Math.min(100, factors > 0 ? score : 50));
+    }
+    
+    // Calculate final Blended Score
+    function calculateBlendedScore(ccsScore, cycleScore, onchainScore, riskScore) {
+      if (!ccsScore && !cycleScore && !onchainScore && !riskScore) return 50;
+      
+      // Weights for different components
+      const weights = {
+        ccs: 0.4,        // Technical analysis weight
+        cycle: 0.25,     // Cycle position weight
+        onchain: 0.25,   // On-chain indicators weight
+        risk: 0.1        // Risk adjustment weight
+      };
+      
+      let totalScore = 0;
+      let totalWeight = 0;
+      
+      if (ccsScore != null) {
+        totalScore += ccsScore * weights.ccs;
+        totalWeight += weights.ccs;
+      }
+      
+      if (cycleScore != null) {
+        totalScore += cycleScore * weights.cycle;
+        totalWeight += weights.cycle;
+      }
+      
+      if (onchainScore != null) {
+        totalScore += onchainScore * weights.onchain;
+        totalWeight += weights.onchain;
+      }
+      
+      if (riskScore != null) {
+        // Risk score affects the blend: high risk reduces the final score
+        const riskAdjustment = (riskScore - 50) * 0.5; // -25 to +25 adjustment
+        totalScore += riskAdjustment * weights.risk;
+        totalWeight += weights.risk;
+      }
+      
+      return totalWeight > 0 ? Math.max(0, Math.min(100, totalScore / totalWeight)) : 50;
+    }
+    
+    // Main function to calculate all scores
+    async function calculateAllScores(riskData, ccsData) {
+      try {
+        console.log('🎯 Calculating all scores...');
+        
+        // Apply calibrated parameters if available
+        const calibratedParams = loadCalibrationParams();
+        if (calibratedParams) {
+          // Apply to cycle navigator module
+          const module = await import('./modules/cycle-navigator.js');
+          module.setCycleParams(calibratedParams);
+          console.log('🔄 Applied calibrated parameters');
+        }
+        
+        // Get current CCS and cycle data
+        const currentState = store.snapshot();
+        const ccsScore = currentState.ccs?.score;
+        const cycleScore = currentState.cycle?.score;
+        
+        // Calculate On-Chain Score
+        onchainScore = await calculateOnChainScore();
+        
+        // Calculate Risk Score
+        riskScore = calculateRiskScore(riskData);
+        
+        // Calculate Final Blended Score
+        blendedScore = calculateBlendedScore(ccsScore, cycleScore, onchainScore, riskScore);
+        
+        // Store the scores in the store for use by other modules
+        store.set('scores.onchain', onchainScore);
+        store.set('scores.risk', riskScore);
+        store.set('scores.blended', blendedScore);
+        
+        console.log('📊 All scores calculated:', {
+          ccs: ccsScore,
+          cycle: cycleScore,
+          onchain: onchainScore,
+          risk: riskScore,
+          blended: blendedScore
+        });
+        
+        // Update sidebar with fresh state
+        const freshState = store.snapshot();
+        updateSidebar(freshState);
+        
+      } catch (error) {
+        console.error('❌ Erreur calcul des scores:', error);
+      }
+    }
+
     async function refreshDashboard() {
       if (isRefreshing) return;
       isRefreshing = true;
@@ -1566,6 +1835,13 @@
             await loadBlendedCCS();
           }
 
+          // Calculate additional scores
+          await calculateAllScores(riskData, ccsData);
+
+          // Force sidebar update after all scores are calculated
+          const finalState = store.snapshot();
+          updateSidebar(finalState);
+          
           console.log('Risk dashboard refreshed successfully');
 
         } else {
@@ -1850,7 +2126,7 @@
     // ----------- Fetch historique BTC fiable (sans mock) -----------
     async function fetchBitcoinHistoricalData() {
       console.log('🏛️ Tentative de récupération historique Bitcoin...');
-      
+
       // 1) FRED via Proxy Backend (résout les problèmes CORS)
       try {
         console.log('🏛️ Récupération historique Bitcoin depuis FRED via proxy...');
@@ -1858,20 +2134,20 @@
         const r = await fetch(proxyUrl);
         if (!r.ok) throw new Error(`Proxy HTTP ${r.status}: ${r.statusText}`);
         const result = await r.json();
-        
+
         if (result.success && result.data && result.data.length > 0) {
-          console.log(`✅ FRED Proxy: ${result.data.length} points récupérés (première: $${result.data[0].price}, dernière: $${result.data[result.data.length-1].price})`);
+          console.log(`✅ FRED Proxy: ${result.data.length} points récupérés (première: $${result.data[0].price}, dernière: $${result.data[result.data.length - 1].price})`);
           console.log(`📊 Total disponible: ${result.raw_count} observations`);
-          
+
           // Vérifier que les données commencent bien en 2014
           const firstDate = new Date(result.data[0].time);
           if (firstDate.getFullYear() <= 2014) {
             console.log(`🎯 HISTORIQUE COMPLET: Données depuis ${firstDate.getFullYear()}!`);
           }
-          
-          return { 
-            data: result.data.map(point => ({ time: point.time, price: point.price })), 
-            source: result.source 
+
+          return {
+            data: result.data.map(point => ({ time: point.time, price: point.price })),
+            source: result.source
           };
         } else {
           console.warn('⚠️ FRED Proxy: Aucune donnée ou erreur -', result.error);
@@ -1889,7 +2165,7 @@
         let start = Date.UTC(2017, 6, 1); // 1er juillet 2017
         const end = Date.now();
         let requestCount = 0;
-        
+
         while (start < end) {
           const next = Math.min(start + ONE_DAY * (LIMIT - 1), end);
           const u = new URL('https://api.binance.com/api/v3/klines');
@@ -1912,7 +2188,7 @@
           await new Promise(res => setTimeout(res, 120)); // éviter rate limit
         }
         if (out.length > 0) {
-          console.log(`✅ Binance: ${out.length} points récupérés en ${requestCount} requêtes (${out[0].price}$ à ${out[out.length-1].price}$)`);
+          console.log(`✅ Binance: ${out.length} points récupérés en ${requestCount} requêtes (${out[0].price}$ à ${out[out.length - 1].price}$)`);
           return { data: out, source: 'Binance BTCUSDT (1d close)' };
         } else {
           console.warn('⚠️ Binance: Aucune donnée récupérée');
@@ -1930,7 +2206,7 @@
         if (Array.isArray(j.prices)) {
           const data = j.prices.map(([t, p]) => ({ time: t, price: p }));
           if (data.length > 0) {
-            console.log(`✅ CoinGecko: ${data.length} points récupérés (${data[0].price.toFixed(0)}$ à ${data[data.length-1].price.toFixed(0)}$)`);
+            console.log(`✅ CoinGecko: ${data.length} points récupérés (${data[0].price.toFixed(0)}$ à ${data[data.length - 1].price.toFixed(0)}$)`);
             return { data, source: 'CoinGecko (365j)' };
           } else {
             console.warn('⚠️ CoinGecko: Aucune donnée dans la réponse');
@@ -1983,8 +2259,9 @@
           y: point.price
         }));
 
-        // Import cycle navigator functions (même URL que partout)
+        // Import cycle navigator functions et indicateurs on-chain
         const { cycleScoreFromMonths, getCyclePhase } = await import('./modules/cycle-navigator.js');
+        const { fetchAllIndicators, enhanceCycleScore, analyzeDivergence } = await import('./modules/onchain-indicators.js');
 
         // 🎯 CALIBRATION HISTORIQUE AUTOMATIQUE
         try {
@@ -2400,6 +2677,13 @@
         window.bitcoinCycleChart = new Chart(canvas, config);
         console.log('✅ Bitcoin cycle chart created successfully');
 
+        // 🔗 Charger et afficher les indicateurs on-chain après un délai
+        setTimeout(() => {
+          loadOnChainIndicators().catch(err => {
+            console.error('Failed to load on-chain indicators:', err);
+          });
+        }, 1000);
+
         return window.bitcoinCycleChart;
 
       } catch (error) {
@@ -2419,6 +2703,111 @@
       }
     }
 
+    // ====== On-Chain Indicators ======
+    async function loadOnChainIndicators() {
+      try {
+        console.log('🔄 Loading on-chain indicators modules...');
+        const onchainModule = await import('./modules/onchain-indicators.js');
+        const cycleModule = await import('./modules/cycle-navigator.js');
+
+        const { fetchAllIndicators, calculateCompositeScore, enhanceCycleScore, analyzeDivergence, generateRecommendations } = onchainModule;
+        const { cycleScoreFromMonths, getCurrentCycleMonths } = cycleModule;
+
+        console.log('✅ Modules loaded successfully');
+
+        const container = document.getElementById('onchain-indicators');
+        if (!container) {
+          console.warn('⚠️ onchain-indicators container not found');
+          return;
+        }
+
+        container.innerHTML = '<div class="loading">🔄 Récupération des indicateurs...</div>';
+
+        // Récupérer les indicateurs
+        const indicators = await fetchAllIndicators();
+        const composite = calculateCompositeScore(indicators);
+
+        // Score de cycle actuel
+        const cycleData = getCurrentCycleMonths();
+        const sigmoidScore = cycleScoreFromMonths(cycleData.months);
+
+        // Analyse de divergence
+        const divergence = analyzeDivergence(sigmoidScore, indicators);
+
+        // Score amélioré
+        const enhanced = await enhanceCycleScore(sigmoidScore, 0.25);
+        const recommendations = generateRecommendations(enhanced);
+
+        // Affichage
+        container.innerHTML = `
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+            <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px;">
+              <h4 style="margin: 0 0 0.5rem 0; color: #495057;">🎯 Score Composite</h4>
+              <div style="font-size: 2rem; font-weight: bold; color: ${composite.score > 70 ? '#dc3545' : composite.score < 40 ? '#28a745' : '#ffc107'};">
+                ${composite.score}/100
+              </div>
+              <div style="font-size: 0.85rem; color: #6c757d;">Confiance: ${Math.round(composite.confidence * 100)}%</div>
+            </div>
+            
+            <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px;">
+              <h4 style="margin: 0 0 0.5rem 0; color: #495057;">🔍 Divergence</h4>
+              <div style="font-size: 1.2rem; font-weight: bold; color: ${divergence.divergence_magnitude > 20 ? '#dc3545' : '#28a745'};">
+                ${divergence.signal === 'convergence' ? '✅' : '⚠️'} ${divergence.divergence_magnitude.toFixed(1)} pts
+              </div>
+              <div style="font-size: 0.85rem; color: #6c757d;">${divergence.message}</div>
+            </div>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.5rem; margin-bottom: 1rem;">
+            ${Object.entries(indicators).map(([key, data]) => {
+          const config = {
+            mvrv: { name: 'MVRV Ratio', unit: '', color: data.score > 70 ? '#dc3545' : data.score < 40 ? '#28a745' : '#ffc107' },
+            nvt: { name: 'NVT Ratio', unit: '', color: data.score > 70 ? '#dc3545' : data.score < 40 ? '#28a745' : '#ffc107' },
+            puell_multiple: { name: 'Puell Multiple', unit: '', color: data.score > 70 ? '#dc3545' : data.score < 40 ? '#28a745' : '#ffc107' },
+            fear_greed: { name: 'Fear & Greed', unit: '/100', color: data.score > 70 ? '#28a745' : data.score < 40 ? '#dc3545' : '#ffc107' }
+          }[key];
+
+          if (!config) return '';
+
+          return `
+                <div style="background: white; padding: 0.8rem; border: 1px solid #dee2e6; border-radius: 6px; text-align: center;">
+                  <div style="font-size: 0.8rem; color: #6c757d; margin-bottom: 0.3rem;">${config.name}</div>
+                  <div style="font-size: 1.1rem; font-weight: bold; color: ${config.color}; margin-bottom: 0.2rem;">
+                    ${typeof data.value === 'number' ? data.value.toFixed(1) : data.value}${config.unit}
+                  </div>
+                  <div style="font-size: 0.75rem; color: #6c757d;">Score: ${data.score}/100</div>
+                </div>
+              `;
+        }).join('')}
+          </div>
+          
+          ${recommendations.length > 0 ? `
+            <div style="background: #e7f3ff; padding: 1rem; border-radius: 8px; border-left: 4px solid #007bff;">
+              <h4 style="margin: 0 0 0.5rem 0; color: #0056b3;">💡 Recommandations</h4>
+              ${recommendations.slice(0, 2).map(rec => `
+                <div style="margin: 0.5rem 0; padding: 0.5rem; background: white; border-radius: 4px;">
+                  <div style="font-weight: bold; color: #0056b3;">${rec.title}</div>
+                  <div style="font-size: 0.9rem; margin: 0.2rem 0;">${rec.message}</div>
+                  <div style="font-size: 0.8rem; color: #6c757d; font-style: italic;">▶️ ${rec.action}</div>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+        `;
+
+        console.log('✅ Indicateurs on-chain chargés:', { sigmoidScore, composite: composite.score, enhanced: enhanced.enhanced_score });
+
+      } catch (error) {
+        console.error('❌ Erreur indicateurs on-chain:', error);
+        const container = document.getElementById('onchain-indicators');
+        container.innerHTML = `
+          <div style="text-align: center; padding: 1rem; color: #dc3545; background: #f8d7da; border-radius: 8px;">
+            ⚠️ Erreur de chargement des indicateurs: ${error.message}
+          </div>
+        `;
+      }
+    }
+
     // ====== Cycles Content ======
     async function renderCyclesContent() {
       const container = document.getElementById('cycles-content');
@@ -2435,6 +2824,14 @@
       const interpretation = interpretCCS(blended);
 
       container.innerHTML = `
+        <!-- Indicateurs On-Chain -->
+        <div class="risk-card" style="margin-bottom: 2rem;">
+          <h3>🔗 Indicateurs On-Chain</h3>
+          <div id="onchain-indicators" style="margin: 1rem 0;">
+            <div class="loading">Chargement des indicateurs...</div>
+          </div>
+        </div>
+        
         <!-- Bitcoin Cycle Chart -->
         <div class="risk-card" style="margin-bottom: 2rem;">
           <h3>📈 Graphique des Cycles Bitcoin</h3>
@@ -2653,21 +3050,36 @@
     // ====== Targets Content ======
     async function renderTargetsContent() {
       const container = document.getElementById('targets-content');
+      
+      // IMPORTANT: Ensure scores are calculated first
       const state = store.snapshot();
+      if (!state.scores?.blended) {
+        console.log('🔄 Blended score not available, recalculating scores...');
+        const riskData = state.risk;
+        const ccsData = state.ccs;
+        if (riskData && ccsData) {
+          await calculateAllScores(riskData, ccsData);
+        }
+      }
+      
+      // Get updated state after potential score calculation
+      const updatedState = store.snapshot();
 
-      // Propose different targeting strategies
+      // Propose different targeting strategies (now with updated scores)
       const macroProposal = proposeTargets('macro');
       const ccsProposal = proposeTargets('ccs');
       const cycleProposal = proposeTargets('cycle');
       const blendedProposal = proposeTargets('blend');
 
       // DEBUG: Log what blended proposal contains for display
+      console.log('🔍 DEBUG renderTargetsContent - updatedState.scores.blended:', updatedState.scores?.blended);
       console.log('🔍 DEBUG renderTargetsContent - blendedProposal for DISPLAY:', blendedProposal);
+      console.log('🔍 DEBUG renderTargetsContent - blendedProposal.strategy:', blendedProposal.strategy);
       console.log('🔍 DEBUG renderTargetsContent - BTC allocation for DISPLAY:', blendedProposal.targets.BTC);
 
       // Current targets from store or use blended as default display
-      const appliedTargets = state.targets?.proposed || blendedProposal.targets;
-      const appliedStrategy = state.targets?.strategy || blendedProposal.strategy;
+      const appliedTargets = updatedState.targets?.proposed || blendedProposal.targets;
+      const appliedStrategy = updatedState.targets?.strategy || blendedProposal.strategy;
 
       // Get real current portfolio allocation
       const currentAllocation = await getCurrentPortfolioAllocation();
