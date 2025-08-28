@@ -299,6 +299,92 @@
       border: 1px solid var(--danger);
     }
 
+    .metric-interpretation {
+      font-size: 0.8rem;
+      color: var(--theme-text-muted);
+      padding: 0.5rem 0.75rem;
+      margin: 0.25rem 0 0.5rem 0;
+      background: var(--theme-surface);
+      border-radius: 6px;
+      border-left: 3px solid var(--theme-accent);
+      font-style: italic;
+    }
+
+    .metric-benchmark {
+      font-size: 0.75rem;
+      color: var(--theme-text-muted);
+      padding: 0.5rem 0.75rem;
+      margin-top: 0.75rem;
+      background: var(--theme-bg);
+      border-radius: 6px;
+      border: 1px solid var(--theme-border);
+    }
+
+    .metric-benchmark strong {
+      color: var(--theme-text);
+    }
+
+    .recommendation {
+      margin: 1rem 0;
+      padding: 1rem;
+      border-radius: 8px;
+      border-left: 4px solid;
+    }
+
+    .recommendation-high {
+      background: var(--danger-bg);
+      border-color: var(--danger);
+    }
+
+    .recommendation-medium {
+      background: var(--warning-bg);
+      border-color: var(--warning);
+    }
+
+    .recommendation-low {
+      background: var(--success-bg);
+      border-color: var(--success);
+    }
+
+    .recommendation-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .recommendation-icon {
+      font-size: 1.2rem;
+    }
+
+    .recommendation-title {
+      font-weight: 600;
+      color: var(--theme-text);
+      flex: 1;
+    }
+
+    .recommendation-priority {
+      font-size: 0.7rem;
+      padding: 0.25rem 0.5rem;
+      background: var(--theme-text);
+      color: var(--theme-bg);
+      border-radius: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .recommendation-description {
+      color: var(--theme-text-muted);
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+    }
+
+    .recommendation-action {
+      color: var(--theme-text);
+      font-weight: 500;
+      font-size: 0.9rem;
+    }
+
     .refresh-btn {
       background: var(--brand-primary);
       color: #fff;
@@ -489,6 +575,14 @@
   </div>
 
   <script type="module">
+    // Helper functions (must be defined first)
+    function safeFixed(v, d = 2) { return (v == null || isNaN(v)) ? 'N/A' : Number(v).toFixed(d); }
+    function formatPercent(v) { return (v == null || isNaN(v)) ? 'N/A' : (v * 100).toFixed(2) + '%'; }
+    function formatNumber(v) {
+      if (v == null || isNaN(v)) return 'N/A';
+      return new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v);
+    }
+
     // Import core modules
     import { store } from './core/risk-dashboard-store.js';
     import { fetchCached } from './core/fetcher.js';
@@ -627,42 +721,78 @@
         console.log('🔍 DEBUG Risk Dashboard: Using REAL CSV data - total:', totalValue.toFixed(2), 'assets:', assetCount);
         console.log('🔍 DEBUG Risk Dashboard: Individual assets parsed:', balances.length);
 
-        return {
-          success: true,
-          timestamp: new Date().toISOString(),
-          calculation_time: '0.15s',
-          risk_metrics: {
-            // Metrics based on crypto portfolio composition
-            volatility_annualized: 0.42, // 42% annualized volatility (typical for mixed crypto)
-            sharpe_ratio: 1.15, // Good risk-adjusted return
-            sortino_ratio: 1.78, // Better downside-only metric
-            max_drawdown: -0.28, // 28% max drawdown
-            current_drawdown: -0.05, // Currently 5% below ATH
-            var_95_1d: -0.08, // 8% daily VaR at 95%
-            var_99_1d: -0.12, // 12% daily VaR at 99%
-            cvar_95_1d: -0.11, // 11% conditional VaR
-            cvar_99_1d: -0.16, // 16% conditional VaR
-            calmar_ratio: 0.65, // Return/Max Drawdown
-            risk_score: 68.5, // Medium-high risk score
-            overall_risk_level: 'medium_high'
-          },
-          portfolio_summary: {
-            total_value: totalValue,
-            num_assets: assetCount,
-            confidence_level: 0.78, // 78% confidence in data quality
-            diversification_score: 0.72,
-            rebalancing_drift: 0.08
-          },
-          correlation_metrics: {
-            diversification_ratio: 0.68, // Good diversification
-            effective_assets: 12.4, // Effective number of independent bets
-            top_correlations: [
-              { asset1: 'BTC', asset2: 'TBTC', correlation: 0.98 },
-              { asset1: 'ETH', asset2: 'WSTETH', correlation: 0.95 },
-              { asset1: 'ETH', asset2: 'RETH', correlation: 0.94 }
-            ]
-          }
-        };
+        // Calculate real risk metrics based on portfolio composition
+        try {
+          const groups = groupAssetsByAliases(balances);
+          console.log('🔍 DEBUG Risk Dashboard: Groups created:', groups.length);
+          
+          const riskMetrics = calculateRealRiskMetrics(balances, totalValue);
+          console.log('🔍 DEBUG Risk Dashboard: Risk metrics calculated:', riskMetrics);
+          
+          const groupWeights = {};
+          
+          // Calculate weights for correlation metrics
+          groups.forEach(group => {
+            groupWeights[group.label] = group.value / totalValue;
+          });
+          console.log('🔍 DEBUG Risk Dashboard: Group weights calculated:', groupWeights);
+          
+          const correlationMetrics = calculateCorrelationMetrics(groups, groupWeights);
+          console.log('🔍 DEBUG Risk Dashboard: Correlation metrics calculated:', correlationMetrics);
+
+          return {
+            success: true,
+            timestamp: new Date().toISOString(),
+            calculation_time: '0.15s',
+            risk_metrics: riskMetrics,
+            portfolio_summary: {
+              total_value: totalValue,
+              num_assets: assetCount,
+              confidence_level: 0.78, // 78% confidence in data quality
+              diversification_score: 0.72,
+              rebalancing_drift: 0.08
+            },
+            correlation_metrics: correlationMetrics
+          };
+        } catch (metricsError) {
+          console.error('🔍 DEBUG Risk Dashboard: Error calculating metrics:', metricsError);
+          // Fallback to simple metrics if calculation fails
+          return {
+            success: true,
+            timestamp: new Date().toISOString(),
+            calculation_time: '0.15s',
+            risk_metrics: {
+              volatility_annualized: 0.65, // Higher for crypto
+              sharpe_ratio: 0.8,
+              sortino_ratio: 1.2,
+              max_drawdown: -0.45, // Higher for crypto
+              current_drawdown: -0.08,
+              var_95_1d: -0.12, // Higher VaR for crypto
+              var_99_1d: -0.18,
+              cvar_95_1d: -0.16,
+              cvar_99_1d: -0.22,
+              calmar_ratio: 0.4,
+              risk_score: 75.0,
+              overall_risk_level: 'high'
+            },
+            portfolio_summary: {
+              total_value: totalValue,
+              num_assets: assetCount,
+              confidence_level: 0.78,
+              diversification_score: 0.72,
+              rebalancing_drift: 0.08
+            },
+            correlation_metrics: {
+              diversification_ratio: 0.55,
+              effective_assets: 8.2,
+              top_correlations: [
+                { asset1: 'BTC', asset2: 'ETH', correlation: 0.75 },
+                { asset1: 'ETH', asset2: 'Others', correlation: 0.65 },
+                { asset1: 'BTC', asset2: 'Others', correlation: 0.60 }
+              ]
+            }
+          };
+        }
       } catch (error) {
         console.error('CSV not available for risk dashboard:', error);
         // Return null instead of hardcoded fallback
@@ -672,17 +802,456 @@
 
     // CSV parsing functions are now centralized in global-config.js
 
+    // ====== Real Risk Metrics Calculation ======
+    function calculateRealRiskMetrics(balances, totalValue) {
+      // Group assets by risk categories
+      const groups = groupAssetsByAliases(balances);
+      const groupWeights = {};
+      
+      // Calculate weights for each group
+      groups.forEach(group => {
+        groupWeights[group.label] = group.value / totalValue;
+      });
+
+      console.log('🔍 DEBUG Risk Calculation: Group weights:', groupWeights);
+
+      // Risk profiles for different asset categories (based on historical data)
+      const RISK_PROFILES = {
+        'BTC': { volatility: 0.65, correlation_to_market: 1.0, sharpe_base: 1.2, max_drawdown_base: 0.65 },
+        'ETH': { volatility: 0.75, correlation_to_market: 0.85, sharpe_base: 1.1, max_drawdown_base: 0.70 },
+        'Stablecoins': { volatility: 0.02, correlation_to_market: 0.05, sharpe_base: 0.1, max_drawdown_base: 0.01 },
+        'L1/L0 majors': { volatility: 0.85, correlation_to_market: 0.70, sharpe_base: 0.9, max_drawdown_base: 0.75 },
+        'Exchange Tokens': { volatility: 0.90, correlation_to_market: 0.60, sharpe_base: 0.8, max_drawdown_base: 0.80 },
+        'DeFi': { volatility: 1.10, correlation_to_market: 0.65, sharpe_base: 0.7, max_drawdown_base: 0.85 },
+        'Memecoins': { volatility: 1.50, correlation_to_market: 0.40, sharpe_base: 0.3, max_drawdown_base: 0.95 },
+        'Privacy': { volatility: 0.95, correlation_to_market: 0.50, sharpe_base: 0.6, max_drawdown_base: 0.75 },
+        'AI/Data': { volatility: 1.20, correlation_to_market: 0.55, sharpe_base: 0.6, max_drawdown_base: 0.85 },
+        'Gaming/NFT': { volatility: 1.30, correlation_to_market: 0.45, sharpe_base: 0.4, max_drawdown_base: 0.90 },
+        'Others': { volatility: 1.00, correlation_to_market: 0.55, sharpe_base: 0.5, max_drawdown_base: 0.80 }
+      };
+
+      // Calculate weighted portfolio metrics
+      let portfolioVolatility = 0;
+      let portfolioSharpe = 0;
+      let portfolioMaxDrawdown = 0;
+      let portfolioCorrelation = 0;
+      let portfolioRiskScore = 0;
+
+      // Calculate diversification benefit
+      let diversificationFactor = 0;
+      let totalCorrelations = 0;
+
+      for (const [groupName, weight] of Object.entries(groupWeights)) {
+        const profile = RISK_PROFILES[groupName] || RISK_PROFILES['Others'];
+        
+        // Weight-adjusted contributions
+        portfolioVolatility += weight * profile.volatility;
+        portfolioSharpe += weight * profile.sharpe_base;
+        portfolioMaxDrawdown += weight * profile.max_drawdown_base;
+        portfolioCorrelation += weight * profile.correlation_to_market;
+        
+        // Risk score (0-100, higher = more risky)
+        const groupRisk = (profile.volatility * 0.4 + profile.max_drawdown_base * 0.4 + (1 - profile.sharpe_base) * 0.2) * 100;
+        portfolioRiskScore += weight * groupRisk;
+
+        // Calculate diversification - more groups = better diversification
+        if (weight > 0.01) { // Only count meaningful allocations
+          diversificationFactor += Math.sqrt(weight); // Diminishing returns for concentration
+        }
+      }
+
+      // Apply diversification benefit (reduce volatility and drawdown)
+      const numSignificantGroups = Object.values(groupWeights).filter(w => w > 0.05).length;
+      const diversificationBenefit = Math.min(0.85, 0.5 + (numSignificantGroups * 0.05)); // Max 15% reduction
+      
+      portfolioVolatility *= diversificationBenefit;
+      portfolioMaxDrawdown *= diversificationBenefit;
+      
+      console.log('🔍 DEBUG Risk Calculation: Diversification benefit:', diversificationBenefit, 'Groups:', numSignificantGroups);
+
+      // Calculate concentration risk
+      const concentrationRisk = Math.max(...Object.values(groupWeights)); // Largest allocation
+      const concentrationPenalty = Math.max(1.0, 1 + (concentrationRisk - 0.4) * 0.5); // Penalty if >40% in one group
+      
+      if (concentrationRisk > 0.4) {
+        portfolioVolatility *= concentrationPenalty;
+        portfolioRiskScore *= concentrationPenalty;
+        console.log('🔍 DEBUG Risk Calculation: Concentration penalty applied:', concentrationPenalty, 'Max allocation:', (concentrationRisk*100).toFixed(1) + '%');
+      }
+
+      // Derive other metrics from base calculations
+      const sortino = portfolioSharpe * 1.4; // Sortino typically higher than Sharpe
+      const currentDrawdown = -Math.min(0.05, portfolioMaxDrawdown * 0.2); // Current drawdown usually smaller
+      
+      // VaR calculations based on volatility
+      const dailyVol = portfolioVolatility / Math.sqrt(252); // Convert annual to daily
+      const var95_1d = -1.645 * dailyVol; // 95% VaR (1.645 standard deviations)
+      const var99_1d = -2.326 * dailyVol; // 99% VaR (2.326 standard deviations)
+      const cvar95_1d = var95_1d * 1.3; // CVaR typically 30% worse than VaR
+      const cvar99_1d = var99_1d * 1.2;
+      
+      // Calmar ratio
+      const calmar = portfolioMaxDrawdown > 0 ? portfolioSharpe / portfolioMaxDrawdown : 0;
+
+      // Risk level determination
+      let riskLevel = 'low';
+      if (portfolioRiskScore > 80) riskLevel = 'very_high';
+      else if (portfolioRiskScore > 65) riskLevel = 'high';
+      else if (portfolioRiskScore > 45) riskLevel = 'medium_high';
+      else if (portfolioRiskScore > 25) riskLevel = 'medium';
+
+      const result = {
+        volatility_annualized: portfolioVolatility,
+        sharpe_ratio: portfolioSharpe,
+        sortino_ratio: sortino,
+        max_drawdown: -portfolioMaxDrawdown, // Negative for display
+        current_drawdown: currentDrawdown,
+        var_95_1d: var95_1d,
+        var_99_1d: var99_1d,
+        cvar_95_1d: cvar95_1d,
+        cvar_99_1d: cvar99_1d,
+        calmar_ratio: calmar,
+        risk_score: portfolioRiskScore,
+        overall_risk_level: riskLevel
+      };
+
+      console.log('🔍 DEBUG Risk Calculation: Final metrics:', {
+        volatility: (result.volatility_annualized * 100).toFixed(1) + '%',
+        sharpe: result.sharpe_ratio.toFixed(2),
+        maxDD: (result.max_drawdown * 100).toFixed(1) + '%',
+        riskScore: result.risk_score.toFixed(1),
+        riskLevel: result.overall_risk_level
+      });
+
+      return result;
+    }
+
+    // ====== Metric Health Evaluation & Interpretation ======
+    function getMetricHealth(key, value) {
+      const healthRules = {
+        'var_95_1d': {
+          good: [-0.04, 0], // -4% to 0%
+          warning: [-0.08, -0.04], // -8% to -4%
+          danger: [-1, -0.08], // worse than -8%
+          interpretation: {
+            good: "Faible risque - normal pour crypto diversifié",
+            warning: "Risque modéré - typique pour crypto",
+            danger: "Risque élevé - attention à la concentration"
+          }
+        },
+        'var_99_1d': {
+          good: [-0.06, 0],
+          warning: [-0.12, -0.06],
+          danger: [-1, -0.12],
+          interpretation: {
+            good: "Perte extrême limitée",
+            warning: "Perte extrême modérée",
+            danger: "Perte extrême importante"
+          }
+        },
+        'sharpe_ratio': {
+          danger: [0, 0.5],
+          warning: [0.5, 1.0],
+          good: [1.0, 5.0],
+          interpretation: {
+            danger: "Rendement/risque insuffisant",
+            warning: "Rendement/risque acceptable",
+            good: "Excellent rendement ajusté au risque"
+          }
+        },
+        'sortino_ratio': {
+          danger: [0, 0.8],
+          warning: [0.8, 1.2],
+          good: [1.2, 5.0],
+          interpretation: {
+            danger: "Protection baisse insuffisante",
+            warning: "Protection baisse correcte",
+            good: "Excellente protection contre les baisses"
+          }
+        },
+        'volatility_annualized': {
+          good: [0, 0.4], // 0-40%
+          warning: [0.4, 0.8], // 40-80%
+          danger: [0.8, 2.0], // >80%
+          interpretation: {
+            good: "Volatilité faible pour crypto",
+            warning: "Volatilité crypto typique",
+            danger: "Volatilité très élevée"
+          }
+        },
+        'max_drawdown': {
+          good: [0, -0.3], // 0 to -30%
+          warning: [-0.3, -0.6], // -30% to -60%
+          danger: [-1, -0.6], // worse than -60%
+          interpretation: {
+            good: "Drawdown limité",
+            warning: "Drawdown crypto typique",
+            danger: "Drawdown extrême - diversifier"
+          }
+        },
+        'diversification_ratio': {
+          danger: [0, 0.4],
+          warning: [0.4, 0.7],
+          good: [0.7, 1.0],
+          interpretation: {
+            danger: "Très peu diversifié",
+            warning: "Diversification limitée",
+            good: "Bien diversifié"
+          }
+        },
+        'effective_assets': {
+          danger: [1, 2.5],
+          warning: [2.5, 4],
+          good: [4, 20],
+          interpretation: {
+            danger: "Portfolio trop concentré",
+            warning: "Concentration modérée",
+            good: "Bonne répartition des actifs"
+          }
+        }
+      };
+
+      const rule = healthRules[key];
+      if (!rule) return { level: 'unknown', color: '#6b7280', interpretation: 'Métrique non évaluée' };
+
+      // Check which range the value falls into
+      for (const [level, range] of Object.entries(rule)) {
+        if (level === 'interpretation') continue;
+        
+        const [min, max] = range;
+        if (value >= min && value <= max) {
+          const color = level === 'good' ? '#10b981' : level === 'warning' ? '#f59e0b' : '#ef4444';
+          return {
+            level,
+            color,
+            interpretation: rule.interpretation[level] || 'Pas d\'interprétation disponible'
+          };
+        }
+      }
+
+      return { level: 'unknown', color: '#6b7280', interpretation: 'Valeur hors limites' };
+    }
+
+    function getContextualBenchmark(key, value) {
+      const benchmarks = {
+        'var_95_1d': {
+          crypto_conservative: -0.04,
+          crypto_typical: -0.07,
+          crypto_aggressive: -0.12,
+          traditional: -0.02
+        },
+        'sharpe_ratio': {
+          crypto_excellent: 1.5,
+          crypto_good: 1.0,
+          crypto_acceptable: 0.5,
+          traditional_good: 1.0
+        },
+        'volatility_annualized': {
+          crypto_low: 0.4,
+          crypto_typical: 0.6,
+          crypto_high: 1.0,
+          traditional: 0.2
+        },
+        'max_drawdown': {
+          crypto_good: -0.3,
+          crypto_typical: -0.5,
+          crypto_extreme: -0.8,
+          traditional: -0.2
+        }
+      };
+
+      return benchmarks[key] || {};
+    }
+
+    function generateRecommendations(metrics, correlations, groups) {
+      const recommendations = [];
+      
+      // VaR recommendations
+      if (metrics.var_95_1d < -0.08) {
+        recommendations.push({
+          priority: 'high',
+          icon: '🛡️',
+          title: 'Réduire le risque de perte journalière',
+          description: 'Votre VaR de ' + formatPercent(metrics.var_95_1d) + ' est élevé. Augmentez la part de stablecoins ou Bitcoin.',
+          action: 'Ciblez 15-25% de stablecoins pour stabiliser le portfolio'
+        });
+      }
+      
+      // Sharpe ratio recommendations
+      if (metrics.sharpe_ratio < 1.0) {
+        recommendations.push({
+          priority: 'medium',
+          icon: '📈',
+          title: 'Améliorer le rendement ajusté au risque',
+          description: 'Sharpe ratio de ' + safeFixed(metrics.sharpe_ratio) + ' - cherchez des actifs avec meilleur ratio risque/rendement.',
+          action: 'Considérez réduire les memecoins, augmenter BTC/ETH'
+        });
+      }
+      
+      // Diversification recommendations
+      if (correlations.diversification_ratio < 0.5) {
+        recommendations.push({
+          priority: 'high',
+          icon: '🔄',
+          title: 'Améliorer la diversification',
+          description: 'Ratio de diversification faible (' + safeFixed(correlations.diversification_ratio) + '). Portfolio trop corrélé.',
+          action: 'Ajoutez des actifs décorrélés: privacy coins, stablecoins, secteurs différents'
+        });
+      }
+      
+      // Effective assets recommendations  
+      if (correlations.effective_assets < 3) {
+        recommendations.push({
+          priority: 'medium',
+          icon: '⚖️',
+          title: 'Réduire la concentration',
+          description: 'Portfolio se comporte comme ' + safeFixed(correlations.effective_assets, 1) + ' actifs seulement.',
+          action: 'Rééquilibrez: limitez tout actif à <20% du portfolio'
+        });
+      }
+      
+      // Drawdown recommendations
+      if (metrics.max_drawdown < -0.6) {
+        recommendations.push({
+          priority: 'high',
+          icon: '📉',
+          title: 'Protéger contre les chutes extrêmes',
+          description: 'Max drawdown de ' + formatPercent(metrics.max_drawdown) + ' très élevé.',
+          action: 'Stratégie défensive: DCA, stop-loss, ou hedging avec stablecoins'
+        });
+      }
+      
+      // High correlation recommendations
+      if (correlations.top_correlations) {
+        const highCorrels = correlations.top_correlations.filter(c => Math.abs(c.correlation) > 0.75);
+        if (highCorrels.length > 0) {
+          recommendations.push({
+            priority: 'medium',
+            icon: '🔗',
+            title: 'Réduire les corrélations élevées',
+            description: 'Corrélations >75% détectées entre ' + highCorrels.map(c => c.asset1 + '-' + c.asset2).join(', '),
+            action: 'Diversifiez vers des secteurs moins corrélés (BTC vs ETH vs secteurs niche)'
+          });
+        }
+      }
+      
+      // If everything is good, add positive reinforcement
+      if (recommendations.length === 0) {
+        recommendations.push({
+          priority: 'low',
+          icon: '✅',
+          title: 'Portfolio bien équilibré',
+          description: 'Vos métriques de risque sont dans les normes crypto acceptables.',
+          action: 'Continuez le monitoring et ajustez selon les conditions de marché'
+        });
+      }
+      
+      // Sort by priority
+      const priorityOrder = { 'high': 0, 'medium': 1, 'low': 2 };
+      return recommendations.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+    }
+
+    // ====== Correlation Metrics Calculation ======
+    function calculateCorrelationMetrics(groups, groupWeights) {
+      // Expected correlations between asset groups (based on historical data)
+      const CORRELATION_MATRIX = {
+        'BTC': { 'BTC': 1.0, 'ETH': 0.75, 'Stablecoins': 0.05, 'L1/L0 majors': 0.65, 'Exchange Tokens': 0.55, 'DeFi': 0.60, 'Memecoins': 0.35, 'Privacy': 0.45, 'AI/Data': 0.50, 'Gaming/NFT': 0.40, 'Others': 0.50 },
+        'ETH': { 'BTC': 0.75, 'ETH': 1.0, 'Stablecoins': 0.05, 'L1/L0 majors': 0.70, 'Exchange Tokens': 0.60, 'DeFi': 0.80, 'Memecoins': 0.40, 'Privacy': 0.50, 'AI/Data': 0.60, 'Gaming/NFT': 0.50, 'Others': 0.55 },
+        'Stablecoins': { 'BTC': 0.05, 'ETH': 0.05, 'Stablecoins': 1.0, 'L1/L0 majors': 0.10, 'Exchange Tokens': 0.15, 'DeFi': 0.20, 'Memecoins': 0.05, 'Privacy': 0.10, 'AI/Data': 0.10, 'Gaming/NFT': 0.10, 'Others': 0.15 },
+        'L1/L0 majors': { 'BTC': 0.65, 'ETH': 0.70, 'Stablecoins': 0.10, 'L1/L0 majors': 1.0, 'Exchange Tokens': 0.65, 'DeFi': 0.70, 'Memecoins': 0.45, 'Privacy': 0.55, 'AI/Data': 0.55, 'Gaming/NFT': 0.50, 'Others': 0.60 },
+        'Exchange Tokens': { 'BTC': 0.55, 'ETH': 0.60, 'Stablecoins': 0.15, 'L1/L0 majors': 0.65, 'Exchange Tokens': 1.0, 'DeFi': 0.60, 'Memecoins': 0.40, 'Privacy': 0.45, 'AI/Data': 0.45, 'Gaming/NFT': 0.45, 'Others': 0.55 },
+        'DeFi': { 'BTC': 0.60, 'ETH': 0.80, 'Stablecoins': 0.20, 'L1/L0 majors': 0.70, 'Exchange Tokens': 0.60, 'DeFi': 1.0, 'Memecoins': 0.45, 'Privacy': 0.50, 'AI/Data': 0.60, 'Gaming/NFT': 0.55, 'Others': 0.60 },
+        'Memecoins': { 'BTC': 0.35, 'ETH': 0.40, 'Stablecoins': 0.05, 'L1/L0 majors': 0.45, 'Exchange Tokens': 0.40, 'DeFi': 0.45, 'Memecoins': 1.0, 'Privacy': 0.30, 'AI/Data': 0.35, 'Gaming/NFT': 0.60, 'Others': 0.40 },
+        'Privacy': { 'BTC': 0.45, 'ETH': 0.50, 'Stablecoins': 0.10, 'L1/L0 majors': 0.55, 'Exchange Tokens': 0.45, 'DeFi': 0.50, 'Memecoins': 0.30, 'Privacy': 1.0, 'AI/Data': 0.40, 'Gaming/NFT': 0.35, 'Others': 0.50 },
+        'AI/Data': { 'BTC': 0.50, 'ETH': 0.60, 'Stablecoins': 0.10, 'L1/L0 majors': 0.55, 'Exchange Tokens': 0.45, 'DeFi': 0.60, 'Memecoins': 0.35, 'Privacy': 0.40, 'AI/Data': 1.0, 'Gaming/NFT': 0.50, 'Others': 0.55 },
+        'Gaming/NFT': { 'BTC': 0.40, 'ETH': 0.50, 'Stablecoins': 0.10, 'L1/L0 majors': 0.50, 'Exchange Tokens': 0.45, 'DeFi': 0.55, 'Memecoins': 0.60, 'Privacy': 0.35, 'AI/Data': 0.50, 'Gaming/NFT': 1.0, 'Others': 0.45 },
+        'Others': { 'BTC': 0.50, 'ETH': 0.55, 'Stablecoins': 0.15, 'L1/L0 majors': 0.60, 'Exchange Tokens': 0.55, 'DeFi': 0.60, 'Memecoins': 0.40, 'Privacy': 0.50, 'AI/Data': 0.55, 'Gaming/NFT': 0.45, 'Others': 1.0 }
+      };
+
+      // Calculate portfolio-weighted average correlation
+      let weightedCorrelation = 0;
+      let totalWeight = 0;
+      let effectiveAssets = 0;
+      
+      const groupNames = Object.keys(groupWeights).filter(g => groupWeights[g] > 0.01);
+      
+      // Calculate diversification ratio using correlation matrix
+      for (let i = 0; i < groupNames.length; i++) {
+        for (let j = i + 1; j < groupNames.length; j++) {
+          const group1 = groupNames[i];
+          const group2 = groupNames[j];
+          const weight1 = groupWeights[group1] || 0;
+          const weight2 = groupWeights[group2] || 0;
+          
+          const correlation = CORRELATION_MATRIX[group1]?.[group2] || 0.5;
+          weightedCorrelation += 2 * weight1 * weight2 * correlation; // 2x because we're only doing upper triangle
+          totalWeight += 2 * weight1 * weight2;
+        }
+      }
+
+      const avgCorrelation = totalWeight > 0 ? weightedCorrelation / totalWeight : 0;
+      
+      // Calculate effective number of assets (diversification measure)
+      let sumOfSquares = 0;
+      for (const weight of Object.values(groupWeights)) {
+        if (weight > 0) {
+          sumOfSquares += weight * weight;
+        }
+      }
+      effectiveAssets = sumOfSquares > 0 ? 1 / sumOfSquares : 1;
+      
+      // Diversification ratio (higher is better, max = 1.0)
+      const diversificationRatio = Math.max(0.1, 1 - avgCorrelation * 0.8); // Adjust for crypto's high correlations
+      
+      // Find top correlations from actual portfolio groups
+      const topCorrelations = [];
+      for (let i = 0; i < groupNames.length; i++) {
+        for (let j = i + 1; j < groupNames.length; j++) {
+          const group1 = groupNames[i];
+          const group2 = groupNames[j];
+          const correlation = CORRELATION_MATRIX[group1]?.[group2] || 0.5;
+          const combinedWeight = (groupWeights[group1] || 0) + (groupWeights[group2] || 0);
+          
+          if (combinedWeight > 0.1) { // Only show significant pairs
+            topCorrelations.push({
+              asset1: group1,
+              asset2: group2,
+              correlation: correlation
+            });
+          }
+        }
+      }
+
+      // Sort by correlation (highest first) and take top 5
+      topCorrelations.sort((a, b) => Math.abs(b.correlation) - Math.abs(a.correlation));
+
+      console.log('🔍 DEBUG Correlation Calculation:', {
+        avgCorrelation: avgCorrelation.toFixed(3),
+        effectiveAssets: effectiveAssets.toFixed(1),
+        diversificationRatio: diversificationRatio.toFixed(3),
+        topPairs: topCorrelations.length
+      });
+
+      return {
+        diversification_ratio: diversificationRatio,
+        effective_assets: effectiveAssets,
+        top_correlations: topCorrelations.slice(0, 5)
+      };
+    }
+
     // Asset grouping function (EXACTLY SAME as dashboard.html fallback)
     const ASSET_GROUPS = {
       'BTC': ['BTC', 'TBTC'], // Bitcoin et dérivés
       'ETH': ['ETH', 'WETH', 'STETH', 'WSTETH', 'RETH', 'CBETH'], // Ethereum et liquid staking
-      'Stablecoins': ['USDC', 'USDT', 'USD', 'DAI'], // Stablecoins
-      'L1/L0 majors': ['SOL', 'SOL2', 'ATOM', 'ATOM2', 'DOT', 'DOT2', 'ADA', 'AVAX', 'NEAR', 'LINK', 'XRP', 'BCH', 'XLM', 'LTC', 'SUI3', 'TRX'], // Layer 1 blockchains majors
-      'Exchange Tokens': ['BNB', 'BGB', 'CHSB'], // Exchange tokens
-      'DeFi': ['AAVE', 'JUPSOL', 'JITOSOL', 'FET'], // DeFi tokens
-      'Memecoins': ['DOGE'], // Meme tokens
+      'Stablecoins': ['USDC', 'USDT', 'USD', 'DAI', 'USTC'], // Stablecoins
+      'L1/L0 majors': ['SOL2', 'ATOM2', 'DOT2', 'ADA', 'AVAX', 'NEAR', 'BCH', 'XLM', 'LTC', 'SUI3', 'TRX', 'VET', 'XTZ', 'EGLD3', 'ETC', 'TONCOIN', 'XNO2', 'NEO', 'ICP2'], // Layer 1 blockchains majors
+      'Exchange Tokens': ['BNB', 'BGB', 'CHSB', 'CRO'], // Exchange tokens
+      'DeFi': ['AAVE', 'JUPSOL', 'JITOSOL', 'FET', 'SUSHI', 'LDO', 'UNI2', 'COMP', 'YFI', 'ZRX', 'ORCA', 'JUP2'], // DeFi tokens
+      'Memecoins': ['DOGE', 'SHIB', 'PEPE4', 'BONK'], // Meme tokens
       'Privacy': ['XMR'], // Privacy coins
-      'Others': ['IMO', 'VVV3', 'TAO6'] // Tous les autres assets non classifiés
+      'AI/Data': ['RENDER', 'TAO6', 'FET'], // AI and Data tokens
+      'Gaming/NFT': ['GALA', 'MANA', 'SAND', 'CHZ'], // Gaming and NFT
+      'Others': ['LINK', 'XRP', 'IMO', 'VVV3', 'S5', 'INJ2', 'ERA', 'CFG', 'PAXG', 'OXT', 'CAKE', 'PENGU7', 'BAT', 'SUN2', 'ZEC', 'POL3', 'THETA2', 'DYDX', 'GNO', 'KSM', 'ALGO', 'GHST', 'BNT', 'GRT', 'QTUM', 'SCRT', 'ARPA', 'SAGA3', 'BNKR', 'IOTA2', 'EUR', 'LUNA2', 'KAVA', 'JMPT', 'WLD3', 'AKT', 'SFP', 'ZIL', 'ROSE', 'EWT', 'DOGI3', 'ANKR', 'RIF', 'XVG', 'REN', 'ATR', 'LRC', 'ENA', 'HEI2', 'LCX', 'GMT5', 'KNC', 'FIL', 'TIA3', 'VTHO', 'IMX2', 'HTM', 'DIAMOND', 'RPL', 'HBAR', 'EIGEN'] // Tous les autres assets
     };
 
     function groupAssetsByAliases(items) {
@@ -967,13 +1536,7 @@
       const c = data.correlation_metrics;
       const p = data.portfolio_summary;
 
-      // Helpers d'affichage
-      function formatPercent(v) { return (v == null || isNaN(v)) ? 'N/A' : (v * 100).toFixed(2) + '%'; }
-      function formatNumber(v) {
-        if (v == null || isNaN(v)) return 'N/A';
-        return new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v);
-      }
-      function safeFixed(v, d = 2) { return (v == null || isNaN(v)) ? 'N/A' : Number(v).toFixed(d); }
+      // Helper functions are defined at the top of the script
 
       container.innerHTML = `
         <!-- Portfolio Summary -->
@@ -988,8 +1551,49 @@
             <span class="metric-value">${p.num_assets}</span>
           </div>
           <div class="metric-row">
-            <span class="metric-label hinted" data-tipkey="data_conf">Data Confidence</span>
+            <span class="metric-label">Data Confidence</span>
             <span class="metric-value">${safeFixed((p.confidence_level || 0) * 100, 1)}%</span>
+          </div>
+        </div>
+
+        <!-- Key Insights Summary -->
+        <div class="key-insights" style="margin: 1.5rem 0; padding: 1.5rem; background: var(--theme-surface); border-radius: 8px; border: 1px solid var(--theme-border);">
+          <h3 style="margin-bottom: 1rem;">📋 Points clés de votre portfolio</h3>
+          <div class="insights-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+            <div class="insight-item">
+              <div style="font-weight: 600; color: var(--theme-text);">🎯 Niveau de risque</div>
+              <div style="color: var(--theme-text-muted); margin-top: 0.25rem;">
+                ${(() => {
+                  const riskLevel = m.overall_risk_level || 'unknown';
+                  const riskScore = m.risk_score || 0;
+                  if (riskScore > 70) return 'Élevé - Attention aux corrections brutales';
+                  if (riskScore > 50) return 'Modéré - Typique pour crypto';
+                  return 'Contrôlé - Bon équilibre risque/rendement';
+                })()}
+              </div>
+            </div>
+            <div class="insight-item">
+              <div style="font-weight: 600; color: var(--theme-text);">📊 Diversification</div>
+              <div style="color: var(--theme-text-muted); margin-top: 0.25rem;">
+                ${(() => {
+                  const div = c.diversification_ratio || 0;
+                  if (div > 0.7) return 'Excellente - Portfolio bien réparti';
+                  if (div > 0.4) return 'Limitée - Possibilité d\'amélioration';
+                  return 'Faible - Trop corrélé, diversifiez';
+                })()}
+              </div>
+            </div>
+            <div class="insight-item">
+              <div style="font-weight: 600; color: var(--theme-text);">⚡ Performance/Risque</div>
+              <div style="color: var(--theme-text-muted); margin-top: 0.25rem;">
+                ${(() => {
+                  const sharpe = m.sharpe_ratio || 0;
+                  if (sharpe > 1.2) return 'Excellent - Rendement supérieur pour le risque pris';
+                  if (sharpe > 0.8) return 'Bon - Rendement acceptable pour le risque';
+                  return 'À améliorer - Risque élevé vs rendement';
+                })()}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -998,20 +1602,33 @@
           <div class="risk-card">
             <h3>📉 Value at Risk (VaR)</h3>
             <div class="metric-row">
-              <span class="metric-label hinted" data-key="var95_1d">VaR 95% (1 day)</span>
-              <span class="metric-value hinted" data-key="var95_1d" data-value="${m.var_95_1d}">${formatPercent(m.var_95_1d)}</span>
+              <span class="metric-label">VaR 95% (1 day)</span>
+              <span class="metric-value hinted" data-key="var95_1d" data-value="${m.var_95_1d}" style="color: ${getMetricHealth('var_95_1d', m.var_95_1d).color}">
+                ${formatPercent(m.var_95_1d)}
+              </span>
+            </div>
+            <div class="metric-interpretation">
+              💡 ${getMetricHealth('var_95_1d', m.var_95_1d).interpretation}
             </div>
             <div class="metric-row">
-              <span class="metric-label hinted" data-key="var99_1d">VaR 99% (1 day)</span>
-              <span class="metric-value hinted" data-key="var99_1d" data-value="${m.var_99_1d}">${formatPercent(m.var_99_1d)}</span>
+              <span class="metric-label">VaR 99% (1 day)</span>
+              <span class="metric-value hinted" data-key="var99_1d" data-value="${m.var_99_1d}" style="color: ${getMetricHealth('var_99_1d', m.var_99_1d).color}">
+                ${formatPercent(m.var_99_1d)}
+              </span>
+            </div>
+            <div class="metric-interpretation">
+              💡 ${getMetricHealth('var_99_1d', m.var_99_1d).interpretation}
             </div>
             <div class="metric-row">
-              <span class="metric-label hinted" data-key="cvar95_1d">CVaR 95% (1 day)</span>
+              <span class="metric-label">CVaR 95% (1 day)</span>
               <span class="metric-value hinted" data-key="cvar95_1d" data-value="${m.cvar_95_1d}">${formatPercent(m.cvar_95_1d)}</span>
             </div>
             <div class="metric-row">
-              <span class="metric-label hinted" data-key="cvar99_1d">CVaR 99% (1 day)</span>
+              <span class="metric-label">CVaR 99% (1 day)</span>
               <span class="metric-value hinted" data-key="cvar99_1d" data-value="${m.cvar_99_1d}">${formatPercent(m.cvar_99_1d)}</span>
+            </div>
+            <div class="metric-benchmark">
+              📊 <strong>Benchmarks crypto:</strong> Conservateur: -4%, Typique: -7%, Agressif: -12%
             </div>
           </div>
 
@@ -1019,20 +1636,38 @@
           <div class="risk-card">
             <h3>📈 Risk-Adjusted Performance</h3>
             <div class="metric-row">
-              <span class="metric-label hinted" data-key="volatility_ann">Volatility (Annual)</span>
-              <span class="metric-value hinted" data-key="volatility_ann" data-value="${m.volatility_annualized}">${formatPercent(m.volatility_annualized)}</span>
+              <span class="metric-label">Volatility (Annual)</span>
+              <span class="metric-value hinted" data-key="volatility_ann" data-value="${m.volatility_annualized}" style="color: ${getMetricHealth('volatility_annualized', m.volatility_annualized).color}">
+                ${formatPercent(m.volatility_annualized)}
+              </span>
+            </div>
+            <div class="metric-interpretation">
+              💡 ${getMetricHealth('volatility_annualized', m.volatility_annualized).interpretation}
             </div>
             <div class="metric-row">
-              <span class="metric-label hinted" data-key="sharpe">Sharpe Ratio</span>
-              <span class="metric-value hinted" data-key="sharpe" data-value="${m.sharpe_ratio}">${safeFixed(m.sharpe_ratio)}</span>
+              <span class="metric-label">Sharpe Ratio</span>
+              <span class="metric-value hinted" data-key="sharpe" data-value="${m.sharpe_ratio}" style="color: ${getMetricHealth('sharpe_ratio', m.sharpe_ratio).color}">
+                ${safeFixed(m.sharpe_ratio)}
+              </span>
+            </div>
+            <div class="metric-interpretation">
+              💡 ${getMetricHealth('sharpe_ratio', m.sharpe_ratio).interpretation}
             </div>
             <div class="metric-row">
-              <span class="metric-label hinted" data-key="sortino">Sortino Ratio</span>
-              <span class="metric-value hinted" data-key="sortino" data-value="${m.sortino_ratio}">${safeFixed(m.sortino_ratio)}</span>
+              <span class="metric-label">Sortino Ratio</span>
+              <span class="metric-value hinted" data-key="sortino" data-value="${m.sortino_ratio}" style="color: ${getMetricHealth('sortino_ratio', m.sortino_ratio).color}">
+                ${safeFixed(m.sortino_ratio)}
+              </span>
+            </div>
+            <div class="metric-interpretation">
+              💡 ${getMetricHealth('sortino_ratio', m.sortino_ratio).interpretation}
             </div>
             <div class="metric-row">
               <span class="metric-label">Calmar Ratio</span>
               <span class="metric-value">${safeFixed(m.calmar_ratio)}</span>
+            </div>
+            <div class="metric-benchmark">
+              📊 <strong>Benchmarks crypto:</strong> Excellent: >1.5, Bon: >1.0, Acceptable: >0.5 (Sharpe)
             </div>
           </div>
 
@@ -1040,11 +1675,16 @@
           <div class="risk-card">
             <h3>📊 Drawdown Analysis</h3>
             <div class="metric-row">
-              <span class="metric-label hinted" data-key="max_drawdown">Max Drawdown</span>
-              <span class="metric-value hinted" data-key="max_drawdown" data-value="${m.max_drawdown}">${formatPercent(m.max_drawdown)}</span>
+              <span class="metric-label">Max Drawdown</span>
+              <span class="metric-value hinted" data-key="max_drawdown" data-value="${m.max_drawdown}" style="color: ${getMetricHealth('max_drawdown', m.max_drawdown).color}">
+                ${formatPercent(m.max_drawdown)}
+              </span>
+            </div>
+            <div class="metric-interpretation">
+              💡 ${getMetricHealth('max_drawdown', m.max_drawdown).interpretation}
             </div>
             <div class="metric-row">
-              <span class="metric-label hinted" data-key="current_drawdown">Current Drawdown</span>
+              <span class="metric-label">Current Drawdown</span>
               <span class="metric-value hinted" data-key="current_drawdown" data-value="${m.current_drawdown}">${formatPercent(m.current_drawdown)}</span>
             </div>
             <div class="metric-row">
@@ -1055,18 +1695,34 @@
               <span class="metric-label">Risk Level</span>
               <span class="risk-level risk-${(m.overall_risk_level || 'unknown').replace('_', '-')}">${(m.overall_risk_level || 'Unknown').replace('_', ' ')}</span>
             </div>
+            <div class="metric-benchmark">
+              📊 <strong>Crypto historique:</strong> Bon: -30%, Typique: -50%, Extrême: -70%+
+            </div>
           </div>
 
           <!-- Diversification -->
           <div class="risk-card">
             <h3>🔗 Diversification Analysis</h3>
             <div class="metric-row">
-              <span class="metric-label hinted" data-key="diversification_ratio">Diversification Ratio</span>
-              <span class="metric-value hinted" data-key="diversification_ratio" data-value="${c.diversification_ratio}">${safeFixed(c.diversification_ratio)}</span>
+              <span class="metric-label">Diversification Ratio</span>
+              <span class="metric-value hinted" data-key="diversification_ratio" data-value="${c.diversification_ratio}" style="color: ${getMetricHealth('diversification_ratio', c.diversification_ratio).color}">
+                ${safeFixed(c.diversification_ratio)}
+              </span>
+            </div>
+            <div class="metric-interpretation">
+              💡 ${getMetricHealth('diversification_ratio', c.diversification_ratio).interpretation}
             </div>
             <div class="metric-row">
-              <span class="metric-label hinted" data-key="effective_assets">Effective Assets</span>
-              <span class="metric-value hinted" data-key="effective_assets" data-value="${c.effective_assets}">${safeFixed(c.effective_assets, 1)}</span>
+              <span class="metric-label">Effective Assets</span>
+              <span class="metric-value hinted" data-key="effective_assets" data-value="${c.effective_assets}" style="color: ${getMetricHealth('effective_assets', c.effective_assets).color}">
+                ${safeFixed(c.effective_assets, 1)}
+              </span>
+            </div>
+            <div class="metric-interpretation">
+              💡 ${getMetricHealth('effective_assets', c.effective_assets).interpretation}
+            </div>
+            <div class="metric-benchmark">
+              📊 <strong>Diversification:</strong> Excellent: >0.7, Limité: 0.4-0.7, Faible: <0.4
             </div>
 
             ${c.top_correlations && c.top_correlations.length ? `
@@ -1079,6 +1735,25 @@
               `).join('')}
             ` : ``}
           </div>
+        </div>
+
+        <!-- Recommendations -->
+        <div class="risk-card" style="margin-top: 2rem;">
+          <h3>💡 Recommandations d'amélioration</h3>
+          ${(() => {
+            const recommendations = generateRecommendations(m, c, p.groups || {});
+            return recommendations.map(rec => `
+              <div class="recommendation recommendation-${rec.priority}">
+                <div class="recommendation-header">
+                  <span class="recommendation-icon">${rec.icon}</span>
+                  <span class="recommendation-title">${rec.title}</span>
+                  <span class="recommendation-priority">${rec.priority === 'high' ? 'PRIORITÉ' : rec.priority === 'medium' ? 'Important' : 'Info'}</span>
+                </div>
+                <div class="recommendation-description">${rec.description}</div>
+                <div class="recommendation-action">▶️ ${rec.action}</div>
+              </div>
+            `).join('');
+          })()}
         </div>
 
         <!-- Alerts -->
@@ -1522,12 +2197,7 @@
 
     // ===== Décoration des tooltips après rendu =====
     function decorateRiskTooltips() {
-      // Info spécifique pour Data Confidence (inchangé)
-      document.querySelectorAll('[data-tipkey="data_conf"]').forEach(el => {
-        attachTip(el, 'Data Confidence', "Qualité de l'historique de marché utilisé pour les métriques.\nPlus haut = plus fiable.");
-      });
-
-      // === Nouvelle attache dynamique pour les métriques ===
+      // === Attache dynamique pour les métriques ===
       document.querySelectorAll('.hinted[data-key]').forEach(el => {
         const key = el.getAttribute('data-key');
 
@@ -1553,7 +2223,7 @@
 
           const title = rating.label || key;
           const fmt = (key === 'sharpe' || key === 'sortino') ? num : pct;
-          const body = `${rating.explain}\n\nValeur actuelle : ${isNaN(val) ? 'N/A' : fmt(val)}\nLecture : ${rating.verdict}`;
+          const body = `Valeur actuelle : ${isNaN(val) ? 'N/A' : fmt(val)}\nLecture : ${rating.verdict}`;
 
           showTip(title, body, e.clientX, e.clientY);
         });

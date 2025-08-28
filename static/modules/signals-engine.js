@@ -20,54 +20,226 @@ export const DEFAULT_CCS_WEIGHTS = {
  * Fetch market signals from multiple sources
  */
 export async function fetchSignals() {
-  // For MVP, we'll create realistic mock data
-  // In production, this would fetch from Fear&Greed API, CoinGecko, etc.
+  console.log('🔍 Fetching REAL market signals...');
   
-  const mockSignals = {
-    fear_greed: {
-      value: 45 + Math.random() * 30, // 45-75 range
-      normalized: null, // will be calculated
-      timestamp: Date.now(),
-      source: 'mock_fear_greed'
-    },
-    
-    btc_dominance: {
-      value: 50 + Math.random() * 10, // 50-60% range
-      normalized: null,
-      timestamp: Date.now(),
-      source: 'mock_dominance'
-    },
-    
-    funding_rate: {
-      value: -0.01 + Math.random() * 0.02, // -1% to +1%
-      normalized: null,
-      timestamp: Date.now(),
-      source: 'mock_funding'
-    },
-    
-    eth_btc_ratio: {
-      value: 0.055 + Math.random() * 0.01, // Around 0.06
-      normalized: null,
-      timestamp: Date.now(),
-      source: 'mock_eth_btc'
-    },
-    
-    volatility: {
-      value: 0.3 + Math.random() * 0.4, // 30-70% annual vol
-      normalized: null,
-      timestamp: Date.now(),
-      source: 'mock_volatility'
-    },
-    
-    trend: {
-      value: -0.1 + Math.random() * 0.2, // -10% to +10% momentum
-      normalized: null,
-      timestamp: Date.now(),
-      source: 'mock_trend'
+  const signals = {};
+  
+  try {
+    // 1. Fear & Greed Index (Alternative.me API)
+    try {
+      const fearGreedResponse = await fetch('https://api.alternative.me/fng/', {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' }
+      });
+      
+      if (fearGreedResponse.ok) {
+        const fearGreedData = await fearGreedResponse.json();
+        const fearGreedValue = parseInt(fearGreedData.data[0].value);
+        signals.fear_greed = {
+          value: fearGreedValue,
+          normalized: null,
+          timestamp: Date.now(),
+          source: 'alternative.me'
+        };
+        console.log('✅ Fear & Greed loaded:', fearGreedValue);
+      } else {
+        throw new Error('Fear & Greed API failed');
+      }
+    } catch (error) {
+      console.warn('⚠️ Fear & Greed fallback:', error);
+      signals.fear_greed = {
+        value: 48, // Static fallback to current real value
+        normalized: null,
+        timestamp: Date.now(),
+        source: 'fallback_static'
+      };
     }
-  };
-  
-  return mockSignals;
+
+    // 2. BTC Dominance (CoinGecko)
+    try {
+      const dominanceResponse = await fetch('https://api.coingecko.com/api/v3/global', {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' }
+      });
+      
+      if (dominanceResponse.ok) {
+        const dominanceData = await dominanceResponse.json();
+        const btcDominance = dominanceData.data.market_cap_percentage.btc;
+        signals.btc_dominance = {
+          value: btcDominance,
+          normalized: null,
+          timestamp: Date.now(),
+          source: 'coingecko'
+        };
+        console.log('✅ BTC Dominance loaded:', btcDominance.toFixed(1) + '%');
+      } else {
+        throw new Error('CoinGecko API failed');
+      }
+    } catch (error) {
+      console.warn('⚠️ BTC Dominance fallback:', error);
+      signals.btc_dominance = {
+        value: 57.5, // Current approximate value
+        normalized: null,
+        timestamp: Date.now(),
+        source: 'fallback_static'
+      };
+    }
+
+    // 3. Funding Rate (Binance API)
+    try {
+      const fundingResponse = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex?symbol=BTCUSDT', {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' }
+      });
+      
+      if (fundingResponse.ok) {
+        const fundingData = await fundingResponse.json();
+        const fundingRate = parseFloat(fundingData.lastFundingRate); // Already in decimal (e.g., 0.0001 = 0.01%)
+        signals.funding_rate = {
+          value: fundingRate,
+          normalized: null,
+          timestamp: Date.now(),
+          source: 'binance'
+        };
+        console.log('✅ Funding Rate loaded:', (fundingRate * 100).toFixed(4) + '%');
+      } else {
+        throw new Error('Binance API failed');
+      }
+    } catch (error) {
+      console.warn('⚠️ Funding Rate fallback:', error);
+      signals.funding_rate = {
+        value: 0.0001, // Neutral funding rate (0.01%)
+        normalized: null,
+        timestamp: Date.now(),
+        source: 'fallback_static'
+      };
+    }
+
+    // 4. ETH/BTC Ratio (CoinGecko)
+    try {
+      const pricesResponse = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd', {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' }
+      });
+      
+      if (pricesResponse.ok) {
+        const pricesData = await pricesResponse.json();
+        console.log('🔍 ETH/BTC API response:', pricesData);
+        
+        const btcPrice = pricesData.bitcoin?.usd;
+        const ethPrice = pricesData.ethereum?.usd;
+        
+        if (btcPrice && ethPrice && btcPrice > 0 && ethPrice > 0) {
+          const ethBtcRatio = ethPrice / btcPrice;
+          
+          signals.eth_btc_ratio = {
+            value: ethBtcRatio,
+            normalized: null,
+            timestamp: Date.now(),
+            source: 'coingecko'
+          };
+          console.log('✅ ETH/BTC Ratio loaded:', ethBtcRatio.toFixed(6));
+        } else {
+          throw new Error(`Invalid price data: BTC=${btcPrice}, ETH=${ethPrice}`);
+        }
+      } else {
+        throw new Error(`CoinGecko prices API failed with status: ${pricesResponse.status}`);
+      }
+    } catch (error) {
+      console.warn('⚠️ ETH/BTC Ratio fallback:', error);
+      signals.eth_btc_ratio = {
+        value: 0.037, // Approximate current ratio
+        normalized: null,
+        timestamp: Date.now(),
+        source: 'fallback_static'
+      };
+    }
+
+    // 5. Volatility (calculated from recent BTC price changes)
+    try {
+      const volatilityResponse = await fetch('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=7&interval=daily', {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' }
+      });
+      
+      if (volatilityResponse.ok) {
+        const volatilityData = await volatilityResponse.json();
+        const prices = volatilityData.prices.map(p => p[1]);
+        
+        // Calculate 7-day volatility
+        const returns = [];
+        for (let i = 1; i < prices.length; i++) {
+          returns.push((prices[i] - prices[i-1]) / prices[i-1]);
+        }
+        
+        const volatility = Math.sqrt(returns.reduce((sum, ret) => sum + ret * ret, 0) / returns.length) * Math.sqrt(365); // Annualized volatility as decimal
+        
+        signals.volatility = {
+          value: volatility,
+          normalized: null,
+          timestamp: Date.now(),
+          source: 'coingecko_calculated'
+        };
+        console.log('✅ Volatility loaded:', (volatility * 100).toFixed(1) + '%');
+      } else {
+        throw new Error('CoinGecko market chart API failed');
+      }
+    } catch (error) {
+      console.warn('⚠️ Volatility fallback:', error);
+      signals.volatility = {
+        value: 0.65, // 65% typical crypto volatility
+        normalized: null,
+        timestamp: Date.now(),
+        source: 'fallback_static'
+      };
+    }
+
+    // 6. Trend (7-day price momentum)
+    try {
+      const trendResponse = await fetch('https://api.coingecko.com/api/v3/coins/bitcoin?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false', {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' }
+      });
+      
+      if (trendResponse.ok) {
+        const trendData = await trendResponse.json();
+        const priceChange7d = trendData.market_data.price_change_percentage_7d / 100; // Convert to decimal
+        
+        signals.trend = {
+          value: priceChange7d,
+          normalized: null,
+          timestamp: Date.now(),
+          source: 'coingecko'
+        };
+        console.log('✅ Trend loaded:', (priceChange7d * 100).toFixed(2) + '%');
+      } else {
+        throw new Error('CoinGecko trend API failed');
+      }
+    } catch (error) {
+      console.warn('⚠️ Trend fallback:', error);
+      signals.trend = {
+        value: 0.025, // 2.5% slight positive trend
+        normalized: null,
+        timestamp: Date.now(),
+        source: 'fallback_static'
+      };
+    }
+
+  } catch (globalError) {
+    console.error('❌ Global error fetching signals:', globalError);
+    // Return all fallback data if everything fails
+    return {
+      fear_greed: { value: 48, normalized: null, timestamp: Date.now(), source: 'fallback' },
+      btc_dominance: { value: 57.5, normalized: null, timestamp: Date.now(), source: 'fallback' },
+      funding_rate: { value: 0.0001, normalized: null, timestamp: Date.now(), source: 'fallback' },
+      eth_btc_ratio: { value: 0.037, normalized: null, timestamp: Date.now(), source: 'fallback' },
+      volatility: { value: 0.65, normalized: null, timestamp: Date.now(), source: 'fallback' },
+      trend: { value: 0.025, normalized: null, timestamp: Date.now(), source: 'fallback' }
+    };
+  }
+
+  console.log('🔍 Fetched REAL signals:', signals);
+  return signals;
 }
 
 /**
@@ -91,7 +263,12 @@ function normalizeSignal(key, rawValue) {
       
     case 'eth_btc_ratio':
       // Higher ETH/BTC = alt season = higher CCS
-      const ethNorm = Math.max(0, Math.min(100, (rawValue - 0.05) / (0.08 - 0.05) * 100));
+      // Handle edge case where rawValue might be 0 or very small
+      if (rawValue <= 0) {
+        console.warn('ETH/BTC ratio is 0 or negative, using neutral score');
+        return 50; // Neutral score
+      }
+      const ethNorm = Math.max(0, Math.min(100, (rawValue - 0.025) / (0.06 - 0.025) * 100)); // Adjusted range: 0.025-0.06
       return ethNorm;
       
     case 'volatility':

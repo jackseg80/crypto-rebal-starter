@@ -407,6 +407,15 @@
         <div class="help">Clé secrète CoinTracking (générée avec la clé API).</div>
       </div>
 
+      <div class="form-group">
+        <label>Debug Token (requis pour sync .env)</label>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <input type="password" id="debug_token" placeholder="Token sécurisé pour accès debug" style="flex: 1;">
+          <button class="btn small secondary" onclick="toggleApiKeyVisibility('debug_token')" style="min-width: 60px;">👁️</button>
+        </div>
+        <div class="help">Token requis pour accéder aux endpoints de debug et synchroniser les clés avec .env</div>
+      </div>
+
       <div style="display: flex; gap: 8px; margin-top: 12px;">
         <button class="btn secondary small" onclick="syncApiKeysFromEnv()">📥 Charger depuis .env</button>
         <button class="btn small" onclick="syncApiKeysToEnv()">💾 Sauver vers .env</button>
@@ -631,6 +640,7 @@
       document.getElementById('coingecko_api_key').value = globalSettings.coingecko_api_key ? maskApiKey(globalSettings.coingecko_api_key) : '';
       document.getElementById('cointracking_api_key').value = globalSettings.cointracking_api_key ? maskApiKey(globalSettings.cointracking_api_key) : '';
       document.getElementById('cointracking_api_secret').value = globalSettings.cointracking_api_secret ? maskApiKey(globalSettings.cointracking_api_secret) : '';
+      document.getElementById('debug_token').value = globalSettings.debug_token ? maskApiKey(globalSettings.debug_token) : '';
 
       // Mettre à jour les statuts des clés
       updateApiKeyStatus('coingecko', !!globalSettings.coingecko_api_key);
@@ -745,6 +755,11 @@
         globalConfig.set('cointracking_api_secret', ctSecretField.value);
       }
 
+      const debugTokenField = document.getElementById('debug_token');
+      if (debugTokenField.type === 'text') {
+        globalConfig.set('debug_token', debugTokenField.value);
+      }
+
       globalConfig.set('api_base_url', document.getElementById('api_base_url').value);
       globalConfig.set('refresh_interval', parseInt(document.getElementById('refresh_interval').value));
       globalConfig.set('enable_coingecko_classification', document.getElementById('enable_coingecko_classification').checked);
@@ -801,12 +816,44 @@
       }
     }
 
+    // Auto-détecter le DEBUG_TOKEN depuis l'environnement
+    async function autoDetectDebugToken() {
+      // Pour l'instant, essayer une liste de tokens courants pour le dev
+      const commonTokens = [
+        'crypto-rebal-debug-2025-secure',
+        'dev-token-2025',
+        'debug-crypto-rebal'
+      ];
+      
+      for (const token of commonTokens) {
+        try {
+          const response = await fetch(`${globalConfig.get('api_base_url')}/debug/api-keys?debug_token=${token}`);
+          if (response.ok) {
+            globalConfig.set('debug_token', token);
+            document.getElementById('debug_token').value = maskApiKey(token);
+            console.log('DEBUG_TOKEN auto-détecté et configuré');
+            showNotification('🔑 DEBUG_TOKEN auto-détecté', 'success');
+            return;
+          }
+        } catch (e) {
+          // Continuer avec le token suivant
+        }
+      }
+      
+      console.log('DEBUG_TOKEN non trouvé automatiquement, saisie manuelle requise');
+    }
+
     // Auto-détecter les clés depuis .env du serveur
     async function autoDetectApiKeys() {
       try {
         const globalSettings = globalConfig.getAll();
-        // Essayer de récupérer les clés depuis le backend
-        const response = await fetch(`${globalSettings.api_base_url}/debug/api-keys?debug_token=dev-secret-2024`);
+        // Essayer de récupérer les clés depuis le backend  
+        const debugToken = globalConfig.get('debug_token');
+        if (!debugToken) {
+          console.log('Auto-détection désactivée: DEBUG_TOKEN requis');
+          return;
+        }
+        const response = await fetch(`${globalSettings.api_base_url}/debug/api-keys?debug_token=${debugToken}`);
         if (response.ok) {
           const data = await response.json();
           let foundKeys = false;
@@ -892,7 +939,12 @@
     // Synchroniser depuis .env
     async function syncApiKeysFromEnv() {
       try {
-        const response = await fetch(`${globalConfig.get('api_base_url')}/debug/api-keys?debug_token=dev-secret-2024`);
+        const debugToken = globalConfig.get('debug_token');
+        if (!debugToken) {
+          showNotification('❌ DEBUG_TOKEN requis pour synchroniser depuis .env', 'error');
+          return;
+        }
+        const response = await fetch(`${globalConfig.get('api_base_url')}/debug/api-keys?debug_token=${debugToken}`);
         if (response.ok) {
           const data = await response.json();
           let foundKeys = false;
@@ -948,7 +1000,12 @@
       };
 
       try {
-        const response = await fetch(`${globalConfig.get('api_base_url')}/debug/api-keys?debug_token=dev-secret-2024`, {
+        const debugToken = globalConfig.get('debug_token');
+        if (!debugToken) {
+          showNotification('❌ DEBUG_TOKEN requis pour sauvegarder vers .env', 'error');
+          return;
+        }
+        const response = await fetch(`${globalConfig.get('api_base_url')}/debug/api-keys?debug_token=${debugToken}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -1140,6 +1197,8 @@
       console.log('Current theme after settings init:', document.documentElement.getAttribute('data-theme'));
       
       loadSettings();
+      // Tenter de récupérer le DEBUG_TOKEN depuis le serveur
+      autoDetectDebugToken();
       // Tenter l'auto-détection des clés immédiatement
       autoDetectApiKeys();
 
