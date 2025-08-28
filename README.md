@@ -44,7 +44,7 @@ uvicorn api.main:app --reload --port 8000
 ### Interface unifiée disponible :
 
 - **🏠 Dashboard** : `static/dashboard.html` - Vue d'ensemble du portfolio avec graphique synchronisé
-- **🛡️ Risk Dashboard** : `static/risk-dashboard.html` - Analyse de risque institutionnelle (données de référence)
+- **🛡️ Risk Dashboard** : `static/risk-dashboard.html` - Analyse de risque en temps réel avec données de marché live (VaR, Sharpe, corrélations)
 - **🚀 Execution** : `static/execution.html` - Dashboard d'exécution temps réel
 - **📈 Execution History** : `static/execution_history.html` - Historique et analytics des trades
 - **🔍 Advanced Monitoring** : `static/monitoring_advanced.html` - Surveillance des connexions
@@ -632,13 +632,14 @@ curl -s "http://127.0.0.1:8000/portfolio/breakdown-locations?source=cointracking
 
 ### 🛡️ Risk Management System
 
-Système institutionnel complet d'analyse et de surveillance des risques pour portfolios crypto.
+Système institutionnel complet d'analyse et de surveillance des risques avec **données en temps réel** et **insights contextuels crypto**.
 
-#### Core Analytics Engine
-- **VaR/CVaR**: Value-at-Risk 95%/99% et Expected Shortfall
-- **Performance Ratios**: Sharpe, Sortino, Calmar avec analyse des drawdowns
-- **Correlation Matrix**: Analyse PCA et scoring de diversification
-- **Stress Testing**: Scénarios historiques crypto (Bear 2018, COVID-19, Luna/FTX)
+#### Core Analytics Engine (LIVE DATA)
+- **Market Signals Integration**: Fear & Greed Index (Alternative.me), BTC Dominance, Funding Rates (Binance)
+- **VaR/CVaR en temps réel**: Calculs basés sur la composition réelle du portfolio avec évaluation colorée
+- **Performance Ratios**: Sharpe, Sortino, Calmar calculés dynamiquement avec benchmarks crypto
+- **Portfolio-Specific Risk**: Métriques ajustées selon 11 catégories d'actifs avec matrice de corrélation
+- **Contextual Insights**: Interprétations automatiques avec recommandations d'amélioration prioritaires
 
 #### API Endpoints
 ```bash

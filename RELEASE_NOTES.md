@@ -1,5 +1,44 @@
 # 🚀 Release Notes - CCS Integration & Dashboard Fixes
 
+## 🛡️ Version: Risk Dashboard 2.0 - Real-Time Analytics Overhaul
+**Date**: August 28, 2025  
+**Commit**: `f1b1e2e`
+
+### ⭐ **MAJOR: Complete Risk Dashboard Transformation**
+
+**FROM** Mock data and hardcoded metrics → **TO** Real-time market data and portfolio-specific analytics
+
+#### 🎯 Market Data Integration (LIVE APIs)
+- **✅ Fear & Greed Index**: Live data from Alternative.me API (48 vs previous mock 64)
+- **✅ BTC Dominance**: Real-time from CoinGecko with proper error handling
+- **✅ Funding Rates**: Binance futures API with fallback mechanisms
+- **✅ ETH/BTC Ratio**: Fixed calculation errors and added debugging
+- **✅ Market Volatility**: 7-day BTC price volatility calculation
+- **✅ Price Momentum**: Real trend analysis from market data
+
+#### 📊 Portfolio-Specific Risk Analytics
+- **✅ Dynamic VaR/CVaR**: Calculated from actual portfolio composition
+- **✅ Real Sharpe/Sortino**: Based on 11 asset group risk profiles
+- **✅ Correlation Matrix**: Asset group analysis with 11x11 correlation matrix
+- **✅ Diversification Scoring**: Effective assets calculation from real holdings
+- **✅ Risk Profiles**: BTC, ETH, Stablecoins, DeFi, Memecoins, etc. with specific volatility models
+
+#### 🎨 Enhanced User Experience
+- **✅ Color-Coded Health**: Green/Orange/Red values based on crypto benchmarks
+- **✅ Contextual Interpretations**: "Volatilité crypto typique" vs "Risque élevé - attention"
+- **✅ Dynamic Recommendations**: Portfolio-specific actionable insights
+- **✅ Executive Summary**: Key insights dashboard with "Points clés"
+- **✅ Crypto Benchmarks**: VaR Conservateur: -4%, Typique: -7%, Agressif: -12%
+- **✅ Tooltip Improvements**: Removed from labels, fixed "Undefined" errors
+
+#### 🔧 Technical Enhancements
+- **✅ Function Definition Order**: Fixed safeFixed() scope errors
+- **✅ Error Handling**: Comprehensive API failure management with fallbacks
+- **✅ Debug Logging**: Extensive logging for troubleshooting market data
+- **✅ Settings Integration**: Enhanced environment variable management
+
+---
+
 ## Version: Feature Branch `feature/monitoring-alerts-dashboard`
 **Date**: August 25, 2025  
 **Commit**: `a0ee8cc`
