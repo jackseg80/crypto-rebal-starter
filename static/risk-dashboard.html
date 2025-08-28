@@ -24,6 +24,7 @@
   <script type="module" src="modules/cycle-navigator.js"></script>
   <script type="module" src="modules/targets-coordinator.js"></script>
   <script type="module" src="modules/onchain-indicators.js"></script>
+  <script type="module" src="modules/market-regimes.js"></script>
 
   <!-- Chart.js for Bitcoin Cycle Visualization -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
@@ -521,41 +522,47 @@
     <div class="dashboard-layout">
       <!-- Sidebar Fixe -->
       <div class="sidebar">
-        <!-- CCS Gauge -->
+        <!-- 🎯 Cockpit Principal - 3 Scores + 1 Synthèse -->
+        
+        <!-- CCS Mixte (Score Directeur du Marché) -->
         <div class="sidebar-section">
-          <div class="sidebar-title">CCS Score</div>
+          <div class="sidebar-title">🎯 CCS Mixte (Directeur)</div>
           <div class="ccs-gauge" id="ccs-gauge">
-            <div class="ccs-score" id="ccs-score">--</div>
-            <div class="ccs-label">Loading...</div>
+            <div class="ccs-score" id="ccs-ccs-mix">--</div>
+            <div class="ccs-label" id="ccs-mixte-label">Loading...</div>
           </div>
         </div>
 
-        <!-- CCS Mixte (Technique + Cycle) -->
+        <!-- On-Chain Composite -->
         <div class="sidebar-section">
-          <div class="sidebar-title">CCS Score Mixte</div>
-          <div class="ccs-gauge"><span id="ccs-ccs-mix">--</span>/100</div>
-          <div class="ccs-label">Loading...</div>
-        </div>
-
-        <!-- Score On-Chain -->
-        <div class="sidebar-section">
-          <div class="sidebar-title">On-Chain (Composite)</div>
+          <div class="sidebar-title">🔗 On-Chain Composite</div>
           <div class="ccs-gauge"><span id="kpi-onchain">--</span>/100</div>
-          <div class="ccs-label">Loading...</div>
+          <div class="ccs-label" id="onchain-label">Loading...</div>
         </div>
 
-        <!-- Risk Score (du portefeuille) -->
+        <!-- Risk Score Portfolio -->
         <div class="sidebar-section">
-          <div class="sidebar-title">Risk Score (Portefeuille)</div>
+          <div class="sidebar-title">🛡️ Risk Score</div>
           <div class="ccs-gauge"><span id="kpi-risk">--</span>/100</div>
-          <div class="ccs-label">Loading...</div>
+          <div class="ccs-label" id="risk-label">Loading...</div>
         </div>
 
-        <!-- Blended (pour décision) -->
+        <!-- Blended Decision Score (Synthèse) -->
+        <div class="sidebar-section" style="border: 2px solid #007bff; background: linear-gradient(135deg, #e7f3ff, #f8f9fa);">
+          <div class="sidebar-title" style="color: #007bff; font-weight: bold;">⚖️ Blended (Décision)</div>
+          <div class="ccs-gauge" style="font-size: 2.2rem;"><span id="kpi-blended" style="color: #007bff;">--</span>/100</div>
+          <div class="ccs-label" id="blended-label" style="font-weight: bold;">Loading...</div>
+        </div>
+
+        <!-- Market Regime -->
         <div class="sidebar-section">
-          <div class="sidebar-title">Blended (Décision)</div>
-          <div class="ccs-gauge"><span id="kpi-blended">--</span>/100</div>
-          <div class="ccs-label">Loading...</div>
+          <div class="sidebar-title">📊 Régime de Marché</div>
+          <div id="market-regime">
+            <div class="status-indicator">
+              <div class="status-dot" id="regime-dot"></div>
+              <div class="status-text" id="regime-text">Loading market regime...</div>
+            </div>
+          </div>
         </div>
 
         <!-- Cycle Indicator -->
@@ -674,6 +681,7 @@
     import { estimateCyclePosition, blendCCS, getCyclePhase } from './modules/cycle-navigator.js';
     import { proposeTargets, applyTargets, computePlan, DEFAULT_MACRO_TARGETS, getDecisionLog } from './modules/targets-coordinator.js';
     import { fetchAllIndicators, calculateCompositeScore, enhanceCycleScore } from './modules/onchain-indicators.js';
+    import { getMarketRegime, applyMarketOverrides, calculateRiskBudget, getRegimeDisplayData } from './modules/market-regimes.js';
 
     // Global state
     let autoRefreshInterval = null;
@@ -729,11 +737,8 @@
           // Risk content is already rendered by refreshDashboard
           break;
         case 'cycles':
-          // Only render if not already on cycles tab to avoid recreating chart
-          const currentTab = store.snapshot().ui?.activeTab;
-          if (currentTab !== 'cycles') {
-            renderCyclesContent();
-          }
+          // Always render cycles content when tab is activated
+          renderCyclesContent();
           break;
         case 'targets':
           renderTargetsContent().catch(err => console.error('Failed to render targets:', err));
@@ -1487,23 +1492,11 @@
 
     // ====== Sidebar Updates ======
     function updateSidebar(state) {
-      // Update CCS gauge
+      // Get all scores from state
       const ccsScore = state.ccs?.score;
-      const ccsScoreEl = document.getElementById('ccs-score');
-      const ccsLabelEl = ccsScoreEl?.nextElementSibling;
-
-      if (ccsScore !== null && ccsScore !== undefined) {
-        ccsScoreEl.textContent = Math.round(ccsScore);
-
-        // Interpret CCS for color coding
-        const interpretation = interpretCCS(ccsScore);
-        ccsScoreEl.style.color = interpretation.color;
-        ccsLabelEl.textContent = `${interpretation.label} (${new Date().toLocaleTimeString()})`;
-      } else {
-        ccsScoreEl.textContent = '--';
-        ccsScoreEl.style.color = 'var(--brand-primary)';
-        ccsLabelEl.textContent = 'Loading...';
-      }
+      const onchainScore = state.scores?.onchain;
+      const riskScore = state.scores?.risk;
+      const blendedScore = state.scores?.blended;
 
       // Update API status
       const backendDot = document.getElementById('backend-dot');
@@ -1537,13 +1530,17 @@
         cycleDot.className = 'status-dot';
       }
 
-      // Update CCS Mixte score
+      // Update CCS Mixte score (Score Directeur)
       const ccsMixEl = document.getElementById('ccs-ccs-mix');
-      const ccsMixLabel = ccsMixEl?.parentElement?.nextElementSibling;
+      const ccsMixLabel = document.getElementById('ccs-mixte-label');
       if (state.cycle?.ccsStar && ccsScore) {
         ccsMixEl.textContent = Math.round(state.cycle.ccsStar);
         if (ccsMixLabel) {
-          ccsMixLabel.textContent = `CCS + Cycle (${Math.round((state.cycle?.weight || 0.3) * 100)}%)`;
+          const cycleWeight = Math.round((state.cycle?.weight || 0.3) * 100);
+          ccsMixLabel.textContent = `CCS + Cycle (${cycleWeight}%)`;
+          // Style dynamique selon le score
+          const score = state.cycle.ccsStar;
+          ccsMixEl.style.color = score > 70 ? '#10b981' : score > 40 ? '#f59e0b' : '#ef4444';
         }
       } else {
         ccsMixEl.textContent = '--';
@@ -1552,53 +1549,62 @@
 
       // Update On-Chain score
       const onchainEl = document.getElementById('kpi-onchain');
-      const onchainLabel = onchainEl?.parentElement?.nextElementSibling;
-      console.log('📊 Updating On-Chain score:', onchainScore, 'Element:', !!onchainEl);
+      const onchainLabel = document.getElementById('onchain-label');
       if (onchainScore !== null && onchainScore !== undefined) {
         onchainEl.textContent = Math.round(onchainScore);
+        onchainEl.style.color = onchainScore > 70 ? '#10b981' : onchainScore > 40 ? '#f59e0b' : '#ef4444';
         if (onchainLabel) {
-          onchainLabel.textContent = `Composite (${new Date().toLocaleTimeString()})`;
+          onchainLabel.textContent = `MVRV, NVT, Puell, F&G`;
         }
-        console.log('✅ On-Chain score updated:', Math.round(onchainScore));
       } else {
         onchainEl.textContent = '--';
         if (onchainLabel) onchainLabel.textContent = 'Loading...';
-        console.log('⚠️ On-Chain score not available');
       }
 
       // Update Risk Score
       const riskEl = document.getElementById('kpi-risk');
-      const riskLabel = riskEl?.parentElement?.nextElementSibling;
-      console.log('🛡️ Updating Risk score:', riskScore, 'Element:', !!riskEl);
+      const riskLabel = document.getElementById('risk-label');
       if (riskScore !== null && riskScore !== undefined) {
         riskEl.textContent = Math.round(riskScore);
+        riskEl.style.color = riskScore > 70 ? '#10b981' : riskScore > 40 ? '#f59e0b' : '#ef4444';
         if (riskLabel) {
           const riskLevel = riskScore > 70 ? 'Low Risk' : riskScore > 40 ? 'Medium' : 'High Risk';
           riskLabel.textContent = riskLevel;
         }
-        console.log('✅ Risk score updated:', Math.round(riskScore));
       } else {
         riskEl.textContent = '--';
         if (riskLabel) riskLabel.textContent = 'Loading...';
-        console.log('⚠️ Risk score not available');
       }
 
-      // Update Blended Score (final decision)
+      // Update Strategic Blended Score (synthèse de décision)
       const blendedEl = document.getElementById('kpi-blended');
-      const blendedLabel = blendedEl?.parentElement?.nextElementSibling;
-      console.log('🎯 Updating Blended score:', blendedScore, 'Element:', !!blendedEl);
+      const blendedLabel = document.getElementById('blended-label');
       if (blendedScore !== null && blendedScore !== undefined) {
-        blendedEl.textContent = Math.round(blendedScore);
+        const roundedScore = Math.round(blendedScore);
+        blendedEl.textContent = roundedScore;
         if (blendedLabel) {
-          const signal = blendedScore > 70 ? 'Buy Zone' : blendedScore > 30 ? 'Hold' : 'Sell Zone';
-          blendedLabel.textContent = signal;
-          blendedEl.style.color = blendedScore > 70 ? '#10b981' : blendedScore > 30 ? '#f59e0b' : '#ef4444';
+          // Régimes de marché basés sur Blended Score
+          let regime, regimeColor;
+          if (roundedScore >= 85) {
+            regime = 'Distribution';
+            regimeColor = '#dc2626';
+          } else if (roundedScore >= 70) {
+            regime = 'Euphorie';
+            regimeColor = '#f59e0b';
+          } else if (roundedScore >= 40) {
+            regime = 'Expansion';
+            regimeColor = '#10b981';
+          } else {
+            regime = 'Accumulation';
+            regimeColor = '#3b82f6';
+          }
+          blendedLabel.textContent = regime;
+          blendedEl.style.color = regimeColor;
+          blendedLabel.style.color = regimeColor;
         }
-        console.log('✅ Blended score updated:', Math.round(blendedScore));
       } else {
         blendedEl.textContent = '--';
         if (blendedLabel) blendedLabel.textContent = 'Loading...';
-        console.log('⚠️ Blended score not available');
       }
 
       // Update targets summary placeholder
@@ -1703,44 +1709,48 @@
       return Math.max(0, Math.min(100, factors > 0 ? score : 50));
     }
     
-    // Calculate final Blended Score
-    function calculateBlendedScore(ccsScore, cycleScore, onchainScore, riskScore) {
-      if (!ccsScore && !cycleScore && !onchainScore && !riskScore) return 50;
+    // Calculate strategic Blended Score (nouvelle formule market-aware)
+    function calculateBlendedScore(ccsMixteScore, onchainScore, riskScore) {
+      // Formule stratégique : 50% CCS Mixte + 30% On-Chain + 20% (100-Risk)
+      if (ccsMixteScore == null && onchainScore == null && riskScore == null) {
+        return 50; // Fallback neutre
+      }
       
-      // Weights for different components
-      const weights = {
-        ccs: 0.4,        // Technical analysis weight
-        cycle: 0.25,     // Cycle position weight
-        onchain: 0.25,   // On-chain indicators weight
-        risk: 0.1        // Risk adjustment weight
-      };
+      console.log('🎯 Calcul Blended Score stratégique:', {
+        ccsMixte: ccsMixteScore,
+        onchain: onchainScore,
+        risk: riskScore
+      });
       
       let totalScore = 0;
       let totalWeight = 0;
       
-      if (ccsScore != null) {
-        totalScore += ccsScore * weights.ccs;
-        totalWeight += weights.ccs;
+      // CCS Mixte : 50% (score directeur du marché)
+      if (ccsMixteScore != null) {
+        totalScore += ccsMixteScore * 0.50;
+        totalWeight += 0.50;
+        console.log('  → CCS Mixte contributtion:', ccsMixteScore * 0.50);
       }
       
-      if (cycleScore != null) {
-        totalScore += cycleScore * weights.cycle;
-        totalWeight += weights.cycle;
-      }
-      
+      // On-Chain Composite : 30% (fondamentaux réseau)
       if (onchainScore != null) {
-        totalScore += onchainScore * weights.onchain;
-        totalWeight += weights.onchain;
+        totalScore += onchainScore * 0.30;
+        totalWeight += 0.30;
+        console.log('  → On-Chain contribution:', onchainScore * 0.30);
       }
       
+      // Risk adjustment : 20% (100 - Risk pour inverser le score)
       if (riskScore != null) {
-        // Risk score affects the blend: high risk reduces the final score
-        const riskAdjustment = (riskScore - 50) * 0.5; // -25 to +25 adjustment
-        totalScore += riskAdjustment * weights.risk;
-        totalWeight += weights.risk;
+        const riskAdjusted = 100 - riskScore; // Haut risque = bas score
+        totalScore += riskAdjusted * 0.20;
+        totalWeight += 0.20;
+        console.log('  → Risk contribution (100-risk):', riskAdjusted * 0.20);
       }
       
-      return totalWeight > 0 ? Math.max(0, Math.min(100, totalScore / totalWeight)) : 50;
+      const finalScore = totalWeight > 0 ? totalScore / totalWeight : 50;
+      console.log('🎯 Final Blended Score:', finalScore, '(weight:', totalWeight, ')');
+      
+      return Math.max(0, Math.min(100, finalScore));
     }
     
     // Main function to calculate all scores
@@ -1760,7 +1770,7 @@
         // Get current CCS and cycle data
         const currentState = store.snapshot();
         const ccsScore = currentState.ccs?.score;
-        const cycleScore = currentState.cycle?.score;
+        const ccsMixteScore = currentState.cycle?.ccsStar; // CCS + Cycle blended
         
         // Calculate On-Chain Score
         onchainScore = await calculateOnChainScore();
@@ -1768,8 +1778,8 @@
         // Calculate Risk Score
         riskScore = calculateRiskScore(riskData);
         
-        // Calculate Final Blended Score
-        blendedScore = calculateBlendedScore(ccsScore, cycleScore, onchainScore, riskScore);
+        // Calculate Strategic Blended Score (nouvelle formule)
+        blendedScore = calculateBlendedScore(ccsMixteScore, onchainScore, riskScore);
         
         // Store the scores in the store for use by other modules
         store.set('scores.onchain', onchainScore);
@@ -1778,11 +1788,14 @@
         
         console.log('📊 All scores calculated:', {
           ccs: ccsScore,
-          cycle: cycleScore,
+          ccsMixte: ccsMixteScore,
           onchain: onchainScore,
           risk: riskScore,
           blended: blendedScore
         });
+        
+        // Calculate market regime
+        updateMarketRegime(blendedScore, onchainScore, riskScore);
         
         // Update sidebar with fresh state
         const freshState = store.snapshot();
@@ -1790,6 +1803,47 @@
         
       } catch (error) {
         console.error('❌ Erreur calcul des scores:', error);
+      }
+    }
+
+    // ====== Market Regime Functions ======
+    function updateMarketRegime(blendedScore, onchainScore, riskScore) {
+      try {
+        // Calculate regime data
+        const regimeData = getRegimeDisplayData(blendedScore, onchainScore, riskScore);
+        const regime = regimeData.regime;
+        
+        console.log('📊 Market Regime calculated:', regime);
+        
+        // Update Market Regime display
+        const regimeDot = document.getElementById('regime-dot');
+        const regimeText = document.getElementById('regime-text');
+        
+        if (regimeDot && regimeText) {
+          regimeDot.style.backgroundColor = regime.color;
+          regimeDot.className = 'status-dot active';
+          
+          const confidenceText = `${Math.round(regime.confidence * 100)}%`;
+          regimeText.innerHTML = `
+            <div style="font-weight: bold; color: ${regime.color};">
+              ${regime.emoji} ${regime.name}
+            </div>
+            <div style="font-size: 0.8rem; margin-top: 2px;">
+              Score: ${regime.score} | Conf: ${confidenceText}
+            </div>
+          `;
+          
+          // Store regime data for other components
+          store.set('market.regime', regimeData);
+        }
+        
+      } catch (error) {
+        console.error('❌ Error updating market regime:', error);
+        
+        const regimeText = document.getElementById('regime-text');
+        if (regimeText) {
+          regimeText.textContent = 'Error calculating regime';
+        }
       }
     }
 
@@ -3070,6 +3124,7 @@
       const ccsProposal = proposeTargets('ccs');
       const cycleProposal = proposeTargets('cycle');
       const blendedProposal = proposeTargets('blend');
+      const smartProposal = proposeTargets('smart');
 
       // DEBUG: Log what blended proposal contains for display
       console.log('🔍 DEBUG renderTargetsContent - updatedState.scores.blended:', updatedState.scores?.blended);
@@ -3089,7 +3144,7 @@
           <!-- Strategy Selection -->
           <div class="risk-card" style="grid-column: 1 / -1;">
             <h3>🎯 Strategic Targeting</h3>
-            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-sm); margin: var(--space-lg) 0;">
+            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--space-sm); margin: var(--space-lg) 0;">
               <button class="refresh-btn" onclick="applyStrategy('macro')" style="background: #6b7280;">
                 📊 Macro Only<br>
                 <small>${macroProposal.strategy}</small>
@@ -3105,6 +3160,10 @@
               <button class="refresh-btn" onclick="applyStrategy('blend')" style="background: #10b981;">
                 ⚖️ Blended Strategy<br>
                 <small>${blendedProposal.strategy}</small>
+              </button>
+              <button class="refresh-btn" onclick="applyStrategy('smart')" style="background: linear-gradient(135deg, #8b5cf6, #06b6d4); color: white; font-weight: bold; border: 2px solid #8b5cf6;">
+                🧠 SMART<br>
+                <small style="font-size: 0.75rem;">${smartProposal.strategy}</small>
               </button>
             </div>
           </div>
