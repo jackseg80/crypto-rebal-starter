@@ -5,6 +5,7 @@
 
 import { store } from '../core/risk-dashboard-store.js';
 import { interpretCCS } from './signals-engine.js';
+import { getMarketRegime, applyMarketOverrides, calculateRiskBudget, allocateRiskyBudget, generateRegimeRecommendations } from './market-regimes.js';
 
 // Default macro targets (baseline allocation)
 export const DEFAULT_MACRO_TARGETS = {
@@ -133,6 +134,72 @@ export function generateCCSTargets(ccsScore, mode = 'balanced') {
 }
 
 /**
+ * Generate smart targets using market regime system
+ */
+export function generateSmartTargets() {
+  const state = store.snapshot();
+  const blendedScore = state.scores?.blended;
+  const onchainScore = state.scores?.onchain;
+  const riskScore = state.scores?.risk;
+  
+  console.log('🧠 Generating SMART targets with scores:', { blendedScore, onchainScore, riskScore });
+  
+  if (blendedScore == null) {
+    console.warn('⚠️ Blended score not available for smart targets');
+    return {
+      targets: normalizeTargets(DEFAULT_MACRO_TARGETS),
+      strategy: 'Macro fallback (no blended score)',
+      mode: 'fallback',
+      confidence: 0.3,
+      timestamp: new Date().toISOString()
+    };
+  }
+  
+  try {
+    // Get market regime
+    const regime = getMarketRegime(blendedScore);
+    const adjustedRegime = applyMarketOverrides(regime, onchainScore, riskScore);
+    
+    // Calculate risk budget
+    const riskBudget = calculateRiskBudget(blendedScore, riskScore);
+    
+    // Allocate risky budget according to regime
+    const smartAllocation = allocateRiskyBudget(riskBudget.percentages.risky, adjustedRegime);
+    
+    // Generate recommendations
+    const recommendations = generateRegimeRecommendations(adjustedRegime, riskBudget);
+    
+    console.log('🧠 Smart allocation calculated:', smartAllocation);
+    console.log('📊 Risk budget:', riskBudget.percentages);
+    console.log('🎯 Regime:', adjustedRegime.name);
+    
+    const strategy = `${adjustedRegime.emoji} ${adjustedRegime.name} (${Math.round(blendedScore)}) | ${riskBudget.percentages.stables}% Stables`;
+    
+    return {
+      targets: normalizeTargets(smartAllocation),
+      strategy,
+      mode: 'smart',
+      regime: adjustedRegime,
+      risk_budget: riskBudget,
+      recommendations,
+      confidence: adjustedRegime.confidence,
+      timestamp: new Date().toISOString()
+    };
+    
+  } catch (error) {
+    console.error('❌ Error generating smart targets:', error);
+    return {
+      targets: normalizeTargets(DEFAULT_MACRO_TARGETS),
+      strategy: 'Smart targeting failed - using macro fallback',
+      mode: 'fallback',
+      confidence: 0.2,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    };
+  }
+}
+
+/**
  * Main function to propose targets based on strategy mode
  */
 export function proposeTargets(mode = 'blend', options = {}) {
@@ -193,6 +260,13 @@ export function proposeTargets(mode = 'blend', options = {}) {
           proposedTargets = applyCycleMultipliers(DEFAULT_MACRO_TARGETS, cycleMultipliers);
           strategy = `Cycle-adjusted (${state.cycle?.phase?.phase || 'unknown'})`;
         }
+        break;
+        
+      case 'smart':
+        // New intelligent allocation based on market regimes
+        const smartResult = generateSmartTargets();
+        proposedTargets = smartResult.targets;
+        strategy = smartResult.strategy;
         break;
         
       case 'blend':
@@ -429,6 +503,204 @@ export function getDecisionLog(limit = 20) {
     console.warn('Failed to read decision log:', error);
     return [];
   }
+}
+
+/**
+ * Trading Rules Configuration
+ */
+export const TRADING_RULES = {
+  min_change_threshold: 3.0,        // Minimum % change to trigger trade
+  min_relative_change: 0.2,         // Minimum 20% relative change
+  min_order_size_usd: 200,          // Minimum order size in USD
+  max_single_trade_pct: 10,         // Max 10% of portfolio in single trade
+  drawdown_circuit_breaker: -0.25,  // Stop if DD > 25%
+  risk_circuit_breaker: 45,         // Force stables if onchain < 45
+  correlation_threshold: 0.8,       // Reduce alts if correlation > 80%
+  rebalance_frequency_hours: 168    // Weekly rebalancing (168h = 7 days)
+};
+
+/**
+ * Validate if rebalancing should occur based on operational rules
+ */
+export function validateRebalancing(currentTargets, proposedTargets, options = {}) {
+  const validation = {
+    valid: true,
+    changes: [],
+    warnings: [],
+    blocked_reasons: [],
+    recommendations: []
+  };
+
+  if (!currentTargets || !proposedTargets) {
+    validation.valid = false;
+    validation.blocked_reasons.push('Missing allocation data');
+    return validation;
+  }
+
+  const { model_version: currentVersion, ...currentAlloc } = currentTargets;
+  const { model_version: proposedVersion, ...proposedAlloc } = proposedTargets;
+
+  // Calculate changes for each asset
+  const allAssets = new Set([...Object.keys(currentAlloc), ...Object.keys(proposedAlloc)]);
+  
+  allAssets.forEach(asset => {
+    const current = currentAlloc[asset] || 0;
+    const proposed = proposedAlloc[asset] || 0;
+    const absoluteChange = Math.abs(proposed - current);
+    const relativeChange = current > 0 ? absoluteChange / current : (proposed > 0 ? 1 : 0);
+
+    if (absoluteChange > TRADING_RULES.min_change_threshold) {
+      validation.changes.push({
+        asset,
+        current: current.toFixed(2),
+        proposed: proposed.toFixed(2),
+        absolute_change: absoluteChange.toFixed(2),
+        relative_change: (relativeChange * 100).toFixed(1) + '%',
+        action: proposed > current ? 'buy' : 'sell',
+        priority: absoluteChange > 5 ? 'high' : 'medium'
+      });
+    }
+  });
+
+  // Rule 1: Minimum change threshold
+  const significantChanges = validation.changes.filter(change => 
+    parseFloat(change.absolute_change) >= TRADING_RULES.min_change_threshold ||
+    parseFloat(change.relative_change) >= TRADING_RULES.min_relative_change * 100
+  );
+
+  if (significantChanges.length === 0) {
+    validation.valid = false;
+    validation.blocked_reasons.push(`No significant changes (min ${TRADING_RULES.min_change_threshold}% or ${TRADING_RULES.min_relative_change * 100}% relative)`);
+  }
+
+  // Rule 2: Circuit breakers
+  if (options.onchainScore != null && options.onchainScore < TRADING_RULES.risk_circuit_breaker) {
+    const stablesTarget = proposedAlloc.Stablecoins || 0;
+    if (stablesTarget < 40) {
+      validation.warnings.push({
+        type: 'risk_circuit_breaker',
+        message: `On-chain score very low (${options.onchainScore}), recommend min 40% stables`,
+        current_stables: stablesTarget
+      });
+    }
+  }
+
+  // Rule 3: Drawdown circuit breaker
+  if (options.drawdown != null && options.drawdown < TRADING_RULES.drawdown_circuit_breaker) {
+    const stablesTarget = proposedAlloc.Stablecoins || 0;
+    if (stablesTarget < 40) {
+      validation.valid = false;
+      validation.blocked_reasons.push(`Drawdown circuit breaker triggered (${Math.round(options.drawdown * 100)}%), forcing min 40% stables`);
+    }
+  }
+
+  // Rule 4: Order size validation (requires portfolio value)
+  if (options.portfolioValueUSD) {
+    validation.changes.forEach(change => {
+      const orderValueUSD = (parseFloat(change.absolute_change) / 100) * options.portfolioValueUSD;
+      if (orderValueUSD < TRADING_RULES.min_order_size_usd) {
+        change.skip_reason = `Order too small ($${orderValueUSD.toFixed(0)} < $${TRADING_RULES.min_order_size_usd})`;
+      }
+    });
+  }
+
+  // Rule 5: Frequency check
+  if (options.lastRebalanceTime) {
+    const hoursSinceLastRebalance = (Date.now() - options.lastRebalanceTime) / (1000 * 60 * 60);
+    if (hoursSinceLastRebalance < TRADING_RULES.rebalance_frequency_hours) {
+      const hoursRemaining = TRADING_RULES.rebalance_frequency_hours - hoursSinceLastRebalance;
+      validation.warnings.push({
+        type: 'frequency_warning',
+        message: `Last rebalance was ${Math.round(hoursSinceLastRebalance)}h ago, recommended frequency: ${TRADING_RULES.rebalance_frequency_hours}h`,
+        hours_remaining: Math.round(hoursRemaining)
+      });
+    }
+  }
+
+  // Generate recommendations
+  if (validation.changes.length > 5) {
+    validation.recommendations.push({
+      type: 'complexity_warning',
+      message: `${validation.changes.length} changes detected - consider phased execution`,
+      suggestion: 'Execute high-priority changes first, defer medium-priority ones'
+    });
+  }
+
+  const totalTradingVolume = validation.changes.reduce((sum, change) => 
+    sum + parseFloat(change.absolute_change), 0
+  );
+
+  if (totalTradingVolume > 20) {
+    validation.recommendations.push({
+      type: 'volume_warning', 
+      message: `High trading volume: ${totalTradingVolume.toFixed(1)}% of portfolio`,
+      suggestion: 'Consider splitting into multiple smaller rebalances'
+    });
+  }
+
+  return validation;
+}
+
+/**
+ * Generate execution plan based on validation
+ */
+export function generateExecutionPlan(validationResult, options = {}) {
+  if (!validationResult.valid) {
+    return {
+      executable: false,
+      blocked_reasons: validationResult.blocked_reasons,
+      total_changes: 0
+    };
+  }
+
+  const plan = {
+    executable: true,
+    phases: [],
+    total_changes: validationResult.changes.length,
+    estimated_duration: '5-15 minutes',
+    gas_estimation: 'Medium'
+  };
+
+  // Phase 1: High priority changes
+  const highPriorityChanges = validationResult.changes.filter(change => 
+    change.priority === 'high' && !change.skip_reason
+  );
+
+  if (highPriorityChanges.length > 0) {
+    plan.phases.push({
+      phase: 1,
+      name: 'High Priority Changes',
+      changes: highPriorityChanges,
+      execute_immediately: true
+    });
+  }
+
+  // Phase 2: Medium priority changes
+  const mediumPriorityChanges = validationResult.changes.filter(change => 
+    change.priority === 'medium' && !change.skip_reason
+  );
+
+  if (mediumPriorityChanges.length > 0) {
+    plan.phases.push({
+      phase: 2,
+      name: 'Medium Priority Changes',
+      changes: mediumPriorityChanges,
+      execute_immediately: highPriorityChanges.length <= 3
+    });
+  }
+
+  // Phase 3: Skipped changes (for info)
+  const skippedChanges = validationResult.changes.filter(change => change.skip_reason);
+  if (skippedChanges.length > 0) {
+    plan.phases.push({
+      phase: 3,
+      name: 'Skipped (Small Orders)',
+      changes: skippedChanges,
+      execute_immediately: false
+    });
+  }
+
+  return plan;
 }
 
 /**
