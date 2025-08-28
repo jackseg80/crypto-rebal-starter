@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Debug Chart Data Format</title>
+  <script src="global-config.js"></script>
+</head>
+<body>
+  <h1>🔍 Debug Chart Data Format</h1>
+  <p>Test du format des données pour le graphique Bitcoin Cycle</p>
+  <button onclick="testDataFormat()">Test Data Format</button>
+  <div id="results"></div>
+
+  <script>
+    // Copie de la fonction fetchBitcoinHistoricalData optimisée
+    async function fetchBitcoinHistoricalData() {
+      console.log('🏛️ Tentative de récupération historique Bitcoin...');
+      
+      const FRED_API_KEY = (window.globalConfig?.get?.('fred_api_key')) || '';
+      console.log('🏛️ FRED API Key:', FRED_API_KEY ? 'Configurée (****)' : 'Non configurée');
+      
+      if (FRED_API_KEY) {
+        try {
+          console.log('🏛️ Récupération historique Bitcoin depuis FRED API...');
+          const url = `https://api.stlouisfed.org/fred/series/observations?series_id=CBBTCUSD&api_key=${encodeURIComponent(FRED_API_KEY)}&file_type=json&observation_start=2023-01-01&limit=20`;
+          const r = await fetch(url, { mode: 'cors' });
+          if (!r.ok) throw new Error(`FRED HTTP ${r.status}: ${r.statusText}`);
+          const j = await r.json();
+          if (Array.isArray(j.observations)) {
+            const data = j.observations
+              .filter(o => o.value !== '.' && o.value != null)
+              .map(o => ({ time: new Date(o.date).getTime(), price: parseFloat(o.value) }))
+              .filter(p => Number.isFinite(p.price));
+            if (data.length > 0) {
+              console.log(`✅ FRED: ${data.length} points de données récupérés`);
+              return { data, source: 'FRED (CBBTCUSD)' };
+            }
+          }
+        } catch (e) {
+          console.warn('❌ FRED fetch échoué:', e.message);
+        }
+      }
+
+      // Fallback: Données de test réalistes
+      const testData = [];
+      const startTime = new Date('2023-01-01').getTime();
+      for (let i = 0; i < 10; i++) {
+        testData.push({
+          time: startTime + (i * 24 * 60 * 60 * 1000 * 30), // 30 jours d'intervalle
+          price: 30000 + Math.random() * 40000 // Prix entre 30k et 70k
+        });
+      }
+      
+      return { data: testData, source: 'Test Data' };
+    }
+
+    async function testDataFormat() {
+      const results = document.getElementById('results');
+      results.innerHTML = '<p>🔄 Testing data format...</p>';
+      
+      try {
+        // 1. Test fetchBitcoinHistoricalData
+        const { data: historicalData, source } = await fetchBitcoinHistoricalData();
+        
+        console.log('Raw historicalData:', historicalData);
+        
+        // 2. Test transformation pour Chart.js (comme dans risk-dashboard.html)
+        const priceData = historicalData.map(point => ({
+          x: point.time,
+          y: point.price
+        }));
+        
+        console.log('Transformed priceData:', priceData);
+        
+        // 3. Test de la structure attendue
+        const isCorrectFormat = historicalData.every(point => 
+          typeof point.time === 'number' && 
+          typeof point.price === 'number' && 
+          Number.isFinite(point.time) && 
+          Number.isFinite(point.price)
+        );
+        
+        results.innerHTML = `
+          <div style="background: #f0f8f0; padding: 1rem; border-radius: 4px;">
+            <h3>✅ Test de format des données réussi</h3>
+            
+            <h4>📊 Source des données</h4>
+            <p><strong>${source}</strong></p>
+            
+            <h4>📈 Données brutes (${historicalData.length} points)</h4>
+            <pre style="background: #f8f9fa; padding: 0.5rem; font-size: 12px; overflow-x: auto;">
+${JSON.stringify(historicalData.slice(0, 3), null, 2)}
+${historicalData.length > 3 ? '... (' + (historicalData.length - 3) + ' more points)' : ''}
+            </pre>
+            
+            <h4>📊 Format Chart.js (priceData)</h4>
+            <pre style="background: #f8f9fa; padding: 0.5rem; font-size: 12px; overflow-x: auto;">
+${JSON.stringify(priceData.slice(0, 3), null, 2)}
+${priceData.length > 3 ? '... (' + (priceData.length - 3) + ' more points)' : ''}
+            </pre>
+            
+            <h4>✓ Validation Format</h4>
+            <p><strong>Format correct:</strong> ${isCorrectFormat ? '✅ OUI' : '❌ NON'}</p>
+            <p><strong>Type point.time:</strong> ${typeof historicalData[0]?.time}</p>
+            <p><strong>Type point.price:</strong> ${typeof historicalData[0]?.price}</p>
+            <p><strong>Exemple time:</strong> ${historicalData[0]?.time} (${new Date(historicalData[0]?.time).toLocaleDateString()})</p>
+            <p><strong>Exemple price:</strong> ${historicalData[0]?.price}</p>
+          </div>
+        `;
+        
+      } catch (e) {
+        console.error('Error:', e);
+        results.innerHTML = `
+          <div style="background: #ffeaea; padding: 1rem; border-radius: 4px;">
+            <h3>❌ Erreur: ${e.message}</h3>
+            <pre>${e.stack}</pre>
+          </div>
+        `;
+      }
+    }
+
+    // Auto-test au chargement
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(testDataFormat, 500);
+    });
+  </script>
+</body>
+</html>

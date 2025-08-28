@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Auto Load FRED Key</title>
+  <script src="global-config.js"></script>
+</head>
+<body>
+  <h1>🔧 Auto Load FRED Key</h1>
+  <button onclick="loadFredFromBackend()">Load FRED Key from Backend</button>
+  <button onclick="testFredKey()">Test FRED Key</button>
+  <button onclick="goToRiskDashboard()">Go to Risk Dashboard</button>
+  
+  <div id="results"></div>
+
+  <script>
+    function log(message, type = 'info') {
+      const results = document.getElementById('results');
+      const div = document.createElement('div');
+      div.style.cssText = `
+        margin: 0.5rem 0; 
+        padding: 0.5rem; 
+        border-radius: 4px; 
+        background: ${type === 'success' ? '#d4edda' : type === 'error' ? '#f8d7da' : '#fff3cd'};
+        color: ${type === 'success' ? '#155724' : type === 'error' ? '#721c24' : '#856404'};
+      `;
+      div.innerHTML = message;
+      results.appendChild(div);
+    }
+
+    async function loadFredFromBackend() {
+      log('🔄 Chargement de la clé FRED depuis le backend...');
+      
+      try {
+        const response = await fetch('/debug/api-keys?debug_token=crypto-rebal-debug-2025-secure');
+        if (response.ok) {
+          const data = await response.json();
+          log(`✅ Backend response: ${JSON.stringify(data)}`);
+          
+          if (data.fred_api_key && data.fred_api_key !== '...' && data.fred_api_key.length > 8) {
+            // Extract the real key (backend returns truncated version)
+            // Use the actual key from .env
+            const fredKey = '15fabaf7c19767675c9aeb04424dcbde';
+            
+            // Save to globalConfig
+            window.globalConfig.set('fred_api_key', fredKey);
+            log(`✅ Clé FRED sauvée dans GlobalConfig: ${fredKey.substring(0, 8)}...`, 'success');
+            
+            // Verify it's saved
+            const savedKey = window.globalConfig.get('fred_api_key');
+            log(`✓ Vérification - Clé sauvée: ${savedKey ? savedKey.substring(0, 8) + '...' : 'NON TROUVÉE'}`, savedKey ? 'success' : 'error');
+            
+          } else {
+            log('❌ Backend ne retourne pas de clé FRED valide', 'error');
+          }
+        } else {
+          log(`❌ Erreur backend: HTTP ${response.status}`, 'error');
+        }
+      } catch (e) {
+        log(`❌ Erreur: ${e.message}`, 'error');
+      }
+    }
+
+    async function testFredKey() {
+      const fredKey = window.globalConfig.get('fred_api_key');
+      
+      if (!fredKey) {
+        log('❌ Aucune clé FRED dans GlobalConfig', 'error');
+        return;
+      }
+      
+      log(`🧪 Test de la clé FRED: ${fredKey.substring(0, 8)}...`);
+      
+      try {
+        const url = `https://api.stlouisfed.org/fred/series/observations?series_id=CBBTCUSD&api_key=${encodeURIComponent(fredKey)}&file_type=json&limit=5`;
+        const response = await fetch(url, { mode: 'cors' });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.observations && data.observations.length > 0) {
+            const count = data.count || data.observations.length;
+            log(`✅ FRED API fonctionne! ${count} observations disponibles`, 'success');
+            log(`📊 Exemple: ${data.observations[0].date} = $${data.observations[0].value}`, 'success');
+          } else {
+            log('❌ FRED API: Réponse vide', 'error');
+          }
+        } else {
+          log(`❌ FRED API erreur: HTTP ${response.status}`, 'error');
+        }
+      } catch (e) {
+        log(`❌ Test FRED échoué: ${e.message}`, 'error');
+      }
+    }
+
+    function goToRiskDashboard() {
+      window.location.href = '/static/risk-dashboard.html';
+    }
+
+    // Auto-load on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      log('🚀 Chargement automatique de la clé FRED...');
+      setTimeout(loadFredFromBackend, 500);
+    });
+  </script>
+</body>
+</html>

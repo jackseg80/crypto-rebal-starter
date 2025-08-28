@@ -36,9 +36,16 @@
     }
 
     .wrap {
-      max-width: 1200px;
+      width: 100%;
+      max-width: 95vw;
       margin: 0 auto;
-      padding: 16px
+      padding: 0 var(--space-lg);
+    }
+
+    @media (max-width: 768px) {
+      .wrap {
+        padding: 0 var(--space-md);
+      }
     }
 
     h1 {
@@ -329,7 +336,7 @@
 <body>
   <!-- Header sera injecté par shared-header.js -->
 
-  <div class="wrap" style="margin-top: 20px;">
+  <div class="wrap" style="padding-top: var(--space-lg);">
     <!-- Stratégies de Rebalancing -->
     <div class="card" style="margin-bottom: 16px;">
       <h3 style="cursor: pointer; display: flex; align-items: center; justify-content: space-between;" onclick="toggleStrategiesSection()">

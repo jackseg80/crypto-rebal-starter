@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Debug Cycle Chart</title>
+  <script src="global-config.js"></script>
+  <!-- Chart.js for Bitcoin Cycle Visualization -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+</head>
+<body>
+  <h1>🔍 Debug Bitcoin Cycle Chart</h1>
+  <p>Diagnostic approfondi de la création du graphique</p>
+  
+  <button onclick="testStep1()">1. Test fetchBitcoinHistoricalData</button>
+  <button onclick="testStep2()">2. Test Data Transformation</button>
+  <button onclick="testStep3()">3. Test Chart Creation</button>
+  <button onclick="clearLog()">Clear Log</button>
+  
+  <div style="margin: 1rem 0;">
+    <canvas id="test-chart" width="400" height="200" style="max-width: 600px; border: 1px solid #ccc;"></canvas>
+  </div>
+  
+  <div id="log" style="background: #f5f5f5; padding: 1rem; border-radius: 4px; font-family: monospace; white-space: pre-wrap; height: 400px; overflow-y: auto;"></div>
+
+  <script>
+    function log(message) {
+      const logDiv = document.getElementById('log');
+      logDiv.textContent += new Date().toLocaleTimeString() + ' - ' + message + '\\n';
+      logDiv.scrollTop = logDiv.scrollHeight;
+      console.log(message);
+    }
+
+    function clearLog() {
+      document.getElementById('log').textContent = '';
+    }
+
+    // Copy of fetchBitcoinHistoricalData function
+    async function fetchBitcoinHistoricalData() {
+      log('🏛️ Début fetchBitcoinHistoricalData()');
+      
+      const FRED_API_KEY = (window.globalConfig?.get?.('fred_api_key')) || '';
+      log(`🏛️ FRED API Key: ${FRED_API_KEY ? 'Configurée' : 'Non configurée'}`);
+      
+      if (FRED_API_KEY) {
+        try {
+          log('🏛️ Récupération depuis FRED API...');
+          const url = `https://api.stlouisfed.org/fred/series/observations?series_id=CBBTCUSD&api_key=${encodeURIComponent(FRED_API_KEY)}&file_type=json&observation_start=2023-01-01&limit=30`;
+          const r = await fetch(url, { mode: 'cors' });
+          if (!r.ok) throw new Error(`FRED HTTP ${r.status}: ${r.statusText}`);
+          const j = await r.json();
+          if (Array.isArray(j.observations)) {
+            const data = j.observations
+              .filter(o => o.value !== '.' && o.value != null)
+              .map(o => ({ time: new Date(o.date).getTime(), price: parseFloat(o.value) }))
+              .filter(p => Number.isFinite(p.price));
+            if (data.length > 0) {
+              log(`✅ FRED: ${data.length} points récupérés`);
+              return { data, source: 'FRED (CBBTCUSD)' };
+            }
+          }
+        } catch (e) {
+          log(`❌ FRED échoué: ${e.message}`);
+        }
+      }
+
+      // Fallback data
+      log('📊 Utilisation de données de test');
+      const testData = [];
+      const startTime = new Date('2023-01-01').getTime();
+      for (let i = 0; i < 12; i++) {
+        testData.push({
+          time: startTime + (i * 30 * 24 * 60 * 60 * 1000), // 30 jours d'intervalle
+          price: 25000 + Math.sin(i / 2) * 15000 + Math.random() * 5000 // Simulation cycle
+        });
+      }
+      
+      return { data: testData, source: 'Test Data' };
+    }
+
+    // Step 1: Test data fetch
+    let globalHistoricalData = null;
+    async function testStep1() {
+      try {
+        log('=== ÉTAPE 1: Test fetchBitcoinHistoricalData ===');
+        const result = await fetchBitcoinHistoricalData();
+        globalHistoricalData = result.data;
+        log(`✅ Data récupérées: ${result.data.length} points`);
+        log(`📊 Source: ${result.source}`);
+        log(`📊 Premier point: ${JSON.stringify(result.data[0])}`);
+        log(`📊 Dernier point: ${JSON.stringify(result.data[result.data.length - 1])}`);
+        
+        // Validate format
+        const valid = result.data.every(point => 
+          typeof point.time === 'number' && 
+          typeof point.price === 'number' && 
+          Number.isFinite(point.time) && 
+          Number.isFinite(point.price)
+        );
+        log(`✓ Format validé: ${valid ? 'CORRECT' : 'INCORRECT'}`);
+        
+      } catch (e) {
+        log(`❌ Erreur étape 1: ${e.message}`);
+        console.error(e);
+      }
+    }
+
+    // Step 2: Test data transformation
+    let globalPriceData = null;
+    async function testStep2() {
+      if (!globalHistoricalData) {
+        log('⚠️ Exécutez d\\'abord l\\'étape 1');
+        return;
+      }
+      
+      try {
+        log('=== ÉTAPE 2: Test transformation données ===');
+        
+        // Transform like in risk-dashboard.html
+        const priceData = globalHistoricalData.map(point => ({
+          x: point.time,
+          y: point.price
+        }));
+        globalPriceData = priceData;
+        
+        log(`✅ Transformation réussie: ${priceData.length} points`);
+        log(`📊 Format Chart.js - Premier: ${JSON.stringify(priceData[0])}`);
+        log(`📊 Format Chart.js - Dernier: ${JSON.stringify(priceData[priceData.length - 1])}`);
+        
+        // Test if data is iterable
+        log(`✓ Données itérables: ${Array.isArray(priceData) ? 'OUI' : 'NON'}`);
+        log(`✓ Longueur array: ${priceData.length}`);
+        
+      } catch (e) {
+        log(`❌ Erreur étape 2: ${e.message}`);
+        console.error(e);
+      }
+    }
+
+    // Step 3: Test chart creation
+    async function testStep3() {
+      if (!globalPriceData) {
+        log('⚠️ Exécutez d\\'abord les étapes 1 et 2');
+        return;
+      }
+      
+      try {
+        log('=== ÉTAPE 3: Test création graphique ===');
+        
+        const canvas = document.getElementById('test-chart');
+        
+        // Destroy existing chart if any
+        if (window.testChart) {
+          window.testChart.destroy();
+          log('🗑️ Graphique précédent détruit');
+        }
+        
+        const existingChart = Chart.getChart(canvas);
+        if (existingChart) {
+          existingChart.destroy();
+          log('🗑️ Chart.js existant détruit');
+        }
+        
+        log('📊 Création du graphique...');
+        log(`📊 Données à utiliser: ${globalPriceData.length} points`);
+        
+        // Simple chart configuration
+        const config = {
+          type: 'line',
+          data: {
+            datasets: [{
+              label: 'Bitcoin Price',
+              data: globalPriceData,
+              borderColor: '#f7931a',
+              backgroundColor: 'rgba(247, 147, 26, 0.1)',
+              tension: 0.1
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              title: {
+                display: true,
+                text: 'Test Bitcoin Chart'
+              }
+            },
+            scales: {
+              x: {
+                type: 'time',
+                time: {
+                  unit: 'month'
+                }
+              },
+              y: {
+                title: {
+                  display: true,
+                  text: 'Price ($)'
+                }
+              }
+            }
+          }
+        };
+        
+        log('📊 Configuration chart créée');
+        
+        window.testChart = new Chart(canvas, config);
+        
+        log('✅ Graphique créé avec succès!');
+        
+      } catch (e) {
+        log(`❌ Erreur étape 3: ${e.message}`);
+        log(`🔍 Stack trace: ${e.stack}`);
+        console.error(e);
+      }
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      log('🚀 Debug Bitcoin Cycle Chart initialisé');
+      log('Cliquez sur les boutons pour tester étape par étape');
+    });
+  </script>
+</body>
+</html>

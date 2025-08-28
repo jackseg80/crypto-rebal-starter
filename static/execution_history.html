@@ -23,6 +23,20 @@
             margin-bottom: var(--space-xl);
         }
 
+        /* ===== Container responsive ===== */
+        .container {
+            width: 100%;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 var(--space-lg);
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 0 var(--space-md);
+            }
+        }
+
         .full-width {
             grid-column: 1 / -1;
         }
@@ -307,7 +321,7 @@
             margin: 50px auto;
             padding: 30px;
             border-radius: var(--radius-xl);
-            max-width: 1000px;
+            max-width: min(90vw, 1200px);
             max-height: 80vh;
             overflow-y: auto;
             border: 1px solid var(--theme-border);

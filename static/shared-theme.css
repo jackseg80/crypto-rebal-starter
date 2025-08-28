@@ -163,13 +163,13 @@ body {
 /* ========== LAYOUT GLOBAL ========== */
 
 .container {
-  max-width: 1200px;
+  max-width: 95vw;
   margin: 0 auto;
   padding: var(--space-lg);
 }
 
 .wrap {
-  max-width: 1400px;
+  max-width: 98vw;
   margin: 0 auto;
   padding: var(--space-lg);
 }
@@ -762,7 +762,7 @@ header {
 }
 
 header .wrap {
-  max-width: 1200px;
+  max-width: 95vw;
   margin: 0 auto;
   padding: 16px;
 }
