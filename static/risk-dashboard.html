@@ -24,6 +24,10 @@
   <script type="module" src="modules/cycle-navigator.js"></script>
   <script type="module" src="modules/targets-coordinator.js"></script>
 
+  <!-- Chart.js for Bitcoin Cycle Visualization -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+
   <style>
     /* ===== Layout Hybride: Sidebar + Main ===== */
     .dashboard-layout {
@@ -614,7 +618,11 @@
           // Risk content is already rendered by refreshDashboard
           break;
         case 'cycles':
-          renderCyclesContent();
+          // Only render if not already on cycles tab to avoid recreating chart
+          const currentTab = store.snapshot().ui?.activeTab;
+          if (currentTab !== 'cycles') {
+            renderCyclesContent();
+          }
           break;
         case 'targets':
           renderTargetsContent().catch(err => console.error('Failed to render targets:', err));
@@ -1779,8 +1787,346 @@
       decorateRiskTooltips();
     }
 
+    // ====== Bitcoin Cycle Chart Functions ======
+    
+    // Bitcoin halving historical data
+    const BITCOIN_HALVINGS = [
+      { date: '2012-11-28', block: 210000, reward_before: 50, reward_after: 25 },
+      { date: '2016-07-09', block: 420000, reward_before: 25, reward_after: 12.5 },
+      { date: '2020-05-11', block: 630000, reward_before: 12.5, reward_after: 6.25 },
+      { date: '2024-04-20', block: 840000, reward_before: 6.25, reward_after: 3.125 },
+      { date: '2028-04-20', block: 1050000, reward_before: 3.125, reward_after: 1.5625, estimated: true }
+    ];
+
+    // Fetch historical Bitcoin price data from CoinGecko
+    async function fetchBitcoinHistoricalData() {
+      try {
+        console.log('🔍 Fetching Bitcoin historical price data...');
+        
+        // Fetch data from 2012 to present (4+ years of data)
+        const response = await fetch('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=max&interval=daily');
+        
+        if (!response.ok) {
+          throw new Error(`CoinGecko API failed: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('✅ Bitcoin historical data loaded:', data.prices.length, 'data points');
+        
+        // Transform to our format: [timestamp, price]
+        return data.prices.filter(([timestamp, price]) => {
+          const date = new Date(timestamp);
+          return date >= new Date('2012-01-01'); // Only data from 2012 onwards
+        });
+        
+      } catch (error) {
+        console.warn('⚠️ Failed to fetch real Bitcoin data, using fallback:', error);
+        
+        // Fallback mock data - approximate Bitcoin prices at key points
+        const mockData = [];
+        const startDate = new Date('2012-01-01');
+        const endDate = new Date();
+        const dayMs = 24 * 60 * 60 * 1000;
+        
+        // Generate approximate data points
+        for (let d = startDate; d <= endDate; d.setTime(d.getTime() + dayMs * 30)) {
+          const timestamp = d.getTime();
+          let price = 10; // Starting price in 2012
+          
+          // Approximate price evolution
+          if (d >= new Date('2013-01-01')) price = 100;
+          if (d >= new Date('2014-01-01')) price = 400;
+          if (d >= new Date('2015-01-01')) price = 200;
+          if (d >= new Date('2016-07-09')) price = 650;
+          if (d >= new Date('2017-01-01')) price = 1000;
+          if (d >= new Date('2018-01-01')) price = 15000;
+          if (d >= new Date('2019-01-01')) price = 4000;
+          if (d >= new Date('2020-05-11')) price = 9000;
+          if (d >= new Date('2021-01-01')) price = 30000;
+          if (d >= new Date('2022-01-01')) price = 45000;
+          if (d >= new Date('2023-01-01')) price = 20000;
+          if (d >= new Date('2024-04-20')) price = 65000;
+          if (d >= new Date('2024-07-01')) price = 70000;
+          
+          // Add some volatility
+          price *= (0.8 + Math.random() * 0.4);
+          
+          mockData.push([timestamp, price]);
+        }
+        
+        return mockData;
+      }
+    }
+
+    // Create Bitcoin cycle chart
+    async function createBitcoinCycleChart(containerId) {
+      const canvas = document.getElementById(containerId);
+      if (!canvas) {
+        console.error('Canvas not found:', containerId);
+        return null;
+      }
+
+      // Destroy existing chart if it exists
+      if (window.bitcoinCycleChart) {
+        console.log('🔄 Destroying existing Bitcoin chart...');
+        window.bitcoinCycleChart.destroy();
+        window.bitcoinCycleChart = null;
+      }
+
+      // Also check if Chart.js has any existing chart on this canvas
+      const existingChart = Chart.getChart(canvas);
+      if (existingChart) {
+        console.log('🔄 Destroying Chart.js existing chart on canvas...');
+        existingChart.destroy();
+      }
+
+      try {
+        // Fetch historical data
+        const historicalData = await fetchBitcoinHistoricalData();
+        
+        // Get current cycle state
+        const state = store.snapshot();
+        const cycleData = state.cycle;
+        
+        // Prepare chart data
+        const priceData = historicalData.map(([timestamp, price]) => ({
+          x: timestamp,
+          y: price
+        }));
+
+        // Import cycle navigator functions
+        const { cycleScoreFromMonths, getCyclePhase } = await import('./modules/cycle-navigator.js');
+
+        // Calculate cycle score for each data point
+        const cycleScoreData = historicalData.map(([timestamp, price]) => {
+          const date = new Date(timestamp);
+          
+          // Find which cycle period this date falls into
+          let monthsAfterHalving = 0;
+          for (let i = BITCOIN_HALVINGS.length - 1; i >= 0; i--) {
+            const halving = BITCOIN_HALVINGS[i];
+            const halvingDate = new Date(halving.date);
+            
+            if (date >= halvingDate && !halving.estimated) {
+              const diffTime = date.getTime() - halvingDate.getTime();
+              monthsAfterHalving = diffTime / (1000 * 60 * 60 * 24 * 30.44); // Convert to months
+              break;
+            }
+          }
+          
+          // Calculate cycle score using the existing function
+          const cycleScore = cycleScoreFromMonths(monthsAfterHalving);
+          
+          return {
+            x: timestamp,
+            y: cycleScore
+          };
+        });
+
+        // Current position marker
+        const currentTimestamp = Date.now();
+        const currentPrice = priceData[priceData.length - 1]?.y || 70000;
+
+        // Chart configuration
+        const config = {
+          type: 'line',
+          data: {
+            datasets: [
+              {
+                label: 'Bitcoin Price (USD)',
+                data: priceData,
+                borderColor: '#f7931a', // Bitcoin orange
+                backgroundColor: 'rgba(247, 147, 26, 0.1)',
+                borderWidth: 2,
+                fill: false,
+                yAxisID: 'y',
+                pointRadius: 0,
+                pointHoverRadius: 4
+              },
+              {
+                label: 'Cycle Score',
+                data: cycleScoreData,
+                borderColor: '#10b981', // Green
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                borderWidth: 2,
+                fill: false,
+                yAxisID: 'y1',
+                pointRadius: 0,
+                pointHoverRadius: 4
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+              intersect: false,
+              mode: 'index'
+            },
+            plugins: {
+              title: {
+                display: true,
+                text: 'Bitcoin Cycle Analysis - Historical Price & Position',
+                font: { size: 16 }
+              },
+              legend: {
+                display: true,
+                position: 'top'
+              },
+              tooltip: {
+                callbacks: {
+                  title: function(context) {
+                    const date = new Date(context[0].parsed.x);
+                    return date.toLocaleDateString('fr-FR');
+                  },
+                  label: function(context) {
+                    const dataset = context.dataset;
+                    const value = context.parsed.y;
+                    
+                    if (dataset.label.includes('Price')) {
+                      return `Prix: $${value.toLocaleString()}`;
+                    } else {
+                      return `Cycle Score: ${Math.round(value)}/100`;
+                    }
+                  }
+                }
+              }
+            },
+            scales: {
+              x: {
+                type: 'time',
+                time: {
+                  unit: 'year',
+                  displayFormats: {
+                    year: 'yyyy'
+                  }
+                },
+                title: {
+                  display: true,
+                  text: 'Date'
+                }
+              },
+              y: {
+                type: 'logarithmic',
+                position: 'left',
+                title: {
+                  display: true,
+                  text: 'Prix Bitcoin (USD, échelle log)'
+                },
+                ticks: {
+                  callback: function(value) {
+                    return '$' + value.toLocaleString();
+                  }
+                }
+              },
+              y1: {
+                type: 'linear',
+                position: 'right',
+                min: 0,
+                max: 100,
+                title: {
+                  display: true,
+                  text: 'Score de Cycle (0-100)'
+                },
+                grid: {
+                  drawOnChartArea: false
+                }
+              }
+            }
+          },
+          plugins: [{
+            id: 'halvingLines',
+            afterDraw: function(chart) {
+              const ctx = chart.ctx;
+              const xAxis = chart.scales.x;
+              const yAxis = chart.scales.y;
+              
+              // Draw halving vertical lines
+              BITCOIN_HALVINGS.forEach((halving, index) => {
+                if (halving.estimated) return; // Skip estimated future halving
+                
+                const halvingDate = new Date(halving.date);
+                const x = xAxis.getPixelForValue(halvingDate.getTime());
+                
+                if (x >= xAxis.left && x <= xAxis.right) {
+                  ctx.save();
+                  ctx.strokeStyle = '#8b5cf6'; // Purple color
+                  ctx.lineWidth = 2;
+                  ctx.setLineDash([5, 5]);
+                  
+                  ctx.beginPath();
+                  ctx.moveTo(x, yAxis.top);
+                  ctx.lineTo(x, yAxis.bottom);
+                  ctx.stroke();
+                  
+                  // Label
+                  ctx.fillStyle = '#8b5cf6';
+                  ctx.font = '12px sans-serif';
+                  ctx.textAlign = 'center';
+                  ctx.fillText(
+                    `Halving ${index + 1}`, 
+                    x, 
+                    yAxis.top - 10
+                  );
+                  ctx.restore();
+                }
+              });
+              
+              // Draw current position line
+              if (cycleData?.months !== undefined) {
+                const currentX = xAxis.getPixelForValue(currentTimestamp);
+                
+                if (currentX >= xAxis.left && currentX <= xAxis.right) {
+                  ctx.save();
+                  ctx.strokeStyle = '#ef4444'; // Red color for current position
+                  ctx.lineWidth = 3;
+                  
+                  ctx.beginPath();
+                  ctx.moveTo(currentX, yAxis.top);
+                  ctx.lineTo(currentX, yAxis.bottom);
+                  ctx.stroke();
+                  
+                  // Current position label
+                  ctx.fillStyle = '#ef4444';
+                  ctx.font = 'bold 12px sans-serif';
+                  ctx.textAlign = 'center';
+                  ctx.fillText(
+                    'Position Actuelle', 
+                    currentX, 
+                    yAxis.top - 10
+                  );
+                  ctx.restore();
+                }
+              }
+            }
+          }]
+        };
+
+        // Create chart
+        window.bitcoinCycleChart = new Chart(canvas, config);
+        console.log('✅ Bitcoin cycle chart created successfully');
+        
+        return window.bitcoinCycleChart;
+        
+      } catch (error) {
+        console.error('❌ Failed to create Bitcoin cycle chart:', error);
+        
+        // Show error message in canvas container
+        const container = canvas.parentElement;
+        container.innerHTML = `
+          <div style="text-align: center; padding: 2rem; color: var(--theme-text-muted);">
+            <div style="font-size: 1.2rem; margin-bottom: 1rem;">⚠️ Impossible de charger le graphique des cycles</div>
+            <div style="font-size: 0.9rem;">Erreur: ${error.message}</div>
+            <div style="font-size: 0.8rem; margin-top: 0.5rem;">Essayez de rafraîchir la page ou vérifiez votre connexion.</div>
+          </div>
+        `;
+        
+        return null;
+      }
+    }
+
     // ====== Cycles Content ======
-    function renderCyclesContent() {
+    async function renderCyclesContent() {
       const container = document.getElementById('cycles-content');
       const state = store.snapshot();
       const ccsData = state.ccs;
@@ -1795,6 +2141,26 @@
       const interpretation = interpretCCS(blended);
 
       container.innerHTML = `
+        <!-- Bitcoin Cycle Chart -->
+        <div class="risk-card" style="margin-bottom: 2rem;">
+          <h3>📈 Graphique des Cycles Bitcoin</h3>
+          <div style="height: 500px; position: relative; margin: 1rem 0;">
+            <canvas id="bitcoin-cycle-chart" style="width: 100%; height: 100%;"></canvas>
+          </div>
+          <div style="font-size: 0.85rem; color: var(--theme-text-muted); text-align: center; margin-top: 1rem;">
+            <div><strong>Légende:</strong></div>
+            <div style="margin-top: 0.5rem;">
+              <span style="color: #8b5cf6; font-weight: 600;">— — —</span> Halvings Bitcoin
+              &nbsp;&nbsp;|&nbsp;&nbsp;
+              <span style="color: #ef4444; font-weight: 600;">——</span> Position actuelle
+              &nbsp;&nbsp;|&nbsp;&nbsp;
+              <span style="color: #f7931a; font-weight: 600;">——</span> Prix Bitcoin
+              &nbsp;&nbsp;|&nbsp;&nbsp;
+              <span style="color: #10b981; font-weight: 600;">——</span> Score de cycle
+            </div>
+          </div>
+        </div>
+
         <div class="risk-grid">
           <!-- CCS Overview -->
           <div class="risk-card">
@@ -1820,7 +2186,7 @@
           
           <!-- Cycle Position -->
           <div class="risk-card">
-            <h3>🔄 Cycle Position</h3>
+            <h3>🔄 Position dans le Cycle</h3>
             <div style="text-align: center; margin: var(--space-lg) 0;">
               <div style="font-size: 2rem;">
                 ${cycleData.phase?.emoji || '⚫'} 
@@ -1829,7 +2195,10 @@
                 ${cycleData.phase?.phase?.replace('_', ' ').toUpperCase() || 'UNKNOWN'}
               </div>
               <div style="font-size: 0.875rem; color: var(--theme-text-muted);">
-                Month ${Math.round(cycleData.months)} post-halving
+                Mois ${Math.round(cycleData.months)} post-halving
+              </div>
+              <div style="font-size: 0.8rem; color: var(--theme-text-muted); margin-top: 0.5rem;">
+                (Dernier halving: 20 avril 2024)
               </div>
             </div>
             
@@ -1845,66 +2214,71 @@
           
           <!-- Blended Analysis -->
           <div class="risk-card">
-            <h3>⚖️ Blended Strategy</h3>
+            <h3>⚖️ Stratégie Hybride</h3>
             <div class="metric-row">
-              <span class="metric-label">Original CCS:</span>
+              <span class="metric-label">CCS Original:</span>
               <span class="metric-value">${Math.round(ccsData.score)}</span>
             </div>
             <div class="metric-row">
-              <span class="metric-label">Cycle Weight:</span>
+              <span class="metric-label">Poids Cycle:</span>
               <span class="metric-value">${Math.round((cycleData.weight || 0.3) * 100)}%</span>
             </div>
             <div class="metric-row">
-              <span class="metric-label">Blended CCS*:</span>
+              <span class="metric-label">CCS Mixte*:</span>
               <span class="metric-value" style="color: ${interpretation.color}; font-weight: 700;">
                 ${Math.round(blended)}
               </span>
             </div>
             <div class="metric-row">
-              <span class="metric-label">Strategy:</span>
+              <span class="metric-label">Stratégie:</span>
               <span class="metric-value">${interpretation.label}</span>
             </div>
           </div>
         </div>
         
-        <!-- Signal Details -->
-        <div class="risk-card">
-          <h3>📡 Signal Breakdown</h3>
-          <div class="risk-grid">
-            ${Object.entries(ccsData.signals || {}).map(([key, signal]) => `
-              <div class="metric-row">
-                <span class="metric-label">${key.replace('_', ' ').toUpperCase()}:</span>
-                <span class="metric-value">
-                  ${Math.round(signal.normalized || 0)} 
-                  <span style="font-size: 0.75rem; opacity: 0.7;">(${Math.round((signal.weight || 0) * 100)}%)</span>
-                </span>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-        
         <!-- Cycle Multipliers -->
         <div class="risk-card">
-          <h3>🎯 Asset Class Multipliers</h3>
+          <h3>🎯 Multiplicateurs par Classe d'Actifs</h3>
           <div style="font-size: 0.875rem; color: var(--theme-text-muted); margin-bottom: var(--space-sm);">
-            Based on current cycle phase: <strong>${cycleData.phase?.phase?.replace('_', ' ')}</strong>
+            Basé sur la phase de cycle actuelle: <strong>${cycleData.phase?.phase?.replace('_', ' ')}</strong>
           </div>
           <div class="risk-grid">
             ${Object.entries(cycleData.multipliers || {}).map(([asset, multiplier]) => {
         const color = multiplier > 1.1 ? 'var(--success)' :
           multiplier < 0.9 ? 'var(--danger)' : 'var(--theme-text)';
+        const recommendation = multiplier > 1.1 ? 'Surpondérer' : 
+          multiplier < 0.9 ? 'Sous-pondérer' : 'Neutre';
         return `
                 <div class="metric-row">
                   <span class="metric-label">${asset}:</span>
                   <span class="metric-value" style="color: ${color};">
-                    ${multiplier.toFixed(2)}x
+                    ${multiplier.toFixed(2)}x <span style="font-size: 0.7rem; opacity: 0.8;">(${recommendation})</span>
                   </span>
                 </div>
               `;
       }).join('')}
           </div>
+          <div style="font-size: 0.8rem; color: var(--theme-text-muted); margin-top: 1rem; padding: 0.75rem; background: var(--theme-bg); border-radius: 6px;">
+            💡 Les multiplicateurs indiquent l'allocation recommandée par rapport aux targets de base selon la phase de cycle.
+          </div>
         </div>
       `;
+
+      // Create Bitcoin cycle chart after DOM is ready
+      setTimeout(async () => {
+        // Prevent multiple concurrent chart creations
+        if (window.bitcoinChartCreating) {
+          console.log('⚠️ Bitcoin chart creation already in progress, skipping...');
+          return;
+        }
+        
+        window.bitcoinChartCreating = true;
+        try {
+          await createBitcoinCycleChart('bitcoin-cycle-chart');
+        } finally {
+          window.bitcoinChartCreating = false;
+        }
+      }, 100);
     }
 
     // ====== Portfolio Allocation Helper ======
