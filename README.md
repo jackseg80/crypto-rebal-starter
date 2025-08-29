@@ -27,10 +27,11 @@ Outil de **simulation de rebalancement** pour portefeuille crypto :
 - [10) CORS, déploiement, GitHub Pages](#10-cors-déploiement-github-pages)
 - [11) Workflow Git recommandé](#11-workflow-git-recommandé)
 - [12) Système de gestion des risques](#12-système-de-gestion-des-risques)
-- [13) Intégration Kraken & Execution](#13-intégration-kraken--execution)
-- [14) Classification intelligente & Rebalancing avancé](#14-classification-intelligente--rebalancing-avancé)
-- [15) Surveillance avancée & Monitoring](#15-surveillance-avancée--monitoring)
-- [16) Roadmap & Prochaines étapes](#16-roadmap--prochaines-étapes)
+- [13) Système de scoring V2 avec gestion des corrélations](#13-système-de-scoring-v2-avec-gestion-des-corrélations)
+- [14) Intégration Kraken & Execution](#14-intégration-kraken--execution)
+- [15) Classification intelligente & Rebalancing avancé](#15-classification-intelligente--rebalancing-avancé)
+- [16) Surveillance avancée & Monitoring](#16-surveillance-avancée--monitoring)
+- [17) Roadmap & Prochaines étapes](#17-roadmap--prochaines-étapes)
 
 ---
 
@@ -39,12 +40,15 @@ Outil de **simulation de rebalancement** pour portefeuille crypto :
 ```bash
 pip install -r requirements.txt
 uvicorn api.main:app --reload --port 8000
+
+# Pour les indicateurs V2 (optionnel mais recommandé)
+python crypto_toolbox_api.py  # Port 8001
 ```
 
 ### Interface unifiée disponible :
 
 - **🏠 Dashboard** : `static/dashboard.html` - Vue d'ensemble du portfolio avec graphique synchronisé
-- **🛡️ Risk Dashboard** : `static/risk-dashboard.html` - Analyse de risque en temps réel avec données de marché live (VaR, Sharpe, corrélations)
+- **🛡️ Risk Dashboard** : `static/risk-dashboard.html` - **Analyse de risque V2** avec système de scoring intelligent et gestion des corrélations
 - **🚀 Execution** : `static/execution.html` - Dashboard d'exécution temps réel
 - **📈 Execution History** : `static/execution_history.html` - Historique et analytics des trades
 - **🔍 Advanced Monitoring** : `static/monitoring_advanced.html` - Surveillance des connexions
@@ -92,18 +96,18 @@ Les deux paires de variables sont acceptées :
 - `CT_API_KEY` / `CT_API_SECRET`
 - `COINTRACKING_API_KEY` / `COINTRACKING_API_SECRET`
 
-# (Optionnel) Chemin CSV CoinTracking si vous utilisez la source "cointracking" 
-# Si non défini, l'app recherche automatiquement en priorité les fichiers :
-# 1. Balance by Exchange (priorité) : data/raw/CoinTracking - Balance by Exchange - *.csv
-# 2. Current Balance (fallback) : data/raw/CoinTracking - Current Balance.csv
-# 
-# Formats CSV supportés pour exports CoinTracking :
-# - Balance by Exchange : contient les vraies locations par asset (recommandé)
-# - Current Balance : totaux globaux sans location
-# - Coins by Exchange : détails des holdings par exchange
-# 
-# Exemple :
-# COINTRACKING_CSV=/path/vers/CoinTracking - Balance by Exchange - 22.08.2025.csv
+> 💬 (Optionnel) Chemin CSV CoinTracking si vous utilisez la source "cointracking"
+> Si non défini, l'app recherche automatiquement en priorité les fichiers :
+> 1. Balance by Exchange (priorité) : data/raw/CoinTracking - Balance by Exchange - *.csv
+> 2. Current Balance (fallback) : data/raw/CoinTracking - Current Balance.csv
+>
+> Formats CSV supportés pour exports CoinTracking :
+> - Balance by Exchange : contient les vraies locations par asset (recommandé)
+> - Current Balance : totaux globaux sans location
+> - Coins by Exchange : détails des holdings par exchange
+>
+> Exemple :
+> COINTRACKING_CSV=/path/vers/CoinTracking - Balance by Exchange - 22.08.2025.csv
 
 ---
 
@@ -666,7 +670,56 @@ GET /api/risk/dashboard            # Dashboard complet temps réel
 
 ---
 
-## 13) Intégration Kraken & Execution
+## 13) Système de scoring V2 avec gestion des corrélations
+
+### 🚀 **Mise à niveau majeure du système de scoring**
+
+Le système V2 remplace l'ancien scoring basique par une approche intelligente qui :
+
+#### **Catégorisation logique des indicateurs**
+- **🔗 On-Chain Pure (40%)** : Métriques blockchain fondamentales (MVRV, NUPL, SOPR)
+- **📊 Cycle/Technical (35%)** : Signaux de timing et cycle (Pi Cycle, CBBI, RSI)  
+- **😨 Sentiment Social (15%)** : Psychologie et adoption (Fear & Greed, Google Trends)
+- **🌐 Market Context (10%)** : Structure de marché et données temporelles
+
+#### **Gestion intelligente des corrélations**
+```javascript
+// Exemple : MVRV Z-Score et NUPL sont corrélés
+// → L'indicateur dominant garde 70% du poids
+// → Les autres se partagent 30% pour éviter la surpondération
+```
+
+#### **Consensus voting par catégorie**
+- Chaque catégorie calcule un consensus (Bullish/Bearish/Neutral)
+- Prévient les faux signaux d'un seul indicateur isolé
+- Détection automatique des signaux contradictoires entre catégories
+
+#### **Backend Python avec données réelles**
+```bash
+# Démarrer l'API backend pour les indicateurs crypto
+python crypto_toolbox_api.py
+# → Port 8001, scraping Playwright, cache 5min
+```
+
+**30+ indicateurs réels** de [crypto-toolbox.vercel.app](https://crypto-toolbox.vercel.app) :
+- MVRV Z-Score, Puell Multiple, Reserve Risk
+- Pi Cycle, Trolololo Trend Line, 2Y MA
+- Fear & Greed Index, Google Trends
+- Altcoin Season Index, App Rankings
+
+#### **Tests de validation intégrés**
+- `static/test-v2-comprehensive.html` : Suite de validation complète
+- `static/test-scoring-v2.html` : Comparaison V1 vs V2
+- `static/test-v2-quick.html` : Test rapide des fonctionnalités
+
+#### **Optimisations de performance**
+- **Cache 24h** au lieu de refresh constant
+- **Détection des corrélations** en temps réel
+- **Debug logging** pour analyse des réductions appliquées
+
+---
+
+## 14) Intégration Kraken & Execution
 
 ### 🚀 Kraken Trading Integration
 
