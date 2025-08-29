@@ -134,15 +134,97 @@ export function generateCCSTargets(ccsScore, mode = 'balanced') {
 }
 
 /**
- * Generate smart targets using market regime system
+ * Apply on-chain intelligence to refine market regime assessment
+ */
+function applyOnChainIntelligence(baseRegime, onchainMetadata) {
+  const { categoryBreakdown, criticalZoneCount, totalIndicators, activeCategories } = onchainMetadata;
+  
+  let adjustedRegime = { ...baseRegime };
+  let adjustments = [];
+  
+  // Critical zone analysis - force defensive if too many critical indicators
+  if (criticalZoneCount > 0) {
+    const criticalRatio = criticalZoneCount / totalIndicators;
+    
+    if (criticalRatio > 0.3) { // Plus de 30% en zone critique
+      adjustments.push('🚨 Zone critique détectée');
+      
+      // Force defensive allocation
+      adjustedRegime.risk_tolerance = Math.min(adjustedRegime.risk_tolerance, 0.4);
+      adjustedRegime.name += ' (Crit)';
+      adjustedRegime.description += ` ${criticalZoneCount}/${totalIndicators} indicateurs en zone critique.`;
+    }
+  }
+  
+  // Category-specific intelligence
+  if (categoryBreakdown) {
+    // On-chain fundamentals dominance
+    if (categoryBreakdown.onchain_fundamentals) {
+      const onchainScore = categoryBreakdown.onchain_fundamentals.score;
+      
+      if (onchainScore < 30) { // Fondamentaux très bullish (scores inversés)
+        adjustments.push('🔗 Fondamentaux bullish');
+        adjustedRegime.confidence += 0.1;
+        
+      } else if (onchainScore > 70) { // Fondamentaux très bearish
+        adjustments.push('🔗 Fondamentaux bearish');
+        adjustedRegime.risk_tolerance *= 0.8; // Réduire le risque
+      }
+    }
+    
+    // Cycle/Technical signals
+    if (categoryBreakdown.cycle_technical) {
+      const cycleScore = categoryBreakdown.cycle_technical.score;
+      
+      if (cycleScore > 75) { // Signaux de cycle bearish
+        adjustments.push('📊 Signaux de top');
+        adjustedRegime.risk_tolerance *= 0.7; // Très défensif
+        
+      } else if (cycleScore < 25) { // Signaux de cycle bullish  
+        adjustments.push('📊 Signaux de bottom');
+        adjustedRegime.confidence += 0.15;
+      }
+    }
+    
+    // Sentiment extremes
+    if (categoryBreakdown.sentiment) {
+      const sentimentScore = categoryBreakdown.sentiment.score;
+      
+      if (sentimentScore > 80) { // Fear extreme = contrarian bullish
+        adjustments.push('😨 Fear extrême');
+        adjustedRegime.confidence += 0.05;
+        
+      } else if (sentimentScore < 20) { // Greed extreme = bearish
+        adjustments.push('🤑 Greed extrême');
+        adjustedRegime.risk_tolerance *= 0.9;
+      }
+    }
+  }
+  
+  // Log des ajustements appliqués
+  if (adjustments.length > 0) {
+    console.log('🧠 On-chain intelligence adjustments:', adjustments.join(', '));
+  }
+  
+  return adjustedRegime;
+}
+
+/**
+ * Generate smart targets using market regime system with enhanced on-chain intelligence
  */
 export function generateSmartTargets() {
   const state = store.snapshot();
   const blendedScore = state.scores?.blended;
   const onchainScore = state.scores?.onchain;
   const riskScore = state.scores?.risk;
+  const onchainMetadata = state.scores?.onchain_metadata;
   
-  console.log('🧠 Generating SMART targets with scores:', { blendedScore, onchainScore, riskScore });
+  console.log('🧠 Generating SMART targets with scores:', { 
+    blendedScore, 
+    onchainScore, 
+    riskScore,
+    criticalCount: onchainMetadata?.criticalZoneCount
+  });
   
   if (blendedScore == null) {
     console.warn('⚠️ Blended score not available for smart targets');
@@ -158,7 +240,12 @@ export function generateSmartTargets() {
   try {
     // Get market regime
     const regime = getMarketRegime(blendedScore);
-    const adjustedRegime = applyMarketOverrides(regime, onchainScore, riskScore);
+    let adjustedRegime = applyMarketOverrides(regime, onchainScore, riskScore);
+    
+    // Apply enhanced on-chain intelligence if available
+    if (onchainMetadata) {
+      adjustedRegime = applyOnChainIntelligence(adjustedRegime, onchainMetadata);
+    }
     
     // Calculate risk budget
     const riskBudget = calculateRiskBudget(blendedScore, riskScore);

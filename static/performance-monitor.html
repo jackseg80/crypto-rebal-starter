@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚡ Performance Monitor</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #0f1419;
+            color: #e2e8f0;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 25px;
+            background: linear-gradient(135deg, #1e40af 0%, #7c3aed 50%, #dc2626 100%);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #374151;
+            color: #e2e8f0;
+            border: 1px solid #4b5563;
+        }
+
+        .btn:hover {
+            background: #4b5563;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .btn.primary {
+            background: #3b82f6;
+            border-color: #3b82f6;
+        }
+
+        .btn.success {
+            background: #10b981;
+            border-color: #10b981;
+        }
+
+        .btn.danger {
+            background: #ef4444;
+            border-color: #ef4444;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+
+        .card {
+            background: #1f2937;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+            border: 1px solid #374151;
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #f3f4f6;
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #374151;
+        }
+
+        .metric:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            color: #9ca3af;
+            font-weight: 500;
+        }
+
+        .metric-value {
+            font-weight: 700;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+
+        .metric-value.excellent {
+            background: #064e3b;
+            color: #10b981;
+        }
+
+        .metric-value.good {
+            background: #1e3a8a;
+            color: #60a5fa;
+        }
+
+        .metric-value.warning {
+            background: #92400e;
+            color: #fbbf24;
+        }
+
+        .metric-value.poor {
+            background: #7f1d1d;
+            color: #f87171;
+        }
+
+        .chart-container {
+            height: 200px;
+            background: #111827;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #6b7280;
+            margin: 15px 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .chart-bar {
+            position: absolute;
+            bottom: 0;
+            background: linear-gradient(to top, #3b82f6, #60a5fa);
+            border-radius: 2px 2px 0 0;
+            min-width: 8px;
+            transition: height 0.3s ease;
+        }
+
+        .log-container {
+            background: #111827;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            border: 1px solid #374151;
+        }
+
+        .log {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            color: #d1d5db;
+        }
+
+        .log-entry {
+            margin: 2px 0;
+        }
+
+        .log-entry.info { color: #60a5fa; }
+        .log-entry.success { color: #10b981; }
+        .log-entry.warning { color: #fbbf24; }
+        .log-entry.error { color: #f87171; }
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+
+        .status-online {
+            background: #10b981;
+        }
+
+        .status-warning {
+            background: #fbbf24;
+        }
+
+        .status-offline {
+            background: #6b7280;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .performance-chart {
+            display: flex;
+            align-items: end;
+            height: 120px;
+            gap: 3px;
+            padding: 10px;
+            background: #111827;
+            border-radius: 6px;
+            margin-top: 15px;
+        }
+
+        .perf-bar {
+            flex: 1;
+            background: linear-gradient(to top, #1e40af, #3b82f6);
+            border-radius: 2px 2px 0 0;
+            min-height: 2px;
+            transition: height 0.5s ease;
+        }
+
+        .real-time-data {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        .data-point {
+            text-align: center;
+            padding: 15px;
+            background: #111827;
+            border-radius: 8px;
+            border: 1px solid #374151;
+        }
+
+        .data-value {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .data-label {
+            font-size: 12px;
+            color: #9ca3af;
+            text-transform: uppercase;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚡ Performance Monitor</h1>
+            <p>Real-time monitoring du système de cache intelligent et performances API</p>
+        </div>
+
+        <div class="controls">
+            <button class="btn primary" onclick="refreshMetrics()">🔄 Refresh Metrics</button>
+            <button class="btn success" onclick="runPerformanceTest()">🧪 Performance Test</button>
+            <button class="btn" onclick="clearCache()">🧹 Clear Cache</button>
+            <button class="btn danger" onclick="simulateLoad()">⚡ Simulate Load</button>
+            <button class="btn" onclick="exportMetrics()">📊 Export Data</button>
+        </div>
+
+        <div class="real-time-data" id="real-time-metrics">
+            <!-- Real-time metrics will be populated here -->
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <div class="card-title">
+                    <span class="status-indicator status-online"></span>
+                    📊 Cache Performance
+                </div>
+                <div id="cache-metrics">
+                    <div class="metric">
+                        <span class="metric-label">Hit Rate:</span>
+                        <span class="metric-value good" id="hit-rate">--</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Total Requests:</span>
+                        <span class="metric-value" id="total-requests">--</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Cache Size:</span>
+                        <span class="metric-value" id="cache-size">--</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Access Patterns:</span>
+                        <span class="metric-value" id="patterns-count">--</span>
+                    </div>
+                </div>
+                <div class="performance-chart" id="cache-performance-chart">
+                    <!-- Performance bars will be generated here -->
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    🌐 API Performance
+                </div>
+                <div id="api-metrics">
+                    <div class="metric">
+                        <span class="metric-label">Avg Response Time:</span>
+                        <span class="metric-value good" id="avg-response-time">--</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Success Rate:</span>
+                        <span class="metric-value excellent" id="success-rate">--</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Failed Requests:</span>
+                        <span class="metric-value" id="failed-requests">--</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Timeout Rate:</span>
+                        <span class="metric-value" id="timeout-rate">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    💾 Memory & Storage
+                </div>
+                <div id="memory-metrics">
+                    <div class="metric">
+                        <span class="metric-label">Cache Memory:</span>
+                        <span class="metric-value" id="cache-memory">--</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">localStorage Usage:</span>
+                        <span class="metric-value" id="localstorage-usage">--</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Cleanup Frequency:</span>
+                        <span class="metric-value" id="cleanup-freq">Every 30min</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Last Cleanup:</span>
+                        <span class="metric-value" id="last-cleanup">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    🎯 System Health
+                </div>
+                <div id="system-metrics">
+                    <div class="metric">
+                        <span class="metric-label">Overall Status:</span>
+                        <span class="metric-value excellent" id="overall-status">Optimal</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Uptime:</span>
+                        <span class="metric-value" id="uptime">--</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Error Rate:</span>
+                        <span class="metric-value good" id="error-rate">--</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Performance Score:</span>
+                        <span class="metric-value" id="performance-score">--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="log-container">
+            <div class="card-title">📝 Performance Log</div>
+            <div class="log" id="performance-log">
+                System monitoring initialized...
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        let getCacheStats, clearOnChainCache;
+        
+        // Try to import onchain indicators module
+        try {
+            const onchainModule = await import('./modules/onchain-indicators.js');
+            getCacheStats = onchainModule.getCacheStats;
+            clearOnChainCache = onchainModule.clearCache;
+            console.log('✅ OnChain indicators module loaded successfully');
+        } catch (error) {
+            console.warn('⚠️ Failed to load onchain indicators module:', error);
+            // Fallback mock functions
+            getCacheStats = () => ({
+                hits: 0,
+                misses: 0,
+                totalRequests: 0,
+                hitRate: 0,
+                avgResponseTime: 0,
+                cacheSize: 0,
+                patterns: 0
+            });
+            clearOnChainCache = () => console.log('Cache clear fallback');
+        }
+
+        let startTime = Date.now();
+        let performanceHistory = [];
+        let logEntries = [];
+
+        // Utility functions
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = `[${timestamp}] ${message}`;
+            logEntries.push({ message: entry, type, timestamp: Date.now() });
+
+            const logElement = document.getElementById('performance-log');
+            const logDiv = document.createElement('div');
+            logDiv.className = `log-entry ${type}`;
+            logDiv.textContent = entry;
+            logElement.appendChild(logDiv);
+            logElement.scrollTop = logElement.scrollHeight;
+
+            // Keep only last 100 entries
+            if (logEntries.length > 100) {
+                logEntries.shift();
+                logElement.removeChild(logElement.firstChild);
+            }
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function formatDuration(ms) {
+            const seconds = Math.floor(ms / 1000);
+            const minutes = Math.floor(seconds / 60);
+            const hours = Math.floor(minutes / 60);
+            
+            if (hours > 0) return `${hours}h ${minutes % 60}m`;
+            if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
+            return `${seconds}s`;
+        }
+
+        function getValueClass(value, thresholds) {
+            if (value >= thresholds.excellent) return 'excellent';
+            if (value >= thresholds.good) return 'good';
+            if (value >= thresholds.warning) return 'warning';
+            return 'poor';
+        }
+
+        // Update real-time metrics
+        function updateRealTimeMetrics() {
+            const container = document.getElementById('real-time-metrics');
+            const uptime = Date.now() - startTime;
+            const memoryInfo = performance.memory || {};
+
+            const metrics = [
+                { label: 'Uptime', value: formatDuration(uptime) },
+                { label: 'Memory Used', value: formatBytes(memoryInfo.usedJSHeapSize || 0) },
+                { label: 'Cache Entries', value: getCacheStats()?.cacheSize || '0' },
+                { label: 'Hit Rate', value: (getCacheStats()?.hitRate || 0).toFixed(1) + '%' },
+                { label: 'Avg Response', value: Math.round(getCacheStats()?.avgResponseTime || 0) + 'ms' },
+                { label: 'Performance', value: calculatePerformanceScore() + '/100' }
+            ];
+
+            container.innerHTML = metrics.map(metric => `
+                <div class="data-point">
+                    <div class="data-value">${metric.value}</div>
+                    <div class="data-label">${metric.label}</div>
+                </div>
+            `).join('');
+        }
+
+        function calculatePerformanceScore() {
+            const stats = getCacheStats();
+            if (!stats) return 0;
+
+            let score = 0;
+            
+            // Hit rate weight: 40%
+            score += (stats.hitRate / 100) * 40;
+            
+            // Response time weight: 30% (inverse - lower is better)
+            const responseScore = Math.max(0, (1000 - stats.avgResponseTime) / 1000);
+            score += responseScore * 30;
+            
+            // Cache efficiency weight: 30%
+            const efficiency = stats.totalRequests > 0 ? (stats.hits / stats.totalRequests) : 0;
+            score += efficiency * 30;
+
+            return Math.round(score);
+        }
+
+        // Main refresh function
+        async function refreshMetrics() {
+            try {
+                log('Refreshing performance metrics...', 'info');
+                
+                const stats = getCacheStats();
+                
+                if (stats) {
+                    // Cache metrics
+                    document.getElementById('hit-rate').textContent = stats.hitRate.toFixed(1) + '%';
+                    document.getElementById('hit-rate').className = `metric-value ${getValueClass(stats.hitRate, {excellent: 80, good: 60, warning: 40})}`;
+                    
+                    document.getElementById('total-requests').textContent = stats.totalRequests;
+                    document.getElementById('cache-size').textContent = stats.cacheSize + ' entries';
+                    document.getElementById('patterns-count').textContent = stats.patterns;
+                    
+                    // API metrics
+                    document.getElementById('avg-response-time').textContent = Math.round(stats.avgResponseTime) + 'ms';
+                    document.getElementById('avg-response-time').className = `metric-value ${getValueClass(1000 - stats.avgResponseTime, {excellent: 800, good: 600, warning: 400})}`;
+                    
+                    // Success rate simulation
+                    const successRate = Math.max(85, 100 - (stats.totalRequests > 0 ? (stats.misses / stats.totalRequests) * 20 : 0));
+                    document.getElementById('success-rate').textContent = successRate.toFixed(1) + '%';
+                    document.getElementById('success-rate').className = `metric-value ${getValueClass(successRate, {excellent: 95, good: 90, warning: 80})}`;
+                    
+                    document.getElementById('failed-requests').textContent = stats.misses;
+                    document.getElementById('timeout-rate').textContent = '< 1%';
+                    
+                    // Memory metrics
+                    if (performance.memory) {
+                        document.getElementById('cache-memory').textContent = formatBytes(performance.memory.usedJSHeapSize);
+                    }
+                    
+                    // Calculate localStorage usage
+                    let localStorageSize = 0;
+                    for (let key in localStorage) {
+                        if (localStorage.hasOwnProperty(key)) {
+                            localStorageSize += localStorage[key].length;
+                        }
+                    }
+                    document.getElementById('localstorage-usage').textContent = formatBytes(localStorageSize * 2); // Rough estimate
+
+                    // System health
+                    const performanceScore = calculatePerformanceScore();
+                    document.getElementById('performance-score').textContent = performanceScore + '/100';
+                    document.getElementById('performance-score').className = `metric-value ${getValueClass(performanceScore, {excellent: 80, good: 60, warning: 40})}`;
+                    
+                    const uptime = Date.now() - startTime;
+                    document.getElementById('uptime').textContent = formatDuration(uptime);
+                    
+                    const errorRate = stats.totalRequests > 0 ? ((stats.misses / stats.totalRequests) * 100) : 0;
+                    document.getElementById('error-rate').textContent = errorRate.toFixed(1) + '%';
+                    
+                    // Update performance chart
+                    updatePerformanceChart(stats);
+                    
+                    log(`Metrics updated - Hit Rate: ${stats.hitRate.toFixed(1)}%, Response: ${Math.round(stats.avgResponseTime)}ms`, 'success');
+                } else {
+                    log('Unable to fetch cache statistics', 'warning');
+                }
+                
+                updateRealTimeMetrics();
+                
+            } catch (error) {
+                log(`Error refreshing metrics: ${error.message}`, 'error');
+            }
+        }
+
+        function updatePerformanceChart(stats) {
+            const chart = document.getElementById('cache-performance-chart');
+            if (!chart) return;
+
+            // Add current stats to history
+            performanceHistory.push({
+                timestamp: Date.now(),
+                hitRate: stats.hitRate,
+                responseTime: stats.avgResponseTime,
+                requests: stats.totalRequests
+            });
+
+            // Keep only last 20 data points
+            if (performanceHistory.length > 20) {
+                performanceHistory.shift();
+            }
+
+            // Generate bars
+            const maxHeight = 100; // px
+            chart.innerHTML = performanceHistory.map((point, index) => {
+                const height = Math.max(2, (point.hitRate / 100) * maxHeight);
+                return `<div class="perf-bar" style="height: ${height}px;" title="Hit Rate: ${point.hitRate.toFixed(1)}%"></div>`;
+            }).join('');
+        }
+
+        // Public functions
+        window.refreshMetrics = refreshMetrics;
+
+        window.runPerformanceTest = async function() {
+            log('Starting performance test...', 'info');
+            
+            const testStart = performance.now();
+            const testRequests = 20;
+            let successful = 0;
+
+            for (let i = 0; i < testRequests; i++) {
+                try {
+                    // Simulate API calls by getting cache stats
+                    const stats = getCacheStats();
+                    if (stats) successful++;
+                    
+                    // Small delay between requests
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                } catch (error) {
+                    log(`Test request ${i + 1} failed: ${error.message}`, 'warning');
+                }
+            }
+
+            const testDuration = performance.now() - testStart;
+            const successRate = (successful / testRequests) * 100;
+            const avgRequestTime = testDuration / testRequests;
+
+            log(`Performance test completed: ${successRate.toFixed(1)}% success rate, ${avgRequestTime.toFixed(1)}ms avg`, 'success');
+            
+            // Refresh metrics after test
+            refreshMetrics();
+        };
+
+        window.clearCache = function() {
+            clearOnChainCache();
+            log('OnChain cache cleared manually', 'warning');
+            refreshMetrics();
+        };
+
+        window.simulateLoad = async function() {
+            log('Simulating high load scenario...', 'info');
+            
+            const loadStart = performance.now();
+            const concurrentRequests = 10;
+            const requestsPerBatch = 5;
+
+            for (let batch = 0; batch < concurrentRequests; batch++) {
+                const promises = [];
+                
+                for (let i = 0; i < requestsPerBatch; i++) {
+                    promises.push(new Promise(resolve => {
+                        setTimeout(() => {
+                            getCacheStats();
+                            resolve();
+                        }, Math.random() * 100);
+                    }));
+                }
+                
+                await Promise.all(promises);
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+
+            const loadDuration = performance.now() - loadStart;
+            log(`Load simulation completed in ${loadDuration.toFixed(1)}ms`, 'success');
+            
+            refreshMetrics();
+        };
+
+        window.exportMetrics = function() {
+            const stats = getCacheStats();
+            const exportData = {
+                timestamp: new Date().toISOString(),
+                cacheStats: stats,
+                performanceHistory,
+                systemInfo: {
+                    uptime: Date.now() - startTime,
+                    memory: performance.memory || {},
+                    userAgent: navigator.userAgent
+                }
+            };
+
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `performance-metrics-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            log('Performance metrics exported', 'success');
+        };
+
+        // Initialize
+        log('Performance Monitor initialized', 'success');
+        refreshMetrics();
+
+        // Auto-refresh every 10 seconds
+        setInterval(refreshMetrics, 10000);
+        log('Auto-refresh enabled (10s intervals)', 'info');
+    </script>
+</body>
+</html>

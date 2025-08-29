@@ -30,17 +30,329 @@
  *    Status: Non prioritaire
  */
 
-// Cache pour les données d'indicateurs (évite les appels API répétés)
-let indicatorsCache = new Map();
-const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
-
-// Cache pour stabiliser les valeurs simulées (évite la variabilité au refresh)
-let stableSimulationCache = null;
-let simulationCacheTimestamp = 0;
-const SIMULATION_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes pour stabilité
+// ===== INTELLIGENT CACHING SYSTEM =====
 
 /**
- * Configuration des indicateurs on-chain avec leurs seuils
+ * Advanced caching system with adaptive TTL and performance optimization
+ */
+class IntelligentCache {
+  constructor() {
+    this.cache = new Map();
+    this.accessPatterns = new Map();
+    this.performanceMetrics = {
+      hits: 0,
+      misses: 0,
+      totalRequests: 0,
+      avgResponseTime: 0
+    };
+  }
+
+  /**
+   * Get adaptive TTL based on market volatility and access patterns
+   */
+  getAdaptiveTTL(key, baseMs = 10 * 60 * 1000) {
+    const pattern = this.accessPatterns.get(key);
+    if (!pattern) return baseMs;
+
+    // High frequency access = shorter TTL for freshness
+    if (pattern.accessCount > 10 && pattern.avgInterval < 30000) {
+      return baseMs * 0.5; // 5 minutes for high frequency
+    }
+
+    // Low frequency access = longer TTL for performance  
+    if (pattern.accessCount < 3 && pattern.avgInterval > 300000) {
+      return baseMs * 2; // 20 minutes for low frequency
+    }
+
+    return baseMs;
+  }
+
+  /**
+   * Set cache entry with metadata
+   */
+  set(key, value, customTtl = null) {
+    const ttl = customTtl || this.getAdaptiveTTL(key);
+    const entry = {
+      value,
+      timestamp: Date.now(),
+      ttl,
+      accessCount: 0,
+      lastAccess: Date.now()
+    };
+
+    this.cache.set(key, entry);
+    this.updateAccessPattern(key);
+    return entry;
+  }
+
+  /**
+   * Get cache entry if still valid
+   */
+  get(key) {
+    const entry = this.cache.get(key);
+    if (!entry) {
+      this.performanceMetrics.misses++;
+      this.performanceMetrics.totalRequests++;
+      return null;
+    }
+
+    const age = Date.now() - entry.timestamp;
+    if (age > entry.ttl) {
+      this.cache.delete(key);
+      this.performanceMetrics.misses++;
+      this.performanceMetrics.totalRequests++;
+      return null;
+    }
+
+    // Update access metadata
+    entry.accessCount++;
+    entry.lastAccess = Date.now();
+    this.updateAccessPattern(key);
+    
+    this.performanceMetrics.hits++;
+    this.performanceMetrics.totalRequests++;
+    
+    return entry.value;
+  }
+
+  /**
+   * Update access patterns for adaptive TTL
+   */
+  updateAccessPattern(key) {
+    const now = Date.now();
+    const pattern = this.accessPatterns.get(key) || {
+      accessCount: 0,
+      lastAccess: now,
+      intervals: [],
+      avgInterval: 0
+    };
+
+    if (pattern.lastAccess > 0) {
+      const interval = now - pattern.lastAccess;
+      pattern.intervals.push(interval);
+      
+      // Keep only last 10 intervals for rolling average
+      if (pattern.intervals.length > 10) {
+        pattern.intervals.shift();
+      }
+      
+      pattern.avgInterval = pattern.intervals.reduce((a, b) => a + b, 0) / pattern.intervals.length;
+    }
+
+    pattern.accessCount++;
+    pattern.lastAccess = now;
+    this.accessPatterns.set(key, pattern);
+  }
+
+  /**
+   * Check if cache entry exists and is still valid
+   */
+  has(key) {
+    const entry = this.cache.get(key);
+    if (!entry) return false;
+    
+    const age = Date.now() - entry.timestamp;
+    return age <= entry.ttl;
+  }
+
+  /**
+   * Get cache statistics
+   */
+  getStats() {
+    const hitRate = this.performanceMetrics.totalRequests > 0 
+      ? (this.performanceMetrics.hits / this.performanceMetrics.totalRequests) * 100 
+      : 0;
+
+    return {
+      ...this.performanceMetrics,
+      hitRate: Math.round(hitRate * 100) / 100,
+      cacheSize: this.cache.size,
+      patterns: this.accessPatterns.size
+    };
+  }
+
+  /**
+   * Clear expired entries and optimize memory
+   */
+  cleanup() {
+    const now = Date.now();
+    let cleaned = 0;
+
+    for (const [key, entry] of this.cache.entries()) {
+      const age = now - entry.timestamp;
+      if (age > entry.ttl) {
+        this.cache.delete(key);
+        cleaned++;
+      }
+    }
+
+    // Clean old access patterns
+    for (const [key, pattern] of this.accessPatterns.entries()) {
+      if (now - pattern.lastAccess > 24 * 60 * 60 * 1000) { // 24h
+        this.accessPatterns.delete(key);
+      }
+    }
+
+    console.log(`🧹 Cache cleanup: ${cleaned} expired entries removed`);
+    return cleaned;
+  }
+
+  /**
+   * Force refresh of specific key
+   */
+  invalidate(key) {
+    this.cache.delete(key);
+  }
+
+  /**
+   * Clear all cache
+   */
+  clear() {
+    this.cache.clear();
+    this.accessPatterns.clear();
+    this.performanceMetrics = { hits: 0, misses: 0, totalRequests: 0, avgResponseTime: 0 };
+  }
+}
+
+// Global intelligent cache instance
+const intelligentCache = new IntelligentCache();
+
+// Legacy cache variables (for backward compatibility)
+let indicatorsCache = intelligentCache;
+const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
+
+// Plus de cache de simulation - données réelles uniquement
+
+// Auto-cleanup every 30 minutes
+setInterval(() => {
+  intelligentCache.cleanup();
+}, 30 * 60 * 1000);
+
+// ===== INDICATOR CATEGORIES AND WEIGHTS =====
+
+/**
+ * Catégorisation intelligente des indicateurs avec pondérations
+ * Basée sur l'analyse des 30+ indicateurs de Crypto-Toolbox
+ */
+export const INDICATOR_CATEGORIES = {
+  // Indicateurs On-Chain Fondamentaux (60% du score) - Données blockchain pures
+  onchain_fundamentals: {
+    weight: 0.60,
+    description: "Métriques blockchain fondamentales",
+    indicators: {
+      // Évaluation de prix vs valeur intrinsèque
+      'mvrv': { weight: 0.25, invert: true }, // High MVRV = overvalued = bearish
+      'mvrv_z_score': { weight: 0.25, invert: true },
+      'nupl': { weight: 0.20, invert: true }, // High NUPL = profit zone = bearish
+      'rupl_nupl': { weight: 0.20, invert: true },
+      'rupl': { weight: 0.20, invert: true },
+      
+      // Métriques miniers et réseau
+      'puell': { weight: 0.15, invert: false }, // Puell Multiple pattern varies
+      'puell_multiple': { weight: 0.15, invert: false },
+      'sopr': { weight: 0.10, invert: false }, // SOPR >1 = profits realized
+      'rhodl': { weight: 0.05, invert: true }
+    }
+  },
+  
+  // Indicateurs Cycle/Techniques (30% du score) - Signaux de timing
+  cycle_technical: {
+    weight: 0.30,
+    description: "Signaux de cycle et techniques",
+    indicators: {
+      'pi_cycle': { weight: 0.35, invert: true }, // High = top signal
+      'pi': { weight: 0.35, invert: true },
+      'cbbi': { weight: 0.30, invert: true }, // Colin Bicknell Bitcoin Index
+      'rainbow': { weight: 0.20, invert: true }, // Rainbow Chart position
+      'rsi': { weight: 0.15, invert: true }, // RSI Bitcoin mensuel
+      'stock_to_flow': { weight: 0.0, invert: false } // Modèle controversé
+    }
+  },
+  
+  // Indicateurs de Sentiment (10% du score) - Psychologie de marché
+  sentiment: {
+    weight: 0.10,
+    description: "Sentiment et psychologie de marché", 
+    indicators: {
+      'fear_greed': { weight: 0.60, invert: true }, // High Fear & Greed = bearish
+      'fear_greed_7d': { weight: 0.40, invert: true },
+      'fear': { weight: 0.60, invert: true }
+    }
+  }
+};
+
+/**
+ * Fonction pour classer automatiquement un indicateur selon son nom
+ */
+export function classifyIndicator(indicatorName) {
+  const name = indicatorName.toLowerCase().trim();
+  
+  // Patterns spéciaux pour indicateurs de Crypto-Toolbox
+  const specialMappings = {
+    'pi cycle': { category: 'cycle_technical', key: 'pi_cycle' },
+    'cbbi': { category: 'cycle_technical', key: 'cbbi' },
+    'mvrv z-score': { category: 'onchain_fundamentals', key: 'mvrv_z_score' },
+    'mvrv': { category: 'onchain_fundamentals', key: 'mvrv' },
+    'puell multiple': { category: 'onchain_fundamentals', key: 'puell_multiple' },
+    'puell': { category: 'onchain_fundamentals', key: 'puell' },
+    'rupl/nupl': { category: 'onchain_fundamentals', key: 'rupl_nupl' },
+    'nupl': { category: 'onchain_fundamentals', key: 'nupl' },
+    'rupl': { category: 'onchain_fundamentals', key: 'rupl' },
+    'rsi bitcoin': { category: 'cycle_technical', key: 'rsi' },
+    'rsi mensuel': { category: 'cycle_technical', key: 'rsi' },
+    'rsi': { category: 'cycle_technical', key: 'rsi' },
+    'fear & greed': { category: 'sentiment', key: 'fear_greed' },
+    'fear and greed': { category: 'sentiment', key: 'fear_greed' },
+    'sopr': { category: 'onchain_fundamentals', key: 'sopr' }
+  };
+  
+  // Recherche par correspondance exacte d'abord
+  for (const [pattern, mapping] of Object.entries(specialMappings)) {
+    if (name.includes(pattern)) {
+      const category = INDICATOR_CATEGORIES[mapping.category];
+      const config = category.indicators[mapping.key];
+      
+      if (config) {
+        return {
+          category: mapping.category,
+          key: mapping.key,
+          weight: config.weight,
+          invert: config.invert,
+          categoryWeight: category.weight
+        };
+      }
+    }
+  }
+  
+  // Recherche générique dans chaque catégorie
+  for (const [categoryKey, category] of Object.entries(INDICATOR_CATEGORIES)) {
+    for (const [indicatorKey, config] of Object.entries(category.indicators)) {
+      // Correspondance partielle
+      if (name.includes(indicatorKey) || indicatorKey.includes(name.split(' ')[0])) {
+        return {
+          category: categoryKey,
+          key: indicatorKey,
+          weight: config.weight,
+          invert: config.invert,
+          categoryWeight: category.weight
+        };
+      }
+    }
+  }
+  
+  // Par défaut, classer comme sentiment avec poids faible
+  console.warn(`⚠️ Unknown indicator classification: ${indicatorName}`);
+  return {
+    category: 'sentiment',
+    key: 'unknown',
+    weight: 0.1,
+    invert: false,
+    categoryWeight: 0.10
+  };
+}
+
+/**
+ * Configuration des indicateurs on-chain avec leurs seuils (LEGACY)
  */
 export const INDICATORS_CONFIG = {
   mvrv: {
@@ -124,6 +436,71 @@ export const INDICATORS_CONFIG = {
     contrarian: true // Indicateur contrarian
   },
 
+  ahr999: {
+    name: "Ahr999 Index",
+    description: "Indicateur d'achat Bitcoin à long terme",
+    thresholds: {
+      extreme_high: 4.0,  // Très surévalué
+      high: 2.0,          // Surévalué  
+      normal_high: 1.2,   // Cher
+      normal: 0.8,        // Équilibre
+      normal_low: 0.45,   // Zone d'accumulation
+      low: 0.25,          // Excellente opportunité
+      extreme_low: 0.1    // Opportunité exceptionnelle
+    },
+    weight: 0.15,
+    api_available: true,
+    contrarian: true // Plus bas = meilleur pour acheter
+  },
+
+  nupl: {
+    name: "NUPL (Net Unrealized Profit/Loss)",
+    description: "Profit/perte non réalisé du réseau",
+    thresholds: {
+      extreme_high: 90,   // Euphorie excessive
+      high: 75,           // Euphorie/Cupidité
+      normal_high: 60,    // Optimisme
+      normal: 50,         // Croyance/Déni
+      normal_low: 40,     // Espoir/Peur
+      low: 25,            // Capitulation
+      extreme_low: 10     // Capitulation extrême
+    },
+    weight: 0.20,
+    api_available: true
+  },
+
+  rsi: {
+    name: "RSI Bitcoin",
+    description: "Relative Strength Index pour Bitcoin",
+    thresholds: {
+      extreme_high: 80,   // Très suracheté
+      high: 70,           // Suracheté
+      normal_high: 60,    // Tendance haussière
+      normal: 50,         // Neutre
+      normal_low: 40,     // Tendance baissière
+      low: 30,            // Survendu
+      extreme_low: 20     // Très survendu
+    },
+    weight: 0.10,
+    api_available: true
+  },
+
+  sopr: {
+    name: "SOPR (Spent Output Profit Ratio)",
+    description: "Ratio de profit des sorties dépensées",
+    thresholds: {
+      extreme_high: 90,   // Très profitable
+      high: 75,           // Profitable
+      normal_high: 60,    // Légèrement profitable
+      normal: 50,         // Équilibre
+      normal_low: 40,     // Légèrement non profitable
+      low: 25,            // Non profitable
+      extreme_low: 10     // Très non profitable
+    },
+    weight: 0.10,
+    api_available: true
+  },
+
   stock_to_flow_deviation: {
     name: "Stock-to-Flow Deviation",
     description: "Écart entre prix réel et modèle S2F",
@@ -169,21 +546,95 @@ function indicatorToScore(value, config) {
 }
 
 /**
- * Récupère les données Fear & Greed Index
+ * Export cache stats and control functions
+ */
+export function getCacheStats() {
+  return intelligentCache.getStats();
+}
+
+export function clearCache() {
+  intelligentCache.clear();
+  console.log('🧹 OnChain indicators cache cleared');
+}
+
+export function invalidateCache(key) {
+  intelligentCache.invalidate(key);
+  console.log(`🔄 Cache invalidated for: ${key}`);
+}
+
+/**
+ * Optimized fetch with performance monitoring and rate limiting
+ */
+async function performanceMonitoredFetch(url, options = {}) {
+  const startTime = performance.now();
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      // Add timeout to prevent hanging requests
+      signal: AbortSignal.timeout(10000) // 10 second timeout
+    });
+    
+    const endTime = performance.now();
+    const responseTime = endTime - startTime;
+    
+    // Update performance metrics
+    const stats = intelligentCache.performanceMetrics;
+    stats.avgResponseTime = stats.avgResponseTime === 0 
+      ? responseTime 
+      : (stats.avgResponseTime + responseTime) / 2;
+    
+    console.log(`📡 API response time: ${Math.round(responseTime)}ms`);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    return response;
+  } catch (error) {
+    const endTime = performance.now();
+    const responseTime = endTime - startTime;
+    
+    if (error.name === 'TimeoutError') {
+      console.warn('⏰ API request timed out after 10s');
+    } else if (error.name === 'AbortError') {
+      console.warn('🚫 API request was aborted');
+    } else {
+      console.warn(`🌐 Network error (${Math.round(responseTime)}ms):`, error.message);
+    }
+    
+    throw error;
+  }
+}
+
+/**
+ * Récupère les données Fear & Greed Index avec cache intelligent
  */
 async function fetchFearGreedIndex() {
   try {
-    const response = await fetch('https://api.alternative.me/fng/?limit=1');
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    
+    // Check intelligent cache first
+    const cached = intelligentCache.get('fear_greed');
+    if (cached) {
+      console.log('📊 Fear & Greed from intelligent cache');
+      return cached;
+    }
+
+    console.log('📡 Fetching Fear & Greed from API...');
+    const response = await performanceMonitoredFetch('https://api.alternative.me/fng/?limit=1');
     const data = await response.json();
     if (data.data && data.data[0]) {
-      return {
+      const result = {
         value: parseInt(data.data[0].value),
         classification: data.data[0].value_classification,
         timestamp: new Date(data.data[0].timestamp * 1000),
         source: 'Alternative.me'
       };
+      
+      // Store in intelligent cache
+      intelligentCache.set('fear_greed', result);
+      console.log('💾 Fear & Greed cached with adaptive TTL');
+      
+      return result;
     }
     throw new Error('Invalid response format');
   } catch (error) {
@@ -193,215 +644,563 @@ async function fetchFearGreedIndex() {
 }
 
 /**
- * Simule des données MVRV (en attendant l'API réelle) - Version stable
+ * Récupère les indicateurs depuis Crypto-Toolbox.vercel.app
  */
-function simulateMVRV() {
-  // Vérifier le cache de simulation
-  if (stableSimulationCache && (Date.now() - simulationCacheTimestamp < SIMULATION_CACHE_DURATION)) {
-    return stableSimulationCache.mvrv;
+export async function fetchCryptoToolboxIndicators() {
+  console.log('🌐 Fetching indicators from Crypto-Toolbox API...');
+  
+  try {
+    const cached = intelligentCache.get('cryptotoolbox_indicators');
+    if (cached) {
+      console.log('💾 Crypto-Toolbox indicators from cache');
+      return cached;
+    }
+    
+    // Appel au backend Python avec Playwright
+    const response = await performanceMonitoredFetch('http://127.0.0.1:8001/api/crypto-toolbox');
+    
+    if (!response.ok) {
+      throw new Error(`Backend API error: ${response.status} ${response.statusText}`);
+    }
+    
+    const apiData = await response.json();
+    console.log(`📊 API response:`, apiData);
+    
+    if (!apiData.success) {
+      throw new Error(`API returned error: ${apiData.error}`);
+    }
+    
+    // Convertir TOUS les indicateurs API en format pour le nouveau système
+    const indicators = {};
+    
+    if (apiData.indicators && Array.isArray(apiData.indicators)) {
+      console.log(`🔄 Processing ${apiData.indicators.length} raw indicators from API...`);
+      
+      apiData.indicators.forEach(indicator => {
+        // Utiliser le nom original comme clé unique (pas de mapping restrictif)
+        const originalName = indicator.name;
+        const cleanKey = originalName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+        
+        if (indicator.value_numeric !== undefined) {
+          indicators[cleanKey] = {
+            name: originalName,
+            value_numeric: indicator.value_numeric,
+            value: indicator.value, // Texte original "75.39%"
+            raw_value: indicator.raw_value,
+            threshold_numeric: indicator.threshold_numeric,
+            threshold: indicator.threshold,
+            raw_threshold: indicator.raw_threshold,
+            in_critical_zone: indicator.in_critical_zone,
+            threshold_operator: indicator.threshold_operator,
+            scraped_at: apiData.scraped_at,
+            source: 'crypto-toolbox'
+          };
+          
+          console.log(`✅ Processed: ${originalName} = ${indicator.value_numeric}% ${indicator.in_critical_zone ? '🚨' : ''}`);
+        } else {
+          console.warn(`⚠️ Skipped indicator without numeric value: ${originalName}`);
+        }
+      });
+    }
+    
+    console.log(`📊 Converted ${Object.keys(indicators).length} indicators from API`);
+    console.log(`📊 Indicators:`, indicators);
+    
+    if (Object.keys(indicators).length > 0) {
+      // Cache pour 24h - les indicateurs on-chain n'évoluent pas rapidement
+      const CACHE_24H = 24 * 60 * 60 * 1000; // 24 heures
+      intelligentCache.set('cryptotoolbox_indicators', indicators, CACHE_24H);
+      console.log('💾 Crypto-Toolbox indicators cached for 24h');
+      return indicators;
+    }
+    
+    throw new Error('No valid indicators found in API response');
+    
+  } catch (error) {
+    console.error('❌ Crypto-Toolbox API fetch failed:', error.message);
+    
+    // Si le backend est inaccessible, essayer de diagnostiquer
+    if (error.message.includes('Failed to fetch') || error.message.includes('ERR_CONNECTION_REFUSED')) {
+      console.error('🚨 Backend API seems to be down. Please ensure crypto_toolbox_api.py is running on port 8001');
+    }
+    
+    return null;
   }
-  
-  // Simulation basée sur les patterns historiques
-  const now = new Date();
-  const currentCycleMonths = ((now - new Date('2024-04-20')) / (1000 * 60 * 60 * 24 * 30.44));
-  
-  // MVRV suit généralement le cycle avec quelques mois d'avance
-  let baseValue = 1.0;
-  
-  if (currentCycleMonths < 6) {
-    baseValue = 0.8 + (currentCycleMonths / 6) * 0.4; // 0.8 → 1.2
-  } else if (currentCycleMonths < 18) {
-    baseValue = 1.2 + ((currentCycleMonths - 6) / 12) * 1.3; // 1.2 → 2.5
-  } else if (currentCycleMonths < 24) {
-    baseValue = 2.5 + ((currentCycleMonths - 18) / 6) * 1.0; // 2.5 → 3.5
-  } else {
-    baseValue = 3.5 - ((currentCycleMonths - 24) / 24) * 2.7; // 3.5 → 0.8
-  }
-  
-  // Bruit réduit et basé sur la date pour stabilité
-  const dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
-  const stableNoise = Math.sin(dayOfYear * 0.017) * 0.1; // Variation lente et prévisible
-  
-  return Math.max(0.3, baseValue + stableNoise);
 }
 
 /**
- * Simule des données NVT - Version stable
+ * Parse le HTML de Crypto-Toolbox pour extraire les indicateurs
  */
-function simulateNVT() {
-  // Vérifier le cache de simulation
-  if (stableSimulationCache && (Date.now() - simulationCacheTimestamp < SIMULATION_CACHE_DURATION)) {
-    return stableSimulationCache.nvt;
+function parseCryptoToolboxHTML(html) {
+  const indicators = {};
+  
+  try {
+    // Créer un parser DOM
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    
+    // Stratégie 1: Parser comme ton code Python - table tbody tr
+    const tables = doc.querySelectorAll('table');
+    console.log(`🔍 Found ${tables.length} tables to parse`);
+    
+    tables.forEach((table, tableIndex) => {
+      // Chercher tbody tr comme dans ton code Python
+      const rows = table.querySelectorAll('tbody tr');
+      console.log(`🔍 Table ${tableIndex + 1}: Found ${rows.length} tbody rows`);
+      
+      if (rows.length === 0) {
+        // Fallback: chercher tr directement
+        const fallbackRows = table.querySelectorAll('tr');
+        console.log(`🔍 Table ${tableIndex + 1}: Fallback found ${fallbackRows.length} tr rows`);
+        
+        fallbackRows.forEach(row => parseTableRow(row, tableIndex, indicators));
+      } else {
+        rows.forEach(row => parseTableRow(row, tableIndex, indicators));
+      }
+    });
+    
+    function parseTableRow(row, tableIndex, indicators) {
+      const cells = row.querySelectorAll('td');
+      if (cells.length < 3) {
+        console.log(`🔍 Row skipped: only ${cells.length} cells`);
+        return; // Ignorer les lignes avec moins de 3 colonnes
+      }
+      
+      const name = cells[0]?.textContent?.trim();
+      const valueText = cells[1]?.textContent?.trim();
+      const thresholdText = cells[2]?.textContent?.trim();
+      
+      console.log(`🔍 Raw row data: "${name}" | "${valueText}" | "${thresholdText}"`);
+      
+      // Vérifier que c'est une ligne de données valide
+      if (name && valueText && !name.toLowerCase().includes('indicateur')) {
+        // Extraire la valeur numérique (pourcentage ou nombre)
+        const valueMatch = valueText.match(/[\d.,]+/);
+        if (valueMatch) {
+          const numericValue = parseFloat(valueMatch[0].replace(',', '.'));
+          
+          // Mapper les noms français vers nos clés standards
+          const mappedKey = mapCryptoToolboxIndicatorName(name);
+          if (mappedKey) {
+            indicators[mappedKey] = {
+              name: name,
+              value_percent: numericValue,
+              critical_threshold: thresholdText,
+              source: 'Crypto-Toolbox',
+              table: tableIndex + 1,
+              raw_value: valueText,
+              raw_threshold: thresholdText
+            };
+            
+            console.log(`✅ Mapped: ${name} → ${mappedKey} (${numericValue})`);
+          } else {
+            console.warn(`⚠️ Unmapped indicator: "${name}"`);
+          }
+        } else {
+          console.warn(`⚠️ No numeric value found in: "${valueText}"`);
+        }
+      }
+    }
+    
+    // Stratégie 2: Patterns regex en fallback
+    if (Object.keys(indicators).length === 0) {
+      console.log('🔄 No table data found, trying regex patterns...');
+      
+      const patterns = [
+        { name: 'mvrv', regex: /MVRV.*?([0-9.]+)%/gi, french: 'MVRV Z-Score' },
+        { name: 'puell_multiple', regex: /Puell.*?([0-9.]+)%/gi, french: 'Puell Multiple' },
+        { name: 'nupl', regex: /NUPL.*?([0-9.]+)%/gi, french: 'NUPL' },
+        { name: 'rsi', regex: /RSI.*?([0-9.]+)%/gi, french: 'RSI Bitcoin' }
+      ];
+      
+      patterns.forEach(pattern => {
+        const match = pattern.regex.exec(html);
+        if (match && match[1]) {
+          indicators[pattern.name] = {
+            name: pattern.french,
+            value_percent: parseFloat(match[1]),
+            source: 'Crypto-Toolbox (regex)',
+            raw_value: match[0]
+          };
+          console.log(`✅ Regex match: ${pattern.name} = ${match[1]}%`);
+        }
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Crypto-Toolbox HTML parsing failed:', error.message);
   }
   
-  const currentCycleMonths = ((new Date() - new Date('2024-04-20')) / (1000 * 60 * 60 * 24 * 30.44));
-  
-  // NVT inversement corrélé aux transactions (plus de spéculation = NVT élevé)
-  let baseValue = 50;
-  
-  if (currentCycleMonths < 12) {
-    baseValue = 45 - (currentCycleMonths / 12) * 20; // 45 → 25 (plus d'utilité)
-  } else if (currentCycleMonths < 20) {
-    baseValue = 25 + ((currentCycleMonths - 12) / 8) * 75; // 25 → 100 (spéculation)
-  } else {
-    baseValue = 100 + ((currentCycleMonths - 20) / 20) * 50; // 100 → 150
-  }
-  
-  // Bruit réduit et stable basé sur la semaine
-  const now = new Date();
-  const weekOfYear = Math.floor(((now - new Date(now.getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24)) / 7);
-  const stableNoise = Math.cos(weekOfYear * 0.1) * 7; // Variation lente
-  
-  return Math.max(15, baseValue + stableNoise);
+  return indicators;
 }
 
 /**
- * Simule le Puell Multiple - Version stable
+ * Mappe les noms d'indicateurs français de Crypto-Toolbox vers nos clés standards
  */
-function simulatePuellMultiple() {
-  // Vérifier le cache de simulation
-  if (stableSimulationCache && (Date.now() - simulationCacheTimestamp < SIMULATION_CACHE_DURATION)) {
-    return stableSimulationCache.puell;
+function mapCryptoToolboxIndicatorName(frenchName) {
+  const name = frenchName.toLowerCase().trim();
+  
+  // Mapping des noms français vers clés standards (basé sur ton code Python)
+  const mappings = {
+    // Indicateurs de données principaux
+    'mvrv z-score': 'mvrv',
+    'mvrv': 'mvrv',
+    'puell multiple': 'puell_multiple',
+    'puell': 'puell_multiple',
+    'nupl': 'nupl',
+    'rupl/nupl': 'nupl', 
+    'rsi mensuel': 'rsi',
+    'rsi bitcoin': 'rsi',
+    'rsi': 'rsi',
+    'sopr (ma 90j)': 'sopr',
+    'sopr': 'sopr',
+    'coin days destroyed (ma 90j)': 'cdd',
+    'coin days destroyed': 'cdd',
+    'bmo (par prof. chaîne) (ema 7j)': 'bmo_7',
+    'bmo (par prof. chaîne) (ema 30j)': 'bmo_30', 
+    'bmo (par prof. chaîne) (ema 90j)': 'bmo_90',
+    'bmo': 'bmo',
+    
+    // Autres indicateurs techniques
+    'cbbi*': 'cbbi',
+    'pi cycle': 'pi_cycle',
+    'rhold': 'rhold',
+    '2y ma': 'ma_2y',
+    'trolololo trend line': 'trolololo',
+    'reserve risk': 'reserve_risk',
+    'woobull': 'woobull',
+    'cointime mvrv-z score (ema 14j)': 'mvrv_cointime',
+    'mayer mutiple': 'mayer_multiple',
+    'mayer multiple': 'mayer_multiple',
+    
+    // Indicateurs sentiment
+    'fear & greed (moyenne 7 jours)': 'fear_greed_7d',
+    'fear & greed': 'fear_greed',
+    'fear and greed': 'fear_greed',
+    
+    // Dominance et altcoins
+    'dominance btc': 'btc_dominance',
+    'altcoin season index': 'altseason',
+    'altcoin': 'altseason',
+    
+    // Indicateurs Google trends
+    'google trend "crypto"': 'google_crypto',
+    'google trend "buy crypto"': 'google_buy_crypto', 
+    'google trend "bitcoin"': 'google_bitcoin',
+    'google trend "ethereum"': 'google_ethereum',
+    
+    // Indicateurs apps
+    'coinbase app rank (us)': 'coinbase_rank_us',
+    'binance app rank (fr)': 'binance_rank_fr',
+    'binance app rank (uk)': 'binance_rank_uk',
+    'crypto.com app rank (us)': 'crypto_com_rank_us',
+    'phantom app rank (us)': 'phantom_rank_us',
+    
+    // Indicateurs temporels
+    'jours depuis halving': 'days_since_halving',
+    'days since ath': 'days_since_ath',
+    'cycle time': 'cycle_time',
+    
+    // Autres
+    'nombre de connectés jvc': 'jvc_users'
+  };
+  
+  // Recherche exacte
+  if (mappings[name]) {
+    return mappings[name];
   }
   
-  const currentCycleMonths = ((new Date() - new Date('2024-04-20')) / (1000 * 60 * 60 * 24 * 30.44));
+  // Recherche par inclusion
+  for (const [french, key] of Object.entries(mappings)) {
+    if (name.includes(french) || french.includes(name)) {
+      return key;
+    }
+  }
   
-  // Puell Multiple tend à être élevé avant les pics et bas après
-  let baseValue = 1.0;
+  console.warn(`⚠️ Unknown indicator name: "${frenchName}"`);
+  return null;
+}
+
+/**
+ * Convertit un pourcentage Crypto-Toolbox (0-100%) vers notre système de score
+ * 0% = Accumulation extrême, 100% = Distribution extrême
+ */
+function convertCryptoToolboxPercentToScore(percent, isContrarian = false) {
+  // Les pourcentages Crypto-Toolbox représentent la position dans le cycle
+  // 0% = creux de marché, 100% = pic de marché
   
-  if (currentCycleMonths < 8) {
-    baseValue = 0.6 + (currentCycleMonths / 8) * 0.5; // 0.6 → 1.1
-  } else if (currentCycleMonths < 20) {
-    baseValue = 1.1 + ((currentCycleMonths - 8) / 12) * 1.4; // 1.1 → 2.5
+  if (isContrarian) {
+    // Pour les indicateurs contrarian (Fear & Greed), inverser
+    return Math.round(100 - percent);
   } else {
-    baseValue = 2.5 - ((currentCycleMonths - 20) / 28) * 1.9; // 2.5 → 0.6
+    // Pour les indicateurs standards, utiliser directement
+    return Math.round(percent);
   }
-  
-  // Variation stable basée sur le mois
-  const now = new Date();
-  const monthNoise = Math.sin((now.getMonth() + 1) * 0.5) * 0.15;
-  
-  return Math.max(0.3, baseValue + monthNoise);
 }
 
 /**
  * Récupère tous les indicateurs disponibles avec cache stable
  */
 export async function fetchAllIndicators() {
-  console.log('🔍 Fetching on-chain indicators...');
+  console.log('🔍 Fetching REAL on-chain indicators from unified backend...');
   
   const indicators = {};
+  const errors = [];
   
   try {
-    // Initialiser le cache stable si nécessaire
-    const now = Date.now();
-    if (!stableSimulationCache || (now - simulationCacheTimestamp >= SIMULATION_CACHE_DURATION)) {
-      console.log('🔄 Refreshing simulation cache...');
+    // 1. Fetch all indicators from Crypto-Toolbox backend (30+ indicators)
+    console.log('🌐 Calling fetchCryptoToolboxIndicators for all indicators...');
+    const cryptoToolboxData = await fetchCryptoToolboxIndicators();
+    console.log('🔍 CryptoToolbox result:', cryptoToolboxData);
+    
+    if (cryptoToolboxData && Object.keys(cryptoToolboxData).filter(k => !k.startsWith('_')).length > 0) {
+      // Process all indicators from the backend
+      Object.entries(cryptoToolboxData).forEach(([key, data]) => {
+        if (key.startsWith('_') || !data || typeof data !== 'object') {
+          return; // Skip metadata
+        }
+        
+        // Use the backend data directly without double conversion
+        indicators[key] = {
+          name: data.name,
+          value: data.value_numeric, // Raw percentage value
+          value_numeric: data.value_numeric,
+          raw_value: data.raw_value,
+          threshold_numeric: data.threshold_numeric,
+          in_critical_zone: data.in_critical_zone,
+          threshold: data.threshold,
+          raw_threshold: data.raw_threshold,
+          threshold_operator: data.threshold_operator,
+          source: data.source || 'crypto-toolbox',
+          scraped_at: data.scraped_at,
+          timestamp: new Date()
+        };
+        
+        console.log(`✅ ${data.name} loaded: ${data.value_numeric}% ${data.in_critical_zone ? '🚨' : ''}`);
+      });
       
-      stableSimulationCache = {
-        mvrv: simulateMVRV(),
-        nvt: simulateNVT(),
-        puell: simulatePuellMultiple(),
-        timestamp: now
-      };
-      simulationCacheTimestamp = now;
+      console.log(`✅ Total ${Object.keys(indicators).length} indicators loaded from Crypto-Toolbox`);
+      
+    } else {
+      errors.push('Crypto-Toolbox: Backend unavailable - no indicators loaded');
+      console.warn('⚠️ Crypto-Toolbox backend failed, no indicators loaded');
     }
     
-    // Fear & Greed Index (API réelle)
-    const fgData = await fetchFearGreedIndex();
-    if (fgData) {
-      indicators.fear_greed = {
-        value: fgData.value,
-        score: indicatorToScore(fgData.value, INDICATORS_CONFIG.fear_greed),
-        classification: fgData.classification,
-        source: fgData.source,
-        timestamp: fgData.timestamp
-      };
+    // 2. Add Fear & Greed from Alternative.me as fallback if not in Crypto-Toolbox
+    const fearGreedExists = Object.keys(indicators).some(key => 
+      indicators[key].name?.toLowerCase().includes('fear') && 
+      indicators[key].name?.toLowerCase().includes('greed')
+    );
+    
+    if (!fearGreedExists) {
+      console.log('🔄 Adding Fear & Greed as fallback indicator...');
+      const fgData = await fetchFearGreedIndex();
+      if (fgData) {
+        indicators.fear_greed_fallback = {
+          name: 'Fear & Greed Index',
+          value: fgData.value,
+          value_numeric: fgData.value,
+          classification: fgData.classification,
+          source: 'alternative.me',
+          timestamp: fgData.timestamp,
+          in_critical_zone: fgData.value > 80 || fgData.value < 20
+        };
+        console.log('✅ Fear & Greed fallback loaded:', fgData.value, fgData.classification);
+      } else {
+        errors.push('Fear & Greed fallback API also unavailable');
+      }
     }
     
-    // MVRV (simulation stable)
-    const mvrvValue = stableSimulationCache.mvrv;
-    indicators.mvrv = {
-      value: parseFloat(mvrvValue.toFixed(3)),
-      score: indicatorToScore(mvrvValue, INDICATORS_CONFIG.mvrv),
-      source: 'Simulated (stable)',
-      timestamp: new Date(stableSimulationCache.timestamp)
+    const successCount = Object.keys(indicators).filter(k => k !== '_metadata').length;
+    console.log(`✅ Real indicators loaded: ${successCount} total indicators`);
+    
+    if (errors.length > 0) {
+      console.warn('⚠️ Some fallback indicators unavailable:', errors);
+    }
+    
+    // Log indicator summary by source
+    const sourceStats = {};
+    Object.values(indicators).forEach(ind => {
+      if (ind.source) {
+        sourceStats[ind.source] = (sourceStats[ind.source] || 0) + 1;
+      }
+    });
+    
+    console.log('📊 Indicators by source:', sourceStats);
+    
+    return {
+      ...indicators,
+      _metadata: {
+        available_count: successCount,
+        missing_apis: errors,
+        source_stats: sourceStats,
+        message: `${successCount} real indicators loaded from Crypto-Toolbox backend.`,
+        last_updated: new Date().toISOString()
+      }
     };
-    
-    // NVT (simulation stable)
-    const nvtValue = stableSimulationCache.nvt;
-    indicators.nvt = {
-      value: parseFloat(nvtValue.toFixed(1)),
-      score: indicatorToScore(nvtValue, INDICATORS_CONFIG.nvt),
-      source: 'Simulated (stable)', 
-      timestamp: new Date(stableSimulationCache.timestamp)
-    };
-    
-    // Puell Multiple (simulation stable)
-    const puellValue = stableSimulationCache.puell;
-    indicators.puell_multiple = {
-      value: parseFloat(puellValue.toFixed(3)),
-      score: indicatorToScore(puellValue, INDICATORS_CONFIG.puell_multiple),
-      source: 'Simulated (stable)',
-      timestamp: new Date(stableSimulationCache.timestamp)
-    };
-    
-    console.log('✅ Indicators fetched (stable):', Object.keys(indicators));
-    console.log('🔍 MVRV:', mvrvValue.toFixed(3), 'Score:', indicators.mvrv.score);
-    console.log('🔍 NVT:', nvtValue.toFixed(1), 'Score:', indicators.nvt.score);
-    console.log('🔍 Puell:', puellValue.toFixed(3), 'Score:', indicators.puell_multiple.score);
-    
-    return indicators;
     
   } catch (error) {
-    console.error('❌ Error fetching indicators:', error);
-    return {};
+    console.error('❌ Error fetching real indicators:', error);
+    return {
+      _metadata: {
+        available_count: 0,
+        error: error.message,
+        message: 'Failed to fetch real-time on-chain indicators. Check network connection.',
+        last_updated: new Date().toISOString()
+      }
+    };
   }
 }
 
 /**
- * Calcule un score composite basé sur les indicateurs on-chain
+ * Normalise et inverse un score d'indicateur selon sa configuration
+ */
+function normalizeAndInvertScore(rawValue, classification) {
+  // Normaliser sur 0-100 (les valeurs Crypto-Toolbox sont déjà en %)
+  let normalizedScore = Math.max(0, Math.min(100, rawValue));
+  
+  // Inverser si nécessaire (pour les indicateurs bearish quand élevés)
+  if (classification.invert) {
+    normalizedScore = 100 - normalizedScore;
+  }
+  
+  return normalizedScore;
+}
+
+/**
+ * Calcule un score composite amélioré avec catégorisation intelligente
+ * Intègre les 30+ indicateurs réels de Crypto-Toolbox
  */
 export function calculateCompositeScore(indicators) {
-  if (!indicators || Object.keys(indicators).length === 0) {
+  if (!indicators || Object.keys(indicators).filter(k => k !== '_metadata').length === 0) {
     return {
-      score: 50,
-      confidence: 0.1,
+      score: null,
+      confidence: 0,
       contributors: [],
+      categoryBreakdown: {},
+      criticalZoneCount: 0,
       message: 'Aucun indicateur disponible'
     };
   }
   
-  let weightedSum = 0;
-  let totalWeight = 0;
-  const contributors = [];
+  // Structures pour calculer le score par catégorie
+  const categoryScores = {};
+  const categoryWeights = {};
+  const categoryContributors = {};
+  let totalCriticalZone = 0;
   
-  // Calculer la moyenne pondérée des scores
+  // Initialiser les catégories
+  Object.keys(INDICATOR_CATEGORIES).forEach(categoryKey => {
+    categoryScores[categoryKey] = 0;
+    categoryWeights[categoryKey] = 0;
+    categoryContributors[categoryKey] = [];
+  });
+  
+  // Traiter chaque indicateur avec la nouvelle logique
   Object.entries(indicators).forEach(([key, data]) => {
-    const config = INDICATORS_CONFIG[key];
-    if (config && typeof data.score === 'number') {
-      const weight = config.weight;
-      weightedSum += data.score * weight;
-      totalWeight += weight;
+    // Ignorer les métadonnées
+    if (key.startsWith('_') || !data || typeof data !== 'object') {
+      return;
+    }
+    
+    // Classer l'indicateur automatiquement
+    let indicatorName = data.name || key;
+    const classification = classifyIndicator(indicatorName);
+    
+    // Obtenir la valeur numérique de l'indicateur
+    let rawValue = data.value_numeric || data.value || data.percent_in_cycle;
+    
+    if (typeof rawValue !== 'number') {
+      console.warn(`⚠️ Invalid numeric value for ${indicatorName}: ${rawValue}`);
+      return;
+    }
+    
+    // Normaliser et inverser si nécessaire
+    const normalizedScore = normalizeAndInvertScore(rawValue, classification);
+    
+    // Calculer la contribution pondérée
+    const indicatorWeight = classification.weight * classification.categoryWeight;
+    const contribution = normalizedScore * indicatorWeight;
+    
+    // Ajouter à la catégorie appropriée
+    const category = classification.category;
+    categoryScores[category] += contribution;
+    categoryWeights[category] += indicatorWeight;
+    
+    // Compter les zones critiques
+    if (data.in_critical_zone) {
+      totalCriticalZone++;
+    }
+    
+    // Ajouter aux contributeurs
+    categoryContributors[category].push({
+      name: indicatorName,
+      originalValue: rawValue,
+      normalizedScore: normalizedScore,
+      weight: indicatorWeight,
+      contribution: contribution,
+      inCriticalZone: data.in_critical_zone || false,
+      classification: classification,
+      raw_threshold: data.raw_threshold
+    });
+    
+    console.log(`📊 ${indicatorName}: ${rawValue}% → ${normalizedScore} (${category}, weight: ${indicatorWeight.toFixed(3)})`);
+  });
+  
+  // Calculer le score final par catégorie puis globalement
+  let finalScore = 0;
+  let totalWeight = 0;
+  const categoryBreakdown = {};
+  
+  Object.entries(categoryScores).forEach(([category, score]) => {
+    const weight = categoryWeights[category];
+    if (weight > 0) {
+      const categoryScore = score / weight;
+      const categoryWeight = INDICATOR_CATEGORIES[category].weight;
       
-      contributors.push({
-        name: config.name,
-        score: data.score,
-        weight: weight,
-        value: data.value,
-        contribution: data.score * weight
-      });
+      finalScore += categoryScore * categoryWeight;
+      totalWeight += categoryWeight;
+      
+      categoryBreakdown[category] = {
+        score: Math.round(categoryScore),
+        weight: categoryWeight,
+        contributorsCount: categoryContributors[category].length,
+        description: INDICATOR_CATEGORIES[category].description,
+        contributors: categoryContributors[category].sort((a, b) => b.contribution - a.contribution)
+      };
     }
   });
   
-  const compositeScore = totalWeight > 0 ? weightedSum / totalWeight : 50;
-  const confidence = Math.min(0.9, totalWeight * 1.5); // Plus d'indicateurs = plus de confiance
+  if (totalWeight === 0) {
+    return {
+      score: null,
+      confidence: 0,
+      contributors: [],
+      categoryBreakdown: {},
+      criticalZoneCount: 0,
+      message: 'Aucun indicateur réel disponible pour calculer le score composite'
+    };
+  }
+  
+  const compositeScore = finalScore / totalWeight;
+  
+  // Calculer la confiance basée sur le nombre d'indicateurs et la diversité des catégories
+  const totalIndicators = Object.values(categoryContributors).flat().length;
+  const activeCategories = Object.keys(categoryBreakdown).length;
+  const confidence = Math.min(0.95, (totalIndicators * 0.05) + (activeCategories * 0.15));
+  
+  // Assembler tous les contributeurs pour la compatibilité
+  const allContributors = Object.values(categoryContributors).flat();
   
   return {
     score: Math.round(compositeScore),
     confidence: Math.round(confidence * 100) / 100,
-    contributors: contributors.sort((a, b) => b.contribution - a.contribution),
-    message: `Score composite basé sur ${contributors.length} indicateurs`
+    contributors: allContributors.sort((a, b) => b.contribution - a.contribution),
+    categoryBreakdown: categoryBreakdown,
+    criticalZoneCount: totalCriticalZone,
+    totalIndicators: totalIndicators,
+    activeCategories: activeCategories,
+    message: `Score composite basé sur ${totalIndicators} indicateur(s) réel(s) dans ${activeCategories} catégorie(s) (${totalCriticalZone} en zone critique)`
   };
 }
 

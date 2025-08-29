@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧪 Test Crypto-Toolbox Integration</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #1a202c;
+            color: #e2e8f0;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .card {
+            background: #2d3748;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border: 1px solid #4a5568;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            background: #3182ce;
+            color: white;
+            margin: 5px;
+        }
+        .btn:hover { background: #2c5282; }
+        .btn.success { background: #48bb78; }
+        .btn.success:hover { background: #38a169; }
+        .log {
+            background: #1a202c;
+            padding: 15px;
+            border-radius: 8px;
+            height: 350px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 13px;
+        }
+        .indicators-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .indicator-card {
+            background: #1a202c;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #63b3ed;
+        }
+        .indicator-card.success { border-left-color: #48bb78; }
+        .indicator-card.error { border-left-color: #f56565; }
+        .indicator-card.new { border-left-color: #ed8936; }
+        .indicator-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .indicator-value {
+            font-size: 20px;
+            color: #63b3ed;
+            margin: 5px 0;
+        }
+        .indicator-score {
+            font-size: 14px;
+            color: #a0aec0;
+            margin: 3px 0;
+        }
+        .indicator-source {
+            font-size: 11px;
+            color: #718096;
+            margin-top: 8px;
+        }
+        .percent-badge {
+            background: #4a5568;
+            color: #e2e8f0;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: #1a202c;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #48bb78;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #a0aec0;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>🧪 Test Crypto-Toolbox Integration Complète</h1>
+            <p>Test de l'intégration complète avec scraping Crypto-Toolbox + Alternative.me</p>
+            
+            <div>
+                <button class="btn" onclick="testFullIntegration()">🚀 Test Full Integration</button>
+                <button class="btn" onclick="testCryptoToolboxOnly()">📊 Test Crypto-Toolbox Only</button>
+                <button class="btn" onclick="testCompositeScore()">🎯 Test Composite Score</button>
+                <button class="btn" onclick="testCachePerformance()">⚡ Test Cache Performance</button>
+                <button class="btn success" onclick="continuousTest()">🔄 Continuous Test (10x)</button>
+                <button class="btn" onclick="clearResults()">🧹 Clear</button>
+            </div>
+        </div>
+
+        <div class="stats-row" id="stats-row">
+            <div class="stat-card">
+                <div class="stat-value" id="total-indicators">-</div>
+                <div class="stat-label">Total Indicators</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="crypto-toolbox-count">-</div>
+                <div class="stat-label">Crypto-Toolbox</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="cache-hit-rate">-</div>
+                <div class="stat-label">Cache Hit Rate</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="response-time">-</div>
+                <div class="stat-label">Avg Response Time</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="composite-score">-</div>
+                <div class="stat-label">Composite Score</div>
+            </div>
+        </div>
+
+        <div class="indicators-grid" id="indicators-grid">
+            <!-- Indicators will be displayed here -->
+        </div>
+
+        <div class="card">
+            <h3>📝 Integration Test Log</h3>
+            <div class="log" id="test-log">
+                Crypto-Toolbox integration test initialized...<br>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { fetchAllIndicators, calculateCompositeScore, getCacheStats } from './modules/onchain-indicators.js';
+        
+        let logElement;
+        let continuousTestRunning = false;
+        
+        window.onload = function() {
+            logElement = document.getElementById('test-log');
+            log('🧪 Crypto-Toolbox integration test ready', 'success');
+        };
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const icon = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
+            logElement.innerHTML += `[${timestamp}] ${icon} ${message}<br>`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        function updateStats(indicators, composite, cacheStats, responseTime) {
+            const totalCount = Object.keys(indicators || {}).filter(k => k !== '_metadata').length;
+            const cryptoToolboxCount = Object.values(indicators || {})
+                .filter(ind => ind.source && ind.source.includes('Crypto-Toolbox')).length;
+            
+            document.getElementById('total-indicators').textContent = totalCount;
+            document.getElementById('crypto-toolbox-count').textContent = cryptoToolboxCount;
+            document.getElementById('cache-hit-rate').textContent = 
+                cacheStats ? Math.round(cacheStats.hitRate) + '%' : '-';
+            document.getElementById('response-time').textContent = 
+                responseTime ? Math.round(responseTime) + 'ms' : '-';
+            document.getElementById('composite-score').textContent = 
+                composite?.score !== null ? composite.score : '-';
+        }
+        
+        function displayIndicators(indicators) {
+            const grid = document.getElementById('indicators-grid');
+            grid.innerHTML = '';
+            
+            if (!indicators || Object.keys(indicators).filter(k => k !== '_metadata').length === 0) {
+                grid.innerHTML = '<div class="card">Aucun indicateur chargé</div>';
+                return;
+            }
+            
+            Object.entries(indicators).forEach(([key, data]) => {
+                if (key === '_metadata') return;
+                
+                const card = document.createElement('div');
+                const isNew = ['nupl', 'rsi', 'sopr'].includes(key);
+                const isCryptoToolbox = data.source && data.source.includes('Crypto-Toolbox');
+                
+                card.className = `indicator-card ${data.value ? 'success' : 'error'} ${isNew ? 'new' : ''}`;
+                
+                let percentBadge = '';
+                if (data.percent_in_cycle !== undefined) {
+                    percentBadge = `<span class="percent-badge">${data.percent_in_cycle.toFixed(1)}% in cycle</span>`;
+                }
+                
+                let criticalInfo = '';
+                if (data.critical_threshold) {
+                    criticalInfo = `<div style="font-size: 12px; color: #f56565;">Critical: ${data.critical_threshold}%</div>`;
+                }
+                
+                card.innerHTML = `
+                    <div class="indicator-title">
+                        ${data.name || key} 
+                        ${isNew ? '<span style="color: #ed8936; font-size: 11px;">[NEW]</span>' : ''}
+                        ${percentBadge}
+                    </div>
+                    <div class="indicator-value">${data.value || 'N/A'}</div>
+                    <div class="indicator-score">Score: ${data.score || 'N/A'}</div>
+                    ${data.classification ? `<div style="color: #63b3ed; font-size: 13px;">${data.classification}</div>` : ''}
+                    ${criticalInfo}
+                    <div class="indicator-source">${data.source || 'Unknown source'}</div>
+                    ${data.timestamp ? `<div style="font-size: 10px; color: #4a5568;">Updated: ${new Date(data.timestamp).toLocaleTimeString()}</div>` : ''}
+                `;
+                
+                grid.appendChild(card);
+            });
+            
+            // Display metadata if available
+            if (indicators._metadata) {
+                const metaCard = document.createElement('div');
+                metaCard.className = 'indicator-card';
+                metaCard.innerHTML = `
+                    <div class="indicator-title">📊 Integration Metadata</div>
+                    <div style="font-size: 14px; line-height: 1.6;">
+                        <strong>Available:</strong> ${indicators._metadata.available_count}<br>
+                        <strong>Sources:</strong><br>
+                        ${indicators._metadata.sources?.map(s => `• ${s}`).join('<br>') || 'N/A'}<br>
+                        <strong>Missing:</strong> ${indicators._metadata.missing_indicators?.length || 0}<br>
+                        <strong>Message:</strong> ${indicators._metadata.message}<br>
+                        <strong>Updated:</strong> ${new Date(indicators._metadata.last_updated).toLocaleString()}
+                    </div>
+                `;
+                grid.appendChild(metaCard);
+            }
+        }
+        
+        window.testFullIntegration = async function() {
+            log('🚀 Testing full integration (Alternative.me + Crypto-Toolbox)...', 'info');
+            
+            try {
+                const startTime = performance.now();
+                const indicators = await fetchAllIndicators();
+                const endTime = performance.now();
+                const responseTime = endTime - startTime;
+                
+                log(`📊 Full integration completed in ${Math.round(responseTime)}ms`, 'success');
+                log(`Available indicators: ${indicators._metadata?.available_count || 0}`, 'info');
+                
+                if (indicators._metadata?.sources) {
+                    indicators._metadata.sources.forEach(source => {
+                        log(`Source: ${source}`, 'info');
+                    });
+                }
+                
+                if (indicators._metadata?.missing_indicators?.length > 0) {
+                    log(`Missing: ${indicators._metadata.missing_indicators.length} indicators`, 'error');
+                    indicators._metadata.missing_indicators.forEach(missing => {
+                        log(`  • ${missing}`, 'error');
+                    });
+                }
+                
+                // Test composite score
+                const composite = calculateCompositeScore(indicators);
+                const cacheStats = getCacheStats();
+                
+                log(`Composite Score: ${composite.score} (confidence: ${Math.round((composite.confidence || 0) * 100)}%)`, 
+                    composite.score !== null ? 'success' : 'error');
+                
+                updateStats(indicators, composite, cacheStats, responseTime);
+                displayIndicators(indicators);
+                
+                // Log specific new indicators
+                const newIndicators = ['mvrv', 'puell_multiple', 'nupl', 'rsi', 'sopr'];
+                newIndicators.forEach(key => {
+                    if (indicators[key]) {
+                        const ind = indicators[key];
+                        log(`${key.toUpperCase()}: ${ind.percent_in_cycle?.toFixed(1) || ind.value}% (score: ${ind.score})`, 'success');
+                    }
+                });
+                
+            } catch (error) {
+                log(`❌ Full integration test failed: ${error.message}`, 'error');
+                displayIndicators({});
+            }
+        };
+        
+        window.testCryptoToolboxOnly = async function() {
+            log('📊 Testing Crypto-Toolbox scraping only...', 'info');
+            
+            try {
+                // Import the function directly for testing
+                const { fetchCryptoToolboxIndicators } = await import('./modules/onchain-indicators.js');
+                
+                const startTime = performance.now();
+                const data = await fetchCryptoToolboxIndicators();
+                const endTime = performance.now();
+                
+                log(`Crypto-Toolbox scraping completed in ${Math.round(endTime - startTime)}ms`, 'success');
+                
+                if (data) {
+                    log(`Raw data keys: ${Object.keys(data).join(', ')}`, 'info');
+                    
+                    Object.entries(data).forEach(([key, value]) => {
+                        if (key.startsWith('_')) return;
+                        log(`${key}: ${value.value_percent}% (${value.name})`, 'success');
+                    });
+                } else {
+                    log('No data returned from Crypto-Toolbox', 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ Crypto-Toolbox test failed: ${error.message}`, 'error');
+            }
+        };
+        
+        window.testCompositeScore = async function() {
+            log('🎯 Testing composite score with new indicators...', 'info');
+            
+            try {
+                const indicators = await fetchAllIndicators();
+                const composite = calculateCompositeScore(indicators);
+                
+                log(`Composite Score Result: ${JSON.stringify(composite, null, 2)}`, 'info');
+                
+                if (composite.contributors && composite.contributors.length > 0) {
+                    log('Score breakdown:', 'info');
+                    composite.contributors.forEach(contrib => {
+                        log(`  • ${contrib.name}: ${contrib.score} (weight: ${contrib.weight}, contrib: ${contrib.contribution.toFixed(1)})`, 'info');
+                    });
+                }
+                
+                displayIndicators(indicators);
+                
+            } catch (error) {
+                log(`❌ Composite score test failed: ${error.message}`, 'error');
+            }
+        };
+        
+        window.testCachePerformance = async function() {
+            log('⚡ Testing cache performance with multiple requests...', 'info');
+            
+            try {
+                const requests = 5;
+                const results = [];
+                
+                for (let i = 1; i <= requests; i++) {
+                    log(`Cache test ${i}/${requests}...`, 'info');
+                    const startTime = performance.now();
+                    const indicators = await fetchAllIndicators();
+                    const endTime = performance.now();
+                    
+                    const duration = Math.round(endTime - startTime);
+                    results.push(duration);
+                    
+                    const stats = getCacheStats();
+                    log(`  Request ${i}: ${duration}ms (cache: ${stats.hitRate.toFixed(1)}% hit rate)`, 'success');
+                    
+                    if (i < requests) {
+                        await new Promise(resolve => setTimeout(resolve, 200));
+                    }
+                }
+                
+                const avgTime = results.reduce((a, b) => a + b, 0) / results.length;
+                const finalStats = getCacheStats();
+                
+                log(`Average response time: ${Math.round(avgTime)}ms`, 'success');
+                log(`Final cache performance: ${finalStats.hitRate.toFixed(1)}% hit rate, ${finalStats.cacheSize} entries`, 'success');
+                
+                updateStats(null, null, finalStats, avgTime);
+                
+            } catch (error) {
+                log(`❌ Cache performance test failed: ${error.message}`, 'error');
+            }
+        };
+        
+        window.continuousTest = async function() {
+            if (continuousTestRunning) {
+                continuousTestRunning = false;
+                log('🛑 Stopping continuous test...', 'info');
+                return;
+            }
+            
+            continuousTestRunning = true;
+            log('🔄 Starting continuous test (10 iterations)...', 'info');
+            
+            try {
+                for (let i = 1; i <= 10 && continuousTestRunning; i++) {
+                    log(`Continuous test iteration ${i}/10...`, 'info');
+                    
+                    const startTime = performance.now();
+                    const indicators = await fetchAllIndicators();
+                    const composite = calculateCompositeScore(indicators);
+                    const cacheStats = getCacheStats();
+                    const endTime = performance.now();
+                    
+                    const responseTime = endTime - startTime;
+                    
+                    log(`  Iteration ${i}: ${Math.round(responseTime)}ms, ${indicators._metadata?.available_count || 0} indicators, score: ${composite.score}`, 'success');
+                    
+                    updateStats(indicators, composite, cacheStats, responseTime);
+                    
+                    if (i === 10) {
+                        displayIndicators(indicators);
+                    }
+                    
+                    if (i < 10 && continuousTestRunning) {
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+                }
+                
+                continuousTestRunning = false;
+                log('✅ Continuous test completed', 'success');
+                
+            } catch (error) {
+                continuousTestRunning = false;
+                log(`❌ Continuous test failed: ${error.message}`, 'error');
+            }
+        };
+        
+        window.clearResults = function() {
+            document.getElementById('indicators-grid').innerHTML = '';
+            logElement.innerHTML = 'Results cleared...<br>';
+            
+            // Reset stats
+            document.getElementById('total-indicators').textContent = '-';
+            document.getElementById('crypto-toolbox-count').textContent = '-';
+            document.getElementById('cache-hit-rate').textContent = '-';
+            document.getElementById('response-time').textContent = '-';
+            document.getElementById('composite-score').textContent = '-';
+        };
+        
+        // Auto-run basic test on load
+        setTimeout(() => {
+            log('🚀 Running initial full integration test...', 'info');
+            testFullIntegration();
+        }, 1000);
+    </script>
+</body>
+</html>

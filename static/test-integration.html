@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔬 Integration Test - Live System Validation</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #1a202c;
+            color: #e2e8f0;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 25px;
+            background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
+            border-radius: 12px;
+            border: 1px solid #4a5568;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #3182ce;
+            color: white;
+        }
+
+        .btn:hover {
+            background: #2c5282;
+            transform: translateY(-1px);
+        }
+
+        .test-results {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+
+        .result-card {
+            background: #2d3748;
+            border-radius: 12px;
+            padding: 25px;
+            border: 1px solid #4a5568;
+        }
+
+        .result-card.success {
+            border-left: 4px solid #48bb78;
+        }
+
+        .result-card.error {
+            border-left: 4px solid #f56565;
+        }
+
+        .result-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .result-content {
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .score-display {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: #1a202c;
+            border-radius: 6px;
+            margin: 8px 0;
+        }
+
+        .score-value {
+            font-weight: 700;
+            color: #63b3ed;
+        }
+
+        .log {
+            background: #1a202c;
+            color: #e2e8f0;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            padding: 20px;
+            border-radius: 8px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-size: 13px;
+            line-height: 1.5;
+            border: 1px solid #4a5568;
+        }
+
+        .iframe-test {
+            width: 100%;
+            height: 300px;
+            border: 1px solid #4a5568;
+            border-radius: 8px;
+            background: #2d3748;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔬 Integration Test - Live System Validation</h1>
+            <p>Test direct des modules dans leur environnement réel</p>
+        </div>
+
+        <div class="controls">
+            <button class="btn" onclick="testLiveIntegration()">🚀 Test Live Integration</button>
+            <button class="btn" onclick="testSMARTSystem()">🧠 Test SMART System</button>
+            <button class="btn" onclick="testCachePerformance()">⚡ Test Cache Performance</button>
+            <button class="btn" onclick="simulateRealUsage()">📱 Simulate Real Usage</button>
+            <button class="btn" onclick="clearResults()">🧹 Clear Results</button>
+        </div>
+
+        <div class="test-results" id="test-results">
+            <!-- Results will appear here -->
+        </div>
+
+        <div class="result-card">
+            <div class="result-title">📝 Test Log</div>
+            <div class="log" id="test-log">
+                Integration test suite ready...
+            </div>
+        </div>
+    </div>
+
+    <!-- Include the same modules as risk-dashboard.html -->
+    <script type="module" src="modules/signals-engine.js"></script>
+    <script type="module" src="modules/cycle-navigator.js"></script>
+    <script type="module" src="modules/targets-coordinator.js"></script>
+    <script type="module" src="modules/onchain-indicators.js"></script>
+    <script type="module" src="modules/market-regimes.js"></script>
+
+    <script type="module">
+        // Import the same modules as risk-dashboard.html
+        import { fetchAndComputeCCS, interpretCCS } from './modules/signals-engine.js';
+        import { estimateCyclePosition, blendCCS, getCyclePhase } from './modules/cycle-navigator.js';
+        import { proposeTargets } from './modules/targets-coordinator.js';
+        import { fetchAllIndicators, calculateCompositeScore, getCacheStats } from './modules/onchain-indicators.js';
+        import { getMarketRegime, applyMarketOverrides, calculateRiskBudget, allocateRiskyBudget } from './modules/market-regimes.js';
+
+        let testResults = [];
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logElement = document.getElementById('test-log');
+            const icon = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
+            logElement.innerHTML += `\n[${timestamp}] ${icon} ${message}`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        function addResult(title, content, success = true) {
+            const resultsContainer = document.getElementById('test-results');
+            const resultCard = document.createElement('div');
+            resultCard.className = `result-card ${success ? 'success' : 'error'}`;
+            resultCard.innerHTML = `
+                <div class="result-title">
+                    ${success ? '✅' : '❌'} ${title}
+                </div>
+                <div class="result-content">${content}</div>
+            `;
+            resultsContainer.appendChild(resultCard);
+        }
+
+        // Test functions
+        window.testLiveIntegration = async function() {
+            log('Starting live integration test...', 'info');
+            
+            try {
+                // Test 1: Market Regime Detection
+                const testScore = 65;
+                const regime = getMarketRegime(testScore);
+                log(`Market regime for score ${testScore}: ${regime.name}`, 'success');
+                
+                addResult('Market Regime Detection', `
+                    <div class="score-display">
+                        <span>Input Score:</span>
+                        <span class="score-value">${testScore}</span>
+                    </div>
+                    <div class="score-display">
+                        <span>Detected Regime:</span>
+                        <span class="score-value">${regime.emoji} ${regime.name}</span>
+                    </div>
+                    <div class="score-display">
+                        <span>Confidence:</span>
+                        <span class="score-value">${Math.round((regime.confidence || 0.8) * 100)}%</span>
+                    </div>
+                `, true);
+
+                // Test 2: Risk Budget Calculation
+                const riskBudget = calculateRiskBudget(testScore, 50);
+                log(`Risk budget calculated: ${riskBudget.percentages.risky}% risky, ${riskBudget.percentages.stables}% stables`, 'success');
+                
+                addResult('Risk Budget Calculation', `
+                    <div class="score-display">
+                        <span>Risky Allocation:</span>
+                        <span class="score-value">${riskBudget.percentages.risky}%</span>
+                    </div>
+                    <div class="score-display">
+                        <span>Stables Allocation:</span>
+                        <span class="score-value">${riskBudget.percentages.stables}%</span>
+                    </div>
+                    <div class="score-display">
+                        <span>Risk Cap:</span>
+                        <span class="score-value">${Math.round(riskBudget.risk_cap * 100)}%</span>
+                    </div>
+                `, true);
+
+                // Test 3: Asset Allocation
+                const allocation = allocateRiskyBudget(riskBudget.percentages.risky, regime);
+                const total = Object.values(allocation).reduce((sum, val) => sum + val, 0);
+                log(`Asset allocation calculated, total: ${Math.round(total)}%`, total >= 99 && total <= 101 ? 'success' : 'error');
+                
+                const allocationHtml = Object.entries(allocation).map(([asset, pct]) => `
+                    <div class="score-display">
+                        <span>${asset}:</span>
+                        <span class="score-value">${Math.round(pct)}%</span>
+                    </div>
+                `).join('');
+                
+                addResult('Asset Allocation', allocationHtml + `
+                    <div class="score-display" style="border-top: 1px solid #4a5568; margin-top: 10px; padding-top: 10px;">
+                        <span><strong>Total:</strong></span>
+                        <span class="score-value"><strong>${Math.round(total)}%</strong></span>
+                    </div>
+                `, total >= 99 && total <= 101);
+
+                log('Live integration test completed successfully', 'success');
+
+            } catch (error) {
+                log(`Integration test failed: ${error.message}`, 'error');
+                addResult('Integration Test Error', `
+                    <div style="color: #f56565;">
+                        <strong>Error:</strong> ${error.message}<br>
+                        <strong>Stack:</strong> ${error.stack?.split('\n')[0] || 'N/A'}
+                    </div>
+                `, false);
+            }
+        };
+
+        window.testSMARTSystem = async function() {
+            log('Testing SMART targeting system...', 'info');
+            
+            try {
+                // Test SMART system with different scenarios
+                const scenarios = [
+                    { name: 'Bear Market', blended: 25, onchain: 30, risk: 70 },
+                    { name: 'Bull Market', blended: 80, onchain: 85, risk: 30 },
+                    { name: 'High Risk Alert', blended: 60, onchain: 50, risk: 90 },
+                    { name: 'Balanced Market', blended: 55, onchain: 60, risk: 45 }
+                ];
+
+                for (const scenario of scenarios) {
+                    const regime = getMarketRegime(scenario.blended);
+                    const adjustedRegime = applyMarketOverrides(regime, scenario.onchain, scenario.risk);
+                    const riskBudget = calculateRiskBudget(scenario.blended, scenario.risk);
+                    const allocation = allocateRiskyBudget(riskBudget.percentages.risky, adjustedRegime);
+                    
+                    const overrides = adjustedRegime.overrides_applied || [];
+                    
+                    addResult(`SMART: ${scenario.name}`, `
+                        <div class="score-display">
+                            <span>Scores:</span>
+                            <span class="score-value">B:${scenario.blended} O:${scenario.onchain} R:${scenario.risk}</span>
+                        </div>
+                        <div class="score-display">
+                            <span>Regime:</span>
+                            <span class="score-value">${regime.emoji} ${regime.name}</span>
+                        </div>
+                        <div class="score-display">
+                            <span>Overrides:</span>
+                            <span class="score-value">${overrides.length > 0 ? overrides.join(', ') : 'None'}</span>
+                        </div>
+                        <div class="score-display">
+                            <span>BTC/ETH:</span>
+                            <span class="score-value">${Math.round(allocation.BTC || 0)}%/${Math.round(allocation.ETH || 0)}%</span>
+                        </div>
+                        <div class="score-display">
+                            <span>Stables:</span>
+                            <span class="score-value">${Math.round(allocation.Stablecoins || 0)}%</span>
+                        </div>
+                    `, true);
+                    
+                    log(`SMART ${scenario.name}: ${regime.name} regime, ${overrides.length} overrides`, 'success');
+                }
+
+            } catch (error) {
+                log(`SMART system test failed: ${error.message}`, 'error');
+                addResult('SMART System Error', error.message, false);
+            }
+        };
+
+        window.testCachePerformance = async function() {
+            log('Testing cache performance...', 'info');
+            
+            try {
+                const stats = getCacheStats();
+                
+                if (stats) {
+                    addResult('Cache Performance', `
+                        <div class="score-display">
+                            <span>Hit Rate:</span>
+                            <span class="score-value">${stats.hitRate.toFixed(1)}%</span>
+                        </div>
+                        <div class="score-display">
+                            <span>Total Requests:</span>
+                            <span class="score-value">${stats.totalRequests}</span>
+                        </div>
+                        <div class="score-display">
+                            <span>Cache Size:</span>
+                            <span class="score-value">${stats.cacheSize} entries</span>
+                        </div>
+                        <div class="score-display">
+                            <span>Avg Response:</span>
+                            <span class="score-value">${Math.round(stats.avgResponseTime)}ms</span>
+                        </div>
+                        <div class="score-display">
+                            <span>Patterns Tracked:</span>
+                            <span class="score-value">${stats.patterns}</span>
+                        </div>
+                    `, true);
+                    
+                    log(`Cache stats: ${stats.hitRate.toFixed(1)}% hit rate, ${stats.cacheSize} entries`, 'success');
+                } else {
+                    log('Cache stats not available', 'error');
+                    addResult('Cache Performance', 'Cache statistics not available - module may not be loaded', false);
+                }
+
+            } catch (error) {
+                log(`Cache performance test failed: ${error.message}`, 'error');
+                addResult('Cache Performance Error', error.message, false);
+            }
+        };
+
+        window.simulateRealUsage = async function() {
+            log('Simulating real usage patterns...', 'info');
+            
+            try {
+                // Simulate multiple users accessing the system
+                const users = ['User A', 'User B', 'User C'];
+                let totalOperations = 0;
+                let successfulOperations = 0;
+
+                for (const user of users) {
+                    log(`Simulating ${user} session...`, 'info');
+                    
+                    // Simulate user actions
+                    for (let i = 0; i < 5; i++) {
+                        totalOperations++;
+                        
+                        try {
+                            const randomScore = Math.floor(Math.random() * 100);
+                            const regime = getMarketRegime(randomScore);
+                            const riskBudget = calculateRiskBudget(randomScore, Math.floor(Math.random() * 100));
+                            const allocation = allocateRiskyBudget(riskBudget.percentages.risky, regime);
+                            
+                            successfulOperations++;
+                            
+                            // Small delay to simulate real usage
+                            await new Promise(resolve => setTimeout(resolve, 50));
+                            
+                        } catch (error) {
+                            log(`${user} operation ${i + 1} failed: ${error.message}`, 'error');
+                        }
+                    }
+                }
+
+                const successRate = (successfulOperations / totalOperations) * 100;
+                
+                addResult('Real Usage Simulation', `
+                    <div class="score-display">
+                        <span>Total Operations:</span>
+                        <span class="score-value">${totalOperations}</span>
+                    </div>
+                    <div class="score-display">
+                        <span>Successful:</span>
+                        <span class="score-value">${successfulOperations}</span>
+                    </div>
+                    <div class="score-display">
+                        <span>Success Rate:</span>
+                        <span class="score-value">${successRate.toFixed(1)}%</span>
+                    </div>
+                    <div class="score-display">
+                        <span>Users Simulated:</span>
+                        <span class="score-value">${users.length}</span>
+                    </div>
+                `, successRate >= 95);
+
+                log(`Usage simulation completed: ${successRate.toFixed(1)}% success rate`, 'success');
+
+            } catch (error) {
+                log(`Usage simulation failed: ${error.message}`, 'error');
+                addResult('Usage Simulation Error', error.message, false);
+            }
+        };
+
+        window.clearResults = function() {
+            document.getElementById('test-results').innerHTML = '';
+            document.getElementById('test-log').innerHTML = 'Integration test suite ready...';
+            log('Results cleared', 'info');
+        };
+
+        // Initialize
+        log('Integration test suite initialized with live modules', 'success');
+        log('All modules loaded successfully - ready for testing', 'success');
+    </script>
+</body>
+</html>

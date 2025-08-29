@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 Debug Crypto-Toolbox Simple</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #1a202c;
+            color: #e2e8f0;
+            padding: 20px;
+        }
+        .log {
+            background: #000;
+            padding: 15px;
+            border-radius: 8px;
+            height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            margin-bottom: 20px;
+        }
+        .btn {
+            padding: 10px 20px;
+            background: #3182ce;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .html-preview {
+            background: #2d3748;
+            padding: 15px;
+            border-radius: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Debug Crypto-Toolbox Simple</h1>
+    
+    <div>
+        <button class="btn" onclick="testDirectFetch()">📡 Test Direct Fetch</button>
+        <button class="btn" onclick="testParser()">🧪 Test Parser Only</button>
+        <button class="btn" onclick="testModule()">📦 Test Module Function</button>
+        <button class="btn" onclick="clearLog()">🧹 Clear</button>
+    </div>
+    
+    <div class="log" id="debug-log">Debug simple ready...
+</div>
+    
+    <div class="html-preview" id="html-preview"></div>
+
+    <script type="module">
+        let logElement;
+        let htmlPreviewElement;
+        
+        window.onload = function() {
+            logElement = document.getElementById('debug-log');
+            htmlPreviewElement = document.getElementById('html-preview');
+            log('🔧 Debug simple loaded');
+        };
+        
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.textContent += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        window.testDirectFetch = async function() {
+            log('📡 Testing direct fetch to Crypto-Toolbox...');
+            
+            try {
+                const url = 'https://crypto-toolbox.vercel.app/signaux';
+                log(`Fetching: ${url}`);
+                
+                const response = await fetch(url);
+                log(`Response status: ${response.status} ${response.statusText}`);
+                log(`Content-Type: ${response.headers.get('content-type')}`);
+                
+                if (response.ok) {
+                    const html = await response.text();
+                    log(`HTML length: ${html.length} characters`);
+                    
+                    // Show preview
+                    htmlPreviewElement.textContent = html.substring(0, 1000) + '...';
+                    
+                    // Search for indicators
+                    const searches = ['MVRV', 'Puell', 'NUPL', 'RSI', 'table', 'indicateur', '%'];
+                    searches.forEach(search => {
+                        const found = html.toLowerCase().includes(search.toLowerCase());
+                        const count = (html.match(new RegExp(search, 'gi')) || []).length;
+                        log(`Search "${search}": ${found ? 'FOUND' : 'NOT FOUND'} (${count} matches)`);
+                    });
+                    
+                    // Try basic regex patterns
+                    const patterns = [
+                        /([0-9]+\.?[0-9]*)%/g,
+                        /MVRV.*?([0-9.]+)/gi,
+                        /Puell.*?([0-9.]+)/gi
+                    ];
+                    
+                    patterns.forEach((pattern, i) => {
+                        const matches = [...html.matchAll(pattern)];
+                        log(`Pattern ${i + 1} matches: ${matches.length}`);
+                        if (matches.length > 0) {
+                            matches.slice(0, 3).forEach(match => {
+                                log(`  → ${match[0]}`);
+                            });
+                        }
+                    });
+                    
+                } else {
+                    log(`❌ Fetch failed: ${response.status}`);
+                }
+                
+            } catch (error) {
+                log(`❌ Error: ${error.name}: ${error.message}`);
+                
+                if (error.message.includes('CORS')) {
+                    log('🚫 CORS error detected');
+                } else if (error.message.includes('fetch')) {
+                    log('🌐 Network error');
+                }
+            }
+        };
+        
+        window.testParser = function() {
+            log('🧪 Testing parser with mock HTML...');
+            
+            // Mock HTML that should work
+            const mockHTML = `
+                <html>
+                <body>
+                    <table>
+                        <tr><td>MVRV Z-Score</td><td>45.2%</td><td>80%</td></tr>
+                        <tr><td>Puell Multiple</td><td>62.8%</td><td>90%</td></tr>
+                        <tr><td>NUPL</td><td>38.7%</td><td>85%</td></tr>
+                        <tr><td>RSI Bitcoin</td><td>71.2%</td><td>70%</td></tr>
+                    </table>
+                </body>
+                </html>
+            `;
+            
+            log('Testing with mock HTML...');
+            htmlPreviewElement.textContent = mockHTML;
+            
+            try {
+                // Test DOM parsing
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(mockHTML, 'text/html');
+                
+                const tables = doc.querySelectorAll('table');
+                log(`Found ${tables.length} tables`);
+                
+                const rows = doc.querySelectorAll('tr');
+                log(`Found ${rows.length} rows`);
+                
+                rows.forEach((row, index) => {
+                    const cells = row.querySelectorAll('td');
+                    if (cells.length >= 2) {
+                        const name = cells[0]?.textContent?.trim();
+                        const value = cells[1]?.textContent?.trim();
+                        log(`Row ${index}: ${name} = ${value}`);
+                    }
+                });
+                
+            } catch (error) {
+                log(`❌ Parser error: ${error.message}`);
+            }
+        };
+        
+        window.testModule = async function() {
+            log('📦 Testing module function...');
+            
+            try {
+                const { fetchCryptoToolboxIndicators } = await import('./modules/onchain-indicators.js');
+                log('✅ Module imported successfully');
+                log('Testing fetchCryptoToolboxIndicators...');
+                
+                const result = await fetchCryptoToolboxIndicators();
+                log(`Result type: ${typeof result}`);
+                log(`Result keys: ${result ? Object.keys(result).join(', ') : 'null'}`);
+                
+                if (result) {
+                    Object.entries(result).forEach(([key, value]) => {
+                        log(`${key}: ${JSON.stringify(value)}`);
+                    });
+                } else {
+                    log('❌ Function returned null');
+                }
+                
+            } catch (error) {
+                log(`❌ Module test error: ${error.name}: ${error.message}`);
+                log(`Stack: ${error.stack}`);
+            }
+        };
+        
+        window.clearLog = function() {
+            logElement.textContent = 'Log cleared...\n';
+            htmlPreviewElement.textContent = '';
+        };
+        
+        // Auto-run basic test
+        setTimeout(testDirectFetch, 1000);
+    </script>
+</body>
+</html>

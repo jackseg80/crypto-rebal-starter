@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧪 Test Enhanced Indicators System</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #1a202c;
+            color: #e2e8f0;
+            line-height: 1.6;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .card {
+            background: #2d3748;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border: 1px solid #4a5568;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            background: #3182ce;
+            color: white;
+            margin: 5px;
+        }
+        .btn:hover { background: #2c5282; }
+        .log {
+            background: #1a202c;
+            padding: 15px;
+            border-radius: 8px;
+            height: 500px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+        .results {
+            background: #1a202c;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+        .category-section {
+            background: #2d3748;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            border-left: 4px solid #63b3ed;
+        }
+        .indicator-item {
+            background: #1a202c;
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin: 5px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .critical { border-left-color: #f56565; }
+        .score-high { color: #f56565; }
+        .score-low { color: #48bb78; }
+        .score-medium { color: #f59e0b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>🧪 Test Enhanced Indicators System</h1>
+            <p>Test du système d'indicateurs enrichi avec catégorisation intelligente</p>
+            
+            <div>
+                <button class="btn" onclick="testFullSystem()">🎯 Test Complete System</button>
+                <button class="btn" onclick="testCategorization()">📊 Test Categorization</button>
+                <button class="btn" onclick="testCompositeScore()">🧮 Test Composite Score</button>
+                <button class="btn" onclick="clearResults()">🧹 Clear</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>📊 Test Results</h3>
+            <div class="results" id="test-results">
+                Results will appear here...
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>📝 Test Log</h3>
+            <div class="log" id="test-log">
+Enhanced indicators system test ready...
+</div>
+        </div>
+    </div>
+
+    <script type="module">
+        let logElement;
+        let resultsElement;
+        
+        window.onload = function() {
+            logElement = document.getElementById('test-log');
+            resultsElement = document.getElementById('test-results');
+            log('🧪 Enhanced indicators system test ready', 'success');
+        };
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const icon = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
+            logElement.textContent += `[${timestamp}] ${icon} ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        window.testFullSystem = async function() {
+            log('🎯 Testing full enhanced indicators system...', 'info');
+            
+            try {
+                // Import modules
+                const { fetchCryptoToolboxIndicators, calculateCompositeScore, classifyIndicator, INDICATOR_CATEGORIES } = 
+                    await import('./modules/onchain-indicators.js');
+                
+                log('✅ Modules imported successfully', 'success');
+                
+                // Test backend fetch
+                log('📡 Fetching indicators from backend...', 'info');
+                const indicators = await fetchCryptoToolboxIndicators();
+                
+                if (!indicators) {
+                    log('❌ No indicators fetched', 'error');
+                    return;
+                }
+                
+                log(`✅ Fetched ${Object.keys(indicators).length} indicators`, 'success');
+                
+                // Test composite score calculation
+                log('🧮 Calculating enhanced composite score...', 'info');
+                const composite = calculateCompositeScore(indicators);
+                
+                log(`✅ Composite score calculated: ${composite.score}/100`, 'success');
+                log(`  📊 Total indicators: ${composite.totalIndicators}`, 'info');
+                log(`  🎯 Active categories: ${composite.activeCategories}`, 'info');
+                log(`  🚨 Critical zones: ${composite.criticalZoneCount}`, 'info');
+                log(`  🔒 Confidence: ${Math.round(composite.confidence * 100)}%`, 'info');
+                
+                // Display detailed results
+                displayFullResults(indicators, composite);
+                
+            } catch (error) {
+                log(`❌ Full system test failed: ${error.message}`, 'error');
+                console.error(error);
+            }
+        };
+        
+        window.testCategorization = async function() {
+            log('📊 Testing indicator categorization...', 'info');
+            
+            try {
+                const { classifyIndicator, INDICATOR_CATEGORIES } = 
+                    await import('./modules/onchain-indicators.js');
+                
+                // Test indicators names from our backend
+                const testIndicators = [
+                    'MVRV Z-Score',
+                    'Pi Cycle',
+                    'CBBI*', 
+                    'RUPL/NUPL',
+                    'Puell Multiple',
+                    'RSI Bitcoin',
+                    'Fear & Greed'
+                ];
+                
+                log('Testing classification of sample indicators:', 'info');
+                testIndicators.forEach(name => {
+                    const classification = classifyIndicator(name);
+                    log(`  ${name} → ${classification.category} (weight: ${classification.weight}, invert: ${classification.invert})`, 'info');
+                });
+                
+                // Show category weights
+                log('Category weights:', 'info');
+                Object.entries(INDICATOR_CATEGORIES).forEach(([key, config]) => {
+                    log(`  ${key}: ${Math.round(config.weight * 100)}% - ${config.description}`, 'info');
+                });
+                
+                log('✅ Categorization test completed', 'success');
+                
+            } catch (error) {
+                log(`❌ Categorization test failed: ${error.message}`, 'error');
+            }
+        };
+        
+        window.testCompositeScore = async function() {
+            log('🧮 Testing composite score calculation...', 'info');
+            
+            try {
+                const { calculateCompositeScore } = await import('./modules/onchain-indicators.js');
+                
+                // Create mock indicators data
+                const mockIndicators = {
+                    mvrv_z_score: {
+                        name: 'MVRV Z-Score',
+                        value_numeric: 82.5,
+                        in_critical_zone: false
+                    },
+                    pi_cycle: {
+                        name: 'Pi Cycle',
+                        value_numeric: 57.2,
+                        in_critical_zone: false
+                    },
+                    cbbi: {
+                        name: 'CBBI*',
+                        value_numeric: 75.4,
+                        in_critical_zone: false
+                    },
+                    rupl_nupl: {
+                        name: 'RUPL/NUPL',
+                        value_numeric: 83.8,
+                        in_critical_zone: false
+                    },
+                    puell_multiple: {
+                        name: 'Puell Multiple',
+                        value_numeric: 45.2,
+                        in_critical_zone: false
+                    }
+                };
+                
+                log('Calculating composite score with mock data...', 'info');
+                const composite = calculateCompositeScore(mockIndicators);
+                
+                log(`Composite Score Results:`, 'success');
+                log(`  Final Score: ${composite.score}/100`, 'info');
+                log(`  Confidence: ${Math.round(composite.confidence * 100)}%`, 'info');
+                log(`  Categories: ${composite.activeCategories}`, 'info');
+                log(`  Total Indicators: ${composite.totalIndicators}`, 'info');
+                
+                // Show category breakdown
+                if (composite.categoryBreakdown) {
+                    log('Category Breakdown:', 'info');
+                    Object.entries(composite.categoryBreakdown).forEach(([category, data]) => {
+                        log(`  ${category}: ${data.score}/100 (${data.contributorsCount} indicators)`, 'info');
+                    });
+                }
+                
+                log('✅ Composite score test completed', 'success');
+                
+            } catch (error) {
+                log(`❌ Composite score test failed: ${error.message}`, 'error');
+            }
+        };
+        
+        function displayFullResults(indicators, composite) {
+            let html = `
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                    <div>
+                        <h4>🎯 Composite Score</h4>
+                        <div style="font-size: 2rem; font-weight: bold; color: ${getScoreColor(composite.score)};">
+                            ${composite.score}/100
+                        </div>
+                        <p>${composite.message}</p>
+                    </div>
+                    <div>
+                        <h4>📊 Statistics</h4>
+                        <p>Total Indicators: ${composite.totalIndicators}</p>
+                        <p>Active Categories: ${composite.activeCategories}</p>
+                        <p>Critical Zones: ${composite.criticalZoneCount}</p>
+                        <p>Confidence: ${Math.round(composite.confidence * 100)}%</p>
+                    </div>
+                </div>
+            `;
+            
+            // Critical alerts
+            if (composite.criticalZoneCount > 0) {
+                const criticalIndicators = composite.contributors.filter(c => c.inCriticalZone);
+                html += `
+                    <div style="background: #2d1b1e; border: 1px solid #f56565; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                        <h4 style="color: #f56565; margin: 0 0 10px 0;">🚨 Critical Zone Alerts</h4>
+                        ${criticalIndicators.map(ind => `
+                            <div style="margin: 5px 0; color: #fed7d7;">
+                                • ${ind.name}: ${ind.originalValue}%
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+            
+            // Category breakdown
+            if (composite.categoryBreakdown) {
+                html += '<h4>📊 Category Breakdown</h4>';
+                Object.entries(composite.categoryBreakdown).forEach(([category, data]) => {
+                    const emoji = category === 'onchain_fundamentals' ? '🔗' : 
+                                 category === 'cycle_technical' ? '📊' : '😨';
+                    
+                    html += `
+                        <div class="category-section">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <h5 style="margin: 0;">${emoji} ${data.description}</h5>
+                                <div style="font-size: 1.2rem; font-weight: bold; color: ${getScoreColor(data.score)};">
+                                    ${data.score}/100
+                                </div>
+                            </div>
+                            <p style="margin: 5px 0; font-size: 0.9rem; color: #a0aec0;">
+                                ${data.contributorsCount} indicators • Weight: ${Math.round(data.weight * 100)}%
+                            </p>
+                            <div>
+                                ${data.contributors.slice(0, 3).map(contrib => `
+                                    <div class="indicator-item ${contrib.inCriticalZone ? 'critical' : ''}">
+                                        <span>${contrib.name}: ${contrib.originalValue}%</span>
+                                        <span class="${getScoreClass(contrib.normalizedScore)}">
+                                            ${contrib.normalizedScore.toFixed(1)}
+                                        </span>
+                                    </div>
+                                `).join('')}
+                                ${data.contributors.length > 3 ? `<p style="font-size: 0.8rem; color: #a0aec0;">...and ${data.contributors.length - 3} more</p>` : ''}
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+            
+            resultsElement.innerHTML = html;
+        }
+        
+        function getScoreColor(score) {
+            if (score > 70) return '#f56565';
+            if (score < 40) return '#48bb78';
+            return '#f59e0b';
+        }
+        
+        function getScoreClass(score) {
+            if (score > 70) return 'score-high';
+            if (score < 40) return 'score-low';
+            return 'score-medium';
+        }
+        
+        window.clearResults = function() {
+            logElement.textContent = 'Log cleared...\n';
+            resultsElement.innerHTML = 'Results will appear here...';
+        };
+    </script>
+</body>
+</html>
