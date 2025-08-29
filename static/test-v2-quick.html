@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧪 Quick V2 Test</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 20px;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        .result {
+            background: #1e293b;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border: 1px solid #334155;
+        }
+        .success { border-left: 4px solid #10b981; }
+        .error { border-left: 4px solid #ef4444; }
+        .info { border-left: 4px solid #3b82f6; }
+        pre {
+            background: #0f172a;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Quick V2 Validation Test</h1>
+    
+    <button onclick="runQuickTest()" style="padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer;">
+        🚀 Run Quick Test
+    </button>
+    
+    <div id="results"></div>
+
+    <script type="module">
+        window.runQuickTest = async function() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<div class="info">🔄 Running quick validation test...</div>';
+            
+            try {
+                // Test 1: Import modules
+                const v1Module = await import('./modules/onchain-indicators.js');
+                const v2Module = await import('./modules/composite-score-v2.js');
+                const categoriesModule = await import('./modules/indicator-categories-v2.js');
+                
+                addResult('✅ Modules imported successfully', 'success');
+                
+                // Test 2: Fetch indicators
+                const indicators = await v1Module.fetchAllIndicators();
+                const indicatorCount = Object.keys(indicators).filter(k => !k.startsWith('_')).length;
+                
+                addResult(`✅ Indicators loaded: ${indicatorCount}`, 'success');
+                
+                // Test 3: Test categorization
+                const sampleIndicators = Object.entries(indicators)
+                    .filter(([key]) => !key.startsWith('_'))
+                    .slice(0, 10);
+                
+                let categorized = 0;
+                let correlated = 0;
+                
+                sampleIndicators.forEach(([key, data]) => {
+                    const classification = categoriesModule.classifyIndicatorV2(data.name || key);
+                    if (classification.category !== 'market_context' || classification.key !== 'unknown') {
+                        categorized++;
+                    }
+                    if (classification.correlationGroup) {
+                        correlated++;
+                    }
+                });
+                
+                addResult(`📊 Categorization test: ${categorized}/${sampleIndicators.length} properly classified`, 
+                    categorized >= sampleIndicators.length * 0.8 ? 'success' : 'error');
+                
+                addResult(`🔗 Correlation groups detected: ${correlated} indicators have correlation groups`, 
+                    correlated > 0 ? 'success' : 'error');
+                
+                // Test 4: V2 Score calculation
+                const v2Result = v2Module.calculateCompositeScoreV2(indicators);
+                
+                addResult(`🎯 V2 Score: ${v2Result.score} (confidence: ${Math.round(v2Result.confidence * 100)}%)`, 'success');
+                addResult(`📈 Categories active: ${v2Result.activeCategories}/4`, 'info');
+                addResult(`🔍 Total indicators: ${v2Result.totalIndicators}`, 'info');
+                
+                // Show correlation analysis
+                if (v2Result.correlationAnalysis) {
+                    let correlationReductions = 0;
+                    Object.values(v2Result.correlationAnalysis).forEach(analysis => {
+                        if (analysis.correlation_reduction) {
+                            correlationReductions++;
+                        }
+                    });
+                    
+                    addResult(`🔗 Correlation reductions applied: ${correlationReductions}`, 
+                        correlationReductions > 0 ? 'success' : 'error');
+                }
+                
+                // Show consensus signals
+                const consensusSignals = Object.entries(v2Result.consensusSignals || {});
+                addResult(`🗳️ Consensus signals: ${consensusSignals.length}`, 'info');
+                
+                consensusSignals.forEach(([category, consensus]) => {
+                    addResult(`  ${category}: ${consensus.consensus} (${consensus.confidence}% confidence)`, 'info');
+                });
+                
+                addResult('🎉 Quick validation completed!', 'success');
+                
+            } catch (error) {
+                addResult(`❌ Test failed: ${error.message}`, 'error');
+                console.error(error);
+            }
+        };
+        
+        function addResult(message, type) {
+            const resultsDiv = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.innerHTML = message;
+            resultsDiv.appendChild(div);
+        }
+    </script>
+</body>
+</html>
