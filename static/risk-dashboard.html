@@ -1775,8 +1775,9 @@
         // Calculate On-Chain Score
         onchainScore = await calculateOnChainScore();
         
-        // Calculate Risk Score
-        riskScore = calculateRiskScore(riskData);
+        // Use Risk Score directly from backend (consistent with Risk Overview)
+        riskScore = riskData?.risk_metrics?.risk_score ?? 50;
+        console.log('🛡️ Risk Score (from backend):', riskScore);
         
         // Calculate Strategic Blended Score (nouvelle formule)
         blendedScore = calculateBlendedScore(ccsMixteScore, onchainScore, riskScore);

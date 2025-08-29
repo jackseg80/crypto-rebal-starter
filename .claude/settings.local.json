@@ -80,7 +80,9 @@
       "Bash(start http://localhost:8000/static/auto_load_fred.html)",
       "Bash(start http://localhost:8000/static/test_fred_complete.html)",
       "Bash(start http://localhost:8000/static/test_proxy_fred.html)",
-      "Bash(start http://localhost:8000/static/validation_finale.html)"
+      "Bash(start http://localhost:8000/static/validation_finale.html)",
+      "Bash(start http://localhost:8000/static/cycle-analysis.html)",
+      "Bash(start http://localhost:8000/static/test-scores.html)"
     ],
     "deny": [],
     "ask": [],

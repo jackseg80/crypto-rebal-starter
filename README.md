@@ -908,13 +908,116 @@ Tous les cas d'usage critiques ont été testés et validés :
 - `static/performance-optimizer.js` : Optimisations pour gros portfolios
 - `api/csv_endpoints.py` : Téléchargement automatique CoinTracking (400+ lignes)
 
+### 🎯 **SYSTÈME DE REBALANCING INTELLIGENT** (28 Août 2025) - Architecture Révolutionnaire
+
+**🧠 Nouvelle Architecture Stratégique :**
+
+#### Core Components
+- **📊 CCS Mixte (Score Directeur)** : Blending CCS + Bitcoin Cycle (sigmoïde calibré)
+- **🔗 On-Chain Composite** : MVRV, NVT, Puell Multiple, Fear & Greed avec cache stabilisé
+- **🛡️ Risk Score** : Métriques portfolio unifiées (backend consistency)
+- **⚖️ Score Blended** : Formule stratégique **50% CCS Mixte + 30% On-Chain + 20% (100-Risk)**
+
+#### Market Regime System (4 Régimes)
+```javascript
+🔵 Accumulation (0-39)  : BTC+10%, ETH+5%, Alts-15%, Stables 15%, Memes 0%
+🟢 Expansion (40-69)    : Équilibré, Stables 20%, Memes max 5%
+🟡 Euphorie (70-84)     : BTC-5%, ETH+5%, Alts+10%, Memes max 15%
+🔴 Distribution (85-100): BTC+5%, ETH-5%, Alts-15%, Stables 30%, Memes 0%
+```
+
+#### Dynamic Risk Budget
+- **RiskCap Formula** : `1 - 0.5 × (RiskScore/100)`
+- **BaseRisky** : `clamp((Blended - 35)/45, 0, 1)`
+- **Final Allocation** : `Risky = clamp(BaseRisky × RiskCap, 20%, 85%)`
+
+#### SMART Targeting System
+
+**🧠 Allocation Intelligence Artificielle**
+- **Analyse Multi-Scores** : Combine Blended Score (régime), On-Chain (divergences), Risk Score (contraintes)
+- **Régime de Marché** : Adapte automatiquement l'allocation selon le régime détecté (Accumulation/Expansion/Euphorie/Distribution)
+- **Risk-Budget Dynamic** : Calcule le budget risqué optimal avec formule `RiskCap = 1 - 0.5 × (Risk/100)`
+- **Confidence Scoring** : Attribue un score de confiance basé sur la cohérence des signaux
+
+**⚙️ Overrides Automatiques**
+```javascript
+// Conditions d'override automatique
+- Divergence On-Chain > 25 points → Force allocation On-Chain
+- Risk Score ≥ 80 → Force 50%+ Stablecoins  
+- Risk Score ≤ 30 → Boost allocation risquée (+10%)
+- Blended Score < 20 → Mode "Deep Accumulation"
+- Blended Score > 90 → Mode "Distribution Forcée"
+```
+
+**📋 Trading Rules Engine**
+- **Seuils Minimum** : Change >3%, ordre >$200, variation relative >20%
+- **Circuit Breakers** : Stop si drawdown >-25%, force stables si On-Chain <45
+- **Fréquence** : Rebalancing max 1×/semaine (168h cooldown)
+- **Taille Ordres** : Max 10% portfolio par trade individuel
+- **Validation** : Plans d'exécution phasés avec priorité (High→Medium→Low)
+
+**🎯 Exemple d'Allocation SMART**
+```javascript
+// Régime Expansion (Score Blended: 55) + Risk Moderate (65) + On-Chain Bullish (75)
+{
+  "regime": "🟢 Expansion",
+  "risk_budget": { "risky": 67%, "stables": 33% },
+  "allocation": {
+    "BTC": 32%,      // Base régime + slight boost car On-Chain fort
+    "ETH": 22%,      // Régime équilibré  
+    "Stablecoins": 33%, // Risk budget contrainte
+    "SOL": 8%,       // Régime expansion
+    "L1/L0 majors": 5%  // Reste budget risqué
+  },
+  "confidence": 0.78,
+  "overrides_applied": ["risk_budget_constraint"]
+}
+```
+
+#### Modules Créés
+- **`static/modules/market-regimes.js`** (515 lignes) : Système complet de régimes de marché
+- **`static/modules/onchain-indicators.js`** (639 lignes) : Indicateurs on-chain avec simulation réaliste
+- **Bitcoin Cycle Navigator** amélioré avec auto-calibration et persistance localStorage
+
+#### Corrections Critiques
+
+**🐛 Dashboard Loading Issues (résolu)**
+- **Problème** : "Cannot set properties of null (setting 'textContent')" 
+- **Cause** : Fonction `updateSidebar()` cherchait l'élément DOM `ccs-score` qui n'existe plus dans la nouvelle structure HTML
+- **Solution** : Suppression des références DOM obsolètes et mise à jour des sélecteurs
+
+**🔄 Cycle Analysis Tab (résolu)**  
+- **Problème** : "Loading cycle analysis..." ne finissait jamais de charger
+- **Cause** : Logic inverse dans `switchTab()` - `renderCyclesContent()` appelé seulement quand PAS sur l'onglet cycles
+- **Solution** : Correction de la logique pour appeler `renderCyclesContent()` lors de l'activation de l'onglet
+
+**📊 Score Consistency (résolu)**
+- **Problème** : Risk Score différent entre sidebar (barre de gauche) et Risk Overview (onglet principal)
+- **Cause** : Deux calculs différents - sidebar utilisait `calculateRiskScore()` custom, Risk Overview utilisait `risk_metrics.risk_score` du backend
+- **Solution** : Unification pour utiliser la même source backend `riskData?.risk_metrics?.risk_score ?? 50`
+
+**🎯 Strategic Scores Display (résolu)**
+- **Problème** : On-Chain, Risk et Blended scores affichaient `--` et "Loading..." en permanence  
+- **Cause** : Chemins incorrects dans `updateSidebar()` - cherchait `state.onchain?.composite_score` au lieu de `state.scores?.onchain`
+- **Solution** : Correction des chemins d'accès aux scores dans le store global
+
+#### Interface Risk Dashboard Révolutionnée
+- **Sidebar Stratégique** : 4 scores avec couleurs de régime dynamiques
+- **Régime de Marché** : Affichage temps réel avec emoji et couleurs
+- **Market Cycles Tab** : Graphiques Bitcoin cycle avec analyse de position
+- **Strategic Targeting** : SMART button avec allocations régime-aware
+
+**🎯 Résultat** : Système de rebalancing institutionnel market-aware avec intelligence artificielle intégrée
+
 ### 🔧 Prochaines améliorations
 
 - ⬜ **Tests unitaires complets** pour tous les modules
 - ⬜ **Documentation API** avec exemples et tutoriels
 - ⬜ **Retry mechanisms** automatiques sur échec réseau
 - ⬜ **Cache intelligent** avec TTL adaptatif
+- ⬜ **Backtesting** du système SMART avec données historiques
+- ⬜ **Machine Learning** pour optimisation des seuils de régimes
 
 ---
 
-**🎉 Ce projet représente maintenant une plateforme complète de trading & risk management institutionnel avec plus de 16,000 lignes de code et 8 systèmes majeurs intégrés.**
+**🎉 Ce projet représente maintenant une plateforme complète de trading & risk management institutionnel market-aware avec plus de 18,000 lignes de code, système de régimes de marché IA, et rebalancing intelligent automatisé.**
