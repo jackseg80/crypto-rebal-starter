@@ -15,6 +15,12 @@ import {
   CACHE_CONFIG 
 } from './indicator-categories-v2.js';
 
+import { 
+  calculateDynamicWeights,
+  detectMarketContext,
+  compareWeightingMethods
+} from './dynamic-weighting.js';
+
 /**
  * Normalise et inverse un score d'indicateur selon sa configuration V2
  */
@@ -99,7 +105,7 @@ function applyCorrelationReduction(indicators, category) {
 /**
  * Calcule un score composite V2 avec gestion avancée des corrélations
  */
-export function calculateCompositeScoreV2(indicators) {
+export function calculateCompositeScoreV2(indicators, useDynamicWeighting = false) {
   if (!indicators || Object.keys(indicators).filter(k => !k.startsWith('_')).length === 0) {
     return {
       score: null,
@@ -197,15 +203,55 @@ export function calculateCompositeScoreV2(indicators) {
     };
   });
   
-  // Calculer le score final avec les nouveaux poids de catégorie
+  // Calculer le score final avec les poids de catégorie (statiques ou dynamiques)
   let finalScore = 0;
   let totalWeight = 0;
   const categoryBreakdown = {};
+  
+  // Calcul préliminaire pour obtenir un score approximatif (nécessaire pour la pondération dynamique)
+  let preliminaryScore = 0;
+  let preliminaryWeight = 0;
   
   Object.entries(categoryScores).forEach(([category, score]) => {
     const weight = categoryWeights[category];
     if (weight > 0) {
       const categoryWeight = INDICATOR_CATEGORIES_V2[category].weight;
+      preliminaryScore += score * categoryWeight;
+      preliminaryWeight += categoryWeight;
+    }
+  });
+  
+  const preliminaryCompositeScore = preliminaryWeight > 0 ? preliminaryScore / preliminaryWeight : 50;
+  
+  // Déterminer les poids finaux (statiques ou dynamiques)
+  let finalCategoryWeights = {};
+  let dynamicWeightingResult = null;
+  
+  if (useDynamicWeighting) {
+    // Détecter le contexte de marché
+    const marketContext = detectMarketContext(categoryBreakdown, indicators);
+    
+    // Ajouter les contradictions au contexte
+    const contradictions = analyzeContradictorySignals(categoryBreakdown);
+    marketContext.contradictions = contradictions;
+    
+    // Calculer les poids dynamiques
+    dynamicWeightingResult = calculateDynamicWeights(preliminaryCompositeScore, marketContext);
+    finalCategoryWeights = dynamicWeightingResult.weights;
+    
+    console.log(`🤖 Dynamic weighting applied: ${dynamicWeightingResult.phase.name} phase`);
+  } else {
+    // Utiliser les poids statiques standard
+    Object.keys(categoryScores).forEach(category => {
+      finalCategoryWeights[category] = INDICATOR_CATEGORIES_V2[category].weight;
+    });
+  }
+  
+  // Calcul final avec les poids déterminés
+  Object.entries(categoryScores).forEach(([category, score]) => {
+    const weight = categoryWeights[category];
+    if (weight > 0) {
+      const categoryWeight = finalCategoryWeights[category] || INDICATOR_CATEGORIES_V2[category].weight;
       
       finalScore += score * categoryWeight;
       totalWeight += categoryWeight;
@@ -213,6 +259,7 @@ export function calculateCompositeScoreV2(indicators) {
       categoryBreakdown[category] = {
         score: Math.round(score),
         weight: categoryWeight,
+        staticWeight: INDICATOR_CATEGORIES_V2[category].weight, // Pour comparaison
         contributorsCount: categoryContributors[category].length,
         description: INDICATOR_CATEGORIES_V2[category].description,
         color: INDICATOR_CATEGORIES_V2[category].color,
@@ -255,7 +302,7 @@ export function calculateCompositeScoreV2(indicators) {
   
   const allContributors = Object.values(categoryContributors).flat();
   
-  return {
+  const result = {
     score: Math.round(compositeScore),
     confidence: Math.round(confidence * 100) / 100,
     contributors: allContributors.sort((a, b) => b.contribution - a.contribution),
@@ -265,7 +312,7 @@ export function calculateCompositeScoreV2(indicators) {
     activeCategories: activeCategories,
     correlationAnalysis: correlationAnalysis,
     consensusSignals: consensusSignals,
-    version: 'V2',
+    version: useDynamicWeighting ? 'V2-Dynamic' : 'V2',
     improvements: [
       'Gestion des corrélations',
       'Consensus voting par catégorie',
@@ -274,6 +321,21 @@ export function calculateCompositeScoreV2(indicators) {
     ],
     message: `Score composite V2: ${totalIndicators} indicateurs dans ${activeCategories} catégories (${totalCriticalZone} critiques)`
   };
+  
+  // Ajouter les informations de pondération dynamique si utilisée
+  if (useDynamicWeighting && dynamicWeightingResult) {
+    result.dynamicWeighting = {
+      phase: dynamicWeightingResult.phase,
+      adjustments: dynamicWeightingResult.adjustments,
+      reasoning: dynamicWeightingResult.reasoning,
+      weightComparison: compareWeightingMethods(compositeScore, dynamicWeightingResult.adjustments)
+    };
+    
+    result.improvements.push('Pondération dynamique contextuelle');
+    result.message += ` | Phase: ${dynamicWeightingResult.phase.name}`;
+  }
+  
+  return result;
 }
 
 /**

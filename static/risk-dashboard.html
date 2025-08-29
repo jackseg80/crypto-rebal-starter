@@ -693,6 +693,20 @@
           </div>
         </div>
 
+        <!-- Dynamic Weighting Toggle -->
+        <div class="sidebar-section">
+          <div class="sidebar-title">🤖 Pondération Dynamique</div>
+          <div style="display: flex; align-items: center; gap: 10px; margin: 10px 0;">
+            <label style="display: flex; align-items: center; cursor: pointer; font-size: 0.9rem;">
+              <input type="checkbox" id="dynamic-weighting-toggle" style="margin-right: 8px;" onchange="toggleDynamicWeighting()">
+              <span>Activer l'adaptation contextuelle</span>
+            </label>
+          </div>
+          <div id="dynamic-weighting-status" style="font-size: 0.8rem; color: var(--theme-text-muted); margin-top: 5px;">
+            Pondération statique V2
+          </div>
+        </div>
+
         <!-- Cycle Indicator -->
         <div class="sidebar-section">
           <div class="sidebar-title">Cycle Position</div>
@@ -1784,11 +1798,19 @@
     // ====== Main Functions ======
     // ====== Score Calculation Functions ======
 
-    // Calculate On-Chain Score (V2 System)
+    // Calculate On-Chain Score (V2 System with optional dynamic weighting)
     async function calculateOnChainScore() {
       try {
         const indicators = await fetchAllIndicators();
-        const composite = calculateCompositeScoreV2(indicators);
+        
+        // Check if dynamic weighting is enabled (from localStorage setting)
+        const useDynamicWeighting = localStorage.getItem('enable_dynamic_weighting') === 'true';
+        
+        const composite = calculateCompositeScoreV2(indicators, useDynamicWeighting);
+        
+        if (useDynamicWeighting && composite.dynamicWeighting) {
+          console.log(`🤖 Dynamic weighting applied: ${composite.dynamicWeighting.phase.name} phase`);
+        }
 
         if (composite.score === null) {
           console.warn('⚠️ No real on-chain data available - skipping On-Chain Score');
@@ -1809,7 +1831,9 @@
           consensusSignals: composite.consensusSignals,
           correlationAnalysis: composite.correlationAnalysis,
           version: composite.version,
-          improvements: composite.improvements
+          improvements: composite.improvements,
+          // Dynamic weighting properties (if enabled)
+          dynamicWeighting: composite.dynamicWeighting
         });
         
         // Analyze contradictory signals V2
@@ -2024,6 +2048,38 @@
           regimeText.textContent = 'Error calculating regime';
         }
       }
+    }
+
+    // ====== Dynamic Weighting Functions ======
+    
+    function toggleDynamicWeighting() {
+      const toggle = document.getElementById('dynamic-weighting-toggle');
+      const status = document.getElementById('dynamic-weighting-status');
+      
+      const isEnabled = toggle.checked;
+      localStorage.setItem('enable_dynamic_weighting', isEnabled.toString());
+      
+      if (isEnabled) {
+        status.textContent = '🤖 Pondération dynamique active';
+        status.style.color = 'var(--success)';
+        console.log('🤖 Dynamic weighting enabled');
+      } else {
+        status.textContent = 'Pondération statique V2';
+        status.style.color = 'var(--theme-text-muted)';
+        console.log('📊 Static weighting V2 enabled');
+      }
+      
+      // Trigger refresh to apply new weighting
+      setTimeout(refreshDashboard, 500);
+    }
+    
+    // Initialize dynamic weighting state on load
+    function initializeDynamicWeightingToggle() {
+      const toggle = document.getElementById('dynamic-weighting-toggle');
+      const isEnabled = localStorage.getItem('enable_dynamic_weighting') === 'true';
+      
+      toggle.checked = isEnabled;
+      toggleDynamicWeighting(); // Set initial status
     }
 
     async function refreshDashboard() {
@@ -3103,12 +3159,14 @@
           ${card(`
             <h4 style="margin:0 0 .5rem 0; color: var(--theme-text);">🎯 Score Composite V2 
               <span style="font-size:0.7rem; background: var(--success); color: white; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">NEW</span>
+              ${localStorage.getItem('enable_dynamic_weighting') === 'true' ? '<span style="font-size:0.7rem; background: var(--warning); color: white; padding: 2px 6px; border-radius: 4px; margin-left: 4px;">🤖 DYNAMIC</span>' : ''}
             </h4>
             <div style="font-size:2rem; font-weight:700; color:${pickScoreColor(composite.score)};">
               ${composite.score}/100
             </div>
             <div style="font-size:.85rem; color: var(--theme-text-muted);">
               ${composite.totalIndicators} indicateurs • Confiance: ${Math.round((composite.confidence || 0) * 100)}% • Corrélations gérées
+              ${localStorage.getItem('enable_dynamic_weighting') === 'true' && composite.dynamicWeighting ? `<br>Phase: ${composite.dynamicWeighting.phase.name}` : ''}
             </div>
           `)}
           ${card(`
@@ -3786,6 +3844,9 @@
 
       // Initial sidebar update
       updateSidebar(store.snapshot());
+
+      // Initialize dynamic weighting toggle
+      initializeDynamicWeightingToggle();
 
       // Load initial data
       refreshDashboard();
