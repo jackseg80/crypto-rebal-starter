@@ -652,6 +652,10 @@ async def debug_exchanges_snapshot(source: str = "cointracking_api"):
 async def healthz():
     return {"ok": True}
 
+@app.get("/test-simple")
+async def test_simple():
+    return {"test": "working", "endpoints_loaded": True}
+
 @app.get("/health/detailed")
 async def health_detailed():
     """Endpoint de santé détaillé avec métriques complètes"""

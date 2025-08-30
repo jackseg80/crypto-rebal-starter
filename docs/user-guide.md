@@ -1,6 +1,6 @@
-# Guide Utilisateur
+# Guide Utilisateur (Niveau intermédiaire)
 
-Ce guide couvre les usages principaux de l’application.
+Ce guide couvre les usages principaux avec exemples.
 
 ## 1. Chargement du portefeuille
 - Endpoint: `GET /balances/current?source=cointracking&min_usd=1`
@@ -11,14 +11,28 @@ Ce guide couvre les usages principaux de l’application.
 - UI: `static/rebalance.html`
 - Targets dynamiques (CCS): passer `dynamic_targets=true` et fournir `dynamic_targets_pct`.
 
+Exemple curl (targets manuels):
+```bash
+curl -X POST "http://127.0.0.1:8000/rebalance/plan" \
+  -H "Content-Type: application/json" \
+  -d '{"group_targets_pct":{"BTC":40,"ETH":30,"Stablecoins":10,"Others":20}}'
+```
+
 ## 3. Exécution (simulation/temps réel)
 - Endpoints: `/execution/*` et `/api/execution/*`
 - UI: `static/execution.html`, `static/execution_history.html`
 - Historique sessions: `GET /api/execution/history/sessions`
 
+Flux type:
+- Valider un plan: `POST /execution/validate-plan`
+- Lancer en arrière-plan: `POST /execution/execute-plan?plan_id=...&dry_run=true`
+- Suivre le statut: `GET /execution/status/{plan_id}`
+
 ## 4. Gestion des risques
 - Endpoints: `/api/risk/metrics`, `/api/risk/correlation`, `/api/risk/stress-test`, `/api/risk/dashboard`
 - UI: `static/risk-dashboard.html`
+
+Métriques incluses: VaR/CVaR, Sharpe, Sortino, Max Drawdown, Ulcer Index, skew/kurtosis.
 
 ## 5. Taxonomie & Aliases
 - Endpoints: `/taxonomy`, `/taxonomy/suggestions`, `/taxonomy/auto-classify`
@@ -29,8 +43,11 @@ Ce guide couvre les usages principaux de l’application.
 - Avancé: `/api/monitoring/health`, `/api/monitoring/alerts`
 - UI: `static/monitoring-unified.html`
 
+Différence Base vs Avancé:
+- Base (`/monitoring`): alertes métier pipeline (règles, notifications).
+- Avancé (`/api/monitoring`): santé système/composants (latences, connexions, historiques).
+
 ## 7. CSV CoinTracking
 - Export automatique: `POST /csv/download` (current_balance, balance_by_exchange, coins_by_exchange)
 
 Pour la liste complète, consultez `docs/api.md` ou l’OpenAPI (`/docs`).
-
