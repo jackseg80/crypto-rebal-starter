@@ -22,6 +22,8 @@ const DEFAULT_SETTINGS = {
   enable_performance_tracking: true,
   // Thème centralisé
   theme: 'auto', // 'auto', 'light', 'dark'
+  // Mode debug pour accès aux tests
+  debug_mode: false,
   // État du workflow
   has_generated_plan: false,
   unknown_aliases_count: 0,
@@ -347,6 +349,43 @@ class GlobalConfig {
     document.documentElement.style.setProperty('--effective-theme', effectiveTheme);
     
     console.log(`🎨 Thème appliqué: ${this.settings.theme} (effectif: ${effectiveTheme})`);
+  }
+
+  /**
+   * Active/désactive le mode debug
+   */
+  setDebugMode(enabled) {
+    this.set('debug_mode', enabled);
+    console.log(`🛠️ Mode debug ${enabled ? 'activé' : 'désactivé'}`);
+    
+    // Émettre un événement spécifique pour le mode debug
+    const event = new CustomEvent('debugModeChanged', {
+      detail: { enabled }
+    });
+    window.dispatchEvent(event);
+  }
+
+  /**
+   * Vérifie si le mode debug est actif (config + URL param)
+   */
+  isDebugMode() {
+    // Vérifier le paramètre URL d'abord
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('debug') === 'true') {
+      return true;
+    }
+    
+    // Ensuite la configuration sauvegardée
+    return this.get('debug_mode') === true;
+  }
+
+  /**
+   * Toggle debug mode
+   */
+  toggleDebugMode() {
+    const currentMode = this.get('debug_mode');
+    this.setDebugMode(!currentMode);
+    return !currentMode;
   }
 }
 

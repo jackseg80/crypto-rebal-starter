@@ -2634,6 +2634,8 @@
         }
 
         // Calculate cycle score for each data point
+        // Also precompute phase colors (used when Adaptation contextuelle is enabled)
+        const phaseColors = [];
         const cycleScoreData = historicalData.map(point => {
           const date = new Date(point.time);
 
@@ -2652,6 +2654,14 @@
 
           // Calculate cycle score using the existing function
           const cycleScore = cycleScoreFromMonths(monthsAfterHalving);
+
+          // Determine cycle phase color for this point (for contextual adaptation)
+          try {
+            const phase = getCyclePhase(monthsAfterHalving);
+            phaseColors.push(phase?.color || '#10b981');
+          } catch (_) {
+            phaseColors.push('#10b981');
+          }
 
           return {
             x: point.time,
@@ -2696,7 +2706,22 @@
                 yAxisID: 'y1',
                 pointRadius: 0,
                 pointHoverRadius: 4,
-                order: 1 // Afficher au premier plan
+                order: 1, // Afficher au premier plan
+                // Custom color by phase when Adaptation contextuelle is enabled
+                phaseColors: phaseColors,
+                segment: {
+                  borderColor: (ctx) => {
+                    try {
+                      const enabled = localStorage.getItem('enable_dynamic_weighting') === 'true';
+                      if (!enabled) return '#10b981';
+                      const idx = ctx.p0DataIndex;
+                      const color = ctx?.dataset?.phaseColors?.[idx];
+                      return color || '#10b981';
+                    } catch (_) {
+                      return '#10b981';
+                    }
+                  }
+                }
               }
             ]
           },
@@ -3031,58 +3056,48 @@
                 ctx.restore();
               }
 
-              // 🤖 Dynamic Phase Indicator (simplified - no async)
-              if (localStorage.getItem('enable_dynamic_weighting') === 'true') {
-                try {
-                  // Simple indicator without async calls (to avoid breaking chart)
-                  const boxWidth = 200;
-                  const boxHeight = 60;
-                  const margin = 15;
-                  const boxX = chart.width - boxWidth - margin;
-                  const boxY = margin;
-                  
-                  ctx.save();
-                  
-                  // Background box
-                  ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-                  ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
-                  
-                  // Border
-                  ctx.strokeStyle = '#fbbf24'; // Warning color
-                  ctx.lineWidth = 2;
-                  ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
-                  
-                  // Phase name
-                  ctx.fillStyle = '#fbbf24';
-                  ctx.font = 'bold 14px sans-serif';
-                  ctx.textAlign = 'center';
-                  ctx.fillText(
-                    '🤖 Dynamic Weighting',
-                    boxX + boxWidth / 2,
-                    boxY + 20
-                  );
-                  
-                  // Status
-                  ctx.fillStyle = '#ffffff';
-                  ctx.font = '11px sans-serif';
-                  ctx.fillText(
-                    'Active',
-                    boxX + boxWidth / 2,
-                    boxY + 35
-                  );
-                  
-                  ctx.font = '9px sans-serif';
-                  ctx.fillStyle = '#cccccc';
-                  ctx.fillText(
-                    'Adaptive weighting enabled',
-                    boxX + boxWidth / 2,
-                    boxY + 50
-                  );
-                  
-                  ctx.restore();
-                } catch (error) {
-                  console.warn('Could not add phase indicator:', error);
+              // Dynamic weighting badge removed per request (clutter)
+            }
+          },
+          {
+            id: 'phaseColoredCycleSegments',
+            afterDatasetsDraw(chart) {
+              try {
+                const enabled = localStorage.getItem('enable_dynamic_weighting') === 'true';
+                if (!enabled) return;
+
+                const dsIndex = chart.data.datasets.findIndex(d => d.label === 'Cycle Score');
+                if (dsIndex === -1) return;
+                const meta = chart.getDatasetMeta(dsIndex);
+                const ds = chart.data.datasets[dsIndex];
+                const points = meta.data || [];
+                const colors = ds.phaseColors || [];
+                const ctx = chart.ctx;
+
+                if (points.length < 2) return;
+
+                ctx.save();
+                ctx.lineWidth = (ds.borderWidth || 3) + 0.5; // draw slightly thicker overlay
+                ctx.lineJoin = 'round';
+                ctx.lineCap = 'round';
+
+                for (let i = 0; i < points.length - 1; i++) {
+                  const p0 = points[i];
+                  const p1 = points[i + 1];
+                  const c = colors[i] || '#10b981';
+                  // Skip if points are not in chart area
+                  if (!p0 || !p1 || !isFinite(p0.x) || !isFinite(p0.y) || !isFinite(p1.x) || !isFinite(p1.y)) continue;
+
+                  ctx.strokeStyle = c;
+                  ctx.beginPath();
+                  ctx.moveTo(p0.x, p0.y);
+                  ctx.lineTo(p1.x, p1.y);
+                  ctx.stroke();
                 }
+
+                ctx.restore();
+              } catch (e) {
+                console.warn('phaseColoredCycleSegments plugin failed:', e);
               }
             }
           }]
@@ -3498,6 +3513,25 @@
               &nbsp;&nbsp;|&nbsp;&nbsp;
               <span style="color: #10b981; font-weight: 600;">——</span> Score de cycle
             </div>
+            ${localStorage.getItem('enable_dynamic_weighting') === 'true' ? `
+            <div style="margin-top: 6px; font-size: 0.8rem;">
+              <span style="display:inline-flex;align-items:center;gap:6px;margin-right:12px;">
+                <span style="display:inline-block;width:14px;height:4px;background:#f59e0b;border-radius:2px;"></span> Accumulation
+              </span>
+              <span style="display:inline-flex;align-items:center;gap:6px;margin-right:12px;">
+                <span style="display:inline-block;width:14px;height:4px;background:#10b981;border-radius:2px;"></span> Bull build
+              </span>
+              <span style="display:inline-flex;align-items:center;gap:6px;margin-right:12px;">
+                <span style="display:inline-block;width:14px;height:4px;background:#8b5cf6;border-radius:2px;"></span> Peak/Euphoria
+              </span>
+              <span style="display:inline-flex;align-items:center;gap:6px;margin-right:12px;">
+                <span style="display:inline-block;width:14px;height:4px;background:#dc2626;border-radius:2px;"></span> Bear
+              </span>
+              <span style="display:inline-flex;align-items:center;gap:6px;">
+                <span style="display:inline-block;width:14px;height:4px;background:#6b7280;border-radius:2px;"></span> Pre‑Accumulation
+              </span>
+            </div>
+            ` : ''}
           </div>
         </div>
 

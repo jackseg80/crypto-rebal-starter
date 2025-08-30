@@ -197,9 +197,26 @@
     }
 
     .strategy-card.selected {
-      border-color: var(--brand-primary);
-      background: var(--brand-primary-subtle);
+      border-color: var(--brand-primary) !important;
+      background: var(--brand-primary-subtle) !important;
       box-shadow: var(--shadow-lg);
+    }
+
+    .strategy-card.dynamic-strategy.selected {
+      border: 3px solid var(--brand-primary) !important;
+      background: linear-gradient(135deg, var(--brand-primary-subtle), var(--warning-bg)) !important;
+      box-shadow: 0 0 0 2px var(--brand-primary-subtle);
+    }
+
+    .strategy-card.placeholder-strategy.selected {
+      border: 3px solid var(--brand-primary) !important;
+      background: var(--brand-primary-subtle) !important;
+      opacity: 1 !important;
+    }
+
+    .strategy-card.error-strategy.selected {
+      border: 3px solid var(--brand-primary) !important;
+      background: linear-gradient(135deg, var(--brand-primary-subtle), var(--danger-bg)) !important;
     }
 
     .strategy-header {
@@ -231,13 +248,23 @@
       color: white;
     }
 
-    .risk-élevé {
+    .risk-lev {
       background: var(--danger);
       color: white;
     }
 
     .risk-faible-moyen {
       background: var(--success);
+      color: white;
+    }
+
+    .risk-trsfaible {
+      background: #22c55e;
+      color: white;
+    }
+
+    .risk-trslev {
+      background: #dc2626;
       color: white;
     }
 
@@ -617,45 +644,96 @@
             'conservative': {
               name: 'Conservative',
               icon: '🛡️',
-              description: 'Allocation conservative avec forte composante stablecoin',
+              description: 'Allocation conservative avec forte composante stablecoin - Idéal marché baissier',
               risk_level: 'faible',
               allocations: {
                 'BTC': 25.0,
-                'ETH': 20.0,
-                'Stablecoins': 40.0,
+                'ETH': 18.0,
+                'Stablecoins': 35.0,
+                'SOL': 5.0,
                 'L1/L0 majors': 8.0,
-                'L2/Scaling': 4.0,
+                'L2/Scaling': 3.0,
                 'DeFi': 2.0,
-                'AI/Data': 1.0
+                'AI/Data': 1.5,
+                'Gaming/NFT': 1.0,
+                'Memecoins': 0.0,
+                'Others': 1.5
               }
             },
             'balanced': {
               name: 'Balanced',
               icon: '⚖️',
-              description: 'Répartition équilibrée entre crypto majeurs et stablecoins',
+              description: 'Répartition équilibrée - Approche classique pour marché stable',
               risk_level: 'moyen',
               allocations: {
                 'BTC': 35.0,
                 'ETH': 25.0,
                 'Stablecoins': 20.0,
-                'L1/L0 majors': 10.0,
-                'L2/Scaling': 5.0,
-                'DeFi': 3.0,
-                'AI/Data': 2.0
+                'SOL': 8.0,
+                'L1/L0 majors': 7.0,
+                'L2/Scaling': 2.5,
+                'DeFi': 1.5,
+                'AI/Data': 0.5,
+                'Gaming/NFT': 0.3,
+                'Memecoins': 0.1,
+                'Others': 0.1
               }
             },
             'aggressive': {
               name: 'Aggressive',
               icon: '🚀',
-              description: 'Forte exposition aux cryptos majeurs et altcoins',
+              description: 'Forte exposition altcoins - Maximum rendement, maximum risque',
               risk_level: 'élevé',
               allocations: {
-                'BTC': 40.0,
-                'ETH': 30.0,
+                'BTC': 30.0,
+                'ETH': 25.0,
                 'Stablecoins': 10.0,
-                'L1/L0 majors': 12.0,
-                'L2/Scaling': 6.0,
-                'DeFi': 2.0
+                'SOL': 15.0,
+                'L1/L0 majors': 10.0,
+                'L2/Scaling': 4.0,
+                'DeFi': 3.0,
+                'AI/Data': 1.5,
+                'Gaming/NFT': 1.0,
+                'Memecoins': 0.3,
+                'Others': 0.2
+              }
+            },
+            'defi_focused': {
+              name: 'DeFi Focused',
+              icon: '🦄',
+              description: 'Exposition maximale DeFi et L2 - Pour bull market DeFi',
+              risk_level: 'élevé',
+              allocations: {
+                'BTC': 20.0,
+                'ETH': 35.0,
+                'Stablecoins': 15.0,
+                'SOL': 8.0,
+                'L1/L0 majors': 5.0,
+                'L2/Scaling': 10.0,
+                'DeFi': 6.0,
+                'AI/Data': 0.5,
+                'Gaming/NFT': 0.3,
+                'Memecoins': 0.1,
+                'Others': 0.1
+              }
+            },
+            'bear_market': {
+              name: 'Bear Protection',
+              icon: '🐻',
+              description: 'Protection marché baissier - Stablecoins dominants avec BTC/ETH solides',
+              risk_level: 'très-faible',
+              allocations: {
+                'BTC': 30.0,
+                'ETH': 15.0,
+                'Stablecoins': 50.0,
+                'SOL': 2.0,
+                'L1/L0 majors': 2.5,
+                'L2/Scaling': 0.3,
+                'DeFi': 0.1,
+                'AI/Data': 0.1,
+                'Gaming/NFT': 0.0,
+                'Memecoins': 0.0,
+                'Others': 0.0
               }
             }
           };

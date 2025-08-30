@@ -346,17 +346,73 @@ def _norm_primary_symbols(x: Any) -> Dict[str, List[str]]:
 async def resolve_current_balances(source: str = Query("cointracking_api")) -> Dict[str, Any]:
     """
     Retourne {source_used, items:[{symbol, alias, amount, value_usd, location}]}
-    - Si CT-API dispo: affecte une location “principale” par coin (échange avec la plus grosse part)
+    - Si CT-API dispo: affecte une location "principale" par coin (échange avec la plus grosse part)
     - Sinon: fallback CSV/local avec location=CoinTracking
+    - Source "stub": données de démo pour les tests
     """
+    
+    # --- Source stub: données de démo ---
+    if source == "stub":
+        demo_data = [
+            {"symbol": "BTC", "alias": "BTC", "amount": 2.5, "value_usd": 105000.0, "location": "Kraken"},
+            {"symbol": "ETH", "alias": "ETH", "amount": 15.75, "value_usd": 47250.0, "location": "Binance"},
+            {"symbol": "USDC", "alias": "USDC", "amount": 25000.0, "value_usd": 25000.0, "location": "Coinbase"},
+            {"symbol": "SOL", "alias": "SOL", "amount": 180.0, "value_usd": 23400.0, "location": "Phantom"},
+            {"symbol": "AVAX", "alias": "AVAX", "amount": 450.0, "value_usd": 13500.0, "location": "Ledger"},
+            {"symbol": "MATIC", "alias": "MATIC", "amount": 12000.0, "value_usd": 9600.0, "location": "MetaMask"},
+            {"symbol": "LINK", "alias": "LINK", "amount": 520.0, "value_usd": 7280.0, "location": "Binance"},
+            {"symbol": "UNI", "alias": "UNI", "amount": 800.0, "value_usd": 6400.0, "location": "Uniswap"},
+            {"symbol": "AAVE", "alias": "AAVE", "amount": 45.0, "value_usd": 5850.0, "location": "Aave"},
+            {"symbol": "WBTC", "alias": "WBTC", "amount": 0.12, "value_usd": 5040.0, "location": "Ledger"},
+            {"symbol": "WETH", "alias": "WETH", "amount": 1.8, "value_usd": 5400.0, "location": "MetaMask"},
+            {"symbol": "USDT", "alias": "USDT", "amount": 8500.0, "value_usd": 8500.0, "location": "Binance"},
+            {"symbol": "ADA", "alias": "ADA", "amount": 15000.0, "value_usd": 6750.0, "location": "Kraken"},
+            {"symbol": "DOT", "alias": "DOT", "amount": 950.0, "value_usd": 4750.0, "location": "Polkadot"},
+            {"symbol": "ATOM", "alias": "ATOM", "amount": 520.0, "value_usd": 4160.0, "location": "Keplr"},
+            {"symbol": "FTM", "alias": "FTM", "amount": 8500.0, "value_usd": 3400.0, "location": "Fantom"},
+            {"symbol": "ALGO", "alias": "ALGO", "amount": 12000.0, "value_usd": 3000.0, "location": "Pera"},
+            {"symbol": "NEAR", "alias": "NEAR", "amount": 1200.0, "value_usd": 2880.0, "location": "Near Wallet"},
+            {"symbol": "ICP", "alias": "ICP", "amount": 350.0, "value_usd": 2450.0, "location": "NNS"},
+            {"symbol": "SAND", "alias": "SAND", "amount": 6000.0, "value_usd": 2400.0, "location": "Binance"},
+            {"symbol": "MANA", "alias": "MANA", "amount": 5500.0, "value_usd": 2200.0, "location": "MetaMask"},
+            {"symbol": "CRV", "alias": "CRV", "amount": 3500.0, "value_usd": 2100.0, "location": "Curve"},
+            {"symbol": "COMP", "alias": "COMP", "amount": 45.0, "value_usd": 1980.0, "location": "Compound"},
+            {"symbol": "SUSHI", "alias": "SUSHI", "amount": 2500.0, "value_usd": 1750.0, "location": "SushiSwap"},
+            {"symbol": "YFI", "alias": "YFI", "amount": 0.3, "value_usd": 1650.0, "location": "Yearn"},
+            {"symbol": "1INCH", "alias": "1INCH", "amount": 4200.0, "value_usd": 1260.0, "location": "1inch"},
+            {"symbol": "BAT", "alias": "BAT", "amount": 5800.0, "value_usd": 1160.0, "location": "Brave"},
+            {"symbol": "ENJ", "alias": "ENJ", "amount": 4500.0, "value_usd": 1080.0, "location": "Enjin"},
+            {"symbol": "CHZ", "alias": "CHZ", "amount": 15000.0, "value_usd": 900.0, "location": "Chiliz"},
+            {"symbol": "DOGE", "alias": "DOGE", "amount": 8000.0, "value_usd": 800.0, "location": "Robinhood"},
+            {"symbol": "SHIB", "alias": "SHIB", "amount": 50000000.0, "value_usd": 450.0, "location": "Binance"},
+            {"symbol": "LRC", "alias": "LRC", "amount": 2500.0, "value_usd": 375.0, "location": "Loopring"},
+            {"symbol": "GRT", "alias": "GRT", "amount": 8000.0, "value_usd": 320.0, "location": "Graph"},
+            {"symbol": "OMG", "alias": "OMG", "amount": 800.0, "value_usd": 240.0, "location": "OMG Network"},
+            {"symbol": "REN", "alias": "REN", "amount": 3500.0, "value_usd": 175.0, "location": "Ren"},
+            {"symbol": "KNC", "alias": "KNC", "amount": 400.0, "value_usd": 120.0, "location": "Kyber"},
+            {"symbol": "STORJ", "alias": "STORJ", "amount": 250.0, "value_usd": 87.5, "location": "Storj"},
+            {"symbol": "ZRX", "alias": "ZRX", "amount": 200.0, "value_usd": 60.0, "location": "0x"},
+            {"symbol": "BAL", "alias": "BAL", "amount": 15.0, "value_usd": 45.0, "location": "Balancer"},
+            {"symbol": "NMR", "alias": "NMR", "amount": 3.0, "value_usd": 36.0, "location": "Numerai"},
+            {"symbol": "REP", "alias": "REP", "amount": 2.5, "value_usd": 25.0, "location": "Augur"},
+            {"symbol": "DNT", "alias": "DNT", "amount": 500.0, "value_usd": 15.0, "location": "district0x"},
+            {"symbol": "ANT", "alias": "ANT", "amount": 8.0, "value_usd": 12.0, "location": "Aragon"},
+            {"symbol": "MLN", "alias": "MLN", "amount": 0.8, "value_usd": 8.0, "location": "Melon"},
+            {"symbol": "BNT", "alias": "BNT", "amount": 12.0, "value_usd": 6.0, "location": "Bancor"},
+            {"symbol": "LPT", "alias": "LPT", "amount": 0.5, "value_usd": 4.0, "location": "Livepeer"},
+            {"symbol": "MKR", "alias": "MKR", "amount": 0.003, "value_usd": 3.0, "location": "MakerDAO"},
+            {"symbol": "SNT", "alias": "SNT", "amount": 100.0, "value_usd": 2.0, "location": "Status"}
+        ]
+        return {"source_used": "stub", "items": demo_data}
+    
     if source in ("cointracking_api", "cointracking"):
         try:
             # 1) On charge le snapshot par exchange via CT-API
             snap = await _load_ctapi_exchanges(min_usd=0.0)
             detailed = snap.get("detailed_holdings") or {}
 
-            # 2) On récupère la vue “par coin” (totaux) via CT-API aussi (ou via pricing local si tu préfères)
-            api_bal = await ct_api.get_current_balances()  # items par coin (value_usd, amount)
+            # 2) On récupère la vue "par coin" (totaux) via CT-API aussi (ou via pricing local si tu préfères)
+            api_bal = await ct_api_get_current_balances()  # items par coin (value_usd, amount)
             items = api_bal.get("items") or []
 
             # 3) Pour CHAQUE coin, on met la location = exchange principal (max value_usd)

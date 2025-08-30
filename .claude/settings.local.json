@@ -108,7 +108,12 @@
       "Bash(start http://localhost:8000/static/test-v2-quick.html)",
       "Bash(start http://localhost:8000/static/backtesting-v2.html)",
       "Bash(start http://localhost:8000/static/test-dynamic-weighting.html)",
-      "Bash(start http://localhost:8000/static/test-dynamic-weighting-debug.html)"
+      "Bash(start http://localhost:8000/static/test-dynamic-weighting-debug.html)",
+      "Bash(start http://localhost:8000/debug_11_groups.html)",
+      "Bash(start http://localhost:8000/tests/html_debug/debug_11_groups.html)",
+      "Bash(start http://localhost:8000/static/risk-dashboard.html?debug=true)",
+      "Bash(start http://localhost:8000/tests/html_debug/test_debug_menu.html)",
+      "Bash(start http://localhost:8000/tests/html_debug/test_debug_menu.html?debug=true)"
     ],
     "deny": [],
     "ask": [],
