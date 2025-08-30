@@ -6,6 +6,17 @@
  */
 
 // Configuration par défaut
+// Helper: detect sensible default API base depending on where the page runs
+function detectDefaultApiBase() {
+  try {
+    const origin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '';
+    if (origin && (origin.startsWith('http://') || origin.startsWith('https://'))) {
+      return origin; // use same origin by default
+    }
+  } catch (_) { /* ignore */ }
+  return 'http://127.0.0.1:8000';
+}
+
 const DEFAULT_SETTINGS = {
   data_source: 'cointracking',
   pricing: 'local',
@@ -15,7 +26,7 @@ const DEFAULT_SETTINGS = {
   cointracking_api_key: '',
   cointracking_api_secret: '',
   fred_api_key: '',
-  api_base_url: 'http://127.0.0.1:8000',
+  api_base_url: detectDefaultApiBase(),
   refresh_interval: 5,
   enable_coingecko_classification: true,
   enable_portfolio_snapshots: true,
@@ -47,6 +58,10 @@ class GlobalConfig {
       if (saved) {
         const parsed = JSON.parse(saved);
         this.settings = { ...DEFAULT_SETTINGS, ...parsed };
+        // Ensure api_base_url is always set to a usable default if missing/empty
+        if (!this.settings.api_base_url) {
+          this.settings.api_base_url = detectDefaultApiBase();
+        }
       }
     } catch (error) {
       console.warn('Erreur chargement configuration:', error);

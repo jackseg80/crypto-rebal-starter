@@ -105,11 +105,12 @@ async def generic_exception_handler(request: Request, exc: Exception):
 # CORS sécurisé avec configuration dynamique
 default_origins = [
     "http://localhost:3000",
-    "http://localhost:8000", 
+    "http://localhost:8000",
     "http://localhost:8080",
     "http://127.0.0.1:8000",
     "http://127.0.0.1:8080",
-    "file://"  # Pour les fichiers HTML statiques
+    "file://",  # Pour les fichiers HTML statiques (certains navigateurs envoient Origin: null)
+    "null",
 ]
 app.add_middleware(
     CORSMiddleware,
@@ -149,8 +150,19 @@ async def add_security_headers(request: Request, call_next):
     
     # Content Security Policy adaptée au contexte
     if DEBUG:
-        # CSP plus permissive en développement
-        response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://api.stlouisfed.org https://api.coingecko.com"
+        # CSP très permissive en développement pour /docs et /redoc
+        if request.url.path in ["/docs", "/redoc", "/openapi.json"]:
+            response.headers["Content-Security-Policy"] = "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https:; img-src 'self' data: https:;"
+        else:
+            # CSP plus permissive en développement pour les autres pages
+            # Autorise les connexions HTTP/HTTPS (ex: 127.0.0.1:8001) + APIs publiques utilisées
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; "
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; "
+                "style-src 'self' 'unsafe-inline'; "
+                "img-src 'self' data: https:; "
+                "connect-src 'self' http: https: https://api.stlouisfed.org https://api.coingecko.com"
+            )
     else:
         # CSP stricte en production
         response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
