@@ -534,17 +534,49 @@ class AdvancedRiskManager:
             # 3. Calcul des returns du portfolio
             portfolio_returns = self._calculate_portfolio_returns(holdings, returns_data)
             
-            # 4. Calcul VaR/CVaR
-            var_metrics = self._calculate_var_cvar(portfolio_returns)
-            
-            # 5. Métriques de performance ajustées au risque
-            perf_metrics = self._calculate_risk_adjusted_metrics(portfolio_returns)
-            
-            # 6. Analyse des drawdowns
-            drawdown_metrics = self._calculate_drawdown_metrics(portfolio_returns)
-            
-            # 7. Analyse de distribution
-            distribution_metrics = self._calculate_distribution_metrics(portfolio_returns)
+            # 4. Fenêtres intelligentes par métrique (cycle-aware)
+            def tail(seq, n):
+                n_eff = min(len(seq), max(0, int(n)))
+                return seq[-n_eff:] if n_eff > 0 else []
+
+            windows = {
+                "var": 30,
+                "cvar": 60,
+                "vol": 45,
+                "sharpe": 90,
+                "sortino": 120,
+                "dd": 180,
+                "calmar": 365,
+            }
+
+            # VaR/CVaR
+            var_returns = tail(portfolio_returns, windows["var"])
+            cvar_returns = tail(portfolio_returns, windows["cvar"])
+
+            var_metrics = self._calculate_var_cvar(var_returns)
+            if len(cvar_returns) >= 10:
+                cvar_only = self._calculate_var_cvar(cvar_returns)
+                var_metrics["cvar_95"] = cvar_only.get("cvar_95", var_metrics["cvar_95"]) 
+                var_metrics["cvar_99"] = cvar_only.get("cvar_99", var_metrics["cvar_99"]) 
+
+            # Performance ajustée au risque
+            vol_metrics = self._calculate_risk_adjusted_metrics(tail(portfolio_returns, windows["vol"]))
+            sharpe_metrics = self._calculate_risk_adjusted_metrics(tail(portfolio_returns, windows["sharpe"]))
+            sortino_metrics = self._calculate_risk_adjusted_metrics(tail(portfolio_returns, windows["sortino"]))
+            calmar_metrics = self._calculate_risk_adjusted_metrics(tail(portfolio_returns, windows["calmar"]))
+
+            perf_metrics = {
+                "volatility": vol_metrics.get("volatility", 0.0),
+                "sharpe": sharpe_metrics.get("sharpe", 0.0),
+                "sortino": sortino_metrics.get("sortino", 0.0),
+                "calmar": calmar_metrics.get("calmar", 0.0),
+            }
+
+            # Drawdowns
+            drawdown_metrics = self._calculate_drawdown_metrics(tail(portfolio_returns, windows["dd"]))
+
+            # Distribution (utiliser fenêtre sharpe par défaut)
+            distribution_metrics = self._calculate_distribution_metrics(tail(portfolio_returns, windows["sharpe"]))
             
             # 8. Évaluation du niveau de risque global
             risk_assessment = self._assess_overall_risk_level(var_metrics, perf_metrics, drawdown_metrics)
@@ -598,7 +630,7 @@ class AdvancedRiskManager:
         holdings: List[Dict[str, Any]], 
         days: int
     ) -> List[Dict[str, float]]:
-        """Génère l'historique des returns (simulation - en production: vraies données)"""
+        """Génère l'historique des returns depuis les vraies données de prix en cache"""
         
         # Extraire les symboles des holdings
         symbols = [h.get("symbol", "") for h in holdings if h.get("symbol")]
@@ -606,7 +638,96 @@ class AdvancedRiskManager:
             logger.warning("Aucun symbole trouvé dans les holdings")
             return []
         
-        # Pour la démo, retourner des données de test réalistes
+        # Importer le module de cache d'historique
+        try:
+            from services.price_history import get_cached_history, calculate_returns
+        except ImportError as e:
+            logger.error(f"Impossible d'importer price_history: {e}")
+            return await self._generate_historical_returns_fallback(symbols, days)
+        
+        logger.info(f"📈 Calcul rendements réels depuis cache pour {len(symbols)} symboles ({days}j)")
+        
+        # Collecter l'historique pour tous les symboles
+        symbol_histories = {}
+        available_symbols = []
+        
+        for symbol in symbols:
+            history = get_cached_history(symbol, days + 1)  # +1 pour calculer les rendements
+            if history and len(history) >= 2:  # Minimum 2 points pour calculer 1 rendement
+                symbol_histories[symbol] = history
+                available_symbols.append(symbol)
+                logger.debug(f"✅ {symbol}: {len(history)} points de prix")
+            else:
+                logger.warning(f"⚠️ {symbol}: historique insuffisant ou absent")
+        
+        if not available_symbols:
+            logger.warning("❌ Aucun historique de prix disponible - fallback simulation")
+            return await self._generate_historical_returns_fallback(symbols, days)
+        
+        # Calculer les rendements pour chaque symbole
+        symbol_returns = {}
+        for symbol in available_symbols:
+            returns = calculate_returns(symbol_histories[symbol], log_returns=True)
+            if returns:
+                symbol_returns[symbol] = returns[-days:]  # Prendre les N derniers jours
+        
+        # Filtrer les séries trop courtes (<10 rendements) pour ne pas réduire la fenètre globale
+        MIN_RETURNS = 10
+        symbol_returns = {s: r for s, r in symbol_returns.items() if len(r) >= MIN_RETURNS}
+        if not symbol_returns:
+            logger.warning("❌ Rendements insuffisants après filtrage - fallback simulation")
+            return await self._generate_historical_returns_fallback(symbols, days)
+        
+        # Construire une fenêtre cible fixe sans la rétrécir à l'asset le plus court
+        max_length = max(len(r) for r in symbol_returns.values())
+        target_length = min(days, max_length)
+        if target_length < MIN_RETURNS:
+            logger.warning("❌ Fenêtre disponible < seuil après filtrage - fallback simulation")
+            return await self._generate_historical_returns_fallback(symbols, days)
+        
+        # Aligner/padder toutes les séries sur la longueur cible (pad au début avec 0.0 si nécessaire)
+        for symbol in list(symbol_returns.keys()):
+            seq = symbol_returns[symbol][-target_length:]
+            if len(seq) < target_length:
+                pad = [0.0] * (target_length - len(seq))
+                seq = pad + seq
+            symbol_returns[symbol] = seq
+        
+        # Construire la série temporelle de rendements
+        returns_series = []
+        for i in range(target_length):
+            day_returns = {}
+            for symbol in symbol_returns.keys():
+                day_returns[symbol] = symbol_returns[symbol][i]
+            
+            # Pour les symboles manquants (non couverts), utiliser 0.0
+            for symbol in symbols:
+                if symbol not in day_returns:
+                    day_returns[symbol] = 0.0
+                    
+            returns_series.append(day_returns)
+        
+        coverage = len(available_symbols) / len(symbols) * 100
+        logger.info(f"✅ {len(returns_series)} jours de rendements réels générés ({coverage:.1f}% couverture)")
+        
+        # Log de quelques statistiques pour validation
+        if returns_series:
+            sample_returns = [day.get('BTC', 0.0) for day in returns_series[-30:]]  # 30 derniers jours BTC
+            if sample_returns and any(r != 0 for r in sample_returns):
+                vol_annualized = np.std(sample_returns) * np.sqrt(252)
+                logger.debug(f"🔍 Validation BTC: volatilité 30j annualisée = {vol_annualized:.1%}")
+        
+        return returns_series
+    
+    async def _generate_historical_returns_fallback(
+        self, 
+        symbols: List[str], 
+        days: int
+    ) -> List[Dict[str, float]]:
+        """Fallback avec simulation uniquement si données réelles indisponibles"""
+        
+        logger.warning(f"🟡 FALLBACK: Génération de rendements simulés pour {len(symbols)} symboles")
+        
         returns_series = []
         
         # Générer des returns aléatoires mais réalistes pour chaque jour
@@ -630,7 +751,7 @@ class AdvancedRiskManager:
             
             returns_series.append(day_returns)
         
-        logger.info(f"Généré {len(returns_series)} jours de données historiques simulées pour {len(symbols)} symboles")
+        logger.info(f"⚠️ Généré {len(returns_series)} jours de données simulées (FALLBACK)")
         return returns_series
     
     def _calculate_portfolio_returns(
@@ -878,18 +999,38 @@ class AdvancedRiskManager:
             if len(returns_data) < 10:
                 return CorrelationMatrix()
             
-            # Construire matrice des returns
-            symbols = [h.get("symbol", "") for h in holdings]
+            # Construire matrice des returns et filtrer les symboles sans variance
+            all_symbols = [h.get("symbol", "") for h in holdings]
             returns_matrix = []
-            
             for day_returns in returns_data:
-                day_row = [day_returns.get(symbol, 0.0) for symbol in symbols]
-                returns_matrix.append(day_row)
+                returns_matrix.append([day_returns.get(symbol, 0.0) for symbol in all_symbols])
             
-            returns_df = pd.DataFrame(returns_matrix, columns=symbols)
+            df = pd.DataFrame(returns_matrix, columns=all_symbols)
+            # Garder uniquement les colonnes avec une variance non nulle (évite NaN dans corr())
+            variances = df.var(axis=0, ddof=1)
+            symbols = [sym for sym in all_symbols if sym and float(variances.get(sym, 0.0)) > 0.0]
+            if not symbols:
+                logger.warning("Aucun symbole avec variance non nulle pour la corrélation → retour vide")
+                return CorrelationMatrix()
+            if len(symbols) == 1:
+                sym = symbols[0]
+                return CorrelationMatrix(
+                    correlations={sym: {sym: 1.0}},
+                    eigen_values=[1.0],
+                    eigen_vectors=[[1.0]],
+                    principal_components={"PC1": 1.0},
+                    diversification_ratio=1.0,
+                    effective_assets=1.0,
+                    last_updated=datetime.now()
+                )
+            returns_df = df[symbols]
             
             # Calcul de la matrice de corrélation
-            corr_matrix = returns_df.corr()
+            corr_matrix = returns_df.corr().fillna(0.0)
+            # Assurer diagonale à 1 et clip [-1, 1] pour stabilité
+            for i in range(len(symbols)):
+                corr_matrix.iat[i, i] = 1.0
+            corr_matrix = corr_matrix.clip(lower=-1.0, upper=1.0)
             
             # Conversion en dictionnaire
             correlations = {}
@@ -899,7 +1040,14 @@ class AdvancedRiskManager:
                     correlations[symbol1][symbol2] = corr_matrix.loc[symbol1, symbol2]
             
             # Analyse en composantes principales
-            eigen_values, eigen_vectors = np.linalg.eigh(corr_matrix.values)
+            # Sécuriser la décomposition en présence de petits artefacts numériques
+            safe_matrix = np.nan_to_num(corr_matrix.values, nan=0.0, posinf=1.0, neginf=-1.0)
+            try:
+                eigen_values, eigen_vectors = np.linalg.eigh(safe_matrix)
+            except Exception as _e:
+                n = len(symbols)
+                eigen_values = np.ones(n)
+                eigen_vectors = np.eye(n)
             eigen_values = eigen_values.tolist()
             eigen_vectors = eigen_vectors.tolist()
             
@@ -910,11 +1058,15 @@ class AdvancedRiskManager:
                 principal_components[f"PC{i+1}"] = eigenval / total_variance if total_variance > 0 else 0
             
             # Ratio de diversification
-            portfolio_weights = np.array([h.get("value_usd", 0) for h in holdings])
-            portfolio_weights = portfolio_weights / np.sum(portfolio_weights)
+            # Recalculer les poids uniquement sur les symboles actifs
+            value_map = {h.get("symbol", ""): float(h.get("value_usd", 0)) for h in holdings}
+            weights_arr = np.array([value_map.get(sym, 0.0) for sym in symbols], dtype=float)
+            if weights_arr.sum() <= 0:
+                weights_arr = np.ones(len(symbols), dtype=float)
+            portfolio_weights = weights_arr / weights_arr.sum()
             
-            portfolio_variance = np.dot(portfolio_weights, np.dot(corr_matrix.values, portfolio_weights))
-            weighted_avg_variance = np.dot(portfolio_weights**2, np.ones(len(symbols)))
+            portfolio_variance = float(np.dot(portfolio_weights, np.dot(safe_matrix, portfolio_weights)))
+            weighted_avg_variance = float(np.dot(portfolio_weights**2, np.ones(len(symbols))))
             diversification_ratio = np.sqrt(weighted_avg_variance / portfolio_variance) if portfolio_variance > 0 else 1.0
             
             # Nombre effectif d'assets (inverse participation ratio)

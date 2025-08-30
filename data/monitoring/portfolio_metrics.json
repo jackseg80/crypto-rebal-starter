@@ -1,0 +1,40 @@
+{
+  "total_value": 433032.21,
+  "change_24h": 2.34,
+  "change_7d": -5.67,
+  "last_update": "2025-08-27T00:17:10.325412+00:00",
+  "assets": {
+    "Bitcoin": {
+      "current_allocation": 45.2,
+      "target_allocation": 40.0,
+      "deviation": 5.2,
+      "value_usd": 195571.48,
+      "change_24h": 3.1
+    },
+    "Ethereum": {
+      "current_allocation": 28.1,
+      "target_allocation": 30.0,
+      "deviation": -1.9,
+      "value_usd": 121683.03,
+      "change_24h": 1.8
+    },
+    "Altcoins": {
+      "current_allocation": 26.7,
+      "target_allocation": 30.0,
+      "deviation": -3.3,
+      "value_usd": 115777.7,
+      "change_24h": 1.9
+    }
+  },
+  "performance_metrics": {
+    "sharpe_ratio": 1.42,
+    "max_drawdown": -12.3,
+    "volatility": 45.6,
+    "total_return_7d": -5.67,
+    "total_return_30d": 12.34
+  },
+  "max_deviation": 5.2,
+  "portfolio_status": "warning",
+  "last_rebalance": "2025-08-26T06:17:10.325426+00:00",
+  "timestamp": "2025-08-27T00:17:10.325431+00:00"
+}

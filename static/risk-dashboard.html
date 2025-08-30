@@ -740,6 +740,7 @@
         <div class="tab-content">
           <!-- Risk Overview Tab -->
           <div class="tab-pane active" id="risk-tab">
+            <!-- Persistent Controls (do not get replaced by dynamic render) -->
             <div id="risk-dashboard-content">
               <div class="loading">Loading risk metrics...</div>
             </div>
@@ -803,7 +804,7 @@
 
     // Import core modules
     import { store } from './core/risk-dashboard-store.js';
-    import { fetchCached } from './core/fetcher.js';
+    import { fetchCached, clearCache } from './core/fetcher.js';
 
     // Import CCS modules
     import { fetchAndComputeCCS, interpretCCS, DEFAULT_CCS_WEIGHTS } from './modules/signals-engine.js';
@@ -917,12 +918,33 @@
     const pct = v => (v == null || isNaN(v) ? 'N/A' : (v * 100).toFixed(2) + '%');
     const num = v => (v == null || isNaN(v) ? 'N/A' : Number(v).toFixed(2));
 
+    // ====== Analysis Window Slider ======
+    // Fixed windows
+    const analysisDays = 365;
+    const corrDays = 90;
+    function updateWindowLabel(v) {
+      const lbl = document.getElementById('window-label');
+      if (lbl) lbl.textContent = `${v} jours`;
+    }
+    // Removed old controls
+
     // ====== API Functions ======
     async function fetchRiskData() {
       try {
-        const apiResult = await fetchCached(
-          'risk-dashboard',
-          () => fetch('http://localhost:8000/api/risk/dashboard?source=cointracking&pricing=local&min_usd=1.00')
+        // Get the configured data source dynamically
+        const dataSource = globalConfig.get('data_source');
+        const apiBaseUrl = globalConfig.get('api_base_url');
+        const minUsd = globalConfig.get('min_usd_threshold');
+
+        console.debug(`🔍 Risk Overview using data source: ${dataSource}`);
+
+        // Use globalConfig to build the API URL with the configured source
+        const url = globalConfig.getApiUrl('/balances/current', { min_usd: minUsd });
+
+        // Utiliser directement les données de balance et calculer le risque côté client
+        const balanceResult = await fetchCached(
+          'risk-dashboard-balance',
+          () => fetch(url)
             .then(r => {
               if (!r.ok) throw new Error(`HTTP ${r.status}: ${r.statusText}`);
               return r.json();
@@ -930,273 +952,53 @@
           'risk'
         );
 
-        // If API returns success:false, use CSV fallback instead
-        if (!apiResult.success) {
-          console.warn('Risk API returned error:', apiResult.message, '- using CSV fallback');
-          return getMockRiskData();
+        // Use the real backend endpoint for risk dashboard
+        const riskUrl = globalConfig.getApiUrl('/api/risk/dashboard', { min_usd: minUsd, price_history_days: analysisDays, lookback_days: corrDays });
+        console.debug(`🔍 Fetching risk metrics from: ${riskUrl}`);
+
+        const riskResponse = await fetch(riskUrl);
+        if (!riskResponse.ok) {
+          throw new Error(`Risk API Error: ${riskResponse.status}`);
         }
 
+        const apiResult = await riskResponse.json();
+        console.log(`📊 Real risk metrics calculated: VaR 95%: ${(apiResult.risk_metrics.var_95_1d * 100).toFixed(2)}%, Sharpe: ${apiResult.risk_metrics.sharpe_ratio.toFixed(2)}`);
+
+        // The backend already provides the correct structure, just return it
         return apiResult;
       } catch (error) {
-        console.warn('Risk API unavailable, using fallback data:', error);
-        return getMockRiskData();
+        console.warn('Risk API unavailable:', error);
+        return {
+          success: false,
+          message: 'Backend de risque indisponible. Assurez-vous que le serveur backend est démarré.',
+          error_type: 'connection_error'
+        };
       }
     }
 
-    // Fallback mock data when API is unavailable - uses configured data source
-    async function getMockRiskData() {
-      try {
-        console.debug('🔍 Loading risk data using configured source...');
-        const balanceResult = await window.loadBalanceData();
-
-        if (!balanceResult.success) {
-          throw new Error(balanceResult.error);
-        }
-
-        let balances;
-
-        if (balanceResult.csvText) {
-          // Source CSV locale
-          balances = window.parseCSVBalances(balanceResult.csvText);
-        } else if (balanceResult.data && balanceResult.data.items) {
-          // Source API (stub ou cointracking_api)
-          balances = balanceResult.data.items.map(item => ({
-            symbol: item.symbol,
-            balance: item.balance,
-            value_usd: item.value_usd
-          }));
-        } else {
-          throw new Error('Invalid data format received');
-        }
-
-        const totalValue = balances.reduce((sum, item) => sum + item.value_usd, 0);
-        const assetCount = balances.length; // Dynamic calculation (>=configured threshold)
-
-        console.debug('🔍 DEBUG Risk Dashboard: Using REAL CSV data - total:', totalValue.toFixed(2), 'assets:', assetCount);
-        console.debug('🔍 DEBUG Risk Dashboard: Individual assets parsed:', balances.length);
-
-        // Calculate real risk metrics based on portfolio composition
-        try {
-          const groups = groupAssetsByAliases(balances);
-          console.debug('🔍 DEBUG Risk Dashboard: Groups created:', groups.length);
-
-          const riskMetrics = calculateRealRiskMetrics(balances, totalValue);
-          console.debug('🔍 DEBUG Risk Dashboard: Risk metrics calculated:', riskMetrics);
-
-          const groupWeights = {};
-
-          // Calculate weights for correlation metrics
-          groups.forEach(group => {
-            groupWeights[group.label] = group.value / totalValue;
-          });
-          console.debug('🔍 DEBUG Risk Dashboard: Group weights calculated:', groupWeights);
-
-          const correlationMetrics = calculateCorrelationMetrics(groups, groupWeights);
-          console.debug('🔍 DEBUG Risk Dashboard: Correlation metrics calculated:', correlationMetrics);
-
-          return {
-            success: true,
-            timestamp: new Date().toISOString(),
-            calculation_time: '0.15s',
-            risk_metrics: riskMetrics,
-            portfolio_summary: {
-              total_value: totalValue,
-              num_assets: assetCount,
-              confidence_level: 0.78, // 78% confidence in data quality
-              diversification_score: 0.72,
-              rebalancing_drift: 0.08
-            },
-            correlation_metrics: correlationMetrics
-          };
-        } catch (metricsError) {
-          console.error('🔍 DEBUG Risk Dashboard: Error calculating metrics:', metricsError);
-          // Fallback to simple metrics if calculation fails
-          return {
-            success: true,
-            timestamp: new Date().toISOString(),
-            calculation_time: '0.15s',
-            risk_metrics: {
-              volatility_annualized: 0.65, // Higher for crypto
-              sharpe_ratio: 0.8,
-              sortino_ratio: 1.2,
-              max_drawdown: -0.45, // Higher for crypto
-              current_drawdown: -0.08,
-              var_95_1d: -0.12, // Higher VaR for crypto
-              var_99_1d: -0.18,
-              cvar_95_1d: -0.16,
-              cvar_99_1d: -0.22,
-              calmar_ratio: 0.4,
-              risk_score: 75.0,
-              overall_risk_level: 'high'
-            },
-            portfolio_summary: {
-              total_value: totalValue,
-              num_assets: assetCount,
-              confidence_level: 0.78,
-              diversification_score: 0.72,
-              rebalancing_drift: 0.08
-            },
-            correlation_metrics: {
-              diversification_ratio: 0.55,
-              effective_assets: 8.2,
-              top_correlations: [
-                { asset1: 'BTC', asset2: 'ETH', correlation: 0.75 },
-                { asset1: 'ETH', asset2: 'Others', correlation: 0.65 },
-                { asset1: 'BTC', asset2: 'Others', correlation: 0.60 }
-              ]
-            }
-          };
-        }
-      } catch (error) {
-        console.error('CSV not available for risk dashboard:', error);
-        // Return null instead of hardcoded fallback
-        return null;
-      }
-    }
+    // NOTE: getMockRiskData() supprimée - plus de données simulées
 
     // CSV parsing functions are now centralized in global-config.js
 
-    // ====== Real Risk Metrics Calculation ======
-    function calculateRealRiskMetrics(balances, totalValue) {
-      // Group assets by risk categories
-      const groups = groupAssetsByAliases(balances);
-      const groupWeights = {};
-
-      // Calculate weights for each group
-      groups.forEach(group => {
-        groupWeights[group.label] = group.value / totalValue;
-      });
-
-      console.debug('🔍 DEBUG Risk Calculation: Group weights:', groupWeights);
-
-      // Risk profiles for different asset categories (based on historical data)
-      const RISK_PROFILES = {
-        'BTC': { volatility: 0.65, correlation_to_market: 1.0, sharpe_base: 1.2, max_drawdown_base: 0.65 },
-        'ETH': { volatility: 0.75, correlation_to_market: 0.85, sharpe_base: 1.1, max_drawdown_base: 0.70 },
-        'Stablecoins': { volatility: 0.02, correlation_to_market: 0.05, sharpe_base: 0.1, max_drawdown_base: 0.01 },
-        'L1/L0 majors': { volatility: 0.85, correlation_to_market: 0.70, sharpe_base: 0.9, max_drawdown_base: 0.75 },
-        'Exchange Tokens': { volatility: 0.90, correlation_to_market: 0.60, sharpe_base: 0.8, max_drawdown_base: 0.80 },
-        'DeFi': { volatility: 1.10, correlation_to_market: 0.65, sharpe_base: 0.7, max_drawdown_base: 0.85 },
-        'Memecoins': { volatility: 1.50, correlation_to_market: 0.40, sharpe_base: 0.3, max_drawdown_base: 0.95 },
-        'Privacy': { volatility: 0.95, correlation_to_market: 0.50, sharpe_base: 0.6, max_drawdown_base: 0.75 },
-        'AI/Data': { volatility: 1.20, correlation_to_market: 0.55, sharpe_base: 0.6, max_drawdown_base: 0.85 },
-        'Gaming/NFT': { volatility: 1.30, correlation_to_market: 0.45, sharpe_base: 0.4, max_drawdown_base: 0.90 },
-        'Others': { volatility: 1.00, correlation_to_market: 0.55, sharpe_base: 0.5, max_drawdown_base: 0.80 }
-      };
-
-      // Calculate weighted portfolio metrics
-      let portfolioVolatility = 0;
-      let portfolioSharpe = 0;
-      let portfolioMaxDrawdown = 0;
-      let portfolioCorrelation = 0;
-      let portfolioRiskScore = 0;
-
-      // Calculate diversification benefit
-      let diversificationFactor = 0;
-      let totalCorrelations = 0;
-
-      for (const [groupName, weight] of Object.entries(groupWeights)) {
-        const profile = RISK_PROFILES[groupName] || RISK_PROFILES['Others'];
-
-        // Weight-adjusted contributions
-        portfolioVolatility += weight * profile.volatility;
-        portfolioSharpe += weight * profile.sharpe_base;
-        portfolioMaxDrawdown += weight * profile.max_drawdown_base;
-        portfolioCorrelation += weight * profile.correlation_to_market;
-
-        // Risk score (0-100, higher = more risky)
-        const groupRisk = (profile.volatility * 0.4 + profile.max_drawdown_base * 0.4 + (1 - profile.sharpe_base) * 0.2) * 100;
-        portfolioRiskScore += weight * groupRisk;
-
-        // Calculate diversification - more groups = better diversification
-        if (weight > 0.01) { // Only count meaningful allocations
-          diversificationFactor += Math.sqrt(weight); // Diminishing returns for concentration
-        }
-      }
-
-      // Apply diversification benefit (reduce volatility and drawdown)
-      const numSignificantGroups = Object.values(groupWeights).filter(w => w > 0.05).length;
-      const diversificationBenefit = Math.min(0.85, 0.5 + (numSignificantGroups * 0.05)); // Max 15% reduction
-
-      portfolioVolatility *= diversificationBenefit;
-      portfolioMaxDrawdown *= diversificationBenefit;
-
-      console.debug('🔍 DEBUG Risk Calculation: Diversification benefit:', diversificationBenefit, 'Groups:', numSignificantGroups);
-
-      // Calculate concentration risk
-      const concentrationRisk = Math.max(...Object.values(groupWeights)); // Largest allocation
-      const concentrationPenalty = Math.max(1.0, 1 + (concentrationRisk - 0.4) * 0.5); // Penalty if >40% in one group
-
-      if (concentrationRisk > 0.4) {
-        portfolioVolatility *= concentrationPenalty;
-        portfolioRiskScore *= concentrationPenalty;
-        console.debug('🔍 DEBUG Risk Calculation: Concentration penalty applied:', concentrationPenalty, 'Max allocation:', (concentrationRisk * 100).toFixed(1) + '%');
-      }
-
-      // Derive other metrics from base calculations
-      const sortino = portfolioSharpe * 1.4; // Sortino typically higher than Sharpe
-      const currentDrawdown = -Math.min(0.05, portfolioMaxDrawdown * 0.2); // Current drawdown usually smaller
-
-      // VaR calculations based on volatility
-      const dailyVol = portfolioVolatility / Math.sqrt(252); // Convert annual to daily
-      const var95_1d = -1.645 * dailyVol; // 95% VaR (1.645 standard deviations)
-      const var99_1d = -2.326 * dailyVol; // 99% VaR (2.326 standard deviations)
-      const cvar95_1d = var95_1d * 1.3; // CVaR typically 30% worse than VaR
-      const cvar99_1d = var99_1d * 1.2;
-
-      // Calmar ratio
-      const calmar = portfolioMaxDrawdown > 0 ? portfolioSharpe / portfolioMaxDrawdown : 0;
-
-      // Risk level determination
-      let riskLevel = 'low';
-      if (portfolioRiskScore > 80) riskLevel = 'very_high';
-      else if (portfolioRiskScore > 65) riskLevel = 'high';
-      else if (portfolioRiskScore > 45) riskLevel = 'medium_high';
-      else if (portfolioRiskScore > 25) riskLevel = 'medium';
-
-      const result = {
-        volatility_annualized: portfolioVolatility,
-        sharpe_ratio: portfolioSharpe,
-        sortino_ratio: sortino,
-        max_drawdown: -portfolioMaxDrawdown, // Negative for display
-        current_drawdown: currentDrawdown,
-        var_95_1d: var95_1d,
-        var_99_1d: var99_1d,
-        cvar_95_1d: cvar95_1d,
-        cvar_99_1d: cvar99_1d,
-        calmar_ratio: calmar,
-        risk_score: portfolioRiskScore,
-        overall_risk_level: riskLevel
-      };
-
-      console.debug('🔍 DEBUG Risk Calculation: Final metrics:', {
-        volatility: (result.volatility_annualized * 100).toFixed(1) + '%',
-        sharpe: result.sharpe_ratio.toFixed(2),
-        maxDD: (result.max_drawdown * 100).toFixed(1) + '%',
-        riskScore: result.risk_score.toFixed(1),
-        riskLevel: result.overall_risk_level
-      });
-
-      return result;
-    }
+    // NOTE: calculateRealRiskMetrics() supprimée - métriques calculées par le backend Python
 
     // ====== Metric Health Evaluation & Interpretation ======
     function getMetricHealth(key, value) {
       const healthRules = {
         'var_95_1d': {
-          good: [-0.04, 0], // -4% to 0%
-          warning: [-0.08, -0.04], // -8% to -4%
-          danger: [-1, -0.08], // worse than -8%
+          good: [0, 0.04], // 0% to 4%
+          warning: [0.04, 0.08], // 4% to 8%
+          danger: [0.08, 1], // > 8%
           interpretation: {
-            good: "Faible risque - normal pour crypto diversifié",
-            warning: "Risque modéré - typique pour crypto",
-            danger: "Risque élevé - attention à la concentration"
+            good: "Perte journalière potentielle contenue",
+            warning: "Perte potentielle modérée",
+            danger: "Perte potentielle élevée - attention"
           }
         },
         'var_99_1d': {
-          good: [-0.06, 0],
-          warning: [-0.12, -0.06],
-          danger: [-1, -0.12],
+          good: [0, 0.06],
+          warning: [0.06, 0.12],
+          danger: [0.12, 1],
           interpretation: {
             good: "Perte extrême limitée",
             warning: "Perte extrême modérée",
@@ -1234,9 +1036,9 @@
           }
         },
         'max_drawdown': {
-          good: [0, -0.3], // 0 to -30%
-          warning: [-0.3, -0.6], // -30% to -60%
-          danger: [-1, -0.6], // worse than -60%
+          good: [0, 0.3], // 0% to 30%
+          warning: [0.3, 0.6], // 30% to 60%
+          danger: [0.6, 1.0], // > 60%
           interpretation: {
             good: "Drawdown limité",
             warning: "Drawdown crypto typique",
@@ -1405,93 +1207,7 @@
       return recommendations.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
     }
 
-    // ====== Correlation Metrics Calculation ======
-    function calculateCorrelationMetrics(groups, groupWeights) {
-      // Expected correlations between asset groups (based on historical data)
-      const CORRELATION_MATRIX = {
-        'BTC': { 'BTC': 1.0, 'ETH': 0.75, 'Stablecoins': 0.05, 'L1/L0 majors': 0.65, 'Exchange Tokens': 0.55, 'DeFi': 0.60, 'Memecoins': 0.35, 'Privacy': 0.45, 'AI/Data': 0.50, 'Gaming/NFT': 0.40, 'Others': 0.50 },
-        'ETH': { 'BTC': 0.75, 'ETH': 1.0, 'Stablecoins': 0.05, 'L1/L0 majors': 0.70, 'Exchange Tokens': 0.60, 'DeFi': 0.80, 'Memecoins': 0.40, 'Privacy': 0.50, 'AI/Data': 0.60, 'Gaming/NFT': 0.50, 'Others': 0.55 },
-        'Stablecoins': { 'BTC': 0.05, 'ETH': 0.05, 'Stablecoins': 1.0, 'L1/L0 majors': 0.10, 'Exchange Tokens': 0.15, 'DeFi': 0.20, 'Memecoins': 0.05, 'Privacy': 0.10, 'AI/Data': 0.10, 'Gaming/NFT': 0.10, 'Others': 0.15 },
-        'L1/L0 majors': { 'BTC': 0.65, 'ETH': 0.70, 'Stablecoins': 0.10, 'L1/L0 majors': 1.0, 'Exchange Tokens': 0.65, 'DeFi': 0.70, 'Memecoins': 0.45, 'Privacy': 0.55, 'AI/Data': 0.55, 'Gaming/NFT': 0.50, 'Others': 0.60 },
-        'Exchange Tokens': { 'BTC': 0.55, 'ETH': 0.60, 'Stablecoins': 0.15, 'L1/L0 majors': 0.65, 'Exchange Tokens': 1.0, 'DeFi': 0.60, 'Memecoins': 0.40, 'Privacy': 0.45, 'AI/Data': 0.45, 'Gaming/NFT': 0.45, 'Others': 0.55 },
-        'DeFi': { 'BTC': 0.60, 'ETH': 0.80, 'Stablecoins': 0.20, 'L1/L0 majors': 0.70, 'Exchange Tokens': 0.60, 'DeFi': 1.0, 'Memecoins': 0.45, 'Privacy': 0.50, 'AI/Data': 0.60, 'Gaming/NFT': 0.55, 'Others': 0.60 },
-        'Memecoins': { 'BTC': 0.35, 'ETH': 0.40, 'Stablecoins': 0.05, 'L1/L0 majors': 0.45, 'Exchange Tokens': 0.40, 'DeFi': 0.45, 'Memecoins': 1.0, 'Privacy': 0.30, 'AI/Data': 0.35, 'Gaming/NFT': 0.60, 'Others': 0.40 },
-        'Privacy': { 'BTC': 0.45, 'ETH': 0.50, 'Stablecoins': 0.10, 'L1/L0 majors': 0.55, 'Exchange Tokens': 0.45, 'DeFi': 0.50, 'Memecoins': 0.30, 'Privacy': 1.0, 'AI/Data': 0.40, 'Gaming/NFT': 0.35, 'Others': 0.50 },
-        'AI/Data': { 'BTC': 0.50, 'ETH': 0.60, 'Stablecoins': 0.10, 'L1/L0 majors': 0.55, 'Exchange Tokens': 0.45, 'DeFi': 0.60, 'Memecoins': 0.35, 'Privacy': 0.40, 'AI/Data': 1.0, 'Gaming/NFT': 0.50, 'Others': 0.55 },
-        'Gaming/NFT': { 'BTC': 0.40, 'ETH': 0.50, 'Stablecoins': 0.10, 'L1/L0 majors': 0.50, 'Exchange Tokens': 0.45, 'DeFi': 0.55, 'Memecoins': 0.60, 'Privacy': 0.35, 'AI/Data': 0.50, 'Gaming/NFT': 1.0, 'Others': 0.45 },
-        'Others': { 'BTC': 0.50, 'ETH': 0.55, 'Stablecoins': 0.15, 'L1/L0 majors': 0.60, 'Exchange Tokens': 0.55, 'DeFi': 0.60, 'Memecoins': 0.40, 'Privacy': 0.50, 'AI/Data': 0.55, 'Gaming/NFT': 0.45, 'Others': 1.0 }
-      };
-
-      // Calculate portfolio-weighted average correlation
-      let weightedCorrelation = 0;
-      let totalWeight = 0;
-      let effectiveAssets = 0;
-
-      const groupNames = Object.keys(groupWeights).filter(g => groupWeights[g] > 0.01);
-
-      // Calculate diversification ratio using correlation matrix
-      for (let i = 0; i < groupNames.length; i++) {
-        for (let j = i + 1; j < groupNames.length; j++) {
-          const group1 = groupNames[i];
-          const group2 = groupNames[j];
-          const weight1 = groupWeights[group1] || 0;
-          const weight2 = groupWeights[group2] || 0;
-
-          const correlation = CORRELATION_MATRIX[group1]?.[group2] || 0.5;
-          weightedCorrelation += 2 * weight1 * weight2 * correlation; // 2x because we're only doing upper triangle
-          totalWeight += 2 * weight1 * weight2;
-        }
-      }
-
-      const avgCorrelation = totalWeight > 0 ? weightedCorrelation / totalWeight : 0;
-
-      // Calculate effective number of assets (diversification measure)
-      let sumOfSquares = 0;
-      for (const weight of Object.values(groupWeights)) {
-        if (weight > 0) {
-          sumOfSquares += weight * weight;
-        }
-      }
-      effectiveAssets = sumOfSquares > 0 ? 1 / sumOfSquares : 1;
-
-      // Diversification ratio (higher is better, max = 1.0)
-      const diversificationRatio = Math.max(0.1, 1 - avgCorrelation * 0.8); // Adjust for crypto's high correlations
-
-      // Find top correlations from actual portfolio groups
-      const topCorrelations = [];
-      for (let i = 0; i < groupNames.length; i++) {
-        for (let j = i + 1; j < groupNames.length; j++) {
-          const group1 = groupNames[i];
-          const group2 = groupNames[j];
-          const correlation = CORRELATION_MATRIX[group1]?.[group2] || 0.5;
-          const combinedWeight = (groupWeights[group1] || 0) + (groupWeights[group2] || 0);
-
-          if (combinedWeight > 0.1) { // Only show significant pairs
-            topCorrelations.push({
-              asset1: group1,
-              asset2: group2,
-              correlation: correlation
-            });
-          }
-        }
-      }
-
-      // Sort by correlation (highest first) and take top 5
-      topCorrelations.sort((a, b) => Math.abs(b.correlation) - Math.abs(a.correlation));
-
-      console.debug('🔍 DEBUG Correlation Calculation:', {
-        avgCorrelation: avgCorrelation.toFixed(3),
-        effectiveAssets: effectiveAssets.toFixed(1),
-        diversificationRatio: diversificationRatio.toFixed(3),
-        topPairs: topCorrelations.length
-      });
-
-      return {
-        diversification_ratio: diversificationRatio,
-        effective_assets: effectiveAssets,
-        top_correlations: topCorrelations.slice(0, 5)
-      };
-    }
+    // NOTE: calculateCorrelationMetrics() supprimée - corrélations calculées par le backend Python
 
     // Asset grouping function (EXACTLY SAME as dashboard.html fallback)
     const ASSET_GROUPS = {
@@ -1698,9 +1414,10 @@
       const riskLabel = document.getElementById('risk-label');
       if (riskScore !== null && riskScore !== undefined) {
         riskEl.textContent = Math.round(riskScore);
-        riskEl.style.color = riskScore > 70 ? '#10b981' : riskScore > 40 ? '#f59e0b' : '#ef4444';
+        // Harmoniser: score élevé = plus risqué (rouge)
+        riskEl.style.color = riskScore > 70 ? '#ef4444' : riskScore >= 40 ? '#f59e0b' : '#10b981';
         if (riskLabel) {
-          const riskLevel = riskScore > 70 ? 'Low Risk' : riskScore > 40 ? 'Medium' : 'High Risk';
+          const riskLevel = riskScore > 70 ? 'High Risk' : riskScore >= 40 ? 'Medium' : 'Low Risk';
           riskLabel.textContent = riskLevel;
         }
       } else {
@@ -1800,16 +1517,16 @@
           `;
           return;
         }
-        
+
         // Check if dynamic weighting is enabled (from localStorage setting)
         const useDynamicWeighting = localStorage.getItem('enable_dynamic_weighting') === 'true';
-        
+
         console.debug(`🎯 calculateOnChainScore: useDynamicWeighting = ${useDynamicWeighting} (from localStorage: ${localStorage.getItem('enable_dynamic_weighting')})`);
-        
+
         const composite = calculateCompositeScoreV2(indicators, useDynamicWeighting);
-        
+
         console.debug(`📊 Composite result: score=${composite.score}, version=${composite.version}, hasDynamic=${!!composite.dynamicWeighting}`);
-        
+
         if (useDynamicWeighting && composite.dynamicWeighting) {
           console.debug(`🤖 Dynamic weighting applied: ${composite.dynamicWeighting.phase.name} phase`);
         }
@@ -1843,7 +1560,7 @@
           // Dynamic weighting properties (if enabled)
           dynamicWeighting: composite.dynamicWeighting
         });
-        
+
         // Analyze contradictory signals V2
         const contradictions = analyzeContradictorySignals(composite.categoryBreakdown);
         if (contradictions.length > 0) {
@@ -2059,16 +1776,16 @@
     }
 
     // ====== Dynamic Weighting Functions ======
-    
-    window.toggleDynamicWeighting = function() {
+
+    window.toggleDynamicWeighting = function () {
       const toggle = document.getElementById('dynamic-weighting-toggle');
       const status = document.getElementById('dynamic-weighting-status');
       if (!toggle) return; // UI pas encore rendu
       const isEnabled = toggle.checked;
       localStorage.setItem('enable_dynamic_weighting', isEnabled.toString());
-      
+
       console.debug(`🔄 Toggle changed: ${isEnabled} (localStorage now: ${localStorage.getItem('enable_dynamic_weighting')})`);
-      
+
       if (status) {
         if (isEnabled) {
           status.textContent = '🤖 Pondération dynamique active';
@@ -2078,17 +1795,17 @@
           status.style.color = 'var(--theme-text-muted)';
         }
       }
-      
+
       // Clear any cached composite score to force recalculation
       if (window.compositeScoreCache) {
         console.debug('🗑️ Clearing composite score cache');
         window.compositeScoreCache.cache.clear();
       }
-      
+
       // Trigger refresh to apply new weighting
       setTimeout(refreshDashboard, 500);
     };
-    
+
     // Initialize dynamic weighting state on load
     function initializeDynamicWeightingToggle() {
       const toggle = document.getElementById('dynamic-weighting-toggle');
@@ -2105,17 +1822,17 @@
         }
       }
     }
-    
+
     // ====== Section Collapse Functions ======
-    
-    window.toggleSection = function(sectionId) {
+
+    window.toggleSection = function (sectionId) {
       const content = document.getElementById(sectionId + '-content');
       const arrow = document.getElementById(sectionId + '-arrow');
-      
+
       if (!content || !arrow) return;
-      
+
       const isCollapsed = content.style.display === 'none';
-      
+
       if (isCollapsed) {
         content.style.display = '';
         arrow.textContent = '▼';
@@ -2126,16 +1843,16 @@
         localStorage.setItem(`section_${sectionId}_collapsed`, 'true');
       }
     }
-    
+
     // Initialize section states on page load
     function initializeSectionStates() {
       const sections = ['onchain-indicators', 'bitcoin-cycle', 'dynamic-weighting-info'];
-      
+
       sections.forEach(sectionId => {
         const isCollapsed = localStorage.getItem(`section_${sectionId}_collapsed`) === 'true';
         const content = document.getElementById(sectionId + '-content');
         const arrow = document.getElementById(sectionId + '-arrow');
-        
+
         if (content && arrow) {
           if (isCollapsed) {
             content.style.display = 'none';
@@ -2196,7 +1913,7 @@
           // Force sidebar update after all scores are calculated
           const finalState = store.snapshot();
           updateSidebar(finalState);
-          
+
           // Also update cycles content (contains composite score display) 
           if (finalState.ccs?.score && finalState.cycle?.months) {
             await renderCyclesContent();
@@ -2206,13 +1923,23 @@
           console.log('Risk dashboard refreshed successfully');
 
         } else {
-          throw new Error(riskData?.message || 'Failed to load risk dashboard');
+          // Handle API error with informative message
+          store.set('ui.apiStatus.backend', 'error');
+          const errorType = riskData?.error_type || 'unknown';
+          const errorMessage = riskData?.message || 'Failed to load risk dashboard';
+
+          if (errorType === 'connection_error') {
+            renderBackendUnavailable(errorMessage);
+          } else {
+            renderApiError(errorMessage);
+          }
+          return; // Don't throw, just render error state
         }
 
       } catch (err) {
         console.error('Dashboard error:', err);
         store.set('ui.apiStatus.backend', 'error');
-        renderError('Network error: ' + err.message);
+        renderBackendUnavailable('Erreur de connexion au backend de risque');
       } finally {
         isRefreshing = false;
         store.set('ui.loading', false);
@@ -2226,6 +1953,19 @@
       if (!data || !data.risk_metrics || !data.correlation_metrics || !data.portfolio_summary) {
         renderError('Incomplete data received from API'); return;
       }
+
+      // Afficher un bandeau pour le mode test
+      let testModeBanner = '';
+      if (data.test_mode) {
+        testModeBanner = `
+          <div style="background: var(--info-bg); border: 1px solid var(--info); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1.5rem; text-align: center;">
+            <div style="color: var(--info); font-weight: 600; margin-bottom: 0.5rem;">🧪 MODE TEST - Données Réelles</div>
+            <div style="color: var(--theme-text-muted); font-size: 0.9rem;">
+              Portfolio de démonstration utilisant le cache d'historique de prix réel (${data.test_holdings?.length || 0} assets, $${data.portfolio_summary.total_value.toLocaleString()})
+            </div>
+          </div>
+        `;
+      }
       const m = data.risk_metrics;
       const c = data.correlation_metrics;
       const p = data.portfolio_summary;
@@ -2233,6 +1973,7 @@
       // Helper functions are defined at the top of the script
 
       container.innerHTML = `
+        ${testModeBanner}
         <!-- Portfolio Summary -->
         <div class="risk-card">
           <h3>📊 Portfolio Summary</h3>
@@ -2294,7 +2035,7 @@
         <div class="risk-grid">
           <!-- VaR/CVaR -->
           <div class="risk-card">
-            <h3>📉 Value at Risk (VaR)</h3>
+            <h3>📉 Value at Risk (VaR) <span style="font-size:.8rem; color: var(--theme-text); opacity:.7; font-weight:500; margin-left:.5rem;"><br>lookback 30j (VaR), 60j (CVaR)</span></h3>
             <div class="metric-row">
               <span class="metric-label">VaR 95% (1 day)</span>
               <span class="metric-value hinted" data-key="var95_1d" data-value="${m.var_95_1d}" style="color: ${getMetricHealth('var_95_1d', m.var_95_1d).color}">
@@ -2328,7 +2069,7 @@
 
           <!-- Performance -->
           <div class="risk-card">
-            <h3>📈 Risk-Adjusted Performance</h3>
+            <h3>📈 Risk-Adjusted Performance <span style="font-size:.8rem; color: var(--theme-text); opacity:.7; font-weight:500; margin-left:.5rem;"><br>Vol 45j • Sharpe 90j • Sortino 120j • Calmar 365j</span></h3>
             <div class="metric-row">
               <span class="metric-label">Volatility (Annual)</span>
               <span class="metric-value hinted" data-key="volatility_ann" data-value="${m.volatility_annualized}" style="color: ${getMetricHealth('volatility_annualized', m.volatility_annualized).color}">
@@ -2367,7 +2108,7 @@
 
           <!-- Drawdowns -->
           <div class="risk-card">
-            <h3>📊 Drawdown Analysis</h3>
+            <h3>📊 Drawdown Analysis <span style="font-size:.8rem; color: var(--theme-text); opacity:.7; font-weight:500; margin-left:.5rem;"><br>lookback 180j</span></h3>
             <div class="metric-row">
               <span class="metric-label">Max Drawdown</span>
               <span class="metric-value hinted" data-key="max_drawdown" data-value="${m.max_drawdown}" style="color: ${getMetricHealth('max_drawdown', m.max_drawdown).color}">
@@ -2396,7 +2137,7 @@
 
           <!-- Diversification -->
           <div class="risk-card">
-            <h3>🔗 Diversification Analysis</h3>
+            <h3>🔗 Diversification Analysis <span style="font-size:.8rem; color: var(--theme-text); opacity:.7; font-weight:500; margin-left:.5rem;">corr 90j</span></h3>
             <div class="metric-row">
               <span class="metric-label">Diversification Ratio</span>
               <span class="metric-value hinted" data-key="diversification_ratio" data-value="${c.diversification_ratio}" style="color: ${getMetricHealth('diversification_ratio', c.diversification_ratio).color}">
@@ -3155,11 +2896,11 @@
 
         // Données
         const indicators = await fetchAllIndicators();
-        
+
         // Check if dynamic weighting is enabled (from localStorage setting)
         const useDynamicWeighting = localStorage.getItem('enable_dynamic_weighting') === 'true';
         const composite = calculateCompositeScoreV2(indicators, useDynamicWeighting);
-        
+
         if (useDynamicWeighting && composite.dynamicWeighting) {
           console.log(`🤖 Dynamic weighting applied in UI: ${composite.dynamicWeighting.phase.name} phase`);
         }
@@ -3198,28 +2939,28 @@
           categoryDisplay = Object.entries(composite.categoryBreakdown).map(([key, data]) => {
             const emoji =
               key === 'onchain_pure' ? '🔗' :
-              key === 'cycle_technical' ? '📊' :
-              key === 'sentiment_social' ? '😨' :
-              key === 'market_context' ? '🌐' :
-              '📈'; // fallback
+                key === 'cycle_technical' ? '📊' :
+                  key === 'sentiment_social' ? '😨' :
+                    key === 'market_context' ? '🌐' :
+                      '📈'; // fallback
 
             const scoreColor = pickScoreColor(data.score);
-            
+
             // Consensus signal display
             const consensus = data.consensus;
-            const consensusEmoji = 
+            const consensusEmoji =
               consensus?.consensus === 'bullish' ? '🟢' :
-              consensus?.consensus === 'bearish' ? '🔴' :
-              '⚪';
-            const consensusText = consensus ? 
-              `${consensusEmoji} ${consensus.consensus} (${consensus.confidence}%)` : 
+                consensus?.consensus === 'bearish' ? '🔴' :
+                  '⚪';
+            const consensusText = consensus ?
+              `${consensusEmoji} ${consensus.consensus} (${consensus.confidence}%)` :
               '⚪ neutral';
 
             // Dynamic weighting display
             const isDynamic = localStorage.getItem('enable_dynamic_weighting') === 'true';
             const currentWeight = Math.round((data.weight || 0) * 100);
             const staticWeight = Math.round((data.staticWeight || 0) * 100);
-            
+
             let weightDisplay = '';
             if (isDynamic && data.staticWeight && Math.abs(currentWeight - staticWeight) >= 1) {
               const change = currentWeight - staticWeight;
@@ -3363,9 +3104,9 @@
             </div>
             <div style="padding: 0.5rem; background: var(--theme-surface-alt); border-radius: 6px; margin-bottom: 0.5rem;">
               <div style="font-weight: 600; margin-bottom: 0.25rem; color: var(--theme-text);">💡 Logique d'adaptation:</div>
-              ${composite.dynamicWeighting.reasoning.map(reason => 
-                `<div style="font-size: 0.85rem; color: var(--theme-text-muted); margin: 0.1rem 0;">• ${reason}</div>`
-              ).join('')}
+              ${composite.dynamicWeighting.reasoning.map(reason =>
+          `<div style="font-size: 0.85rem; color: var(--theme-text-muted); margin: 0.1rem 0;">• ${reason}</div>`
+        ).join('')}
             </div>
           </div>
         `, { accentLeft: 'var(--warning)' }) : ''}
@@ -3380,10 +3121,10 @@
             </div>
           `)
           : '';
-        
+
         // Bloc signaux contradictoires V2
         const contradictorySignals = analyzeContradictorySignals(composite.categoryBreakdown || {});
-        const contradictionsBlock = contradictorySignals.length > 0 
+        const contradictionsBlock = contradictorySignals.length > 0
           ? card(`
             <h4 style="margin:0 0 .75rem 0; color: var(--warning);">⚠️ Signaux contradictoires détectés</h4>
             <div style="display:grid; grid-template-columns:1fr; gap:.5rem;">
@@ -3937,6 +3678,56 @@
       `;
     }
 
+    function renderBackendUnavailable(message) {
+      document.getElementById('risk-dashboard-content').innerHTML = `
+        <div style="text-align: center; padding: 3rem; background: var(--warning-bg); border: 1px solid var(--warning); border-radius: var(--radius-lg); color: var(--theme-text);">
+          <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
+          <h3 style="color: var(--warning); margin-bottom: 1rem;">Backend de Risque Indisponible</h3>
+          <p style="margin-bottom: 1.5rem; color: var(--theme-text-muted);">${message}</p>
+          
+          <div style="background: var(--theme-bg); padding: 1.5rem; border-radius: var(--radius-md); margin: 1.5rem 0; text-align: left;">
+            <h4 style="color: var(--theme-text); margin-bottom: 1rem;">📋 Pour afficher les données réelles de risque :</h4>
+            <ol style="color: var(--theme-text-muted); line-height: 1.6;">
+              <li>Démarrer le serveur backend Python : <code style="background: var(--theme-surface); padding: 0.2rem 0.4rem; border-radius: 3px;">python main.py</code></li>
+              <li>Initialiser le cache d'historique : <code style="background: var(--theme-surface); padding: 0.2rem 0.4rem; border-radius: 3px;">python scripts/init_price_history.py</code></li>
+              <li>Vérifier que l'API répond sur <a href="http://localhost:8000/api/test/risk/dashboard" target="_blank" style="color: var(--brand-primary);">localhost:8000</a></li>
+            </ol>
+          </div>
+
+          <div style="margin-top: 2rem;">
+            <button class="refresh-btn" onclick="refreshDashboard()">🔄 Réessayer</button>
+            <button class="refresh-btn" onclick="testEndpoint()" style="background: var(--info); margin-left: 0.5rem;">🧪 Tester l'API</button>
+          </div>
+          
+          <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--theme-border); color: var(--theme-text-muted); font-size: 0.85rem;">
+            💡 <strong>Note :</strong> Ce dashboard utilise maintenant exclusivement des données réelles calculées par le backend Python. 
+            Les données simulées ont été supprimées pour garantir l'authenticité des métriques de risque.
+          </div>
+        </div>
+      `;
+    }
+
+    function renderApiError(message) {
+      document.getElementById('risk-dashboard-content').innerHTML = `
+        <div style="text-align: center; padding: 3rem; background: var(--danger-bg); border: 1px solid var(--danger); border-radius: var(--radius-lg);">
+          <div style="font-size: 3rem; margin-bottom: 1rem;">🚨</div>
+          <h3 style="color: var(--danger); margin-bottom: 1rem;">Erreur API Backend</h3>
+          <p style="margin-bottom: 1.5rem; color: var(--theme-text-muted);">${message}</p>
+          
+          <div style="background: var(--theme-bg); padding: 1.5rem; border-radius: var(--radius-md); margin: 1.5rem 0;">
+            <h4 style="color: var(--theme-text); margin-bottom: 1rem;">🔧 Suggestions de dépannage :</h4>
+            <ul style="color: var(--theme-text-muted); text-align: left; line-height: 1.6;">
+              <li>Vérifiez que le portfolio CoinTracking contient des données valides</li>
+              <li>Assurez-vous que les sources de prix configurées sont accessibles</li>
+              <li>Consultez les logs du backend pour plus de détails</li>
+            </ul>
+          </div>
+
+          <button class="refresh-btn" onclick="refreshDashboard()">🔄 Réessayer</button>
+        </div>
+      `;
+    }
+
     function updateTimestamp(ts, calcTime) {
       const d = new Date(ts);
       document.getElementById('last-update').textContent = `Last updated: ${d.toLocaleString()} (${calcTime})`;
@@ -3956,7 +3747,7 @@
     // Test endpoint (identique à ta version)
     async function testEndpoint() {
       try {
-        const r = await fetch('http://localhost:8000/api/risk/dashboard?source=cointracking&pricing=local&min_usd=1.00');
+        const r = await fetch('http://localhost:8000/api/risk/dashboard');
         const t = await r.text();
         try { JSON.parse(t); alert('API Response received. Check console for details.'); }
         catch { alert('API returned non-JSON response: ' + t.substring(0, 200)); }
@@ -4058,6 +3849,18 @@
     document.addEventListener('DOMContentLoaded', function () {
       console.log('Risk Dashboard CCS MVP initializing...');
 
+      // Clear cache to ensure fresh data from new test endpoint
+      clearCache();
+      console.log('Cache cleared - will fetch fresh data');
+
+      // Listen for data source changes and clear cache
+      window.addEventListener('dataSourceChanged', (event) => {
+        console.log('🔄 Data source changed, clearing cache and reloading...', event.detail);
+        clearCache();
+        // Reload the dashboard after source change
+        setTimeout(loadDashboard, 100);
+      });
+
       // Initialize shared header
       initSharedHeader('risk-dashboard');
 
@@ -4079,11 +3882,13 @@
 
       // Initialize dynamic weighting toggle
       initializeDynamicWeightingToggle();
-      
+
       // Initialize section collapse states
       initializeSectionStates();
 
       // Load initial data
+      // Init analysis window UI then first refresh
+      // controls removed
       refreshDashboard();
 
       // Apply blended strategy as default if no strategy is already selected

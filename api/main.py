@@ -40,6 +40,8 @@ from api.kraken_endpoints import router as kraken_router
 from api.smart_taxonomy_endpoints import router as smart_taxonomy_router
 from api.advanced_rebalancing_endpoints import router as advanced_rebalancing_router
 from api.risk_endpoints import router as risk_router
+from api.test_risk_endpoints import router as test_risk_router
+from api.risk_dashboard_endpoints import router as risk_dashboard_router
 from api.execution_history import router as execution_history_router
 from api.monitoring_advanced import router as monitoring_advanced_router
 from api.portfolio_monitoring import router as portfolio_monitoring_router
@@ -252,17 +254,19 @@ async def request_logger(request: Request, call_next):
     trace_header = request.headers.get("x-debug-trace", "0")
     do_trace = APP_DEBUG or LOG_LEVEL == "DEBUG" or trace_header == "1"
     start = monotonic() if do_trace else 0
+    response = None
     try:
         response = await call_next(request)
         return response
     finally:
         if do_trace:
             duration_ms = int((monotonic() - start) * 1000)
+            status_code = getattr(response, "status_code", "?") if response else "error"
             logger.info(
                 "%s %s -> %s (%d ms)",
                 request.method,
                 request.url.path,
-                getattr(response, "status_code", "?"),
+                status_code,
                 duration_ms,
             )
 
@@ -1283,6 +1287,8 @@ app.include_router(kraken_router)
 app.include_router(smart_taxonomy_router)
 app.include_router(advanced_rebalancing_router)
 app.include_router(risk_router)
+app.include_router(test_risk_router)
+app.include_router(risk_dashboard_router)
 app.include_router(execution_history_router)
 app.include_router(monitoring_advanced_router)
 app.include_router(portfolio_monitoring_router)
@@ -1677,3 +1683,5 @@ async def get_portfolio_alerts(source: str = Query("cointracking"), drift_thresh
         return {"ok": False, "error": str(e)}
     
 
+# Force reload
+# Force reload 2
