@@ -226,10 +226,11 @@ export function calculateCompositeScoreV2(indicators, useDynamicWeighting = fals
   // Déterminer les poids finaux (statiques ou dynamiques)
   let finalCategoryWeights = {};
   let dynamicWeightingResult = null;
+  let marketContext = null;
   
   if (useDynamicWeighting) {
     // Détecter le contexte de marché
-    const marketContext = detectMarketContext(categoryBreakdown, indicators);
+    marketContext = detectMarketContext(categoryBreakdown, indicators);
     
     // Ajouter les contradictions au contexte
     const contradictions = analyzeContradictorySignals(categoryBreakdown);
@@ -326,9 +327,10 @@ export function calculateCompositeScoreV2(indicators, useDynamicWeighting = fals
   if (useDynamicWeighting && dynamicWeightingResult) {
     result.dynamicWeighting = {
       phase: dynamicWeightingResult.phase,
+      weights: dynamicWeightingResult.weights,
       adjustments: dynamicWeightingResult.adjustments,
       reasoning: dynamicWeightingResult.reasoning,
-      weightComparison: compareWeightingMethods(compositeScore, dynamicWeightingResult.adjustments)
+      weightComparison: compareWeightingMethods(compositeScore, marketContext || {})
     };
     
     result.improvements.push('Pondération dynamique contextuelle');

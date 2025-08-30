@@ -953,7 +953,8 @@ export async function fetchAllIndicators() {
     const cryptoToolboxData = await fetchCryptoToolboxIndicators();
     console.log('🔍 CryptoToolbox result:', cryptoToolboxData);
     
-    if (cryptoToolboxData && Object.keys(cryptoToolboxData).filter(k => !k.startsWith('_')).length > 0) {
+    const toolboxAvailable = !!(cryptoToolboxData && Object.keys(cryptoToolboxData).filter(k => !k.startsWith('_')).length > 0);
+    if (toolboxAvailable) {
       // Process all indicators from the backend
       Object.entries(cryptoToolboxData).forEach(([key, data]) => {
         if (key.startsWith('_') || !data || typeof data !== 'object') {
@@ -986,13 +987,12 @@ export async function fetchAllIndicators() {
       console.warn('⚠️ Crypto-Toolbox backend failed, no indicators loaded');
     }
     
-    // 2. Add Fear & Greed from Alternative.me as fallback if not in Crypto-Toolbox
+    // 2. Add Fear & Greed from Alternative.me only if toolbox data is present (no silent fallback)
     const fearGreedExists = Object.keys(indicators).some(key => 
       indicators[key].name?.toLowerCase().includes('fear') && 
       indicators[key].name?.toLowerCase().includes('greed')
     );
-    
-    if (!fearGreedExists) {
+    if (toolboxAvailable && !fearGreedExists) {
       console.log('🔄 Adding Fear & Greed as fallback indicator...');
       const fgData = await fetchFearGreedIndex();
       if (fgData) {
@@ -1045,7 +1045,7 @@ export async function fetchAllIndicators() {
       _metadata: {
         available_count: 0,
         error: error.message,
-        message: 'Failed to fetch real-time on-chain indicators. Check network connection.',
+        message: 'Scraping Crypto-Toolbox indisponible',
         last_updated: new Date().toISOString()
       }
     };

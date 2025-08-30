@@ -693,19 +693,6 @@
           </div>
         </div>
 
-        <!-- Dynamic Weighting Toggle -->
-        <div class="sidebar-section">
-          <div class="sidebar-title">🤖 Pondération Dynamique</div>
-          <div style="display: flex; align-items: center; gap: 10px; margin: 10px 0;">
-            <label style="display: flex; align-items: center; cursor: pointer; font-size: 0.9rem;">
-              <input type="checkbox" id="dynamic-weighting-toggle" style="margin-right: 8px;" onchange="toggleDynamicWeighting()">
-              <span>Activer l'adaptation contextuelle</span>
-            </label>
-          </div>
-          <div id="dynamic-weighting-status" style="font-size: 0.8rem; color: var(--theme-text-muted); margin-top: 5px;">
-            Pondération statique V2
-          </div>
-        </div>
 
         <!-- Cycle Indicator -->
         <div class="sidebar-section">
@@ -1683,7 +1670,8 @@
           ccsMixLabel.textContent = `CCS + Cycle (${cycleWeight}%)`;
           // Style dynamique selon le score
           const score = state.cycle.ccsStar;
-          ccsMixEl.style.color = score > 70 ? '#10b981' : score > 40 ? '#f59e0b' : '#ef4444';
+          // Harmoniser avec Score Composite V2: >70 rouge, <40 vert, sinon orange
+          ccsMixEl.style.color = score > 70 ? '#ef4444' : score >= 40 ? '#f59e0b' : '#10b981';
         }
       } else {
         ccsMixEl.textContent = '--';
@@ -1695,7 +1683,8 @@
       const onchainLabel = document.getElementById('onchain-label');
       if (onchainScore !== null && onchainScore !== undefined) {
         onchainEl.textContent = Math.round(onchainScore);
-        onchainEl.style.color = onchainScore > 70 ? '#10b981' : onchainScore > 40 ? '#f59e0b' : '#ef4444';
+        // Harmoniser avec Score Composite V2: >70 rouge, <40 vert, sinon orange
+        onchainEl.style.color = onchainScore > 70 ? '#ef4444' : onchainScore >= 40 ? '#f59e0b' : '#10b981';
         if (onchainLabel) {
           onchainLabel.textContent = `MVRV, NVT, Puell, F&G`;
         }
@@ -1802,19 +1791,38 @@
     async function calculateOnChainScore() {
       try {
         const indicators = await fetchAllIndicators();
+        if (!indicators || (indicators._metadata && indicators._metadata.available_count === 0)) {
+          container.innerHTML = `
+            <div class="error" style="background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger); border-radius: var(--radius-md); padding: var(--space-lg);">
+              ⚠️ Scraping sur <a href="https://crypto-toolbox.vercel.app/signaux" target="_blank" style="color: var(--danger); text-decoration: underline;">https://crypto-toolbox.vercel.app/signaux</a> indisponible.<br>
+              Assurez-vous que le backend de scraping local (port 8001) est démarré.
+            </div>
+          `;
+          return;
+        }
         
         // Check if dynamic weighting is enabled (from localStorage setting)
         const useDynamicWeighting = localStorage.getItem('enable_dynamic_weighting') === 'true';
         
+        console.log(`🎯 calculateOnChainScore: useDynamicWeighting = ${useDynamicWeighting} (from localStorage: ${localStorage.getItem('enable_dynamic_weighting')})`);
+        
         const composite = calculateCompositeScoreV2(indicators, useDynamicWeighting);
+        
+        console.log(`📊 Composite result: score=${composite.score}, version=${composite.version}, hasDynamic=${!!composite.dynamicWeighting}`);
         
         if (useDynamicWeighting && composite.dynamicWeighting) {
           console.log(`🤖 Dynamic weighting applied: ${composite.dynamicWeighting.phase.name} phase`);
         }
 
         if (composite.score === null) {
-          console.warn('⚠️ No real on-chain data available - skipping On-Chain Score');
-          return null; // Pas de données réelles disponibles
+          console.warn('⚠️ No real on-chain data available - will show limited On-Chain data');
+          // Return minimal data for UI consistency instead of null
+          return {
+            score: null,
+            message: 'APIs payantes requises pour score complet',
+            limited: true,
+            dynamicWeighting: composite.dynamicWeighting // Keep dynamic weighting info
+          };
         }
 
         console.log(`📊 On-Chain Score: ${composite.score} (${composite.message})`);
@@ -2052,34 +2060,92 @@
 
     // ====== Dynamic Weighting Functions ======
     
-    function toggleDynamicWeighting() {
+    window.toggleDynamicWeighting = function() {
       const toggle = document.getElementById('dynamic-weighting-toggle');
       const status = document.getElementById('dynamic-weighting-status');
-      
+      if (!toggle) return; // UI pas encore rendu
       const isEnabled = toggle.checked;
       localStorage.setItem('enable_dynamic_weighting', isEnabled.toString());
       
-      if (isEnabled) {
-        status.textContent = '🤖 Pondération dynamique active';
-        status.style.color = 'var(--success)';
-        console.log('🤖 Dynamic weighting enabled');
-      } else {
-        status.textContent = 'Pondération statique V2';
-        status.style.color = 'var(--theme-text-muted)';
-        console.log('📊 Static weighting V2 enabled');
+      console.log(`🔄 Toggle changed: ${isEnabled} (localStorage now: ${localStorage.getItem('enable_dynamic_weighting')})`);
+      
+      if (status) {
+        if (isEnabled) {
+          status.textContent = '🤖 Pondération dynamique active';
+          status.style.color = 'var(--success)';
+        } else {
+          status.textContent = 'Pondération statique V2';
+          status.style.color = 'var(--theme-text-muted)';
+        }
+      }
+      
+      // Clear any cached composite score to force recalculation
+      if (window.compositeScoreCache) {
+        console.log('🗑️ Clearing composite score cache');
+        window.compositeScoreCache.cache.clear();
       }
       
       // Trigger refresh to apply new weighting
       setTimeout(refreshDashboard, 500);
-    }
+    };
     
     // Initialize dynamic weighting state on load
     function initializeDynamicWeightingToggle() {
       const toggle = document.getElementById('dynamic-weighting-toggle');
+      const status = document.getElementById('dynamic-weighting-status');
       const isEnabled = localStorage.getItem('enable_dynamic_weighting') === 'true';
+      if (toggle) toggle.checked = isEnabled;
+      if (status) {
+        if (isEnabled) {
+          status.textContent = '🤖 Pondération dynamique active';
+          status.style.color = 'var(--warning)';
+        } else {
+          status.textContent = 'Pondération statique V2';
+          status.style.color = 'var(--theme-text-muted)';
+        }
+      }
+    }
+    
+    // ====== Section Collapse Functions ======
+    
+    window.toggleSection = function(sectionId) {
+      const content = document.getElementById(sectionId + '-content');
+      const arrow = document.getElementById(sectionId + '-arrow');
       
-      toggle.checked = isEnabled;
-      toggleDynamicWeighting(); // Set initial status
+      if (!content || !arrow) return;
+      
+      const isCollapsed = content.style.display === 'none';
+      
+      if (isCollapsed) {
+        content.style.display = '';
+        arrow.textContent = '▼';
+        localStorage.setItem(`section_${sectionId}_collapsed`, 'false');
+      } else {
+        content.style.display = 'none';
+        arrow.textContent = '▶';
+        localStorage.setItem(`section_${sectionId}_collapsed`, 'true');
+      }
+    }
+    
+    // Initialize section states on page load
+    function initializeSectionStates() {
+      const sections = ['onchain-indicators', 'bitcoin-cycle', 'dynamic-weighting-info'];
+      
+      sections.forEach(sectionId => {
+        const isCollapsed = localStorage.getItem(`section_${sectionId}_collapsed`) === 'true';
+        const content = document.getElementById(sectionId + '-content');
+        const arrow = document.getElementById(sectionId + '-arrow');
+        
+        if (content && arrow) {
+          if (isCollapsed) {
+            content.style.display = 'none';
+            arrow.textContent = '▶';
+          } else {
+            content.style.display = '';
+            arrow.textContent = '▼';
+          }
+        }
+      });
     }
 
     async function refreshDashboard() {
@@ -2130,6 +2196,12 @@
           // Force sidebar update after all scores are calculated
           const finalState = store.snapshot();
           updateSidebar(finalState);
+          
+          // Also update cycles content (contains composite score display) 
+          if (finalState.ccs?.score && finalState.cycle?.months) {
+            await renderCyclesContent();
+            console.log('🔄 Cycles content updated with latest data');
+          }
 
           console.log('Risk dashboard refreshed successfully');
 
@@ -2958,6 +3030,60 @@
 
                 ctx.restore();
               }
+
+              // 🤖 Dynamic Phase Indicator (simplified - no async)
+              if (localStorage.getItem('enable_dynamic_weighting') === 'true') {
+                try {
+                  // Simple indicator without async calls (to avoid breaking chart)
+                  const boxWidth = 200;
+                  const boxHeight = 60;
+                  const margin = 15;
+                  const boxX = chart.width - boxWidth - margin;
+                  const boxY = margin;
+                  
+                  ctx.save();
+                  
+                  // Background box
+                  ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                  ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+                  
+                  // Border
+                  ctx.strokeStyle = '#fbbf24'; // Warning color
+                  ctx.lineWidth = 2;
+                  ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+                  
+                  // Phase name
+                  ctx.fillStyle = '#fbbf24';
+                  ctx.font = 'bold 14px sans-serif';
+                  ctx.textAlign = 'center';
+                  ctx.fillText(
+                    '🤖 Dynamic Weighting',
+                    boxX + boxWidth / 2,
+                    boxY + 20
+                  );
+                  
+                  // Status
+                  ctx.fillStyle = '#ffffff';
+                  ctx.font = '11px sans-serif';
+                  ctx.fillText(
+                    'Active',
+                    boxX + boxWidth / 2,
+                    boxY + 35
+                  );
+                  
+                  ctx.font = '9px sans-serif';
+                  ctx.fillStyle = '#cccccc';
+                  ctx.fillText(
+                    'Adaptive weighting enabled',
+                    boxX + boxWidth / 2,
+                    boxY + 50
+                  );
+                  
+                  ctx.restore();
+                } catch (error) {
+                  console.warn('Could not add phase indicator:', error);
+                }
+              }
             }
           }]
         };
@@ -3002,7 +3128,7 @@
         const { fetchAllIndicators, calculateCompositeScore, enhanceCycleScore, analyzeDivergence, generateRecommendations } = onchainModule;
         const { cycleScoreFromMonths, getCurrentCycleMonths } = cycleModule;
 
-        const container = document.getElementById('onchain-indicators');
+        const container = document.getElementById('onchain-indicators-content');
         if (!container) { console.warn('⚠️ onchain-indicators container not found'); return; }
 
         // État de chargement (thémé)
@@ -3014,7 +3140,14 @@
 
         // Données
         const indicators = await fetchAllIndicators();
-        const composite = calculateCompositeScoreV2(indicators);
+        
+        // Check if dynamic weighting is enabled (from localStorage setting)
+        const useDynamicWeighting = localStorage.getItem('enable_dynamic_weighting') === 'true';
+        const composite = calculateCompositeScoreV2(indicators, useDynamicWeighting);
+        
+        if (useDynamicWeighting && composite.dynamicWeighting) {
+          console.log(`🤖 Dynamic weighting applied in UI: ${composite.dynamicWeighting.phase.name} phase`);
+        }
 
         // Score de cycle actuel
         const cycleData = getCurrentCycleMonths();
@@ -3067,13 +3200,28 @@
               `${consensusEmoji} ${consensus.consensus} (${consensus.confidence}%)` : 
               '⚪ neutral';
 
+            // Dynamic weighting display
+            const isDynamic = localStorage.getItem('enable_dynamic_weighting') === 'true';
+            const currentWeight = Math.round((data.weight || 0) * 100);
+            const staticWeight = Math.round((data.staticWeight || 0) * 100);
+            
+            let weightDisplay = '';
+            if (isDynamic && data.staticWeight && Math.abs(currentWeight - staticWeight) >= 1) {
+              const change = currentWeight - staticWeight;
+              const changeColor = change > 0 ? 'var(--success)' : 'var(--danger)';
+              const changeText = change > 0 ? `+${change}` : `${change}`;
+              weightDisplay = `Poids: ${currentWeight}% <span style="color: ${changeColor}; font-weight: 600;">(${changeText}% vs statique)</span>`;
+            } else {
+              weightDisplay = `Poids: ${currentWeight}%`;
+            }
+
             return card(`
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: .25rem;">
               <span style="font-weight:600; color: var(--theme-text);">${emoji} ${data.description || key}</span>
               <span style="font-size: 1.25rem; font-weight: 700; color: ${scoreColor};">${data.score}/100</span>
             </div>
             <div style="font-size:.75rem; color: var(--theme-text-muted); margin-bottom: 0.25rem;">
-              ${data.contributorsCount} indicateur(s) • Poids: ${Math.round((data.weight || 0) * 100)}%
+              ${data.contributorsCount} indicateur(s) • ${weightDisplay}
             </div>
             <div style="font-size:.75rem; padding: 2px 6px; background: var(--theme-surface-alt); border-radius: 4px; color: var(--theme-text-muted);">
               Consensus: ${consensusText}
@@ -3162,7 +3310,7 @@
               ${localStorage.getItem('enable_dynamic_weighting') === 'true' ? '<span style="font-size:0.7rem; background: var(--warning); color: white; padding: 2px 6px; border-radius: 4px; margin-left: 4px;">🤖 DYNAMIC</span>' : ''}
             </h4>
             <div style="font-size:2rem; font-weight:700; color:${pickScoreColor(composite.score)};">
-              ${composite.score}/100
+              ${composite.score !== null ? `${composite.score}/100` : 'N/A'}
             </div>
             <div style="font-size:.85rem; color: var(--theme-text-muted);">
               ${composite.totalIndicators} indicateurs • Confiance: ${Math.round((composite.confidence || 0) * 100)}% • Corrélations gérées
@@ -3177,13 +3325,42 @@
             <div style="font-size:.85rem; color: var(--theme-text-muted);">${divergence.message}</div>
           `)}
         </div>
+        
+        ${localStorage.getItem('enable_dynamic_weighting') === 'true' && composite.dynamicWeighting ? card(`
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem;">
+            <h4 style="margin:0; color: var(--warning);">🤖 Pondération Dynamique Active</h4>
+            <button onclick="toggleSection('dynamic-weighting-info')" style="background: none; border: 1px solid var(--theme-border); border-radius: 4px; padding: 4px 8px; cursor: pointer; color: var(--theme-text); font-size: 0.8rem;" title="Réduire/Agrandir">
+              <span id="dynamic-weighting-info-arrow">▼</span>
+            </button>
+          </div>
+          <div id="dynamic-weighting-info-content">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+              <div style="padding: 0.75rem; background: var(--theme-bg); border-radius: 6px; border-left: 3px solid var(--warning);">
+                <div style="font-weight: 600; color: var(--warning); margin-bottom: 0.25rem;">Phase Détectée</div>
+                <div style="font-size: 1.1rem; font-weight: 700; color: var(--theme-text);">${composite.dynamicWeighting.phase.name}</div>
+                <div style="font-size: 0.8rem; color: var(--theme-text-muted); margin-top: 0.25rem;">${composite.dynamicWeighting.phase.description}</div>
+              </div>
+              <div style="padding: 0.75rem; background: var(--theme-bg); border-radius: 6px; border-left: 3px solid var(--info);">
+                <div style="font-weight: 600; color: var(--info); margin-bottom: 0.25rem;">Score Range</div>
+                <div style="font-size: 1.1rem; font-weight: 700; color: var(--theme-text);">${composite.dynamicWeighting.phase.scoreRange[0]}-${composite.dynamicWeighting.phase.scoreRange[1]}</div>
+                <div style="font-size: 0.8rem; color: var(--theme-text-muted); margin-top: 0.25rem;">Score actuel: ${composite.score !== null ? composite.score : 'N/A'}</div>
+              </div>
+            </div>
+            <div style="padding: 0.5rem; background: var(--theme-surface-alt); border-radius: 6px; margin-bottom: 0.5rem;">
+              <div style="font-weight: 600; margin-bottom: 0.25rem; color: var(--theme-text);">💡 Logique d'adaptation:</div>
+              ${composite.dynamicWeighting.reasoning.map(reason => 
+                `<div style="font-size: 0.85rem; color: var(--theme-text-muted); margin: 0.1rem 0;">• ${reason}</div>`
+              ).join('')}
+            </div>
+          </div>
+        `, { accentLeft: 'var(--warning)' }) : ''}
       `;
 
-        // Bloc catégories
+        // Bloc catégories V2 (sans collapse button)
         const categoriesBlock = composite.categoryBreakdown
           ? card(`
             <h4 style="margin:0 0 .75rem 0; color: var(--theme-text);">📊 Répartition par catégorie V2</h4>
-            <div style="display:grid; grid-template-columns:1fr; gap:.75rem;">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:.75rem;">
               ${categoryDisplay}
             </div>
           `)
@@ -3243,10 +3420,13 @@
         ${recosBlock}
       `;
 
+        // Appliquer l'état du toggle après rendu
+        try { initializeDynamicWeightingToggle(); } catch (e) { console.warn('Init toggle failed', e); }
+
         console.log('✅ Indicateurs on-chain (thémés) chargés:', { sigmoidScore, composite: composite.score, enhanced: enhanced.enhanced_score });
       } catch (error) {
         console.error('❌ Erreur indicateurs on-chain:', error);
-        const container = document.getElementById('onchain-indicators');
+        const container = document.getElementById('onchain-indicators-content');
         if (container) {
           container.innerHTML = `
           <div class="error" style="background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger); border-radius: var(--radius-md); padding: var(--space-lg);">
@@ -3274,20 +3454,38 @@
 
       container.innerHTML = `
         <!-- Indicateurs On-Chain -->
-        <div class="risk-card" style="margin-bottom: 2rem;">
-          <h3>🔗 Indicateurs On-Chain</h3>
-          <div id="onchain-indicators" style="margin: 1rem 0;">
+          <div class="risk-card" style="margin-bottom: 2rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: .75rem; margin-bottom: 1rem;">
+            <h3 style="margin: 0;">🔗 Indicateurs On-Chain</h3>
+            <div style="display:flex; align-items:center; gap:.75rem;">
+              <label style="display:flex; align-items:center; gap:.4rem; cursor:pointer; font-weight:600;" title="Active une pondération dynamique des indicateurs selon le contexte de marché (accumulation, expansion, euphorie, correction). Recalcule les scores avec des poids adaptés.">
+                <input type="checkbox" id="dynamic-weighting-toggle" onchange="toggleDynamicWeighting()" style="transform: scale(1.1);">
+                <span>🎯 Adaptation contextuelle</span>
+              </label>
+              <button onclick="toggleSection('onchain-indicators')" style="background: none; border: 1px solid var(--theme-border); border-radius: 4px; padding: 4px 8px; cursor: pointer; color: var(--theme-text); font-size: 0.8rem;" title="Réduire/Agrandir">
+                <span id="onchain-indicators-arrow">▼</span>
+              </button>
+            </div>
+          </div>
+          <div id="onchain-indicators-content" style="margin: 1rem 0;">
             <div class="loading">Chargement des indicateurs...</div>
           </div>
         </div>
         
         <!-- Bitcoin Cycle Chart -->
         <div class="risk-card" style="margin-bottom: 2rem;">
-          <h3>📈 Graphique des Cycles Bitcoin</h3>
-          <!-- Label de source injecté dynamiquement -->
-          <div id="btc-source-label" style="margin-left:auto;color:var(--theme-text-muted);font-size:12px;"></div>
-          <div style="height: 520px; position: relative; margin: 1rem 0;">
-            <canvas id="bitcoin-cycle-chart" style="width: 100%; height: 100%;"></canvas>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 style="margin: 0;">📈 Graphique des Cycles Bitcoin</h3>
+            <button onclick="toggleSection('bitcoin-cycle')" style="background: none; border: 1px solid var(--theme-border); border-radius: 4px; padding: 4px 8px; cursor: pointer; color: var(--theme-text); font-size: 0.8rem;" title="Réduire/Agrandir">
+              <span id="bitcoin-cycle-arrow">▼</span>
+            </button>
+          </div>
+          <div id="bitcoin-cycle-content">
+            <!-- Label de source injecté dynamiquement -->
+            <div id="btc-source-label" style="margin-left:auto;color:var(--theme-text-muted);font-size:12px;"></div>
+            <div style="height: 520px; position: relative; margin: 1rem 0;">
+              <canvas id="bitcoin-cycle-chart" style="width: 100%; height: 100%;"></canvas>
+            </div>
           </div>
           <div style="font-size: 0.85rem; color: var(--theme-text-muted); text-align: center; margin-top: 1rem;">
             <div><strong>Légende:</strong></div>
@@ -3847,6 +4045,9 @@
 
       // Initialize dynamic weighting toggle
       initializeDynamicWeightingToggle();
+      
+      // Initialize section collapse states
+      initializeSectionStates();
 
       // Load initial data
       refreshDashboard();

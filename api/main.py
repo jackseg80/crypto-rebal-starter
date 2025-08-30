@@ -140,6 +140,19 @@ app.mount(
     name="data",
 )
 
+# Optionnel: exposer les pages de test HTML en local (sécurisé par DEBUG)
+try:
+    TESTS_DIR = BASE_DIR / "tests"
+    if DEBUG and TESTS_DIR.exists():
+        print(f"DEBUG: Mounting TESTS_DIR at /tests -> {TESTS_DIR}")
+        app.mount(
+            "/tests",
+            StaticFiles(directory=str(TESTS_DIR), html=True),
+            name="tests",
+        )
+except Exception as e:
+    print(f"WARNING: Could not mount /tests: {e}")
+
 @app.get("/debug/paths")
 async def debug_paths():
     """Endpoint de diagnostic pour vérifier les chemins"""

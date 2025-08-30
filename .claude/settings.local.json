@@ -105,7 +105,10 @@
       "Bash(start http://localhost:8000/static/test-full-integration.html)",
       "Bash(start http://localhost:8000/static/test-scoring-v2.html)",
       "Bash(start http://localhost:8000/static/test-v2-comprehensive.html)",
-      "Bash(start http://localhost:8000/static/test-v2-quick.html)"
+      "Bash(start http://localhost:8000/static/test-v2-quick.html)",
+      "Bash(start http://localhost:8000/static/backtesting-v2.html)",
+      "Bash(start http://localhost:8000/static/test-dynamic-weighting.html)",
+      "Bash(start http://localhost:8000/static/test-dynamic-weighting-debug.html)"
     ],
     "deny": [],
     "ask": [],
