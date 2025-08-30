@@ -10,6 +10,7 @@ Bienvenue. Cette documentation est organisée par sujets et fournit un niveau de
 - Intégrations (CoinTracking, Kraken, FRED): `docs/integrations.md`
 - Développement (tests, conventions): `docs/developer.md`
 - Dépannage: `docs/troubleshooting.md`
+ - Changelog: `docs/changelog.md`
 
 Archive détaillée (ancienne doc): `docs/_legacy/`
 

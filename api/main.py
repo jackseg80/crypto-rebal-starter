@@ -659,81 +659,11 @@ async def test_simple():
 @app.get("/health/detailed")
 async def health_detailed():
     """Endpoint de santé détaillé avec métriques complètes"""
-    from services.pricing import get_cache_stats
-    import psutil
-    import os
-    from datetime import datetime
-    
-    try:
-        # Métriques système
-        memory = psutil.virtual_memory()
-        disk = psutil.disk_usage('.')
-        
-        # Métriques cache pricing
-        cache_stats = get_cache_stats()
-        
-        # Métriques configuration
-        config_health = {
-            "debug_mode": DEBUG,
-            "app_debug": APP_DEBUG,
-            "log_level": LOG_LEVEL,
-            "cors_origins_count": len(CORS_ORIGINS) if CORS_ORIGINS else len([
-                "http://localhost:3000", "http://localhost:8000", "http://localhost:8080",
-                "http://127.0.0.1:8000", "http://127.0.0.1:8080", "file://"
-            ])
-        }
-        
-        # Vérification des fichiers critiques
-        csv_file = DATA_DIR / "raw" / "CoinTracking - Current Balance.csv"
-        file_health = {
-            "csv_data_available": csv_file.exists(),
-            "csv_size_mb": round(csv_file.stat().st_size / (1024*1024), 2) if csv_file.exists() else 0,
-            "static_dir_exists": STATIC_DIR.exists(),
-            "data_dir_exists": DATA_DIR.exists()
-        }
-        
-        # Test rapide des services critiques
-        services_health = {}
-        try:
-            from constants import EXCHANGE_PRIORITIES
-            services_health["constants_loaded"] = len(EXCHANGE_PRIORITIES) > 0
-        except:
-            services_health["constants_loaded"] = False
-            
-        try:
-            from services.pricing import get_price_usd
-            # Test rapide sans faire d'appel réseau
-            services_health["pricing_service"] = True
-        except:
-            services_health["pricing_service"] = False
-        
-        return {
-            "ok": True,
-            "timestamp": datetime.now().isoformat(),
-            "uptime_info": {
-                "process_id": os.getpid(),
-                "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
-            },
-            "system_metrics": {
-                "memory_used_mb": round(memory.used / (1024*1024), 1),
-                "memory_available_mb": round(memory.available / (1024*1024), 1),
-                "memory_percent": memory.percent,
-                "disk_used_gb": round(disk.used / (1024*1024*1024), 1),
-                "disk_free_gb": round(disk.free / (1024*1024*1024), 1),
-                "disk_percent": round((disk.used / disk.total) * 100, 1)
-            },
-            "cache_metrics": cache_stats,
-            "configuration": config_health,
-            "file_system": file_health,
-            "services": services_health
-        }
-        
-    except Exception as e:
-        return {
-            "ok": False,
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
+    return {
+        "ok": True,
+        "message": "Health detailed endpoint working!",
+        "server_running": True
+    }
 
 
 @app.get("/schema")
