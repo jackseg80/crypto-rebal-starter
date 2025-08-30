@@ -10,7 +10,9 @@ from dotenv import load_dotenv
 from collections import defaultdict
 from functools import partial
 
-print("CT-API parser version:", "2025-08-22-1")
+import logging
+logger = logging.getLogger(__name__)
+logger.debug("CT-API parser version: %s", "2025-08-22-1")
 
 # Charger .env au début pour que les variables soient disponibles
 load_dotenv()
@@ -334,10 +336,10 @@ def _extract_rows_from_groupedBalance(payload: Dict[str, Any]) -> List[Dict[str,
     Cette fonction retourne une liste de lignes coin/exchange:
     [{symbol, amount, value_usd (peut être 0), location=<exchange>}, ...]
     """
-    print("CT-GB shape:",
-      "has_result=", isinstance(payload.get("result"), dict),
-      "keys_result=", list((payload.get("result") or {}).keys())[:5],
-      "has_details_at_root=", isinstance(payload.get("details"), dict))
+    logger.debug("CT-GB shape: has_result=%s keys_result=%s has_details_at_root=%s",
+                 isinstance(payload.get("result"), dict),
+                 list((payload.get("result") or {}).keys())[:5],
+                 isinstance(payload.get("details"), dict))
 
     
     def _num(x):
@@ -591,7 +593,7 @@ async def get_current_balances(source: str = "cointracking_api") -> dict:
     """
     # 1) getBalance
     try:
-        p = _post_api_cached("getBalance", {}, ttl=60)
+        p = await _post_api_cached_async("getBalance", {}, ttl=60)
         rows = _extract_rows_from_getBalance(p) or []
         if not rows and isinstance(p, dict) and isinstance(p.get("result"), dict):
             rows = _extract_rows_from_getBalance(p["result"]) or []
@@ -602,13 +604,13 @@ async def get_current_balances(source: str = "cointracking_api") -> dict:
 
     # 2) fallback: getGroupedBalance + recomposition des valeurs via une price map
     try:
-        payload = _post_api_cached("getGroupedBalance", {"group": "exchange"}, ttl=60)
+        payload = await _post_api_cached_async("getGroupedBalance", {"group": "exchange"}, ttl=60)
         items = _extract_rows_from_groupedBalance(payload)  # amount>0, value_usd poss. 0
 
         # price map depuis getBalance
         price_map: dict[str, float] = {}
         try:
-            p2 = _post_api_cached("getBalance", {}, ttl=30)
+            p2 = await _post_api_cached_async("getBalance", {}, ttl=30)
             details = p2.get("details")
             if details is None and isinstance(p2.get("result"), dict):
                 details = p2["result"].get("details")

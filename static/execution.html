@@ -792,20 +792,20 @@
     // ========== INITIALISATION ==========
 
     document.addEventListener('DOMContentLoaded', () => {
-      console.log('🚀 Execution interface DOM loaded');
+      console.debug('🚀 Execution interface DOM loaded');
 
       // Initialiser le header partagé
       initSharedHeader('execution');
 
       // Appliquer le thème immédiatement
-      console.log('Initializing theme for execution page...');
+      console.debug('Initializing theme for execution page...');
       if (window.globalConfig && window.globalConfig.applyTheme) {
         window.globalConfig.applyTheme();
       }
       if (window.applyAppearance) {
         window.applyAppearance();
       }
-      console.log('Current theme after execution init:', document.documentElement.getAttribute('data-theme'));
+      console.debug('Current theme after execution init:', document.documentElement.getAttribute('data-theme'));
 
       // Charger les échanges par défaut
       loadExchanges();
@@ -820,7 +820,7 @@
       // Écouter les changements de thème pour synchronisation cross-tab
       window.addEventListener('storage', function(e) {
         if (e.key === 'crypto_rebalancer_settings') {
-          console.log('Settings changed in another tab, reapplying theme...');
+          console.debug('Settings changed in another tab, reapplying theme...');
           setTimeout(() => {
             if (window.globalConfig && window.globalConfig.applyTheme) {
               window.globalConfig.applyTheme();

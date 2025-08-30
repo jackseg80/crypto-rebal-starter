@@ -783,7 +783,7 @@
       try {
         const { calibrateCycleParams, getCycleParams } = await import('./modules/cycle-navigator.js');
         const res = calibrateCycleParams(); // ancres par défaut
-        console.log('Cycle params calibrés:', getCycleParams(), 'score=', res.score);
+        console.debug('Cycle params calibrés:', getCycleParams(), 'score=', res.score);
         // ✅ Redessiner le même canvas
         await createBitcoinCycleChart('bitcoin-cycle-chart');
         window.showToast?.('Cycle calibré sur historiques', 'success');
@@ -830,7 +830,7 @@
           const data = JSON.parse(saved);
           // Vérifier que les données ne sont pas trop anciennes (24h)
           if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
-            console.log('✅ Paramètres calibrés chargés depuis localStorage', data.params);
+            console.debug('✅ Paramètres calibrés chargés depuis localStorage', data.params);
             return data.params;
           }
         }
@@ -843,7 +843,7 @@
     // Écouter les mises à jour de paramètres depuis d'autres pages
     window.addEventListener('message', (event) => {
       if (event.data.type === 'CYCLE_PARAMS_UPDATED') {
-        console.log('🔄 Paramètres de cycle mis à jour depuis autre page');
+        console.debug('🔄 Paramètres de cycle mis à jour depuis autre page');
         // Recharger les données avec les nouveaux paramètres
         setTimeout(refreshDashboard, 1000);
       }
@@ -875,7 +875,7 @@
           break;
       }
 
-      console.log(`Switched to tab: ${tabName}`);
+      console.debug(`Switched to tab: ${tabName}`);
     };
 
     // ====== Tooltip helpers ======
@@ -946,7 +946,7 @@
     // Fallback mock data when API is unavailable - uses configured data source
     async function getMockRiskData() {
       try {
-        console.log('🔍 Loading risk data using configured source...');
+        console.debug('🔍 Loading risk data using configured source...');
         const balanceResult = await window.loadBalanceData();
 
         if (!balanceResult.success) {
@@ -972,16 +972,16 @@
         const totalValue = balances.reduce((sum, item) => sum + item.value_usd, 0);
         const assetCount = balances.length; // Dynamic calculation (>=configured threshold)
 
-        console.log('🔍 DEBUG Risk Dashboard: Using REAL CSV data - total:', totalValue.toFixed(2), 'assets:', assetCount);
-        console.log('🔍 DEBUG Risk Dashboard: Individual assets parsed:', balances.length);
+        console.debug('🔍 DEBUG Risk Dashboard: Using REAL CSV data - total:', totalValue.toFixed(2), 'assets:', assetCount);
+        console.debug('🔍 DEBUG Risk Dashboard: Individual assets parsed:', balances.length);
 
         // Calculate real risk metrics based on portfolio composition
         try {
           const groups = groupAssetsByAliases(balances);
-          console.log('🔍 DEBUG Risk Dashboard: Groups created:', groups.length);
+          console.debug('🔍 DEBUG Risk Dashboard: Groups created:', groups.length);
 
           const riskMetrics = calculateRealRiskMetrics(balances, totalValue);
-          console.log('🔍 DEBUG Risk Dashboard: Risk metrics calculated:', riskMetrics);
+          console.debug('🔍 DEBUG Risk Dashboard: Risk metrics calculated:', riskMetrics);
 
           const groupWeights = {};
 
@@ -989,10 +989,10 @@
           groups.forEach(group => {
             groupWeights[group.label] = group.value / totalValue;
           });
-          console.log('🔍 DEBUG Risk Dashboard: Group weights calculated:', groupWeights);
+          console.debug('🔍 DEBUG Risk Dashboard: Group weights calculated:', groupWeights);
 
           const correlationMetrics = calculateCorrelationMetrics(groups, groupWeights);
-          console.log('🔍 DEBUG Risk Dashboard: Correlation metrics calculated:', correlationMetrics);
+          console.debug('🔍 DEBUG Risk Dashboard: Correlation metrics calculated:', correlationMetrics);
 
           return {
             success: true,
@@ -1067,7 +1067,7 @@
         groupWeights[group.label] = group.value / totalValue;
       });
 
-      console.log('🔍 DEBUG Risk Calculation: Group weights:', groupWeights);
+      console.debug('🔍 DEBUG Risk Calculation: Group weights:', groupWeights);
 
       // Risk profiles for different asset categories (based on historical data)
       const RISK_PROFILES = {
@@ -1121,7 +1121,7 @@
       portfolioVolatility *= diversificationBenefit;
       portfolioMaxDrawdown *= diversificationBenefit;
 
-      console.log('🔍 DEBUG Risk Calculation: Diversification benefit:', diversificationBenefit, 'Groups:', numSignificantGroups);
+      console.debug('🔍 DEBUG Risk Calculation: Diversification benefit:', diversificationBenefit, 'Groups:', numSignificantGroups);
 
       // Calculate concentration risk
       const concentrationRisk = Math.max(...Object.values(groupWeights)); // Largest allocation
@@ -1130,7 +1130,7 @@
       if (concentrationRisk > 0.4) {
         portfolioVolatility *= concentrationPenalty;
         portfolioRiskScore *= concentrationPenalty;
-        console.log('🔍 DEBUG Risk Calculation: Concentration penalty applied:', concentrationPenalty, 'Max allocation:', (concentrationRisk * 100).toFixed(1) + '%');
+        console.debug('🔍 DEBUG Risk Calculation: Concentration penalty applied:', concentrationPenalty, 'Max allocation:', (concentrationRisk * 100).toFixed(1) + '%');
       }
 
       // Derive other metrics from base calculations
@@ -1169,7 +1169,7 @@
         overall_risk_level: riskLevel
       };
 
-      console.log('🔍 DEBUG Risk Calculation: Final metrics:', {
+      console.debug('🔍 DEBUG Risk Calculation: Final metrics:', {
         volatility: (result.volatility_annualized * 100).toFixed(1) + '%',
         sharpe: result.sharpe_ratio.toFixed(2),
         maxDD: (result.max_drawdown * 100).toFixed(1) + '%',
@@ -1479,7 +1479,7 @@
       // Sort by correlation (highest first) and take top 5
       topCorrelations.sort((a, b) => Math.abs(b.correlation) - Math.abs(a.correlation));
 
-      console.log('🔍 DEBUG Correlation Calculation:', {
+      console.debug('🔍 DEBUG Correlation Calculation:', {
         avgCorrelation: avgCorrelation.toFixed(3),
         effectiveAssets: effectiveAssets.toFixed(1),
         diversificationRatio: diversificationRatio.toFixed(3),
@@ -1512,7 +1512,7 @@
       const groups = new Map();
       const ungrouped = [];
 
-      console.log('🔍 DEBUG Risk Dashboard: Grouping', items.length, 'assets by aliases');
+      console.debug('🔍 DEBUG Risk Dashboard: Grouping', items.length, 'assets by aliases');
 
       items.forEach(item => {
         const symbol = (item.symbol || '').toUpperCase();
@@ -1540,7 +1540,7 @@
 
           // Debug log for significant groupings
           if (item.value_usd > 5000) {
-            console.log('🔍 DEBUG Risk Dashboard: Grouped', symbol, 'into', foundGroup, '- value:', item.value_usd.toFixed(2));
+            console.debug('🔍 DEBUG Risk Dashboard: Grouped', symbol, 'into', foundGroup, '- value:', item.value_usd.toFixed(2));
           }
         } else {
           ungrouped.push({
@@ -1550,12 +1550,12 @@
 
           // Debug log for ungrouped assets
           if (item.value_usd > 1000) {
-            console.log('⚠️ DEBUG Risk Dashboard: UNGROUPED asset:', symbol, '- value:', item.value_usd.toFixed(2));
+            console.debug('⚠️ DEBUG Risk Dashboard: UNGROUPED asset:', symbol, '- value:', item.value_usd.toFixed(2));
           }
         }
       });
 
-      console.log('🔍 DEBUG Risk Dashboard: Final groups:', groups.size, 'grouped +', ungrouped.length, 'ungrouped');
+      console.debug('🔍 DEBUG Risk Dashboard: Final groups:', groups.size, 'grouped +', ungrouped.length, 'ungrouped');
       const result = [...Array.from(groups.values()), ...ungrouped];
 
       return result;
@@ -1564,7 +1564,7 @@
     // ====== CCS Functions ======
     async function loadCCSData() {
       try {
-        console.log('Loading CCS data...');
+        console.debug('Loading CCS data...');
 
         // Fetch CCS and cycle data in parallel
         const [ccsResult, cycleData] = await Promise.all([
@@ -1589,7 +1589,7 @@
         // Update API status
         store.set('ui.apiStatus.signals', 'healthy');
 
-        console.log(`CCS loaded: ${ccsResult.score}, Cycle: ${cycleData.phase.phase} (${Math.round(cycleData.months)}m)`);
+        console.debug(`CCS loaded: ${ccsResult.score}, Cycle: ${cycleData.phase.phase} (${Math.round(cycleData.months)}m)`);
 
         return { ccs: ccsResult, cycle: cycleData };
 
@@ -1804,14 +1804,14 @@
         // Check if dynamic weighting is enabled (from localStorage setting)
         const useDynamicWeighting = localStorage.getItem('enable_dynamic_weighting') === 'true';
         
-        console.log(`🎯 calculateOnChainScore: useDynamicWeighting = ${useDynamicWeighting} (from localStorage: ${localStorage.getItem('enable_dynamic_weighting')})`);
+        console.debug(`🎯 calculateOnChainScore: useDynamicWeighting = ${useDynamicWeighting} (from localStorage: ${localStorage.getItem('enable_dynamic_weighting')})`);
         
         const composite = calculateCompositeScoreV2(indicators, useDynamicWeighting);
         
-        console.log(`📊 Composite result: score=${composite.score}, version=${composite.version}, hasDynamic=${!!composite.dynamicWeighting}`);
+        console.debug(`📊 Composite result: score=${composite.score}, version=${composite.version}, hasDynamic=${!!composite.dynamicWeighting}`);
         
         if (useDynamicWeighting && composite.dynamicWeighting) {
-          console.log(`🤖 Dynamic weighting applied: ${composite.dynamicWeighting.phase.name} phase`);
+          console.debug(`🤖 Dynamic weighting applied: ${composite.dynamicWeighting.phase.name} phase`);
         }
 
         if (composite.score === null) {
@@ -1825,7 +1825,7 @@
           };
         }
 
-        console.log(`📊 On-Chain Score: ${composite.score} (${composite.message})`);
+        console.debug(`📊 On-Chain Score: ${composite.score} (${composite.message})`);
 
         // Stocker les métadonnées enrichies V2 pour utilisation par SMART
         store.set('scores.onchain_metadata', {
@@ -1865,7 +1865,7 @@
         Object.entries(composite.categoryBreakdown).forEach(([category, data]) => {
           const emoji = category === 'onchain_fundamentals' ? '🔗' :
             category === 'cycle_technical' ? '📊' : '😨';
-          console.log(`  ${emoji} ${data.description}: ${data.score}/100 (${data.contributorsCount} indicateurs)`);
+          console.debug(`  ${emoji} ${data.description}: ${data.score}/100 (${data.contributorsCount} indicateurs)`);
         });
 
         if (indicators._metadata?.missing_apis?.length > 0) {
@@ -1924,7 +1924,7 @@
         return 50; // Fallback neutre
       }
 
-      console.log('🎯 Calcul Blended Score stratégique:', {
+      console.debug('🎯 Calcul Blended Score stratégique:', {
         ccsMixte: ccsMixteScore,
         onchain: onchainScore,
         risk: riskScore
@@ -1937,14 +1937,14 @@
       if (ccsMixteScore != null) {
         totalScore += ccsMixteScore * 0.50;
         totalWeight += 0.50;
-        console.log('  → CCS Mixte contributtion:', ccsMixteScore * 0.50);
+        console.debug('  → CCS Mixte contributtion:', ccsMixteScore * 0.50);
       }
 
       // On-Chain Composite : 30% (fondamentaux réseau)
       if (onchainScore != null) {
         totalScore += onchainScore * 0.30;
         totalWeight += 0.30;
-        console.log('  → On-Chain contribution:', onchainScore * 0.30);
+        console.debug('  → On-Chain contribution:', onchainScore * 0.30);
       } else {
         console.warn('  ⚠️ On-Chain Score non disponible (APIs payantes requises) - poids redistribué');
       }
@@ -1954,11 +1954,11 @@
         const riskAdjusted = 100 - riskScore; // Haut risque = bas score
         totalScore += riskAdjusted * 0.20;
         totalWeight += 0.20;
-        console.log('  → Risk contribution (100-risk):', riskAdjusted * 0.20);
+        console.debug('  → Risk contribution (100-risk):', riskAdjusted * 0.20);
       }
 
       const finalScore = totalWeight > 0 ? totalScore / totalWeight : 50;
-      console.log('🎯 Final Blended Score:', finalScore, '(weight:', totalWeight, ')');
+      console.debug('🎯 Final Blended Score:', finalScore, '(weight:', totalWeight, ')');
 
       return Math.max(0, Math.min(100, finalScore));
     }
@@ -1966,7 +1966,7 @@
     // Main function to calculate all scores
     async function calculateAllScores(riskData, ccsData) {
       try {
-        console.log('🎯 Calculating all scores...');
+        console.debug('🎯 Calculating all scores...');
 
         // Apply calibrated parameters if available
         const calibratedParams = loadCalibrationParams();
@@ -1974,7 +1974,7 @@
           // Apply to cycle navigator module
           const module = await import('./modules/cycle-navigator.js');
           module.setCycleParams(calibratedParams);
-          console.log('🔄 Applied calibrated parameters');
+          console.debug('🔄 Applied calibrated parameters');
         }
 
         // Get current CCS and cycle data
@@ -1987,7 +1987,7 @@
 
         // Use Risk Score directly from backend (consistent with Risk Overview)
         riskScore = riskData?.risk_metrics?.risk_score ?? 50;
-        console.log('🛡️ Risk Score (from backend):', riskScore);
+        console.debug('🛡️ Risk Score (from backend):', riskScore);
 
         // Calculate Strategic Blended Score (nouvelle formule)
         blendedScore = calculateBlendedScore(ccsMixteScore, onchainScore, riskScore);
@@ -1997,7 +1997,7 @@
         store.set('scores.risk', riskScore);
         store.set('scores.blended', blendedScore);
 
-        console.log('📊 All scores calculated:', {
+        console.debug('📊 All scores calculated:', {
           ccs: ccsScore,
           ccsMixte: ccsMixteScore,
           onchain: onchainScore,
@@ -2024,7 +2024,7 @@
         const regimeData = getRegimeDisplayData(blendedScore, onchainScore, riskScore);
         const regime = regimeData.regime;
 
-        console.log('📊 Market Regime calculated:', regime);
+        console.debug('📊 Market Regime calculated:', regime);
 
         // Update Market Regime display
         const regimeDot = document.getElementById('regime-dot');
@@ -2067,7 +2067,7 @@
       const isEnabled = toggle.checked;
       localStorage.setItem('enable_dynamic_weighting', isEnabled.toString());
       
-      console.log(`🔄 Toggle changed: ${isEnabled} (localStorage now: ${localStorage.getItem('enable_dynamic_weighting')})`);
+      console.debug(`🔄 Toggle changed: ${isEnabled} (localStorage now: ${localStorage.getItem('enable_dynamic_weighting')})`);
       
       if (status) {
         if (isEnabled) {
@@ -2081,7 +2081,7 @@
       
       // Clear any cached composite score to force recalculation
       if (window.compositeScoreCache) {
-        console.log('🗑️ Clearing composite score cache');
+        console.debug('🗑️ Clearing composite score cache');
         window.compositeScoreCache.cache.clear();
       }
       
@@ -2200,7 +2200,7 @@
           // Also update cycles content (contains composite score display) 
           if (finalState.ccs?.score && finalState.cycle?.months) {
             await renderCyclesContent();
-            console.log('🔄 Cycles content updated with latest data');
+            console.debug('🔄 Cycles content updated with latest data');
           }
 
           console.log('Risk dashboard refreshed successfully');

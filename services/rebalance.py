@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Any, Dict, List
-from constants import get_exchange_priority, normalize_exchange_name
+from constants import get_exchange_priority, normalize_exchange_name, format_exec_hint
 from services.taxonomy import Taxonomy
 
 
@@ -9,36 +9,7 @@ def _keynorm(s: str) -> str:
 
 
 def _format_hint_for_location(location: str, action_type: str) -> str:
-    priorities = {
-        # CEX
-        "Binance": 1, "Kraken": 2, "Coinbase": 3, "Bitget": 4, "Bybit": 5, "OKX": 6,
-        "Huobi": 7, "KuCoin": 8, "Kraken Earn": 10, "Coinbase Pro": 11,
-        # Wallets
-        "MetaMask": 20, "Phantom": 21, "Rabby": 22, "TrustWallet": 23,
-        # DeFi
-        "DeFi": 30, "Uniswap": 31, "PancakeSwap": 32, "SushiSwap": 33, "Curve": 34,
-        # Hardware / fallback
-        "Ledger": 40, "Trezor": 41, "Cold Storage": 42,
-        "Portfolio": 50, "CoinTracking": 51, "Demo Wallet": 52, "Unknown": 60, "Manually": 61,
-    }
-
-    key = (location or "Unknown").strip()
-    if key.endswith(" Balance"):
-        key = key[:-8].strip()
-    key = key.title()
-    prio = priorities.get(key, 100)
-
-    if action_type == "sell":
-        if prio < 15:        return f"Sell on {key}"
-        elif prio < 30:      return f"Sell on {key} (DApp)"
-        elif prio < 40:      return f"Sell on {key} (DeFi)"
-        else:                return f"Sell on {key} (complex)"
-    elif action_type == "buy":
-        if prio < 15:        return f"Buy on {key}"
-        elif prio < 30:      return f"Buy on {key} (DApp)"
-        elif prio < 40:      return f"Buy on {key} (DeFi)"
-        else:                return f"Buy on {key} (manual)"
-    return f"Trade on {key}"
+    return format_exec_hint(location, action_type)
 
 
 def _get_exec_hint(action: Dict[str, Any], items_by_group: Dict[str, List[Dict[str, Any]]]) -> str:
@@ -98,36 +69,11 @@ def plan_rebalance(
             s = s[:-8].strip()
         return s.title()
 
-    priorities = {
-        # CEX (vente rapide en priorité)
-        "Binance": 1, "Kraken": 2, "Coinbase": 3, "Bitget": 4, "Bybit": 5, "OKX": 6,
-        "Huobi": 7, "Kucoin": 8, "Coinbase Pro": 9,
-        # DeFi / DEX
-        "Uniswap": 30, "Pancakeswap": 31, "Sushiswap": 32, "Curve": 33, "Defi": 34,
-        # Wallets / divers
-        "Metamask": 20, "Phantom": 21, "Rabby": 22, "Trustwallet": 23,
-        # Hardware / cold (en dernier)
-        "Ledger": 40, "Trezor": 41, "Cold Storage": 42,
-        # Fallbacks
-        "Portfolio": 50, "Cointracking": 51, "Demo Wallet": 52, "Unknown": 60, "Manually": 61,
-    }
-
     def prio(loc: str) -> int:
-        return priorities.get(loc, 100)
+        return get_exchange_priority(loc)
 
     def fmt_hint(loc: str, action_type: str) -> str:
-        # petit suffixe selon la “famille”
-        p = prio(loc)
-        if action_type == "sell":
-            if p < 15:   return f"Sell on {loc}"
-            elif p < 30: return f"Sell on {loc} (DApp)"
-            elif p < 40: return f"Sell on {loc} (DeFi)"
-            else:        return f"Sell on {loc} (complex)"
-        else:
-            if p < 15:   return f"Buy on {loc}"
-            elif p < 30: return f"Buy on {loc} (DApp)"
-            elif p < 40: return f"Buy on {loc} (DeFi)"
-            else:        return f"Buy on {loc} (manual)"
+        return format_exec_hint(loc, action_type)
 
     def allocate_proportional(total: float, buckets: List[tuple[str, float]]) -> Dict[str, float]:
         """Répartit 'total' proportionnellement aux poids 'buckets' -> {key: usd}."""
@@ -167,7 +113,7 @@ def plan_rebalance(
         value_usd = float(v or 0.0)
         if value_usd < float(min_usd or 0.0):
             continue
-        loc = clean_loc(it.get("location") or "Unknown")
+        loc = normalize_exchange_name(it.get("location") or "Unknown")
         g = tx.group_for_alias(alias)
         if isinstance(g, (list, tuple)):
             g = next((x for x in g if isinstance(x, str) and x in groups_order), (g[0] if g else "Others"))

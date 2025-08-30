@@ -751,7 +751,7 @@ function parseCryptoToolboxHTML(html) {
       if (rows.length === 0) {
         // Fallback: chercher tr directement
         const fallbackRows = table.querySelectorAll('tr');
-        console.log(`🔍 Table ${tableIndex + 1}: Fallback found ${fallbackRows.length} tr rows`);
+        console.debug(`🔍 Table ${tableIndex + 1}: Fallback found ${fallbackRows.length} tr rows`);
         
         fallbackRows.forEach(row => parseTableRow(row, tableIndex, indicators));
       } else {
@@ -762,7 +762,7 @@ function parseCryptoToolboxHTML(html) {
     function parseTableRow(row, tableIndex, indicators) {
       const cells = row.querySelectorAll('td');
       if (cells.length < 3) {
-        console.log(`🔍 Row skipped: only ${cells.length} cells`);
+        console.debug(`🔍 Row skipped: only ${cells.length} cells`);
         return; // Ignorer les lignes avec moins de 3 colonnes
       }
       
@@ -770,7 +770,7 @@ function parseCryptoToolboxHTML(html) {
       const valueText = cells[1]?.textContent?.trim();
       const thresholdText = cells[2]?.textContent?.trim();
       
-      console.log(`🔍 Raw row data: "${name}" | "${valueText}" | "${thresholdText}"`);
+      console.debug(`🔍 Raw row data: "${name}" | "${valueText}" | "${thresholdText}"`);
       
       // Vérifier que c'est une ligne de données valide
       if (name && valueText && !name.toLowerCase().includes('indicateur')) {
@@ -792,7 +792,7 @@ function parseCryptoToolboxHTML(html) {
               raw_threshold: thresholdText
             };
             
-            console.log(`✅ Mapped: ${name} → ${mappedKey} (${numericValue})`);
+            console.debug(`✅ Mapped: ${name} → ${mappedKey} (${numericValue})`);
           } else {
             console.warn(`⚠️ Unmapped indicator: "${name}"`);
           }
@@ -804,7 +804,7 @@ function parseCryptoToolboxHTML(html) {
     
     // Stratégie 2: Patterns regex en fallback
     if (Object.keys(indicators).length === 0) {
-      console.log('🔄 No table data found, trying regex patterns...');
+      console.debug('🔄 No table data found, trying regex patterns...');
       
       const patterns = [
         { name: 'mvrv', regex: /MVRV.*?([0-9.]+)%/gi, french: 'MVRV Z-Score' },
@@ -822,7 +822,7 @@ function parseCryptoToolboxHTML(html) {
             source: 'Crypto-Toolbox (regex)',
             raw_value: match[0]
           };
-          console.log(`✅ Regex match: ${pattern.name} = ${match[1]}%`);
+          console.debug(`✅ Regex match: ${pattern.name} = ${match[1]}%`);
         }
       });
     }
@@ -942,16 +942,16 @@ function convertCryptoToolboxPercentToScore(percent, isContrarian = false) {
  * Récupère tous les indicateurs disponibles avec cache stable
  */
 export async function fetchAllIndicators() {
-  console.log('🔍 Fetching REAL on-chain indicators from unified backend...');
+  console.debug('🔍 Fetching REAL on-chain indicators from unified backend...');
   
   const indicators = {};
   const errors = [];
   
   try {
     // 1. Fetch all indicators from Crypto-Toolbox backend (30+ indicators)
-    console.log('🌐 Calling fetchCryptoToolboxIndicators for all indicators...');
+    console.debug('🌐 Calling fetchCryptoToolboxIndicators for all indicators...');
     const cryptoToolboxData = await fetchCryptoToolboxIndicators();
-    console.log('🔍 CryptoToolbox result:', cryptoToolboxData);
+    console.debug('🔍 CryptoToolbox result:', cryptoToolboxData);
     
     const toolboxAvailable = !!(cryptoToolboxData && Object.keys(cryptoToolboxData).filter(k => !k.startsWith('_')).length > 0);
     if (toolboxAvailable) {
@@ -977,10 +977,10 @@ export async function fetchAllIndicators() {
           timestamp: new Date()
         };
         
-        console.log(`✅ ${data.name} loaded: ${data.value_numeric}% ${data.in_critical_zone ? '🚨' : ''}`);
+        console.debug(`✅ ${data.name} loaded: ${data.value_numeric}% ${data.in_critical_zone ? '🚨' : ''}`);
       });
       
-      console.log(`✅ Total ${Object.keys(indicators).length} indicators loaded from Crypto-Toolbox`);
+      console.debug(`✅ Total ${Object.keys(indicators).length} indicators loaded from Crypto-Toolbox`);
       
     } else {
       errors.push('Crypto-Toolbox: Backend unavailable - no indicators loaded');
@@ -993,7 +993,7 @@ export async function fetchAllIndicators() {
       indicators[key].name?.toLowerCase().includes('greed')
     );
     if (toolboxAvailable && !fearGreedExists) {
-      console.log('🔄 Adding Fear & Greed as fallback indicator...');
+      console.debug('🔄 Adding Fear & Greed as fallback indicator...');
       const fgData = await fetchFearGreedIndex();
       if (fgData) {
         indicators.fear_greed_fallback = {
@@ -1005,14 +1005,14 @@ export async function fetchAllIndicators() {
           timestamp: fgData.timestamp,
           in_critical_zone: fgData.value > 80 || fgData.value < 20
         };
-        console.log('✅ Fear & Greed fallback loaded:', fgData.value, fgData.classification);
+        console.debug('✅ Fear & Greed fallback loaded:', fgData.value, fgData.classification);
       } else {
         errors.push('Fear & Greed fallback API also unavailable');
       }
     }
     
     const successCount = Object.keys(indicators).filter(k => k !== '_metadata').length;
-    console.log(`✅ Real indicators loaded: ${successCount} total indicators`);
+    console.debug(`✅ Real indicators loaded: ${successCount} total indicators`);
     
     if (errors.length > 0) {
       console.warn('⚠️ Some fallback indicators unavailable:', errors);
@@ -1026,7 +1026,7 @@ export async function fetchAllIndicators() {
       }
     });
     
-    console.log('📊 Indicators by source:', sourceStats);
+    console.debug('📊 Indicators by source:', sourceStats);
     
     return {
       ...indicators,
@@ -1144,7 +1144,7 @@ export function calculateCompositeScore(indicators) {
       raw_threshold: data.raw_threshold
     });
     
-    console.log(`📊 ${indicatorName}: ${rawValue}% → ${normalizedScore} (${category}, weight: ${indicatorWeight.toFixed(3)})`);
+    console.debug(`📊 ${indicatorName}: ${rawValue}% → ${normalizedScore} (${category}, weight: ${indicatorWeight.toFixed(3)})`);
   });
   
   // Calculer le score final par catégorie puis globalement
