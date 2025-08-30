@@ -2,7 +2,7 @@
 Modèles Pydantic pour la validation des entrées API
 """
 from typing import Optional, Dict, Any, List
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from datetime import datetime
 
 
@@ -30,7 +30,8 @@ class APIKeysRequest(BaseModel):
     cointracking_api_secret: Optional[str] = Field(None, min_length=10, max_length=100)
     fred_api_key: Optional[str] = Field(None, min_length=10, max_length=100)
     
-    @validator('*', pre=True)
+    @field_validator('*', mode='before')
+    @classmethod
     def remove_whitespace(cls, v):
         if isinstance(v, str):
             return v.strip()
@@ -51,14 +52,16 @@ class RebalanceRequest(BaseModel):
     min_trade_amount_usd: float = Field(default=50.0, ge=10.0, le=10000.0)
     dry_run: bool = True
     
-    @validator('target_allocation')
+    @field_validator('target_allocation')
+    @classmethod
     def validate_allocation_sum(cls, v):
         total = sum(v.values())
         if not (0.99 <= total <= 1.01):  # Tolérance de 1%
             raise ValueError("Target allocation must sum to approximately 1.0")
         return v
     
-    @validator('target_allocation')
+    @field_validator('target_allocation')
+    @classmethod
     def validate_allocation_values(cls, v):
         for symbol, allocation in v.items():
             if not (0.0 <= allocation <= 1.0):
@@ -80,7 +83,8 @@ class TradingPairRequest(BaseModel):
     quote_asset: str = Field(..., min_length=1, max_length=20)
     exchange: str = Field(..., pattern="^(binance|kraken|coinbase)$")
     
-    @validator('base_asset', 'quote_asset')
+    @field_validator('base_asset', 'quote_asset')
+    @classmethod
     def uppercase_symbols(cls, v):
         return v.upper().strip()
 
@@ -95,11 +99,12 @@ class OrderRequest(BaseModel):
     exchange: str = Field(..., pattern="^(binance|kraken|coinbase)$")
     dry_run: bool = True
     
-    @validator('price')
-    def price_required_for_limit(cls, v, values):
-        if values.get('order_type') == 'limit' and v is None:
+    @model_validator(mode='after')
+    @classmethod
+    def price_required_for_limit(cls, model):
+        if model.order_type == 'limit' and model.price is None:
             raise ValueError("Price is required for limit orders")
-        return v
+        return model
 
 
 class ConfigUpdateRequest(BaseModel):
@@ -118,9 +123,9 @@ class HistoryRequest(BaseModel):
     end_date: Optional[datetime] = None
     exchange: Optional[str] = Field(None, pattern="^(binance|kraken|coinbase)$")
     
-    @validator('end_date')
-    def end_date_after_start(cls, v, values):
-        start_date = values.get('start_date')
-        if start_date and v and v < start_date:
+    @model_validator(mode='after')
+    @classmethod
+    def end_date_after_start(cls, model):
+        if model.start_date and model.end_date and model.end_date < model.start_date:
             raise ValueError("End date must be after start date")
-        return v
+        return model

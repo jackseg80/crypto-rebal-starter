@@ -250,7 +250,8 @@ class ConnectionMonitor:
                 try:
                     with open(file_path, 'r') as f:
                         existing_data = json.load(f)
-                except:
+                except (FileNotFoundError, json.JSONDecodeError, OSError) as e:
+                    logger.debug(f"Could not read existing metrics file {file_path}: {e}")
                     existing_data = []
             
             # Ajouter nouvelles métriques
@@ -421,7 +422,8 @@ class ConnectionMonitor:
                 try:
                     with open(alerts_file, 'r') as f:
                         existing_alerts = json.load(f)
-                except:
+                except (FileNotFoundError, json.JSONDecodeError, OSError) as e:
+                    logger.debug(f"Could not read existing alerts file {alerts_file}: {e}")
                     existing_alerts = []
             
             # Ajouter nouvelle alerte

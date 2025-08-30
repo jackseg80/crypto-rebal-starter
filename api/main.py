@@ -8,6 +8,8 @@ import httpx
 from fastapi import FastAPI, Query, Body, Response, HTTPException, Request
 import logging
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi import middleware
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from pathlib import Path
@@ -114,6 +116,53 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+# Middleware de sécurité
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=["localhost", "127.0.0.1", "*.localhost"],
+)
+
+# Middleware pour headers de sécurité
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    
+    # Headers de sécurité
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
+    
+    # Cache control pour les APIs
+    if request.url.path.startswith("/api"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    
+    return response
+
+# Middleware de logging des requêtes avec timing
+@app.middleware("http")
+async def request_timing_middleware(request: Request, call_next):
+    start_time = monotonic()
+    
+    # Log de la requête entrante
+    if APP_DEBUG:
+        logger.debug(f"→ {request.method} {request.url.path} from {request.client.host if request.client else 'unknown'}")
+    
+    response = await call_next(request)
+    
+    # Calcul du temps de traitement
+    process_time = monotonic() - start_time
+    response.headers["X-Process-Time"] = str(f"{process_time:.3f}")
+    
+    # Log de la réponse
+    if APP_DEBUG:
+        logger.debug(f"← {response.status_code} {request.method} {request.url.path} ({process_time:.3f}s)")
+    
+    return response
 
 BASE_DIR = Path(__file__).resolve().parent.parent  # répertoire du repo (niveau au-dessus d'api/)
 STATIC_DIR = BASE_DIR / "static"                    # D:\Python\crypto-rebal-starter\static

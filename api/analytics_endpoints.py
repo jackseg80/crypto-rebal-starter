@@ -117,7 +117,7 @@ async def get_session(session_id: str):
         )
         
         # Ajouter les détails complets
-        session_dict = response.dict()
+        session_dict = response.model_dump()
         session_dict.update({
             "started_at": session.started_at.isoformat() if session.started_at else None,
             "completed_at": session.completed_at.isoformat() if session.completed_at else None,

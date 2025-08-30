@@ -170,8 +170,8 @@ async def main():
         from dotenv import load_dotenv
         load_dotenv()
         print("📄 Variables d'environnement chargées")
-    except:
-        pass
+    except ImportError:
+        print("⚠️  python-dotenv non installé, variables d'environnement système utilisées")
     
     # 3. Vérifier si les clés sont configurées
     api_key = os.getenv('BINANCE_API_KEY')

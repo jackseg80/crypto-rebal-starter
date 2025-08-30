@@ -76,12 +76,13 @@ async def test_environment_configuration(results: SecurityTestResults):
     api_secret = os.getenv('BINANCE_API_SECRET')
     
     if api_key and api_secret:
-        # Verifier que ce sont des cles testnet (commencent generalement par des prefixes specifiques)
-        if api_key.startswith(('vmPUZE6mv9SD5VNHk4HlWFsOr6aKE2zvsw0MuIgwCIPy6utIco14y7Ju91duEh8A', 'BQ')):
-            results.add_result("Testnet API Keys", True, f"Key: {api_key[:8]}...{api_key[-4:]}")
+        # Verifier que ce sont des cles testnet (doivent etre marquees explicitement)
+        testnet_marker = os.getenv('BINANCE_TESTNET', 'false').lower() == 'true'
+        if testnet_marker:
+            results.add_result("Testnet API Keys", True, f"Key: {api_key[:8]}...{api_key[-4:]} (testnet confirmed)")
         else:
-            results.add_warning(f"API key format unknown: {api_key[:8]}...{api_key[-4:]} - verify it's testnet")
-            results.add_result("Testnet API Keys", True, "Key present but format unverified")
+            results.add_warning(f"API key detected but BINANCE_TESTNET not set - verify it's testnet: {api_key[:8]}...{api_key[-4:]}")
+            results.add_result("Testnet API Keys", False, "Testnet mode not explicitly confirmed")
     else:
         results.add_result("API Keys Present", False, "No API keys found - will use simulator")
 

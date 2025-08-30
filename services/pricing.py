@@ -15,9 +15,38 @@ PRICE_FILE      = os.getenv("PRICE_FILE", "data/prices.json")
 # options disponibles : file, binance, coingecko
 PRICE_PROVIDER_ORDER = [p.strip() for p in os.getenv("PRICE_PROVIDER_ORDER", "file,coingecko,binance").split(",") if p.strip()]
 
-# Cache simple en mémoire
+# Cache amélioré en mémoire avec persistance
 _cache = {}  # symbol -> (price, ts)
+_cache_file = "data/pricing_cache.json"
 logger = logging.getLogger(__name__)
+
+def _load_cache_from_disk():
+    """Charger le cache depuis le disque au démarrage"""
+    global _cache
+    try:
+        if os.path.exists(_cache_file):
+            with open(_cache_file, 'r', encoding='utf-8') as f:
+                disk_cache = json.load(f)
+                # Filtrer les entrées expirées
+                now = _now()
+                for symbol, (price, ts) in disk_cache.items():
+                    if now - ts <= PRICE_CACHE_TTL:
+                        _cache[symbol] = (price, ts)
+                logger.debug(f"Cache chargé depuis le disque: {len(_cache)} entrées")
+    except Exception as e:
+        logger.debug(f"Erreur chargement cache: {e}")
+
+def _save_cache_to_disk():
+    """Sauvegarder le cache sur disque"""
+    try:
+        os.makedirs(os.path.dirname(_cache_file), exist_ok=True)
+        with open(_cache_file, 'w', encoding='utf-8') as f:
+            json.dump(_cache, f, indent=2)
+    except Exception as e:
+        logger.debug(f"Erreur sauvegarde cache: {e}")
+
+# Charger le cache au démarrage du module
+_load_cache_from_disk()
 
 # Mapping minimal pour CoinGecko (élargissable au besoin)
 COINGECKO_IDS = {
@@ -98,6 +127,9 @@ def _get_from_cache(symbol: str):
 def _set_cache(symbol: str, price: float):
     if price and price > 0:
         _cache[symbol.upper()] = (float(price), _now())
+        # Sauvegarder périodiquement sur disque (tous les 10 ajouts)
+        if len(_cache) % 10 == 0:
+            _save_cache_to_disk()
 
 # ---------- Providers ----------
 def _from_file(symbol: str):
@@ -239,3 +271,48 @@ async def aget_prices_usd(symbols, max_concurrency: int = 6):
     if tasks:
         await asyncio.gather(*tasks, return_exceptions=True)
     return results
+
+# ========== Fonctions de gestion du cache ==========
+
+def get_cache_stats():
+    """Obtenir les statistiques du cache"""
+    now = _now()
+    total_entries = len(_cache)
+    valid_entries = sum(1 for _, (_, ts) in _cache.items() if now - ts <= PRICE_CACHE_TTL)
+    expired_entries = total_entries - valid_entries
+    
+    return {
+        "total_entries": total_entries,
+        "valid_entries": valid_entries,
+        "expired_entries": expired_entries,
+        "cache_ttl": PRICE_CACHE_TTL,
+        "cache_file": _cache_file
+    }
+
+def clear_cache(save_to_disk=True):
+    """Vider le cache"""
+    global _cache
+    _cache.clear()
+    if save_to_disk:
+        _save_cache_to_disk()
+    logger.info("Cache pricing vidé")
+
+def cleanup_expired_cache():
+    """Nettoyer les entrées expirées du cache"""
+    global _cache
+    now = _now()
+    expired_keys = [key for key, (_, ts) in _cache.items() if now - ts > PRICE_CACHE_TTL]
+    
+    for key in expired_keys:
+        del _cache[key]
+    
+    if expired_keys:
+        _save_cache_to_disk()
+        logger.debug(f"Cache nettoyé: {len(expired_keys)} entrées expirées supprimées")
+    
+    return len(expired_keys)
+
+def force_cache_save():
+    """Forcer la sauvegarde du cache sur disque"""
+    _save_cache_to_disk()
+    logger.debug("Cache forcé sur disque")

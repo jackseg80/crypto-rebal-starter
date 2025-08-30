@@ -210,7 +210,8 @@ class ExecutionHistoryService:
                 try:
                     with open(session_file, 'r') as f:
                         daily_sessions = json.load(f)
-                except:
+                except (FileNotFoundError, json.JSONDecodeError, OSError) as e:
+                    logger.debug(f"Could not read existing sessions file {session_file}: {e}")
                     daily_sessions = []
             
             # Ajouter nouvelle session
