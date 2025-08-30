@@ -1,3 +1,5 @@
+# DEPRECATED — See docs/developer.md
+
 # Developer Guide - Crypto Rebalancer
 
 ## 🎯 Bienvenue développeur !

@@ -1,3 +1,5 @@
+# DEPRECATED — See docs/architecture.md
+
 # Architecture Pipeline Complet - Crypto Rebalancer
 
 ## 🏗️ Vue d'ensemble du Pipeline - ✅ IMPLÉMENTÉ

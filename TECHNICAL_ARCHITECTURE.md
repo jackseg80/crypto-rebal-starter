@@ -1,3 +1,5 @@
+# DEPRECATED — See docs/architecture.md
+
 # Technical Architecture - Crypto Rebalancer
 
 ## 🏗️ Vue d'ensemble de l'architecture

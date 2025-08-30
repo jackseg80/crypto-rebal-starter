@@ -1,5 +1,7 @@
 # Crypto Rebal Starter — API + UI prêtes à l'emploi
 
+Note documentation: la doc a été simplifiée. Portail: `docs/index.md` (Quickstart, API, Architecture, Intégrations, Dev, Dépannage).
+
 Outil de **simulation de rebalancement** pour portefeuille crypto :
 - Connexion **CoinTracking CSV** (prioritaire) et **API** (fallback) avec support location-aware
 - Calcul d'un **plan d'actions** (ventes/achats) par groupes cibles avec **exec_hints spécifiques** par exchange

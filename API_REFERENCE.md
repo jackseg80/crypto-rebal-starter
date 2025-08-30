@@ -1,3 +1,5 @@
+# DEPRECATED — See docs/api.md (and /docs OpenAPI)
+
 # API Reference - Crypto Rebalancer
 
 ## 🚀 API Overview

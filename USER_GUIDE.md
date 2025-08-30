@@ -1,3 +1,5 @@
+# DEPRECATED — See docs/user-guide.md
+
 # User Guide - Crypto Rebalancer
 
 ## 🎯 Bienvenue !

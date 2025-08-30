@@ -1,3 +1,5 @@
+# DEPRECATED — See docs/developer.md
+
 # Guide de Test - Intégration CCS → Rebalance
 
 ## 🧪 Fichiers de Test Disponibles
