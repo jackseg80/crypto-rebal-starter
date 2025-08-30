@@ -6,6 +6,7 @@ import os, sys, inspect, hashlib, time
 from datetime import datetime
 import httpx
 from fastapi import FastAPI, Query, Body, Response, HTTPException, Request
+import logging
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
@@ -17,6 +18,8 @@ load_dotenv()
 
 # Configuration sécurisée
 DEBUG = (os.getenv("DEBUG", "false").lower() == "true")
+APP_DEBUG = (os.getenv("APP_DEBUG", "false").lower() == "true") or DEBUG
+LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG" if APP_DEBUG else "INFO").upper()
 CORS_ORIGINS = [o.strip() for o in (os.getenv("CORS_ORIGINS", "")).split(",") if o.strip()]
 
 from connectors import cointracking as ct_file
@@ -42,6 +45,13 @@ from api.exceptions import (
     ConfigurationException, TradingException, DataException, ErrorCodes
 )
 from api.models import APIKeysRequest, PortfolioMetricsRequest
+
+# Config logger (dev-friendly by default)
+logging.basicConfig(
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger("crypto-rebalancer")
 
 app = FastAPI()
 
@@ -107,25 +117,25 @@ BASE_DIR = Path(__file__).resolve().parent.parent  # répertoire du repo (niveau
 STATIC_DIR = BASE_DIR / "static"                    # D:\Python\crypto-rebal-starter\static
 DATA_DIR = BASE_DIR / "data"                        # D:\Python\crypto-rebal-starter\data
 
-print(f"DEBUG: BASE_DIR = {BASE_DIR}")
-print(f"DEBUG: STATIC_DIR = {STATIC_DIR}, exists = {STATIC_DIR.exists()}")
-print(f"DEBUG: DATA_DIR = {DATA_DIR}, exists = {DATA_DIR.exists()}")
+logger.debug(f"BASE_DIR = {BASE_DIR}")
+logger.debug(f"STATIC_DIR = {STATIC_DIR}, exists = {STATIC_DIR.exists()}")
+logger.debug(f"DATA_DIR = {DATA_DIR}, exists = {DATA_DIR.exists()}")
 
 if not STATIC_DIR.exists():
-    print("WARNING: STATIC_DIR not found, using fallback")
+    logger.warning("STATIC_DIR not found, using fallback")
     # fallback si l'arbo a changé
     STATIC_DIR = Path.cwd() / "static"
     
 if not DATA_DIR.exists():
-    print("WARNING: DATA_DIR not found, using fallback")
+    logger.warning("DATA_DIR not found, using fallback")
     DATA_DIR = Path.cwd() / "data"
     
-print(f"DEBUG: Final STATIC_DIR = {STATIC_DIR}")
-print(f"DEBUG: Final DATA_DIR = {DATA_DIR}")
+logger.debug(f"Final STATIC_DIR = {STATIC_DIR}")
+logger.debug(f"Final DATA_DIR = {DATA_DIR}")
 
 # Vérifier le fichier CSV spécifiquement
 csv_file = DATA_DIR / "raw" / "CoinTracking - Current Balance.csv"
-print(f"DEBUG: CSV file = {csv_file}, exists = {csv_file.exists()}")
+logger.debug(f"CSV file = {csv_file}, exists = {csv_file.exists()}")
 
 app.mount(
     "/static",
@@ -144,14 +154,34 @@ app.mount(
 try:
     TESTS_DIR = BASE_DIR / "tests"
     if DEBUG and TESTS_DIR.exists():
-        print(f"DEBUG: Mounting TESTS_DIR at /tests -> {TESTS_DIR}")
+        logger.debug(f"Mounting TESTS_DIR at /tests -> {TESTS_DIR}")
         app.mount(
             "/tests",
             StaticFiles(directory=str(TESTS_DIR), html=True),
             name="tests",
         )
 except Exception as e:
-    print(f"WARNING: Could not mount /tests: {e}")
+    logger.warning(f"Could not mount /tests: {e}")
+
+# Middleware léger de trace requêtes (dev uniquement)
+@app.middleware("http")
+async def request_logger(request: Request, call_next):
+    trace_header = request.headers.get("x-debug-trace", "0")
+    do_trace = APP_DEBUG or LOG_LEVEL == "DEBUG" or trace_header == "1"
+    start = monotonic() if do_trace else 0
+    try:
+        response = await call_next(request)
+        return response
+    finally:
+        if do_trace:
+            duration_ms = int((monotonic() - start) * 1000)
+            logger.info(
+                "%s %s -> %s (%d ms)",
+                request.method,
+                request.url.path,
+                getattr(response, "status_code", "?"),
+                duration_ms,
+            )
 
 @app.get("/debug/paths")
 async def debug_paths():
