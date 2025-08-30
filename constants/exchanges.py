@@ -197,3 +197,33 @@ def is_cold_storage(exchange_name: str) -> bool:
     """
     normalized_name = normalize_exchange_name(exchange_name)
     return any(hint in normalized_name for hint in COLD_HINTS)
+
+
+def format_exec_hint(location: str, action_type: str) -> str:
+    """Génère un hint d'exécution court basé sur la priorité (venue class).
+
+    Exemples:
+      - "Sell on Binance"
+      - "Sell on Uniswap (DeFi)"
+      - "Buy on Ledger (manual)"
+    """
+    loc = normalize_exchange_name(location)
+    p = get_exchange_priority(loc)
+    if action_type == "sell":
+        if p < 15:
+            return f"Sell on {loc}"
+        elif p < 30:
+            return f"Sell on {loc} (DApp)"
+        elif p < 40:
+            return f"Sell on {loc} (DeFi)"
+        else:
+            return f"Sell on {loc} (complex)"
+    else:
+        if p < 15:
+            return f"Buy on {loc}"
+        elif p < 30:
+            return f"Buy on {loc} (DApp)"
+        elif p < 40:
+            return f"Buy on {loc} (DeFi)"
+        else:
+            return f"Buy on {loc} (manual)"

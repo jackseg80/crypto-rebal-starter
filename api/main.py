@@ -53,7 +53,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("crypto-rebalancer")
 
-app = FastAPI()
+app = FastAPI(docs_url="/docs", redoc_url="/redoc", openapi_url="/openapi.json")
+logger.info("FastAPI initialized: docs=%s redoc=%s openapi=%s", 
+            "/docs", "/redoc", "/openapi.json")
 
 # Gestionnaires d'exceptions globaux
 @app.exception_handler(CryptoRebalancerException)
@@ -582,6 +584,15 @@ async def healthz():
     return {"ok": True}
 
 
+@app.get("/schema")
+async def schema():
+    """Fallback endpoint to expose OpenAPI schema if /openapi.json isn't reachable in your env."""
+    try:
+        return app.openapi()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"OpenAPI generation failed: {e}")
+
+
 # Helper function moved to unified_data.py to avoid circular imports
 
 # Debug endpoint removed
@@ -603,7 +614,8 @@ async def rebalance_plan(
     min_usd_raw: str | None = Query(None, alias="min_usd"),
     pricing: str = Query("local"),   # local | auto
     dynamic_targets: bool = Query(False, description="Use dynamic targets from CCS/cycle module"),
-    payload: Dict[str, Any] = Body(...)
+    payload: Dict[str, Any] = Body(...),
+    pricing_diag: bool = Query(False, description="Include pricing diagnostic details in response meta")
 ):
     min_usd = _parse_min_usd(min_usd_raw, default=1.0)
 
@@ -632,6 +644,13 @@ async def rebalance_plan(
 
     primary_symbols = _norm_primary_symbols(payload.get("primary_symbols"))
 
+    # Permettre un fallback: "pricing_diag" dans le body JSON si non passé en query
+    if not pricing_diag:
+        try:
+            pricing_diag = bool(payload.get("pricing_diag", False))
+        except Exception:
+            pricing_diag = False
+
     plan = plan_rebalance(
         rows=rows,
         group_targets_pct=group_targets_pct,
@@ -644,8 +663,8 @@ async def rebalance_plan(
     plan = _assign_locations_to_actions(plan, rows, min_trade_usd=float(payload.get("min_trade_usd", 25.0)))
 
     # enrichissement prix (selon "pricing")
-    source_used = exchange_data.get("source_used") if 'exchange_data' in locals() else "unknown"
-    plan = _enrich_actions_with_prices(plan, rows, pricing_mode=pricing, source_used=source_used)
+    source_used = unified_data.get("source_used", source)
+    plan = await _enrich_actions_with_prices(plan, rows, pricing_mode=pricing, source_used=source_used, diagnostic=pricing_diag)
 
     # Mettre à jour les exec_hints basés sur les locations assignées (après enrichissement prix)
     from services.rebalance import _format_hint_for_location, _get_exec_hint
@@ -695,6 +714,126 @@ async def rebalance_plan(
     return plan
 
 
+# ---------- pricing diagnostics ----------
+@app.get(
+    "/pricing/diagnostic",
+    tags=["pricing"],
+    summary="Pricing diagnostic (local vs market)",
+)
+async def pricing_diagnostic(
+    source: str = Query("cointracking", description="Source des balances (cointracking|stub|cointracking_api)"),
+    min_usd: float = Query(1.0, description="Seuil minimum en USD pour filtrer les lignes"),
+    mode: str = Query("auto", description="Mode pricing à diagnostiquer: local|auto"),
+    limit: int = Query(50, ge=1, le=500, description="Nombre max de symboles à analyser")
+):
+    """Diagnostique la source de prix retenue par symbole selon la logique actuelle.
+
+    Retourne, pour chaque symbole présent dans les holdings filtrés:
+      - local_price
+      - market_price
+      - effective_price (selon la logique 'auto' actuelle assimilée à 'hybrid')
+      - price_source (local|market)
+    """
+    try:
+        # Récupérer holdings unifiés avec filtrage homogène
+        from api.unified_data import get_unified_filtered_balances
+        unified = await get_unified_filtered_balances(source=source, min_usd=min_usd)
+        rows = unified.get("items", [])
+        source_used = unified.get("source_used", source)
+
+        # Construire local price map (comme dans enrichissement)
+        local_price_map: Dict[str, float] = {}
+        for row in rows:
+            sym = (row.get("symbol") or "").upper()
+            if not sym:
+                continue
+            value_usd = float(row.get("value_usd") or 0.0)
+            amount = float(row.get("amount") or 0.0)
+            if value_usd > 0 and amount > 0:
+                local_price_map[sym] = value_usd / amount
+
+        # Choisir les symboles à diagnostiquer: top par valeur
+        # Si 'value_usd' absent, on prend l'ordre existant et tronque à 'limit'
+        symbols_sorted = sorted(
+            [( (r.get("symbol") or "").upper(), float(r.get("value_usd") or 0.0)) for r in rows if r.get("symbol") ],
+            key=lambda x: x[1], reverse=True
+        )
+        symbols = [s for s, _ in symbols_sorted[:limit]]
+        symbols = list(dict.fromkeys(symbols))  # dédupe en gardant l'ordre
+
+        # Fetch prix marché (async) quand nécessaire
+        market_price_map: Dict[str, float] = {}
+        if symbols:
+            try:
+                from services.pricing import aget_prices_usd
+                market_price_map = await aget_prices_usd(symbols)
+            except Exception:
+                from services.pricing import get_prices_usd
+                market_price_map = get_prices_usd(symbols)
+
+        # Décision effective (même logique que 'auto' => hybride)
+        max_age_min = float(os.getenv("PRICE_HYBRID_MAX_AGE_MIN", "30"))
+        data_age_min = _get_data_age_minutes(source_used)
+        needs_market_correction = data_age_min > max_age_min
+
+        results = []
+        for sym in symbols:
+            local_p = local_price_map.get(sym)
+            market_p = market_price_map.get(sym)
+
+            if mode == "local":
+                effective = local_p
+                src = "local" if effective is not None else None
+            else:
+                # auto -> logique hybride: préférer local si frais et existant
+                if needs_market_correction or (sym not in local_price_map):
+                    effective = market_p if market_p else local_p
+                    src = "market" if (market_p and (needs_market_correction or sym not in local_price_map)) else ("local" if local_p else None)
+                else:
+                    effective = local_p if local_p else market_p
+                    src = "local" if local_p else ("market" if market_p else None)
+
+            results.append({
+                "symbol": sym,
+                "local_price": local_p,
+                "market_price": market_p,
+                "effective_price": effective,
+                "price_source": src
+            })
+
+        return {
+            "ok": True,
+            "mode": mode,
+            "pricing_internal_mode": ("hybrid" if mode == "auto" else mode),
+            "meta": {
+                "source_used": source_used,
+                "items_considered": len(rows),
+                "symbols_analyzed": len(symbols),
+                "data_age_min": data_age_min,
+                "max_age_min": max_age_min,
+            },
+            "items": results
+        }
+
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+# Alias sous /api/pricing/diagnostic pour cohérence avec d'autres routes
+@app.get(
+    "/api/pricing/diagnostic",
+    tags=["pricing"],
+    summary="Pricing diagnostic (alias)",
+)
+async def pricing_diagnostic_alias(
+    source: str = Query("cointracking"),
+    min_usd: float = Query(1.0),
+    mode: str = Query("auto"),
+    limit: int = Query(50, ge=1, le=500)
+):
+    return await pricing_diagnostic(source=source, min_usd=min_usd, mode=mode, limit=limit)
+
+
 # ---------- rebalance (CSV) ----------
 @app.options("/rebalance/plan.csv")
 async def rebalance_plan_csv_preflight():
@@ -718,7 +857,7 @@ async def rebalance_plan_csv(
 
 
 # ---------- helpers prix + csv ----------
-def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str, Any]], pricing_mode: str = "local", source_used: str = "") -> Dict[str, Any]:
+async def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str, Any]], pricing_mode: str = "local", source_used: str = "", diagnostic: bool = False) -> Dict[str, Any]:
     """
     Enrichit les actions avec les prix selon 3 modes :
     - "local" : utilise uniquement les prix dérivés des balances
@@ -744,19 +883,35 @@ def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str, Any]]
     price_map: Dict[str, float] = {}
     market_price_map: Dict[str, float] = {}
     
+    original_mode = pricing_mode
+
     if pricing_mode == "local":
         price_map = local_price_map.copy()
     elif pricing_mode == "auto":
-        # Récupérer tous les prix via API
+        # Auto se comporte comme l'hybride: préférer local quand frais, sinon marché
+        price_map = local_price_map.copy()
+
         symbols = set()
         for a in plan.get("actions", []) or []:
             sym = a.get("symbol")
             if sym:
                 symbols.add(sym.upper())
-        
-        if symbols:
-            market_price_map = get_prices_usd(list(symbols))
-            price_map = {k: v for k, v in market_price_map.items() if v is not None}
+
+        data_age_min = _get_data_age_minutes(source_used)
+        needs_market_correction = data_age_min > max_age_min
+        missing_local_prices = symbols - set(local_price_map.keys())
+
+        if (needs_market_correction or missing_local_prices) and symbols:
+            try:
+                from services.pricing import aget_prices_usd
+                market_price_map = await aget_prices_usd(list(symbols))
+            except Exception:
+                from services.pricing import get_prices_usd
+                market_price_map = get_prices_usd(list(symbols))
+            market_price_map = {k: v for k, v in market_price_map.items() if v is not None}
+
+        # Forcer la logique de sélection hybride pour la suite
+        pricing_mode = "hybrid"
     elif pricing_mode == "hybrid":
         # Commencer par prix locaux
         price_map = local_price_map.copy()
@@ -778,10 +933,16 @@ def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str, Any]]
         
         # Récupérer prix marché si données anciennes OU si prix locaux manquants
         if (needs_market_correction or needs_market_fallback) and symbols:
-            market_price_map = get_prices_usd(list(symbols))
+            try:
+                from services.pricing import aget_prices_usd
+                market_price_map = await aget_prices_usd(list(symbols))
+            except Exception:
+                from services.pricing import get_prices_usd
+                market_price_map = get_prices_usd(list(symbols))
             market_price_map = {k: v for k, v in market_price_map.items() if v is not None}
 
     # Enrichir les actions
+    pricing_details = [] if diagnostic else None
     for a in plan.get("actions", []) or []:
         sym = a.get("symbol")
         if not sym or a.get("usd") is None or a.get("price_used"):
@@ -833,18 +994,31 @@ def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str, Any]]
                 a["est_quantity"] = round(float(a["usd"]) / float(final_price), 8)
             except Exception:
                 pass
+        
+        if diagnostic:
+            pricing_details.append({
+                "symbol": sym_upper,
+                "local_price": local_price,
+                "market_price": market_price,
+                "effective_price": final_price,
+                "price_source": price_source
+            })
     
     # Ajouter métadonnées sur le pricing
     if not plan.get("meta"):
         plan["meta"] = {}
     
-    plan["meta"]["pricing_mode"] = pricing_mode
+    # Reporter le mode externe (UI) et la stratégie interne
+    plan["meta"]["pricing_mode"] = original_mode
+    plan["meta"]["pricing_internal_mode"] = pricing_mode
     if pricing_mode == "hybrid":
         plan["meta"]["pricing_hybrid"] = {
             "max_age_min": max_age_min,
             "max_deviation_pct": max_deviation_pct,
             "data_age_min": _get_data_age_minutes(source_used)
         }
+    if diagnostic and pricing_details is not None:
+        plan["meta"]["pricing_details"] = pricing_details
     
     return plan
 

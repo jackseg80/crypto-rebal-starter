@@ -92,10 +92,25 @@
       display: block;
     }
 
-    .status-executing { background: var(--info-bg); color: var(--info); }
-    .status-completed { background: var(--success-bg); color: var(--success); }
-    .status-failed { background: var(--danger-bg); color: var(--danger); }
-    .status-cancelled { background: var(--theme-border-subtle); color: var(--theme-text-muted); }
+    .status-executing {
+      background: var(--info-bg);
+      color: var(--info);
+    }
+
+    .status-completed {
+      background: var(--success-bg);
+      color: var(--success);
+    }
+
+    .status-failed {
+      background: var(--danger-bg);
+      color: var(--danger);
+    }
+
+    .status-cancelled {
+      background: var(--theme-border-subtle);
+      color: var(--theme-text-muted);
+    }
 
     .orders-table {
       width: 100%;
@@ -126,8 +141,13 @@
       background: var(--theme-border-subtle);
     }
 
-    .amount-positive { color: var(--success); }
-    .amount-negative { color: var(--danger); }
+    .amount-positive {
+      color: var(--success);
+    }
+
+    .amount-negative {
+      color: var(--danger);
+    }
 
     /* Custom execution-specific styles - leveraging shared theme */
     /* Form styles are now inherited from shared-theme.css */
@@ -206,7 +226,7 @@
 
         <div class="form-group">
           <label class="form-label">Plan de Rebalancement (JSON)</label>
-          <textarea id="rebalance-actions" class="form-input form-textarea"
+          <textarea id="rebalance-actions" class="form-input form-textarea" rows="15"
             placeholder='[{"symbol": "BTC", "action": "sell", "usd": -1000, "exec_hint": "Sell on Binance"}, ...]'></textarea>
           <small style="color: var(--muted);">
             Collez ici les actions générées par le module de rebalancement
@@ -375,7 +395,7 @@
 
       // Activer l'onglet sélectionné
       document.getElementById(`tab-${tabName}`).classList.add('active');
-      
+
       // Activer le bouton correspondant
       if (buttonElement) {
         // Cas d'un appel événementiel avec event.target
@@ -457,14 +477,14 @@
           // Supporter plusieurs formats: quantity, est_quantity, ou usd (valeur absolue)
           const quantity = parseFloat(action.quantity || action.est_quantity || 0);
           const usdAmount = Math.abs(parseFloat(action.usd || 0));
-          
+
           // Valide si on a soit une quantité > 0, soit un montant USD > 0
           const hasValidQuantity = !isNaN(quantity) && quantity > 0;
           const hasValidUSD = !isNaN(usdAmount) && usdAmount > 0;
-          
+
           return !hasValidQuantity && !hasValidUSD;
         });
-        
+
         if (invalidActions.length > 0) {
           const invalidDetails = invalidActions.map(action => {
             const qty = action.quantity || action.est_quantity;
@@ -818,7 +838,7 @@
       ], null, 2);
 
       // Écouter les changements de thème pour synchronisation cross-tab
-      window.addEventListener('storage', function(e) {
+      window.addEventListener('storage', function (e) {
         if (e.key === 'crypto_rebalancer_settings') {
           console.debug('Settings changed in another tab, reapplying theme...');
           setTimeout(() => {

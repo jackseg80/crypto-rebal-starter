@@ -2,8 +2,11 @@
 import json
 import os
 import time
+import asyncio
+import logging
 from urllib.request import urlopen
 from urllib.error import URLError
+import httpx
 
 # --- Configuration via env ---
 PRICE_CACHE_TTL = int(os.getenv("PRICE_CACHE_TTL", "120"))
@@ -14,6 +17,7 @@ PRICE_PROVIDER_ORDER = [p.strip() for p in os.getenv("PRICE_PROVIDER_ORDER", "fi
 
 # Cache simple en mémoire
 _cache = {}  # symbol -> (price, ts)
+logger = logging.getLogger(__name__)
 
 # Mapping minimal pour CoinGecko (élargissable au besoin)
 COINGECKO_IDS = {
@@ -151,3 +155,87 @@ def get_prices_usd(symbols):
             continue
         out[s] = get_price_usd(s)
     return out
+
+# ---------------- Async helpers (non-bloquants) ----------------
+async def _from_file_async(symbol: str):
+    return await asyncio.to_thread(_from_file, symbol)
+
+
+async def _from_binance_async(symbol: str):
+    try:
+        pair = f"{symbol.upper()}USDT"
+        url = f"https://api.binance.com/api/v3/ticker/price?symbol={pair}"
+        async with httpx.AsyncClient(timeout=6.0) as client:
+            r = await client.get(url)
+            if r.status_code != 200:
+                return None
+            obj = r.json()
+            p = obj.get("price")
+            return float(p) if p else None
+    except Exception as e:
+        logger.debug("Binance async provider error for %s: %s", symbol, e)
+        return None
+
+
+async def _from_coingecko_async(symbol: str):
+    try:
+        cid = COINGECKO_IDS.get(symbol.upper())
+        if not cid:
+            return None
+        url = f"https://api.coingecko.com/api/v3/simple/price?ids={cid}&vs_currencies=usd"
+        async with httpx.AsyncClient(timeout=6.0) as client:
+            r = await client.get(url)
+            if r.status_code != 200:
+                return None
+            obj = r.json()
+            p = (obj.get(cid) or {}).get("usd")
+            return float(p) if p else None
+    except Exception as e:
+        logger.debug("Coingecko async provider error for %s: %s", symbol, e)
+        return None
+
+
+async def aget_price_usd(symbol: str):
+    if not symbol:
+        return None
+    symbol = symbol.upper()
+    base = SYMBOL_ALIAS.get(symbol, symbol)
+
+    if base in FIAT_STABLE_FIXED:
+        return FIAT_STABLE_FIXED[base]
+
+    p = _get_from_cache(base)
+    if p:
+        return p
+
+    for name in PRICE_PROVIDER_ORDER:
+        if name == "file":
+            p = await _from_file_async(base)
+        elif name == "binance":
+            p = await _from_binance_async(base)
+        elif name == "coingecko":
+            p = await _from_coingecko_async(base)
+        else:
+            p = None
+        if p and p > 0:
+            _set_cache(base, p)
+            return p
+    return None
+
+
+async def aget_prices_usd(symbols, max_concurrency: int = 6):
+    sem = asyncio.Semaphore(max_concurrency)
+    results = {}
+
+    async def worker(sym: str):
+        async with sem:
+            results[sym] = await aget_price_usd(sym)
+
+    tasks = []
+    for s in set([(s or "").upper() for s in symbols]):
+        if not s:
+            continue
+        tasks.append(asyncio.create_task(worker(s)))
+    if tasks:
+        await asyncio.gather(*tasks, return_exceptions=True)
+    return results

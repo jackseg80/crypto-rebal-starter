@@ -13,7 +13,8 @@ from .exchanges import (
     classify_exchange_type,
     is_fast_sell_exchange,
     is_defi_exchange,
-    is_cold_storage
+    is_cold_storage,
+    format_exec_hint,
 )
 
 __all__ = [
@@ -27,5 +28,6 @@ __all__ = [
     "classify_exchange_type",
     "is_fast_sell_exchange",
     "is_defi_exchange", 
-    "is_cold_storage"
+    "is_cold_storage",
+    "format_exec_hint",
 ]
