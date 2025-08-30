@@ -258,6 +258,14 @@ curl -X POST "http://127.0.0.1:8000/rebalance/plan?source=cointracking_api&dynam
 }
 ```
 
+### GET /api/portfolio/metrics
+
+Métriques consolidées du portefeuille (monitoring synthétique).
+
+### GET /api/portfolio/alerts
+
+Alertes de portefeuille dérivées des déviations d'allocation et métriques.
+
 ### POST /rebalance/plan.csv
 
 Génère et télécharge le plan au format CSV.
@@ -495,48 +503,42 @@ Suit le statut d'une exécution en cours.
 
 ## 📊 Analytics APIs
 
-### GET /api/analytics/performance
+### GET /analytics/performance/summary
 
-Analytics de performance du portfolio.
+Résumé de performance du portfolio sur une période donnée.
 
 #### Paramètres Query
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `period_days` | int | Période d'analyse |
-| `benchmark` | string | Benchmark de comparaison |
+| `days_back` | int | Période d'analyse en jours |
 
 #### Réponse
 
 ```json
 {
-  "performance_metrics": {
-    "total_return": 0.234,
-    "annualized_return": 0.187,
-    "volatility": 0.045,
-    "sharpe_ratio": 1.23,
-    "max_drawdown": -0.23,
-    "win_rate": 0.64
-  },
-  "benchmark_comparison": {
-    "benchmark": "BTC",
-    "portfolio_return": 0.234,
-    "benchmark_return": 0.198,
-    "alpha": 0.036,
-    "beta": 0.89,
-    "correlation": 0.78
-  },
-  "attribution": {
-    "allocation_effect": 0.015,
-    "selection_effect": 0.021,
-    "interaction_effect": 0.003
-  }
+  "total_return": 0.234,
+  "annualized_return": 0.187,
+  "volatility": 0.045,
+  "sharpe_ratio": 1.23,
+  "max_drawdown": -0.23,
+  "generated_at": "2024-08-24T10:30:00Z"
 }
 ```
 
-### GET /api/analytics/history
+### GET /analytics/performance/detailed
 
-Historique des rebalancement et performances.
+Analyse détaillée des performances (impact des rebalancements, attribution, recommandations).
+
+#### Paramètres Query
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `days_back` | int | Période d'analyse en jours |
+
+### GET /analytics/sessions
+
+Liste des sessions de rebalancement récentes (historique).
 
 #### Réponse
 
@@ -601,6 +603,16 @@ Status général du système et connexions.
 ```
 
 ### GET /api/monitoring/alerts
+
+### GET /monitoring/alerts
+
+Endpoints de monitoring de base (non préfixés) pour gérer les alertes du pipeline.
+
+```
+GET /monitoring/alerts
+```
+
+Paramètres facultatifs: `level`, `alert_type`, `unresolved_only`, `limit`.
 
 Alertes actives du système.
 
@@ -846,6 +858,19 @@ Debug spécifique pour la connexion CoinTracking.
       "total_value_estimate": 453041.15
     }
   }
+}
+```
+
+### POST /csv/download
+
+Télécharger un export CoinTracking dans `data/raw/` avec nom de fichier auto daté.
+
+Body JSON:
+```
+{
+  "file_type": "balance_by_exchange",   // ou: current_balance, coins_by_exchange
+  "download_path": "data/raw/",
+  "auto_name": true
 }
 ```
 

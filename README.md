@@ -51,7 +51,7 @@ python crypto_toolbox_api.py  # Port 8001
 - **🛡️ Risk Dashboard** : `static/risk-dashboard.html` - **Analyse de risque V2** avec système de scoring intelligent et gestion des corrélations
 - **🚀 Execution** : `static/execution.html` - Dashboard d'exécution temps réel
 - **📈 Execution History** : `static/execution_history.html` - Historique et analytics des trades
-- **🔍 Advanced Monitoring** : `static/monitoring_advanced.html` - Surveillance des connexions
+- **🔍 Advanced Monitoring** : `static/monitoring-unified.html` - Surveillance des connexions
 - **⚖️ Rebalancing** : `static/rebalance.html` - Génération des plans intelligents avec sync CCS
 - **🏷️ Alias Manager** : `static/alias-manager.html` - Gestion des taxonomies
 - **⚙️ Settings** : `static/settings.html` - Configuration centralisée (**commencez ici**)
@@ -770,8 +770,8 @@ GET /api/kraken/balances           # Balances temps réel
 GET /api/kraken/positions          # Positions actives
 POST /api/kraken/orders            # Placement d'ordres
 GET /api/kraken/orders/status      # Status des ordres
-GET /api/execution/history         # Historique complet
-GET /api/execution/analytics       # Analytics de performance
+GET /api/execution/history/sessions  # Historique des sessions d'exécution
+GET /analytics/performance/summary   # Analytics de performance (résumé)
 ```
 
 ---
@@ -814,7 +814,7 @@ Système complet de surveillance multi-dimensionnelle des connexions et services
 - **Smart Alerting**: Alertes intelligentes avec escalation
 - **Historical Tracking**: Historique complet des performances
 
-#### Dashboard de Monitoring (`static/monitoring_advanced.html`)
+#### Dashboard de Monitoring (`static/monitoring-unified.html`)
 - **Vue Temps Réel**: Status live de tous les endpoints
 - **Métriques Détaillées**: Latence, uptime, taux d'erreur
 - **Alertes Visuelles**: Indicateurs colorés avec détails d'erreurs

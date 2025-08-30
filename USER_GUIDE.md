@@ -491,7 +491,7 @@ Attribution Breakdown:
 
 ### Interface Monitoring Avancée
 
-Interface technique : `static/monitoring_advanced.html` ou **🔍 Monitor**.
+Interface technique : `static/monitoring-unified.html` ou **🔍 Monitor**.
 
 #### 1. **Status Système Global**
 
