@@ -539,11 +539,11 @@
           const dataAge = Date.now() - new Date(data.timestamp).getTime();
           // Si les données sont récentes (moins de 2h), ne pas écraser
           if (dataAge < 2 * 60 * 60 * 1000 && data.source === 'risk-dashboard-ccs') {
-            console.log('🔍 CCS data already exists and is recent, skipping mock generation');
+            console.debug('🔍 CCS data already exists and is recent, skipping mock generation');
             return;
           }
         } catch (error) {
-          console.log('🔍 Existing data invalid, will generate mock');
+          console.debug('🔍 Existing data invalid, will generate mock');
         }
       }
       
@@ -566,13 +566,13 @@
       };
       
       localStorage.setItem('last_targets', JSON.stringify(mockCCSData));
-      console.log('🔍 Generated mock CCS data for sync functionality:', mockCCSData);
+      console.debug('🔍 Generated mock CCS data for sync functionality:', mockCCSData);
     }
 
     /* ---------- Fonction de synchronisation CCS ---------- */
     function syncCCSTargets() {
       const storedTargets = localStorage.getItem('last_targets');
-      console.log('🔍 syncCCSTargets - Raw localStorage data:', storedTargets);
+      console.debug('🔍 syncCCSTargets - Raw localStorage data:', storedTargets);
       
       if (!storedTargets) {
         console.log('🔍 syncCCSTargets - No localStorage data found');

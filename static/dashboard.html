@@ -396,18 +396,18 @@
         let portfolioChart = null;
 
         document.addEventListener('DOMContentLoaded', async () => {
-            console.log('📊 Dashboard unifié initialisé');
+            console.debug('📊 Dashboard unifié initialisé');
             initSharedHeader('dashboard', { showConfigIndicators: true });
 
             // Appliquer le thème immédiatement
-            console.log('Initializing theme for dashboard page...');
+            console.debug('Initializing theme for dashboard page...');
             if (window.globalConfig && window.globalConfig.applyTheme) {
                 window.globalConfig.applyTheme();
             }
             if (window.applyAppearance) {
                 window.applyAppearance();
             }
-            console.log('Current theme after dashboard init:', document.documentElement.getAttribute('data-theme'));
+            console.debug('Current theme after dashboard init:', document.documentElement.getAttribute('data-theme'));
 
             // Configuration Chart.js avec thème
             initChartTheme();
@@ -419,7 +419,7 @@
             window.addEventListener('storage', function (e) {
                 const expectedKey = (window.globalConfig?.getStorageKey && window.globalConfig.getStorageKey()) || 'crypto_rebal_settings_v1';
                 if (e.key === expectedKey) {
-                    console.log('Settings changed in another tab, reapplying theme...');
+                    console.debug('Settings changed in another tab, reapplying theme...');
                     setTimeout(() => {
                         if (window.globalConfig && window.globalConfig.applyTheme) {
                             window.globalConfig.applyTheme();
@@ -434,7 +434,7 @@
             });
 
             window.addEventListener('dataSourceChanged', (event) => {
-                console.log(`🔄 Source changée: ${event.detail.oldSource} → ${event.detail.newSource}`);
+                console.debug(`🔄 Source changée: ${event.detail.oldSource} → ${event.detail.newSource}`);
                 loadDashboardData();
             });
         });
@@ -453,7 +453,7 @@
                 updateExecutionStatus(executionStatus.status === 'fulfilled' ? executionStatus.value : null);
                 updateSystemHealth();
 
-                console.log('✅ Dashboard data loaded successfully');
+                console.debug('✅ Dashboard data loaded successfully');
             } catch (e) {
                 log.error('Erreur chargement dashboard:', e);
                 showError('Impossible de charger les données du dashboard. Vérifiez votre connexion.');
@@ -463,7 +463,7 @@
 
         async function loadPortfolioData() {
             try {
-                console.log('📊 Loading REAL CSV data for consistency');
+                console.debug('📊 Loading REAL CSV data for consistency');
                 return await loadRealCSVPortfolioData();
             } catch (e) {
                 log.error('Erreur portfolio CSV non disponible:', e);
@@ -473,7 +473,7 @@
         }
 
         async function loadRealCSVPortfolioData() {
-            console.log('🔄 Loading portfolio data using configured source...');
+            console.debug('🔄 Loading portfolio data using configured source...');
             const balanceResult = await window.loadBalanceData();
 
             if (!balanceResult || !balanceResult.success) {
@@ -502,7 +502,7 @@
             const totalValue = balances.reduce((sum, it) => sum + (parseFloat(it.value_usd) || 0), 0);
             const assetCount = balances.length;
 
-            console.log(`✅ REAL data loaded: ${assetCount} assets, total: $${totalValue.toFixed(2)}`);
+            console.debug(`✅ REAL data loaded: ${assetCount} assets, total: $${totalValue.toFixed(2)}`);
 
             return {
                 ok: true,
@@ -704,7 +704,7 @@
 
         // Charger la classification depuis alias-manager
         async function loadAssetGroups() {
-            console.log('🔍 Loading asset groups...');
+            console.debug('🔍 Loading asset groups...');
             await useFallbackAssetGroups();
         }
 
@@ -731,7 +731,7 @@
                 ASSET_GROUPS[group].push(asset);
             });
 
-            console.log('✅ Asset groups loaded:', Object.keys(ASSET_GROUPS));
+            console.debug('✅ Asset groups loaded:', Object.keys(ASSET_GROUPS));
         }
 
         // Parser CSV : wrapper auto qui utilise window.parseCSVBalances si dispo, sinon notre local

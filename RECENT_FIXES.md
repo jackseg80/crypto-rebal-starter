@@ -325,3 +325,20 @@ python -c "from connectors.cointracking import get_current_balances_from_csv; pr
 - **Assets supportés** : 945 en CSV, optimisé jusqu'à 1000+
 
 **✨ Le projet est maintenant production-ready avec une architecture technique robuste ET un système de données entièrement fonctionnel !**
+## 2025-08-30
+
+- Navigation
+  - Ajout d'un menu Debug conditionnel et d'un toggle debug global (double‑clic Settings, Alt+D, `?debug=true`).
+  - Dropdown Debug avec liens vers `tests/html_debug/`.
+
+- Risk Dashboard
+  - Coloration contextuelle de la courbe "Cycle Score" par phase quand l'adaptation contextuelle est active.
+  - Retrait du badge "Dynamic Weighting" sur le graphique (gain d'espace).
+
+- Rebalance
+  - Suppression des pastilles colorées redondantes dans la section Stratégies prédéfinies.
+
+- Logs / Debug
+  - Frontend: logger global synchronisé avec `globalConfig.debug_mode`, override `console.debug`, traçage `fetch` optionnel via `localStorage.debug_trace_api`.
+  - Backend: logger standard Python + middleware de timing conditionné par `APP_DEBUG/LOG_LEVEL`.
+  - Remplacement de logs verbeux (`console.log`) par `console.debug` dans modules communs.

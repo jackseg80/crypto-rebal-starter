@@ -609,7 +609,27 @@ curl -s "http://127.0.0.1:8000/portfolio/breakdown-locations?source=cointracking
 
 ---
 
-## 10) CORS, déploiement, GitHub Pages
+## 10) Mode Debug, Logs et CORS
+
+### 10.1 Mode Debug global (UI)
+
+- Activation rapide:
+  - Double‑clic sur `⚙️ Settings`
+  - Raccourci clavier: `Alt+D`
+  - Paramètre URL: `?debug=true`
+- Effets:
+  - Affiche un menu Debug (tests HTML) dans la barre de navigation
+  - Active les logs côté navigateur (console.debug) et la coloration contextuelle du graphique des cycles
+  - Option de traçage des requêtes: `localStorage.debug_trace_api = 'true'` (affiche URL, statut, durée)
+
+### 10.2 Logs backend (FastAPI)
+
+- Variables d’environnement:
+  - `APP_DEBUG=true` ou `LOG_LEVEL=DEBUG` pour activer la verbosité
+  - En dev, un middleware trace chaque requête: méthode, chemin, statut, durée (ms)
+  - Forçage par requête: header `X-Debug-Trace: 1`
+
+### 10.3 CORS et déploiement
 
 - **CORS** : si l’UI est servie depuis un domaine différent (ex. GitHub Pages), ajoutez ce domaine à `CORS_ORIGINS` dans `.env`.
 - **GitHub Pages** : placez une copie de `static/rebalance.html` dans `docs/`.  

@@ -23,7 +23,7 @@ export async function fetchCached(key, fetchFn, cacheType = 'signals') {
   // Try RAM cache first
   const ramEntry = RAM_CACHE.get(key);
   if (ramEntry && (now - ramEntry.timestamp) < config.ram) {
-    console.log(`Cache hit (RAM): ${key}`);
+    console.debug(`Cache hit (RAM): ${key}`);
     return ramEntry.data;
   }
   
@@ -34,7 +34,7 @@ export async function fetchCached(key, fetchFn, cacheType = 'signals') {
     if (diskEntry) {
       const parsed = JSON.parse(diskEntry);
       if ((now - parsed.timestamp) < config.disk) {
-        console.log(`Cache hit (disk): ${key}`);
+        console.debug(`Cache hit (disk): ${key}`);
         // Also store in RAM for faster access
         RAM_CACHE.set(key, { data: parsed.data, timestamp: now });
         return parsed.data;
@@ -45,7 +45,7 @@ export async function fetchCached(key, fetchFn, cacheType = 'signals') {
   }
   
   // Cache miss - fetch fresh data
-  console.log(`Cache miss: ${key}, fetching...`);
+  console.debug(`Cache miss: ${key}, fetching...`);
   
   try {
     const data = await retryFetch(fetchFn);
@@ -92,7 +92,7 @@ async function retryFetch(fetchFn, maxRetries = 2, baseDelay = 500) {
       
       if (attempt < maxRetries) {
         const delay = baseDelay * Math.pow(2, attempt);
-        console.log(`Retry ${attempt + 1}/${maxRetries} after ${delay}ms`);
+        console.debug(`Retry ${attempt + 1}/${maxRetries} after ${delay}ms`);
         await sleep(delay);
       }
     }
@@ -157,7 +157,7 @@ export function clearCache() {
   }
   keysToRemove.forEach(key => localStorage.removeItem(key));
   
-  console.log('All caches cleared');
+  console.debug('All caches cleared');
 }
 
 /**

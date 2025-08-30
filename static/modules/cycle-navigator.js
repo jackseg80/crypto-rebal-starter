@@ -23,7 +23,7 @@ let CYCLE_PARAMS = {
 export function getCycleParams() { return { ...CYCLE_PARAMS }; }
 export function setCycleParams(p) { 
   CYCLE_PARAMS = { ...CYCLE_PARAMS, ...p }; 
-  console.log('🔄 Cycle parameters updated:', CYCLE_PARAMS);
+  console.debug('🔄 Cycle parameters updated:', CYCLE_PARAMS);
 }
 
 // Auto-load calibrated parameters on module initialization
@@ -35,7 +35,7 @@ function autoLoadCalibrationParams() {
       // Check data is not too old (24h)
       if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
         CYCLE_PARAMS = { ...CYCLE_PARAMS, ...data.params };
-        console.log('✅ Auto-loaded calibrated cycle parameters', CYCLE_PARAMS);
+        console.debug('✅ Auto-loaded calibrated cycle parameters', CYCLE_PARAMS);
         return true;
       }
     }
@@ -240,7 +240,7 @@ export function getCurrentCycleMonths() {
   // Ensure non-negative
   totalMonths = Math.max(0, totalMonths);
 
-  console.log('🔍 DEBUG getCurrentCycleMonths:', {
+  console.debug('🔍 DEBUG getCurrentCycleMonths:', {
     lastHalving: lastHalvingDate.toISOString(),
     now: now.toISOString(),
     yearDiff,

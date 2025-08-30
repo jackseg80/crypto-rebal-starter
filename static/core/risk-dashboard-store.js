@@ -133,7 +133,7 @@ export class RiskDashboardStore {
           if (cycle) this.state.cycle = { ...this.state.cycle, ...cycle };
           if (targets) this.state.targets = { ...this.state.targets, ...targets };
           
-          console.log('State hydrated from localStorage');
+          console.debug('State hydrated from localStorage');
           this._notify();
         }
       }

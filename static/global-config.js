@@ -60,7 +60,7 @@ class GlobalConfig {
   save() {
     try {
       localStorage.setItem('crypto_rebalancer_settings', JSON.stringify(this.settings));
-      console.log('Configuration sauvegardée');
+      console.debug('Configuration sauvegardée');
     } catch (error) {
       console.error('Erreur sauvegarde configuration:', error);
     }
@@ -348,7 +348,7 @@ class GlobalConfig {
     // Sauvegarder le thème effectif pour les CSS qui en ont besoin
     document.documentElement.style.setProperty('--effective-theme', effectiveTheme);
     
-    console.log(`🎨 Thème appliqué: ${this.settings.theme} (effectif: ${effectiveTheme})`);
+    console.debug(`🎨 Thème appliqué: ${this.settings.theme} (effectif: ${effectiveTheme})`);
   }
 
   /**
@@ -356,7 +356,7 @@ class GlobalConfig {
    */
   setDebugMode(enabled) {
     this.set('debug_mode', enabled);
-    console.log(`🛠️ Mode debug ${enabled ? 'activé' : 'désactivé'}`);
+    console.debug(`🛠️ Mode debug ${enabled ? 'activé' : 'désactivé'}`);
     
     // Émettre un événement spécifique pour le mode debug
     const event = new CustomEvent('debugModeChanged', {
@@ -408,13 +408,13 @@ window.loadBalanceData = async function() {
   const dataSource = globalConfig.get('data_source');
   const apiBaseUrl = globalConfig.get('api_base_url');
   
-  console.log(`🔍 Loading balance data using source: ${dataSource}`);
+  console.debug(`🔍 Loading balance data using source: ${dataSource}`);
   
   try {
     switch (dataSource) {
       case 'cointracking_api':
         // Source API CoinTracking - via backend
-        console.log('📡 Using CoinTracking API source');
+        console.debug('📡 Using CoinTracking API source');
         const apiResponse = await fetch(`${apiBaseUrl}/balances/current?source=cointracking_api`);
         if (!apiResponse.ok) {
           throw new Error(`API Error: ${apiResponse.status}`);
@@ -428,7 +428,7 @@ window.loadBalanceData = async function() {
         
       case 'stub':
         // Source stub - données de démo via backend
-        console.log('🧪 Using stub data source');
+        console.debug('🧪 Using stub data source');
         const stubResponse = await fetch(`${apiBaseUrl}/balances/current?source=stub`);
         if (!stubResponse.ok) {
           throw new Error(`Stub Error: ${stubResponse.status}`);
@@ -443,7 +443,7 @@ window.loadBalanceData = async function() {
       case 'cointracking':
       default:
         // Source CSV locale - via API backend
-        console.log('📄 Using local CoinTracking CSV files via API');
+        console.debug('📄 Using local CoinTracking CSV files via API');
         const csvResponse = await fetch(`${apiBaseUrl}/balances/current?source=cointracking`);
         if (!csvResponse.ok) {
           throw new Error(`CSV API Error: ${csvResponse.status}`);
@@ -560,4 +560,4 @@ if (window.matchMedia) {
 // Appliquer le thème au chargement
 globalConfig.applyTheme();
 
-console.log('🚀 Configuration globale chargée:', globalConfig.getAll());
+console.debug('🚀 Configuration globale chargée:', globalConfig.getAll());
