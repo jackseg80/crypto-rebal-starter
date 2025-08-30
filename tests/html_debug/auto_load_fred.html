@@ -39,8 +39,8 @@
           
           if (data.fred_api_key && data.fred_api_key !== '...' && data.fred_api_key.length > 8) {
             // Extract the real key (backend returns truncated version)
-            // Use the actual key from .env
-            const fredKey = '15fabaf7c19767675c9aeb04424dcbde';
+            // Use the actual key from environment variable
+            const fredKey = prompt('Entrez votre clé API FRED:') || 'test-key';
             
             // Save to globalConfig
             window.globalConfig.set('fred_api_key', fredKey);

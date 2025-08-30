@@ -33,7 +33,7 @@
     async function testFredComplete() {
       log('🏛️ Test FRED API avec données complètes depuis 2014...');
       
-      const FRED_API_KEY = '15fabaf7c19767675c9aeb04424dcbde';
+      const FRED_API_KEY = prompt('Entrez votre clé API FRED:') || 'test-key';
       
       try {
         // Test avec toutes les données depuis 2014
@@ -99,9 +99,9 @@
       async function fetchBitcoinHistoricalData() {
         let FRED_API_KEY = (window.globalConfig?.get?.('fred_api_key')) || '';
         
-        // Fallback: essayer de récupérer la clé si pas dans globalConfig
+        // Fallback: demander la clé si pas dans globalConfig
         if (!FRED_API_KEY) {
-          FRED_API_KEY = '15fabaf7c19767675c9aeb04424dcbde';
+          FRED_API_KEY = prompt('Entrez votre clé API FRED:') || 'test-key';
           window.globalConfig?.set?.('fred_api_key', FRED_API_KEY);
         }
         

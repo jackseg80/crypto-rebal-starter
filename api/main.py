@@ -9,6 +9,8 @@ from fastapi import FastAPI, Query, Body, Response, HTTPException, Request
 import logging
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi import middleware
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
@@ -118,10 +120,17 @@ app.add_middleware(
 )
 
 # Middleware de sécurité
+if not DEBUG:
+    # HTTPS redirect en production seulement
+    app.add_middleware(HTTPSRedirectMiddleware)
+
 app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=["localhost", "127.0.0.1", "*.localhost"],
 )
+
+# Compression GZip pour améliorer les performances
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Middleware pour headers de sécurité
 @app.middleware("http")
@@ -133,7 +142,18 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
+    
+    # HSTS (HTTP Strict Transport Security) - production seulement
+    if not DEBUG and request.url.scheme == "https":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+    
+    # Content Security Policy adaptée au contexte
+    if DEBUG:
+        # CSP plus permissive en développement
+        response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://api.stlouisfed.org https://api.coingecko.com"
+    else:
+        # CSP stricte en production
+        response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
     
     # Cache control pour les APIs
     if request.url.path.startswith("/api"):
@@ -1204,7 +1224,7 @@ async def update_api_keys(payload: APIKeysRequest, debug_token: str = None):
     }
     
     updated = False
-    payload_dict = payload.dict(exclude_none=True)  # Convertir le modèle Pydantic en dict
+    payload_dict = payload.model_dump(exclude_none=True)  # Convertir le modèle Pydantic en dict
     for field_key, env_key in key_mappings.items():
         if field_key in payload_dict and payload_dict[field_key]:
             # Chercher si la clé existe déjà
