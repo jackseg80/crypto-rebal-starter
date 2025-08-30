@@ -725,7 +725,7 @@
 
     // Sélection de thème
     function selectTheme(theme) {
-      console.log('Setting theme to:', theme);
+      console.debug('Setting theme to:', theme);
       document.querySelectorAll('.radio-option').forEach(el => el.classList.remove('selected'));
       
       // Utiliser globalConfig.setTheme pour gérer le changement de thème
@@ -741,7 +741,7 @@
         window.applyAppearance();
       }
       
-      console.log('Theme applied, current globalConfig theme:', globalConfig.get('theme'));
+      console.debug('Theme applied, current globalConfig theme:', globalConfig.get('theme'));
     }
 
     // Sauvegarder tous les settings
@@ -849,7 +849,7 @@
           if (response.ok) {
             globalConfig.set('debug_token', token);
             document.getElementById('debug_token').value = maskApiKey(token);
-            console.log('DEBUG_TOKEN auto-détecté et configuré');
+            console.debug('DEBUG_TOKEN auto-détecté et configuré');
             showNotification('🔑 DEBUG_TOKEN auto-détecté', 'success');
             return;
           }
@@ -858,7 +858,7 @@
         }
       }
       
-      console.log('DEBUG_TOKEN non trouvé automatiquement, saisie manuelle requise');
+      console.debug('DEBUG_TOKEN non trouvé automatiquement, saisie manuelle requise');
     }
 
     // Auto-détecter les clés depuis .env du serveur
@@ -868,7 +868,7 @@
         // Essayer de récupérer les clés depuis le backend  
         const debugToken = globalConfig.get('debug_token');
         if (!debugToken) {
-          console.log('Auto-détection désactivée: DEBUG_TOKEN requis');
+          console.debug('Auto-détection désactivée: DEBUG_TOKEN requis');
           return;
         }
         const response = await fetch(`${globalSettings.api_base_url}/debug/api-keys?debug_token=${debugToken}`);
@@ -922,7 +922,7 @@
           }
         }
       } catch (e) {
-        console.log('Auto-détection des clés non disponible:', e.message);
+        console.debug('Auto-détection des clés non disponible:', e.message);
       }
     }
 
@@ -1239,14 +1239,14 @@
       initSharedHeader('settings', { showConfigIndicators: true });
 
       // Appliquer le thème immédiatement
-      console.log('Initializing theme for settings page...');
+      console.debug('Initializing theme for settings page...');
       if (window.globalConfig && window.globalConfig.applyTheme) {
         window.globalConfig.applyTheme();
       }
       if (window.applyAppearance) {
         window.applyAppearance();
       }
-      console.log('Current theme after settings init:', document.documentElement.getAttribute('data-theme'));
+      console.debug('Current theme after settings init:', document.documentElement.getAttribute('data-theme'));
       
       loadSettings();
       // Tenter de récupérer le DEBUG_TOKEN depuis le serveur
@@ -1256,7 +1256,7 @@
 
       // Écouter les changements de thème système pour mettre à jour l'interface
       window.addEventListener('themeChanged', (event) => {
-        console.log('🎨 Thème changé:', event.detail);
+        console.debug('🎨 Thème changé:', event.detail);
         // L'interface n'a pas besoin d'être mise à jour car elle suit déjà globalConfig
       });
     });

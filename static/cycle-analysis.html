@@ -238,7 +238,7 @@
           timestamp: Date.now(),
           version: '1.0'
         }));
-        console.log('✅ Paramètres calibrés sauvegardés', params);
+        console.debug('✅ Paramètres calibrés sauvegardés', params);
       } catch (error) {
         console.error('❌ Erreur sauvegarde paramètres:', error);
       }
@@ -251,7 +251,7 @@
           const data = JSON.parse(saved);
           // Vérifier que les données ne sont pas trop anciennes (24h)
           if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
-            console.log('✅ Paramètres calibrés chargés depuis localStorage', data.params);
+            console.debug('✅ Paramètres calibrés chargés depuis localStorage', data.params);
             return data.params;
           }
         }
@@ -264,7 +264,7 @@
     // Chargement des modules
     async function loadModules() {
       try {
-        console.log('🔄 Tentative de chargement du module cycle-navigator...');
+        console.debug('🔄 Tentative de chargement du module cycle-navigator...');
         const module = await import('./modules/cycle-navigator.js');
         
         // Vérifier que les fonctions sont disponibles
@@ -279,7 +279,7 @@
         
         // Test de la fonction
         const testScore = cycleScoreFromMonths(18);
-        console.log('🧪 Test cycleScoreFromMonths(18):', testScore);
+        console.debug('🧪 Test cycleScoreFromMonths(18):', testScore);
         
         if (isNaN(testScore) || testScore < 0 || testScore > 100) {
           throw new Error('Function test failed - invalid score: ' + testScore);
@@ -293,7 +293,7 @@
         }
         
         moduleLoaded = true;
-        console.log('✅ Cycle navigator module loaded successfully');
+        console.debug('✅ Cycle navigator module loaded successfully');
         return true;
       } catch (error) {
         console.error('❌ Failed to load cycle navigator:', error);
@@ -304,7 +304,7 @@
         getCurrentCycleMonths = _fallbackGetCurrentCycleMonths;
         moduleLoaded = true; // on passe à true pour ne pas bloquer la suite
         addResult('⚠️ Mode dégradé', 'Module non chargé — utilisation d\'un modèle local par défaut', 'warning');
-        console.log('🔄 Utilisation du fallback, test:', _fallbackCycleScoreFromMonths(18));
+        console.debug('🔄 Utilisation du fallback, test:', _fallbackCycleScoreFromMonths(18));
         return true;
       }
     }

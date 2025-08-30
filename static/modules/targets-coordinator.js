@@ -252,7 +252,7 @@ function applyOnChainIntelligence(baseRegime, onchainMetadata) {
   
   // Log des ajustements appliqués
   if (adjustments.length > 0) {
-    console.log('🧠 On-chain intelligence adjustments:', adjustments.join(', '));
+    console.debug('🧠 On-chain intelligence adjustments:', adjustments.join(', '));
   }
   
   return adjustedRegime;
@@ -268,7 +268,7 @@ export function generateSmartTargets() {
   const riskScore = state.scores?.risk;
   const onchainMetadata = state.scores?.onchain_metadata;
   
-  console.log('🧠 Generating SMART targets with scores:', { 
+  console.debug('🧠 Generating SMART targets with scores:', { 
     blendedScore, 
     onchainScore, 
     riskScore,
@@ -305,9 +305,9 @@ export function generateSmartTargets() {
     // Generate recommendations
     const recommendations = generateRegimeRecommendations(adjustedRegime, riskBudget);
     
-    console.log('🧠 Smart allocation calculated:', smartAllocation);
-    console.log('📊 Risk budget:', riskBudget.percentages);
-    console.log('🎯 Regime:', adjustedRegime.name);
+    console.debug('🧠 Smart allocation calculated:', smartAllocation);
+    console.debug('📊 Risk budget:', riskBudget.percentages);
+    console.debug('🎯 Regime:', adjustedRegime.name);
     
     const strategy = `${adjustedRegime.emoji} ${adjustedRegime.name} (${Math.round(blendedScore)}) | ${riskBudget.percentages.stables}% Stables`;
     
@@ -464,13 +464,13 @@ export function proposeTargets(mode = 'blend', options = {}) {
     }
     
     // DEBUG: Log before normalization
-    console.log('🔍 DEBUG proposeTargets - before normalization BTC:', proposedTargets.BTC);
+    console.debug('🔍 DEBUG proposeTargets - before normalization BTC:', proposedTargets.BTC);
     
     // Final normalization
     proposedTargets = normalizeTargets(proposedTargets);
     
     // DEBUG: Log after normalization
-    console.log('🔍 DEBUG proposeTargets - after normalization BTC:', proposedTargets.BTC);
+    console.debug('🔍 DEBUG proposeTargets - after normalization BTC:', proposedTargets.BTC);
     
     return {
       targets: proposedTargets,
@@ -556,8 +556,8 @@ export async function applyTargets(proposalResult) {
   
   try {
     // DEBUG: Log what we're about to save
-    console.log('🔍 DEBUG applyTargets - proposalResult.targets:', proposalResult.targets);
-    console.log('🔍 DEBUG applyTargets - BTC allocation:', proposalResult.targets.BTC);
+    console.debug('🔍 DEBUG applyTargets - proposalResult.targets:', proposalResult.targets);
+    console.debug('🔍 DEBUG applyTargets - BTC allocation:', proposalResult.targets.BTC);
     
     // Update store with new targets (normalized version for display)
     store.set('targets.proposed', proposalResult.targets);
@@ -588,16 +588,16 @@ export async function applyTargets(proposalResult) {
       source: 'risk-dashboard-ccs'
     };
     
-    console.log('🔍 DEBUG applyTargets - Full proposal result:', proposalResult);
-    console.log('🔍 DEBUG applyTargets - Targets being saved:', proposalResult.targets);
-    console.log('🔍 DEBUG applyTargets - BTC before save:', dataToSave.targets.BTC);
-    console.log('🔍 DEBUG applyTargets - ETH before save:', dataToSave.targets.ETH);
+    console.debug('🔍 DEBUG applyTargets - Full proposal result:', proposalResult);
+    console.debug('🔍 DEBUG applyTargets - Targets being saved:', proposalResult.targets);
+    console.debug('🔍 DEBUG applyTargets - BTC before save:', dataToSave.targets.BTC);
+    console.debug('🔍 DEBUG applyTargets - ETH before save:', dataToSave.targets.ETH);
     localStorage.setItem('last_targets', JSON.stringify(dataToSave));
     
     // Verify what was actually saved
     const savedData = JSON.parse(localStorage.getItem('last_targets'));
-    console.log('🔍 DEBUG applyTargets - BTC after save:', savedData.targets.BTC);
-    console.log('🔍 DEBUG applyTargets - ETH after save:', savedData.targets.ETH);
+    console.debug('🔍 DEBUG applyTargets - BTC after save:', savedData.targets.BTC);
+    console.debug('🔍 DEBUG applyTargets - ETH after save:', savedData.targets.ETH);
     
     // Dispatch event for external listeners (rebalance.html)
     window.dispatchEvent(new CustomEvent('targetsUpdated', {
@@ -608,7 +608,7 @@ export async function applyTargets(proposalResult) {
       }
     }));
     
-    console.log('Targets applied successfully:', proposalResult.strategy);
+    console.debug('Targets applied successfully:', proposalResult.strategy);
     return true;
     
   } catch (error) {

@@ -732,7 +732,7 @@
 
     async function fetchPortfolioData() {
       try {
-        console.log('🔄 Loading REAL CSV data for monitoring consistency');
+        console.debug('🔄 Loading REAL CSV data for monitoring consistency');
         return await loadRealCSVPortfolioData();
       } catch (error) {
         console.error('Error loading CSV data for monitoring:', error);
@@ -741,7 +741,7 @@
     }
 
     async function loadRealCSVPortfolioData() {
-      console.log('🔄 Loading monitoring data using configured source...');
+      console.debug('🔄 Loading monitoring data using configured source...');
       
       const balanceResult = await window.loadBalanceData();
       
@@ -768,7 +768,7 @@
       
       const totalValue = balances.reduce((sum, item) => sum + item.value_usd, 0);
       
-      console.log(`✅ REAL CSV monitoring data: total: $${totalValue.toFixed(2)}`);
+      console.debug(`✅ REAL CSV monitoring data: total: $${totalValue.toFixed(2)}`);
       
       const change24h = 2.34;
       const maxDeviation = 3.2;
@@ -892,7 +892,7 @@
         return;
       }
       
-      console.log('Updating metrics with data:', data);
+      console.debug('Updating metrics with data:', data);
       
       // Mise à jour de la valeur totale
       const totalValueEl = el('total-value');
@@ -936,7 +936,7 @@
         }
       }
       
-      console.log('Metrics updated successfully');
+      console.debug('Metrics updated successfully');
     }
 
     function renderAlerts() {
@@ -1078,7 +1078,7 @@
 
     /* ===== Tab Management ===== */
     function switchTab(tabName) {
-      console.log('Switching to tab:', tabName);
+      console.debug('Switching to tab:', tabName);
       
       // Update UI
       document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
@@ -1089,14 +1089,14 @@
       
       if (tabButton) {
         tabButton.classList.add('active');
-        console.log('Tab button activated:', tabName);
+        console.debug('Tab button activated:', tabName);
       } else {
         console.error('Tab button not found for:', tabName);
       }
       
       if (tabPane) {
         tabPane.classList.add('active');
-        console.log('Tab pane activated:', tabName);
+        console.debug('Tab pane activated:', tabName);
       } else {
         console.error('Tab pane not found for:', tabName);
       }
@@ -1123,7 +1123,7 @@
     }
 
     async function loadPortfolioData() {
-      console.log('Loading portfolio data...');
+      console.debug('Loading portfolio data...');
       await fetchAndUpdatePortfolio();
     }
 
@@ -1137,7 +1137,7 @@
             health = await healthResponse.json();
           }
         } catch (e) {
-          console.log('Real API not available, using mock data');
+          console.debug('Real API not available, using mock data');
         }
         
         // Use mock data if API not available
@@ -1581,7 +1581,7 @@
     /* ===== Control Functions ===== */
     async function refreshAllData() {
       await loadTabData(currentTab);
-      console.log('Data refreshed for tab:', currentTab);
+      console.debug('Data refreshed for tab:', currentTab);
     }
 
     function toggleAutoRefresh() {
@@ -1611,14 +1611,14 @@
       initSharedHeader('monitoring-unified', { showConfigIndicators: false });
       
       // Appliquer le thème depuis la configuration globale - forcer l'application
-      console.log('Initializing theme for monitoring dashboard...');
+      console.debug('Initializing theme for monitoring dashboard...');
       if (window.globalConfig && window.globalConfig.applyTheme) {
         window.globalConfig.applyTheme();
       }
       if (window.applyAppearance) {
         window.applyAppearance();
       }
-      console.log('Current theme after initialization:', document.documentElement.getAttribute('data-theme'));
+      console.debug('Current theme after initialization:', document.documentElement.getAttribute('data-theme'));
       
       // Load alert configuration
       const saved = localStorage.getItem('monitoring-config');
@@ -1631,30 +1631,30 @@
       }
       
       // Start portfolio monitoring (for real-time updates)
-      console.log('Starting portfolio monitoring...');
+      console.debug('Starting portfolio monitoring...');
       startPortfolioMonitoring();
       
       // Load initial data for current tab
-      console.log('Loading initial data for tab:', currentTab);
+      console.debug('Loading initial data for tab:', currentTab);
       setTimeout(() => {
         loadTabData(currentTab);
       }, 500);
       
       // Load real data immediately if CSV available
       setTimeout(async () => {
-        console.log('Loading real CSV data for immediate display');
+        console.debug('Loading real CSV data for immediate display');
         try {
           const realData = await loadRealCSVPortfolioData();
           updateMetrics(realData);
         } catch (error) {
-          console.log('CSV not available for immediate display');
+          console.debug('CSV not available for immediate display');
         }
       }, 100);
       
       // Écouter les changements de thème pour synchronisation
       window.addEventListener('storage', function(e) {
         if (e.key === 'crypto_rebalancer_settings') {
-          console.log('Settings changed, reapplying theme...');
+          console.debug('Settings changed, reapplying theme...');
           setTimeout(() => {
             if (window.globalConfig && window.globalConfig.applyTheme) {
               window.globalConfig.applyTheme();
@@ -1666,7 +1666,7 @@
         }
       });
       
-      console.log('Unified Monitoring Dashboard initialized with theme:', document.documentElement.getAttribute('data-theme'));
+      console.debug('Unified Monitoring Dashboard initialized with theme:', document.documentElement.getAttribute('data-theme'));
     });
   </script>
 </body>

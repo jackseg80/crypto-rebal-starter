@@ -875,7 +875,7 @@
                 } else if (group.value > 1000) {
                     log.debug('Final group:', group.label, '- value:', group.value.toFixed(2));
                     if (group.assets && group.assets.length > 1) {
-                        console.log('  └─ Assets:', group.assets.join(', '));
+                        console.debug('  └─ Assets:', group.assets.join(', '));
                     }
                 }
             });
@@ -888,36 +888,36 @@
             log.debug('updatePortfolioChart - balancesData:', balancesData);
 
             if (!balancesData || !balancesData.items) {
-                console.log('❌ No balances data or items');
+                console.debug('❌ No balances data or items');
                 document.getElementById('portfolio-chart').innerHTML = '<div style="text-align: center; padding: 20px; color: var(--warning);">⏳ Chargement des données...</div>';
                 return;
             }
 
             // Vérifier que ASSET_GROUPS est chargé - forcer le chargement si nécessaire
             if (!ASSET_GROUPS) {
-                console.log('❌ ASSET_GROUPS not loaded, loading fallback immediately...');
+                console.debug('❌ ASSET_GROUPS not loaded, loading fallback immediately...');
                 await useFallbackAssetGroups();
                 // Continue avec ASSET_GROUPS maintenant disponible
             }
 
             let canvas = document.getElementById('portfolioChartCanvas');
             if (!canvas) {
-                console.log('❌ Canvas element not found, creating it...');
+                console.debug('❌ Canvas element not found, creating it...');
                 // Créer le canvas manquant
                 const chartContainer = document.getElementById('portfolio-chart');
                 if (chartContainer) {
                     chartContainer.innerHTML = '<canvas id="portfolioChartCanvas"></canvas>';
                     canvas = document.getElementById('portfolioChartCanvas');
-                    console.log('✅ Canvas element created successfully');
+                    console.debug('✅ Canvas element created successfully');
                 } else {
-                    console.log('❌ Portfolio chart container not found');
+                    console.debug('❌ Portfolio chart container not found');
                     return;
                 }
             }
 
             // Vérifier que Chart.js est chargé
             if (typeof Chart === 'undefined') {
-                console.log('❌ Chart.js not loaded, trying to reload...');
+                console.debug('❌ Chart.js not loaded, trying to reload...');
                 document.getElementById('portfolio-chart').innerHTML = '<div style="text-align: center; padding: 20px; color: var(--danger);">❌ Chart.js non chargé - rechargez la page</div>';
                 return;
             }
@@ -950,7 +950,7 @@
 
             // Si aucune donnée, afficher un message explicatif
             if (labels.length === 0 || total === 0) {
-                console.log('❌ No chart data available, showing placeholder');
+                console.debug('❌ No chart data available, showing placeholder');
                 document.getElementById('portfolio-chart').innerHTML = `
                     <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; color: var(--theme-text-muted);">
                         <div style="font-size: 2rem; margin-bottom: 12px;">📊</div>
@@ -1087,7 +1087,7 @@
 
         // Forcer un refresh des données avec la source actuelle
         async function forceRefreshData() {
-            console.log('🔄 Force refresh demandé par utilisateur');
+            console.debug('🔄 Force refresh demandé par utilisateur');
             // Vider le cache si nécessaire
             await loadDashboardData();
         }

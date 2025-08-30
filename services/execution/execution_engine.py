@@ -186,7 +186,7 @@ class ExecutionEngine:
     async def _execute_order_batch(self, orders: List[Order], stats: ExecutionStats, 
                                  dry_run: bool, max_parallel: int) -> None:
         """Exécuter un lot d'ordres avec parallélisme limité"""
-        
+
         # Créer un semaphore pour limiter le parallélisme
         semaphore = asyncio.Semaphore(max_parallel)
         
@@ -206,12 +206,37 @@ class ExecutionEngine:
                                                  dry_run: bool) -> None:
         """Exécuter un ordre unique avec gestion du semaphore"""
         async with semaphore:
+            # Arrêt coopératif si l'exécution a été annulée
+            plan_id = order.rebalance_session_id
+            if plan_id and not self.active_executions.get(plan_id, True):
+                order.status = OrderStatus.CANCELLED
+                order.updated_at = datetime.now(timezone.utc)
+                self._emit_event(ExecutionEvent(
+                    type="order_cancelled",
+                    order_id=order.id,
+                    plan_id=plan_id,
+                    message="Order cancelled before execution"
+                ))
+                return
             await self._execute_single_order(order, stats, dry_run)
     
     async def _execute_single_order(self, order: Order, stats: ExecutionStats, 
                                    dry_run: bool) -> None:
         """Exécuter un ordre unique"""
-        
+
+        # Arrêt coopératif juste avant le démarrage effectif
+        plan_id = order.rebalance_session_id
+        if plan_id and not self.active_executions.get(plan_id, True):
+            order.status = OrderStatus.CANCELLED
+            order.updated_at = datetime.now(timezone.utc)
+            self._emit_event(ExecutionEvent(
+                type="order_cancelled",
+                order_id=order.id,
+                plan_id=plan_id,
+                message="Order cancelled (cooperative check)"
+            ))
+            return
+
         self._emit_event(ExecutionEvent(
             type="order_start",
             order_id=order.id,
@@ -238,6 +263,18 @@ class ExecutionEngine:
             if validation_errors:
                 raise ValueError(f"Order validation failed: {', '.join(validation_errors)}")
             
+            # Arrêt coopératif juste avant placement d'ordre (point réseau)
+            if plan_id and not self.active_executions.get(plan_id, True):
+                order.status = OrderStatus.CANCELLED
+                order.updated_at = datetime.now(timezone.utc)
+                self._emit_event(ExecutionEvent(
+                    type="order_cancelled",
+                    order_id=order.id,
+                    plan_id=plan_id,
+                    message="Order cancelled before placement"
+                ))
+                return
+
             # Exécution de l'ordre
             logger.info(f"Executing order {order.alias}: {order.action} "
                        f"${abs(order.usd_amount):,.2f} on {exchange_name}")

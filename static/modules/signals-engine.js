@@ -20,7 +20,7 @@ export const DEFAULT_CCS_WEIGHTS = {
  * Fetch market signals from multiple sources
  */
 export async function fetchSignals() {
-  console.log('🔍 Fetching REAL market signals...');
+  console.debug('🔍 Fetching REAL market signals...');
   
   const signals = {};
   
@@ -41,7 +41,7 @@ export async function fetchSignals() {
           timestamp: Date.now(),
           source: 'alternative.me'
         };
-        console.log('✅ Fear & Greed loaded:', fearGreedValue);
+        console.debug('✅ Fear & Greed loaded:', fearGreedValue);
       } else {
         throw new Error('Fear & Greed API failed');
       }
@@ -71,7 +71,7 @@ export async function fetchSignals() {
           timestamp: Date.now(),
           source: 'coingecko'
         };
-        console.log('✅ BTC Dominance loaded:', btcDominance.toFixed(1) + '%');
+        console.debug('✅ BTC Dominance loaded:', btcDominance.toFixed(1) + '%');
       } else {
         throw new Error('CoinGecko API failed');
       }
@@ -101,7 +101,7 @@ export async function fetchSignals() {
           timestamp: Date.now(),
           source: 'binance'
         };
-        console.log('✅ Funding Rate loaded:', (fundingRate * 100).toFixed(4) + '%');
+        console.debug('✅ Funding Rate loaded:', (fundingRate * 100).toFixed(4) + '%');
       } else {
         throw new Error('Binance API failed');
       }
@@ -124,7 +124,7 @@ export async function fetchSignals() {
       
       if (pricesResponse.ok) {
         const pricesData = await pricesResponse.json();
-        console.log('🔍 ETH/BTC API response:', pricesData);
+        console.debug('🔍 ETH/BTC API response:', pricesData);
         
         const btcPrice = pricesData.bitcoin?.usd;
         const ethPrice = pricesData.ethereum?.usd;
@@ -138,7 +138,7 @@ export async function fetchSignals() {
             timestamp: Date.now(),
             source: 'coingecko'
           };
-          console.log('✅ ETH/BTC Ratio loaded:', ethBtcRatio.toFixed(6));
+          console.debug('✅ ETH/BTC Ratio loaded:', ethBtcRatio.toFixed(6));
         } else {
           throw new Error(`Invalid price data: BTC=${btcPrice}, ETH=${ethPrice}`);
         }
@@ -180,7 +180,7 @@ export async function fetchSignals() {
           timestamp: Date.now(),
           source: 'coingecko_calculated'
         };
-        console.log('✅ Volatility loaded:', (volatility * 100).toFixed(1) + '%');
+        console.debug('✅ Volatility loaded:', (volatility * 100).toFixed(1) + '%');
       } else {
         throw new Error('CoinGecko market chart API failed');
       }
@@ -211,7 +211,7 @@ export async function fetchSignals() {
           timestamp: Date.now(),
           source: 'coingecko'
         };
-        console.log('✅ Trend loaded:', (priceChange7d * 100).toFixed(2) + '%');
+        console.debug('✅ Trend loaded:', (priceChange7d * 100).toFixed(2) + '%');
       } else {
         throw new Error('CoinGecko trend API failed');
       }
@@ -238,7 +238,7 @@ export async function fetchSignals() {
     };
   }
 
-  console.log('🔍 Fetched REAL signals:', signals);
+  console.debug('🔍 Fetched REAL signals:', signals);
   return signals;
 }
 
@@ -357,7 +357,7 @@ export async function fetchAndComputeCCS(weights = DEFAULT_CCS_WEIGHTS) {
     // Compute CCS
     const ccs = computeCCS(signals, weights);
     
-    console.log(`CCS computed: ${ccs.score} (model: ${ccs.model_version})`);
+    console.debug(`CCS computed: ${ccs.score} (model: ${ccs.model_version})`);
     
     return ccs;
     

@@ -73,7 +73,8 @@ async def get_portfolio_risk_metrics(
         from connectors.cointracking_api import get_current_balances
         
         # Récupération des holdings actuels
-        balances = await get_current_balances()
+        balances_response = await get_current_balances()
+        balances = balances_response.get('items', []) if isinstance(balances_response, dict) else balances_response
         if not balances or len(balances) == 0:
             return RiskMetricsResponse(
                 success=False,
@@ -145,7 +146,8 @@ async def get_correlation_matrix(
         from connectors.cointracking_api import get_current_balances
         
         # Récupération des holdings actuels
-        balances = await get_current_balances()
+        balances_response = await get_current_balances()
+        balances = balances_response.get('items', []) if isinstance(balances_response, dict) else balances_response
         if not balances or len(balances) == 0:
             return CorrelationResponse(
                 success=False,
@@ -220,7 +222,8 @@ async def run_predefined_stress_test(
         from connectors.cointracking_api import get_current_balances
         
         # Récupération des holdings actuels
-        balances = await get_current_balances()
+        balances_response = await get_current_balances()
+        balances = balances_response.get('items', []) if isinstance(balances_response, dict) else balances_response
         if not balances or len(balances) == 0:
             return StressTestResponse(
                 success=False,

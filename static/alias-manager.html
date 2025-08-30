@@ -262,14 +262,14 @@
       initSharedHeader('alias-manager', { showConfigIndicators: true });
 
       // Appliquer le thème immédiatement
-      console.log('Initializing theme for alias-manager page...');
+      console.debug('Initializing theme for alias-manager page...');
       if (window.globalConfig && window.globalConfig.applyTheme) {
         window.globalConfig.applyTheme();
       }
       if (window.applyAppearance) {
         window.applyAppearance();
       }
-      console.log('Current theme after alias-manager init:', document.documentElement.getAttribute('data-theme'));
+      console.debug('Current theme after alias-manager init:', document.documentElement.getAttribute('data-theme'));
     });
   </script>
 
@@ -426,7 +426,7 @@
       
       // Try to enhance with configured data source
       try {
-        console.log('🔍 Loading alias data using configured source...');
+        console.debug('🔍 Loading alias data using configured source...');
         const balanceResult = await window.loadBalanceData();
         
         if (balanceResult.success) {
@@ -446,7 +446,7 @@
             throw new Error('Invalid data format received');
           }
           
-          console.log('🔍 DEBUG Alias Manager: Found', balances.length, 'assets using source:', balanceResult.source);
+          console.debug('🔍 DEBUG Alias Manager: Found', balances.length, 'assets using source:', balanceResult.source);
           
           // Add any missing assets from CSV to mockAliases
           balances.forEach(item => {
@@ -464,7 +464,7 @@
               } else {
                 mockAliases[symbol] = 'Others';
               }
-              console.log('🔍 DEBUG: Auto-classified', symbol, 'as', mockAliases[symbol]);
+              console.debug('🔍 DEBUG: Auto-classified', symbol, 'as', mockAliases[symbol]);
             }
           });
         }
@@ -498,7 +498,7 @@
       const lines = csvText.split('\n');
       const balances = [];
       
-      console.log('🔍 DEBUG Alias Manager: Parsing CSV with', lines.length, 'total lines');
+      console.debug('🔍 DEBUG Alias Manager: Parsing CSV with', lines.length, 'total lines');
       
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim();
@@ -526,7 +526,7 @@
       }
       
       const totalParsed = balances.reduce((sum, item) => sum + item.value_usd, 0);
-      console.log('🔍 DEBUG Alias Manager: CSV parsing complete -', balances.length, 'assets, total:', totalParsed.toFixed(2), '$');
+      console.debug('🔍 DEBUG Alias Manager: CSV parsing complete -', balances.length, 'assets, total:', totalParsed.toFixed(2), '$');
       
       return balances;
     }
@@ -564,7 +564,7 @@
       // Écouter les changements de thème pour synchronisation cross-tab
       window.addEventListener('storage', function(e) {
         if (e.key === 'crypto_rebalancer_settings') {
-          console.log('Settings changed in another tab, reapplying theme...');
+          console.debug('Settings changed in another tab, reapplying theme...');
           setTimeout(() => {
             if (window.globalConfig && window.globalConfig.applyTheme) {
               window.globalConfig.applyTheme();
