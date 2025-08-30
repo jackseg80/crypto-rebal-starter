@@ -7,18 +7,39 @@ import { store } from '../core/risk-dashboard-store.js';
 import { interpretCCS } from './signals-engine.js';
 import { getMarketRegime, applyMarketOverrides, calculateRiskBudget, allocateRiskyBudget, generateRegimeRecommendations } from './market-regimes.js';
 
+// All asset groups (ensures consistent 11-group taxonomy)
+const ALL_ASSET_GROUPS = ['BTC', 'ETH', 'Stablecoins', 'SOL', 'L1/L0 majors', 'L2/Scaling', 'DeFi', 'AI/Data', 'Gaming/NFT', 'Memecoins', 'Others'];
+
 // Default macro targets (baseline allocation)
 export const DEFAULT_MACRO_TARGETS = {
   'BTC': 35.0,
   'ETH': 25.0,
   'Stablecoins': 20.0,
-  'L1/L0 majors': 10.0,
-  'L2/Scaling': 5.0,
-  'DeFi': 3.0,
-  'AI/Data': 2.0,
+  'SOL': 5.0,
+  'L1/L0 majors': 7.0,
+  'L2/Scaling': 4.0,
+  'DeFi': 2.0,
+  'AI/Data': 1.5,
+  'Gaming/NFT': 0.5,
+  'Memecoins': 0.0,
   'Others': 0.0,
-  model_version: 'macro-1'
+  model_version: 'macro-2'
 };
+
+/**
+ * Ensure all 11 asset groups are present in targets (with 0% if missing)
+ */
+function ensureAllGroups(targets) {
+  const result = { ...targets };
+  
+  ALL_ASSET_GROUPS.forEach(group => {
+    if (!(group in result)) {
+      result[group] = 0.0;
+    }
+  });
+  
+  return result;
+}
 
 /**
  * Normalize targets to sum to 100%
@@ -28,8 +49,11 @@ export function normalizeTargets(targets) {
     throw new Error('Invalid targets object');
   }
   
+  // Ensure all groups are present first
+  const completeTargets = ensureAllGroups(targets);
+  
   // Separate model_version from numeric targets
-  const { model_version, ...numericTargets } = targets;
+  const { model_version, ...numericTargets } = completeTargets;
   
   // Calculate total
   const total = Object.values(numericTargets).reduce((sum, val) => {
@@ -84,7 +108,11 @@ export function generateCCSTargets(ccsScore, mode = 'balanced') {
   }
   
   const interpretation = interpretCCS(ccsScore);
-  let targets = { ...DEFAULT_MACRO_TARGETS };
+  // Start with all groups at 0
+  let targets = {};
+  ALL_ASSET_GROUPS.forEach(group => {
+    targets[group] = 0.0;
+  });
   
   // Adjust based on CCS score
   switch (interpretation.level) {
@@ -92,40 +120,61 @@ export function generateCCSTargets(ccsScore, mode = 'balanced') {
       targets.BTC = 40;
       targets.ETH = 30;
       targets.Stablecoins = 10;
-      targets['L1/L0 majors'] = 12;
-      targets['L2/Scaling'] = 6;
-      targets.DeFi = 2;
+      targets.SOL = 8;
+      targets['L1/L0 majors'] = 7;
+      targets['L2/Scaling'] = 3;
+      targets.DeFi = 1;
+      targets['AI/Data'] = 0.5;
+      targets['Gaming/NFT'] = 0.5;
+      targets.Memecoins = 0;
+      targets.Others = 0;
       break;
       
     case 'high': // 65-79: Bullish
       targets.BTC = 38;
       targets.ETH = 28;
       targets.Stablecoins = 15;
-      targets['L1/L0 majors'] = 11;
-      targets['L2/Scaling'] = 5;
-      targets.DeFi = 3;
+      targets.SOL = 7;
+      targets['L1/L0 majors'] = 6;
+      targets['L2/Scaling'] = 3;
+      targets.DeFi = 2;
+      targets['AI/Data'] = 0.5;
+      targets['Gaming/NFT'] = 0.5;
+      targets.Memecoins = 0;
+      targets.Others = 0;
       break;
       
     case 'medium': // 50-64: Neutral+
-      targets = { ...DEFAULT_MACRO_TARGETS }; // Keep defaults
+      // Use defaults but ensure all groups present
+      Object.assign(targets, DEFAULT_MACRO_TARGETS);
       break;
       
     case 'low': // 35-49: Neutral-
       targets.BTC = 30;
       targets.ETH = 20;
       targets.Stablecoins = 30;
-      targets['L1/L0 majors'] = 8;
-      targets['L2/Scaling'] = 4;
-      targets.DeFi = 8;
+      targets.SOL = 4;
+      targets['L1/L0 majors'] = 6;
+      targets['L2/Scaling'] = 3;
+      targets.DeFi = 5;
+      targets['AI/Data'] = 1.5;
+      targets['Gaming/NFT'] = 0.5;
+      targets.Memecoins = 0;
+      targets.Others = 0;
       break;
       
     case 'very_low': // 0-34: Bearish
       targets.BTC = 25;
       targets.ETH = 15;
       targets.Stablecoins = 45;
-      targets['L1/L0 majors'] = 5;
-      targets['L2/Scaling'] = 3;
-      targets.DeFi = 7;
+      targets.SOL = 3;
+      targets['L1/L0 majors'] = 4;
+      targets['L2/Scaling'] = 2;
+      targets.DeFi = 5;
+      targets['AI/Data'] = 1;
+      targets['Gaming/NFT'] = 0;
+      targets.Memecoins = 0;
+      targets.Others = 0;
       break;
   }
   
@@ -310,17 +359,22 @@ export function proposeTargets(mode = 'blend', options = {}) {
       case 'ccs':
         if (!ccsScore) {
           // Fallback : stratégie plus agressive (simule CCS élevé)
-          proposedTargets = {
-            'BTC': 45.0,
-            'ETH': 30.0,
-            'Stablecoins': 10.0,
-            'L1/L0 majors': 8.0,
-            'L2/Scaling': 4.0,
-            'DeFi': 2.0,
-            'AI/Data': 1.0,
-            'Others': 0.0,
-            model_version: 'ccs-fallback-aggressive'
-          };
+          proposedTargets = {};
+          ALL_ASSET_GROUPS.forEach(group => {
+            proposedTargets[group] = 0.0;
+          });
+          proposedTargets.BTC = 45.0;
+          proposedTargets.ETH = 30.0;
+          proposedTargets.Stablecoins = 10.0;
+          proposedTargets.SOL = 6.0;
+          proposedTargets['L1/L0 majors'] = 5.0;
+          proposedTargets['L2/Scaling'] = 2.5;
+          proposedTargets.DeFi = 1.0;
+          proposedTargets['AI/Data'] = 0.5;
+          proposedTargets['Gaming/NFT'] = 0.0;
+          proposedTargets.Memecoins = 0.0;
+          proposedTargets.Others = 0.0;
+          proposedTargets.model_version = 'ccs-fallback-aggressive';
           strategy = 'CCS Aggressive (simulated)';
         } else {
           proposedTargets = generateCCSTargets(ccsScore);
@@ -331,17 +385,22 @@ export function proposeTargets(mode = 'blend', options = {}) {
       case 'cycle':
         if (!cycleMultipliers) {
           // Fallback : stratégie cycle bear market (plus défensive)
-          proposedTargets = {
-            'BTC': 28.0,
-            'ETH': 18.0,
-            'Stablecoins': 40.0,
-            'L1/L0 majors': 8.0,
-            'L2/Scaling': 3.0,
-            'DeFi': 2.5,
-            'AI/Data': 0.5,
-            'Others': 0.0,
-            model_version: 'cycle-bear-fallback'
-          };
+          proposedTargets = {};
+          ALL_ASSET_GROUPS.forEach(group => {
+            proposedTargets[group] = 0.0;
+          });
+          proposedTargets.BTC = 28.0;
+          proposedTargets.ETH = 18.0;
+          proposedTargets.Stablecoins = 40.0;
+          proposedTargets.SOL = 4.0;
+          proposedTargets['L1/L0 majors'] = 5.0;
+          proposedTargets['L2/Scaling'] = 2.5;
+          proposedTargets.DeFi = 2.0;
+          proposedTargets['AI/Data'] = 0.5;
+          proposedTargets['Gaming/NFT'] = 0.0;
+          proposedTargets.Memecoins = 0.0;
+          proposedTargets.Others = 0.0;
+          proposedTargets.model_version = 'cycle-bear-fallback';
           strategy = 'Cycle Bear Market (defensive)';
         } else {
           proposedTargets = applyCycleMultipliers(DEFAULT_MACRO_TARGETS, cycleMultipliers);
@@ -364,17 +423,22 @@ export function proposeTargets(mode = 'blend', options = {}) {
         // Deterministic priority logic
         if (!ccsScore || (!finalBlendedScore && !blendedCCS)) {
           // Fallback to balanced blend when no score data
-          proposedTargets = {
-            'BTC': 33.0,
-            'ETH': 27.0,
-            'Stablecoins': 22.0,
-            'L1/L0 majors': 9.0,
-            'L2/Scaling': 4.5,
-            'DeFi': 3.5,
-            'AI/Data': 1.0,
-            'Others': 0.0,
-            model_version: 'blend-fallback'
-          };
+          proposedTargets = {};
+          ALL_ASSET_GROUPS.forEach(group => {
+            proposedTargets[group] = 0.0;
+          });
+          proposedTargets.BTC = 33.0;
+          proposedTargets.ETH = 27.0;
+          proposedTargets.Stablecoins = 22.0;
+          proposedTargets.SOL = 5.0;
+          proposedTargets['L1/L0 majors'] = 6.5;
+          proposedTargets['L2/Scaling'] = 3.5;
+          proposedTargets.DeFi = 2.5;
+          proposedTargets['AI/Data'] = 0.5;
+          proposedTargets['Gaming/NFT'] = 0.0;
+          proposedTargets.Memecoins = 0.0;
+          proposedTargets.Others = 0.0;
+          proposedTargets.model_version = 'blend-fallback';
           strategy = 'Balanced Blend (no scores available)';
         } else if (effectiveScore >= 70) {
           // High confidence: use blended CCS

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Simple - 11 Groups</title>
+    <style>
+        body { font-family: monospace; margin: 20px; }
+        .result { margin: 10px 0; padding: 10px; border: 1px solid #ccc; background: #f9f9f9; }
+        .error { background: #fdd; }
+        .success { background: #dfd; }
+    </style>
+</head>
+<body>
+    <h1>Test Simple des 11 Groupes</h1>
+    <button onclick="runTest()">🔬 Test Direct</button>
+    <div id="output"></div>
+
+    <script type="module">
+        import { proposeTargets, DEFAULT_MACRO_TARGETS } from '../../static/modules/targets-coordinator.js';
+        
+        window.runTest = function() {
+            const output = document.getElementById('output');
+            let html = '';
+            
+            try {
+                // Test 1: DEFAULT_MACRO_TARGETS
+                html += '<div class="result">';
+                html += '<h3>Test 1: DEFAULT_MACRO_TARGETS</h3>';
+                html += '<pre>' + JSON.stringify(DEFAULT_MACRO_TARGETS, null, 2) + '</pre>';
+                html += '<p>Nombre de groupes: ' + Object.keys(DEFAULT_MACRO_TARGETS).filter(k => k !== 'model_version').length + '</p>';
+                html += '</div>';
+                
+                // Test 2: proposeTargets('macro') 
+                const macroResult = proposeTargets('macro');
+                html += '<div class="result">';
+                html += '<h3>Test 2: proposeTargets("macro")</h3>';
+                html += '<pre>' + JSON.stringify(macroResult.targets, null, 2) + '</pre>';
+                html += '<p>Nombre de groupes: ' + Object.keys(macroResult.targets).filter(k => k !== 'model_version').length + '</p>';
+                html += '</div>';
+                
+                // Test 3: proposeTargets('blend')
+                const blendResult = proposeTargets('blend');
+                html += '<div class="result">';
+                html += '<h3>Test 3: proposeTargets("blend")</h3>';
+                html += '<pre>' + JSON.stringify(blendResult.targets, null, 2) + '</pre>';
+                html += '<p>Nombre de groupes: ' + Object.keys(blendResult.targets).filter(k => k !== 'model_version').length + '</p>';
+                html += '</div>';
+                
+                // Vérification finale
+                const macroCount = Object.keys(macroResult.targets).filter(k => k !== 'model_version').length;
+                const blendCount = Object.keys(blendResult.targets).filter(k => k !== 'model_version').length;
+                
+                if (macroCount === 11 && blendCount === 11) {
+                    html += '<div class="result success"><h3>✅ SUCCESS: Tous les tests montrent 11 groupes</h3></div>';
+                } else {
+                    html += '<div class="result error"><h3>❌ PROBLEM: Macro=' + macroCount + ', Blend=' + blendCount + ' (attendu: 11 chacun)</h3></div>';
+                }
+                
+            } catch (error) {
+                html += '<div class="result error">';
+                html += '<h3>❌ Erreur: ' + error.message + '</h3>';
+                html += '<pre>' + error.stack + '</pre>';
+                html += '</div>';
+            }
+            
+            output.innerHTML = html;
+        };
+    </script>
+</body>
+</html>

@@ -263,7 +263,8 @@ export function allocateRiskyBudget(riskyPercentage, regime) {
   return {
     BTC: allocation.btc * riskyFactor,
     ETH: allocation.eth * riskyFactor,
-    'L1/L0 majors': allocation.midcaps * riskyFactor * 0.6,
+    SOL: allocation.midcaps * riskyFactor * 0.2,
+    'L1/L0 majors': allocation.midcaps * riskyFactor * 0.4,
     'L2/Scaling': allocation.midcaps * riskyFactor * 0.3,
     'DeFi': allocation.midcaps * riskyFactor * 0.1,
     'AI/Data': allocation.meme * riskyFactor * 0.5,
