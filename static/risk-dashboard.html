@@ -1030,9 +1030,9 @@
           warning: [0.4, 0.8], // 40-80%
           danger: [0.8, 2.0], // >80%
           interpretation: {
-            good: "Volatilité faible pour crypto",
-            warning: "Volatilité crypto typique",
-            danger: "Volatilité très élevée"
+            good: "Volatilité faible",
+            warning: "Volatilité modérée",
+            danger: "Volatilité élevée"
           }
         },
         'max_drawdown': {
@@ -1056,13 +1056,13 @@
           }
         },
         'effective_assets': {
-          danger: [1, 2.5],
-          warning: [2.5, 4],
-          good: [4, 20],
+          danger: [0, 10],
+          warning: [10, 20],
+          good: [20, 999],
           interpretation: {
-            danger: "Portfolio trop concentré",
-            warning: "Concentration modérée",
-            good: "Bonne répartition des actifs"
+            danger: "Très peu d'actifs effectifs",
+            warning: "Diversification partielle",
+            good: "Bonne diversification"
           }
         }
       };
@@ -1091,10 +1091,10 @@
     function getContextualBenchmark(key, value) {
       const benchmarks = {
         'var_95_1d': {
-          crypto_conservative: -0.04,
-          crypto_typical: -0.07,
-          crypto_aggressive: -0.12,
-          traditional: -0.02
+          crypto_conservative: 0.04,
+          crypto_typical: 0.07,
+          crypto_aggressive: 0.12,
+          traditional: 0.02
         },
         'sharpe_ratio': {
           crypto_excellent: 1.5,

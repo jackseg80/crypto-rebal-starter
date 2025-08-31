@@ -939,7 +939,7 @@ Tous les cas d'usage critiques ont été testés et validés :
 - ⬜ **Binance Integration**: Support complet API Binance
 - ⬜ **Cross-Exchange Arbitrage**: Détection et exécution d'opportunités
 - ⬜ **Advanced Order Types**: Support OCO, trailing stops, iceberg
-- ⬜ **Portfolio Optimization**: Optimisation mathématique avec contraintes
+- ✅ **Portfolio Optimization**: Optimisation Markowitz avec 34+ actifs, contraintes crypto-spécifiques
 
 **⬜ Phase 6: AI & Predictive Analytics**
 - ⬜ **ML Risk Models**: Modèles prédictifs de risque avec deep learning
@@ -958,6 +958,37 @@ Tous les cas d'usage critiques ont été testés et validés :
 - ⬜ **Microservices**: Architecture distribuée scalable
 - ⬜ **Docker & Kubernetes**: Containerisation et orchestration
 - ⬜ **Cloud Deployment**: Déploiement multi-cloud avec HA
+
+## 📊 Portfolio Optimization
+
+### Features
+- **Markowitz Optimization** avec 5 objectifs (Max Sharpe, Min Variance, Risk Parity, etc.)
+- **126+ cryptos supportés** avec historique de prix automatique
+- **Contraintes crypto-spécifiques** : diversification, corrélation, volatilité
+- **Gestion d'historiques variables** : filtre par ancienneté des actifs
+- **Interface compacte** avec sélection source de données
+
+### API Endpoints
+```bash
+# Optimisation portfolio
+POST /api/portfolio/optimization/optimize?source=cointracking&min_usd=100&min_history_days=365
+Content-Type: application/json
+
+{
+  "objective": "max_sharpe",           # max_sharpe|min_variance|risk_parity|mean_reversion
+  "lookback_days": 365,               # Période d'analyse
+  "expected_return_method": "historical", # historical|mean_reversion|momentum  
+  "conservative": false,              # Contraintes conservatrices ou agressives
+  "include_current_weights": true     # Inclure poids actuels pour rebalancement
+}
+```
+
+### Paramètres Critiques
+- **min_usd**: Seuil minimum par actif (ex: 100-1000 pour filtrer)
+- **min_history_days**: Historique minimum requis (365-730 recommandé)
+  - 90 jours = Inclut cryptos récentes (risque de période courte)
+  - 365 jours = Équilibre qualité/diversité  
+  - 730+ jours = Conservateur, cryptos établies uniquement
 
 ### 🔧 Améliorations techniques récentes (Août 2025)
 
