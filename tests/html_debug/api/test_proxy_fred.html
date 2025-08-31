@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base href="/static/">
+  <title>Test FRED Proxy</title>
+  <script src="global-config.js"></script>
+</head>
+<body>
+  <h1>🔄 Test Proxy FRED</h1>
+  <button onclick="testProxy()">Test Proxy FRED</button>
+  <button onclick="testNewFetchFunction()">Test fetchBitcoinHistoricalData()</button>
+  
+  <div id="results"></div>
+
+  <script>
+    function log(message, type = 'info') {
+      const results = document.getElementById('results');
+      const div = document.createElement('div');
+      div.style.cssText = `
+        margin: 0.5rem 0; 
+        padding: 0.5rem; 
+        border-radius: 4px; 
+        background: ${type === 'success' ? '#d4edda' : type === 'error' ? '#f8d7da' : '#fff3cd'};
+        color: ${type === 'success' ? '#155724' : type === 'error' ? '#721c24' : '#856404'};
+      `;
+      div.innerHTML = message;
+      results.appendChild(div);
+    }
+
+    async function testProxy() {
+      log('🔄 Test proxy FRED...');
+      
+      try {
+        const response = await fetch('/proxy/fred/bitcoin?start_date=2014-01-01&limit=10');
+        if (response.ok) {
+          const data = await response.json();
+          log(`✅ Proxy réussi: ${JSON.stringify(data)}`, 'success');
+          
+          if (data.success && data.data.length > 0) {
+            const first = data.data[0];
+            const last = data.data[data.data.length - 1];
+            const firstDate = new Date(first.time).toLocaleDateString();
+            
+            log(`📊 ${data.data.length} points récupérés`, 'success');
+            log(`📅 Première donnée: ${firstDate} = $${first.price}`, 'success');
+            log(`📅 Total disponible: ${data.raw_count} observations`, 'success');
+            
+            if (new Date(first.time).getFullYear() <= 2014) {
+              log(`🎯 HISTORIQUE COMPLET depuis 2014!`, 'success');
+            }
+          }
+        } else {
+          log(`❌ Proxy failed: HTTP ${response.status}`, 'error');
+        }
+      } catch (e) {
+        log(`❌ Error: ${e.message}`, 'error');
+      }
+    }
+
+    async function testNewFetchFunction() {
+      log('📈 Test nouvelle fetchBitcoinHistoricalData()...');
+      
+      async function fetchBitcoinHistoricalData() {
+        console.log('🏛️ Tentative de récupération historique Bitcoin...');
+        
+        // 1) FRED via Proxy Backend (résout les problèmes CORS)
+        try {
+          console.log('🏛️ Récupération historique Bitcoin depuis FRED via proxy...');
+          const proxyUrl = '/proxy/fred/bitcoin?start_date=2014-01-01';
+          const r = await fetch(proxyUrl);
+          if (!r.ok) throw new Error(`Proxy HTTP ${r.status}: ${r.statusText}`);
+          const result = await r.json();
+          
+          if (result.success && result.data && result.data.length > 0) {
+            console.log(`✅ FRED Proxy: ${result.data.length} points récupérés`);
+            
+            return { 
+              data: result.data.map(point => ({ time: point.time, price: point.price })), 
+              source: result.source 
+            };
+          } else {
+            console.warn('⚠️ FRED Proxy: Aucune donnée ou erreur -', result.error);
+          }
+        } catch (e) {
+          console.warn('❌ FRED Proxy échoué:', e.message);
+        }
+
+        return { data: [], source: 'Échec' };
+      }
+
+      try {
+        const result = await fetchBitcoinHistoricalData();
+        
+        if (result.data.length > 0) {
+          const first = result.data[0];
+          const last = result.data[result.data.length - 1];
+          const firstDate = new Date(first.time);
+          const lastDate = new Date(last.time);
+          
+          log(`✅ Function réussie!`, 'success');
+          log(`📊 Source: ${result.source}`, 'success');
+          log(`📊 Points: ${result.data.length}`, 'success');
+          log(`📅 ${firstDate.toLocaleDateString()} ($${first.price}) → ${lastDate.toLocaleDateString()} ($${last.price})`, 'success');
+          
+          if (firstDate.getFullYear() <= 2014) {
+            log(`🎯 SUCCÈS TOTAL: Le graphique devrait maintenant commencer en 2014!`, 'success');
+          }
+        } else {
+          log(`❌ Function failed: ${result.source}`, 'error');
+        }
+      } catch (e) {
+        log(`❌ Error: ${e.message}`, 'error');
+      }
+    }
+
+    // Auto test
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(testProxy, 500);
+    });
+  </script>
+</body>
+</html>

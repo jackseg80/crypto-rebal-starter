@@ -97,6 +97,40 @@ async def optimize_portfolio(
     """
     
     try:
+        # Input validation
+        if request.lookback_days < 30 or request.lookback_days > 2000:
+            raise HTTPException(
+                status_code=400, 
+                detail="lookback_days must be between 30 and 2000 days"
+            )
+        
+        if min_history_days < 30 or min_history_days > 1000:
+            raise HTTPException(
+                status_code=400, 
+                detail="min_history_days must be between 30 and 1000 days"
+            )
+        
+        if min_usd < 0 or min_usd > 100000:
+            raise HTTPException(
+                status_code=400, 
+                detail="min_usd must be between 0 and 100,000"
+            )
+        
+        # Validate optimization parameters
+        if hasattr(request, 'target_return') and request.target_return:
+            if request.target_return < -1.0 or request.target_return > 5.0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="target_return must be between -100% and 500%"
+                )
+        
+        if hasattr(request, 'target_volatility') and request.target_volatility:
+            if request.target_volatility < 0.01 or request.target_volatility > 3.0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="target_volatility must be between 1% and 300%"
+                )
+        
         optimizer = PortfolioOptimizer()
         
         # Get current portfolio using the same logic as /balances/current

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Apply Strategy Button</title>
+</head>
+<body>
+    <h1>Debug Apply Strategy Button</h1>
+    
+    <h2>Instructions de debug :</h2>
+    <ol>
+        <li>Ouvrir <strong>http://localhost:8000/static/rebalance.html</strong></li>
+        <li>Ouvrir les DevTools (F12) → Console</li>
+        <li>Coller ce script dans la console :</li>
+    </ol>
+    
+    <pre style="background: #f0f0f0; padding: 15px; border: 1px solid #ccc;">
+console.log("=== DEBUG BOUTON APPLIQUER STRATÉGIE ===");
+
+// 1. Vérifier que le bouton existe
+const applyBtn = document.getElementById('apply-strategy-btn');
+console.log("Bouton Apply Strategy trouvé:", !!applyBtn);
+console.log("Bouton disabled:", applyBtn ? applyBtn.disabled : "N/A");
+
+// 2. Vérifier les stratégies disponibles
+console.log("Stratégies disponibles:", Object.keys(availableStrategies || {}));
+
+// 3. Vérifier les cartes de stratégie
+const strategyCards = document.querySelectorAll('.strategy-card');
+console.log("Nombre de cartes stratégies:", strategyCards.length);
+
+strategyCards.forEach((card, index) => {
+    const strategyId = card.getAttribute('data-strategy-id');
+    const isClickable = card.getAttribute('onclick');
+    const isDisabled = card.style.cursor === 'not-allowed';
+    
+    console.log(`Stratégie ${index + 1}:`, {
+        id: strategyId,
+        clickable: !!isClickable,
+        disabled: isDisabled,
+        classes: card.className
+    });
+});
+
+// 4. Test de sélection manuelle
+console.log("\n=== TEST SÉLECTION MANUELLE ===");
+console.log("Pour tester, tapez: selectStrategy('STRATEGY_ID')");
+console.log("IDs disponibles:", Object.keys(availableStrategies || {}));
+
+// 5. Vérifier l'event listener
+console.log("Event listener attaché:", applyBtn ? !!applyBtn.onclick : "N/A");
+
+// 6. Forcer l'activation du bouton pour test
+if (applyBtn) {
+    console.log("Pour activer manuellement le bouton, tapez: document.getElementById('apply-strategy-btn').disabled = false");
+}
+    </pre>
+    
+    <h2>Actions de test :</h2>
+    <ul>
+        <li><strong>Si aucune stratégie n'est cliquable</strong> → Problème avec les placeholders/erreurs</li>
+        <li><strong>Si les stratégies sont cliquables mais le bouton reste grisé</strong> → Problème dans selectStrategy()</li>
+        <li><strong>Si le bouton s'active mais ne fait rien</strong> → Problème dans applyStrategy()</li>
+    </ul>
+    
+    <h2>Solutions rapides :</h2>
+    <p><strong>Activation manuelle du bouton :</strong></p>
+    <pre style="background: #e8f5e9; padding: 10px;">
+// Dans la console
+document.getElementById('apply-strategy-btn').disabled = false;
+    </pre>
+    
+    <p><strong>Sélection manuelle d'une stratégie :</strong></p>
+    <pre style="background: #e8f5e9; padding: 10px;">
+// Remplacez 'STRATEGY_ID' par un ID réel de stratégie
+selectStrategy('conservative');  // ou autre ID
+    </pre>
+</body>
+</html>

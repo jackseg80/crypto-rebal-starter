@@ -215,10 +215,36 @@ async def get_multi_asset_correlation(
     """Calculate correlation matrix across multiple asset classes"""
     
     try:
-        symbol_list = [s.strip().upper() for s in symbols.split(",")]
+        # Validate input symbols
+        if not symbols.strip():
+            raise HTTPException(status_code=400, detail="Symbols parameter cannot be empty")
+        
+        symbol_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+        
+        # Validate symbol count
+        if len(symbol_list) < 2:
+            raise HTTPException(status_code=400, detail="At least 2 symbols required for correlation analysis")
+        
+        if len(symbol_list) > 20:
+            raise HTTPException(status_code=400, detail="Maximum 20 symbols allowed for correlation analysis")
+        
+        # Validate period
+        valid_periods = ["7d", "30d", "90d", "1y", "2y", "5y"]
+        if period not in valid_periods:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Period must be one of: {', '.join(valid_periods)}"
+            )
         
         # Fetch price data
-        price_data = await multi_asset_manager.fetch_prices(symbol_list, period)
+        try:
+            price_data = await multi_asset_manager.fetch_prices(symbol_list, period)
+        except Exception as e:
+            logger.error(f"Failed to fetch price data: {e}")
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Failed to fetch price data: {str(e)}"
+            )
         
         if len(price_data) < 2:
             raise HTTPException(status_code=400, detail="Need at least 2 assets for correlation analysis")

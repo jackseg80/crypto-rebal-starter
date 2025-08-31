@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base href="/static/">
+    <title>Test des Scores Crypto</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2rem; }
+        .test-section { 
+            margin: 2rem 0; 
+            padding: 1rem; 
+            border: 1px solid #ccc; 
+            border-radius: 8px; 
+        }
+        .score { 
+            font-size: 2rem; 
+            font-weight: bold; 
+            color: #007bff; 
+        }
+        .status { 
+            padding: 0.5rem; 
+            margin: 0.5rem 0; 
+            border-radius: 4px; 
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .warning { background: #fff3cd; color: #856404; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test des Scores Crypto - Validation Complète</h1>
+    
+    <div class="test-section">
+        <h2>📊 Test Calcul monthsBetween</h2>
+        <div id="monthsTest"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>🎯 Test Score Cycle</h2>
+        <div id="cycleTest"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>⛓️ Test Indicateurs On-Chain</h2>
+        <div id="onchainTest"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>🔀 Test Score Blended</h2>
+        <div id="blendedTest"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>💾 Test Persistance Parameters</h2>
+        <div id="persistanceTest"></div>
+    </div>
+
+    <script type="module">
+        // Test de la fonction monthsBetween corrigée
+        function monthsBetween(dateA, dateB) {
+            const a = new Date(dateA);
+            const b = new Date(dateB);
+            
+            // Calcul précis des mois entre deux dates
+            const years = b.getFullYear() - a.getFullYear();
+            const months = b.getMonth() - a.getMonth();
+            const days = b.getDate() - a.getDate();
+            
+            let totalMonths = years * 12 + months;
+            
+            // Ajuster pour les jours
+            if (days > 0) {
+                totalMonths += days / 30.44; // Moyenne des jours par mois
+            } else if (days < 0) {
+                totalMonths -= Math.abs(days) / 30.44;
+            }
+            
+            return Math.max(0, totalMonths);
+        }
+        
+        // Test monthsBetween
+        function testMonthsBetween() {
+            const tests = [
+                { from: '2012-11-28', to: '2013-11-30', expected: 12.1 },
+                { from: '2016-07-09', to: '2017-12-17', expected: 17.3 },
+                { from: '2020-05-11', to: '2021-11-10', expected: 18.0 }
+            ];
+            
+            let results = '<h3>Tests Cycles Historiques:</h3>';
+            let allPassed = true;
+            
+            tests.forEach((test, i) => {
+                const result = monthsBetween(test.from, test.to);
+                const passed = Math.abs(result - test.expected) < 2; // Tolérance 2 mois
+                allPassed = allPassed && passed;
+                
+                results += `<div class="status ${passed ? 'success' : 'error'}">
+                    Cycle ${i+1}: ${test.from} → ${test.to}<br>
+                    Résultat: ${result.toFixed(1)} mois (attendu: ~${test.expected} mois)
+                    ${passed ? ' ✅' : ' ❌'}
+                </div>`;
+            });
+            
+            document.getElementById('monthsTest').innerHTML = results;
+            return allPassed;
+        }
+        
+        // Test du module cycle-navigator
+        async function testCycleScore() {
+            try {
+                const module = await import('./modules/cycle-navigator.js');
+                
+                let results = '<h3>Tests Score de Cycle:</h3>';
+                
+                // Test scores à différents moments
+                const testPoints = [
+                    { months: 0, description: 'Début cycle' },
+                    { months: 6, description: 'Accumulation' },
+                    { months: 18, description: 'Bull market peak' },
+                    { months: 30, description: 'Bear market' },
+                    { months: 42, description: 'Pré-accumulation' }
+                ];
+                
+                testPoints.forEach(point => {
+                    const score = module.cycleScoreFromMonths(point.months);
+                    results += `<div class="status success">
+                        ${point.description} (${point.months}m): <span class="score">${score.toFixed(1)}</span>
+                    </div>`;
+                });
+                
+                // Test position actuelle
+                const currentCycle = module.getCurrentCycleMonths();
+                results += `<div class="status warning">
+                    <strong>Position actuelle:</strong> ${currentCycle.months.toFixed(1)} mois depuis halving
+                    <br>Score: <span class="score">${module.cycleScoreFromMonths(currentCycle.months).toFixed(1)}</span>
+                </div>`;
+                
+                document.getElementById('cycleTest').innerHTML = results;
+                return true;
+            } catch (error) {
+                document.getElementById('cycleTest').innerHTML = 
+                    `<div class="status error">Erreur: ${error.message}</div>`;
+                return false;
+            }
+        }
+        
+        // Test indicateurs on-chain
+        async function testOnChainIndicators() {
+            try {
+                const module = await import('./modules/onchain-indicators.js');
+                
+                let results = '<h3>Tests Indicateurs On-Chain:</h3>';
+                
+                const indicators = await module.fetchAllIndicators();
+                const composite = module.calculateCompositeScore(indicators);
+                
+                results += `<div class="status success">
+                    <strong>Score Composite:</strong> <span class="score">${composite.score}</span>
+                    <br>Confiance: ${(composite.confidence * 100).toFixed(1)}%
+                    <br>Indicateurs: ${Object.keys(indicators).join(', ')}
+                </div>`;
+                
+                // Détail des indicateurs
+                Object.entries(indicators).forEach(([key, data]) => {
+                    results += `<div class="status warning">
+                        ${key}: ${data.value.toFixed(2)} → Score: ${data.score}
+                    </div>`;
+                });
+                
+                document.getElementById('onchainTest').innerHTML = results;
+                return true;
+            } catch (error) {
+                document.getElementById('onchainTest').innerHTML = 
+                    `<div class="status error">Erreur: ${error.message}</div>`;
+                return false;
+            }
+        }
+        
+        // Test score blended
+        function testBlendedScore() {
+            // Simulation de scores
+            const scores = {
+                ccs: 75,
+                cycle: 65,
+                onchain: 55,
+                risk: 70
+            };
+            
+            // Calcul blended
+            const weights = { ccs: 0.4, cycle: 0.25, onchain: 0.25, risk: 0.1 };
+            let totalScore = 0;
+            let totalWeight = 0;
+            
+            Object.entries(scores).forEach(([type, score]) => {
+                if (type === 'risk') {
+                    const riskAdjustment = (score - 50) * 0.5;
+                    totalScore += riskAdjustment * weights[type];
+                } else {
+                    totalScore += score * weights[type];
+                }
+                totalWeight += weights[type];
+            });
+            
+            const blendedScore = totalScore / totalWeight;
+            
+            let results = '<h3>Test Score Blended:</h3>';
+            results += `<div class="status success">
+                <strong>Scores individuels:</strong><br>
+                CCS: ${scores.ccs} (poids: ${weights.ccs})<br>
+                Cycle: ${scores.cycle} (poids: ${weights.cycle})<br>
+                On-Chain: ${scores.onchain} (poids: ${weights.onchain})<br>
+                Risk: ${scores.risk} (poids: ${weights.risk})<br>
+                <br><strong>Score Final:</strong> <span class="score">${blendedScore.toFixed(1)}</span>
+            </div>`;
+            
+            document.getElementById('blendedTest').innerHTML = results;
+            return true;
+        }
+        
+        // Test persistance
+        function testPersistance() {
+            let results = '<h3>Test Persistance LocalStorage:</h3>';
+            
+            // Test écriture
+            const testParams = {
+                m_rise_center: 10,
+                m_fall_center: 30,
+                k_rise: 1.2,
+                k_fall: 1.0,
+                p_shape: 0.95,
+                floor: 0,
+                ceil: 100
+            };
+            
+            try {
+                localStorage.setItem('bitcoin_cycle_params', JSON.stringify({
+                    params: testParams,
+                    timestamp: Date.now(),
+                    version: '1.0'
+                }));
+                
+                results += '<div class="status success">✅ Écriture localStorage réussie</div>';
+                
+                // Test lecture
+                const saved = localStorage.getItem('bitcoin_cycle_params');
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    results += `<div class="status success">
+                        ✅ Lecture localStorage réussie<br>
+                        Paramètres: ${JSON.stringify(data.params, null, 2).replace(/\n/g, '<br>')}
+                    </div>`;
+                } else {
+                    results += '<div class="status error">❌ Lecture localStorage échouée</div>';
+                }
+                
+            } catch (error) {
+                results += `<div class="status error">❌ Erreur persistance: ${error.message}</div>`;
+            }
+            
+            document.getElementById('persistanceTest').innerHTML = results;
+        }
+        
+        // Exécuter tous les tests
+        async function runAllTests() {
+            console.log('🧪 Début des tests...');
+            
+            const monthsOk = testMonthsBetween();
+            const cycleOk = await testCycleScore();
+            const onchainOk = await testOnChainIndicators();
+            const blendedOk = testBlendedScore();
+            testPersistance();
+            
+            console.log('📊 Résultats tests:', {
+                monthsBetween: monthsOk ? '✅' : '❌',
+                cycleScore: cycleOk ? '✅' : '❌', 
+                onchain: onchainOk ? '✅' : '❌',
+                blended: blendedOk ? '✅' : '❌'
+            });
+        }
+        
+        // Lancer les tests au chargement
+        document.addEventListener('DOMContentLoaded', runAllTests);
+    </script>
+</body>
+</html>

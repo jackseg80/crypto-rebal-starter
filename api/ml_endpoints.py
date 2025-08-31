@@ -42,13 +42,40 @@ async def train_models(
     """
     
     try:
+        # Validation input parameters
+        if request.lookback_days < 30 or request.lookback_days > 2000:
+            raise HTTPException(
+                status_code=400, 
+                detail="lookback_days must be between 30 and 2000 days"
+            )
+        
         # Get current portfolio for default assets if not specified
         if not request.assets:
-            balances_response = await get_current_balances(source=source)
-            if balances_response.get("items"):
-                request.assets = [item["symbol"] for item in balances_response["items"][:10]]  # Top 10 assets
-            else:
-                request.assets = ["BTC", "ETH", "SOL"]  # Fallback
+            try:
+                balances_response = await get_current_balances(source=source)
+                if balances_response.get("items"):
+                    request.assets = [item["symbol"] for item in balances_response["items"][:10]]  # Top 10 assets
+                else:
+                    raise HTTPException(
+                        status_code=404, 
+                        detail="No portfolio assets found. Please specify assets manually."
+                    )
+            except Exception as e:
+                logger.error(f"Error fetching portfolio: {e}")
+                raise HTTPException(
+                    status_code=500, 
+                    detail=f"Failed to fetch portfolio data: {str(e)}"
+                )
+        
+        # Validate assets list
+        if len(request.assets) > 50:
+            raise HTTPException(
+                status_code=400,
+                detail="Maximum 50 assets allowed for training"
+            )
+        
+        if not request.assets:
+            request.assets = ["BTC", "ETH", "SOL"]  # Fallback assets
         
         # Start training in background
         background_tasks.add_task(

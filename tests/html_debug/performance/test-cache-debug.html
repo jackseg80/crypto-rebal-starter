@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <base href="/static/">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 Cache Debug - Test du système de cache</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #1a202c;
+            color: #e2e8f0;
+        }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .card {
+            background: #2d3748;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border: 1px solid #4a5568;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            background: #3182ce;
+            color: white;
+            margin: 5px;
+        }
+        .btn:hover { background: #2c5282; }
+        .log {
+            background: #1a202c;
+            padding: 15px;
+            border-radius: 8px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 13px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat {
+            text-align: center;
+            padding: 10px;
+            background: #1a202c;
+            border-radius: 6px;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #63b3ed;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>🔧 Test du Système de Cache Intelligent</h1>
+            <p>Débogage direct du cache utilisé par les modules on-chain</p>
+            
+            <div>
+                <button class="btn" onclick="testCacheBasic()">🧪 Test Cache Basique</button>
+                <button class="btn" onclick="testAPICache()">🌐 Test Cache API</button>
+                <button class="btn" onclick="loadRealIndicators()">📊 Charger Indicateurs Réels</button>
+                <button class="btn" onclick="forceMultipleRequests()">⚡ Test Multiples Requêtes</button>
+                <button class="btn" onclick="showCacheStats()">📈 Afficher Stats</button>
+                <button class="btn" onclick="clearCache()">🧹 Vider Cache</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>📊 Statistiques de Cache</h3>
+            <div class="stats" id="cache-stats">
+                <div class="stat">
+                    <div class="stat-value" id="hit-rate">0%</div>
+                    <div>Hit Rate</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="total-requests">0</div>
+                    <div>Requests</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="cache-size">0</div>
+                    <div>Cache Size</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="patterns">0</div>
+                    <div>Patterns</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>📝 Log Debug</h3>
+            <div class="log" id="debug-log">
+                Système de cache debug initialisé...<br>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { fetchAllIndicators, getCacheStats, clearCache as clearOnchainCache } from './modules/onchain-indicators.js';
+        
+        let logElement;
+        
+        window.onload = function() {
+            logElement = document.getElementById('debug-log');
+            log('Cache debug interface chargée', 'success');
+            updateStats();
+        };
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const icon = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
+            logElement.innerHTML += `[${timestamp}] ${icon} ${message}<br>`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        function updateStats() {
+            try {
+                const stats = getCacheStats();
+                document.getElementById('hit-rate').textContent = stats.hitRate.toFixed(1) + '%';
+                document.getElementById('total-requests').textContent = stats.totalRequests;
+                document.getElementById('cache-size').textContent = stats.cacheSize;
+                document.getElementById('patterns').textContent = stats.patterns;
+                
+                log(`Stats mise à jour: ${stats.totalRequests} req, ${stats.hitRate.toFixed(1)}% hit, ${stats.cacheSize} entries`);
+            } catch (error) {
+                log(`Erreur stats: ${error.message}`, 'error');
+            }
+        }
+        
+        window.testCacheBasic = function() {
+            log('Test cache basique en cours...', 'info');
+            
+            // Accès direct au cache via le module
+            try {
+                const stats1 = getCacheStats();
+                log(`Stats initiales: ${JSON.stringify(stats1)}`);
+                
+                // Simule plusieurs accès
+                setTimeout(() => {
+                    const stats2 = getCacheStats();
+                    log(`Stats après delay: ${JSON.stringify(stats2)}`);
+                    updateStats();
+                }, 100);
+                
+            } catch (error) {
+                log(`Test cache basique échoué: ${error.message}`, 'error');
+            }
+        };
+        
+        window.testAPICache = async function() {
+            log('Test cache API Fear & Greed en cours...', 'info');
+            
+            try {
+                const beforeStats = getCacheStats();
+                log(`Stats avant API: Requests=${beforeStats.totalRequests}, Size=${beforeStats.cacheSize}`);
+                
+                // Première requête (doit créer une entrée cache)
+                log('Première requête indicators...', 'info');
+                const indicators1 = await fetchAllIndicators();
+                
+                const midStats = getCacheStats();
+                log(`Stats après 1ère requête: Requests=${midStats.totalRequests}, Size=${midStats.cacheSize}, Hits=${midStats.hits}`);
+                
+                // Deuxième requête immédiate (doit utiliser le cache)
+                log('Deuxième requête immédiate...', 'info');
+                const indicators2 = await fetchAllIndicators();
+                
+                const afterStats = getCacheStats();
+                log(`Stats après 2ème requête: Requests=${afterStats.totalRequests}, Size=${afterStats.cacheSize}, Hits=${afterStats.hits}`);
+                
+                updateStats();
+                
+                if (indicators1.fear_greed && indicators2.fear_greed) {
+                    log(`Fear & Greed: ${indicators1.fear_greed.value} (${indicators1.fear_greed.classification})`, 'success');
+                } else {
+                    log('Pas de données Fear & Greed reçues', 'error');
+                }
+                
+            } catch (error) {
+                log(`Test API cache échoué: ${error.message}`, 'error');
+            }
+        };
+        
+        window.loadRealIndicators = async function() {
+            log('Chargement des indicateurs réels...', 'info');
+            
+            try {
+                const indicators = await fetchAllIndicators();
+                log(`Indicateurs chargés: ${Object.keys(indicators).join(', ')}`, 'success');
+                
+                Object.entries(indicators).forEach(([key, data]) => {
+                    log(`${key}: value=${data.value}, score=${data.score}, source=${data.source}`);
+                });
+                
+                updateStats();
+                
+            } catch (error) {
+                log(`Chargement indicateurs échoué: ${error.message}`, 'error');
+            }
+        };
+        
+        window.forceMultipleRequests = async function() {
+            log('Test multiples requêtes pour statistiques...', 'info');
+            
+            try {
+                const requestCount = 5;
+                
+                for (let i = 1; i <= requestCount; i++) {
+                    log(`Requête ${i}/${requestCount}...`);
+                    await fetchAllIndicators();
+                    
+                    const stats = getCacheStats();
+                    log(`  → Req: ${stats.totalRequests}, Hits: ${stats.hits}, Miss: ${stats.misses}, Rate: ${stats.hitRate.toFixed(1)}%`);
+                    
+                    // Petit délai entre les requêtes
+                    if (i < requestCount) {
+                        await new Promise(resolve => setTimeout(resolve, 200));
+                    }
+                }
+                
+                updateStats();
+                log('Test multiples requêtes terminé', 'success');
+                
+            } catch (error) {
+                log(`Test multiples requêtes échoué: ${error.message}`, 'error');
+            }
+        };
+        
+        window.showCacheStats = function() {
+            try {
+                const stats = getCacheStats();
+                log('=== STATISTIQUES DÉTAILLÉES ===', 'info');
+                log(`Hits: ${stats.hits}`);
+                log(`Misses: ${stats.misses}`);
+                log(`Total Requests: ${stats.totalRequests}`);
+                log(`Hit Rate: ${stats.hitRate.toFixed(2)}%`);
+                log(`Cache Size: ${stats.cacheSize} entrées`);
+                log(`Access Patterns: ${stats.patterns}`);
+                log(`Avg Response Time: ${Math.round(stats.avgResponseTime)}ms`);
+                log('============================', 'info');
+                
+                updateStats();
+            } catch (error) {
+                log(`Erreur affichage stats: ${error.message}`, 'error');
+            }
+        };
+        
+        window.clearCache = function() {
+            try {
+                clearOnchainCache();
+                log('Cache vidé avec succès', 'success');
+                updateStats();
+            } catch (error) {
+                log(`Erreur vidage cache: ${error.message}`, 'error');
+            }
+        };
+        
+        // Auto-update stats every 2 seconds
+        setInterval(updateStats, 2000);
+    </script>
+</body>
+</html>

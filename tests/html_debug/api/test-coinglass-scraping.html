@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <base href="/static/">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔬 Test CoinGlass Scraping</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #1a202c;
+            color: #e2e8f0;
+        }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .card {
+            background: #2d3748;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border: 1px solid #4a5568;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            background: #3182ce;
+            color: white;
+            margin: 5px;
+        }
+        .btn:hover { background: #2c5282; }
+        .log {
+            background: #1a202c;
+            padding: 15px;
+            border-radius: 8px;
+            height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 13px;
+        }
+        .indicator {
+            background: #1a202c;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .indicator-name { font-weight: bold; }
+        .indicator-value { color: #63b3ed; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>🔬 Test CoinGlass Scraping</h1>
+            <p>Test du scraping des indicateurs on-chain depuis CoinGlass</p>
+            
+            <div>
+                <button class="btn" onclick="testDirectFetch()">📡 Test Direct Fetch</button>
+                <button class="btn" onclick="testCORSProxy()">🌐 Test CORS Proxy</button>
+                <button class="btn" onclick="testScrapingLogic()">🧪 Test Scraping Logic</button>
+                <button class="btn" onclick="clearLog()">🧹 Clear Log</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>📊 Indicators Extracted</h3>
+            <div id="indicators-display">
+                Aucun indicateur extrait pour le moment...
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>📝 Debug Log</h3>
+            <div class="log" id="debug-log">
+                CoinGlass scraping test initialisé...<br>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let logElement;
+        
+        window.onload = function() {
+            logElement = document.getElementById('debug-log');
+            log('CoinGlass scraping test chargé', 'success');
+        };
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const icon = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
+            logElement.innerHTML += `[${timestamp}] ${icon} ${message}<br>`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        function displayIndicators(indicators) {
+            const display = document.getElementById('indicators-display');
+            if (!indicators || indicators.length === 0) {
+                display.innerHTML = 'Aucun indicateur trouvé';
+                return;
+            }
+            
+            let html = '';
+            indicators.forEach(indicator => {
+                html += `
+                    <div class="indicator">
+                        <span class="indicator-name">${indicator.name}</span>
+                        <span class="indicator-value">${indicator.value}</span>
+                    </div>
+                `;
+            });
+            display.innerHTML = html;
+        }
+        
+        window.testDirectFetch = async function() {
+            log('Test fetch direct vers CoinGlass...', 'info');
+            
+            try {
+                const response = await fetch('https://www.coinglass.com/bull-market-peak-signals');
+                log(`Response status: ${response.status}`, response.ok ? 'success' : 'error');
+                
+                if (response.ok) {
+                    const html = await response.text();
+                    log(`HTML reçu: ${html.length} caractères`);
+                    log('Recherche d\'indicateurs dans le HTML...', 'info');
+                    
+                    // Simple test de parsing
+                    const indicators = parseIndicatorsFromHTML(html);
+                    log(`Indicateurs trouvés: ${indicators.length}`, indicators.length > 0 ? 'success' : 'error');
+                    displayIndicators(indicators);
+                    
+                } else {
+                    log(`Erreur fetch: ${response.status} ${response.statusText}`, 'error');
+                }
+                
+            } catch (error) {
+                log(`Erreur direct fetch: ${error.message}`, 'error');
+                log('Probablement bloqué par CORS', 'error');
+            }
+        };
+        
+        window.testCORSProxy = async function() {
+            log('Test avec proxy CORS...', 'info');
+            
+            try {
+                // Test avec quelques proxies CORS publics
+                const proxies = [
+                    'https://cors-anywhere.herokuapp.com/',
+                    'https://api.allorigins.win/get?url=',
+                    'https://corsproxy.io/?'
+                ];
+                
+                for (const proxy of proxies) {
+                    try {
+                        log(`Test proxy: ${proxy}`, 'info');
+                        const url = proxy + encodeURIComponent('https://www.coinglass.com/bull-market-peak-signals');
+                        const response = await fetch(url);
+                        
+                        if (response.ok) {
+                            log(`Proxy ${proxy} fonctionne!`, 'success');
+                            let html;
+                            
+                            if (proxy.includes('allorigins')) {
+                                const data = await response.json();
+                                html = data.contents;
+                            } else {
+                                html = await response.text();
+                            }
+                            
+                            log(`HTML reçu via proxy: ${html.length} caractères`);
+                            
+                            const indicators = parseIndicatorsFromHTML(html);
+                            log(`Indicateurs via proxy: ${indicators.length}`, indicators.length > 0 ? 'success' : 'error');
+                            displayIndicators(indicators);
+                            return; // Sortir si succès
+                        }
+                    } catch (proxyError) {
+                        log(`Proxy ${proxy} échoué: ${proxyError.message}`, 'error');
+                    }
+                }
+                
+                log('Tous les proxies CORS ont échoué', 'error');
+                
+            } catch (error) {
+                log(`Erreur proxy test: ${error.message}`, 'error');
+            }
+        };
+        
+        window.testScrapingLogic = function() {
+            log('Test de la logique de parsing avec HTML simulé...', 'info');
+            
+            // HTML simulé basé sur la structure probable de CoinGlass
+            const mockHTML = \`
+                <div class="indicator-item">
+                    <div class="indicator-name">MVRV Ratio</div>
+                    <div class="indicator-value">2.34</div>
+                    <div class="indicator-status">false</div>
+                </div>
+                <div class="indicator-item">
+                    <div class="indicator-name">Puell Multiple</div>
+                    <div class="indicator-value">1.87</div>
+                    <div class="indicator-status">false</div>
+                </div>
+                <div class="indicator-item">
+                    <div class="indicator-name">Ahr999 Index</div>
+                    <div class="indicator-value">0.78</div>
+                    <div class="indicator-status">false</div>
+                </div>
+            \`;
+            
+            log('Parsing du HTML simulé...', 'info');
+            const indicators = parseIndicatorsFromHTML(mockHTML);
+            log(`Parsing réussi: ${indicators.length} indicateurs`, 'success');
+            displayIndicators(indicators);
+        };
+        
+        function parseIndicatorsFromHTML(html) {
+            // Créer un parser DOM temporaire
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const indicators = [];
+            
+            // Plusieurs stratégies de parsing selon la structure possible
+            const strategies = [
+                // Stratégie 1: Classes génériques
+                () => {
+                    const items = doc.querySelectorAll('.indicator-item, .indicator-row, .signal-item');
+                    items.forEach(item => {
+                        const nameEl = item.querySelector('.indicator-name, .signal-name, .name');
+                        const valueEl = item.querySelector('.indicator-value, .signal-value, .value, .current');
+                        if (nameEl && valueEl) {
+                            indicators.push({
+                                name: nameEl.textContent.trim(),
+                                value: valueEl.textContent.trim()
+                            });
+                        }
+                    });
+                },
+                
+                // Stratégie 2: Tables
+                () => {
+                    const rows = doc.querySelectorAll('table tr, .table-row');
+                    rows.forEach(row => {
+                        const cells = row.querySelectorAll('td, .cell');
+                        if (cells.length >= 2) {
+                            const name = cells[0].textContent.trim();
+                            const value = cells[1].textContent.trim();
+                            if (name && value && !name.includes('Indicator') && !name.includes('Name')) {
+                                indicators.push({ name, value });
+                            }
+                        }
+                    });
+                },
+                
+                // Stratégie 3: Recherche par patterns de texte
+                () => {
+                    const text = html;
+                    const patterns = [
+                        /MVRV.*?([0-9.]+)/gi,
+                        /Puell.*?([0-9.]+)/gi,
+                        /Ahr999.*?([0-9.]+)/gi,
+                        /Pi Cycle.*?([0-9.]+)/gi
+                    ];
+                    
+                    const names = ['MVRV Ratio', 'Puell Multiple', 'Ahr999 Index', 'Pi Cycle Top'];
+                    
+                    patterns.forEach((pattern, index) => {
+                        const match = pattern.exec(text);
+                        if (match) {
+                            indicators.push({
+                                name: names[index],
+                                value: match[1]
+                            });
+                        }
+                    });
+                }
+            ];
+            
+            // Essayer chaque stratégie
+            for (const strategy of strategies) {
+                try {
+                    strategy();
+                    if (indicators.length > 0) break;
+                } catch (e) {
+                    log(`Stratégie de parsing échouée: ${e.message}`, 'error');
+                }
+            }
+            
+            return indicators;
+        }
+        
+        window.clearLog = function() {
+            logElement.innerHTML = 'Log vidé...<br>';
+        };
+    </script>
+</body>
+</html>

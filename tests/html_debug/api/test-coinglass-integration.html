@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <base href="/static/">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧪 Test CoinGlass Integration</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #1a202c;
+            color: #e2e8f0;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .card {
+            background: #2d3748;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border: 1px solid #4a5568;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            background: #3182ce;
+            color: white;
+            margin: 5px;
+        }
+        .btn:hover { background: #2c5282; }
+        .log {
+            background: #1a202c;
+            padding: 15px;
+            border-radius: 8px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 13px;
+        }
+        .indicators-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .indicator-card {
+            background: #1a202c;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #63b3ed;
+        }
+        .indicator-card.success { border-left-color: #48bb78; }
+        .indicator-card.error { border-left-color: #f56565; }
+        .indicator-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .indicator-value {
+            font-size: 24px;
+            color: #63b3ed;
+            margin: 5px 0;
+        }
+        .indicator-score {
+            font-size: 16px;
+            color: #a0aec0;
+        }
+        .indicator-source {
+            font-size: 12px;
+            color: #718096;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>🧪 Test CoinGlass Integration - Données Réelles</h1>
+            <p>Test de l'intégration complète avec les vraies données CoinGlass</p>
+            
+            <div>
+                <button class="btn" onclick="testRealIndicators()">📊 Test Indicateurs Réels</button>
+                <button class="btn" onclick="testCacheSystem()">💾 Test Cache System</button>
+                <button class="btn" onclick="testCompositeScore()">🎯 Test Score Composite</button>
+                <button class="btn" onclick="testMultipleRequests()">⚡ Test Multiples Requêtes</button>
+                <button class="btn" onclick="clearResults()">🧹 Clear</button>
+            </div>
+        </div>
+
+        <div class="indicators-grid" id="indicators-grid">
+            <!-- Indicators will be displayed here -->
+        </div>
+
+        <div class="card">
+            <h3>📝 Test Log</h3>
+            <div class="log" id="test-log">
+                CoinGlass integration test initialized...<br>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { fetchAllIndicators, calculateCompositeScore, getCacheStats } from './modules/onchain-indicators.js';
+        
+        let logElement;
+        
+        window.onload = function() {
+            logElement = document.getElementById('test-log');
+            log('CoinGlass integration test ready', 'success');
+        };
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const icon = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
+            logElement.innerHTML += `[${timestamp}] ${icon} ${message}<br>`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        function displayIndicators(indicators) {
+            const grid = document.getElementById('indicators-grid');
+            grid.innerHTML = '';
+            
+            if (!indicators || Object.keys(indicators).filter(k => k !== '_metadata').length === 0) {
+                grid.innerHTML = '<div class="card">Aucun indicateur chargé</div>';
+                return;
+            }
+            
+            Object.entries(indicators).forEach(([key, data]) => {
+                if (key === '_metadata') return;
+                
+                const card = document.createElement('div');
+                card.className = `indicator-card ${data.value ? 'success' : 'error'}`;
+                
+                card.innerHTML = `
+                    <div class="indicator-title">${data.name || key}</div>
+                    <div class="indicator-value">${data.value || 'N/A'}</div>
+                    <div class="indicator-score">Score: ${data.score || 'N/A'}</div>
+                    <div class="indicator-source">${data.source || 'Unknown source'}</div>
+                    ${data.classification ? `<div style="margin-top: 10px; color: #63b3ed;">${data.classification}</div>` : ''}
+                    ${data.hit_status !== undefined ? `<div style="margin-top: 5px; color: ${data.hit_status ? '#f56565' : '#48bb78'};">Peak Signal: ${data.hit_status ? 'HIT' : 'Not Hit'}</div>` : ''}
+                `;
+                
+                grid.appendChild(card);
+            });
+            
+            // Display metadata if available
+            if (indicators._metadata) {
+                const metaCard = document.createElement('div');
+                metaCard.className = 'indicator-card';
+                metaCard.innerHTML = `
+                    <div class="indicator-title">📊 Metadata</div>
+                    <div style="font-size: 14px; line-height: 1.6;">
+                        <strong>Available:</strong> ${indicators._metadata.available_count}<br>
+                        <strong>Sources:</strong> ${indicators._metadata.sources?.join(', ') || 'N/A'}<br>
+                        <strong>Message:</strong> ${indicators._metadata.message}<br>
+                        <strong>Updated:</strong> ${new Date(indicators._metadata.last_updated).toLocaleString()}
+                    </div>
+                `;
+                grid.appendChild(metaCard);
+            }
+        }
+        
+        window.testRealIndicators = async function() {
+            log('🧪 Testing real indicators from CoinGlass + Alternative.me...', 'info');
+            
+            try {
+                const startTime = performance.now();
+                const indicators = await fetchAllIndicators();
+                const endTime = performance.now();
+                
+                log(`📊 Indicators loaded in ${Math.round(endTime - startTime)}ms`, 'success');
+                log(`Available indicators: ${indicators._metadata?.available_count || 0}`, 'info');
+                
+                if (indicators._metadata?.sources) {
+                    log(`Sources: ${indicators._metadata.sources.join(', ')}`, 'info');
+                }
+                
+                if (indicators._metadata?.missing_indicators?.length > 0) {
+                    log(`Missing: ${indicators._metadata.missing_indicators.length} indicators`, 'error');
+                }
+                
+                displayIndicators(indicators);
+                
+                // Log specific indicators found
+                Object.entries(indicators).forEach(([key, data]) => {
+                    if (key !== '_metadata') {
+                        log(`${key}: ${data.value} (score: ${data.score}, source: ${data.source})`, 'success');
+                    }
+                });
+                
+            } catch (error) {
+                log(`❌ Test failed: ${error.message}`, 'error');
+                displayIndicators({});
+            }
+        };
+        
+        window.testCacheSystem = async function() {
+            log('💾 Testing cache system...', 'info');
+            
+            try {
+                const stats1 = getCacheStats();
+                log(`Initial cache stats: ${stats1.totalRequests} requests, ${stats1.hitRate}% hit rate`, 'info');
+                
+                // First request (should miss cache)
+                log('Making first request...', 'info');
+                const indicators1 = await fetchAllIndicators();
+                
+                const stats2 = getCacheStats();
+                log(`After 1st request: ${stats2.totalRequests} requests, ${stats2.cacheSize} entries`, 'info');
+                
+                // Second request (should hit cache)
+                log('Making second request (should use cache)...', 'info');
+                const indicators2 = await fetchAllIndicators();
+                
+                const stats3 = getCacheStats();
+                log(`After 2nd request: ${stats3.totalRequests} requests, ${stats3.hits} hits, ${stats3.hitRate.toFixed(1)}% hit rate`, 'success');
+                
+                if (stats3.hits > stats2.hits) {
+                    log('✅ Cache system working correctly!', 'success');
+                } else {
+                    log('⚠️ Cache may not be working as expected', 'error');
+                }
+                
+                displayIndicators(indicators2);
+                
+            } catch (error) {
+                log(`❌ Cache test failed: ${error.message}`, 'error');
+            }
+        };
+        
+        window.testCompositeScore = async function() {
+            log('🎯 Testing composite score calculation...', 'info');
+            
+            try {
+                const indicators = await fetchAllIndicators();
+                const composite = calculateCompositeScore(indicators);
+                
+                log(`Composite score calculated: ${composite.score}`, composite.score !== null ? 'success' : 'error');
+                log(`Confidence: ${composite.confidence}`, 'info');
+                log(`Contributors: ${composite.contributors?.length || 0}`, 'info');
+                log(`Message: ${composite.message}`, 'info');
+                
+                if (composite.contributors && composite.contributors.length > 0) {
+                    log('Contributors breakdown:', 'info');
+                    composite.contributors.forEach(contrib => {
+                        log(`  ${contrib.name}: ${contrib.score} (weight: ${contrib.weight}, contribution: ${contrib.contribution.toFixed(1)})`, 'info');
+                    });
+                }
+                
+                displayIndicators(indicators);
+                
+                // Add composite score to display
+                const grid = document.getElementById('indicators-grid');
+                const compositeCard = document.createElement('div');
+                compositeCard.className = 'indicator-card success';
+                compositeCard.innerHTML = `
+                    <div class="indicator-title">🎯 Composite Score</div>
+                    <div class="indicator-value">${composite.score || 'N/A'}</div>
+                    <div class="indicator-score">Confidence: ${Math.round((composite.confidence || 0) * 100)}%</div>
+                    <div class="indicator-source">${composite.message}</div>
+                `;
+                grid.appendChild(compositeCard);
+                
+            } catch (error) {
+                log(`❌ Composite score test failed: ${error.message}`, 'error');
+            }
+        };
+        
+        window.testMultipleRequests = async function() {
+            log('⚡ Testing multiple requests for performance...', 'info');
+            
+            try {
+                const requests = 3;
+                const results = [];
+                
+                for (let i = 1; i <= requests; i++) {
+                    log(`Request ${i}/${requests}...`, 'info');
+                    const startTime = performance.now();
+                    const indicators = await fetchAllIndicators();
+                    const endTime = performance.now();
+                    
+                    const duration = Math.round(endTime - startTime);
+                    results.push(duration);
+                    
+                    log(`Request ${i} completed in ${duration}ms`, 'success');
+                    
+                    const stats = getCacheStats();
+                    log(`  Cache: ${stats.totalRequests} total, ${stats.hits} hits, ${stats.hitRate.toFixed(1)}% rate`, 'info');
+                    
+                    if (i < requests) {
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                    }
+                }
+                
+                const avgTime = results.reduce((a, b) => a + b, 0) / results.length;
+                log(`Average response time: ${Math.round(avgTime)}ms`, 'success');
+                
+                const finalStats = getCacheStats();
+                log(`Final cache performance: ${finalStats.hitRate.toFixed(1)}% hit rate`, 'success');
+                
+            } catch (error) {
+                log(`❌ Multiple requests test failed: ${error.message}`, 'error');
+            }
+        };
+        
+        window.clearResults = function() {
+            document.getElementById('indicators-grid').innerHTML = '';
+            logElement.innerHTML = 'Results cleared...<br>';
+        };
+        
+        // Auto-run basic test on load
+        setTimeout(() => {
+            log('🚀 Running initial test...', 'info');
+            testRealIndicators();
+        }, 1000);
+    </script>
+</body>
+</html>
