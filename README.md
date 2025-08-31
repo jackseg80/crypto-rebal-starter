@@ -51,6 +51,7 @@ python crypto_toolbox_api.py  # Port 8001
 
 - **🏠 Dashboard** : `static/dashboard.html` - Vue d'ensemble du portfolio avec graphique synchronisé
 - **🛡️ Risk Dashboard** : `static/risk-dashboard.html` - **Analyse de risque V2** avec système de scoring intelligent et gestion des corrélations
+- **📊 Portfolio Optimization** : `static/portfolio-optimization.html` - **Optimisation Markowitz** avec contraintes crypto et analyse intégrée
 - **🚀 Execution** : `static/execution.html` - Dashboard d'exécution temps réel
 - **📈 Execution History** : `static/execution_history.html` - Historique et analytics des trades
 - **🔍 Advanced Monitoring** : `static/monitoring-unified.html` - Surveillance des connexions
@@ -962,11 +963,28 @@ Tous les cas d'usage critiques ont été testés et validés :
 ## 📊 Portfolio Optimization
 
 ### Features
-- **Markowitz Optimization** avec 5 objectifs (Max Sharpe, Min Variance, Risk Parity, etc.)
-- **126+ cryptos supportés** avec historique de prix automatique
+
+**Core Optimization:**
+- **Markowitz Optimization** avec 6 objectifs (Max Sharpe, Min Variance, Risk Parity, Risk Budgeting, Multi-Period, Mean Reversion)
+- **126+ cryptos supportés** avec historique de prix automatique  
 - **Contraintes crypto-spécifiques** : diversification, corrélation, volatilité
+- **Correlation Exposure Constraint** : Limite l'exposition aux corrélations inter-assets
+- **Dynamic Min Weight** : Calcul automatique poids minimum selon nombre d'actifs
+- **Excluded Assets Management** : Génération automatique trades "sell to 0%"
+
+**Advanced Features:**
+- **Risk Budgeting** : Allocation par secteur avec budgets de risque personnalisés
+- **Multi-Period Optimization** : Combinaison horizons court/moyen/long terme (30/90/365j)
+- **Transaction Costs** : Intégration maker/taker fees + bid-ask spread dans l'optimisation
+- **Backtesting Engine** : Validation historique avec 6 stratégies (equal_weight, momentum, risk_parity, etc.)
+- **Portfolio Analysis** : Suggestions intelligentes basées sur métriques HHI, Sharpe, diversification
+- **Real Portfolio Testing** : Validé sur portfolio 420k$ avec 183 actifs crypto
+
+**Technical:**
 - **Gestion d'historiques variables** : filtre par ancienneté des actifs
-- **Interface compacte** avec sélection source de données
+- **Interface compacte** avec contrôles avancés et analyse intégrée
+- **Symbol normalization** : Support variants CoinTracking (SOL2→SOL, WETH→ETH)
+- **Numerical stability** : Protection contre cas edge (vol=0, corrélations extrêmes)
 
 ### API Endpoints
 ```bash
@@ -979,7 +997,57 @@ Content-Type: application/json
   "lookback_days": 365,               # Période d'analyse
   "expected_return_method": "historical", # historical|mean_reversion|momentum  
   "conservative": false,              # Contraintes conservatrices ou agressives
-  "include_current_weights": true     # Inclure poids actuels pour rebalancement
+  "include_current_weights": true,    # Inclure poids actuels pour rebalancement
+  "target_return": 0.12,              # Rendement cible annuel (ex: 12%)
+  "target_volatility": 0.15,          # Volatilité cible annuelle (ex: 15%)
+  "max_correlation_exposure": 0.4,    # Limite exposition corrélations (0.2-0.8)
+  "min_weight": 0.01,                 # Poids minimum par actif (1%)
+  "excluded_symbols": ["USDT", "DAI"] # Assets à exclure (génère trades "sell to 0%")
+}
+
+# Analyse portfolio (suggestions optimisation)
+POST /api/portfolio/optimization/analyze
+{
+  "data_source": "cointracking",
+  "min_usd": 100,
+  "min_history_days": 365
+}
+
+# Risk Budgeting (allocation par contribution au risque)
+POST /api/portfolio/optimization/optimize
+{
+  "objective": "risk_budgeting",
+  "risk_budget": {
+    "BTC": 0.3, "ETH": 0.3, "SOL": 0.2, "L1/L0 majors": 0.15, "Others": 0.05
+  }
+}
+
+# Multi-Period Optimization (horizons multiples)
+POST /api/portfolio/optimization/optimize
+{
+  "objective": "multi_period",
+  "rebalance_periods": [30, 90, 365],
+  "period_weights": [0.6, 0.3, 0.1]
+}
+
+# Transaction Costs Integration
+POST /api/portfolio/optimization/optimize
+{
+  "objective": "max_sharpe",
+  "include_current_weights": true,
+  "transaction_costs": {
+    "maker_fee": 0.001, "taker_fee": 0.0015, "spread": 0.005
+  }
+}
+
+# Backtesting historique
+POST /api/backtesting/run
+{
+  "strategy": "equal_weight",
+  "assets": ["BTC", "ETH", "SOL"],
+  "start_date": "2024-01-01",
+  "end_date": "2024-08-01",
+  "initial_capital": 10000
 }
 ```
 
@@ -989,6 +1057,25 @@ Content-Type: application/json
   - 90 jours = Inclut cryptos récentes (risque de période courte)
   - 365 jours = Équilibre qualité/diversité  
   - 730+ jours = Conservateur, cryptos établies uniquement
+
+### 🚀 Nouvelles fonctionnalités Portfolio Optimization (Août 2025)
+
+**Core Features Implemented:**
+- ✅ **"Sell to 0%" trades** : Génération automatique des ordres de vente pour assets exclus
+- ✅ **Dynamic min_weight** : Calcul adaptatif selon nombre d'actifs (évite contraintes infaisables)  
+- ✅ **CoinTracking API integration** : Source de données cointracking_api exposée avec fallback
+- ✅ **Max correlation exposure** : Contrainte de corrélation avec calcul matrice avancé
+- ✅ **Numerical stability** : Protection Sharpe ratio, fallback SLSQP robuste
+- ✅ **Enhanced UI controls** : Contrôles min_weight, target_volatility, correlation, analysis intégrée
+- ✅ **Portfolio Analysis endpoint** : Suggestions d'optimisation basées sur métriques actuelles
+- ✅ **Symbol normalization** : Gestion variants CoinTracking (ex: SOL2 → SOL)
+
+**Advanced Optimization Suite:**
+- ✅ **Risk Budgeting** : Allocation par contribution au risque avec budgets sectoriels personnalisés
+- ✅ **Multi-Period Optimization** : Optimisation sur plusieurs horizons temporels (30j, 90j, 365j)
+- ✅ **Transaction Costs Integration** : Prise en compte des frais de trading dans l'optimisation
+- ✅ **Backtesting Engine** : Validation historique avec 6 stratégies et métriques avancées
+- ✅ **Real Data Testing** : Validé sur portfolio 420k$ avec 183 actifs en production
 
 ### 🔧 Améliorations techniques récentes (Août 2025)
 

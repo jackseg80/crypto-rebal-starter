@@ -26,7 +26,7 @@
     .optimization-panel {
       background: var(--bg-card);
       border-radius: var(--radius-lg);
-      padding: var(--space-xl);
+      padding: var(--space-lg);
       margin-bottom: var(--space-lg);
       border: 1px solid var(--border-color);
     }
@@ -208,6 +208,16 @@
       display: inline-block;
       margin: var(--space-xs);
     }
+    /* Compact controls */
+    .control-bar { display: grid; grid-template-columns: repeat(2, minmax(200px, 1fr)); gap: var(--space-sm) var(--space-lg); align-items: end; margin-bottom: var(--space-sm); }
+    .control { display: flex; flex-direction: column; gap: 6px; }
+    .control label { font-size: 0.85rem; color: var(--text-secondary); }
+    .control select, .control input { padding: 8px 10px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); }
+    .actions { display: flex; gap: var(--space-sm); flex-wrap: wrap; align-items: center; }
+    .button-row { display: flex; gap: var(--space-sm); flex-wrap: wrap; align-items: center; margin: var(--space-sm) 0 var(--space-md); }
+    .divider { height: 1px; background: var(--border-color); margin: var(--space-sm) 0; opacity: 0.7; }
+    .actions .btn, .button-row .btn { min-width: 170px; }
+    .subtle { color: var(--text-secondary); font-size: 0.9rem; }
   </style>
 </head>
 
@@ -218,92 +228,82 @@
     <h1>📊 Portfolio Optimization</h1>
     <p class="text-secondary">Optimize your portfolio allocation using Markowitz theory</p>
 
-    <div class="optimization-panel">
-      <h2>Optimization Settings</h2>
+    <div class="info-badge" style="display:inline-block; margin-bottom: var(--space-md);">
+      Uses cached daily price history. If many assets are excluded, pre-download histories or lower Min History.
+    </div>
 
-      <!-- Compact settings table -->
-      <table style="width: 100%; margin-bottom: var(--space-lg);">
-        <tr>
-          <td style="padding: var(--space-sm); width: 20%;">
-            <label for="objective"><strong>Objective:</strong></label>
-          </td>
-          <td style="padding: var(--space-sm);">
-            <select id="objective" style="width: 100%;">
-              <option value="max_sharpe">Maximize Sharpe Ratio (Recommended)</option>
-              <option value="min_variance">Minimize Risk</option>
-              <option value="max_return">Maximize Return</option>
-              <option value="risk_parity">Risk Parity</option>
-              <option value="mean_reversion">Mean Reversion</option>
-            </select>
-          </td>
-          <td style="padding: var(--space-sm); width: 15%;">
-            <label for="data-source"><strong>Data Source:</strong></label>
-          </td>
-          <td style="padding: var(--space-sm);">
-            <select id="data-source" style="width: 100%;">
-              <option value="cointracking">CoinTracking CSV</option>
-              <option value="stub" selected>Test Data (Stub)</option>
-            </select>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding: var(--space-sm);">
-            <label for="lookback"><strong>History:</strong></label>
-          </td>
-          <td style="padding: var(--space-sm);">
-            <select id="lookback" style="width: 100%;">
-              <option value="90" selected>3 Months</option>
-              <option value="180">6 Months</option>
-              <option value="365">1 Year</option>
-              <option value="730">2 Years</option>
-            </select>
-          </td>
-          <td style="padding: var(--space-sm);">
-            <label for="min-usd"><strong>Min USD:</strong></label>
-          </td>
-          <td style="padding: var(--space-sm);">
-            <input type="number" id="min-usd" value="100" min="1" style="width: 100%;">
-          </td>
-        </tr>
-        <tr>
-          <td style="padding: var(--space-sm);">
-            <label for="min-history"><strong>Min History:</strong></label>
-          </td>
-          <td style="padding: var(--space-sm);">
-            <select id="min-history" style="width: 100%;">
-              <option value="90">3 Months (Include Recent)</option>
-              <option value="180">6 Months</option>
-              <option value="365" selected>1 Year (Recommended)</option>
-              <option value="730">2 Years (Conservative)</option>
-              <option value="1095">3 Years (Very Conservative)</option>
-            </select>
-          </td>
-          <td colspan="2" style="padding: var(--space-sm); color: var(--text-secondary); font-size: 0.9em;">
-            Excludes assets with insufficient price history to ensure quality correlations
-          </td>
-        </tr>
-        <tr>
-          <td style="padding: var(--space-sm);">
-            <label for="method"><strong>Method:</strong></label>
-          </td>
-          <td style="padding: var(--space-sm);">
-            <select id="method" style="width: 100%;">
-              <option value="mean_reversion" selected>Mean Reversion</option>
-              <option value="historical">Historical Average</option>
-              <option value="momentum">Momentum</option>
-            </select>
-          </td>
-          <td style="padding: var(--space-sm);">
-            <label>
-              <input type="checkbox" id="conservative" onchange="updateConstraints()" checked>
-              <strong>Conservative Mode</strong>
-            </label>
-          </td>
-          <td style="padding: var(--space-sm);">
-            <small class="text-secondary">Stricter risk limits</small>
-          </td>
-        </tr>
-      </table>
+    <div class="layout" style="display:grid; grid-template-columns: minmax(320px, 1fr) minmax(420px, 1fr); gap: var(--space-lg); align-items: start;">
+      <div class="left-pane">
+        <div class="optimization-panel">
+          <h2>Optimization Settings</h2>
+
+      <div class="control-bar">
+        <div class="control">
+          <label for="data-source">Data Source</label>
+          <select id="data-source">
+            <option value="cointracking">CoinTracking CSV</option>
+            <option value="cointracking_api">CoinTracking API</option>
+            <option value="stub" selected>Test Data (Stub)</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="objective">Objective</label>
+          <select id="objective">
+            <option value="max_sharpe">Max Sharpe (recommended)</option>
+            <option value="min_variance">Minimize Risk</option>
+            <option value="max_return">Maximize Return</option>
+            <option value="risk_parity">Risk Parity</option>
+            <option value="mean_reversion">Mean Reversion</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="method">Return Model</label>
+          <select id="method">
+            <option value="mean_reversion" selected>Mean Reversion</option>
+            <option value="historical">Historical</option>
+            <option value="momentum">Momentum</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="lookback">History Window</label>
+          <select id="lookback">
+            <option value="90">3 Months</option>
+            <option value="180">6 Months</option>
+            <option value="365" selected>1 Year</option>
+            <option value="730">2 Years</option>
+            <option value="1095">3 Years</option>
+            <option value="1460">4 Years</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="min-history">Min History</label>
+          <select id="min-history">
+            <option value="90">3 Months</option>
+            <option value="180">6 Months</option>
+            <option value="365" selected>1 Year</option>
+            <option value="730">2 Years</option>
+            <option value="1095">3 Years</option>
+            <option value="1460">4 Years</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="min-usd">Min USD</label>
+          <input type="number" id="min-usd" value="100" min="1">
+        </div>
+        <div class="control">
+          <label>Mode</label>
+          <label style="display:flex; gap:8px; align-items:center;">
+            <input type="checkbox" id="conservative" onchange="updateConstraints()" checked>
+            <span class="subtle">Conservative</span>
+          </label>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="button-row">
+        <button class="btn" id="analyze-btn" onclick="runAnalysis()">🔍 Analyze</button>
+        <button class="btn btn-primary" id="optimize-btn" onclick="runOptimization()">🚀 Optimize</button>
+        <button class="btn" onclick="loadDefaults()">🔄 Reset</button>
+      </div>
 
       <!-- Advanced constraints in collapsible section -->
       <details style="margin-bottom: var(--space-lg);">
@@ -330,53 +330,80 @@
             <td style="padding: var(--space-sm);">
               <input type="number" id="min-diversification" value="0.4" min="0" max="1" step="0.1" style="width: 100%;">
             </td>
-            <td colspan="2" style="padding: var(--space-sm);">
-              <small class="text-secondary">Advanced users only - leave default values for best results</small>
+            <td style="padding: var(--space-sm);">
+              <label for="min-weight">Min Asset Weight (%):</label>
+            </td>
+            <td style="padding: var(--space-sm);">
+              <input type="number" id="min-weight" value="0" min="0" max="5" step="0.1" style="width: 100%;">
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: var(--space-sm);">
+              <label for="min-assets">Min Active Assets (enforces max weight):</label>
+            </td>
+            <td style="padding: var(--space-sm);">
+              <input type="number" id="min-assets" value="10" min="0" max="50" step="1" style="width: 100%;">
+            </td>
+            <td style="padding: var(--space-sm);">
+              <label for="target-vol">Target Volatility (%):</label>
+            </td>
+            <td style="padding: var(--space-sm);">
+              <input type="number" id="target-vol" value="" min="0" max="100" step="0.1" placeholder="e.g. 25" style="width: 100%;">
             </td>
           </tr>
         </table>
       </details>
 
-      <div style="text-align: center;">
-        <button class="btn btn-primary" onclick="runOptimization()" id="optimize-btn">
-          🚀 Optimize Portfolio
-        </button>
-        <button class="btn btn-secondary" onclick="loadDefaults()">
-          🔄 Reset to Defaults
-        </button>
-      </div>
-
-      <div id="error-container"></div>
-    </div>
-
-    <div class="results-section" id="results">
-      <div class="optimization-panel">
-        <h2>Optimization Results</h2>
-
-        <div class="metrics-grid" id="metrics-grid">
-          <!-- Metrics will be populated here -->
+          <div id="error-container"></div>
         </div>
 
-        <div class="chart-container">
-          <canvas id="allocation-chart"></canvas>
-        </div>
-
-        <h3>Optimal Allocation</h3>
-        <div id="weights-container">
-          <!-- Weights table will be populated here -->
-        </div>
-
-        <h3>Sector Exposures</h3>
-        <div id="sectors-container">
-          <!-- Sectors will be populated here -->
+        <div class="optimization-panel" id="analysis-panel" style="display:none;">
+          <h2>Pre-Analysis</h2>
+          <div id="analysis-container" class="text-secondary"></div>
+          <div style="margin-top: var(--space-sm); display:flex; gap: var(--space-sm); flex-wrap: wrap;">
+            <button class="btn btn-primary" onclick="applySuggestions()">Apply Suggestions</button>
+            <button class="btn btn-secondary" onclick="applyAndOptimize()">Apply & Optimize</button>
+          </div>
+          <div style="margin-top: var(--space-md);">
+            <h3 style="margin-bottom: var(--space-sm);">Scenarios</h3>
+            <div id="scenarios-container"></div>
+          </div>
         </div>
       </div>
 
-      <div class="optimization-panel trades-section" id="trades-section">
-        <h2>📈 Rebalancing Trades</h2>
-        <p class="text-secondary">Trades needed to achieve optimal allocation</p>
-        <div id="trades-container">
-          <!-- Trades will be populated here -->
+      <div class="right-pane">
+        <div class="results-section" id="results">
+          <div class="optimization-panel">
+            <h2>Optimization Results</h2>
+            <div class="metrics-grid" id="metrics-grid">
+              <!-- Metrics will be populated here -->
+            </div>
+
+            <div class="chart-container">
+              <canvas id="allocation-chart"></canvas>
+            </div>
+
+            <h3>Optimal Allocation</h3>
+            <div id="weights-container">
+              <!-- Weights table will be populated here -->
+            </div>
+
+            <h3>Sector Exposures</h3>
+            <div id="sectors-container">
+              <!-- Sectors will be populated here -->
+            </div>
+
+            <h3>Details</h3>
+            <div id="details-container" class="text-secondary"></div>
+          </div>
+
+          <div class="optimization-panel trades-section" id="trades-section">
+            <h2>📈 Rebalancing Trades</h2>
+            <p class="text-secondary">Trades needed to achieve optimal allocation</p>
+            <div id="trades-container">
+              <!-- Trades will be populated here -->
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -393,6 +420,12 @@
         document.getElementById('max-weight').value = data.constraints.max_weight * 100;
         document.getElementById('max-sector').value = data.constraints.max_sector_weight * 100;
         document.getElementById('min-diversification').value = data.constraints.min_diversification_ratio;
+        if (typeof data.constraints.min_weight === 'number') {
+          document.getElementById('min-weight').value = (data.constraints.min_weight * 100).toFixed(2);
+        }
+        if (typeof data.constraints.target_volatility === 'number' && data.constraints.target_volatility > 0) {
+          document.getElementById('target-vol').value = (data.constraints.target_volatility * 100).toFixed(1);
+        }
         document.getElementById('conservative').checked = data.conservative;
 
       } catch (error) {
@@ -410,6 +443,14 @@
         document.getElementById('max-weight').value = data.constraints.max_weight * 100;
         document.getElementById('max-sector').value = data.constraints.max_sector_weight * 100;
         document.getElementById('min-diversification').value = data.constraints.min_diversification_ratio;
+        if (typeof data.constraints.min_weight === 'number') {
+          document.getElementById('min-weight').value = (data.constraints.min_weight * 100).toFixed(2);
+        }
+        if (typeof data.constraints.target_volatility === 'number' && data.constraints.target_volatility > 0) {
+          document.getElementById('target-vol').value = (data.constraints.target_volatility * 100).toFixed(1);
+        } else {
+          document.getElementById('target-vol').value = '';
+        }
 
       } catch (error) {
         console.error('Failed to update constraints:', error);
@@ -433,10 +474,24 @@
           custom_constraints: {
             max_weight: parseFloat(document.getElementById('max-weight').value) / 100,
             max_sector_weight: parseFloat(document.getElementById('max-sector').value) / 100,
-            min_diversification_ratio: parseFloat(document.getElementById('min-diversification').value)
+            min_diversification_ratio: parseFloat(document.getElementById('min-diversification').value),
+            min_weight: parseFloat(document.getElementById('min-weight').value) / 100
           },
           include_current_weights: true
         };
+
+        // Enforce min active assets by bounding max_weight accordingly
+        const minAssets = parseInt(document.getElementById('min-assets').value || '0');
+        if (minAssets && minAssets > 0) {
+          const impliedMax = 1 / minAssets;
+          request.custom_constraints.max_weight = Math.min(request.custom_constraints.max_weight, impliedMax);
+        }
+
+        // Include target volatility if specified
+        const tvol = parseFloat(document.getElementById('target-vol').value);
+        if (!isNaN(tvol) && tvol > 0) {
+          request.custom_constraints.target_volatility = tvol / 100.0;
+        }
 
         const minUsd = document.getElementById('min-usd').value;
         const minHistory = document.getElementById('min-history').value;
@@ -457,6 +512,13 @@
 
         displayResults(result);
         document.getElementById('results').style.display = 'block';
+        // Smooth scroll to the allocation chart after results render
+        setTimeout(() => {
+          const chartEl = document.getElementById('allocation-chart');
+          if (chartEl && chartEl.scrollIntoView) {
+            chartEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 100);
 
       } catch (error) {
         console.error('Optimization error:', error);
@@ -480,6 +542,156 @@
       displayWeights(result.weights, result.risk_contributions);
       displaySectors(result.sector_exposures);
       displayTrades(result.rebalancing_trades);
+      displayDetails(result.optimization_details);
+    }
+
+    async function runAnalysis() {
+      const btn = document.getElementById('analyze-btn');
+      const source = document.getElementById('data-source').value;
+      // Analyze the full portfolio regardless of current Min USD filter
+      const minUsdForAnalysis = 1;
+      btn.disabled = true; btn.textContent = '⏳ Analyzing...';
+      try {
+        const resp = await fetch(`/api/portfolio/optimization/analyze?source=${source}&min_usd=${minUsdForAnalysis}`);
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || 'Analysis failed');
+        window.lastAnalysis = data;
+        // Ensure the results wrapper is visible when only analyzing
+        document.getElementById('results').style.display = 'block';
+        document.getElementById('analysis-panel').style.display = 'block';
+        renderAnalysis(data);
+        renderScenarios(data.scenarios || []);
+      } catch (e) {
+        console.error('Analysis error:', e);
+        alert('Analysis failed: ' + e.message);
+      } finally {
+        btn.disabled = false; btn.textContent = '🔍 Analyze Portfolio';
+      }
+    }
+
+    function renderAnalysis(a) {
+      const el = document.getElementById('analysis-container');
+      const cov = a.history_coverage || {};
+      el.innerHTML = `
+        <div class="metrics-grid">
+          <div class="metric-card"><div class="metric-value">$${a.total_value_usd.toLocaleString()}</div><div class="metric-label">Total Value</div></div>
+          <div class="metric-card"><div class="metric-value">${a.asset_count}</div><div class="metric-label">Assets</div></div>
+          <div class="metric-card"><div class="metric-value">${(a.stablecoins_weight*100).toFixed(1)}%</div><div class="metric-label">Stablecoins</div></div>
+          <div class="metric-card"><div class="metric-value">${(a.top10_weight*100).toFixed(1)}%</div><div class="metric-label">Top10 Weight</div></div>
+          <div class="metric-card"><div class="metric-value">${a.hhi.toFixed(3)}</div><div class="metric-label">HHI</div></div>
+        </div>
+        <div style="margin: var(--space-sm) 0;">
+          <span class="info-badge">≥365d: ${cov['365']||0}</span>
+          <span class="info-badge">≥730d: ${cov['730']||0}</span>
+          <span class="info-badge">≥1095d: ${cov['1095']||0}</span>
+          <span class="info-badge">≥1460d: ${cov['1460']||0}</span>
+        </div>
+        <div style="margin: var(--space-sm) 0;">
+          <strong>Suggested:</strong>
+          <span class="info-badge">Min USD: $${(a.suggest.min_usd||0).toLocaleString()}</span>
+          <span class="info-badge">History/Min: ${a.suggest.lookback_days}d</span>
+          <span class="info-badge">Objective: ${a.suggest.objective}</span>
+          <span class="info-badge">Method: ${a.suggest.expected_return_method}</span>
+        </div>
+        ${ (a.notes||[]).length ? `<div style="margin-top: var(--space-sm);">${a.notes.map(n=>`<div class="info-badge">${n}</div>`).join(' ')}</div>` : '' }
+      `;
+    }
+
+    function renderScenarios(scenarios) {
+      const el = document.getElementById('scenarios-container');
+      if (!Array.isArray(scenarios) || scenarios.length === 0) {
+        el.innerHTML = '<p class="text-secondary">No scenarios available.</p>';
+        return;
+      }
+      // Compact list with tooltips instead of full details
+      const item = (sc, idx) => {
+        const s = sc.suggest || {};
+        const details = [
+          `Objective: ${s.objective || '—'}`,
+          `Mu: ${s.expected_return_method || '—'}`,
+          `Window: ${s.lookback_days || '—'}d`,
+          `MinHist: ${s.min_history_days || '—'}d`,
+          `MinUSD: $${s.min_usd || '—'}`,
+          `MinAssets: ${s.min_assets || '—'}`,
+          `MaxW: ${typeof s.max_weight==='number'? (s.max_weight*100).toFixed(0)+'%':'—'}`,
+          `SectorCap: ${typeof s.max_sector_weight==='number'? (s.max_sector_weight*100).toFixed(0)+'%':'—'}`,
+          `DR≥: ${s.min_diversification_ratio ?? '—'}`,
+          `TVol: ${typeof s.target_volatility==='number'? (s.target_volatility*100).toFixed(0)+'%':'—'}`
+        ].join('\n');
+        return `
+          <li class="scenario-item" title="${details}">
+            <span><strong>${sc.name || 'Scenario'}</strong> <span class="text-secondary" style="font-size:0.85em;">${sc.description || ''}</span></span>
+            <span>
+              <button class="btn btn-secondary" onclick="applyScenario(${idx})">Apply</button>
+              <button class="btn btn-primary" onclick="applyAndOptimizeScenario(${idx})" style="margin-left:6px;">Apply & Optimize</button>
+            </span>
+          </li>`;
+      };
+      el.innerHTML = `
+        <ul class="scenario-list" style="list-style:none; padding:0; margin:0;">
+          ${scenarios.map(item).join('')}
+        </ul>`;
+      // Style items
+      const style = document.createElement('style');
+      style.textContent = `
+        .scenario-item{display:flex; justify-content:space-between; align-items:center; padding:8px 10px; border-bottom:1px solid var(--border-color);} 
+        .scenario-item:last-child{border-bottom:none;}
+      `;
+      document.head.appendChild(style);
+    }
+
+    function applyScenario(idx) {
+      const scenarios = (window.lastAnalysis || {}).scenarios || [];
+      if (!scenarios[idx]) return;
+      const s = scenarios[idx].suggest || {};
+      applySuggestionObject(s);
+    }
+
+    function applyAndOptimizeScenario(idx) {
+      applyScenario(idx);
+      setTimeout(() => runOptimization(), 50);
+    }
+
+    function applySuggestionObject(s) {
+      if (!s) return;
+      if (s.objective) document.getElementById('objective').value = s.objective;
+      if (s.expected_return_method) document.getElementById('method').value = s.expected_return_method;
+      if (typeof s.min_usd === 'number') document.getElementById('min-usd').value = s.min_usd;
+      if (typeof s.lookback_days === 'number') document.getElementById('lookback').value = s.lookback_days;
+      if (typeof s.min_history_days === 'number') document.getElementById('min-history').value = s.min_history_days;
+      if (typeof s.max_weight === 'number') document.getElementById('max-weight').value = (s.max_weight*100).toFixed(0);
+      if (typeof s.max_sector_weight === 'number') document.getElementById('max-sector').value = (s.max_sector_weight*100).toFixed(0);
+      if (typeof s.min_diversification_ratio === 'number') document.getElementById('min-diversification').value = s.min_diversification_ratio;
+      if (typeof s.min_weight === 'number') { const el = document.getElementById('min-weight'); if (el) el.value = (s.min_weight*100).toFixed(2); }
+      if (typeof s.target_volatility === 'number' && s.target_volatility > 0) { const el = document.getElementById('target-vol'); if (el) el.value = (s.target_volatility*100).toFixed(1); }
+      if (typeof s.min_assets === 'number' && s.min_assets > 0) { const el = document.getElementById('min-assets'); if (el) el.value = s.min_assets; }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function applySuggestions() {
+      const s = (window.lastAnalysis || {}).suggest || {};
+      applySuggestionObject(s);
+    }
+
+    function applyAndOptimize() {
+      applySuggestions();
+      // Small delay to ensure UI updates before starting optimization
+      setTimeout(() => runOptimization(), 50);
+    }
+
+    function displayDetails(details) {
+      const el = document.getElementById('details-container');
+      if (!details) { el.innerHTML = ''; return; }
+      const excluded = (details.excluded_symbols || []).slice(0, 20);
+      el.innerHTML = `
+        <div class="info-badge">Assets optimized: ${details.assets_optimized}</div>
+        <div class="info-badge">Excluded: ${details.assets_excluded}</div>
+        <div class="info-badge">Lookback: ${details.lookback_days}d</div>
+        <div class="info-badge">Portfolio value: $${(details.total_portfolio_value||0).toLocaleString()}</div>
+        <div style="margin-top: var(--space-sm); font-size: 0.9em;">
+          ${excluded.length ? `Excluded symbols (first ${excluded.length}): ${excluded.join(', ')}` : 'No excluded symbols'}
+        </div>
+      `;
     }
 
     function displayMetrics(result) {

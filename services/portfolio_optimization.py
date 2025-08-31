@@ -19,7 +19,9 @@ class OptimizationObjective(Enum):
     MIN_VARIANCE = "min_variance" 
     MAX_RETURN = "max_return"
     RISK_PARITY = "risk_parity"
+    RISK_BUDGETING = "risk_budgeting"
     MEAN_REVERSION = "mean_reversion"
+    MULTI_PERIOD = "multi_period"
 
 @dataclass
 class OptimizationConstraints:
@@ -31,6 +33,10 @@ class OptimizationConstraints:
     max_correlation_exposure: float = 0.7
     target_volatility: Optional[float] = None
     min_expected_return: Optional[float] = None
+    risk_budget: Optional[Dict[str, float]] = None
+    rebalance_periods: Optional[List[int]] = None  # [30, 90, 180] days for multi-period
+    period_weights: Optional[List[float]] = None   # [0.5, 0.3, 0.2] weights for each period
+    transaction_costs: Optional[Dict[str, float]] = None  # {"maker_fee": 0.001, "taker_fee": 0.0015, "spread": 0.005}
     
 @dataclass
 class OptimizationResult:
@@ -190,23 +196,56 @@ class PortfolioOptimizer:
                 'type': 'ineq',
                 'fun': lambda x: np.dot(x, expected_returns.values) - constraints.min_expected_return
             })
+            
+        # Maximum correlation exposure constraint
+        if constraints.max_correlation_exposure and constraints.max_correlation_exposure < 1.0:
+            corr_matrix = self._calculate_correlation_matrix(cov_matrix)
+            constraint_list.append({
+                'type': 'ineq',
+                'fun': lambda x: constraints.max_correlation_exposure - self._calculate_correlation_exposure(x, corr_matrix)
+            })
         
-        # Objective function
+        # Objective function with numerical robustness
         def objective_function(x):
             portfolio_return = np.dot(x, expected_returns.values)
             portfolio_variance = np.dot(x, np.dot(cov_matrix.values, x))
-            portfolio_volatility = np.sqrt(portfolio_variance)
+            portfolio_volatility = np.sqrt(max(portfolio_variance, 1e-12))  # Avoid sqrt(0)
+            
+            # Base objective value
+            base_objective = 0.0
             
             if objective == OptimizationObjective.MAX_SHARPE:
-                return -(portfolio_return - self.risk_free_rate) / portfolio_volatility
+                # Robust Sharpe ratio calculation
+                if portfolio_volatility <= 1e-12:
+                    base_objective = 1e6  # Penalize zero volatility
+                else:
+                    base_objective = -(portfolio_return - self.risk_free_rate) / portfolio_volatility
             elif objective == OptimizationObjective.MIN_VARIANCE:
-                return portfolio_variance
+                base_objective = portfolio_variance
             elif objective == OptimizationObjective.MAX_RETURN:
-                return -portfolio_return
+                base_objective = -portfolio_return
             elif objective == OptimizationObjective.RISK_PARITY:
-                return self._risk_parity_objective(x, cov_matrix.values)
+                base_objective = self._risk_parity_objective(x, cov_matrix.values)
+            elif objective == OptimizationObjective.RISK_BUDGETING:
+                # Default risk budget if none provided
+                default_risk_budget = {'BTC': 0.4, 'ETH': 0.3, 'SOL': 0.1, 'Stablecoins': 0.05, 'L1/L0 majors': 0.1, 'Others': 0.05}
+                risk_budget = getattr(constraints, 'risk_budget', None) or default_risk_budget
+                base_objective = self._risk_budgeting_objective(x, cov_matrix.values, risk_budget, assets)
             elif objective == OptimizationObjective.MEAN_REVERSION:
-                return self._mean_reversion_objective(x, expected_returns.values, cov_matrix.values)
+                base_objective = self._mean_reversion_objective(x, expected_returns.values, cov_matrix.values)
+            
+            # Add transaction cost penalty if current weights provided and transaction costs enabled
+            transaction_penalty = 0.0
+            if (current_weights and 
+                constraints.transaction_costs and 
+                len(current_weights) == len(x)):
+                
+                current_weights_array = np.array([current_weights.get(asset, 0) for asset in assets])
+                transaction_penalty = self._calculate_transaction_cost_penalty(
+                    x, current_weights_array, constraints.transaction_costs
+                )
+            
+            return base_objective + transaction_penalty
         
         # Optimization
         result = minimize(
@@ -220,8 +259,17 @@ class PortfolioOptimizer:
         
         if not result.success:
             logger.warning(f"Optimization failed: {result.message}")
-            # Fallback to equal weights
-            optimal_weights = np.ones(n_assets) / n_assets
+            # Intelligent fallback instead of equal weights
+            if current_weights:
+                # Normalize current weights if available
+                current_weights_array = np.array([current_weights.get(asset, 0) for asset in assets])
+                if np.sum(current_weights_array) > 0:
+                    optimal_weights = current_weights_array / np.sum(current_weights_array)
+                else:
+                    optimal_weights = self._create_smart_fallback_weights(expected_returns.values)
+            else:
+                # Weight assets proportionally to positive expected returns
+                optimal_weights = self._create_smart_fallback_weights(expected_returns.values)
         else:
             optimal_weights = result.x
             
@@ -230,8 +278,13 @@ class PortfolioOptimizer:
         
         portfolio_return = np.dot(optimal_weights, expected_returns.values)
         portfolio_variance = np.dot(optimal_weights, np.dot(cov_matrix.values, optimal_weights))
-        portfolio_volatility = np.sqrt(portfolio_variance)
-        sharpe_ratio = (portfolio_return - self.risk_free_rate) / portfolio_volatility
+        portfolio_volatility = np.sqrt(max(portfolio_variance, 1e-12))  # Numerical stability
+        
+        # Robust Sharpe ratio calculation
+        if portfolio_volatility <= 1e-12:
+            sharpe_ratio = 0.0  # Force zero for degenerate portfolios
+        else:
+            sharpe_ratio = (portfolio_return - self.risk_free_rate) / portfolio_volatility
         
         # Risk contributions
         risk_contributions = {}
@@ -276,6 +329,55 @@ class PortfolioOptimizer:
         
         return weighted_vol / portfolio_vol if portfolio_vol > 0 else 0.0
     
+    def _calculate_risk_contributions(self, weights: np.ndarray, cov_matrix: np.ndarray, assets: List[str] = None) -> Dict[str, float]:
+        """Calculate risk contributions for each asset"""
+        portfolio_variance = np.dot(weights, np.dot(cov_matrix, weights))
+        
+        if portfolio_variance == 0:
+            return {}
+            
+        marginal_risks = np.dot(cov_matrix, weights)
+        risk_contributions = {}
+        
+        for i in range(len(weights)):
+            asset_name = assets[i] if assets and i < len(assets) else f"asset_{i}"
+            risk_contributions[asset_name] = weights[i] * marginal_risks[i] / portfolio_variance
+        
+        return risk_contributions
+    
+    def _calculate_transaction_cost_penalty(self, target_weights: np.ndarray, 
+                                          current_weights: np.ndarray,
+                                          transaction_costs: Dict[str, float],
+                                          portfolio_value: float = 100000) -> float:
+        """Calculate transaction cost penalty for rebalancing"""
+        
+        # Default transaction costs
+        maker_fee = transaction_costs.get('maker_fee', 0.001)  # 0.1%
+        taker_fee = transaction_costs.get('taker_fee', 0.0015)  # 0.15%
+        spread_cost = transaction_costs.get('spread', 0.005)  # 0.5% bid-ask spread impact
+        
+        total_cost = 0.0
+        
+        for i in range(len(target_weights)):
+            weight_change = abs(target_weights[i] - current_weights[i])
+            
+            if weight_change > 0.001:  # Only count significant changes (>0.1%)
+                # Trade amount in USD
+                trade_amount = weight_change * portfolio_value
+                
+                # Trading fee (average of maker/taker)
+                avg_fee = (maker_fee + taker_fee) / 2
+                
+                # Total cost = fee + spread impact
+                trade_cost = trade_amount * (avg_fee + spread_cost)
+                total_cost += trade_cost
+        
+        # Normalize cost as percentage of portfolio
+        normalized_cost = total_cost / portfolio_value
+        
+        # Scale penalty (costs reduce returns)
+        return normalized_cost * 10  # Amplify impact for optimization
+    
     def _risk_parity_objective(self, weights: np.ndarray, cov_matrix: np.ndarray) -> float:
         """Risk parity objective function"""
         portfolio_variance = np.dot(weights, np.dot(cov_matrix, weights))
@@ -302,6 +404,182 @@ class PortfolioOptimizer:
         
         return -(portfolio_return - 0.5 * portfolio_variance) + concentration_penalty
     
+    def _risk_budgeting_objective(self, weights: np.ndarray, 
+                                cov_matrix: np.ndarray,
+                                risk_budget: Dict[str, float],
+                                assets: List[str]) -> float:
+        """Risk budgeting objective with custom sector allocations"""
+        portfolio_variance = np.dot(weights, np.dot(cov_matrix, weights))
+        
+        if portfolio_variance == 0:
+            return 1e6
+            
+        # Calculate risk contributions
+        marginal_risks = np.dot(cov_matrix, weights)
+        risk_contributions = weights * marginal_risks / portfolio_variance
+        
+        # Map assets to risk budget categories
+        asset_risk_budgets = np.ones(len(assets)) / len(assets)  # Default equal budget
+        
+        for i, asset in enumerate(assets):
+            # Sector mapping for crypto assets
+            if asset in ['BTC', 'TBTC', 'WBTC']:
+                asset_risk_budgets[i] = risk_budget.get('BTC', 0.4)
+            elif asset in ['ETH', 'WSTETH', 'STETH', 'RETH', 'WETH']:
+                asset_risk_budgets[i] = risk_budget.get('ETH', 0.3)
+            elif asset in ['SOL', 'JUPSOL', 'JITOSOL']:
+                asset_risk_budgets[i] = risk_budget.get('SOL', 0.1)
+            elif asset in ['USDT', 'USDC', 'DAI', 'USD', 'EUR']:
+                asset_risk_budgets[i] = risk_budget.get('Stablecoins', 0.05)
+            elif asset in ['ADA', 'ATOM', 'DOT', 'AVAX', 'NEAR', 'TAO']:
+                asset_risk_budgets[i] = risk_budget.get('L1/L0 majors', 0.1)
+            else:
+                asset_risk_budgets[i] = risk_budget.get('Others', 0.05)
+        
+        # Normalize budgets to sum to 1
+        asset_risk_budgets = asset_risk_budgets / np.sum(asset_risk_budgets)
+        
+        # Minimize squared deviations from target risk budgets
+        return np.sum((risk_contributions - asset_risk_budgets) ** 2)
+    
+    def _multi_period_objective(self, weights: np.ndarray, 
+                              expected_returns_dict: Dict[str, np.ndarray], 
+                              cov_matrices_dict: Dict[str, np.ndarray],
+                              period_weights: List[float]) -> float:
+        """Multi-period optimization combining multiple time horizons"""
+        
+        total_objective = 0.0
+        
+        for i, (period, period_weight) in enumerate(zip(expected_returns_dict.keys(), period_weights)):
+            expected_returns = expected_returns_dict[period]
+            cov_matrix = cov_matrices_dict[period]
+            
+            # Calculate period-specific metrics
+            portfolio_return = np.dot(weights, expected_returns)
+            portfolio_variance = np.dot(weights, np.dot(cov_matrix, weights))
+            portfolio_volatility = np.sqrt(max(portfolio_variance, 1e-12))
+            
+            # Sharpe ratio for this period (negative because we minimize)
+            if portfolio_volatility <= 1e-12:
+                period_sharpe = -1e6  # Penalize zero volatility
+            else:
+                period_sharpe = -(portfolio_return - self.risk_free_rate) / portfolio_volatility
+            
+            # Weight by period importance
+            total_objective += period_weight * period_sharpe
+        
+        # Add stability penalty for extreme allocations
+        concentration_penalty = np.sum(weights ** 2) * 0.05
+        
+        return total_objective + concentration_penalty
+    
+    def optimize_multi_period(self, price_history: pd.DataFrame, 
+                            constraints: OptimizationConstraints,
+                            current_weights: Optional[Dict[str, float]] = None) -> OptimizationResult:
+        """Multi-period portfolio optimization"""
+        
+        # Default periods and weights if not specified
+        periods = constraints.rebalance_periods or [30, 90, 180]  # Short, medium, long-term
+        period_weights = constraints.period_weights or [0.5, 0.3, 0.2]  # Recent bias
+        
+        if len(periods) != len(period_weights):
+            period_weights = [1.0 / len(periods)] * len(periods)  # Equal weights fallback
+        
+        # Calculate expected returns and covariance for each period
+        expected_returns_dict = {}
+        cov_matrices_dict = {}
+        
+        for period in periods:
+            # Use last N days for this period
+            period_data = price_history.tail(period) if len(price_history) > period else price_history
+            
+            # Calculate returns for this period
+            returns = period_data.pct_change().dropna()
+            expected_returns_dict[str(period)] = returns.mean() * 252  # Annualized
+            
+            # Calculate covariance matrix for this period
+            cov_matrices_dict[str(period)] = returns.cov() * 252  # Annualized
+        
+        # Setup optimization
+        assets = price_history.columns.tolist()
+        n_assets = len(assets)
+        x0 = np.ones(n_assets) / n_assets  # Equal weight initial guess
+        
+        # Bounds
+        bounds = [(constraints.min_weight, constraints.max_weight) for _ in range(n_assets)]
+        
+        # Constraint: weights sum to 1
+        constraint_list = [{'type': 'eq', 'fun': lambda x: np.sum(x) - 1.0}]
+        
+        # Objective function
+        def multi_period_objective(x):
+            return self._multi_period_objective(x, expected_returns_dict, cov_matrices_dict, period_weights)
+        
+        # Optimization
+        result = minimize(
+            multi_period_objective,
+            x0,
+            method='SLSQP',
+            bounds=bounds,
+            constraints=constraint_list,
+            options={'maxiter': 1000, 'ftol': 1e-9}
+        )
+        
+        if not result.success:
+            logger.warning(f"Multi-period optimization failed: {result.message}")
+            # Fallback to equal weights
+            optimal_weights = np.ones(n_assets) / n_assets
+        else:
+            optimal_weights = result.x
+        
+        # Calculate final metrics using combined approach (weighted average)
+        combined_returns = np.zeros(n_assets)
+        combined_cov = np.zeros((n_assets, n_assets))
+        
+        for i, period in enumerate(periods):
+            weight = period_weights[i]
+            combined_returns += weight * expected_returns_dict[str(period)]
+            combined_cov += weight * cov_matrices_dict[str(period)]
+        
+        # Build result
+        weights_dict = {asset: weight for asset, weight in zip(assets, optimal_weights)}
+        portfolio_return = np.dot(optimal_weights, combined_returns)
+        portfolio_variance = np.dot(optimal_weights, np.dot(combined_cov, optimal_weights))
+        portfolio_volatility = np.sqrt(portfolio_variance)
+        
+        sharpe_ratio = (portfolio_return - self.risk_free_rate) / portfolio_volatility if portfolio_volatility > 0 else 0
+        
+        # Calculate risk contributions inline
+        risk_contributions = {}
+        if portfolio_variance > 0:
+            combined_cov_values = combined_cov.values if hasattr(combined_cov, 'values') else combined_cov
+            for i, asset in enumerate(assets):
+                marginal_risk = np.dot(combined_cov_values[i], optimal_weights)
+                risk_contributions[asset] = optimal_weights[i] * marginal_risk / portfolio_variance
+        
+        # Calculate sector exposures
+        sector_exposures = {}
+        for sector, symbols in self.crypto_sectors.items():
+            sector_weight = sum(weights_dict.get(symbol, 0) for symbol in symbols)
+            if sector_weight > 0:
+                sector_exposures[sector] = sector_weight
+        
+        # Calculate optimization score (simplified)
+        optimization_score = sharpe_ratio * self._calculate_diversification_ratio(optimal_weights, combined_cov)
+        
+        return OptimizationResult(
+            weights=weights_dict,
+            expected_return=portfolio_return,
+            volatility=portfolio_volatility,
+            sharpe_ratio=sharpe_ratio,
+            max_drawdown=0.0,  # Would need historical simulation
+            diversification_ratio=self._calculate_diversification_ratio(optimal_weights, combined_cov),
+            optimization_score=optimization_score,
+            risk_contributions=risk_contributions,
+            sector_exposures=sector_exposures,
+            constraints_satisfied=self._check_constraints_satisfaction(optimal_weights, constraints, assets)
+        )
+    
     def _check_constraints_satisfaction(self, weights: np.ndarray, 
                                       constraints: OptimizationConstraints,
                                       assets: List[str]) -> bool:
@@ -324,13 +602,66 @@ class PortfolioOptimizer:
                 return False
                 
         return True
+        
+    def _calculate_correlation_matrix(self, cov_matrix: pd.DataFrame) -> np.ndarray:
+        """Calculate correlation matrix from covariance matrix"""
+        
+        volatilities = np.sqrt(np.diag(cov_matrix.values))
+        # Avoid division by zero
+        vol_matrix = np.outer(volatilities, volatilities)
+        vol_matrix = np.where(vol_matrix == 0, 1e-8, vol_matrix)
+        
+        corr_matrix = cov_matrix.values / vol_matrix
+        return corr_matrix
+    
+    def _calculate_correlation_exposure(self, weights: np.ndarray, corr_matrix: np.ndarray) -> float:
+        """
+        Calculate portfolio correlation exposure as weighted sum of absolute correlations
+        Formula: exposure = sum_{i<j} |corr_ij| * x_i * x_j / (1 - sum x_i^2 + eps)
+        """
+        
+        n = len(weights)
+        exposure = 0.0
+        
+        # Sum of pairwise correlation contributions
+        for i in range(n):
+            for j in range(i + 1, n):
+                correlation = abs(corr_matrix[i, j])
+                exposure += correlation * weights[i] * weights[j]
+        
+        # Normalize by portfolio concentration (1 - HHI)
+        herfindahl_index = np.sum(weights ** 2)
+        normalization = max(1 - herfindahl_index, 1e-6)  # Avoid division by zero
+        
+        return exposure / normalization
+    
+    def _create_smart_fallback_weights(self, expected_returns: np.ndarray) -> np.ndarray:
+        """Create intelligent fallback weights when optimization fails"""
+        
+        # Weight assets proportionally to positive expected returns
+        positive_returns = np.maximum(expected_returns, 0)
+        
+        if np.sum(positive_returns) > 0:
+            weights = positive_returns / np.sum(positive_returns)
+        else:
+            # If all returns are negative, use equal weights
+            weights = np.ones(len(expected_returns)) / len(expected_returns)
+        
+        return weights
 
-def create_crypto_constraints(conservative: bool = False) -> OptimizationConstraints:
-    """Create crypto-specific optimization constraints"""
+def create_crypto_constraints(conservative: bool = False, n_assets: int = None) -> OptimizationConstraints:
+    """Create crypto-specific optimization constraints with dynamic min_weight"""
+    
+    # Calculate dynamic min_weight based on number of assets
+    dynamic_min_weight = 0.0
+    if n_assets and n_assets > 0:
+        # For many assets, use smaller min_weight to avoid infeasibility
+        # Rule: min(0.01, 1/(2*n_assets)) but never below 0.001
+        dynamic_min_weight = max(0.001, min(0.01, 1.0 / (2 * n_assets)))
     
     if conservative:
         return OptimizationConstraints(
-            min_weight=0.01,   # 1% minimum pour éviter trop de dispersion
+            min_weight=dynamic_min_weight,  # Dynamic minimum
             max_weight=0.25,   # 25% max pour forcer diversification
             max_sector_weight=0.4,
             min_diversification_ratio=0.5,  # Forte diversification
@@ -339,7 +670,7 @@ def create_crypto_constraints(conservative: bool = False) -> OptimizationConstra
         )
     else:
         return OptimizationConstraints(
-            min_weight=0.0,     
+            min_weight=0.0,     # No minimum for aggressive
             max_weight=0.35,    # 35% max au lieu de 60% pour plus de diversité
             max_sector_weight=0.6,
             min_diversification_ratio=0.25,  # Diversification minimum
