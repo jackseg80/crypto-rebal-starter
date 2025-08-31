@@ -1,0 +1,167 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: crypto-rebal
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crypto-rebal-api
+  namespace: crypto-rebal
+  labels:
+    app: crypto-rebal-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: crypto-rebal-api
+  template:
+    metadata:
+      labels:
+        app: crypto-rebal-api
+    spec:
+      containers:
+      - name: crypto-rebal-api
+        image: crypto-rebal:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: CACHE_ENABLED
+          value: "true"
+        - name: REDIS_HOST
+          value: "redis-service"
+        - name: REDIS_PORT
+          value: "6379"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        volumeMounts:
+        - name: data-volume
+          mountPath: /app/data
+        - name: cache-volume
+          mountPath: /app/cache
+      volumes:
+      - name: data-volume
+        persistentVolumeClaim:
+          claimName: crypto-rebal-data-pvc
+      - name: cache-volume
+        persistentVolumeClaim:
+          claimName: crypto-rebal-cache-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: crypto-rebal-service
+  namespace: crypto-rebal
+spec:
+  selector:
+    app: crypto-rebal-api
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8000
+  type: LoadBalancer
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: crypto-rebal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        volumeMounts:
+        - name: redis-volume
+          mountPath: /data
+      volumes:
+      - name: redis-volume
+        persistentVolumeClaim:
+          claimName: redis-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+  namespace: crypto-rebal
+spec:
+  selector:
+    app: redis
+  ports:
+  - protocol: TCP
+    port: 6379
+    targetPort: 6379
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: crypto-rebal-data-pvc
+  namespace: crypto-rebal
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: crypto-rebal-cache-pvc
+  namespace: crypto-rebal
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+  namespace: crypto-rebal
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
