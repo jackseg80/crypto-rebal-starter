@@ -58,6 +58,8 @@ python crypto_toolbox_api.py  # Port 8001
 - **⚖️ Rebalancing** : `static/rebalance.html` - Génération des plans intelligents avec sync CCS
 - **🏷️ Alias Manager** : `static/alias-manager.html` - Gestion des taxonomies
 - **⚙️ Settings** : `static/settings.html` - Configuration centralisée (**commencez ici**)
+- **🔧 Debug Menu** : `static/debug-menu.html` - Centre de contrôle debug avec accès aux 49 tests
+- **🚀 Multi-Asset Dashboard** : `static/multi-asset-dashboard.html` - Dashboard correlation et analyse multi-actifs
 
 > 🔧 **Nouvelles fonctionnalités** : Synchronisation complète des données entre dashboards, support uvicorn, et stratégies CCS différenciées
 
@@ -67,9 +69,12 @@ python crypto_toolbox_api.py  # Port 8001
 
 ### 🔧 Outils de debug et diagnostic :
 - **Mode debug** : `toggleDebug()` dans la console pour activer/désactiver les logs
+- **Menu Debug Intégré** : Accès direct aux 49 tests organisés en 5 catégories (Core, API, UI, Performance, Validation)
+- **Suite de Tests Unifiée** : `tests/html_debug/` organisé avec READMEs et workflow recommandé
 - **Validation** : Système automatique de validation des inputs avec feedback utilisateur
 - **Performance** : Optimisations automatiques pour portfolios volumineux (>500 assets)
 - **Troubleshooting** : Guide complet dans `TROUBLESHOOTING.md`
+- **Centre de Contrôle Debug** : `/debug-menu.html` avec accès centralisé à tous les outils
 
 > 💡 **Workflow recommandé** : Commencez par Settings pour configurer vos clés API et paramètres, puis naviguez via les menus unifiés.
 
@@ -933,6 +938,9 @@ Tous les cas d'usage critiques ont été testés et validés :
 - ✅ **Performance attribution** Brinson-style avec décomposition
 - ✅ **Backtesting engine** avec coûts de transaction et benchmarks
 - ✅ **Smart classification** hybrid AI avec confidence scoring
+- ✅ **Portfolio Optimization** Markowitz avec 6 objectifs et contraintes crypto
+- ✅ **ML Models & Endpoints** API machine learning pour analytics prédictifs
+- ✅ **Multi-Asset Management** corrélation et gestion multi-actifs avancée
 
 ### 🎯 Prochaines phases (Phase 5+)
 
@@ -1213,4 +1221,4 @@ POST /api/backtesting/run
 
 ---
 
-**🎉 Ce projet représente maintenant une plateforme complète de trading & risk management institutionnel market-aware avec plus de 18,000 lignes de code, système de régimes de marché IA, et rebalancing intelligent automatisé.**
+**🎉 Ce projet représente maintenant une plateforme complète de trading & risk management institutionnel market-aware avec plus de 20,000 lignes de code, 49 tests organisés, système de régimes de marché IA, rebalancing intelligent automatisé, et infrastructure Docker production-ready.**
