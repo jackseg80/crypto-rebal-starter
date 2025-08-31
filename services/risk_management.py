@@ -258,8 +258,8 @@ class AlertSystem:
                 "critical": 0.40   # Drawdown actuel > 40%
             },
             "diversification_ratio": {
-                "medium": 1.3,     # Ratio < 1.3 (faible)
-                "high": 1.1        # Ratio < 1.1 (très faible)
+                "medium": 0.7,     # Ratio < 0.7 (faible)
+                "high": 0.4        # Ratio < 0.4 (très faible)
             },
             "concentration": {
                 "medium": 0.60,    # Plus de 60% dans un asset

@@ -312,6 +312,73 @@
     }
 
     /* ===== Risk Components (existants) ===== */
+    /* Top summary grid for key points + alerts + recommendations */
+    .top-summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: var(--space-lg);
+      margin: var(--space-xl) 0;
+    }
+
+    .top-summary .risk-card h3 {
+      margin-bottom: .75rem;
+    }
+
+    /* Collapsible container for top summary */
+    .top-collapsible {
+      background: var(--theme-surface);
+      border: 1px solid var(--theme-border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      margin: var(--space-lg) 0;
+      overflow: hidden;
+    }
+
+    .top-collapsible > summary {
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-md);
+      cursor: pointer;
+      padding: var(--space-md) var(--space-lg);
+      border-bottom: 1px solid var(--theme-border);
+      font-weight: 600;
+      color: var(--theme-text);
+      background: var(--theme-bg);
+    }
+
+    .top-collapsible > summary::-webkit-details-marker { display: none; }
+
+    .summary-right {
+      display: inline-flex;
+      align-items: center;
+      gap: .5rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: .25rem;
+      font-size: .75rem;
+      padding: .25rem .5rem;
+      border-radius: 999px;
+      border: 1px solid var(--theme-border);
+      background: var(--theme-surface);
+      color: var(--theme-text);
+    }
+
+    .badge-alerts { border-color: var(--danger); color: var(--danger); background: var(--danger-bg); }
+    .badge-recos { border-color: var(--info); color: var(--info); background: var(--info-bg); }
+
+    .chevron {
+      font-weight: 700;
+      transform: rotate(0deg);
+      transition: transform .2s ease;
+      opacity: .7;
+    }
+
+    .top-collapsible[open] .chevron { transform: rotate(90deg); }
     .risk-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -943,7 +1010,7 @@
 
         // Utiliser directement les données de balance et calculer le risque côté client
         const balanceResult = await fetchCached(
-          'risk-dashboard-balance',
+          `risk-dashboard-balance:${dataSource}:${minUsd}`,
           () => fetch(url)
             .then(r => {
               if (!r.ok) throw new Error(`HTTP ${r.status}: ${r.statusText}`);
@@ -962,6 +1029,10 @@
         }
 
         const apiResult = await riskResponse.json();
+        // Inclure les balances pour calculer concentration/stablecoins côté UI
+        try {
+          apiResult.balances = Array.isArray(balanceResult?.items) ? balanceResult.items : [];
+        } catch (_) { /* ignore */ }
         console.log(`📊 Real risk metrics calculated: VaR 95%: ${(apiResult.risk_metrics.var_95_1d * 100).toFixed(2)}%, Sharpe: ${apiResult.risk_metrics.sharpe_ratio.toFixed(2)}`);
 
         // The backend already provides the correct structure, just return it
@@ -1048,11 +1119,11 @@
         'diversification_ratio': {
           danger: [0, 0.4],
           warning: [0.4, 0.7],
-          good: [0.7, 1.0],
+          good: [0.7, 2.0], // >1 possible si corrélations négatives
           interpretation: {
             danger: "Très peu diversifié",
             warning: "Diversification limitée",
-            good: "Bien diversifié"
+            good: "Bien diversifié (corrélations faibles ou négatives)"
           }
         },
         'effective_assets': {
@@ -1144,14 +1215,22 @@
         });
       }
 
-      // Diversification recommendations
-      if (correlations.diversification_ratio < 0.5) {
+      // Diversification recommendations (alignée aux seuils UI)
+      if (correlations.diversification_ratio < 0.4) {
         recommendations.push({
           priority: 'high',
           icon: '🔄',
           title: 'Améliorer la diversification',
-          description: 'Ratio de diversification faible (' + safeFixed(correlations.diversification_ratio) + '). Portfolio trop corrélé.',
+          description: 'Ratio de diversification très faible (' + safeFixed(correlations.diversification_ratio) + '). Portfolio trop corrélé.',
           action: 'Ajoutez des actifs décorrélés: privacy coins, stablecoins, secteurs différents'
+        });
+      } else if (correlations.diversification_ratio < 0.7) {
+        recommendations.push({
+          priority: 'medium',
+          icon: '🔄',
+          title: 'Améliorer la diversification',
+          description: 'Diversification limitée (' + safeFixed(correlations.diversification_ratio) + ').',
+          action: 'Élargissez les secteurs et réduisez les paires très corrélées'
         });
       }
 
@@ -1481,7 +1560,7 @@
       var99_1d: { good: [0, 0.08], warn: [0.08, 0.15] },
       cvar95_1d: { good: [0, 0.07], warn: [0.07, 0.12] },
       cvar99_1d: { good: [0, 0.10], warn: [0.10, 0.18] },
-      diversification_ratio: { good: [0.6, 1.0], warn: [0.4, 0.6] },
+      diversification_ratio: { good: [0.7, 2.0], warn: [0.4, 0.7] },
       effective_assets: { good: [10, 999], warn: [5, 10] }
     };
 
@@ -1969,11 +2048,154 @@
       const m = data.risk_metrics;
       const c = data.correlation_metrics;
       const p = data.portfolio_summary;
+      const balances = Array.isArray(data.balances) ? data.balances : [];
+
+      // Quick insights from balances for concentration and stablecoins
+      const insights = (() => {
+        const total = Number(p?.total_value) || balances.reduce((a, b) => a + Number(b.value_usd || 0), 0);
+        if (!total || (!balances || balances.length === 0)) {
+          return { top5Share: null, hhi: null, stableShare: null };
+        }
+        const sorted = balances
+          .filter(x => Number(x.value_usd) > 0)
+          .sort((a, b) => Number(b.value_usd) - Number(a.value_usd));
+        const weights = sorted.map(x => Number(x.value_usd) / total);
+        const top5Share = weights.slice(0, 5).reduce((a, b) => a + b, 0);
+        const hhi = weights.reduce((a, b) => a + b * b, 0);
+        // Stablecoins share
+        const STABLES = new Set(['USDC', 'USDT', 'USD', 'DAI', 'USTC']);
+        const stableValue = sorted
+          .filter(x => STABLES.has(String(x.symbol || '').toUpperCase()))
+          .reduce((a, b) => a + Number(b.value_usd || 0), 0);
+        const stableShare = stableValue / total;
+        return { top5Share, hhi, stableShare };
+      })();
 
       // Helper functions are defined at the top of the script
 
+      // Prépare: HTML recommandations et alertes pour la section top-summary
+      const recos = generateRecommendations(m, c, p.groups || {});
+      const recommendationsHtml = (() => {
+        return recos.map(rec => `
+          <div class="recommendation recommendation-${rec.priority}">
+            <div class="recommendation-header">
+              <span class="recommendation-icon">${rec.icon}</span>
+              <span class="recommendation-title">${rec.title}</span>
+              <span class="recommendation-priority">${rec.priority === 'high' ? 'PRIORITÉ' : rec.priority === 'medium' ? 'Important' : 'Info'}</span>
+            </div>
+            <div class="recommendation-description">${rec.description}</div>
+            <div class="recommendation-action">▶️ ${rec.action}</div>
+          </div>
+        `).join('');
+      })();
+
+      const alertCount = (data.alerts && data.alerts.length) ? data.alerts.length : 0;
+      const alertsHtml = (alertCount) ? (
+        data.alerts.map(a => `
+          <div class="alert alert-${a.level}">
+            <strong>${a.message}</strong><br>
+            <em>Recommendation: ${a.recommendation}</em>
+          </div>
+        `).join('')
+      ) : `
+        <div class="alert alert-low">
+          <strong>✅ All Clear</strong><br>
+          <em>No significant risk alerts at this time.</em>
+        </div>
+      `;
+
       container.innerHTML = `
         ${testModeBanner}
+        <!-- Top Summary: Collapsible container -->
+        <details class="top-collapsible">
+          <summary>
+            <div>Vue d’ensemble risques & recommandations</div>
+            <div class="summary-right">
+              <span class="badge badge-alerts">⚠️ ${alertCount} alertes</span>
+              <span class="badge badge-recos">💡 ${recos.length} recos</span>
+              <span class="chevron">›</span>
+            </div>
+          </summary>
+          <div class="top-summary">
+          <!-- Points clés -->
+          <div class="risk-card">
+            <h3>📋 Points clés de votre portfolio</h3>
+            <div class="insights-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .75rem;">
+              <div class="insight-item">
+                <div style="font-weight: 600; color: var(--theme-text);">🎯 Niveau de risque</div>
+                <div style="color: var(--theme-text-muted); margin-top: 0.25rem;">
+                  ${(() => {
+                    const riskScore = m.risk_score || 0;
+                    if (riskScore > 70) return 'Élevé - Attention aux corrections brutales';
+                    if (riskScore > 50) return 'Modéré - Typique pour crypto';
+                    return 'Contrôlé - Bon équilibre risque/rendement';
+                  })()}
+                </div>
+              </div>
+              <div class="insight-item">
+                <div style="font-weight: 600; color: var(--theme-text);">📊 Diversification</div>
+                <div style="color: var(--theme-text-muted); margin-top: 0.25rem;">
+                  ${(() => {
+                    const div = c.diversification_ratio || 0;
+                    if (div > 0.7) return 'Excellente - Portfolio bien réparti';
+                    if (div > 0.4) return 'Limitée - Possibilité d\'amélioration';
+                    return 'Faible - Trop corrélé, diversifiez';
+                  })()}
+                </div>
+              </div>
+              <div class="insight-item">
+                <div style="font-weight: 600; color: var(--theme-text);">⚡ Performance/Risque</div>
+                <div style="color: var(--theme-text-muted); margin-top: 0.25rem;">
+                  ${(() => {
+                    const sharpe = m.sharpe_ratio || 0;
+                    if (sharpe > 1.2) return 'Excellent - Rendement supérieur pour le risque pris';
+                    if (sharpe > 0.8) return 'Bon - Rendement acceptable pour le risque';
+                    return 'À améliorer - Risque élevé vs rendement';
+                  })()}
+                </div>
+              </div>
+              <div class="insight-item">
+                <div style="font-weight: 600; color: var(--theme-text);">🔝 Concentration</div>
+                <div style="color: var(--theme-text-muted); margin-top: 0.25rem;">
+                  ${(() => {
+                    const t5 = insights.top5Share;
+                    const hhi = insights.hhi;
+                    if (t5 == null || hhi == null) return 'N/A';
+                    return `Top 5: ${(t5 * 100).toFixed(1)}% • HHI: ${hhi.toFixed(2)}`;
+                  })()}
+                </div>
+              </div>
+              <div class="insight-item">
+                <div style="font-weight: 600; color: var(--theme-text);">💵 Stablecoins</div>
+                <div style="color: var(--theme-text-muted); margin-top: 0.25rem;">
+                  ${(() => {
+                    const s = insights.stableShare;
+                    return (s == null) ? 'N/A' : `${(s * 100).toFixed(1)}% du portefeuille`;
+                  })()}
+                </div>
+              </div>
+              <div class="insight-item">
+                <div style="font-weight: 600; color: var(--theme-text);">🧪 Données de calcul</div>
+                <div style="color: var(--theme-text-muted); margin-top: 0.25rem;">
+                  ${p.num_assets || (balances?.length || 'N/A')} actifs utilisés
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Risk Alerts -->
+          <div class="risk-card">
+            <h3>⚠️ Risk Alerts</h3>
+            ${alertsHtml}
+          </div>
+
+          <!-- Recommandations d'amélioration -->
+          <div class="risk-card">
+            <h3>💡 Recommandations d'amélioration</h3>
+            ${recommendationsHtml}
+          </div>
+          </div>
+        </details>
         <!-- Portfolio Summary -->
         <div class="risk-card">
           <h3>📊 Portfolio Summary</h3>
@@ -1990,47 +2212,8 @@
             <span class="metric-value">${safeFixed((p.confidence_level || 0) * 100, 1)}%</span>
           </div>
         </div>
-
-        <!-- Key Insights Summary -->
-        <div class="key-insights" style="margin: 1.5rem 0; padding: 1.5rem; background: var(--theme-surface); border-radius: 8px; border: 1px solid var(--theme-border);">
-          <h3 style="margin-bottom: 1rem;">📋 Points clés de votre portfolio</h3>
-          <div class="insights-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
-            <div class="insight-item">
-              <div style="font-weight: 600; color: var(--theme-text);">🎯 Niveau de risque</div>
-              <div style="color: var(--theme-text-muted); margin-top: 0.25rem;">
-                ${(() => {
-          const riskLevel = m.overall_risk_level || 'unknown';
-          const riskScore = m.risk_score || 0;
-          if (riskScore > 70) return 'Élevé - Attention aux corrections brutales';
-          if (riskScore > 50) return 'Modéré - Typique pour crypto';
-          return 'Contrôlé - Bon équilibre risque/rendement';
-        })()}
-              </div>
-            </div>
-            <div class="insight-item">
-              <div style="font-weight: 600; color: var(--theme-text);">📊 Diversification</div>
-              <div style="color: var(--theme-text-muted); margin-top: 0.25rem;">
-                ${(() => {
-          const div = c.diversification_ratio || 0;
-          if (div > 0.7) return 'Excellente - Portfolio bien réparti';
-          if (div > 0.4) return 'Limitée - Possibilité d\'amélioration';
-          return 'Faible - Trop corrélé, diversifiez';
-        })()}
-              </div>
-            </div>
-            <div class="insight-item">
-              <div style="font-weight: 600; color: var(--theme-text);">⚡ Performance/Risque</div>
-              <div style="color: var(--theme-text-muted); margin-top: 0.25rem;">
-                ${(() => {
-          const sharpe = m.sharpe_ratio || 0;
-          if (sharpe > 1.2) return 'Excellent - Rendement supérieur pour le risque pris';
-          if (sharpe > 0.8) return 'Bon - Rendement acceptable pour le risque';
-          return 'À améliorer - Risque élevé vs rendement';
-        })()}
-              </div>
-            </div>
-          </div>
-        </div>
+        
+        <!-- Key Insights moved to Top Summary -->
 
         <div class="risk-grid">
           <!-- VaR/CVaR -->
@@ -2172,42 +2355,9 @@
           </div>
         </div>
 
-        <!-- Recommendations -->
-        <div class="risk-card" style="margin-top: 2rem;">
-          <h3>💡 Recommandations d'amélioration</h3>
-          ${(() => {
-          const recommendations = generateRecommendations(m, c, p.groups || {});
-          return recommendations.map(rec => `
-              <div class="recommendation recommendation-${rec.priority}">
-                <div class="recommendation-header">
-                  <span class="recommendation-icon">${rec.icon}</span>
-                  <span class="recommendation-title">${rec.title}</span>
-                  <span class="recommendation-priority">${rec.priority === 'high' ? 'PRIORITÉ' : rec.priority === 'medium' ? 'Important' : 'Info'}</span>
-                </div>
-                <div class="recommendation-description">${rec.description}</div>
-                <div class="recommendation-action">▶️ ${rec.action}</div>
-              </div>
-            `).join('');
-        })()}
-        </div>
+        <!-- Recommendations moved to Top Summary -->
 
-        <!-- Alerts -->
-        ${data.alerts && data.alerts.length ? `
-          <div class="risk-card">
-            <h3>⚠️ Risk Alerts</h3>
-            ${data.alerts.map(a => `
-              <div class="alert alert-${a.level}">
-                <strong>${a.message}</strong><br>
-                <em>Recommendation: ${a.recommendation}</em>
-              </div>
-            `).join('')}
-          </div>
-        ` : `
-          <div class="risk-card">
-            <h3>✅ All Clear</h3>
-            <p>No significant risk alerts at this time.</p>
-          </div>
-        `}
+        <!-- Alerts moved to Top Summary -->
       `;
 
       // Après rendu : brancher les info-bulles et verdicts
@@ -3782,7 +3932,10 @@
 
           const title = rating.label || key;
           const fmt = (key === 'sharpe' || key === 'sortino') ? num : pct;
-          const body = `Valeur actuelle : ${isNaN(val) ? 'N/A' : fmt(val)}\nLecture : ${rating.verdict}`;
+          let body = `Valeur actuelle : ${isNaN(val) ? 'N/A' : fmt(val)}\nLecture : ${rating.verdict}`;
+          if (key === 'diversification_ratio') {
+            body += `\nNote: DR≈1 = neutre; >1 suggère corrélations négatives; <1 corrélations positives.\nSeuils: bon ≥0.7, limité 0.4–0.7, faible <0.4.`;
+          }
 
           showTip(title, body, e.clientX, e.clientY);
         });

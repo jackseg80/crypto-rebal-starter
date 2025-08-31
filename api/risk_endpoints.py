@@ -351,59 +351,15 @@ async def get_risk_dashboard(
     try:
         start_time = datetime.now()
         
-        # Sources de balances: API CoinTracking (prioritaire) avec fallback CSV/local
-        from connectors.cointracking_api import get_current_balances as get_balances_api
-        from connectors.cointracking import get_current_balances as get_balances_csv
-        
         # DEBUG: Log de début
         print(f"DEBUG: Risk Dashboard starting with source={source}, min_usd={min_usd}")
-        
-        # Récupération des balances selon 'source' avec fallback automatique
-        balances_response = None
-        if (source or "").lower() == "cointracking":
-            balances_response = await get_balances_csv("cointracking")
-        else:
-            # Tenter l'API d'abord
-            try:
-                balances_response = await get_balances_api()
-            except Exception as e:
-                print(f"DEBUG: API balances error: {e}")
-                balances_response = None
-            # Fallback CSV si API vide ou invalide
-            if not isinstance(balances_response, dict) or not balances_response.get("items"):
-                print("DEBUG: Falling back to CSV balances source")
-                balances_response = await get_balances_csv("cointracking")
-        
-        if not balances_response or not isinstance(balances_response, dict):
-            print("DEBUG: balances_response is invalid after fallback")
-            return {
-                "success": False,
-                "message": "Erreur lors de la récupération des données CoinTracking"
-            }
-        
-        # DEBUG: Vérifier la structure des données
-        print(f"DEBUG: balances_response keys: {list(balances_response.keys())}")
-        print(f"DEBUG: balances_response items type: {type(balances_response.get('items'))}")
-        print(f"DEBUG: balances_response items count: {len(balances_response.get('items', []))}")
-        
-        # Filtrer les balances selon le seuil minimum
-        items_raw = balances_response.get("items", [])
-        # Si la plupart des value_usd sont 0 (API n'a pas donné les prix), essayer de revaloriser via pricing local
-        if items_raw and sum(1 for it in items_raw if float(it.get("value_usd") or 0.0) > 0) == 0:
-            try:
-                from services.pricing import get_prices_usd
-                price_map = get_prices_usd([it.get("symbol") for it in items_raw])
-                for it in items_raw:
-                    sym = (it.get("symbol") or "").upper()
-                    amt = float(it.get("amount") or it.get("balance") or 0.0)
-                    px = price_map.get(sym)
-                    if px and amt and not it.get("value_usd"):
-                        it["value_usd"] = float(px) * amt
-                print("DEBUG: Repriced items via local pricing map")
-            except Exception as e:
-                print(f"DEBUG: Local repricing failed: {e}")
-        
-        balances = [r for r in items_raw if float(r.get("value_usd") or 0.0) >= float(min_usd)]
+
+        # Récupération unifiée des balances (supporte stub | cointracking | cointracking_api)
+        from api.unified_data import get_unified_filtered_balances
+        unified = await get_unified_filtered_balances(source=source, min_usd=min_usd)
+        balances = unified.get("items", [])
+        source_used = unified.get("source_used", source)
+        print(f"DEBUG: unified balances count: {len(balances)} (source_used={source_used})")
         
         # DEBUG: Log du résultat
         items_count = len(balances)
@@ -898,13 +854,25 @@ def _generate_risk_alerts(risk_metrics: RiskMetrics, correlation_matrix: Correla
         })
     
     # Alert corrélation excessive (manque de diversification)
-    if correlation_matrix.diversification_ratio < 1.3:
-        alerts.append({
-            "level": "medium",
-            "type": "correlation_alert",
-            "message": f"Faible diversification: ratio {correlation_matrix.diversification_ratio:.2f}",
-            "recommendation": "Ajouter des assets moins corrélés"
-        })
+    # Harmonisé avec l'UI: bon ≥0.7, limité 0.4–0.7, faible <0.4
+    try:
+        dr = float(correlation_matrix.diversification_ratio)
+        if dr < 0.4:
+            alerts.append({
+                "level": "high",
+                "type": "correlation_alert",
+                "message": f"Très faible diversification: ratio {dr:.2f}",
+                "recommendation": "Réduire l'exposition aux actifs fortement corrélés; ajouter des actifs décorrélés"
+            })
+        elif dr < 0.7:
+            alerts.append({
+                "level": "medium",
+                "type": "correlation_alert",
+                "message": f"Faible diversification: ratio {dr:.2f}",
+                "recommendation": "Ajouter des assets moins corrélés"
+            })
+    except Exception:
+        pass
     
     # Alert Sharpe ratio négatif
     if risk_metrics.sharpe_ratio < 0:
