@@ -26,6 +26,13 @@ function createSharedHeader(activePageId, showConfigIndicators = false) {
 
   // Section 4: Debug Tests (conditionnelle)
   const debugTests = [
+    // NOUVEAU: Menu Principal Debug
+    { category: '🚀 MENU PRINCIPAL DEBUG', tests: [
+      { title: '🔧 Menu Debug & Tests Complet', url: '/debug-menu.html', desc: '⭐ CENTRE DE CONTRÔLE - Tous les nouveaux modules', highlight: true },
+      { title: '🩺 Diagnostic 11 Groupes', url: '/tests/html_debug/debug_11_groups_fix.html', desc: 'Diagnostic complet problème groupes' },
+      { title: '⚡ Test Performance Système', url: '/tests/html_debug/test_performance_system.html', desc: 'Tests système performance' },
+      { title: '💰 Test Multi-Asset System', url: '/tests/html_debug/test_multi_asset_system.html', desc: 'Tests système multi-actifs' }
+    ]},
     // Core System
     { category: '🔧 Core System', tests: [
       { title: '11 Groups Test', url: '/tests/html_debug/debug_11_groups.html', desc: 'Test 11 groupes Strategic Targeting' },
@@ -96,7 +103,7 @@ function createSharedHeader(activePageId, showConfigIndicators = false) {
       <div class="debug-category">
         <div class="debug-category-header">${category.category}</div>
         ${category.tests.map(test => `
-          <a href="${test.url}" class="debug-test-link" title="${test.desc}">
+          <a href="${test.url}" class="debug-test-link ${test.highlight ? 'debug-test-highlight' : ''}" title="${test.desc}">
             ${test.title}
           </a>
         `).join('')}
@@ -375,6 +382,27 @@ const SHARED_NAV_CSS = `
     transform:translateX(2px);
   }
   
+  /* Style spécial pour les éléments en surbrillance */
+  .debug-test-highlight{
+    background: linear-gradient(45deg, #00ff88, #00cc66) !important;
+    color: #000 !important;
+    font-weight: 600 !important;
+    border: 2px solid #00ff88 !important;
+    box-shadow: 0 2px 8px rgba(0, 255, 136, 0.3) !important;
+    animation: pulseHighlight 2s ease-in-out infinite !important;
+  }
+  
+  .debug-test-highlight:hover{
+    background: linear-gradient(45deg, #00cc66, #00aa44) !important;
+    transform: translateX(4px) scale(1.02) !important;
+    box-shadow: 0 4px 16px rgba(0, 255, 136, 0.4) !important;
+  }
+  
+  @keyframes pulseHighlight {
+    0%, 100% { box-shadow: 0 2px 8px rgba(0, 255, 136, 0.3); }
+    50% { box-shadow: 0 4px 16px rgba(0, 255, 136, 0.6); }
+  }
+  
   /* Dark theme support */
   [data-theme="dark"] .debug-dropdown-menu{
     background:#1f2937;
@@ -393,6 +421,16 @@ const SHARED_NAV_CSS = `
     background:#7f1d1d;
     border-color:#dc2626;
     color:#fca5a5;
+  }
+  
+  /* Dark theme pour highlight */
+  [data-theme="dark"] .debug-test-highlight{
+    background: linear-gradient(45deg, #00ff88, #00cc66) !important;
+    color: #000 !important;
+  }
+  
+  [data-theme="dark"] .debug-test-highlight:hover{
+    background: linear-gradient(45deg, #00cc66, #00aa44) !important;
   }
   
   /* Style pour éléments désactivés */

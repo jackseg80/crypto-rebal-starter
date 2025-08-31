@@ -10,7 +10,7 @@ import { getMarketRegime, applyMarketOverrides, calculateRiskBudget, allocateRis
 // All asset groups (ensures consistent 11-group taxonomy)
 const ALL_ASSET_GROUPS = ['BTC', 'ETH', 'Stablecoins', 'SOL', 'L1/L0 majors', 'L2/Scaling', 'DeFi', 'AI/Data', 'Gaming/NFT', 'Memecoins', 'Others'];
 
-// Default macro targets (baseline allocation)
+// Default macro targets (baseline allocation) - TOUS les 11 groupes
 export const DEFAULT_MACRO_TARGETS = {
   'BTC': 35.0,
   'ETH': 25.0,
@@ -21,8 +21,8 @@ export const DEFAULT_MACRO_TARGETS = {
   'DeFi': 2.0,
   'AI/Data': 1.5,
   'Gaming/NFT': 0.5,
-  'Memecoins': 0.0,
-  'Others': 0.0,
+  'Memecoins': 0.0,    // Explicitement 0% mais présent
+  'Others': 0.0,       // Explicitement 0% mais présent
   model_version: 'macro-2'
 };
 

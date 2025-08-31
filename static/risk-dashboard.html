@@ -1288,19 +1288,19 @@
 
     // NOTE: calculateCorrelationMetrics() supprimée - corrélations calculées par le backend Python
 
-    // Asset grouping function (EXACTLY SAME as dashboard.html fallback)
+    // Asset grouping function - HARMONISÉ avec les 11 groupes du targets-coordinator
     const ASSET_GROUPS = {
       'BTC': ['BTC', 'TBTC'], // Bitcoin et dérivés
       'ETH': ['ETH', 'WETH', 'STETH', 'WSTETH', 'RETH', 'CBETH'], // Ethereum et liquid staking
       'Stablecoins': ['USDC', 'USDT', 'USD', 'DAI', 'USTC'], // Stablecoins
-      'L1/L0 majors': ['SOL2', 'ATOM2', 'DOT2', 'ADA', 'AVAX', 'NEAR', 'BCH', 'XLM', 'LTC', 'SUI3', 'TRX', 'VET', 'XTZ', 'EGLD3', 'ETC', 'TONCOIN', 'XNO2', 'NEO', 'ICP2'], // Layer 1 blockchains majors
-      'Exchange Tokens': ['BNB', 'BGB', 'CHSB', 'CRO'], // Exchange tokens
-      'DeFi': ['AAVE', 'JUPSOL', 'JITOSOL', 'FET', 'SUSHI', 'LDO', 'UNI2', 'COMP', 'YFI', 'ZRX', 'ORCA', 'JUP2'], // DeFi tokens
-      'Memecoins': ['DOGE', 'SHIB', 'PEPE4', 'BONK'], // Meme tokens
-      'Privacy': ['XMR'], // Privacy coins
+      'SOL': ['SOL2', 'JUPSOL', 'JITOSOL'], // SOL ecosystem (groupe séparé)
+      'L1/L0 majors': ['ATOM2', 'DOT2', 'ADA', 'AVAX', 'NEAR', 'BCH', 'XLM', 'LTC', 'SUI3', 'TRX', 'VET', 'XTZ', 'EGLD3', 'ETC', 'TONCOIN', 'XNO2', 'NEO', 'ICP2', 'BNB', 'BGB', 'CHSB', 'CRO'], // Layer 1 blockchains majors + Exchange tokens
+      'L2/Scaling': ['POL3', 'IMX2', 'LRC', 'THETA2'], // Layer 2 et solutions de scalabilité
+      'DeFi': ['AAVE', 'SUSHI', 'LDO', 'UNI2', 'COMP', 'YFI', 'ZRX', 'ORCA', 'JUP2', 'LINK', 'GRT'], // DeFi tokens
       'AI/Data': ['RENDER', 'TAO6', 'FET'], // AI and Data tokens
       'Gaming/NFT': ['GALA', 'MANA', 'SAND', 'CHZ'], // Gaming and NFT
-      'Others': ['LINK', 'XRP', 'IMO', 'VVV3', 'S5', 'INJ2', 'ERA', 'CFG', 'PAXG', 'OXT', 'CAKE', 'PENGU7', 'BAT', 'SUN2', 'ZEC', 'POL3', 'THETA2', 'DYDX', 'GNO', 'KSM', 'ALGO', 'GHST', 'BNT', 'GRT', 'QTUM', 'SCRT', 'ARPA', 'SAGA3', 'BNKR', 'IOTA2', 'EUR', 'LUNA2', 'KAVA', 'JMPT', 'WLD3', 'AKT', 'SFP', 'ZIL', 'ROSE', 'EWT', 'DOGI3', 'ANKR', 'RIF', 'XVG', 'REN', 'ATR', 'LRC', 'ENA', 'HEI2', 'LCX', 'GMT5', 'KNC', 'FIL', 'TIA3', 'VTHO', 'IMX2', 'HTM', 'DIAMOND', 'RPL', 'HBAR', 'EIGEN'] // Tous les autres assets
+      'Memecoins': ['DOGE', 'SHIB', 'PEPE4', 'BONK'], // Meme tokens
+      'Others': ['XRP', 'XMR', 'IMO', 'VVV3', 'S5', 'INJ2', 'ERA', 'CFG', 'PAXG', 'OXT', 'CAKE', 'PENGU7', 'BAT', 'SUN2', 'ZEC', 'DYDX', 'GNO', 'KSM', 'ALGO', 'GHST', 'BNT', 'QTUM', 'SCRT', 'ARPA', 'SAGA3', 'BNKR', 'IOTA2', 'EUR', 'LUNA2', 'KAVA', 'JMPT', 'WLD3', 'AKT', 'SFP', 'ZIL', 'ROSE', 'EWT', 'DOGI3', 'ANKR', 'RIF', 'XVG', 'REN', 'ATR', 'ENA', 'HEI2', 'LCX', 'GMT5', 'KNC', 'FIL', 'TIA3', 'VTHO', 'HTM', 'DIAMOND', 'RPL', 'HBAR', 'EIGEN'] // Tous les autres assets
     };
 
     function groupAssetsByAliases(items) {
@@ -2090,6 +2090,20 @@
       })();
 
       const alertCount = (data.alerts && data.alerts.length) ? data.alerts.length : 0;
+      const severityCounts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+      (data.alerts || []).forEach(a => {
+        const lvl = String(a.level || '').toLowerCase();
+        if (severityCounts.hasOwnProperty(lvl)) severityCounts[lvl]++;
+      });
+      const hasSevere = (severityCounts.critical + severityCounts.high) > 0;
+      const breakdown = (() => {
+        const parts = [];
+        if (severityCounts.critical) parts.push(`${severityCounts.critical} critical`);
+        if (severityCounts.high) parts.push(`${severityCounts.high} high`);
+        if (severityCounts.medium) parts.push(`${severityCounts.medium} medium`);
+        if (parts.length === 0) return '';
+        return ` (${parts.join(', ')})`;
+      })();
       const alertsHtml = (alertCount) ? (
         data.alerts.map(a => `
           <div class="alert alert-${a.level}">
@@ -2107,11 +2121,11 @@
       container.innerHTML = `
         ${testModeBanner}
         <!-- Top Summary: Collapsible container -->
-        <details class="top-collapsible">
+        <details class="top-collapsible" ${hasSevere ? 'open' : ''}>
           <summary>
             <div>Vue d’ensemble risques & recommandations</div>
             <div class="summary-right">
-              <span class="badge badge-alerts">⚠️ ${alertCount} alertes</span>
+              <span class="badge badge-alerts">⚠️ ${alertCount} alertes${breakdown}</span>
               <span class="badge badge-recos">💡 ${recos.length} recos</span>
               <span class="chevron">›</span>
             </div>
