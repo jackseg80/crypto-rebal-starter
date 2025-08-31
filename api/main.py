@@ -25,6 +25,7 @@ DEBUG = (os.getenv("DEBUG", "false").lower() == "true")
 APP_DEBUG = (os.getenv("APP_DEBUG", "false").lower() == "true") or DEBUG
 LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG" if APP_DEBUG else "INFO").upper()
 CORS_ORIGINS = [o.strip() for o in (os.getenv("CORS_ORIGINS", "")).split(",") if o.strip()]
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
 from connectors import cointracking as ct_file
 from connectors.cointracking_api import get_current_balances as ct_api_get_current_balances, _debug_probe
@@ -46,6 +47,11 @@ from api.execution_history import router as execution_history_router
 from api.monitoring_advanced import router as monitoring_advanced_router
 from api.portfolio_monitoring import router as portfolio_monitoring_router
 from api.csv_endpoints import router as csv_router
+from api.portfolio_optimization_endpoints import router as portfolio_optimization_router
+from api.performance_endpoints import router as performance_router
+from api.ml_endpoints import router as ml_router
+from api.multi_asset_endpoints import router as multi_asset_router
+from api.backtesting_endpoints import router as backtesting_router
 from api.exceptions import (
     CryptoRebalancerException, APIException, ValidationException, 
     ConfigurationException, TradingException, DataException, ErrorCodes
@@ -664,6 +670,11 @@ async def debug_exchanges_snapshot(source: str = "cointracking_api"):
     }
 
 # ---------- health ----------
+@app.get("/health")
+async def health():
+    """Simple health check endpoint for containers"""
+    return {"status": "healthy", "timestamp": datetime.now().isoformat(), "environment": ENVIRONMENT}
+
 @app.get("/healthz")
 async def healthz():
     return {"ok": True}
@@ -1293,6 +1304,11 @@ app.include_router(execution_history_router)
 app.include_router(monitoring_advanced_router)
 app.include_router(portfolio_monitoring_router)
 app.include_router(csv_router)
+app.include_router(portfolio_optimization_router)
+app.include_router(performance_router)
+app.include_router(ml_router)
+app.include_router(multi_asset_router)
+app.include_router(backtesting_router)
 
 # ---------- Portfolio Analytics ----------
 @app.get("/portfolio/metrics")

@@ -317,13 +317,25 @@ async def optimize_portfolio(
             for symbol in price_df.columns
         } if request.include_current_weights else None
         
-        # Run optimization
+        # Run optimization with automatic performance optimization for large portfolios
+        n_assets = len(price_df.columns)
+        
         if objective == OptimizationObjective.MULTI_PERIOD:
             # Use multi-period optimization
             result = optimizer.optimize_multi_period(
                 price_history=price_df,
                 constraints=constraints,
                 current_weights=filtered_current_weights
+            )
+        elif n_assets > 200:
+            # Use performance-optimized version for large portfolios
+            logger.info(f"Using large portfolio optimization for {n_assets} assets")
+            result = optimizer.optimize_large_portfolio(
+                price_history=price_df,
+                constraints=constraints,
+                objective=objective,
+                current_weights=filtered_current_weights,
+                max_assets=min(200, n_assets)  # Cap at 200 for optimization
             )
         else:
             # Use standard optimization
