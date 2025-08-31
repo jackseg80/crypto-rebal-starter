@@ -117,7 +117,13 @@
       "Bash(wmic:*)",
       "Bash(start http://localhost:8000/docs)",
       "Bash(start http://localhost:8000/redoc)",
-      "Bash(start http://localhost:8000/test_data_source_dynamic.html)"
+      "Bash(start http://localhost:8000/test_data_source_dynamic.html)",
+      "Bash(start http://localhost:8000/static/portfolio-optimization.html)",
+      "Bash(powershell:*)",
+      "Bash(start http://localhost:8000/static/multi-asset-dashboard.html)",
+      "Bash(start http://localhost:8000/static/debug-menu.html)",
+      "Bash(start http://localhost:8000/tests/html_debug/debug_11_groups_fix.html)",
+      "Bash(start http://localhost:8000/static/dashboard.html?debug=true)"
     ],
     "deny": [],
     "ask": [],
