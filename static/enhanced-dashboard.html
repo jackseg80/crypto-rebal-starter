@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Portfolio Dashboard</title>
+    
+    <!-- External Libraries -->
+    <script src="https://code.highcharts.com/highcharts.js"></script>
+    <script src="https://code.highcharts.com/modules/heatmap.js"></script>
+    <script src="https://code.highcharts.com/modules/treemap.js"></script>
+    <script src="https://code.highcharts.com/modules/bubble.js"></script>
+    <script src="https://code.highcharts.com/modules/exporting.js"></script>
+    <script src="https://code.highcharts.com/modules/export-data.js"></script>
+    
+    <!-- Custom Styles -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Light theme support */
+        body.light-theme {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e0 100%);
+            color: #1a202c;
+        }
+
+        body.light-theme .dashboard-container,
+        body.light-theme .kpi-card,
+        body.light-theme .chart-panel,
+        body.light-theme .asset-panel {
+            background: rgba(255, 255, 255, 0.9) !important;
+            border-color: rgba(0, 0, 0, 0.1) !important;
+            color: #1a202c !important;
+        }
+
+        body.light-theme .dashboard-title {
+            background: linear-gradient(45deg, #2d3748, #4a5568);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* Loading animations */
+        .fade-in {
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .slide-up {
+            animation: slideUp 0.6s ease-out;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        /* Enhanced hover effects */
+        .kpi-card {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 136, 0.1), transparent);
+            transition: left 0.8s ease;
+        }
+
+        .kpi-card:hover::before {
+            left: 100%;
+        }
+
+        /* Chart panel enhancements */
+        .chart-panel {
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .chart-panel:hover {
+            transform: scale(1.02);
+            box-shadow: 0 20px 60px rgba(0, 255, 136, 0.1);
+        }
+
+        /* Status indicators */
+        .status-connected { color: #00ff88; }
+        .status-loading { 
+            color: #00aaff; 
+            animation: pulse 2s infinite;
+        }
+        .status-error { color: #ff4444; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* KPI value animations */
+        .kpi-value {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .kpi-value.positive {
+            color: #00ff88;
+        }
+
+        .kpi-value.negative {
+            color: #ff4444;
+        }
+
+        .kpi-value.updating {
+            animation: numberUpdate 0.5s ease-in-out;
+        }
+
+        @keyframes numberUpdate {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        /* Responsive enhancements */
+        @media (max-width: 1200px) {
+            .chart-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-container {
+                padding: 10px;
+            }
+            
+            .kpi-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .kpi-card {
+                padding: 16px;
+            }
+            
+            .kpi-value {
+                font-size: 24px;
+            }
+            
+            .chart-content {
+                height: 300px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .kpi-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header-controls {
+                flex-wrap: wrap;
+            }
+        }
+
+        /* Custom scrollbar */
+        .panel-content::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .panel-content::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+
+        .panel-content::-webkit-scrollbar-thumb {
+            background: rgba(0, 255, 136, 0.5);
+            border-radius: 4px;
+        }
+
+        .panel-content::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 255, 136, 0.7);
+        }
+
+        /* Tooltip enhancements */
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .tooltip.visible {
+            opacity: 1;
+        }
+
+        /* Loading states */
+        .chart-loading {
+            backdrop-filter: blur(4px);
+        }
+
+        .chart-loading.hidden {
+            display: none !important;
+        }
+
+        /* Interactive elements */
+        .interactive-hint {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .chart-panel:hover .interactive-hint {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div id="enhanced-dashboard"></div>
+
+    <!-- Custom Components -->
+    <script src="components/AdvancedCharts.js"></script>
+    <script src="components/InteractiveDashboard.js"></script>
+
+    <script>
+        // Initialize the enhanced dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Initializing Enhanced Portfolio Dashboard...');
+            
+            try {
+                // Create dashboard instance
+                const dashboard = new InteractiveDashboard('enhanced-dashboard', {
+                    updateInterval: 30000,    // 30 seconds
+                    autoRefresh: true,
+                    animationDuration: 750
+                });
+
+                // Add performance monitoring
+                let startTime = performance.now();
+                
+                dashboard.loadInitialData().then(() => {
+                    const loadTime = performance.now() - startTime;
+                    console.log(`Dashboard loaded in ${loadTime.toFixed(2)}ms`);
+                    
+                    // Add subtle animations to elements
+                    document.querySelectorAll('.kpi-card').forEach((card, index) => {
+                        card.style.animationDelay = `${index * 100}ms`;
+                        card.classList.add('fade-in');
+                    });
+                    
+                    document.querySelectorAll('.chart-panel').forEach((panel, index) => {
+                        panel.style.animationDelay = `${(index + 4) * 100}ms`;
+                        panel.classList.add('slide-up');
+                    });
+                }).catch(error => {
+                    console.error('Dashboard initialization failed:', error);
+                    showErrorMessage('Failed to load dashboard. Please refresh the page.');
+                });
+
+                // Add keyboard shortcuts
+                document.addEventListener('keydown', function(e) {
+                    if (e.ctrlKey || e.metaKey) {
+                        switch(e.key) {
+                            case 'r':
+                                e.preventDefault();
+                                dashboard.refreshData();
+                                break;
+                            case 't':
+                                e.preventDefault();
+                                document.getElementById('theme-toggle').click();
+                                break;
+                            case 'f':
+                                e.preventDefault();
+                                document.getElementById('fullscreen-btn').click();
+                                break;
+                        }
+                    }
+                    
+                    // ESC to exit fullscreen
+                    if (e.key === 'Escape' && document.fullscreenElement) {
+                        document.exitFullscreen();
+                    }
+                });
+
+                // Add window resize handler for responsive charts
+                let resizeTimeout;
+                window.addEventListener('resize', function() {
+                    clearTimeout(resizeTimeout);
+                    resizeTimeout = setTimeout(() => {
+                        dashboard.charts.charts.forEach((chart, containerId) => {
+                            dashboard.charts.resize(containerId);
+                        });
+                    }, 250);
+                });
+
+                // Add visibility change handler to pause/resume updates
+                document.addEventListener('visibilitychange', function() {
+                    if (document.hidden) {
+                        // Pause updates when tab is not visible
+                        if (dashboard.updateTimer) {
+                            clearInterval(dashboard.updateTimer);
+                            dashboard.updateTimer = null;
+                        }
+                    } else {
+                        // Resume updates when tab becomes visible
+                        dashboard.startAutoUpdate();
+                        dashboard.refreshData(false); // Silent refresh
+                    }
+                });
+
+                // Global error handler
+                window.addEventListener('unhandledrejection', function(event) {
+                    console.error('Unhandled promise rejection:', event.reason);
+                    showErrorMessage('An unexpected error occurred. Some features may not work properly.');
+                });
+
+                // Make dashboard globally accessible for debugging
+                window.dashboard = dashboard;
+                
+            } catch (error) {
+                console.error('Critical error during dashboard initialization:', error);
+                document.getElementById('enhanced-dashboard').innerHTML = `
+                    <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; text-align: center;">
+                        <h1 style="color: #ff4444; margin-bottom: 16px;">Dashboard Failed to Load</h1>
+                        <p style="color: #aaa; margin-bottom: 24px;">There was a critical error initializing the dashboard.</p>
+                        <button onclick="location.reload()" style="padding: 12px 24px; background: #00ff88; color: #000; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
+                            Reload Page
+                        </button>
+                    </div>
+                `;
+            }
+        });
+
+        // Utility functions
+        function showErrorMessage(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: rgba(255, 68, 68, 0.9);
+                color: white;
+                padding: 16px 20px;
+                border-radius: 8px;
+                font-weight: 500;
+                z-index: 10000;
+                max-width: 300px;
+                box-shadow: 0 8px 32px rgba(255, 68, 68, 0.3);
+                animation: slideInRight 0.3s ease-out;
+            `;
+            errorDiv.textContent = message;
+            
+            document.body.appendChild(errorDiv);
+            
+            setTimeout(() => {
+                errorDiv.style.animation = 'slideOutRight 0.3s ease-out';
+                setTimeout(() => document.body.removeChild(errorDiv), 300);
+            }, 5000);
+        }
+
+        function showSuccessMessage(message) {
+            const successDiv = document.createElement('div');
+            successDiv.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: rgba(0, 255, 136, 0.9);
+                color: #000;
+                padding: 16px 20px;
+                border-radius: 8px;
+                font-weight: 500;
+                z-index: 10000;
+                max-width: 300px;
+                box-shadow: 0 8px 32px rgba(0, 255, 136, 0.3);
+                animation: slideInRight 0.3s ease-out;
+            `;
+            successDiv.textContent = message;
+            
+            document.body.appendChild(successDiv);
+            
+            setTimeout(() => {
+                successDiv.style.animation = 'slideOutRight 0.3s ease-out';
+                setTimeout(() => document.body.removeChild(successDiv), 300);
+            }, 3000);
+        }
+
+        // Animation keyframes
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideInRight {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            
+            @keyframes slideOutRight {
+                from { transform: translateX(0); opacity: 1; }
+                to { transform: translateX(100%); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Add Google Fonts
+        const link = document.createElement('link');
+        link.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap';
+        link.rel = 'stylesheet';
+        document.head.appendChild(link);
+    </script>
+</body>
+</html>

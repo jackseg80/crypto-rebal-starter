@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Multi-Asset System</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #0f0f23; color: white; }
+        .result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background: #1a472a; border: 1px solid #00ff88; }
+        .error { background: #4a1a1a; border: 1px solid #ff4444; }
+        .info { background: #1a1a4a; border: 1px solid #00aaff; }
+        button { padding: 10px 20px; margin: 5px; background: #00ff88; color: #000; border: none; border-radius: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Test Multi-Asset System</h1>
+    <div id="results"></div>
+    
+    <div style="margin: 20px 0;">
+        <button onclick="testAssetClasses()">Test Asset Classes</button>
+        <button onclick="testAssetUniverse()">Test Asset Universe</button>
+        <button onclick="testPriceFeching()">Test Price Fetching</button>
+        <button onclick="testAllocation()">Test Allocation</button>
+        <button onclick="testDiversificationScore()">Test Diversification</button>
+        <button onclick="runAllTests()">Run All Tests</button>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong> - ${message}`;
+            document.getElementById('results').appendChild(div);
+            console.log(message);
+        }
+
+        async function testAssetClasses() {
+            log('🔍 Testing asset classes...', 'info');
+            
+            try {
+                const response = await fetch('/api/multi-asset/asset-classes');
+                const data = await response.json();
+                
+                if (data.success && data.asset_classes) {
+                    log(`✅ Asset classes loaded: ${data.asset_classes.length} classes`, 'success');
+                    log(`📋 Classes: ${data.asset_classes.map(c => c.name).join(', ')}`, 'info');
+                } else {
+                    throw new Error('Invalid response structure');
+                }
+            } catch (error) {
+                log(`❌ Asset classes test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testAssetUniverse() {
+            log('🔍 Testing asset universe...', 'info');
+            
+            try {
+                const response = await fetch('/api/multi-asset/assets');
+                const data = await response.json();
+                
+                if (data.success && data.assets) {
+                    log(`✅ Asset universe loaded: ${data.count} assets`, 'success');
+                    
+                    // Test filter by crypto
+                    const cryptoResponse = await fetch('/api/multi-asset/assets?asset_class=crypto');
+                    const cryptoData = await cryptoResponse.json();
+                    
+                    if (cryptoData.success) {
+                        log(`📈 Crypto assets: ${cryptoData.count} (${cryptoData.assets.map(a => a.symbol).join(', ')})`, 'info');
+                    }
+                    
+                    // Test filter by stock
+                    const stockResponse = await fetch('/api/multi-asset/assets?asset_class=stock');
+                    const stockData = await stockResponse.json();
+                    
+                    if (stockData.success) {
+                        log(`📊 Stock assets: ${stockData.count} (${stockData.assets.map(a => a.symbol).join(', ')})`, 'info');
+                    }
+                    
+                } else {
+                    throw new Error('Invalid response structure');
+                }
+            } catch (error) {
+                log(`❌ Asset universe test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testPriceFeching() {
+            log('🔍 Testing price fetching...', 'info');
+            
+            try {
+                // Test mixed asset classes
+                const symbols = 'BTC,ETH,SPY,AGG';
+                const response = await fetch(`/api/multi-asset/prices?symbols=${symbols}&period=1mo`);
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    log(`✅ Price fetching: ${data.symbols_found.length}/${data.symbols_requested.length} symbols`, 'success');
+                    
+                    Object.entries(data.data).forEach(([symbol, info]) => {
+                        log(`📊 ${symbol} (${info.asset_class}): ${info.prices.length} data points`, 'info');
+                    });
+                    
+                    if (data.symbols_missing.length > 0) {
+                        log(`⚠️ Missing symbols: ${data.symbols_missing.join(', ')}`, 'error');
+                    }
+                } else {
+                    throw new Error('Invalid response structure');
+                }
+            } catch (error) {
+                log(`❌ Price fetching test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testAllocation() {
+            log('🔍 Testing allocation suggestions...', 'info');
+            
+            const profiles = ['conservative', 'moderate', 'aggressive'];
+            
+            for (const profile of profiles) {
+                try {
+                    const response = await fetch(`/api/multi-asset/allocation/suggest?risk_profile=${profile}&total_portfolio_value=100000`, {
+                        method: 'POST'
+                    });
+                    const data = await response.json();
+                    
+                    if (data.success && data.suggested_allocation) {
+                        log(`✅ ${profile.toUpperCase()} allocation: ${Object.keys(data.suggested_allocation).length} asset classes`, 'success');
+                        
+                        const allocations = Object.entries(data.suggested_allocation)
+                            .map(([cls, details]) => `${cls}: ${details.percentage}%`)
+                            .join(', ');
+                        log(`📊 ${allocations}`, 'info');
+                        log(`📈 Diversification score: ${data.diversification_score}`, 'info');
+                    } else {
+                        throw new Error('Invalid response structure');
+                    }
+                } catch (error) {
+                    log(`❌ ${profile} allocation test failed: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        async function testDiversificationScore() {
+            log('🔍 Testing diversification scoring...', 'info');
+            
+            try {
+                // Test with mixed portfolio
+                const symbols = 'BTC,ETH,SPY,QQQ,AGG,GLD';
+                const response = await fetch(`/api/multi-asset/diversification-score?symbols=${symbols}`);
+                const data = await response.json();
+                
+                if (data.success && data.diversification_metrics) {
+                    log(`✅ Diversification analysis completed`, 'success');
+                    log(`📊 Overall score: ${data.diversification_metrics.overall_score}/100`, 'info');
+                    log(`📈 Class coverage: ${data.diversification_metrics.class_coverage_score}/100`, 'info');
+                    log(`⚖️ Balance score: ${data.diversification_metrics.balance_score}/100`, 'info');
+                    
+                    if (data.recommendations.length > 0) {
+                        log(`💡 Recommendations: ${data.recommendations.join('; ')}`, 'info');
+                    }
+                } else {
+                    throw new Error('Invalid response structure');
+                }
+            } catch (error) {
+                log(`❌ Diversification test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function runAllTests() {
+            log('🚀 Running all multi-asset tests...', 'info');
+            document.getElementById('results').innerHTML = '';
+            
+            await testAssetClasses();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testAssetUniverse();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testPriceFeching();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testAllocation();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testDiversificationScore();
+            
+            log('🎉 All multi-asset tests completed!', 'success');
+        }
+
+        // Auto-run basic tests on load
+        setTimeout(async () => {
+            log('🔄 Auto-running basic tests...', 'info');
+            await testAssetClasses();
+            await testAssetUniverse();
+        }, 1000);
+    </script>
+</body>
+</html>

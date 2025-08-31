@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 Menu Debug & Tests - Crypto Rebalancer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 30px;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            background: linear-gradient(45deg, #00ff88, #00aaff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #aaa;
+            font-size: 1.1em;
+        }
+
+        .modules-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 25px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .module-category {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .module-category:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .category-header {
+            padding: 20px;
+            background: rgba(0, 255, 136, 0.1);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .category-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .category-description {
+            color: #aaa;
+            font-size: 0.9em;
+        }
+
+        .module-list {
+            padding: 0;
+        }
+
+        .module-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.2s ease;
+        }
+
+        .module-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .module-item:last-child {
+            border-bottom: none;
+        }
+
+        .module-info {
+            flex: 1;
+        }
+
+        .module-name {
+            font-weight: 500;
+            margin-bottom: 3px;
+        }
+
+        .module-desc {
+            color: #888;
+            font-size: 0.85em;
+        }
+
+        .module-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.8em;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #00ff88, #00cc66);
+            color: #000;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-debug {
+            background: rgba(255, 165, 0, 0.2);
+            color: #ffaa00;
+            border: 1px solid rgba(255, 165, 0, 0.3);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            filter: brightness(1.1);
+        }
+
+        .status {
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.7em;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .status-new {
+            background: rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+        }
+
+        .status-updated {
+            background: rgba(0, 170, 255, 0.2);
+            color: #00aaff;
+        }
+
+        .status-existing {
+            background: rgba(255, 255, 255, 0.1);
+            color: #aaa;
+        }
+
+        .quick-actions {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 40px;
+            flex-wrap: wrap;
+        }
+
+        .quick-btn {
+            padding: 12px 24px;
+            font-size: 1em;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+
+        .quick-btn:hover {
+            background: rgba(0, 255, 136, 0.2);
+            border-color: #00ff88;
+            transform: scale(1.05);
+        }
+
+        @media (max-width: 768px) {
+            .modules-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .quick-actions {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔧 Menu Debug & Tests</h1>
+        <p>Centre de contrôle pour tous les modules et fonctionnalités</p>
+    </div>
+
+    <div class="modules-grid">
+        <!-- Optimisation de Performance -->
+        <div class="module-category">
+            <div class="category-header">
+                <div class="category-title">⚡ Optimisation de Performance</div>
+                <div class="category-description">Modules pour l'optimisation des portfolios volumineux</div>
+            </div>
+            <div class="module-list">
+                <div class="module-item">
+                    <div class="module-info">
+                        <div class="module-name">Performance Optimizer <span class="status status-new">NOUVEAU</span></div>
+                        <div class="module-desc">Cache matriciel, algorithmes optimisés pour 500+ actifs</div>
+                    </div>
+                    <div class="module-buttons">
+                        <a href="/api/performance/cache/stats" class="btn btn-primary" target="_blank">📊 Stats Cache</a>
+                        <a href="/api/performance/optimization/benchmark?n_assets=100" class="btn btn-debug" target="_blank">🧪 Benchmark</a>
+                    </div>
+                </div>
+                <div class="module-item">
+                    <div class="module-info">
+                        <div class="module-name">Test Performance <span class="status status-new">NOUVEAU</span></div>
+                        <div class="module-desc">Suite de tests pour valider les améliorations de performance</div>
+                    </div>
+                    <div class="module-buttons">
+                        <button onclick="runPerformanceTest()" class="btn btn-debug">🧪 Lancer Test</button>
+                    </div>
+                </div>
+                <div class="module-item">
+                    <div class="module-info">
+                        <div class="module-name">Mémoire Système</div>
+                        <div class="module-desc">Surveillance de l'utilisation mémoire en temps réel</div>
+                    </div>
+                    <div class="module-buttons">
+                        <a href="/api/performance/system/memory" class="btn btn-primary" target="_blank">💾 Mémoire</a>
+                        <button onclick="clearAllCache()" class="btn btn-secondary">🗑️ Vider Cache</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Multi-Asset Portfolio -->
+        <div class="module-category">
+            <div class="category-header">
+                <div class="category-title">💰 Multi-Asset Portfolio</div>
+                <div class="category-description">Gestion d'actifs multi-classes (crypto, actions, obligations)</div>
+            </div>
+            <div class="module-list">
+                <div class="module-item">
+                    <div class="module-info">
+                        <div class="module-name">Dashboard Multi-Assets <span class="status status-new">NOUVEAU</span></div>
+                        <div class="module-desc">Interface complète pour gérer 7 classes d'actifs</div>
+                    </div>
+                    <div class="module-buttons">
+                        <a href="multi-asset-dashboard.html" class="btn btn-primary" target="_blank">🚀 Ouvrir</a>
+                        <button onclick="testMultiAssetAPI()" class="btn btn-debug">🧪 Test API</button>
+                    </div>
+                </div>
+                <div class="module-item">
+                    <div class="module-info">
+                        <div class="module-name">Asset Classes</div>
+                        <div class="module-desc">Crypto, Actions, Obligations, Commodités, REITs, ETFs, Forex</div>
+                    </div>
+                    <div class="module-buttons">
+                        <a href="/api/multi-asset/asset-classes" class="btn btn-primary" target="_blank">📋 Classes</a>
+                        <a href="/api/multi-asset/assets" class="btn btn-secondary" target="_blank">🔍 Actifs</a>
+                    </div>
+                </div>
+                <div class="module-item">
+                    <div class="module-info">
+                        <div class="module-name">Allocation Suggérée</div>
+                        <div class="module-desc">Allocation intelligente basée sur le profil de risque</div>
+                    </div>
+                    <div class="module-buttons">
+                        <button onclick="testAllocation('moderate')" class="btn btn-primary">📊 Test Modéré</button>
+                        <button onclick="testAllocation('aggressive')" class="btn btn-debug">⚡ Test Agressif</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts & Visualisation -->
+        <div class="module-category">
+            <div class="category-header">
+                <div class="category-title">📊 Charts Interactifs</div>
+                <div class="category-description">Visualisations avancées et tableaux de bord temps réel</div>
+            </div>
+            <div class="module-list">
+                <div class="module-item">
+                    <div class="module-info">
+                        <div class="module-name">Dashboard Amélioré <span class="status status-new">NOUVEAU</span></div>
+                        <div class="module-desc">Interface moderne avec charts interactifs Highcharts</div>
+                    </div>
+                    <div class="module-buttons">
+                        <a href="enhanced-dashboard.html" class="btn btn-primary" target="_blank">✨ Ouvrir</a>
+                        <button onclick="testChartComponents()" class="btn btn-debug">🧪 Test Charts</button>
+                    </div>
+                </div>
+                <div class="module-item">
+                    <div class="module-info">
+                        <div class="module-name">Advanced Charts</div>
+                        <div class="module-desc">Composants de graphiques avancés (corrélation, performance)</div>
+                    </div>
+                    <div class="module-buttons">
+                        <button onclick="testCorrelationChart()" class="btn btn-primary">📈 Corrélation</button>
+                        <button onclick="testPerformanceChart()" class="btn btn-secondary">📉 Performance</button>
+                    </div>
+                </div>
+                <div class="module-item">
+                    <div class="module-info">
+                        <div class="module-name">Dashboard Interactif</div>
+                        <div class="module-desc">Framework de dashboard avec mise à jour temps réel</div>
+                    </div>
+                    <div class="module-buttons">
+                        <button onclick="checkDashboardHealth()" class="btn btn-primary">❤️ Santé</button>
+                        <button onclick="toggleAutoRefresh()" class="btn btn-secondary">🔄 Auto-Refresh</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Optimisation de Portfolio -->
+        <div class="module-category">
+            <div class="category-header">
+                <div class="category-title">🎯 Optimisation Portfolio</div>
+                <div class="category-description">Algorithmes d'optimisation Markowitz avancés</div>
+            </div>
+            <div class="module-list">
+                <div class="module-item">
+                    <div class="module-info">
+                        <div class="module-name">Portfolio Optimization <span class="status status-updated">MIS À JOUR</span></div>
+                        <div class="module-desc">6 objectifs: Max Sharpe, Min Variance, Risk Parity, etc.</div>
+                    </div>
+                    <div class="module-buttons">
+                        <a href="portfolio-optimization.html" class="btn btn-primary" target="_blank">🚀 Interface</a>
+                        <button onclick="testOptimization()" class="btn btn-debug">🧪 Test Optim</button>
+                    </div>
+                </div>
+                <div class="module-item">
+                    <div class="module-info">
+                        <div class="module-name">Risk Budgeting</div>
+                        <div class="module-desc">Allocation basée sur la contribution au risque par secteur</div>
+                    </div>
+                    <div class="module-buttons">
+                        <a href="/api/portfolio-optimization/risk-budgeting" class="btn btn-primary" target="_blank">⚖️ API</a>
+                        <button onclick="testRiskBudgeting()" class="btn btn-debug">🧪 Test</button>
+                    </div>
+                </div>
+                <div class="module-item">
+                    <div class="module-info">
+                        <div class="module-name">Multi-Period Optimization</div>
+                        <div class="module-desc">Optimisation sur plusieurs horizons temporels</div>
+                    </div>
+                    <div class="module-buttons">
+                        <button onclick="testMultiPeriod()" class="btn btn-primary">⏰ Test Multi-Period</button>
+                        <button onclick="showOptimizationResults()" class="btn btn-secondary">📊 Résultats</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Backtesting & ML -->
+        <div class="module-category">
+            <div class="category-header">
+                <div class="category-title">🧠 Backtesting & ML</div>
+                <div class="category-description">Tests historiques et modèles d'apprentissage automatique</div>
+            </div>
+            <div class="module-list">
+                <div class="module-item">
+                    <div class="module-info">
+                        <div class="module-name">Backtesting Engine <span class="status status-new">NOUVEAU</span></div>
+                        <div class="module-desc">Validation de stratégies sur données historiques</div>
+                    </div>
+                    <div class="module-buttons">
+                        <a href="/api/backtesting/run?strategy=mean_reversion" class="btn btn-primary" target="_blank">🏃 Lancer</a>
+                        <button onclick="runBacktestingSuite()" class="btn btn-debug">🧪 Suite Tests</button>
+                    </div>
+                </div>
+                <div class="module-item">
+                    <div class="module-info">
+                        <div class="module-name">ML Models <span class="status status-new">NOUVEAU</span></div>
+                        <div class="module-desc">Modèles prédictifs pour la sélection d'actifs</div>
+                    </div>
+                    <div class="module-buttons">
+                        <a href="/api/ml/predict" class="btn btn-primary" target="_blank">🔮 Prédire</a>
+                        <button onclick="trainMLModels()" class="btn btn-debug">🎓 Entraîner</button>
+                    </div>
+                </div>
+                <div class="module-item">
+                    <div class="module-info">
+                        <div class="module-name">Stratégies</div>
+                        <div class="module-desc">6 stratégies: Buy&Hold, Mean Reversion, Momentum, etc.</div>
+                    </div>
+                    <div class="module-buttons">
+                        <button onclick="compareStrategies()" class="btn btn-primary">⚔️ Comparer</button>
+                        <button onclick="showStrategyMetrics()" class="btn btn-secondary">📊 Métriques</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modules Existants -->
+        <div class="module-category">
+            <div class="category-header">
+                <div class="category-title">🔧 Modules Existants</div>
+                <div class="category-description">Fonctionnalités déjà disponibles</div>
+            </div>
+            <div class="module-list">
+                <div class="module-item">
+                    <div class="module-info">
+                        <div class="module-name">Risk Dashboard <span class="status status-existing">EXISTANT</span></div>
+                        <div class="module-desc">Tableau de bord des métriques de risque</div>
+                    </div>
+                    <div class="module-buttons">
+                        <a href="risk-dashboard.html" class="btn btn-primary" target="_blank">🚀 Ouvrir</a>
+                        <a href="tests/html_debug/debug-dashboard.html" class="btn btn-debug" target="_blank">🧪 Debug</a>
+                    </div>
+                </div>
+                <div class="module-item">
+                    <div class="module-info">
+                        <div class="module-name">Execution History</div>
+                        <div class="module-desc">Historique des exécutions de trading</div>
+                    </div>
+                    <div class="module-buttons">
+                        <a href="execution_history.html" class="btn btn-primary" target="_blank">📋 Historique</a>
+                        <a href="execution.html" class="btn btn-secondary" target="_blank">⚡ Exécution</a>
+                    </div>
+                </div>
+                <div class="module-item">
+                    <div class="module-info">
+                        <div class="module-name">Settings & Config</div>
+                        <div class="module-desc">Configuration système et paramètres</div>
+                    </div>
+                    <div class="module-buttons">
+                        <a href="settings.html" class="btn btn-primary" target="_blank">⚙️ Settings</a>
+                        <a href="alias-manager.html" class="btn btn-secondary" target="_blank">🏷️ Alias</a>
+                    </div>
+                </div>
+                <div class="module-item">
+                    <div class="module-info">
+                        <div class="module-name">Debug 11 Groups <span class="status status-new">DEBUG</span></div>
+                        <div class="module-desc">Diagnostic des groupes d'actifs manquants</div>
+                    </div>
+                    <div class="module-buttons">
+                        <a href="tests/html_debug/debug_11_groups_fix.html" class="btn btn-debug" target="_blank">🩺 Diagnostic</a>
+                        <a href="tests/html_debug/debug_11_groups.html" class="btn btn-secondary" target="_blank">🧪 Test Original</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="quick-actions">
+        <a href="dashboard.html" class="quick-btn">🏠 Dashboard Principal</a>
+        <a href="/docs" class="quick-btn">📚 API Docs</a>
+        <a href="/health/detailed" class="quick-btn">❤️ Health Check</a>
+        <button onclick="runFullSystemTest()" class="quick-btn">🧪 Test Système Complet</button>
+    </div>
+
+    <script>
+        // Tests pour Performance
+        async function runPerformanceTest() {
+            const btn = event.target;
+            btn.textContent = "🔄 Test en cours...";
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/performance/optimization/benchmark?n_assets=200&n_periods=252');
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(`✅ Test Performance OK!\n\nMéthodes testées: ${data.performance_summary.methods_tested.join(', ')}\nRecommandation: ${data.performance_summary.recommendation}`);
+                } else {
+                    throw new Error(data.detail);
+                }
+            } catch (error) {
+                alert(`❌ Erreur test performance: ${error.message}`);
+            } finally {
+                btn.textContent = "🧪 Lancer Test";
+                btn.disabled = false;
+            }
+        }
+
+        async function clearAllCache() {
+            try {
+                const response = await fetch('/api/performance/cache/clear', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert("✅ Cache vidé avec succès!");
+                } else {
+                    throw new Error(data.detail);
+                }
+            } catch (error) {
+                alert(`❌ Erreur nettoyage cache: ${error.message}`);
+            }
+        }
+
+        // Tests pour Multi-Asset
+        async function testMultiAssetAPI() {
+            try {
+                const response = await fetch('/api/multi-asset/asset-classes');
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(`✅ API Multi-Asset OK!\n\nClasses d'actifs: ${data.asset_classes.length}\n${data.asset_classes.map(c => c.name).join(', ')}`);
+                } else {
+                    throw new Error('API Error');
+                }
+            } catch (error) {
+                alert(`❌ Erreur API Multi-Asset: ${error.message}`);
+            }
+        }
+
+        async function testAllocation(riskProfile) {
+            try {
+                const response = await fetch(`/api/multi-asset/allocation/suggest?risk_profile=${riskProfile}`, { 
+                    method: 'POST' 
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    const allocation = Object.entries(data.suggested_allocation)
+                        .map(([cls, details]) => `${cls}: ${details.percentage}%`)
+                        .join('\n');
+                    
+                    alert(`✅ Allocation ${riskProfile}:\n\n${allocation}\n\nScore diversification: ${data.diversification_score}`);
+                } else {
+                    throw new Error(data.detail);
+                }
+            } catch (error) {
+                alert(`❌ Erreur allocation: ${error.message}`);
+            }
+        }
+
+        // Tests pour Charts
+        function testChartComponents() {
+            if (typeof AdvancedCharts !== 'undefined') {
+                alert("✅ AdvancedCharts component loaded!");
+            } else {
+                alert("❌ AdvancedCharts component not found. Open enhanced-dashboard.html first.");
+            }
+        }
+
+        function testCorrelationChart() {
+            alert("📈 Test corrélation: Ouvrez enhanced-dashboard.html pour voir les charts de corrélation en action");
+        }
+
+        function testPerformanceChart() {
+            alert("📉 Test performance: Charts de performance disponibles dans enhanced-dashboard.html");
+        }
+
+        function checkDashboardHealth() {
+            fetch('/health')
+                .then(r => r.json())
+                .then(data => alert(`✅ Dashboard Health OK!\nStatus: ${data.status}\nEnvironment: ${data.environment}`))
+                .catch(e => alert(`❌ Health check failed: ${e.message}`));
+        }
+
+        // Tests pour Optimisation
+        async function testOptimization() {
+            try {
+                const symbols = ["BTC", "ETH", "ADA", "DOT", "AVAX"];
+                const response = await fetch('/api/portfolio-optimization/optimize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        symbols: symbols,
+                        objective: "max_sharpe",
+                        constraints: { min_weight: 0.05, max_weight: 0.4 }
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    alert(`✅ Optimisation OK!\nSharpe: ${data.results.sharpe_ratio.toFixed(3)}\nNb actifs: ${Object.keys(data.results.weights).length}`);
+                } else {
+                    throw new Error(data.detail);
+                }
+            } catch (error) {
+                alert(`❌ Erreur optimisation: ${error.message}`);
+            }
+        }
+
+        // Tests système complets
+        async function runFullSystemTest() {
+            const btn = event.target;
+            btn.textContent = "🔄 Tests en cours...";
+            btn.disabled = true;
+            
+            const tests = [
+                { name: "Health Check", url: "/health" },
+                { name: "Performance API", url: "/api/performance/cache/stats" },
+                { name: "Multi-Asset API", url: "/api/multi-asset/asset-classes" },
+                { name: "Portfolio API", url: "/api/portfolio/current" }
+            ];
+            
+            let results = "🧪 Résultats des tests:\n\n";
+            
+            for (const test of tests) {
+                try {
+                    const response = await fetch(test.url);
+                    const data = await response.json();
+                    results += `✅ ${test.name}: OK\n`;
+                } catch (error) {
+                    results += `❌ ${test.name}: ERREUR (${error.message})\n`;
+                }
+            }
+            
+            alert(results);
+            
+            btn.textContent = "🧪 Test Système Complet";
+            btn.disabled = false;
+        }
+
+        // Fonctions utilitaires
+        function toggleAutoRefresh() {
+            alert("🔄 Auto-refresh: Cette fonction est disponible dans enhanced-dashboard.html");
+        }
+
+        function testRiskBudgeting() {
+            alert("⚖️ Risk Budgeting: Testez cette fonctionnalité dans portfolio-optimization.html");
+        }
+
+        function testMultiPeriod() {
+            alert("⏰ Multi-Period: Optimisation multi-horizon disponible dans l'interface portfolio");
+        }
+
+        function runBacktestingSuite() {
+            alert("🧪 Backtesting: Suite de tests disponible via l'API /api/backtesting/");
+        }
+
+        function trainMLModels() {
+            alert("🎓 ML Training: Entraînement disponible via /api/ml/train");
+        }
+
+        function compareStrategies() {
+            alert("⚔️ Stratégies: Comparaison disponible dans les endpoints backtesting");
+        }
+
+        function showOptimizationResults() {
+            window.open('portfolio-optimization.html', '_blank');
+        }
+
+        function showStrategyMetrics() {
+            window.open('/api/backtesting/strategies', '_blank');
+        }
+
+        console.log("🔧 Menu Debug & Tests initialisé");
+        console.log("📊 Modules disponibles: Performance, Multi-Asset, Charts, Portfolio, Backtesting, ML");
+    </script>
+</body>
+</html>

@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Asset Portfolio Dashboard</title>
+    
+    <!-- External Libraries -->
+    <script src="https://code.highcharts.com/highcharts.js"></script>
+    <script src="https://code.highcharts.com/modules/heatmap.js"></script>
+    <script src="https://code.highcharts.com/modules/bubble.js"></script>
+    <script src="https://code.highcharts.com/modules/exporting.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%);
+            color: #ffffff;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(45deg, #00ff88, #00aaff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 16px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .control-group label {
+            font-size: 12px;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        select, input, button {
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-size: 14px;
+        }
+
+        button {
+            background: linear-gradient(45deg, #00ff88, #00cc66);
+            color: #000;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 255, 136, 0.3);
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            overflow: hidden;
+        }
+
+        .panel-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-header h3 {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .panel-content {
+            height: 400px;
+            padding: 0;
+        }
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        .asset-classes {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            padding: 20px;
+        }
+
+        .asset-class-card {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .asset-class-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+        }
+
+        .asset-class-card.selected {
+            border: 2px solid #00ff88;
+            background: rgba(0, 255, 136, 0.1);
+        }
+
+        .asset-class-icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .asset-class-name {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .asset-class-count {
+            font-size: 12px;
+            color: #aaa;
+        }
+
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+            color: #aaa;
+        }
+
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid rgba(0, 255, 136, 0.3);
+            border-top: 3px solid #00ff88;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 12px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            padding: 20px;
+        }
+
+        .metric-card {
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #00ff88;
+            margin-bottom: 4px;
+        }
+
+        .metric-label {
+            font-size: 12px;
+            color: #aaa;
+        }
+
+        .allocation-table {
+            padding: 20px;
+            max-height: 380px;
+            overflow-y: auto;
+        }
+
+        .allocation-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .allocation-row:last-child {
+            border-bottom: none;
+        }
+
+        .allocation-class {
+            font-weight: 600;
+        }
+
+        .allocation-percentage {
+            font-size: 18px;
+            color: #00ff88;
+        }
+
+        .allocation-bar {
+            width: 100px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .allocation-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff88, #00aaff);
+            border-radius: 3px;
+            transition: width 0.8s ease;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .controls {
+                flex-direction: column;
+            }
+            
+            .asset-classes {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Multi-Asset Portfolio Dashboard</h1>
+            <p>Diversify across cryptocurrencies, stocks, bonds, commodities, and REITs</p>
+            
+            <div class="controls">
+                <div class="control-group">
+                    <label>Risk Profile</label>
+                    <select id="risk-profile">
+                        <option value="conservative">Conservative</option>
+                        <option value="moderate" selected>Moderate</option>
+                        <option value="aggressive">Aggressive</option>
+                    </select>
+                </div>
+                
+                <div class="control-group">
+                    <label>Investment Horizon</label>
+                    <select id="investment-horizon">
+                        <option value="short">Short Term (< 3 years)</option>
+                        <option value="medium" selected>Medium Term (3-10 years)</option>
+                        <option value="long">Long Term (> 10 years)</option>
+                    </select>
+                </div>
+                
+                <div class="control-group">
+                    <label>Portfolio Value ($)</label>
+                    <input type="number" id="portfolio-value" value="100000" min="1000" step="1000">
+                </div>
+                
+                <div class="control-group">
+                    <label>&nbsp;</label>
+                    <button onclick="generateAllocation()">Generate Allocation</button>
+                </div>
+                
+                <div class="control-group">
+                    <label>&nbsp;</label>
+                    <button onclick="analyzeCurrentPortfolio()">Analyze Current</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Asset Classes Overview -->
+        <div class="panel full-width">
+            <div class="panel-header">
+                <h3>Available Asset Classes</h3>
+                <span id="selected-classes">0 selected</span>
+            </div>
+            <div class="asset-classes" id="asset-classes-grid">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Loading asset classes...
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-grid">
+            <!-- Suggested Allocation -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h3>Suggested Allocation</h3>
+                    <button onclick="exportAllocation()">Export</button>
+                </div>
+                <div class="panel-content">
+                    <div class="allocation-table" id="allocation-display">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            Generate allocation to see suggestions
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Portfolio Metrics -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h3>Portfolio Metrics</h3>
+                </div>
+                <div class="panel-content">
+                    <div class="metrics-grid" id="metrics-display">
+                        <div class="metric-card">
+                            <div class="metric-value" id="diversification-score">--</div>
+                            <div class="metric-label">Diversification Score</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value" id="asset-classes-count">--</div>
+                            <div class="metric-label">Asset Classes</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value" id="expected-return">--</div>
+                            <div class="metric-label">Expected Return</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value" id="risk-level">--</div>
+                            <div class="metric-label">Risk Level</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Performance Comparison -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h3>Asset Class Performance</h3>
+                    <select id="performance-period">
+                        <option value="1mo">1 Month</option>
+                        <option value="3mo">3 Months</option>
+                        <option value="1y" selected>1 Year</option>
+                        <option value="2y">2 Years</option>
+                    </select>
+                </div>
+                <div class="panel-content">
+                    <div id="performance-chart"></div>
+                </div>
+            </div>
+
+            <!-- Correlation Analysis -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h3>Asset Class Correlations</h3>
+                </div>
+                <div class="panel-content">
+                    <div id="correlation-chart"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedAssetClasses = new Set();
+        let allAssetClasses = [];
+        let currentAllocation = null;
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            loadAssetClasses();
+        });
+
+        async function loadAssetClasses() {
+            try {
+                const response = await fetch('/api/multi-asset/asset-classes');
+                const data = await response.json();
+                
+                if (data.success) {
+                    allAssetClasses = data.asset_classes;
+                    renderAssetClasses(data.asset_classes);
+                    
+                    // Load asset counts for each class
+                    loadAssetCounts();
+                }
+            } catch (error) {
+                console.error('Failed to load asset classes:', error);
+                document.getElementById('asset-classes-grid').innerHTML = 
+                    '<div class="loading">Failed to load asset classes</div>';
+            }
+        }
+
+        async function loadAssetCounts() {
+            for (const assetClass of allAssetClasses) {
+                try {
+                    const response = await fetch(`/api/multi-asset/assets?asset_class=${assetClass.code}`);
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        const card = document.querySelector(`[data-class="${assetClass.code}"]`);
+                        if (card) {
+                            card.querySelector('.asset-class-count').textContent = `${data.count} assets`;
+                        }
+                    }
+                } catch (error) {
+                    console.error(`Failed to load count for ${assetClass.code}:`, error);
+                }
+            }
+        }
+
+        function renderAssetClasses(assetClasses) {
+            const icons = {
+                crypto: '₿',
+                stock: '📈',
+                bond: '🏛️',
+                commodity: '🥇',
+                reit: '🏢',
+                forex: '💱',
+                etf: '📊'
+            };
+
+            const grid = document.getElementById('asset-classes-grid');
+            grid.innerHTML = assetClasses.map(assetClass => `
+                <div class="asset-class-card" data-class="${assetClass.code}" onclick="toggleAssetClass('${assetClass.code}')">
+                    <span class="asset-class-icon">${icons[assetClass.code] || '📋'}</span>
+                    <div class="asset-class-name">${assetClass.name}</div>
+                    <div class="asset-class-count">Loading...</div>
+                </div>
+            `).join('');
+        }
+
+        function toggleAssetClass(classCode) {
+            const card = document.querySelector(`[data-class="${classCode}"]`);
+            
+            if (selectedAssetClasses.has(classCode)) {
+                selectedAssetClasses.delete(classCode);
+                card.classList.remove('selected');
+            } else {
+                selectedAssetClasses.add(classCode);
+                card.classList.add('selected');
+            }
+            
+            updateSelectedCount();
+        }
+
+        function updateSelectedCount() {
+            document.getElementById('selected-classes').textContent = 
+                `${selectedAssetClasses.size} selected`;
+        }
+
+        async function generateAllocation() {
+            const riskProfile = document.getElementById('risk-profile').value;
+            const horizon = document.getElementById('investment-horizon').value;
+            const portfolioValue = parseFloat(document.getElementById('portfolio-value').value);
+
+            // Show loading
+            document.getElementById('allocation-display').innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Generating optimal allocation...
+                </div>
+            `;
+
+            try {
+                const excludedClasses = allAssetClasses
+                    .filter(ac => !selectedAssetClasses.has(ac.code))
+                    .map(ac => ac.code)
+                    .join(',');
+
+                const url = `/api/multi-asset/allocation/suggest?risk_profile=${riskProfile}&investment_horizon=${horizon}&total_portfolio_value=${portfolioValue}${excludedClasses ? `&exclude_asset_classes=${excludedClasses}` : ''}`;
+                
+                const response = await fetch(url, { method: 'POST' });
+                const data = await response.json();
+
+                if (data.success) {
+                    currentAllocation = data.suggested_allocation;
+                    renderAllocation(data);
+                    updateMetrics(data);
+                } else {
+                    throw new Error(data.detail || 'Failed to generate allocation');
+                }
+            } catch (error) {
+                console.error('Allocation generation failed:', error);
+                document.getElementById('allocation-display').innerHTML = `
+                    <div class="loading">Failed to generate allocation: ${error.message}</div>
+                `;
+            }
+        }
+
+        function renderAllocation(data) {
+            const allocation = data.suggested_allocation;
+            const totalValue = data.allocation_strategy.total_portfolio_value;
+            
+            const html = Object.entries(allocation)
+                .sort((a, b) => b[1].percentage - a[1].percentage)
+                .map(([assetClass, details]) => `
+                    <div class="allocation-row">
+                        <div>
+                            <div class="allocation-class">${assetClass.replace('_', ' ').toUpperCase()}</div>
+                            <div style="font-size: 12px; color: #aaa;">$${details.dollar_amount.toLocaleString()}</div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div class="allocation-bar">
+                                <div class="allocation-fill" style="width: ${details.percentage}%"></div>
+                            </div>
+                            <div class="allocation-percentage">${details.percentage}%</div>
+                        </div>
+                    </div>
+                `).join('');
+
+            document.getElementById('allocation-display').innerHTML = html;
+        }
+
+        function updateMetrics(data) {
+            document.getElementById('diversification-score').textContent = 
+                data.diversification_score || '--';
+            document.getElementById('asset-classes-count').textContent = 
+                Object.keys(data.suggested_allocation).length;
+            
+            // Calculate expected return based on risk profile
+            const expectedReturns = {
+                conservative: '6-8%',
+                moderate: '8-12%',
+                aggressive: '12-18%'
+            };
+            
+            document.getElementById('expected-return').textContent = 
+                expectedReturns[data.allocation_strategy.risk_profile] || '--';
+            document.getElementById('risk-level').textContent = 
+                data.allocation_strategy.risk_profile.toUpperCase();
+        }
+
+        async function analyzeCurrentPortfolio() {
+            const symbols = prompt('Enter your current portfolio symbols (comma-separated):\nExample: BTC,ETH,SPY,QQQ,AGG');
+            if (!symbols) return;
+
+            const weights = prompt('Enter weights (optional, comma-separated):\nLeave empty for equal weights');
+
+            try {
+                let url = `/api/multi-asset/diversification-score?symbols=${symbols}`;
+                if (weights) {
+                    url += `&weights=${weights}`;
+                }
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.success) {
+                    displayDiversificationAnalysis(data);
+                } else {
+                    alert('Analysis failed: ' + (data.detail || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Portfolio analysis failed:', error);
+                alert('Failed to analyze portfolio: ' + error.message);
+            }
+        }
+
+        function displayDiversificationAnalysis(data) {
+            const metrics = data.diversification_metrics;
+            const breakdown = data.asset_class_breakdown;
+
+            let html = '<h4 style="margin-bottom: 16px; color: #00ff88;">Current Portfolio Analysis</h4>';
+            
+            // Diversification score
+            html += `
+                <div class="allocation-row">
+                    <div class="allocation-class">Overall Diversification Score</div>
+                    <div class="allocation-percentage">${metrics.overall_score}/100</div>
+                </div>
+            `;
+
+            // Asset class breakdown
+            Object.entries(breakdown).forEach(([assetClass, details]) => {
+                html += `
+                    <div class="allocation-row">
+                        <div>
+                            <div class="allocation-class">${assetClass.toUpperCase()}</div>
+                            <div style="font-size: 12px; color: #aaa;">${details.symbols.join(', ')}</div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div class="allocation-bar">
+                                <div class="allocation-fill" style="width: ${details.percentage}%"></div>
+                            </div>
+                            <div class="allocation-percentage">${details.percentage}%</div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            // Recommendations
+            if (data.recommendations.length > 0) {
+                html += '<h4 style="margin: 16px 0 8px; color: #ffa500;">Recommendations:</h4>';
+                html += '<ul style="font-size: 14px; color: #ccc; margin-left: 20px;">';
+                data.recommendations.forEach(rec => {
+                    html += `<li style="margin-bottom: 4px;">${rec}</li>`;
+                });
+                html += '</ul>';
+            }
+
+            document.getElementById('allocation-display').innerHTML = html;
+        }
+
+        function exportAllocation() {
+            if (!currentAllocation) {
+                alert('Please generate an allocation first');
+                return;
+            }
+
+            const csvContent = "Asset Class,Percentage,Dollar Amount\n" +
+                Object.entries(currentAllocation)
+                    .map(([assetClass, details]) => 
+                        `${assetClass},${details.percentage},${details.dollar_amount}`
+                    ).join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'multi_asset_allocation.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }
+
+        // Auto-select moderate allocation on load
+        setTimeout(() => {
+            ['crypto', 'stock', 'bond', 'commodity', 'reit'].forEach(cls => {
+                selectedAssetClasses.add(cls);
+                const card = document.querySelector(`[data-class="${cls}"]`);
+                if (card) card.classList.add('selected');
+            });
+            updateSelectedCount();
+        }, 2000);
+    </script>
+</body>
+</html>

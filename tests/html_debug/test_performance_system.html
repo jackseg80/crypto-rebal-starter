@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Performance System</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #0f0f23; color: white; }
+        .result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background: #1a472a; border: 1px solid #00ff88; }
+        .error { background: #4a1a1a; border: 1px solid #ff4444; }
+        .info { background: #1a1a4a; border: 1px solid #00aaff; }
+        .warning { background: #4a3a1a; border: 1px solid #ffaa00; }
+        button { padding: 10px 20px; margin: 5px; background: #00ff88; color: #000; border: none; border-radius: 5px; cursor: pointer; }
+        .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin: 20px 0; }
+        .metric-card { background: #1a1a2e; padding: 15px; border-radius: 8px; border: 1px solid #333; }
+        .metric-value { font-size: 1.5em; font-weight: bold; color: #00ff88; }
+        .metric-label { color: #aaa; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <h1>⚡ Test Performance System</h1>
+    <div id="results"></div>
+    
+    <div class="metrics" id="metrics" style="display: none;">
+        <div class="metric-card">
+            <div class="metric-value" id="cache-size">--</div>
+            <div class="metric-label">Cache Entries</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-value" id="memory-usage">--</div>
+            <div class="metric-label">Memory (MB)</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-value" id="disk-cache">--</div>
+            <div class="metric-label">Disk Cache (MB)</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-value" id="speedup">--</div>
+            <div class="metric-label">Best Speedup</div>
+        </div>
+    </div>
+    
+    <div style="margin: 20px 0;">
+        <button onclick="testCacheStats()">Test Cache Stats</button>
+        <button onclick="testMemoryUsage()">Test Memory Usage</button>
+        <button onclick="testBenchmark()">Run Benchmark</button>
+        <button onclick="testLargePortfolio()">Test Large Portfolio</button>
+        <button onclick="clearCache()">Clear Cache</button>
+        <button onclick="runPerformanceTests()">Run All Tests</button>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong> - ${message}`;
+            document.getElementById('results').appendChild(div);
+            console.log(message);
+        }
+
+        async function testCacheStats() {
+            log('🔍 Testing cache statistics...', 'info');
+            
+            try {
+                const response = await fetch('/api/performance/cache/stats');
+                const data = await response.json();
+                
+                if (data.success && data.cache_stats) {
+                    log(`✅ Cache stats retrieved successfully`, 'success');
+                    log(`💾 Memory cache size: ${data.cache_stats.memory_cache_size} entries`, 'info');
+                    log(`📁 Disk cache files: ${data.cache_stats.disk_cache_files}`, 'info');
+                    log(`💽 Disk cache size: ${data.cache_stats.disk_cache_size_mb} MB`, 'info');
+                    
+                    // Update metrics display
+                    document.getElementById('cache-size').textContent = data.cache_stats.memory_cache_size;
+                    document.getElementById('disk-cache').textContent = data.cache_stats.disk_cache_size_mb + ' MB';
+                    document.getElementById('metrics').style.display = 'grid';
+                    
+                } else {
+                    throw new Error('Invalid response structure');
+                }
+            } catch (error) {
+                log(`❌ Cache stats test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testMemoryUsage() {
+            log('🔍 Testing memory usage...', 'info');
+            
+            try {
+                const response = await fetch('/api/performance/system/memory');
+                const data = await response.json();
+                
+                if (data.success && data.memory_usage) {
+                    log(`✅ Memory usage retrieved successfully`, 'success');
+                    log(`💾 RSS: ${data.memory_usage.rss_mb} MB`, 'info');
+                    log(`📊 Memory %: ${data.memory_usage.percent}%`, 'info');
+                    log(`🆓 Available: ${data.memory_usage.available_system_mb} MB`, 'info');
+                    
+                    // Update metrics
+                    document.getElementById('memory-usage').textContent = data.memory_usage.rss_mb + ' MB';
+                    
+                    // Color code based on usage
+                    const memoryEl = document.getElementById('memory-usage');
+                    if (data.memory_usage.percent > 80) {
+                        memoryEl.style.color = '#ff4444';
+                        log(`⚠️ High memory usage: ${data.memory_usage.percent}%`, 'warning');
+                    } else if (data.memory_usage.percent > 60) {
+                        memoryEl.style.color = '#ffaa00';
+                    } else {
+                        memoryEl.style.color = '#00ff88';
+                    }
+                    
+                } else if (!data.success && data.error) {
+                    log(`⚠️ Memory monitoring not available: ${data.error}`, 'warning');
+                } else {
+                    throw new Error('Invalid response structure');
+                }
+            } catch (error) {
+                log(`❌ Memory usage test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testBenchmark() {
+            log('🔍 Running performance benchmark...', 'info');
+            log('⏳ This may take 10-30 seconds depending on system...', 'warning');
+            
+            try {
+                const startTime = performance.now();
+                const response = await fetch('/api/performance/optimization/benchmark?n_assets=100&n_periods=252');
+                const endTime = performance.now();
+                
+                const data = await response.json();
+                
+                if (data.success && data.benchmark_results) {
+                    log(`✅ Benchmark completed in ${((endTime - startTime) / 1000).toFixed(1)}s`, 'success');
+                    
+                    Object.entries(data.benchmark_results).forEach(([method, results]) => {
+                        if (results.success) {
+                            log(`📊 ${method.toUpperCase()}: ${results.duration_seconds}s, ${results.n_assets_optimized} assets, Sharpe: ${results.sharpe_ratio}`, 'info');
+                        } else {
+                            log(`❌ ${method.toUpperCase()}: Failed - ${results.error}`, 'error');
+                        }
+                    });
+                    
+                    if (data.performance_summary.speed_improvement) {
+                        log(`🚀 Speed improvement: ${data.performance_summary.speed_improvement}`, 'success');
+                        document.getElementById('speedup').textContent = data.performance_summary.speed_improvement;
+                    }
+                    
+                    log(`💡 Recommendation: Use ${data.performance_summary.recommendation} method`, 'info');
+                    
+                } else {
+                    throw new Error('Invalid benchmark response');
+                }
+            } catch (error) {
+                log(`❌ Benchmark test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testLargePortfolio() {
+            log('🔍 Testing large portfolio optimization...', 'info');
+            log('⏳ Simulating 500-asset portfolio optimization...', 'warning');
+            
+            try {
+                const response = await fetch('/api/performance/optimization/benchmark?n_assets=500&n_periods=252');
+                const data = await response.json();
+                
+                if (data.success) {
+                    log(`✅ Large portfolio test completed`, 'success');
+                    
+                    const standardResult = data.benchmark_results.standard;
+                    const largeResult = data.benchmark_results.large_portfolio;
+                    
+                    if (standardResult && standardResult.success) {
+                        log(`📊 Standard method: ${standardResult.duration_seconds}s, ${standardResult.n_assets_optimized} assets`, 'info');
+                    }
+                    
+                    if (largeResult && largeResult.success) {
+                        log(`⚡ Large portfolio method: ${largeResult.duration_seconds}s, ${largeResult.n_assets_optimized} assets`, 'success');
+                        
+                        if (standardResult && standardResult.success) {
+                            const speedup = (standardResult.duration_seconds / largeResult.duration_seconds).toFixed(1);
+                            log(`🚀 Performance gain: ${speedup}x faster with optimized algorithm`, 'success');
+                        }
+                    }
+                    
+                } else {
+                    throw new Error('Large portfolio test failed');
+                }
+            } catch (error) {
+                log(`❌ Large portfolio test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function clearCache() {
+            log('🔍 Clearing performance cache...', 'info');
+            
+            try {
+                const response = await fetch('/api/performance/cache/clear', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ older_than_days: 0, clear_memory: true })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    log(`✅ Cache cleared successfully: ${data.message}`, 'success');
+                    
+                    // Refresh cache stats
+                    setTimeout(testCacheStats, 1000);
+                } else {
+                    throw new Error(data.detail || 'Cache clear failed');
+                }
+            } catch (error) {
+                log(`❌ Cache clear failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function runPerformanceTests() {
+            log('🚀 Running complete performance test suite...', 'info');
+            document.getElementById('results').innerHTML = '';
+            
+            await testCacheStats();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            await testMemoryUsage();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            await testBenchmark();
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            await testLargePortfolio();
+            
+            log('🎉 Complete performance test suite finished!', 'success');
+        }
+
+        // Auto-run basic tests on load
+        setTimeout(async () => {
+            log('🔄 Auto-running basic performance checks...', 'info');
+            await testCacheStats();
+            await testMemoryUsage();
+        }, 1000);
+    </script>
+</body>
+</html>
