@@ -10,6 +10,7 @@ from typing import Dict, List, Tuple, Optional
 import logging
 from dataclasses import dataclass
 from enum import Enum
+from .performance_optimizer import performance_optimizer
 
 logger = logging.getLogger(__name__)
 
@@ -110,30 +111,40 @@ class PortfolioOptimizer:
         """Calculate covariance matrix and volatilities with crypto adjustments"""
         
         returns = price_history.pct_change().dropna()
+        n_assets = price_history.shape[1]
         
-        # Exponential weighting for more recent data
-        weights = np.exp(np.linspace(-1, 0, len(returns)))
-        weights = weights / weights.sum()
+        # Use performance optimizer for large portfolios
+        if n_assets > 100:
+            logger.info(f"Using optimized covariance calculation for {n_assets} assets")
+            cov_matrix = performance_optimizer.optimized_covariance_matrix(
+                returns, exponential_weight=True, shrinkage=0.2
+            )
+            volatilities = np.sqrt(np.diag(cov_matrix))
+        else:
+            # Standard calculation for smaller portfolios
+            # Exponential weighting for more recent data
+            weights = np.exp(np.linspace(-1, 0, len(returns)))
+            weights = weights / weights.sum()
+            
+            # Weighted covariance matrix
+            weighted_returns = returns * np.sqrt(weights[:, np.newaxis])
+            cov_matrix = np.cov(weighted_returns.T) * 252  # Annualized
+            
+            # Volatility adjustment for crypto (higher volatility regime detection)
+            volatilities = np.sqrt(np.diag(cov_matrix))
+            
+            # Correlation matrix with stability adjustments
+            corr_matrix = cov_matrix / np.outer(volatilities, volatilities)
+            
+            # Shrinkage to improve stability
+            shrinkage_factor = 0.2
+            identity = np.eye(len(corr_matrix))
+            stable_corr = (1 - shrinkage_factor) * corr_matrix + shrinkage_factor * identity
+            
+            # Reconstruct covariance matrix
+            cov_matrix = stable_corr * np.outer(volatilities, volatilities)
         
-        # Weighted covariance matrix
-        weighted_returns = returns * np.sqrt(weights[:, np.newaxis])
-        cov_matrix = np.cov(weighted_returns.T) * 252  # Annualized
-        
-        # Volatility adjustment for crypto (higher volatility regime detection)
-        volatilities = np.sqrt(np.diag(cov_matrix))
-        
-        # Correlation matrix with stability adjustments
-        corr_matrix = cov_matrix / np.outer(volatilities, volatilities)
-        
-        # Shrinkage to improve stability
-        shrinkage_factor = 0.2
-        identity = np.eye(len(corr_matrix))
-        stable_corr = (1 - shrinkage_factor) * corr_matrix + shrinkage_factor * identity
-        
-        # Reconstruct covariance matrix
-        stable_cov = stable_corr * np.outer(volatilities, volatilities)
-        
-        return pd.DataFrame(stable_cov, index=returns.columns, columns=returns.columns), \
+        return pd.DataFrame(cov_matrix, index=returns.columns, columns=returns.columns), \
                pd.Series(volatilities, index=returns.columns)
     
     def optimize_portfolio(self, 
@@ -472,6 +483,68 @@ class PortfolioOptimizer:
         concentration_penalty = np.sum(weights ** 2) * 0.05
         
         return total_objective + concentration_penalty
+    
+    def optimize_large_portfolio(self, price_history: pd.DataFrame,
+                               constraints: OptimizationConstraints,
+                               objective: OptimizationObjective = OptimizationObjective.MAX_SHARPE,
+                               current_weights: Optional[Dict[str, float]] = None,
+                               max_assets: int = 200) -> OptimizationResult:
+        """Optimized portfolio optimization for large portfolios (500+ assets)"""
+        
+        logger.info(f"Starting large portfolio optimization with {price_history.shape[1]} assets")
+        
+        # Preprocess and filter assets for performance
+        preprocessed = performance_optimizer.batch_optimization_preprocessing(
+            price_history, max_assets=max_assets
+        )
+        
+        # Use optimized covariance calculation
+        expected_returns = pd.Series(
+            preprocessed['expected_returns'], 
+            index=preprocessed['assets']
+        )
+        cov_matrix = pd.DataFrame(
+            preprocessed['cov_matrix'],
+            index=preprocessed['assets'],
+            columns=preprocessed['assets']
+        )
+        
+        logger.info(f"Filtered to {len(preprocessed['assets'])} assets for optimization")
+        
+        # Filter current weights to match selected assets
+        if current_weights:
+            filtered_current_weights = {
+                asset: current_weights.get(asset, 0) 
+                for asset in preprocessed['assets']
+            }
+        else:
+            filtered_current_weights = None
+        
+        # Run standard optimization on filtered data
+        result = self.optimize_portfolio(
+            expected_returns=expected_returns,
+            cov_matrix=cov_matrix,
+            constraints=constraints,
+            objective=objective,
+            current_weights=filtered_current_weights
+        )
+        
+        # Extend result to include all original assets (zero weights for excluded)
+        all_assets = price_history.columns.tolist()
+        extended_weights = {}
+        
+        for asset in all_assets:
+            if asset in result.weights:
+                extended_weights[asset] = result.weights[asset]
+            else:
+                extended_weights[asset] = 0.0
+        
+        # Update result with extended weights
+        result.weights = extended_weights
+        
+        logger.info(f"Large portfolio optimization completed: {len([w for w in extended_weights.values() if w > 0.001])} assets with meaningful weights")
+        
+        return result
     
     def optimize_multi_period(self, price_history: pd.DataFrame, 
                             constraints: OptimizationConstraints,
