@@ -501,6 +501,86 @@
                 </div>
             </div>
         </div>
+
+        <!-- Test & Validation -->
+        <div class="module-category">
+            <div class="category-header">
+                <div class="category-title">🧪 Test & Validation</div>
+                <div class="category-description">Tests complets des modules de risque et validation système</div>
+            </div>
+            <div class="module-list">
+                <div class="module-item">
+                    <div class="module-info">
+                        <div class="module-name">Risk Testing Suite <span class="status status-new">NOUVEAU</span></div>
+                        <div class="module-desc">Tests complets des modules de gestion des risques</div>
+                    </div>
+                    <div class="module-buttons">
+                        <button onclick="runRiskTests()" class="btn btn-primary">🧪 Test Risques</button>
+                        <a href="/api/test/risk/dashboard" class="btn btn-secondary" target="_blank">📊 Dashboard Test</a>
+                    </div>
+                </div>
+                <div class="module-item">
+                    <div class="module-info">
+                        <div class="module-name">Performance Validation</div>
+                        <div class="module-desc">Validation des optimisations de performance</div>
+                    </div>
+                    <div class="module-buttons">
+                        <button onclick="validatePerformanceOptimizations()" class="btn btn-primary">✅ Valider</button>
+                        <a href="performance-monitor.html" class="btn btn-secondary" target="_blank">📊 Monitor</a>
+                    </div>
+                </div>
+                <div class="module-item">
+                    <div class="module-info">
+                        <div class="module-name">System Integration Tests</div>
+                        <div class="module-desc">Tests d'intégration complets de tous les endpoints</div>
+                    </div>
+                    <div class="module-buttons">
+                        <button onclick="runIntegrationTests()" class="btn btn-primary">🔄 Integration</button>
+                        <button onclick="validateAllEndpoints()" class="btn btn-debug">🌐 Endpoints</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Nouvelles Interfaces -->
+        <div class="module-category">
+            <div class="category-header">
+                <div class="category-title">🆕 Interfaces Récentes</div>
+                <div class="category-description">Accès rapide aux nouvelles interfaces créées</div>
+            </div>
+            <div class="module-list">
+                <div class="module-item">
+                    <div class="module-info">
+                        <div class="module-name">Backtesting Dashboard <span class="status status-new">NOUVEAU</span></div>
+                        <div class="module-desc">Interface complète pour le backtesting de stratégies</div>
+                    </div>
+                    <div class="module-buttons">
+                        <a href="backtesting.html" class="btn btn-primary" target="_blank">🔄 Backtesting</a>
+                        <a href="/api/backtesting/strategies" class="btn btn-secondary" target="_blank">📋 Stratégies</a>
+                    </div>
+                </div>
+                <div class="module-item">
+                    <div class="module-info">
+                        <div class="module-name">Performance Monitor <span class="status status-new">NOUVEAU</span></div>
+                        <div class="module-desc">Surveillance des performances système et cache</div>
+                    </div>
+                    <div class="module-buttons">
+                        <a href="performance-monitor.html" class="btn btn-primary" target="_blank">⚡ Monitor</a>
+                        <a href="/api/performance/cache/stats" class="btn btn-secondary" target="_blank">💾 Cache</a>
+                    </div>
+                </div>
+                <div class="module-item">
+                    <div class="module-info">
+                        <div class="module-name">Enhanced Dashboard</div>
+                        <div class="module-desc">Dashboard avancé avec analytics en temps réel</div>
+                    </div>
+                    <div class="module-buttons">
+                        <a href="enhanced-dashboard.html" class="btn btn-primary" target="_blank">✨ Enhanced</a>
+                        <button onclick="testEnhancedDashboard()" class="btn btn-debug">🧪 Test</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="quick-actions">
@@ -697,6 +777,106 @@
 
         function showStrategyMetrics() {
             window.open('/api/backtesting/strategies', '_blank');
+        }
+
+        // Nouvelles fonctions pour les tests de risque et validation
+        async function runRiskTests() {
+            const btn = event.target;
+            btn.textContent = "🔄 Tests en cours...";
+            btn.disabled = true;
+            
+            try {
+                const tests = [
+                    { name: "Risk Dashboard API", url: "/api/test/risk/dashboard" },
+                    { name: "Risk Metrics", url: "/api/risk/metrics" },
+                    { name: "Correlation Matrix", url: "/api/risk/correlation" },
+                    { name: "Stress Test", url: "/api/risk/stress-test" }
+                ];
+                
+                let results = "🧪 Tests de Risque:\n\n";
+                
+                for (const test of tests) {
+                    try {
+                        const response = await fetch(test.url);
+                        if (response.ok) {
+                            results += `✅ ${test.name}: OK\n`;
+                        } else {
+                            results += `⚠️ ${test.name}: HTTP ${response.status}\n`;
+                        }
+                    } catch (error) {
+                        results += `❌ ${test.name}: ERREUR\n`;
+                    }
+                }
+                
+                alert(results);
+            } finally {
+                btn.textContent = "🧪 Test Risques";
+                btn.disabled = false;
+            }
+        }
+
+        async function validatePerformanceOptimizations() {
+            const btn = event.target;
+            btn.textContent = "🔄 Validation...";
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/performance/optimization/benchmark?n_assets=50&n_periods=90');
+                const data = await response.json();
+                
+                if (data.benchmark_results?.standard?.success) {
+                    alert(`✅ Optimisations validées!\nDurée: ${data.benchmark_results.standard.duration_seconds}s\nSharpe: ${data.benchmark_results.standard.sharpe_ratio}`);
+                } else {
+                    alert('❌ Validation échouée');
+                }
+            } catch (error) {
+                alert(`❌ Erreur validation: ${error.message}`);
+            } finally {
+                btn.textContent = "✅ Valider";
+                btn.disabled = false;
+            }
+        }
+
+        async function runIntegrationTests() {
+            const btn = event.target;
+            btn.textContent = "🔄 Tests intégration...";
+            btn.disabled = true;
+            
+            try {
+                const endpoints = [
+                    "/api/backtesting/strategies",
+                    "/api/performance/cache/stats", 
+                    "/api/multi-asset/asset-classes",
+                    "/api/portfolio/optimization/constraints/defaults",
+                    "/api/ml/predict"
+                ];
+                
+                let results = "🔄 Tests d'Intégration:\n\n";
+                
+                for (const endpoint of endpoints) {
+                    try {
+                        const response = await fetch(endpoint);
+                        const status = response.ok ? "✅ OK" : `⚠️ ${response.status}`;
+                        results += `${status} ${endpoint}\n`;
+                    } catch (error) {
+                        results += `❌ ERROR ${endpoint}\n`;
+                    }
+                }
+                
+                alert(results);
+            } finally {
+                btn.textContent = "🔄 Integration";
+                btn.disabled = false;
+            }
+        }
+
+        async function validateAllEndpoints() {
+            window.open('/docs', '_blank');
+            alert("📊 Validation des endpoints: Consultez /docs pour la liste complète");
+        }
+
+        function testEnhancedDashboard() {
+            alert("✨ Enhanced Dashboard: Tests disponibles dans enhanced-dashboard.html\nUtilisez les outils de développement pour surveiller les erreurs.");
         }
 
         console.log("🔧 Menu Debug & Tests initialisé");

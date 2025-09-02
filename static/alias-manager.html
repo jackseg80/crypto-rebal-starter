@@ -400,55 +400,12 @@
     let allGroups = [];
     let filteredAliases = {};
 
-    // Mock taxonomy data when API is unavailable - enhanced with CSV data
+    // SUPPRIMÉ: Données mockées désactivées - utiliser API réelle uniquement
     async function getMockTaxonomyData() {
-      let mockAliases = {
-        'BTC': 'BTC',
-        'TBTC': 'BTC', 
-        'WBTC': 'BTC',
-        'ETH': 'ETH',
-        'WETH': 'ETH',
-        'STETH': 'ETH',
-        'WSTETH': 'ETH',
-        'RETH': 'ETH',
-        'CBETH': 'ETH',
-        'USDC': 'Stablecoins',
-        'USDT': 'Stablecoins',
-        'USD': 'Stablecoins',
-        'DAI': 'Stablecoins',
-        'BUSD': 'Stablecoins',
-        'TUSD': 'Stablecoins',
-        'FDUSD': 'Stablecoins',
-        'SOL': 'L1/L0 majors',
-        'SOL2': 'L1/L0 majors',
-        'JUPSOL': 'L1/L0 majors',
-        'JITOSOL': 'L1/L0 majors',
-        'MATIC': 'L1/L0 majors',
-        'POL': 'L1/L0 majors',
-        'ATOM': 'L1/L0 majors',
-        'DOT': 'L1/L0 majors',
-        'ADA': 'L1/L0 majors',
-        'AVAX': 'L1/L0 majors',
-        'NEAR': 'L1/L0 majors',
-        'LINK': 'L1/L0 majors',
-        'BNB': 'Exchange Tokens',
-        'XRP': 'L1/L0 majors',
-        'OP': 'L2/Scaling',
-        'ARB': 'L2/Scaling',
-        'LRC': 'L2/Scaling',
-        'UNI': 'DeFi',
-        'SUSHI': 'DeFi',
-        'AAVE': 'DeFi',
-        'COMP': 'DeFi',
-        'FET': 'AI/Data',
-        'OCEAN': 'AI/Data',
-        'GRT': 'AI/Data',
-        'RENDER': 'AI/Data',
-        'DOGE': 'Memecoins',
-        'XMR': 'Privacy',
-        'BGB': 'Exchange Tokens',
-        'IMO': 'Others'
-      };
+      console.error('⚠️ Mock taxonomy data disabled. Configure real data source in settings.');
+      return { aliases: {}, groups: [] };
+      // Données vides - utiliser API taxonomy réelle
+      let mockAliases = {};
       
       // Try to enhance with configured data source
       try {

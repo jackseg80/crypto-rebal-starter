@@ -345,6 +345,38 @@
             margin: 1rem 0;
         }
 
+        /* Drag & Drop Styles */
+        .ai-model-card.dragging {
+            opacity: 0.6;
+            transform: rotate(5deg);
+            z-index: 1000;
+        }
+
+        .ai-model-card.drop-target {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+        }
+
+        .ai-model-header[data-drag-handle="true"] {
+            cursor: move;
+        }
+
+        .ai-model-header[data-drag-handle="true"]:hover {
+            background: rgba(99, 102, 241, 0.05);
+            border-radius: 0.5rem;
+        }
+
+        /* Clickable Cards */
+        .ai-model-card {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .ai-model-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .main-content {
@@ -407,10 +439,13 @@
         </section>
 
         <!-- Cartes des modèles IA -->
+        <div style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: 0.5rem; padding: 0.75rem 1rem; margin-bottom: 1.5rem; text-align: center;">
+            <span style="font-size: 0.9rem; color: var(--theme-text);">💡 <strong>Astuce :</strong> Cliquez sur une tuile pour accéder aux détails et démonstrations du modèle</span>
+        </div>
         <section class="ai-dashboard-grid">
             <!-- Volatility Predictor -->
-            <div class="ai-model-card">
-                <div class="ai-model-header">
+            <div class="ai-model-card" draggable="true" id="volatility-card">
+                <div class="ai-model-header" data-drag-handle="true">
                     <h3 class="ai-model-title">
                         <span class="ai-model-icon">📊</span>
                         Volatility Predictor
@@ -441,8 +476,8 @@
             </div>
 
             <!-- Market Regime Detector -->
-            <div class="ai-model-card">
-                <div class="ai-model-header">
+            <div class="ai-model-card" draggable="true" id="regime-card">
+                <div class="ai-model-header" data-drag-handle="true">
                     <h3 class="ai-model-title">
                         <span class="ai-model-icon">📈</span>
                         Regime Detector
@@ -473,8 +508,8 @@
             </div>
 
             <!-- Correlation Forecaster -->
-            <div class="ai-model-card" id="correlation-forecast">
-                <div class="ai-model-header">
+            <div class="ai-model-card" draggable="true" id="correlation-card">
+                <div class="ai-model-header" data-drag-handle="true">
                     <h3 class="ai-model-title">
                         <span class="ai-model-icon">🔗</span>
                         Correlation Forecaster
@@ -505,8 +540,8 @@
             </div>
 
             <!-- Sentiment Analysis -->
-            <div class="ai-model-card" id="sentiment-analysis">
-                <div class="ai-model-header">
+            <div class="ai-model-card" draggable="true" id="sentiment-card">
+                <div class="ai-model-header" data-drag-handle="true">
                     <h3 class="ai-model-title">
                         <span class="ai-model-icon">🎭</span>
                         Sentiment Analysis
@@ -537,8 +572,8 @@
             </div>
 
             <!-- Auto Rebalancing Engine -->
-            <div class="ai-model-card">
-                <div class="ai-model-header">
+            <div class="ai-model-card" draggable="true" id="rebalancing-card">
+                <div class="ai-model-header" data-drag-handle="true">
                     <h3 class="ai-model-title">
                         <span class="ai-model-icon">🤖</span>
                         Auto Rebalancing
@@ -569,45 +604,6 @@
             </div>
         </section>
 
-        <!-- Actions rapides -->
-        <section class="quick-actions">
-            <h2 class="quick-actions-title">
-                ⚡ Actions Rapides
-            </h2>
-            <div class="quick-actions-grid">
-                <a href="cycle-analysis.html" class="quick-action">
-                    <span class="quick-action-icon">📈</span>
-                    <div class="quick-action-content">
-                        <div class="quick-action-title">Analyse Régime</div>
-                        <div class="quick-action-description">État actuel du marché</div>
-                    </div>
-                </a>
-                
-                <a href="ai-dashboard.html#sentiment-analysis" class="quick-action">
-                    <span class="quick-action-icon">🎭</span>
-                    <div class="quick-action-content">
-                        <div class="quick-action-title">Sentiment Analysis</div>
-                        <div class="quick-action-description">Fear & Greed Index</div>
-                    </div>
-                </a>
-                
-                <a href="ai-dashboard.html#correlation-forecast" class="quick-action">
-                    <span class="quick-action-icon">🔗</span>
-                    <div class="quick-action-content">
-                        <div class="quick-action-title">Corrélations</div>
-                        <div class="quick-action-description">Analyse de corrélation</div>
-                    </div>
-                </a>
-                
-                <a href="rebalance.html" class="quick-action">
-                    <span class="quick-action-icon">🤖</span>
-                    <div class="quick-action-content">
-                        <div class="quick-action-title">Auto Rebalancing</div>
-                        <div class="quick-action-description">Optimisation IA</div>
-                    </div>
-                </a>
-            </div>
-        </section>
     </main>
 
     <script>
@@ -717,6 +713,164 @@
                 showSuccess('Mode démo: Volatility Predictor simulé');
             }
         }
+
+        // ---- Drag & Drop des cartes IA ----
+        (function () {
+            const GRID_SELECTOR = '.ai-dashboard-grid';
+            const STORAGE_KEY = 'ai_dashboard_card_order_v1';
+
+            let dragEl = null;
+            let usingHandle = false;
+
+            document.addEventListener('DOMContentLoaded', () => {
+                initCardOrdering();
+            });
+
+            function initCardOrdering() {
+                const grid = document.querySelector(GRID_SELECTOR);
+                if (!grid) return;
+
+                // 1) Restaurer l'ordre sauvegardé
+                restoreOrder(grid);
+
+                // 2) Brancher les events
+                grid.querySelectorAll('.ai-model-card[draggable="true"]').forEach(card => {
+                    // Handle de drag par l'en-tête
+                    const handle = card.querySelector('.ai-model-header[data-drag-handle="true"]');
+                    if (handle) {
+                        handle.addEventListener('mousedown', () => usingHandle = true);
+                        handle.addEventListener('mouseup', () => usingHandle = false);
+                        handle.addEventListener('mouseleave', () => usingHandle = false);
+                    }
+
+                    card.addEventListener('dragstart', onDragStart);
+                    card.addEventListener('dragend', onDragEnd);
+                    card.addEventListener('dragover', onDragOver);
+                    card.addEventListener('dragleave', onDragLeave);
+                    card.addEventListener('drop', onDrop);
+                });
+
+                // Permettre le drop partout dans la grille
+                grid.addEventListener('dragover', e => e.preventDefault());
+                grid.addEventListener('drop', e => {
+                    e.preventDefault();
+                    clearDropIndicators(grid);
+                    saveOrder(grid);
+                });
+            }
+
+            function onDragStart(e) {
+                // Empêcher le drag initié ailleurs que sur le handle
+                const isOnHandle = e.target.closest('[data-drag-handle="true"]');
+                if (!isOnHandle && !usingHandle) {
+                    e.preventDefault();
+                    return;
+                }
+                
+                dragEl = e.currentTarget;
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', dragEl.id || '');
+                dragEl.classList.add('dragging');
+            }
+
+            function onDragEnd() {
+                if (dragEl) dragEl.classList.remove('dragging');
+                dragEl = null;
+                usingHandle = false;
+            }
+
+            function onDragOver(e) {
+                e.preventDefault();
+                const card = e.currentTarget;
+                if (!dragEl || card === dragEl) return;
+
+                // Feedback visuel
+                card.classList.add('drop-target');
+
+                // Insertion live
+                const grid = card.parentElement;
+                const above = shouldInsertBefore(e, card);
+                if (above) grid.insertBefore(dragEl, card);
+                else grid.insertBefore(dragEl, card.nextSibling);
+            }
+
+            function onDragLeave(e) {
+                e.currentTarget.classList.remove('drop-target');
+            }
+
+            function onDrop(e) {
+                e.preventDefault();
+                e.currentTarget.classList.remove('drop-target');
+                const grid = e.currentTarget.parentElement;
+                saveOrder(grid);
+            }
+
+            function shouldInsertBefore(e, targetCard) {
+                const rect = targetCard.getBoundingClientRect();
+                return (e.clientY - rect.top) < (rect.height / 2);
+            }
+
+            function saveOrder(grid) {
+                const order = Array.from(grid.querySelectorAll('.ai-model-card[draggable="true"]')).map(c => c.id);
+                try {
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(order));
+                } catch { }
+            }
+
+            function restoreOrder(grid) {
+                let raw = null;
+                try { raw = localStorage.getItem(STORAGE_KEY); } catch { }
+                if (!raw) return;
+
+                try {
+                    const order = JSON.parse(raw);
+                    const map = new Map(Array.from(grid.children).map(el => [el.id, el]));
+                    order.forEach(id => {
+                        const el = map.get(id);
+                        if (el) grid.appendChild(el);
+                    });
+                } catch { }
+            }
+
+            function clearDropIndicators(root) {
+                root.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
+            }
+
+            // Ajouter les event listeners pour les clics sur les cartes
+            window.addEventListener('load', addCardClickHandlers);
+            
+            function addCardClickHandlers() {
+                document.getElementById('volatility-card')?.addEventListener('click', (e) => {
+                    if (!e.target.closest('.ai-model-actions')) {
+                        window.location.href = 'ml-showcase.html#volatility';
+                    }
+                });
+
+                document.getElementById('regime-card')?.addEventListener('click', (e) => {
+                    if (!e.target.closest('.ai-model-actions')) {
+                        window.location.href = 'ml-showcase.html#regime';
+                    }
+                });
+
+                document.getElementById('correlation-card')?.addEventListener('click', (e) => {
+                    if (!e.target.closest('.ai-model-actions')) {
+                        window.location.href = 'ml-showcase.html#correlation';
+                    }
+                });
+
+                document.getElementById('sentiment-card')?.addEventListener('click', (e) => {
+                    if (!e.target.closest('.ai-model-actions')) {
+                        window.location.href = 'cycle-analysis.html';
+                    }
+                });
+
+                document.getElementById('rebalancing-card')?.addEventListener('click', (e) => {
+                    if (!e.target.closest('.ai-model-actions')) {
+                        window.location.href = 'rebalance.html';
+                    }
+                });
+            }
+        })();
 
         async function trainVolatilityModel() {
             const btn = event.target;

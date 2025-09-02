@@ -101,6 +101,7 @@ class SimpleNavigation {
         icon: '🎯',
         pages: {
           'dashboard': { title: 'Dashboard', icon: '📊', url: 'dashboard.html' },
+          'rebalance': { title: 'Rebalance', icon: '⚖️', url: 'rebalance.html' },
           'multi-asset-dashboard': { title: 'Multi-Asset', icon: '📈', url: 'multi-asset-dashboard.html' },
           'enhanced-dashboard': { title: 'Dashboard Enhanced', icon: '✨', url: 'enhanced-dashboard.html' },
           'cycle-analysis': { title: 'Analyse Cycles', icon: '🔄', url: 'cycle-analysis.html' }
@@ -111,8 +112,7 @@ class SimpleNavigation {
         title: 'Portfolio',
         icon: '💼',
         pages: {
-          'portfolio-optimization': { title: 'Optimisation', icon: '⚡', url: 'portfolio-optimization.html' },
-          'rebalance': { title: 'Rebalance', icon: '⚖️', url: 'rebalance.html' }
+          'portfolio-optimization': { title: 'Optimisation', icon: '⚡', url: 'portfolio-optimization.html' }
         }
       },
       {
@@ -139,7 +139,17 @@ class SimpleNavigation {
         icon: '🧠',
         pages: {
           'ai-dashboard': { title: 'Dashboard IA', icon: '🤖', url: 'ai-dashboard.html' },
+          'ml-showcase': { title: 'ML Showcase', icon: '⚡', url: 'ml-showcase.html' },
           'ai-components-demo': { title: 'Composants IA', icon: '🔬', url: 'ai-components-demo.html' }
+        }
+      },
+      {
+        id: 'tools',
+        title: 'Outils Avancés',
+        icon: '🔬',
+        pages: {
+          'backtesting': { title: 'Backtesting', icon: '🔄', url: 'backtesting.html' },
+          'performance-monitor': { title: 'Performance', icon: '⚡', url: 'performance-monitor.html' }
         }
       },
       {

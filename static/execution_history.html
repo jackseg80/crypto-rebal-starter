@@ -760,42 +760,37 @@
                     log.error('Error loading dashboard data:', error);
                     showNotification('API non disponible - Données simulées', 'warning');
                     
-                    // Charger des données simulées
-                    loadMockData();
+                    // Afficher erreur au lieu de données mockées
+                    showApiError(error);
                 }
             }
 
-            function loadMockData() {
-                // Données simulées pour démonstration
-                document.getElementById('totalSessions').textContent = '24';
-                document.getElementById('totalVolume').textContent = '$127,450';
-                document.getElementById('avgSuccessRate').textContent = '94.2%';
-                document.getElementById('totalFees').textContent = '$342.18';
+            // SUPPRIMÉ: loadMockData() - utiliser données réelles uniquement
+
+            function showApiError(error) {
+                document.getElementById('totalSessions').textContent = 'N/A';
+                document.getElementById('totalVolume').textContent = 'N/A';
+                document.getElementById('avgSuccessRate').textContent = 'N/A';
+                document.getElementById('totalFees').textContent = 'N/A';
 
                 const badge = document.getElementById('performanceBadge');
-                badge.textContent = 'GOOD';
-                badge.className = 'performance-badge performance-good';
+                badge.textContent = 'ERROR';
+                badge.className = 'performance-badge performance-error';
 
                 const recentStatsContainer = document.getElementById('recentStats');
                 recentStatsContainer.innerHTML = `
-                    <div class="metrics-grid" style="grid-template-columns: 1fr;">
-                        <div class="metric-item" style="background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);">
-                            <div class="metric-value">3</div>
-                            <div class="metric-label">Exchanges Actifs</div>
-                        </div>
-                    </div>
-                    <div style="margin-top: 15px; padding: 15px; background: var(--theme-surface-elevated); border: 1px solid var(--theme-border); border-radius: var(--radius-md); color: var(--theme-text);">
-                        <p><strong>Dernière session:</strong> ${new Date().toLocaleString('fr-FR')}</p>
-                        <p><strong>Cache période:</strong> 24h</p>
-                        <p><strong>Mode:</strong> Données de démonstration</p>
+                    <div style="padding: 15px; background: var(--theme-surface-elevated); border: 1px solid var(--danger); border-radius: var(--radius-md); color: var(--danger);">
+                        <p><strong>Erreur API:</strong> ${error.message}</p>
+                        <p><strong>Solution:</strong> Configurer source de données dans settings</p>
                     </div>
                 `;
 
-                // Charger des sessions simulées
-                loadMockSessions();
+                const container = document.getElementById('sessionsList');
+                container.innerHTML = '<div style="color: var(--danger);">API non disponible - Configurer source de données</div>';
             }
 
-            function loadMockSessions() {
+            // SUPPRIMÉ: loadMockSessions() - utiliser données réelles uniquement
+            function loadMockSessions_DISABLED() {
                 const container = document.getElementById('sessionsList');
                 const mockSessions = [
                     {
@@ -967,21 +962,11 @@
                 const data = trendsData.trends || {};
                 const dailyData = trendsData.daily_data || [];
                 
-                // Créer des données de simulation si aucune donnée réelle
+                // Utiliser seulement données réelles - pas de simulation
                 let chartData = dailyData;
                 if (!chartData.length) {
-                    const days = currentFilters.period;
+                    // Afficher graphique vide au lieu de données mockées
                     chartData = [];
-                    for (let i = days - 1; i >= 0; i--) {
-                        const date = new Date();
-                        date.setDate(date.getDate() - i);
-                        chartData.push({
-                            date: date.toISOString().split('T')[0],
-                            success_rate: Math.random() * 30 + 70, // 70-100%
-                            volume_usd: Math.random() * 2000 + 500, // $500-2500
-                            total_sessions: Math.floor(Math.random() * 5) + 1
-                        });
-                    }
                 }
                 
                 const labels = chartData.map(item => new Date(item.date).toLocaleDateString('fr-FR', { 
