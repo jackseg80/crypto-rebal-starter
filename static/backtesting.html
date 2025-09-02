@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backtesting Dashboard - Crypto Rebalancer</title>
+    
+    <!-- Theme & Navigation -->
+    <link rel="stylesheet" href="shared-theme.css">
+    <link rel="stylesheet" href="theme-compat.css">
+    <link rel="stylesheet" href="simple-navigation.css">
+    <script src="simple-navigation.js"></script>
+    
+    <!-- Core Scripts -->
+    <script src="global-config.js"></script>
+    <script src="debug-logger.js"></script>
+    <script src="input-validator.js"></script>
+    
+    <style>
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: var(--theme-background);
+            color: var(--theme-text);
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            color: var(--theme-text-muted);
+            font-size: 1.1rem;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .config-panel, .results-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .panel-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--theme-text);
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--theme-text);
+            font-size: 0.9rem;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--brand-primary);
+            box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.2);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+            color: #000;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 255, 136, 0.3);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--theme-text);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .status {
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-weight: 500;
+        }
+
+        .status.loading {
+            background: rgba(0, 170, 255, 0.1);
+            border: 1px solid rgba(0, 170, 255, 0.3);
+            color: #00aaff;
+        }
+
+        .status.success {
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            color: var(--brand-primary);
+        }
+
+        .status.error {
+            background: rgba(255, 68, 68, 0.1);
+            border: 1px solid rgba(255, 68, 68, 0.3);
+            color: #ff4444;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+
+        .metric-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .metric-label {
+            color: var(--theme-text-muted);
+            font-size: 0.9rem;
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .comparison-table th {
+            background: rgba(255, 255, 255, 0.05);
+            font-weight: 600;
+        }
+
+        .chart-container {
+            height: 300px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 8px;
+            margin: 1rem 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--theme-text-muted);
+        }
+
+        .loading-spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(0, 255, 136, 0.3);
+            border-top: 2px solid var(--brand-primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .btn-group {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔄 Backtesting Dashboard</h1>
+            <p>Test et validation historique des stratégies de portfolio</p>
+        </div>
+
+        <div class="dashboard-grid">
+            <!-- Configuration Panel -->
+            <div class="config-panel">
+                <h2 class="panel-title">⚙️ Configuration du Backtest</h2>
+                
+                <div class="form-group">
+                    <label for="strategy">Stratégie</label>
+                    <select id="strategy" class="form-control">
+                        <option value="">Chargement des stratégies...</option>
+                    </select>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="startDate">Date de début</label>
+                        <input type="date" id="startDate" class="form-control" value="2023-01-01">
+                    </div>
+                    <div class="form-group">
+                        <label for="endDate">Date de fin</label>
+                        <input type="date" id="endDate" class="form-control">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="initialCapital">Capital initial ($)</label>
+                        <input type="number" id="initialCapital" class="form-control" value="10000" min="100">
+                    </div>
+                    <div class="form-group">
+                        <label for="rebalanceFreq">Fréquence rebalancement</label>
+                        <select id="rebalanceFreq" class="form-control">
+                            <option value="weekly">Hebdomadaire</option>
+                            <option value="monthly" selected>Mensuel</option>
+                            <option value="quarterly">Trimestriel</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="benchmark">Benchmark</label>
+                    <select id="benchmark" class="form-control">
+                        <option value="BTC">Bitcoin (BTC)</option>
+                        <option value="ETH">Ethereum (ETH)</option>
+                        <option value="60/40">Portfolio 60/40</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="assets">Assets spécifiques (optionnel)</label>
+                    <input type="text" id="assets" class="form-control" 
+                           placeholder="BTC,ETH,SOL (laisser vide pour portfolio actuel)">
+                </div>
+
+                <!-- Advanced Settings -->
+                <details style="margin: 1rem 0;">
+                    <summary style="cursor: pointer; font-weight: 500;">Paramètres avancés</summary>
+                    <div style="margin-top: 1rem;">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="makerFee">Frais maker (%)</label>
+                                <input type="number" id="makerFee" class="form-control" value="0.1" step="0.01">
+                            </div>
+                            <div class="form-group">
+                                <label for="takerFee">Frais taker (%)</label>
+                                <input type="number" id="takerFee" class="form-control" value="0.15" step="0.01">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="slippage">Slippage (bps)</label>
+                                <input type="number" id="slippage" class="form-control" value="5" step="1">
+                            </div>
+                            <div class="form-group">
+                                <label for="maxPosition">Position max (%)</label>
+                                <input type="number" id="maxPosition" class="form-control" value="50" step="5">
+                            </div>
+                        </div>
+                    </div>
+                </details>
+
+                <div class="btn-group">
+                    <button id="runBacktest" class="btn btn-primary">
+                        🚀 Lancer Backtest
+                    </button>
+                    <button id="compareStrategies" class="btn btn-secondary">
+                        📊 Comparer
+                    </button>
+                </div>
+            </div>
+
+            <!-- Results Panel -->
+            <div class="results-panel">
+                <h2 class="panel-title">📈 Résultats</h2>
+                <div id="resultsContent">
+                    <div class="status">
+                        💡 Configurez et lancez un backtest pour voir les résultats
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Comparison Section -->
+        <div id="comparisonSection" class="hidden">
+            <div class="config-panel">
+                <h2 class="panel-title">🔬 Comparaison de Stratégies</h2>
+                <div id="comparisonResults">
+                    <!-- Comparison results will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentBacktest = null;
+        let availableStrategies = [];
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            console.log('🚀 Initializing Backtesting Dashboard');
+            
+            // Initialize navigation
+            if (typeof createSimpleNavigation !== 'undefined') {
+                createSimpleNavigation('backtesting');
+            }
+            
+            // Apply theme
+            if (window.globalConfig?.applyTheme) {
+                window.globalConfig.applyTheme();
+            }
+            
+            // Set default end date to today
+            document.getElementById('endDate').valueAsDate = new Date();
+            
+            await loadStrategies();
+            setupEventListeners();
+        });
+
+        async function loadStrategies() {
+            try {
+                showStatus('loading', 'Chargement des stratégies...');
+                
+                const response = await fetch('/api/backtesting/strategies');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                availableStrategies = data.strategies;
+                
+                const strategySelect = document.getElementById('strategy');
+                strategySelect.innerHTML = '<option value="">Sélectionner une stratégie...</option>';
+                
+                data.strategies.forEach(strategy => {
+                    const option = document.createElement('option');
+                    option.value = strategy.key;
+                    option.textContent = strategy.name;
+                    option.title = strategy.description;
+                    strategySelect.appendChild(option);
+                });
+                
+                console.log(`✅ Loaded ${data.strategies.length} strategies`);
+                hideStatus();
+                
+            } catch (error) {
+                console.error('❌ Error loading strategies:', error);
+                showStatus('error', `Erreur: ${error.message}`);
+                
+                // Fallback options
+                const strategySelect = document.getElementById('strategy');
+                strategySelect.innerHTML = `
+                    <option value="">Erreur de chargement</option>
+                    <option value="equal_weight">Equal Weight (Fallback)</option>
+                    <option value="momentum">Momentum (Fallback)</option>
+                    <option value="mean_reversion">Mean Reversion (Fallback)</option>
+                `;
+            }
+        }
+
+        function setupEventListeners() {
+            document.getElementById('runBacktest').addEventListener('click', runBacktest);
+            document.getElementById('compareStrategies').addEventListener('click', showStrategyComparison);
+        }
+
+        async function runBacktest() {
+            try {
+                const config = getBacktestConfig();
+                if (!validateConfig(config)) return;
+                
+                showStatus('loading', 'Exécution du backtest...');
+                
+                const response = await fetch('/api/backtesting/run', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ message: response.statusText }));
+                    throw new Error(errorData.message || `HTTP ${response.status}`);
+                }
+                
+                const results = await response.json();
+                displayResults(results);
+                showStatus('success', 'Backtest terminé avec succès!');
+                
+            } catch (error) {
+                console.error('❌ Backtest failed:', error);
+                showStatus('error', `Erreur: ${error.message}`);
+            }
+        }
+
+        function getBacktestConfig() {
+            const assetsInput = document.getElementById('assets').value.trim();
+            
+            return {
+                strategy: document.getElementById('strategy').value,
+                start_date: document.getElementById('startDate').value,
+                end_date: document.getElementById('endDate').value,
+                initial_capital: parseFloat(document.getElementById('initialCapital').value),
+                rebalance_frequency: document.getElementById('rebalanceFreq').value,
+                benchmark: document.getElementById('benchmark').value,
+                assets: assetsInput ? assetsInput.split(',').map(s => s.trim()) : null,
+                maker_fee: parseFloat(document.getElementById('makerFee').value) / 100,
+                taker_fee: parseFloat(document.getElementById('takerFee').value) / 100,
+                slippage_bps: parseFloat(document.getElementById('slippage').value),
+                max_position_size: parseFloat(document.getElementById('maxPosition').value) / 100
+            };
+        }
+
+        function validateConfig(config) {
+            if (!config.strategy) {
+                showStatus('error', 'Veuillez sélectionner une stratégie');
+                return false;
+            }
+            
+            if (!config.start_date || !config.end_date) {
+                showStatus('error', 'Veuillez définir les dates de début et fin');
+                return false;
+            }
+            
+            if (new Date(config.start_date) >= new Date(config.end_date)) {
+                showStatus('error', 'La date de début doit être antérieure à la date de fin');
+                return false;
+            }
+            
+            if (config.initial_capital < 100) {
+                showStatus('error', 'Le capital initial doit être d\'au moins 100$');
+                return false;
+            }
+            
+            return true;
+        }
+
+        function displayResults(results) {
+            if (!results.success) {
+                showStatus('error', 'Le backtest a échoué');
+                return;
+            }
+            
+            currentBacktest = results;
+            const container = document.getElementById('resultsContent');
+            
+            container.innerHTML = `
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-value" style="color: var(--brand-primary);">
+                            ${formatPercent(results.metrics.total_return)}
+                        </div>
+                        <div class="metric-label">Rendement Total</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" style="color: #00aaff;">
+                            ${formatPercent(results.metrics.annual_return)}
+                        </div>
+                        <div class="metric-label">Rendement Annuel</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" style="color: #ffa500;">
+                            ${formatPercent(results.risk_metrics.volatility)}
+                        </div>
+                        <div class="metric-label">Volatilité</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" style="color: #ff6b6b;">
+                            ${formatPercent(results.risk_metrics.max_drawdown)}
+                        </div>
+                        <div class="metric-label">Max Drawdown</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" style="color: #8b5cf6;">
+                            ${results.risk_metrics.sharpe_ratio?.toFixed(2) || 'N/A'}
+                        </div>
+                        <div class="metric-label">Ratio de Sharpe</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" style="color: #00ff88;">
+                            ${formatPercent(results.metrics.win_rate)}
+                        </div>
+                        <div class="metric-label">Taux de Réussite</div>
+                    </div>
+                </div>
+                
+                <h3>📊 Comparaison avec le Benchmark</h3>
+                <table class="comparison-table">
+                    <thead>
+                        <tr>
+                            <th>Métrique</th>
+                            <th>Stratégie</th>
+                            <th>Benchmark</th>
+                            <th>Différence</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Rendement Total</td>
+                            <td>${formatPercent(results.metrics.total_return)}</td>
+                            <td>${formatPercent(results.benchmark_comparison.benchmark_return || 0)}</td>
+                            <td>${formatPercent((results.metrics.total_return || 0) - (results.benchmark_comparison.benchmark_return || 0))}</td>
+                        </tr>
+                        <tr>
+                            <td>Volatilité</td>
+                            <td>${formatPercent(results.risk_metrics.volatility)}</td>
+                            <td>${formatPercent(results.benchmark_comparison.benchmark_volatility || 0)}</td>
+                            <td>${formatPercent((results.risk_metrics.volatility || 0) - (results.benchmark_comparison.benchmark_volatility || 0))}</td>
+                        </tr>
+                        <tr>
+                            <td>Ratio de Sharpe</td>
+                            <td>${results.risk_metrics.sharpe_ratio?.toFixed(2) || 'N/A'}</td>
+                            <td>${results.benchmark_comparison.benchmark_sharpe?.toFixed(2) || 'N/A'}</td>
+                            <td>${((results.risk_metrics.sharpe_ratio || 0) - (results.benchmark_comparison.benchmark_sharpe || 0)).toFixed(2)}</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <div class="chart-container">
+                    📈 Graphique de performance (à implémenter avec Chart.js)
+                </div>
+                
+                <h3>🎯 Attribution de Performance</h3>
+                <div style="background: rgba(255, 255, 255, 0.02); padding: 1rem; border-radius: 8px;">
+                    <pre style="margin: 0; font-size: 0.9rem;">${JSON.stringify(results.attribution, null, 2)}</pre>
+                </div>
+            `;
+        }
+
+        async function showStrategyComparison() {
+            // TODO: Implement strategy comparison
+            showStatus('loading', 'Fonctionnalité de comparaison en développement...');
+            setTimeout(() => hideStatus(), 2000);
+        }
+
+        function formatPercent(value) {
+            if (value === undefined || value === null) return 'N/A';
+            return `${(value * 100).toFixed(2)}%`;
+        }
+
+        function showStatus(type, message) {
+            const container = document.getElementById('resultsContent');
+            const existingStatus = container.querySelector('.status');
+            
+            if (existingStatus) {
+                existingStatus.className = `status ${type}`;
+                existingStatus.innerHTML = type === 'loading' 
+                    ? `<div class="loading-spinner"></div>${message}`
+                    : message;
+            } else {
+                const status = document.createElement('div');
+                status.className = `status ${type}`;
+                status.innerHTML = type === 'loading' 
+                    ? `<div class="loading-spinner"></div>${message}`
+                    : message;
+                container.insertBefore(status, container.firstChild);
+            }
+        }
+
+        function hideStatus() {
+            const status = document.querySelector('.status');
+            if (status && !status.textContent.includes('Configurez')) {
+                status.remove();
+            }
+        }
+    </script>
+</body>
+</html>

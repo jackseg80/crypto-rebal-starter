@@ -545,8 +545,10 @@
       }
     }
 
-    /* ---------- Mock CCS Data Generation ---------- */
-    function generateMockCCSData() {
+    /* ---------- SUPPRIMÉ: Mock CCS Data Generation ---------- */
+    function generateMockCCSData_DISABLED() {
+      console.error('⚠️ Mock CCS data generation disabled. Use real CCS data from risk-dashboard.');
+      return;
       // Ne génère les données mock que si aucune donnée récente n'existe
       const existingData = localStorage.getItem('last_targets');
       if (existingData) {
@@ -1184,9 +1186,8 @@
       return [...Array.from(groups.values()), ...ungrouped];
     }
 
-    // Generate mock rebalancing plan when API is unavailable
-    async function generateMockPlan() {
-      // Try to load real CSV data first
+    // Generate rebalancing plan using real configured data only
+    async function generateRealPlan() {
       let currentByGroup = {};
       let currentWeights = {};
       let totalUsd = 0;
@@ -1197,37 +1198,13 @@
           currentByGroup = realPortfolioData.currentByGroup;
           currentWeights = realPortfolioData.currentWeights;
           totalUsd = realPortfolioData.totalValue;
-          console.log('✅ Using real CSV data for rebalancing plan:', { totalUsd, groups: Object.keys(currentByGroup).length });
+          console.log('✅ Using real data for rebalancing plan:', { totalUsd, groups: Object.keys(currentByGroup).length });
         } else {
-          throw new Error('No real portfolio data available');
+          throw new Error('No portfolio data available from configured source');
         }
       } catch (error) {
-        console.warn('⚠️ Could not load real portfolio data, using fallback mock data:', error);
-        
-        // Fallback mock data
-        currentWeights = {
-          'BTC': 44.3,
-          'ETH': 24.5,
-          'Stablecoins': 20.0,
-          'L1/L0 majors': 6.1,
-          'L2/Scaling': 3.1,
-          'DeFi': 1.2,
-          'AI/Data': 0.8,
-          'Others': 0.0
-        };
-
-        currentByGroup = {
-          'BTC': 187170.00,  // BTC + tBTC (44.2%)
-          'ETH': 103050.00,  // ETH + stETH (24.3%)
-          'Stablecoins': 83000.00,  // USDC + USDT (19.6%)
-          'L1/L0 majors': 27100.00,  // SOL (6.4%)
-          'L2/Scaling': 13850.00,  // MATIC (3.3%)
-          'DeFi': 6128.00,   // UNI (1.4%)
-          'AI/Data': 3400.00, // FET (0.8%)
-          'Others': 0.00
-        };
-        
-        totalUsd = Object.values(currentByGroup).reduce((sum, val) => sum + val, 0);
+        console.error('❌ Failed to load portfolio data:', error);
+        throw new Error(`Portfolio data unavailable: ${error.message}. Please configure data source in settings.`);
       }
 
       // Target weights from selected strategy or default (GROUP LEVEL)
@@ -1645,8 +1622,8 @@
     }
 
 
-    async function generateMockCsv() {
-      const plan = await generateMockPlan();
+    async function generateRealCsv() {
+      const plan = await generateRealPlan();
       const headers = 'group,alias,symbol,action,usd,est_quantity,price_used,location\n';
       const rows = plan.actions.map(action => 
         `${action.group},${action.alias},${action.symbol},${action.action},${action.usd},${action.est_quantity},${action.price_used},${action.location}`
@@ -1662,6 +1639,33 @@
       notif.textContent = text;
       document.body.appendChild(notif);
       setTimeout(() => notif.remove(), duration);
+    }
+    
+    function showDataSourceError(message) {
+      // Clear existing content
+      $('#donutCurrent').innerHTML = '';
+      $('#donutTarget').innerHTML = '';
+      $('#summary').innerHTML = '';
+      $('#tblActions tbody').innerHTML = '';
+      
+      // Show error message with configuration guidance
+      $('#summary').innerHTML = `
+        <div class="card" style="text-align: center; padding: 2rem; border: 2px solid var(--danger); background: var(--danger-bg);">
+          <h3 style="color: var(--danger); margin-bottom: 1rem;">⚠️ Configuration Requise</h3>
+          <p style="margin-bottom: 1rem; color: var(--theme-text);">${message}</p>
+          <p style="margin-bottom: 1.5rem; color: var(--theme-text-muted);">
+            Pour utiliser l'interface de rebalancing, vous devez configurer une source de données valide.
+          </p>
+          <button class="btn" onclick="window.open('settings.html', '_blank')" style="background: var(--brand-primary); margin-right: 0.5rem;">
+            🔧 Ouvrir Settings
+          </button>
+          <button class="btn secondary" onclick="location.reload()">
+            🔄 Recharger la page
+          </button>
+        </div>
+      `;
+      
+      showNotification('❌ Configuration de source de données requise - Voir Settings', 'error', 5000);
     }
     function setTotal(v) {
       const n = Number(v || 0);
@@ -1992,9 +1996,9 @@
         
         let plan;
         
-        // FORCE: Always use real CSV data for consistency with other dashboards
-        console.log('🔄 Using real CSV data for rebalancing plan (forced for consistency)');
-        plan = await generateMockPlan(); // Use real CSV data
+        // Use real data only from configured source
+        console.log('🔄 Using real data for rebalancing plan from configured source');
+        plan = await generateRealPlan(); // Use real configured data only
         
         /* Commented out API call - forcing CSV data for consistency
         try {
@@ -2062,6 +2066,13 @@
       } catch (e) {
         console.error(e);
         setStatus("Erreur: " + (e?.message || e));
+        
+        // Afficher interface d'erreur si données non disponibles
+        if (e.message && e.message.includes('Portfolio data unavailable')) {
+          showDataSourceError(e.message);
+        } else if (e.message && e.message.includes('No portfolio data available')) {
+          showDataSourceError('Configuration de source de données requise');
+        }
       } finally {
         // Plus de bouton btnRun à réactiver
       }
@@ -2078,7 +2089,7 @@
           blob = await postCsv(`${api}/rebalance/plan.csv?${qs}`, buildPayload());
         } catch (apiError) {
           console.warn('CSV API unavailable, generating mock CSV:', apiError);
-          blob = await generateMockCsv(); // Now async
+          blob = await generateRealCsv(); // Use real data only
         }
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -2218,8 +2229,7 @@
       }
       console.log('Current theme after rebalance init:', document.documentElement.getAttribute('data-theme'));
 
-      // Générer mock CCS data si pas disponible pour permettre la sync
-      generateMockCCSData();
+      // CCS data will be loaded from configured real source when needed
       
       // Charger les stratégies
       loadStrategies();

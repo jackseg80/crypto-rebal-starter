@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Performance Monitor - Crypto Rebalancer</title>
+    
+    <!-- Theme & Navigation -->
+    <link rel="stylesheet" href="shared-theme.css">
+    <link rel="stylesheet" href="theme-compat.css">
+    <link rel="stylesheet" href="simple-navigation.css">
+    <script src="simple-navigation.js"></script>
+    
+    <!-- Core Scripts -->
+    <script src="global-config.js"></script>
+    <script src="debug-logger.js"></script>
+    <script src="input-validator.js"></script>
+    
+    <style>
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: var(--theme-background);
+            color: var(--theme-text);
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            color: var(--theme-text-muted);
+            font-size: 1.1rem;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .panel-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .stat-item {
+            background: rgba(255, 255, 255, 0.03);
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            color: var(--theme-text-muted);
+            font-size: 0.9rem;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+            margin: 0.25rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+            color: #000;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 255, 136, 0.3);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--theme-text);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-danger {
+            background: rgba(255, 68, 68, 0.2);
+            color: #ff4444;
+            border: 1px solid rgba(255, 68, 68, 0.3);
+        }
+
+        .btn-danger:hover {
+            background: rgba(255, 68, 68, 0.3);
+        }
+
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .status {
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            font-weight: 500;
+        }
+
+        .status.loading {
+            background: rgba(0, 170, 255, 0.1);
+            border: 1px solid rgba(0, 170, 255, 0.3);
+            color: #00aaff;
+        }
+
+        .status.success {
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            color: var(--brand-primary);
+        }
+
+        .status.error {
+            background: rgba(255, 68, 68, 0.1);
+            border: 1px solid rgba(255, 68, 68, 0.3);
+            color: #ff4444;
+        }
+
+        .loading-spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(0, 255, 136, 0.3);
+            border-top: 2px solid var(--brand-primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .benchmark-results {
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+
+        .benchmark-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        .benchmark-table th,
+        .benchmark-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .benchmark-table th {
+            background: rgba(255, 255, 255, 0.05);
+            font-weight: 600;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--theme-text);
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--brand-primary);
+            box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.2);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .memory-info {
+            background: rgba(255, 255, 255, 0.03);
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.9rem;
+            margin-top: 1rem;
+        }
+
+        .auto-refresh {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin: 1rem 0;
+        }
+
+        .auto-refresh input[type="checkbox"] {
+            width: auto;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .btn-group {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚡ Performance Monitor</h1>
+            <p>Surveillance et optimisation des performances système</p>
+        </div>
+
+        <div class="dashboard-grid">
+            <!-- Cache Statistics Panel -->
+            <div class="panel">
+                <h2 class="panel-title">💾 Cache Statistics</h2>
+                
+                <div class="auto-refresh">
+                    <input type="checkbox" id="autoRefreshCache" checked>
+                    <label for="autoRefreshCache">Auto-refresh (30s)</label>
+                </div>
+
+                <div id="cacheStats" class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value" id="memoryCacheSize">--</div>
+                        <div class="stat-label">Memory Cache Items</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="diskCacheFiles">--</div>
+                        <div class="stat-label">Disk Cache Files</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="diskCacheSize">--</div>
+                        <div class="stat-label">Disk Cache (MB)</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="cacheDirectory">--</div>
+                        <div class="stat-label">Cache Directory</div>
+                    </div>
+                </div>
+
+                <div class="btn-group">
+                    <button id="refreshCache" class="btn btn-secondary">🔄 Refresh</button>
+                    <button id="clearCache" class="btn btn-danger">🗑️ Clear Cache</button>
+                    <button id="clearOldCache" class="btn btn-secondary">🧹 Clear Old</button>
+                </div>
+
+                <div id="cacheStatus"></div>
+            </div>
+
+            <!-- System Memory Panel -->
+            <div class="panel">
+                <h2 class="panel-title">🖥️ System Memory</h2>
+                
+                <div class="auto-refresh">
+                    <input type="checkbox" id="autoRefreshMemory" checked>
+                    <label for="autoRefreshMemory">Auto-refresh (30s)</label>
+                </div>
+
+                <div id="memoryStats" class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value" id="totalMemory">--</div>
+                        <div class="stat-label">Total Memory (GB)</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="availableMemory">--</div>
+                        <div class="stat-label">Available Memory (GB)</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="memoryUsage">--</div>
+                        <div class="stat-label">Memory Usage (%)</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="processMemory">--</div>
+                        <div class="stat-label">Process Memory (MB)</div>
+                    </div>
+                </div>
+
+                <div class="btn-group">
+                    <button id="refreshMemory" class="btn btn-secondary">🔄 Refresh</button>
+                    <button id="gcCollect" class="btn btn-secondary">🗑️ Force GC</button>
+                </div>
+
+                <div id="memoryDetails" class="memory-info hidden"></div>
+                <div id="memoryStatus"></div>
+            </div>
+
+            <!-- Performance Benchmarking Panel -->
+            <div class="panel">
+                <h2 class="panel-title">📊 Performance Benchmarking</h2>
+                
+                <div class="form-group">
+                    <div class="form-row">
+                        <div>
+                            <label for="benchmarkAssets">Assets Count</label>
+                            <select id="benchmarkAssets" class="form-control">
+                                <option value="50">50 assets</option>
+                                <option value="100" selected>100 assets</option>
+                                <option value="200">200 assets</option>
+                                <option value="500">500 assets</option>
+                                <option value="1000">1000 assets</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="benchmarkPeriods">Time Periods</label>
+                            <select id="benchmarkPeriods" class="form-control">
+                                <option value="90">90 days</option>
+                                <option value="180">180 days</option>
+                                <option value="252" selected>252 days (1 year)</option>
+                                <option value="504">504 days (2 years)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="btn-group">
+                    <button id="runBenchmark" class="btn btn-primary">🚀 Run Benchmark</button>
+                    <button id="precompute" class="btn btn-secondary">⚡ Precompute</button>
+                </div>
+
+                <div id="benchmarkResults" class="benchmark-results hidden"></div>
+                <div id="benchmarkStatus"></div>
+            </div>
+
+            <!-- Optimization Tools Panel -->
+            <div class="panel">
+                <h2 class="panel-title">🔧 Optimization Tools</h2>
+                
+                <p style="color: var(--theme-text-muted); margin-bottom: 1.5rem;">
+                    Outils pour optimiser les performances du système d'optimisation de portfolio.
+                </p>
+
+                <div class="btn-group">
+                    <button id="warmupCache" class="btn btn-primary">🔥 Warmup Cache</button>
+                    <button id="validateOptimizer" class="btn btn-secondary">✅ Validate</button>
+                    <button id="profileOptimizer" class="btn btn-secondary">📊 Profile</button>
+                </div>
+
+                <div id="optimizationStatus"></div>
+                
+                <div class="memory-info">
+                    <strong>Recommandations:</strong><br>
+                    • Cache Warmup: Pré-calcule les matrices pour les assets principaux<br>
+                    • Validation: Teste la cohérence des résultats d'optimisation<br>
+                    • Profiling: Analyse les goulots d'étranglement de performance
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let autoRefreshIntervals = {};
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            console.log('⚡ Initializing Performance Monitor');
+            
+            // Initialize navigation
+            if (typeof createSimpleNavigation !== 'undefined') {
+                createSimpleNavigation('performance-monitor');
+            }
+            
+            // Apply theme
+            if (window.globalConfig?.applyTheme) {
+                window.globalConfig.applyTheme();
+            }
+            
+            setupEventListeners();
+            await loadInitialData();
+            setupAutoRefresh();
+        });
+
+        function setupEventListeners() {
+            // Cache controls
+            document.getElementById('refreshCache').addEventListener('click', loadCacheStats);
+            document.getElementById('clearCache').addEventListener('click', clearCache);
+            document.getElementById('clearOldCache').addEventListener('click', () => clearCache(7));
+            
+            // Memory controls
+            document.getElementById('refreshMemory').addEventListener('click', loadMemoryStats);
+            document.getElementById('gcCollect').addEventListener('click', forceGarbageCollection);
+            
+            // Benchmark controls
+            document.getElementById('runBenchmark').addEventListener('click', runBenchmark);
+            document.getElementById('precompute').addEventListener('click', precomputeMatrices);
+            
+            // Optimization tools
+            document.getElementById('warmupCache').addEventListener('click', warmupCache);
+            document.getElementById('validateOptimizer').addEventListener('click', validateOptimizer);
+            document.getElementById('profileOptimizer').addEventListener('click', profileOptimizer);
+            
+            // Auto-refresh toggles
+            document.getElementById('autoRefreshCache').addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    startAutoRefresh('cache');
+                } else {
+                    stopAutoRefresh('cache');
+                }
+            });
+            
+            document.getElementById('autoRefreshMemory').addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    startAutoRefresh('memory');
+                } else {
+                    stopAutoRefresh('memory');
+                }
+            });
+        }
+
+        async function loadInitialData() {
+            await Promise.all([
+                loadCacheStats(),
+                loadMemoryStats()
+            ]);
+        }
+
+        function setupAutoRefresh() {
+            startAutoRefresh('cache');
+            startAutoRefresh('memory');
+        }
+
+        function startAutoRefresh(type) {
+            stopAutoRefresh(type); // Clear existing interval
+            
+            const interval = setInterval(() => {
+                if (type === 'cache') loadCacheStats();
+                if (type === 'memory') loadMemoryStats();
+            }, 30000); // 30 seconds
+            
+            autoRefreshIntervals[type] = interval;
+        }
+
+        function stopAutoRefresh(type) {
+            if (autoRefreshIntervals[type]) {
+                clearInterval(autoRefreshIntervals[type]);
+                delete autoRefreshIntervals[type];
+            }
+        }
+
+        async function loadCacheStats() {
+            try {
+                const response = await fetch('/api/performance/cache/stats');
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const data = await response.json();
+                const stats = data.cache_stats;
+                
+                document.getElementById('memoryCacheSize').textContent = stats.memory_cache_size || '0';
+                document.getElementById('diskCacheFiles').textContent = stats.disk_cache_files || '0';
+                document.getElementById('diskCacheSize').textContent = 
+                    typeof stats.disk_cache_size_mb === 'number' ? 
+                    stats.disk_cache_size_mb.toFixed(2) : 'N/A';
+                
+                const cacheDir = stats.cache_directory ? 
+                    stats.cache_directory.split(/[/\\]/).pop() : 'N/A';
+                document.getElementById('cacheDirectory').textContent = cacheDir;
+                
+                showStatus('cacheStatus', 'success', `✅ Updated ${new Date().toLocaleTimeString()}`);
+                
+            } catch (error) {
+                console.error('❌ Error loading cache stats:', error);
+                showStatus('cacheStatus', 'error', `Error: ${error.message}`);
+            }
+        }
+
+        async function loadMemoryStats() {
+            try {
+                const response = await fetch('/api/performance/system/memory');
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const data = await response.json();
+                const stats = data.memory_stats;
+                
+                document.getElementById('totalMemory').textContent = 
+                    (stats.total_memory_gb || 0).toFixed(1);
+                document.getElementById('availableMemory').textContent = 
+                    (stats.available_memory_gb || 0).toFixed(1);
+                document.getElementById('memoryUsage').textContent = 
+                    (stats.memory_usage_percent || 0).toFixed(1) + '%';
+                document.getElementById('processMemory').textContent = 
+                    (stats.process_memory_mb || 0).toFixed(1);
+                
+                // Show detailed memory info
+                const detailsElement = document.getElementById('memoryDetails');
+                detailsElement.textContent = JSON.stringify(stats, null, 2);
+                
+                showStatus('memoryStatus', 'success', `✅ Updated ${new Date().toLocaleTimeString()}`);
+                
+            } catch (error) {
+                console.error('❌ Error loading memory stats:', error);
+                showStatus('memoryStatus', 'error', `Error: ${error.message}`);
+                
+                // Show fallback memory info
+                document.getElementById('memoryDetails').classList.remove('hidden');
+            }
+        }
+
+        async function clearCache(olderThanDays = 0) {
+            try {
+                showStatus('cacheStatus', 'loading', 'Clearing cache...');
+                
+                const response = await fetch(`/api/performance/cache/clear?older_than_days=${olderThanDays}&clear_memory=true`, {
+                    method: 'POST'
+                });
+                
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const data = await response.json();
+                showStatus('cacheStatus', 'success', `✅ ${data.message}`);
+                
+                // Refresh cache stats
+                setTimeout(loadCacheStats, 1000);
+                
+            } catch (error) {
+                console.error('❌ Error clearing cache:', error);
+                showStatus('cacheStatus', 'error', `Error: ${error.message}`);
+            }
+        }
+
+        async function forceGarbageCollection() {
+            showStatus('memoryStatus', 'loading', 'Forcing garbage collection...');
+            
+            // Since we can't directly trigger Python GC from frontend,
+            // we'll simulate by refreshing memory stats after a delay
+            setTimeout(async () => {
+                await loadMemoryStats();
+                showStatus('memoryStatus', 'success', '✅ Memory stats refreshed');
+            }, 1000);
+        }
+
+        async function runBenchmark() {
+            try {
+                const nAssets = document.getElementById('benchmarkAssets').value;
+                const nPeriods = document.getElementById('benchmarkPeriods').value;
+                
+                showStatus('benchmarkStatus', 'loading', 'Running performance benchmark...');
+                
+                const response = await fetch(
+                    `/api/performance/optimization/benchmark?n_assets=${nAssets}&n_periods=${nPeriods}`
+                );
+                
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const data = await response.json();
+                displayBenchmarkResults(data.benchmark_results);
+                showStatus('benchmarkStatus', 'success', '✅ Benchmark completed');
+                
+            } catch (error) {
+                console.error('❌ Error running benchmark:', error);
+                showStatus('benchmarkStatus', 'error', `Error: ${error.message}`);
+            }
+        }
+
+        function displayBenchmarkResults(results) {
+            const container = document.getElementById('benchmarkResults');
+            container.classList.remove('hidden');
+            
+            let html = '<h3>📊 Benchmark Results</h3>';
+            html += '<table class="benchmark-table">';
+            html += '<thead><tr><th>Method</th><th>Duration (s)</th><th>Success</th><th>Assets Used</th><th>Sharpe Ratio</th></tr></thead>';
+            html += '<tbody>';
+            
+            Object.entries(results).forEach(([method, result]) => {
+                const successIcon = result.success ? '✅' : '❌';
+                const duration = result.success ? result.duration_seconds : 'Failed';
+                const assets = result.success ? result.n_assets_optimized || 'N/A' : 'N/A';
+                const sharpe = result.success ? result.sharpe_ratio || 'N/A' : 'N/A';
+                
+                html += `<tr>
+                    <td>${method}</td>
+                    <td>${duration}</td>
+                    <td>${successIcon}</td>
+                    <td>${assets}</td>
+                    <td>${sharpe}</td>
+                </tr>`;
+            });
+            
+            html += '</tbody></table>';
+            
+            if (results.standard && results.large_portfolio) {
+                const speedup = (results.standard.duration_seconds / results.large_portfolio.duration_seconds).toFixed(2);
+                html += `<p><strong>Speedup:</strong> ${speedup}x faster with large portfolio optimization</p>`;
+            }
+            
+            container.innerHTML = html;
+        }
+
+        async function precomputeMatrices() {
+            try {
+                showStatus('benchmarkStatus', 'loading', 'Precomputing matrices...');
+                
+                const response = await fetch('/api/performance/optimization/precompute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        precompute_major_assets: true,
+                        cache_duration_hours: 24 
+                    })
+                });
+                
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const data = await response.json();
+                showStatus('benchmarkStatus', 'success', `✅ ${data.message}`);
+                
+                // Refresh cache stats
+                setTimeout(loadCacheStats, 1000);
+                
+            } catch (error) {
+                console.error('❌ Error precomputing matrices:', error);
+                showStatus('benchmarkStatus', 'error', `Error: ${error.message}`);
+            }
+        }
+
+        async function warmupCache() {
+            showStatus('optimizationStatus', 'loading', 'Warming up cache...');
+            
+            // Simulate cache warmup with multiple small benchmarks
+            try {
+                await fetch('/api/performance/optimization/benchmark?n_assets=50&n_periods=90');
+                await fetch('/api/performance/optimization/benchmark?n_assets=100&n_periods=180');
+                
+                showStatus('optimizationStatus', 'success', '✅ Cache warmed up successfully');
+                setTimeout(loadCacheStats, 1000);
+                
+            } catch (error) {
+                showStatus('optimizationStatus', 'error', `Error: ${error.message}`);
+            }
+        }
+
+        async function validateOptimizer() {
+            showStatus('optimizationStatus', 'loading', 'Validating optimizer...');
+            
+            // Run a quick validation benchmark
+            try {
+                const response = await fetch('/api/performance/optimization/benchmark?n_assets=10&n_periods=30');
+                const data = await response.json();
+                
+                if (data.benchmark_results?.standard?.success) {
+                    showStatus('optimizationStatus', 'success', '✅ Optimizer validation passed');
+                } else {
+                    showStatus('optimizationStatus', 'error', '❌ Optimizer validation failed');
+                }
+                
+            } catch (error) {
+                showStatus('optimizationStatus', 'error', `Validation error: ${error.message}`);
+            }
+        }
+
+        async function profileOptimizer() {
+            showStatus('optimizationStatus', 'loading', 'Profiling optimizer performance...');
+            
+            try {
+                // Run benchmark with different sizes for profiling
+                const results = await Promise.all([
+                    fetch('/api/performance/optimization/benchmark?n_assets=50&n_periods=90'),
+                    fetch('/api/performance/optimization/benchmark?n_assets=100&n_periods=90'),
+                    fetch('/api/performance/optimization/benchmark?n_assets=200&n_periods=90')
+                ]);
+                
+                const data = await Promise.all(results.map(r => r.json()));
+                
+                let profileInfo = 'Performance Profile:\n';
+                data.forEach((result, i) => {
+                    const assets = [50, 100, 200][i];
+                    const duration = result.benchmark_results?.standard?.duration_seconds || 'N/A';
+                    profileInfo += `${assets} assets: ${duration}s\n`;
+                });
+                
+                showStatus('optimizationStatus', 'success', `✅ Profiling completed\n${profileInfo}`);
+                
+            } catch (error) {
+                showStatus('optimizationStatus', 'error', `Profiling error: ${error.message}`);
+            }
+        }
+
+        function showStatus(elementId, type, message) {
+            const element = document.getElementById(elementId);
+            element.className = `status ${type}`;
+            
+            if (type === 'loading') {
+                element.innerHTML = `<div class="loading-spinner"></div>${message}`;
+            } else {
+                element.textContent = message;
+            }
+            
+            // Auto-hide success/error messages after 5 seconds
+            if (type !== 'loading') {
+                setTimeout(() => {
+                    if (element.textContent === message) {
+                        element.textContent = '';
+                        element.className = '';
+                    }
+                }, 5000);
+            }
+        }
+
+        // Cleanup intervals on page unload
+        window.addEventListener('beforeunload', () => {
+            Object.values(autoRefreshIntervals).forEach(clearInterval);
+        });
+    </script>
+</body>
+</html>

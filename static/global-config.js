@@ -472,12 +472,69 @@ window.loadBalanceData = async function() {
         };
     }
   } catch (error) {
-    console.error(`❌ Error loading balance data (source: ${dataSource}):`, error);
-    return {
-      success: false,
-      error: error.message,
-      source: dataSource
-    };
+    console.error(`❌ Error loading balance data via API (source: ${dataSource}):`, error);
+    console.log('🔄 Trying fallback: direct CSV file loading...');
+    
+    // Fallback: try to load CSV files directly
+    try {
+      const csvFiles = [
+        'data/raw/CoinTracking - Current Balance.csv',
+        'data/raw/CoinTracking - Balance by Exchange - 26.08.2025.csv'
+      ];
+      
+      for (const csvFile of csvFiles) {
+        try {
+          console.log(`📄 Attempting to load: ${csvFile}`);
+          const response = await fetch(csvFile);
+          if (response.ok) {
+            const csvText = await response.text();
+            console.log(`✅ Successfully loaded ${csvFile} (${csvText.length} characters)`);
+            return {
+              success: true,
+              csvText: csvText,
+              source: 'csv_direct',
+              file: csvFile
+            };
+          }
+        } catch (fileError) {
+          console.log(`⚠️ Could not load ${csvFile}:`, fileError.message);
+        }
+      }
+      
+      // Si aucun fichier CSV accessible et API échoué, retourner erreur
+      console.error('📊 No CSV files accessible and API failed. Using configured stub data source.');
+      
+      // Forcer l'utilisation de stub data via l'API si configuré
+      try {
+        const stubResponse = await fetch(`${globalConfig.get('api_base_url')}/balances/current?source=stub`);
+        if (stubResponse.ok) {
+          const stubData = await stubResponse.json();
+          console.log('✅ Successfully loaded stub data from API');
+          return {
+            success: true,
+            data: stubData,
+            source: 'stub'
+          };
+        }
+      } catch (stubError) {
+        console.error('❌ Stub data via API also failed:', stubError);
+      }
+      
+      // Dernière option: retourner erreur - pas de données mockées
+      return {
+        success: false,
+        error: `All data sources failed. Configure valid data source in settings: API=${error.message}`,
+        source: 'none'
+      };
+      
+    } catch (fallbackError) {
+      console.error('❌ Fallback also failed:', fallbackError);
+      return {
+        success: false,
+        error: `API failed: ${error.message}, Fallback failed: ${fallbackError.message}`,
+        source: dataSource
+      };
+    }
   }
 };
 
