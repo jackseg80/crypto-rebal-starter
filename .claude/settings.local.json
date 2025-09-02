@@ -123,7 +123,17 @@
       "Bash(start http://localhost:8000/static/multi-asset-dashboard.html)",
       "Bash(start http://localhost:8000/static/debug-menu.html)",
       "Bash(start http://localhost:8000/tests/html_debug/debug_11_groups_fix.html)",
-      "Bash(start http://localhost:8000/static/dashboard.html?debug=true)"
+      "Bash(start http://localhost:8000/static/dashboard.html?debug=true)",
+      "Bash(start http://localhost:8000/static/ai-dashboard.html)",
+      "Bash(start http://localhost:8000/static/ai-components-demo.html)",
+      "Bash(start http://localhost:8000/static/test-integration-e2e.html)",
+      "Bash(start http://localhost:8000/static/test-navigation.html)",
+      "Bash(start http://localhost:8000/static/test-simple.html)",
+      "Bash(start http://localhost:8000/static/test-dashboard-theme.html)",
+      "Bash(start http://localhost:8000/static/debug-navigation-layout.html)",
+      "Bash(start http://localhost:8000/static/test-simple-menu.html)",
+      "Bash(start http://localhost:8000/static/execution.html)",
+      "Bash(start http://localhost:8000/static/execution_history.html)"
     ],
     "deny": [],
     "ask": [],
