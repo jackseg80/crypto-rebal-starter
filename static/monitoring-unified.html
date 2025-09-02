@@ -4,8 +4,7 @@
   <meta charset="UTF-8">
   <title>📊 Unified Monitoring Dashboard - Crypto Rebalancer</title>
   <script src="global-config.js"></script>
-  <script src="shared-header.js"></script>
-  <link rel="stylesheet" href="shared-theme.css">
+<link rel="stylesheet" href="shared-theme.css">
   <link rel="stylesheet" href="theme-compat.css">
   <script src="appearance.js"></script>
   <style>
@@ -453,10 +452,28 @@
       }
     }
   </style>
+
+    <!-- Navigation Simple -->
+    <link rel="stylesheet" href="simple-navigation.css">
+    <script src="simple-navigation.js"></script>
+    <link rel="stylesheet" href="navigation-fix.css">
+
+    <style>
+        /* Ajustement pour la navigation simple */
+        body.has-simple-nav {
+            margin-left: 80px;
+        }
+        
+        /* Responsive pour mobile */
+        @media (max-width: 768px) {
+            body.has-simple-nav {
+                margin-left: 0;
+            }
+        }
+    </style>
 </head>
 
 <body>
-  <!-- Header sera injecté par shared-header.js -->
 
   <div class="container" style="padding-top: var(--space-lg); padding-bottom: var(--space-lg);">
     <!-- Dashboard Header -->
@@ -1608,7 +1625,7 @@
     /* ===== Initialization ===== */
     document.addEventListener('DOMContentLoaded', function() {
       // Initialize shared header avec le bon ID de page
-      initSharedHeader('monitoring-unified', { showConfigIndicators: false });
+      // Navigation thématique initialisée automatiquement
       
       // Appliquer le thème depuis la configuration globale - forcer l'application
       console.debug('Initializing theme for monitoring dashboard...');
@@ -1669,5 +1686,16 @@
       console.debug('Unified Monitoring Dashboard initialized with theme:', document.documentElement.getAttribute('data-theme'));
     });
   </script>
+
+    <script>
+        // Initialisation automatique de la navigation thématique
+        document.addEventListener('DOMContentLoaded', function() {
+            // Auto-détecter la page courante pour la navigation thématique
+            if (typeof createSimpleNavigation !== 'undefined') {
+                const pageId = window.location.pathname.split('/').pop().replace('.html', '') || 'dashboard';
+                createSimpleNavigation('monitoring-unified');
+            }
+        });
+    </script>
 </body>
 </html>

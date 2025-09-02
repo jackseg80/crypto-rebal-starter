@@ -12,7 +12,6 @@
     <script src="input-validator.js"></script>
     <script src="performance-optimizer.js"></script>
     <script src="global-config.js"></script>
-    <script src="shared-header.js"></script>
     <script src="appearance.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -254,10 +253,18 @@
             }
         }
     </style>
+
+    <!-- Navigation Simple -->
+    <link rel="stylesheet" href="simple-navigation.css">
+    <script src="simple-navigation.js"></script>
+
 </head>
 
 <body>
-    <!-- Header injecté par shared-header.js -->
+    <!-- Navigation thématique sera injectée ici -->
+    <nav id="navigation-container"></nav>
+
+    <!-- Navigation thématique -->
     <div class="wrap">
         <div class="dashboard-grid">
 
@@ -387,29 +394,46 @@
                 </div>
             </div>
 
+            <!-- Scores -->
+            <div class="card" id="card-scores" draggable="true">
+                <div class="card-header">
+                    <div class="card-title"><span class="card-icon">📊</span>Scores</div>
+                    <span class="status-badge" id="scores-status">Loading</span>
+                </div>
+                <div id="scores-content">
+                    <div class="loading">Chargement des scores...</div>
+                </div>
+            </div>
+
             <!-- Debug & New Modules -->
             <div class="card" id="card-debug" draggable="true">
                 <div class="card-header">
                     <div class="card-title"><span class="card-icon">🔧</span>Debug & Nouveaux Modules</div>
-                    <a href="debug-menu.html" class="status-badge status-active"
-                        style="text-decoration:none;">Menu Complet</a>
+                    <a href="debug-menu.html" class="status-badge status-active" style="text-decoration:none;">Menu
+                        Complet</a>
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px;">
-                    <a href="multi-asset-dashboard.html" style="color: var(--theme-accent); text-decoration: none; padding: 8px; border: 1px solid var(--theme-border); border-radius: 6px; text-align: center; font-size: 0.9em;">
+                    <a href="multi-asset-dashboard.html"
+                        style="color: var(--theme-accent); text-decoration: none; padding: 8px; border: 1px solid var(--theme-border); border-radius: 6px; text-align: center; font-size: 0.9em;">
                         💰 Multi-Assets
                     </a>
-                    <a href="enhanced-dashboard.html" style="color: var(--theme-accent); text-decoration: none; padding: 8px; border: 1px solid var(--theme-border); border-radius: 6px; text-align: center; font-size: 0.9em;">
+                    <a href="enhanced-dashboard.html"
+                        style="color: var(--theme-accent); text-decoration: none; padding: 8px; border: 1px solid var(--theme-border); border-radius: 6px; text-align: center; font-size: 0.9em;">
                         📊 Charts Avancés
                     </a>
-                    <a href="portfolio-optimization.html" style="color: var(--theme-accent); text-decoration: none; padding: 8px; border: 1px solid var(--theme-border); border-radius: 6px; text-align: center; font-size: 0.9em;">
+                    <a href="portfolio-optimization.html"
+                        style="color: var(--theme-accent); text-decoration: none; padding: 8px; border: 1px solid var(--theme-border); border-radius: 6px; text-align: center; font-size: 0.9em;">
                         🎯 Optimisation+
                     </a>
-                    <a href="/api/performance/cache/stats" target="_blank" style="color: var(--theme-accent); text-decoration: none; padding: 8px; border: 1px solid var(--theme-border); border-radius: 6px; text-align: center; font-size: 0.9em;">
+                    <a href="/api/performance/cache/stats" target="_blank"
+                        style="color: var(--theme-accent); text-decoration: none; padding: 8px; border: 1px solid var(--theme-border); border-radius: 6px; text-align: center; font-size: 0.9em;">
                         ⚡ Performance
                     </a>
                 </div>
-                <div style="padding: 8px 12px; font-size: 0.8em; color: var(--theme-text-secondary); border-top: 1px solid var(--theme-border);">
-                    4 nouveaux systèmes: Performance (4.8x), Multi-actifs (7 classes), Charts interactifs, Optimisation avancée
+                <div
+                    style="padding: 8px 12px; font-size: 0.8em; color: var(--theme-text-secondary); border-top: 1px solid var(--theme-border);">
+                    4 nouveaux systèmes: Performance (4.8x), Multi-actifs (7 classes), Charts interactifs, Optimisation
+                    avancée
                 </div>
             </div>
 
@@ -423,7 +447,7 @@
 
         document.addEventListener('DOMContentLoaded', async () => {
             console.debug('📊 Dashboard unifié initialisé');
-            initSharedHeader('dashboard', { showConfigIndicators: true });
+            // Navigation thématique initialisée automatiquement
 
             // Appliquer le thème immédiatement
             console.debug('Initializing theme for dashboard page...');
@@ -470,13 +494,14 @@
                 // Charger d'abord les groupes depuis alias-manager
                 await loadAssetGroups();
 
-                const [portfolioData, connectionsData, historyData, executionStatus] = await Promise.allSettled([
-                    loadPortfolioData(), loadConnectionsStatus(), loadRecentHistory(), loadExecutionStatus()
+                const [portfolioData, connectionsData, historyData, executionStatus, scoresData] = await Promise.allSettled([
+                    loadPortfolioData(), loadConnectionsStatus(), loadRecentHistory(), loadExecutionStatus(), loadScoresData()
                 ]);
                 await updatePortfolioDisplay(portfolioData.status === 'fulfilled' ? portfolioData.value : null);
                 updateConnectionsDisplay(connectionsData.status === 'fulfilled' ? connectionsData.value : null);
                 updateRecentActivity(historyData.status === 'fulfilled' ? historyData.value : null);
                 updateExecutionStatus(executionStatus.status === 'fulfilled' ? executionStatus.value : null);
+                updateScoresDisplay(scoresData.status === 'fulfilled' ? scoresData.value : null);
                 updateSystemHealth();
 
                 console.debug('✅ Dashboard data loaded successfully');
@@ -575,6 +600,64 @@
             } catch (e) { log.error('Erreur statut exécution:', e); return null; }
         }
 
+        // Charger les données de score depuis le risk dashboard
+        async function loadScoresData() {
+            try {
+                console.debug('📊 Loading scores data...');
+
+                // Essayer de récupérer les scores depuis localStorage (stockés par risk-dashboard)
+                const scores = {
+                    onchain: localStorage.getItem('risk_score_onchain'),
+                    risk: localStorage.getItem('risk_score_risk'),
+                    blended: localStorage.getItem('risk_score_blended'),
+                    ccs: localStorage.getItem('risk_score_ccs'),
+                    timestamp: localStorage.getItem('risk_score_timestamp')
+                };
+
+                // Vérifier si au moins un score est disponible et récent (moins de 5 minutes)
+                let hasValidScores = false;
+                const result = {};
+
+                if (scores.timestamp) {
+                    const age = Date.now() - parseInt(scores.timestamp);
+                    if (age < 5 * 60 * 1000) { // 5 minutes
+                        result.timestamp = parseInt(scores.timestamp);
+
+                        // Ajouter chaque score disponible
+                        if (scores.onchain && scores.onchain !== '') {
+                            result.onchain = parseFloat(scores.onchain);
+                            hasValidScores = true;
+                        }
+                        if (scores.risk && scores.risk !== '') {
+                            result.risk = parseFloat(scores.risk);
+                            hasValidScores = true;
+                        }
+                        if (scores.blended && scores.blended !== '') {
+                            result.blended = parseFloat(scores.blended);
+                            hasValidScores = true;
+                        }
+                        if (scores.ccs && scores.ccs !== '') {
+                            result.ccs = parseFloat(scores.ccs);
+                            hasValidScores = true;
+                        }
+                    }
+                }
+
+                if (hasValidScores) {
+                    console.debug('✅ Scores loaded from localStorage:', result);
+                    return result;
+                }
+
+                // Si pas de scores disponibles, retourner null
+                console.debug('⚠️ No recent scores available in localStorage');
+                return null;
+
+            } catch (e) {
+                log.error('Erreur chargement scores:', e);
+                return null;
+            }
+        }
+
         async function updatePortfolioDisplay(data) {
             if (!data || !data.ok) {
                 document.getElementById('total-value').textContent = 'Erreur';
@@ -670,6 +753,138 @@
             document.getElementById('data-freshness').textContent = 'Récente';
             document.getElementById('safety-status').textContent = 'Actif';
             const st = document.getElementById('system-health'); st.className = 'status-badge status-active'; st.textContent = 'Healthy';
+        }
+
+        // Mettre à jour l'affichage des scores
+        function updateScoresDisplay(scoresData) {
+            const container = document.getElementById('scores-content');
+            const statusEl = document.getElementById('scores-status');
+
+            if (!scoresData) {
+                // Aucun score disponible - afficher message avec lien vers risk-dashboard
+                container.innerHTML = `
+                    <div style="text-align: center; padding: var(--space-lg); color: var(--theme-text-muted);">
+                        <div style="font-size: 2rem; margin-bottom: var(--space-md);">📊</div>
+                        <div style="margin-bottom: var(--space-md);">Aucun score de risque disponible</div>
+                        <a href="risk-dashboard.html"
+                           style="display: inline-block; background: var(--brand-primary); color: white;
+                                  padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md);
+                                  text-decoration: none; font-weight: 600;">
+                            📈 Voir Risk Dashboard
+                        </a>
+                    </div>
+                `;
+                if (statusEl) {
+                    statusEl.className = 'status-badge status-warning';
+                    statusEl.textContent = 'Données manquantes';
+                }
+                return;
+            }
+
+            // Scores disponibles - afficher les valeurs disponibles
+            const { onchain, risk, blended, ccs, timestamp } = scoresData;
+
+            // Déterminer les couleurs en fonction des scores (rouge >70, orange 40-70, vert <40)
+            const getScoreColor = (score) => {
+                if (score > 70) return 'var(--danger)';
+                if (score >= 40) return 'var(--warning)';
+                return 'var(--success)';
+            };
+
+            const getScoreLabel = (score) => {
+                if (score > 70) return 'Élevé';
+                if (score >= 40) return 'Moyen';
+                return 'Faible';
+            };
+
+            let scoresHTML = '';
+
+            // Afficher chaque score disponible
+            if (blended !== undefined && blended !== null) {
+                scoresHTML += `
+                    <div class="metric" style="margin: 6px 0;">
+                        <span class="metric-label">⚖️ Score Stratégique</span>
+                        <span class="metric-value" style="color: ${getScoreColor(blended)};">
+                            ${Math.round(blended)}/100
+                            <span style="font-size: 0.8em; color: var(--theme-text-muted);">(${getScoreLabel(blended)})</span>
+                        </span>
+                    </div>
+                `;
+            }
+
+            if (ccs !== undefined && ccs !== null) {
+                scoresHTML += `
+                    <div class="metric" style="margin: 6px 0;">
+                        <span class="metric-label">📊 CCS Score</span>
+                        <span class="metric-value" style="color: ${getScoreColor(ccs)};">
+                            ${Math.round(ccs)}/100
+                            <span style="font-size: 0.8em; color: var(--theme-text-muted);">(${getScoreLabel(ccs)})</span>
+                        </span>
+                    </div>
+                `;
+            }
+
+            if (onchain !== undefined && onchain !== null) {
+                scoresHTML += `
+                    <div class="metric" style="margin: 6px 0;">
+                        <span class="metric-label">🔗 On-Chain</span>
+                        <span class="metric-value" style="color: ${getScoreColor(onchain)};">
+                            ${Math.round(onchain)}/100
+                            <span style="font-size: 0.8em; color: var(--theme-text-muted);">(${getScoreLabel(onchain)})</span>
+                        </span>
+                    </div>
+                `;
+            }
+
+            if (risk !== undefined && risk !== null) {
+                scoresHTML += `
+                    <div class="metric" style="margin: 6px 0;">
+                        <span class="metric-label">🛡️ Risk</span>
+                        <span class="metric-value" style="color: ${getScoreColor(risk)};">
+                            ${Math.round(risk)}/100
+                            <span style="font-size: 0.8em; color: var(--theme-text-muted);">(${getScoreLabel(risk)})</span>
+                        </span>
+                    </div>
+                `;
+            }
+
+            // Message pour les scores manquants
+            if (scoresHTML === '') {
+                scoresHTML = `
+                    <div style="text-align: center; color: var(--theme-text-muted); padding: var(--space-md);">
+                        <div>📊 Aucun score disponible</div>
+                        <div style="font-size: 0.9em; margin-top: var(--space-xs);">
+                            Visitez le risk dashboard pour générer des scores
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = `
+                <div style="display: grid; gap: 2px;">
+                    ${scoresHTML}
+                    
+                    <!-- Timestamp -->
+                    ${timestamp ? `
+                    <div style="text-align: center; font-size: 0.8em; color: var(--theme-text-muted); margin-top: 6px;">
+                        Mis à jour: ${new Date(timestamp).toLocaleTimeString()}
+                    </div>
+                    ` : ''}
+
+                    <!-- Lien vers risk dashboard -->
+                    <div style="text-align: center; margin-top: 8px;">
+                        <a href="risk-dashboard.html"
+                           style="color: var(--brand-primary); text-decoration: none; font-size: 0.9em;">
+                            📊 Voir détails complets
+                        </a>
+                    </div>
+                </div>
+            `;
+
+            if (statusEl) {
+                statusEl.className = 'status-badge status-active';
+                statusEl.textContent = 'À jour';
+            }
         }
 
         function formatUSD(v) {
@@ -1248,6 +1463,24 @@
             }
         })();
 
+    </script>
+
+    <script>
+        // Initialisation de la navigation thématique
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Initializing themed navigation...');
+            
+            // Attendre que tous les scripts soient chargés
+            setTimeout(() => {
+                if (typeof createSimpleNavigation !== 'undefined') {
+                    console.log('Creating simple navigation...');
+                    window.simpleNavigation = createSimpleNavigation('dashboard');
+                    console.log('Simple navigation created:', window.simpleNavigation);
+                } else {
+                    console.error('createSimpleNavigation function not found');
+                }
+            }, 100);
+        });
     </script>
 </body>
 

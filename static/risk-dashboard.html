@@ -12,8 +12,7 @@
 
   <!-- Scripts partagés existants -->
   <script src="global-config.js"></script>
-  <script src="shared-header.js"></script>
-  <script src="appearance.js"></script>
+<script src="appearance.js"></script>
 
   <!-- Core modules ESM -->
   <script type="module" src="core/risk-dashboard-store.js"></script>
@@ -334,7 +333,7 @@
       overflow: hidden;
     }
 
-    .top-collapsible > summary {
+    .top-collapsible>summary {
       list-style: none;
       display: flex;
       align-items: center;
@@ -348,7 +347,9 @@
       background: var(--theme-bg);
     }
 
-    .top-collapsible > summary::-webkit-details-marker { display: none; }
+    .top-collapsible>summary::-webkit-details-marker {
+      display: none;
+    }
 
     .summary-right {
       display: inline-flex;
@@ -368,8 +369,17 @@
       color: var(--theme-text);
     }
 
-    .badge-alerts { border-color: var(--danger); color: var(--danger); background: var(--danger-bg); }
-    .badge-recos { border-color: var(--info); color: var(--info); background: var(--info-bg); }
+    .badge-alerts {
+      border-color: var(--danger);
+      color: var(--danger);
+      background: var(--danger-bg);
+    }
+
+    .badge-recos {
+      border-color: var(--info);
+      color: var(--info);
+      background: var(--info-bg);
+    }
 
     .chevron {
       font-weight: 700;
@@ -378,7 +388,10 @@
       opacity: .7;
     }
 
-    .top-collapsible[open] .chevron { transform: rotate(90deg); }
+    .top-collapsible[open] .chevron {
+      transform: rotate(90deg);
+    }
+
     .risk-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -679,10 +692,28 @@
       text-underline-offset: 2px;
     }
   </style>
+
+    <!-- Navigation Simple -->
+    <link rel="stylesheet" href="simple-navigation.css">
+    <script src="simple-navigation.js"></script>
+    <link rel="stylesheet" href="navigation-fix.css">
+
+    <style>
+        /* Ajustement pour la navigation simple */
+        body.has-simple-nav {
+            margin-left: 80px;
+        }
+        
+        /* Responsive pour mobile */
+        @media (max-width: 768px) {
+            body.has-simple-nav {
+                margin-left: 0;
+            }
+        }
+    </style>
 </head>
 
 <body>
-  <div id="shared-header"></div>
 
   <div class="container">
     <!-- Controls Header -->
@@ -1793,6 +1824,13 @@
         store.set('scores.risk', riskScore);
         store.set('scores.blended', blendedScore);
 
+        // Also store scores in localStorage for cross-page access
+        localStorage.setItem('risk_score_onchain', onchainScore !== null ? onchainScore.toString() : '');
+        localStorage.setItem('risk_score_risk', riskScore !== null ? riskScore.toString() : '');
+        localStorage.setItem('risk_score_blended', blendedScore !== null ? blendedScore.toString() : '');
+        localStorage.setItem('risk_score_ccs', ccsScore !== null ? ccsScore.toString() : '');
+        localStorage.setItem('risk_score_timestamp', Date.now().toString());
+
         console.debug('📊 All scores calculated:', {
           ccs: ccsScore,
           ccsMixte: ccsMixteScore,
@@ -2139,53 +2177,53 @@
                 <div style="font-weight: 600; color: var(--theme-text);">🎯 Niveau de risque</div>
                 <div style="color: var(--theme-text-muted); margin-top: 0.25rem;">
                   ${(() => {
-                    const riskScore = m.risk_score || 0;
-                    if (riskScore > 70) return 'Élevé - Attention aux corrections brutales';
-                    if (riskScore > 50) return 'Modéré - Typique pour crypto';
-                    return 'Contrôlé - Bon équilibre risque/rendement';
-                  })()}
+          const riskScore = m.risk_score || 0;
+          if (riskScore > 70) return 'Élevé - Attention aux corrections brutales';
+          if (riskScore > 50) return 'Modéré - Typique pour crypto';
+          return 'Contrôlé - Bon équilibre risque/rendement';
+        })()}
                 </div>
               </div>
               <div class="insight-item">
                 <div style="font-weight: 600; color: var(--theme-text);">📊 Diversification</div>
                 <div style="color: var(--theme-text-muted); margin-top: 0.25rem;">
                   ${(() => {
-                    const div = c.diversification_ratio || 0;
-                    if (div > 0.7) return 'Excellente - Portfolio bien réparti';
-                    if (div > 0.4) return 'Limitée - Possibilité d\'amélioration';
-                    return 'Faible - Trop corrélé, diversifiez';
-                  })()}
+          const div = c.diversification_ratio || 0;
+          if (div > 0.7) return 'Excellente - Portfolio bien réparti';
+          if (div > 0.4) return 'Limitée - Possibilité d\'amélioration';
+          return 'Faible - Trop corrélé, diversifiez';
+        })()}
                 </div>
               </div>
               <div class="insight-item">
                 <div style="font-weight: 600; color: var(--theme-text);">⚡ Performance/Risque</div>
                 <div style="color: var(--theme-text-muted); margin-top: 0.25rem;">
                   ${(() => {
-                    const sharpe = m.sharpe_ratio || 0;
-                    if (sharpe > 1.2) return 'Excellent - Rendement supérieur pour le risque pris';
-                    if (sharpe > 0.8) return 'Bon - Rendement acceptable pour le risque';
-                    return 'À améliorer - Risque élevé vs rendement';
-                  })()}
+          const sharpe = m.sharpe_ratio || 0;
+          if (sharpe > 1.2) return 'Excellent - Rendement supérieur pour le risque pris';
+          if (sharpe > 0.8) return 'Bon - Rendement acceptable pour le risque';
+          return 'À améliorer - Risque élevé vs rendement';
+        })()}
                 </div>
               </div>
               <div class="insight-item">
                 <div style="font-weight: 600; color: var(--theme-text);">🔝 Concentration</div>
                 <div style="color: var(--theme-text-muted); margin-top: 0.25rem;">
                   ${(() => {
-                    const t5 = insights.top5Share;
-                    const hhi = insights.hhi;
-                    if (t5 == null || hhi == null) return 'N/A';
-                    return `Top 5: ${(t5 * 100).toFixed(1)}% • HHI: ${hhi.toFixed(2)}`;
-                  })()}
+          const t5 = insights.top5Share;
+          const hhi = insights.hhi;
+          if (t5 == null || hhi == null) return 'N/A';
+          return `Top 5: ${(t5 * 100).toFixed(1)}% • HHI: ${hhi.toFixed(2)}`;
+        })()}
                 </div>
               </div>
               <div class="insight-item">
                 <div style="font-weight: 600; color: var(--theme-text);">💵 Stablecoins</div>
                 <div style="color: var(--theme-text-muted); margin-top: 0.25rem;">
                   ${(() => {
-                    const s = insights.stableShare;
-                    return (s == null) ? 'N/A' : `${(s * 100).toFixed(1)}% du portefeuille`;
-                  })()}
+          const s = insights.stableShare;
+          return (s == null) ? 'N/A' : `${(s * 100).toFixed(1)}% du portefeuille`;
+        })()}
                 </div>
               </div>
               <div class="insight-item">
@@ -4029,7 +4067,7 @@
       });
 
       // Initialize shared header
-      initSharedHeader('risk-dashboard');
+      // Navigation thématique initialisée automatiquement
 
       // Appliquer le thème immédiatement
       console.log('Initializing theme for risk-dashboard page...');
@@ -4122,6 +4160,17 @@
       }
     })();
   </script>
+
+    <script>
+        // Initialisation automatique de la navigation thématique
+        document.addEventListener('DOMContentLoaded', function() {
+            // Auto-détecter la page courante pour la navigation thématique
+            if (typeof createSimpleNavigation !== 'undefined') {
+                const pageId = window.location.pathname.split('/').pop().replace('.html', '') || 'dashboard';
+                createSimpleNavigation('risk-dashboard');
+            }
+        });
+    </script>
 </body>
 
 </html>

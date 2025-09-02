@@ -13,6 +13,11 @@
     <script src="https://code.highcharts.com/modules/exporting.js"></script>
     <script src="https://code.highcharts.com/modules/export-data.js"></script>
     
+    <!-- Navigation Simple -->
+    <link rel="stylesheet" href="simple-navigation.css">
+    <script src="simple-navigation.js"></script>
+    <link rel="stylesheet" href="navigation-fix.css">
+    
     <!-- Custom Styles -->
     <style>
         * {
@@ -243,8 +248,24 @@
             opacity: 1;
         }
     </style>
+
+
+    <style>
+        /* Ajustement pour navigation simple (80px) */
+        body.has-simple-nav {
+            margin-left: 80px;
+        }
+        
+        /* Responsive pour mobile */
+        @media (max-width: 768px) {
+            body.has-simple-nav {
+                margin-left: 0;
+            }
+        }
+    </style>
 </head>
 <body>
+
     <div id="enhanced-dashboard"></div>
 
     <!-- Custom Components -->
@@ -254,9 +275,19 @@
     <script>
         // Initialize the enhanced dashboard
         document.addEventListener('DOMContentLoaded', function() {
+            // Initialize simple navigation
+            if (typeof createSimpleNavigation !== 'undefined') {
+                createSimpleNavigation('enhanced-dashboard');
+            }
+            
             console.log('Initializing Enhanced Portfolio Dashboard...');
             
             try {
+                // Check if required components are available
+                if (typeof InteractiveDashboard === 'undefined') {
+                    throw new Error('InteractiveDashboard component not found. Please ensure components/InteractiveDashboard.js is loaded.');
+                }
+
                 // Create dashboard instance
                 const dashboard = new InteractiveDashboard('enhanced-dashboard', {
                     updateInterval: 30000,    // 30 seconds
@@ -348,15 +379,45 @@
                 
             } catch (error) {
                 console.error('Critical error during dashboard initialization:', error);
-                document.getElementById('enhanced-dashboard').innerHTML = `
-                    <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; text-align: center;">
-                        <h1 style="color: #ff4444; margin-bottom: 16px;">Dashboard Failed to Load</h1>
-                        <p style="color: #aaa; margin-bottom: 24px;">There was a critical error initializing the dashboard.</p>
-                        <button onclick="location.reload()" style="padding: 12px 24px; background: #00ff88; color: #000; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
-                            Reload Page
-                        </button>
+                
+                // Create fallback dashboard
+                const fallbackHTML = `
+                    <div style="padding: 2rem; max-width: 800px; margin: 0 auto;">
+                        <div style="background: rgba(255, 68, 68, 0.1); border: 1px solid #ff4444; border-radius: 8px; padding: 1rem; margin-bottom: 2rem;">
+                            <h2 style="color: #ff4444; margin: 0 0 0.5rem 0;">⚠️ Enhanced Dashboard Unavailable</h2>
+                            <p style="margin: 0; opacity: 0.8;">Required components are missing. Showing fallback interface.</p>
+                        </div>
+                        
+                        <div style="background: rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 2rem; margin-bottom: 1rem;">
+                            <h3 style="margin: 0 0 1rem 0;">📊 Portfolio Overview (Fallback)</h3>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                                <div style="background: rgba(0, 255, 136, 0.1); padding: 1rem; border-radius: 8px; text-align: center;">
+                                    <div style="font-size: 2rem; font-weight: bold; color: #00ff88;">--</div>
+                                    <div style="opacity: 0.7;">Total Value</div>
+                                </div>
+                                <div style="background: rgba(0, 170, 255, 0.1); padding: 1rem; border-radius: 8px; text-align: center;">
+                                    <div style="font-size: 2rem; font-weight: bold; color: #00aaff;">--</div>
+                                    <div style="opacity: 0.7;">24h Change</div>
+                                </div>
+                                <div style="background: rgba(255, 165, 0, 0.1); padding: 1rem; border-radius: 8px; text-align: center;">
+                                    <div style="font-size: 2rem; font-weight: bold; color: #ffa500;">--</div>
+                                    <div style="opacity: 0.7;">Assets</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div style="text-align: center;">
+                            <button onclick="location.href='dashboard.html'" style="padding: 12px 24px; background: #00ff88; color: #000; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; margin: 0 0.5rem;">
+                                🏠 Main Dashboard
+                            </button>
+                            <button onclick="location.reload()" style="padding: 12px 24px; background: #007bff; color: #fff; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; margin: 0 0.5rem;">
+                                🔄 Retry
+                            </button>
+                        </div>
                     </div>
                 `;
+                
+                document.getElementById('enhanced-dashboard').innerHTML = fallbackHTML;
             }
         });
 
@@ -434,5 +495,6 @@
         link.rel = 'stylesheet';
         document.head.appendChild(link);
     </script>
+
 </body>
 </html>

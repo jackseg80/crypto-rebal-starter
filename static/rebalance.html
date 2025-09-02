@@ -12,8 +12,7 @@
   <script src="input-validator.js"></script>
   <script src="performance-optimizer.js"></script>
   <script src="global-config.js"></script>
-  <script src="shared-header.js"></script>
-  <script src="appearance.js"></script>
+<script src="appearance.js"></script>
   <style>
     * {
       box-sizing: border-box
@@ -358,10 +357,28 @@
       border-left: 4px solid var(--danger);
     }
   </style>
+
+    <!-- Navigation Simple -->
+    <link rel="stylesheet" href="simple-navigation.css">
+    <script src="simple-navigation.js"></script>
+    <link rel="stylesheet" href="navigation-fix.css">
+
+    <style>
+        /* Ajustement pour la navigation simple */
+        body.has-simple-nav {
+            margin-left: 80px;
+        }
+        
+        /* Responsive pour mobile */
+        @media (max-width: 768px) {
+            body.has-simple-nav {
+                margin-left: 0;
+            }
+        }
+    </style>
 </head>
 
 <body>
-  <!-- Header sera injecté par shared-header.js -->
 
   <div class="wrap" style="padding-top: var(--space-lg);">
     <!-- Stratégies de Rebalancing -->
@@ -500,7 +517,6 @@
   </main>
 
   <script src="/static/global-config.js"></script>
-  <script src="/static/shared-header.js"></script>
   <script>
     /* ---------- Helpers ---------- */
     const $ = sel => document.querySelector(sel);
@@ -2190,7 +2206,7 @@
     /* ---------- Init ---------- */
     window.addEventListener("DOMContentLoaded", () => {
       // Initialiser le header partagé
-      initSharedHeader('rebalance', { showConfigIndicators: true });
+      // Navigation thématique initialisée automatiquement
 
       // Appliquer le thème immédiatement
       console.log('Initializing theme for rebalance page...');
@@ -2370,6 +2386,17 @@
       }
     });
   </script>
+
+    <script>
+        // Initialisation automatique de la navigation thématique
+        document.addEventListener('DOMContentLoaded', function() {
+            // Auto-détecter la page courante pour la navigation thématique
+            if (typeof createSimpleNavigation !== 'undefined') {
+                const pageId = window.location.pathname.split('/').pop().replace('.html', '') || 'dashboard';
+                createSimpleNavigation('rebalance');
+            }
+        });
+    </script>
 </body>
 
 </html>

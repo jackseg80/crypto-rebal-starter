@@ -1,0 +1,35 @@
+/* Correctif d'urgence pour la navigation qui ne répond pas aux clics */
+
+/* S'assurer que les liens de navigation sont cliquables */
+.themed-navigation .nav-link {
+    position: relative !important;
+    z-index: 1000 !important;
+    pointer-events: auto !important;
+    display: block !important;
+    cursor: pointer !important;
+}
+
+/* Forcer les événements sur tous les éléments de navigation */
+.themed-navigation * {
+    pointer-events: auto !important;
+}
+
+/* S'assurer qu'aucun overlay ne bloque */
+.themed-navigation {
+    position: relative !important;
+    z-index: 999 !important;
+}
+
+/* Debug visuel - bordure rouge temporaire sur les liens */
+.themed-navigation .nav-link:hover {
+    border: 2px solid red !important;
+    background: rgba(255, 0, 0, 0.1) !important;
+}
+
+/* Empêcher les autres éléments de bloquer */
+.wrap,
+.dashboard-grid,
+.main-content {
+    z-index: 1 !important;
+    position: relative !important;
+}

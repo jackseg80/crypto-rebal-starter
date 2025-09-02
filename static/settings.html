@@ -12,8 +12,7 @@
   <script src="input-validator.js"></script>
   <script src="performance-optimizer.js"></script>
   <script src="global-config.js"></script>
-  <script src="shared-header.js"></script>
-  <script src="appearance.js"></script>
+<script src="appearance.js"></script>
   <style>
     * {
       box-sizing: border-box
@@ -282,10 +281,29 @@
       }
     }
   </style>
+
+    <!-- Navigation Simple -->
+    <link rel="stylesheet" href="simple-navigation.css">
+    <script src="simple-navigation.js"></script>
+    <link rel="stylesheet" href="navigation-fix.css">
+
+    <style>
+        /* Ajustement pour la navigation simple */
+        body.has-simple-nav {
+            margin-left: 80px;
+        }
+        
+        /* Responsive pour mobile */
+        @media (max-width: 768px) {
+            body.has-simple-nav {
+                margin-left: 0;
+            }
+        }
+    </style>
 </head>
 
 <body>
-  <!-- Header sera injecté par shared-header.js -->
+
 
   <div class="wrap">
 
@@ -609,7 +627,6 @@
   </div>
 
   <script src="/static/global-config.js"></script>
-  <script src="/static/shared-header.js"></script>
   <script>
     // Charger les settings depuis globalConfig
     function loadSettings() {
@@ -1235,8 +1252,7 @@
 
     // Ajouter le header partagé et initialiser
     document.addEventListener('DOMContentLoaded', () => {
-      // Initialiser le header partagé
-      initSharedHeader('settings', { showConfigIndicators: true });
+      // Initialisation de la navigation simple
 
       // Appliquer le thème immédiatement
       console.debug('Initializing theme for settings page...');
@@ -1459,6 +1475,15 @@
 
   </script>
 
+
+    <script>
+        // Initialisation automatique de la navigation simple
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof createSimpleNavigation !== 'undefined') {
+                createSimpleNavigation('settings');
+            }
+        });
+    </script>
 </body>
 
 </html>

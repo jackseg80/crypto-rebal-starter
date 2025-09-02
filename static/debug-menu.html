@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🔧 Menu Debug & Tests - Crypto Rebalancer</title>
+    
+    <!-- Navigation Simple -->
+    <link rel="stylesheet" href="simple-navigation.css">
+    <script src="simple-navigation.js"></script>
+    <link rel="stylesheet" href="navigation-fix.css">
+    
     <style>
         * {
             margin: 0;
@@ -17,6 +23,19 @@
             color: #ffffff;
             min-height: 100vh;
             padding: 20px;
+        }
+        
+        /* Ajustement pour navigation simple (80px) */
+        body.has-simple-nav {
+            margin-left: 80px;
+            padding-left: 20px;
+        }
+        
+        /* Responsive pour mobile */
+        @media (max-width: 768px) {
+            body.has-simple-nav {
+                margin-left: 0;
+            }
         }
 
         .header {
@@ -223,8 +242,11 @@
             }
         }
     </style>
+
+
 </head>
 <body>
+
     <div class="header">
         <h1>🔧 Menu Debug & Tests</h1>
         <p>Centre de contrôle pour tous les modules et fonctionnalités</p>
@@ -679,6 +701,23 @@
 
         console.log("🔧 Menu Debug & Tests initialisé");
         console.log("📊 Modules disponibles: Performance, Multi-Asset, Charts, Portfolio, Backtesting, ML");
+    </script>
+
+    <script>
+        // Initialisation automatique de la navigation simple
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Initializing simple navigation...');
+            
+            // Attendre que tous les scripts soient chargés
+            setTimeout(() => {
+                if (typeof createSimpleNavigation !== 'undefined') {
+                    createSimpleNavigation('debug-menu');
+                    console.log('Simple navigation created for debug-menu');
+                } else {
+                    console.error('createSimpleNavigation function not found');
+                }
+            }, 100);
+        });
     </script>
 </body>
 </html>

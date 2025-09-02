@@ -51,6 +51,7 @@ python crypto_toolbox_api.py  # Port 8001
 
 - **🏠 Dashboard** : `static/dashboard.html` - Vue d'ensemble du portfolio avec graphique synchronisé
 - **🛡️ Risk Dashboard** : `static/risk-dashboard.html` - **Analyse de risque V2** avec système de scoring intelligent et gestion des corrélations
+- **🧠 AI Dashboard** : `static/ai-dashboard.html` - **Centre IA** avec modèles ML (Volatility, Regime Detection, Correlation Forecasting, Sentiment Analysis)
 - **📊 Portfolio Optimization** : `static/portfolio-optimization.html` - **Optimisation Markowitz** avec contraintes crypto et analyse intégrée
 - **🚀 Execution** : `static/execution.html` - Dashboard d'exécution temps réel
 - **📈 Execution History** : `static/execution_history.html` - Historique et analytics des trades
@@ -60,8 +61,9 @@ python crypto_toolbox_api.py  # Port 8001
 - **⚙️ Settings** : `static/settings.html` - Configuration centralisée (**commencez ici**)
 - **🔧 Debug Menu** : `static/debug-menu.html` - Centre de contrôle debug avec accès aux 49 tests
 - **🚀 Multi-Asset Dashboard** : `static/multi-asset-dashboard.html` - Dashboard correlation et analyse multi-actifs
+- **🎨 AI Components Demo** : `static/ai-components-demo.html` - Démonstration des composants IA interactifs
 
-> 🔧 **Nouvelles fonctionnalités** : Synchronisation complète des données entre dashboards, support uvicorn, et stratégies CCS différenciées
+> 🔧 **Nouvelles fonctionnalités** : Navigation simple unifiée, AI Dashboard avec modèles ML, composants IA réutilisables, et corrections d'interface
 
 ### API :
 - Swagger / OpenAPI : http://127.0.0.1:8000/docs

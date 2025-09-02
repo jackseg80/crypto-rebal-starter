@@ -273,8 +273,28 @@
             }
         }
     </style>
+
+    <!-- Navigation Simple -->
+    <link rel="stylesheet" href="simple-navigation.css">
+    <script src="simple-navigation.js"></script>
+    <link rel="stylesheet" href="navigation-fix.css">
+
+    <style>
+        /* Ajustement pour la navigation simple */
+        body.has-simple-nav {
+            margin-left: 80px;
+        }
+        
+        /* Responsive pour mobile */
+        @media (max-width: 768px) {
+            body.has-simple-nav {
+                margin-left: 0;
+            }
+        }
+    </style>
 </head>
 <body>
+
     <div class="container">
         <div class="header">
             <h1>Multi-Asset Portfolio Dashboard</h1>
@@ -674,6 +694,17 @@
             });
             updateSelectedCount();
         }, 2000);
+    </script>
+
+    <script>
+        // Initialisation automatique de la navigation thématique
+        document.addEventListener('DOMContentLoaded', function() {
+            // Auto-détecter la page courante pour la navigation thématique
+            if (typeof createSimpleNavigation !== 'undefined') {
+                const pageId = window.location.pathname.split('/').pop().replace('.html', '') || 'dashboard';
+                createSimpleNavigation('multi-asset-dashboard');
+            }
+        });
     </script>
 </body>
 </html>
