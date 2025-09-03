@@ -325,7 +325,7 @@ export function estimateCyclePosition() {
   const score = cycleScoreFromMonths(cycleData.months);
 
   // Calculate confidence based on how "typical" this position is
-  let confidence = 0.8; // Base confidence for mock data
+  let confidence = 0.0; // No confidence - données réelles requises
 
   // In production, this would factor in:
   // - Data quality of halving dates

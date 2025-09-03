@@ -351,32 +351,19 @@ async def get_risk_dashboard(
     try:
         start_time = datetime.now()
         
-        # DEBUG: Log de début
-        print(f"DEBUG: Risk Dashboard starting with source={source}, min_usd={min_usd}")
-
         # Récupération unifiée des balances (supporte stub | cointracking | cointracking_api)
         from api.unified_data import get_unified_filtered_balances
         unified = await get_unified_filtered_balances(source=source, min_usd=min_usd)
         balances = unified.get("items", [])
         source_used = unified.get("source_used", source)
-        print(f"DEBUG: unified balances count: {len(balances)} (source_used={source_used})")
         
-        # DEBUG: Log du résultat
         items_count = len(balances)
-        print(f"DEBUG: Risk Dashboard received {items_count} items after filtering")
         
         if not balances or len(balances) == 0:
-            print("DEBUG: No balances after filtering")
             return {
                 "success": False,
                 "message": "Aucun holding trouvé dans le portfolio après filtrage"
             }
-        
-        # DEBUG: Afficher les balances pour diagnostic
-        print(f"DEBUG: Balances sample: {balances[:3] if balances else 'No balances'}")
-        
-        # DEBUG: Vérifier la structure des données pour le calcul de risque
-        print(f"DEBUG: First balance structure: {balances[0] if balances else 'None'}")
         
         # Calcul en parallèle de toutes les métriques
         import asyncio
@@ -388,10 +375,6 @@ async def get_risk_dashboard(
             risk_metrics_task,
             correlation_task
         )
-        
-        # DEBUG: Afficher les résultats des calculs
-        print(f"DEBUG: Risk metrics confidence: {risk_metrics.confidence_level}")
-        print(f"DEBUG: Correlation matrix diversification: {correlation_matrix.diversification_ratio}")
         
         # Construction de la réponse dashboard
         dashboard_data = {

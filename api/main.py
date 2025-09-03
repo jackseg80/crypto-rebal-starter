@@ -48,6 +48,7 @@ from api.monitoring_advanced import router as monitoring_advanced_router
 from api.portfolio_monitoring import router as portfolio_monitoring_router
 from api.csv_endpoints import router as csv_router
 from api.portfolio_optimization_endpoints import router as portfolio_optimization_router
+from api.advanced_analytics_endpoints import router as advanced_analytics_router
 from api.performance_endpoints import router as performance_router
 from api.ml_endpoints import router as ml_router
 from api.multi_asset_endpoints import router as multi_asset_router
@@ -740,7 +741,7 @@ async def rebalance_plan(
         group_targets_pct = {str(k): float(v) for k, v in targets_raw.items()}
     else:
         # Standard targets from user input
-        targets_raw = payload.get("group_targets_pct") or payload.get("targets") or {}
+        targets_raw = payload.get("group_targets_pct") or payload.get("targets") or payload.get("target_allocations") or {}
         group_targets_pct: Dict[str, float] = {}
         if isinstance(targets_raw, dict):
             group_targets_pct = {str(k): float(v) for k, v in targets_raw.items()}
@@ -1309,6 +1310,7 @@ app.include_router(performance_router)
 app.include_router(ml_router)
 app.include_router(multi_asset_router)
 app.include_router(backtesting_router)
+app.include_router(advanced_analytics_router)
 
 # ---------- Portfolio Analytics ----------
 @app.get("/portfolio/metrics")

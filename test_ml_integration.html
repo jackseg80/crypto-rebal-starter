@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Intégration ML - Crypto Portfolio</title>
+    <style>
+        body { 
+            font-family: system-ui; 
+            margin: 2rem; 
+            background: #1a1a1a; 
+            color: #e0e0e0; 
+        }
+        .test-card {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+        .test-title {
+            color: #00ff88;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+        .test-result {
+            background: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 1rem;
+            margin-top: 1rem;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+        .btn {
+            background: #00ff88;
+            color: black;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 4px;
+            font-weight: 600;
+        }
+        .btn:hover { background: #00cc6a; }
+        .btn:disabled { background: #666; cursor: not-allowed; }
+        .status-ok { color: #00ff88; }
+        .status-error { color: #ff4444; }
+        .status-warning { color: #ffaa00; }
+    </style>
+</head>
+<body>
+    <h1>🧠 Test Intégration ML - Crypto Portfolio</h1>
+    <p>Test des fonctionnalités Machine Learning du système de portfolio crypto</p>
+
+    <!-- Backend Status -->
+    <div class="test-card">
+        <div class="test-title">🏥 Backend Status</div>
+        <button class="btn" onclick="testBackendHealth()">Test Backend Health</button>
+        <div id="backend-result" class="test-result"></div>
+    </div>
+
+    <!-- ML Models Status -->
+    <div class="test-card">
+        <div class="test-title">🤖 ML Models Status</div>
+        <button class="btn" onclick="testMLModelsStatus()">Test ML Models</button>
+        <div id="ml-models-result" class="test-result"></div>
+    </div>
+
+    <!-- Volatility Prediction -->
+    <div class="test-card">
+        <div class="test-title">📊 Volatility Prediction</div>
+        <button class="btn" onclick="testVolatilityPrediction()">Test Volatility BTC</button>
+        <div id="volatility-result" class="test-result"></div>
+    </div>
+
+    <!-- Regime Detection -->
+    <div class="test-card">
+        <div class="test-title">🎯 Market Regime Detection</div>
+        <button class="btn" onclick="testRegimeDetection()">Test Regime Detection</button>
+        <div id="regime-result" class="test-result"></div>
+    </div>
+
+    <!-- Correlation Analysis -->
+    <div class="test-card">
+        <div class="test-title">🔗 Correlation Analysis</div>
+        <button class="btn" onclick="testCorrelationAnalysis()">Test Correlation Matrix</button>
+        <div id="correlation-result" class="test-result"></div>
+    </div>
+
+    <!-- Sentiment Analysis -->
+    <div class="test-card">
+        <div class="test-title">😊 Sentiment Analysis</div>
+        <button class="btn" onclick="testSentimentAnalysis()">Test Market Sentiment</button>
+        <div id="sentiment-result" class="test-result"></div>
+    </div>
+
+    <!-- ML Training -->
+    <div class="test-card">
+        <div class="test-title">🚀 ML Training</div>
+        <button class="btn" onclick="testMLTraining()">Start ML Training</button>
+        <div id="training-result" class="test-result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        
+        async function testBackendHealth() {
+            const result = document.getElementById('backend-result');
+            result.textContent = '⏳ Testing backend health...';
+            
+            try {
+                const response = await fetch(`${API_BASE}/healthz`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    result.innerHTML = `<span class="status-ok">✅ Backend healthy</span>\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    result.innerHTML = `<span class="status-error">❌ Backend issues</span>\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                result.innerHTML = `<span class="status-error">❌ Connection failed</span>\n${error.message}`;
+            }
+        }
+
+        async function testMLModelsStatus() {
+            const result = document.getElementById('ml-models-result');
+            result.textContent = '⏳ Checking ML models status...';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/ml/models/status`);
+                const data = await response.json();
+                
+                if (response.ok && data.models_directory_exists) {
+                    result.innerHTML = `<span class="status-ok">✅ ML models accessible</span>\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    result.innerHTML = `<span class="status-warning">⚠️ ML models not ready</span>\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                result.innerHTML = `<span class="status-error">❌ ML endpoint failed</span>\n${error.message}`;
+            }
+        }
+
+        async function testVolatilityPrediction() {
+            const result = document.getElementById('volatility-result');
+            result.textContent = '⏳ Testing volatility prediction...';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/ml/volatility/predict/BTC?lookback_days=90`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    result.innerHTML = `<span class="status-ok">✅ Volatility prediction working</span>\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    result.innerHTML = `<span class="status-warning">⚠️ Need model training first</span>\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                result.innerHTML = `<span class="status-error">❌ Volatility prediction failed</span>\n${error.message}`;
+            }
+        }
+
+        async function testRegimeDetection() {
+            const result = document.getElementById('regime-result');
+            result.textContent = '⏳ Testing regime detection...';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/ml/regime/current?lookback_days=90`);
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    result.innerHTML = `<span class="status-ok">✅ Regime detection working</span>\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    result.innerHTML = `<span class="status-warning">⚠️ Need model training first</span>\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                result.innerHTML = `<span class="status-error">❌ Regime detection failed</span>\n${error.message}`;
+            }
+        }
+
+        async function testCorrelationAnalysis() {
+            const result = document.getElementById('correlation-result');
+            result.textContent = '⏳ Testing correlation analysis...';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/ml/correlation/matrix/current?window_days=30`);
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    result.innerHTML = `<span class="status-ok">✅ Correlation analysis working</span>\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    result.innerHTML = `<span class="status-warning">⚠️ Insufficient data or model needed</span>\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                result.innerHTML = `<span class="status-error">❌ Correlation analysis failed</span>\n${error.message}`;
+            }
+        }
+
+        async function testSentimentAnalysis() {
+            const result = document.getElementById('sentiment-result');
+            result.textContent = '⏳ Testing sentiment analysis...';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/ml/sentiment/analyze?symbols=BTC&days=3`);
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    result.innerHTML = `<span class="status-ok">✅ Sentiment analysis working</span>\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    result.innerHTML = `<span class="status-warning">⚠️ Sentiment data limited</span>\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                result.innerHTML = `<span class="status-error">❌ Sentiment analysis failed</span>\n${error.message}`;
+            }
+        }
+
+        async function testMLTraining() {
+            const result = document.getElementById('training-result');
+            result.textContent = '⏳ Starting ML training...';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/ml/train`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        assets: ['BTC', 'ETH', 'SOL'],
+                        lookback_days: 365,
+                        include_market_indicators: true,
+                        save_models: true
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    result.innerHTML = `<span class="status-ok">✅ ML training started</span>\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    result.innerHTML = `<span class="status-warning">⚠️ Training setup issue</span>\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                result.innerHTML = `<span class="status-error">❌ Training failed to start</span>\n${error.message}`;
+            }
+        }
+
+        // Auto-test backend on load
+        window.addEventListener('load', () => {
+            setTimeout(testBackendHealth, 500);
+        });
+    </script>
+</body>
+</html>

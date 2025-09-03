@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🤖 ML Models Showcase - Crypto Portfolio</title>
+
+    <link rel="stylesheet" href="shared-theme.css">
+    <link rel="stylesheet" href="theme-compat.css">
+
+    <!-- Navigation Simple -->
+    <link rel="stylesheet" href="simple-navigation.css">
+    <script src="simple-navigation.js"></script>
+    <link rel="stylesheet" href="navigation-fix.css">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+
+    <style>
+        /* Container avec marge pour navigation */
+        .container {
+            padding: 2rem;
+            max-width: none;
+            margin: 0;
+        }
+
+        .hero-section {
+            background: var(--theme-surface);
+            border: 1px solid var(--theme-border);
+            color: var(--theme-text);
+            padding: 3rem 2rem;
+            border-radius: var(--radius-lg);
+            margin-bottom: 2rem;
+            text-align: center;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .hero-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: var(--brand-primary);
+        }
+
+        .hero-subtitle {
+            font-size: 1.2rem;
+            color: var(--theme-text-muted);
+            margin-bottom: 2rem;
+        }
+
+        .model-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .model-card {
+            background: var(--theme-surface);
+            border: 1px solid var(--theme-border);
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+            transition: all var(--transition-normal);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .model-card:hover {
+            border-color: var(--brand-primary);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .model-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .model-icon {
+            font-size: 2.5rem;
+            width: 60px;
+            height: 60px;
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--brand-primary);
+            color: white;
+        }
+
+        .model-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--theme-text);
+            margin: 0;
+        }
+
+        .model-description {
+            color: var(--theme-text-muted);
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+
+        .model-controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .model-button {
+            background: var(--brand-primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .model-button:hover {
+            background: var(--brand-primary-hover);
+            transform: translateY(-1px);
+        }
+
+        .model-button.secondary {
+            background: var(--theme-surface-elevated);
+            color: var(--theme-text);
+            border: 1px solid var(--theme-border);
+        }
+
+        .model-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .model-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            padding: 0.5rem 1rem;
+            background: var(--theme-surface-elevated);
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10b981;
+        }
+
+        .status-indicator.loading {
+            background: #f59e0b;
+            animation: pulse 1.5s infinite;
+        }
+
+        .status-indicator.error {
+            background: #ef4444;
+        }
+
+        .model-results {
+            min-height: 200px;
+            background: var(--theme-background);
+            border: 1px solid var(--theme-border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 1rem;
+        }
+
+        .results-title {
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--theme-text);
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .result-item {
+            background: var(--theme-surface);
+            padding: 1rem;
+            border-radius: 6px;
+            border: 1px solid var(--theme-border);
+        }
+
+        .result-label {
+            font-size: 0.8rem;
+            color: var(--theme-text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
+
+        .result-value {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--theme-text);
+        }
+
+        .result-change {
+            font-size: 0.8rem;
+            margin-top: 0.25rem;
+        }
+
+        .result-change.positive {
+            color: #10b981;
+        }
+
+        .result-change.negative {
+            color: #ef4444;
+        }
+
+        .chart-container {
+            height: 300px;
+            margin: 1rem 0;
+        }
+
+        .demo-data-banner {
+            background: linear-gradient(90deg, #fbbf24, #f59e0b);
+            color: white;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        .performance-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 1rem;
+            margin: 2rem 0;
+            padding: 1.5rem;
+            background: var(--theme-surface-elevated);
+            border-radius: 8px;
+        }
+
+        .metric {
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--brand-primary);
+        }
+
+        .metric-label {
+            font-size: 0.8rem;
+            color: var(--theme-text-muted);
+            text-transform: uppercase;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .model-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .hero-title {
+                font-size: 2rem;
+            }
+
+            .model-controls {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+
+<body class="has-simple-nav">
+    <!-- Navigation simple -->
+
+    <div class="container">
+
+        <div class="hero-section">
+            <h1 class="hero-title">🤖 Machine Learning Models</h1>
+            <p class="hero-subtitle">Advanced AI-Powered Crypto Portfolio Analytics</p>
+        </div>
+
+        <div class="demo-data-banner">
+            ⚠️ Mode Démonstration - Les modèles utilisent des données synthétiques pour la présentation
+        </div>
+
+        <div class="model-grid">
+            <!-- Volatility Predictor -->
+            <div class="model-card">
+                <div class="model-header">
+                    <div class="model-icon">📊</div>
+                    <h3 class="model-title">Volatility Predictor</h3>
+                </div>
+
+                <p class="model-description">
+                    Modèle LSTM avancé pour prédire la volatilité des actifs crypto sur plusieurs horizons temporels.
+                    Utilise des réseaux de neurones récurrents avec mécanisme d'attention.
+                </p>
+
+                <div class="model-status" id="volatility-status">
+                    <div class="status-indicator"></div>
+                    <span>Modèle prêt - 3 horizons disponibles</span>
+                </div>
+
+                <div class="model-controls">
+                    <button class="model-button" onclick="runVolatilityPrediction()">
+                        Prédire Volatilité
+                    </button>
+                    <button class="model-button secondary" onclick="trainVolatilityModel()">
+                        Entraîner Modèle
+                    </button>
+                </div>
+
+                <div class="model-results" id="volatility-results">
+                    <div class="results-title">Prédictions de Volatilité</div>
+                    <div class="results-grid">
+                        <div class="result-item">
+                            <div class="result-label">1 Jour</div>
+                            <div class="result-value">--</div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-label">7 Jours</div>
+                            <div class="result-value">--</div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-label">30 Jours</div>
+                            <div class="result-value">--</div>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="volatility-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Regime Detector -->
+            <div class="model-card">
+                <div class="model-header">
+                    <div class="model-icon">🎯</div>
+                    <h3 class="model-title">Regime Detector</h3>
+                </div>
+
+                <p class="model-description">
+                    Système hybride HMM + Neural Network pour détecter les régimes de marché.
+                    Identifie Accumulation, Expansion, Euphorie et Distribution.
+                </p>
+
+                <div class="model-status" id="regime-status">
+                    <div class="status-indicator"></div>
+                    <span>Modèle actif - 4 régimes détectés</span>
+                </div>
+
+                <div class="model-controls">
+                    <button class="model-button" onclick="detectCurrentRegime()">
+                        Détecter Régime
+                    </button>
+                    <button class="model-button secondary" onclick="forecastRegimeTransitions()">
+                        Prévoir Transitions
+                    </button>
+                </div>
+
+                <div class="model-results" id="regime-results">
+                    <div class="results-title">Analyse des Régimes</div>
+                    <div class="results-grid">
+                        <div class="result-item">
+                            <div class="result-label">Régime Actuel</div>
+                            <div class="result-value">--</div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-label">Confiance</div>
+                            <div class="result-value">--</div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-label">Durée</div>
+                            <div class="result-value">--</div>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="regime-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Correlation Forecaster -->
+            <div class="model-card">
+                <div class="model-header">
+                    <div class="model-icon">🔗</div>
+                    <h3 class="model-title">Correlation Forecaster</h3>
+                </div>
+
+                <p class="model-description">
+                    Architecture Transformer pour prédire les corrélations entre actifs.
+                    Analyse multi-temporelle avec mécanisme d'attention croisée.
+                </p>
+
+                <div class="model-status" id="correlation-status">
+                    <div class="status-indicator"></div>
+                    <span>Modèle prêt - 6 actifs surveillés</span>
+                </div>
+
+                <div class="model-controls">
+                    <button class="model-button" onclick="analyzeCorrelations()">
+                        Analyser Corrélations
+                    </button>
+                    <button class="model-button secondary" onclick="forecastCorrelations()">
+                        Prévoir Evolution
+                    </button>
+                </div>
+
+                <div class="model-results" id="correlation-results">
+                    <div class="results-title">Matrice de Corrélations</div>
+                    <div class="results-grid">
+                        <div class="result-item">
+                            <div class="result-label">Corrélation Moyenne</div>
+                            <div class="result-value">--</div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-label">Plus Forte</div>
+                            <div class="result-value">--</div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-label">Plus Faible</div>
+                            <div class="result-value">--</div>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="correlation-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sentiment Analyzer -->
+            <div class="model-card">
+                <div class="model-header">
+                    <div class="model-icon">😊</div>
+                    <h3 class="model-title">Sentiment Analyzer</h3>
+                </div>
+
+                <p class="model-description">
+                    Analyse multi-source du sentiment de marché avec NLP avancé.
+                    Traite Twitter, Reddit, actualités et métriques on-chain.
+                </p>
+
+                <div class="model-status" id="sentiment-status">
+                    <div class="status-indicator"></div>
+                    <span>Analyse en temps réel - 5 sources</span>
+                </div>
+
+                <div class="model-controls">
+                    <button class="model-button" onclick="analyzeSentiment()">
+                        Analyser Sentiment
+                    </button>
+                    <button class="model-button secondary" onclick="getSentimentTrends()">
+                        Tendances
+                    </button>
+                </div>
+
+                <div class="model-results" id="sentiment-results">
+                    <div class="results-title">Sentiment de Marché</div>
+                    <div class="results-grid">
+                        <div class="result-item">
+                            <div class="result-label">Score Global</div>
+                            <div class="result-value">--</div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-label">Tendance</div>
+                            <div class="result-value">--</div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-label">Fear & Greed</div>
+                            <div class="result-value">--</div>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="sentiment-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance Metrics -->
+        <div class="performance-metrics">
+            <div class="metric">
+                <div class="metric-value" id="total-predictions">--</div>
+                <div class="metric-label">Prédictions</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="avg-accuracy">--</div>
+                <div class="metric-label">Précision</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="models-trained">--</div>
+                <div class="metric-label">Modèles</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="data-points">--</div>
+                <div class="metric-label">Points de Données</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        let charts = {};
+        let predictionCount = 0;
+        let modelStats = {
+            accuracy: 0.847,
+            models: 4,
+            dataPoints: 285432
+        };
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function () {
+            // Initialize theme and navigation
+            initializeThemeAndNavigation();
+
+            updatePerformanceMetrics();
+            initializeCharts();
+
+            // Auto-demo after 2 seconds
+            setTimeout(() => {
+                runVolatilityPrediction();
+            }, 2000);
+
+            setTimeout(() => {
+                detectCurrentRegime();
+            }, 4000);
+
+            setTimeout(() => {
+                analyzeCorrelations();
+            }, 6000);
+
+            setTimeout(() => {
+                analyzeSentiment();
+            }, 8000);
+        });
+
+        // Initialize theme and navigation
+        function initializeThemeAndNavigation() {
+            console.log('🎨 Initializing theme and navigation...');
+
+            // Apply theme
+            if (window.globalConfig && window.globalConfig.applyTheme) {
+                window.globalConfig.applyTheme();
+            }
+            if (window.applyAppearance) {
+                window.applyAppearance();
+            }
+        }
+
+        function updatePerformanceMetrics() {
+            document.getElementById('total-predictions').textContent = predictionCount;
+            document.getElementById('avg-accuracy').textContent = (modelStats.accuracy * 100).toFixed(1) + '%';
+            document.getElementById('models-trained').textContent = modelStats.models;
+            document.getElementById('data-points').textContent = modelStats.dataPoints.toLocaleString();
+        }
+
+        function setModelStatus(modelType, status, message) {
+            const statusElement = document.getElementById(modelType + '-status');
+            const indicator = statusElement.querySelector('.status-indicator');
+            const text = statusElement.querySelector('span');
+
+            indicator.className = `status-indicator ${status}`;
+            text.textContent = message;
+        }
+
+        function initializeCharts() {
+            // Initialize all charts
+            const chartIds = ['volatility-chart', 'regime-chart', 'correlation-chart', 'sentiment-chart'];
+
+            chartIds.forEach(chartId => {
+                const ctx = document.getElementById(chartId).getContext('2d');
+                charts[chartId] = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: []
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            y: { display: false },
+                            x: { display: false }
+                        }
+                    }
+                });
+            });
+        }
+
+        async function runVolatilityPrediction() {
+            setModelStatus('volatility', 'loading', 'Prédiction en cours...');
+            predictionCount++;
+
+            // Simulate API call delay
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            // Generate realistic volatility predictions
+            const predictions = {
+                '1d': (0.15 + Math.random() * 0.1).toFixed(3),
+                '7d': (0.08 + Math.random() * 0.06).toFixed(3),
+                '30d': (0.12 + Math.random() * 0.08).toFixed(3)
+            };
+
+            // Update results
+            const resultsGrid = document.querySelector('#volatility-results .results-grid');
+            const items = resultsGrid.querySelectorAll('.result-item');
+
+            items[0].querySelector('.result-value').textContent = (predictions['1d'] * 100).toFixed(1) + '%';
+            items[1].querySelector('.result-value').textContent = (predictions['7d'] * 100).toFixed(1) + '%';
+            items[2].querySelector('.result-value').textContent = (predictions['30d'] * 100).toFixed(1) + '%';
+
+            // Update chart
+            updateVolatilityChart();
+
+            setModelStatus('volatility', '', 'Prédiction complète - Confiance: 87%');
+            updatePerformanceMetrics();
+        }
+
+        function updateVolatilityChart() {
+            const chart = charts['volatility-chart'];
+            const data = [];
+            const labels = [];
+
+            for (let i = 0; i < 30; i++) {
+                labels.push(i + 1);
+                data.push(0.08 + Math.sin(i * 0.2) * 0.03 + Math.random() * 0.02);
+            }
+
+            chart.data = {
+                labels: labels,
+                datasets: [{
+                    label: 'Volatilité Prédite',
+                    data: data,
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    fill: true
+                }]
+            };
+
+            chart.update();
+        }
+
+        async function detectCurrentRegime() {
+            setModelStatus('regime', 'loading', 'Analyse du régime...');
+
+            await new Promise(resolve => setTimeout(resolve, 1800));
+
+            const regimes = ['Accumulation', 'Expansion', 'Euphorie', 'Distribution'];
+            const currentRegime = regimes[Math.floor(Math.random() * regimes.length)];
+            const confidence = (0.65 + Math.random() * 0.25).toFixed(2);
+            const duration = Math.floor(Math.random() * 45) + 5;
+
+            const resultsGrid = document.querySelector('#regime-results .results-grid');
+            const items = resultsGrid.querySelectorAll('.result-item');
+
+            items[0].querySelector('.result-value').textContent = currentRegime;
+            items[1].querySelector('.result-value').textContent = (confidence * 100).toFixed(0) + '%';
+            items[2].querySelector('.result-value').textContent = duration + ' jours';
+
+            updateRegimeChart(currentRegime);
+
+            setModelStatus('regime', '', `Régime: ${currentRegime} (${(confidence * 100).toFixed(0)}%)`);
+        }
+
+        function updateRegimeChart(regime) {
+            const chart = charts['regime-chart'];
+            const colors = {
+                'Accumulation': '#10b981',
+                'Expansion': '#3b82f6',
+                'Euphorie': '#f59e0b',
+                'Distribution': '#ef4444'
+            };
+
+            const data = [];
+            for (let i = 0; i < 20; i++) {
+                data.push(Math.random() * 0.8 + 0.1);
+            }
+
+            chart.data = {
+                labels: Array.from({ length: 20 }, (_, i) => i + 1),
+                datasets: [{
+                    label: 'Probabilité Régime',
+                    data: data,
+                    borderColor: colors[regime] || '#667eea',
+                    backgroundColor: (colors[regime] || '#667eea') + '20',
+                    fill: true
+                }]
+            };
+
+            chart.update();
+        }
+
+        async function analyzeCorrelations() {
+            setModelStatus('correlation', 'loading', 'Analyse des corrélations...');
+
+            await new Promise(resolve => setTimeout(resolve, 2200));
+
+            const avgCorr = (0.3 + Math.random() * 0.4).toFixed(3);
+            const strongestPair = ['BTC-ETH', 'ETH-SOL', 'BTC-ADA'][Math.floor(Math.random() * 3)];
+            const weakestPair = ['SOL-ADA', 'BTC-SOL', 'ETH-ADA'][Math.floor(Math.random() * 3)];
+
+            const resultsGrid = document.querySelector('#correlation-results .results-grid');
+            const items = resultsGrid.querySelectorAll('.result-item');
+
+            items[0].querySelector('.result-value').textContent = avgCorr;
+            items[1].querySelector('.result-value').textContent = strongestPair;
+            items[2].querySelector('.result-value').textContent = weakestPair;
+
+            updateCorrelationChart();
+
+            setModelStatus('correlation', '', `Corrélation moyenne: ${avgCorr}`);
+        }
+
+        function updateCorrelationChart() {
+            const chart = charts['correlation-chart'];
+
+            // Generate correlation matrix visualization
+            const data = [];
+            for (let i = 0; i < 15; i++) {
+                data.push(Math.random() * 0.8 + 0.1);
+            }
+
+            chart.data = {
+                labels: Array.from({ length: 15 }, (_, i) => i + 1),
+                datasets: [{
+                    label: 'Corrélations',
+                    data: data,
+                    borderColor: '#8b5cf6',
+                    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                    fill: true
+                }]
+            };
+
+            chart.update();
+        }
+
+        async function analyzeSentiment() {
+            setModelStatus('sentiment', 'loading', 'Analyse du sentiment...');
+
+            await new Promise(resolve => setTimeout(resolve, 1600));
+
+            const score = (Math.random() * 2 - 1).toFixed(2); // -1 to 1
+            const trend = score > 0.1 ? 'Positif' : score < -0.1 ? 'Négatif' : 'Neutre';
+            const fearGreed = Math.floor((parseFloat(score) + 1) * 50); // Convert to 0-100
+
+            const resultsGrid = document.querySelector('#sentiment-results .results-grid');
+            const items = resultsGrid.querySelectorAll('.result-item');
+
+            items[0].querySelector('.result-value').textContent = score;
+            items[1].querySelector('.result-value').textContent = trend;
+            items[2].querySelector('.result-value').textContent = fearGreed;
+
+            updateSentimentChart();
+
+            setModelStatus('sentiment', '', `Sentiment: ${trend} (${fearGreed})`);
+        }
+
+        function updateSentimentChart() {
+            const chart = charts['sentiment-chart'];
+
+            const data = [];
+            for (let i = 0; i < 24; i++) {
+                data.push(Math.sin(i * 0.3) * 0.5 + Math.random() * 0.3);
+            }
+
+            chart.data = {
+                labels: Array.from({ length: 24 }, (_, i) => i + 1),
+                datasets: [{
+                    label: 'Sentiment',
+                    data: data,
+                    borderColor: '#06b6d4',
+                    backgroundColor: 'rgba(6, 182, 212, 0.1)',
+                    fill: true
+                }]
+            };
+
+            chart.update();
+        }
+
+        // Training functions (simplified for demo)
+        async function trainVolatilityModel() {
+            alert('🚀 Entraînement du modèle de volatilité lancé en arrière-plan');
+        }
+
+        async function forecastRegimeTransitions() {
+            alert('📊 Prévision des transitions de régime générée');
+        }
+
+        async function forecastCorrelations() {
+            alert('🔮 Prévision d\'évolution des corrélations calculée');
+        }
+
+        async function getSentimentTrends() {
+            alert('📈 Analyse des tendances de sentiment mise à jour');
+        }
+    </script>
+
+    <script>
+        // Initialisation de la navigation thématique
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Initializing themed navigation...');
+            
+            // Attendre que tous les scripts soient chargés
+            setTimeout(() => {
+                if (typeof createSimpleNavigation !== 'undefined') {
+                    console.log('Creating simple navigation...');
+                    window.simpleNavigation = createSimpleNavigation('ml-showcase');
+                    console.log('Simple navigation created:', window.simpleNavigation);
+                } else {
+                    console.error('createSimpleNavigation function not found');
+                }
+            }, 100);
+        });
+    </script>
+</body>
+
+</html>

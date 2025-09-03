@@ -302,7 +302,7 @@
     </style>
 </head>
 
-<body>
+<body class="has-simple-nav">
 
 
   <div class="wrap">
@@ -627,6 +627,18 @@
   </div>
 
   <script src="/static/global-config.js"></script>
+  <script>
+    // Appliquer le thème dès le chargement de global-config.js
+    setTimeout(() => {
+      if (window.globalConfig && window.globalConfig.applyTheme) {
+        console.debug('Early theme application...');
+        window.globalConfig.applyTheme();
+      }
+      if (window.applyAppearance) {
+        window.applyAppearance();
+      }
+    }, 0);
+  </script>
   <script>
     // Charger les settings depuis globalConfig
     function loadSettings() {
@@ -1250,19 +1262,22 @@
       setTimeout(() => notification.remove(), 3000);
     }
 
-    // Ajouter le header partagé et initialiser
-    document.addEventListener('DOMContentLoaded', () => {
-      // Initialisation de la navigation simple
-
-      // Appliquer le thème immédiatement
-      console.debug('Initializing theme for settings page...');
+    // Appliquer le thème dès que possible
+    function applyThemeImmediately() {
+      console.debug('Applying theme immediately for settings page...');
       if (window.globalConfig && window.globalConfig.applyTheme) {
         window.globalConfig.applyTheme();
       }
       if (window.applyAppearance) {
         window.applyAppearance();
       }
-      console.debug('Current theme after settings init:', document.documentElement.getAttribute('data-theme'));
+      console.debug('Theme applied, current theme:', document.documentElement.getAttribute('data-theme'));
+    }
+
+    // Ajouter le header partagé et initialiser
+    document.addEventListener('DOMContentLoaded', () => {
+      // Appliquer le thème immédiatement
+      applyThemeImmediately();
       
       loadSettings();
       // Tenter de récupérer le DEBUG_TOKEN depuis le serveur

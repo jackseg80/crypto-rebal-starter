@@ -202,30 +202,44 @@ class VolatilityPredictor:
         features_df['is_weekend'] = (features_df['day_of_week'] >= 5).astype(int)
         features_df['month'] = features_df.index.month
         
-        # Target variables (future volatility)
+        # Target variables (future volatility) - use forward-looking approach
         for horizon in self.horizons:
-            features_df[f'target_vol_{horizon}d'] = (
-                features_df['returns'].rolling(window=horizon).std().shift(-horizon) * np.sqrt(365)
-            )
+            # Calculate rolling volatility, then shift backward to get future values
+            rolling_vol = features_df['returns'].rolling(window=max(horizon, 5)).std() * np.sqrt(365)
+            features_df[f'target_vol_{horizon}d'] = rolling_vol.shift(-horizon)
         
-        # Select final feature columns
-        feature_columns = [
-            'returns', 'log_returns', 'realized_vol',
-            'price_momentum_5', 'price_momentum_20', 'rsi', 'bollinger_position',
-            'volume_ratio', 'volume_momentum',
-            'vol_5', 'vol_20', 'vol_60', 'vol_ratio',
-            'hl_ratio', 'oc_ratio',
-            'ma_ratio_5_20', 'ma_ratio_20_50',
-            'is_weekend', 'day_of_week', 'month'
-        ]
+        # Select available feature columns (only use columns that exist)
+        available_columns = features_df.columns.tolist()
+        feature_columns = []
+        
+        basic_features = ['returns', 'log_returns', 'realized_vol']
+        momentum_features = ['price_momentum_5', 'price_momentum_20', 'rsi', 'bollinger_position']
+        volume_features = ['volume_ratio', 'volume_momentum']
+        volatility_features = ['vol_5', 'vol_20', 'vol_60', 'vol_ratio']
+        price_features = ['hl_ratio', 'oc_ratio']
+        ma_features = ['ma_ratio_5_20', 'ma_ratio_20_50']
+        time_features = ['is_weekend', 'day_of_week', 'month']
+        
+        # Add features that exist in the data
+        for feature_group in [basic_features, momentum_features, volume_features, 
+                             volatility_features, price_features, ma_features, time_features]:
+            for feature in feature_group:
+                if feature in available_columns:
+                    feature_columns.append(feature)
         
         # Add target columns
         target_columns = [f'target_vol_{h}d' for h in self.horizons]
         final_columns = feature_columns + target_columns
         
-        # Filter and clean data
-        result_df = features_df[final_columns].copy()
-        result_df = result_df.dropna()
+        # Filter columns that actually exist
+        existing_columns = [col for col in final_columns if col in available_columns]
+        
+        # Create result dataframe
+        result_df = features_df[existing_columns].copy()
+        
+        # More lenient data cleaning - only drop rows where all features are NaN
+        result_df = result_df.dropna(subset=feature_columns, how='all')
+        result_df = result_df.fillna(method='ffill').fillna(method='bfill')
         
         logger.info(f"Features prepared for {symbol}: {len(result_df)} samples, {len(feature_columns)} features")
         return result_df
@@ -313,8 +327,9 @@ class VolatilityPredictor:
         try:
             # Prepare features
             features_df = self.prepare_features(price_data, symbol)
-            if len(features_df) < self.sequence_length + 30:
-                raise ValueError(f"Insufficient data for {symbol}: {len(features_df)} samples")
+            min_required = max(self.sequence_length + 10, 50)  # More lenient minimum
+            if len(features_df) < min_required:
+                raise ValueError(f"Insufficient data for {symbol}: {len(features_df)} samples, need at least {min_required}")
             
             # Create sequences
             X, y = self.create_sequences(features_df, symbol)
@@ -344,7 +359,7 @@ class VolatilityPredictor:
             criterion = nn.MSELoss()
             optimizer = optim.Adam(model.parameters(), lr=self.learning_rate, weight_decay=1e-5)
             scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer, mode='min', factor=0.5, patience=10, verbose=True
+                optimizer, mode='min', factor=0.5, patience=10
             )
             
             # Training loop

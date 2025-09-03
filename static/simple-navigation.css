@@ -3,7 +3,7 @@
  */
 
 :root {
-  --nav-width: 80px;
+  --nav-width: 70px;
   --nav-bg: #1f2937;
   --nav-border: #374151;
   --nav-text: #f9fafb;
@@ -95,11 +95,12 @@ body.has-simple-nav {
   position: fixed;
   left: var(--nav-width);
   background: var(--nav-bg);
+  backdrop-filter: blur(8px);
   border: 1px solid var(--nav-border);
   border-radius: 8px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
   min-width: 200px;
-  z-index: 10000;
+  z-index: 10001;
   opacity: 0;
   pointer-events: none;
   transform: translateX(-10px);
@@ -163,12 +164,12 @@ body.has-simple-nav {
   body.has-simple-nav {
     margin-left: 0;
   }
-  
+
   .simple-nav-container {
     transform: translateX(-100%);
     transition: transform 0.3s ease;
   }
-  
+
   .simple-nav-container.mobile-open {
     transform: translateX(0);
   }

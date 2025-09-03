@@ -17,6 +17,7 @@ from services.ml.models.correlation_forecaster import CorrelationForecaster
 from services.ml.models.sentiment_analyzer import SentimentAnalysisEngine, SentimentSource
 from services.ml.models.rebalancing_engine import RebalancingEngine, SafetyLevel, RebalanceReason
 from services.ml.data_pipeline import MLDataPipeline
+from services.ml_models import ml_pipeline  # Import the ML pipeline
 from services.price_history import get_cached_history
 from connectors.cointracking_api import get_current_balances
 

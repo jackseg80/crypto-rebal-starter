@@ -1,11 +1,14 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Démo Composants IA - Crypto Rebalancing</title>
-    
+
     <!-- Styles -->
+    <link rel="stylesheet" href="shared-theme.css">
+    <link rel="stylesheet" href="theme-compat.css">
     <link rel="stylesheet" href="simple-navigation.css">
     <script src="simple-navigation.js"></script>
     <link rel="stylesheet" href="navigation-fix.css">
@@ -15,100 +18,97 @@
         body {
             margin: 0;
             padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: var(--theme-background);
+            color: var(--theme-text);
             min-height: 100vh;
         }
-        
+
         /* Ajustement pour navigation simple (80px) */
         body.has-simple-nav {
             margin-left: 80px;
         }
-        
+
         .demo-container {
             padding: 2rem;
             min-height: 100vh;
             transition: margin-left 0.3s ease;
         }
-        
+
         /* Responsive pour mobile */
         @media (max-width: 768px) {
             body.has-simple-nav {
                 margin-left: 0;
             }
         }
-        
+
         .demo-header {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 16px;
+            background: var(--theme-surface);
+            border: 1px solid var(--theme-border);
+            border-radius: var(--radius-lg);
             padding: 2rem;
             margin-bottom: 2rem;
-            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-            border: 1px solid rgba(255, 255, 255, 0.18);
+            box-shadow: var(--shadow-sm);
         }
-        
+
         .demo-title {
             font-size: 2.5rem;
             font-weight: 800;
-            color: #1f2937;
+            color: var(--brand-primary);
             margin: 0 0 0.5rem 0;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
         }
-        
+
         .demo-subtitle {
             font-size: 1.25rem;
-            color: #6b7280;
+            color: var(--theme-text-muted);
             margin: 0 0 1rem 0;
         }
-        
+
         .demo-controls {
             display: flex;
             gap: 1rem;
             flex-wrap: wrap;
         }
-        
+
         .demo-btn {
             padding: 0.75rem 1.5rem;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--brand-primary);
             color: white;
             border: none;
-            border-radius: 8px;
+            border-radius: var(--radius-md);
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            transition: all var(--transition-normal);
+            box-shadow: var(--shadow-sm);
         }
-        
+
         .demo-btn:hover {
+            background: var(--brand-primary-hover);
             transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+            box-shadow: var(--shadow-lg);
         }
-        
+
         .demo-section {
             margin-bottom: 3rem;
         }
-        
+
         .section-title {
             font-size: 1.75rem;
             font-weight: 700;
-            color: white;
+            color: var(--theme-text);
             margin: 0 0 1.5rem 0;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
         }
-        
+
         .components-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
             gap: 2rem;
         }
-        
+
         .components-grid.single-column {
             grid-template-columns: 1fr;
         }
-        
+
         .demo-stats {
             background: rgba(255, 255, 255, 0.1);
             backdrop-filter: blur(10px);
@@ -117,44 +117,44 @@
             color: white;
             margin-bottom: 2rem;
         }
-        
+
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
             gap: 1rem;
         }
-        
+
         .stat-item {
             text-align: center;
         }
-        
+
         .stat-value {
             font-size: 2rem;
             font-weight: 800;
             margin-bottom: 0.25rem;
         }
-        
+
         .stat-label {
             font-size: 0.875rem;
             opacity: 0.8;
         }
-        
+
         @media (max-width: 768px) {
             .demo-container {
                 margin-left: 0;
                 padding: 1rem;
             }
-            
+
             .demo-title {
                 font-size: 2rem;
             }
-            
+
             .components-grid {
                 grid-template-columns: 1fr;
                 gap: 1rem;
             }
         }
-        
+
         /* Animation de chargement */
         .loading-overlay {
             position: fixed;
@@ -171,12 +171,12 @@
             z-index: 10000;
             transition: opacity 0.5s ease-out;
         }
-        
+
         .loading-overlay.hidden {
             opacity: 0;
             pointer-events: none;
         }
-        
+
         .loading-spinner {
             width: 60px;
             height: 60px;
@@ -186,22 +186,25 @@
             animation: spin 1s linear infinite;
             margin-bottom: 2rem;
         }
-        
+
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            to {
+                transform: rotate(360deg);
+            }
         }
-        
+
         .loading-text {
             font-size: 1.5rem;
             font-weight: 600;
             margin-bottom: 0.5rem;
         }
-        
+
         .loading-subtext {
             opacity: 0.8;
         }
     </style>
 </head>
+
 <body>
     <!-- Overlay de chargement -->
     <div class="loading-overlay" id="loadingOverlay">
@@ -209,8 +212,8 @@
         <div class="loading-text">Initialisation des services IA</div>
         <div class="loading-subtext">Connexion aux modèles de prédiction...</div>
     </div>
-    
-    
+
+
     <!-- Contenu principal -->
     <main class="demo-container">
         <!-- En-tête de la démo -->
@@ -234,7 +237,7 @@
                 </button>
             </div>
         </header>
-        
+
         <!-- Statistiques en temps réel -->
         <div class="demo-stats" id="statsContainer" style="display: none;">
             <h3>📈 Statistiques du Système IA</h3>
@@ -257,7 +260,7 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Section Prédictions -->
         <section class="demo-section">
             <h2 class="section-title">🔮 Prédictions de Volatilité</h2>
@@ -266,7 +269,7 @@
                 <volatility-display symbol="ETH" horizon="24" auto-update></volatility-display>
             </div>
         </section>
-        
+
         <!-- Section Régime de Marché -->
         <section class="demo-section">
             <h2 class="section-title">🎯 Analyse de Marché</h2>
@@ -275,7 +278,7 @@
                 <sentiment-indicator symbol="BTC"></sentiment-indicator>
             </div>
         </section>
-        
+
         <!-- Section Corrélations -->
         <section class="demo-section">
             <h2 class="section-title">🔗 Matrice de Corrélation</h2>
@@ -283,7 +286,7 @@
                 <correlation-matrix symbols="BTC,ETH,ADA,DOT,LINK,UNI"></correlation-matrix>
             </div>
         </section>
-        
+
         <!-- Section Sentiment Compact -->
         <section class="demo-section">
             <h2 class="section-title">💭 Indicateurs de Sentiment</h2>
@@ -294,7 +297,7 @@
                 <sentiment-indicator symbol="LINK" compact></sentiment-indicator>
             </div>
         </section>
-        
+
         <!-- Section Rééquilibrage -->
         <section class="demo-section">
             <h2 class="section-title">⚖️ Suggestions de Rééquilibrage</h2>
@@ -303,52 +306,60 @@
             </div>
         </section>
     </main>
-    
+
     <!-- Scripts -->
     <script src="ai-services.js"></script>
     <script src="ai-state-manager.js"></script>
     <script src="ai-components.js"></script>
-    
+
     <script>
         // Variables globales pour la démo
         let realTimeEnabled = true;
         let statsVisible = false;
-        
+
         // Symboles disponibles pour la démo
         const availableSymbols = ['BTC', 'ETH', 'ADA', 'DOT', 'LINK', 'UNI', 'MATIC', 'ATOM', 'AVAX', 'SOL'];
-        
+
         /**
          * Initialisation de la démo
          */
         async function initializeDemo() {
             console.log('🚀 Initializing AI Components Demo...');
-            
+
             try {
+                // Appliquer le thème
+                if (window.globalConfig && window.globalConfig.applyTheme) {
+                    window.globalConfig.applyTheme();
+                }
+                if (window.applyAppearance) {
+                    window.applyAppearance();
+                }
+
                 // Créer la navigation simple
                 if (typeof createSimpleNavigation !== 'undefined') {
                     createSimpleNavigation('ai-components-demo');
                 }
-                
+
                 // Attendre l'initialisation des services IA
                 await waitForAIServices();
-                
+
                 // Initialiser les composants IA
                 window.AIComponents.initializeAll();
-                
+
                 // Configurer les événements
                 setupEventListeners();
-                
+
                 // Masquer l'overlay de chargement
                 hideLoadingOverlay();
-                
+
                 console.log('✅ AI Components Demo initialized successfully');
-                
+
             } catch (error) {
                 console.error('❌ Demo initialization failed:', error);
                 showError('Erreur d\'initialisation: ' + error.message);
             }
         }
-        
+
         /**
          * Attendre que les services IA soient prêts ou simuler leur fonctionnement
          */
@@ -356,11 +367,11 @@
             return new Promise((resolve, reject) => {
                 let attempts = 0;
                 const maxAttempts = 10; // 5 secondes maximum
-                
+
                 const checkServices = () => {
                     attempts++;
-                    
-                    if (window.aiServiceManager && window.aiStateManager && 
+
+                    if (window.aiServiceManager && window.aiStateManager &&
                         window.aiServiceManager.isInitialized && window.aiStateManager.isInitialized) {
                         resolve();
                     } else if (attempts >= maxAttempts) {
@@ -374,7 +385,7 @@
                 checkServices();
             });
         }
-        
+
         /**
          * Créer des services IA simulés
          */
@@ -388,7 +399,7 @@
                     getSentiment: () => Promise.resolve({ score: 0.6, label: 'NEUTRAL' })
                 })
             };
-            
+
             // State manager simulé
             window.aiStateManager = {
                 isInitialized: true,
@@ -404,7 +415,7 @@
                 getTrackedSymbols: () => ['BTC', 'ETH', 'ADA', 'DOT', 'LINK', 'UNI'],
                 addTrackedSymbol: (symbol) => console.log(`Added ${symbol} to tracking`)
             };
-            
+
             // Composants IA simulés
             window.AIComponents = {
                 initializeAll: () => {
@@ -431,7 +442,7 @@
                 }
             };
         }
-        
+
         /**
          * Configuration des événements
          */
@@ -440,19 +451,19 @@
             window.aiStateManager.on('health:updated', (data) => {
                 updateLoadingStatus('Services IA opérationnels');
             });
-            
+
             window.aiStateManager.on('error', (data) => {
                 console.warn('AI State Manager error:', data);
             });
-            
+
             window.aiStateManager.on('regime:changed', (data) => {
                 showNotification(`Changement de régime détecté: ${data.newRegime.type}`);
             });
-            
+
             // Mise à jour des statistiques
             setInterval(updateStats, 10000); // 10 secondes
         }
-        
+
         /**
          * Masquer l'overlay de chargement
          */
@@ -463,7 +474,7 @@
                 overlay.style.display = 'none';
             }, 500);
         }
-        
+
         /**
          * Mettre à jour le statut de chargement
          */
@@ -473,17 +484,17 @@
                 subtext.textContent = message;
             }
         }
-        
+
         /**
          * Force la mise à jour de tous les composants
          */
         async function forceUpdateAll() {
             try {
                 console.log('🔄 Force updating all components...');
-                
+
                 // Forcer la mise à jour du gestionnaire d'état
                 await window.aiStateManager.forceUpdate();
-                
+
                 // Actualiser tous les composants
                 const components = document.querySelectorAll('volatility-display, market-regime-display, correlation-matrix, sentiment-indicator, rebalancing-suggestions');
                 components.forEach(component => {
@@ -493,22 +504,22 @@
                         component.loadData();
                     }
                 });
-                
+
                 showNotification('✅ Tous les composants ont été actualisés');
-                
+
             } catch (error) {
                 console.error('Force update failed:', error);
                 showNotification('❌ Erreur lors de la mise à jour', 'error');
             }
         }
-        
+
         /**
          * Basculer le mode temps réel
          */
         function toggleRealTime() {
             realTimeEnabled = !realTimeEnabled;
             const toggleText = document.getElementById('realtimeToggle');
-            
+
             if (realTimeEnabled) {
                 window.aiStateManager.resumeUpdates();
                 toggleText.textContent = 'Pause';
@@ -519,7 +530,7 @@
                 showNotification('🟡 Mode temps réel en pause');
             }
         }
-        
+
         /**
          * Afficher/masquer les statistiques
          */
@@ -527,42 +538,42 @@
             statsVisible = !statsVisible;
             const container = document.getElementById('statsContainer');
             container.style.display = statsVisible ? 'block' : 'none';
-            
+
             if (statsVisible) {
                 updateStats();
             }
         }
-        
+
         /**
          * Mettre à jour les statistiques
          */
         function updateStats() {
             if (!statsVisible) return;
-            
+
             const stats = window.aiStateManager.getStats();
-            
+
             document.getElementById('cacheHits').textContent = stats.cacheHits || '--';
             document.getElementById('apiCalls').textContent = stats.apiCalls || '--';
             document.getElementById('activeComponents').textContent = document.querySelectorAll('volatility-display, market-regime-display, correlation-matrix, sentiment-indicator, rebalancing-suggestions').length;
-            document.getElementById('lastUpdate').textContent = stats.lastUpdate ? 
+            document.getElementById('lastUpdate').textContent = stats.lastUpdate ?
                 new Date(stats.lastUpdate).toLocaleTimeString() : '--';
         }
-        
+
         /**
          * Ajouter un symbole aléatoire
          */
         function addRandomSymbol() {
             const currentSymbols = window.aiStateManager.getTrackedSymbols();
             const availableNew = availableSymbols.filter(s => !currentSymbols.includes(s));
-            
+
             if (availableNew.length === 0) {
                 showNotification('Tous les symboles sont déjà suivis', 'warning');
                 return;
             }
-            
+
             const randomSymbol = availableNew[Math.floor(Math.random() * availableNew.length)];
             window.aiStateManager.addTrackedSymbol(randomSymbol);
-            
+
             // Créer et ajouter de nouveaux composants
             const volatilitySection = document.querySelector('.demo-section .components-grid');
             const newVolatility = window.AIComponents.create('volatility-display', {
@@ -570,19 +581,19 @@
                 horizon: '24',
                 'auto-update': ''
             });
-            
+
             const sentimentSection = document.querySelectorAll('.demo-section')[3].querySelector('.components-grid');
             const newSentiment = window.AIComponents.create('sentiment-indicator', {
                 symbol: randomSymbol,
                 compact: ''
             });
-            
+
             volatilitySection.appendChild(newVolatility);
             sentimentSection.appendChild(newSentiment);
-            
+
             showNotification(`✅ ${randomSymbol} ajouté au suivi`);
         }
-        
+
         /**
          * Afficher une notification
          */
@@ -602,10 +613,10 @@
                 max-width: 300px;
                 word-wrap: break-word;
             `;
-            
+
             notification.textContent = message;
             document.body.appendChild(notification);
-            
+
             setTimeout(() => {
                 notification.style.animation = 'slideOut 0.3s ease-in forwards';
                 setTimeout(() => {
@@ -613,7 +624,7 @@
                 }, 300);
             }, 3000);
         }
-        
+
         /**
          * Afficher une erreur
          */
@@ -624,7 +635,7 @@
                 showNotification(message, 'error');
             }, 2000);
         }
-        
+
         // Styles pour les animations de notification
         const notificationStyles = document.createElement('style');
         notificationStyles.textContent = `
@@ -651,17 +662,17 @@
             }
         `;
         document.head.appendChild(notificationStyles);
-        
+
         // Initialisation au chargement de la page
         document.addEventListener('DOMContentLoaded', initializeDemo);
-        
+
         // Nettoyage lors de la fermeture
         window.addEventListener('beforeunload', () => {
             if (window.aiStateManager) {
                 window.aiStateManager.dispose();
             }
         });
-        
+
         // Debug global
         window.demoDebug = {
             forceUpdateAll,
@@ -672,5 +683,24 @@
             getStats: () => window.aiStateManager.getStats()
         };
     </script>
+
+    <script>
+        // Initialisation de la navigation thématique
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Initializing themed navigation...');
+            
+            // Attendre que tous les scripts soient chargés
+            setTimeout(() => {
+                if (typeof createSimpleNavigation !== 'undefined') {
+                    console.log('Creating simple navigation...');
+                    window.simpleNavigation = createSimpleNavigation('ai');
+                    console.log('Simple navigation created:', window.simpleNavigation);
+                } else {
+                    console.error('createSimpleNavigation function not found');
+                }
+            }, 100);
+        });
+    </script>
 </body>
+
 </html>

@@ -8,36 +8,36 @@ class SimpleNavigation {
       activePageId: null,
       ...options
     };
-    
+
     this.currentSubmenu = null;
     this._hideSubmenuTimeout = null;
-    
+
     this.init();
   }
-  
+
   init() {
     this.detectCurrentPage();
     this.createNavigation();
     this.bindEvents();
     this.applyLayout();
   }
-  
+
   detectCurrentPage() {
     if (this.options.activePageId) {
       return;
     }
-    
+
     const path = window.location.pathname;
     const filename = path.split('/').pop().replace('.html', '');
     this.options.activePageId = filename || 'dashboard';
   }
-  
+
   createNavigation() {
     // Créer le conteneur
     const container = document.createElement('nav');
     container.className = 'simple-nav-container';
     container.id = 'simple-navigation';
-    
+
     container.innerHTML = `
       <div class="simple-nav">
         <div class="simple-nav-header">
@@ -49,14 +49,14 @@ class SimpleNavigation {
       </div>
       ${this.generateSubmenus()}
     `;
-    
+
     // Insérer au début du body
     document.body.insertBefore(container, document.body.firstChild);
   }
-  
+
   generateNavItems() {
     const themes = this.getThemes();
-    
+
     return themes.map(theme => `
       <div class="simple-nav-item" data-theme="${theme.id}">
         <a href="#" class="simple-nav-icon ${this.isThemeActive(theme) ? 'active' : ''}"
@@ -66,10 +66,10 @@ class SimpleNavigation {
       </div>
     `).join('');
   }
-  
+
   generateSubmenus() {
     const themes = this.getThemes();
-    
+
     return themes.map(theme => `
       <div class="simple-submenu" id="submenu-${theme.id}">
         <div class="simple-submenu-header">
@@ -91,7 +91,7 @@ class SimpleNavigation {
       </div>
     `).join('');
   }
-  
+
   getThemes() {
     // Données simplifiées pour test
     return [
@@ -104,7 +104,8 @@ class SimpleNavigation {
           'rebalance': { title: 'Rebalance', icon: '⚖️', url: 'rebalance.html' },
           'multi-asset-dashboard': { title: 'Multi-Asset', icon: '📈', url: 'multi-asset-dashboard.html' },
           'enhanced-dashboard': { title: 'Dashboard Enhanced', icon: '✨', url: 'enhanced-dashboard.html' },
-          'cycle-analysis': { title: 'Analyse Cycles', icon: '🔄', url: 'cycle-analysis.html' }
+          'cycle-analysis': { title: 'Analyse Cycles', icon: '🔄', url: 'cycle-analysis.html' },
+          'advanced-analytics': { title: 'Analytics Avancés', icon: '📊', url: 'advanced-analytics.html' }
         }
       },
       {
@@ -138,6 +139,7 @@ class SimpleNavigation {
         title: 'Intelligence IA',
         icon: '🧠',
         pages: {
+          'advanced-ml-dashboard': { title: 'ML Dashboard', icon: '🎯', url: 'advanced-ml-dashboard.html' },
           'ai-dashboard': { title: 'Dashboard IA', icon: '🤖', url: 'ai-dashboard.html' },
           'ml-showcase': { title: 'ML Showcase', icon: '⚡', url: 'ml-showcase.html' },
           'ai-components-demo': { title: 'Composants IA', icon: '🔬', url: 'ai-components-demo.html' }
@@ -164,30 +166,30 @@ class SimpleNavigation {
       }
     ];
   }
-  
+
   isThemeActive(theme) {
     return Object.keys(theme.pages).includes(this.options.activePageId);
   }
-  
+
   bindEvents() {
     const navItems = document.querySelectorAll('.simple-nav-item');
-    
+
     navItems.forEach(item => {
       const icon = item.querySelector('.simple-nav-icon');
       const themeId = item.dataset.theme;
-      
+
       // Click pour naviguer vers la page par défaut
       icon.addEventListener('click', (e) => {
         e.preventDefault();
         this.navigateToDefaultPage(themeId);
       });
-      
+
       // Hover pour montrer le sous-menu
       item.addEventListener('mouseenter', () => {
         clearTimeout(this._hideSubmenuTimeout);
         this.showSubmenu(themeId, item);
       });
-      
+
       item.addEventListener('mouseleave', () => {
         this._hideSubmenuTimeout = setTimeout(() => {
           if (!this.isHoveringSubmenu(themeId)) {
@@ -196,14 +198,14 @@ class SimpleNavigation {
         }, 300);
       });
     });
-    
+
     // Events pour les sous-menus
     const submenus = document.querySelectorAll('.simple-submenu');
     submenus.forEach(submenu => {
       submenu.addEventListener('mouseenter', () => {
         clearTimeout(this._hideSubmenuTimeout);
       });
-      
+
       submenu.addEventListener('mouseleave', () => {
         this._hideSubmenuTimeout = setTimeout(() => {
           this.hideSubmenu();
@@ -211,67 +213,67 @@ class SimpleNavigation {
       });
     });
   }
-  
+
   showSubmenu(themeId, navItem) {
     // Masquer le sous-menu actuel
     this.hideSubmenu();
-    
+
     const submenu = document.getElementById(`submenu-${themeId}`);
     if (!submenu) return;
-    
+
     // Positionner le sous-menu
     const rect = navItem.getBoundingClientRect();
     submenu.style.top = `${rect.top}px`;
-    
+
     // Afficher
     submenu.classList.add('show');
     this.currentSubmenu = submenu;
   }
-  
+
   hideSubmenu() {
     if (this.currentSubmenu) {
       this.currentSubmenu.classList.remove('show');
       this.currentSubmenu = null;
     }
   }
-  
+
   isHoveringSubmenu(themeId) {
     const submenu = document.getElementById(`submenu-${themeId}`);
     return submenu && submenu.matches(':hover');
   }
-  
+
   navigateToDefaultPage(themeId) {
     const themes = this.getThemes();
     const theme = themes.find(t => t.id === themeId);
-    
+
     if (!theme) return;
-    
+
     // Obtenir la page par défaut selon la logique demandée
     let defaultPageId;
     const pages = Object.keys(theme.pages);
-    
+
     if (themeId === 'config') {
-      // Pour settings, prendre la dernière page (alias-manager)
-      defaultPageId = pages[pages.length - 1];
+      // Pour config, forcer settings comme page par défaut
+      defaultPageId = 'settings';
     } else {
       // Pour les autres thèmes, prendre la première page
       defaultPageId = pages[0];
     }
-    
+
     const defaultPage = theme.pages[defaultPageId];
     if (defaultPage && defaultPage.url) {
       window.location.href = defaultPage.url;
     }
   }
-  
+
   applyLayout() {
     // Ajouter la classe au body pour décaler le contenu
     document.body.classList.add('has-simple-nav');
-    
+
     // Forcer le style inline pour être sûr
     document.body.style.marginLeft = '80px';
     document.body.style.transition = 'margin-left 0.3s ease';
-    
+
     console.log('🎯 Menu simple appliqué - décalage: 80px');
   }
 }
@@ -282,7 +284,7 @@ function createSimpleNavigation(activePageId, options = {}) {
     activePageId: activePageId,
     ...options
   });
-  
+
   window.simpleNavigation = navigation;
   return navigation;
 }

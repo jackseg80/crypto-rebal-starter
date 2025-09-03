@@ -1,61 +1,126 @@
-# Crypto Rebal Starter — API + UI prêtes à l'emploi
+# Crypto Rebal Starter — Plateforme ML & Analytics Complète
 
-Note documentation: la doc a été simplifiée. Portail: `docs/index.md` (Quickstart, API, Architecture, Intégrations, Dev, Dépannage).
+Plateforme **complète de gestion de portefeuille crypto** avec ML/IA avancé :
 
-Outil de **simulation de rebalancement** pour portefeuille crypto :
-- Connexion **CoinTracking CSV** (prioritaire) et **API** (fallback) avec support location-aware
-- Calcul d'un **plan d'actions** (ventes/achats) par groupes cibles avec **exec_hints spécifiques** par exchange
-- **Enrichissement des prix** & **quantités estimées** avec pricing hybride
-- **Export CSV** avec actions détaillées par location
-- Gestion des **aliases** (WBTC→BTC, WETH→ETH, …) & détection `unknown_aliases`
-- **Classification automatique** par patterns regex (11 groupes incluant L2/Scaling, DeFi, AI/Data, Gaming/NFT, Memecoins)
-- **Interface unifiée** avec configuration centralisée et navigation cohérente
-- **Gestion intelligente des plans** avec persistance et restauration automatique
-- **Intégration CCS → Rebalance** avec dynamic targets et exec_hint pour suggestions d'exécution
-- **Rebalancing location-aware** : "Sell on Kraken", "Sell on Binance", "Sell on Ledger (complex)" avec priorité CEX→DeFi→Cold
+## 🚀 **Fonctionnalités Principales**
+- 🎯 **Rebalancing intelligent** avec allocations dynamiques et exec hints par exchange
+- 🧠 **Machine Learning avancé** : LSTM, Transformers, modèles prédictifs
+- 📊 **Analytics sophistiqués** : Métriques Sharpe, Calmar, drawdown, VaR/CVaR
+- 🛡️ **Gestion des risques** avec matrices de corrélation et stress testing
+- 📈 **Interface moderne** avec 35+ dashboards et navigation unifiée
+- 🔗 **Multi-sources** : CoinTracking CSV/API, exchanges, données temps réel
 
----
+## 🧠 **Système ML/IA**
+- **Prédiction de volatilité** : LSTM avec mécanismes d'attention
+- **Détection de régimes** : Classification bull/bear/neutral market
+- **Corrélations prédictives** : Transformers pour analyse cross-assets  
+- **Sentiment analysis** : Fear & Greed Index, analyse multi-sources
+- **Rebalancing automatique** : Moteur ML avec contraintes de risque
 
-## Sommaire
-- [1) Démarrage rapide](#1-démarrage-rapide)
-- [2) Configuration (.env)](#2-configuration-env)
-- [3) Architecture](#3-architecture)
-- [4) Endpoints principaux](#4-endpoints-principaux)
-- [5) Intégration CCS → Rebalance 🎯](#5-intégration-ccs--rebalance-)
-- [6) Interface utilisateur unifiée](#6-interface-utilisateur-unifiée)
-- [7) Classification automatique](#7-classification-automatique)
-- [8) Système de pricing hybride](#8-système-de-pricing-hybride)
-- [9) Scripts de test](#9-scripts-de-test)
-- [10) CORS, déploiement, GitHub Pages](#10-cors-déploiement-github-pages)
-- [11) Workflow Git recommandé](#11-workflow-git-recommandé)
-- [12) Système de gestion des risques](#12-système-de-gestion-des-risques)
-- [13) Système de scoring V2 avec gestion des corrélations](#13-système-de-scoring-v2-avec-gestion-des-corrélations)
-- [14) Intégration Kraken & Execution](#14-intégration-kraken--execution)
-- [15) Classification intelligente & Rebalancing avancé](#15-classification-intelligente--rebalancing-avancé)
-- [16) Surveillance avancée & Monitoring](#16-surveillance-avancée--monitoring)
-- [17) Roadmap & Prochaines étapes](#17-roadmap--prochaines-étapes)
+## 📊 **Analytics Avancés**
+- **Métriques de performance** : Ratios Sharpe, Sortino, Calmar, Omega
+- **Analyse de drawdown** : Périodes, durées, taux de récupération
+- **Comparaison multi-stratégies** : Rebalancing vs Buy&Hold vs Momentum
+- **Risk metrics** : VaR 95%, CVaR, skewness, kurtosis
+- **Backtesting complet** : Walk-forward, Monte Carlo simulations
 
 ---
 
-## 1) Démarrage rapide
+## 📋 **Navigation Rapide**
 
+### 🎯 **Démarrage**
+- [Démarrage rapide](#démarrage-rapide) - Installation et premier lancement
+- [Configuration](#configuration) - Variables d'environnement et setup
+- [Interfaces principales](#interfaces-principales) - Dashboards et navigation
+
+### 🧠 **ML & Analytics** 
+- [Machine Learning](#machine-learning) - Modèles LSTM, Transformers, prédictions
+- [Analytics Avancés](#analytics-avancés) - Métriques, comparaisons, backtesting
+- [Gestion des Risques](#gestion-des-risques) - VaR, corrélations, stress testing
+
+### 🔧 **API & Développement**
+- [Endpoints API](#endpoints-api) - Documentation complète des APIs
+- [Architecture](#architecture) - Structure du code et composants
+- [Tests et Debug](#tests-et-debug) - Outils de développement et diagnostics
+
+---
+
+## Démarrage rapide
+
+### 🚀 **Installation**
 ```bash
+# Cloner et installer les dépendances
+git clone <repo-url>
+cd crypto-rebal-starter
 pip install -r requirements.txt
+
+# Lancer le serveur principal
 uvicorn api.main:app --reload --port 8000
 
-# Pour les indicateurs V2 (optionnel mais recommandé)
+# [Optionnel] Serveur d'indicateurs avancés
 python crypto_toolbox_api.py  # Port 8001
 ```
 
-### Interface unifiée disponible :
+### 🎯 **Interfaces Principales**
 
-- **🏠 Dashboard** : `static/dashboard.html` - Vue d'ensemble du portfolio avec graphique synchronisé
-- **🛡️ Risk Dashboard** : `static/risk-dashboard.html` - **Analyse de risque V2** avec système de scoring intelligent et gestion des corrélations
-- **🧠 AI Dashboard** : `static/ai-dashboard.html` - **Centre IA** avec modèles ML (Volatility, Regime Detection, Correlation Forecasting, Sentiment Analysis)
-- **📊 Portfolio Optimization** : `static/portfolio-optimization.html` - **Optimisation Markowitz** avec contraintes crypto et analyse intégrée
-- **🚀 Execution** : `static/execution.html` - Dashboard d'exécution temps réel
-- **📈 Execution History** : `static/execution_history.html` - Historique et analytics des trades
-- **🔍 Advanced Monitoring** : `static/monitoring-unified.html` - Surveillance des connexions
+| Interface | URL | Description |
+|-----------|-----|-------------|
+| 🏠 **Dashboard Principal** | `static/dashboard.html` | Vue d'ensemble avec métriques temps réel |
+| 🧠 **ML Dashboard** | `static/advanced-ml-dashboard.html` | **NOUVEAU** - Interface ML complète avec training |
+| 📊 **Analytics Avancés** | `static/advanced-analytics.html` | **NOUVEAU** - Métriques sophistiquées et comparaisons |
+| 🛡️ **Risk Dashboard** | `static/risk-dashboard.html` | Analyse de risque avec scoring V2 |
+| ⚖️ **Rebalancing** | `static/rebalance.html` | Planification et exécution des rééquilibrages |
+| 📈 **Portfolio Optimization** | `static/portfolio-optimization.html` | Optimisation moderne avec contraintes |
+| 🔄 **Backtesting** | `static/backtesting.html` | Tests historiques multi-stratégies |
+| 🔧 **Debug & Tests** | `static/debug-menu.html` | Outils de développement et diagnostics |
+
+### 🎯 **Accès Rapide**
+- **Dashboard complet** : http://localhost:8000/static/dashboard.html
+- **ML Training** : http://localhost:8000/static/advanced-ml-dashboard.html  
+- **Analytics Pro** : http://localhost:8000/static/advanced-analytics.html
+- **Test ML** : http://localhost:8000/test_ml_integration.html
+
+---
+
+## Machine Learning
+
+### 🧠 **Modèles Disponibles**
+
+| Modèle | Endpoint | Description |
+|--------|----------|-------------|
+| **Volatility LSTM** | `/api/ml/volatility/predict/{symbol}` | Prédiction volatilité avec attention |
+| **Regime Detector** | `/api/ml/regime/current` | Classification bull/bear/neutral |
+| **Correlation Forecaster** | `/api/ml/correlation/matrix/current` | Corrélations prédictives |
+| **Sentiment Analyzer** | `/api/ml/sentiment/analyze` | Fear & Greed + multi-sources |
+| **Training Pipeline** | `/api/ml/train` | Entraînement automatique |
+
+### 📊 **Fonctionnalités ML**
+- **LSTM avec Attention** : Prédiction de volatilité 1d/7d/30d avec intervalles de confiance
+- **Transformer Networks** : Analyse cross-assets pour corrélations dynamiques
+- **Ensemble Methods** : Régime detection avec validation croisée
+- **Feature Engineering** : 50+ indicateurs crypto-spécifiques automatiques
+- **Model Persistence** : Sauvegarde/chargement optimisé avec cache intelligent
+
+---
+
+## Analytics Avancés
+
+### 📈 **Métriques Sophistiquées**
+
+| Endpoint | Fonctionnalité |
+|----------|----------------|
+| `/analytics/advanced/metrics` | Sharpe, Sortino, Calmar, Omega ratios |
+| `/analytics/advanced/drawdown-analysis` | Analyse complète des drawdowns |
+| `/analytics/advanced/strategy-comparison` | Comparaison multi-stratégies |
+| `/analytics/advanced/risk-metrics` | VaR, CVaR, skewness, kurtosis |
+| `/analytics/advanced/timeseries` | Données pour graphiques interactifs |
+
+### 🎯 **Fonctionnalités Analytics**
+- **Performance Metrics** : Calculs de ratios avancés avec benchmarking
+- **Drawdown Analysis** : Détection automatique des périodes de baisse
+- **Strategy Comparison** : Rebalancing vs Buy&Hold vs Momentum avec scoring
+- **Risk Assessment** : Value at Risk 95% et Conditional VaR
+- **Distribution Analysis** : Asymétrie, aplatissement, normalité des returns
 - **⚖️ Rebalancing** : `static/rebalance.html` - Génération des plans intelligents avec sync CCS
 - **🏷️ Alias Manager** : `static/alias-manager.html` - Gestion des taxonomies
 - **⚙️ Settings** : `static/settings.html` - Configuration centralisée (**commencez ici**)

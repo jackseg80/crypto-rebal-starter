@@ -126,7 +126,10 @@ export function generateHistoricalData(period, date, useDeterministicSeed = true
     var noiseFunc = noise;
   }
   
-  const mockData = {
+  // SUPPRIMÉ: Génération de données mockées - utiliser données réelles
+  console.error('⚠️ historical-validator.js: Mock data generation disabled. Use real historical data sources.');
+  
+  const emptyData = {
     _metadata: {
       period: period,
       date: date,
@@ -135,93 +138,8 @@ export function generateHistoricalData(period, date, useDeterministicSeed = true
     }
   };
   
-  // Indicateurs On-Chain Pure - basés sur les signaux attendus
-  const onchainBias = periodConfig.expectedSignals.onchain_pure === 'bullish' ? -20 : 
-                     periodConfig.expectedSignals.onchain_pure === 'bearish' ? 20 : 0;
-  
-  mockData['mvrv z-score'] = {
-    name: 'MVRV Z-Score',
-    value: Math.max(0, Math.min(100, 50 + onchainBias + noiseFunc())),
-    value_numeric: Math.max(0, Math.min(100, 50 + onchainBias + noiseFunc())),
-    in_critical_zone: useDeterministicSeed ? random.next() < 0.2 : Math.random() < 0.2
-  };
-  
-  mockData['nupl'] = {
-    name: 'NUPL',
-    value: Math.max(0, Math.min(100, 45 + onchainBias + noiseFunc())), // Légèrement corrélé avec MVRV
-    value_numeric: Math.max(0, Math.min(100, 45 + onchainBias + noiseFunc())),
-    in_critical_zone: useDeterministicSeed ? random.next() < 0.15 : Math.random() < 0.15
-  };
-  
-  mockData['sopr'] = {
-    name: 'SOPR',
-    value: Math.max(0, Math.min(100, 50 + onchainBias * 0.8 + noiseFunc())),
-    value_numeric: Math.max(0, Math.min(100, 50 + onchainBias * 0.8 + noiseFunc())),
-    in_critical_zone: useDeterministicSeed ? random.next() < 0.1 : Math.random() < 0.1
-  };
-  
-  // Indicateurs Cycle/Technical
-  const cycleBias = periodConfig.expectedSignals.cycle_technical === 'bullish' ? -20 : 
-                   periodConfig.expectedSignals.cycle_technical === 'bearish' ? 20 : 0;
-  
-  mockData['pi cycle'] = {
-    name: 'Pi Cycle',
-    value: Math.max(0, Math.min(100, 50 + cycleBias + noiseFunc())),
-    value_numeric: Math.max(0, Math.min(100, 50 + cycleBias + noiseFunc())),
-    in_critical_zone: useDeterministicSeed ? random.next() < 0.25 : Math.random() < 0.25
-  };
-  
-  mockData['cbbi'] = {
-    name: 'CBBI',
-    value: Math.max(0, Math.min(100, 55 + cycleBias * 0.9 + noiseFunc())),
-    value_numeric: Math.max(0, Math.min(100, 55 + cycleBias * 0.9 + noiseFunc())),
-    in_critical_zone: useDeterministicSeed ? random.next() < 0.2 : Math.random() < 0.2
-  };
-  
-  mockData['rsi mensuel'] = {
-    name: 'RSI Mensuel', 
-    value: Math.max(0, Math.min(100, 50 + cycleBias * 0.7 + noiseFunc())),
-    value_numeric: Math.max(0, Math.min(100, 50 + cycleBias * 0.7 + noiseFunc())),
-    in_critical_zone: useDeterministicSeed ? random.next() < 0.15 : Math.random() < 0.15
-  };
-  
-  // Indicateurs Sentiment Social
-  const sentimentBias = periodConfig.expectedSignals.sentiment_social === 'bullish' ? 20 : 
-                       periodConfig.expectedSignals.sentiment_social === 'bearish' ? -20 : 0;
-  
-  mockData['fear & greed'] = {
-    name: 'Fear & Greed',
-    value: Math.max(0, Math.min(100, 50 - sentimentBias + noiseFunc())), // Inversé (fear=low score)
-    value_numeric: Math.max(0, Math.min(100, 50 - sentimentBias + noiseFunc())),
-    in_critical_zone: useDeterministicSeed ? random.next() < 0.3 : Math.random() < 0.3
-  };
-  
-  mockData['google trend "bitcoin"'] = {
-    name: 'Google Trend Bitcoin',
-    value: Math.max(0, Math.min(100, 50 + sentimentBias * 0.8 + noiseFunc())),
-    value_numeric: Math.max(0, Math.min(100, 50 + sentimentBias * 0.8 + noiseFunc())),
-    in_critical_zone: useDeterministicSeed ? random.next() < 0.2 : Math.random() < 0.2
-  };
-  
-  // Indicateurs Market Context
-  const contextBias = periodConfig.expectedSignals.market_context === 'bullish' ? 20 : 
-                     periodConfig.expectedSignals.market_context === 'bearish' ? -20 : 0;
-  
-  mockData['altcoin season index'] = {
-    name: 'Altcoin Season Index',
-    value: Math.max(0, Math.min(100, 50 + contextBias + noiseFunc())),
-    value_numeric: Math.max(0, Math.min(100, 50 + contextBias + noiseFunc())),
-    in_critical_zone: useDeterministicSeed ? random.next() < 0.1 : Math.random() < 0.1
-  };
-  
-  mockData['binance app rank'] = {
-    name: 'Binance App Rank',
-    value: Math.max(0, Math.min(100, 50 - contextBias * 0.5 + noiseFunc())), // Inversé (bas rang = bullish)
-    value_numeric: Math.max(0, Math.min(100, 50 - contextBias * 0.5 + noiseFunc())),
-    in_critical_zone: useDeterministicSeed ? random.next() < 0.05 : Math.random() < 0.05
-  };
-  
-  return mockData;
+  // Retourner données vides au lieu de générer des valeurs mockées
+  return emptyData;
 }
 
 /**

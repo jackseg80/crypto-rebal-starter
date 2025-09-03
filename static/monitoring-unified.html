@@ -509,6 +509,9 @@
         <button class="tab-button" data-tab="analytics" onclick="switchTab('analytics')">
           📈 Analytics
         </button>
+        <button class="tab-button" data-tab="advanced" onclick="switchTab('advanced')">
+          🔧 Avancé
+        </button>
       </div>
 
       <div class="tab-content">
@@ -704,6 +707,90 @@
             <div id="health-score">
               <div class="loading">Calcul du score de santé</div>
             </div>
+          </div>
+        </div>
+
+        <!-- Advanced Monitoring Tab -->
+        <div class="tab-pane" id="advanced-tab">
+          <h2>🔧 Monitoring Avancé</h2>
+          
+          <!-- Advanced System Metrics -->
+          <div class="grid g3">
+            <div class="card">
+              <h3>🖥️ Système</h3>
+              <div id="system-health">
+                <div class="metric-card">
+                  <div class="metric-label">État Général</div>
+                  <div class="metric-value" id="system-status">Chargement...</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Temps Réponse</div>
+                  <div class="metric-value" id="system-response-time">-- ms</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Uptime</div>
+                  <div class="metric-value" id="system-uptime">--%</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>⚠️ Alertes Avancées</h3>
+              <div id="advanced-alerts">
+                <div class="loading">Chargement des alertes...</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>📊 Analytics Détaillées</h3>
+              <div id="detailed-analytics">
+                <div class="loading">Chargement analytics...</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Performance Trends -->
+          <div class="card">
+            <h3>📈 Tendances de Performance</h3>
+            <div id="performance-trends">
+              <div class="grid g2">
+                <div class="metric-card">
+                  <div class="metric-label">Exchanges Sains</div>
+                  <div class="metric-value" id="healthy-exchanges">--</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Latence Moyenne</div>
+                  <div class="metric-value" id="avg-latency">-- ms</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Configuration -->
+          <div class="card">
+            <h3>⚙️ Configuration Monitoring</h3>
+            <div id="monitoring-config">
+              <div class="grid g2">
+                <div>
+                  <label>Intervalle de vérification:</label>
+                  <select id="check-interval" class="form-control">
+                    <option value="30">30 secondes</option>
+                    <option value="60" selected>1 minute</option>
+                    <option value="300">5 minutes</option>
+                  </select>
+                </div>
+                <div>
+                  <button onclick="restartMonitoring()" class="btn btn-secondary">🔄 Redémarrer Monitoring</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="grid g3">
+            <button onclick="loadAdvancedHealth()" class="btn btn-primary">🔍 État Détaillé</button>
+            <button onclick="loadAdvancedAlerts()" class="btn btn-secondary">⚠️ Alertes Avancées</button>
+            <button onclick="loadPerformanceTrends()" class="btn btn-secondary">📊 Tendances</button>
           </div>
         </div>
       </div>
@@ -1154,12 +1241,12 @@
             health = await healthResponse.json();
           }
         } catch (e) {
-          console.debug('Real API not available, using mock data');
+          console.error('Real API not available - no fallback data');
         }
         
-        // Use mock data if API not available
+        // Afficher erreur si API non disponible
         if (!health) {
-          health = getMockExchangeData();
+          health = { exchanges: [], error: 'API not configured' };
         }
         
         renderExchangeStatus(health);
@@ -1173,8 +1260,8 @@
             alerts = data.alerts || [];
           }
         } catch (e) {
-          // Use mock alerts if API not available
-          alerts = getMockAlerts();
+          // Pas de fallback - afficher erreur
+          alerts = [];
         }
         
         renderTechnicalAlerts(alerts);
@@ -1188,7 +1275,10 @@
       }
     }
     
-    function getMockExchangeData() {
+    // SUPPRIMÉ: getMockExchangeData() - utiliser données réelles uniquement
+    function getMockExchangeData_DISABLED() {
+      console.error('⚠️ Mock exchange data disabled. Configure real monitoring endpoints.');
+      return { exchanges: [], error: 'Mock data disabled' };
       return {
         exchanges: {
           'binance': {
@@ -1231,7 +1321,10 @@
       };
     }
     
-    function getMockAlerts() {
+    // SUPPRIMÉ: getMockAlerts() - utiliser données réelles uniquement  
+    function getMockAlerts_DISABLED() {
+      console.error('⚠️ Mock alerts data disabled. Configure real monitoring endpoints.');
+      return [];
       return [
         {
           id: '1',
@@ -1620,6 +1713,105 @@
     function exportData() {
       // Placeholder for export functionality
       alert('Export functionality coming soon!');
+    }
+
+    /* ===== Advanced Monitoring Functions ===== */
+    async function loadAdvancedHealth() {
+      try {
+        const response = await fetch('/api/monitoring/health');
+        const data = await response.json();
+        
+        if (data.success) {
+          const status = data.current_status;
+          const summary = data.performance_summary;
+          
+          el('system-status').textContent = summary.healthy_exchanges > 0 ? '✅ Sain' : '⚠️ Dégradé';
+          el('system-response-time').textContent = `${summary.average_response_time.toFixed(0)} ms`;
+          el('system-uptime').textContent = `${summary.overall_uptime.toFixed(1)}%`;
+        }
+      } catch (error) {
+        console.error('Error loading advanced health:', error);
+        el('system-status').textContent = '❌ Erreur';
+      }
+    }
+
+    async function loadAdvancedAlerts() {
+      try {
+        const response = await fetch('/api/monitoring/alerts?resolved=false');
+        const data = await response.json();
+        
+        const container = el('advanced-alerts');
+        
+        if (data.alerts && data.alerts.length > 0) {
+          container.innerHTML = data.alerts.map(alert => `
+            <div class="alert-item">
+              <div class="alert-icon">${alert.level === 'critical' ? '🔴' : '⚠️'}</div>
+              <div class="alert-content">
+                <strong>${alert.message}</strong>
+                <div class="alert-time">${new Date(alert.timestamp).toLocaleString()}</div>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          container.innerHTML = '<div class="empty-state">✅ Aucune alerte</div>';
+        }
+      } catch (error) {
+        console.error('Error loading advanced alerts:', error);
+        el('advanced-alerts').innerHTML = '<div class="error">Erreur chargement alertes</div>';
+      }
+    }
+
+    async function loadPerformanceTrends() {
+      try {
+        const response = await fetch('/api/monitoring/analytics/performance');
+        const data = await response.json();
+        
+        if (data.success) {
+          const metrics = data.performance_metrics;
+          el('healthy-exchanges').textContent = `${metrics.healthy_count}/${metrics.total_count}`;
+          el('avg-latency').textContent = `${metrics.average_latency.toFixed(0)} ms`;
+        }
+      } catch (error) {
+        console.error('Error loading performance trends:', error);
+        el('healthy-exchanges').textContent = '❌';
+        el('avg-latency').textContent = '❌';
+      }
+    }
+
+    async function restartMonitoring() {
+      try {
+        const response = await fetch('/api/monitoring/restart', { method: 'POST' });
+        const data = await response.json();
+        
+        if (data.success) {
+          alert('✅ Monitoring redémarré avec succès');
+          await loadAdvancedHealth();
+        } else {
+          alert('❌ Erreur lors du redémarrage');
+        }
+      } catch (error) {
+        console.error('Error restarting monitoring:', error);
+        alert('❌ Erreur connexion');
+      }
+    }
+
+    // Ajouter la gestion du nouvel onglet
+    async function loadTabData(tab) {
+      console.debug(`Loading data for tab: ${tab}`);
+      
+      if (tab === 'portfolio') {
+        await fetchPortfolioAlerts();
+        await fetchRebalanceHistory();
+        await updatePortfolioMetrics();
+      } else if (tab === 'exchanges') {
+        // Existing exchanges logic
+      } else if (tab === 'analytics') {
+        // Existing analytics logic
+      } else if (tab === 'advanced') {
+        await loadAdvancedHealth();
+        await loadAdvancedAlerts();
+        await loadPerformanceTrends();
+      }
     }
 
     /* ===== Initialization ===== */
