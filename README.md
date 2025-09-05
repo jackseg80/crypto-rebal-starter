@@ -66,7 +66,7 @@ python crypto_toolbox_api.py  # Port 8001
 | Interface | URL | Description |
 |-----------|-----|-------------|
 | 🏠 **Dashboard Principal** | `static/dashboard.html` | Vue d'ensemble avec métriques temps réel |
-| 🧠 **ML Dashboard** | `static/advanced-ml-dashboard.html` | **NOUVEAU** - Interface ML complète avec training |
+| 🧠 **AI Dashboard** | `static/ai-unified-dashboard.html` | **NOUVEAU** - Interface ML unifiée avec 5/5 modèles |
 | 📊 **Analytics Avancés** | `static/advanced-analytics.html` | **NOUVEAU** - Métriques sophistiquées et comparaisons |
 | 🛡️ **Risk Dashboard** | `static/risk-dashboard.html` | Analyse de risque avec scoring V2 |
 | ⚖️ **Rebalancing** | `static/rebalance.html` | Planification et exécution des rééquilibrages |
@@ -88,11 +88,14 @@ python crypto_toolbox_api.py  # Port 8001
 
 | Modèle | Endpoint | Description |
 |--------|----------|-------------|
+| **🚀 ML Unifié** | `/api/ml/unified/predictions` | **NOUVEAU** - Prédictions de tous les modèles |
+| **📊 Statut Système** | `/api/ml/unified/status` | **NOUVEAU** - État de santé 5/5 modèles |
+| **⚙️ Initialisation** | `/api/ml/initialize` | **NOUVEAU** - Configuration ML automatique |
+| **🔄 Ré-entraînement** | `/api/ml/unified/retrain` | **NOUVEAU** - Mise à jour modèles |
+| **🧹 Cache Clear** | `/api/ml/unified/clear-caches` | **NOUVEAU** - Nettoyage cache |
 | **Volatility LSTM** | `/api/ml/volatility/predict/{symbol}` | Prédiction volatilité avec attention |
 | **Regime Detector** | `/api/ml/regime/current` | Classification bull/bear/neutral |
 | **Correlation Forecaster** | `/api/ml/correlation/matrix/current` | Corrélations prédictives |
-| **Sentiment Analyzer** | `/api/ml/sentiment/analyze` | Fear & Greed + multi-sources |
-| **Training Pipeline** | `/api/ml/train` | Entraînement automatique |
 
 ### 📊 **Fonctionnalités ML**
 - **LSTM avec Attention** : Prédiction de volatilité 1d/7d/30d avec intervalles de confiance
@@ -100,6 +103,15 @@ python crypto_toolbox_api.py  # Port 8001
 - **Ensemble Methods** : Régime detection avec validation croisée
 - **Feature Engineering** : 50+ indicateurs crypto-spécifiques automatiques
 - **Model Persistence** : Sauvegarde/chargement optimisé avec cache intelligent
+
+### 🔄 **Synchronisation Configuration**
+- **Frontend-Backend Sync** : Configuration automatiquement synchronisée entre `settings.html` et modèles ML
+- **Adaptation temps réel** : Changement de source de données (CSV → stub → API) sans réentraînement manuel
+- **Portfolio dynamique** : Modèles s'adaptent automatiquement aux assets de votre portfolio
+- **Sources multiples** : 
+  - **CSV** → Analyse vos cryptos réelles depuis CoinTracking exports
+  - **Stub** → Portfolio de test prédéfini (BTC, ETH, SOL, etc.)
+  - **API** → Portfolio temps réel via CoinTracking API
 
 ---
 
