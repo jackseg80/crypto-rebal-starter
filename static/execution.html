@@ -7,6 +7,7 @@
   <title>🚀 Exécution - Crypto Rebalancer</title>
   <link rel="stylesheet" href="shared-theme.css">
   <link rel="stylesheet" href="theme-compat.css">
+  <script type="module" src="components/nav.js"></script>
 
   <script src="debug-logger.js"></script>
   <script src="input-validator.js"></script>
@@ -318,13 +319,11 @@
 
       <!-- Onglet Historique -->
       <div id="tab-history" class="tab-content">
-        <div id="plans-history-container">
-          <!-- L'historique sera injecté ici -->
+        <div class="section">
+          <div class="section-content">
+            <iframe src="archive/execution_history.html?nav=off" style="width:100%; height:75vh; border:0; background:var(--theme-surface)"></iframe>
+          </div>
         </div>
-
-        <button class="btn btn-primary" onclick="loadPlansHistory()">
-          📜 Charger Historique
-        </button>
       </div>
 
       <!-- Onglet Exchanges -->
