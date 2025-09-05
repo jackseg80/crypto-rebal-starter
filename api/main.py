@@ -20,12 +20,16 @@ from fastapi.staticfiles import StaticFiles
 # Charger les variables d'environnement depuis .env
 load_dotenv()
 
-# Configuration sécurisée
-DEBUG = (os.getenv("DEBUG", "false").lower() == "true")
-APP_DEBUG = (os.getenv("APP_DEBUG", "false").lower() == "true") or DEBUG
-LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG" if APP_DEBUG else "INFO").upper()
-CORS_ORIGINS = [o.strip() for o in (os.getenv("CORS_ORIGINS", "")).split(",") if o.strip()]
-ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+# Configuration centralisée avec Pydantic
+from config import get_settings
+settings = get_settings()
+
+# Variables de compatibilité (pour ne pas casser le code existant)
+DEBUG = settings.is_debug_enabled()
+APP_DEBUG = DEBUG
+LOG_LEVEL = settings.logging.log_level
+CORS_ORIGINS = settings.get_cors_origins()
+ENVIRONMENT = settings.environment
 
 from connectors import cointracking as ct_file
 from connectors.cointracking_api import get_current_balances as ct_api_get_current_balances, _debug_probe
@@ -57,6 +61,14 @@ from api.exceptions import (
     CryptoRebalancerException, APIException, ValidationException, 
     ConfigurationException, TradingException, DataException, ErrorCodes
 )
+# Import des nouveaux utilitaires de gestion d'erreur
+try:
+    from shared.exceptions import convert_standard_exception, PricingException
+    from shared.error_handling import safe_import, safe_call, safe_price_fetch, safe_api_call
+except ImportError:
+    # Fallback si les modules ne sont pas encore créés
+    safe_import = safe_call = safe_price_fetch = safe_api_call = None
+    convert_standard_exception = PricingException = None
 from api.models import APIKeysRequest, PortfolioMetricsRequest
 
 # Config logger (dev-friendly by default)
@@ -314,8 +326,17 @@ def _cache_set(cache: dict, key: Any, val: Any):
     # >>> BEGIN: CT-API helpers (ADD THIS ONCE NEAR THE TOP) >>>
 try:
     from connectors import cointracking_api as ct_api
-except Exception:
-    import cointracking_api as ct_api  # fallback au cas où le package n'est pas packagé "connectors"
+except ImportError as e:
+    logger.warning(f"Could not import from connectors package: {e}")
+    try:
+        import cointracking_api as ct_api  # fallback au cas où le package n'est pas packagé "connectors"
+        logger.info("Using fallback import for cointracking_api")
+    except ImportError as fallback_error:
+        logger.error(f"Could not import cointracking_api at all: {fallback_error}")
+        ct_api = None
+except Exception as e:
+    logger.error(f"Unexpected error importing cointracking_api: {e}")
+    ct_api = None
 
 FAST_SELL_EXCHANGES = [
     "Kraken", "Binance", "Coinbase", "Bitget", "OKX", "Bybit", "KuCoin", "Bittrex", "Bitstamp", "Gemini"
@@ -877,9 +898,13 @@ async def pricing_diagnostic(
             try:
                 from services.pricing import aget_prices_usd
                 market_price_map = await aget_prices_usd(symbols)
-            except Exception:
+            except ImportError as e:
+                logger.debug(f"Async pricing not available, falling back to sync: {e}")
                 from services.pricing import get_prices_usd
                 market_price_map = get_prices_usd(symbols)
+            except Exception as e:
+                logger.warning(f"Price fetch failed, using empty prices: {e}")
+                market_price_map = {}
 
         # Décision effective (même logique que 'auto' => hybride)
         max_age_min = float(os.getenv("PRICE_HYBRID_MAX_AGE_MIN", "30"))
@@ -925,8 +950,12 @@ async def pricing_diagnostic(
             "items": results
         }
 
+    except PricingException as e:
+        logger.error(f"Pricing error in diagnostics: {e}")
+        return {"ok": False, "error": f"Pricing error: {e.message}", "error_code": e.error_code.value if e.error_code else None}
     except Exception as e:
-        return {"ok": False, "error": str(e)}
+        logger.error(f"Unexpected error in pricing diagnostics: {e}")
+        return {"ok": False, "error": f"Diagnostic failed: {str(e)}"}
 
 
 # Alias sous /api/pricing/diagnostic pour cohérence avec d'autres routes
@@ -1700,6 +1729,54 @@ async def get_portfolio_alerts(source: str = Query("cointracking"), drift_thresh
     except Exception as e:
         return {"ok": False, "error": str(e)}
     
+
+# ---------- Configuration Endpoints ----------
+
+# In-memory storage for frontend configuration
+_frontend_config = {"data_source": None}
+
+@app.post("/api/config/data-source")
+async def set_data_source(request: dict):
+    """
+    Set the data source configuration from frontend
+    """
+    try:
+        data_source = request.get("data_source")
+        if data_source in ["stub", "cointracking", "cointracking_api"]:
+            _frontend_config["data_source"] = data_source
+            logger.info(f"Data source updated to: {data_source}")
+            return {"ok": True, "data_source": data_source}
+        else:
+            return {"ok": False, "error": "Invalid data source"}
+    except Exception as e:
+        logger.error(f"Error setting data source: {e}")
+        return {"ok": False, "error": str(e)}
+
+@app.get("/api/config/data-source")
+async def get_configured_data_source():
+    """
+    Get the currently configured data source
+    This endpoint respects frontend configuration first, then falls back to detection
+    """
+    try:
+        # First, check if frontend has explicitly set a data source
+        if _frontend_config["data_source"]:
+            return {"data_source": _frontend_config["data_source"]}
+        
+        # Fallback to smart detection if no explicit config
+        api_key = os.getenv("COINTRACKING_API_KEY")
+        api_secret = os.getenv("COINTRACKING_API_SECRET")
+        
+        if api_key and api_secret:
+            return {"data_source": "cointracking_api"}
+        elif Path("data/raw").exists() and any(Path("data/raw").glob("*.csv")):
+            return {"data_source": "cointracking"}
+        else:
+            return {"data_source": "stub"}
+            
+    except Exception as e:
+        logger.error(f"Error getting data source config: {e}")
+        return {"data_source": "stub"}  # Safe fallback
 
 # Force reload
 # Force reload 2

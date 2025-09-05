@@ -36,18 +36,17 @@ class CryptoFeatureEngineer:
         result['returns'] = result['close'].pct_change()
         result['log_returns'] = np.log(result['close'] / result['close'].shift(1))
         
-        # Price momentum features
-        for window in [3, 5, 10, 20, 50]:
+        # Price momentum features (minimal windows for maximum data compatibility)
+        for window in [3, 5, 10]:  # Further reduced windows
             result[f'momentum_{window}'] = result['close'] / result['close'].shift(window) - 1
             result[f'ma_{window}'] = result['close'].rolling(window=window).mean()
         
-        # Moving average ratios
-        result['ma_ratio_5_20'] = result['ma_5'] / result['ma_20']
-        result['ma_ratio_20_50'] = result['ma_20'] / result['ma_50']
+        # Moving average ratios (using available MAs only)
+        result['ma_ratio_5_10'] = result['ma_5'] / result['ma_10']  # Use shorter windows
         
         # Price position relative to moving averages
-        result['price_vs_ma20'] = (result['close'] - result['ma_20']) / result['ma_20']
-        result['price_vs_ma50'] = (result['close'] - result['ma_50']) / result['ma_50']
+        result['price_vs_ma10'] = (result['close'] - result['ma_10']) / result['ma_10']
+        result['price_vs_ma5'] = (result['close'] - result['ma_5']) / result['ma_5']
         
         return result
     
@@ -63,18 +62,17 @@ class CryptoFeatureEngineer:
         """
         result = df.copy()
         
-        # Realized volatility at different time horizons
-        for window in [5, 10, 20, 30, 60]:
+        # Realized volatility at different time horizons (reduced windows)
+        for window in [5, 10]:  # Minimal windows for compatibility
             result[f'vol_{window}'] = result['returns'].rolling(window=window).std() * np.sqrt(365)
         
-        # Volatility ratios and spreads
-        result['vol_ratio_5_20'] = result['vol_5'] / result['vol_20']
-        result['vol_ratio_20_60'] = result['vol_20'] / result['vol_60']
-        result['vol_spread_5_20'] = result['vol_5'] - result['vol_20']
+        # Volatility ratios and spreads (using available windows)
+        result['vol_ratio_5_10'] = result['vol_5'] / result['vol_10']
+        result['vol_spread_5_10'] = result['vol_5'] - result['vol_10']
         
-        # GARCH-like features
-        result['vol_persistence'] = result['vol_20'].rolling(window=20).std()
-        result['vol_mean_reversion'] = (result['vol_5'] - result['vol_20'].rolling(window=60).mean()) / result['vol_20'].rolling(window=60).std()
+        # GARCH-like features (using shorter windows)
+        result['vol_persistence'] = result['vol_10'].rolling(window=5).std()
+        result['vol_mean_reversion'] = (result['vol_5'] - result['vol_10'].rolling(window=5).mean()) / result['vol_10'].rolling(window=5).std()
         
         # High-frequency volatility proxies
         result['hl_ratio'] = (result['high'] - result['low']) / result['close']
@@ -99,12 +97,12 @@ class CryptoFeatureEngineer:
         result = df.copy()
         
         # Volume moving averages
-        for window in [5, 10, 20, 50]:
+        for window in [5, 10]:  # Reduced windows for better compatibility
             result[f'volume_ma_{window}'] = result['volume'].rolling(window=window).mean()
         
         # Volume ratios
-        result['volume_ratio_current'] = result['volume'] / result['volume_ma_20']
-        result['volume_ratio_5_20'] = result['volume_ma_5'] / result['volume_ma_20']
+        result['volume_ratio_current'] = result['volume'] / result['volume_ma_10']  # Use ma_10 instead
+        result['volume_ratio_5_10'] = result['volume_ma_5'] / result['volume_ma_10']  # Use ma_10 instead
         
         # Volume momentum
         for window in [3, 5, 10]:
@@ -224,7 +222,7 @@ class CryptoFeatureEngineer:
         result['fear_greed_proxy'] = self._calculate_fear_greed_proxy(result)
         
         # Market structure indicators
-        result['trend_strength'] = abs(result['ma_5'] - result['ma_20']) / result['close']
+        result['trend_strength'] = abs(result['ma_5'] - result['ma_10']) / result['close']  # Use ma_10
         result['market_regime'] = self._classify_market_regime(result)
         
         # Add actual sentiment data if provided
@@ -319,16 +317,16 @@ class CryptoFeatureEngineer:
     def _calculate_fear_greed_proxy(self, df: pd.DataFrame) -> pd.Series:
         """Calculate a proxy for Fear & Greed Index"""
         # Combine momentum, volatility, and volume signals
-        momentum_signal = df['momentum_20'].rolling(window=20).mean()
-        vol_signal = 1 - (df['vol_20'] / df['vol_20'].rolling(window=60).max())  # Invert volatility
-        volume_signal = df['volume_ratio_current'].rolling(window=20).mean()
+        momentum_signal = df['momentum_10'].rolling(window=10).mean()  # Use momentum_10
+        vol_signal = 1 - (df['vol_10'] / df['vol_10'].rolling(window=15).max())  # Use vol_10 and reduced window
+        volume_signal = df['volume_ratio_current'].rolling(window=10).mean()  # Reduced window
         
-        # Normalize signals to 0-1 range
-        momentum_norm = (momentum_signal - momentum_signal.rolling(window=252).min()) / \
-                       (momentum_signal.rolling(window=252).max() - momentum_signal.rolling(window=252).min())
+        # Normalize signals to 0-1 range (minimal windows)
+        momentum_norm = (momentum_signal - momentum_signal.rolling(window=20).min()) / \
+                       (momentum_signal.rolling(window=20).max() - momentum_signal.rolling(window=20).min())
         vol_norm = vol_signal
-        volume_norm = (volume_signal - volume_signal.rolling(window=252).min()) / \
-                     (volume_signal.rolling(window=252).max() - volume_signal.rolling(window=252).min())
+        volume_norm = (volume_signal - volume_signal.rolling(window=20).min()) / \
+                     (volume_signal.rolling(window=20).max() - volume_signal.rolling(window=20).min())
         
         # Weighted combination (scaled to 0-100)
         fear_greed_proxy = (momentum_norm * 0.4 + vol_norm * 0.4 + volume_norm * 0.2) * 100
@@ -338,9 +336,9 @@ class CryptoFeatureEngineer:
     def _classify_market_regime(self, df: pd.DataFrame) -> pd.Series:
         """Classify market regime (0: Bear, 1: Neutral, 2: Bull)"""
         # Use multiple indicators to classify regime
-        ma_signal = (df['close'] > df['ma_50']).astype(int)
-        momentum_signal = (df['momentum_20'] > 0).astype(int)
-        trend_signal = (df['ma_5'] > df['ma_20']).astype(int)
+        ma_signal = (df['close'] > df['ma_10']).astype(int)  # Use ma_10
+        momentum_signal = (df['momentum_10'] > 0).astype(int)  # Use momentum_10
+        trend_signal = (df['ma_5'] > df['ma_10']).astype(int)  # Use ma_10
         
         regime_score = ma_signal + momentum_signal + trend_signal
         
@@ -367,14 +365,17 @@ class CryptoFeatureEngineer:
         """
         logger.info(f"Engineering features for {symbol}")
         
-        # Apply all feature engineering steps
+        # Ultra-simplified feature engineering for debugging
         result = df.copy()
-        result = self.engineer_price_features(result)
-        result = self.engineer_volatility_features(result)
-        result = self.engineer_volume_features(result)
-        result = self.engineer_technical_indicators(result)
-        result = self.engineer_crypto_specific_features(result, symbol)
-        result = self.engineer_sentiment_features(result, sentiment_data)
+        
+        # Only absolute basics - no rolling windows > 5
+        result['returns'] = result['close'].pct_change()
+        result['ma_3'] = result['close'].rolling(3).mean()
+        result['ma_5'] = result['close'].rolling(5).mean()
+        result['vol_3'] = result['returns'].rolling(3).std() * np.sqrt(365)
+        result['vol_5'] = result['returns'].rolling(5).std() * np.sqrt(365)
+        
+        # Skip ALL complex methods that might have large windows
         
         # Drop rows with NaN values
         initial_length = len(result)

@@ -11,6 +11,7 @@ import logging
 from datetime import datetime, timedelta
 import numpy as np
 
+from services.ml.orchestrator import get_orchestrator, initialize_ml_system, get_ml_predictions, get_ml_status
 from services.ml.models.volatility_predictor import VolatilityPredictor
 from services.ml.models.regime_detector import RegimeDetector
 from services.ml.models.correlation_forecaster import CorrelationForecaster
@@ -47,6 +48,144 @@ class PredictionResponse(BaseModel):
     model_status: Dict
     timestamp: str
 
+# --- UNIFIED ML ORCHESTRATOR ENDPOINTS ---
+
+@router.post("/initialize")
+async def initialize_unified_ml_system(
+    background_tasks: BackgroundTasks,
+    force_retrain: bool = Query(False, description="Force retraining of existing models"),
+    source: str = Query("auto", description="Data source configuration (auto uses settings)")
+):
+    """
+    Initialize the unified ML orchestrator system respecting configuration settings
+    """
+    try:
+        # Start initialization in background
+        background_tasks.add_task(
+            _initialize_ml_background,
+            force_retrain
+        )
+        
+        return {
+            "success": True,
+            "message": "ML system initialization started in background",
+            "force_retrain": force_retrain,
+            "estimated_duration_minutes": 15
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to start ML initialization: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Initialization failed: {str(e)}")
+
+async def _initialize_ml_background(force_retrain: bool):
+    """Background task for ML system initialization"""
+    try:
+        logger.info("Starting unified ML system initialization")
+        result = await initialize_ml_system(force_retrain=force_retrain)
+        logger.info(f"ML system initialization completed: {result}")
+    except Exception as e:
+        logger.error(f"Background ML initialization failed: {e}", exc_info=True)
+
+@router.get("/unified/predictions")
+async def get_unified_ml_predictions(
+    symbols: Optional[List[str]] = Query(None, description="Assets to predict (None for portfolio assets)"),
+    horizons: List[int] = Query([1, 7, 30], description="Prediction horizons in days")
+):
+    """
+    Get unified predictions from all ML models using configured data source
+    """
+    try:
+        predictions = await get_ml_predictions(symbols=symbols)
+        
+        return {
+            "success": True,
+            "predictions": predictions,
+            "requested_symbols": symbols,
+            "requested_horizons": horizons
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get unified predictions: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
+
+@router.get("/unified/status")
+async def get_unified_ml_status():
+    """
+    Get comprehensive status of unified ML system
+    """
+    try:
+        status = await get_ml_status()
+        
+        return {
+            "success": True,
+            "ml_system_status": status
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get ML status: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Status check failed: {str(e)}")
+
+@router.post("/unified/retrain")
+async def retrain_unified_models(
+    background_tasks: BackgroundTasks,
+    model_names: Optional[List[str]] = Query(None, description="Models to retrain (None for all)"),
+    force: bool = Query(False, description="Force retraining even if recent")
+):
+    """
+    Retrain specified models in the unified ML system
+    """
+    try:
+        orchestrator = get_orchestrator()
+        
+        # Start retraining in background
+        background_tasks.add_task(
+            _retrain_models_background,
+            model_names,
+            force
+        )
+        
+        return {
+            "success": True,
+            "message": "Model retraining started in background",
+            "models_to_retrain": model_names or "all",
+            "force_retrain": force,
+            "estimated_duration_minutes": (len(model_names) if model_names else 5) * 3
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to start model retraining: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Retraining failed: {str(e)}")
+
+async def _retrain_models_background(model_names: Optional[List[str]], force: bool):
+    """Background task for model retraining"""
+    try:
+        orchestrator = get_orchestrator()
+        result = await orchestrator.retrain_models(model_names=model_names, force=force)
+        logger.info(f"Model retraining completed: {result}")
+    except Exception as e:
+        logger.error(f"Background model retraining failed: {e}", exc_info=True)
+
+@router.delete("/unified/clear-caches")
+async def clear_ml_caches():
+    """
+    Clear all ML system caches
+    """
+    try:
+        orchestrator = get_orchestrator()
+        cleared_counts = orchestrator.clear_caches()
+        
+        return {
+            "success": True,
+            "message": "ML caches cleared successfully",
+            "cleared_counts": cleared_counts
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to clear ML caches: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Cache clearing failed: {str(e)}")
+
+# --- LEGACY ENDPOINTS (PRESERVED FOR COMPATIBILITY) ---
+
 @router.post("/train")
 async def train_models(
     request: TrainingRequest,
@@ -54,7 +193,8 @@ async def train_models(
     source: str = Query("cointracking", description="Data source for current portfolio")
 ):
     """
-    Train ML models for regime detection and return forecasting
+    Legacy endpoint - Train ML models for regime detection and return forecasting
+    Redirects to unified ML system
     """
     
     try:
