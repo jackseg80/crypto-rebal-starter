@@ -707,6 +707,7 @@
     <!-- Controls Header -->
     <div class="controls">
       <button class="refresh-btn" onclick="refreshDashboard()" id="refresh-btn">🔄 Refresh Data</button>
+      <button class="refresh-btn" onclick="refreshDashboard(true)" id="force-refresh-btn" style="background: #dc3545;" title="Ignore cache and recalculate all scores">🧹 Force Refresh</button>
       <button class="refresh-btn" onclick="enableAutoRefresh()" id="auto-refresh-btn">⏱️ Enable Auto-Refresh
         (30s)</button>
       <button class="refresh-btn" onclick="testEndpoint()" style="background:#007bff">🧪 Test API</button>
@@ -1783,6 +1784,20 @@
       try {
         console.debug('🎯 Calculating all scores...');
 
+        // Check cached scores first
+        const cachedScores = getCachedData('SCORES');
+        if (cachedScores && cachedScores.data) {
+          const age = Math.round((Date.now() - cachedScores.timestamp) / (1000 * 60));
+          console.log(`⚡ Using cached scores (${age} minutes old)`);
+          
+          const scores = cachedScores.data;
+          updateScoreDisplays(scores.onchainScore, scores.riskScore, scores.blendedScore, scores.ccsScore);
+          updateMarketRegime(scores.blendedScore, scores.onchainScore, scores.riskScore);
+          return scores;
+        }
+
+        console.debug('🔄 No valid cache found, calculating fresh scores...');
+
         // Apply calibrated parameters if available
         const calibratedParams = loadCalibrationParams();
         if (calibratedParams) {
@@ -1812,7 +1827,17 @@
         store.set('scores.risk', riskScore);
         store.set('scores.blended', blendedScore);
 
-        // Also store scores in localStorage for cross-page access
+        // Store scores in persistent cache
+        const scoreData = {
+          onchainScore: onchainScore,
+          riskScore: riskScore,
+          blendedScore: blendedScore, 
+          ccsScore: ccsScore,
+          ccsMixteScore: ccsMixteScore
+        };
+        setCachedData('SCORES', scoreData);
+
+        // Also store scores in localStorage for cross-page access (compatibility)
         localStorage.setItem('risk_score_onchain', onchainScore !== null ? onchainScore.toString() : '');
         localStorage.setItem('risk_score_risk', riskScore !== null ? riskScore.toString() : '');
         localStorage.setItem('risk_score_blended', blendedScore !== null ? blendedScore.toString() : '');
@@ -1970,13 +1995,21 @@
       });
     }
 
-    async function refreshDashboard() {
+    async function refreshDashboard(forceRefresh = false) {
       if (isRefreshing) return;
       isRefreshing = true;
 
       const refreshBtn = document.getElementById('refresh-btn');
+      const forceRefreshBtn = document.getElementById('force-refresh-btn');
       refreshBtn.disabled = true;
-      refreshBtn.textContent = '🔄 Refreshing…';
+      forceRefreshBtn.disabled = true;
+      refreshBtn.textContent = forceRefresh ? '🔄 Force Refreshing…' : '🔄 Refreshing…';
+
+      // Clear cache if force refresh is requested
+      if (forceRefresh) {
+        clearAllPersistentCache();
+        console.log('🧹 Force refresh: all cache cleared');
+      }
 
       // Update loading state
       store.set('ui.loading', true);
@@ -2049,6 +2082,7 @@
         isRefreshing = false;
         store.set('ui.loading', false);
         refreshBtn.disabled = false;
+        forceRefreshBtn.disabled = false;
         refreshBtn.textContent = '🔄 Refresh Data';
       }
     }
@@ -4038,13 +4072,136 @@
     window.enableAutoRefresh = enableAutoRefresh;
     window.testEndpoint = testEndpoint;
 
+    // ===== PERSISTENT CACHE SYSTEM =====
+    const CACHE_CONFIG = {
+      SCORES: { key: 'risk_scores_cache', ttl: 12 * 60 * 60 * 1000 }, // 12 heures
+      CCS_DATA: { key: 'ccs_data_cache', ttl: 6 * 60 * 60 * 1000 },  // 6 heures  
+      ONCHAIN: { key: 'onchain_data_cache', ttl: 4 * 60 * 60 * 1000 }, // 4 heures
+      RISK_METRICS: { key: 'risk_metrics_cache', ttl: 8 * 60 * 60 * 1000 } // 8 heures
+    };
+
+    function initPersistentCache() {
+      console.log('🗄️ Initializing persistent cache system...');
+      
+      // Check existing cached scores
+      const cachedScores = getCachedData('SCORES');
+      if (cachedScores) {
+        const age = Math.round((Date.now() - cachedScores.timestamp) / (1000 * 60));
+        console.log(`✅ Found cached scores (${age} minutes old)`);
+        
+        // Restore scores in localStorage for compatibility
+        localStorage.setItem('risk_score_onchain', cachedScores.data.onchainScore?.toString() || '');
+        localStorage.setItem('risk_score_risk', cachedScores.data.riskScore?.toString() || '');
+        localStorage.setItem('risk_score_blended', cachedScores.data.blendedScore?.toString() || '');
+        localStorage.setItem('risk_score_ccs', cachedScores.data.ccsScore?.toString() || '');
+        localStorage.setItem('risk_score_timestamp', cachedScores.timestamp?.toString() || '');
+      }
+
+      // Override clearCache to be selective
+      window.originalClearCache = window.clearCache;
+      window.clearCache = function(force = false) {
+        if (force) {
+          console.log('🧹 Force clearing all cache');
+          clearAllPersistentCache();
+          window.originalClearCache?.();
+        } else {
+          console.log('⏭️ Selective cache clear - keeping valid cached data');
+          cleanExpiredCache();
+        }
+      };
+    }
+
+    function setCachedData(type, data) {
+      const config = CACHE_CONFIG[type];
+      if (!config) return false;
+
+      const cacheEntry = {
+        data: data,
+        timestamp: Date.now(),
+        ttl: config.ttl
+      };
+
+      try {
+        localStorage.setItem(config.key, JSON.stringify(cacheEntry));
+        console.log(`💾 Cached ${type} data (TTL: ${Math.round(config.ttl / (1000 * 60 * 60))}h)`);
+        return true;
+      } catch (error) {
+        console.warn(`Failed to cache ${type}:`, error);
+        return false;
+      }
+    }
+
+    function getCachedData(type) {
+      const config = CACHE_CONFIG[type];
+      if (!config) return null;
+
+      try {
+        const cached = localStorage.getItem(config.key);
+        if (!cached) return null;
+
+        const cacheEntry = JSON.parse(cached);
+        const isExpired = (Date.now() - cacheEntry.timestamp) > cacheEntry.ttl;
+
+        if (isExpired) {
+          localStorage.removeItem(config.key);
+          console.log(`⏰ Expired cache removed: ${type}`);
+          return null;
+        }
+
+        return cacheEntry;
+      } catch (error) {
+        console.warn(`Failed to read cache ${type}:`, error);
+        localStorage.removeItem(config.key);
+        return null;
+      }
+    }
+
+    function cleanExpiredCache() {
+      Object.keys(CACHE_CONFIG).forEach(type => {
+        getCachedData(type); // This will auto-remove expired entries
+      });
+    }
+
+    function clearAllPersistentCache() {
+      Object.values(CACHE_CONFIG).forEach(config => {
+        localStorage.removeItem(config.key);
+      });
+      console.log('🧹 All persistent cache cleared');
+    }
+
+    function updateScoreDisplays(onchainScore, riskScore, blendedScore, ccsScore) {
+      // Update score displays using existing UI update functions
+      try {
+        if (typeof updateOnChainIndicators === 'function') {
+          updateOnChainIndicators();
+        }
+        
+        // Update the main dashboard scores display
+        const scoreElements = {
+          onchain: document.querySelector('[data-score="onchain"]'),
+          risk: document.querySelector('[data-score="risk"]'), 
+          blended: document.querySelector('[data-score="blended"]'),
+          ccs: document.querySelector('[data-score="ccs"]')
+        };
+
+        if (scoreElements.onchain) scoreElements.onchain.textContent = Math.round(onchainScore || 0);
+        if (scoreElements.risk) scoreElements.risk.textContent = Math.round(riskScore || 0);
+        if (scoreElements.blended) scoreElements.blended.textContent = Math.round(blendedScore || 0);
+        if (scoreElements.ccs) scoreElements.ccs.textContent = Math.round(ccsScore || 0);
+
+        console.log('📊 Score displays updated from cache');
+      } catch (error) {
+        console.warn('Error updating score displays:', error);
+      }
+    }
+
     // Initialize on DOM ready
     document.addEventListener('DOMContentLoaded', function () {
       console.log('Risk Dashboard CCS MVP initializing...');
 
-      // Clear cache to ensure fresh data from new test endpoint
-      clearCache();
-      console.log('Cache cleared - will fetch fresh data');
+      // Initialize persistent cache system
+      initPersistentCache();
+      console.log('Persistent cache system initialized');
 
       // Listen for data source changes and clear cache
       window.addEventListener('dataSourceChanged', (event) => {
