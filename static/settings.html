@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="shared-theme.css">
   <link rel="stylesheet" href="theme-compat.css">
   <script type="module" src="components/nav.js"></script>
+  <script type="module" src="components/tooltips.js"></script>
 
   <script src="debug-logger.js"></script>
   <script src="input-validator.js"></script>
@@ -284,8 +285,6 @@
   </style>
 
     <!-- Navigation Simple -->
-    <link rel="stylesheet" href="simple-navigation.css">
-    <script src="simple-navigation.js"></script>
     <link rel="stylesheet" href="navigation-fix.css">
 
     <style>
@@ -309,7 +308,9 @@
   <div class="wrap">
 
     <!-- Status Global -->
-    <div class="card" id="global-status">
+    <div class="card" id="global-status" 
+         data-tooltip="Statut global du système avec indicateurs de santé des connexions API et services."
+         data-source="Tests de connectivité en temps réel">
       <div style="display: flex; align-items: center; justify-content: space-between;">
         <div>
           <h3>📊 Statut Global</h3>
@@ -323,7 +324,8 @@
     </div>
 
     <!-- Source de Données -->
-    <div class="card">
+    <div class="card" data-tooltip="Configuration de la source principale pour les données de portfolio (CSV local, API CoinTracking ou échanges directs)."
+         data-source="Fichiers de configuration + APIs">
       <h3>📡 Source de Données</h3>
       <div class="form-group">
         <label>Source principale des balances</label>
@@ -352,7 +354,8 @@
     </div>
 
     <!-- Pricing -->
-    <div class="card">
+    <div class="card" data-tooltip="Configuration des prix de référence et devises pour les calculs de valeur du portefeuille."
+         data-source="CoinGecko, CoinGlass, ou prix manuels">
       <h3>💰 Pricing & Devises</h3>
       <div class="form-group">
         <label>Mode de pricing</label>
@@ -386,7 +389,8 @@
     </div>
 
     <!-- API Keys -->
-    <div class="card">
+    <div class="card" data-tooltip="Gestion sécurisée des clés API pour les exchanges et services de données (stockage local chiffré)."
+         data-source="Stockage local sécurisé + validation API">
       <h3>🔑 Clés API</h3>
 
       <div class="form-group">
@@ -457,7 +461,8 @@
     </div>
 
     <!-- Téléchargement Automatique CSV -->
-    <div class="card">
+    <div class="card" data-tooltip="Automatisation du téléchargement des fichiers CSV depuis CoinTracking avec renommage intelligent."
+         data-source="API CoinTracking + gestion fichiers locale">
       <h3>📥 Téléchargement Automatique CSV</h3>
       <div class="help" style="margin-bottom: 16px;">
         Télécharge automatiquement les derniers fichiers CSV depuis CoinTracking avec les noms corrects.
@@ -511,7 +516,8 @@
     </div>
 
     <!-- Préférences Interface -->
-    <div class="card">
+    <div class="card" data-tooltip="Personnalisation de l'interface utilisateur : thèmes, langue, format des nombres et raccourcis."
+         data-source="Préférences utilisateur locales">
       <h3>🎨 Interface & Préférences</h3>
 
       <div class="form-group">
@@ -608,7 +614,8 @@
     </div>
 
     <!-- Actions Avancées -->
-    <div class="card">
+    <div class="card" data-tooltip="Outils avancés pour maintenance, cache, et opérations système critiques (utiliser avec précaution)."
+         data-source="Fonctions système internes">
       <h3>🔧 Actions Avancées</h3>
 
       <div style="display: flex; gap: 12px; flex-wrap: wrap;">

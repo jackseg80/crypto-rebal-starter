@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="shared-theme.css">
     <link rel="stylesheet" href="theme-compat.css">
     <script type="module" src="components/nav.js"></script>
+    <script type="module" src="components/tooltips.js"></script>
 
     <script src="debug-logger.js"></script>
     <script src="input-validator.js"></script>
@@ -255,19 +256,17 @@
         }
     </style>
 
-    <!-- Navigation Simple -->
-    <link rel="stylesheet" href="simple-navigation.css">
-    <script src="simple-navigation.js"></script>
 
 </head>
 
 <body>
-    <!-- Navigation simple -->
     <div class="wrap">
         <div class="dashboard-grid">
 
             <!-- Portfolio Overview - Disposition améliorée pour gagner de la place -->
-            <div class="card" id="card-portfolio" draggable="true" style="grid-column: span 2;">
+            <div class="card" id="card-portfolio" draggable="true" style="grid-column: span 2;" 
+                 data-tooltip="Vue d'ensemble complète de votre portefeuille crypto avec répartition, métriques de performance et graphiques en temps réel." 
+                 data-source="API /balances/current + prix CoinGecko/CoinGlass">
                 <div class="card-header">
                     <div class="card-title"><span class="card-icon">💰</span>Portfolio Overview</div>
                     <div style="display:flex;gap:8px;align-items:center;">
@@ -329,7 +328,9 @@
 
 
             <!-- Execution Status -->
-            <div class="card" id="card-execution" draggable="true">
+            <div class="card" id="card-execution" draggable="true"
+                 data-tooltip="Statut des exécutions automatiques de trades avec historique des performances et volumes traités."
+                 data-source="API /execution/status + logs internes">
                 <div class="card-header">
                     <div class="card-title"><span class="card-icon">🎯</span>Execution Status</div>
                     <span class="status-badge" id="execution-status">Loading</span>
@@ -349,7 +350,9 @@
             </div>
 
             <!-- Exchange Connections -->
-            <div class="card" id="card-exchange" draggable="true">
+            <div class="card" id="card-exchange" draggable="true"
+                 data-tooltip="État des connexions avec les exchanges (Binance, KuCoin) et vérification des API keys."
+                 data-source="Tests de connectivité API en temps réel">
                 <div class="card-header">
                     <div class="card-title"><span class="card-icon">🔗</span>Exchange Status</div>
                     <a href="monitoring-unified.html" class="status-badge status-active"
@@ -361,7 +364,9 @@
             </div>
 
             <!-- Recent Activity -->
-            <div class="card" id="card-activity" draggable="true">
+            <div class="card" id="card-activity" draggable="true"
+                 data-tooltip="Historique des dernières opérations de trading, rebalancing et événements système."
+                 data-source="API /execution/history + logs système">
                 <div class="card-header">
                     <div class="card-title"><span class="card-icon">📋</span>Recent Activity</div>
                     <a href="execution_history.html" class="status-badge status-active"
@@ -373,7 +378,9 @@
             </div>
 
             <!-- System Health -->
-            <div class="card" id="card-health" draggable="true">
+            <div class="card" id="card-health" draggable="true"
+                 data-tooltip="Surveillance de la santé du système : APIs, fraîcheur des données et validateurs de sécurité."
+                 data-source="Monitoring interne + tests API">
                 <div class="card-header">
                     <div class="card-title"><span class="card-icon">❤️</span>System Health</div>
                     <span class="status-badge" id="system-health">Loading</span>
@@ -393,7 +400,9 @@
             </div>
 
             <!-- Scores -->
-            <div class="card" id="card-scores" draggable="true">
+            <div class="card" id="card-scores" draggable="true"
+                 data-tooltip="Scores de performance et métriques calculés par les algorithmes ML pour évaluer le portefeuille."
+                 data-source="API /analytics/scores + modèles ML">
                 <div class="card-header">
                     <div class="card-title"><span class="card-icon">📊</span>Scores</div>
                     <span class="status-badge" id="scores-status">Loading</span>
@@ -404,20 +413,22 @@
             </div>
 
             <!-- Debug & New Modules -->
-            <div class="card" id="card-debug" draggable="true">
+            <div class="card" id="card-debug" draggable="true"
+                 data-tooltip="Accès rapide aux outils de debug et aux nouveaux modules : Analytics, AI, Optimisation et Performance."
+                 data-source="Liens internes et outils développeur">
                 <div class="card-header">
                     <div class="card-title"><span class="card-icon">🔧</span>Debug & Nouveaux Modules</div>
                     <a href="debug-menu.html" class="status-badge status-active" style="text-decoration:none;">Menu
                         Complet</a>
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px;">
-                    <a href="multi-asset-dashboard.html"
+                    <a href="analytics-unified.html"
                         style="color: var(--theme-accent); text-decoration: none; padding: 8px; border: 1px solid var(--theme-border); border-radius: 6px; text-align: center; font-size: 0.9em;">
-                        💰 Multi-Assets
+                        📊 Analytics
                     </a>
-                    <a href="enhanced-dashboard.html"
+                    <a href="ai-dashboard.html"
                         style="color: var(--theme-accent); text-decoration: none; padding: 8px; border: 1px solid var(--theme-border); border-radius: 6px; text-align: center; font-size: 0.9em;">
-                        📊 Charts Avancés
+                        🤖 AI Dashboard
                     </a>
                     <a href="portfolio-optimization.html"
                         style="color: var(--theme-accent); text-decoration: none; padding: 8px; border: 1px solid var(--theme-border); border-radius: 6px; text-align: center; font-size: 0.9em;">
@@ -768,7 +779,7 @@
                            style="display: inline-block; background: var(--brand-primary); color: white;
                                   padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md);
                                   text-decoration: none; font-weight: 600;">
-                            📈 Voir Risk Dashboard
+                            📈 Voir Risk Analytics
                         </a>
                     </div>
                 `;
@@ -1463,23 +1474,6 @@
 
     </script>
 
-    <script>
-        // Initialisation de la navigation thématique
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('Initializing themed navigation...');
-            
-            // Attendre que tous les scripts soient chargés
-            setTimeout(() => {
-                if (typeof createSimpleNavigation !== 'undefined') {
-                    console.log('Creating simple navigation...');
-                    window.simpleNavigation = createSimpleNavigation('dashboard');
-                    console.log('Simple navigation created:', window.simpleNavigation);
-                } else {
-                    console.error('createSimpleNavigation function not found');
-                }
-            }, 100);
-        });
-    </script>
 </body>
 
 </html>
