@@ -55,6 +55,7 @@ from api.portfolio_optimization_endpoints import router as portfolio_optimizatio
 from api.advanced_analytics_endpoints import router as advanced_analytics_router
 from api.performance_endpoints import router as performance_router
 from api.ml_endpoints import router as ml_router
+from api.unified_ml_endpoints import router as unified_ml_router
 from api.multi_asset_endpoints import router as multi_asset_router
 from api.backtesting_endpoints import router as backtesting_router
 from api.exceptions import (
@@ -1344,6 +1345,7 @@ app.include_router(csv_router)
 app.include_router(portfolio_optimization_router)
 app.include_router(performance_router)
 app.include_router(ml_router)
+app.include_router(unified_ml_router)
 app.include_router(multi_asset_router)
 app.include_router(backtesting_router)
 app.include_router(advanced_analytics_router)

@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧠 ML Pipeline Unifié - Crypto Rebalancer</title>
+    
+    <link rel="stylesheet" href="shared-theme.css">
+    <link rel="stylesheet" href="theme-compat.css">
+    
+    <!-- Scripts de base -->
+    <script src="debug-logger.js"></script>
+    <script src="global-config.js"></script>
+    <script src="appearance.js"></script>
+    
+    <!-- Navigation unifiée -->
+    <script type="module" src="components/nav.js"></script>
+    
+    <style>
+        body {
+            margin: 0;
+            background: var(--theme-background);
+            color: var(--theme-text);
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .pipeline-header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding: 2rem;
+            background: var(--theme-surface);
+            border-radius: 12px;
+            border: 1px solid var(--theme-border);
+        }
+        
+        .pipeline-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+        
+        .pipeline-card {
+            background: var(--theme-surface);
+            border: 1px solid var(--theme-border);
+            border-radius: 12px;
+            padding: 2rem;
+            transition: all 0.3s ease;
+        }
+        
+        .pipeline-card:hover {
+            border-color: var(--accent-color, #3b82f6);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .card-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .status-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+        
+        .status-item {
+            padding: 1rem;
+            background: var(--theme-background);
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .status-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--accent-color, #3b82f6);
+        }
+        
+        .status-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-top: 0.5rem;
+        }
+        
+        .actions-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        
+        .btn {
+            padding: 0.8rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn-primary {
+            background: var(--accent-color, #3b82f6);
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: var(--theme-background);
+            color: var(--theme-text);
+            border: 1px solid var(--theme-border);
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid transparent;
+            border-top: 2px solid currentColor;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .log-panel {
+            background: var(--theme-surface);
+            border: 1px solid var(--theme-border);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-top: 2rem;
+        }
+        
+        .log-content {
+            background: var(--theme-background);
+            border-radius: 8px;
+            padding: 1rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid var(--theme-border);
+        }
+        
+        .log-entry {
+            margin-bottom: 0.5rem;
+            opacity: 0.9;
+        }
+        
+        .log-timestamp {
+            color: var(--accent-color, #3b82f6);
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="pipeline-header">
+            <h1>🧠 Pipeline ML Unifié</h1>
+            <p>Gestion centralisée des modèles de Machine Learning pour le crypto rebalancing</p>
+            <div style="margin-top: 1.5rem;">
+                <button class="btn btn-primary" onclick="refreshAllStatus()">
+                    🔄 Actualiser le Statut
+                </button>
+                <button class="btn btn-secondary" onclick="loadAllModels()">
+                    ⚡ Charger Tous les Modèles
+                </button>
+            </div>
+        </div>
+        
+        <div class="pipeline-grid">
+            <!-- Statut Global -->
+            <div class="pipeline-card">
+                <div class="card-title">
+                    📊 Statut Global
+                </div>
+                <div class="status-grid">
+                    <div class="status-item">
+                        <div class="status-value" id="total-models">-</div>
+                        <div class="status-label">Modèles Disponibles</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-value" id="loaded-models">-</div>
+                        <div class="status-label">Modèles Chargés</div>
+                    </div>
+                </div>
+                <div class="actions-grid">
+                    <button class="btn btn-primary" onclick="getLoadedModels()">
+                        📋 Modèles Chargés
+                    </button>
+                    <button class="btn btn-secondary" onclick="clearAllModels()">
+                        🗑️ Vider Mémoire
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Modèles de Volatilité -->
+            <div class="pipeline-card">
+                <div class="card-title">
+                    📈 Modèles de Volatilité
+                </div>
+                <div class="status-grid">
+                    <div class="status-item">
+                        <div class="status-value" id="volatility-count">-</div>
+                        <div class="status-label">Modèles Disponibles</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-value" id="volatility-loaded">-</div>
+                        <div class="status-label">Modèles Chargés</div>
+                    </div>
+                </div>
+                <div class="actions-grid">
+                    <button class="btn btn-primary" onclick="loadVolatilityModels()">
+                        ⚡ Charger Tous
+                    </button>
+                    <button class="btn btn-secondary" onclick="loadSpecificSymbols()">
+                        🎯 Charger Sélection
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Détection de Régime -->
+            <div class="pipeline-card">
+                <div class="card-title">
+                    🎯 Détection de Régime
+                </div>
+                <div class="status-grid">
+                    <div class="status-item">
+                        <div class="status-value" id="regime-available">-</div>
+                        <div class="status-label">Modèle Disponible</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-value" id="regime-loaded">-</div>
+                        <div class="status-label">Modèle Chargé</div>
+                    </div>
+                </div>
+                <div class="actions-grid">
+                    <button class="btn btn-primary" onclick="loadRegimeModel()">
+                        ⚡ Charger Modèle
+                    </button>
+                    <button class="btn btn-secondary" onclick="getRegimeStatus()">
+                        📊 Statut Détaillé
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Performance -->
+            <div class="pipeline-card">
+                <div class="card-title">
+                    📊 Performance Système
+                </div>
+                <div class="status-grid">
+                    <div class="status-item">
+                        <div class="status-value" id="cache-entries">-</div>
+                        <div class="status-label">Entrées Cache</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-value" id="last-update">-</div>
+                        <div class="status-label">Dernière MAJ</div>
+                    </div>
+                </div>
+                <div class="actions-grid">
+                    <button class="btn btn-primary" onclick="getPerformanceSummary()">
+                        📈 Performance
+                    </button>
+                    <button class="btn btn-secondary" onclick="clearMLCache()">
+                        🧹 Vider Cache
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Panneau de logs -->
+        <div class="log-panel">
+            <div class="card-title">
+                📝 Journal d'Activité
+            </div>
+            <div class="log-content" id="log-content">
+                <div class="log-entry">
+                    <span class="log-timestamp">[--:--:--]</span> Prêt à démarrer le pipeline ML unifié
+                </div>
+            </div>
+            <div style="margin-top: 1rem; text-align: right;">
+                <button class="btn btn-secondary" onclick="clearLogs()" style="padding: 0.5rem 1rem; font-size: 0.9rem;">
+                    🗑️ Vider les Logs
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = 'http://localhost:8000/api/ml/unified';
+        
+        // Logging system
+        function addLog(message, type = 'info') {
+            const logContent = document.getElementById('log-content');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            logEntry.innerHTML = `<span class="log-timestamp">[${timestamp}]</span> ${message}`;
+            
+            logContent.appendChild(logEntry);
+            logContent.scrollTop = logContent.scrollHeight;
+            
+            // Limiter à 50 entrées
+            const entries = logContent.querySelectorAll('.log-entry');
+            if (entries.length > 50) {
+                entries[0].remove();
+            }
+        }
+        
+        function clearLogs() {
+            document.getElementById('log-content').innerHTML = 
+                '<div class="log-entry"><span class="log-timestamp">[--:--:--]</span> Logs vidés</div>';
+        }
+        
+        // API calls
+        async function apiCall(endpoint, options = {}) {
+            try {
+                const response = await fetch(`${API_BASE}${endpoint}`, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
+                    ...options
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                return await response.json();
+            } catch (error) {
+                addLog(`Erreur API ${endpoint}: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+        
+        // Status updates
+        async function refreshAllStatus() {
+            addLog('🔄 Actualisation du statut global...');
+            
+            try {
+                const status = await apiCall('/status');
+                const pipelineStatus = status.pipeline_status;
+                
+                // Statut global
+                document.getElementById('total-models').textContent = pipelineStatus.total_models_count;
+                document.getElementById('loaded-models').textContent = pipelineStatus.loaded_models_count;
+                
+                // Volatilité
+                document.getElementById('volatility-count').textContent = pipelineStatus.volatility_models.models_count;
+                document.getElementById('volatility-loaded').textContent = pipelineStatus.volatility_models.models_loaded;
+                
+                // Régime
+                document.getElementById('regime-available').textContent = pipelineStatus.regime_models.model_exists ? 'Oui' : 'Non';
+                document.getElementById('regime-loaded').textContent = pipelineStatus.regime_models.model_loaded ? 'Oui' : 'Non';
+                
+                // Dernière mise à jour
+                const lastUpdate = pipelineStatus.volatility_models.last_updated || pipelineStatus.regime_models.last_updated;
+                if (lastUpdate) {
+                    document.getElementById('last-update').textContent = new Date(lastUpdate).toLocaleDateString();
+                }
+                
+                addLog('✅ Statut actualisé avec succès');
+                
+            } catch (error) {
+                addLog('❌ Erreur lors de l\'actualisation du statut');
+            }
+        }
+        
+        // Model loading functions
+        async function loadVolatilityModels() {
+            const btn = event.target;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading"></span> Chargement...';
+            
+            addLog('⚡ Début du chargement des modèles de volatilité...');
+            
+            try {
+                const result = await apiCall('/models/load-volatility', {
+                    method: 'POST'
+                });
+                
+                if (result.estimated_duration_minutes) {
+                    addLog(`🔄 Chargement en arrière-plan (durée estimée: ${result.estimated_duration_minutes} min)`);
+                } else {
+                    addLog(`✅ ${result.loaded_models}/${result.total_attempted} modèles de volatilité chargés`);
+                }
+                
+                await refreshAllStatus();
+                
+            } catch (error) {
+                addLog('❌ Erreur lors du chargement des modèles de volatilité');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '⚡ Charger Tous';
+            }
+        }
+        
+        async function loadRegimeModel() {
+            const btn = event.target;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading"></span> Chargement...';
+            
+            addLog('🎯 Chargement du modèle de détection de régime...');
+            
+            try {
+                const result = await apiCall('/models/load-regime', {
+                    method: 'POST'
+                });
+                
+                addLog('✅ Modèle de régime chargé avec succès');
+                await refreshAllStatus();
+                
+            } catch (error) {
+                addLog('❌ Erreur lors du chargement du modèle de régime');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '⚡ Charger Modèle';
+            }
+        }
+        
+        async function getLoadedModels() {
+            addLog('📋 Récupération de la liste des modèles chargés...');
+            
+            try {
+                const result = await apiCall('/models/loaded');
+                const loadedModels = result.loaded_models;
+                
+                addLog(`📊 ${loadedModels.total_loaded} modèles chargés en mémoire`);
+                
+                for (const [type, count] of Object.entries(loadedModels.by_type)) {
+                    addLog(`  • ${type}: ${count} modèles`);
+                }
+                
+            } catch (error) {
+                addLog('❌ Erreur lors de la récupération des modèles chargés');
+            }
+        }
+        
+        async function clearAllModels() {
+            if (!confirm('Êtes-vous sûr de vouloir vider tous les modèles de la mémoire ?')) {
+                return;
+            }
+            
+            addLog('🗑️ Vidage de tous les modèles de la mémoire...');
+            
+            try {
+                const result = await apiCall('/models/clear-all', {
+                    method: 'DELETE'
+                });
+                
+                addLog(`✅ ${result.cleared_count} modèles supprimés de la mémoire`);
+                await refreshAllStatus();
+                
+            } catch (error) {
+                addLog('❌ Erreur lors du vidage des modèles');
+            }
+        }
+        
+        async function getPerformanceSummary() {
+            addLog('📈 Récupération du résumé de performance...');
+            
+            try {
+                const result = await apiCall('/performance/summary');
+                const summary = result.summary;
+                
+                addLog(`📊 Performance: ${summary.total_loaded_models} modèles chargés`);
+                addLog(`📈 ${summary.performance_data_available} ensembles de métriques disponibles`);
+                
+            } catch (error) {
+                addLog('❌ Erreur lors de la récupération des performances');
+            }
+        }
+        
+        async function clearMLCache() {
+            addLog('🧹 Vidage du cache ML...');
+            
+            try {
+                const result = await apiCall('/cache/clear', {
+                    method: 'POST'
+                });
+                
+                addLog(`✅ ${result.cleared_entries} entrées de cache supprimées`);
+                
+            } catch (error) {
+                addLog('❌ Erreur lors du vidage du cache');
+            }
+        }
+        
+        function loadSpecificSymbols() {
+            const symbols = prompt('Entrez les symboles séparés par des virgules (ex: BTC,ETH,SOL):');
+            if (!symbols) return;
+            
+            const symbolList = symbols.split(',').map(s => s.trim().toUpperCase());
+            addLog(`🎯 Chargement des modèles pour: ${symbolList.join(', ')}`);
+            
+            // TODO: Implémenter le chargement de symboles spécifiques
+            addLog('⚠️ Fonction en cours d\'implémentation');
+        }
+        
+        function loadAllModels() {
+            addLog('⚡ Démarrage du chargement de tous les modèles...');
+            loadVolatilityModels();
+            setTimeout(() => loadRegimeModel(), 1000);
+        }
+        
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', function() {
+            addLog('🚀 Dashboard ML unifié initialisé');
+            setTimeout(refreshAllStatus, 500);
+        });
+    </script>
+</body>
+</html>

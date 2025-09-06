@@ -10,10 +10,14 @@ import logging
 from datetime import datetime, timedelta
 import math
 import statistics
+from api.utils.cache import cache_get, cache_set, cache_clear_expired
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/analytics/advanced", tags=["advanced-analytics"])
+
+# Cache pour les analytics avancés
+_advanced_cache = {}
 
 class DrawdownPeriod(BaseModel):
     """Période de drawdown détaillée"""
@@ -76,12 +80,23 @@ async def get_advanced_metrics(
     """
     Calculer les métriques de performance avancées
     """
+    # Vérifier le cache (TTL de 15 minutes pour les métriques complexes)
+    cache_key = f"advanced_metrics_{days}_{benchmark or 'none'}"
+    cached_result = cache_get(_advanced_cache, cache_key, 900)
+    if cached_result:
+        logger.info(f"Returning cached advanced metrics for {days} days")
+        return cached_result
+    
     try:
         # Générer des données simulées pour la démo
         mock_data = _generate_mock_performance_data(days)
         
         # Calculer les métriques avancées
         metrics = _calculate_advanced_metrics(mock_data)
+        
+        # Mettre en cache le résultat
+        cache_set(_advanced_cache, cache_key, metrics)
+        cache_clear_expired(_advanced_cache, 900)
         
         return metrics
         
@@ -97,6 +112,13 @@ async def get_timeseries_data(
     """
     Récupérer les données de série temporelle pour les graphiques
     """
+    # Vérifier le cache (TTL de 10 minutes pour les données de série)
+    cache_key = f"timeseries_{days}_{granularity}"
+    cached_result = cache_get(_advanced_cache, cache_key, 600)
+    if cached_result:
+        logger.info(f"Returning cached timeseries data for {days} days")
+        return cached_result
+    
     try:
         mock_data = _generate_mock_performance_data(days)
         
@@ -109,6 +131,10 @@ async def get_timeseries_data(
             rolling_sharpe=mock_data["rolling_sharpe"],
             rolling_volatility=mock_data["rolling_volatility"]
         )
+        
+        # Mettre en cache le résultat
+        cache_set(_advanced_cache, cache_key, timeseries)
+        cache_clear_expired(_advanced_cache, 600)
         
         return timeseries
         

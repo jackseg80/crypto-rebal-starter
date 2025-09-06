@@ -13,10 +13,14 @@ from datetime import datetime
 
 from services.analytics.history_manager import history_manager, SessionStatus, PortfolioSnapshot
 from services.analytics.performance_tracker import performance_tracker
+from api.utils.cache import cache_get, cache_set, cache_clear_expired
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
+
+# Cache pour les analytics
+_analytics_cache = {}
 
 # Models pour les requêtes/réponses
 class PortfolioSnapshotRequest(BaseModel):
@@ -319,8 +323,20 @@ async def get_performance_summary(days_back: int = Query(default=30, ge=1, le=36
     
     Calcule les métriques de performance globales pour la période donnée.
     """
+    # Vérifier le cache (TTL de 5 minutes pour les résumés)
+    cache_key = f"perf_summary_{days_back}"
+    cached_result = cache_get(_analytics_cache, cache_key, 300)
+    if cached_result:
+        logger.info(f"Returning cached performance summary for {days_back} days")
+        return cached_result
+    
     try:
         summary = history_manager.get_performance_summary(days_back=days_back)
+        
+        # Mettre en cache le résultat
+        cache_set(_analytics_cache, cache_key, summary)
+        cache_clear_expired(_analytics_cache, 300)
+        
         return summary
         
     except Exception as e:
@@ -335,6 +351,13 @@ async def get_detailed_performance_analysis(days_back: int = Query(default=30, g
     Analyse avancée des performances avec comparaison des stratégies
     et recommandations d'optimisation.
     """
+    # Vérifier le cache (TTL de 10 minutes pour les analyses détaillées)
+    cache_key = f"perf_detailed_{days_back}"
+    cached_result = cache_get(_analytics_cache, cache_key, 600)
+    if cached_result:
+        logger.info(f"Returning cached detailed analysis for {days_back} days")
+        return cached_result
+    
     try:
         # Obtenir les sessions pour la période
         sessions = history_manager.get_recent_sessions(days_back=days_back)

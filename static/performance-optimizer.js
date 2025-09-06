@@ -8,11 +8,175 @@
  * - Web Workers pour calculs lourds
  */
 
+// Lazy Loading System intégré
+class LazyLoadManager {
+    constructor() {
+        this.lazyElements = new Map();
+        this.intersectionObserver = this.setupIntersectionObserver();
+        this.loadedResources = new Set();
+    }
+
+    setupIntersectionObserver() {
+        if (!window.IntersectionObserver) return null;
+        
+        return new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    this.loadLazyElement(entry.target);
+                }
+            });
+        }, {
+            rootMargin: '100px',
+            threshold: 0.1
+        });
+    }
+
+    markForLazyLoad(element, type, source) {
+        if (!this.intersectionObserver) return;
+        
+        element.dataset.lazyType = type;
+        element.dataset.lazySrc = source;
+        this.lazyElements.set(element, { type, source, loaded: false });
+        this.intersectionObserver.observe(element);
+    }
+
+    async loadLazyElement(element) {
+        const lazyData = this.lazyElements.get(element);
+        if (!lazyData || lazyData.loaded) return;
+
+        const { type, source } = lazyData;
+        
+        try {
+            switch (type) {
+                case 'script':
+                    await this.loadScript(source);
+                    break;
+                case 'component':
+                    await this.loadComponent(element, source);
+                    break;
+                case 'data':
+                    await this.loadData(element, source);
+                    break;
+            }
+            
+            lazyData.loaded = true;
+            element.classList.add('lazy-loaded');
+            this.intersectionObserver.unobserve(element);
+            
+        } catch (error) {
+            console.error(`Failed to lazy load ${type}:`, error);
+            element.classList.add('lazy-error');
+        }
+    }
+
+    async loadScript(src) {
+        if (this.loadedResources.has(src)) return;
+        
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = src;
+            script.onload = () => {
+                this.loadedResources.add(src);
+                resolve();
+            };
+            script.onerror = reject;
+            document.head.appendChild(script);
+        });
+    }
+
+    async loadComponent(element, componentName) {
+        // Charger les composants spécialisés selon le besoin
+        if (componentName === 'Chart' && !window.Chart) {
+            await this.loadScript('https://cdn.jsdelivr.net/npm/chart.js');
+        }
+        
+        // Initialiser le composant
+        const event = new CustomEvent('lazyComponentLoaded', {
+            detail: { element, componentName }
+        });
+        element.dispatchEvent(event);
+    }
+
+    async loadData(element, dataSource) {
+        const loadingIndicator = element.querySelector('.loading-placeholder');
+        if (loadingIndicator) {
+            loadingIndicator.style.display = 'block';
+        }
+
+        try {
+            const response = await fetch(dataSource);
+            const data = await response.json();
+            
+            const event = new CustomEvent('lazyDataLoaded', {
+                detail: { element, data }
+            });
+            element.dispatchEvent(event);
+            
+        } finally {
+            if (loadingIndicator) {
+                loadingIndicator.style.display = 'none';
+            }
+        }
+    }
+
+    // Optimisation pour les grandes listes
+    setupVirtualScrolling(container, items, renderItem, itemHeight = 50) {
+        const visibleCount = Math.ceil(container.clientHeight / itemHeight) + 2;
+        let startIndex = 0;
+        
+        const scrollHandler = () => {
+            const scrollTop = container.scrollTop;
+            const newStartIndex = Math.floor(scrollTop / itemHeight);
+            
+            if (newStartIndex !== startIndex) {
+                startIndex = newStartIndex;
+                this.renderVisibleItems(container, items, renderItem, startIndex, visibleCount, itemHeight);
+            }
+        };
+        
+        container.addEventListener('scroll', this.debounce(scrollHandler, 16));
+        
+        // Rendu initial
+        this.renderVisibleItems(container, items, renderItem, startIndex, visibleCount, itemHeight);
+    }
+
+    renderVisibleItems(container, items, renderItem, startIndex, visibleCount, itemHeight) {
+        const endIndex = Math.min(startIndex + visibleCount, items.length);
+        
+        container.innerHTML = '';
+        container.style.height = `${items.length * itemHeight}px`;
+        container.style.position = 'relative';
+        
+        for (let i = startIndex; i < endIndex; i++) {
+            const item = renderItem(items[i], i);
+            item.style.position = 'absolute';
+            item.style.top = `${i * itemHeight}px`;
+            item.style.height = `${itemHeight}px`;
+            container.appendChild(item);
+        }
+    }
+
+    debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+}
+
 class PerformanceOptimizer {
     constructor() {
         this.cache = new Map();
         this.cacheTTL = 5 * 60 * 1000; // 5 minutes
         this.debounceTimers = new Map();
+        
+        // Initialiser le gestionnaire de lazy loading
+        this.lazyLoadManager = new LazyLoadManager();
         
         // Seuils de performance
         this.thresholds = {
@@ -28,10 +192,207 @@ class PerformanceOptimizer {
             cache_hits: 0,
             cache_misses: 0,
             render_batches: 0,
-            worker_computations: 0
+            worker_computations: 0,
+            lazy_loads: 0
         };
         
+        // Initialiser l'optimisation automatique des pages
+        this.initPageOptimization();
+        
         log.info('PerformanceOptimizer initialized with thresholds:', this.thresholds);
+    }
+    
+    /**
+     * Initialiser l'optimisation automatique des pages
+     */
+    initPageOptimization() {
+        // Attendre que le DOM soit prêt
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => this.optimizeCurrentPage());
+        } else {
+            this.optimizeCurrentPage();
+        }
+    }
+    
+    /**
+     * Optimiser la page courante
+     */
+    optimizeCurrentPage() {
+        // Identifier et optimiser les sections lourdes
+        this.optimizeCharts();
+        this.optimizeTables();
+        this.optimizeImages();
+        this.setupSmartPagination();
+        
+        log.info('Page optimization completed');
+    }
+    
+    /**
+     * Optimiser les graphiques pour le lazy loading
+     */
+    optimizeCharts() {
+        const chartSelectors = [
+            'canvas[id*="chart"]',
+            '.chart-container:not([data-critical])',
+            '[data-chart-type]'
+        ];
+        
+        chartSelectors.forEach(selector => {
+            document.querySelectorAll(selector).forEach(element => {
+                if (!element.dataset.optimized) {
+                    this.lazyLoadManager.markForLazyLoad(element, 'component', 'Chart');
+                    element.dataset.optimized = 'true';
+                }
+            });
+        });
+    }
+    
+    /**
+     * Optimiser les tables avec beaucoup de données
+     */
+    optimizeTables() {
+        document.querySelectorAll('table.data-table, .large-table').forEach(table => {
+            const rows = table.querySelectorAll('tbody tr');
+            
+            if (rows.length > this.thresholds.pagination_size) {
+                this.setupTablePagination(table, rows);
+            }
+        });
+    }
+    
+    /**
+     * Optimiser les images
+     */
+    optimizeImages() {
+        document.querySelectorAll('img:not([loading])').forEach(img => {
+            const rect = img.getBoundingClientRect();
+            const isVisible = rect.top < window.innerHeight && rect.bottom > 0;
+            
+            if (!isVisible) {
+                img.loading = 'lazy';
+            }
+        });
+    }
+    
+    /**
+     * Configurer la pagination intelligente pour une table
+     */
+    setupTablePagination(table, rows) {
+        const container = table.parentElement;
+        const tbody = table.querySelector('tbody');
+        const pageSize = this.thresholds.pagination_size;
+        
+        // Créer les contrôles de pagination
+        const paginationControls = this.createPaginationControls(rows.length, pageSize);
+        container.appendChild(paginationControls);
+        
+        // Fonction de rendu de page
+        const renderPage = (pageIndex) => {
+            const start = pageIndex * pageSize;
+            const end = Math.min(start + pageSize, rows.length);
+            
+            // Cacher toutes les lignes
+            rows.forEach(row => row.style.display = 'none');
+            
+            // Afficher les lignes de la page courante
+            for (let i = start; i < end; i++) {
+                rows[i].style.display = '';
+            }
+            
+            this.stats.render_batches++;
+        };
+        
+        // Rendu initial
+        renderPage(0);
+        
+        // Configuration des événements de pagination
+        this.setupPaginationEvents(paginationControls, rows.length, pageSize, renderPage);
+    }
+    
+    /**
+     * Créer les contrôles de pagination
+     */
+    createPaginationControls(totalItems, pageSize) {
+        const totalPages = Math.ceil(totalItems / pageSize);
+        
+        const container = document.createElement('div');
+        container.className = 'pagination-controls';
+        container.style.cssText = `
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            margin: 1rem 0;
+            align-items: center;
+        `;
+        
+        // Bouton précédent
+        const prevBtn = document.createElement('button');
+        prevBtn.className = 'btn btn-secondary pagination-prev';
+        prevBtn.textContent = '« Précédent';
+        prevBtn.disabled = true;
+        
+        // Indicateur de page
+        const pageIndicator = document.createElement('span');
+        pageIndicator.className = 'page-indicator';
+        pageIndicator.textContent = `1 / ${totalPages}`;
+        pageIndicator.style.cssText = 'margin: 0 1rem; font-weight: 500;';
+        
+        // Bouton suivant
+        const nextBtn = document.createElement('button');
+        nextBtn.className = 'btn btn-secondary pagination-next';
+        nextBtn.textContent = 'Suivant »';
+        nextBtn.disabled = totalPages <= 1;
+        
+        container.append(prevBtn, pageIndicator, nextBtn);
+        return container;
+    }
+    
+    /**
+     * Configurer les événements de pagination
+     */
+    setupPaginationEvents(controls, totalItems, pageSize, renderPage) {
+        const totalPages = Math.ceil(totalItems / pageSize);
+        let currentPage = 0;
+        
+        const prevBtn = controls.querySelector('.pagination-prev');
+        const nextBtn = controls.querySelector('.pagination-next');
+        const indicator = controls.querySelector('.page-indicator');
+        
+        const updateControls = () => {
+            prevBtn.disabled = currentPage === 0;
+            nextBtn.disabled = currentPage === totalPages - 1;
+            indicator.textContent = `${currentPage + 1} / ${totalPages}`;
+        };
+        
+        prevBtn.addEventListener('click', () => {
+            if (currentPage > 0) {
+                currentPage--;
+                renderPage(currentPage);
+                updateControls();
+            }
+        });
+        
+        nextBtn.addEventListener('click', () => {
+            if (currentPage < totalPages - 1) {
+                currentPage++;
+                renderPage(currentPage);
+                updateControls();
+            }
+        });
+    }
+    
+    /**
+     * Configurer la pagination intelligente
+     */
+    setupSmartPagination() {
+        // Auto-détecter les contenus qui bénéficieraient de la pagination
+        document.querySelectorAll('.portfolio-list, .assets-list').forEach(list => {
+            const items = list.querySelectorAll('.portfolio-item, .asset-item');
+            
+            if (items.length > this.thresholds.pagination_size) {
+                this.convertToPaginatedList(list, items);
+            }
+        });
     }
     
     /**

@@ -21,9 +21,13 @@ from services.ml.data_pipeline import MLDataPipeline
 from services.ml_models import ml_pipeline  # Import the ML pipeline
 from services.price_history import get_cached_history
 from connectors.cointracking_api import get_current_balances
+from api.utils.cache import cache_get, cache_set, cache_clear_expired
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ml", tags=["Machine Learning"])
+
+# Cache pour les endpoints ML
+_ml_cache = {}
 
 # Initialize ML components
 volatility_predictor = VolatilityPredictor()
@@ -113,14 +117,27 @@ async def get_unified_ml_status():
     """
     Get comprehensive status of unified ML system
     """
+    # Vérifier le cache (TTL de 2 minutes pour le statut)
+    cache_key = "unified_ml_status"
+    cached_result = cache_get(_ml_cache, cache_key, 120)
+    if cached_result:
+        logger.info("Returning cached unified ML status")
+        return cached_result
+    
     try:
         status = await get_ml_status()
         
-        return {
+        result = {
             "success": True,
             "ml_system_status": status
         }
         
+        # Mettre en cache le résultat
+        cache_set(_ml_cache, cache_key, result)
+        cache_clear_expired(_ml_cache, 120)
+        
+        return result
+                
     except Exception as e:
         logger.error(f"Failed to get ML status: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Status check failed: {str(e)}")
@@ -450,6 +467,12 @@ async def get_models_status():
     """
     Get ML models training and loading status
     """
+    # Vérifier le cache (TTL de 3 minutes pour le statut des modèles)
+    cache_key = "models_status"
+    cached_result = cache_get(_ml_cache, cache_key, 180)
+    if cached_result:
+        logger.info("Returning cached models status")
+        return cached_result
     
     from pathlib import Path
     
@@ -482,7 +505,16 @@ async def get_models_status():
         except Exception as e:
             status["load_error"] = str(e)
     
-    return status
+    result = {
+        "success": True,
+        "models_status": status
+    }
+    
+    # Mettre en cache le résultat
+    cache_set(_ml_cache, cache_key, result)
+    cache_clear_expired(_ml_cache, 180)
+    
+    return result
 
 @router.delete("/models/clear")
 async def clear_models():
