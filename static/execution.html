@@ -194,24 +194,6 @@
     }
   </style>
 
-    <!-- Navigation Simple -->
-    <link rel="stylesheet" href="simple-navigation.css">
-    <script src="simple-navigation.js"></script>
-    <link rel="stylesheet" href="navigation-fix.css">
-
-    <style>
-        /* Ajustement pour la navigation simple */
-        body.has-simple-nav {
-            margin-left: 80px;
-        }
-        
-        /* Responsive pour mobile */
-        @media (max-width: 768px) {
-            body.has-simple-nav {
-                margin-left: 0;
-            }
-        }
-    </style>
 </head>
 
 <body>
@@ -321,7 +303,62 @@
       <div id="tab-history" class="tab-content">
         <div class="section">
           <div class="section-content">
-            <iframe src="archive/execution_history.html?nav=off" style="width:100%; height:75vh; border:0; background:var(--theme-surface)"></iframe>
+            <h3 style="margin-top:0">📋 Historique d'Exécution</h3>
+            <p style="color: var(--theme-text-muted); margin-bottom:1rem;">Historique détaillé des sessions d'exécution et des ordres</p>
+            <div id="history-inline" class="panel-card" style="padding:var(--space-lg); border:1px solid var(--theme-border); border-radius:var(--radius-md); background: var(--theme-surface);">
+              <div id="history-status" style="color:var(--theme-text-muted)">Chargement…</div>
+              <div id="history-list" style="margin-top:1rem"></div>
+            </div>
+            <div style="text-align:right; margin-top:.5rem;">
+              <a href="execution_history.html" target="_blank" style="color: var(--theme-text-muted); text-decoration: none;">Ouvrir l'historique complet ↗</a>
+            </div>
+            <script>
+              (function(){
+                async function loadHistory() {
+                  const status = document.getElementById('history-status');
+                  const list = document.getElementById('history-list');
+                  try {
+                    const base = (window.globalConfig && globalConfig.get('api_base_url')) || '';
+                    const url = (window.globalConfig && globalConfig.getApiUrl) ? globalConfig.getApiUrl('/api/execution/history/sessions', { limit: 20 }) : (base + '/api/execution/history/sessions?limit=20');
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    const data = await res.json();
+                    const sessions = data.sessions || [];
+                    if (!sessions.length) {
+                      status.textContent = 'Aucune session récente';
+                      return;
+                    }
+                    status.textContent = '';
+                    const rows = sessions.map(s => `
+                      <tr>
+                        <td>${new Date(s.timestamp).toLocaleString('fr-FR')}</td>
+                        <td>${s.exchange || '-'}</td>
+                        <td>${s.total_orders}</td>
+                        <td>${(s.successful_orders || 0)}/${s.total_orders}</td>
+                        <td>${(s.total_volume_usd || 0).toLocaleString('fr-FR', { style:'currency', currency:'USD' })}</td>
+                        <td>${(s.total_fees || 0).toFixed(2)}</td>
+                        <td>${(s.avg_slippage_bps || 0)} bps</td>
+                      </tr>
+                    `).join('');
+                    list.innerHTML = `
+                      <div style="overflow:auto;">
+                        <table class="table" style="width:100%; border-collapse:collapse;">
+                          <thead>
+                            <tr>
+                              <th>Date</th><th>Exchange</th><th>Ordres</th><th>Succès</th><th>Volume</th><th>Frais</th><th>Slippage</th>
+                            </tr>
+                          </thead>
+                          <tbody>${rows}</tbody>
+                        </table>
+                      </div>`;
+                  } catch (e) {
+                    status.textContent = "Impossible de charger l'historique. Ouvrez la page complète ↗";
+                    console.warn('History inline load failed:', e);
+                  }
+                }
+                loadHistory();
+              })();
+            </script>
           </div>
         </div>
       </div>

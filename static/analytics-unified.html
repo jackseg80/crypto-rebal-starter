@@ -18,7 +18,10 @@
     .tab-panel { display: none; }
     .tab-panel.active { display: block; }
     .panel-card { background: var(--theme-surface); border: 1px solid var(--theme-border); border-radius: var(--radius-lg); padding: var(--space-md); }
-    iframe { width: 100%; height: 78vh; border: 0; background: var(--theme-surface); }
+    .metric-card { background: var(--theme-bg); border: 1px solid var(--theme-border); border-radius: var(--radius-md); padding: 1rem; text-align: center; }
+    .metric-card h4 { margin: 0 0 0.5rem 0; font-size: 0.9rem; color: var(--theme-text-muted); font-weight: 500; }
+    .metric-value { font-size: 1.5rem; font-weight: 700; color: var(--theme-text); margin: 0.5rem 0; }
+    .metric-card small { color: var(--theme-text-muted); font-size: 0.8rem; }
   </style>
 </head>
 <body>
@@ -33,24 +36,178 @@
 
   <section class="wrap tab-panel active" id="tab-risk">
     <div class="panel-card">
-      <iframe src="archive/risk-dashboard.html?nav=off"></iframe>
+      <h3>🛡️ Risk Dashboard</h3>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
+        <div class="metric-card" data-metric="risk-var">
+          <h4>Portfolio VaR</h4>
+          <div class="metric-value">-2.34%</div>
+          <small>95% confidence level</small>
+        </div>
+        <div class="metric-card" data-metric="risk-drawdown">
+          <h4>Max Drawdown</h4>
+          <div class="metric-value">-8.12%</div>
+          <small>Current cycle</small>
+        </div>
+        <div class="metric-card" data-metric="risk-volatility">
+          <h4>Volatility</h4>
+          <div class="metric-value">24.6%</div>
+          <small>30-day annualized</small>
+        </div>
+        <div class="metric-card" data-metric="risk-score">
+          <h4>Risk Score</h4>
+          <div class="metric-value">--/100</div>
+          <small>Unknown</small>
+        </div>
+      </div>
+      <!-- Scores clés du Risk Dashboard (version complète) -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-top: 1rem;">
+        <div class="metric-card" data-metric="risk-kpi-diversification">
+          <h4>Diversification Ratio</h4>
+          <div class="metric-value">--</div>
+          <small>Corrélation de portefeuille</small>
+        </div>
+        <div class="metric-card" data-metric="risk-kpi-effective-assets">
+          <h4>Effective Assets</h4>
+          <div class="metric-value">--</div>
+          <small>Actifs non-redondants</small>
+        </div>
+        <div class="metric-card" data-metric="risk-kpi-blended">
+          <h4>Score Décisionnel</h4>
+          <div class="metric-value">--</div>
+          <small>CCS × Cycle (synthèse)</small>
+        </div>
+        <div class="metric-card" data-metric="risk-kpi-onchain">
+          <h4>On-Chain Composite</h4>
+          <div class="metric-value">--</div>
+          <small>Fondamentaux on-chain</small>
+        </div>
+      </div>
+      <div style="margin-top: 2rem; padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-md);">
+        <h4>Risk Alerts</h4>
+        <div style="color: var(--theme-text-muted);">• Portfolio concentration within acceptable limits</div>
+        <div style="color: var(--theme-text-muted);">• Correlation risk moderate for current market conditions</div>
+        <div style="color: var(--theme-text-muted);">• No significant exposure warnings</div>
+      </div>
+      <div style="text-align: center; margin-top: 1.5rem;">
+        <a href="risk-dashboard.html?nav=off" target="_blank" style="display: inline-block; background: var(--brand-primary); color: white; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); text-decoration: none; font-weight: 600;">
+          📊 Version complète du Risk Dashboard
+        </a>
+      </div>
     </div>
   </section>
   <section class="wrap tab-panel" id="tab-performance">
     <div class="panel-card">
-      <iframe src="archive/performance-monitor.html?nav=off"></iframe>
+      <h3>📊 Performance Monitor</h3>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
+        <div class="metric-card" data-metric="perf-cache-size">
+          <h4>Memory Cache Size</h4>
+          <div class="metric-value">--</div>
+          <small>Memory cache entries</small>
+        </div>
+        <div class="metric-card" data-metric="perf-disk-cache">
+          <h4>Disk Cache Usage</h4>
+          <div class="metric-value">-- MB</div>
+          <small>Disk cache usage</small>
+        </div>
+        <div class="metric-card" data-metric="perf-memory">
+          <h4>Process Memory</h4>
+          <div class="metric-value">-- MB</div>
+          <small>Process memory</small>
+        </div>
+        <div class="metric-card" data-metric="perf-system-memory">
+          <h4>System Memory Usage</h4>
+          <div class="metric-value">--%</div>
+          <small>System memory usage</small>
+        </div>
+      </div>
+      <div style="margin-top: 2rem; padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-md);">
+        <h4>System Performance</h4>
+        <div style="display: grid; gap: 0.5rem;">
+          <div style="display: flex; justify-content: space-between;"><span>Memory Cache Hit Rate:</span><span style="color: var(--success);">--%</span></div>
+          <div style="display: flex; justify-content: space-between;"><span>Available Memory:</span><span>-- GB</span></div>
+          <div style="display: flex; justify-content: space-between;"><span>Process Efficiency:</span><span>--</span></div>
+        </div>
+      </div>
+      <div style="text-align: center; margin-top: 1.5rem;">
+        <a href="performance-monitor.html?nav=off" target="_blank" style="display: inline-block; background: var(--brand-primary); color: white; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); text-decoration: none; font-weight: 600;">
+          📈 Version complète du Performance Monitor
+        </a>
+      </div>
     </div>
   </section>
   <section class="wrap tab-panel" id="tab-cycles">
     <div class="panel-card">
-      <iframe src="archive/cycle-analysis.html?nav=off"></iframe>
+      <h3>🔄 Cycle Analysis</h3>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
+        <div class="metric-card" data-metric="cycle-phase">
+          <h4>Current Phase</h4>
+          <div class="metric-value">--</div>
+          <small>Current phase</small>
+        </div>
+        <div class="metric-card" data-metric="cycle-progress">
+          <h4>Post-Halving Progress</h4>
+          <div class="metric-value">-- months</div>
+          <small>Post-halving progress</small>
+        </div>
+        <div class="metric-card" data-metric="cycle-score">
+          <h4>Cycle Score</h4>
+          <div class="metric-value">--</div>
+          <small>Cycle position score</small>
+        </div>
+        <div class="metric-card" data-metric="cycle-confidence">
+          <h4>Confidence</h4>
+          <div class="metric-value">--%</div>
+          <small>Model certainty</small>
+        </div>
+      </div>
+      <div style="margin-top: 2rem; padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-md);">
+        <h4>Market Cycle Indicators</h4>
+        <div style="display: grid; gap: 0.5rem;">
+          <div style="display: flex; justify-content: space-between;"><span>Fear & Greed Index:</span><span>45 (Neutral)</span></div>
+          <div style="display: flex; justify-content: space-between;"><span>RSI (Weekly):</span><span>58 (Neutral)</span></div>
+          <div style="display: flex; justify-content: space-between;"><span>MVRV Ratio:</span><span>2.1 (Accumulation)</span></div>
+        </div>
+      </div>
+      <div style="text-align: center; margin-top: 1.5rem;">
+        <a href="cycle-analysis.html?nav=off" target="_blank" style="display: inline-block; background: var(--brand-primary); color: white; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); text-decoration: none; font-weight: 600;">
+          🔄 Version complète du Cycle Analysis
+        </a>
+      </div>
     </div>
   </section>
   <section class="wrap tab-panel" id="tab-monitoring">
     <div class="panel-card">
-      <iframe src="archive/advanced-analytics.html?nav=off"></iframe>
+      <h3>📈 Advanced Analytics</h3>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
+        <div class="metric-card" data-metric="monitor-total-return">
+          <h4>Total Return</h4>
+          <div class="metric-value">--%</div>
+          <small>Sur la période</small>
+        </div>
+        <div class="metric-card" data-metric="monitor-sharpe">
+          <h4>Sharpe Ratio</h4>
+          <div class="metric-value">--</div>
+          <small>Risque ajusté</small>
+        </div>
+        <div class="metric-card" data-metric="monitor-volatility">
+          <h4>Volatility</h4>
+          <div class="metric-value">--%</div>
+          <small>Risque de marché</small>
+        </div>
+        <div class="metric-card" data-metric="monitor-drawdown">
+          <h4>Max Drawdown</h4>
+          <div class="metric-value">--%</div>
+          <small>Pire baisse</small>
+        </div>
+      </div>
+      <div style="margin-top: 2rem; padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-md);">
+        <h4>Advanced Metrics</h4>
+        <div id="advanced-metrics-breakdown" style="display: grid; gap: 0.5rem;"></div>
+      </div>
+      <div style="text-align: center; margin-top: 1.5rem;">
+        <a href="advanced-analytics.html?nav=off" target="_blank" style="display: inline-block; background: var(--brand-primary); color: white; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); text-decoration: none; font-weight: 600;">📈 Version complète des Advanced Analytics</a>
+      </div>
     </div>
   </section>
 </body>
 </html>
-

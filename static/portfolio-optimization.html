@@ -1,3 +1,24 @@
-<!DOCTYPE html><meta charset="utf-8"><title>Redirection…</title>
-<script>location.replace('rebalance.html');</script>
-<p>Cette page a été intégrée. Redirection vers Rebalancing → Optimization…</p>
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portfolio Optimization - Crypto Portfolio</title>
+
+  <link rel="stylesheet" href="shared-theme.css">
+  <link rel="stylesheet" href="theme-compat.css">
+
+  <script src="global-config.js"></script>
+  <script src="appearance.js"></script>
+  
+  <!-- Navigation unifiée (conditionnelle) -->
+  <script type="module">
+      if (new URLSearchParams(window.location.search).get('nav') !== 'off') {
+          import('./components/nav.js');
+      }
+  </script>
+
+  <!-- Chart.js for visualizations -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+
