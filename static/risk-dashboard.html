@@ -713,6 +713,7 @@
       <button class="refresh-btn" onclick="enableAutoRefresh()" id="auto-refresh-btn">⏱️ Enable Auto-Refresh
         (30s)</button>
       <button class="refresh-btn" onclick="testEndpoint()" style="background:#007bff">🧪 Test API</button>
+      <button class="refresh-btn" onclick="forceCycleRefresh()" style="background: #28a745;" title="Force refresh cycle content and charts">🔄 Refresh Cycles</button>
       <div class="timestamp" id="last-update"></div>
     </div>
 
@@ -874,8 +875,11 @@
         const { calibrateCycleParams, getCycleParams } = await import('./modules/cycle-navigator.js');
         const res = calibrateCycleParams(); // ancres par défaut
         console.debug('Cycle params calibrés:', getCycleParams(), 'score=', res.score);
-        // ✅ Redessiner le même canvas
-        await createBitcoinCycleChart('bitcoin-cycle-chart');
+        // ✅ Redessiner le même canvas (force refresh after calibration)
+        await createBitcoinCycleChart('bitcoin-cycle-chart', true);
+        // Also clear cycle content cache as calibration affects data
+        const cycleContentConfig = CACHE_CONFIG.CYCLE_CONTENT;
+        if (cycleContentConfig) localStorage.removeItem(cycleContentConfig.key);
         window.showToast?.('Cycle calibré sur historiques', 'success');
       } catch (e) {
         console.error(e);
@@ -2576,12 +2580,42 @@
     }
 
     // Create Bitcoin cycle chart
-    async function createBitcoinCycleChart(canvasId) {
+    async function createBitcoinCycleChart(canvasId, forceRefresh = false) {
       const canvas = document.getElementById(canvasId);
       if (!canvas) {
         console.error('Canvas not found:', canvasId);
         return null;
       }
+
+      // Check cache first (unless forcing refresh)
+      if (!forceRefresh) {
+        const state = store.snapshot();
+        const currentHash = generateCycleDataHash(state);
+        const cachedChart = getCachedData('CYCLE_CHART');
+        
+        if (cachedChart?.chartConfig && cachedChart.dataHash === currentHash) {
+          console.debug('⚡ Using cached chart config');
+          
+          // Destroy existing chart if it exists
+          if (window.bitcoinCycleChart) {
+            window.bitcoinCycleChart.destroy();
+          }
+          const existingChart = Chart.getChart(canvas);
+          if (existingChart) {
+            existingChart.destroy();
+          }
+          
+          try {
+            window.bitcoinCycleChart = new Chart(canvas, cachedChart.chartConfig);
+            console.debug('✅ Chart recreated from cache');
+            return window.bitcoinCycleChart;
+          } catch (error) {
+            console.warn('Failed to use cached chart, falling back to fresh creation:', error);
+          }
+        }
+      }
+
+      console.debug('🔄 Creating fresh Bitcoin cycle chart');
 
       // Destroy existing chart if it exists
       if (window.bitcoinCycleChart) {
@@ -3105,6 +3139,23 @@
           });
         }, 1000);
 
+        // Cache the chart configuration for future use
+        try {
+          const state = store.snapshot();
+          const currentHash = generateCycleDataHash(state);
+          const chartConfig = window.bitcoinCycleChart.config;
+          
+          setCachedData('CYCLE_CHART', {
+            chartConfig: JSON.parse(JSON.stringify(chartConfig)), // Deep clone
+            dataHash: currentHash,
+            timestamp: Date.now()
+          });
+          
+          console.debug('💾 Chart configuration cached');
+        } catch (cacheError) {
+          console.warn('Failed to cache chart config:', cacheError);
+        }
+
         return window.bitcoinCycleChart;
 
       } catch (error) {
@@ -3444,7 +3495,57 @@
     }
 
     // ====== Cycles Content ======
-    async function renderCyclesContent() {
+    
+    /**
+     * Cached version of renderCyclesContent - checks cache before rendering
+     */
+    async function renderCyclesContent(forceRefresh = false) {
+      const container = document.getElementById('cycles-content');
+      const state = store.snapshot();
+      
+      // Check if we should refresh based on data changes
+      if (!forceRefresh) {
+        const refreshCheck = shouldRefreshCycleContent(state);
+        
+        if (!refreshCheck.shouldRefresh) {
+          // Use cached content
+          const cachedContent = getCachedData('CYCLE_CONTENT');
+          if (cachedContent?.htmlContent) {
+            console.debug('⚡ Using cached cycle content');
+            container.innerHTML = cachedContent.htmlContent;
+            
+            // Recreate chart if needed (chart config should be cached separately)
+            if (cachedContent.hasChart && !document.getElementById('bitcoin-cycle-chart')?.hasChildNodes()) {
+              setTimeout(() => recreateCachedChart(), 100);
+            }
+            
+            return;
+          }
+        }
+      }
+      
+      console.debug('🔄 Rendering fresh cycle content');
+      await renderCyclesContentUncached();
+      
+      // Cache the generated content
+      const currentHash = generateCycleDataHash(state);
+      const htmlContent = container.innerHTML;
+      const hasChart = htmlContent.includes('bitcoin-cycle-chart');
+      
+      setCachedData('CYCLE_CONTENT', {
+        htmlContent,
+        hasChart,
+        dataHash: currentHash,
+        timestamp: Date.now()
+      });
+      
+      console.debug('💾 Cycle content cached');
+    }
+
+    /**
+     * Original renderCyclesContent function - always renders fresh content
+     */
+    async function renderCyclesContentUncached() {
       const container = document.getElementById('cycles-content');
       const state = store.snapshot();
       const ccsData = state.ccs;
@@ -3644,6 +3745,40 @@
           window.bitcoinChartCreating = false;
         }
       }, 100);
+    }
+
+    /**
+     * Recreate cached chart - called when using cached HTML content
+     */
+    async function recreateCachedChart() {
+      const cachedChart = getCachedData('CYCLE_CHART');
+      const canvas = document.getElementById('bitcoin-cycle-chart');
+      
+      if (!canvas) {
+        console.warn('Chart canvas not found for cache recreation');
+        return;
+      }
+      
+      if (cachedChart?.chartConfig) {
+        console.debug('⚡ Recreating chart from cache');
+        try {
+          // Destroy existing chart if any
+          if (window.bitcoinCycleChart) {
+            window.bitcoinCycleChart.destroy();
+          }
+          
+          // Recreate from cached config
+          window.bitcoinCycleChart = new Chart(canvas, cachedChart.chartConfig);
+          console.debug('✅ Chart recreated from cache');
+          
+        } catch (error) {
+          console.warn('Failed to recreate cached chart, falling back to fresh render:', error);
+          await createBitcoinCycleChart('bitcoin-cycle-chart');
+        }
+      } else {
+        console.debug('🔄 No cached chart config, creating fresh chart');
+        await createBitcoinCycleChart('bitcoin-cycle-chart');
+      }
     }
 
     // ====== Portfolio Allocation Helper ======
@@ -4093,6 +4228,37 @@
     };
 
 
+    // ====== Force Cycle Refresh ======
+    window.forceCycleRefresh = async function() {
+      console.log('🔄 Force refreshing cycle content and charts...');
+      
+      try {
+        // Clear all cycle caches
+        const cycleConfigs = ['CYCLE_CONTENT', 'CYCLE_DATA', 'CYCLE_CHART'];
+        cycleConfigs.forEach(configType => {
+          const config = CACHE_CONFIG[configType];
+          if (config) {
+            localStorage.removeItem(config.key);
+            console.debug(`🗑️ Cleared ${configType} cache`);
+          }
+        });
+        
+        // Force refresh cycle content
+        if (document.getElementById('cycles-tab').classList.contains('active')) {
+          await renderCyclesContent(true);
+          console.log('✅ Cycle content force refreshed');
+        } else {
+          console.debug('Cycles tab not active, cache cleared for next access');
+        }
+        
+        window.showToast?.('Cache cycles vidé et contenu rafraîchi', 'success');
+        
+      } catch (error) {
+        console.error('Failed to force refresh cycles:', error);
+        window.showToast?.('Erreur lors du refresh cycles', 'error');
+      }
+    };
+
     // Global functions for backwards compatibility
     window.refreshDashboard = refreshDashboard;
     window.enableAutoRefresh = enableAutoRefresh;
@@ -4103,7 +4269,10 @@
       SCORES: { key: 'risk_scores_cache', ttl: 12 * 60 * 60 * 1000 }, // 12 heures
       CCS_DATA: { key: 'ccs_data_cache', ttl: 6 * 60 * 60 * 1000 },  // 6 heures  
       ONCHAIN: { key: 'onchain_data_cache', ttl: 4 * 60 * 60 * 1000 }, // 4 heures
-      RISK_METRICS: { key: 'risk_metrics_cache', ttl: 8 * 60 * 60 * 1000 } // 8 heures
+      RISK_METRICS: { key: 'risk_metrics_cache', ttl: 8 * 60 * 60 * 1000 }, // 8 heures
+      CYCLE_CONTENT: { key: 'cycle_content_cache', ttl: 12 * 60 * 60 * 1000 }, // 12 heures HTML
+      CYCLE_DATA: { key: 'cycle_data_cache', ttl: 6 * 60 * 60 * 1000 }, // 6 heures données
+      CYCLE_CHART: { key: 'cycle_chart_cache', ttl: 24 * 60 * 60 * 1000 } // 24 heures graphique
     };
 
     function initPersistentCache() {
@@ -4193,6 +4362,58 @@
         localStorage.removeItem(config.key);
       });
       console.log('🧹 All persistent cache cleared');
+    }
+
+    // ===== CYCLE CACHE SYSTEM =====
+    /**
+     * Generate hash of cycle data to detect changes
+     */
+    function generateCycleDataHash(state) {
+      const ccsScore = state.ccs?.score || 0;
+      const cycleMonths = state.cycle?.months || 0;
+      const cyclePhase = state.cycle?.phase?.phase || 'unknown';
+      const onchainScore = state.scores?.onchain || 0;
+      const riskScore = state.scores?.risk || 0;
+      
+      // Include calibration params if available
+      const calibParams = localStorage.getItem('bitcoin_cycle_params');
+      const calibHash = calibParams ? btoa(calibParams).slice(0, 10) : 'default';
+      
+      const dataString = `${ccsScore}-${cycleMonths}-${cyclePhase}-${onchainScore}-${riskScore}-${calibHash}`;
+      
+      // Simple hash function
+      let hash = 0;
+      for (let i = 0; i < dataString.length; i++) {
+        const char = dataString.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+      }
+      
+      return Math.abs(hash).toString(16);
+    }
+
+    /**
+     * Check if cycle content needs refresh based on data changes
+     */
+    function shouldRefreshCycleContent(state) {
+      const currentHash = generateCycleDataHash(state);
+      const cachedContent = getCachedData('CYCLE_CONTENT');
+      
+      if (!cachedContent || !cachedContent.dataHash) {
+        console.debug('🔄 Cycle cache miss - no cached content');
+        return { shouldRefresh: true, reason: 'cache_miss' };
+      }
+      
+      if (cachedContent.dataHash !== currentHash) {
+        console.debug('🔄 Cycle data changed', { 
+          cached: cachedContent.dataHash, 
+          current: currentHash 
+        });
+        return { shouldRefresh: true, reason: 'data_changed' };
+      }
+      
+      console.debug('⚡ Cycle data unchanged - using cache');
+      return { shouldRefresh: false, reason: 'cache_hit' };
     }
 
     function updateScoreDisplays(onchainScore, riskScore, blendedScore, ccsScore) {
