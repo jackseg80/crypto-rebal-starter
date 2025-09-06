@@ -140,7 +140,11 @@ python crypto_toolbox_api.py  # Port 8001
 - **🚀 Multi-Asset Dashboard** : `static/multi-asset-dashboard.html` - Dashboard correlation et analyse multi-actifs
 - **🎨 AI Components Demo** : `static/ai-components-demo.html` - Démonstration des composants IA interactifs
 
-> 🔧 **Nouvelles fonctionnalités** : Navigation simple unifiée, AI Dashboard avec modèles ML, composants IA réutilisables, et corrections d'interface
+> 🔧 **Dernières améliorations** : 
+> - **Système de tooltips** : Info-bulles contextuelles sur toutes les tuiles avec sources de données
+> - **AI Dashboard optimisé** : Auto-initialisation, interface compacte 2x2, boutons fonctionnels uniquement
+> - **Navigation unifiée** : Header sticky avec menus déroulants et états actifs
+> - **Interface responsive** : Adaptation mobile et grilles optimisées pour gain d'espace vertical
 
 ### API :
 - Swagger / OpenAPI : http://127.0.0.1:8000/docs
@@ -156,6 +160,26 @@ python crypto_toolbox_api.py  # Port 8001
 - **Centre de Contrôle Debug** : `/debug-menu.html` avec accès centralisé à tous les outils
 
 > 💡 **Workflow recommandé** : Commencez par Settings pour configurer vos clés API et paramètres, puis naviguez via les menus unifiés.
+
+### 🔍 **Système de Tooltips Contextuelles**
+
+Un système d'aide intégré fournit des informations contextuelles sur toutes les tuiles :
+
+- **Activation** : Survol de la souris sur n'importe quelle tuile/carte
+- **Informations affichées** :
+  - 📋 **Fonction** : Description de ce que fait la tuile
+  - 🔗 **Source de données** : D'où viennent les informations (API, fichiers, calculs)
+- **Design responsive** : 
+  - Desktop : Tooltips flottantes avec animations
+  - Mobile : Positionnement fixe en bas d'écran
+- **Accessibilité** : Support clavier (Escape pour fermer)
+
+**Exemples de tooltips :**
+- Portfolio Overview → "Vue d'ensemble complète avec graphiques temps réel | Source: API /balances + CoinGecko"  
+- AI Models → "Modèles ML chargés et prêts | Source: Cache mémoire PyTorch"
+- Settings API Keys → "Gestion sécurisée des clés | Source: Stockage local chiffré"
+
+Le système est automatiquement chargé via `static/components/tooltips.js` sur toutes les pages principales.
 
 ---
 
