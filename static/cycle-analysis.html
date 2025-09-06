@@ -4,30 +4,31 @@
 <head>
   <meta charset="UTF-8">
   <title>🎯 Bitcoin Cycle Analysis - Modèle de Précision</title>
-  
+
   <!-- Thème & apparence unifiés -->
   <link rel="stylesheet" href="shared-theme.css">
   <link rel="stylesheet" href="theme-compat.css">
   <script src="global-config.js"></script>
-  
+
   <!-- Navigation unifiée (conditionnelle) -->
   <script type="module">
-      if (new URLSearchParams(window.location.search).get('nav') !== 'off') {
-          import('./components/nav.js');
-      }
+    if (new URLSearchParams(window.location.search).get('nav') !== 'off') {
+      import('./components/nav.js');
+    }
   </script>
-  
+
   <style>
     body {
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      margin: 2rem;
+      margin: 0;
       background: var(--theme-background);
       color: var(--theme-text);
     }
 
-    .container {
-      max-width: 1200px;
+    .wrap {
+      max-width: 95vw;
       margin: 0 auto;
+      padding: var(--space-lg);
     }
 
     .card {
@@ -49,13 +50,13 @@
     }
 
     .metric.good {
-      background: #d4edda;
-      color: #155724;
+      background: var(--success-bg);
+      color: var(--success);
     }
 
     .metric.warning {
-      background: #fff3cd;
-      color: #856404;
+      background: var(--warning-bg);
+      color: var(--warning);
     }
 
     .metric.error {
@@ -138,11 +139,12 @@
   <script
     src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@2.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 
+  <script type="module" src="components/tooltips.js"></script>
 </head>
 
 <body>
 
-  <div class="container">
+  <div class="wrap">
     <h1>🎯 Bitcoin Cycle Analysis - Validation du Modèle</h1>
 
     <!-- Contrôles -->
@@ -276,7 +278,7 @@
         console.error('❌ Erreur sauvegarde paramètres:', error);
       }
     }
-    
+
     function loadCalibrationParams() {
       try {
         const saved = localStorage.getItem('bitcoin_cycle_params');
@@ -299,32 +301,32 @@
       try {
         console.debug('🔄 Tentative de chargement du module cycle-navigator...');
         const module = await import('./modules/cycle-navigator.js');
-        
+
         // Vérifier que les fonctions sont disponibles
         if (!module.cycleScoreFromMonths) {
           throw new Error('cycleScoreFromMonths function not available in module');
         }
-        
+
         cycleScoreFromMonths = module.cycleScoreFromMonths;
         getCycleParams = module.getCycleParams;
         calibrateCycleParams = module.calibrateCycleParams;
         getCurrentCycleMonths = module.getCurrentCycleMonths;
-        
+
         // Test de la fonction
         const testScore = cycleScoreFromMonths(18);
         console.debug('🧪 Test cycleScoreFromMonths(18):', testScore);
-        
+
         if (isNaN(testScore) || testScore < 0 || testScore > 100) {
           throw new Error('Function test failed - invalid score: ' + testScore);
         }
-        
+
         // Charger les paramètres sauvegardés si disponibles
         const savedParams = loadCalibrationParams();
         if (savedParams) {
           module.setCycleParams(savedParams);
           addResult('🔄 Auto-Chargement', 'Paramètres calibrés précédents appliqués', 'good');
         }
-        
+
         moduleLoaded = true;
         console.debug('✅ Cycle navigator module loaded successfully');
         return true;
@@ -346,21 +348,21 @@
     function monthsBetween(dateA, dateB) {
       const a = new Date(dateA);
       const b = new Date(dateB);
-      
+
       // Calcul précis des mois entre deux dates
       const years = b.getFullYear() - a.getFullYear();
       const months = b.getMonth() - a.getMonth();
       const days = b.getDate() - a.getDate();
-      
+
       let totalMonths = years * 12 + months;
-      
+
       // Ajuster pour les jours
       if (days > 0) {
         totalMonths += days / 30.44; // Moyenne des jours par mois
       } else if (days < 0) {
         totalMonths -= Math.abs(days) / 30.44;
       }
-      
+
       return Math.max(0, totalMonths);
     }
 
@@ -702,14 +704,14 @@
           // Recréer le graphique
           createValidationChart();
           populateErrorTable();
-          
+
           // Notifier les autres pages (si ouvertes)
           window.postMessage({
             type: 'CYCLE_PARAMS_UPDATED',
             params: result.params,
             timestamp: Date.now()
           }, '*');
-          
+
         } catch (error) {
           addResult('❌ Erreur', `Erreur de calibration: ${error.message}`, 'error');
         }
@@ -785,21 +787,21 @@ Rapport généré le ${new Date().toLocaleString('fr-FR')}
     });
   </script>
 
-    <script>
-        // Initialisation automatique de la navigation simple et du thème
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialiser le thème
-            if (window.globalConfig && window.globalConfig.applyTheme) {
-                window.globalConfig.applyTheme();
-            }
-            if (window.applyAppearance) {
-                window.applyAppearance();
-            }
-            
-            // Initialiser la navigation simple
-            /* unified nav enabled via components/nav.js; legacy init removed */
-        });
-    </script>
+  <script>
+    // Initialisation automatique de la navigation simple et du thème
+    document.addEventListener('DOMContentLoaded', function () {
+      // Initialiser le thème
+      if (window.globalConfig && window.globalConfig.applyTheme) {
+        window.globalConfig.applyTheme();
+      }
+      if (window.applyAppearance) {
+        window.applyAppearance();
+      }
+
+      // Initialiser la navigation simple
+      /* unified nav enabled via components/nav.js; legacy init removed */
+    });
+  </script>
 </body>
 
 </html>

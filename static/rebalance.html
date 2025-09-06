@@ -13,14 +13,39 @@
   <script src="input-validator.js"></script>
   <script src="performance-optimizer.js"></script>
   <script src="global-config.js"></script>
-<script src="appearance.js"></script>
+  <script src="appearance.js"></script>
   <style>
     /* Onglets locaux (Rebalancing / Optimization) */
-    .tabs { display: flex; gap: .5rem; align-items: center; padding: .75rem 0; }
-    .tab-btn { padding: .5rem .75rem; border: 1px solid var(--theme-border); background: var(--theme-surface); color: var(--theme-text); border-radius: var(--radius-sm); cursor: pointer; }
-    .tab-btn.active { border-color: var(--brand-primary); color: var(--brand-primary); background: color-mix(in oklab, var(--brand-primary) 10%, transparent); }
-    .tab-panel { display: none; }
-    .tab-panel.active { display: block; }
+    .tabs {
+      display: flex;
+      gap: .5rem;
+      align-items: center;
+      padding: .75rem 0;
+    }
+
+    .tab-btn {
+      padding: .5rem .75rem;
+      border: 1px solid var(--theme-border);
+      background: var(--theme-surface);
+      color: var(--theme-text);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+    }
+
+    .tab-btn.active {
+      border-color: var(--brand-primary);
+      color: var(--brand-primary);
+      background: color-mix(in oklab, var(--brand-primary) 10%, transparent);
+    }
+
+    .tab-panel {
+      display: none;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
     * {
       box-sizing: border-box
     }
@@ -365,6 +390,7 @@
     }
   </style>
 
+  <script type="module" src="components/tooltips.js"></script>
 </head>
 
 <body>
@@ -372,7 +398,8 @@
   <div class="wrap" style="padding-top: var(--space-lg);">
     <!-- Stratégies de Rebalancing -->
     <div class="card" style="margin-bottom: 16px;">
-      <h3 style="cursor: pointer; display: flex; align-items: center; justify-content: space-between;" onclick="toggleStrategiesSection()">
+      <h3 style="cursor: pointer; display: flex; align-items: center; justify-content: space-between;"
+        onclick="toggleStrategiesSection()">
         <span>🎯 Stratégies Prédéfinies</span>
         <span id="strategies-toggle" style="transition: transform 0.3s;">▼</span>
       </h3>
@@ -390,7 +417,8 @@
             <button id="reset-strategy-btn" class="btn small secondary">
               🔄 Reset Manuel
             </button>
-            <button id="refresh-dynamic-btn" class="btn small" style="background: var(--warning);" onclick="window.refreshDynamicStrategy()">
+            <button id="refresh-dynamic-btn" class="btn small" style="background: var(--warning);"
+              onclick="window.refreshDynamicStrategy()">
               🎯 Sync CCS
             </button>
             <div style="flex-grow: 1;"></div>
@@ -514,14 +542,15 @@
 
   <section class="wrap tab-panel" id="optimization-tab">
     <div class="card">
-      <iframe src="portfolio-optimization.html?nav=off" style="width:100%; height:80vh; border:0; background:var(--theme-surface)"></iframe>
+      <iframe src="portfolio-optimization.html?nav=off"
+        style="width:100%; height:80vh; border:0; background:var(--theme-surface)"></iframe>
     </div>
   </section>
 
   <script src="/static/global-config.js"></script>
   <script>
     // Gestion des onglets Rebalancing / Optimization
-    (function() {
+    (function () {
       const tabs = document.querySelectorAll('#rebalance-tabs .tab-btn');
       const panels = [document.querySelector('#rebalance-tab'), document.querySelector('#optimization-tab')];
       tabs.forEach(btn => btn.addEventListener('click', () => {
@@ -545,7 +574,7 @@
       const content = el('strategies-content');
       const toggle = el('strategies-toggle');
       const isCollapsed = content.style.display === 'none';
-      
+
       if (isCollapsed) {
         content.style.display = 'block';
         toggle.style.transform = 'rotate(0deg)';
@@ -578,7 +607,7 @@
           console.debug('🔍 Existing data invalid, will generate mock');
         }
       }
-      
+
       // Générer des données CCS mock réalistes
       const mockCCSData = {
         targets: {
@@ -596,7 +625,7 @@
         strategy: 'Blended CCS* (72) - Mock Data',
         source: 'risk-dashboard-ccs'
       };
-      
+
       localStorage.setItem('last_targets', JSON.stringify(mockCCSData));
       console.debug('🔍 Generated mock CCS data for sync functionality:', mockCCSData);
     }
@@ -605,26 +634,26 @@
     function syncCCSTargets() {
       const storedTargets = localStorage.getItem('last_targets');
       console.debug('🔍 syncCCSTargets - Raw localStorage data:', storedTargets);
-      
+
       if (!storedTargets) {
         console.log('🔍 syncCCSTargets - No localStorage data found');
         return null;
       }
-      
+
       try {
         const targetsData = JSON.parse(storedTargets);
         console.log('🔍 syncCCSTargets - Parsed targets data:', targetsData);
         console.log('🔍 syncCCSTargets - Source:', targetsData.source);
         console.log('🔍 syncCCSTargets - BTC value:', targetsData.targets?.BTC);
         console.log('🔍 syncCCSTargets - ETH value:', targetsData.targets?.ETH);
-        
+
         if (targetsData.source === 'risk-dashboard-ccs' && targetsData.targets && targetsData.timestamp) {
           // Vérifier que les données ne sont pas trop anciennes (2 heures)
           const dataAge = Date.now() - new Date(targetsData.timestamp).getTime();
           const maxAge = 2 * 60 * 60 * 1000; // 2 heures
-          
+
           console.log('🔍 syncCCSTargets - Data age (minutes):', Math.round(dataAge / 60000));
-          
+
           if (dataAge < maxAge) {
             // Filtrer les targets pour ne garder que les valeurs numériques
             const cleanTargets = {};
@@ -636,7 +665,7 @@
                 console.log(`🔍 syncCSSTargets - Skipping ${key}: ${value} (${typeof value})`);
               }
             });
-            
+
             console.log('🔍 syncCCSTargets - Final clean targets:', cleanTargets);
             return {
               targets: cleanTargets,
@@ -652,7 +681,7 @@
       } catch (error) {
         console.error('🔍 syncCCSTargets - Error parsing stored targets:', error);
       }
-      
+
       return null;
     }
 
@@ -770,7 +799,7 @@
             }
           };
         }
-        
+
         // Tenter d'ajouter la stratégie dynamique CCS (sans bloquer en cas d'erreur)
         try {
           const ccsTargets = syncCCSTargets();
@@ -808,12 +837,12 @@
             _isError: true
           };
         }
-        
+
         renderStrategiesUI();
-        
+
       } catch (error) {
         console.error('Erreur chargement stratégies:', error);
-        
+
         // En cas d'erreur critique, utiliser au minimum la stratégie par défaut
         if (Object.keys(availableStrategies).length === 0) {
           availableStrategies = {
@@ -832,7 +861,7 @@
             }
           };
         }
-        
+
         renderStrategiesUI();
         showNotification('❌ Erreur partielle chargement stratégies - Mode dégradé activé', 'warning', 5000);
       }
@@ -846,11 +875,11 @@
         const isDynamic = strategy._isDynamic;
         const isPlaceholder = strategy._isPlaceholder;
         const isError = strategy._isError;
-        
+
         let cardClass = 'strategy-card';
         let borderStyle = '';
         let clickable = true;
-        
+
         if (isDynamic) {
           cardClass += ' dynamic-strategy';
           borderStyle = 'border: 2px solid var(--warning); background: linear-gradient(135deg, var(--theme-surface), var(--warning-bg));';
@@ -863,10 +892,10 @@
           borderStyle = 'border: 2px solid var(--danger); background: linear-gradient(135deg, var(--theme-surface), var(--danger-bg));';
           clickable = true; // Permettre la sélection pour montrer le message
         }
-        
+
         const onclickAttr = clickable ? `onclick="selectStrategy('${id}')"` : '';
         const cursorStyle = clickable ? '' : 'cursor: not-allowed;';
-        
+
         return `
     <div class="${cardClass}" data-strategy-id="${id}" ${onclickAttr} style="${borderStyle} ${cursorStyle}">
       <div class="strategy-header">
@@ -880,15 +909,15 @@
         ${isError ? '<div style="font-size: 11px; color: var(--danger); font-weight: 600; margin-top: 4px;">⚠️ Synchronisation requise</div>' : ''}
       </div>
       <div class="strategy-allocations">
-        ${Object.keys(strategy.allocations).length > 0 ? 
-          Object.entries(strategy.allocations)
-            .filter(([group, pct]) => group !== 'model_version')
-            .map(([group, pct]) => {
-              log.debug('renderStrategiesUI - Rendering allocation:', group, pct);
-              return `<span class="allocation-pill">${group}: ${typeof pct === 'number' ? pct.toFixed(1) : pct}%</span>`;
-            }).join('') :
-          '<span style="font-size: 11px; color: var(--theme-text-muted);">Aucune allocation disponible</span>'
-        }
+        ${Object.keys(strategy.allocations).length > 0 ?
+            Object.entries(strategy.allocations)
+              .filter(([group, pct]) => group !== 'model_version')
+              .map(([group, pct]) => {
+                log.debug('renderStrategiesUI - Rendering allocation:', group, pct);
+                return `<span class="allocation-pill">${group}: ${typeof pct === 'number' ? pct.toFixed(1) : pct}%</span>`;
+              }).join('') :
+            '<span style="font-size: 11px; color: var(--theme-text-muted);">Aucune allocation disponible</span>'
+          }
       </div>
     </div>
   `;
@@ -1042,13 +1071,13 @@
       try {
         console.log('🔍 Loading real portfolio data using configured source...');
         const balanceResult = await window.loadBalanceData();
-        
+
         if (!balanceResult.success) {
           throw new Error(balanceResult.error);
         }
-        
+
         let balances;
-        
+
         if (balanceResult.csvText) {
           // Source CSV locale
           balances = window.parseCSVBalances(balanceResult.csvText);
@@ -1062,30 +1091,30 @@
         } else {
           throw new Error('Invalid data format received');
         }
-        
+
         const totalValue = balances.reduce((sum, item) => sum + item.value_usd, 0);
-        
+
         console.log(`🔍 Loaded ${balances.length} assets from CSV, total: $${totalValue.toFixed(2)}`);
-        
+
         // Group assets by ASSET_GROUPS
         const groupedData = groupAssetsByAliases(balances);
-        
+
         // Convert to format expected by rebalancing logic
         const currentByGroup = {};
         const currentWeights = {};
-        
+
         groupedData.forEach(group => {
           currentByGroup[group.label] = group.value;
           currentWeights[group.label] = (group.value / totalValue) * 100;
         });
-        
+
         return {
           currentByGroup,
-          currentWeights, 
+          currentWeights,
           totalValue,
           assetCount: balances.length
         };
-        
+
       } catch (error) {
         console.error('Failed to load real portfolio data:', error);
         return null;
@@ -1097,18 +1126,18 @@
       const cleanedText = csvText.replace(/^\ufeff/, '');
       const lines = cleanedText.split('\n');
       const balances = [];
-      
+
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim();
         if (!line) continue;
-        
+
         try {
           const columns = parseCSVLine(line);
           if (columns.length >= 5) {
             const ticker = columns[0];
             const amount = parseFloat(columns[3]);
             const valueUSD = parseFloat(columns[4]);
-            
+
             if (ticker && !isNaN(amount) && !isNaN(valueUSD) && valueUSD >= 1.0) {
               balances.push({
                 symbol: ticker.toUpperCase(),
@@ -1121,7 +1150,7 @@
           console.warn('Error parsing CSV line:', error);
         }
       }
-      
+
       return balances;
     }
 
@@ -1129,10 +1158,10 @@
       const result = [];
       let current = '';
       let inQuotes = false;
-      
+
       for (let i = 0; i < line.length; i++) {
         const char = line[i];
-        
+
         if (char === '"') {
           inQuotes = !inQuotes;
         } else if (char === ';' && !inQuotes) {
@@ -1142,17 +1171,17 @@
           current += char;
         }
       }
-      
+
       if (current) {
         result.push(current.trim().replace(/^"|"$/g, ''));
       }
-      
+
       return result;
     }
 
     // Asset grouping function (same as other dashboards)
     const ASSET_GROUPS = {
-      'BTC': ['BTC', 'TBTC'], 
+      'BTC': ['BTC', 'TBTC'],
       'ETH': ['ETH', 'WETH', 'STETH', 'WSTETH', 'RETH', 'CBETH'],
       'Stablecoins': ['USDC', 'USDT', 'USD', 'DAI'],
       'L1/L0 majors': ['SOL', 'SOL2', 'ATOM', 'ATOM2', 'DOT', 'DOT2', 'ADA', 'AVAX', 'NEAR', 'LINK', 'XRP', 'BCH', 'XLM', 'LTC', 'SUI3', 'TRX'],
@@ -1205,7 +1234,7 @@
       let currentByGroup = {};
       let currentWeights = {};
       let totalUsd = 0;
-      
+
       try {
         const realPortfolioData = await loadRealPortfolioData();
         if (realPortfolioData && realPortfolioData.totalValue > 0) {
@@ -1227,13 +1256,13 @@
         groupTargetWeights = { ...dynamicTargets };
         console.log('Using dynamic group targets:', groupTargetWeights);
       } else {
-        groupTargetWeights = { 
-          BTC: 35, 
-          ETH: 25, 
-          Stablecoins: 20, 
-          'L1/L0 majors': 10, 
+        groupTargetWeights = {
+          BTC: 35,
+          ETH: 25,
+          Stablecoins: 20,
+          'L1/L0 majors': 10,
           'Exchange Tokens': 3,
-          DeFi: 3, 
+          DeFi: 3,
           Memecoins: 2,
           Privacy: 1,
           Others: 1
@@ -1243,7 +1272,7 @@
       // Generate actions for INDIVIDUAL ASSETS (not groups)
       const actions = await generateIndividualAssetActions(groupTargetWeights, totalUsd);
       console.log('🔍 Generated', actions.length, 'individual asset actions');
-      
+
       // Still calculate group deltas for the summary display
       const deltasByGroup = {};
       Object.keys(groupTargetWeights).forEach(group => {
@@ -1273,7 +1302,7 @@
       // Use real assets from the portfolio based on ASSET_GROUPS
       const groupToRealSymbols = {
         'BTC': ['BTC', 'TBTC'],
-        'ETH': ['ETH', 'WSTETH', 'STETH', 'RETH', 'WETH', 'CBETH'], 
+        'ETH': ['ETH', 'WSTETH', 'STETH', 'RETH', 'WETH', 'CBETH'],
         'Stablecoins': ['USDT', 'USD', 'USDC', 'DAI'],
         'L1/L0 majors': ['SOL2', 'ATOM2', 'DOT2', 'ADA', 'AVAX', 'NEAR', 'LINK', 'XRP', 'BCH', 'XLM', 'LTC', 'SUI3', 'TRX'],
         'Exchange Tokens': ['BNB', 'BGB', 'CHSB'],
@@ -1282,14 +1311,14 @@
         'Privacy': ['XMR'],
         'Others': ['IMO', 'VVV3', 'TAO6']
       };
-      
+
       // Get the primary symbols for this group from your real portfolio
       const possibleSymbols = groupToRealSymbols[group] || [];
-      
+
       // Find which symbol actually exists in the current portfolio with highest value
       let bestSymbol = null;
       let bestValue = 0;
-      
+
       // Check which symbols from ASSET_GROUPS are actually in the current portfolio
       for (const [assetGroup, symbols] of Object.entries(ASSET_GROUPS)) {
         if (assetGroup === group) {
@@ -1306,12 +1335,12 @@
           break;
         }
       }
-      
+
       // Fallback to the first symbol in the group or a default
       if (!bestSymbol && possibleSymbols.length > 0) {
         bestSymbol = possibleSymbols[0];
       }
-      
+
       return bestSymbol || {
         'BTC': 'BTC',
         'ETH': 'ETH',
@@ -1338,25 +1367,25 @@
         'AAVE': 330, 'JUPSOL': 212, 'JITOSOL': 231, 'FET': 0.63,
         'DOGE': 0.21, 'XMR': 263, 'IMO': 1.46, 'VVV3': 2.87, 'TAO6': 324
       };
-      
+
       return realPrices[symbol] || 1.0;
     }
 
     // Generate actions for INDIVIDUAL ASSETS based on group targets
     async function generateIndividualAssetActions(groupTargetWeights, totalUsd) {
       const actions = [];
-      
+
       try {
         // Load balance data using configured source
         console.log('🔍 Loading balance data for rebalancing using configured source...');
         const balanceResult = await window.loadBalanceData();
-        
+
         if (!balanceResult.success) {
           throw new Error(balanceResult.error);
         }
-        
+
         let individualBalances;
-        
+
         if (balanceResult.csvText) {
           // Source CSV locale
           individualBalances = window.parseCSVBalances(balanceResult.csvText);
@@ -1370,32 +1399,32 @@
         } else {
           throw new Error('Invalid data format received');
         }
-        
+
         console.log('🔍 Rebalancing', individualBalances.length, 'individual assets using source:', balanceResult.source);
-        
+
         // Load exchange data for smart location selection
         const exchangeData = await loadExchangeData();
         console.log('🔍 Exchange data loaded for smart location selection');
-        
+
         // Calculate individual asset targets based on group targets
         const individualTargets = calculateIndividualAssetTargets(individualBalances, groupTargetWeights, totalUsd);
-        
+
         // Generate actions for each asset
         individualBalances.forEach(asset => {
           const targetValue = individualTargets[asset.symbol] || 0;
           const currentValue = asset.value_usd;
           const delta = targetValue - currentValue;
-          
+
           // Only generate actions for significant changes (>$25)
           if (Math.abs(delta) >= 25) {
             const price = getRealPriceForSymbol(asset.symbol);
             const group = getAssetGroup(asset.symbol);
             const action = delta > 0 ? 'BUY' : 'SELL';
-            
+
             // Use smart exchange selection for location
             const optimalLocation = selectOptimalExchange(asset.symbol, action, Math.abs(delta), exchangeData);
             const exchangeSummary = getExchangeSummary(asset.symbol, exchangeData);
-            
+
             actions.push({
               group: group,
               alias: asset.symbol,
@@ -1413,25 +1442,25 @@
             });
           }
         });
-        
+
         // Sort actions by USD amount (largest first)
         actions.sort((a, b) => b.usd - a.usd);
-        
+
       } catch (error) {
         console.error('Error generating individual asset actions:', error);
         return []; // Return empty array on error
       }
-      
+
       return actions;
     }
 
     // Calculate target value for each individual asset based on group targets
     function calculateIndividualAssetTargets(individualBalances, groupTargetWeights, totalUsd) {
       const targets = {};
-      
+
       // Group assets by their ASSET_GROUPS classification
       const assetsByGroup = {};
-      
+
       individualBalances.forEach(asset => {
         const group = getAssetGroup(asset.symbol);
         if (!assetsByGroup[group]) {
@@ -1439,17 +1468,17 @@
         }
         assetsByGroup[group].push(asset);
       });
-      
+
       // For each group, distribute the target amount among assets
       Object.entries(groupTargetWeights).forEach(([group, groupTargetPct]) => {
         const groupTargetUsd = totalUsd * (groupTargetPct / 100);
         const assetsInGroup = assetsByGroup[group] || [];
-        
+
         if (assetsInGroup.length === 0) return;
-        
+
         // Distribute group target proportionally based on current values
         const groupCurrentTotal = assetsInGroup.reduce((sum, asset) => sum + asset.value_usd, 0);
-        
+
         if (groupCurrentTotal > 0) {
           // Proportional distribution based on current holdings
           assetsInGroup.forEach(asset => {
@@ -1464,7 +1493,7 @@
           });
         }
       });
-      
+
       return targets;
     }
 
@@ -1489,7 +1518,7 @@
           './data/raw/CoinTracking - Coins by Exchange - 26.08.2025.csv',
           './data/raw/CoinTracking - Coins by Exchange.csv'
         ];
-        
+
         for (const filename of possibleFilenames) {
           try {
             exchangeResponse = await fetch(filename);
@@ -1501,23 +1530,23 @@
             continue;
           }
         }
-        
+
         if (!exchangeResponse || !exchangeResponse.ok) {
           throw new Error('No exchange data file found');
         }
-        
+
         const csvText = await exchangeResponse.text();
         const exchangeData = parseExchangeCSV(csvText);
-        
+
         console.log('🔍 Loaded exchange data for', Object.keys(exchangeData).length, 'coins across exchanges');
-        
+
         // Show sample of loaded data
         const sampleCoins = Object.keys(exchangeData).slice(0, 3);
         sampleCoins.forEach(coin => {
           console.log(`📊 ${coin} exchanges:`, Object.keys(exchangeData[coin]));
         });
         return exchangeData;
-        
+
       } catch (error) {
         console.warn('Could not load exchange data:', error);
         return {};
@@ -1529,11 +1558,11 @@
       const cleanedText = csvText.replace(/^\ufeff/, '');
       const lines = cleanedText.split('\n');
       const exchangeData = {};
-      
+
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim();
         if (!line) continue;
-        
+
         try {
           const columns = parseCSVLine(line);
           if (columns.length >= 5) {
@@ -1541,25 +1570,25 @@
             const exchange = columns[1];
             const valueUSD = parseFloat(columns[2]);
             const coinInfo = columns[4]; // "BTC (Bitcoin) by Exchange"
-            
+
             // Extract coin symbol from "BTC (Bitcoin) by Exchange" format
             const coinMatch = coinInfo.match(/^([A-Z0-9]+)/);
             if (!coinMatch) continue;
-            
+
             const coinSymbol = coinMatch[1];
-            
+
             if (!isNaN(amount) && !isNaN(valueUSD) && valueUSD >= 0.01) {
               if (!exchangeData[coinSymbol]) {
                 exchangeData[coinSymbol] = {};
               }
-              
+
               if (!exchangeData[coinSymbol][exchange]) {
                 exchangeData[coinSymbol][exchange] = {
                   amount: 0,
                   value_usd: 0
                 };
               }
-              
+
               exchangeData[coinSymbol][exchange].amount += amount;
               exchangeData[coinSymbol][exchange].value_usd += valueUSD;
             }
@@ -1568,21 +1597,21 @@
           console.warn('Error parsing exchange CSV line:', error);
         }
       }
-      
+
       return exchangeData;
     }
 
     // Smart exchange selection logic
     function selectOptimalExchange(coinSymbol, action, amount, exchangeData) {
       const coinExchanges = exchangeData[coinSymbol] || {};
-      
+
       if (Object.keys(coinExchanges).length === 0) {
         console.log(`💡 No exchange data for ${coinSymbol}, using default`);
         return action === 'BUY' ? 'Binance (Recommended)' : 'Current Holdings';
       }
-      
+
       console.log(`💡 Found exchanges for ${coinSymbol}:`, Object.keys(coinExchanges));
-      
+
       // Sort exchanges by value (descending)
       const sortedExchanges = Object.entries(coinExchanges)
         .map(([exchange, data]) => ({
@@ -1591,35 +1620,35 @@
           amount: data.amount
         }))
         .sort((a, b) => b.value - a.value);
-      
+
       if (action === 'SELL') {
         // For sells, prefer exchanges with high liquidity, avoid Ledger due to transfer costs
-        const liquidExchanges = sortedExchanges.filter(ex => 
-          !ex.exchange.toLowerCase().includes('ledger') && 
+        const liquidExchanges = sortedExchanges.filter(ex =>
+          !ex.exchange.toLowerCase().includes('ledger') &&
           !ex.exchange.toLowerCase().includes('wallet')
         );
-        
+
         if (liquidExchanges.length > 0) {
           const best = liquidExchanges[0];
           return `${best.exchange} ($${best.value.toLocaleString()})`;
         }
-        
+
         // Fallback to largest holding
         const largest = sortedExchanges[0];
         return `${largest.exchange} ($${largest.value.toLocaleString()})`;
       } else {
         // For buys, prefer main trading exchanges
         const tradingExchanges = ['Binance', 'Kraken', 'Kraken Earn'];
-        
+
         for (const tradingExchange of tradingExchanges) {
-          const found = sortedExchanges.find(ex => 
+          const found = sortedExchanges.find(ex =>
             ex.exchange.toLowerCase().includes(tradingExchange.toLowerCase())
           );
           if (found) {
             return `${found.exchange} (Liquid)`;
           }
         }
-        
+
         // Fallback to recommended exchange
         return 'Binance (Recommended)';
       }
@@ -1631,7 +1660,7 @@
       const exchanges = Object.entries(coinExchanges).map(([exchange, data]) => {
         return `${exchange}: $${data.value_usd.toLocaleString()}`;
       }).join(', ');
-      
+
       return exchanges || 'No exchange data';
     }
 
@@ -1639,7 +1668,7 @@
     async function generateRealCsv() {
       const plan = await generateRealPlan();
       const headers = 'group,alias,symbol,action,usd,est_quantity,price_used,location\n';
-      const rows = plan.actions.map(action => 
+      const rows = plan.actions.map(action =>
         `${action.group},${action.alias},${action.symbol},${action.action},${action.usd},${action.est_quantity},${action.price_used},${action.location}`
       ).join('\n');
       const csvContent = headers + rows;
@@ -1654,14 +1683,14 @@
       document.body.appendChild(notif);
       setTimeout(() => notif.remove(), duration);
     }
-    
+
     function showDataSourceError(message) {
       // Clear existing content
       $('#donutCurrent').innerHTML = '';
       $('#donutTarget').innerHTML = '';
       $('#summary').innerHTML = '';
       $('#tblActions tbody').innerHTML = '';
-      
+
       // Show error message with configuration guidance
       $('#summary').innerHTML = `
         <div class="card" style="text-align: center; padding: 2rem; border: 2px solid var(--danger); background: var(--danger-bg);">
@@ -1678,7 +1707,7 @@
           </button>
         </div>
       `;
-      
+
       showNotification('❌ Configuration de source de données requise - Voir Settings', 'error', 5000);
     }
     function setTotal(v) {
@@ -2007,13 +2036,13 @@
         setStatus("Calcul…");
         const { api, qs } = currentQuery();
         const url = `${api}/rebalance/plan?${qs}`;
-        
+
         let plan;
-        
+
         // Use real data only from configured source
         console.log('🔄 Using real data for rebalancing plan from configured source');
         plan = await generateRealPlan(); // Use real configured data only
-        
+
         /* Commented out API call - forcing CSV data for consistency
         try {
           plan = await postJson(url, buildPayload());
@@ -2080,7 +2109,7 @@
       } catch (e) {
         console.error(e);
         setStatus("Erreur: " + (e?.message || e));
-        
+
         // Afficher interface d'erreur si données non disponibles
         if (e.message && e.message.includes('Portfolio data unavailable')) {
           showDataSourceError(e.message);
@@ -2097,7 +2126,7 @@
         el("btnCsv").disabled = true;
         setStatus("Génération CSV…");
         const { api, qs } = currentQuery();
-        
+
         let blob;
         try {
           blob = await postCsv(`${api}/rebalance/plan.csv?${qs}`, buildPayload());
@@ -2244,17 +2273,17 @@
       console.log('Current theme after rebalance init:', document.documentElement.getAttribute('data-theme'));
 
       // CCS data will be loaded from configured real source when needed
-      
+
       // Charger les stratégies
       loadStrategies();
-      
+
       // Test exchange data loading
       setTimeout(async () => {
         console.log('🧪 Testing exchange data loading...');
         try {
           const exchangeData = await loadExchangeData();
           console.log('✅ Exchange data loaded successfully');
-          
+
           // Test specific coins
           const testCoins = ['BTC', 'ETH', 'ADA', 'AAVE'];
           testCoins.forEach(coin => {
@@ -2280,7 +2309,7 @@
       el("reset-strategy-btn").addEventListener("click", resetToManual);
 
       // Écouter les changements de thème pour synchronisation cross-tab
-      window.addEventListener('storage', function(e) {
+      window.addEventListener('storage', function (e) {
         if (e.key === 'crypto_rebalancer_settings') {
           console.log('Settings changed in another tab, reapplying theme...');
           setTimeout(() => {
@@ -2302,39 +2331,39 @@
 
 
       // Ajouter une fonction pour rafraîchir la stratégie dynamique
-      window.refreshDynamicStrategy = async function() {
+      window.refreshDynamicStrategy = async function () {
         try {
           showNotification('🔄 Recherche des targets CCS depuis Risk Dashboard...', 'info', 1000);
-          
+
           // Debug localStorage avant sync
           log.debug('refreshDynamicStrategy - localStorage keys:', Object.keys(localStorage));
           log.debug('refreshDynamicStrategy - last_targets raw:', localStorage.getItem('last_targets'));
-          
+
           // Essayer de lire depuis localStorage (sauvegardé par Risk Dashboard)
           let ccsTargets = syncCCSTargets();
-          
+
           log.debug('refreshDynamicStrategy - Parsed CCS targets:', ccsTargets);
-          
+
           // Si pas de données localStorage récentes
           if (!ccsTargets) {
             // Vérifier si Risk Dashboard a récemment sauvegardé des données
             const allStorageKeys = Object.keys(localStorage);
-            const ccsKeys = allStorageKeys.filter(key => 
+            const ccsKeys = allStorageKeys.filter(key =>
               key.includes('ccs') || key.includes('target') || key.includes('risk-dashboard')
             );
-            
+
             console.log('Found CCS-related localStorage keys:', ccsKeys);
-            
+
             showNotification(
               '📭 Aucune donnée CCS récente trouvée.\n\n' +
               '1️⃣ Allez dans Risk Dashboard\n' +
               '2️⃣ Cliquez sur l\'onglet "Strategic Targets"\n' +
               '3️⃣ Appliquez une stratégie (ex: "Blended Strategy")\n' +
-              '4️⃣ Revenez ici et cliquez "🎯 Sync CCS"', 
-              'info', 
+              '4️⃣ Revenez ici et cliquez "🎯 Sync CCS"',
+              'info',
               8000
             );
-            
+
             // Ajouter stratégie placeholder
             availableStrategies['ccs-dynamic-placeholder'] = {
               name: 'Strategic (Dynamic)',
@@ -2344,20 +2373,20 @@
               allocations: {},
               _isPlaceholder: true
             };
-            
+
             // Supprimer l'ancienne version si elle existe
             delete availableStrategies['ccs-dynamic'];
             delete availableStrategies['ccs-dynamic-error'];
-            
+
             renderStrategiesUI();
             return;
           }
-          
+
           if (ccsTargets) {
             log.debug('refreshDynamicStrategy - Creating strategy with allocations:', ccsTargets.targets);
             log.debug('refreshDynamicStrategy - BTC allocation:', ccsTargets.targets.BTC);
             log.debug('refreshDynamicStrategy - ETH allocation:', ccsTargets.targets.ETH);
-            
+
             // Mettre à jour ou ajouter la stratégie dynamique
             availableStrategies['ccs-dynamic'] = {
               name: 'Strategic (Dynamic)',
@@ -2368,13 +2397,13 @@
               _isDynamic: true,
               _ccsData: ccsTargets
             };
-            
+
             log.debug('refreshDynamicStrategy - Final strategy object:', availableStrategies['ccs-dynamic']);
-            
+
             // Supprimer les anciennes versions placeholder/error s'il y en a
             delete availableStrategies['ccs-dynamic-placeholder'];
             delete availableStrategies['ccs-dynamic-error'];
-            
+
             renderStrategiesUI();
             showNotification('🎯 Stratégie dynamique mise à jour!', 'success');
             console.log('Dynamic strategy refreshed:', ccsTargets);
@@ -2384,7 +2413,7 @@
         } catch (error) {
           console.error('Error refreshing dynamic strategy:', error);
           showNotification('❌ Erreur lors du rafraîchissement: ' + error.message, 'error');
-          
+
           // Ajouter stratégie d'erreur
           availableStrategies['ccs-dynamic-error'] = {
             name: 'Strategic (Dynamic)',
@@ -2394,11 +2423,11 @@
             allocations: {},
             _isError: true
           };
-          
+
           // Supprimer l'ancienne version si elle existe
           delete availableStrategies['ccs-dynamic'];
           delete availableStrategies['ccs-dynamic-placeholder'];
-          
+
           renderStrategiesUI();
         }
       };
@@ -2411,13 +2440,13 @@
     });
   </script>
 
-    <script>
-        // Initialisation automatique de la navigation thématique
-        document.addEventListener('DOMContentLoaded', function() {
-            // Auto-détecter la page courante pour la navigation thématique
-            /* unified nav enabled via components/nav.js; legacy init removed */
-        });
-    </script>
+  <script>
+    // Initialisation automatique de la navigation thématique
+    document.addEventListener('DOMContentLoaded', function () {
+      // Auto-détecter la page courante pour la navigation thématique
+      /* unified nav enabled via components/nav.js; legacy init removed */
+    });
+  </script>
 </body>
 
 </html>

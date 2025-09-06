@@ -13,7 +13,7 @@
     <script src="performance-optimizer.js"></script>
     <script src="global-config.js"></script>
     <script src="appearance.js"></script>
-    
+
     <!-- Navigation unifiée (conditionnelle) -->
     <script type="module">
         if (new URLSearchParams(window.location.search).get('nav') !== 'off') {
@@ -24,22 +24,21 @@
     <style>
         .dashboard-grid {
             display: grid;
-            grid-template-columns: 2fr 1fr;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
             gap: var(--space-xl);
             margin-bottom: var(--space-xl);
         }
 
         /* ===== Container responsive ===== */
-        .container {
-            width: 100%;
-            max-width: 1400px;
+        .wrap {
+            max-width: 95vw;
             margin: 0 auto;
-            padding: 0 var(--space-lg);
+            padding: var(--space-lg);
         }
 
         @media (max-width: 768px) {
-            .container {
-                padding: 0 var(--space-md);
+            .wrap {
+                padding: var(--space-md);
             }
         }
 
@@ -239,7 +238,7 @@
             padding: var(--space-lg);
             position: relative;
         }
-        
+
         .chart-container canvas {
             max-height: 100%;
         }
@@ -449,18 +448,19 @@
             color: var(--on-primary-muted) !important;
         }
     </style>
-n  <!-- Navigation unifiée (conditionnelle) -->
-  <script type="module">
-      if (new URLSearchParams(window.location.search).get('nav') !== 'off') {
-          import('./components/nav.js');
-      }
-  </script>
+    <!-- Navigation unifiée (conditionnelle) -->
+    <script type="module">
+        if (new URLSearchParams(window.location.search).get('nav') !== 'off') {
+            import('./components/nav.js');
+        }
+    </script>
 
+    <script type="module" src="components/tooltips.js"></script>
 </head>
 
 <body>
 
-    <div class="container">
+    <div class="wrap">
         <div class="card">
             <div
                 style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
@@ -613,9 +613,9 @@ n  <!-- Navigation unifiée (conditionnelle) -->
                 exchange: '',
                 limit: 50
             };
-            
+
             let trendsChart = null;
-            
+
             // Initialisation du thème Chart.js
             function initChartTheme() {
                 const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -660,7 +660,7 @@ n  <!-- Navigation unifiée (conditionnelle) -->
                 });
 
                 // Écouter les changements de thème pour synchronisation cross-tab
-                window.addEventListener('storage', function(e) {
+                window.addEventListener('storage', function (e) {
                     if (e.key === 'crypto_rebalancer_settings') {
                         console.log('Settings changed in another tab, reapplying theme...');
                         setTimeout(() => {
@@ -754,7 +754,7 @@ n  <!-- Navigation unifiée (conditionnelle) -->
                 } catch (error) {
                     log.error('Error loading dashboard data:', error);
                     showNotification('API non disponible - Données simulées', 'warning');
-                    
+
                     // Afficher erreur au lieu de données mockées
                     showApiError(error);
                 }
@@ -824,7 +824,7 @@ n  <!-- Navigation unifiée (conditionnelle) -->
                 ];
 
                 container.innerHTML = '';
-                
+
                 mockSessions.forEach(session => {
                     const successRate = session.total_orders > 0
                         ? (session.successful_orders / session.total_orders * 100)
@@ -944,31 +944,31 @@ n  <!-- Navigation unifiée (conditionnelle) -->
             function createTrendsChart(trendsData) {
                 const canvas = document.getElementById('trendsCanvas');
                 if (!canvas) return;
-                
+
                 const ctx = canvas.getContext('2d');
                 const theme = initChartTheme();
-                
+
                 // Détruire le graphique existant
                 if (trendsChart) {
                     trendsChart.destroy();
                 }
-                
+
                 // Préparer les données
                 const data = trendsData.trends || {};
                 const dailyData = trendsData.daily_data || [];
-                
+
                 // Utiliser seulement données réelles - pas de simulation
                 let chartData = dailyData;
                 if (!chartData.length) {
                     // Afficher graphique vide au lieu de données mockées
                     chartData = [];
                 }
-                
-                const labels = chartData.map(item => new Date(item.date).toLocaleDateString('fr-FR', { 
-                    month: 'short', 
-                    day: 'numeric' 
+
+                const labels = chartData.map(item => new Date(item.date).toLocaleDateString('fr-FR', {
+                    month: 'short',
+                    day: 'numeric'
                 }));
-                
+
                 trendsChart = new Chart(ctx, {
                     type: 'line',
                     data: {
@@ -1008,10 +1008,10 @@ n  <!-- Navigation unifiée (conditionnelle) -->
                                 borderColor: theme.borderColor,
                                 borderWidth: 1,
                                 callbacks: {
-                                    label: function(context) {
+                                    label: function (context) {
                                         const label = context.dataset.label || '';
                                         let value = context.parsed.y;
-                                        
+
                                         if (label.includes('Volume')) {
                                             return `${label}: $${value.toLocaleString()}`;
                                         } else if (label.includes('Taux')) {
@@ -1032,9 +1032,9 @@ n  <!-- Navigation unifiée (conditionnelle) -->
                                 display: true,
                                 position: 'left',
                                 grid: { color: theme.gridColor },
-                                ticks: { 
+                                ticks: {
                                     color: theme.textColor,
-                                    callback: function(value) {
+                                    callback: function (value) {
                                         return value + '%';
                                     }
                                 },
@@ -1049,9 +1049,9 @@ n  <!-- Navigation unifiée (conditionnelle) -->
                                 display: true,
                                 position: 'right',
                                 grid: { drawOnChartArea: false },
-                                ticks: { 
+                                ticks: {
                                     color: theme.textColor,
-                                    callback: function(value) {
+                                    callback: function (value) {
                                         return '$' + value.toLocaleString();
                                     }
                                 },
@@ -1309,13 +1309,13 @@ n  <!-- Navigation unifiée (conditionnelle) -->
             });
         </script>
 
-    <script>
-        // Initialisation automatique de la navigation thématique
-        document.addEventListener('DOMContentLoaded', function() {
-            // Auto-détecter la page courante pour la navigation thématique
-            /* unified nav enabled via components/nav.js; legacy init removed */
-        });
-    </script>
+        <script>
+            // Initialisation automatique de la navigation thématique
+            document.addEventListener('DOMContentLoaded', function () {
+                // Auto-détecter la page courante pour la navigation thématique
+                /* unified nav enabled via components/nav.js; legacy init removed */
+            });
+        </script>
 </body>
 
 </html>

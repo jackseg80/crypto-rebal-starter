@@ -13,7 +13,7 @@
   <script src="input-validator.js"></script>
   <script src="performance-optimizer.js"></script>
   <script src="global-config.js"></script>
-<script src="appearance.js"></script>
+  <script src="appearance.js"></script>
   <style>
     /* ===== Container responsive ===== */
     .container {
@@ -194,11 +194,12 @@
     }
   </style>
 
+  <script type="module" src="components/tooltips.js"></script>
 </head>
 
 <body>
 
-  <div class="container">
+  <div class="wrap">
 
     <!-- Navigation par onglets -->
     <div class="section">
@@ -304,16 +305,19 @@
         <div class="section">
           <div class="section-content">
             <h3 style="margin-top:0">📋 Historique d'Exécution</h3>
-            <p style="color: var(--theme-text-muted); margin-bottom:1rem;">Historique détaillé des sessions d'exécution et des ordres</p>
-            <div id="history-inline" class="panel-card" style="padding:var(--space-lg); border:1px solid var(--theme-border); border-radius:var(--radius-md); background: var(--theme-surface);">
+            <p style="color: var(--theme-text-muted); margin-bottom:1rem;">Historique détaillé des sessions d'exécution
+              et des ordres</p>
+            <div id="history-inline" class="panel-card"
+              style="padding:var(--space-lg); border:1px solid var(--theme-border); border-radius:var(--radius-md); background: var(--theme-surface);">
               <div id="history-status" style="color:var(--theme-text-muted)">Chargement…</div>
               <div id="history-list" style="margin-top:1rem"></div>
             </div>
             <div style="text-align:right; margin-top:.5rem;">
-              <a href="execution_history.html" target="_blank" style="color: var(--theme-text-muted); text-decoration: none;">Ouvrir l'historique complet ↗</a>
+              <a href="execution_history.html" target="_blank"
+                style="color: var(--theme-text-muted); text-decoration: none;">Ouvrir l'historique complet ↗</a>
             </div>
             <script>
-              (function(){
+              (function () {
                 async function loadHistory() {
                   const status = document.getElementById('history-status');
                   const list = document.getElementById('history-list');
@@ -335,7 +339,7 @@
                         <td>${s.exchange || '-'}</td>
                         <td>${s.total_orders}</td>
                         <td>${(s.successful_orders || 0)}/${s.total_orders}</td>
-                        <td>${(s.total_volume_usd || 0).toLocaleString('fr-FR', { style:'currency', currency:'USD' })}</td>
+                        <td>${(s.total_volume_usd || 0).toLocaleString('fr-FR', { style: 'currency', currency: 'USD' })}</td>
                         <td>${(s.total_fees || 0).toFixed(2)}</td>
                         <td>${(s.avg_slippage_bps || 0)} bps</td>
                       </tr>
@@ -907,13 +911,13 @@
     });
   </script>
 
-    <script>
-        // Initialisation automatique de la navigation thématique
-        document.addEventListener('DOMContentLoaded', function() {
-            // Auto-détecter la page courante pour la navigation thématique
-            /* unified nav enabled via components/nav.js; legacy init removed */
-        });
-    </script>
+  <script>
+    // Initialisation automatique de la navigation thématique
+    document.addEventListener('DOMContentLoaded', function () {
+      // Auto-détecter la page courante pour la navigation thématique
+      /* unified nav enabled via components/nav.js; legacy init removed */
+    });
+  </script>
 </body>
 
 </html>

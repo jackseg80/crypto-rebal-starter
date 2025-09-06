@@ -12,7 +12,7 @@
 
   <!-- Scripts partagés existants -->
   <script src="global-config.js"></script>
-<script src="appearance.js"></script>
+  <script src="appearance.js"></script>
 
   <!-- Core modules ESM -->
   <script type="module" src="core/risk-dashboard-store.js"></script>
@@ -695,19 +695,21 @@
 
   <!-- Navigation unifiée (conditionnelle) -->
   <script type="module">
-      if (new URLSearchParams(window.location.search).get('nav') !== 'off') {
-          import('./components/nav.js');
-      }
+    if (new URLSearchParams(window.location.search).get('nav') !== 'off') {
+      import('./components/nav.js');
+    }
   </script>
+  <script type="module" src="components/tooltips.js"></script>
 </head>
 
 <body>
 
-  <div class="container">
+  <div class="wrap">
     <!-- Controls Header -->
     <div class="controls">
       <button class="refresh-btn" onclick="refreshDashboard()" id="refresh-btn">🔄 Refresh Data</button>
-      <button class="refresh-btn" onclick="refreshDashboard(true)" id="force-refresh-btn" style="background: #dc3545;" title="Ignore cache and recalculate all scores">🧹 Force Refresh</button>
+      <button class="refresh-btn" onclick="refreshDashboard(true)" id="force-refresh-btn" style="background: #dc3545;"
+        title="Ignore cache and recalculate all scores">🧹 Force Refresh</button>
       <button class="refresh-btn" onclick="enableAutoRefresh()" id="auto-refresh-btn">⏱️ Enable Auto-Refresh
         (30s)</button>
       <button class="refresh-btn" onclick="testEndpoint()" style="background:#007bff">🧪 Test API</button>
@@ -1789,7 +1791,7 @@
         if (cachedScores && cachedScores.data) {
           const age = Math.round((Date.now() - cachedScores.timestamp) / (1000 * 60));
           console.log(`⚡ Using cached scores (${age} minutes old)`);
-          
+
           const scores = cachedScores.data;
           // Hydrate store with cached scores so subscribers (updateSidebar) see values
           try {
@@ -1804,7 +1806,7 @@
 
           updateScoreDisplays(scores.onchainScore, scores.riskScore, scores.blendedScore, scores.ccsScore);
           // Ensure sidebar reflects the hydrated store
-          try { updateSidebar(store.snapshot()); } catch {}
+          try { updateSidebar(store.snapshot()); } catch { }
           updateMarketRegime(scores.blendedScore, scores.onchainScore, scores.riskScore);
           return scores;
         }
@@ -1844,7 +1846,7 @@
         const scoreData = {
           onchainScore: onchainScore,
           riskScore: riskScore,
-          blendedScore: blendedScore, 
+          blendedScore: blendedScore,
           ccsScore: ccsScore,
           ccsMixteScore: ccsMixteScore
         };
@@ -4106,13 +4108,13 @@
 
     function initPersistentCache() {
       console.log('🗄️ Initializing persistent cache system...');
-      
+
       // Check existing cached scores
       const cachedScores = getCachedData('SCORES');
       if (cachedScores) {
         const age = Math.round((Date.now() - cachedScores.timestamp) / (1000 * 60));
         console.log(`✅ Found cached scores (${age} minutes old)`);
-        
+
         // Restore scores in localStorage for compatibility
         localStorage.setItem('risk_score_onchain', cachedScores.data.onchainScore?.toString() || '');
         localStorage.setItem('risk_score_risk', cachedScores.data.riskScore?.toString() || '');
@@ -4123,7 +4125,7 @@
 
       // Override clearCache to be selective
       window.originalClearCache = window.clearCache;
-      window.clearCache = function(force = false) {
+      window.clearCache = function (force = false) {
         if (force) {
           console.log('🧹 Force clearing all cache');
           clearAllPersistentCache();
@@ -4199,11 +4201,11 @@
         if (typeof updateOnChainIndicators === 'function') {
           updateOnChainIndicators();
         }
-        
+
         // Update the main dashboard scores display
         const scoreElements = {
           onchain: document.querySelector('[data-score="onchain"]'),
-          risk: document.querySelector('[data-score="risk"]'), 
+          risk: document.querySelector('[data-score="risk"]'),
           blended: document.querySelector('[data-score="blended"]'),
           ccs: document.querySelector('[data-score="ccs"]')
         };
@@ -4340,13 +4342,13 @@
     })();
   </script>
 
-    <script>
-        // Initialisation automatique de la navigation thématique
-        document.addEventListener('DOMContentLoaded', function() {
-            // Auto-détecter la page courante pour la navigation thématique
-            /* unified nav enabled via components/nav.js; legacy init removed */
-        });
-    </script>
+  <script>
+    // Initialisation automatique de la navigation thématique
+    document.addEventListener('DOMContentLoaded', function () {
+      // Auto-détecter la page courante pour la navigation thématique
+      /* unified nav enabled via components/nav.js; legacy init removed */
+    });
+  </script>
 </body>
 
 </html>

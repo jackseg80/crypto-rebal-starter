@@ -11,49 +11,130 @@
 
   <script src="global-config.js"></script>
   <script src="appearance.js"></script>
-  
+
   <!-- Navigation unifiée (conditionnelle) -->
   <script type="module">
-      if (new URLSearchParams(window.location.search).get('nav') !== 'off') {
-          import('./components/nav.js');
-      }
+    if (new URLSearchParams(window.location.search).get('nav') !== 'off') {
+      import('./components/nav.js');
+    }
   </script>
 
   <!-- Chart.js for visualizations -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+  <script type="module" src="components/tooltips.js"></script>
 
   <style>
-    .wrap { max-width: 1000px; margin: 0 auto; padding: var(--space-lg); }
-    .card { background: var(--theme-surface); border: 1px solid var(--theme-border); border-radius: var(--radius-lg); padding: var(--space-lg); }
-    .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .75rem; margin-top: .5rem; }
-    .controls label { display: block; font-size: .9rem; color: var(--theme-text-muted); margin-bottom: .25rem; }
-    .controls select, .controls input { width: 100%; padding: .5rem .6rem; border: 1px solid var(--theme-border); border-radius: var(--radius-sm); background: var(--theme-surface); color: var(--theme-text); }
-    .actions { margin-top: .75rem; display: flex; gap: .5rem; }
-    .btn { background: var(--brand-primary); color: #fff; border: 0; padding: .5rem .8rem; border-radius: var(--radius-sm); cursor: pointer; }
-    .btn.secondary { background: var(--theme-surface); color: var(--theme-text); border: 1px solid var(--theme-border); }
-    .grid { display: grid; grid-template-columns: 1fr; gap: 1rem; }
-    @media (min-width: 920px) { .grid { grid-template-columns: 1.1fr .9fr; } }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { text-align: left; padding: .5rem; border-bottom: 1px solid var(--theme-border); }
-    th { color: var(--theme-text-muted); font-weight: 600; }
-    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .5rem; margin-top: .5rem; }
-    .kpi { background: var(--theme-bg); border: 1px solid var(--theme-border); border-radius: var(--radius-md); padding: .6rem; }
-    .kpi .label { color: var(--theme-text-muted); font-size: .85rem; }
-    .kpi .value { font-weight: 700; font-size: 1.1rem; }
-    .error { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger); padding: .6rem; border-radius: var(--radius-sm); }
+    .wrap { max-width: 95vw; margin: 0 auto; padding: var(--space-lg); }
+
+    .card {
+      background: var(--theme-surface);
+      border: 1px solid var(--theme-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-lg);
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: .75rem;
+      margin-top: .5rem;
+    }
+
+    .controls label {
+      display: block;
+      font-size: .9rem;
+      color: var(--theme-text-muted);
+      margin-bottom: .25rem;
+    }
+
+    .controls select,
+    .controls input {
+      width: 100%;
+      padding: .5rem .6rem;
+      border: 1px solid var(--theme-border);
+      border-radius: var(--radius-sm);
+      background: var(--theme-surface);
+      color: var(--theme-text);
+    }
+
+    .actions {
+      margin-top: .75rem;
+      display: flex;
+      gap: .5rem;
+    }
+
+    .btn {
+      background: var(--brand-primary);
+      color: #fff;
+      border: 0;
+      padding: .5rem .8rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+    }
+
+    .btn.secondary {
+      background: var(--theme-surface);
+      color: var(--theme-text);
+      border: 1px solid var(--theme-border);
+    }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--space-lg); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      text-align: left;
+      padding: .5rem;
+      border-bottom: 1px solid var(--theme-border);
+    }
+
+    th {
+      color: var(--theme-text-muted);
+      font-weight: 600;
+    }
+
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: .5rem;
+      margin-top: .5rem;
+    }
+
+    .kpi {
+      background: var(--theme-bg);
+      border: 1px solid var(--theme-border);
+      border-radius: var(--radius-md);
+      padding: .6rem;
+    }
+
+    .kpi .label {
+      color: var(--theme-text-muted);
+      font-size: .85rem;
+    }
+
+    .kpi .value {
+      font-weight: 700;
+      font-size: 1.1rem;
+    }
+
+    .error {
+      background: var(--danger-bg);
+      color: var(--danger);
+      border: 1px solid var(--danger);
+      padding: .6rem;
+      border-radius: var(--radius-sm);
+    }
   </style>
+  <script type="module" src="components/tooltips.js"></script>
 </head>
 
 <body>
   <div class="wrap">
-    <div class="card">
-      <div class="card-header" style="margin-bottom:.5rem; border-bottom:1px solid var(--theme-border);">
-        <div class="card-title" style="display:flex; align-items:center; gap:.5rem;">
-          <span class="card-icon">📐</span> Portfolio Optimization
-        </div>
-      </div>
-
-      <div class="controls" id="controls">
+    <div class="card">\n      <div class="card-header" style="border-bottom:1px solid var(--theme-border);">\n        <div class="card-title" style="display:flex; align-items:center; gap:.5rem;">📐 Portfolio Optimization</div>\n      </div>\n      <div class="card-content">\n      <div class="controls" id="controls">
         <div>
           <label for="objective">Objective</label>
           <select id="objective">
@@ -86,14 +167,11 @@
         </div>
       </div>
 
-      <div class="actions">
+            <div class="actions">
         <button class="btn" id="runBtn">Optimiser</button>
         <button class="btn secondary" id="resetBtn">Réinitialiser</button>
         <span id="status" style="margin-left:auto; color: var(--theme-text-muted);"></span>
-      </div>
-    </div>
-
-    <div class="grid" style="margin-top:1rem;">
+            </div>\n    </div>\n\n    <div class="grid" style="margin-top:1rem;">
       <div class="card">
         <div class="card-title" style="margin-bottom:.5rem;">Proposition d’allocation</div>
         <canvas id="weightsChart" height="200"></canvas>
@@ -103,7 +181,7 @@
         <div class="card-title" style="margin-bottom:.5rem;">KPIs</div>
         <div class="kpis" id="kpis"></div>
         <div style="margin-top:.75rem;">
-          <div class="card-title" style="margin-bottom:.25rem;">Trades de rééquilibrage</div>
+          <div class="card-title" style="margin-bottom:.25rem;">Trades de réééquilibrége</div>
           <table id="tradesTable"></table>
         </div>
       </div>
@@ -114,8 +192,10 @@
         ✨ Propositions (scénarios)
         <button class="btn secondary" id="proposalsBtn" style="margin-left:auto;">Générer des propositions</button>
       </div>
-      <div id="proposalsInfo" style="color: var(--theme-text-muted); font-size:.9rem; margin-bottom:.5rem;">3 variantes: Conservateur, Équilibré, Dynamique. Aucun bouton d’application — affichage uniquement.</div>
-      <div id="proposalsList" class="grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:.75rem;"></div>
+      <div id="proposalsInfo" style="color: var(--theme-text-muted); font-size:.9rem; margin-bottom:.5rem;">3 variantes:
+        Conservateur, Ééquilibré, Dynamique. Aucun bouton d’application — affichage uniquement.</div>
+      <div id="proposalsList" class="grid"
+        style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:.75rem;"></div>
     </div>
   </div>
 
@@ -129,18 +209,18 @@
     function setStatus(msg) { document.getElementById('status').textContent = msg || ''; }
 
     function renderWeights(weights) {
-      const entries = Object.entries(weights || {}).sort((a,b)=>b[1]-a[1]);
+      const entries = Object.entries(weights || {}).sort((a, b) => b[1] - a[1]);
       const tbl = document.getElementById('weightsTable');
-      tbl.innerHTML = '<tr><th>Actif</th><th>Poids</th></tr>' + entries.map(([s,w])=>`<tr><td>${s}</td><td>${formatPct(w)}</td></tr>`).join('');
+      tbl.innerHTML = '<tr><th>Actif</th><th>Poids</th></tr>' + entries.map(([s, w]) => `<tr><td>${s}</td><td>${formatPct(w)}</td></tr>`).join('');
 
       const ctx = document.getElementById('weightsChart');
-      const labels = entries.map(e=>e[0]);
-      const data = entries.map(e=>e[1]*100);
-      const colors = labels.map((_,i)=>`hsl(${(i*47)%360} 70% 55%)`);
+      const labels = entries.map(e => e[0]);
+      const data = entries.map(e => e[1] * 100);
+      const colors = labels.map((_, i) => `hsl(${(i * 47) % 360} 70% 55%)`);
       if (weightsChart) weightsChart.destroy();
       weightsChart = new Chart(ctx, {
         type: 'doughnut',
-        data: { labels, datasets: [{ data, backgroundColor: colors }]},
+        data: { labels, datasets: [{ data, backgroundColor: colors }] },
         options: { plugins: { legend: { position: 'bottom' } } }
       });
     }
@@ -148,31 +228,31 @@
     function renderKPIs(res) {
       const k = document.getElementById('kpis');
       const items = [
-        { label:'Expected Return', value: formatPct(res.expected_return) },
-        { label:'Volatility', value: formatPct(res.volatility) },
-        { label:'Sharpe Ratio', value: (res.sharpe_ratio??0).toFixed(2) },
-        { label:'Diversification', value: (res.diversification_ratio??0).toFixed(2) },
-        { label:'Score', value: (res.optimization_score??0).toFixed(2) },
-        { label:'Constraints OK', value: res.constraints_satisfied ? '✅' : '⚠️' }
+        { label: 'Expected Return', value: formatPct(res.expected_return) },
+        { label: 'Volatility', value: formatPct(res.volatility) },
+        { label: 'Sharpe Ratio', value: (res.sharpe_ratio ?? 0).toFixed(2) },
+        { label: 'Diversification', value: (res.diversification_ratio ?? 0).toFixed(2) },
+        { label: 'Score', value: (res.optimization_score ?? 0).toFixed(2) },
+        { label: 'Constraints OK', value: res.constraints_satisfied ? '✅' : '⚠️' }
       ];
-      k.innerHTML = items.map(i=>`<div class="kpi"><div class="label">${i.label}</div><div class="value">${i.value}</div></div>`).join('');
+      k.innerHTML = items.map(i => `<div class="kpi"><div class="label">${i.label}</div><div class="value">${i.value}</div></div>`).join('');
     }
 
     function renderTrades(trades) {
       const tbl = document.getElementById('tradesTable');
       if (!trades || !trades.length) { tbl.innerHTML = '<tr><td>Aucun trade requis</td></tr>'; return; }
       tbl.innerHTML = '<tr><th>Actif</th><th>Action</th><th>Delta</th></tr>' +
-        trades.map(t=>`<tr><td>${t.symbol||t.asset||'-'}</td><td>${t.action||'-'}</td><td>${formatPct0((t.delta||0))}</td></tr>`).join('');
+        trades.map(t => `<tr><td>${t.symbol || t.asset || '-'}</td><td>${t.action || '-'}</td><td>${formatPct0((t.delta || 0))}</td></tr>`).join('');
     }
 
     async function runOptimization() {
       try {
         setStatus('Optimisation en cours…');
         const objective = document.getElementById('objective').value;
-        const lookback = parseInt(document.getElementById('lookback').value||'365',10);
+        const lookback = parseInt(document.getElementById('lookback').value || '365', 10);
         const source = document.getElementById('source').value;
-        const minusd = parseFloat(document.getElementById('minusd').value||'100');
-        const minhistory = parseInt(document.getElementById('minhistory').value||'365',10);
+        const minusd = parseFloat(document.getElementById('minusd').value || '100');
+        const minhistory = parseInt(document.getElementById('minhistory').value || '365', 10);
 
         const body = { objective, lookback_days: lookback, expected_return_method: 'mean_reversion', include_current_weights: true };
         const params = new URLSearchParams({ source, min_usd: String(minusd), min_history_days: String(minhistory) });
@@ -181,17 +261,17 @@
         const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const res = await resp.json();
-        if (!res.success) throw new Error(res.error||'Optimization failed');
+        if (!res.success) throw new Error(res.error || 'Optimization failed');
 
         renderWeights(res.weights);
         renderKPIs(res);
-        renderTrades(res.rebalancing_trades||[]);
+        renderTrades(res.rebalancing_trades || []);
         setStatus('✅ Optimisation terminée');
       } catch (e) {
         console.error(e);
         setStatus('Erreur');
         const tbl = document.getElementById('weightsTable');
-        tbl.innerHTML = `<tr><td><div class="error">${(e&&e.message)||'Erreur optimisation'}</div></td></tr>`;
+        tbl.innerHTML = `<tr><td><div class="error">${(e && e.message) || 'Erreur optimisation'}</div></td></tr>`;
       }
     }
 
@@ -215,23 +295,23 @@
     });
 
     // --- Proposals (scenarios) ---
-    function scenarioLabel(obj){
-      switch(obj){
+    function scenarioLabel(obj) {
+      switch (obj) {
         case 'min_variance': return 'Conservateur';
-        case 'max_sharpe': return 'Équilibré';
+        case 'max_sharpe': return 'Ééquilibré';
         case 'max_return': return 'Dynamique';
         default: return obj;
       }
     }
 
-    function renderProposalCard(target, name, res){
-      const entries = Object.entries(res.weights||{}).sort((a,b)=>b[1]-a[1]);
-      const top = entries.slice(0,5).map(([s,w])=>`<div style="display:flex; justify-content:space-between"><span>${s}</span><span>${formatPct(w)}</span></div>`).join('');
+    function renderProposalCard(target, name, res) {
+      const entries = Object.entries(res.weights || {}).sort((a, b) => b[1] - a[1]);
+      const top = entries.slice(0, 5).map(([s, w]) => `<div style="display:flex; justify-content:space-between"><span>${s}</span><span>${formatPct(w)}</span></div>`).join('');
       target.innerHTML = `
         <div class="card">
           <div class="card-title" style="margin-bottom:.25rem;">${name}</div>
           <div class="kpis" style="margin:.25rem 0 .5rem 0; grid-template-columns: repeat(3, 1fr);">
-            <div class="kpi"><div class="label">Sharpe</div><div class="value">${(res.sharpe_ratio??0).toFixed(2)}</div></div>
+            <div class="kpi"><div class="label">Sharpe</div><div class="value">${(res.sharpe_ratio ?? 0).toFixed(2)}</div></div>
             <div class="kpi"><div class="label">Ret.</div><div class="value">${formatPct(res.expected_return)}</div></div>
             <div class="kpi"><div class="label">Vol.</div><div class="value">${formatPct(res.volatility)}</div></div>
           </div>
@@ -240,35 +320,35 @@
         </div>`;
     }
 
-    async function runProposals(){
+    async function runProposals() {
       const list = document.getElementById('proposalsList');
       list.innerHTML = '';
       const source = document.getElementById('source').value;
-      const minusd = parseFloat(document.getElementById('minusd').value||'100');
-      const minhistory = parseInt(document.getElementById('minhistory').value||'365',10);
-      const lookback = parseInt(document.getElementById('lookback').value||'365',10);
+      const minusd = parseFloat(document.getElementById('minusd').value || '100');
+      const minhistory = parseInt(document.getElementById('minhistory').value || '365', 10);
+      const lookback = parseInt(document.getElementById('lookback').value || '365', 10);
 
       const scenarios = [
-        { objective:'min_variance', lookback_days: lookback },
-        { objective:'max_sharpe', lookback_days: lookback },
-        { objective:'max_return', lookback_days: lookback }
+        { objective: 'min_variance', lookback_days: lookback },
+        { objective: 'max_sharpe', lookback_days: lookback },
+        { objective: 'max_return', lookback_days: lookback }
       ];
 
-      for (const sc of scenarios){
+      for (const sc of scenarios) {
         const col = document.createElement('div');
-        col.innerHTML = '<div class="card"><div class="card-title">'+scenarioLabel(sc.objective)+'</div><div style="color:var(--theme-text-muted);">Calcul…</div></div>';
+        col.innerHTML = '<div class="card"><div class="card-title">' + scenarioLabel(sc.objective) + '</div><div style="color:var(--theme-text-muted);">Calcul…</div></div>';
         list.appendChild(col);
-        try{
+        try {
           const body = { objective: sc.objective, lookback_days: sc.lookback_days, expected_return_method: 'mean_reversion', include_current_weights: true };
           const params = new URLSearchParams({ source, min_usd: String(minusd), min_history_days: String(minhistory) });
           const url = `${API_BASE}/api/portfolio/optimization/optimize?${params.toString()}`;
-          const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+          const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
           if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
           const res = await resp.json();
-          if (!res.success) throw new Error(res.error||'Optimization failed');
+          if (!res.success) throw new Error(res.error || 'Optimization failed');
           renderProposalCard(col, scenarioLabel(sc.objective), res);
-        }catch(e){
-          col.innerHTML = `<div class="card"><div class="card-title">${scenarioLabel(sc.objective)}</div><div class="error">${(e&&e.message)||'Erreur'}</div></div>`;
+        } catch (e) {
+          col.innerHTML = `<div class="card"><div class="card-title">${scenarioLabel(sc.objective)}</div><div class="error">${(e && e.message) || 'Erreur'}</div></div>`;
         }
       }
     }
@@ -276,4 +356,8 @@
     document.getElementById('proposalsBtn').addEventListener('click', runProposals);
   </script>
 </body>
+
 </html>
+
+
+

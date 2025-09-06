@@ -298,9 +298,9 @@
           import('./components/nav.js');
       }
   </script>
-</head>
+  <script type="module" src="components/tooltips.js"></script>`n</head>
 <body>
-    <div class="container">
+    <div class="wrap">
         <div class="header">
             <h1>⚡ Performance Monitor</h1>
             <p>Surveillance et optimisation des performances système</p>
@@ -308,7 +308,7 @@
 
         <div class="dashboard-grid">
             <!-- Cache Statistics Panel -->
-            <div class="panel">
+            <div class="panel card">
                 <h2 class="panel-title">💾 Cache Statistics</h2>
                 
                 <div class="auto-refresh">
@@ -345,7 +345,7 @@
             </div>
 
             <!-- System Memory Panel -->
-            <div class="panel">
+            <div class="panel card">
                 <h2 class="panel-title">🖥️ System Memory</h2>
                 
                 <div class="auto-refresh">
@@ -382,7 +382,7 @@
             </div>
 
             <!-- Performance Benchmarking Panel -->
-            <div class="panel">
+            <div class="panel card">
                 <h2 class="panel-title">📊 Performance Benchmarking</h2>
                 
                 <div class="form-group">
@@ -419,7 +419,7 @@
             </div>
 
             <!-- Optimization Tools Panel -->
-            <div class="panel">
+            <div class="panel card">
                 <h2 class="panel-title">🔧 Optimization Tools</h2>
                 
                 <p style="color: var(--theme-text-muted); margin-bottom: 1.5rem;">
@@ -796,3 +796,4 @@
     </script>
 </body>
 </html>
+

@@ -12,14 +12,14 @@
 
     <!-- Navigation unifiée -->
     <script type="module" src="components/nav.js"></script>
-    
+
     <!-- Scripts de base -->
     <script src="debug-logger.js"></script>
     <script src="input-validator.js"></script>
     <script src="performance-optimizer.js"></script>
     <script src="global-config.js"></script>
     <script src="appearance.js"></script>
-    
+
     <!-- Composants ML partagés -->
     <script type="module" src="shared-ml-functions.js"></script>
     <script type="module" src="ml-card-component.js"></script>
@@ -35,13 +35,13 @@
             font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
             line-height: 1.6;
         }
-        
+
         .wrap {
             max-width: 95vw;
             margin: 0 auto;
             padding: 16px;
         }
-        
+
         .container {
             max-width: 1200px;
             padding: 2rem;
@@ -78,7 +78,7 @@
             gap: 2rem;
             margin-bottom: 3rem;
         }
-        
+
         .demo-card {
             background: var(--theme-surface);
             border: 1px solid var(--theme-border);
@@ -87,7 +87,7 @@
             transition: all var(--transition-normal);
             box-shadow: var(--shadow-sm);
         }
-        
+
         .demo-card:hover {
             border-color: var(--brand-primary);
             transform: translateY(-2px);
@@ -137,7 +137,7 @@
             justify-content: center;
             color: var(--theme-text-muted);
         }
-        
+
         .tech-specs {
             background: var(--theme-muted);
             border-radius: 8px;
@@ -145,22 +145,22 @@
             margin-top: 1rem;
             font-size: 0.9rem;
         }
-        
+
         .tech-specs h4 {
             margin: 0 0 0.5rem 0;
             color: var(--theme-text);
         }
-        
+
         .tech-specs ul {
             margin: 0;
             padding-left: 1.5rem;
             color: var(--theme-text-muted);
         }
-        
+
         .tech-specs li {
             margin-bottom: 0.25rem;
         }
-        
+
         /* Fix de lisibilité en mode sombre */
         .status-grid {
             display: grid;
@@ -168,7 +168,7 @@
             gap: 1rem;
             margin: 1rem 0;
         }
-        
+
         .status-item {
             background: var(--theme-surface-elevated);
             border: 1px solid var(--theme-border);
@@ -177,12 +177,12 @@
             text-align: center;
             transition: all var(--transition-normal);
         }
-        
+
         .status-item:hover {
             border-color: var(--brand-primary);
             transform: translateY(-1px);
         }
-        
+
         .status-label {
             display: block;
             color: var(--theme-text);
@@ -190,14 +190,14 @@
             font-weight: 500;
             margin-bottom: 0.5rem;
         }
-        
+
         .status-value {
             display: block;
             color: var(--brand-primary);
             font-size: 1.1rem;
             font-weight: 600;
         }
-        
+
         /* Fix des actions de boutons */
         .card-actions {
             display: flex;
@@ -206,7 +206,7 @@
             justify-content: center;
             margin-top: 1.5rem;
         }
-        
+
         .btn {
             padding: 10px 20px;
             border-radius: 8px;
@@ -239,7 +239,7 @@
             background: var(--theme-muted);
             border-color: var(--brand-primary);
         }
-        
+
         /* Fix des actions globales */
         .global-actions {
             display: flex;
@@ -248,7 +248,7 @@
             flex-wrap: wrap;
             margin: 2rem 0;
         }
-        
+
         /* Styles ML Card manquants */
         .ml-card {
             background: var(--theme-surface);
@@ -259,20 +259,20 @@
             transition: all var(--transition-normal);
             box-shadow: var(--shadow-sm);
         }
-        
+
         .ml-card:hover {
             border-color: var(--brand-primary);
             transform: translateY(-2px);
             box-shadow: var(--shadow-lg);
         }
-        
+
         .ml-cards-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
             gap: 1.5rem;
             margin: 2rem 0;
         }
-        
+
         .card-header {
             display: flex;
             align-items: center;
@@ -281,7 +281,7 @@
             padding-bottom: 1rem;
             border-bottom: 1px solid var(--theme-border);
         }
-        
+
         .card-title {
             display: flex;
             align-items: center;
@@ -290,7 +290,7 @@
             font-weight: 600;
             color: var(--theme-text);
         }
-        
+
         .card-icon {
             font-size: 1.3rem;
             width: 35px;
@@ -302,17 +302,17 @@
             background: var(--brand-primary);
             color: white;
         }
-        
+
         .card-content {
             margin: 1rem 0;
         }
-        
+
         .card-description {
             color: var(--theme-text-muted);
             margin-bottom: 1rem;
             line-height: 1.6;
         }
-        
+
         /* Loading spinner */
         .loading-spinner {
             display: inline-block;
@@ -323,149 +323,156 @@
             border-top-color: var(--brand-primary);
             animation: spin 1s ease-in-out infinite;
         }
-        
+
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            to {
+                transform: rotate(360deg);
+            }
         }
     </style>
+    <script type="module" src="components/tooltips.js"></script>
 </head>
 
 <body>
     <div class="wrap">
         <h1>🤖 ML Models Showcase</h1>
     </div>
-    
+
     <main class="wrap">
-        <div class="container">
-        <!-- Hero Section -->
-        <div class="hero-section">
-            <p class="hero-subtitle">
-                Démonstrations interactives des modèles d'intelligence artificielle<br>
-                pour l'analyse et la prédiction crypto
-            </p>
-            <div class="global-actions">
-                <button id="demo-all" class="btn primary">🎯 Démonstration Complète</button>
-                <button id="reset-all" class="btn secondary">🔄 Réinitialiser</button>
-            </div>
-        </div>
-
-        <!-- Grille de démonstrations -->
-        <div class="demo-grid">
-            <!-- Modèle de Volatilité -->
-            <div class="demo-card">
-                <div class="demo-header">
-                    <div class="demo-icon">📊</div>
-                    <h3 class="demo-title">Prédiction de Volatilité</h3>
-                </div>
-                <p class="demo-description">
-                    Modèle LSTM pour prédire la volatilité future des crypto-monnaies basé sur l'analyse des patterns historiques.
+        <div class="wrap">
+            <!-- Hero Section -->
+            <div class="hero-section">
+                <p class="hero-subtitle">
+                    Démonstrations interactives des modèles d'intelligence artificielle<br>
+                    pour l'analyse et la prédiction crypto
                 </p>
-                <div class="card-actions">
-                    <button id="demo-volatility" class="btn primary">📈 Démonstration</button>
-                    <button id="explain-volatility" class="btn secondary">ℹ️ Détails</button>
-                </div>
-                <div class="demo-chart" id="volatility-chart">
-                    Cliquez sur "Démonstration" pour voir le modèle en action
-                </div>
-                <div class="tech-specs" id="volatility-specs" style="display: none;">
-                    <h4>Spécifications Techniques</h4>
-                    <ul>
-                        <li>Architecture: LSTM bidirectionnel</li>
-                        <li>Features: Prix, Volume, Momentum</li>
-                        <li>Fenêtre temporelle: 30 jours</li>
-                        <li>Précision moyenne: 75-85%</li>
-                    </ul>
+                <div class="global-actions">
+                    <button id="demo-all" class="btn primary">🎯 Démonstration Complète</button>
+                    <button id="reset-all" class="btn secondary">🔄 Réinitialiser</button>
                 </div>
             </div>
 
-            <!-- Détection de Régime -->
-            <div class="demo-card">
-                <div class="demo-header">
-                    <div class="demo-icon">🎯</div>
-                    <h3 class="demo-title">Détection de Régime</h3>
+            <!-- Grille de démonstrations -->
+            <div class="demo-grid">
+                <!-- Modèle de Volatilité -->
+                <div class="demo-card">
+                    <div class="demo-header">
+                        <div class="demo-icon">📊</div>
+                        <h3 class="demo-title">Prédiction de Volatilité</h3>
+                    </div>
+                    <p class="demo-description">
+                        Modèle LSTM pour prédire la volatilité future des crypto-monnaies basé sur l'analyse des
+                        patterns historiques.
+                    </p>
+                    <div class="card-actions">
+                        <button id="demo-volatility" class="btn primary">📈 Démonstration</button>
+                        <button id="explain-volatility" class="btn secondary">ℹ️ Détails</button>
+                    </div>
+                    <div class="demo-chart" id="volatility-chart">
+                        Cliquez sur "Démonstration" pour voir le modèle en action
+                    </div>
+                    <div class="tech-specs" id="volatility-specs" style="display: none;">
+                        <h4>Spécifications Techniques</h4>
+                        <ul>
+                            <li>Architecture: LSTM bidirectionnel</li>
+                            <li>Features: Prix, Volume, Momentum</li>
+                            <li>Fenêtre temporelle: 30 jours</li>
+                            <li>Précision moyenne: 75-85%</li>
+                        </ul>
+                    </div>
                 </div>
-                <p class="demo-description">
-                    Classification automatique des régimes de marché (bull, bear, sideways) utilisant des techniques d'apprentissage non supervisé.
-                </p>
-                <div class="card-actions">
-                    <button id="demo-regime" class="btn primary">📊 Démonstration</button>
-                    <button id="explain-regime" class="btn secondary">ℹ️ Détails</button>
-                </div>
-                <div class="demo-chart" id="regime-chart">
-                    Cliquez sur "Démonstration" pour voir la classification
-                </div>
-                <div class="tech-specs" id="regime-specs" style="display: none;">
-                    <h4>Spécifications Techniques</h4>
-                    <ul>
-                        <li>Algorithme: Hidden Markov Model</li>
-                        <li>États: Bull, Bear, Sideways</li>
-                        <li>Indicateurs: RSI, MACD, Volume</li>
-                        <li>Période d'analyse: 90 jours</li>
-                    </ul>
-                </div>
-            </div>
 
-            <!-- Analyse de Corrélation -->
-            <div class="demo-card">
-                <div class="demo-header">
-                    <div class="demo-icon">🔗</div>
-                    <h3 class="demo-title">Analyse de Corrélation</h3>
+                <!-- Détection de Régime -->
+                <div class="demo-card">
+                    <div class="demo-header">
+                        <div class="demo-icon">🎯</div>
+                        <h3 class="demo-title">Détection de Régime</h3>
+                    </div>
+                    <p class="demo-description">
+                        Classification automatique des régimes de marché (bull, bear, sideways) utilisant des techniques
+                        d'apprentissage non supervisé.
+                    </p>
+                    <div class="card-actions">
+                        <button id="demo-regime" class="btn primary">📊 Démonstration</button>
+                        <button id="explain-regime" class="btn secondary">ℹ️ Détails</button>
+                    </div>
+                    <div class="demo-chart" id="regime-chart">
+                        Cliquez sur "Démonstration" pour voir la classification
+                    </div>
+                    <div class="tech-specs" id="regime-specs" style="display: none;">
+                        <h4>Spécifications Techniques</h4>
+                        <ul>
+                            <li>Algorithme: Hidden Markov Model</li>
+                            <li>États: Bull, Bear, Sideways</li>
+                            <li>Indicateurs: RSI, MACD, Volume</li>
+                            <li>Période d'analyse: 90 jours</li>
+                        </ul>
+                    </div>
                 </div>
-                <p class="demo-description">
-                    Matrice de corrélation dynamique entre crypto-monnaies pour optimiser la diversification de portfolio.
-                </p>
-                <div class="card-actions">
-                    <button id="demo-correlation" class="btn primary">🔍 Démonstration</button>
-                    <button id="explain-correlation" class="btn secondary">ℹ️ Détails</button>
-                </div>
-                <div class="demo-chart" id="correlation-chart">
-                    Cliquez sur "Démonstration" pour voir la matrice
-                </div>
-                <div class="tech-specs" id="correlation-specs" style="display: none;">
-                    <h4>Spécifications Techniques</h4>
-                    <ul>
-                        <li>Méthode: Corrélation de Pearson</li>
-                        <li>Fenêtre glissante: 30 jours</li>
-                        <li>Assets analysés: Top 20 crypto</li>
-                        <li>Mise à jour: Temps réel</li>
-                    </ul>
-                </div>
-            </div>
 
-            <!-- Analyse de Sentiment -->
-            <div class="demo-card">
-                <div class="demo-header">
-                    <div class="demo-icon">😊</div>
-                    <h3 class="demo-title">Analyse de Sentiment</h3>
+                <!-- Analyse de Corrélation -->
+                <div class="demo-card">
+                    <div class="demo-header">
+                        <div class="demo-icon">🔗</div>
+                        <h3 class="demo-title">Analyse de Corrélation</h3>
+                    </div>
+                    <p class="demo-description">
+                        Matrice de corrélation dynamique entre crypto-monnaies pour optimiser la diversification de
+                        portfolio.
+                    </p>
+                    <div class="card-actions">
+                        <button id="demo-correlation" class="btn primary">🔍 Démonstration</button>
+                        <button id="explain-correlation" class="btn secondary">ℹ️ Détails</button>
+                    </div>
+                    <div class="demo-chart" id="correlation-chart">
+                        Cliquez sur "Démonstration" pour voir la matrice
+                    </div>
+                    <div class="tech-specs" id="correlation-specs" style="display: none;">
+                        <h4>Spécifications Techniques</h4>
+                        <ul>
+                            <li>Méthode: Corrélation de Pearson</li>
+                            <li>Fenêtre glissante: 30 jours</li>
+                            <li>Assets analysés: Top 20 crypto</li>
+                            <li>Mise à jour: Temps réel</li>
+                        </ul>
+                    </div>
                 </div>
-                <p class="demo-description">
-                    Analyse du sentiment du marché via Fear & Greed Index et traitement de données sociales (Twitter, Reddit).
-                </p>
-                <div class="card-actions">
-                    <button id="demo-sentiment" class="btn primary">💭 Démonstration</button>
-                    <button id="explain-sentiment" class="btn secondary">ℹ️ Détails</button>
-                </div>
-                <div class="demo-chart" id="sentiment-chart">
-                    Cliquez sur "Démonstration" pour voir l'analyse
-                </div>
-                <div class="tech-specs" id="sentiment-specs" style="display: none;">
-                    <h4>Spécifications Techniques</h4>
-                    <ul>
-                        <li>Sources: Fear & Greed Index</li>
-                        <li>Traitement NLP: Analyse de polarité</li>
-                        <li>Score: -1 (Très négatif) à +1 (Très positif)</li>
-                        <li>Mise à jour: 4 fois par jour</li>
-                    </ul>
+
+                <!-- Analyse de Sentiment -->
+                <div class="demo-card">
+                    <div class="demo-header">
+                        <div class="demo-icon">😊</div>
+                        <h3 class="demo-title">Analyse de Sentiment</h3>
+                    </div>
+                    <p class="demo-description">
+                        Analyse du sentiment du marché via Fear & Greed Index et traitement de données sociales
+                        (Twitter, Reddit).
+                    </p>
+                    <div class="card-actions">
+                        <button id="demo-sentiment" class="btn primary">💭 Démonstration</button>
+                        <button id="explain-sentiment" class="btn secondary">ℹ️ Détails</button>
+                    </div>
+                    <div class="demo-chart" id="sentiment-chart">
+                        Cliquez sur "Démonstration" pour voir l'analyse
+                    </div>
+                    <div class="tech-specs" id="sentiment-specs" style="display: none;">
+                        <h4>Spécifications Techniques</h4>
+                        <ul>
+                            <li>Sources: Fear & Greed Index</li>
+                            <li>Traitement NLP: Analyse de polarité</li>
+                            <li>Score: -1 (Très négatif) à +1 (Très positif)</li>
+                            <li>Mise à jour: 4 fois par jour</li>
+                        </ul>
+                    </div>
                 </div>
             </div>
-        </div>
         </div>
     </main>
 
     <script type="module">
-        import { 
-            showSuccess, 
-            showError, 
+        import {
+            showSuccess,
+            showError,
             formatPercentage,
             formatDate
         } from './shared-ml-functions.js';
@@ -516,13 +523,13 @@
             // Boutons principaux
             document.getElementById('demo-all')?.addEventListener('click', runAllDemos);
             document.getElementById('reset-all')?.addEventListener('click', resetAllDemos);
-            
+
             // Boutons de démonstration
             document.getElementById('demo-volatility')?.addEventListener('click', () => runDemo('volatility'));
             document.getElementById('demo-regime')?.addEventListener('click', () => runDemo('regime'));
             document.getElementById('demo-correlation')?.addEventListener('click', () => runDemo('correlation'));
             document.getElementById('demo-sentiment')?.addEventListener('click', () => runDemo('sentiment'));
-            
+
             // Boutons d'explication
             document.getElementById('explain-volatility')?.addEventListener('click', () => toggleSpecs('volatility'));
             document.getElementById('explain-regime')?.addEventListener('click', () => toggleSpecs('regime'));
@@ -532,14 +539,14 @@
 
         async function runDemo(type) {
             const chartContainer = document.getElementById(`${type}-chart`);
-            
+
             // Animation de chargement
             chartContainer.innerHTML = '<div class="loading-spinner"></div> Simulation en cours...';
-            
+
             // Délai pour effet de chargement
             await new Promise(resolve => setTimeout(resolve, 1500));
-            
-            switch(type) {
+
+            switch (type) {
                 case 'volatility':
                     showVolatilityDemo(chartContainer);
                     break;
@@ -557,13 +564,13 @@
 
         function showVolatilityDemo(container) {
             const data = demoData.volatility.datasets[0].data;
-            const prediction = (data[data.length-1] * (0.9 + Math.random() * 0.2)).toFixed(3);
-            
+            const prediction = (data[data.length - 1] * (0.9 + Math.random() * 0.2)).toFixed(3);
+
             container.innerHTML = `
                 <div class="status-grid">
                     <div class="status-item">
                         <span class="status-label">Volatilité Actuelle</span>
-                        <span class="status-value">${formatPercentage(data[data.length-1])}</span>
+                        <span class="status-value">${formatPercentage(data[data.length - 1])}</span>
                     </div>
                     <div class="status-item">
                         <span class="status-label">Prédiction J+1</span>
@@ -575,7 +582,7 @@
                     </div>
                     <div class="status-item">
                         <span class="status-label">Tendance</span>
-                        <span class="status-value">${prediction > data[data.length-1] ? '↗️ Hausse' : '↘️ Baisse'}</span>
+                        <span class="status-value">${prediction > data[data.length - 1] ? '↗️ Hausse' : '↘️ Baisse'}</span>
                     </div>
                 </div>
             `;
@@ -585,7 +592,7 @@
             const regime = demoData.regime;
             const currentRegime = Math.random() > 0.6 ? 'bull' : Math.random() > 0.3 ? 'sideways' : 'bear';
             const regimeNames = { bull: 'Bull Market', bear: 'Bear Market', sideways: 'Marché Latéral' };
-            
+
             container.innerHTML = `
                 <div class="status-grid">
                     <div class="status-item">
@@ -610,7 +617,7 @@
 
         function showCorrelationDemo(container) {
             const correlations = demoData.correlation;
-            
+
             container.innerHTML = `
                 <div class="status-grid">
                     ${correlations.map(([asset1, asset2, corr]) => `
@@ -628,11 +635,11 @@
 
         function showSentimentDemo(container) {
             const sentiment = demoData.sentiment;
-            const level = sentiment.fearGreed < 25 ? 'Extreme Fear' : 
-                         sentiment.fearGreed < 45 ? 'Fear' :
-                         sentiment.fearGreed < 55 ? 'Neutral' :
-                         sentiment.fearGreed < 75 ? 'Greed' : 'Extreme Greed';
-            
+            const level = sentiment.fearGreed < 25 ? 'Extreme Fear' :
+                sentiment.fearGreed < 45 ? 'Fear' :
+                    sentiment.fearGreed < 55 ? 'Neutral' :
+                        sentiment.fearGreed < 75 ? 'Greed' : 'Extreme Greed';
+
             container.innerHTML = `
                 <div class="status-grid">
                     <div class="status-item">
@@ -649,7 +656,7 @@
                     </div>
                     <div class="status-item">
                         <span class="status-label">Mise à jour</span>
-                        <span class="status-value">${formatDate(new Date(), {hour: '2-digit', minute: '2-digit'})}</span>
+                        <span class="status-value">${formatDate(new Date(), { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
                 </div>
             `;
@@ -673,7 +680,7 @@
             ['volatility', 'regime', 'correlation', 'sentiment'].forEach(type => {
                 const chart = document.getElementById(`${type}-chart`);
                 chart.innerHTML = 'Cliquez sur "Démonstration" pour voir le modèle en action';
-                
+
                 const specs = document.getElementById(`${type}-specs`);
                 specs.style.display = 'none';
             });
@@ -681,4 +688,5 @@
         }
     </script>
 </body>
+
 </html>

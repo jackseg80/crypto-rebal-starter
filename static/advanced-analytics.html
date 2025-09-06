@@ -1,27 +1,29 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>📊 Analytics Avancés - Crypto Rebalancer</title>
-    
+
     <!-- Theme & Navigation -->
     <link rel="stylesheet" href="shared-theme.css">
     <link rel="stylesheet" href="theme-compat.css">
     <script src="global-config.js"></script>
     <script src="appearance.js"></script>
-    
+
     <!-- Navigation unifiée (conditionnelle) -->
     <script type="module">
         if (new URLSearchParams(window.location.search).get('nav') !== 'off') {
             import('./components/nav.js');
         }
     </script>
-    
+
     <!-- Charts -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-    
+    <script
+        src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+
     <style>
         * {
             margin: 0;
@@ -31,19 +33,15 @@
 
         body {
             font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%);
-            color: #ffffff;
+            background: var(--theme-background);
+            color: var(--theme-text);
             min-height: 100vh;
         }
 
-        body.has-simple-nav {
-            margin-left: 80px;
-        }
-
-        .container {
-            max-width: 1600px;
+        .wrap {
+            max-width: 95vw;
             margin: 0 auto;
-            padding: 2rem;
+            padding: var(--space-lg);
         }
 
         .header {
@@ -90,7 +88,7 @@
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
         }
 
-        .panel-title {
+        .card-title {
             font-size: 1.4rem;
             font-weight: 600;
             margin-bottom: 1.5rem;
@@ -195,9 +193,17 @@
             margin-right: 8px;
         }
 
-        .status-good { background: #00ff88; }
-        .status-warning { background: #ffaa00; }
-        .status-error { background: #ff4444; }
+        .status-good {
+            background: #00ff88;
+        }
+
+        .status-warning {
+            background: #ffaa00;
+        }
+
+        .status-error {
+            background: #ff4444;
+        }
 
         .drawdown-analysis {
             background: rgba(255, 107, 107, 0.1);
@@ -219,54 +225,56 @@
             body.has-simple-nav {
                 margin-left: 0;
             }
-            
+
             .dashboard-grid {
                 grid-template-columns: 1fr;
             }
-            
+
             .controls {
                 flex-direction: column;
             }
         }
     </style>
 
-  <!-- Navigation unifiée (conditionnelle) -->
-  <script type="module">
-      if (new URLSearchParams(window.location.search).get('nav') !== 'off') {
-          import('./components/nav.js');
-      }
-  </script>
+    <!-- Navigation unifiée (conditionnelle) -->
+    <script type="module">
+        if (new URLSearchParams(window.location.search).get('nav') !== 'off') {
+            import('./components/nav.js');
+        }
+    </script>
+    <script type="module" src="components/tooltips.js"></script>
 </head>
+
 <body>
-    <div class="container">
-        <div class="header">
+    <div class="wrap">
+        <div class="header card">
             <h1>📊 Analytics Avancés</h1>
             <p>Métriques de performance détaillées et analyse de stratégies</p>
         </div>
 
         <!-- Métriques Principales -->
         <div class="metric-grid">
-            <div class="metric-card">
+            <div class="metric-card card">
                 <div class="metric-value" id="total-return">--</div>
                 <div class="metric-label">Rendement Total</div>
             </div>
-            <div class="metric-card">
+            <div class="metric-card card">
                 <div class="metric-value" id="sharpe-ratio">--</div>
                 <div class="metric-label">Ratio de Sharpe</div>
             </div>
-            <div class="metric-card">
+            <div class="metric-card card">
                 <div class="metric-value" id="max-drawdown">--</div>
                 <div class="metric-label">Drawdown Max</div>
             </div>
-            <div class="metric-card">
+            <div class="metric-card card">
                 <div class="metric-value" id="volatility">--</div>
                 <div class="metric-label">Volatilité</div>
             </div>
-            <div class="metric-card">
+            <div class="metric-card card">
                 <div class="metric-value" id="win-rate">--</div>
                 <div class="metric-label">Taux de Réussite</div>
             </div>
-            <div class="metric-card">
+            <div class="metric-card card">
                 <div class="metric-value" id="rebal-frequency">--</div>
                 <div class="metric-label">Fréq. Rebalancing</div>
             </div>
@@ -283,8 +291,8 @@
 
         <div class="dashboard-grid">
             <!-- Performance Timeline -->
-            <div class="panel">
-                <div class="panel-title">📈 Performance Timeline</div>
+            <div class="card">
+                <div class="card-title">📈 Performance Timeline</div>
                 <div class="chart-container">
                     <canvas id="performance-chart"></canvas>
                 </div>
@@ -292,15 +300,15 @@
 
             <!-- Analyse Drawdown -->
             <div class="panel drawdown-analysis">
-                <div class="panel-title">📉 Analyse des Drawdowns</div>
+                <div class="card-title">📉 Analyse des Drawdowns</div>
                 <div class="chart-container">
                     <canvas id="drawdown-chart"></canvas>
                 </div>
             </div>
 
             <!-- Distribution des Returns -->
-            <div class="panel">
-                <div class="panel-title">📊 Distribution des Returns</div>
+            <div class="card">
+                <div class="card-title">📊 Distribution des Returns</div>
                 <div class="chart-container">
                     <canvas id="returns-distribution"></canvas>
                 </div>
@@ -308,7 +316,7 @@
 
             <!-- Ratio de Sharpe Rolling -->
             <div class="panel sharpe-analysis">
-                <div class="panel-title">📐 Sharpe Ratio Rolling</div>
+                <div class="card-title">📐 Sharpe Ratio Rolling</div>
                 <div class="chart-container">
                     <canvas id="sharpe-chart"></canvas>
                 </div>
@@ -316,14 +324,14 @@
         </div>
 
         <!-- Comparaison de Stratégies -->
-        <div class="panel">
-            <div class="panel-title">⚔️ Comparaison Multi-Stratégies</div>
+        <div class="card">
+            <div class="card-title">⚔️ Comparaison Multi-Stratégies</div>
             <div id="strategy-comparison" class="loading">Chargement des données de comparaison...</div>
         </div>
 
         <!-- Table de Performance Détaillée -->
-        <div class="panel">
-            <div class="panel-title">📋 Performance Détaillée</div>
+        <div class="card">
+            <div class="card-title">📋 Performance Détaillée</div>
             <table class="performance-table">
                 <thead>
                     <tr>
@@ -370,12 +378,12 @@
 
     <script>
         const API_BASE = 'http://localhost:8000';
-        
+
         // Variables globales pour les graphiques
         let performanceChart, drawdownChart, returnsChart, sharpeChart;
-        
+
         // Initialisation
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             initializeNavigation();
             initializeCharts();
             loadPerformanceData();
@@ -506,17 +514,17 @@
         async function loadPerformanceData() {
             try {
                 console.log('Loading performance data...');
-                
+
                 // Charger les vraies données depuis l'API
                 const [metricsResponse, timeseriesResponse] = await Promise.all([
                     fetch(`${API_BASE}/analytics/advanced/metrics?days=365`),
                     fetch(`${API_BASE}/analytics/advanced/timeseries?days=365`)
                 ]);
-                
+
                 if (metricsResponse.ok && timeseriesResponse.ok) {
                     const metrics = await metricsResponse.json();
                     const timeseries = await timeseriesResponse.json();
-                    
+
                     updateMetrics(metrics);
                     updateChartsFromAPI(timeseries);
                     updatePerformanceTableFromAPI(metrics);
@@ -527,7 +535,7 @@
                     updateCharts(mockData.timeSeriesData);
                     updatePerformanceTable(mockData.detailedMetrics);
                 }
-                
+
             } catch (error) {
                 console.error('Error loading performance data:', error);
                 // Fallback to mock data
@@ -544,37 +552,37 @@
             const benchmark = [];
             const drawdown = [];
             const sharpe = [];
-            
+
             let portfolioValue = 100;
             let benchmarkValue = 100;
             let peak = 100;
-            
+
             for (let i = 0; i < 365; i++) {
                 const date = new Date();
                 date.setDate(date.getDate() - (365 - i));
                 dates.push(date.toLocaleDateString());
-                
+
                 // Performance simulée
                 const dailyReturn = (Math.random() - 0.48) * 0.03; // Slight positive bias
                 const benchmarkReturn = (Math.random() - 0.5) * 0.04;
-                
+
                 portfolioValue *= (1 + dailyReturn);
                 benchmarkValue *= (1 + benchmarkReturn);
-                
+
                 performance.push(((portfolioValue / 100) - 1) * 100);
                 benchmark.push(((benchmarkValue / 100) - 1) * 100);
-                
+
                 // Drawdown
                 if (portfolioValue > peak) peak = portfolioValue;
                 const currentDrawdown = ((portfolioValue - peak) / peak) * 100;
                 drawdown.push(currentDrawdown);
-                
+
                 // Sharpe ratio approximation
                 const rollingReturn = performance.slice(-30).reduce((a, b) => a + b, 0) / 30;
                 const rollingSharpe = rollingReturn / Math.max(0.1, Math.abs(rollingReturn) * 0.5);
                 sharpe.push(rollingSharpe);
             }
-            
+
             return {
                 metrics: {
                     totalReturn: ((portfolioValue / 100) - 1) * 100,
@@ -609,17 +617,17 @@
             const winRate = metrics.positive_months_pct || metrics.winRate;
             const rebalFreq = metrics.avg_drawdown_duration_days || metrics.rebalFrequency;
 
-            document.getElementById('total-return').textContent = 
+            document.getElementById('total-return').textContent =
                 totalReturn.toFixed(1) + '%';
-            document.getElementById('sharpe-ratio').textContent = 
+            document.getElementById('sharpe-ratio').textContent =
                 sharpeRatio.toFixed(2);
-            document.getElementById('max-drawdown').textContent = 
+            document.getElementById('max-drawdown').textContent =
                 maxDrawdown.toFixed(1) + '%';
-            document.getElementById('volatility').textContent = 
+            document.getElementById('volatility').textContent =
                 volatility.toFixed(1) + '%';
-            document.getElementById('win-rate').textContent = 
+            document.getElementById('win-rate').textContent =
                 winRate.toFixed(1) + '%';
-            document.getElementById('rebal-frequency').textContent = 
+            document.getElementById('rebal-frequency').textContent =
                 rebalFreq.toFixed(1) + 'j';
         }
 
@@ -654,13 +662,13 @@
             const maxDD = metrics.maxDrawdown || metrics.max_drawdown_pct;
             const calmarRatio = metrics.calmarRatio || metrics.calmar_ratio;
 
-            document.getElementById('annualized-return').textContent = 
+            document.getElementById('annualized-return').textContent =
                 annualizedReturn.toFixed(1) + '%';
-            document.getElementById('annualized-vol').textContent = 
+            document.getElementById('annualized-vol').textContent =
                 annualizedVol.toFixed(1) + '%';
-            document.getElementById('max-dd').textContent = 
+            document.getElementById('max-dd').textContent =
                 maxDD.toFixed(1) + '%';
-            document.getElementById('calmar-ratio').textContent = 
+            document.getElementById('calmar-ratio').textContent =
                 calmarRatio.toFixed(2);
         }
 
@@ -702,19 +710,19 @@
             const min = Math.min(...data);
             const max = Math.max(...data);
             const binWidth = (max - min) / bins;
-            
+
             const labels = [];
             const counts = new Array(bins).fill(0);
-            
+
             for (let i = 0; i < bins; i++) {
                 labels.push((min + i * binWidth).toFixed(2));
             }
-            
+
             data.forEach(value => {
                 const binIndex = Math.min(Math.floor((value - min) / binWidth), bins - 1);
                 counts[binIndex]++;
             });
-            
+
             return { labels, counts };
         }
 
@@ -723,14 +731,14 @@
                 const response = await fetch(`${API_BASE}/analytics/advanced/drawdown-analysis?days=365`);
                 if (response.ok) {
                     const data = await response.json();
-                    
+
                     const summary = data.summary;
                     alert(`🔍 Analyse Drawdown:\n\n` +
-                          `• Périodes de drawdown: ${summary.total_drawdown_periods}\n` +
-                          `• Drawdown moyen: ${summary.avg_drawdown_pct.toFixed(1)}%\n` +
-                          `• Durée moyenne: ${summary.avg_duration_days.toFixed(0)} jours\n` +
-                          `• Durée max: ${summary.max_duration_days} jours\n` +
-                          `• Taux de récupération: ${(summary.recovery_rate * 100).toFixed(1)}%`);
+                        `• Périodes de drawdown: ${summary.total_drawdown_periods}\n` +
+                        `• Drawdown moyen: ${summary.avg_drawdown_pct.toFixed(1)}%\n` +
+                        `• Durée moyenne: ${summary.avg_duration_days.toFixed(0)} jours\n` +
+                        `• Durée max: ${summary.max_duration_days} jours\n` +
+                        `• Taux de récupération: ${(summary.recovery_rate * 100).toFixed(1)}%`);
                 } else {
                     alert('🔍 Erreur lors du chargement de l\'analyse de drawdown');
                 }
@@ -744,7 +752,7 @@
                 const response = await fetch(`${API_BASE}/analytics/advanced/strategy-comparison?strategies=rebalancing&strategies=buy_hold&strategies=momentum`);
                 if (response.ok) {
                     const data = await response.json();
-                    
+
                     let resultText = '⚔️ Comparaison Stratégies:\n\n';
                     Object.entries(data.comparison).forEach(([strategy, metrics]) => {
                         resultText += `${strategy.toUpperCase()}:\n`;
@@ -752,7 +760,7 @@
                         resultText += `  • Sharpe: ${metrics.sharpe_ratio.toFixed(2)}\n`;
                         resultText += `  • Max DD: ${metrics.max_drawdown.toFixed(1)}%\n\n`;
                     });
-                    
+
                     resultText += `🏆 Meilleure stratégie: ${data.best_overall.toUpperCase()}`;
                     alert(resultText);
                 } else {
@@ -774,4 +782,17 @@
         console.log('📊 Advanced Analytics Dashboard initialized');
     </script>
 </body>
+
 </html>
+
+/* Responsive grids */
+.metric-grid {
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+gap: var(--space-md);
+}
+.dashboard-grid {
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+gap: var(--space-lg);
+}

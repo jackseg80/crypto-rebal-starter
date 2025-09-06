@@ -36,8 +36,8 @@
         }
         
         .dashboard-container {
-            max-width: 1200px;
-            padding: 2rem;
+            max-width: 100%;
+            padding: 0;
             margin: 0 auto;
         }
         
@@ -302,9 +302,7 @@
         }
         
         @media (max-width: 768px) {
-            .dashboard-container {
-                padding: 1rem;
-            }
+            .dashboard-container { padding: 0; }
             
             .tab-buttons {
                 justify-content: stretch;
@@ -326,7 +324,7 @@
     <main class="wrap">
         <div class="dashboard-container">
             <!-- En-tête -->
-            <div class="page-header">
+            <div class="page-header card">
                 <p class="page-subtitle">
                     Gestion centralisée des modèles ML et prédictions crypto
                 </p>
