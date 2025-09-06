@@ -68,7 +68,7 @@ python crypto_toolbox_api.py  # Port 8001
 | 🏠 **Dashboard Principal** | `static/dashboard.html` | Vue d'ensemble avec métriques temps réel |
 | 🧠 **ML Pipeline Dashboard** | `static/unified-ml-dashboard.html` | **NOUVEAU** - Interface ML complète avec 67 modèles détectés |
 | 📊 **Analytics Avancés** | `static/advanced-analytics.html` | **NOUVEAU** - Métriques sophistiquées et comparaisons |
-| 🛡️ **Risk Dashboard** | `static/risk-dashboard.html` | Analyse de risque avec scoring V2 |
+| 🛡️ **Risk Dashboard** | `static/risk-dashboard.html` | Analyse de risque avec scoring V2 + cache intelligent cycles |
 | ⚖️ **Rebalancing** | `static/rebalance.html` | Planification et exécution des rééquilibrages |
 | 📈 **Portfolio Optimization** | `static/portfolio-optimization.html` | Optimisation moderne avec contraintes |
 | 🔄 **Backtesting** | `static/backtesting.html` | Tests historiques multi-stratégies |
@@ -161,7 +161,8 @@ python crypto_toolbox_api.py  # Port 8001
 
 > 🔧 **Dernières améliorations** : 
 > - **Cache persistant intelligent** : Scores risk-dashboard persistent avec TTL automatique (12h scores, 6h CCS, 4h onchain)
-> - **Force refresh système** : Bouton dédié pour contournement cache et recalcul forcé
+> - **Cache Market Cycles** : Onglet cycles avec détection changements (12h HTML, 24h Chart.js, 6h données)
+> - **Force refresh système** : Boutons dédiés pour contournement cache (global + cycles spécifique)
 > - **Système de tooltips** : Info-bulles contextuelles sur toutes les tuiles avec sources de données
 > - **AI Dashboard optimisé** : Auto-initialisation, interface compacte 2x2, boutons fonctionnels uniquement
 > - **Navigation unifiée** : Header sticky avec menus déroulants et états actifs
@@ -234,6 +235,21 @@ Le **Risk Dashboard** (`static/risk-dashboard.html`) utilise désormais un syst�
 - **Économie ressources** : Évite les appels API répétitifs
 - **Expérience utilisateur** : Plus de scores qui "disparaissent" au refresh
 - **Flexibilité** : Contournement possible avec force refresh
+
+#### 📈 **Cache Intelligent Market Cycles** *(NOUVEAU)*
+Le système étend le cache aux onglets **Market Cycles** avec détection intelligente des changements :
+
+| Composant | TTL | Détection Changement |
+|-----------|-----|---------------------|
+| **Contenu HTML** | 12 heures | Hash données + calibration |
+| **Configuration Chart.js** | 24 heures | Bitcoin cycle + params |
+| **Données cycliques** | 6 heures | CCS + régime + scores |
+
+**🎯 Impact Performance** :
+- **Chargement onglet** : Instantané depuis cache (vs 2-3s rebuild)
+- **Graphique Bitcoin** : Recréation depuis config (vs fetch + render)
+- **Auto-détection** : Rebuild seulement si données critiques changent
+- **Force refresh** : Bouton "🔄 Refresh Cycles" pour nettoyage manuel
 
 ```javascript
 // Exemple d'utilisation en console
