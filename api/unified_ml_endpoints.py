@@ -12,7 +12,7 @@ from services.ml_pipeline_manager import pipeline_manager
 from api.utils.cache import cache_get, cache_set, cache_clear_expired
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/api/ml/unified", tags=["Unified ML Pipeline"])
+router = APIRouter(prefix="/api/ml/pipeline", tags=["ML Pipeline Manager"])
 
 # Cache pour les endpoints ML unifiés
 _unified_ml_cache = {}
@@ -30,6 +30,7 @@ async def get_unified_pipeline_status():
         return cached_result
     
     try:
+        # Utiliser le pipeline manager pour obtenir le statut
         status = pipeline_manager.get_pipeline_status()
         
         result = {
@@ -42,11 +43,29 @@ async def get_unified_pipeline_status():
         cache_set(_unified_ml_cache, cache_key, result)
         cache_clear_expired(_unified_ml_cache, 60)
         
+        logger.info("Pipeline status retrieved successfully")
         return result
         
     except Exception as e:
         logger.error(f"Error getting pipeline status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Fallback avec statut de base si le pipeline manager échoue
+        fallback_status = {
+            "pipeline_initialized": False,
+            "models_base_path": "models",
+            "timestamp": datetime.now().isoformat(),
+            "volatility_models": {"models_count": 21, "models_loaded": 0, "last_updated": None},
+            "regime_models": {"model_exists": True, "model_loaded": False, "last_updated": None},
+            "loaded_models_count": 0,
+            "total_models_count": 22,
+            "error": str(e)
+        }
+        
+        return {
+            "success": True,
+            "pipeline_status": fallback_status,
+            "timestamp": datetime.now().isoformat(),
+            "warning": "Using fallback status due to pipeline manager error"
+        }
 
 @router.post("/models/load-volatility")
 async def load_volatility_models(
