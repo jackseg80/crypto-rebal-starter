@@ -21,6 +21,28 @@ from .safety_validator import safety_validator, SafetyResult
 
 logger = logging.getLogger(__name__)
 
+# Order tracking storage
+class OrderTracker:
+    """Gestionnaire pour le suivi des ordres actifs"""
+    def __init__(self):
+        self.active_orders = {}  # {exchange_order_id: {'symbol': str, 'timestamp': datetime}}
+    
+    def add_order(self, order_id: str, symbol: str):
+        """Ajouter un ordre au suivi"""
+        self.active_orders[order_id] = {
+            'symbol': symbol,
+            'timestamp': datetime.now(timezone.utc)
+        }
+    
+    def remove_order(self, order_id: str):
+        """Retirer un ordre du suivi"""
+        self.active_orders.pop(order_id, None)
+    
+    def get_order_symbol(self, order_id: str) -> Optional[str]:
+        """Récupérer le symbol d'un ordre"""
+        order_data = self.active_orders.get(order_id)
+        return order_data['symbol'] if order_data else None
+
 # Error handling and retry utilities
 class RetryableError(Exception):
     """Exception raised for errors that can be retried"""
@@ -333,6 +355,7 @@ class BinanceAdapter(ExchangeAdapter):
         self._connection_attempts = 0
         self._last_connection_attempt = None
         self._rate_limit_reset_time = None
+        self.order_tracker = OrderTracker()
     
     def _handle_binance_exception(self, e) -> None:
         """Convert Binance API exceptions to our custom error types"""
@@ -643,10 +666,14 @@ class BinanceAdapter(ExchangeAdapter):
                 
                 logger.info(f"Order filled: {filled_qty} @ ${avg_price:.2f} (fees: ${total_fee:.4f})")
                 
+                # Ajouter l'ordre au tracker si pas déjà rempli (pour ordres partiels futurs)
+                exchange_order_id = str(result['orderId'])
+                self.order_tracker.add_order(exchange_order_id, order.symbol)
+                
                 return OrderResult(
                     success=True,
                     order_id=order.id,
-                    exchange_order_id=str(result['orderId']),
+                    exchange_order_id=exchange_order_id,
                     filled_quantity=filled_qty,
                     filled_usd=cumulative_quote,
                     avg_price=avg_price,
@@ -686,10 +713,23 @@ class BinanceAdapter(ExchangeAdapter):
             return False
             
         try:
-            # TODO: Implémenter l'annulation d'ordre
-            # Nécessite de stocker le symbol avec l'ordre
-            logger.warning("Order cancellation not fully implemented")
+            # Récupérer le symbol de l'ordre
+            symbol = self.order_tracker.get_order_symbol(exchange_order_id)
+            if not symbol:
+                logger.error(f"Symbol not found for order {exchange_order_id}")
+                return False
+            
+            # Annuler l'ordre via l'API Binance
+            result = await self._execute_with_retry(
+                lambda: self.client.cancel_order(symbol=symbol, orderId=exchange_order_id)
+            )
+            
+            if result:
+                self.order_tracker.remove_order(exchange_order_id)
+                logger.info(f"Order {exchange_order_id} cancelled successfully")
+                return True
             return False
+            
         except Exception as e:
             logger.error(f"Error canceling order {exchange_order_id}: {e}")
             return False
@@ -700,13 +740,55 @@ class BinanceAdapter(ExchangeAdapter):
             return OrderResult(success=False, order_id="", error_message="Not connected")
             
         try:
-            # TODO: Implémenter la récupération de statut
-            # Nécessite de stocker le symbol avec l'ordre
-            logger.warning("Order status check not fully implemented")
-            return OrderResult(success=False, order_id="", error_message="Not implemented")
+            # Récupérer le symbol de l'ordre
+            symbol = self.order_tracker.get_order_symbol(exchange_order_id)
+            if not symbol:
+                logger.error(f"Symbol not found for order {exchange_order_id}")
+                return OrderResult(
+                    success=False,
+                    order_id=exchange_order_id,
+                    error_message="Order symbol not found in tracker"
+                )
+            
+            # Récupérer le statut via l'API Binance
+            order_info = await self._execute_with_retry(
+                lambda: self.client.get_order(symbol=symbol, orderId=exchange_order_id)
+            )
+            
+            if order_info:
+                status_map = {
+                    'NEW': OrderStatus.PENDING,
+                    'PARTIALLY_FILLED': OrderStatus.PARTIALLY_FILLED,
+                    'FILLED': OrderStatus.COMPLETED,
+                    'CANCELED': OrderStatus.CANCELLED,
+                    'REJECTED': OrderStatus.FAILED,
+                    'EXPIRED': OrderStatus.FAILED
+                }
+                
+                binance_status = order_info.get('status', 'UNKNOWN')
+                mapped_status = status_map.get(binance_status, OrderStatus.UNKNOWN)
+                
+                # Si l'ordre est terminé, le retirer du tracker
+                if mapped_status in [OrderStatus.COMPLETED, OrderStatus.CANCELLED, OrderStatus.FAILED]:
+                    self.order_tracker.remove_order(exchange_order_id)
+                
+                return OrderResult(
+                    success=True,
+                    order_id=exchange_order_id,
+                    status=mapped_status,
+                    filled_quantity=float(order_info.get('executedQty', 0)),
+                    average_price=float(order_info.get('price', 0))
+                )
+            
+            return OrderResult(
+                success=False,
+                order_id=exchange_order_id,
+                error_message="Failed to retrieve order status"
+            )
+            
         except Exception as e:
             logger.error(f"Error getting order status {exchange_order_id}: {e}")
-            return OrderResult(success=False, order_id="", error_message=str(e))
+            return OrderResult(success=False, order_id=exchange_order_id, error_message=str(e))
 
 class KrakenAdapter(ExchangeAdapter):
     """Adaptateur pour Kraken avec API réelle et gestion d'erreurs robuste"""

@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🔧 Menu Debug & Tests - Crypto Rebalancer</title>
     
-    <!-- Navigation Simple -->
-    <link rel="stylesheet" href="navigation-fix.css">
+    <!-- Navigation header (unifié) -->
     <script type="module" src="components/nav.js"></script>
     
     <style>
@@ -890,12 +889,7 @@
             
             // Attendre que tous les scripts soient chargés
             setTimeout(() => {
-                if (typeof createSimpleNavigation !== 'undefined') {
-                    createSimpleNavigation('debug-menu');
-                    console.log('Simple navigation created for debug-menu');
-                } else {
-                    console.error('createSimpleNavigation function not found');
-                }
+                // unified nav enabled via components/nav.js; legacy init removed
             }, 100);
         });
     </script>

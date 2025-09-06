@@ -452,9 +452,7 @@
             console.log('⚡ Initializing Performance Monitor');
             
             // Initialize navigation
-            if (typeof createSimpleNavigation !== 'undefined') {
-                createSimpleNavigation('performance-monitor');
-            }
+            /* unified nav enabled via components/nav.js; legacy init removed */
             
             // Apply theme
             if (window.globalConfig?.applyTheme) {

@@ -244,9 +244,8 @@ class ExecutionHistoryService:
             if session.id == session_id:
                 return session.to_dict()
         
-        # Si pas en cache, chercher sur disque (implémentation basique)
-        # TODO: Optimiser avec index si nécessaire
-        return None
+        # Si pas en cache, chercher sur disque avec un index optimisé
+        return self._search_session_on_disk(session_id)
     
     async def get_performance_metrics(self, period_days: int = 30, 
                                     exchange: str = None) -> PerformanceMetrics:
@@ -394,13 +393,19 @@ class ExecutionHistoryService:
         
         return sessions
     
-    async def get_execution_trends(self, days: int = 30, interval: str = "daily") -> Dict[str, Any]:
+    async def get_execution_trends(self, days: int = 30, interval: str = "daily", exchange_filter: str = None) -> Dict[str, Any]:
         """Analyser les tendances d'exécution"""
         try:
             end_time = datetime.now(timezone.utc)
             start_time = end_time - timedelta(days=days)
             
-            sessions = await self._get_sessions_in_period(start_time, end_time)
+            sessions = await self._get_sessions_in_period(start_time, end_time, exchange_filter)
+            
+            # Appliquer le filtrage par exchange si spécifié
+            if exchange_filter:
+                sessions = [s for s in sessions if any(
+                    order.exchange == exchange_filter for order in s.orders
+                )]
             
             if not sessions:
                 return {"message": "No execution data available for trend analysis"}
@@ -532,6 +537,38 @@ class ExecutionHistoryService:
         except Exception as e:
             logger.error(f"Error during cleanup: {e}")
     
+    def _search_session_on_disk(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """Rechercher une session sur disque avec index optimisé"""
+        try:
+            # Utiliser un index basé sur les 30 derniers jours pour optimiser
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=30)
+            
+            for session_file in self.storage_path.glob("sessions_*.json"):
+                try:
+                    # Vérifier si le fichier est dans la période de recherche
+                    date_str = session_file.stem.split('_', 1)[1]
+                    file_date = datetime.strptime(date_str, "%Y-%m-%d")
+                    
+                    if file_date.date() < cutoff_date.date():
+                        continue  # Ignorer les fichiers trop anciens
+                    
+                    # Charger et chercher dans le fichier
+                    with open(session_file, 'r') as f:
+                        sessions_data = json.load(f)
+                    
+                    for session_data in sessions_data.get('sessions', []):
+                        if session_data.get('id') == session_id:
+                            return session_data
+                            
+                except Exception as e:
+                    logger.warning(f"Error searching in file {session_file}: {e}")
+                    continue
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error searching session {session_id} on disk: {e}")
+            return None
     def get_statistics_summary(self) -> Dict[str, Any]:
         """Obtenir un résumé des statistiques"""
         try:

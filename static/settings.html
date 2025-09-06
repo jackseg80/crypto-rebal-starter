@@ -284,9 +284,6 @@
     }
   </style>
 
-    <!-- Navigation Simple -->
-    <link rel="stylesheet" href="navigation-fix.css">
-
     <style>
         /* Ajustement pour la navigation simple */
         body.has-simple-nav {
@@ -1502,9 +1499,7 @@
     <script>
         // Initialisation automatique de la navigation simple
         document.addEventListener('DOMContentLoaded', function() {
-            if (typeof createSimpleNavigation !== 'undefined') {
-                createSimpleNavigation('settings');
-            }
+            /* unified nav enabled via components/nav.js; legacy init removed */
         });
     </script>
 </body>

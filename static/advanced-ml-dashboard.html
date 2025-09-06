@@ -410,9 +410,7 @@
             
             // Initialize navigation
             setTimeout(() => {
-                if (typeof createSimpleNavigation !== 'undefined') {
-                    window.simpleNavigation = createSimpleNavigation('ml');
-                }
+                // unified nav enabled via components/nav.js; legacy init removed
             }, 100);
         }
         

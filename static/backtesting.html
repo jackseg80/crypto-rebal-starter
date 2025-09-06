@@ -384,9 +384,7 @@
             console.log('🚀 Initializing Backtesting Dashboard');
             
             // Initialize navigation
-            if (typeof createSimpleNavigation !== 'undefined') {
-                createSimpleNavigation('backtesting');
-            }
+            /* unified nav enabled via components/nav.js; legacy init removed */
             
             // Apply theme
             if (window.globalConfig?.applyTheme) {

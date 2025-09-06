@@ -577,13 +577,7 @@
         document.addEventListener('DOMContentLoaded', function () {
             console.log('DOM Content Loaded - Starting dashboard initialization');
 
-            // Initialize simple navigation
-            if (typeof createSimpleNavigation !== 'undefined') {
-                console.log('Creating simple navigation...');
-                createSimpleNavigation('enhanced-dashboard');
-            } else {
-                console.error('createSimpleNavigation is undefined!');
-            }
+            // unified nav enabled via components/nav.js; legacy init removed
 
             // Appliquer le thème immédiatement
             console.debug('Initializing theme for enhanced dashboard...');
@@ -750,7 +744,7 @@ globalConfig available: ${typeof window.globalConfig !== 'undefined'}
 loadBalanceData available: ${typeof window.loadBalanceData === 'function'}
 InteractiveDashboard available: ${typeof InteractiveDashboard !== 'undefined'}
 Highcharts available: ${typeof Highcharts !== 'undefined'}
-createSimpleNavigation available: ${typeof createSimpleNavigation !== 'undefined'}
+/* createSimpleNavigation removed; using components/nav.js */
                                 </pre>
                             </details>
                         </div>

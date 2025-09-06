@@ -18,11 +18,25 @@
     --brand-primary-subtle: rgba(59, 130, 246, .12);
     --on-primary: #ffffff;
     --on-primary-muted: rgba(255, 255, 255, .85);
+
+    /* Compat nav/theme variables */
+    --theme-panel-bg: rgba(255, 255, 255, 0.05);
+    --theme-accent-transparent: rgba(0, 255, 136, 0.3);
+    --theme-text-secondary: rgba(255, 255, 255, 0.7);
+    --theme-hover: rgba(255, 255, 255, 0.1);
+    --theme-accent: #00ff88;
 }
 
 [data-theme="dark"] {
     --theme-surface-hover: #111827;
     --brand-primary-subtle: rgba(59, 130, 246, .20);
+
+    /* Compat nav/theme variables (dark) */
+    --theme-panel-bg: rgba(255, 255, 255, 0.05);
+    --theme-accent-transparent: rgba(0, 255, 136, 0.3);
+    --theme-text-secondary: rgba(255, 255, 255, 0.7);
+    --theme-hover: rgba(255, 255, 255, 0.1);
+    --theme-accent: #00ff88;
 }
 
 /* ================== PRESETS UI ================== */

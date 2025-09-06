@@ -34,7 +34,42 @@ async function fetchWithCache(key, fetchFn) {
 document.addEventListener('DOMContentLoaded', function() {
     setupTabSwitching();
     loadInitialData();
+    // Keep metrics in sync with risk-dashboard scores written to localStorage
+    window.addEventListener('storage', (e) => {
+        if (e.key && e.key.startsWith('risk_score_')) {
+            try { refreshScoresFromLocalStorage(); } catch (_) {}
+        }
+    });
 });
+
+function getScoresFromLocalStorage() {
+    try {
+        const onchain = parseFloat(localStorage.getItem('risk_score_onchain'));
+        const risk = parseFloat(localStorage.getItem('risk_score_risk'));
+        const blended = parseFloat(localStorage.getItem('risk_score_blended'));
+        const ccs = parseFloat(localStorage.getItem('risk_score_ccs'));
+        const timestamp = localStorage.getItem('risk_score_timestamp');
+        return {
+            onchain: Number.isFinite(onchain) ? onchain : null,
+            risk: Number.isFinite(risk) ? risk : null,
+            blended: Number.isFinite(blended) ? blended : null,
+            ccs: Number.isFinite(ccs) ? ccs : null,
+            timestamp
+        };
+    } catch (_) {
+        return { onchain: null, risk: null, blended: null, ccs: null, timestamp: null };
+    }
+}
+
+function refreshScoresFromLocalStorage() {
+    const scores = getScoresFromLocalStorage();
+    if (scores.onchain != null) {
+        updateMetric('risk-kpi-onchain', Math.round(scores.onchain), 'Fondamentaux on-chain');
+    }
+    if (scores.blended != null) {
+        updateMetric('risk-kpi-blended', Math.round(scores.blended), 'CCS × Cycle (synthèse)');
+    }
+}
 
 function setupTabSwitching() {
     const tabButtons = document.querySelectorAll('.tab-btn');
@@ -87,83 +122,74 @@ async function loadTabData(tabId) {
 }
 
   async function loadRiskData() {
-    console.debug('📊 Loading Risk Dashboard data...');
-    
-    const riskData = await fetchWithCache('risk-dashboard', async () => {
-        const minUsd = globalConfig?.get('min_usd_threshold') || 10;
-        const url = `${API_BASE}/api/risk/dashboard?min_usd=${minUsd}&price_history_days=365&lookback_days=90`;
-        
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return await response.json();
-    });
-    
-      if (riskData?.success && riskData?.risk_metrics) {
-          const metrics = riskData.risk_metrics;
-        
-        // Update Risk metrics with real data
-        updateMetric('risk-var', formatPercent(Math.abs(metrics.var_95_1d)), '95% confidence level');
-        updateMetric('risk-drawdown', formatPercent(Math.abs(metrics.max_drawdown)), 'Current cycle');
-        updateMetric('risk-volatility', formatPercent(metrics.volatility_annualized), '30-day annualized');
-        updateMetric('risk-score', `${metrics.risk_score || '--'}/100`, getRiskLevel(metrics.risk_score));
-        
-          // Update alerts with real risk assessment
-          updateRiskAlerts(metrics, riskData.portfolio_summary);
+  console.debug("Analytics Unified: Loading Risk Dashboard data...");
 
-          // Key scores (no duplication, sourced from same API when possible)
-          try {
-              // Diversification metrics
-              const corr = riskData.correlation_metrics || {};
-              if (typeof corr.diversification_ratio === 'number') {
-                  updateMetric('risk-kpi-diversification', (corr.diversification_ratio).toFixed(2), 'Corrélation de portefeuille');
-              } else {
-                  updateMetric('risk-kpi-diversification', '--', 'Indisponible');
-              }
-              if (typeof corr.effective_assets === 'number') {
-                  updateMetric('risk-kpi-effective-assets', Math.round(corr.effective_assets), 'Actifs non-redondants');
-              } else {
-                  updateMetric('risk-kpi-effective-assets', '--', 'Indisponible');
-              }
+  const riskData = await fetchWithCache('risk-dashboard', async () => {
+    const minUsd = globalConfig?.get('min_usd_threshold') || 10;
+    const url = `${API_BASE}/api/risk/dashboard?min_usd=${minUsd}&price_history_days=365&lookback_days=90`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  });
 
-              // On-Chain Composite (placeholder until backend provides it)
-              updateMetric('risk-kpi-onchain', '--', 'Fondamentaux on-chain (bientôt)');
-
-              // Blended Decision Score = blend(CCS, Cycle) when CCS available
-              try {
-                  const cycleModule = await import('./modules/cycle-navigator.js');
-                  const cycleData = cycleModule.estimateCyclePosition();
-
-                  let blendedScore = null;
-                  try {
-                      const resp = await fetch(`${API_BASE}/strategies/generate-ccs`, { method: 'POST' });
-                      if (resp.ok) {
-                          const js = await resp.json();
-                          const ccs = Number(js?.ccs_score);
-                          if (!isNaN(ccs) && cycleData?.months != null) {
-                              const blended = cycleModule.blendCCS(ccs, Number(cycleData.months));
-                              blendedScore = Math.round((blended?.blendedCCS ?? 0));
-                          }
-                      }
-                  } catch (_) { /* ignore */ }
-
-                  if (blendedScore != null) {
-                      updateMetric('risk-kpi-blended', blendedScore, 'CCS × Cycle (synthèse)');
-                  } else {
-                      updateMetric('risk-kpi-blended', '--', 'Synthèse indisponible');
-                  }
-              } catch (_) {
-                  updateMetric('risk-kpi-blended', '--', 'Synthèse indisponible');
-              }
-          } catch (e) {
-              console.warn('Failed updating key risk scores:', e);
-          }
-
-      } else {
-          showRiskError();
-      }
+  if (!(riskData?.success && riskData?.risk_metrics)) {
+    showRiskError();
+    return;
   }
 
-  async function loadPerformanceData() {
+  const metrics = riskData.risk_metrics;
+
+  // Core risk metrics
+  updateMetric('risk-var', formatPercent(Math.abs(metrics.var_95_1d)), '95% confidence level');
+  updateMetric('risk-drawdown', formatPercent(Math.abs(metrics.max_drawdown)), 'Current cycle');
+  updateMetric('risk-volatility', formatPercent(metrics.volatility_annualized), '30-day annualized');
+  updateMetric('risk-score', `${metrics.risk_score || '--'}/100`, getRiskLevel(metrics.risk_score));
+
+  // Alerts
+  updateRiskAlerts(metrics, riskData.portfolio_summary);
+
+  // Diversification metrics
+  const corr = riskData.correlation_metrics || {};
+  if (typeof corr.diversification_ratio === 'number') {
+    updateMetric('risk-kpi-diversification', (corr.diversification_ratio).toFixed(2), 'Corrélation de portefeuille');
+  } else {
+    updateMetric('risk-kpi-diversification', '--', 'Indisponible');
+  }
+  if (typeof corr.effective_assets === 'number') {
+    updateMetric('risk-kpi-effective-assets', Math.round(corr.effective_assets), 'Actifs non-redondants');
+  } else {
+    updateMetric('risk-kpi-effective-assets', '--', 'Indisponible');
+  }
+
+  // Scores depuis le Risk Dashboard (source de vérité)
+  const ls = getScoresFromLocalStorage();
+  if (ls.onchain != null) {
+    updateMetric('risk-kpi-onchain', Math.round(ls.onchain), 'Fondamentaux on-chain');
+  } else {
+    updateMetric('risk-kpi-onchain', '--', 'Fondamentaux on-chain (bientôt)');
+  }
+  if (ls.blended != null) {
+    updateMetric('risk-kpi-blended', Math.round(ls.blended), 'CCS × Cycle (synthèse)');
+  } else {
+    updateMetric('risk-kpi-blended', '--', 'Synthèse indisponible (ouvrez le Risk Dashboard)');
+  }
+
+  // Timestamp (si dispo) au bas du panneau
+  try {
+    const ts = ls.timestamp ? new Date(Number(ls.timestamp)).toLocaleTimeString() : null;
+    const panel = document.querySelector('#tab-risk .panel-card');
+    if (ts && panel) {
+      let info = panel.querySelector('.scores-updated-at');
+      if (!info) {
+        info = document.createElement('div');
+        info.className = 'scores-updated-at';
+        info.style.cssText = 'text-align:center; font-size:12px; color: var(--theme-text-muted); margin-top:.25rem;';
+        panel.appendChild(info);
+      }
+      info.textContent = `Mis à jour: ${ts}`;
+    }
+  } catch {}
+}async function loadPerformanceData() {
       console.debug('💾 Loading Performance Monitor data...');
       
       // Performance Monitor is about SYSTEM performance, not financial performance
@@ -443,3 +469,7 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 console.debug('✅ Analytics Unified - Initialization complete');
+
+
+
+

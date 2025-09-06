@@ -185,8 +185,15 @@ async def add_security_headers(request: Request, call_next):
                 "connect-src 'self' http: https: https://api.stlouisfed.org https://api.coingecko.com"
             )
     else:
-        # CSP stricte en production
-        response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
+        # CSP production (assouplie pour ressources nécessaires, à resserrer si libs locales)
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "img-src 'self' data: https:; "
+            "connect-src 'self' https://api.stlouisfed.org https://api.coingecko.com; "
+            "frame-ancestors 'none'"
+        )
     
     # Cache control pour les APIs
     if request.url.path.startswith("/api"):
@@ -1550,66 +1557,7 @@ async def get_rebalancing_strategies():
         "strategies": REBALANCING_STRATEGIES
     }
 
-@app.post("/strategies/generate-ccs")
-async def generate_ccs_strategy():
-    """Génère une stratégie CCS-based comme le fait Risk Dashboard"""
-    try:
-        from datetime import datetime, timezone
-        import random
-        
-        # Simuler les targets CCS blended comme dans Risk Dashboard
-        # En production, ceci ferait appel aux vrais modules CCS
-        ccs_score = random.randint(60, 90)  # Score CCS simulé
-        
-        # Targets basés sur le score CCS (logique simplifiée)
-        if ccs_score >= 80:
-            # Score haut = plus risqué, plus d'altcoins
-            targets = {
-                'Bitcoin': 30,
-                'Ethereum': 25,
-                'Altcoins': 35,
-                'Stablecoins': 10
-            }
-        elif ccs_score >= 60:
-            # Score moyen = équilibré
-            targets = {
-                'Bitcoin': 35,
-                'Ethereum': 30,
-                'Altcoins': 25,
-                'Stablecoins': 10
-            }
-        else:
-            # Score bas = plus conservateur
-            targets = {
-                'Bitcoin': 45,
-                'Ethereum': 25,
-                'Altcoins': 15,
-                'Stablecoins': 15
-            }
-        
-        return {
-            "success": True,
-            "targets": targets,
-            "strategy": f"CCS-based ({ccs_score})",
-            "ccs_score": ccs_score,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "source": "risk-dashboard-ccs"
-        }
-        
-    except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "targets": {
-                'Bitcoin': 35,
-                'Ethereum': 30,
-                'Altcoins': 25,
-                'Stablecoins': 10
-            },
-            "strategy": "CCS-based (Fallback)",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "source": "risk-dashboard-ccs"
-        }
+
 
 @app.get("/strategies/{strategy_id}")
 async def get_strategy_details(strategy_id: str):

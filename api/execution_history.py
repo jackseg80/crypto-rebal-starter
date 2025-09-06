@@ -227,8 +227,12 @@ async def get_execution_trends(
 ):
     """Analyser les tendances d'exécution"""
     try:
-        # TODO: Ajouter support pour filtrage par exchange dans le service
-        trends = await execution_history.get_execution_trends(days=days, interval=interval)
+        # Appliquer le filtrage par exchange si spécifié
+        trends = await execution_history.get_execution_trends(
+            days=days, 
+            interval=interval, 
+            exchange_filter=exchange
+        )
         
         if "error" in trends:
             raise HTTPException(status_code=500, detail=trends["error"])

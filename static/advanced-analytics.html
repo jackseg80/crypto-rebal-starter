@@ -382,10 +382,7 @@
         });
 
         function initializeNavigation() {
-            if (typeof createSimpleNavigation !== 'undefined') {
-                window.simpleNavigation = createSimpleNavigation('advanced-analytics');
-                document.body.classList.add('has-simple-nav');
-            }
+            // unified nav enabled via components/nav.js; legacy init removed
         }
 
         function initializeCharts() {

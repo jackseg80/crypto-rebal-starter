@@ -1313,10 +1313,7 @@ n  <!-- Navigation unifiée (conditionnelle) -->
         // Initialisation automatique de la navigation thématique
         document.addEventListener('DOMContentLoaded', function() {
             // Auto-détecter la page courante pour la navigation thématique
-            if (typeof createSimpleNavigation !== 'undefined') {
-                const pageId = window.location.pathname.split('/').pop().replace('.html', '') || 'dashboard';
-                createSimpleNavigation('execution-history');
-            }
+            /* unified nav enabled via components/nav.js; legacy init removed */
         });
     </script>
 </body>

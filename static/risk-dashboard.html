@@ -733,7 +733,7 @@
         <div class="sidebar-section">
           <div class="sidebar-title">🎯 CCS Mixte (Directeur)</div>
           <div class="ccs-gauge" id="ccs-gauge">
-            <div class="ccs-score" id="ccs-ccs-mix">--</div>
+            <div class="ccs-score" id="ccs-ccs-mix" data-score="ccs">--</div>
             <div class="ccs-label" id="ccs-mixte-label">Loading...</div>
           </div>
         </div>
@@ -742,7 +742,7 @@
         <div class="sidebar-section">
           <div class="sidebar-title">🔗 On-Chain Composite</div>
           <div class="ccs-gauge" id="onchain-gauge">
-            <div class="ccs-score" id="kpi-onchain">--</div>
+            <div class="ccs-score" id="kpi-onchain" data-score="onchain">--</div>
             <div class="ccs-label" id="onchain-label">Loading...</div>
           </div>
         </div>
@@ -751,7 +751,7 @@
         <div class="sidebar-section">
           <div class="sidebar-title">🛡️ Risk Score</div>
           <div class="ccs-gauge" id="risk-gauge">
-            <div class="ccs-score" id="kpi-risk">--</div>
+            <div class="ccs-score" id="kpi-risk" data-score="risk">--</div>
             <div class="ccs-label" id="risk-label">Loading...</div>
           </div>
         </div>
@@ -763,7 +763,7 @@
           </div>
           <div class="ccs-gauge" id="blended-gauge"
             style="padding:2rem; border:2px solid var(--theme-border); box-shadow:0 0 12px rgba(0,0,0,0.15);">
-            <div class="ccs-score" id="kpi-blended" style="font-size:3rem;">--</div>
+            <div class="ccs-score" id="kpi-blended" data-score="blended" style="font-size:3rem;">--</div>
             <div class="ccs-label" id="blended-label" style="font-size:1rem; font-weight:700;">Loading...</div>
           </div>
         </div>
@@ -1791,7 +1791,20 @@
           console.log(`⚡ Using cached scores (${age} minutes old)`);
           
           const scores = cachedScores.data;
+          // Hydrate store with cached scores so subscribers (updateSidebar) see values
+          try {
+            if (scores.onchainScore != null) store.set('scores.onchain', scores.onchainScore);
+            if (scores.riskScore != null) store.set('scores.risk', scores.riskScore);
+            if (scores.blendedScore != null) store.set('scores.blended', scores.blendedScore);
+            if (scores.ccsScore != null) store.set('ccs.score', scores.ccsScore);
+            if (scores.ccsMixteScore != null) store.set('cycle.ccsStar', scores.ccsMixteScore);
+          } catch (e) {
+            console.warn('Failed to hydrate store with cached scores:', e);
+          }
+
           updateScoreDisplays(scores.onchainScore, scores.riskScore, scores.blendedScore, scores.ccsScore);
+          // Ensure sidebar reflects the hydrated store
+          try { updateSidebar(store.snapshot()); } catch {}
           updateMarketRegime(scores.blendedScore, scores.onchainScore, scores.riskScore);
           return scores;
         }
@@ -2061,7 +2074,7 @@
           console.log('Risk dashboard refreshed successfully');
 
         } else {
-          // Handle API error with informative message
+          // Handle API error with informative message, but still compute partial scores (on-chain + defaults)
           store.set('ui.apiStatus.backend', 'error');
           const errorType = riskData?.error_type || 'unknown';
           const errorMessage = riskData?.message || 'Failed to load risk dashboard';
@@ -2070,6 +2083,17 @@
             renderBackendUnavailable(errorMessage);
           } else {
             renderApiError(errorMessage);
+          }
+
+          // Attempt partial scoring so sidebar is still populated
+          try {
+            if (ccsData) {
+              await loadBlendedCCS();
+            }
+            await calculateAllScores(riskData, ccsData);
+            updateSidebar(store.snapshot());
+          } catch (e) {
+            console.warn('Partial score calculation failed:', e);
           }
           return; // Don't throw, just render error state
         }
@@ -4189,6 +4213,16 @@
         if (scoreElements.blended) scoreElements.blended.textContent = Math.round(blendedScore || 0);
         if (scoreElements.ccs) scoreElements.ccs.textContent = Math.round(ccsScore || 0);
 
+        // Fallback: also update sidebar KPI elements by id
+        const elOn = document.getElementById('kpi-onchain');
+        const elRisk = document.getElementById('kpi-risk');
+        const elBlend = document.getElementById('kpi-blended');
+        const elCcs = document.getElementById('ccs-ccs-mix');
+        if (elOn && onchainScore != null) elOn.textContent = String(Math.round(onchainScore));
+        if (elRisk && riskScore != null) elRisk.textContent = String(Math.round(riskScore));
+        if (elBlend && blendedScore != null) elBlend.textContent = String(Math.round(blendedScore));
+        if (elCcs && ccsScore != null) elCcs.textContent = String(Math.round(ccsScore));
+
         console.log('📊 Score displays updated from cache');
       } catch (error) {
         console.warn('Error updating score displays:', error);
@@ -4310,10 +4344,7 @@
         // Initialisation automatique de la navigation thématique
         document.addEventListener('DOMContentLoaded', function() {
             // Auto-détecter la page courante pour la navigation thématique
-            if (typeof createSimpleNavigation !== 'undefined') {
-                const pageId = window.location.pathname.split('/').pop().replace('.html', '') || 'dashboard';
-                createSimpleNavigation('risk-dashboard');
-            }
+            /* unified nav enabled via components/nav.js; legacy init removed */
         });
     </script>
 </body>

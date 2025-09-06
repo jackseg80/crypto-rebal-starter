@@ -141,6 +141,8 @@ python crypto_toolbox_api.py  # Port 8001
 - **🎨 AI Components Demo** : `static/ai-components-demo.html` - Démonstration des composants IA interactifs
 
 > 🔧 **Dernières améliorations** : 
+> - **Cache persistant intelligent** : Scores risk-dashboard persistent avec TTL automatique (12h scores, 6h CCS, 4h onchain)
+> - **Force refresh système** : Bouton dédié pour contournement cache et recalcul forcé
 > - **Système de tooltips** : Info-bulles contextuelles sur toutes les tuiles avec sources de données
 > - **AI Dashboard optimisé** : Auto-initialisation, interface compacte 2x2, boutons fonctionnels uniquement
 > - **Navigation unifiée** : Header sticky avec menus déroulants et états actifs
@@ -180,6 +182,45 @@ Un système d'aide intégré fournit des informations contextuelles sur toutes l
 - Settings API Keys → "Gestion sécurisée des clés | Source: Stockage local chiffré"
 
 Le système est automatiquement chargé via `static/components/tooltips.js` sur toutes les pages principales.
+
+---
+
+## 🗄️ Cache Persistant & Performance
+
+### 📊 **Système de Cache Intelligent**
+
+Le **Risk Dashboard** (`static/risk-dashboard.html`) utilise désormais un système de cache persistant pour éviter les recalculs inutiles des scores.
+
+#### ⏰ **Configuration TTL (Time-To-Live)**
+| Type de Données | TTL | Fréquence de Mise à Jour |
+|------------------|-----|--------------------------|
+| **Scores Globaux** | 12 heures | 2× par jour |
+| **Données CCS** | 6 heures | 4× par jour |
+| **Indicateurs On-Chain** | 4 heures | 6× par jour |
+| **Métriques de Risque** | 8 heures | 3× par jour |
+
+#### 🔄 **Fonctionnalités**
+- **Cache Automatique** : Sauvegarde transparente des scores calculés
+- **Chargement Instantané** : Restauration immediate des scores valides
+- **Nettoyage Auto** : Suppression automatique des caches expirés
+- **Logs Détaillés** : Suivi de l'âge du cache en temps réel
+
+#### 🎛️ **Interface Utilisateur**
+- **🔄 Refresh Data** : Utilise le cache si valide, sinon recalcule
+- **🧹 Force Refresh** : Ignore le cache et recalcule tout (bouton rouge)
+- **Indicateurs d'État** : Affichage de l'âge du cache dans les logs console
+
+#### 💡 **Avantages Performance**
+- **Temps de chargement** : Instantané avec cache (vs 3-5s recalcul)
+- **Économie ressources** : Évite les appels API répétitifs
+- **Expérience utilisateur** : Plus de scores qui "disparaissent" au refresh
+- **Flexibilité** : Contournement possible avec force refresh
+
+```javascript
+// Exemple d'utilisation en console
+clearAllPersistentCache(); // Force clearing
+getCachedData('SCORES'); // Check cache status
+```
 
 ---
 

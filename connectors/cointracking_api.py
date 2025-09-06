@@ -501,16 +501,40 @@ def _smart_asset_distribution_disabled(assets: List[Dict[str, Any]], active_exch
         if not preferred_exchanges:
             preferred_exchanges = active_exchanges
         
-        # Pour simplifier la phase 1, assigner au premier exchange préféré disponible
-        # TODO Phase 2 : implémenter la répartition proportionnelle
+        # Implémentation de la répartition proportionnelle
         if preferred_exchanges:
-            target_exchange = preferred_exchanges[0]
-            asset_copy = dict(asset)
-            asset_copy['location'] = target_exchange
+            # Calculer le poids total des exchanges préférés (basé sur leur capacité actuelle)
+            exchange_weights = {}
+            total_weight = 0
             
-            if target_exchange not in distribution:
-                distribution[target_exchange] = []
-            distribution[target_exchange].append(asset_copy)
+            for exchange in preferred_exchanges:
+                # Utiliser la capacité actuelle comme poids (exchanges avec plus d'assets ont plus de poids)
+                current_capacity = len([a for ex_assets in distribution.values() for a in ex_assets if a.get('location') == exchange])
+                weight = max(1, current_capacity + 1)  # Minimum 1 pour éviter division par 0
+                exchange_weights[exchange] = weight
+                total_weight += weight
+            
+            # Distribuer l'asset proportionnellement
+            asset_value = float(asset.get('value_usd', 0))
+            remaining_value = asset_value
+            
+            for i, exchange in enumerate(preferred_exchanges):
+                if i == len(preferred_exchanges) - 1:  # Dernier exchange reçoit le reste
+                    allocation_value = remaining_value
+                else:
+                    proportion = exchange_weights[exchange] / total_weight
+                    allocation_value = asset_value * proportion
+                    remaining_value -= allocation_value
+                
+                if allocation_value > 0:
+                    asset_copy = dict(asset)
+                    asset_copy['location'] = exchange
+                    asset_copy['value_usd'] = allocation_value
+                    asset_copy['proportional_allocation'] = True
+                    
+                    if exchange not in distribution:
+                        distribution[exchange] = []
+                    distribution[exchange].append(asset_copy)
     
     return distribution
 
