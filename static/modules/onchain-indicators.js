@@ -656,10 +656,15 @@ export async function fetchCryptoToolboxIndicators() {
       return cached;
     }
     
-    // Appel au backend Python avec Playwright
-    const response = await performanceMonitoredFetch('http://127.0.0.1:8001/api/crypto-toolbox');
+    // Appel au backend Python avec Playwright (service optionnel)
+    const apiBase = globalConfig?.get('api_base_url') || 'http://127.0.0.1:8000';
+    const response = await performanceMonitoredFetch(`${apiBase}/api/crypto-toolbox`);
     
     if (!response.ok) {
+      if (response.status === 404) {
+        console.warn('⚠️ Crypto-Toolbox service not available (optional feature)');
+        return null; // Service optionnel non disponible
+      }
       throw new Error(`Backend API error: ${response.status} ${response.statusText}`);
     }
     

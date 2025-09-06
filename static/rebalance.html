@@ -542,12 +542,16 @@
 
   <section class="wrap tab-panel" id="optimization-tab">
     <div class="card">
-      <iframe src="portfolio-optimization.html?nav=off"
-        style="width:100%; height:80vh; border:0; background:var(--theme-surface)"></iframe>
+      <div style="display:flex; align-items:center; gap:.5rem; margin-bottom:.5rem;">
+        <h3 style="margin:0;">Optimization</h3>
+        <button id="openOptimizationNewTab" class="btn secondary small" style="margin-left:auto;">Open in new tab</button>
+      </div>
+      <div id="optimization-container"></div>
+      <div id="optimization-status" class="small muted" style="margin-top:.5rem; display:none"></div>
     </div>
   </section>
 
-  <script src="/static/global-config.js"></script>
+  
   <script>
     // Gestion des onglets Rebalancing / Optimization
     (function () {
@@ -558,7 +562,49 @@
         btn.classList.add('active');
         panels.forEach(p => p.classList.remove('active'));
         const target = document.querySelector(btn.dataset.target);
-        if (target) target.classList.add('active');
+        if (target) {
+          target.classList.add('active');
+          // Lazy-load the optimization UI when its tab is activated
+          if (target.id === 'optimization-tab') {
+            const container = document.getElementById('optimization-container');
+            const status = document.getElementById('optimization-status');
+            if (container && !container.querySelector('iframe')) {
+              const here = window.location;
+              const url = (here.origin && here.pathname.includes('/static/'))
+                ? here.origin.replace(/\/$/, '') + '/static/portfolio-optimization.html?nav=off'
+                : 'portfolio-optimization.html?nav=off';
+              const openBtn = document.getElementById('openOptimizationNewTab');
+              if (openBtn) {
+                openBtn.onclick = () => window.open(url, '_blank', 'noopener');
+              }
+              const iframe = document.createElement('iframe');
+              iframe.style.width = '100%';
+              iframe.style.height = '80vh';
+              iframe.style.border = '0';
+              iframe.style.background = 'var(--theme-surface)';
+              iframe.src = url;
+              iframe.referrerPolicy = 'same-origin';
+              container.appendChild(iframe);
+              if (status) {
+                status.style.display = 'block';
+                status.textContent = `Loading optimization UI from: ${url}`;
+              }
+              iframe.addEventListener('load', () => {
+                if (status) {
+                  status.textContent = '';
+                  status.style.display = 'none';
+                }
+              });
+              iframe.addEventListener('error', () => {
+                if (status) {
+                  status.innerHTML = `⚠️ Unable to display in the tab. ` +
+                    `<a href="${url}" target="_blank" rel="noopener">Open optimization in a new tab</a>`;
+                  status.style.display = 'block';
+                }
+              });
+            }
+          }
+        }
       }));
     })();
     /* ---------- Helpers ---------- */

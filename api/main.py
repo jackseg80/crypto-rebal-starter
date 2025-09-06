@@ -162,7 +162,8 @@ async def add_security_headers(request: Request, call_next):
     
     # Headers de sécurité
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
+    # Autoriser l'embed same-origin (nécessaire aux intégrations internes)
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     
@@ -179,7 +180,7 @@ async def add_security_headers(request: Request, call_next):
             # CSP plus permissive en développement pour les autres pages
             # Autorise les connexions HTTP/HTTPS (ex: 127.0.0.1:8001) + APIs publiques utilisées
             response.headers["Content-Security-Policy"] = (
-                "default-src 'self'; "
+                "default-src 'self'; frame-ancestors 'self'; "
                 "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; "
                 "style-src 'self' 'unsafe-inline'; "
                 "img-src 'self' data: https:; "
@@ -187,14 +188,19 @@ async def add_security_headers(request: Request, call_next):
             )
     else:
         # CSP production (assouplie pour ressources nécessaires, à resserrer si libs locales)
-        response.headers["Content-Security-Policy"] = (
+        # En production, autoriser l'embed des pages statiques par la même origine
+        # (le header X-Frame-Options ci-dessus restreint déjà à SAMEORIGIN pour /static/*)
+        csp_base = (
             "default-src 'self'; "
             "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
             "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
             "img-src 'self' data: https:; "
             "connect-src 'self' https://api.stlouisfed.org https://api.coingecko.com; "
-            "frame-ancestors 'none'"
         )
+        if str(request.url.path).startswith("/static/"):
+            response.headers["Content-Security-Policy"] = csp_base + "frame-ancestors 'self'"
+        else:
+            response.headers["Content-Security-Policy"] = csp_base + "frame-ancestors 'none'"
     
     # Cache control pour les APIs
     if request.url.path.startswith("/api"):

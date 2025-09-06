@@ -133,7 +133,10 @@
       "Bash(start http://localhost:8000/static/debug-navigation-layout.html)",
       "Bash(start http://localhost:8000/static/test-simple-menu.html)",
       "Bash(start http://localhost:8000/static/execution.html)",
-      "Bash(start http://localhost:8000/static/execution_history.html)"
+      "Bash(start http://localhost:8000/static/execution_history.html)",
+      "Bash(start http://localhost:9000/static/unified-ml-dashboard.html)",
+      "Bash(start http://localhost:9001/static/unified-ml-dashboard.html)",
+      "Bash(start http://localhost:8000/static/unified-ml-dashboard.html)"
     ],
     "deny": [],
     "ask": [],

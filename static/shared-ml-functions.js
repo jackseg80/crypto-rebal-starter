@@ -4,7 +4,7 @@
  */
 
 // Configuration API
-const ML_API_BASE = 'http://localhost:8000';
+const ML_API_BASE = globalConfig?.get('api_base_url') || 'http://localhost:8000';
 
 // Utilitaires UI communes
 export function showLoading(elementId, message = 'Chargement...') {

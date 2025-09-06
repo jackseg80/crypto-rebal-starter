@@ -133,6 +133,22 @@
 </head>
 
 <body>
+  <script>
+    // Clean accidental literal "\\n" artifacts in HTML text nodes (caused by a bad merge)
+    document.addEventListener('DOMContentLoaded', () => {
+      try {
+        const skip = new Set(['SCRIPT', 'STYLE', 'CODE', 'PRE']);
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+        const nodes = [];
+        let n;
+        while ((n = walker.nextNode())) {
+          if (n.parentElement && skip.has(n.parentElement.tagName)) continue;
+          if (n.nodeValue && n.nodeValue.includes('\\n')) nodes.push(n);
+        }
+        nodes.forEach(t => { t.nodeValue = t.nodeValue.replace(/\\n/g, ''); });
+      } catch (e) { /* noop */ }
+    });
+  </script>
   <div class="wrap">
     <div class="card">\n      <div class="card-header" style="border-bottom:1px solid var(--theme-border);">\n        <div class="card-title" style="display:flex; align-items:center; gap:.5rem;">📐 Portfolio Optimization</div>\n      </div>\n      <div class="card-content">\n      <div class="controls" id="controls">
         <div>
@@ -241,8 +257,20 @@
     function renderTrades(trades) {
       const tbl = document.getElementById('tradesTable');
       if (!trades || !trades.length) { tbl.innerHTML = '<tr><td>Aucun trade requis</td></tr>'; return; }
-      tbl.innerHTML = '<tr><th>Actif</th><th>Action</th><th>Delta</th></tr>' +
-        trades.map(t => `<tr><td>${t.symbol || t.asset || '-'}</td><td>${t.action || '-'}</td><td>${formatPct0((t.delta || 0))}</td></tr>`).join('');
+      const rows = trades.map(t => {
+        const cur = (typeof t.current_weight === 'number') ? t.current_weight : null;
+        const tgt = (typeof t.target_weight === 'number') ? t.target_weight : null;
+        const deltaField = (typeof t.delta === 'number') ? t.delta
+                         : (typeof t.weight_change === 'number') ? t.weight_change
+                         : (cur != null && tgt != null) ? (tgt - cur)
+                         : 0;
+        return `<tr>`+
+          `<td>${t.symbol || t.asset || '-'}</td>`+
+          `<td>${t.action || '-'}</td>`+
+          `<td>${formatPct0(deltaField)}</td>`+
+        `</tr>`;
+      }).join('');
+      tbl.innerHTML = '<tr><th>Actif</th><th>Action</th><th>Delta</th></tr>' + rows;
     }
 
     async function runOptimization() {

@@ -264,11 +264,11 @@
         <div class="dashboard-grid">
 
             <!-- Portfolio Overview - Disposition améliorée pour gagner de la place -->
-            <div class="card" id="card-portfolio" draggable="true" style="grid-column: span 2;" 
-                 data-tooltip="Vue d'ensemble complète de votre portefeuille crypto avec répartition, métriques de performance et graphiques en temps réel." 
-                 data-source="API /balances/current + prix CoinGecko/CoinGlass">
+            <div class="card" id="card-portfolio" draggable="true" style="grid-column: span 2;"
+                data-tooltip="Vue d'ensemble complète de votre portefeuille crypto avec répartition, métriques de performance et graphiques en temps réel."
+                data-source="API /balances/current + prix CoinGecko/CoinGlass">
                 <div class="card-header">
-                    <div class="card-title"><span class="card-icon">💰</span>Portfolio Overview</div>
+                    <div class="card-title">Portfolio Overview</div>
                     <div style="display:flex;gap:8px;align-items:center;">
                         <button class="action-btn secondary" style="padding:4px 8px;font-size:12px;"
                             onclick="forceRefreshData()">🔄</button>
@@ -329,8 +329,8 @@
 
             <!-- Execution Status -->
             <div class="card" id="card-execution" draggable="true"
-                 data-tooltip="Statut des exécutions automatiques de trades avec historique des performances et volumes traités."
-                 data-source="API /execution/status + logs internes">
+                data-tooltip="Statut des exécutions automatiques de trades avec historique des performances et volumes traités."
+                data-source="API /execution/status + logs internes">
                 <div class="card-header">
                     <div class="card-title"><span class="card-icon">🎯</span>Execution Status</div>
                     <span class="status-badge" id="execution-status">Loading</span>
@@ -351,8 +351,8 @@
 
             <!-- Exchange Connections -->
             <div class="card" id="card-exchange" draggable="true"
-                 data-tooltip="État des connexions avec les exchanges (Binance, KuCoin) et vérification des API keys."
-                 data-source="Tests de connectivité API en temps réel">
+                data-tooltip="État des connexions avec les exchanges (Binance, KuCoin) et vérification des API keys."
+                data-source="Tests de connectivité API en temps réel">
                 <div class="card-header">
                     <div class="card-title"><span class="card-icon">🔗</span>Exchange Status</div>
                     <a href="monitoring-unified.html" class="status-badge status-active"
@@ -365,8 +365,8 @@
 
             <!-- Recent Activity -->
             <div class="card" id="card-activity" draggable="true"
-                 data-tooltip="Historique des dernières opérations de trading, rebalancing et événements système."
-                 data-source="API /execution/history + logs système">
+                data-tooltip="Historique des dernières opérations de trading, rebalancing et événements système."
+                data-source="API /execution/history + logs système">
                 <div class="card-header">
                     <div class="card-title"><span class="card-icon">📋</span>Recent Activity</div>
                     <a href="execution_history.html" class="status-badge status-active"
@@ -379,8 +379,8 @@
 
             <!-- System Health -->
             <div class="card" id="card-health" draggable="true"
-                 data-tooltip="Surveillance de la santé du système : APIs, fraîcheur des données et validateurs de sécurité."
-                 data-source="Monitoring interne + tests API">
+                data-tooltip="Surveillance de la santé du système : APIs, fraîcheur des données et validateurs de sécurité."
+                data-source="Monitoring interne + tests API">
                 <div class="card-header">
                     <div class="card-title"><span class="card-icon">❤️</span>System Health</div>
                     <span class="status-badge" id="system-health">Loading</span>
@@ -401,10 +401,10 @@
 
             <!-- Scores -->
             <div class="card" id="card-scores" draggable="true"
-                 data-tooltip="Scores de performance et métriques calculés par les algorithmes ML pour évaluer le portefeuille."
-                 data-source="API /analytics/scores + modèles ML">
+                data-tooltip="Scores de performance et métriques calculés par les algorithmes ML pour évaluer le portefeuille."
+                data-source="API /analytics/scores + modèles ML">
                 <div class="card-header">
-                    <div class="card-title"><span class="card-icon">📊</span>Scores</div>
+                    <div class="card-title">Scores</div>
                     <span class="status-badge" id="scores-status">Loading</span>
                 </div>
                 <div id="scores-content">
@@ -414,8 +414,8 @@
 
             <!-- Debug & New Modules -->
             <div class="card" id="card-debug" draggable="true"
-                 data-tooltip="Accès rapide aux outils de debug et aux nouveaux modules : Analytics, AI, Optimisation et Performance."
-                 data-source="Liens internes et outils développeur">
+                data-tooltip="Accès rapide aux outils de debug et aux nouveaux modules : Analytics, AI, Optimisation et Performance."
+                data-source="Liens internes et outils développeur">
                 <div class="card-header">
                     <div class="card-title"><span class="card-icon">🔧</span>Debug & Nouveaux Modules</div>
                     <a href="debug-menu.html" class="status-badge status-active" style="text-decoration:none;">Menu
@@ -629,7 +629,8 @@
 
                 if (scores.timestamp) {
                     const age = Date.now() - parseInt(scores.timestamp);
-                    if (age < 5 * 60 * 1000) { // 5 minutes
+                    // Accepter les scores jusqu'à 12 heures, marquer "stale" plus tard si besoin
+                    if (age < 12 * 60 * 60 * 1000) { // 12 heures
                         result.timestamp = parseInt(scores.timestamp);
 
                         // Ajouter chaque score disponible
@@ -657,8 +658,30 @@
                     return result;
                 }
 
+                // Fallback: utiliser le cache persistant du risk-dashboard (12h TTL)
+                try {
+                    const cached = localStorage.getItem('risk_scores_cache');
+                    if (cached) {
+                        const entry = JSON.parse(cached);
+                        const data = entry?.data || {};
+                        const ts = entry?.timestamp;
+                        const out = {};
+                        if (typeof data.onchainScore === 'number') out.onchain = data.onchainScore;
+                        if (typeof data.riskScore === 'number') out.risk = data.riskScore;
+                        if (typeof data.blendedScore === 'number') out.blended = data.blendedScore;
+                        if (typeof data.ccsScore === 'number') out.ccs = data.ccsScore;
+                        if (typeof ts === 'number') out.timestamp = ts;
+                        if (Object.keys(out).length > 0) {
+                            console.debug('✅ Scores loaded from persistent cache:', out);
+                            return out;
+                        }
+                    }
+                } catch (cacheErr) {
+                    console.warn('Failed to read persistent risk scores cache:', cacheErr);
+                }
+
                 // Si pas de scores disponibles, retourner null
-                console.debug('⚠️ No recent scores available in localStorage');
+                console.debug('⚠️ No scores available (localStorage or cache)');
                 return null;
 
             } catch (e) {
@@ -792,6 +815,9 @@
 
             // Scores disponibles - afficher les valeurs disponibles
             const { onchain, risk, blended, ccs, timestamp } = scoresData;
+            const STALE_MINUTES = 30; // au-delà: afficher l'étiquette Cache
+            const ageMin = timestamp ? Math.round((Date.now() - timestamp) / 60000) : null;
+            const isStale = ageMin != null && ageMin >= STALE_MINUTES;
 
             // Déterminer les couleurs en fonction des scores (rouge >70, orange 40-70, vert <40)
             const getScoreColor = (score) => {
@@ -876,7 +902,7 @@
                     <!-- Timestamp -->
                     ${timestamp ? `
                     <div style="text-align: center; font-size: 0.8em; color: var(--theme-text-muted); margin-top: 6px;">
-                        Mis à jour: ${new Date(timestamp).toLocaleTimeString()}
+                        Mis à jour: ${new Date(timestamp).toLocaleTimeString()}${isStale ? ` · <span class=\"status-badge status-warning\">Cache</span>` : ''}
                     </div>
                     ` : ''}
 
@@ -891,8 +917,13 @@
             `;
 
             if (statusEl) {
-                statusEl.className = 'status-badge status-active';
-                statusEl.textContent = 'À jour';
+                if (isStale) {
+                    statusEl.className = 'status-badge status-warning';
+                    statusEl.textContent = 'Cache';
+                } else {
+                    statusEl.className = 'status-badge status-active';
+                    statusEl.textContent = 'À jour';
+                }
             }
         }
 

@@ -5,7 +5,7 @@
 
 // Configuration des endpoints API
 const AI_CONFIG = {
-    baseUrl: 'http://localhost:8000',
+    baseUrl: globalConfig?.get('api_base_url') || 'http://localhost:8000',
     endpoints: {
         volatilityPredictor: '/api/ai/volatility/predict',
         marketRegime: '/api/ai/regime/current',

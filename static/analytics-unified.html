@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,19 +12,78 @@
   <script type="module" src="components/nav.js"></script>
   <script type="module" src="analytics-unified.js"></script>
   <style>
-    .wrap { max-width: 95vw; margin: 0 auto; padding: var(--space-lg); }
-    .tabs { display: flex; gap: .5rem; border-bottom: 1px solid var(--theme-border); }
-    .tab-btn { padding: .6rem .9rem; border: 1px solid var(--theme-border); background: var(--theme-surface); color: var(--theme-text); border-radius: var(--radius-sm) var(--radius-sm) 0 0; cursor: pointer; }
-    .tab-btn.active { border-color: var(--brand-primary); color: var(--brand-primary); background: color-mix(in oklab, var(--brand-primary) 10%, transparent); }
-    .tab-panel { display: none; }
-    .tab-panel.active { display: block; }
-    .panel-card { background: var(--theme-surface); border: 1px solid var(--theme-border); border-radius: var(--radius-lg); padding: var(--space-md); }
-    .metric-card { background: var(--theme-bg); border: 1px solid var(--theme-border); border-radius: var(--radius-md); padding: 1rem; text-align: center; }
-    .metric-card h4 { margin: 0 0 0.5rem 0; font-size: 0.9rem; color: var(--theme-text-muted); font-weight: 500; }
-    .metric-value { font-size: 1.5rem; font-weight: 700; color: var(--theme-text); margin: 0.5rem 0; }
-    .metric-card small { color: var(--theme-text-muted); font-size: 0.8rem; }
+    .wrap {
+      max-width: 95vw;
+      margin: 0 auto;
+      padding: var(--space-lg);
+    }
+
+    .tabs {
+      display: flex;
+      gap: .5rem;
+      border-bottom: 1px solid var(--theme-border);
+    }
+
+    .tab-btn {
+      padding: .6rem .9rem;
+      border: 1px solid var(--theme-border);
+      background: var(--theme-surface);
+      color: var(--theme-text);
+      border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+      cursor: pointer;
+    }
+
+    .tab-btn.active {
+      border-color: var(--brand-primary);
+      color: var(--brand-primary);
+      background: color-mix(in oklab, var(--brand-primary) 10%, transparent);
+    }
+
+    .tab-panel {
+      display: none;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    .panel-card {
+      background: var(--theme-surface);
+      border: 1px solid var(--theme-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-md);
+    }
+
+    .metric-card {
+      background: var(--theme-bg);
+      border: 1px solid var(--theme-border);
+      border-radius: var(--radius-md);
+      padding: 1rem;
+      text-align: center;
+    }
+
+    .metric-card h4 {
+      margin: 0 0 0.5rem 0;
+      font-size: 0.9rem;
+      color: var(--theme-text-muted);
+      font-weight: 500;
+    }
+
+    .metric-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--theme-text);
+      margin: 0.5rem 0;
+    }
+
+    .metric-card small {
+      color: var(--theme-text-muted);
+      font-size: 0.8rem;
+    }
   </style>
-  <script type="module" src="components/tooltips.js"></script>`n</head>
+  <script type="module" src="components/tooltips.js"></script>
+</head>
+
 <body>
   <div class="wrap">
     <div class="tabs" id="analytics-tabs">
@@ -37,7 +97,8 @@
   <section class="wrap tab-panel active" id="tab-risk">
     <div class="panel-card">
       <h3>🛡️ Risk Dashboard</h3>
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
+      <div
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
         <div class="metric-card" data-metric="risk-var">
           <h4>Portfolio VaR</h4>
           <div class="metric-value">-2.34%</div>
@@ -60,7 +121,8 @@
         </div>
       </div>
       <!-- Scores clés du Risk Dashboard (version complète) -->
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-top: 1rem;">
+      <div
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-top: 1rem;">
         <div class="metric-card" data-metric="risk-kpi-diversification">
           <h4>Diversification Ratio</h4>
           <div class="metric-value">--</div>
@@ -89,7 +151,8 @@
         <div style="color: var(--theme-text-muted);">• No significant exposure warnings</div>
       </div>
       <div style="text-align: center; margin-top: 1.5rem;">
-        <a href="risk-dashboard.html?nav=off" target="_blank" style="display: inline-block; background: var(--brand-primary); color: white; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); text-decoration: none; font-weight: 600;">
+        <a href="risk-dashboard.html?nav=off" target="_blank"
+          style="display: inline-block; background: var(--brand-primary); color: white; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); text-decoration: none; font-weight: 600;">
           📊 Version complète du Risk Dashboard
         </a>
       </div>
@@ -98,7 +161,8 @@
   <section class="wrap tab-panel" id="tab-performance">
     <div class="panel-card">
       <h3>📊 Performance Monitor</h3>
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
+      <div
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
         <div class="metric-card" data-metric="perf-cache-size">
           <h4>Memory Cache Size</h4>
           <div class="metric-value">--</div>
@@ -123,13 +187,17 @@
       <div style="margin-top: 2rem; padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-md);">
         <h4>System Performance</h4>
         <div style="display: grid; gap: 0.5rem;">
-          <div style="display: flex; justify-content: space-between;"><span>Memory Cache Hit Rate:</span><span style="color: var(--success);">--%</span></div>
-          <div style="display: flex; justify-content: space-between;"><span>Available Memory:</span><span>-- GB</span></div>
-          <div style="display: flex; justify-content: space-between;"><span>Process Efficiency:</span><span>--</span></div>
+          <div style="display: flex; justify-content: space-between;"><span>Memory Cache Hit Rate:</span><span
+              style="color: var(--success);">--%</span></div>
+          <div style="display: flex; justify-content: space-between;"><span>Available Memory:</span><span>-- GB</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;"><span>Process Efficiency:</span><span>--</span>
+          </div>
         </div>
       </div>
       <div style="text-align: center; margin-top: 1.5rem;">
-        <a href="performance-monitor.html?nav=off" target="_blank" style="display: inline-block; background: var(--brand-primary); color: white; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); text-decoration: none; font-weight: 600;">
+        <a href="performance-monitor.html?nav=off" target="_blank"
+          style="display: inline-block; background: var(--brand-primary); color: white; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); text-decoration: none; font-weight: 600;">
           📈 Version complète du Performance Monitor
         </a>
       </div>
@@ -138,7 +206,8 @@
   <section class="wrap tab-panel" id="tab-cycles">
     <div class="panel-card">
       <h3>🔄 Cycle Analysis</h3>
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
+      <div
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
         <div class="metric-card" data-metric="cycle-phase">
           <h4>Current Phase</h4>
           <div class="metric-value">--</div>
@@ -163,13 +232,17 @@
       <div style="margin-top: 2rem; padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-md);">
         <h4>Market Cycle Indicators</h4>
         <div style="display: grid; gap: 0.5rem;">
-          <div style="display: flex; justify-content: space-between;"><span>Fear & Greed Index:</span><span>45 (Neutral)</span></div>
-          <div style="display: flex; justify-content: space-between;"><span>RSI (Weekly):</span><span>58 (Neutral)</span></div>
-          <div style="display: flex; justify-content: space-between;"><span>MVRV Ratio:</span><span>2.1 (Accumulation)</span></div>
+          <div style="display: flex; justify-content: space-between;"><span>Fear & Greed Index:</span><span>45
+              (Neutral)</span></div>
+          <div style="display: flex; justify-content: space-between;"><span>RSI (Weekly):</span><span>58
+              (Neutral)</span></div>
+          <div style="display: flex; justify-content: space-between;"><span>MVRV Ratio:</span><span>2.1
+              (Accumulation)</span></div>
         </div>
       </div>
       <div style="text-align: center; margin-top: 1.5rem;">
-        <a href="cycle-analysis.html?nav=off" target="_blank" style="display: inline-block; background: var(--brand-primary); color: white; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); text-decoration: none; font-weight: 600;">
+        <a href="cycle-analysis.html?nav=off" target="_blank"
+          style="display: inline-block; background: var(--brand-primary); color: white; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); text-decoration: none; font-weight: 600;">
           🔄 Version complète du Cycle Analysis
         </a>
       </div>
@@ -178,7 +251,8 @@
   <section class="wrap tab-panel" id="tab-monitoring">
     <div class="panel-card">
       <h3>📈 Advanced Analytics</h3>
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
+      <div
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
         <div class="metric-card" data-metric="monitor-total-return">
           <h4>Total Return</h4>
           <div class="metric-value">--%</div>
@@ -205,11 +279,12 @@
         <div id="advanced-metrics-breakdown" style="display: grid; gap: 0.5rem;"></div>
       </div>
       <div style="text-align: center; margin-top: 1.5rem;">
-        <a href="advanced-analytics.html?nav=off" target="_blank" style="display: inline-block; background: var(--brand-primary); color: white; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); text-decoration: none; font-weight: 600;">📈 Version complète des Advanced Analytics</a>
+        <a href="advanced-analytics.html?nav=off" target="_blank"
+          style="display: inline-block; background: var(--brand-primary); color: white; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); text-decoration: none; font-weight: 600;">📈
+          Version complète des Advanced Analytics</a>
       </div>
     </div>
   </section>
 </body>
+
 </html>
-
-
