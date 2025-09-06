@@ -16,6 +16,19 @@ htmlcov/
 .env
 .env.*
 !.env.example
+.claude/settings.local.json
+
+# ML Models & Cache (too large, auto-generated)
+models/regime/*.pth
+models/regime/*.pkl
+models/volatility/*.pth
+models/volatility/*.pkl
+cache/ml_pipeline/
+cache/portfolio_optimization/
+data/monitoring/portfolio_alerts.json
+
+# Temporary files
+static/archive/pre-unification/
 
 # IDEs
 .vscode/
