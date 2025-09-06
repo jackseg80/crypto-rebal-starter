@@ -66,7 +66,7 @@ python crypto_toolbox_api.py  # Port 8001
 | Interface | URL | Description |
 |-----------|-----|-------------|
 | 🏠 **Dashboard Principal** | `static/dashboard.html` | Vue d'ensemble avec métriques temps réel |
-| 🧠 **AI Dashboard** | `static/ai-unified-dashboard.html` | **NOUVEAU** - Interface ML unifiée avec 5/5 modèles |
+| 🧠 **ML Pipeline Dashboard** | `static/unified-ml-dashboard.html` | **NOUVEAU** - Interface ML complète avec 67 modèles détectés |
 | 📊 **Analytics Avancés** | `static/advanced-analytics.html` | **NOUVEAU** - Métriques sophistiquées et comparaisons |
 | 🛡️ **Risk Dashboard** | `static/risk-dashboard.html` | Analyse de risque avec scoring V2 |
 | ⚖️ **Rebalancing** | `static/rebalance.html` | Planification et exécution des rééquilibrages |
@@ -103,6 +103,25 @@ python crypto_toolbox_api.py  # Port 8001
 - **Ensemble Methods** : Régime detection avec validation croisée
 - **Feature Engineering** : 50+ indicateurs crypto-spécifiques automatiques
 - **Model Persistence** : Sauvegarde/chargement optimisé avec cache intelligent
+
+### 🖥️ **Dashboard ML Unifié** (`unified-ml-dashboard.html`)
+**Interface de contrôle complète pour le pipeline ML** avec :
+
+- **📊 Statut Temps Réel** : 67 modèles détectés (21 volatilité + régime + corrélation)
+- **🎛️ Contrôles Avancés** : Chargement par catégorie, modèles individuels, cache management
+- **📈 Métriques Performance** : Suivi en temps réel des modèles chargés et performances
+- **🔍 Logs Détaillés** : Journal complet des opérations ML avec horodatage
+- **🚀 Intégration Complète** : Navigation unifiée via menu "AI → ML Pipeline"
+
+**Fonctionnalités principales :**
+```
+✅ Pipeline Status          → Surveillance 67 modèles en temps réel
+✅ Load Volatility Models   → Chargement batch ou par symbol (BTC, ETH, etc.)
+✅ Load Regime Model        → Détection de régimes market (bull/bear/neutral)
+✅ Performance Summary      → Métriques agrégées et état des modèles
+✅ Cache Management         → Optimisation mémoire et nettoyage intelligent
+✅ Real-time Logging        → Traçabilité complète des opérations ML
+```
 
 ### 🔄 **Synchronisation Configuration**
 - **Frontend-Backend Sync** : Configuration automatiquement synchronisée entre `settings.html` et modèles ML
@@ -422,6 +441,21 @@ GET /portfolio/breakdown-locations?source=cointracking&min_usd=1
     }
   }
   ```
+
+### 4.9 ML Pipeline Endpoints **NOUVEAU**
+```
+GET /api/ml/pipeline/status                    # Statut global pipeline (67 modèles)
+POST /api/ml/pipeline/models/load-volatility   # Chargement modèles volatilité
+POST /api/ml/pipeline/models/load-regime       # Chargement modèle régime
+GET /api/ml/pipeline/models/loaded             # Liste modèles chargés
+GET /api/ml/pipeline/performance/summary       # Métriques performance
+DELETE /api/ml/pipeline/cache/clear            # Nettoyage cache ML
+```
+- **Pipeline Status** : Surveillance temps réel de 67 modèles (21 volatilité + régime + corrélation)
+- **Chargement Intelligent** : Batch ou par symbole avec gestion des erreurs
+- **Performance Tracking** : Métriques agrégées et état des modèles
+- **Cache Management** : Optimisation mémoire et nettoyage intelligent
+- **Interface Complète** : Dashboard unifié à `static/unified-ml-dashboard.html`
 
 ---
 
