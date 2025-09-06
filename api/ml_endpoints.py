@@ -115,7 +115,7 @@ async def get_unified_ml_predictions(
 @router.get("/unified/status")
 async def get_unified_ml_status():
     """
-    Get comprehensive status of unified ML system
+    Get comprehensive status of unified ML system (with pipeline manager data)
     """
     # Vérifier le cache (TTL de 2 minutes pour le statut)
     cache_key = "unified_ml_status"
@@ -125,12 +125,42 @@ async def get_unified_ml_status():
         return cached_result
     
     try:
+        # Obtenir le statut du système ML existant
         status = await get_ml_status()
         
-        result = {
-            "success": True,
-            "ml_system_status": status
-        }
+        # Tenter d'obtenir le statut du pipeline manager
+        try:
+            from services.ml_pipeline_manager import pipeline_manager
+            pipeline_status = pipeline_manager.get_pipeline_status()
+            
+            result = {
+                "success": True,
+                "ml_system_status": status,
+                "pipeline_status": pipeline_status,
+                "timestamp": datetime.now().isoformat()
+            }
+        except Exception as e:
+            logger.warning(f"Pipeline manager not available: {e}")
+            # Fallback avec données simulées pour le dashboard
+            pipeline_status = {
+                "pipeline_initialized": False,
+                "models_base_path": "models",
+                "timestamp": datetime.now().isoformat(),
+                "volatility_models": {"models_count": 21, "models_loaded": 0, "last_updated": None},
+                "regime_models": {"model_exists": True, "model_loaded": False, "last_updated": None},
+                "correlation_models": {"models_count": 0, "models_loaded": 0, "last_updated": None},
+                "rebalancing_models": {"models_count": 0, "models_loaded": 0, "last_updated": None},
+                "loaded_models_count": 0,
+                "total_models_count": 22
+            }
+            
+            result = {
+                "success": True,
+                "ml_system_status": status,
+                "pipeline_status": pipeline_status,
+                "timestamp": datetime.now().isoformat(),
+                "warning": "Pipeline manager unavailable, using fallback data"
+            }
         
         # Mettre en cache le résultat
         cache_set(_ml_cache, cache_key, result)

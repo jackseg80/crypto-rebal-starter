@@ -1345,6 +1345,11 @@ app.include_router(csv_router)
 app.include_router(portfolio_optimization_router)
 app.include_router(performance_router)
 app.include_router(ml_router)
+# Test simple endpoint pour debugging
+@app.get("/api/ml/pipeline/test")
+async def test_pipeline():
+    return {"message": "Pipeline API is working!"}
+
 app.include_router(unified_ml_router)
 app.include_router(multi_asset_router)
 app.include_router(backtesting_router)
