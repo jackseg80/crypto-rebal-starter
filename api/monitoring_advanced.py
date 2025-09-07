@@ -10,20 +10,39 @@ Ce module fournit les endpoints API pour le monitoring avancé:
 - Gestion de la santé système
 """
 
-from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, Body
 from fastapi.responses import JSONResponse
 from typing import Dict, List, Any, Optional
+from pydantic import BaseModel, Field
 import logging
 from datetime import datetime, timezone, timedelta
 
 from services.monitoring.connection_monitor import (
     connection_monitor, ConnectionStatus, AlertLevel
 )
+from services.notifications.alert_manager import alert_manager, AlertType
+from services.notifications.notification_sender import notification_sender, NotificationConfig
+from services.notifications.monitoring import monitoring_service
 
 logger = logging.getLogger(__name__)
 
 # Router pour les endpoints monitoring avancé
-router = APIRouter(prefix="/api/monitoring", tags=["advanced-monitoring"])
+router = APIRouter(prefix="/api/monitoring", tags=["monitoring"])
+
+# Modèles Pydantic pour notifications (migrés depuis monitoring_endpoints.py)
+class NotificationConfigRequest(BaseModel):
+    """Requête pour configurer les notifications"""
+    channel_type: str = Field(..., description="Type de canal (console, email, webhook)")
+    enabled: bool = Field(default=True, description="Canal activé")
+    min_level: str = Field(default="info", description="Niveau minimum")
+    alert_types: Optional[List[str]] = Field(default=None, description="Types d'alertes à filtrer")
+    config: Dict[str, Any] = Field(default={}, description="Configuration spécifique au canal")
+
+class TestAlertRequest(BaseModel):
+    """Requête pour déclencher une alerte de test"""
+    level: str = Field(default="info", description="Niveau d'alerte")
+    title: Optional[str] = Field(default=None, description="Titre personnalisé")
+    message: Optional[str] = Field(default=None, description="Message personnalisé")
 
 # Note: FastAPI lifecycle events will be handled by the main app
 # The monitoring will start automatically when first accessed
@@ -549,4 +568,178 @@ async def update_monitoring_config(config: Dict[str, Any]):
         
     except Exception as e:
         logger.error(f"Error updating monitoring config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- ENDPOINTS NOTIFICATIONS (migrés depuis monitoring_endpoints.py) ---
+
+@router.post("/notifications/config")
+async def add_notification_config(request: NotificationConfigRequest):
+    """
+    Ajouter ou mettre à jour une configuration de notification
+    """
+    try:
+        # Mapper les niveaux string vers les enums
+        level_map = {
+            "debug": AlertLevel.DEBUG,
+            "info": AlertLevel.INFO,  
+            "warning": AlertLevel.WARNING,
+            "error": AlertLevel.ERROR,
+            "critical": AlertLevel.CRITICAL
+        }
+        
+        min_level_enum = level_map.get(request.min_level.lower(), AlertLevel.INFO)
+        
+        # Mapper les types d'alertes si spécifiés
+        alert_types_enums = None
+        if request.alert_types:
+            type_map = {
+                "system": AlertType.SYSTEM,
+                "portfolio": AlertType.PORTFOLIO,
+                "exchange": AlertType.EXCHANGE,
+                "price": AlertType.PRICE,
+                "balance": AlertType.BALANCE
+            }
+            alert_types_enums = [
+                type_map.get(t.lower()) for t in request.alert_types 
+                if t.lower() in type_map
+            ]
+        
+        # Créer la configuration
+        config = NotificationConfig(
+            channel_type=request.channel_type,
+            enabled=request.enabled,
+            min_level=min_level_enum,
+            alert_types=alert_types_enums,
+            **request.config
+        )
+        
+        # Ajouter la configuration
+        notification_sender.add_notification_config(config)
+        
+        return {
+            "success": True,
+            "message": f"Configuration {request.channel_type} ajoutée"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error adding notification config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/notifications/config/{channel_type}")
+async def remove_notification_config(channel_type: str):
+    """
+    Supprimer une configuration de notification
+    """
+    try:
+        # Essayer de supprimer la configuration
+        removed = notification_sender.remove_notification_config(channel_type)
+        
+        if removed:
+            return {
+                "success": True,
+                "message": f"Configuration {channel_type} supprimée"
+            }
+        else:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Configuration {channel_type} non trouvée"
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error removing notification config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/notifications/status")
+async def get_notification_status():
+    """
+    Obtenir le statut des notifications
+    """
+    try:
+        configs = notification_sender.get_notification_configs()
+        
+        return {
+            "success": True,
+            "configs": [
+                {
+                    "channel_type": config.channel_type,
+                    "enabled": config.enabled,
+                    "min_level": config.min_level.value if hasattr(config.min_level, 'value') else str(config.min_level),
+                    "alert_types": [t.value if hasattr(t, 'value') else str(t) for t in (config.alert_types or [])],
+                    "config_keys": list(config.config.keys()) if hasattr(config, 'config') else []
+                }
+                for config in configs
+            ]
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting notification status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/alerts/test")
+async def test_alert(request: TestAlertRequest):
+    """
+    Déclencher une alerte de test
+    """
+    try:
+        # Mapper le niveau
+        level_map = {
+            "debug": AlertLevel.DEBUG,
+            "info": AlertLevel.INFO,  
+            "warning": AlertLevel.WARNING,
+            "error": AlertLevel.ERROR,
+            "critical": AlertLevel.CRITICAL
+        }
+        
+        level_enum = level_map.get(request.level.lower(), AlertLevel.INFO)
+        
+        # Créer l'alerte
+        alert_manager.create_alert(
+            alert_type=AlertType.SYSTEM,
+            level=level_enum,
+            source="api_test",
+            title=request.title or f"Test Alert - {request.level.upper()}",
+            message=request.message or f"Ceci est un test du système d'alerte de niveau {request.level}",
+            data={"test": True, "timestamp": datetime.now().isoformat()}
+        )
+        
+        return {
+            "success": True,
+            "message": "Alerte de test envoyée",
+            "level": request.level
+        }
+        
+    except Exception as e:
+        logger.error(f"Error sending test alert: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/start")
+async def start_monitoring():
+    """
+    Démarrer le service de monitoring
+    """
+    try:
+        monitoring_service.start()
+        return {
+            "success": True,
+            "message": "Service de monitoring démarré"
+        }
+    except Exception as e:
+        logger.error(f"Error starting monitoring: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/stop")
+async def stop_monitoring():
+    """
+    Arrêter le service de monitoring
+    """
+    try:
+        monitoring_service.stop()
+        return {
+            "success": True,
+            "message": "Service de monitoring arrêté"
+        }
+    except Exception as e:
+        logger.error(f"Error stopping monitoring: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
+from api.middleware import RateLimitMiddleware
 from fastapi import middleware
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
@@ -40,7 +41,6 @@ from services.pricing import get_prices_usd
 from services.portfolio import portfolio_analytics
 from api.taxonomy_endpoints import router as taxonomy_router
 from api.execution_endpoints import router as execution_router
-from api.monitoring_endpoints import router as monitoring_router
 from api.analytics_endpoints import router as analytics_router
 from api.kraken_endpoints import router as kraken_router
 from api.smart_taxonomy_endpoints import router as smart_taxonomy_router
@@ -55,22 +55,15 @@ from api.csv_endpoints import router as csv_router
 from api.portfolio_optimization_endpoints import router as portfolio_optimization_router
 from api.advanced_analytics_endpoints import router as advanced_analytics_router
 from api.performance_endpoints import router as performance_router
-from api.ml_endpoints import router as ml_router
-from api.unified_ml_endpoints import router as unified_ml_router
+from api.unified_ml_endpoints import router as ml_router
 from api.multi_asset_endpoints import router as multi_asset_router
 from api.backtesting_endpoints import router as backtesting_router
 from api.exceptions import (
     CryptoRebalancerException, APIException, ValidationException, 
     ConfigurationException, TradingException, DataException, ErrorCodes
 )
-# Import des nouveaux utilitaires de gestion d'erreur
-try:
-    from shared.exceptions import convert_standard_exception, PricingException
-    from shared.error_handling import safe_import, safe_call, safe_price_fetch, safe_api_call
-except ImportError:
-    # Fallback si les modules ne sont pas encore créés
-    safe_import = safe_call = safe_price_fetch = safe_api_call = None
-    convert_standard_exception = PricingException = None
+# Imports optionnels pour extensions futures (réservé)
+# from shared.exceptions import convert_standard_exception, PricingException
 from api.models import APIKeysRequest, PortfolioMetricsRequest
 
 # Config logger (dev-friendly by default)
@@ -156,7 +149,10 @@ app.add_middleware(
 # Compression GZip pour améliorer les performances
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-# Middleware pour headers de sécurité
+# Rate limiting basé sur la configuration
+app.add_middleware(RateLimitMiddleware)
+
+# Middleware pour headers de sécurité (CSP centralisée via config)
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
@@ -172,36 +168,58 @@ async def add_security_headers(request: Request, call_next):
     if not DEBUG and request.url.scheme == "https":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
     
-    # Content Security Policy adaptée au contexte
-    if DEBUG:
-        # CSP très permissive en développement pour /docs et /redoc
-        if request.url.path in ["/docs", "/redoc", "/openapi.json"]:
-            response.headers["Content-Security-Policy"] = "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https:; img-src 'self' data: https:;"
-        else:
-            # CSP plus permissive en développement pour les autres pages
-            # Autorise les connexions HTTP/HTTPS (ex: 127.0.0.1:8001) + APIs publiques utilisées
-            response.headers["Content-Security-Policy"] = (
-                "default-src 'self'; frame-ancestors 'self'; "
-                "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; "
-                "style-src 'self' 'unsafe-inline'; "
-                "img-src 'self' data: https:; "
-                "connect-src 'self' http: https: https://api.stlouisfed.org https://api.coingecko.com"
-            )
-    else:
-        # CSP production (assouplie pour ressources nécessaires, à resserrer si libs locales)
-        # En production, autoriser l'embed des pages statiques par la même origine
-        # (le header X-Frame-Options ci-dessus restreint déjà à SAMEORIGIN pour /static/*)
-        csp_base = (
-            "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
-            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
-            "img-src 'self' data: https:; "
-            "connect-src 'self' https://api.stlouisfed.org https://api.coingecko.com; "
+    # Content Security Policy via configuration
+    try:
+        sec = settings.security
+        def _join(srcs):
+            return " ".join(srcs or [])
+
+        default_src = "'self'"
+        script_src_list = list(sec.csp_script_src or [])
+        style_src_list = list(sec.csp_style_src or [])
+        img_src_list = list(sec.csp_img_src or [])
+        connect_src_list = list(sec.csp_connect_src or [])
+
+        # En dev, autoriser schémas http/https génériques pour faciliter tests locaux
+        if DEBUG:
+            for token in ("http:", "https:"):
+                if token not in connect_src_list:
+                    connect_src_list.append(token)
+
+        script_src = _join(script_src_list)
+        style_src = _join(style_src_list)
+        img_src = _join(img_src_list)
+        connect_src = _join(connect_src_list)
+
+        # Dev: élargir pour docs/redoc et pages statiques si autorisé par config
+        path = request.url.path
+        is_docs = path in ("/docs", "/redoc", "/openapi.json")
+        is_static = str(path).startswith("/static/")
+        if DEBUG and (is_docs or is_static) and getattr(sec, 'csp_allow_inline_dev', True):
+            if "'unsafe-inline'" not in script_src:
+                script_src = (script_src + " 'unsafe-inline'").strip()
+            if "'unsafe-eval'" not in script_src:
+                script_src = (script_src + " 'unsafe-eval'").strip()
+            if "'unsafe-inline'" not in style_src:
+                style_src = (style_src + " 'unsafe-inline'").strip()
+
+        frame_ancestors = _join(getattr(sec, 'csp_frame_ancestors', ["'self'"]))
+        if not DEBUG and not str(request.url.path).startswith("/static/"):
+            # production: interdire l'embed des non-statiques si non explicitement listé
+            frame_ancestors = "'none'"
+
+        csp = (
+            f"default-src {default_src}; "
+            f"script-src {script_src}; "
+            f"style-src {style_src}; "
+            f"img-src {img_src}; "
+            f"connect-src {connect_src}; "
+            f"frame-ancestors {frame_ancestors}"
         )
-        if str(request.url.path).startswith("/static/"):
-            response.headers["Content-Security-Policy"] = csp_base + "frame-ancestors 'self'"
-        else:
-            response.headers["Content-Security-Policy"] = csp_base + "frame-ancestors 'none'"
+        response.headers["Content-Security-Policy"] = csp
+    except Exception:
+        # En cas d'erreur de config, ne pas bloquer la réponse
+        pass
     
     # Cache control pour les APIs
     if request.url.path.startswith("/api"):
@@ -348,23 +366,11 @@ async def debug_paths():
         "csv_size": csv_file.stat().st_size if csv_file.exists() else 0
     }
 
-# petit cache prix optionnel (si tu l’as déjà chez toi, garde le tien)
+# Cache prix unifié utilisant le système centralisé
 _PRICE_CACHE: Dict[str, tuple] = {}  # symbol -> (ts, price)
-def _cache_get(cache: dict, key: Any, ttl: int):
-    if ttl <= 0:
-        return None
-    ent = cache.get(key)
-    if not ent:
-        return None
-    ts, val = ent
-    if monotonic() - ts > ttl:
-        cache.pop(key, None)
-        return None
-    return val
-def _cache_set(cache: dict, key: Any, val: Any):
-    _PRICE_CACHE[key] = (monotonic(), val)
+from api.utils.cache import cache_get as _cache_get, cache_set as _cache_set
     
-    # >>> BEGIN: CT-API helpers (ADD THIS ONCE NEAR THE TOP) >>>
+    # >>> BEGIN: CT-API helpers (centralized constants) >>>
 try:
     from connectors import cointracking_api as ct_api
 except ImportError as e:
@@ -379,26 +385,12 @@ except Exception as e:
     logger.error(f"Unexpected error importing cointracking_api: {e}")
     ct_api = None
 
-FAST_SELL_EXCHANGES = [
-    "Kraken", "Binance", "Coinbase", "Bitget", "OKX", "Bybit", "KuCoin", "Bittrex", "Bitstamp", "Gemini"
-]
-DEFI_HINTS = ["Aave", "Lido", "Rocket Pool", "Curve", "Uniswap", "Sushiswap", "Jupiter", "Osmosis", "Thorchain"]
-COLD_HINTS = ["Ledger", "Trezor", "Cold", "Vault", "Hardware"]
+from constants import (
+    FAST_SELL_EXCHANGES, DEFI_HINTS, COLD_HINTS, normalize_exchange_name
+)
 
 def _normalize_loc(label: str) -> str:
-    if not label:
-        return "Unknown"
-    t = label.strip()
-    # CoinTracking renvoie souvent “KRaken Balance”, “Kraken Earn Balance”, “COINBASE BALANCE”, …
-    t = t.replace("_", " ").replace("-", " ")
-    t = t.title()
-    # Enlever suffixes fréquents
-    for suf in (" Balance", " Wallet", " Account"):
-        if t.endswith(suf):
-            t = t[: -len(suf)]
-    # Ex.: “Kraken Earn Balance” -> “Kraken Earn”
-    t = t.replace(" Earn", " Earn")
-    return t
+    return normalize_exchange_name(label or "Unknown")
 
 def _classify_location(loc: str) -> int:
     L = _normalize_loc(loc)
@@ -1375,7 +1367,6 @@ async def update_api_keys(payload: APIKeysRequest, debug_token: str = None):
 # inclure les routes taxonomie, execution, monitoring et analytics
 app.include_router(taxonomy_router)
 app.include_router(execution_router)
-app.include_router(monitoring_router)
 app.include_router(analytics_router)
 app.include_router(kraken_router)
 app.include_router(smart_taxonomy_router)
@@ -1394,8 +1385,6 @@ app.include_router(ml_router)
 @app.get("/api/ml/pipeline/test")
 async def test_pipeline():
     return {"message": "Pipeline API is working!"}
-
-app.include_router(unified_ml_router)
 app.include_router(multi_asset_router)
 app.include_router(backtesting_router)
 app.include_router(advanced_analytics_router)
