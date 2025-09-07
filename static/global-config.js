@@ -18,7 +18,7 @@ function detectDefaultApiBase() {
 }
 
 const DEFAULT_SETTINGS = {
-  data_source: 'cointracking',
+  data_source: 'stub_balanced',
   pricing: 'local',
   display_currency: 'USD',
   min_usd_threshold: 1.00,
@@ -422,54 +422,44 @@ window.apiRequest = (endpoint, options) => globalConfig.apiRequest(endpoint, opt
 window.loadBalanceData = async function() {
   const dataSource = globalConfig.get('data_source');
   const apiBaseUrl = globalConfig.get('api_base_url');
-  
-  console.debug(`🔍 Loading balance data using source: ${dataSource}`);
-  
+
+  // Add cache-busting timestamp to prevent browser caching
+  const timestamp = Date.now();
+  console.debug(`🔍 Loading balance data using source: ${dataSource} (cache-bust: ${timestamp})`);
+
   try {
     switch (dataSource) {
-      case 'cointracking_api':
-        // Source API CoinTracking - via backend
+      case 'cointracking_api': {
+        // CoinTracking API via backend
         console.debug('📡 Using CoinTracking API source');
-        const apiResponse = await fetch(`${apiBaseUrl}/balances/current?source=cointracking_api`);
-        if (!apiResponse.ok) {
-          throw new Error(`API Error: ${apiResponse.status}`);
-        }
+        const apiResponse = await fetch(`${apiBaseUrl}/balances/current?source=cointracking_api&_t=${timestamp}`);
+        if (!apiResponse.ok) throw new Error(`API Error: ${apiResponse.status}`);
         const apiData = await apiResponse.json();
-        return {
-          success: true,
-          data: apiData,
-          source: 'cointracking_api'
-        };
-        
+        return { success: true, data: apiData, source: apiData?.source_used || 'cointracking_api' };
+      }
+
+      // All stub flavors should use the backend stub variants
       case 'stub':
-        // Source stub - données de démo via backend
-        console.debug('🧪 Using stub data source');
-        const stubResponse = await fetch(`${apiBaseUrl}/balances/current?source=stub`);
-        if (!stubResponse.ok) {
-          throw new Error(`Stub Error: ${stubResponse.status}`);
-        }
+      case 'stub_balanced':
+      case 'stub_conservative':
+      case 'stub_shitcoins': {
+        const chosen = dataSource;
+        console.debug(`🧪 Using stub data source: ${chosen}`);
+        const stubResponse = await fetch(`${apiBaseUrl}/balances/current?source=${chosen}&_t=${timestamp}`);
+        if (!stubResponse.ok) throw new Error(`Stub Error: ${stubResponse.status}`);
         const stubData = await stubResponse.json();
-        return {
-          success: true,
-          data: stubData,
-          source: 'stub'
-        };
-        
+        return { success: true, data: stubData, source: stubData?.source_used || chosen };
+      }
+
       case 'cointracking':
-      default:
-        // Source CSV locale - via API backend
+      default: {
+        // Local CoinTracking CSV via API backend
         console.debug('📄 Using local CoinTracking CSV files via API');
-        const csvResponse = await fetch(`${apiBaseUrl}/balances/current?source=cointracking`);
-        if (!csvResponse.ok) {
-          throw new Error(`CSV API Error: ${csvResponse.status}`);
-        }
-        
+        const csvResponse = await fetch(`${apiBaseUrl}/balances/current?source=cointracking&_t=${timestamp}`);
+        if (!csvResponse.ok) throw new Error(`CSV API Error: ${csvResponse.status}`);
         const csvData = await csvResponse.json();
-        return {
-          success: true,
-          data: csvData,
-          source: 'cointracking'
-        };
+        return { success: true, data: csvData, source: csvData?.source_used || 'cointracking' };
+      }
     }
   } catch (error) {
     console.error(`❌ Error loading balance data via API (source: ${dataSource}):`, error);
@@ -506,15 +496,14 @@ window.loadBalanceData = async function() {
       
       // Forcer l'utilisation de stub data via l'API si configuré
       try {
-        const stubResponse = await fetch(`${globalConfig.get('api_base_url')}/balances/current?source=stub`);
+        // Use the current stub flavor if applicable, else default to plain 'stub'
+        const cfg = globalConfig.get('data_source');
+        const stubFlavor = (cfg && cfg.startsWith('stub')) ? cfg : 'stub';
+        const stubResponse = await fetch(`${globalConfig.get('api_base_url')}/balances/current?source=${stubFlavor}&_t=${timestamp}`);
         if (stubResponse.ok) {
           const stubData = await stubResponse.json();
           console.log('✅ Successfully loaded stub data from API');
-          return {
-            success: true,
-            data: stubData,
-            source: 'stub'
-          };
+          return { success: true, data: stubData, source: stubData?.source_used || stubFlavor };
         }
       } catch (stubError) {
         console.error('❌ Stub data via API also failed:', stubError);

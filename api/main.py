@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from pathlib import Path
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 
 # Charger les variables d'environnement depuis .env
 load_dotenv()
@@ -303,6 +304,32 @@ async def request_logger(request: Request, call_next):
                 duration_ms,
             )
 
+# ------------------------
+# Proxy: Crypto-Toolbox API
+# ------------------------
+@app.get("/api/crypto-toolbox")
+async def proxy_crypto_toolbox():
+    """
+    Proxy vers le backend Flask de scraping Crypto-Toolbox (port 8001 par défaut).
+    Le frontend appelle /api/crypto-toolbox sur le serveur FastAPI (8000),
+    et ce proxy relaie vers 127.0.0.1:8001 pour éviter tout souci d'origine/CORS.
+    """
+    target_base = os.getenv("CRYPTO_TOOLBOX_API_BASE", "http://127.0.0.1:8001")
+    target_url = f"{target_base.rstrip('/')}/api/crypto-toolbox"
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            r = await client.get(target_url)
+        # Retourner la réponse telle quelle (statut + payload)
+        content_type = r.headers.get("content-type", "application/json")
+        return Response(content=r.content, status_code=r.status_code, media_type=content_type)
+    except httpx.RequestError as e:
+        logger.error(f"Crypto-Toolbox proxy error: {e}")
+        return JSONResponse(status_code=502, content={
+            "success": False,
+            "error": "upstream_unreachable",
+            "message": f"Crypto-Toolbox upstream not reachable at {target_url}",
+        })
+
 @app.get("/debug/paths")
 async def debug_paths():
     """Endpoint de diagnostic pour vérifier les chemins"""
@@ -510,59 +537,71 @@ async def resolve_current_balances(source: str = Query("cointracking_api")) -> D
     - Source "stub": données de démo pour les tests
     """
     
-    # --- Source stub: données de démo ---
-    if source == "stub":
-        demo_data = [
-            {"symbol": "BTC", "alias": "BTC", "amount": 2.5, "value_usd": 105000.0, "location": "Kraken"},
-            {"symbol": "ETH", "alias": "ETH", "amount": 15.75, "value_usd": 47250.0, "location": "Binance"},
-            {"symbol": "USDC", "alias": "USDC", "amount": 25000.0, "value_usd": 25000.0, "location": "Coinbase"},
-            {"symbol": "SOL", "alias": "SOL", "amount": 180.0, "value_usd": 23400.0, "location": "Phantom"},
-            {"symbol": "AVAX", "alias": "AVAX", "amount": 450.0, "value_usd": 13500.0, "location": "Ledger"},
-            {"symbol": "MATIC", "alias": "MATIC", "amount": 12000.0, "value_usd": 9600.0, "location": "MetaMask"},
-            {"symbol": "LINK", "alias": "LINK", "amount": 520.0, "value_usd": 7280.0, "location": "Binance"},
-            {"symbol": "UNI", "alias": "UNI", "amount": 800.0, "value_usd": 6400.0, "location": "Uniswap"},
-            {"symbol": "AAVE", "alias": "AAVE", "amount": 45.0, "value_usd": 5850.0, "location": "Aave"},
-            {"symbol": "WBTC", "alias": "WBTC", "amount": 0.12, "value_usd": 5040.0, "location": "Ledger"},
-            {"symbol": "WETH", "alias": "WETH", "amount": 1.8, "value_usd": 5400.0, "location": "MetaMask"},
-            {"symbol": "USDT", "alias": "USDT", "amount": 8500.0, "value_usd": 8500.0, "location": "Binance"},
-            {"symbol": "ADA", "alias": "ADA", "amount": 15000.0, "value_usd": 6750.0, "location": "Kraken"},
-            {"symbol": "DOT", "alias": "DOT", "amount": 950.0, "value_usd": 4750.0, "location": "Polkadot"},
-            {"symbol": "ATOM", "alias": "ATOM", "amount": 520.0, "value_usd": 4160.0, "location": "Keplr"},
-            {"symbol": "FTM", "alias": "FTM", "amount": 8500.0, "value_usd": 3400.0, "location": "Fantom"},
-            {"symbol": "ALGO", "alias": "ALGO", "amount": 12000.0, "value_usd": 3000.0, "location": "Pera"},
-            {"symbol": "NEAR", "alias": "NEAR", "amount": 1200.0, "value_usd": 2880.0, "location": "Near Wallet"},
-            {"symbol": "ICP", "alias": "ICP", "amount": 350.0, "value_usd": 2450.0, "location": "NNS"},
-            {"symbol": "SAND", "alias": "SAND", "amount": 6000.0, "value_usd": 2400.0, "location": "Binance"},
-            {"symbol": "MANA", "alias": "MANA", "amount": 5500.0, "value_usd": 2200.0, "location": "MetaMask"},
-            {"symbol": "CRV", "alias": "CRV", "amount": 3500.0, "value_usd": 2100.0, "location": "Curve"},
-            {"symbol": "COMP", "alias": "COMP", "amount": 45.0, "value_usd": 1980.0, "location": "Compound"},
-            {"symbol": "SUSHI", "alias": "SUSHI", "amount": 2500.0, "value_usd": 1750.0, "location": "SushiSwap"},
-            {"symbol": "YFI", "alias": "YFI", "amount": 0.3, "value_usd": 1650.0, "location": "Yearn"},
-            {"symbol": "1INCH", "alias": "1INCH", "amount": 4200.0, "value_usd": 1260.0, "location": "1inch"},
-            {"symbol": "BAT", "alias": "BAT", "amount": 5800.0, "value_usd": 1160.0, "location": "Brave"},
-            {"symbol": "ENJ", "alias": "ENJ", "amount": 4500.0, "value_usd": 1080.0, "location": "Enjin"},
-            {"symbol": "CHZ", "alias": "CHZ", "amount": 15000.0, "value_usd": 900.0, "location": "Chiliz"},
-            {"symbol": "DOGE", "alias": "DOGE", "amount": 8000.0, "value_usd": 800.0, "location": "Robinhood"},
-            {"symbol": "SHIB", "alias": "SHIB", "amount": 50000000.0, "value_usd": 450.0, "location": "Binance"},
-            {"symbol": "LRC", "alias": "LRC", "amount": 2500.0, "value_usd": 375.0, "location": "Loopring"},
-            {"symbol": "GRT", "alias": "GRT", "amount": 8000.0, "value_usd": 320.0, "location": "Graph"},
-            {"symbol": "OMG", "alias": "OMG", "amount": 800.0, "value_usd": 240.0, "location": "OMG Network"},
-            {"symbol": "REN", "alias": "REN", "amount": 3500.0, "value_usd": 175.0, "location": "Ren"},
-            {"symbol": "KNC", "alias": "KNC", "amount": 400.0, "value_usd": 120.0, "location": "Kyber"},
-            {"symbol": "STORJ", "alias": "STORJ", "amount": 250.0, "value_usd": 87.5, "location": "Storj"},
-            {"symbol": "ZRX", "alias": "ZRX", "amount": 200.0, "value_usd": 60.0, "location": "0x"},
-            {"symbol": "BAL", "alias": "BAL", "amount": 15.0, "value_usd": 45.0, "location": "Balancer"},
-            {"symbol": "NMR", "alias": "NMR", "amount": 3.0, "value_usd": 36.0, "location": "Numerai"},
-            {"symbol": "REP", "alias": "REP", "amount": 2.5, "value_usd": 25.0, "location": "Augur"},
-            {"symbol": "DNT", "alias": "DNT", "amount": 500.0, "value_usd": 15.0, "location": "district0x"},
-            {"symbol": "ANT", "alias": "ANT", "amount": 8.0, "value_usd": 12.0, "location": "Aragon"},
-            {"symbol": "MLN", "alias": "MLN", "amount": 0.8, "value_usd": 8.0, "location": "Melon"},
-            {"symbol": "BNT", "alias": "BNT", "amount": 12.0, "value_usd": 6.0, "location": "Bancor"},
-            {"symbol": "LPT", "alias": "LPT", "amount": 0.5, "value_usd": 4.0, "location": "Livepeer"},
-            {"symbol": "MKR", "alias": "MKR", "amount": 0.003, "value_usd": 3.0, "location": "MakerDAO"},
-            {"symbol": "SNT", "alias": "SNT", "amount": 100.0, "value_usd": 2.0, "location": "Status"}
-        ]
-        return {"source_used": "stub", "items": demo_data}
+    # --- Sources stub: 3 profils de démo différents ---
+    if source.startswith("stub"):
+        if source == "stub_conservative":
+            # Portfolio conservateur: 80% BTC, 15% ETH, 5% stables
+            demo_data = [
+                {"symbol": "BTC", "alias": "BTC", "amount": 3.2, "value_usd": 160000.0, "location": "Cold Storage"},
+                {"symbol": "ETH", "alias": "ETH", "amount": 10.0, "value_usd": 30000.0, "location": "Ledger"},
+                {"symbol": "USDC", "alias": "USDC", "amount": 10000.0, "value_usd": 10000.0, "location": "Coinbase"}
+            ]
+            return {"source_used": "stub_conservative", "items": demo_data}
+        
+        elif source == "stub_shitcoins":
+            # Portfolio risqué: beaucoup de memecoins et altcoins
+            demo_data = [
+                {"symbol": "BTC", "alias": "BTC", "amount": 0.1, "value_usd": 5000.0, "location": "Binance"},
+                {"symbol": "ETH", "alias": "ETH", "amount": 2.0, "value_usd": 6000.0, "location": "MetaMask"},
+                {"symbol": "SHIB", "alias": "SHIB", "amount": 50000000.0, "value_usd": 15000.0, "location": "MetaMask"},
+                {"symbol": "DOGE", "alias": "DOGE", "amount": 30000.0, "value_usd": 12000.0, "location": "Robinhood"},
+                {"symbol": "PEPE", "alias": "PEPE", "amount": 100000000.0, "value_usd": 10000.0, "location": "MetaMask"},
+                {"symbol": "BONK", "alias": "BONK", "amount": 5000000.0, "value_usd": 8000.0, "location": "Phantom"},
+                {"symbol": "WIF", "alias": "WIF", "amount": 15000.0, "value_usd": 7500.0, "location": "Phantom"},
+                {"symbol": "FLOKI", "alias": "FLOKI", "amount": 2000000.0, "value_usd": 6000.0, "location": "MetaMask"},
+                {"symbol": "BABYDOGE", "alias": "BABYDOGE", "amount": 10000000000.0, "value_usd": 5000.0, "location": "PancakeSwap"},
+                {"symbol": "SAFEMOON", "alias": "SAFEMOON", "amount": 5000000.0, "value_usd": 4500.0, "location": "Trust Wallet"},
+                {"symbol": "CATGIRL", "alias": "CATGIRL", "amount": 100000000.0, "value_usd": 4000.0, "location": "MetaMask"},
+                {"symbol": "DOGELON", "alias": "DOGELON", "amount": 50000000000.0, "value_usd": 3500.0, "location": "MetaMask"},
+                {"symbol": "KISHU", "alias": "KISHU", "amount": 20000000000.0, "value_usd": 3000.0, "location": "MetaMask"},
+                {"symbol": "AKITA", "alias": "AKITA", "amount": 1000000000.0, "value_usd": 2500.0, "location": "Uniswap"},
+                {"symbol": "HOKK", "alias": "HOKK", "amount": 500000000000.0, "value_usd": 2000.0, "location": "MetaMask"},
+                {"symbol": "FOMO", "alias": "FOMO", "amount": 50000000.0, "value_usd": 1800.0, "location": "PancakeSwap"},
+                {"symbol": "CUMINU", "alias": "CUMINU", "amount": 100000000000.0, "value_usd": 1500.0, "location": "MetaMask"},
+                {"symbol": "ELONGATE", "alias": "ELONGATE", "amount": 20000000000.0, "value_usd": 1200.0, "location": "PancakeSwap"},
+                {"symbol": "MOONSHOT", "alias": "MOONSHOT", "amount": 5000000.0, "value_usd": 1000.0, "location": "DEX"},
+                {"symbol": "USDT", "alias": "USDT", "amount": 5000.0, "value_usd": 5000.0, "location": "Binance"}
+            ]
+            return {"source_used": "stub_shitcoins", "items": demo_data}
+        
+        else:  # stub ou stub_balanced (par défaut)
+            # Portfolio équilibré: mix de BTC, ETH, alts sérieux
+            demo_data = [
+                {"symbol": "BTC", "alias": "BTC", "amount": 2.5, "value_usd": 105000.0, "location": "Kraken"},
+                {"symbol": "ETH", "alias": "ETH", "amount": 15.75, "value_usd": 47250.0, "location": "Binance"},
+                {"symbol": "USDC", "alias": "USDC", "amount": 25000.0, "value_usd": 25000.0, "location": "Coinbase"},
+                {"symbol": "SOL", "alias": "SOL", "amount": 180.0, "value_usd": 23400.0, "location": "Phantom"},
+                {"symbol": "AVAX", "alias": "AVAX", "amount": 450.0, "value_usd": 13500.0, "location": "Ledger"},
+                {"symbol": "MATIC", "alias": "MATIC", "amount": 12000.0, "value_usd": 9600.0, "location": "MetaMask"},
+                {"symbol": "LINK", "alias": "LINK", "amount": 520.0, "value_usd": 7280.0, "location": "Binance"},
+                {"symbol": "UNI", "alias": "UNI", "amount": 800.0, "value_usd": 6400.0, "location": "Uniswap"},
+                {"symbol": "AAVE", "alias": "AAVE", "amount": 45.0, "value_usd": 5850.0, "location": "Aave"},
+                {"symbol": "WBTC", "alias": "WBTC", "amount": 0.12, "value_usd": 5040.0, "location": "Ledger"},
+                {"symbol": "WETH", "alias": "WETH", "amount": 1.8, "value_usd": 5400.0, "location": "MetaMask"},
+                {"symbol": "USDT", "alias": "USDT", "amount": 8500.0, "value_usd": 8500.0, "location": "Binance"},
+                {"symbol": "ADA", "alias": "ADA", "amount": 15000.0, "value_usd": 6750.0, "location": "Kraken"},
+                {"symbol": "DOT", "alias": "DOT", "amount": 950.0, "value_usd": 4750.0, "location": "Polkadot"},
+                {"symbol": "ATOM", "alias": "ATOM", "amount": 520.0, "value_usd": 4160.0, "location": "Keplr"},
+                {"symbol": "FTM", "alias": "FTM", "amount": 8500.0, "value_usd": 3400.0, "location": "Fantom"},
+                {"symbol": "ALGO", "alias": "ALGO", "amount": 12000.0, "value_usd": 3000.0, "location": "Pera"},
+                {"symbol": "NEAR", "alias": "NEAR", "amount": 1200.0, "value_usd": 2880.0, "location": "Near Wallet"},
+                {"symbol": "ICP", "alias": "ICP", "amount": 350.0, "value_usd": 2450.0, "location": "NNS"},
+                {"symbol": "SAND", "alias": "SAND", "amount": 6000.0, "value_usd": 2400.0, "location": "Binance"},
+                {"symbol": "MANA", "alias": "MANA", "amount": 5500.0, "value_usd": 2200.0, "location": "MetaMask"},
+                {"symbol": "CRV", "alias": "CRV", "amount": 3500.0, "value_usd": 2100.0, "location": "Curve"},
+                {"symbol": "COMP", "alias": "COMP", "amount": 45.0, "value_usd": 1980.0, "location": "Compound"}
+            ]
+            return {"source_used": source, "items": demo_data}
     
     if source in ("cointracking_api", "cointracking"):
         try:
@@ -1703,7 +1742,7 @@ async def set_data_source(request: dict):
     """
     try:
         data_source = request.get("data_source")
-        if data_source in ["stub", "cointracking", "cointracking_api"]:
+        if data_source in ["stub", "stub_balanced", "stub_conservative", "stub_shitcoins", "cointracking", "cointracking_api"]:
             _frontend_config["data_source"] = data_source
             logger.info(f"Data source updated to: {data_source}")
             return {"ok": True, "data_source": data_source}

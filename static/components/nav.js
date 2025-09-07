@@ -60,14 +60,7 @@ const initUnifiedNav = () => {
               </div>
             </li>
             <li><a href="rebalance.html" data-route="rebalance.html">Rebalancing</a></li>
-            <li class="has-submenu">
-              <a href="ai-dashboard.html" data-route="ai-dashboard.html">AI</a>
-              <div class="submenu" role="menu">
-                <a href="ai-dashboard.html" data-route="ai-dashboard.html">AI Dashboard</a>
-                <a href="ml-showcase.html" data-route="ml-showcase.html">ML Showcase</a>
-                <a href="unified-ml-dashboard.html" data-route="unified-ml-dashboard.html">ML Pipeline</a>
-              </div>
-            </li>
+            <li><a href="ai-dashboard.html" data-route="ai-dashboard.html">🧠 AI Dashboard</a></li>
             <li class="has-submenu">
               <a href="execution.html" data-route="execution.html">Execution</a>
               <div class="submenu" role="menu">

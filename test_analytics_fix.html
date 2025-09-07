@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Analytics Fix</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-result { padding: 10px; margin: 5px; border-radius: 5px; }
+        .success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .info { background: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Test Advanced Analytics Fix</h1>
+    
+    <div id="results"></div>
+    
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        const results = document.getElementById('results');
+
+        function addResult(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.textContent = message;
+            results.appendChild(div);
+        }
+
+        async function runTests() {
+            addResult('🚀 Starting tests...', 'info');
+
+            // Test 1: API Connectivity
+            try {
+                const response = await fetch(`${API_BASE}/analytics/advanced/metrics?days=30`);
+                if (response.ok) {
+                    addResult('✅ API connectivity: WORKING', 'success');
+                    const data = await response.json();
+                    addResult(`📊 Metrics received: ${Object.keys(data).length} fields`, 'success');
+                } else {
+                    addResult(`❌ API returned status: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                addResult(`❌ API connectivity failed: ${error.message}`, 'error');
+            }
+
+            // Test 2: Timeseries data
+            try {
+                const response = await fetch(`${API_BASE}/analytics/advanced/timeseries?days=30`);
+                if (response.ok) {
+                    const data = await response.json();
+                    addResult('✅ Timeseries API: WORKING', 'success');
+                    addResult(`📈 Data points: ${data.dates?.length || 0}`, 'success');
+                    if (data.drawdowns && data.drawdowns.length > 0) {
+                        addResult('✅ Drawdown data: AVAILABLE', 'success');
+                    } else {
+                        addResult('⚠️ Drawdown data: EMPTY', 'error');
+                    }
+                } else {
+                    addResult(`❌ Timeseries API failed: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                addResult(`❌ Timeseries API error: ${error.message}`, 'error');
+            }
+
+            // Test 3: Chart.js availability
+            if (typeof Chart !== 'undefined') {
+                addResult('✅ Chart.js library: LOADED', 'success');
+            } else {
+                addResult('❌ Chart.js library: NOT LOADED', 'error');
+            }
+        }
+
+        // Start tests
+        runTests();
+    </script>
+
+    <!-- Load Chart.js to test -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</body>
+</html>

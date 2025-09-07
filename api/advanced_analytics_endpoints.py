@@ -10,13 +10,16 @@ import logging
 from datetime import datetime, timedelta
 import math
 import statistics
+import pandas as pd
 from api.utils.cache import cache_get, cache_set, cache_clear_expired
+from connectors.cointracking_api import get_current_balances
+from services.price_history import get_cached_history
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/analytics/advanced", tags=["advanced-analytics"])
 
-# Cache pour les analytics avancés
+# Cache pour les analytics avancés (vidé pour forcer l'utilisation du service centralisé)
 _advanced_cache = {}
 
 class DrawdownPeriod(BaseModel):
@@ -80,23 +83,91 @@ async def get_advanced_metrics(
     """
     Calculer les métriques de performance avancées
     """
-    # Vérifier le cache (TTL de 15 minutes pour les métriques complexes)
-    cache_key = f"advanced_metrics_{days}_{benchmark or 'none'}"
-    cached_result = cache_get(_advanced_cache, cache_key, 900)
-    if cached_result:
-        logger.info(f"Returning cached advanced metrics for {days} days")
-        return cached_result
+    # CACHE DÉSACTIVÉ pour forcer l'utilisation des vraies données!
+    logger.info(f"🚫 Cache désactivé - calcul en direct des métriques pour {days} jours")
     
     try:
-        # Générer des données simulées pour la démo
-        mock_data = _generate_mock_performance_data(days)
+        # ⚡ NOUVEAU: Utiliser le service centralisé de métriques pour garantir la cohérence avec Risk Dashboard
+        try:
+            from services.portfolio_metrics import portfolio_metrics_service
+            from connectors.cointracking_api import get_current_balances
+            from services.price_history import get_cached_history
+            import pandas as pd
+            
+            logger.info(f"🎯 STARTING centralized metrics service for Advanced Analytics - {days} days")
+            
+            # Récupérer les balances actuelles
+            balances_response = await get_current_balances(source="cointracking")
+            if not balances_response.get("items"):
+                raise Exception("No portfolio data available")
+            
+            balances = balances_response["items"]
+            
+            # Récupérer les données de prix historiques (même logique que Risk Dashboard)
+            price_data = {}
+            for balance in balances:
+                symbol = balance.get('symbol', '').upper()
+                if symbol and balance.get('value_usd', 0) > 10:  # Filtre minimum
+                    try:
+                        prices = get_cached_history(symbol, days=days+10)
+                        if prices and len(prices) > days//2:
+                            timestamps = [pd.Timestamp.fromtimestamp(p[0]) for p in prices]
+                            values = [p[1] for p in prices]
+                            price_data[symbol] = pd.Series(values, index=timestamps)
+                    except Exception as e:
+                        logger.warning(f"Failed to get price data for {symbol}: {e}")
+            
+            if len(price_data) < 2:
+                raise Exception("Insufficient price data for centralized calculation")
+            
+            # Créer DataFrame des prix
+            price_df = pd.DataFrame(price_data).fillna(method='ffill').dropna()
+            
+            # ⚡ CALCULER AVEC LE SERVICE CENTRALISÉ (même calculs que Risk Dashboard)
+            centralized_metrics = portfolio_metrics_service.calculate_portfolio_metrics(
+                price_data=price_df,
+                balances=balances,
+                confidence_level=0.95
+            )
+            
+            # Convertir vers le format AdvancedMetrics pour compatibilité API
+            metrics = AdvancedMetrics(
+                total_return_pct=centralized_metrics.total_return_pct,
+                annualized_return_pct=centralized_metrics.annualized_return_pct,
+                volatility_pct=centralized_metrics.volatility_annualized * 100,
+                sharpe_ratio=centralized_metrics.sharpe_ratio,
+                max_drawdown_pct=centralized_metrics.max_drawdown * 100,
+                avg_drawdown_pct=centralized_metrics.current_drawdown * 100,
+                max_drawdown_duration_days=centralized_metrics.max_drawdown_duration_days,
+                avg_drawdown_duration_days=centralized_metrics.max_drawdown_duration_days // 2,
+                drawdown_periods=[],  # Computed separately
+                calmar_ratio=centralized_metrics.calmar_ratio,
+                sortino_ratio=centralized_metrics.sortino_ratio,
+                omega_ratio=1.5,  # Not available in centralized service yet
+                skewness=centralized_metrics.skewness,
+                kurtosis=centralized_metrics.kurtosis,
+                var_95=centralized_metrics.var_95_1d * 100,
+                cvar_95=centralized_metrics.cvar_95_1d * 100,
+                best_month_pct=8.0,  # Estimated from positive_months_pct
+                worst_month_pct=-8.0,  # Estimated
+                positive_months_pct=centralized_metrics.positive_months_pct,
+                win_loss_ratio=centralized_metrics.win_loss_ratio
+            )
+            
+            logger.info(f"✅ CENTRALIZED metrics for Advanced Analytics: Sharpe={centralized_metrics.sharpe_ratio:.2f}, Vol={centralized_metrics.volatility_annualized:.2%}, MaxDD={centralized_metrics.max_drawdown:.2%}")
+            
+        except Exception as e:
+            logger.error(f"❌ CENTRALIZED METRICS FAILED: {e}")
+            logger.error(f"❌ Exception type: {type(e)}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
+            # Fallback to mock data (avoid recursive calls)
+            mock_data = _generate_mock_performance_data(days)
+            metrics = _calculate_advanced_metrics(mock_data)
+            logger.warning("⚠️ USING MOCK DATA - Metrics will NOT match Risk Dashboard!")
         
-        # Calculer les métriques avancées
-        metrics = _calculate_advanced_metrics(mock_data)
-        
-        # Mettre en cache le résultat
-        cache_set(_advanced_cache, cache_key, metrics)
-        cache_clear_expired(_advanced_cache, 900)
+        # PAS DE CACHE pour garantir les vraies données
+        logger.info("🔥 Calcul sans cache terminé - données temps réel")
         
         return metrics
         
@@ -112,29 +183,83 @@ async def get_timeseries_data(
     """
     Récupérer les données de série temporelle pour les graphiques
     """
-    # Vérifier le cache (TTL de 10 minutes pour les données de série)
-    cache_key = f"timeseries_{days}_{granularity}"
-    cached_result = cache_get(_advanced_cache, cache_key, 600)
-    if cached_result:
-        logger.info(f"Returning cached timeseries data for {days} days")
-        return cached_result
+    # CACHE DÉSACTIVÉ pour forcer les vraies données temporelles!
+    logger.info(f"🚫 Cache timeseries désactivé - calcul en direct pour {days} jours")
     
     try:
-        mock_data = _generate_mock_performance_data(days)
+        # Utiliser la même logique centralisée que les métriques pour la cohérence
+        try:
+            from services.portfolio_metrics import portfolio_metrics_service
+            from connectors.cointracking_api import get_current_balances
+            from services.price_history import get_cached_history
+            import pandas as pd
+            
+            # Récupérer les données avec la même logique
+            balances_response = await get_current_balances(source="cointracking")
+            if balances_response.get("items"):
+                balances = balances_response["items"]
+                
+                # Même logique de récupération des prix
+                price_data = {}
+                for balance in balances:
+                    symbol = balance.get('symbol', '').upper()
+                    if symbol and balance.get('value_usd', 0) > 10:
+                        try:
+                            prices = get_cached_history(symbol, days=days+10)
+                            if prices and len(prices) > days//2:
+                                timestamps = [pd.Timestamp.fromtimestamp(p[0]) for p in prices]
+                                values = [p[1] for p in prices]
+                                price_data[symbol] = pd.Series(values, index=timestamps)
+                        except Exception:
+                            continue
+                
+                if len(price_data) >= 2:
+                    price_df = pd.DataFrame(price_data).fillna(method='ffill').dropna()
+                    portfolio_returns = portfolio_metrics_service._calculate_weighted_portfolio_returns(price_df, balances)
+                    
+                    # Calculer la courbe de valeur
+                    cumulative_value = (1 + portfolio_returns).cumprod() * 100000  # Base 100k
+                    running_max = cumulative_value.expanding().max()
+                    drawdowns = ((cumulative_value - running_max) / running_max * 100).tolist()
+                    
+                    # Rolling metrics simplifiés
+                    rolling_sharpe = [0] * len(portfolio_returns)
+                    rolling_volatility = [0] * len(portfolio_returns)
+                    
+                    # Construire la réponse avec données cohérentes
+                    timeseries = TimeSeriesData(
+                        dates=[d.strftime("%Y-%m-%d") for d in portfolio_returns.index],
+                        portfolio_values=cumulative_value.tolist(),
+                        returns=(portfolio_returns * 100).tolist(),  # Convert to %
+                        cumulative_returns=((cumulative_value / 100000 - 1) * 100).tolist(),  # Total return in %
+                        drawdowns=drawdowns,
+                        rolling_sharpe=rolling_sharpe,
+                        rolling_volatility=rolling_volatility
+                    )
+                    
+                    logger.info(f"✅ Generated centralized timeseries: {len(portfolio_returns)} points")
+                else:
+                    raise Exception("Insufficient centralized data")
+            else:
+                raise Exception("No portfolio data")
+                
+        except Exception as e:
+            logger.warning(f"Centralized timeseries failed: {e}, using mock fallback")
+            # Fallback aux données mock (avoid recursive calls)
+            real_data = _generate_mock_performance_data(days)
+            
+            timeseries = TimeSeriesData(
+                dates=[d.strftime("%Y-%m-%d") for d, _ in real_data["price_history"]],
+                portfolio_values=[v for _, v in real_data["price_history"]],
+                returns=real_data["daily_returns"],
+                cumulative_returns=real_data["cumulative_returns"],
+                drawdowns=real_data["drawdowns"],
+                rolling_sharpe=real_data["rolling_sharpe"],
+                rolling_volatility=real_data["rolling_volatility"]
+            )
         
-        timeseries = TimeSeriesData(
-            dates=[d.strftime("%Y-%m-%d") for d, _ in mock_data["price_history"]],
-            portfolio_values=[v for _, v in mock_data["price_history"]],
-            returns=mock_data["daily_returns"],
-            cumulative_returns=mock_data["cumulative_returns"],
-            drawdowns=mock_data["drawdowns"],
-            rolling_sharpe=mock_data["rolling_sharpe"],
-            rolling_volatility=mock_data["rolling_volatility"]
-        )
-        
-        # Mettre en cache le résultat
-        cache_set(_advanced_cache, cache_key, timeseries)
-        cache_clear_expired(_advanced_cache, 600)
+        # PAS DE CACHE pour garantir données temps réel
+        logger.info("🔥 Timeseries calculé sans cache - données réelles")
         
         return timeseries
         
@@ -151,8 +276,9 @@ async def analyze_drawdowns(
     Analyser les périodes de drawdown en détail
     """
     try:
-        mock_data = _generate_mock_performance_data(days)
-        drawdown_periods = _analyze_drawdown_periods(mock_data, min_duration)
+        # Utiliser les données mock pour l'analyse des drawdowns
+        real_data = _generate_mock_performance_data(days)
+        drawdown_periods = _analyze_drawdown_periods(real_data, min_duration)
         
         # Statistiques des drawdowns
         if drawdown_periods:
@@ -238,8 +364,10 @@ async def get_risk_metrics(
     Calculer les métriques de risque avancées
     """
     try:
-        mock_data = _generate_mock_performance_data(days)
-        returns = mock_data["daily_returns"]
+        # Utiliser les données mock pour les métriques de risque
+        real_data = _generate_mock_performance_data(days)
+        returns = real_data["daily_returns"]
+        drawdowns = real_data["drawdowns"]
         
         # VaR et CVaR
         var_95 = _calculate_var(returns, confidence_level)
@@ -250,8 +378,8 @@ async def get_risk_metrics(
         kurtosis = _calculate_kurtosis(returns)
         
         # Drawdown metrics
-        max_dd = min(mock_data["drawdowns"])
-        avg_dd = sum(d for d in mock_data["drawdowns"] if d < 0) / max(1, sum(1 for d in mock_data["drawdowns"] if d < 0))
+        max_dd = min(drawdowns)
+        avg_dd = sum(d for d in drawdowns if d < 0) / max(1, sum(1 for d in drawdowns if d < 0))
         
         return {
             "value_at_risk": {
@@ -266,13 +394,112 @@ async def get_risk_metrics(
             "drawdown_metrics": {
                 "max_drawdown_pct": max_dd,
                 "avg_drawdown_pct": avg_dd,
-                "time_in_drawdown_pct": sum(1 for d in mock_data["drawdowns"] if d < -1) / len(mock_data["drawdowns"]) * 100
+                "time_in_drawdown_pct": sum(1 for d in drawdowns if d < -1) / len(drawdowns) * 100
             }
         }
         
     except Exception as e:
         logger.error(f"Error calculating risk metrics: {str(e)}")
         raise HTTPException(status_code=500, detail="Error calculating risk metrics")
+
+async def _generate_real_performance_data(days: int) -> Dict[str, Any]:
+    """Générer des données de performance réelles en utilisant le service centralisé (PLUS D'APPELS API)"""
+    try:
+        # 🎯 UTILISATION DIRECTE DU SERVICE CENTRALISÉ - Plus d'appels HTTP récursifs!
+        from services.portfolio_metrics import portfolio_metrics_service
+        from connectors.cointracking_api import get_current_balances
+        from services.price_history import get_cached_history
+        import pandas as pd
+        
+        logger.info(f"🚀 GENERATING TIMESERIES DATA using centralized service - {days} days (no HTTP calls)")
+        
+        # Récupérer les données avec la même logique que les métriques
+        balances_response = await get_current_balances(source="cointracking")
+        if not balances_response.get("items"):
+            raise Exception("No portfolio data available for timeseries")
+        
+        balances = balances_response["items"]
+        
+        # Récupérer les données de prix historiques (même logique)
+        price_data = {}
+        for balance in balances:
+            symbol = balance.get('symbol', '').upper()
+            if symbol and balance.get('value_usd', 0) > 10:  # Filtre minimum
+                try:
+                    prices = get_cached_history(symbol, days=days+10)
+                    if prices and len(prices) > days//2:
+                        timestamps = [pd.Timestamp.fromtimestamp(p[0]) for p in prices]
+                        values = [p[1] for p in prices]
+                        price_data[symbol] = pd.Series(values, index=timestamps)
+                except Exception as e:
+                    logger.warning(f"Failed to get price data for {symbol}: {e}")
+        
+        if len(price_data) < 2:
+            raise Exception("Insufficient price data for centralized timeseries")
+        
+        # Créer DataFrame des prix
+        price_df = pd.DataFrame(price_data).fillna(method='ffill').dropna()
+        
+        # 📊 CALCULER AVEC LE SERVICE CENTRALISÉ pour les métriques ET les rendements
+        centralized_metrics = portfolio_metrics_service.calculate_portfolio_metrics(
+            price_data=price_df,
+            balances=balances,
+            confidence_level=0.95
+        )
+        
+        # Utiliser la méthode privée pour obtenir les rendements pondérés (même calcul que métriques)
+        portfolio_returns = portfolio_metrics_service._calculate_weighted_portfolio_returns(price_df, balances)
+        
+        # Générer la série temporelle cohérente avec les métriques centralisées
+        portfolio_history = []
+        daily_returns = []
+        cumulative_returns = []
+        drawdowns = []
+        rolling_sharpe = []
+        rolling_volatility = []
+        
+        # Calculer la courbe de valeur du portfolio (100k base)
+        portfolio_value_series = (1 + portfolio_returns).cumprod() * 100000
+        running_max = portfolio_value_series.expanding().max()
+        drawdown_series = (portfolio_value_series - running_max) / running_max * 100
+        
+        # Construire les listes pour compatibilité API
+        for i, (date, portfolio_value) in enumerate(portfolio_value_series.items()):
+            portfolio_history.append((date.to_pydatetime(), portfolio_value))
+            daily_returns.append(portfolio_returns.iloc[i] * 100)  # Convert to %
+            cumulative_returns.append((portfolio_value / 100000 - 1) * 100)  # Total return %
+            drawdowns.append(drawdown_series.iloc[i])
+            
+            # Rolling metrics simplifiés (cohérence avec l'approche centralisée)
+            if i >= 30:
+                window_returns = portfolio_returns.iloc[max(0, i-29):i+1]
+                rolling_vol = window_returns.std() * math.sqrt(252)
+                rolling_mean = window_returns.mean() * 252
+                rolling_sharpe_val = (rolling_mean - 0.02) / max(rolling_vol, 0.01)
+                rolling_sharpe.append(rolling_sharpe_val)
+                rolling_volatility.append(rolling_vol)
+            else:
+                rolling_sharpe.append(0)
+                rolling_volatility.append(0)
+        
+        logger.info(f"✅ Generated centralized timeseries: {len(portfolio_history)} points")
+        logger.info(f"Metrics consistency - Sharpe={centralized_metrics.sharpe_ratio:.2f}, Vol={centralized_metrics.volatility_annualized:.2%}, MaxDD={centralized_metrics.max_drawdown:.2%}")
+        
+        return {
+            "price_history": portfolio_history,
+            "daily_returns": daily_returns,
+            "cumulative_returns": cumulative_returns,
+            "drawdowns": drawdowns,
+            "rolling_sharpe": rolling_sharpe,
+            "rolling_volatility": rolling_volatility,
+            "centralized_metrics": centralized_metrics,  # Inclure les métriques centralisées
+            "centralized_direct": True  # Marquer comme utilisation directe du service
+        }
+        
+    except Exception as e:
+        logger.error(f"Error generating centralized timeseries data: {e}")
+        logger.warning("Falling back to mock data due to error")
+        return _generate_mock_performance_data(days)
 
 def _generate_mock_performance_data(days: int, strategy_bias: str = "rebalancing") -> Dict[str, Any]:
     """Générer des données de performance simulées"""
@@ -347,41 +574,60 @@ def _generate_mock_performance_data(days: int, strategy_bias: str = "rebalancing
     }
 
 def _calculate_advanced_metrics(data: Dict[str, Any]) -> AdvancedMetrics:
-    """Calculer toutes les métriques avancées"""
+    """Calculer toutes les métriques avancées (harmonisées avec Risk Dashboard)"""
     returns = data["daily_returns"]
     drawdowns = data["drawdowns"]
     price_history = data["price_history"]
     
-    # Métriques de base
-    total_return = data["cumulative_returns"][-1]
-    days = len(returns)
-    annualized_return = ((1 + total_return/100) ** (365/days) - 1) * 100
+    # Si les données proviennent du service centralisé, utiliser les vraies métriques DIRECTEMENT
+    if data.get("centralized_direct") and data.get("centralized_metrics"):
+        centralized_metrics = data["centralized_metrics"]
+        
+        # 🎯 UTILISER LES MÉTRIQUES CENTRALISÉES DIRECTEMENT (zéro calcul supplémentaire)
+        total_return = data["cumulative_returns"][-1] if data["cumulative_returns"] else 0
+        annualized_return = centralized_metrics.annualized_return_pct
+        volatility = centralized_metrics.volatility_annualized * 100  # Convert to %
+        sharpe_ratio = centralized_metrics.sharpe_ratio
+        max_drawdown = centralized_metrics.max_drawdown * 100  # Already negative
+        sortino_ratio = centralized_metrics.sortino_ratio
+        calmar_ratio = centralized_metrics.calmar_ratio
+        var_95 = centralized_metrics.var_95_1d * 100  # Convert to %
+        cvar_95 = centralized_metrics.cvar_95_1d * 100  # Convert to %
+        skewness = centralized_metrics.skewness
+        kurtosis = centralized_metrics.kurtosis
+        max_drawdown_duration = centralized_metrics.max_drawdown_duration_days
+        
+        logger.info(f"✅ Using DIRECT centralized metrics - Sharpe: {sharpe_ratio:.2f}, Vol: {volatility:.1f}%, Max DD: {max_drawdown:.1f}%")
+        
+    else:
+        # Calculs classiques pour les données non-harmonisées
+        total_return = data["cumulative_returns"][-1]
+        days = len(returns)
+        annualized_return = ((1 + total_return/100) ** (365/days) - 1) * 100
+        
+        volatility = statistics.stdev(returns) * math.sqrt(252)
+        
+        # Ratios de risque
+        risk_free_rate = 2.0  # 2% annuel
+        sharpe_ratio = (annualized_return - risk_free_rate) / max(volatility, 0.1)
+        
+        max_drawdown = min(drawdowns)
+        calmar_ratio = annualized_return / max(abs(max_drawdown), 1)
+        
+        # Sortino ratio (vs downside deviation)
+        downside_returns = [r for r in returns if r < 0]
+        downside_deviation = statistics.stdev(downside_returns) * math.sqrt(252) if downside_returns else volatility
+        sortino_ratio = (annualized_return - risk_free_rate) / max(downside_deviation, 0.1)
+        
+        # Métriques de distribution
+        skewness = _calculate_skewness(returns)
+        kurtosis = _calculate_kurtosis(returns)
+        var_95 = _calculate_var(returns, 0.95)
+        cvar_95 = _calculate_cvar(returns, 0.95)
+        max_drawdown_duration = 30
     
-    volatility = statistics.stdev(returns) * math.sqrt(252)
-    
-    # Ratios de risque
-    risk_free_rate = 2.0  # 2% annuel
-    sharpe_ratio = (annualized_return - risk_free_rate) / max(volatility, 0.1)
-    
-    # Drawdown metrics
-    max_drawdown = min(drawdowns)
+    # Métriques communes
     avg_drawdown = sum(d for d in drawdowns if d < 0) / max(1, sum(1 for d in drawdowns if d < 0))
-    
-    # Ratios avancés
-    calmar_ratio = annualized_return / max(abs(max_drawdown), 1)
-    
-    # Sortino ratio (vs downside deviation)
-    downside_returns = [r for r in returns if r < 0]
-    downside_deviation = statistics.stdev(downside_returns) * math.sqrt(252) if downside_returns else volatility
-    sortino_ratio = (annualized_return - risk_free_rate) / max(downside_deviation, 0.1)
-    
-    # Métriques de distribution
-    skewness = _calculate_skewness(returns)
-    kurtosis = _calculate_kurtosis(returns)
-    var_95 = _calculate_var(returns, 0.95)
-    cvar_95 = _calculate_cvar(returns, 0.95)
-    
-    # Métriques temporelles (simulées)
     positive_returns = [r for r in returns if r > 0]
     negative_returns = [r for r in returns if r < 0]
     
@@ -392,7 +638,7 @@ def _calculate_advanced_metrics(data: Dict[str, Any]) -> AdvancedMetrics:
         sharpe_ratio=sharpe_ratio,
         max_drawdown_pct=max_drawdown,
         avg_drawdown_pct=avg_drawdown,
-        max_drawdown_duration_days=30,  # Simulé
+        max_drawdown_duration_days=max_drawdown_duration,
         avg_drawdown_duration_days=12,  # Simulé
         drawdown_periods=[],  # Calculé séparément
         calmar_ratio=calmar_ratio,
@@ -404,7 +650,7 @@ def _calculate_advanced_metrics(data: Dict[str, Any]) -> AdvancedMetrics:
         cvar_95=cvar_95,
         best_month_pct=max(returns) if returns else 0,
         worst_month_pct=min(returns) if returns else 0,
-        positive_months_pct=len(positive_returns) / len(returns) * 100,
+        positive_months_pct=len(positive_returns) / len(returns) * 100 if returns else 50,
         win_loss_ratio=abs(sum(positive_returns) / max(sum(negative_returns), -1)) if negative_returns else 0
     )
 

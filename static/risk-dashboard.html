@@ -943,6 +943,36 @@
       }
     });
 
+    // Track current data source to detect changes
+    let lastKnownDataSource = globalConfig.get('data_source');
+    console.debug(`📊 Risk Dashboard initialized with data source: ${lastKnownDataSource}`);
+
+    // Listen for data source changes from settings
+    window.addEventListener('storage', function(e) {
+      const expectedKey = (window.globalConfig?.getStorageKey && window.globalConfig.getStorageKey()) || 'crypto_rebal_settings_v1';
+      if (e.key === expectedKey) {
+        console.debug('Settings changed in another tab, checking for data source changes...');
+        
+        const currentSource = globalConfig.get('data_source');
+        if (currentSource && currentSource !== lastKnownDataSource) {
+          console.debug(`🔄 Data source changed from ${lastKnownDataSource} to ${currentSource}, auto-refreshing...`);
+          lastKnownDataSource = currentSource;
+          // Clear cache when source changes
+          clearAllPersistentCache();
+          setTimeout(() => refreshDashboard(true), 500); // Force refresh to recalculate with new source
+        }
+      }
+    });
+
+    // Listen for explicit data source change events
+    window.addEventListener('dataSourceChanged', (event) => {
+      console.debug(`🔄 Explicit data source change: ${event.detail.oldSource} → ${event.detail.newSource}`);
+      lastKnownDataSource = event.detail.newSource;
+      // Clear cache when source changes
+      clearAllPersistentCache();
+      setTimeout(() => refreshDashboard(true), 500); // Force refresh to recalculate with new source
+    });
+
     // ====== Tab Management ======
     window.switchTab = function (tabName) {
       // Update UI state
@@ -1219,8 +1249,8 @@
     function generateRecommendations(metrics, correlations, groups) {
       const recommendations = [];
 
-      // VaR recommendations
-      if (metrics.var_95_1d < -0.08) {
+      // VaR recommendations (VaR renvoyé en valeur positive)
+      if (metrics.var_95_1d > 0.08) {
         recommendations.push({
           priority: 'high',
           icon: '🛡️',
@@ -1271,8 +1301,8 @@
         });
       }
 
-      // Drawdown recommendations
-      if (metrics.max_drawdown < -0.6) {
+      // Drawdown recommendations (max_drawdown renvoyé en valeur positive)
+      if (metrics.max_drawdown > 0.6) {
         recommendations.push({
           priority: 'high',
           icon: '📉',
@@ -1613,14 +1643,9 @@
     async function calculateOnChainScore() {
       try {
         const indicators = await fetchAllIndicators();
+        // Aucun indicateur exploitable → retourner null (et laisser l'UI gérer)
         if (!indicators || (indicators._metadata && indicators._metadata.available_count === 0)) {
-          container.innerHTML = `
-            <div class="error" style="background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger); border-radius: var(--radius-md); padding: var(--space-lg);">
-              ⚠️ Scraping sur <a href="https://crypto-toolbox.vercel.app/signaux" target="_blank" style="color: var(--danger); text-decoration: underline;">https://crypto-toolbox.vercel.app/signaux</a> indisponible.<br>
-              Assurez-vous que le backend de scraping local (port 8001) est démarré.
-            </div>
-          `;
-          return;
+          return null;
         }
 
         // Check if dynamic weighting is enabled (from localStorage setting)
@@ -1637,14 +1662,8 @@
         }
 
         if (composite.score === null) {
-          console.warn('⚠️ No real on-chain data available - will show limited On-Chain data');
-          // Return minimal data for UI consistency instead of null
-          return {
-            score: null,
-            message: 'APIs payantes requises pour score complet',
-            limited: true,
-            dynamicWeighting: composite.dynamicWeighting // Keep dynamic weighting info
-          };
+          console.warn('⚠️ No real on-chain data available - returning null score');
+          return null;
         }
 
         console.debug(`📊 On-Chain Score: ${composite.score} (${composite.message})`);
@@ -1857,11 +1876,14 @@
         setCachedData('SCORES', scoreData);
 
         // Also store scores in localStorage for cross-page access (compatibility)
+        // Include data source in the score keys for proper synchronization
+        const dataSource = globalConfig.get('data_source') || 'unknown';
         localStorage.setItem('risk_score_onchain', onchainScore !== null ? onchainScore.toString() : '');
         localStorage.setItem('risk_score_risk', riskScore !== null ? riskScore.toString() : '');
         localStorage.setItem('risk_score_blended', blendedScore !== null ? blendedScore.toString() : '');
         localStorage.setItem('risk_score_ccs', ccsScore !== null ? ccsScore.toString() : '');
         localStorage.setItem('risk_score_timestamp', Date.now().toString());
+        localStorage.setItem('risk_score_data_source', dataSource);
 
         console.debug('📊 All scores calculated:', {
           ccs: ccsScore,
@@ -2649,11 +2671,27 @@
         const { cycleScoreFromMonths, getCyclePhase } = await import('./modules/cycle-navigator.js');
         const { fetchAllIndicators, enhanceCycleScore, analyzeDivergence } = await import('./modules/onchain-indicators.js');
 
-        // 🎯 CALIBRATION HISTORIQUE AUTOMATIQUE
+        // 🎯 CALIBRATION HISTORIQUE AUTOMATIQUE (avec garde anti-boucle)
         try {
-          const { calibrateCycleParams } = await import('./modules/cycle-navigator.js');
-          const calibRes = calibrateCycleParams();
-          console.log('🎯 Calibration historique automatique:', calibRes);
+          // Si une calibration récente existe (< 24h), ne pas recalibrer à chaque rendu
+          const saved = localStorage.getItem('bitcoin_cycle_params');
+          let hasRecentCalibration = false;
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              if (parsed?.timestamp && (Date.now() - parsed.timestamp) < (24 * 60 * 60 * 1000)) {
+                hasRecentCalibration = true;
+              }
+            } catch (_) { /* ignore parse error */ }
+          }
+
+          if (!hasRecentCalibration) {
+            const { calibrateCycleParams } = await import('./modules/cycle-navigator.js');
+            const calibRes = calibrateCycleParams();
+            console.log('🎯 Calibration historique automatique (fresh):', calibRes);
+          } else {
+            console.debug('🎯 Calibration récente détectée - skip recalibration');
+          }
         } catch (e) {
           console.warn('⚠️ Calibration automatique échouée:', e.message);
         }
@@ -3211,6 +3249,17 @@
         const sigmoidScore = cycleScoreFromMonths(cycleData.months);
         const divergence = analyzeDivergence(sigmoidScore, indicators);
         const enhanced = await enhanceCycleScore(sigmoidScore, 0.25);
+        // Propager le score composite vers la sidebar via le store
+        try {
+          if (composite && typeof composite.score === 'number') {
+            const prevOn = store.get ? store.get('scores.onchain') : undefined;
+            if (prevOn !== composite.score) {
+              store.set('scores.onchain', composite.score);
+            } else {
+              console.debug('↔︎ On-chain score unchanged; not updating store');
+            }
+          }
+        } catch (e) { console.warn('Failed to propagate onchain score to store:', e); }
         const recos = generateRecommendations(enhanced) || [];
 
         // Utilitaires couleur (se basent uniquement sur les vars de thème)
@@ -3370,7 +3419,7 @@
               ${composite.score !== null ? `${composite.score}/100` : 'N/A'}
             </div>
             <div style="font-size:.85rem; color: var(--theme-text-muted);">
-              ${composite.totalIndicators} indicateurs • Confiance: ${Math.round((composite.confidence || 0) * 100)}% • Corrélations gérées
+              ${(composite.totalIndicators ?? 0)} indicateurs • Confiance: ${Math.round((composite.confidence || 0) * 100)}% • Corrélations gérées
               ${localStorage.getItem('enable_dynamic_weighting') === 'true' && composite.dynamicWeighting ? `<br>Phase: ${composite.dynamicWeighting.phase.name}` : ''}
             </div>
           `)}
@@ -3502,43 +3551,58 @@
     async function renderCyclesContent(forceRefresh = false) {
       const container = document.getElementById('cycles-content');
       const state = store.snapshot();
-      
+      const currentHash = generateCycleDataHash(state);
+
+      // Short-circuit: if nothing changed and DOM already has the chart, skip any DOM work
+      if (!forceRefresh && window.lastCycleContentHash === currentHash) {
+        const canvas = document.getElementById('bitcoin-cycle-chart');
+        const existing = canvas ? (window.bitcoinCycleChart || (window.Chart && Chart.getChart(canvas))) : null;
+        if (existing) {
+          console.debug('⚡ Cycles unchanged, skipping render');
+          return;
+        }
+      }
+
       // Check if we should refresh based on data changes
       if (!forceRefresh) {
         const refreshCheck = shouldRefreshCycleContent(state);
-        
+
         if (!refreshCheck.shouldRefresh) {
-          // Use cached content
+          // Use cached content only if not already present in DOM
           const cachedContent = getCachedData('CYCLE_CONTENT');
           if (cachedContent?.htmlContent) {
-            console.debug('⚡ Using cached cycle content');
-            container.innerHTML = cachedContent.htmlContent;
-            
-            // Recreate chart if needed (chart config should be cached separately)
-            if (cachedContent.hasChart && !document.getElementById('bitcoin-cycle-chart')?.hasChildNodes()) {
+            const hasCanvas = !!document.getElementById('bitcoin-cycle-chart');
+            if (!hasCanvas) {
+              console.debug('⚡ Using cached cycle content (first paint)');
+              container.innerHTML = cachedContent.htmlContent;
+              // Recreate chart from cache
               setTimeout(() => recreateCachedChart(), 100);
+            } else {
+              console.debug('⚡ Cached content available but DOM already rendered, skipping DOM replace');
             }
-            
+            window.lastCycleContentHash = currentHash;
             return;
           }
         }
       }
-      
+
       console.debug('🔄 Rendering fresh cycle content');
       await renderCyclesContentUncached();
-      
+
       // Cache the generated content
-      const currentHash = generateCycleDataHash(state);
       const htmlContent = container.innerHTML;
       const hasChart = htmlContent.includes('bitcoin-cycle-chart');
-      
+
       setCachedData('CYCLE_CONTENT', {
         htmlContent,
         hasChart,
         dataHash: currentHash,
         timestamp: Date.now()
       });
-      
+
+      // Remember last rendered hash to avoid redundant reflows
+      window.lastCycleContentHash = currentHash;
+
       console.debug('💾 Cycle content cached');
     }
 
@@ -4284,12 +4348,14 @@
         const age = Math.round((Date.now() - cachedScores.timestamp) / (1000 * 60));
         console.log(`✅ Found cached scores (${age} minutes old)`);
 
-        // Restore scores in localStorage for compatibility
+        // Restore scores in localStorage for compatibility  
+        const dataSource = globalConfig.get('data_source') || 'unknown';
         localStorage.setItem('risk_score_onchain', cachedScores.data.onchainScore?.toString() || '');
         localStorage.setItem('risk_score_risk', cachedScores.data.riskScore?.toString() || '');
         localStorage.setItem('risk_score_blended', cachedScores.data.blendedScore?.toString() || '');
         localStorage.setItem('risk_score_ccs', cachedScores.data.ccsScore?.toString() || '');
         localStorage.setItem('risk_score_timestamp', cachedScores.timestamp?.toString() || '');
+        localStorage.setItem('risk_score_data_source', dataSource);
       }
 
       // Override clearCache to be selective
@@ -4309,16 +4375,21 @@
     function setCachedData(type, data) {
       const config = CACHE_CONFIG[type];
       if (!config) return false;
+      
+      // Make cache keys data-source-aware
+      const dataSource = globalConfig.get('data_source') || 'unknown';
+      const sourceAwareKey = `${config.key}_${dataSource}`;
 
       const cacheEntry = {
         data: data,
         timestamp: Date.now(),
-        ttl: config.ttl
+        ttl: config.ttl,
+        source: dataSource
       };
 
       try {
-        localStorage.setItem(config.key, JSON.stringify(cacheEntry));
-        console.log(`💾 Cached ${type} data (TTL: ${Math.round(config.ttl / (1000 * 60 * 60))}h)`);
+        localStorage.setItem(sourceAwareKey, JSON.stringify(cacheEntry));
+        console.log(`💾 Cached ${type} data for source ${dataSource} (TTL: ${Math.round(config.ttl / (1000 * 60 * 60))}h)`);
         return true;
       } catch (error) {
         console.warn(`Failed to cache ${type}:`, error);
@@ -4329,24 +4400,28 @@
     function getCachedData(type) {
       const config = CACHE_CONFIG[type];
       if (!config) return null;
+      
+      // Make cache keys data-source-aware
+      const dataSource = globalConfig.get('data_source') || 'unknown';
+      const sourceAwareKey = `${config.key}_${dataSource}`;
 
       try {
-        const cached = localStorage.getItem(config.key);
+        const cached = localStorage.getItem(sourceAwareKey);
         if (!cached) return null;
 
         const cacheEntry = JSON.parse(cached);
         const isExpired = (Date.now() - cacheEntry.timestamp) > cacheEntry.ttl;
 
         if (isExpired) {
-          localStorage.removeItem(config.key);
-          console.log(`⏰ Expired cache removed: ${type}`);
+          localStorage.removeItem(sourceAwareKey);
+          console.log(`⏰ Expired cache removed: ${type} for source ${dataSource}`);
           return null;
         }
 
         return cacheEntry;
       } catch (error) {
         console.warn(`Failed to read cache ${type}:`, error);
-        localStorage.removeItem(config.key);
+        localStorage.removeItem(sourceAwareKey);
         return null;
       }
     }
@@ -4358,10 +4433,21 @@
     }
 
     function clearAllPersistentCache() {
+      // Clear both old format and new data-source-aware format cache entries
+      const dataSource = globalConfig.get('data_source') || 'unknown';
+      
       Object.values(CACHE_CONFIG).forEach(config => {
+        // Clear old format
         localStorage.removeItem(config.key);
+        // Clear new data-source-aware format
+        localStorage.removeItem(`${config.key}_${dataSource}`);
+        
+        // Also clear other potential data sources to ensure complete cleanup
+        ['cointracking', 'api', 'unknown'].forEach(source => {
+          localStorage.removeItem(`${config.key}_${source}`);
+        });
       });
-      console.log('🧹 All persistent cache cleared');
+      console.log(`🧹 All persistent cache cleared for source ${dataSource}`);
     }
 
     // ===== CYCLE CACHE SYSTEM =====
@@ -4456,6 +4542,10 @@
     document.addEventListener('DOMContentLoaded', function () {
       console.log('Risk Dashboard CCS MVP initializing...');
 
+      // Initialize data source tracking for cross-tab synchronization
+      window.lastKnownDataSource = globalConfig.get('data_source');
+      console.log(`🔗 Risk Dashboard initialized with data source: ${window.lastKnownDataSource}`);
+
       // Initialize persistent cache system
       initPersistentCache();
       console.log('Persistent cache system initialized');
@@ -4507,10 +4597,27 @@
         }
       }, 1000);
 
-      // Écouter les changements de thème pour synchronisation cross-tab
+      // Écouter les changements de thème et source pour synchronisation cross-tab
       window.addEventListener('storage', function (e) {
-        if (e.key === 'crypto_rebalancer_settings') {
-          console.log('Settings changed in another tab, reapplying theme...');
+        const expectedKey = (window.globalConfig?.getStorageKey && window.globalConfig.getStorageKey()) || 'crypto_rebal_settings_v1';
+        if (e.key === expectedKey) {
+          console.log('Settings changed in another tab, checking for theme and data source changes...');
+          
+          // Check if data source changed
+          const currentSource = globalConfig.get('data_source');
+          const previousSource = window.lastKnownDataSource;
+          
+          if (currentSource && currentSource !== previousSource) {
+            console.log(`🔄 Data source changed from ${previousSource} to ${currentSource}, clearing cache and reloading...`);
+            window.lastKnownDataSource = currentSource;
+            clearCache();
+            // Reload the risk dashboard after source change
+            setTimeout(() => {
+              window.location.reload();
+            }, 500);
+          }
+          
+          // Apply theme changes
           setTimeout(() => {
             if (window.globalConfig && window.globalConfig.applyTheme) {
               window.globalConfig.applyTheme();

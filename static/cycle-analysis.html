@@ -345,14 +345,35 @@
     }
 
 
+    function parseISODateStrict(value) {
+      if (value instanceof Date) return value;
+      if (typeof value === 'string') {
+        // Parse YYYY-MM-DD de façon robuste (UTC) pour éviter les écarts de locale
+        const m = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (m) {
+          const y = Number(m[1]);
+          const mo = Number(m[2]);
+          const d = Number(m[3]);
+          return new Date(Date.UTC(y, mo - 1, d));
+        }
+      }
+      // Fallback parsing
+      const dt = new Date(value);
+      return isNaN(dt.getTime()) ? null : dt;
+    }
+
     function monthsBetween(dateA, dateB) {
-      const a = new Date(dateA);
-      const b = new Date(dateB);
+      const a = parseISODateStrict(dateA);
+      const b = parseISODateStrict(dateB);
+      if (!a || !b) {
+        console.warn('monthsBetween: invalid date(s)', { dateA, dateB });
+        return NaN;
+      }
 
       // Calcul précis des mois entre deux dates
-      const years = b.getFullYear() - a.getFullYear();
-      const months = b.getMonth() - a.getMonth();
-      const days = b.getDate() - a.getDate();
+      const years = b.getUTCFullYear() - a.getUTCFullYear();
+      const months = b.getUTCMonth() - a.getUTCMonth();
+      const days = b.getUTCDate() - a.getUTCDate();
 
       let totalMonths = years * 12 + months;
 
@@ -363,7 +384,7 @@
         totalMonths -= Math.abs(days) / 30.44;
       }
 
-      return Math.max(0, totalMonths);
+      return totalMonths;
     }
 
     function addResult(title, content, type = 'info') {
@@ -468,8 +489,8 @@
       HISTORICAL_CYCLES.forEach(cycle => {
         if (cycle.peak) {
           const monthsToPeak = monthsBetween(cycle.halving, cycle.peak);
-          historicalPoints.push({
-            x: monthsToPeak,
+          if (Number.isFinite(monthsToPeak)) historicalPoints.push({
+            x: Number(monthsToPeak),
             y: 100, // On considère le pic comme score 100
             label: `Cycle ${cycle.id} Peak`,
             color: '#dc2626'
@@ -477,14 +498,31 @@
         }
         if (cycle.bottom) {
           const monthsToBottom = monthsBetween(cycle.halving, cycle.bottom);
-          historicalPoints.push({
-            x: monthsToBottom,
+          if (Number.isFinite(monthsToBottom)) historicalPoints.push({
+            x: Number(monthsToBottom),
             y: 10, // On considère le creux comme score 10
             label: `Cycle ${cycle.id} Bottom`,
             color: '#059669'
           });
         }
       });
+
+      // Point courant (mois depuis le dernier halving)
+      try {
+        const currentCycle = HISTORICAL_CYCLES.find(c => c.id === 4);
+        if (currentCycle && currentCycle.halving) {
+          const now = new Date();
+          const mNow = monthsBetween(currentCycle.halving, now);
+          if (Number.isFinite(mNow)) {
+            historicalPoints.push({
+              x: Number(mNow),
+              y: cycleScoreFromMonths(Number(mNow)),
+              label: 'Cycle 4 Actuel',
+              color: '#0ea5e9'
+            });
+          }
+        }
+      } catch (_) { /* ignore */ }
 
       // Détruire chart existant si nécessaire
       const existingChart = Chart.getChart(ctx);
@@ -508,8 +546,8 @@
             {
               label: 'Points Historiques Réels',
               data: historicalPoints,
-              backgroundColor: historicalPoints.map(p => p.color),
-              borderColor: historicalPoints.map(p => p.color),
+              pointBackgroundColor: historicalPoints.map(p => p.color),
+              pointBorderColor: historicalPoints.map(p => p.color),
               pointRadius: 8,
               pointHoverRadius: 10,
               showLine: false
@@ -521,9 +559,11 @@
           maintainAspectRatio: false,
           scales: {
             x: {
+              type: 'linear',
               title: { display: true, text: 'Mois après Halving' },
               min: 0,
-              max: 48
+              max: 48,
+              ticks: { stepSize: 6 }
             },
             y: {
               title: { display: true, text: 'Score de Cycle (0-100)' },

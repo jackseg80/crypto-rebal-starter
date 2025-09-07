@@ -656,9 +656,34 @@ export async function fetchCryptoToolboxIndicators() {
       return cached;
     }
     
-    // Appel au backend Python avec Playwright (service optionnel)
-    const apiBase = globalConfig?.get('api_base_url') || 'http://127.0.0.1:8000';
-    const response = await performanceMonitoredFetch(`${apiBase}/api/crypto-toolbox`);
+  // Appel via le proxy FastAPI (8000) qui relaie vers Flask (8001)
+  const apiBase = globalConfig?.get('api_base_url') || window.location.origin || 'http://127.0.0.1:8000';
+  const proxyUrl = `${apiBase.replace(/\/$/, '')}/api/crypto-toolbox`;
+  let response;
+  try {
+    response = await performanceMonitoredFetch(proxyUrl);
+  } catch (err) {
+    console.warn(`🌐 Proxy ${proxyUrl} failed (${err?.message || err}). Trying direct fallback...`);
+    // Tentatives fallback direct vers le scraper Flask (peut nécessiter CORS côté Flask)
+    const fallbacks = [
+      'http://127.0.0.1:8001/api/crypto-toolbox',
+      'http://localhost:8001/api/crypto-toolbox'
+    ];
+    let lastError = err;
+    for (const url of fallbacks) {
+      try {
+        response = await performanceMonitoredFetch(url);
+        console.log(`✅ Fallback succeeded at ${url}`);
+        break;
+      } catch (e) {
+        lastError = e;
+        console.warn(`🌐 Fallback ${url} failed: ${e?.message || e}`);
+      }
+    }
+    if (!response) {
+      throw lastError || new Error('All endpoints failed');
+    }
+  }
     
     if (!response.ok) {
       if (response.status === 404) {
@@ -668,58 +693,85 @@ export async function fetchCryptoToolboxIndicators() {
       throw new Error(`Backend API error: ${response.status} ${response.statusText}`);
     }
     
-    const apiData = await response.json();
-    console.log(`📊 API response:`, apiData);
-    
-    if (!apiData.success) {
-      throw new Error(`API returned error: ${apiData.error}`);
+  const apiData = await response.json();
+  console.log(`📊 API response:`, apiData);
+  
+  // Tolérance aux différentes formes de payload
+  if (apiData.success === false) {
+    throw new Error(`API returned error: ${apiData.error || apiData.message || 'unknown error'}`);
+  }
+  
+  // Accepter plusieurs clés possibles: indicators | data | items | payload
+  let raw = apiData.indicators || apiData.data || apiData.items || apiData.payload || null;
+  if (raw && !Array.isArray(raw) && typeof raw === 'object') {
+    // Certains backends renvoient un dict { key: indicator }
+    raw = Object.values(raw);
+  }
+  if (!Array.isArray(raw)) {
+    console.warn('⚠️ No indicator list array in response; attempting single-item normalization');
+    raw = [];
+  }
+  
+  // Convertir TOUS les indicateurs API en format pour le nouveau système
+  const indicators = {};
+  const pickName = (x) => x?.name || x?.indicator || x?.title || x?.key || 'unknown';
+  const pickNumeric = (x) => {
+    const cands = [x.value_numeric, x.numeric_value, x.value_percent, x.percent, x.score, x.value];
+    for (const v of cands) {
+      if (typeof v === 'number' && !Number.isNaN(v)) return v;
+      if (typeof v === 'string') {
+        // extraire nombre d’une chaîne comme "75.39%" ou "75,4"
+        const m = v.match(/[\d.,]+/);
+        if (m) return parseFloat(m[0].replace(',', '.'));
+      }
     }
-    
-    // Convertir TOUS les indicateurs API en format pour le nouveau système
-    const indicators = {};
-    
-    if (apiData.indicators && Array.isArray(apiData.indicators)) {
-      console.log(`🔄 Processing ${apiData.indicators.length} raw indicators from API...`);
-      
-      apiData.indicators.forEach(indicator => {
-        // Utiliser le nom original comme clé unique (pas de mapping restrictif)
-        const originalName = indicator.name;
-        const cleanKey = originalName.toLowerCase().replace(/[^a-z0-9]/g, '_');
-        
-        if (indicator.value_numeric !== undefined) {
-          indicators[cleanKey] = {
-            name: originalName,
-            value_numeric: indicator.value_numeric,
-            value: indicator.value, // Texte original "75.39%"
-            raw_value: indicator.raw_value,
-            threshold_numeric: indicator.threshold_numeric,
-            threshold: indicator.threshold,
-            raw_threshold: indicator.raw_threshold,
-            in_critical_zone: indicator.in_critical_zone,
-            threshold_operator: indicator.threshold_operator,
-            scraped_at: apiData.scraped_at,
-            source: 'crypto-toolbox'
-          };
-          
-          console.log(`✅ Processed: ${originalName} = ${indicator.value_numeric}% ${indicator.in_critical_zone ? '🚨' : ''}`);
-        } else {
-          console.warn(`⚠️ Skipped indicator without numeric value: ${originalName}`);
-        }
-      });
+    return undefined;
+  };
+  const pickBool = (x, ...keys) => keys.map(k => x[k]).find(v => typeof v === 'boolean');
+  const pick = (x, ...keys) => keys.map(k => x[k]).find(v => v != null);
+  
+  raw.forEach(entry => {
+    const originalName = pickName(entry);
+    const cleanKey = String(originalName).toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const num = pickNumeric(entry);
+    if (num == null || Number.isNaN(num)) {
+      console.warn(`⚠️ Skipped indicator without numeric value: ${originalName}`);
+      return;
     }
+    const inCritical = pickBool(entry, 'in_critical_zone', 'critical', 'is_critical') || false;
+    const thresholdNumeric = pick(entry, 'threshold_numeric');
+    const threshold = pick(entry, 'threshold');
+    const rawThreshold = pick(entry, 'raw_threshold');
+    const thresholdOp = pick(entry, 'threshold_operator', 'operator');
+    const scrapedAt = pick(apiData, 'scraped_at', 'timestamp', 'fetched_at') || pick(entry, 'scraped_at', 'timestamp', 'fetched_at');
+    const rawValue = pick(entry, 'raw_value') || (typeof entry.value === 'string' ? entry.value : undefined);
     
-    console.log(`📊 Converted ${Object.keys(indicators).length} indicators from API`);
-    console.log(`📊 Indicators:`, indicators);
-    
-    if (Object.keys(indicators).length > 0) {
-      // Cache pour 24h - les indicateurs on-chain n'évoluent pas rapidement
-      const CACHE_24H = 24 * 60 * 60 * 1000; // 24 heures
-      intelligentCache.set('cryptotoolbox_indicators', indicators, CACHE_24H);
-      console.log('💾 Crypto-Toolbox indicators cached for 24h');
-      return indicators;
-    }
-    
-    throw new Error('No valid indicators found in API response');
+    indicators[cleanKey] = {
+      name: originalName,
+      value_numeric: num,
+      value: entry.value ?? rawValue ?? `${num}%`,
+      raw_value: rawValue,
+      threshold_numeric: thresholdNumeric,
+      threshold: threshold,
+      raw_threshold: rawThreshold,
+      in_critical_zone: inCritical,
+      threshold_operator: thresholdOp,
+      scraped_at: scrapedAt,
+      source: entry.source || 'crypto-toolbox'
+    };
+    console.log(`✅ Processed: ${originalName} = ${num}% ${inCritical ? '🚨' : ''}`);
+  });
+  
+  console.log(`📊 Converted ${Object.keys(indicators).length} indicators from API`);
+  if (Object.keys(indicators).length > 0) {
+    // Cache pour 24h - les indicateurs on-chain n'évoluent pas rapidement
+    const CACHE_24H = 24 * 60 * 60 * 1000; // 24 heures
+    intelligentCache.set('cryptotoolbox_indicators', indicators, CACHE_24H);
+    console.log('💾 Crypto-Toolbox indicators cached for 24h');
+    return indicators;
+  }
+  
+  throw new Error('No valid indicators found in API response');
     
   } catch (error) {
     console.error('❌ Crypto-Toolbox API fetch failed:', error.message);

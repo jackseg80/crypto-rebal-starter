@@ -90,6 +90,13 @@
       margin-bottom: var(--space-xl)
     }
 
+    /* Tabs */
+    .tabs { display:flex; gap:.5rem; border-bottom:1px solid var(--theme-border); margin-bottom: var(--space-md); flex-wrap: wrap; }
+    .tab-btn { padding:.6rem .9rem; border:1px solid var(--theme-border); background:var(--theme-surface); color:var(--theme-text); border-radius:8px 8px 0 0; cursor:pointer; }
+    .tab-btn.active { border-color: var(--brand-primary); color: var(--brand-primary); background: color-mix(in oklab, var(--brand-primary) 10%, transparent); }
+    .tab-panel { display:none; }
+    .tab-panel.active { display:block; }
+
     .card.success {
       border-color: var(--success);
       background: var(--success-bg)
@@ -304,8 +311,20 @@
 
   <div class="wrap">
 
-    <!-- Status Global -->
-    <div class="card" id="global-status" 
+    <!-- Tab header -->
+    <div class="tabs" id="settings-tabs">
+      <button class="tab-btn active" data-target="#tab-overview">Résumé</button>
+      <button class="tab-btn" data-target="#tab-data">Source</button>
+      <button class="tab-btn" data-target="#tab-pricing">Pricing</button>
+      <button class="tab-btn" data-target="#tab-api">Clés API</button>
+      <button class="tab-btn" data-target="#tab-csv">CSV</button>
+      <button class="tab-btn" data-target="#tab-interface">Interface</button>
+      <button class="tab-btn" data-target="#tab-advanced">Avancé</button>
+    </div>
+
+    <!-- Overview Tab -->
+    <section class="tab-panel active" id="tab-overview">
+      <div class="card" id="global-status" 
          data-tooltip="Statut global du système avec indicateurs de santé des connexions API et services."
          data-source="Tests de connectivité en temps réel">
       <div style="display: flex; align-items: center; justify-content: space-between;">
@@ -318,18 +337,28 @@
           <button class="btn secondary small" onclick="resetToDefaults()">🔄 Défaut</button>
         </div>
       </div>
-    </div>
+      </div>
+    </section>
 
-    <!-- Source de Données -->
-    <div class="card" data-tooltip="Configuration de la source principale pour les données de portfolio (CSV local, API CoinTracking ou échanges directs)."
+    <!-- Data Source Tab -->
+    <section class="tab-panel" id="tab-data">
+      <div class="card" data-tooltip="Configuration de la source principale pour les données de portfolio (CSV local, API CoinTracking ou échanges directs)."
          data-source="Fichiers de configuration + APIs">
       <h3>📡 Source de Données</h3>
       <div class="form-group">
         <label>Source principale des balances</label>
         <div class="radio-group">
-          <div class="radio-option" onclick="selectDataSource('stub')">
-            <input type="radio" name="data_source" value="stub" id="source_stub">
-            <label for="source_stub">🧪 <strong>Stub</strong> - Données de démo</label>
+          <div class="radio-option" onclick="selectDataSource('stub_conservative')">
+            <input type="radio" name="data_source" value="stub_conservative" id="source_stub_conservative">
+            <label for="source_stub_conservative">🛡️ <strong>Démo Conservative</strong> - 80% BTC, 15% ETH, 5% Stables</label>
+          </div>
+          <div class="radio-option" onclick="selectDataSource('stub_balanced')">
+            <input type="radio" name="data_source" value="stub_balanced" id="source_stub_balanced">
+            <label for="source_stub_balanced">⚖️ <strong>Démo Équilibrée</strong> - Portfolio diversifié qualité</label>
+          </div>
+          <div class="radio-option" onclick="selectDataSource('stub_shitcoins')">
+            <input type="radio" name="data_source" value="stub_shitcoins" id="source_stub_shitcoins">
+            <label for="source_stub_shitcoins">🎲 <strong>Démo Risquée</strong> - Memecoins et shitcoins</label>
           </div>
           <div class="radio-option" onclick="selectDataSource('cointracking')">
             <input type="radio" name="data_source" value="cointracking" id="source_cointracking">
@@ -348,10 +377,12 @@
         <button class="btn secondary small" onclick="testDataSource()">🧪 Tester la Source</button>
         <div id="data-source-test"></div>
       </div>
-    </div>
+      </div>
+    </section>
 
-    <!-- Pricing -->
-    <div class="card" data-tooltip="Configuration des prix de référence et devises pour les calculs de valeur du portefeuille."
+    <!-- Pricing Tab -->
+    <section class="tab-panel" id="tab-pricing">
+      <div class="card" data-tooltip="Configuration des prix de référence et devises pour les calculs de valeur du portefeuille."
          data-source="CoinGecko, CoinGlass, ou prix manuels">
       <h3>💰 Pricing & Devises</h3>
       <div class="form-group">
@@ -383,10 +414,12 @@
           <input type="number" id="min_usd_threshold" min="0" step="0.01" value="1.00">
         </div>
       </div>
-    </div>
+      </div>
+    </section>
 
-    <!-- API Keys -->
-    <div class="card" data-tooltip="Gestion sécurisée des clés API pour les exchanges et services de données (stockage local chiffré)."
+    <!-- API Keys Tab -->
+    <section class="tab-panel" id="tab-api">
+      <div class="card" data-tooltip="Gestion sécurisée des clés API pour les exchanges et services de données (stockage local chiffré)."
          data-source="Stockage local sécurisé + validation API">
       <h3>🔑 Clés API</h3>
 
@@ -455,10 +488,12 @@
         <button class="btn secondary small" onclick="testApiKeys()">🧪 Tester les APIs</button>
         <div id="api-keys-test"></div>
       </div>
-    </div>
+      </div>
+    </section>
 
-    <!-- Téléchargement Automatique CSV -->
-    <div class="card" data-tooltip="Automatisation du téléchargement des fichiers CSV depuis CoinTracking avec renommage intelligent."
+    <!-- CSV Tab -->
+    <section class="tab-panel" id="tab-csv">
+      <div class="card" data-tooltip="Automatisation du téléchargement des fichiers CSV depuis CoinTracking avec renommage intelligent."
          data-source="API CoinTracking + gestion fichiers locale">
       <h3>📥 Téléchargement Automatique CSV</h3>
       <div class="help" style="margin-bottom: 16px;">
@@ -511,6 +546,10 @@
         <div class="help">Status des fichiers CSV locaux apparaîtra ici.</div>
       </div>
     </div>
+    </section>
+
+    <!-- Interface Tab -->
+    <section class="tab-panel" id="tab-interface">
 
     <!-- Préférences Interface -->
     <div class="card" data-tooltip="Personnalisation de l'interface utilisateur : thèmes, langue, format des nombres et raccourcis."
@@ -608,10 +647,14 @@
           </label>
         </div>
       </div>
-    </div>
+      </div>
+    </section>
 
-    <!-- Actions Avancées -->
-    <div class="card" data-tooltip="Outils avancés pour maintenance, cache, et opérations système critiques (utiliser avec précaution)."
+    
+
+    <!-- Advanced Tab -->
+    <section class="tab-panel" id="tab-advanced">
+      <div class="card" data-tooltip="Outils avancés pour maintenance, cache, et opérations système critiques (utiliser avec précaution)."
          data-source="Fonctions système internes">
       <h3>🔧 Actions Avancées</h3>
 
@@ -627,12 +670,34 @@
         <button class="btn" onclick="runFullSystemTest()">🚀 Lancer Test Complet</button>
         <div id="full-system-test"></div>
       </div>
-    </div>
+      </div>
+    </section>
 
   </div>
 
   <script src="/static/global-config.js"></script>
   <script>
+    // Tabs logic
+    (function(){
+      const btns = document.querySelectorAll('.tab-btn');
+      const panels = document.querySelectorAll('.tab-panel');
+      function activate(target){
+        btns.forEach(b=>b.classList.toggle('active', b.getAttribute('data-target')===`#${target.id}`));
+        panels.forEach(p=>p.classList.toggle('active', p===target));
+        history.replaceState(null, '', `#${target.id}`);
+      }
+      btns.forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const sel = btn.getAttribute('data-target');
+          const target = document.querySelector(sel);
+          if (target) activate(target);
+        })
+      });
+      // Deep link support via hash
+      const hash = location.hash && document.querySelector(location.hash);
+      if (hash && hash.classList.contains('tab-panel')) activate(hash);
+    })();
+
     // Appliquer le thème dès le chargement de global-config.js
     setTimeout(() => {
       if (window.globalConfig && window.globalConfig.applyTheme) {
@@ -705,7 +770,9 @@
       const summary = document.getElementById('status-summary');
       const globalSettings = globalConfig.getAll();
       const sourceLabels = {
-        'stub': '🧪 Données de démo',
+        'stub_conservative': '🛡️ Démo Conservative',
+        'stub_balanced': '⚖️ Démo Équilibrée', 
+        'stub_shitcoins': '🎲 Démo Risquée',
         'cointracking': '📄 CoinTracking CSV',
         'cointracking_api': '🌐 CoinTracking API'
       };

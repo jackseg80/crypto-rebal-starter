@@ -11,6 +11,260 @@
   <script src="appearance.js"></script>
   <script type="module" src="components/nav.js"></script>
   <script type="module" src="analytics-unified.js"></script>
+  <script type="module">
+    import { renderUnifiedInsights } from './components/UnifiedInsights.js';
+    import { store } from './core/risk-dashboard-store.js';
+    
+    // INTELLIGENT CACHE SYSTEM - Avoid constant recalculations
+    const CACHE_CONFIG = {
+      risk: { ttl: 5 * 60 * 1000, key: 'analytics_unified_risk' },      // 5 minutes
+      cycle: { ttl: 60 * 60 * 1000, key: 'analytics_unified_cycle' },    // 1 hour  
+      onchain: { ttl: 10 * 60 * 1000, key: 'analytics_unified_onchain' }, // 10 minutes
+      blended: { ttl: 2 * 60 * 1000, key: 'analytics_unified_blended' }   // 2 minutes
+    };
+
+    // Generate cache key that includes data source to invalidate on source change
+    function getCacheKey(baseKey) {
+      const dataSource = globalConfig.get('data_source') || 'unknown';
+      return `${baseKey}_${dataSource}`;
+    }
+    
+    function isCacheValid(cacheKey, ttl) {
+      try {
+        const fullKey = getCacheKey(cacheKey);
+        const cached = localStorage.getItem(fullKey);
+        if (!cached) return false;
+        const data = JSON.parse(cached);
+        return Date.now() - data.timestamp < ttl;
+      } catch { return false; }
+    }
+    
+    function setCache(cacheKey, data) {
+      try {
+        const fullKey = getCacheKey(cacheKey);
+        localStorage.setItem(fullKey, JSON.stringify({ data, timestamp: Date.now() }));
+      } catch {}
+    }
+    
+    function getCache(cacheKey) {
+      try {
+        const fullKey = getCacheKey(cacheKey);
+        const cached = localStorage.getItem(fullKey);
+        return cached ? JSON.parse(cached).data : null;
+      } catch { return null; }
+    }
+    
+    // Lightweight unified data loader with INTELLIGENT CACHING
+    async function loadUnifiedData() {
+      console.log('🧠 Loading unified data with intelligent caching...');
+      let loadedFromCache = 0;
+      
+      try {
+        const priceDays = 365, corrDays = 90;
+        
+        // 1) Risk (backend) - With cache
+        if (isCacheValid(CACHE_CONFIG.risk.key, CACHE_CONFIG.risk.ttl)) {
+          console.log('✅ Risk data loaded from cache');
+          const riskData = getCache(CACHE_CONFIG.risk.key);
+          store.set('risk', riskData);
+          const rs = riskData?.risk_metrics?.risk_score;
+          if (typeof rs === 'number') store.set('scores.risk', rs);
+          store.set('ui.apiStatus.backend', 'healthy');
+          loadedFromCache++;
+        } else {
+          try {
+            const minUsd = globalConfig.get('min_usd_threshold');
+            const riskUrl = globalConfig.getApiUrl('/api/risk/dashboard', { price_history_days: priceDays, lookback_days: corrDays, min_usd: minUsd });
+            console.log(`🔍 Fetching risk data from: ${riskUrl} (source: ${globalConfig.get('data_source')})`);
+            const r = await fetch(riskUrl);
+            if (r.ok) {
+              const riskData = await r.json();
+              setCache(CACHE_CONFIG.risk.key, riskData);
+              store.set('risk', riskData);
+              const rs = riskData?.risk_metrics?.risk_score;
+              if (typeof rs === 'number') store.set('scores.risk', rs);
+              store.set('ui.apiStatus.backend', 'healthy');
+              console.log('✅ Risk data fetched and cached');
+            } else {
+              store.set('ui.apiStatus.backend', 'error');
+            }
+          } catch (_) { store.set('ui.apiStatus.backend', 'error'); }
+
+        }
+        
+        // 2) Cycle (client-side) - With cache
+        if (isCacheValid(CACHE_CONFIG.cycle.key, CACHE_CONFIG.cycle.ttl)) {
+          console.log('✅ Cycle data loaded from cache');
+          const cycleData = getCache(CACHE_CONFIG.cycle.key);
+          store.set('cycle.months', cycleData.months);
+          store.set('cycle.score', cycleData.score);
+          store.set('cycle.phase', cycleData.phase);
+          loadedFromCache++;
+        } else {
+          try {
+            const { getCurrentCycleMonths, cycleScoreFromMonths, getCyclePhase } = await import('./modules/cycle-navigator.js');
+            const c = getCurrentCycleMonths();
+            const score = Math.round(cycleScoreFromMonths(c.months));
+            const phase = getCyclePhase(c.months);
+            const cycleData = { months: c.months, score, phase };
+            setCache(CACHE_CONFIG.cycle.key, cycleData);
+            store.set('cycle.months', c.months);
+            store.set('cycle.score', score);
+            store.set('cycle.phase', phase);
+            console.log('✅ Cycle data calculated and cached');
+          } catch (e) { console.warn('Cycle data load failed:', e.message); }
+        }
+
+        // 3) On-Chain (via scraper/proxy) - With cache
+        if (isCacheValid(CACHE_CONFIG.onchain.key, CACHE_CONFIG.onchain.ttl)) {
+          console.log('✅ On-Chain data loaded from cache');
+          const onchainData = getCache(CACHE_CONFIG.onchain.key);
+          if (typeof onchainData.score === 'number') {
+            store.set('scores.onchain', onchainData.score);
+          }
+          store.set('scores.onchain_metadata', onchainData.metadata);
+          store.set('scores.contradictory_signals', onchainData.contradictory_signals);
+          store.set('ui.apiStatus.signals', 'healthy');
+          loadedFromCache++;
+        } else {
+          try {
+            const onchain = await import('./modules/onchain-indicators.js');
+            const v2 = await import('./modules/composite-score-v2.js');
+            const indicators = await onchain.fetchAllIndicators();
+            const dyn = localStorage.getItem('enable_dynamic_weighting') === 'true';
+            const composite = v2.calculateCompositeScoreV2(indicators, dyn);
+            
+            let finalComposite = composite;
+            // Fallback minimal si score null: utiliser Fear & Greed pour produire un score on-chain basique
+            if (finalComposite.score == null) {
+              try {
+                const apiBase = globalConfig.get('api_base_url');
+                const resp = await fetch(`${apiBase}/api/ml/sentiment/fear-greed?days=1`);
+                if (resp.ok) {
+                  const data = await resp.json();
+                  const latest = (data.fear_greed_data && (data.fear_greed_data[0] || data.fear_greed_data)) || null;
+                  const fg = latest?.value ?? latest?.fear_greed_index;
+                  if (typeof fg === 'number') {
+                    const minimal = {
+                      fear_greed_min: { name: 'Fear & Greed', value_numeric: fg, in_critical_zone: fg >= 80 || fg <= 20, raw_value: String(fg) },
+                      _metadata: { available_count: 1 }
+                    };
+                    finalComposite = v2.calculateCompositeScoreV2(minimal, false);
+                    console.log('✅ On-Chain fallback (Fear & Greed) used in unified loader');
+                  }
+                }
+              } catch (fe) { console.warn('On-chain FG fallback failed:', fe.message); }
+            }
+
+            const onchainData = {
+              score: finalComposite.score,
+              metadata: {
+                categoryBreakdown: finalComposite.categoryBreakdown,
+                criticalZoneCount: finalComposite.criticalZoneCount,
+                confidence: finalComposite.confidence,
+              },
+              contradictory_signals: v2.analyzeContradictorySignals(finalComposite.categoryBreakdown)
+            };
+            
+            setCache(CACHE_CONFIG.onchain.key, onchainData);
+            
+            if (typeof onchainData.score === 'number') {
+              store.set('scores.onchain', onchainData.score);
+            }
+            store.set('scores.onchain_metadata', onchainData.metadata);
+            store.set('scores.contradictory_signals', onchainData.contradictory_signals);
+            store.set('ui.apiStatus.signals', 'healthy');
+            console.log('✅ On-Chain data calculated and cached');
+          } catch (e) {
+            console.warn('On-chain load failed:', e.message);
+            store.set('ui.apiStatus.signals', 'error');
+          }
+        }
+
+        // 4) Compute blended (decision index) - With cache
+        if (isCacheValid(CACHE_CONFIG.blended.key, CACHE_CONFIG.blended.ttl)) {
+          console.log('✅ Blended score loaded from cache');
+          const blendedData = getCache(CACHE_CONFIG.blended.key);
+          store.set('scores.blended', blendedData.score);
+          store.set('market.regime', blendedData.regime);
+          loadedFromCache++;
+        } else {
+          try {
+            const s = store.snapshot();
+            const cycleScore = s.cycle?.score ?? 50;
+            const onchainScore = s.scores?.onchain ?? 50;
+            const riskScore = s.scores?.risk ?? 50;
+            const blended = (cycleScore * 0.50) + (onchainScore * 0.30) + ((100 - riskScore) * 0.20);
+            const blendedScore = Math.round(Math.max(0, Math.min(100, blended)));
+            
+            // 5) Market Regime (sentiment/régime agrégé)  
+            let regimeData = null;
+            try {
+              const { getRegimeDisplayData } = await import('./modules/market-regimes.js');
+              regimeData = getRegimeDisplayData(blendedScore, onchainScore, riskScore);
+            } catch (e) { console.warn('Market regime compute failed:', e.message); }
+            
+            const blendedData = { score: blendedScore, regime: regimeData };
+            setCache(CACHE_CONFIG.blended.key, blendedData);
+            
+            store.set('scores.blended', blendedScore);
+            store.set('market.regime', regimeData);
+            console.log('✅ Blended score calculated and cached');
+          } catch (e) { console.warn('Blended compute failed:', e.message); }
+        }
+        
+        const cacheEfficiency = loadedFromCache > 0 ? `${loadedFromCache}/4 from cache` : 'full calculation';
+        console.log(`🎯 Unified data loading completed - ${cacheEfficiency}${loadedFromCache > 0 ? ' ⚡' : ''}`);
+
+      } catch (e) {
+        console.error('Unified loader fatal:', e);
+      }
+    }
+    // Track data source changes for cache invalidation
+    let lastKnownDataSource = globalConfig.get('data_source');
+    console.log(`📊 Analytics Unified initialized with data source: ${lastKnownDataSource}`);
+
+    // Listen for data source changes
+    window.addEventListener('storage', function(e) {
+      const expectedKey = (window.globalConfig?.getStorageKey && window.globalConfig.getStorageKey()) || 'crypto_rebal_settings_v1';
+      if (e.key === expectedKey) {
+        console.debug('Settings changed in another tab, checking for data source changes...');
+        
+        const currentSource = globalConfig.get('data_source');
+        if (currentSource && currentSource !== lastKnownDataSource) {
+          console.debug(`🔄 Data source changed from ${lastKnownDataSource} to ${currentSource}, clearing cache and reloading...`);
+          lastKnownDataSource = currentSource;
+          // Clear all cache for this source change
+          Object.values(CACHE_CONFIG).forEach(config => {
+            const oldKey = getCacheKey(config.key).replace(`_${currentSource}`, `_${lastKnownDataSource || 'unknown'}`);
+            localStorage.removeItem(oldKey);
+          });
+          // Reload with new source
+          loadUnifiedData();
+        }
+      }
+    });
+
+    window.addEventListener('dataSourceChanged', (event) => {
+      console.debug(`🔄 Explicit data source change in analytics-unified: ${event.detail.oldSource} → ${event.detail.newSource}`);
+      lastKnownDataSource = event.detail.newSource;
+      // Clear cache and reload
+      loadUnifiedData();
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // initial paint
+      renderUnifiedInsights('unified-root');
+      // keep in sync with store changes without over-rendering
+      let paintTimer;
+      store.subscribe(() => {
+        clearTimeout(paintTimer);
+        paintTimer = setTimeout(() => renderUnifiedInsights('unified-root'), 250);
+      });
+      // initial data load
+      loadUnifiedData();
+    });
+  </script>
   <style>
     .wrap {
       max-width: 95vw;
@@ -86,6 +340,8 @@
 
 <body>
   <div class="wrap">
+    <div id="unified-root"></div>
+    <div style="height: 1rem;"></div>
     <div class="tabs" id="analytics-tabs">
       <button class="tab-btn active" data-target="#tab-risk">Risk</button>
       <button class="tab-btn" data-target="#tab-performance">Performance</button>

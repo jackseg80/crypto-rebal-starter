@@ -365,18 +365,80 @@ async def get_risk_dashboard(
                 "message": "Aucun holding trouvé dans le portfolio après filtrage"
             }
         
-        # Calcul en parallèle de toutes les métriques
-        import asyncio
+        # NOUVEAU: Utiliser le service centralisé de métriques pour garantir la cohérence
+        from services.portfolio_metrics import portfolio_metrics_service
+        from services.price_history import get_cached_history
+        import pandas as pd
         
-        risk_metrics_task = risk_manager.calculate_portfolio_risk_metrics(holdings=balances, price_history_days=price_history_days)
-        correlation_task = risk_manager.calculate_correlation_matrix(holdings=balances, lookback_days=lookback_days)
+        logger.info(f"🎯 Using centralized metrics service for {len(balances)} assets over {price_history_days} days")
         
-        risk_metrics, correlation_matrix = await asyncio.gather(
-            risk_metrics_task,
-            correlation_task
+        # Récupérer les données de prix historiques
+        price_data = {}
+        for balance in balances:
+            symbol = balance.get('symbol', '').upper()
+            if symbol:
+                try:
+                    prices = get_cached_history(symbol, days=price_history_days)
+                    if prices and len(prices) > 10:
+                        timestamps = [pd.Timestamp.fromtimestamp(p[0]) for p in prices]
+                        values = [p[1] for p in prices]
+                        price_data[symbol] = pd.Series(values, index=timestamps)
+                except Exception as e:
+                    logger.warning(f"Failed to get price data for {symbol}: {e}")
+        
+        if len(price_data) < 2:
+            return {
+                "success": False,
+                "message": "Insufficient price data for metrics calculation"
+            }
+        
+        # Créer DataFrame des prix
+        price_df = pd.DataFrame(price_data).fillna(method='ffill').dropna()
+        
+        # Calculer les métriques avec le service centralisé
+        risk_metrics = portfolio_metrics_service.calculate_portfolio_metrics(
+            price_data=price_df,
+            balances=balances,
+            confidence_level=0.95
         )
         
-        # Construction de la réponse dashboard
+        # Calculer les métriques de corrélation
+        correlation_metrics = portfolio_metrics_service.calculate_correlation_metrics(
+            price_data=price_df,
+            min_correlation_threshold=0.7
+        )
+        
+        # Construction de la réponse dashboard avec métriques centralisées
+        
+        # Calculer le score de risque global (0-100, plus haut = plus risqué)
+        risk_score = 50  # Base neutre
+        if risk_metrics.sharpe_ratio < 0.5:
+            risk_score += 20
+        elif risk_metrics.sharpe_ratio > 1.0:
+            risk_score -= 15
+            
+        if abs(risk_metrics.max_drawdown) > 0.3:
+            risk_score += 25
+        elif abs(risk_metrics.max_drawdown) < 0.15:
+            risk_score -= 10
+            
+        if risk_metrics.volatility_annualized > 0.6:
+            risk_score += 15
+        elif risk_metrics.volatility_annualized < 0.3:
+            risk_score -= 10
+            
+        risk_score = max(0, min(100, risk_score))  # Clamp entre 0-100
+        
+        # Déterminer le niveau de risque
+        if risk_score >= 75:
+            overall_risk_level = "very_high"
+        elif risk_score >= 60:
+            overall_risk_level = "high"
+        elif risk_score >= 40:
+            overall_risk_level = "medium"
+        else:
+            overall_risk_level = "low"
+        
         dashboard_data = {
             "success": True,
             "timestamp": datetime.now().isoformat(),
@@ -386,6 +448,7 @@ async def get_risk_dashboard(
                 "confidence_level": risk_metrics.confidence_level
             },
             "risk_metrics": {
+                # ⚡ MÉTRIQUES CENTRALISÉES - Cohérentes avec tous les modules
                 "var_95_1d": risk_metrics.var_95_1d,
                 "var_99_1d": risk_metrics.var_99_1d,
                 "cvar_95_1d": risk_metrics.cvar_95_1d,
@@ -400,19 +463,21 @@ async def get_risk_dashboard(
                 "ulcer_index": risk_metrics.ulcer_index,
                 "skewness": risk_metrics.skewness,
                 "kurtosis": risk_metrics.kurtosis,
-                "overall_risk_level": risk_metrics.overall_risk_level.value,
-                "risk_score": risk_metrics.risk_score,
+                "overall_risk_level": overall_risk_level,
+                "risk_score": risk_score,
                 "calculation_date": risk_metrics.calculation_date.isoformat(),
                 "data_points": risk_metrics.data_points,
                 "confidence_level": risk_metrics.confidence_level
             },
             "correlation_metrics": {
-                "diversification_ratio": correlation_matrix.diversification_ratio,
-                "effective_assets": correlation_matrix.effective_assets,
-                "top_correlations": _get_top_correlations(correlation_matrix.correlations, 5)
+                "diversification_ratio": correlation_metrics.diversification_ratio,
+                "effective_assets": correlation_metrics.effective_assets,
+                "top_correlations": correlation_metrics.top_correlations
             },
-            "alerts": _generate_risk_alerts(risk_metrics, correlation_matrix)
+            "alerts": _generate_centralized_risk_alerts(risk_metrics, correlation_metrics)
         }
+        
+        logger.info(f"✅ Centralized metrics calculated: Sharpe={risk_metrics.sharpe_ratio:.2f}, Vol={risk_metrics.volatility_annualized:.2f}, MaxDD={risk_metrics.max_drawdown:.2%}, RiskScore={risk_score}")
         
         end_time = datetime.now()
         calculation_time = f"{(end_time - start_time).total_seconds():.2f}s"
@@ -426,6 +491,48 @@ async def get_risk_dashboard(
             "success": False,
             "message": f"Erreur lors du calcul dashboard: {str(e)}"
         }
+
+def _generate_centralized_risk_alerts(risk_metrics, correlation_metrics) -> List[Dict[str, Any]]:
+    """Génère les alertes de risque basées sur les métriques centralisées"""
+    alerts = []
+    
+    # Alert sur Sharpe ratio faible
+    if risk_metrics.sharpe_ratio < 0.5:
+        alerts.append({
+            "level": "high" if risk_metrics.sharpe_ratio < 0 else "medium",
+            "type": "performance_alert",
+            "message": f"Sharpe ratio faible: {risk_metrics.sharpe_ratio:.2f}",
+            "recommendation": "Optimiser la sélection d'actifs ou réduire la volatilité"
+        })
+    
+    # Alert sur drawdown élevé
+    if abs(risk_metrics.max_drawdown) > 0.4:
+        alerts.append({
+            "level": "high",
+            "type": "drawdown_alert", 
+            "message": f"Drawdown maximum élevé: {risk_metrics.max_drawdown:.1%}",
+            "recommendation": "Considérer la diversification ou des stratégies de protection"
+        })
+    
+    # Alert sur diversification
+    if correlation_metrics.diversification_ratio < 0.6:
+        alerts.append({
+            "level": "medium",
+            "type": "correlation_alert",
+            "message": f"Faible diversification: ratio {correlation_metrics.diversification_ratio:.2f}",
+            "recommendation": "Ajouter des assets moins corrélés"
+        })
+    
+    # Alert sur volatilité excessive
+    if risk_metrics.volatility_annualized > 0.8:
+        alerts.append({
+            "level": "high",
+            "type": "volatility_alert",
+            "message": f"Volatilité très élevée: {risk_metrics.volatility_annualized:.1%}",
+            "recommendation": "Augmenter la part de stablecoins ou assets moins volatils"
+        })
+    
+    return alerts
 
 def _get_top_correlations(correlations: Dict[str, Dict[str, float]], top_n: int = 5) -> List[Dict[str, Any]]:
     """Extrait les top N corrélations entre assets (excluant self-correlations)"""

@@ -287,6 +287,7 @@
             <button class="btn secondary" onclick="compareStrategies()">⚔️ Comparer Stratégies</button>
             <button class="btn secondary" onclick="generateReport()">📋 Rapport Détaillé</button>
             <button class="btn secondary" onclick="exportData()">💾 Exporter</button>
+            <button class="btn secondary" onclick="debugCharts()" style="background: #f59e0b;">🐛 Debug</button>
         </div>
 
         <div class="dashboard-grid">
@@ -377,7 +378,7 @@
     </div>
 
     <script>
-        const API_BASE = 'http://localhost:8000';
+        const API_BASE = (window.globalConfig && globalConfig.get && globalConfig.get('api_base_url')) || 'http://localhost:8000';
 
         // Variables globales pour les graphiques
         let performanceChart, drawdownChart, returnsChart, sharpeChart;
@@ -436,7 +437,7 @@
             // Drawdown Chart
             const ddCtx = document.getElementById('drawdown-chart').getContext('2d');
             drawdownChart = new Chart(ddCtx, {
-                type: 'area',
+                type: 'line',
                 data: {
                     labels: [],
                     datasets: [{
@@ -513,23 +514,36 @@
 
         async function loadPerformanceData() {
             try {
-                console.log('Loading performance data...');
+                console.log('🔄 Loading performance data...');
 
                 // Charger les vraies données depuis l'API
                 const [metricsResponse, timeseriesResponse] = await Promise.all([
-                    fetch(`${API_BASE}/analytics/advanced/metrics?days=365`),
-                    fetch(`${API_BASE}/analytics/advanced/timeseries?days=365`)
+                    fetch(`${API_BASE}/analytics/advanced/metrics?days=365`, { 
+                        method: 'GET',
+                        headers: { 'Accept': 'application/json' }
+                    }),
+                    fetch(`${API_BASE}/analytics/advanced/timeseries?days=365`, {
+                        method: 'GET', 
+                        headers: { 'Accept': 'application/json' }
+                    })
                 ]);
+
+                console.log('🔍 Metrics response status:', metricsResponse.status);
+                console.log('🔍 Timeseries response status:', timeseriesResponse.status);
 
                 if (metricsResponse.ok && timeseriesResponse.ok) {
                     const metrics = await metricsResponse.json();
                     const timeseries = await timeseriesResponse.json();
 
+                    console.log('✅ API data loaded successfully');
+                    console.log('📊 Metrics sample:', Object.keys(metrics).slice(0, 5));
+                    console.log('📈 Timeseries data length:', timeseries.dates?.length || 0);
+
                     updateMetrics(metrics);
                     updateChartsFromAPI(timeseries);
                     updatePerformanceTableFromAPI(metrics);
                 } else {
-                    console.warn('API not available, using mock data');
+                    console.warn('❌ API not available, using mock data. Status:', metricsResponse.status, timeseriesResponse.status);
                     const mockData = generateMockPerformanceData();
                     updateMetrics(mockData.metrics);
                     updateCharts(mockData.timeSeriesData);
@@ -537,7 +551,7 @@
                 }
 
             } catch (error) {
-                console.error('Error loading performance data:', error);
+                console.error('❌ Error loading performance data:', error);
                 // Fallback to mock data
                 const mockData = generateMockPerformanceData();
                 updateMetrics(mockData.metrics);
@@ -632,6 +646,13 @@
         }
 
         function updateCharts(data) {
+            console.log('📊 Updating charts with data:', {
+                datesLength: data.dates?.length,
+                performanceLength: data.performance?.length,
+                drawdownLength: data.drawdown?.length,
+                sharpeLength: data.sharpe?.length
+            });
+
             // Performance Chart
             performanceChart.data.labels = data.dates;
             performanceChart.data.datasets[0].data = data.performance;
@@ -654,6 +675,8 @@
             returnsChart.data.labels = histogram.labels;
             returnsChart.data.datasets[0].data = histogram.counts;
             returnsChart.update('none');
+            
+            console.log('✅ Charts updated successfully');
         }
 
         function updatePerformanceTable(metrics) {
@@ -673,28 +696,45 @@
         }
 
         function updateChartsFromAPI(timeseries) {
+            console.log('🔗 Updating charts from API data:', {
+                dates: timeseries.dates?.length || 0,
+                returns: timeseries.cumulative_returns?.length || 0,
+                drawdowns: timeseries.drawdowns?.length || 0,
+                rolling_sharpe: timeseries.rolling_sharpe?.length || 0
+            });
+
             // Performance Chart
-            performanceChart.data.labels = timeseries.dates;
-            performanceChart.data.datasets[0].data = timeseries.cumulative_returns;
-            // Pas de benchmark dans l'API pour l'instant
-            performanceChart.data.datasets[1].data = [];
-            performanceChart.update('none');
+            if (performanceChart && timeseries.dates && timeseries.cumulative_returns) {
+                performanceChart.data.labels = timeseries.dates;
+                performanceChart.data.datasets[0].data = timeseries.cumulative_returns;
+                // Pas de benchmark dans l'API pour l'instant
+                performanceChart.data.datasets[1].data = [];
+                performanceChart.update('none');
+            }
 
             // Drawdown Chart
-            drawdownChart.data.labels = timeseries.dates;
-            drawdownChart.data.datasets[0].data = timeseries.drawdowns;
-            drawdownChart.update('none');
+            if (drawdownChart && timeseries.dates && timeseries.drawdowns) {
+                drawdownChart.data.labels = timeseries.dates;
+                drawdownChart.data.datasets[0].data = timeseries.drawdowns;
+                drawdownChart.update('none');
+            }
 
             // Sharpe Chart
-            sharpeChart.data.labels = timeseries.dates;
-            sharpeChart.data.datasets[0].data = timeseries.rolling_sharpe;
-            sharpeChart.update('none');
+            if (sharpeChart && timeseries.dates && timeseries.rolling_sharpe) {
+                sharpeChart.data.labels = timeseries.dates;
+                sharpeChart.data.datasets[0].data = timeseries.rolling_sharpe;
+                sharpeChart.update('none');
+            }
 
             // Returns Distribution (histogram)
-            const histogram = createHistogram(timeseries.returns, 20);
-            returnsChart.data.labels = histogram.labels;
-            returnsChart.data.datasets[0].data = histogram.counts;
-            returnsChart.update('none');
+            if (returnsChart && timeseries.returns && timeseries.returns.length > 0) {
+                const histogram = createHistogram(timeseries.returns, 20);
+                returnsChart.data.labels = histogram.labels;
+                returnsChart.data.datasets[0].data = histogram.counts;
+                returnsChart.update('none');
+            }
+            
+            console.log('✅ API charts updated successfully');
         }
 
         function updatePerformanceTableFromAPI(metrics) {
@@ -777,6 +817,41 @@
 
         function exportData() {
             alert('💾 Export CSV/JSON des métriques disponible');
+        }
+
+        function debugCharts() {
+            console.log('🐛 DEBUG INFO:');
+            console.log('Charts initialized:', {
+                performanceChart: !!performanceChart,
+                drawdownChart: !!drawdownChart,
+                returnsChart: !!returnsChart,
+                sharpeChart: !!sharpeChart
+            });
+            
+            console.log('Canvas elements:', {
+                performance: !!document.getElementById('performance-chart'),
+                drawdown: !!document.getElementById('drawdown-chart'),
+                returns: !!document.getElementById('returns-distribution'),
+                sharpe: !!document.getElementById('sharpe-chart')
+            });
+
+            // Test API directly
+            fetch(`${API_BASE}/analytics/advanced/metrics?days=30`)
+                .then(response => {
+                    console.log('🔗 Direct API test - Status:', response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('🔗 Direct API test - Data keys:', Object.keys(data));
+                    console.log('🔗 Sample metrics:', {
+                        total_return: data.total_return_pct,
+                        sharpe: data.sharpe_ratio,
+                        max_dd: data.max_drawdown_pct
+                    });
+                })
+                .catch(error => console.error('🔗 API Test failed:', error));
+
+            alert('🐛 Debug info logged to console - Press F12 to view');
         }
 
         console.log('📊 Advanced Analytics Dashboard initialized');

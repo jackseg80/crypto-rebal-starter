@@ -136,7 +136,15 @@
       "Bash(start http://localhost:8000/static/execution_history.html)",
       "Bash(start http://localhost:9000/static/unified-ml-dashboard.html)",
       "Bash(start http://localhost:9001/static/unified-ml-dashboard.html)",
-      "Bash(start http://localhost:8000/static/unified-ml-dashboard.html)"
+      "Bash(start http://localhost:8000/static/unified-ml-dashboard.html)",
+      "Bash(start http://localhost:8000/static/advanced-analytics.html)",
+      "Bash(start http://localhost:8000/static/analytics-unified.html)",
+      "Bash(start http://localhost:8000/static/debug-intelligence.html)",
+      "Bash(start http://localhost:8000/static/test-unified-insights.html)",
+      "Bash(timeout:*)",
+      "Bash(start http://localhost:8000/static/test-ml-connections.html)",
+      "Bash(start http://localhost:8000/balances/current?source=cointracking)",
+      "Bash(start http://localhost:8000/balances/current?source=stub)"
     ],
     "deny": [],
     "ask": [],

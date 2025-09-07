@@ -2,7 +2,7 @@
 Endpoint principal pour le risk dashboard avec données réelles
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from datetime import datetime
 import logging
 
@@ -13,7 +13,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["risk-dashboard"])
 
 @router.get("/risk/dashboard")
-async def real_risk_dashboard():
+async def real_risk_dashboard(
+    min_usd: float = Query(1.0, description="Seuil minimal en USD par asset"),
+    price_history_days: int = Query(365, description="Nombre de jours d'historique prix"),
+    lookback_days: int = Query(90, description="Fenêtre de lookback pour corrélations")
+):
     """
     Endpoint principal utilisant le vrai portfolio depuis les CSV avec le système de risque réel
     """
@@ -63,24 +67,99 @@ async def real_risk_dashboard():
         
         logger.info(f"📊 Calcul risque avec VRAI portfolio: {len(real_holdings)} assets, ${sum(h['value_usd'] for h in real_holdings):,.0f}")
         
-        # Calcul en parallèle de toutes les métriques avec le VRAI portfolio
-        import asyncio
-        
-        risk_metrics_task = risk_manager.calculate_portfolio_risk_metrics(
-            holdings=real_holdings, 
-            price_history_days=30
+        # Utiliser le service centralisé pour garantir la cohérence des calculs
+        from services.portfolio_metrics import portfolio_metrics_service
+        from services.price_history import get_cached_history
+        import pandas as pd
+
+        # Construire le DataFrame de prix à partir du cache (mêmes règles que l'Advanced Analytics)
+        price_data = {}
+        for h in real_holdings:
+            symbol = (h.get("symbol") or "").upper()
+            if not symbol or float(h.get("value_usd") or 0.0) < float(min_usd):
+                continue
+            try:
+                prices = get_cached_history(symbol, days=price_history_days + 10)
+                if prices and len(prices) >= 2:
+                    timestamps = [pd.Timestamp.fromtimestamp(p[0]) for p in prices]
+                    values = [p[1] for p in prices]
+                    price_data[symbol] = pd.Series(values, index=timestamps)
+            except Exception:
+                continue
+
+        if len(price_data) < 2:
+            logger.warning("❌ Données de prix insuffisantes pour le calcul centralisé")
+            # Fallback vers l'ancien gestionnaire si nécessaire
+            import asyncio
+            risk_metrics_task = risk_manager.calculate_portfolio_risk_metrics(
+                holdings=real_holdings,
+                price_history_days=min(price_history_days, 90)
+            )
+            correlation_task = risk_manager.calculate_correlation_matrix(
+                holdings=real_holdings,
+                lookback_days=lookback_days
+            )
+            risk_metrics, correlation_matrix = await asyncio.gather(
+                risk_metrics_task,
+                correlation_task
+            )
+
+            # Construction de la réponse dashboard (fallback)
+            dashboard_data = {
+                "success": True,
+                "timestamp": datetime.now().isoformat(),
+                "real_data": True,
+                "portfolio_summary": {
+                    "total_value": sum(h["value_usd"] for h in real_holdings),
+                    "num_assets": len(real_holdings),
+                    "confidence_level": risk_metrics.confidence_level
+                },
+                "risk_metrics": {
+                    "var_95_1d": risk_metrics.var_95_1d,
+                    "var_99_1d": risk_metrics.var_99_1d,
+                    "cvar_95_1d": risk_metrics.cvar_95_1d,
+                    "cvar_99_1d": risk_metrics.cvar_99_1d,
+                    "volatility_annualized": risk_metrics.volatility_annualized,
+                    "sharpe_ratio": risk_metrics.sharpe_ratio,
+                    "sortino_ratio": risk_metrics.sortino_ratio,
+                    "calmar_ratio": risk_metrics.calmar_ratio,
+                    "max_drawdown": risk_metrics.max_drawdown,
+                    "max_drawdown_duration_days": risk_metrics.max_drawdown_duration_days,
+                    "current_drawdown": risk_metrics.current_drawdown,
+                    "ulcer_index": risk_metrics.ulcer_index,
+                    "skewness": risk_metrics.skewness,
+                    "kurtosis": risk_metrics.kurtosis,
+                    "overall_risk_level": risk_metrics.overall_risk_level.value,
+                    "risk_score": risk_metrics.risk_score,
+                    "calculation_date": risk_metrics.calculation_date.isoformat(),
+                    "data_points": risk_metrics.data_points,
+                    "confidence_level": risk_metrics.confidence_level
+                },
+                "correlation_metrics": {
+                    "diversification_ratio": correlation_matrix.diversification_ratio,
+                    "effective_assets": correlation_matrix.effective_assets,
+                    "top_correlations": _get_top_correlations(correlation_matrix.correlations, 5)
+                },
+                "real_holdings": real_holdings
+            }
+
+            end_time = datetime.now()
+            calculation_time = f"{(end_time - start_time).total_seconds():.2f}s"
+            dashboard_data["calculation_time"] = calculation_time
+            logger.info(f"✅ Dashboard (fallback risk_manager) calculé en {calculation_time}")
+            return dashboard_data
+
+        price_df = pd.DataFrame(price_data).fillna(method='ffill').dropna()
+
+        # Calculs centralisés
+        centralized_metrics = portfolio_metrics_service.calculate_portfolio_metrics(
+            price_data=price_df,
+            balances=real_holdings,
+            confidence_level=0.95
         )
-        correlation_task = risk_manager.calculate_correlation_matrix(
-            holdings=real_holdings, 
-            lookback_days=30
-        )
-        
-        risk_metrics, correlation_matrix = await asyncio.gather(
-            risk_metrics_task,
-            correlation_task
-        )
-        
-        # Construction de la réponse dashboard avec vraies données
+        corr_metrics = portfolio_metrics_service.calculate_correlation_metrics(price_df)
+
+        # Construction de la réponse dashboard alignée avec le service centralisé
         dashboard_data = {
             "success": True,
             "timestamp": datetime.now().isoformat(),
@@ -88,33 +167,33 @@ async def real_risk_dashboard():
             "portfolio_summary": {
                 "total_value": sum(h["value_usd"] for h in real_holdings),
                 "num_assets": len(real_holdings),
-                "confidence_level": risk_metrics.confidence_level
+                "confidence_level": centralized_metrics.confidence_level
             },
             "risk_metrics": {
-                "var_95_1d": risk_metrics.var_95_1d,
-                "var_99_1d": risk_metrics.var_99_1d,
-                "cvar_95_1d": risk_metrics.cvar_95_1d,
-                "cvar_99_1d": risk_metrics.cvar_99_1d,
-                "volatility_annualized": risk_metrics.volatility_annualized,
-                "sharpe_ratio": risk_metrics.sharpe_ratio,
-                "sortino_ratio": risk_metrics.sortino_ratio,
-                "calmar_ratio": risk_metrics.calmar_ratio,
-                "max_drawdown": risk_metrics.max_drawdown,
-                "max_drawdown_duration_days": risk_metrics.max_drawdown_duration_days,
-                "current_drawdown": risk_metrics.current_drawdown,
-                "ulcer_index": risk_metrics.ulcer_index,
-                "skewness": risk_metrics.skewness,
-                "kurtosis": risk_metrics.kurtosis,
-                "overall_risk_level": risk_metrics.overall_risk_level.value,
-                "risk_score": risk_metrics.risk_score,
-                "calculation_date": risk_metrics.calculation_date.isoformat(),
-                "data_points": risk_metrics.data_points,
-                "confidence_level": risk_metrics.confidence_level
+                "var_95_1d": centralized_metrics.var_95_1d,
+                "var_99_1d": centralized_metrics.var_99_1d,
+                "cvar_95_1d": centralized_metrics.cvar_95_1d,
+                "cvar_99_1d": centralized_metrics.cvar_99_1d,
+                "volatility_annualized": centralized_metrics.volatility_annualized,
+                "sharpe_ratio": centralized_metrics.sharpe_ratio,
+                "sortino_ratio": centralized_metrics.sortino_ratio,
+                "calmar_ratio": centralized_metrics.calmar_ratio,
+                "max_drawdown": centralized_metrics.max_drawdown,
+                "max_drawdown_duration_days": centralized_metrics.max_drawdown_duration_days,
+                "current_drawdown": centralized_metrics.current_drawdown,
+                "ulcer_index": centralized_metrics.ulcer_index,
+                "skewness": centralized_metrics.skewness,
+                "kurtosis": centralized_metrics.kurtosis,
+                "overall_risk_level": "medium",  # Non évalué par le service centralisé
+                "risk_score": 0.0,
+                "calculation_date": centralized_metrics.calculation_date.isoformat(),
+                "data_points": centralized_metrics.data_points,
+                "confidence_level": centralized_metrics.confidence_level
             },
             "correlation_metrics": {
-                "diversification_ratio": correlation_matrix.diversification_ratio,
-                "effective_assets": correlation_matrix.effective_assets,
-                "top_correlations": _get_top_correlations(correlation_matrix.correlations, 5)
+                "diversification_ratio": corr_metrics.diversification_ratio,
+                "effective_assets": corr_metrics.effective_assets,
+                "top_correlations": corr_metrics.top_correlations
             },
             "real_holdings": real_holdings  # Inclure pour debug
         }
@@ -123,7 +202,7 @@ async def real_risk_dashboard():
         calculation_time = f"{(end_time - start_time).total_seconds():.2f}s"
         dashboard_data["calculation_time"] = calculation_time
         
-        logger.info(f"✅ VRAI dashboard calculé en {calculation_time}")
+        logger.info(f"✅ VRAI dashboard (centralisé) calculé en {calculation_time}")
         
         return dashboard_data
         

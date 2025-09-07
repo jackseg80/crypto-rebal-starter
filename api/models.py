@@ -40,7 +40,7 @@ class APIKeysRequest(BaseModel):
 
 class PortfolioMetricsRequest(BaseModel):
     """Modèle pour les requêtes de métriques de portfolio"""
-    source: str = Field(default="cointracking", pattern="^(cointracking|stub|cointracking_api)$")
+    source: str = Field(default="cointracking", pattern="^(cointracking|stub|stub_balanced|stub_conservative|stub_shitcoins|cointracking_api)$")
     include_performance: bool = True
     cache_ttl: int = Field(default=300, ge=0, le=3600)  # 0-1 heure
 
@@ -109,7 +109,7 @@ class OrderRequest(BaseModel):
 
 class ConfigUpdateRequest(BaseModel):
     """Modèle pour la mise à jour de configuration"""
-    data_source: Optional[str] = Field(None, pattern="^(cointracking|stub|cointracking_api)$")
+    data_source: Optional[str] = Field(None, pattern="^(cointracking|stub|stub_balanced|stub_conservative|stub_shitcoins|cointracking_api)$")
     pricing_source: Optional[str] = Field(None, pattern="^(local|auto)$")
     cache_ttl: Optional[int] = Field(None, ge=0, le=3600)
     max_retries: Optional[int] = Field(None, ge=0, le=10)
