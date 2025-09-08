@@ -1,25 +1,26 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🧠 Dashboard IA Unifié - Crypto Portfolio</title>
-    
+
     <!-- Styles -->
     <link rel="stylesheet" href="shared-theme.css">
     <link rel="stylesheet" href="theme-compat.css">
-    
+
     <!-- Navigation unifiée -->
     <script type="module" src="components/nav.js"></script>
     <script type="module" src="components/tooltips.js"></script>
-    
+
     <!-- Scripts de base (comme les autres pages) -->
     <script src="debug-logger.js"></script>
     <script src="input-validator.js"></script>
     <script src="performance-optimizer.js"></script>
     <script src="global-config.js"></script>
     <script src="appearance.js"></script>
-    
+
     <style>
         body {
             margin: 0;
@@ -28,47 +29,56 @@
             font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
             line-height: 1.6;
         }
-        
+
         .wrap {
             max-width: 95vw;
             margin: 0 auto;
             padding: 16px;
         }
-        
+
         .dashboard-container {
             max-width: 100%;
             padding: 0;
             margin: 0 auto;
         }
-        
+
         .page-header {
-            text-align: center;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 3rem;
+            flex-wrap: wrap;
+            gap: 1rem;
         }
-        
+
+        .page-title-container {
+            flex: 1;
+            min-width: 300px;
+        }
+
         .page-subtitle {
             font-size: 1.125rem;
             color: var(--theme-text-muted);
-            margin-bottom: 2rem;
+            margin-bottom: 1rem;
         }
-        
+
         .global-actions {
             display: flex;
-            gap: 1rem;
-            justify-content: center;
+            gap: 0.5rem;
             flex-wrap: wrap;
-            margin-bottom: 2rem;
+            justify-content: flex-end;
         }
-        
+
         .btn {
-            padding: 10px 20px;
-            border-radius: 10px;
+            padding: 8px 16px;
+            border-radius: 8px;
             border: 0;
             cursor: pointer;
             font-weight: 600;
             transition: all 0.2s;
             text-decoration: none;
             display: inline-block;
+            font-size: 0.9rem;
         }
 
         .btn.primary {
@@ -89,11 +99,11 @@
         .btn.secondary:hover {
             background: var(--theme-muted);
         }
-        
+
         .tab-container {
             margin-bottom: 2rem;
         }
-        
+
         .tab-buttons {
             display: flex;
             gap: 1rem;
@@ -101,7 +111,7 @@
             margin-bottom: 2rem;
             flex-wrap: wrap;
         }
-        
+
         .tab-btn {
             padding: 0.75rem 1.5rem;
             border: 1px solid var(--theme-border);
@@ -112,32 +122,32 @@
             transition: all 0.2s ease;
             font-weight: 500;
         }
-        
+
         .tab-btn.active {
             background: var(--brand-primary);
             color: white;
             border-color: var(--brand-primary);
         }
-        
+
         .tab-btn:hover:not(.active) {
             background: var(--theme-muted);
         }
-        
+
         .tab-content {
             display: none;
         }
-        
+
         .tab-content.active {
             display: block;
         }
-        
+
         .overview-stats {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 1rem;
             margin-bottom: 2rem;
         }
-        
+
         .stat-card {
             background: var(--theme-surface);
             border: 1px solid var(--theme-border);
@@ -145,19 +155,19 @@
             padding: 1.5rem;
             text-align: center;
         }
-        
+
         .stat-value {
             font-size: 2rem;
             font-weight: 700;
             color: var(--brand-primary);
         }
-        
+
         .stat-label {
             color: var(--theme-text-muted);
             font-size: 0.9rem;
             margin-top: 0.5rem;
         }
-        
+
         .ml-card {
             background: var(--theme-surface);
             border: 1px solid var(--theme-border);
@@ -167,20 +177,20 @@
             transition: all var(--transition-normal);
             box-shadow: var(--shadow-sm);
         }
-        
+
         .ml-card:hover {
             border-color: var(--brand-primary);
             transform: translateY(-2px);
             box-shadow: var(--shadow-lg);
         }
-        
+
         .ml-cards-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-            gap: 1.5rem;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.2rem;
             margin: 2rem 0;
         }
-        
+
         .card-header {
             display: flex;
             align-items: center;
@@ -189,7 +199,7 @@
             padding-bottom: 1rem;
             border-bottom: 1px solid var(--theme-border);
         }
-        
+
         .card-title {
             display: flex;
             align-items: center;
@@ -198,7 +208,7 @@
             font-weight: 600;
             color: var(--theme-text);
         }
-        
+
         .card-icon {
             font-size: 1.3rem;
             width: 35px;
@@ -210,11 +220,11 @@
             background: var(--brand-primary);
             color: white;
         }
-        
+
         .card-content {
             margin: 1rem 0;
         }
-        
+
         .card-actions {
             display: flex;
             gap: 0.5rem;
@@ -222,7 +232,7 @@
             justify-content: center;
             margin-top: 1.5rem;
         }
-        
+
         .status-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -243,7 +253,7 @@
                 gap: 0.5rem;
             }
         }
-        
+
         .status-item {
             background: var(--theme-surface-elevated);
             border: 1px solid var(--theme-border);
@@ -252,11 +262,11 @@
             text-align: center;
             transition: all var(--transition-normal);
         }
-        
+
         .status-item:hover {
             border-color: var(--brand-primary);
         }
-        
+
         .status-label {
             display: block;
             color: var(--theme-text);
@@ -264,14 +274,14 @@
             font-weight: 500;
             margin-bottom: 0.5rem;
         }
-        
+
         .status-value {
             display: block;
             color: var(--brand-primary);
             font-size: 1.1rem;
             font-weight: 600;
         }
-        
+
         .results-display {
             background: var(--theme-surface);
             border: 1px solid var(--theme-border);
@@ -281,16 +291,16 @@
             display: none;
             color: var(--theme-text);
         }
-        
+
         .results-display.show {
             display: block;
         }
-        
+
         .results-display h4 {
             color: var(--theme-text);
             margin-bottom: 1rem;
         }
-        
+
         .results-display pre {
             background: var(--theme-muted);
             color: var(--theme-text);
@@ -300,14 +310,16 @@
             font-size: 0.9rem;
             border: 1px solid var(--theme-border);
         }
-        
+
         @media (max-width: 768px) {
-            .dashboard-container { padding: 0; }
-            
+            .dashboard-container {
+                padding: 0;
+            }
+
             .tab-buttons {
                 justify-content: stretch;
             }
-            
+
             .tab-btn {
                 flex: 1;
                 text-align: center;
@@ -320,37 +332,47 @@
     <div class="wrap">
         <h1>🧠 Dashboard IA</h1>
     </div>
-    
+
     <main class="wrap">
         <div class="dashboard-container">
             <!-- En-tête -->
             <div class="page-header card">
-                <p class="page-subtitle">
-                    Gestion centralisée des modèles ML et prédictions crypto
-                </p>
-                
+                <div class="page-title-container">
+                    <p class="page-subtitle">
+                        Gestion centralisée des modèles ML et prédictions crypto
+                    </p>
+                </div>
+
                 <!-- Actions globales -->
                 <div class="global-actions">
                     <button id="refresh-all" class="btn primary">🔄 Actualiser Tout</button>
-                    <button id="export-data" class="btn secondary">💾 Exporter Données</button>
+                    <button id="export-data" class="btn secondary">💾 Exporter</button>
                 </div>
             </div>
 
             <!-- Statistiques globales -->
             <div class="overview-stats">
-                <div class="stat-card" data-tooltip="Nombre de modèles ML actuellement chargés et prêts à faire des prédictions." data-source="Cache mémoire + modèles PyTorch">
+                <div class="stat-card"
+                    data-tooltip="Nombre de modèles ML actuellement chargés et prêts à faire des prédictions."
+                    data-source="Cache mémoire + modèles PyTorch">
                     <div class="stat-value" id="active-models">4</div>
                     <div class="stat-label">Modèles Actifs</div>
                 </div>
-                <div class="stat-card" data-tooltip="Total des prédictions générées par tous les modèles ML aujourd'hui." data-source="Compteurs internes ML pipeline">
+                <div class="stat-card"
+                    data-tooltip="Total des prédictions générées par tous les modèles ML aujourd'hui."
+                    data-source="Compteurs internes ML pipeline">
                     <div class="stat-value" id="total-predictions">847</div>
                     <div class="stat-label">Prédictions Aujourd'hui</div>
                 </div>
-                <div class="stat-card" data-tooltip="Précision moyenne calculée sur les dernières prédictions validées par rapport aux prix réels." data-source="Validation historique + métriques backtest">
+                <div class="stat-card"
+                    data-tooltip="Précision moyenne calculée sur les dernières prédictions validées par rapport aux prix réels."
+                    data-source="Validation historique + métriques backtest">
                     <div class="stat-value" id="accuracy-rate">78.5%</div>
                     <div class="stat-label">Précision Moyenne</div>
                 </div>
-                <div class="stat-card" data-tooltip="Horodatage de la dernière mise à jour des données de marché utilisées par les modèles." data-source="API /ml/last-update">
+                <div class="stat-card"
+                    data-tooltip="Horodatage de la dernière mise à jour des données de marché utilisées par les modèles."
+                    data-source="API /ml/last-update">
                     <div class="stat-value" id="last-update">--</div>
                     <div class="stat-label">Dernière MAJ</div>
                 </div>
@@ -384,7 +406,9 @@
                 <!-- Prédictions -->
                 <div id="predictions-tab" class="tab-content">
                     <div class="ml-cards-grid">
-                        <div class="ml-card" data-tooltip="Prédictions en temps réel générées par les modèles ML : volatilité BTC/ETH, régimes de marché et indices de sentiment." data-source="Modèles PyTorch + données CoinGecko/FRED">
+                        <div class="ml-card"
+                            data-tooltip="Prédictions en temps réel générées par les modèles ML : volatilité BTC/ETH, régimes de marché et indices de sentiment."
+                            data-source="Modèles PyTorch + données CoinGecko/FRED">
                             <div class="card-header">
                                 <div class="card-title">
                                     <span class="card-icon">🔮</span>
@@ -521,9 +545,11 @@
                             </div>
                         </div>
                         <div class="card-content">
-                            <div id="admin-log-content" style="background: var(--theme-bg); border-radius: 8px; padding: 1rem; font-family: 'Courier New', monospace; font-size: 0.9rem; max-height: 300px; overflow-y: auto; border: 1px solid var(--theme-border);">
+                            <div id="admin-log-content"
+                                style="background: var(--theme-bg); border-radius: 8px; padding: 1rem; font-family: 'Courier New', monospace; font-size: 0.9rem; max-height: 300px; overflow-y: auto; border: 1px solid var(--theme-border);">
                                 <div class="log-entry">
-                                    <span style="color: var(--brand-primary); font-size: 0.8rem;">[--:--:--]</span> Pipeline ML prêt à démarrer
+                                    <span style="color: var(--brand-primary); font-size: 0.8rem;">[--:--:--]</span>
+                                    Pipeline ML prêt à démarrer
                                 </div>
                             </div>
                         </div>
@@ -545,32 +571,32 @@
         document.addEventListener('DOMContentLoaded', async () => {
             try {
                 console.log('🚀 Initialisation du Dashboard AI...');
-                
+
                 // Initialiser le gestionnaire de cartes
                 initializeCardManager();
-                
+
                 // Créer les cartes pour la vue d'ensemble
                 createOverviewCards();
-                
+
                 // Charger le statut initial
                 await refreshAllStatus();
-                
+
                 // Configuration des boutons d'action
                 setupActionButtons();
-                
+
                 // Configuration des onglets
                 setupTabs();
-                
+
                 // Auto-initialiser le système ML
                 console.log('⚡ Auto-initialisation du système ML...');
                 await initializeMLSystem();
-                
+
                 // Charger les prédictions
                 refreshPredictions();
-                
+
                 console.log('✅ Dashboard AI Unifié initialisé avec succès');
                 showSuccess('🧠 Dashboard AI prêt');
-                
+
             } catch (error) {
                 console.error('Erreur d\'initialisation:', error);
                 showError('Erreur lors de l\'initialisation du dashboard: ' + error.message);
@@ -591,16 +617,16 @@
         // Créer les cartes pour la vue d'ensemble avec vraies données ML
         async function createOverviewCards() {
             if (!cardManager) return;
-            
+
             try {
                 console.log('🔄 Chargement des vraies données ML pour les cartes...');
                 const config = await fetchUserConfig();
-                
+
                 let volatilityStatus = 'Prêt', volatilityMetric = '82.3%', volatilitySource = 'Non chargé';
                 let regimeStatus = 'Simulé', regimeMetric = 'Bull', regimeSource = '75% confiance';
                 let correlationStatus = 'Simulé', correlationMetric = '15 Assets', correlationSource = 'Pearson';
                 let sentimentStatus = 'F&G Index', sentimentMetric = '68/100', sentimentSource = 'Greed';
-                
+
                 // 1. Statut modèles volatilité via API réelle
                 try {
                     const volStatusResponse = await fetch(`${config.api_base_url}/api/ml/status`);
@@ -623,14 +649,14 @@
                 } catch (e) {
                     console.warn('⚠️ API volatilité non disponible');
                 }
-                
+
                 // 2. Statut régime via API réelle optimisée
                 try {
                     const cacheStatsResponse = await fetch(`${config.api_base_url}/api/ml/cache/stats`);
                     if (cacheStatsResponse.ok) {
                         const cacheData = await cacheStatsResponse.json();
                         const regimeLoadingStatus = cacheData.cache_stats?.loading_status?.regime;
-                        
+
                         if (regimeLoadingStatus === 'loaded') {
                             regimeStatus = 'Chargé';
                             regimeSource = '78% précision (chargé en mémoire)';
@@ -642,7 +668,7 @@
                             regimeSource = 'Modèle entraîné, pas encore chargé';
                         }
                     }
-                    
+
                     // Obtenir le régime actuel via endpoint predict
                     const currentRegimeResponse = await fetch(`${config.api_base_url}/api/ml/predict`, {
                         method: 'POST',
@@ -659,7 +685,7 @@
                 } catch (e) {
                     console.warn('⚠️ API régime non disponible');
                 }
-                
+
                 // 3. Statut corrélations via API réelle
                 try {
                     const correlationResponse = await fetch(`${config.api_base_url}/api/risk/correlation?source=${config.data_source}`);
@@ -681,7 +707,7 @@
                 } catch (e) {
                     console.warn('⚠️ API corrélations non disponible');
                 }
-                
+
                 // 4. Statut sentiment multi-sources via API réelle
                 let sentimentSources = [];
                 try {
@@ -691,7 +717,7 @@
                         if (sentimentData.success && sentimentData.aggregated_sentiment) {
                             sentimentSources = sentimentData.sources_used || [];
                             sentimentStatus = sentimentSources.length > 1 ? `Multi-sources (${sentimentSources.length})` : 'Temps réel';
-                            
+
                             // Extraire Fear & Greed depuis les sources
                             const fearGreedSource = sentimentData.aggregated_sentiment.source_breakdown?.fear_greed;
                             if (fearGreedSource) {
@@ -726,7 +752,7 @@
                         console.warn('⚠️ API sentiment fallback non disponible');
                     }
                 }
-                
+
                 // 5. Créer les cartes avec vraies données
                 const cards = [
                     createMLCard('📊', 'Modèle de Volatilité', volatilityStatus, volatilityMetric, volatilitySource),
@@ -734,14 +760,14 @@
                     createMLCard('🔗', 'Corrélations', correlationStatus, correlationMetric, correlationSource),
                     createMLCard('😊', 'Sentiment', sentimentStatus, sentimentMetric, sentimentSource)
                 ];
-                
+
                 cards.forEach(card => {
                     cardManager.container.appendChild(card);
                     cardManager.cards.push(card);
                 });
-                
+
                 console.log('✅ Cartes ML créées avec vraies données');
-                
+
             } catch (error) {
                 console.error('❌ Erreur création cartes ML avec vraies données:', error);
                 // Fallback intelligent
@@ -751,14 +777,14 @@
                     createMLCard('🔗', 'Corrélations', 'Calcul', '10 Assets', 'Rolling 30j'),
                     createMLCard('😊', 'Sentiment', 'Externe', '52/100', 'Neutral')
                 ];
-                
+
                 fallbackCards.forEach(card => {
                     cardManager.container.appendChild(card);
                     cardManager.cards.push(card);
                 });
             }
         }
-        
+
         // Créer une carte ML avec plus d'informations
         function createMLCard(icon, title, status, metric, source) {
             const card = document.createElement('div');
@@ -821,7 +847,7 @@
         async function refreshAllStatus() {
             try {
                 console.log('🔄 Actualisation des statuts...');
-                
+
                 // Simuler le chargement des statuts
                 globalStatus = {
                     volatility: { active: true, accuracy: 0.82 },
@@ -829,13 +855,13 @@
                     correlation: { active: true, assets: 15 },
                     sentiment: { active: true, score: 68 }
                 };
-                
+
                 // Mettre à jour les statistiques globales
                 await updateGlobalStats();
-                
+
                 // Mettre à jour l'heure
                 document.getElementById('last-update').textContent = new Date().toLocaleTimeString('fr-FR');
-                
+
                 console.log('✅ Statuts actualisés');
             } catch (error) {
                 console.error('Erreur de chargement des statuts:', error);
@@ -848,12 +874,12 @@
             try {
                 console.log('🔄 Chargement des vraies données ML...');
                 const config = await fetchUserConfig();
-                
+
                 // 1. Obtenir le statut des modèles ML unifiés
                 const mlStatusResponse = await fetch(`${config.api_base_url}/api/ml/status`);
                 let mlStatus = {};
                 let activeModels = 0;
-                
+
                 if (mlStatusResponse.ok) {
                     mlStatus = await mlStatusResponse.json();
                     // Utiliser la structure correcte: pipeline_status.loaded_models_count
@@ -862,7 +888,7 @@
                 } else {
                     console.warn('⚠️ Endpoint ML unifié non disponible, utilisation fallback');
                 }
-                
+
                 // 2. Obtenir les prédictions unifiées récentes
                 const predictionsResponse = await fetch(`${config.api_base_url}/api/ml/predict`, {
                     method: 'POST',
@@ -871,7 +897,7 @@
                 });
                 let totalPredictions = 0;
                 let avgAccuracy = 0;
-                
+
                 if (predictionsResponse.ok) {
                     const predictions = await predictionsResponse.json();
                     if (predictions.success && predictions.predictions) {
@@ -885,7 +911,7 @@
                     }
                     console.log('✅ Prédictions unifiées chargées:', totalPredictions, 'prédictions');
                 }
-                
+
                 // 3. Si pas de données ML, essayer les endpoints individuels
                 if (totalPredictions === 0) {
                     try {
@@ -897,7 +923,7 @@
                                 totalPredictions = Object.keys(volStatus.loaded_models).length * 3;
                             }
                         }
-                        
+
                         const regimeResponse = await fetch(`${config.api_base_url}/api/ml/status`);
                         if (regimeResponse.ok) {
                             const regimeStatus = await regimeResponse.json();
@@ -911,7 +937,7 @@
                         console.warn('⚠️ Endpoints individuels non disponibles');
                     }
                 }
-                
+
                 // 4. Fallback vers données stables si aucune API ne fonctionne
                 if (activeModels === 0) {
                     console.warn('⚠️ Aucune donnée ML réelle, utilisation fallback stable');
@@ -921,14 +947,14 @@
                     totalPredictions = 35 + (dayOfYear % 25); // Entre 35-60, stable par jour
                     avgAccuracy = 78.5 + (dayOfYear % 7); // Entre 78.5-85.5%, stable par jour
                 }
-                
+
                 // 5. Mettre à jour l'affichage avec vraies données
                 document.getElementById('active-models').textContent = activeModels;
                 document.getElementById('total-predictions').textContent = totalPredictions;
                 document.getElementById('accuracy-rate').textContent = avgAccuracy.toFixed(1) + '%';
-                
+
                 console.log(`✅ Stats ML mises à jour: ${activeModels} modèles, ${totalPredictions} prédictions, ${avgAccuracy.toFixed(1)}% précision`);
-                
+
             } catch (error) {
                 console.error('❌ Erreur lors du chargement des vraies données ML:', error);
                 // Fallback stable en cas d'erreur
@@ -938,7 +964,7 @@
                 document.getElementById('accuracy-rate').textContent = (78.5 + (dayOfYear % 7)).toFixed(1) + '%';
             }
         }
-        
+
         // Récupérer la configuration utilisateur
         function fetchUserConfig() {
             try {
@@ -954,26 +980,26 @@
                 return Promise.resolve({ data_source: 'stub', api_base_url: 'http://127.0.0.1:8000' });
             }
         }
-        
+
         // Récupérer données ML basées sur l'historique de prix
         async function fetchAPIData() {
             try {
                 const config = await fetchUserConfig();
-                
+
                 // Récupérer balances actuelles pour contextualiser
                 const balanceResponse = await fetch(`${config.api_base_url}/balances/current?source=${config.data_source}`);
                 const balanceData = await balanceResponse.json();
-                
+
                 // Récupérer métriques ML basées sur données historiques
                 const mlResponse = await fetch(`${config.api_base_url}/api/ml/portfolio-metrics`);
                 let mlData = {};
-                
+
                 try {
                     mlData = await mlResponse.json();
                 } catch (e) {
                     console.warn('Endpoint ML non disponible, utilisation de calculs basiques');
                 }
-                
+
                 if (balanceData.items) {
                     // Si on a des métriques ML réelles, les utiliser
                     if (mlData.total_predictions) {
@@ -982,35 +1008,35 @@
                             accuracy: mlData.average_accuracy || 78.5
                         };
                     }
-                    
+
                     // Sinon, calculer selon les assets disponibles
                     return {
                         predictions: balanceData.items.length * 12, // 12 prédictions par asset
                         accuracy: Math.min(95, 75 + (balanceData.items.length * 2))
                     };
                 }
-                
+
                 return { predictions: 0, accuracy: 0 };
             } catch (error) {
                 console.warn('Données API non disponibles:', error.message);
                 return { predictions: 0, accuracy: 0 };
             }
         }
-        
+
         // Récupérer données via CSV
         async function fetchCSVData() {
             try {
                 const config = await fetchUserConfig();
                 const balanceResponse = await fetch(`${config.api_base_url}/balances/current?source=cointracking`);
                 const balanceData = await balanceResponse.json();
-                
+
                 if (balanceData.items && balanceData.items.length > 0) {
                     return {
                         predictions: balanceData.items.length * 8,
                         accuracy: 82.5
                     };
                 }
-                
+
                 return { predictions: 0, accuracy: 0 };
             } catch (error) {
                 console.warn('Données CSV non disponibles:', error.message);
@@ -1026,50 +1052,50 @@
                 await refreshAllStatus();
                 showSuccess('✅ Actualisation terminée');
             });
-            
-            
+
+
             // Bouton Exporter Données
             document.getElementById('export-data').addEventListener('click', () => {
                 exportAllData();
             });
-            
+
             // Bouton Actualiser Prédictions
             document.getElementById('refresh-predictions').addEventListener('click', () => {
                 refreshPredictions();
                 showSuccess('🔮 Prédictions actualisées');
             });
-            
+
             // Bouton Exporter Prédictions
             document.getElementById('export-predictions').addEventListener('click', () => {
                 showSuccess('💾 Export des prédictions en cours...');
             });
 
             // === BOUTONS ONGLET ADMINISTRATION ===
-            
+
             // Actualiser Status Pipeline
             document.getElementById('admin-refresh-status')?.addEventListener('click', refreshPipelineStatus);
-            
+
             // Vider Mémoire
             document.getElementById('admin-clear-all')?.addEventListener('click', clearAllModels);
-            
+
             // Charger Modèles Volatilité
             document.getElementById('admin-load-volatility')?.addEventListener('click', loadVolatilityModels);
-            
+
             // Sélection Spécifique
             document.getElementById('admin-load-specific')?.addEventListener('click', loadSpecificSymbols);
-            
+
             // Charger Modèle Régime
             document.getElementById('admin-load-regime')?.addEventListener('click', loadRegimeModel);
-            
+
             // Détails Régime
             document.getElementById('admin-regime-status')?.addEventListener('click', getRegimeStatus);
-            
+
             // Performance
             document.getElementById('admin-performance')?.addEventListener('click', getPerformanceSummary);
-            
+
             // Vider Cache
             document.getElementById('admin-clear-cache')?.addEventListener('click', clearMLCache);
-            
+
             // Vider Logs
             document.getElementById('admin-clear-logs')?.addEventListener('click', clearAdminLogs);
         }
@@ -1079,20 +1105,20 @@
             try {
                 console.log('🔄 Démarrage initialisation ML...');
                 showSuccess('⚡ Initialisation du système ML en cours...');
-                
+
                 // Simuler une initialisation
                 await new Promise(resolve => setTimeout(resolve, 2000));
-                
+
                 console.log('⏰ Délai d\'initialisation terminé');
-                
+
                 // Remplir l'onglet Modèles
                 const modelsContainer = document.getElementById('models-detailed');
                 console.log('📦 Container trouvé:', modelsContainer);
-                
+
                 if (modelsContainer) {
                     modelsContainer.innerHTML = '';
                     console.log('🧹 Container vidé');
-                    
+
                     try {
                         const detailedCards = [
                             createDetailedCard('📊', 'Modèle de Volatilité - Détails', 'LSTM', 'Actif', '82.3%'),
@@ -1101,25 +1127,25 @@
                             createDetailedCard('😊', 'Analyse Sentiment - Détails', 'F&G Index', '68/100', 'Greed')
                         ];
                         console.log('🃏 Cartes créées:', detailedCards.length);
-                        
+
                         detailedCards.forEach((card, index) => {
                             console.log(`➕ Ajout carte ${index + 1}:`, card);
                             modelsContainer.appendChild(card);
                         });
-                        
+
                         console.log('✅ Toutes les cartes ajoutées');
                         showSuccess('✅ Système ML initialisé - Consultez l\'onglet "Modèles"');
-                        
+
                     } catch (cardError) {
                         console.error('❌ Erreur lors de la création des cartes:', cardError);
                         showError('❌ Erreur lors de la création des cartes de modèles: ' + cardError.message);
                     }
-                    
+
                 } else {
                     console.error('❌ Container modèles-detailed introuvable dans le DOM');
                     showError('❌ Container modèles introuvable (ID: models-detailed)');
                 }
-                
+
             } catch (error) {
                 console.error('❌ Erreur générale d\'initialisation:', error);
                 showError('❌ Erreur lors de l\'initialisation du système ML: ' + error.message);
@@ -1169,9 +1195,9 @@
             try {
                 console.log('🔄 Chargement des vraies prédictions ML...');
                 const config = await fetchUserConfig();
-                
+
                 let btcVol, ethVol, marketRegime, fearGreed, regimeConfidence;
-                
+
                 // 1. Obtenir prédictions volatilité via endpoint unifié (plus fiable)
                 try {
                     const unifiedPredResponse = await fetch(`${config.api_base_url}/api/ml/predict`, {
@@ -1198,7 +1224,7 @@
                 } catch (e) {
                     console.warn('⚠️ Endpoint prédictions unifiées non disponible');
                 }
-                
+
                 // 2. Fallback vers endpoints individuels si unified ne fonctionne pas
                 if (!btcVol) {
                     try {
@@ -1212,7 +1238,7 @@
                         console.warn('⚠️ Endpoint volatilité BTC direct non disponible');
                     }
                 }
-                
+
                 if (!ethVol) {
                     try {
                         const ethVolResponse = await fetch(`${config.api_base_url}/api/ml/volatility/predict/ETH`);
@@ -1225,7 +1251,7 @@
                         console.warn('⚠️ Endpoint volatilité ETH direct non disponible');
                     }
                 }
-                
+
                 // 3. Obtenir régime de marché actuel
                 try {
                     const regimeResponse = await fetch(`${config.api_base_url}/api/ml/predict`, {
@@ -1244,7 +1270,7 @@
                 } catch (e) {
                     console.warn('⚠️ Endpoint régime non disponible');
                 }
-                
+
                 // 4. Obtenir données de sentiment multi-sources
                 let sentimentSources = [];
                 try {
@@ -1281,11 +1307,11 @@
                         console.warn('⚠️ Endpoint Fear & Greed fallback non disponible');
                     }
                 }
-                
+
                 // 5. Fallback vers calculs stables si APIs non disponibles
                 const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
                 const hourOfDay = new Date().getHours();
-                
+
                 if (!btcVol) {
                     btcVol = 0.070 + ((dayOfYear % 20) / 1000); // 7.0-9.0%, stable par jour
                 }
@@ -1300,7 +1326,7 @@
                 if (!fearGreed) {
                     fearGreed = 45 + (dayOfYear % 30); // 45-75, stable par jour
                 }
-                
+
                 // 6. Mettre à jour l'affichage avec vraies données
                 document.getElementById('live-predictions').innerHTML = `
                     <div class="status-grid">
@@ -1326,9 +1352,9 @@
                         </div>
                     </div>
                 `;
-                
+
                 console.log('✅ Prédictions ML mises à jour avec succès');
-                
+
             } catch (error) {
                 console.error('❌ Erreur lors du chargement des vraies prédictions ML:', error);
                 // Fallback stable
@@ -1338,7 +1364,7 @@
                 const regimes = ['Bull', 'Sideways', 'Distribution'];
                 const marketRegime = regimes[dayOfYear % regimes.length];
                 const fearGreed = 45 + (dayOfYear % 30);
-                
+
                 document.getElementById('live-predictions').innerHTML = `
                     <div class="status-grid">
                         <div class="status-item">
@@ -1366,12 +1392,12 @@
         async function fetchPredictionsFromAPI() {
             try {
                 const config = await fetchUserConfig();
-                
+
                 // Essayer d'abord les vrais endpoints ML
                 try {
                     const predictionsResponse = await fetch(`${config.api_base_url}/api/ml/predictions/live`);
                     const predictionsData = await predictionsResponse.json();
-                    
+
                     if (predictionsData.btc_volatility !== undefined) {
                         return {
                             btc_volatility: predictionsData.btc_volatility,
@@ -1383,26 +1409,26 @@
                 } catch (e) {
                     console.warn('Endpoints ML prédictions non disponibles, calcul basique');
                 }
-                
+
                 // Fallback : calculer à partir des données historiques disponibles
                 const historicalResponse = await fetch(`${config.api_base_url}/analytics/historical-volatility`);
                 let historicalData = {};
-                
+
                 try {
                     historicalData = await historicalResponse.json();
                 } catch (e) {
                     console.warn('Données historiques non disponibles');
                 }
-                
+
                 // Récupérer balances pour contextualiser
                 const balanceResponse = await fetch(`${config.api_base_url}/balances/current?source=${config.data_source}`);
                 const balanceData = await balanceResponse.json();
-                
+
                 if (balanceData.items && balanceData.items.length > 0) {
                     const totalValue = balanceData.items.reduce((sum, item) => sum + (item.value_usd || 0), 0);
                     const btcBalance = balanceData.items.find(item => item.symbol === 'BTC');
                     const ethBalance = balanceData.items.find(item => item.symbol === 'ETH');
-                    
+
                     return {
                         // Utiliser volatilité historique si disponible, sinon calculer
                         btc_volatility: historicalData.btc_volatility || (btcBalance ? 0.05 + (totalValue / 200000) : 0.075),
@@ -1411,61 +1437,61 @@
                         fear_greed: historicalData.fear_greed || Math.min(100, 40 + (balanceData.items.length * 3))
                     };
                 }
-                
+
                 return {};
             } catch (error) {
                 console.warn('Prédictions API non disponibles:', error.message);
                 return {};
             }
         }
-        
+
         // Récupérer prédictions basées sur CSV + données historiques
         async function fetchPredictionsFromCSV() {
             try {
                 const config = await fetchUserConfig();
-                
+
                 // Récupérer analyses basées sur les fichiers CSV existants
                 const csvAnalysisResponse = await fetch(`${config.api_base_url}/analytics/csv-based-predictions`);
                 let csvAnalysis = {};
-                
+
                 try {
                     csvAnalysis = await csvAnalysisResponse.json();
                 } catch (e) {
                     console.warn('Endpoint CSV analysis non disponible');
                 }
-                
+
                 // Récupérer données historiques pour contextualiser
                 const historicalResponse = await fetch(`${config.api_base_url}/analytics/historical-volatility`);
                 let historicalData = {};
-                
+
                 try {
                     historicalData = await historicalResponse.json();
                 } catch (e) {
                     console.warn('Données historiques non disponibles pour CSV');
                 }
-                
+
                 // Récupérer balances actuelles depuis CSV
                 const balanceResponse = await fetch(`${config.api_base_url}/balances/current?source=cointracking`);
                 const balanceData = await balanceResponse.json();
-                
+
                 if (balanceData.items && balanceData.items.length > 0) {
                     const totalValue = balanceData.items.reduce((sum, item) => sum + (item.value_usd || 0), 0);
                     const btcBalance = balanceData.items.find(item => item.symbol === 'BTC');
                     const ethBalance = balanceData.items.find(item => item.symbol === 'ETH');
-                    
+
                     return {
                         // Priorité: Analysis CSV → Données historiques → Calcul basique
-                        btc_volatility: csvAnalysis.btc_volatility || historicalData.btc_volatility || 
-                                       (btcBalance ? 0.065 + (btcBalance.balance * 0.001) : 0.075),
-                        eth_volatility: csvAnalysis.eth_volatility || historicalData.eth_volatility || 
-                                       (ethBalance ? 0.085 + (ethBalance.balance * 0.002) : 0.089),
+                        btc_volatility: csvAnalysis.btc_volatility || historicalData.btc_volatility ||
+                            (btcBalance ? 0.065 + (btcBalance.balance * 0.001) : 0.075),
+                        eth_volatility: csvAnalysis.eth_volatility || historicalData.eth_volatility ||
+                            (ethBalance ? 0.085 + (ethBalance.balance * 0.002) : 0.089),
                         market_regime: csvAnalysis.market_regime || historicalData.market_regime ||
-                                      (balanceData.items.length > 10 ? 'Bull' : 'Sideways'),
+                            (balanceData.items.length > 10 ? 'Bull' : 'Sideways'),
                         fear_greed: csvAnalysis.fear_greed || historicalData.fear_greed ||
-                                   Math.min(100, Math.max(20, totalValue / 1000))
+                            Math.min(100, Math.max(20, totalValue / 1000))
                     };
                 }
-                
+
                 return {};
             } catch (error) {
                 console.warn('Prédictions CSV non disponibles:', error.message);
@@ -1482,7 +1508,7 @@
                     output: 'Prédiction volatilité à 24h',
                     accuracy: '82.3%',
                     training_data: '2 ans de données historiques',
-                    last_retrain: new Date(Date.now() - 7*24*60*60*1000).toLocaleDateString('fr-FR'),
+                    last_retrain: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toLocaleDateString('fr-FR'),
                     file_location: 'models/volatility/*_volatility_best.pth'
                 },
                 'HMM': {
@@ -1491,7 +1517,7 @@
                     output: 'Régime de marché (Bull/Bear/Sideways)',
                     accuracy: '75%',
                     training_data: '18 mois données multi-timeframes',
-                    last_retrain: new Date(Date.now() - 3*24*60*60*1000).toLocaleDateString('fr-FR'),
+                    last_retrain: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toLocaleDateString('fr-FR'),
                     file_location: 'models/regime/regime_neural_best.pth'
                 },
                 'Pearson': {
@@ -1515,7 +1541,7 @@
             };
 
             const details = modelDetails[modelType] || modelDetails['LSTM'];
-            
+
             const popup = document.createElement('div');
             popup.style.cssText = `
                 position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -1523,7 +1549,7 @@
                 border-radius: var(--radius-lg); padding: 2rem; max-width: 600px; width: 90vw;
                 box-shadow: var(--shadow-xl); z-index: 10000; max-height: 80vh; overflow-y: auto;
             `;
-            
+
             popup.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
                     <h3 style="color: var(--brand-primary); margin: 0;">${title} - Détails Techniques</h3>
@@ -1546,7 +1572,7 @@
                             class="btn primary">Fermer</button>
                 </div>
             `;
-            
+
             document.body.appendChild(popup);
         }
 
@@ -1562,7 +1588,7 @@
                     accuracy_rate: document.getElementById('accuracy-rate').textContent
                 }
             };
-            
+
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -1578,12 +1604,12 @@
             console.log('✅', message);
             showNotification(message, 'success');
         }
-        
+
         function showError(message) {
             console.error('❌', message);
             showNotification(message, 'error');
         }
-        
+
         function showNotification(message, type = 'info') {
             const notification = document.createElement('div');
             notification.textContent = message;
@@ -1601,15 +1627,15 @@
         function setupTabs() {
             const tabButtons = document.querySelectorAll('.tab-btn');
             const tabContents = document.querySelectorAll('.tab-content');
-            
+
             tabButtons.forEach(btn => {
                 btn.addEventListener('click', () => {
                     const targetTab = btn.getAttribute('data-tab');
-                    
+
                     // Désactiver tous les onglets
                     tabButtons.forEach(b => b.classList.remove('active'));
                     tabContents.forEach(c => c.classList.remove('active'));
-                    
+
                     // Activer l'onglet sélectionné
                     btn.classList.add('active');
                     document.getElementById(`${targetTab}-tab`).classList.add('active');
@@ -1618,36 +1644,36 @@
         }
 
         // ========== FONCTIONS ONGLET ADMINISTRATION ==========
-        
+
         const PIPELINE_API_BASE = 'http://localhost:8000/api/ml';
-        
+
         // Système de logs pour l'administration
         function addAdminLog(message, type = 'info') {
             const logContent = document.getElementById('admin-log-content');
             if (!logContent) return;
-            
+
             const timestamp = new Date().toLocaleTimeString();
             const logEntry = document.createElement('div');
             logEntry.className = 'log-entry';
             logEntry.innerHTML = `<span style="color: var(--brand-primary); font-size: 0.8rem;">[${timestamp}]</span> ${message}`;
-            
+
             logContent.appendChild(logEntry);
             logContent.scrollTop = logContent.scrollHeight;
-            
+
             // Limiter à 50 entrées
             const entries = logContent.querySelectorAll('.log-entry');
             if (entries.length > 50) {
                 entries[0].remove();
             }
         }
-        
+
         function clearAdminLogs() {
             const logContent = document.getElementById('admin-log-content');
             if (logContent) {
                 logContent.innerHTML = '<div class="log-entry"><span style="color: var(--brand-primary); font-size: 0.8rem;">[--:--:--]</span> Logs vidés</div>';
             }
         }
-        
+
         // Appels API Pipeline
         async function pipelineApiCall(endpoint, options = {}) {
             try {
@@ -1658,58 +1684,58 @@
                     },
                     ...options
                 });
-                
+
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
-                
+
                 return await response.json();
             } catch (error) {
                 addAdminLog(`❌ Erreur API ${endpoint}: ${error.message}`, 'error');
                 throw error;
             }
         }
-        
+
         // Actualiser le statut du pipeline
         async function refreshPipelineStatus() {
             addAdminLog('🔄 Actualisation du statut pipeline...');
-            
+
             try {
                 // Utiliser les endpoints optimisés qui fonctionnent
                 const [debugInfo, cacheStats] = await Promise.all([
                     pipelineApiCall('/debug/pipeline-info'),
                     pipelineApiCall('/cache/stats')
                 ]);
-                
+
                 // Extraire les données des endpoints qui marchent
                 const debug = debugInfo.debug_info;
                 const cache = cacheStats.cache_stats;
-                
+
                 // Statut global basé sur les vraies données
                 const totalModels = debug.full_status_keys ? 37 : '-'; // Estimation basée sur la structure
                 const loadedModels = debug.cache_size || cache.cached_models || 0;
-                
+
                 document.getElementById('admin-total-models').textContent = totalModels;
                 document.getElementById('admin-loaded-models').textContent = loadedModels;
-                
+
                 // Volatilité basée sur le cache réel
                 const volLoadedCount = Object.keys(cache.loading_status || {})
                     .filter(key => key.startsWith('volatility_') && cache.loading_status[key] === 'loaded').length;
-                
+
                 document.getElementById('admin-vol-count').textContent = '11'; // Nombre connu de modèles volatilité
                 document.getElementById('admin-vol-loaded').textContent = volLoadedCount;
-                
+
                 // Régime basé sur le cache réel
                 const regimeLoaded = cache.loading_status && cache.loading_status.regime === 'loaded';
                 document.getElementById('admin-regime-available').textContent = 'Oui';
                 document.getElementById('admin-regime-loaded').textContent = regimeLoaded ? 'Oui' : 'Non';
-                
+
                 // Dernière mise à jour
                 document.getElementById('admin-last-update').textContent = new Date().toLocaleDateString();
-                
+
                 addAdminLog(`✅ Statut actualisé: ${loadedModels} modèles en mémoire`);
                 addAdminLog(`📊 Cache: ${volLoadedCount} volatilité + ${regimeLoaded ? '1' : '0'} régime`);
-                
+
             } catch (error) {
                 addAdminLog('❌ Erreur lors de l\'actualisation du statut pipeline');
                 // Fallback vers valeurs par défaut
@@ -1721,21 +1747,21 @@
                 document.getElementById('admin-regime-loaded').textContent = 'Non';
             }
         }
-        
+
         // Charger modèles de volatilité
         async function loadVolatilityModels() {
             const btn = event.target;
             const originalText = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = '⏳ Chargement...';
-            
+
             addAdminLog('⚡ Début du chargement des modèles de volatilité...');
-            
+
             try {
                 const result = await pipelineApiCall('/models/preload?symbols=BTC&symbols=ETH&symbols=SOL&symbols=AVAX&symbols=DOGE&symbols=LINK&symbols=ADA&symbols=LTC', {
                     method: 'POST'
                 });
-                
+
                 if (result.success) {
                     addAdminLog(`✅ ${result.loaded_models}/${result.total_requested} modèles chargés avec succès`);
                     if (result.preload_results) {
@@ -1747,9 +1773,9 @@
                 } else {
                     addAdminLog('⚠️ Chargement partiel ou échec');
                 }
-                
+
                 await refreshPipelineStatus();
-                
+
             } catch (error) {
                 addAdminLog('❌ Erreur lors du chargement des modèles de volatilité');
                 showError('Erreur lors du chargement des modèles de volatilité');
@@ -1758,21 +1784,21 @@
                 btn.innerHTML = originalText;
             }
         }
-        
+
         // Charger modèle de régime
         async function loadRegimeModel() {
             const btn = event.target;
             const originalText = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = '⏳ Chargement...';
-            
+
             addAdminLog('🎯 Chargement du modèle de détection de régime...');
-            
+
             try {
                 const result = await pipelineApiCall('/models/preload', {
                     method: 'POST'
                 });
-                
+
                 if (result.preload_results && result.preload_results.regime !== undefined) {
                     if (result.preload_results.regime) {
                         addAdminLog('✅ Modèle de régime chargé avec succès');
@@ -1783,7 +1809,7 @@
                     addAdminLog('✅ Preload exécuté (régime inclus par défaut)');
                 }
                 await refreshPipelineStatus();
-                
+
             } catch (error) {
                 addAdminLog('❌ Erreur lors du chargement du modèle de régime');
                 showError('Erreur lors du chargement du modèle de régime');
@@ -1792,22 +1818,22 @@
                 btn.innerHTML = originalText;
             }
         }
-        
+
         // Vider tous les modèles
         async function clearAllModels() {
             if (!confirm('Êtes-vous sûr de vouloir vider tous les modèles de la mémoire ?')) {
                 return;
             }
-            
+
             addAdminLog('🗑️ Vidage de tous les modèles de la mémoire...');
-            
+
             try {
                 const result = await pipelineApiCall('/memory/optimize', {
                     method: 'POST',
                     body: JSON.stringify({ force_clear_all: true }),
                     headers: { 'Content-Type': 'application/json' }
                 });
-                
+
                 if (result.success) {
                     addAdminLog(`✅ ${result.models_cleared || 0} modèles supprimés de la mémoire`);
                     addAdminLog(`💾 ${(result.memory_freed_mb || 0).toFixed(1)}MB de mémoire libérée`);
@@ -1816,76 +1842,76 @@
                 }
                 await refreshPipelineStatus();
                 showSuccess('Modèles supprimés de la mémoire');
-                
+
             } catch (error) {
                 addAdminLog('❌ Erreur lors du vidage des modèles');
                 showError('Erreur lors du vidage des modèles');
             }
         }
-        
+
         // Charger symboles spécifiques
         function loadSpecificSymbols() {
             const symbols = prompt('Entrez les symboles séparés par des virgules (ex: BTC,ETH,SOL):');
             if (!symbols) return;
-            
+
             const symbolList = symbols.split(',').map(s => s.trim().toUpperCase());
             addAdminLog(`🎯 Chargement des modèles pour: ${symbolList.join(', ')}`);
-            
+
             // TODO: Implémenter le chargement de symboles spécifiques
             addAdminLog('⚠️ Fonction en cours d\'implémentation');
             showSuccess('Fonction en cours d\'implémentation');
         }
-        
+
         // Obtenir détails du statut régime
         async function getRegimeStatus() {
             addAdminLog('📊 Récupération du statut détaillé du régime...');
-            
+
             try {
                 // TODO: Endpoint spécifique pour détails régime
                 addAdminLog('📊 Détails du modèle de régime disponibles dans l\'onglet vue d\'ensemble');
                 showSuccess('Consultez l\'onglet Vue d\'ensemble pour les détails du régime');
-                
+
             } catch (error) {
                 addAdminLog('❌ Erreur lors de la récupération du statut régime');
                 showError('Erreur lors de la récupération du statut régime');
             }
         }
-        
+
         // Obtenir résumé de performance
         async function getPerformanceSummary() {
             addAdminLog('📈 Récupération du résumé de performance...');
-            
+
             try {
                 const result = await pipelineApiCall('/cache/stats');
-                
+
                 if (result.success && result.cache_stats) {
                     const stats = result.cache_stats;
                     addAdminLog(`📊 Cache: ${stats.cached_models}/${stats.max_size} modèles (${stats.total_size_mb.toFixed(1)}MB)`);
                     addAdminLog(`📈 Performance: ${stats.cache_hits} hits, ${stats.cache_misses} misses`);
                     addAdminLog(`⚡ Temps moyen de chargement: ${(stats.average_load_time * 1000).toFixed(0)}ms`);
                     addAdminLog(`💾 Utilisation mémoire: ${stats.memory_usage_percent.toFixed(1)}%`);
-                    
+
                     // Mettre à jour affichage cache
                     document.getElementById('admin-cache-entries').textContent = stats.cached_models;
                 } else {
                     addAdminLog('⚠️ Statistiques de performance non disponibles');
                 }
-                
+
             } catch (error) {
                 addAdminLog('❌ Erreur lors de la récupération des performances');
                 showError('Erreur lors de la récupération des performances');
             }
         }
-        
+
         // Vider le cache ML
         async function clearMLCache() {
             addAdminLog('🧹 Vidage du cache ML...');
-            
+
             try {
                 const result = await pipelineApiCall('/memory/optimize', {
                     method: 'POST'
                 });
-                
+
                 if (result.success) {
                     addAdminLog(`✅ Cache optimisé: ${result.cache_cleared ? 'vidé' : 'optimisé'}`);
                     addAdminLog(`💾 Mémoire libérée: ${(result.memory_freed_mb || 0).toFixed(1)}MB`);
@@ -1894,24 +1920,24 @@
                 }
                 document.getElementById('admin-cache-entries').textContent = '0';
                 showSuccess('Cache ML optimisé');
-                
+
             } catch (error) {
                 addAdminLog('❌ Erreur lors du vidage du cache');
                 showError('Erreur lors du vidage du cache');
             }
         }
-        
+
         // Initialiser l'onglet Administration au changement d'onglet
         function initializeAdministrationTab() {
             addAdminLog('🚀 Onglet Administration initialisé');
             setTimeout(refreshPipelineStatus, 500);
         }
-        
+
         // Étendre la fonction setupTabs pour gérer l'onglet Administration
         const originalSetupTabs = setupTabs;
-        setupTabs = function() {
+        setupTabs = function () {
             originalSetupTabs();
-            
+
             // Ajouter listener spécial pour l'onglet Administration
             const adminTabButton = document.querySelector('[data-tab="administration"]');
             if (adminTabButton) {
@@ -1923,4 +1949,5 @@
         setInterval(refreshAllStatus, 30000);
     </script>
 </body>
+
 </html>

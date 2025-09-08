@@ -701,6 +701,14 @@
       setTimeout(() => {
         try {
           const metrics = calculatePrecisionMetrics();
+          // Persist overall precision for other modules (0..1)
+          try {
+            const prec = Math.max(0, Math.min(100, metrics.overallAccuracy || 0)) / 100;
+            localStorage.setItem('cycle_model_precision', String(prec.toFixed(3)));
+            addResult('💾 Précision Cycle Sauvegardée', `${(prec * 100).toFixed(1)}%`, 'good');
+          } catch (e) {
+            console.warn('Failed to persist cycle_model_precision:', e);
+          }
           createValidationChart();
           populateErrorTable();
           showIndicatorsSuggestions();
@@ -740,6 +748,14 @@
           // Recalculer les métriques après calibration
           const metrics = calculatePrecisionMetrics();
           addResult('📈 Nouvelle Précision', `${metrics.overallAccuracy.toFixed(1)}%`, 'good');
+          // Mettre à jour la précision persistée
+          try {
+            const prec = Math.max(0, Math.min(100, metrics.overallAccuracy || 0)) / 100;
+            localStorage.setItem('cycle_model_precision', String(prec.toFixed(3)));
+            addResult('💾 Précision Cycle Mise à Jour', `${(prec * 100).toFixed(1)}%`, 'good');
+          } catch (e) {
+            console.warn('Failed to persist cycle_model_precision after calibration:', e);
+          }
 
           // Recréer le graphique
           createValidationChart();

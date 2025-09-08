@@ -2,7 +2,100 @@
 // Displays sophisticated analysis from all modules
 import { getUnifiedState, deriveRecommendations } from '../core/unified-insights.js';
 
-const colorForScore = (s) => s > 70 ? 'var(--danger)' : s >= 40 ? 'var(--warning)' : 'var(--success)';
+// Lightweight fetch helper with timeout
+async function fetchJson(url, opts = {}) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), opts.timeout || 8000);
+  try {
+    const res = await fetch(url, { ...opts, signal: controller.signal });
+    clearTimeout(id);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (e) {
+    clearTimeout(id);
+    throw e;
+  }
+}
+
+// Simple in-memory cache for current allocation to avoid frequent API calls
+const _allocCache = { ts: 0, data: null };
+
+// Current allocation by group using taxonomy aliases
+async function getCurrentAllocationByGroup(minUsd = 1.0) {
+  try {
+    const now = Date.now();
+    if (_allocCache.data && (now - _allocCache.ts) < 60000) { // 60s TTL
+      return _allocCache.data;
+    }
+    const base = (window.globalConfig && (window.globalConfig.get?.('api_base_url') || window.globalConfig.get?.('base_url'))) || window.location.origin;
+    const apiBase = base.replace(/\/$/, '');
+    const [taxo, balances] = await Promise.all([
+      fetchJson(`${apiBase}/taxonomy`),
+      fetchJson(`${apiBase}/balances/current?min_usd=${encodeURIComponent(minUsd)}`)
+    ]);
+    const aliases = (taxo && taxo.aliases) || {};
+    const groups = (taxo && taxo.groups) || [];
+    const items = (balances && balances.items) || [];
+    const mapAlias = (sym) => aliases[(sym || '').toUpperCase()] || null;
+    const fallbackGroup = (sym) => {
+      const s = (sym || '').toUpperCase();
+      if (s === 'BTC' || s === 'WBTC' || s === 'TBTC') return 'BTC';
+      if (s === 'ETH' || s === 'WETH') return 'ETH';
+      if (s === 'SOL') return 'SOL';
+      if (['USDT','USDC','DAI','TUSD','FDUSD','BUSD'].includes(s)) return 'Stablecoins';
+      return 'Others';
+    };
+    const totals = {};
+    let grand = 0;
+    for (const r of items) {
+      const alias = r.alias || r.symbol;
+      const g = mapAlias(alias) || fallbackGroup(alias);
+      const v = Number(r.value_usd || 0);
+      if (v <= 0) continue;
+      totals[g] = (totals[g] || 0) + v;
+      grand += v;
+    }
+    // Ensure all groups present for consistency
+    groups.forEach(g => { if (!(g in totals)) totals[g] = 0; });
+    const pct = {};
+    if (grand > 0) {
+      Object.entries(totals).forEach(([g, v]) => { pct[g] = (v / grand) * 100; });
+    }
+    const result = { totals, pct, grand, groups };
+    _allocCache.data = result;
+    _allocCache.ts = now;
+    return result;
+  } catch (e) {
+    console.warn('Current allocation fetch failed:', e.message || e);
+    return null;
+  }
+}
+
+function applyCycleMultipliersToTargets(targets, multipliers) {
+  try {
+    if (!targets || !multipliers) return targets || {};
+    const adjusted = {};
+    let sum = 0;
+    for (const [k, v] of Object.entries(targets)) {
+      if (typeof v !== 'number') continue;
+      const m = typeof multipliers[k] === 'number' ? multipliers[k] : 1;
+      adjusted[k] = Math.max(0, v * m);
+      sum += adjusted[k];
+    }
+    if (sum > 0) {
+      Object.keys(adjusted).forEach(k => { adjusted[k] = adjusted[k] * (100 / sum); });
+    }
+    return adjusted;
+  } catch {
+    return targets || {};
+  }
+}
+
+// Color scales
+// - Positive scale: high = good (green)
+// - Risk scale: high = risky (red)
+const colorPositive = (s) => s > 70 ? 'var(--success)' : s >= 40 ? 'var(--warning)' : 'var(--danger)';
+const colorRisk = (s) => s > 70 ? 'var(--danger)' : s >= 40 ? 'var(--warning)' : 'var(--success)';
 
 function card(inner, opts = {}) {
   const { accentLeft = null, title = null } = opts;
@@ -35,9 +128,20 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
     <div style="display:flex; align-items:center; justify-content: space-between; gap:.75rem;">
       <div>
         <div style="font-size: .9rem; color: var(--theme-text-muted); font-weight:600;">Decision Index ${u.decision.confidence ? `(${Math.round(u.decision.confidence * 100)}%)` : ''}</div>
-        <div style="font-size: 2rem; font-weight: 800; color:${colorForScore(u.decision.score)};">${u.decision.score}/100</div>
+        <div style="font-size: 2rem; font-weight: 800; color:${colorPositive(u.decision.score)};">${u.decision.score}/100</div>
         <div style="font-size: .8rem; color: var(--theme-text-muted);">${u.cycle?.phase?.emoji || ''} ${u.regime?.name || u.cycle?.phase?.phase?.replace('_',' ').toUpperCase() || '—'}</div>
         ${u.decision.reasoning ? `<div style="font-size: .75rem; color: var(--theme-text-muted); margin-top: .25rem; max-width: 300px;">${u.decision.reasoning}</div>` : ''}
+        ${(() => {
+          // Action mode derived from confidence and contradictions
+          const conf = u.decision.confidence || 0;
+          const contra = (u.contradictions?.length) || 0;
+          let mode = 'Observe';
+          if (conf > 0.8 && contra === 0) mode = 'Deploy';
+          else if (conf > 0.65 && contra <= 1) mode = 'Rotate';
+          else if (conf > 0.55) mode = 'Hedge';
+          const bg = mode === 'Deploy' ? 'var(--success)' : mode === 'Rotate' ? 'var(--info)' : mode === 'Hedge' ? 'var(--warning)' : 'var(--theme-text-muted)';
+          return `<div style="margin-top:.35rem;"><span style="background:${bg}; color:white; padding:2px 6px; border-radius:4px; font-size:.7rem; font-weight:700;">Mode: ${mode}</span></div>`;
+        })()}
       </div>
       <div style="text-align:right; font-size:.8rem; color: var(--theme-text-muted);">
         <div>Backend: ${u.health.backend}</div>
@@ -49,7 +153,7 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
         <div style="margin-top: .25rem; font-size: .7rem;">Updated: ${u.health.lastUpdate ? new Date(u.health.lastUpdate).toLocaleString() : '—'}</div>
       </div>
     </div>
-  `, { accentLeft: colorForScore(u.decision.score) });
+  `, { accentLeft: colorPositive(u.decision.score) });
 
   // INTELLIGENT QUADRANT with sophisticated data
   const quad = `
@@ -58,21 +162,23 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
         <div style="font-weight:700; display: flex; align-items: center; gap: .5rem;">🔄 Cycle 
           ${u.cycle.confidence ? `<span style="background: var(--info); color: white; padding: 1px 4px; border-radius: 3px; font-size: .7rem;">${Math.round(u.cycle.confidence * 100)}%</span>` : ''}
         </div>
-        <div style="font-size:1.6rem; font-weight:800; color:${colorForScore(u.cycle.score)};">${u.cycle.score || '—'}</div>
+        <div style="font-size:1.6rem; font-weight:800; color:${colorRisk(u.cycle.score)};">${u.cycle.score || '—'}</div>
         <div style="font-size:.85rem; color: var(--theme-text-muted);">${u.cycle?.phase?.description || u.cycle?.phase?.phase?.replace('_',' ') || '—'}</div>
         <div style="font-size:.75rem; color: var(--theme-text-muted); margin-top: .25rem;">${u.cycle.months ? Math.round(u.cycle.months)+'m post-halving' : '—'}</div>
         ${u.regime?.strategy ? `<div style="font-size:.75rem; color: var(--theme-text); margin-top: .5rem; padding: .25rem; background: var(--theme-bg); border-radius: var(--radius-sm);">💡 ${u.regime.strategy}</div>` : ''}
       `)}
       ${card(`
-        <div style="font-weight:700;">🔗 On-Chain</div>
-        <div style="font-size:1.6rem; font-weight:800; color:${colorForScore(u.onchain.score ?? 50)};">${u.onchain.score ?? '—'}</div>
-        <div style="font-size:.85rem; color: var(--theme-text-muted);">Conf: ${(Math.round((u.onchain.confidence || 0) * 100))}% • Critiques: ${u.onchain.criticalCount}</div>
+        <div style="font-weight:700; display:flex; align-items:center; gap:.5rem;">🔗 On-Chain
+          ${Number.isFinite(u.onchain.confidence) ? `<span data-tooltip=\"Confiance du module en %\" title=\"Confiance du module en %\" style=\"background: var(--info); color: white; padding: 1px 4px; border-radius: 3px; font-size: .7rem;\">${Math.round((u.onchain.confidence || 0) * 100)}%</span>` : ''}
+        </div>
+        <div style="font-size:1.6rem; font-weight:800; color:${colorRisk(u.onchain.score ?? 50)};">${u.onchain.score ?? '—'}</div>
+        <div style="font-size:.85rem; color: var(--theme-text-muted);">Critiques: ${u.onchain.criticalCount}</div>
         ${u.onchain.drivers && u.onchain.drivers.length ? `<div style="margin-top:.5rem; font-size:.75rem; color: var(--theme-text-muted);">Top Drivers: ${u.onchain.drivers.slice(0,2).map(d => `${d.key} (${d.score})`).join(', ')}</div>` : ''}
         ${u.onchain.drivers && u.onchain.drivers.some(d => d.consensus) ? `<div style="font-size:.75rem; color: var(--theme-text-muted); margin-top: .25rem;">Consensus: ${u.onchain.drivers.filter(d => d.consensus?.consensus).map(d => d.consensus.consensus).join(', ')}</div>` : ''}
       `)}
       ${card(`
         <div style="font-weight:700;">🛡️ Risque & Budget</div>
-        <div style="font-size:1.6rem; font-weight:800; color:${colorForScore(u.risk.score ?? 50)};">${u.risk.score ?? '—'}</div>
+        <div style="font-size:1.6rem; font-weight:800; color:${colorRisk(u.risk.score ?? 50)};">${u.risk.score ?? '—'}</div>
         <div style="font-size:.85rem; color: var(--theme-text-muted);">VaR95: ${u.risk.var95_1d != null ? (Math.round(Math.abs(u.risk.var95_1d)*1000)/10)+'%' : '—'} • Vol: ${u.risk.volatility != null ? (Math.round(Math.abs(u.risk.volatility)*100)/10)+'%' : '—'}</div>
         ${u.risk.budget ? `<div style="font-size:.75rem; color: var(--theme-text); margin-top: .5rem; padding: .25rem; background: var(--theme-bg); border-radius: var(--radius-sm);">💰 Risky: ${u.risk.budget.percentages?.risky}% • Stables: ${u.risk.budget.percentages?.stables}%</div>` : ''}
         ${u.risk.sharpe != null ? `<div style="font-size:.75rem; color: var(--theme-text-muted); margin-top: .25rem;">Sharpe: ${u.risk.sharpe.toFixed(2)}</div>` : ''}
@@ -146,6 +252,52 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
     </div>
   `, { title: 'Régime-Based Allocation' }) : '';
 
+  // Build deltas vs current portfolio (non-blocking on failure)
+  let deltasBlock = '';
+  try {
+    const conf = u.decision.confidence || 0;
+    const contra = (u.contradictions?.length) || 0;
+    const mode = conf > 0.8 && contra === 0 ? { name: 'Deploy', cap: 12 } :
+                 conf > 0.65 && contra <= 1 ? { name: 'Rotate', cap: 7 } :
+                 conf > 0.55 ? { name: 'Hedge', cap: 3 } : { name: 'Observe', cap: 0 };
+
+    const current = await getCurrentAllocationByGroup(5.0);
+    if (current && u.intelligence?.allocation) {
+      const targetAdj = applyCycleMultipliersToTargets(u.intelligence.allocation, u.cycle?.multipliers || {});
+      const pairs = [];
+      const keys = new Set([...Object.keys(current.pct || {}), ...Object.keys(targetAdj || {})]);
+      keys.forEach(k => {
+        const cur = Number((current.pct || {})[k] || 0);
+        const tgt = Number((targetAdj || {})[k] || 0);
+        const delta = Math.round((tgt - cur) * 10) / 10;
+        if (Math.abs(delta) > 0.2) {
+          const suggested = Math.max(-mode.cap, Math.min(mode.cap, delta));
+          pairs.push({ k, cur, tgt, delta, suggested });
+        }
+      });
+      pairs.sort((a,b) => Math.abs(b.delta) - Math.abs(a.delta));
+      const top = pairs.slice(0, 6);
+      if (top.length) {
+        deltasBlock = card(`
+          <div style="font-weight:700; margin-bottom:.5rem;">⚖️ Écarts vs Cible (${mode.name})</div>
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:.35rem; font-size:.8rem;">
+            ${top.map(({k, cur, tgt, delta, suggested}) => `
+              <div style="background: var(--theme-bg); border: 1px solid var(--theme-border); border-radius: 6px; padding:.5rem;">
+                <div style="display:flex; justify-content:space-between; font-weight:600;"><span>${k}</span><span>${delta>0?'+':''}${delta}%</span></div>
+                <div style="display:flex; justify-content:space-between; color:var(--theme-text-muted);"><span>Actuel</span><span>${cur.toFixed(1)}%</span></div>
+                <div style="display:flex; justify-content:space-between; color:var(--theme-text-muted);"><span>Cible</span><span>${tgt.toFixed(1)}%</span></div>
+                <div style="margin-top:.25rem; font-size:.75rem; color:${suggested>0?'var(--success)':'var(--danger)'};">Mouvement suggéré: ${suggested>0?'+':''}${suggested}%</div>
+              </div>
+            `).join('')}
+          </div>
+          <div style="margin-top:.4rem; font-size:.75rem; color:var(--theme-text-muted);">Mouvements bornés par le mode pour éviter des rotations excessives.</div>
+        `, { title: 'Ajustements Concrets' });
+      }
+    }
+  } catch (e) {
+    console.warn('Delta allocation render skipped:', e.message || e);
+  }
+
   el.innerHTML = `
     ${header}
     <div style="height: .5rem;"></div>
@@ -155,6 +307,17 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
     <div style="height: .5rem;"></div>
     ${contraBlock}
     ${allocationBlock}
+    ${deltasBlock}
+    <div style="display:none">${card(`
+      <div style="font-weight:700; margin-bottom:.25rem;">🧪 Qualité des données</div>
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap:.4rem; font-size:.8rem; color:var(--theme-text);">
+        <div style="background:var(--theme-bg); padding:.4rem; border-radius:6px;">On-Chain conf: <b>${Math.round((u.onchain.confidence || 0)*100)}%</b></div>
+        <div style="background:var(--theme-bg); padding:.4rem; border-radius:6px;">Cycle conf: <b>${Math.round((u.cycle.confidence || 0)*100)}%</b></div>
+        <div style="background:var(--theme-bg); padding:.4rem; border-radius:6px;">Regime conf: <b>${Math.round((u.regime.confidence || 0)*100 || 0)}%</b></div>
+        <div style="background:var(--theme-bg); padding:.4rem; border-radius:6px;">Contradictions: <b>${u.contradictions?.length || 0}</b></div>
+        ${(() => { try { const p = parseFloat(localStorage.getItem('cycle_model_precision') || ''); if (!isNaN(p) && p>0) { return `<div style=\"background:var(--theme-bg); padding:.4rem; border-radius:6px;\">Cycle precision: <b>${Math.round(p*100)}%</b></div>`; } } catch(e){} return ''; })()}
+      </div>
+    `)}</div>
   `;
   
   console.log('🧠 INTELLIGENT UNIFIED INSIGHTS rendered with:', {
@@ -172,4 +335,3 @@ if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
   window.debugUnifiedState = getUnifiedState;
   console.debug('🔧 Debug: window.debugUnifiedState() available for inspection');
 }
-

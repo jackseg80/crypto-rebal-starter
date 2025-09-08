@@ -69,16 +69,16 @@ async def get_portfolio_risk_metrics(
     try:
         start_time = datetime.now()
         
-        # Import des balances CoinTracking
-        from connectors.cointracking_api import get_current_balances
+        # Import des balances via le système unifié (même source que /balances/current)
+        from api.unified_data import get_unified_filtered_balances
         
-        # Récupération des holdings actuels
-        balances_response = await get_current_balances()
-        balances = balances_response.get('items', []) if isinstance(balances_response, dict) else balances_response
+        # Récupération des holdings actuels via le système unifié
+        balances_response = await get_unified_filtered_balances(source="cointracking", min_usd=1.0)
+        balances = balances_response.get('items', [])
         if not balances or len(balances) == 0:
             return RiskMetricsResponse(
                 success=False,
-                message="Aucun holding trouvé dans le portfolio"
+                message="Aucun holding trouvé dans le portfolio via le système unifié"
             )
         
         # Calcul des métriques de risque
@@ -128,7 +128,8 @@ async def get_portfolio_risk_metrics(
 
 @router.get("/correlation", response_model=CorrelationResponse)
 async def get_correlation_matrix(
-    lookback_days: int = Query(30, ge=10, le=365, description="Nombre de jours pour calcul corrélation")
+    lookback_days: int = Query(30, ge=10, le=365, description="Nombre de jours pour calcul corrélation"),
+    source: str = Query("cointracking", description="Source de données: stub_balanced, cointracking, ou cointracking_api")
 ):
     """
     Calcule la matrice de corrélation temps réel entre assets
@@ -142,16 +143,19 @@ async def get_correlation_matrix(
     try:
         start_time = datetime.now()
         
-        # Import des balances CoinTracking
-        from connectors.cointracking_api import get_current_balances
+        # Import des balances via le système unifié (même source que /balances/current)
+        from api.unified_data import get_unified_filtered_balances
         
-        # Récupération des holdings actuels
-        balances_response = await get_current_balances()
-        balances = balances_response.get('items', []) if isinstance(balances_response, dict) else balances_response
+        # Récupération des holdings actuels via le système unifié
+        balances_response = await get_unified_filtered_balances(source=source, min_usd=1.0)
+        balances = balances_response.get('items', [])
+        logger.info(f"🔍 Correlation endpoint: received {len(balances)} holdings from unified data source='{source}'")
+        
         if not balances or len(balances) == 0:
+            logger.warning(f"❌ No holdings found for correlation calculation with source='{source}'")
             return CorrelationResponse(
                 success=False,
-                message="Aucun holding trouvé dans le portfolio"
+                message=f"Aucun holding trouvé dans le portfolio via le système unifié (source: {source})"
             )
         
         # Calcul de la matrice de corrélation

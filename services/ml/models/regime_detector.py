@@ -564,7 +564,7 @@ class RegimeDetector:
                     break
             
             # Load best model
-            self.neural_model.load_state_dict(torch.load(self.model_dir / 'regime_neural_best.pth'))
+            self.neural_model.load_state_dict(torch.load(self.model_dir / 'regime_neural_best.pth', weights_only=False))
             
             # Save all components
             joblib.dump(self.scaler, self.model_dir / 'regime_scaler.pkl')
@@ -707,7 +707,7 @@ class RegimeDetector:
             ).to(self.device)
             
             self.neural_model.load_state_dict(
-                torch.load(model_files['neural'], map_location=self.device)
+                torch.load(model_files['neural'], map_location=self.device, weights_only=False)
             )
             
             logger.info("Regime detection model loaded successfully")

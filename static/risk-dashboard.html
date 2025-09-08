@@ -650,6 +650,15 @@
       flex-wrap: wrap
     }
 
+    /* Split refresh button: visual cohesion */
+    .refresh-group { border-radius: var(--radius-md); box-shadow: var(--shadow-sm); }
+    .refresh-group .refresh-btn { margin: 0; border-radius: 0; }
+    .refresh-group .refresh-btn:first-child { border-top-left-radius: var(--radius-md); border-bottom-left-radius: var(--radius-md); }
+    .refresh-group .refresh-btn:last-child { border-top-right-radius: var(--radius-md); border-bottom-right-radius: var(--radius-md); }
+    .refresh-group .refresh-btn + .refresh-btn { border-left: 1px solid var(--theme-border); }
+    /* Prevent lift on hover causing misalignment within group */
+    .refresh-group .refresh-btn:hover:not(:disabled) { transform: none; }
+
     /* ===== Tooltip (léger, autonome) ===== */
     .tooltip {
       position: fixed;
@@ -707,13 +716,18 @@
   <div class="wrap">
     <!-- Controls Header -->
     <div class="controls">
-      <button class="refresh-btn" onclick="refreshDashboard()" id="refresh-btn">🔄 Refresh Data</button>
-      <button class="refresh-btn" onclick="refreshDashboard(true)" id="force-refresh-btn" style="background: #dc3545;"
-        title="Ignore cache and recalculate all scores">🧹 Force Refresh</button>
-      <button class="refresh-btn" onclick="enableAutoRefresh()" id="auto-refresh-btn">⏱️ Enable Auto-Refresh
-        (30s)</button>
+      <!-- Split refresh button with dropdown -->
+      <div class="refresh-group" style="position: relative; display: inline-flex; align-items: stretch;">
+        <button class="refresh-btn" onclick="refreshDashboard()" id="refresh-btn" title="Actualiser les données">🔄 Refresh</button>
+        <button class="refresh-btn" id="refresh-menu-btn" aria-haspopup="true" aria-expanded="false" title="Options de rafraîchissement" style="padding: 0 .6rem; width: auto;" onclick="toggleRefreshMenu(event)">▾</button>
+        <div id="refresh-menu" class="refresh-menu" style="display:none; position:absolute; top: 100%; left: 0; background: var(--theme-bg); border: 1px solid var(--theme-border); border-radius: var(--radius-sm); box-shadow: 0 6px 14px rgba(0,0,0,.25); min-width: 220px; z-index: 1000;">
+          <button class="refresh-menu-item" style="display:block; width:100%; text-align:left; padding:.5rem .75rem; background:none; border:none; color: var(--theme-text); cursor:pointer;" onclick="closeRefreshMenu(); refreshDashboard(true)" title="Ignorer le cache et recalculer tous les scores">🧹 Force Refresh</button>
+          <button class="refresh-menu-item" style="display:block; width:100%; text-align:left; padding:.5rem .75rem; background:none; border:none; color: var(--theme-text); cursor:pointer;" onclick="closeRefreshMenu(); forceCycleRefresh()" title="Vider le cache cycles et recharger uniquement les cycles">🔄 Refresh Cycles</button>
+        </div>
+      </div>
+
+      <button class="refresh-btn" onclick="enableAutoRefresh()" id="auto-refresh-btn">⏱️ Enable Auto-Refresh (30s)</button>
       <button class="refresh-btn" onclick="testEndpoint()" style="background:#007bff">🧪 Test API</button>
-      <button class="refresh-btn" onclick="forceCycleRefresh()" style="background: #28a745;" title="Force refresh cycle content and charts">🔄 Refresh Cycles</button>
       <div class="timestamp" id="last-update"></div>
     </div>
 
@@ -2041,9 +2055,12 @@
       isRefreshing = true;
 
       const refreshBtn = document.getElementById('refresh-btn');
-      const forceRefreshBtn = document.getElementById('force-refresh-btn');
       refreshBtn.disabled = true;
-      forceRefreshBtn.disabled = true;
+      // Optional: disable dropdown trigger if present
+      const refreshMenuBtn = document.getElementById('refresh-menu-btn');
+      if (refreshMenuBtn) refreshMenuBtn.disabled = true;
+      const forceRefreshBtn = document.getElementById('force-refresh-btn');
+      if (forceRefreshBtn) forceRefreshBtn.disabled = true;
       refreshBtn.textContent = forceRefresh ? '🔄 Force Refreshing…' : '🔄 Refreshing…';
 
       // Clear cache if force refresh is requested
@@ -2134,8 +2151,9 @@
         isRefreshing = false;
         store.set('ui.loading', false);
         refreshBtn.disabled = false;
-        forceRefreshBtn.disabled = false;
-        refreshBtn.textContent = '🔄 Refresh Data';
+        if (refreshMenuBtn) refreshMenuBtn.disabled = false;
+        if (forceRefreshBtn) forceRefreshBtn.disabled = false;
+        refreshBtn.textContent = '🔄 Refresh';
       }
     }
 
@@ -4327,6 +4345,38 @@
     window.refreshDashboard = refreshDashboard;
     window.enableAutoRefresh = enableAutoRefresh;
     window.testEndpoint = testEndpoint;
+    // Expose refresh menu helpers for inline handlers
+    window.toggleRefreshMenu = toggleRefreshMenu;
+    window.closeRefreshMenu = closeRefreshMenu;
+
+    // ===== Refresh menu helpers =====
+    function toggleRefreshMenu(event) {
+      event.stopPropagation?.();
+      const menu = document.getElementById('refresh-menu');
+      const btn = document.getElementById('refresh-menu-btn');
+      if (!menu || !btn) return;
+      const isOpen = menu.style.display === 'block';
+      menu.style.display = isOpen ? 'none' : 'block';
+      btn.setAttribute('aria-expanded', String(!isOpen));
+    }
+
+    function closeRefreshMenu() {
+      const menu = document.getElementById('refresh-menu');
+      const btn = document.getElementById('refresh-menu-btn');
+      if (menu) menu.style.display = 'none';
+      if (btn) btn.setAttribute('aria-expanded', 'false');
+    }
+
+    // Close the menu when clicking outside or pressing Escape
+    document.addEventListener('click', (e) => {
+      const menu = document.getElementById('refresh-menu');
+      const btn = document.getElementById('refresh-menu-btn');
+      if (!menu || !btn) return;
+      if (!menu.contains(e.target) && e.target !== btn) {
+        closeRefreshMenu();
+      }
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeRefreshMenu(); });
 
     // ===== PERSISTENT CACHE SYSTEM =====
     const CACHE_CONFIG = {

@@ -534,7 +534,7 @@ class CorrelationForecaster:
                 model_file = self.model_dir / f"correlation_model_{horizon}d.pth"
                 
                 if model_file.exists():
-                    checkpoint = torch.load(model_file, map_location=self.device)
+                    checkpoint = torch.load(model_file, map_location=self.device, weights_only=False)
                     
                     model = MultiAssetTransformer(
                         n_assets=self.config['n_assets'],

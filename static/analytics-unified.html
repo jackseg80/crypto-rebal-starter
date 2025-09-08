@@ -194,7 +194,28 @@
             const cycleScore = s.cycle?.score ?? 50;
             const onchainScore = s.scores?.onchain ?? 50;
             const riskScore = s.scores?.risk ?? 50;
-            const blended = (cycleScore * 0.50) + (onchainScore * 0.30) + ((100 - riskScore) * 0.20);
+            const ocConf = Math.max(0, Math.min(1, s.scores?.onchain_metadata?.confidence ?? 0.5));
+            const cycleConf = Math.max(0, Math.min(1, s.cycle?.confidence ?? 0.5));
+            const riskAdj = Math.max(0, Math.min(1, (100 - riskScore) / 100));
+            const contradictions = (s.scores?.contradictory_signals || []).length;
+
+            // Base weights
+            let wCycle = 0.50 * (0.8 + 0.4 * cycleConf);
+            let wOnchain = 0.30 * (0.8 + 0.4 * ocConf);
+            let wRisk = 0.20 * (0.8 + 0.4 * riskAdj);
+
+            // Penalize if contradictions present (limit to -20%)
+            const contraFactor = Math.max(0.8, 1 - 0.1 * contradictions);
+            wOnchain *= contraFactor;
+            wCycle *= contraFactor;
+
+            // Normalize weights
+            const wSum = wCycle + wOnchain + wRisk;
+            wCycle = wCycle / wSum;
+            wOnchain = wOnchain / wSum;
+            wRisk = wRisk / wSum;
+
+            const blended = (cycleScore * wCycle) + (onchainScore * wOnchain) + ((100 - riskScore) * wRisk);
             const blendedScore = Math.round(Math.max(0, Math.min(100, blended)));
             
             // 5) Market Regime (sentiment/régime agrégé)  

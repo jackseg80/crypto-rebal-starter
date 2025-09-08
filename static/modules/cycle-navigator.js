@@ -324,13 +324,54 @@ export function estimateCyclePosition() {
   const phase = getCyclePhase(cycleData.months);
   const score = cycleScoreFromMonths(cycleData.months);
 
-  // Calculate confidence based on how "typical" this position is
-  let confidence = 0.0; // No confidence - données réelles requises
+  // Heuristic confidence based on phase typicality + calibration freshness
+  // Uses existing data only (no new APIs). This mirrors the intelligence
+  // demonstrated in the Risk Dashboard / Cycle Analysis without duplicating logic.
+  let confidence = 0.0;
+  try {
+    const m = cycleData.months % 48;
+    // Define phase centers and half-widths (months)
+    const PHASE_WINDOWS = {
+      accumulation: { center: 3, half: 3 },      // 0-6
+      bull_build: { center: 12, half: 6 },       // 7-18
+      peak: { center: 21, half: 3 },             // 19-24
+      bear: { center: 30, half: 6 },             // 25-36
+      pre_accumulation: { center: 42, half: 6 }  // 37-48
+    };
+    const key = phase?.phase || 'unknown';
+    const win = PHASE_WINDOWS[key] || { center: 24, half: 8 };
+    const dist = Math.abs(m - win.center);
+    const norm = Math.min(1, win.half > 0 ? dist / win.half : 1);
+    // Base confidence: higher when closer to phase center
+    let base = 0.4 + 0.5 * (1 - norm); // 0.4..0.9
 
-  // In production, this would factor in:
-  // - Data quality of halving dates
-  // - Market correlation with historical cycles  
-  // - External factors (regulations, macro environment)
+    // Calibration freshness bonus if params were calibrated within last 24h
+    let calibBonus = 0;
+    try {
+      const saved = localStorage.getItem('bitcoin_cycle_params');
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (data?.timestamp && (Date.now() - data.timestamp) < 24 * 60 * 60 * 1000) {
+          calibBonus = 0.05; // small bonus for fresh calibration
+        }
+      }
+    } catch {}
+
+    confidence = Math.max(0, Math.min(0.95, base + calibBonus));
+
+    // Cap confidence by validated model precision if available (persisted by cycle-analysis.html)
+    try {
+      const stored = localStorage.getItem('cycle_model_precision');
+      if (stored) {
+        const prec = Math.max(0, Math.min(1, parseFloat(stored)));
+        if (!Number.isNaN(prec) && prec > 0) {
+          confidence = Math.min(confidence, prec);
+        }
+      }
+    } catch {}
+  } catch {
+    confidence = 0.3; // conservative fallback
+  }
 
   return {
     ...cycleData,

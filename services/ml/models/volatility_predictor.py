@@ -410,7 +410,7 @@ class VolatilityPredictor:
                     break
             
             # Load best model
-            model.load_state_dict(torch.load(self.model_dir / f'{symbol}_volatility_best.pth'))
+            model.load_state_dict(torch.load(self.model_dir / f'{symbol}_volatility_best.pth', weights_only=False))
             self.models[symbol] = model
             
             # Training metadata
@@ -544,7 +544,7 @@ class VolatilityPredictor:
                 output_horizons=len(self.horizons)
             ).to(self.device)
             
-            model.load_state_dict(torch.load(model_path, map_location=self.device))
+            model.load_state_dict(torch.load(model_path, map_location=self.device, weights_only=False))
             
             # Store in memory
             self.models[symbol] = model

@@ -338,6 +338,62 @@
         </div>
       </div>
       </div>
+
+      <!-- Quick Settings: options les plus utilisées -->
+      <div class="card" data-tooltip="Réglages rapides les plus courants" data-source="globalConfig">
+        <h3>⚙️ Réglages Rapides</h3>
+        <div class="form-row">
+          <div style="flex:1; min-width: 240px;">
+            <label>Source de données</label>
+            <select id="quick_data_source">
+              <option value="stub_balanced">⚖️ Démo Équilibrée</option>
+              <option value="cointracking">📄 CoinTracking CSV</option>
+              <option value="cointracking_api">🌐 CoinTracking API</option>
+            </select>
+            <div class="help">Impacte tous les dashboards (balances, analytics et rebalancing)</div>
+          </div>
+          <div style="flex:1; min-width: 240px;">
+            <label>Mode de pricing</label>
+            <select id="quick_pricing">
+              <option value="local">🏠 Local</option>
+              <option value="auto">🚀 Auto</option>
+            </select>
+            <div class="help">Local = prix depuis données, Auto = prix marché</div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div style="flex:1; min-width: 240px;">
+            <label>Seuil minimum (USD)</label>
+            <input type="number" id="quick_min_usd" min="0" step="0.01">
+          </div>
+          <div style="flex:1; min-width: 240px;">
+            <label>Devise d'affichage</label>
+            <select id="quick_currency">
+              <option value="USD">USD ($)</option>
+              <option value="EUR">EUR (€)</option>
+              <option value="BTC">BTC (₿)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div style="flex:1; min-width: 240px;">
+            <label>Thème</label>
+            <select id="quick_theme">
+              <option value="auto">🌓 Automatique</option>
+              <option value="light">☀️ Clair</option>
+              <option value="dark">🌙 Sombre</option>
+            </select>
+          </div>
+          <div style="flex:1; min-width: 240px;">
+            <label>URL API backend</label>
+            <input type="text" id="quick_api_base_url" placeholder="http://127.0.0.1:8000">
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; margin-top: 8px;">
+          <button class="btn" id="quick_save_btn">💾 Sauvegarder</button>
+          <button class="btn secondary" id="quick_apply_btn">Appliquer sans sauvegarder</button>
+        </div>
+      </div>
     </section>
 
     <!-- Data Source Tab -->
@@ -710,11 +766,43 @@
     }, 0);
   </script>
   <script>
+    // Initialisation des réglages rapides
+    function initQuickSettings() {
+      const s = globalConfig.getAll();
+      // Valeurs initiales
+      document.getElementById('quick_data_source').value = s.data_source || 'stub_balanced';
+      document.getElementById('quick_pricing').value = s.pricing || 'auto';
+      document.getElementById('quick_min_usd').value = (s.min_usd_threshold ?? 1);
+      document.getElementById('quick_currency').value = s.display_currency || 'USD';
+      document.getElementById('quick_theme').value = s.theme || 'auto';
+      document.getElementById('quick_api_base_url').value = s.api_base_url || window.location.origin;
+
+      // Listeners: appliquent immédiatement dans globalConfig
+      document.getElementById('quick_data_source').addEventListener('change', (e)=> selectDataSource(e.target.value));
+      document.getElementById('quick_pricing').addEventListener('change', (e)=> selectPricing(e.target.value));
+      document.getElementById('quick_min_usd').addEventListener('change', (e)=> globalConfig.set('min_usd_threshold', parseFloat(e.target.value) || 0));
+      document.getElementById('quick_currency').addEventListener('change', (e)=> globalConfig.set('display_currency', e.target.value));
+      document.getElementById('quick_theme').addEventListener('change', (e)=> selectTheme(e.target.value));
+      document.getElementById('quick_api_base_url').addEventListener('change', (e)=> globalConfig.set('api_base_url', e.target.value));
+
+      // Actions
+      document.getElementById('quick_save_btn').addEventListener('click', ()=> {
+        // Rien de plus: tout est déjà écrit dans globalConfig par les listeners
+        saveSettings();
+        showNotification('✅ Réglages rapides sauvegardés', 'success');
+      });
+      document.getElementById('quick_apply_btn').addEventListener('click', ()=> {
+        updateStatusSummary();
+        showNotification('⚡ Réglages rapides appliqués', 'info');
+      });
+    }
+
     // Charger les settings depuis globalConfig
     function loadSettings() {
       // Mettre à jour l'interface
       updateUI();
       updateStatusSummary();
+      if (window.globalConfig) initQuickSettings();
     }
 
     // Sauvegarder les settings via globalConfig
@@ -1557,6 +1645,7 @@
 
     // Charger le status des CSV au chargement de la page
     document.addEventListener('DOMContentLoaded', () => {
+      try { loadSettings(); } catch (_) {}
       setTimeout(checkCSVStatus, 1000); // Attendre que globalConfig soit prêt
     });
 

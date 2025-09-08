@@ -86,27 +86,29 @@ export async function getUnifiedState() {
     console.warn('⚠️ Multi-source sentiment fallback to store data');
   }
   
-  // Use CCS interpretation with enhanced sentiment
+  // Use CCS interpretation (numeric) and enrich with multi-source sentiment if available
   try {
-    signalsData = interpretCCS({
-      ccs_score: blendedScore ?? 50,
-      fear_greed: sentimentData?.value ?? state.ccs?.signals?.fear_greed?.value ?? null,
-      btc_dominance: state.ccs?.signals?.btc_dominance?.value ?? null,
-      funding_rate: state.ccs?.signals?.funding_rate?.value ?? null
-    });
-    
-    // Enhance with multi-source data
+    const ccsInterpretation = interpretCCS(typeof blendedScore === 'number' ? blendedScore : 50);
+    signalsData = {
+      interpretation: ccsInterpretation?.label?.toLowerCase?.() || 'neutral',
+      confidence: 0.6,
+      signals_strength: 'medium',
+      ccs_level: ccsInterpretation?.level || 'medium',
+      ccs_color: ccsInterpretation?.color
+    };
+
+    // Prefer multi-source sentiment classification for extremes when present
     if (sentimentData) {
       signalsData.fear_greed = sentimentData;
-      signalsData.interpretation = sentimentData.interpretation;
+      signalsData.interpretation = sentimentData.interpretation; // 'extreme_fear' | 'fear' | 'neutral' | 'greed' | 'extreme_greed'
     }
-    
+
     console.debug('✅ Signals Intelligence loaded:', signalsData.interpretation);
   } catch (error) {
     console.warn('⚠️ Signals Intelligence fallback:', error);
-    signalsData = { 
-      interpretation: sentimentData?.interpretation || 'neutral', 
-      confidence: 0.5, 
+    signalsData = {
+      interpretation: sentimentData?.interpretation || 'neutral',
+      confidence: 0.5,
       signals_strength: 'medium',
       fear_greed: sentimentData || null
     };
@@ -119,6 +121,7 @@ export async function getUnifiedState() {
     regimeData,
     signalsData,
     onchainScore,
+    onchainConfidence: ocMeta?.confidence ?? 0,
     riskScore
   });
 
@@ -156,6 +159,14 @@ export async function getUnifiedState() {
       signals: signalsData.confidence > 0.6 ? 'active' : 'limited'
     }
   };
+
+  // Adjust decision confidence based on contradictions (post-compute)
+  try {
+    const contraPenalty = Math.min((contradictions?.length || 0) * 0.05, 0.15);
+    if (typeof decision.confidence === 'number') {
+      decision.confidence = Math.max(0, Math.min(0.95, decision.confidence - contraPenalty));
+    }
+  } catch {}
 
   // RETURN INTELLIGENT UNIFIED STATE
   return {
@@ -208,7 +219,7 @@ export async function getUnifiedState() {
 }
 
 // INTELLIGENT DECISION INDEX calculation
-function calculateIntelligentDecisionIndex({ blendedScore, cycleData, regimeData, signalsData, onchainScore, riskScore }) {
+function calculateIntelligentDecisionIndex({ blendedScore, cycleData, regimeData, signalsData, onchainScore, onchainConfidence = 0, riskScore }) {
   let finalScore;
   let confidence = 0.5;
   let reasoning = [];
@@ -216,8 +227,12 @@ function calculateIntelligentDecisionIndex({ blendedScore, cycleData, regimeData
   // Use blended if available (most sophisticated)
   if (blendedScore != null) {
     finalScore = Math.round(blendedScore);
-    confidence = 0.85;
-    reasoning.push('Blended Score disponible (méthode sophistiquée)');
+    // Build confidence from module confidences rather than a flat value
+    const cycleConf = Math.max(0, Math.min(1, cycleData?.confidence ?? 0.5));
+    const regimeConf = Math.max(0, Math.min(1, regimeData?.regime?.confidence ?? 0.6));
+    const ocConf = Math.max(0, Math.min(1, onchainConfidence));
+    confidence = Math.min(0.95, (ocConf * 0.4) + (cycleConf * 0.3) + (regimeConf * 0.2) + 0.1);
+    reasoning.push('Blended Score avec confiance agrégée (cycle/on-chain/régime)');
   } else {
     // Intelligent fallback using modules
     const cycleScore = cycleData?.score ?? 50;
@@ -225,12 +240,13 @@ function calculateIntelligentDecisionIndex({ blendedScore, cycleData, regimeData
     const riskAdjusted = 100 - (riskScore ?? 50);
     
     // Dynamic weighting based on confidence
-    const cycleWeight = (cycleData?.confidence ?? 0.3) * 0.4;
-    const onchainWeight = 0.35;
+    const cycleWeight = (Math.max(0, Math.min(1, cycleData?.confidence ?? 0.3)) * 0.4);
+    const onchainWeight = (Math.max(0, Math.min(1, onchainConfidence)) * 0.35) || 0.35;
     const riskWeight = 0.25;
     
     finalScore = Math.round(cycleScore * cycleWeight + onScore * onchainWeight + riskAdjusted * riskWeight);
-    confidence = 0.6;
+    const regimeConf = Math.max(0, Math.min(1, regimeData?.regime?.confidence ?? 0.6));
+    confidence = Math.min(0.9, 0.3 + (cycleWeight * 0.5) + (onchainWeight * 0.4) + (regimeConf * 0.2));
     reasoning.push('Calcul intelligent avec pondération dynamique');
   }
 
@@ -239,6 +255,18 @@ function calculateIntelligentDecisionIndex({ blendedScore, cycleData, regimeData
     reasoning.push(`Ajustements contextuels: ${regimeData.regime.overrides.length} overrides`);
     confidence += 0.1;
   }
+
+  // Penalize confidence if strong divergence between on-chain and blended
+  try {
+    if (typeof blendedScore === 'number' && typeof onchainScore === 'number') {
+      const divergence = Math.abs(blendedScore - onchainScore);
+      if (divergence > 20) {
+        const penalty = Math.min(0.15, ((divergence - 20) / 80) * 0.15);
+        confidence = Math.max(0, confidence - penalty);
+        reasoning.push('Pénalité divergence on-chain/blended');
+      }
+    }
+  } catch {}
 
   return {
     score: finalScore,
@@ -338,4 +366,3 @@ export function deriveRecommendations(u) {
 }
 
 export default { getUnifiedState, deriveRecommendations };
-

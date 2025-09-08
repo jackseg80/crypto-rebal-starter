@@ -429,6 +429,46 @@ class MLOrchestrator:
             }
         return sentiment_data
     
+    async def predict_volatility(self, symbol: str, horizon_days: int = 30) -> Dict[str, Any]:
+        """
+        Public method for single asset volatility prediction
+        Used by unified_ml_endpoints.py
+        """
+        try:
+            # Use existing volatility prediction logic
+            predictions = await self._get_volatility_predictions([symbol], [horizon_days])
+            
+            if symbol in predictions and f'{horizon_days}d' in predictions[symbol]:
+                result = predictions[symbol][f'{horizon_days}d']
+                result.update({
+                    'symbol': symbol,
+                    'horizon_days': horizon_days,
+                    'timestamp': datetime.now().isoformat(),
+                    'model_version': '2.0.0'
+                })
+                return result
+            else:
+                # Fallback prediction if model not available
+                return {
+                    'symbol': symbol,
+                    'horizon_days': horizon_days,
+                    'volatility_forecast': 0.25,
+                    'confidence': 0.5,
+                    'risk_level': 'medium',
+                    'timestamp': datetime.now().isoformat(),
+                    'model_version': 'fallback',
+                    'note': 'Using fallback prediction - trained models not loaded'
+                }
+                
+        except Exception as e:
+            logger.error(f"Error in predict_volatility for {symbol}: {e}")
+            return {
+                'symbol': symbol,
+                'horizon_days': horizon_days,
+                'error': str(e),
+                'timestamp': datetime.now().isoformat()
+            }
+
     async def _get_regime_predictions(self, symbols: List[str]) -> Dict[str, Any]:
         """Get market regime predictions"""
         return {
@@ -748,6 +788,18 @@ class MLOrchestrator:
         
         logger.info(f"Cleared caches: {cleared_counts}")
         return cleared_counts
+    
+    async def load_regime_model(self) -> Dict[str, Any]:
+        """Load regime detection model for auto-startup"""
+        try:
+            from services.ml_pipeline_manager import pipeline_manager
+            await pipeline_manager.load_regime_model()
+            self.model_status['regime'] = 'ready'
+            logger.info("Regime model loaded successfully")
+            return {"success": True, "message": "Regime model loaded"}
+        except Exception as e:
+            logger.error(f"Failed to load regime model: {e}")
+            return {"success": False, "error": str(e)}
 
 # Global orchestrator instance
 _orchestrator = None
@@ -758,6 +810,11 @@ def get_orchestrator() -> MLOrchestrator:
     if _orchestrator is None:
         _orchestrator = MLOrchestrator()
     return _orchestrator
+
+def reset_orchestrator():
+    """Reset global orchestrator instance (useful for development/testing)"""
+    global _orchestrator
+    _orchestrator = None
 
 async def initialize_ml_system(force_retrain: bool = False) -> Dict[str, Any]:
     """Initialize the complete ML system"""
