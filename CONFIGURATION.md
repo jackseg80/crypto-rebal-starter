@@ -1,23 +1,14 @@
 # Configuration Optimale pour Développement
 
-## Sources de Données Configurées
+## Sources de Données — Source de vérité centralisée
 
-Le système utilise désormais **uniquement des vraies données** via trois sources configurables :
+La liste des sources est centralisée dans `static/global-config.js` via `window.DATA_SOURCES` (+ ordre via `window.DATA_SOURCE_ORDER`).
 
-### 1. Source Stub (Recommandée pour développement)
-- **Configuration** : Dans `settings.html` → sélectionner "Stub Data"
-- **Avantages** : Données cohérentes, rapides, toujours disponibles
-- **Usage** : Développement et tests
+### Groupes affichés dans Settings
+- "Sources de démo" → entrées avec `kind: 'stub'`
+- "Sources CoinTracking" → entrées avec `kind: 'csv'` et `kind: 'api'`
 
-### 2. Fichiers CSV CoinTracking  
-- **Configuration** : Dans `settings.html` → sélectionner "CSV Files"
-- **Avantages** : Données réelles de votre portfolio
-- **Prérequis** : Fichiers CSV exportés de CoinTracking dans `/data/`
-
-### 3. API CoinTracking
-- **Configuration** : Dans `settings.html` → sélectionner "CoinTracking API" + clés API
-- **Avantages** : Données temps réel
-- **Prérequis** : Clés API CoinTracking valides
+Ajouter/retirer une source = modifier `DATA_SOURCES` uniquement; l’onglet “Résumé”, l’onglet “Source”, les validations (`static/input-validator.js`) et l’ensemble des pages consomment `globalConfig.get('data_source')`.
 
 ## Interfaces Frontend Disponibles
 
@@ -54,3 +45,25 @@ Toutes les 19 routes backend ont maintenant des interfaces frontend :
 4. **Tester toutes les interfaces** : Vérifier cohérence des données
 
 Toutes les interfaces utilisent maintenant la même configuration centralisée via `global-config.js`.
+
+---
+
+## Devise d’affichage & conversion
+
+### Réglage
+- `settings.html` fournit un sélecteur rapide (Résumé) et un sélecteur détaillé (Pricing). Les deux sont synchronisés et persistent dans `globalConfig`.
+
+### Conversion
+- Conversion à l’affichage depuis USD vers la devise choisie via `window.currencyManager`:
+  - USD→EUR: `exchangerate.host`
+  - USD→BTC: prix Binance `BTCUSDT` → USD→BTC = `1 / BTCUSD`
+- Si le taux n’est pas disponible, l’UI affiche `—` puis se met à jour automatiquement à réception du taux (`currencyRateUpdated`).
+- Formateurs homogènes (locale `fr-FR`), suppression du suffixe "US" ajouté par Intl pour USD (affiche seulement `$`).
+
+### Pages alignées
+- Dashboard (`static/dashboard.html`)
+- Exécution (`static/execution.html`)
+- Historique d’exécution (`static/execution_history.html`)
+- Rebalancing (`static/rebalance.html`)
+- Risk Dashboard (`static/risk-dashboard.html`)
+- Fonctions partagées (`static/shared-ml-functions.js`)

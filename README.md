@@ -82,6 +82,28 @@ python crypto_toolbox_api.py  # Port 8001
 
 ---
 
+## Configuration UI et Données
+
+### 🧩 Source unique des “Sources de données” (Single Source of Truth)
+- La liste des sources est centralisée dans `static/global-config.js` via `window.DATA_SOURCES` (+ ordre via `window.DATA_SOURCE_ORDER`).
+- `static/settings.html` se construit dynamiquement depuis cette liste:
+  - Sélecteur rapide dans l’onglet “Résumé”
+  - Groupe “Sources de démo” (kind: `stub`) et “Sources CoinTracking” (kind: `csv`/`api`) dans l’onglet “Source”.
+- Ajouter/enlever une source = modifier `DATA_SOURCES` uniquement; l’UI, les validations et le résumé se mettent à jour partout.
+
+### 💱 Devise d’affichage et conversion en temps réel
+- La devise d’affichage se règle dans `settings.html` (réglages rapides ou onglet Pricing) et est partagée via `global-config`.
+- Conversion réelle des montants à l’affichage:
+  - USD→EUR: `https://api.exchangerate.host/latest?base=USD&symbols=EUR`
+  - USD→BTC: `https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT` (USD→BTC = 1 / BTCUSD)
+- Si le taux n’est pas disponible, les pages affichent `—` (pas de faux chiffre) puis se re-rendent automatiquement dès réception du taux.
+- Particularités d’affichage:
+  - Locale: `fr-FR`
+  - USD: suppression du suffixe “US” (on affiche seulement `$`).
+- Pages alignées: Dashboard, Exécution, Historique d’exécution, Rebalancing, Risk Dashboard, fonctions ML partagées.
+
+---
+
 ## Architecture Consolidée ⚡
 
 ### 🎯 **Optimisations Récentes**
