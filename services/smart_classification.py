@@ -18,7 +18,8 @@ from typing import Dict, List, Optional, Tuple, Any, Set
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from services.taxonomy import Taxonomy, auto_classify_symbol
-from services.coingecko import coingecko_service
+# from services.coingecko import coingecko_service  # DISABLED - breaks CTRL+C
+from services.coingecko_safe import coingecko_service  # Safe version
 
 logger = logging.getLogger(__name__)
 

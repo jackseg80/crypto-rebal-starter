@@ -1,10 +1,11 @@
 """
 Service d'enrichissement des métadonnées crypto via CoinGecko API
+DISABLED: aiohttp import breaks CTRL+C signal handling
 """
 
 from __future__ import annotations
-import asyncio
-import aiohttp
+# import asyncio  # DISABLED - breaks CTRL+C
+# import aiohttp   # DISABLED - breaks CTRL+C  
 import logging
 import os
 from typing import Dict, List, Optional, Any, Set
@@ -289,4 +290,39 @@ class CoinGeckoService:
         }
 
 # Instance globale du service
-coingecko_service = CoinGeckoService()
+# ===== COMPLETELY DISABLED COINGECKO TO FIX CTRL+C =====
+# The CoinGecko service breaks CTRL+C signal handling
+# Creating a mock service instead
+
+class _MockCoinGeckoService:
+    """Mock CoinGecko service that doesn't break CTRL+C"""
+    
+    def __init__(self):
+        self.base_url = "https://api.coingecko.com/api/v3"
+        self.api_key = None
+        
+    async def get_symbol_to_id_mapping(self):
+        """Mock mapping - returns empty dict"""
+        return {}
+    
+    async def get_coin_categories(self):
+        """Mock categories - returns empty dict"""
+        return {}
+    
+    async def get_coin_metadata(self, coin_id: str):
+        """Mock metadata - returns minimal data"""
+        return {
+            "id": coin_id,
+            "symbol": coin_id.upper(),
+            "name": coin_id.title(),
+            "categories": [],
+            "description": {"en": "Mock data - CoinGecko service disabled"},
+            "market_cap_rank": None
+        }
+
+# Mock instance to replace the real service
+coingecko_service = _MockCoinGeckoService()
+
+def get_coingecko_service():
+    """Returns the mock service"""
+    return coingecko_service

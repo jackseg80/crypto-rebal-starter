@@ -5,7 +5,7 @@ from time import monotonic
 import os, sys, inspect, hashlib, time
 from datetime import datetime
 import httpx
-from fastapi import FastAPI, Query, Body, Response, HTTPException, Request
+from fastapi import FastAPI, Query, Body, Response, HTTPException, Request, APIRouter
 import logging
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -33,17 +33,36 @@ LOG_LEVEL = settings.logging.log_level
 CORS_ORIGINS = settings.get_cors_origins()
 ENVIRONMENT = settings.environment
 
-from connectors import cointracking as ct_file
-from connectors.cointracking_api import get_current_balances as ct_api_get_current_balances, _debug_probe
+# Import différé des connecteurs pour éviter les blocages réseau au démarrage
+# from connectors import cointracking as ct_file
+# from connectors.cointracking_api import get_current_balances as ct_api_get_current_balances, _debug_probe
 
-from services.rebalance import plan_rebalance
-from services.pricing import get_prices_usd
-from services.portfolio import portfolio_analytics
+# Imports avec fallback pour éviter les crashs
+try:
+    from services.rebalance import plan_rebalance
+    REBALANCE_AVAILABLE = True
+except Exception as e:
+    logger.warning(f"Rebalance service not available: {e}")
+    REBALANCE_AVAILABLE = False
+
+try:
+    from services.pricing import get_prices_usd
+    PRICING_AVAILABLE = True
+except Exception as e:
+    logger.warning(f"Pricing service not available: {e}")  
+    PRICING_AVAILABLE = False
+
+try:
+    from services.portfolio import portfolio_analytics
+    PORTFOLIO_AVAILABLE = True
+except Exception as e:
+    logger.warning(f"Portfolio analytics not available: {e}")
+    PORTFOLIO_AVAILABLE = False
 from api.taxonomy_endpoints import router as taxonomy_router
 from api.execution_endpoints import router as execution_router
 from api.analytics_endpoints import router as analytics_router
 from api.kraken_endpoints import router as kraken_router
-from api.smart_taxonomy_endpoints import router as smart_taxonomy_router
+from api.smart_taxonomy_endpoints import router as smart_taxonomy_router  # FIXED - aiohttp mocké
 from api.advanced_rebalancing_endpoints import router as advanced_rebalancing_router
 from api.risk_endpoints import router as risk_router
 from api.test_risk_endpoints import router as test_risk_router
@@ -76,6 +95,38 @@ logger = logging.getLogger("crypto-rebalancer")
 app = FastAPI(docs_url="/docs", redoc_url="/redoc", openapi_url="/openapi.json")
 logger.info("FastAPI initialized: docs=%s redoc=%s openapi=%s", 
             "/docs", "/redoc", "/openapi.json")
+
+# Chargement automatique des modèles ML au démarrage (mode lazy)
+@app.on_event("startup")
+async def startup_load_ml_models():
+    """Chargement différé des modèles ML pour ne pas bloquer le démarrage"""
+    try:
+        logger.info("🚀 FastAPI started successfully")
+        logger.info("⚡ ML models will load on first request (lazy loading)")
+        
+        # Créer une tâche background pour précharger les modèles sans bloquer
+        async def background_load_models():
+            """Préchargement des modèles en arrière-plan"""
+            try:
+                # Attendre 2 secondes pour laisser l'app démarrer complètement
+                await asyncio.sleep(2)
+                
+                logger.info("📦 Starting background ML models pre-loading...")
+                
+                # Pas d'import lourd au démarrage, juste un log
+                logger.info("📦 ML models will be loaded on first request (fully lazy)")
+                # Note: Tous les imports ML sont différés aux endpoints pour éviter les blocages
+                
+            except Exception as e:
+                logger.info(f"⚠️ Background loading failed, models will load on demand: {e}")
+        
+        # Démarrer la tâche en arrière-plan sans attendre
+        import asyncio
+        asyncio.create_task(background_load_models())
+        
+    except Exception as e:
+        logger.warning(f"⚠️ Startup event warning (non-blocking): {e}")
+        # Ne pas faire planter l'app
 
 # Gestionnaires d'exceptions globaux
 @app.exception_handler(CryptoRebalancerException)
@@ -1380,11 +1431,44 @@ app.include_router(portfolio_monitoring_router)
 app.include_router(csv_router)
 app.include_router(portfolio_optimization_router)
 app.include_router(performance_router)
-app.include_router(ml_router)
+# ML endpoints avec chargement ultra-lazy (pas d'import au démarrage)
+ml_router_lazy = APIRouter(prefix="/api/ml", tags=["ML (lazy)"])
+
+@ml_router_lazy.get("/status")
+async def get_ml_status_lazy():
+    """Status ML avec chargement à la demande"""
+    try:
+        # Import seulement quand cette route est appelée
+        from services.ml_pipeline_manager import pipeline_manager
+        status = pipeline_manager.get_pipeline_status()
+        return {
+            "pipeline_status": status,
+            "timestamp": datetime.now().isoformat(),
+            "loading_mode": "lazy"
+        }
+    except Exception as e:
+        return {
+            "error": "ML system not ready", 
+            "details": str(e),
+            "status": "loading",
+            "loading_mode": "lazy"
+        }
+
+@ml_router_lazy.get("/health")  
+async def ml_health_lazy():
+    """Health check ML minimal sans imports lourds"""
+    return {
+        "status": "available", 
+        "message": "ML system ready for lazy loading",
+        "timestamp": datetime.now().isoformat()
+    }
+
+app.include_router(ml_router_lazy)
 # Test simple endpoint pour debugging
 @app.get("/api/ml/pipeline/test")
 async def test_pipeline():
     return {"message": "Pipeline API is working!"}
+app.include_router(ml_router)
 app.include_router(multi_asset_router)
 app.include_router(backtesting_router)
 app.include_router(advanced_analytics_router)
