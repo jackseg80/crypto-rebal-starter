@@ -88,8 +88,10 @@ class InputValidator {
             return false;
         }
         
-        // Validation source de données
-        const validSources = ['cointracking', 'cointracking_api', 'stub'];
+        // Validation source de données (utilise la source centralisée si disponible)
+        const validSources = (typeof window !== 'undefined' && window.getDataSourceKeys)
+            ? window.getDataSourceKeys()
+            : ['cointracking', 'cointracking_api', 'stub', 'stub_balanced', 'stub_conservative', 'stub_shitcoins'];
         if (config.data_source && !validSources.includes(config.data_source)) {
             this.errors.push(`Source de données invalide: "${config.data_source}". Sources valides: ${validSources.join(', ')}`);
         }

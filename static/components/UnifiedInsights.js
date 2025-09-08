@@ -1,6 +1,7 @@
 // UnifiedInsights UI Component - INTELLIGENT VERSION
 // Displays sophisticated analysis from all modules
 import { getUnifiedState, deriveRecommendations } from '../core/unified-insights.js';
+import { store } from '../core/risk-dashboard-store.js';
 
 // Lightweight fetch helper with timeout
 async function fetchJson(url, opts = {}) {
@@ -135,20 +136,55 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
         <div style="font-size: .8rem; color: var(--theme-text-muted);">${u.cycle?.phase?.emoji || ''} ${u.regime?.name || u.cycle?.phase?.phase?.replace('_',' ').toUpperCase() || '—'}</div>
         ${u.decision.reasoning ? `<div style="font-size: .75rem; color: var(--theme-text-muted); margin-top: .25rem; max-width: 300px;">${u.decision.reasoning}</div>` : ''}
         ${(() => {
-          // Action mode derived from confidence and contradictions
+          // Action mode derived from confidence, contradictions, and governance
+          const governanceStatus = store.getGovernanceStatus();
           const conf = u.decision.confidence || 0;
           const contra = (u.contradictions?.length) || 0;
+          
           let mode = 'Observe';
-          if (conf > 0.8 && contra === 0) mode = 'Deploy';
-          else if (conf > 0.65 && contra <= 1) mode = 'Rotate';
-          else if (conf > 0.55) mode = 'Hedge';
-          const bg = mode === 'Deploy' ? 'var(--success)' : mode === 'Rotate' ? 'var(--info)' : mode === 'Hedge' ? 'var(--warning)' : 'var(--theme-text-muted)';
+          let bg = 'var(--theme-text-muted)';
+          
+          // Check governance first
+          if (governanceStatus.state === 'FROZEN') {
+            mode = 'Frozen';
+            bg = 'var(--error)';
+          } else if (governanceStatus.needsAttention) {
+            mode = 'Review';
+            bg = 'var(--warning)';
+          } else {
+            // Standard logic with governance policy consideration
+            if (conf > 0.8 && contra === 0) {
+              mode = governanceStatus.mode === 'full_ai' ? 'Auto-Deploy' : 'Deploy';
+              bg = 'var(--success)';
+            } else if (conf > 0.65 && contra <= 1) {
+              mode = governanceStatus.mode === 'manual' ? 'Approve-Rotate' : 'Rotate';
+              bg = 'var(--info)';
+            } else if (conf > 0.55) {
+              mode = 'Hedge';
+              bg = 'var(--warning)';
+            }
+          }
+          
           return `<div style="margin-top:.35rem;"><span style="background:${bg}; color:white; padding:2px 6px; border-radius:4px; font-size:.7rem; font-weight:700;">Mode: ${mode}</span></div>`;
         })()}
       </div>
       <div style="text-align:right; font-size:.8rem; color: var(--theme-text-muted);">
         <div>Backend: ${u.health.backend}</div>
         <div>Signals: ${u.health.signals}</div>
+        ${(() => {
+          const governanceStatus = store.getGovernanceStatus();
+          const stateColor = governanceStatus.state === 'FROZEN' ? 'var(--error)' : 
+                           governanceStatus.needsAttention ? 'var(--warning)' :
+                           governanceStatus.isActive ? 'var(--success)' : 'var(--theme-text-muted)';
+          const contradictionColor = governanceStatus.contradictionLevel > 0.7 ? 'var(--error)' :
+                                   governanceStatus.contradictionLevel > 0.5 ? 'var(--warning)' : 'var(--success)';
+          return `
+            <div style="margin-top: .25rem;">Governance:</div>
+            <div style="color: ${stateColor};">${governanceStatus.state} (${governanceStatus.mode})</div>
+            <div style="color: ${contradictionColor};">Contradiction: ${(governanceStatus.contradictionLevel * 100).toFixed(1)}%</div>
+            ${governanceStatus.pendingCount > 0 ? `<div style="color: var(--warning);">Pending: ${governanceStatus.pendingCount}</div>` : ''}
+          `;
+        })()}
         <div style="margin-top: .25rem;">Intelligence:</div>
         <div>Cycle: ${intelligenceBadge(u.health.intelligence_modules?.cycle || 'unknown')}</div>
         <div>Regime: ${intelligenceBadge(u.health.intelligence_modules?.regime || 'unknown')}</div>
@@ -244,9 +280,31 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
     if (u.intelligence?.allocation && Object.keys(u.intelligence.allocation).length > 0) {
       const conf = u.decision.confidence || 0;
       const contra = (u.contradictions?.length) || 0;
-      const mode = conf > 0.8 && contra === 0 ? { name: 'Deploy', cap: 12 } :
-                   conf > 0.65 && contra <= 1 ? { name: 'Rotate', cap: 7 } :
-                   conf > 0.55 ? { name: 'Hedge', cap: 3 } : { name: 'Observe', cap: 0 };
+      const governanceStatus = store.getGovernanceStatus();
+      
+      // Get governance-derived policy
+      const governanceState = store.get('governance');
+      const activePolicy = governanceState?.active_policy;
+      
+      // Derive mode and cap from governance or fallback to standard logic
+      let mode = { name: 'Observe', cap: 0 };
+      
+      if (governanceStatus.state === 'FROZEN') {
+        mode = { name: 'Frozen', cap: 0 };
+      } else if (activePolicy && activePolicy.cap_daily) {
+        // Use governance-derived policy
+        const cap = Math.round(activePolicy.cap_daily * 100); // Convert to percentage
+        const policyMode = activePolicy.mode || 'Normal';
+        mode = { 
+          name: `${policyMode} (Gov)`, 
+          cap: cap
+        };
+      } else {
+        // Fallback to standard logic
+        mode = conf > 0.8 && contra === 0 ? { name: 'Deploy', cap: 12 } :
+               conf > 0.65 && contra <= 1 ? { name: 'Rotate', cap: 7 } :
+               conf > 0.55 ? { name: 'Hedge', cap: 3 } : { name: 'Observe', cap: 0 };
+      }
 
       const current = await getCurrentAllocationByGroup(5.0);
       const targetAdj = applyCycleMultipliersToTargets(u.intelligence.allocation, u.cycle?.multipliers || {});
@@ -272,8 +330,11 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
       allocationBlock = card(`
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.5rem;">
           <div style="font-weight:700;">🎯 Allocation Suggérée</div>
-          <div style="font-size:.75rem; color:var(--theme-text-muted); background: var(--theme-bg); border:1px solid var(--theme-border); padding:.2rem .6rem; border-radius: 999px;">
-            Mode: <b>${mode.name}</b> (cap ±${mode.cap}%)
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            ${activePolicy ? `<div style="font-size:.7rem; color: var(--success); background: var(--theme-bg); border:1px solid var(--success); padding:.1rem .4rem; border-radius: 999px;">🏛️ Governance</div>` : ''}
+            <div style="font-size:.75rem; color:var(--theme-text-muted); background: var(--theme-bg); border:1px solid var(--theme-border); padding:.2rem .6rem; border-radius: 999px;">
+              Mode: <b>${mode.name}</b> (cap ±${mode.cap}%)
+            </div>
           </div>
         </div>
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:.45rem; font-size:.8rem;">

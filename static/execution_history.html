@@ -673,6 +673,19 @@
                         }, 100);
                     }
                 });
+
+                // Re-render when display currency changes
+                window.addEventListener('configChanged', (ev) => {
+                    if (ev?.detail?.key === 'display_currency') {
+                        const cur = (window.globalConfig && window.globalConfig.get('display_currency')) || 'USD';
+                        const rerender = () => { try { refreshAll(); } catch(_){} };
+                        if (window.currencyManager && cur !== 'USD') {
+                            window.currencyManager.ensureRate(cur).then(rerender).catch(rerender);
+                        } else {
+                            rerender();
+                        }
+                    }
+                });
             });
 
             function startAutoRefresh() {
@@ -707,6 +720,20 @@
                 }
             }
 
+            function formatMoney(usd) {
+                const cur = (window.globalConfig && window.globalConfig.get('display_currency')) || 'USD';
+                const rate = (window.currencyManager && window.currencyManager.getRateSync(cur)) || 1;
+                if (cur !== 'USD' && (!rate || rate <= 0)) return '—';
+                const v = (usd == null || isNaN(usd)) ? 0 : (usd * rate);
+                try {
+                    const dec = (cur === 'BTC') ? 8 : 2;
+                    const out = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, minimumFractionDigits: dec, maximumFractionDigits: dec }).format(v);
+                    return (cur === 'USD') ? out.replace(/\s?US$/, '') : out;
+                } catch (_) {
+                    return `${v.toFixed(cur==='BTC'?8:2)} ${cur}`;
+                }
+            }
+
             async function loadDashboardData() {
                 try {
                     const response = await fetch(`${config.apiBase}/dashboard-data`);
@@ -721,11 +748,11 @@
 
                     document.getElementById('totalSessions').textContent = stats.total_sessions || 0;
                     document.getElementById('totalVolume').textContent =
-                        stats.total_volume_usd ? `$${stats.total_volume_usd.toLocaleString()}` : '$0';
+                        stats.total_volume_usd ? formatMoney(stats.total_volume_usd) : formatMoney(0);
                     document.getElementById('avgSuccessRate').textContent =
                         stats.avg_success_rate ? `${stats.avg_success_rate.toFixed(1)}%` : '0%';
                     document.getElementById('totalFees').textContent =
-                        stats.total_fees ? `$${stats.total_fees.toFixed(2)}` : '$0';
+                        stats.total_fees ? formatMoney(stats.total_fees) : formatMoney(0);
 
                     // Badge de performance
                     const rating = stats.performance_rating || 'needs_improvement';
@@ -851,11 +878,11 @@
                                 <div class="label">Succès</div>
                             </div>
                             <div class="session-metric">
-                                <div class="value">$${session.total_volume_usd.toLocaleString()}</div>
+                            <div class="value">${formatMoney(session.total_volume_usd)}</div>
                                 <div class="label">Volume</div>
                             </div>
                             <div class="session-metric">
-                                <div class="value">$${session.total_fees.toFixed(2)}</div>
+                            <div class="value">${formatMoney(session.total_fees)}</div>
                                 <div class="label">Frais</div>
                             </div>
                             <div class="session-metric">
@@ -917,11 +944,11 @@
                                 <div class="label">Succès</div>
                             </div>
                             <div class="session-metric">
-                                <div class="value">$${session.total_volume_usd.toLocaleString()}</div>
+                            <div class="value">${formatMoney(session.total_volume_usd)}</div>
                                 <div class="label">Volume</div>
                             </div>
                             <div class="session-metric">
-                                <div class="value">$${session.total_fees.toFixed(2)}</div>
+                            <div class="value">${formatMoney(session.total_fees)}</div>
                                 <div class="label">Frais</div>
                             </div>
                             <div class="session-metric">
@@ -984,7 +1011,7 @@
                                 fill: true
                             },
                             {
-                                label: 'Volume ($)',
+                                label: `Volume (${(window.globalConfig && window.globalConfig.get('display_currency')) || 'USD'})`,
                                 data: chartData.map(item => item.volume_usd || 0),
                                 borderColor: theme.pointColor,
                                 backgroundColor: theme.pointColor + '20',
@@ -1013,7 +1040,7 @@
                                         let value = context.parsed.y;
 
                                         if (label.includes('Volume')) {
-                                            return `${label}: $${value.toLocaleString()}`;
+                                            return `${label}: ${formatMoney(value)}`;
                                         } else if (label.includes('Taux')) {
                                             return `${label}: ${value.toFixed(1)}%`;
                                         }
@@ -1052,7 +1079,7 @@
                                 ticks: {
                                     color: theme.textColor,
                                     callback: function (value) {
-                                        return '$' + value.toLocaleString();
+                                        return formatMoney(value);
                                     }
                                 },
                                 title: {
@@ -1174,7 +1201,7 @@
                             <div class="metric-label">Succès</div>
                         </div>
                         <div class="metric-item">
-                            <div class="metric-value">$${session.total_volume_usd.toLocaleString()}</div>
+                            <div class="metric-value">${formatMoney(session.total_volume_usd)}</div>
                             <div class="metric-label">Volume</div>
                         </div>
                         <div class="metric-item">
@@ -1206,9 +1233,9 @@
                             <td>${order.symbol || 'N/A'}</td>
                             <td>${order.action || 'N/A'}</td>
                             <td>${order.quantity || 0}</td>
-                            <td>$${(order.filled_usd || 0).toLocaleString()}</td>
-                            <td>$${(order.avg_price || 0).toLocaleString()}</td>
-                            <td>$${(order.fees || 0).toFixed(4)}</td>
+                            <td>${formatMoney(order.filled_usd || 0)}</td>
+                            <td>${formatMoney(order.avg_price || 0)}</td>
+                            <td>${formatMoney(order.fees || 0)}</td>
                             <td class="${statusClass}">${order.status || 'unknown'}</td>
                         </tr>
                     `;

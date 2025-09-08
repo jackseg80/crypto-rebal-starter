@@ -17,6 +17,44 @@ function detectDefaultApiBase() {
   return 'http://127.0.0.1:8000';
 }
 
+// Source de vérité centralisée des sources de données disponibles
+// Ajoutez/retirez des entrées ici pour les rendre disponibles partout
+window.DATA_SOURCES = {
+  stub_conservative: { label: 'Démo Conservative', icon: '🛡️', kind: 'stub' },
+  stub_balanced:     { label: 'Démo Équilibrée',  icon: '⚖️', kind: 'stub' },
+  stub_shitcoins:    { label: 'Démo Risquée',      icon: '🎲', kind: 'stub' },
+  cointracking:      { label: 'CoinTracking CSV',  icon: '📄', kind: 'csv' },
+  cointracking_api:  { label: 'CoinTracking API',  icon: '🌐', kind: 'api' }
+};
+
+// Ordre d'affichage par défaut
+window.DATA_SOURCE_ORDER = [
+  'stub_conservative',
+  'stub_balanced',
+  'stub_shitcoins',
+  'cointracking',
+  'cointracking_api'
+];
+
+// Helpers d'accès
+window.getDataSourceKeys = function() {
+  const keys = Array.isArray(window.DATA_SOURCE_ORDER) && window.DATA_SOURCE_ORDER.length
+    ? window.DATA_SOURCE_ORDER.slice()
+    : Object.keys(window.DATA_SOURCES);
+  // Filtrer les clés inconnues
+  return keys.filter(k => !!window.DATA_SOURCES[k]);
+};
+
+window.getDataSourceLabel = function(key) {
+  const meta = window.DATA_SOURCES[key];
+  if (!meta) return key;
+  return `${meta.icon || ''} ${meta.label || key}`.trim();
+};
+
+window.isValidDataSource = function(key) {
+  return !!window.DATA_SOURCES[key];
+};
+
 const DEFAULT_SETTINGS = {
   data_source: 'stub_balanced',
   pricing: 'local',
@@ -622,3 +660,77 @@ if (window.matchMedia) {
 globalConfig.applyTheme();
 
 console.debug('🚀 Configuration globale chargée:', globalConfig.getAll());
+
+// ====== Currency conversion helper (USD -> display currency) ======
+window.currencyManager = (function(){
+  const rates = { USD: 1 };
+  let fetching = {};
+
+  async function fetchEURRate() {
+    // Use a free FX API; fallback to 1 if unavailable
+    try {
+      const res = await fetch('https://api.exchangerate.host/latest?base=USD&symbols=EUR');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      const rate = data?.rates?.EUR;
+      return (typeof rate === 'number' && rate > 0) ? rate : 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  async function fetchBTCRate() {
+    // Get BTCUSDT price from Binance public API (approx USD)
+    try {
+      const res = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      const price = parseFloat(data?.price);
+      return (price && price > 0) ? (1 / price) : 0; // USD->BTC = 1 / BTCUSD
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  async function ensureRate(currency) {
+    const cur = (currency || '').toUpperCase();
+    if (!cur || cur === 'USD') { rates.USD = 1; return 1; }
+    if (rates[cur] && rates[cur] > 0) return rates[cur];
+    if (fetching[cur]) return fetching[cur];
+
+    fetching[cur] = (async () => {
+      let r = 1;
+      if (cur === 'EUR') r = await fetchEURRate();
+      else if (cur === 'BTC') r = await fetchBTCRate();
+      rates[cur] = r > 0 ? r : 0;
+      fetching[cur] = null;
+      try {
+        window.dispatchEvent(new CustomEvent('currencyRateUpdated', { detail: { currency: cur, rate: rates[cur] } }));
+      } catch (_) {}
+      return rates[cur];
+    })();
+    return fetching[cur];
+  }
+
+  function getRateSync(currency) {
+    const cur = (currency || '').toUpperCase();
+    if (!cur || cur === 'USD') return 1;
+    // If not loaded yet, return 0 so UIs can display '—' instead of a wrong number
+    return (cur in rates) ? rates[cur] : 0;
+  }
+
+  // Preload if current display currency is not USD
+  try {
+    const cur = (typeof globalConfig !== 'undefined' && globalConfig.get('display_currency')) || 'USD';
+    if (cur && cur !== 'USD') ensureRate(cur);
+    // React on config changes
+    window.addEventListener('configChanged', (ev) => {
+      if (ev?.detail?.key === 'display_currency') {
+        const c = ev.detail.newValue || ev.detail.value || globalConfig.get('display_currency');
+        if (c && c !== 'USD') ensureRate(c);
+      }
+    });
+  } catch (_) {}
+
+  return { ensureRate, getRateSync };
+})();

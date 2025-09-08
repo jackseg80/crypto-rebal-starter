@@ -7,6 +7,7 @@
   <title>Analytics Unifiés - Crypto Rebalancer</title>
   <link rel="stylesheet" href="shared-theme.css">
   <link rel="stylesheet" href="theme-compat.css">
+  <link rel="stylesheet" href="components/governance-panel.css">
   <script src="global-config.js"></script>
   <script src="appearance.js"></script>
   <script type="module" src="components/nav.js"></script>
@@ -14,6 +15,7 @@
   <script type="module">
     import { renderUnifiedInsights } from './components/UnifiedInsights.js';
     import { store } from './core/risk-dashboard-store.js';
+    import { GovernancePanel } from './components/GovernancePanel.js';
     
     // INTELLIGENT CACHE SYSTEM - Avoid constant recalculations
     const CACHE_CONFIG = {
@@ -273,9 +275,38 @@
       loadUnifiedData();
     });
 
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
+      // Initialize governance panel
+      const governanceContainer = document.getElementById('governance-container');
+      if (governanceContainer) {
+        console.log('🏛️ Initializing Governance Panel in analytics dashboard...');
+        const governancePanel = new GovernancePanel(governanceContainer);
+        window.governancePanel = governancePanel; // For debugging
+      }
+      
       // initial paint
       renderUnifiedInsights('unified-root');
+      
+      // Initialize governance system
+      setTimeout(async () => {
+        try {
+          console.log('🏛️ Initializing governance system in analytics dashboard...');
+          await store.syncGovernanceState();
+          await store.syncMLSignals();
+          console.log('✅ Governance system initialized in analytics dashboard');
+          
+          // Re-render to show governance status
+          renderUnifiedInsights('unified-root');
+          
+          // Refresh governance panel if initialized
+          if (window.governancePanel) {
+            window.governancePanel.refreshState();
+          }
+        } catch (error) {
+          console.warn('⚠️ Failed to initialize governance in analytics:', error);
+        }
+      }, 500);
+      
       // keep in sync with store changes without over-rendering
       let paintTimer;
       store.subscribe(() => {
@@ -361,6 +392,9 @@
 
 <body>
   <div class="wrap">
+    <!-- Governance Panel -->
+    <div id="governance-container"></div>
+    
     <div id="unified-root"></div>
     <div style="height: 1rem;"></div>
     <div class="tabs" id="analytics-tabs">

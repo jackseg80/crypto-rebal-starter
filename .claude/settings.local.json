@@ -153,7 +153,8 @@
       "Bash(start http://localhost:8000/debug_allocation.html)",
       "Bash(start http://localhost:8000/debug_allocation_simple.html)",
       "Bash(start http://localhost:8000/debug_allocation_final.html)",
-      "Bash(start http://localhost:8000/test_dashboard_stats.html)"
+      "Bash(start http://localhost:8000/test_dashboard_stats.html)",
+      "Bash(start http://localhost:8000/test_rebalance_fix.html)"
     ],
     "deny": [],
     "ask": [],

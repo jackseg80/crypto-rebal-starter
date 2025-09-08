@@ -36,6 +36,21 @@ export class RiskDashboardStore {
         model_version: 'tgt-1'
       },
       
+      // Governance state
+      governance: {
+        current_state: 'IDLE',
+        mode: 'manual',
+        last_decision_id: null,
+        contradiction_index: 0.0,
+        ml_signals_timestamp: null,
+        active_policy: null,
+        pending_approvals: 0,
+        next_update_time: null,
+        decisions: [],
+        ml_signals: null,
+        last_sync: null
+      },
+      
       // UI state
       ui: {
         activeTab: 'risk',
@@ -110,6 +125,7 @@ export class RiskDashboardStore {
       ccs: this.state.ccs,
       cycle: this.state.cycle,
       targets: this.state.targets,
+      governance: this.state.governance,
       timestamp: Date.now()
     };
     
@@ -125,13 +141,14 @@ export class RiskDashboardStore {
     try {
       const saved = localStorage.getItem(key);
       if (saved) {
-        const { ccs, cycle, targets, timestamp } = JSON.parse(saved);
+        const { ccs, cycle, targets, governance, timestamp } = JSON.parse(saved);
         
         // Only restore if not too old (1 hour max)
         if (Date.now() - timestamp < 60 * 60 * 1000) {
           if (ccs) this.state.ccs = { ...this.state.ccs, ...ccs };
           if (cycle) this.state.cycle = { ...this.state.cycle, ...cycle };
           if (targets) this.state.targets = { ...this.state.targets, ...targets };
+          if (governance) this.state.governance = { ...this.state.governance, ...governance };
           
           console.debug('State hydrated from localStorage');
           this._notify();
@@ -141,10 +158,146 @@ export class RiskDashboardStore {
       console.warn('Failed to hydrate state:', error);
     }
   }
+  
+  // Governance-specific methods
+  async syncGovernanceState() {
+    try {
+      const response = await fetch(`${window.location.origin}/execution/governance/state`);
+      if (response.ok) {
+        const governanceState = await response.json();
+        this.set('governance.current_state', governanceState.current_state);
+        this.set('governance.mode', governanceState.mode);
+        this.set('governance.last_decision_id', governanceState.last_decision_id);
+        this.set('governance.contradiction_index', governanceState.contradiction_index);
+        this.set('governance.ml_signals_timestamp', governanceState.ml_signals_timestamp);
+        this.set('governance.active_policy', governanceState.active_policy);
+        this.set('governance.pending_approvals', governanceState.pending_approvals);
+        this.set('governance.next_update_time', governanceState.next_update_time);
+        this.set('governance.last_sync', Date.now());
+        
+        console.debug('Governance state synced:', governanceState.current_state);
+        return true;
+      }
+    } catch (error) {
+      console.error('Failed to sync governance state:', error);
+      this.set('ui.errors', [...(this.get('ui.errors') || []), `Governance sync error: ${error.message}`]);
+    }
+    return false;
+  }
+  
+  async syncMLSignals() {
+    try {
+      const response = await fetch(`${window.location.origin}/execution/governance/signals`);
+      if (response.ok) {
+        const data = await response.json();
+        this.set('governance.ml_signals', data.signals);
+        this.set('governance.last_sync', Date.now());
+        
+        console.debug('ML signals synced, contradiction index:', data.signals?.contradiction_index);
+        return data.signals;
+      }
+    } catch (error) {
+      console.error('Failed to sync ML signals:', error);
+      this.set('ui.errors', [...(this.get('ui.errors') || []), `ML signals sync error: ${error.message}`]);
+    }
+    return null;
+  }
+  
+  async approveDecision(decisionId, approved, reason = null) {
+    try {
+      const response = await fetch(`${window.location.origin}/execution/governance/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          decision_id: decisionId,
+          approved: approved,
+          reason: reason
+        })
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Decision approval result:', result);
+        
+        // Refresh governance state after approval
+        await this.syncGovernanceState();
+        return true;
+      }
+    } catch (error) {
+      console.error('Failed to approve decision:', error);
+      this.set('ui.errors', [...(this.get('ui.errors') || []), `Decision approval error: ${error.message}`]);
+    }
+    return false;
+  }
+  
+  async freezeSystem(reason, durationMinutes = null) {
+    try {
+      const response = await fetch(`${window.location.origin}/execution/governance/freeze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reason: reason,
+          duration_minutes: durationMinutes
+        })
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('System freeze result:', result);
+        
+        // Refresh governance state after freeze
+        await this.syncGovernanceState();
+        return true;
+      }
+    } catch (error) {
+      console.error('Failed to freeze system:', error);
+      this.set('ui.errors', [...(this.get('ui.errors') || []), `System freeze error: ${error.message}`]);
+    }
+    return false;
+  }
+  
+  async unfreezeSystem() {
+    try {
+      const response = await fetch(`${window.location.origin}/execution/governance/unfreeze`, {
+        method: 'POST'
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('System unfreeze result:', result);
+        
+        // Refresh governance state after unfreeze
+        await this.syncGovernanceState();
+        return true;
+      }
+    } catch (error) {
+      console.error('Failed to unfreeze system:', error);
+      this.set('ui.errors', [...(this.get('ui.errors') || []), `System unfreeze error: ${error.message}`]);
+    }
+    return false;
+  }
+  
+  // Get governance status for UI display
+  getGovernanceStatus() {
+    const gov = this.get('governance');
+    return {
+      state: gov.current_state || 'UNKNOWN',
+      mode: gov.mode || 'manual',
+      isActive: ['DRAFT', 'APPROVED', 'ACTIVE'].includes(gov.current_state),
+      hasSignals: gov.ml_signals_timestamp !== null,
+      contradictionLevel: gov.contradiction_index || 0,
+      pendingCount: gov.pending_approvals || 0,
+      needsAttention: gov.pending_approvals > 0 || gov.contradiction_index > 0.7,
+      lastSync: gov.last_sync ? new Date(gov.last_sync) : null
+    };
+  }
 }
 
 // Global store instance
 export const store = new RiskDashboardStore();
+
+// Also make it available globally for non-module scripts
+window.riskStore = store;
 
 // Auto-persist on changes (debounced)
 let persistTimeout;

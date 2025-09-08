@@ -345,11 +345,7 @@
         <div class="form-row">
           <div style="flex:1; min-width: 240px;">
             <label>Source de données</label>
-            <select id="quick_data_source">
-              <option value="stub_balanced">⚖️ Démo Équilibrée</option>
-              <option value="cointracking">📄 CoinTracking CSV</option>
-              <option value="cointracking_api">🌐 CoinTracking API</option>
-            </select>
+            <select id="quick_data_source"></select>
             <div class="help">Impacte tous les dashboards (balances, analytics et rebalancing)</div>
           </div>
           <div style="flex:1; min-width: 240px;">
@@ -403,27 +399,11 @@
       <h3>📡 Source de Données</h3>
       <div class="form-group">
         <label>Source principale des balances</label>
-        <div class="radio-group">
-          <div class="radio-option" onclick="selectDataSource('stub_conservative')">
-            <input type="radio" name="data_source" value="stub_conservative" id="source_stub_conservative">
-            <label for="source_stub_conservative">🛡️ <strong>Démo Conservative</strong> - 80% BTC, 15% ETH, 5% Stables</label>
-          </div>
-          <div class="radio-option" onclick="selectDataSource('stub_balanced')">
-            <input type="radio" name="data_source" value="stub_balanced" id="source_stub_balanced">
-            <label for="source_stub_balanced">⚖️ <strong>Démo Équilibrée</strong> - Portfolio diversifié qualité</label>
-          </div>
-          <div class="radio-option" onclick="selectDataSource('stub_shitcoins')">
-            <input type="radio" name="data_source" value="stub_shitcoins" id="source_stub_shitcoins">
-            <label for="source_stub_shitcoins">🎲 <strong>Démo Risquée</strong> - Memecoins et shitcoins</label>
-          </div>
-          <div class="radio-option" onclick="selectDataSource('cointracking')">
-            <input type="radio" name="data_source" value="cointracking" id="source_cointracking">
-            <label for="source_cointracking">📄 <strong>CoinTracking CSV</strong> - Fichier local</label>
-          </div>
-          <div class="radio-option" onclick="selectDataSource('cointracking_api')">
-            <input type="radio" name="data_source" value="cointracking_api" id="source_cointracking_api">
-            <label for="source_cointracking_api">🌐 <strong>CoinTracking API</strong> - Temps réel</label>
-          </div>
+        <div id="data_source_sections">
+          <h4 style="margin:8px 0 6px 0;">Sources de démo</h4>
+          <div class="radio-group" id="data_source_demo"></div>
+          <h4 style="margin:14px 0 6px 0;">Sources CoinTracking</h4>
+          <div class="radio-group" id="data_source_ct"></div>
         </div>
         <div class="help">Cette source sera utilisée par défaut pour le Dashboard, Rebalancing et toutes les analytics.
         </div>
@@ -766,11 +746,72 @@
     }, 0);
   </script>
   <script>
+    // Construit dynamiquement les contrôles de source de données à partir de la source centralisée
+    function buildDataSourceControls() {
+      const keys = (window.getDataSourceKeys && window.getDataSourceKeys()) || [];
+
+      // 1) Peupler le select rapide
+      const quickSelect = document.getElementById('quick_data_source');
+      if (quickSelect) {
+        quickSelect.innerHTML = '';
+        for (const key of keys) {
+          const opt = document.createElement('option');
+          opt.value = key;
+          opt.textContent = window.getDataSourceLabel ? window.getDataSourceLabel(key) : key;
+          quickSelect.appendChild(opt);
+        }
+      }
+
+      // 2) Construire les groupes radio de l'onglet Source (démo vs CoinTracking)
+      const demoContainer = document.getElementById('data_source_demo');
+      const ctContainer = document.getElementById('data_source_ct');
+      if (demoContainer) demoContainer.innerHTML = '';
+      if (ctContainer) ctContainer.innerHTML = '';
+
+      const buildOption = (key) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'radio-option';
+        wrapper.setAttribute('onclick', `selectDataSource('${key}')`);
+
+        const input = document.createElement('input');
+        input.type = 'radio';
+        input.name = 'data_source';
+        input.value = key;
+        input.id = `source_${key}`;
+
+        const label = document.createElement('label');
+        label.setAttribute('for', `source_${key}`);
+        label.innerHTML = `${window.getDataSourceLabel ? window.getDataSourceLabel(key) : key}`;
+
+        wrapper.appendChild(input);
+        wrapper.appendChild(label);
+        return wrapper;
+      };
+
+      for (const key of keys) {
+        const meta = (window.DATA_SOURCES && window.DATA_SOURCES[key]) || {};
+        const kind = meta.kind || '';
+        const node = buildOption(key);
+        if ((kind === 'stub') && demoContainer) {
+          demoContainer.appendChild(node);
+        } else if ((kind === 'csv' || kind === 'api') && ctContainer) {
+          ctContainer.appendChild(node);
+        } else if (ctContainer) {
+          // Par défaut, tout ce qui n'est pas stub va avec CoinTracking/externes
+          ctContainer.appendChild(node);
+        }
+      }
+    }
+
     // Initialisation des réglages rapides
     function initQuickSettings() {
       const s = globalConfig.getAll();
+      // S'assurer que les contrôles sont construits d'abord
+      buildDataSourceControls();
       // Valeurs initiales
-      document.getElementById('quick_data_source').value = s.data_source || 'stub_balanced';
+      if (document.getElementById('quick_data_source')) {
+        document.getElementById('quick_data_source').value = s.data_source || 'stub_balanced';
+      }
       document.getElementById('quick_pricing').value = s.pricing || 'auto';
       document.getElementById('quick_min_usd').value = (s.min_usd_threshold ?? 1);
       document.getElementById('quick_currency').value = s.display_currency || 'USD';
@@ -778,10 +819,20 @@
       document.getElementById('quick_api_base_url').value = s.api_base_url || window.location.origin;
 
       // Listeners: appliquent immédiatement dans globalConfig
-      document.getElementById('quick_data_source').addEventListener('change', (e)=> selectDataSource(e.target.value));
+      if (document.getElementById('quick_data_source')) {
+        document.getElementById('quick_data_source').addEventListener('change', (e)=> selectDataSource(e.target.value));
+      }
       document.getElementById('quick_pricing').addEventListener('change', (e)=> selectPricing(e.target.value));
       document.getElementById('quick_min_usd').addEventListener('change', (e)=> globalConfig.set('min_usd_threshold', parseFloat(e.target.value) || 0));
-      document.getElementById('quick_currency').addEventListener('change', (e)=> globalConfig.set('display_currency', e.target.value));
+      document.getElementById('quick_currency').addEventListener('change', async (e)=> {
+        const val = e.target.value;
+        // Mettre à jour la config et synchroniser le select détaillé
+        globalConfig.set('display_currency', val);
+        const mainSel = document.getElementById('display_currency');
+        if (mainSel) mainSel.value = val;
+        try { if (window.currencyManager && val !== 'USD') await window.currencyManager.ensureRate(val); } catch(_){}
+        updateStatusSummary();
+      });
       document.getElementById('quick_theme').addEventListener('change', (e)=> selectTheme(e.target.value));
       document.getElementById('quick_api_base_url').addEventListener('change', (e)=> globalConfig.set('api_base_url', e.target.value));
 
@@ -818,8 +869,12 @@
       document.querySelectorAll('.radio-option').forEach(el => el.classList.remove('selected'));
 
       // Source de données
-      document.getElementById(`source_${globalSettings.data_source}`).checked = true;
-      document.querySelector(`.radio-option input[value="${globalSettings.data_source}"]`).parentElement.classList.add('selected');
+      const srcInput = document.getElementById(`source_${globalSettings.data_source}`);
+      if (srcInput) {
+        srcInput.checked = true;
+        const parent = document.querySelector(`.radio-option input[value="${globalSettings.data_source}"]`);
+        if (parent && parent.parentElement) parent.parentElement.classList.add('selected');
+      }
 
       // Pricing
       document.getElementById(`pricing_${globalSettings.pricing}`).checked = true;
@@ -831,6 +886,9 @@
 
       // Autres champs
       document.getElementById('display_currency').value = globalSettings.display_currency;
+      // Synchroniser le select rapide avec la valeur principale
+      const quickCurr = document.getElementById('quick_currency');
+      if (quickCurr) quickCurr.value = globalSettings.display_currency;
       document.getElementById('min_usd_threshold').value = globalSettings.min_usd_threshold;
 
       // Clés API masquées
@@ -853,17 +911,26 @@
       document.getElementById('enable_performance_tracking').checked = globalSettings.enable_performance_tracking;
     }
 
+    // Écouteur pour le select détaillé de devise afin de synchroniser avec le quick-select
+    document.addEventListener('DOMContentLoaded', () => {
+      const mainCurrency = document.getElementById('display_currency');
+      if (mainCurrency) {
+        mainCurrency.addEventListener('change', async (e) => {
+          const val = e.target.value;
+          globalConfig.set('display_currency', val);
+          const quick = document.getElementById('quick_currency');
+          if (quick) quick.value = val;
+          try { if (window.currencyManager && val !== 'USD') await window.currencyManager.ensureRate(val); } catch(_){}
+          updateStatusSummary();
+        });
+      }
+    });
+
     // Mettre à jour le résumé du statut
     function updateStatusSummary() {
       const summary = document.getElementById('status-summary');
       const globalSettings = globalConfig.getAll();
-      const sourceLabels = {
-        'stub_conservative': '🛡️ Démo Conservative',
-        'stub_balanced': '⚖️ Démo Équilibrée', 
-        'stub_shitcoins': '🎲 Démo Risquée',
-        'cointracking': '📄 CoinTracking CSV',
-        'cointracking_api': '🌐 CoinTracking API'
-      };
+      const getLabel = (window.getDataSourceLabel || (()=>''));
 
       const pricingLabels = {
         'local': '🏠 Prix locaux',
@@ -879,8 +946,8 @@
       summary.innerHTML = `
       <div style="display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px;">
         <span class="status-indicator status-ok">
-          ${sourceLabels[globalSettings.data_source]}
-        </span>
+          ${getLabel(globalSettings.data_source)}
+      </span>
         <span class="status-indicator status-ok">
           ${pricingLabels[globalSettings.pricing]}
         </span>

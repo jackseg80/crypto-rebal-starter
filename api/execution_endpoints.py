@@ -13,6 +13,7 @@ from datetime import datetime
 
 from services.execution.execution_engine import execution_engine
 from services.execution.exchange_adapter import exchange_registry
+from services.execution.governance import governance_engine
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,28 @@ class ExecutionStatus(BaseModel):
     completion_percentage: float
     start_time: Optional[str] = None
     end_time: Optional[str] = None
+
+class GovernanceStateResponse(BaseModel):
+    """État du système de gouvernance"""
+    current_state: str
+    mode: str
+    last_decision_id: Optional[str] = None
+    contradiction_index: float
+    ml_signals_timestamp: Optional[str] = None
+    active_policy: Optional[Dict[str, Any]] = None
+    pending_approvals: int
+    next_update_time: Optional[str] = None
+
+class ApprovalRequest(BaseModel):
+    """Requête d'approbation d'une décision"""
+    decision_id: str
+    approved: bool
+    reason: Optional[str] = None
+
+class FreezeRequest(BaseModel):
+    """Requête de gel du système"""
+    reason: str
+    duration_minutes: Optional[int] = None
 
 # Instance locale du gestionnaire d'ordres pour les endpoints
 order_manager = execution_engine.order_manager
@@ -389,4 +412,211 @@ async def get_pipeline_status():
         
     except Exception as e:
         logger.error(f"Error getting pipeline status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Endpoints de Gouvernance
+@router.get("/governance/state", response_model=GovernanceStateResponse)
+async def get_governance_state():
+    """
+    Obtenir l'état actuel du système de gouvernance
+    
+    Retourne le mode actuel (manual/ai_assisted/full_ai), l'état de la machine à états,
+    les signaux ML, et les décisions en attente.
+    """
+    try:
+        state = await governance_engine.get_current_state()
+        
+        # Derive current state from available data
+        current_state = "IDLE"
+        if state.proposed_plan:
+            current_state = "DRAFT"
+        elif state.current_plan:
+            current_state = "ACTIVE"
+        
+        return GovernanceStateResponse(
+            current_state=current_state,
+            mode=state.governance_mode.value if hasattr(state.governance_mode, 'value') else state.governance_mode,
+            last_decision_id=state.current_plan.plan_id if state.current_plan else None,
+            contradiction_index=state.signals.contradiction_index if state.signals else 0.0,
+            ml_signals_timestamp=state.signals.timestamp.isoformat() if state.signals and hasattr(state.signals, 'timestamp') and state.signals.timestamp else None,
+            active_policy=state.execution_policy.dict() if state.execution_policy else None,
+            pending_approvals=0,  # TODO: Implement decision tracking
+            next_update_time=state.last_update.isoformat() if state.last_update else None
+        )
+        
+    except Exception as e:
+        logger.error(f"Error getting governance state: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/governance/approve")
+async def approve_decision(request: ApprovalRequest):
+    """
+    Approuver ou rejeter une décision en attente
+    
+    En mode manuel ou ai_assisted, les décisions doivent être approuvées
+    avant d'être exécutées.
+    """
+    try:
+        success = await governance_engine.approve_decision(
+            decision_id=request.decision_id,
+            approved=request.approved,
+            reason=request.reason
+        )
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="Decision not found or not in approvalable state")
+        
+        return {
+            "success": True,
+            "message": f"Decision {request.decision_id} {'approved' if request.approved else 'rejected'}",
+            "decision_id": request.decision_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error approving decision: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/governance/freeze")
+async def freeze_system(request: FreezeRequest):
+    """
+    Geler le système de gouvernance
+    
+    Stoppe toutes les décisions automatiques et passe en mode manuel.
+    Utilisé en cas d'urgence ou de conditions de marché exceptionnelles.
+    """
+    try:
+        success = await governance_engine.freeze_system(
+            reason=request.reason,
+            duration_minutes=request.duration_minutes
+        )
+        
+        if not success:
+            raise HTTPException(status_code=400, detail="System is already frozen or cannot be frozen")
+        
+        return {
+            "success": True,
+            "message": f"System frozen: {request.reason}",
+            "duration_minutes": request.duration_minutes,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error freezing system: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/governance/unfreeze")
+async def unfreeze_system():
+    """
+    Dégeler le système de gouvernance
+    
+    Remet le système en fonctionnement normal selon le mode configuré.
+    """
+    try:
+        success = await governance_engine.unfreeze_system()
+        
+        if not success:
+            raise HTTPException(status_code=400, detail="System is not frozen")
+        
+        return {
+            "success": True,
+            "message": "System unfrozen and resumed normal operations",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error unfreezing system: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/governance/signals")
+async def get_ml_signals():
+    """
+    Obtenir les signaux ML actuels
+    
+    Retourne les derniers signaux des 4 modèles (volatilité, régime, corrélation, sentiment)
+    avec leur indice de contradiction et la politique dérivée.
+    """
+    try:
+        signals = await governance_engine.get_current_ml_signals()
+        
+        if not signals:
+            return {
+                "signals": None,
+                "message": "No ML signals available",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        return {
+            "signals": {
+                "volatility": signals.volatility,
+                "regime": signals.regime,
+                "correlation": signals.correlation,  
+                "sentiment": signals.sentiment,
+                "decision_score": signals.decision_score,
+                "confidence": signals.confidence,
+                "contradiction_index": signals.contradiction_index,
+                "sources_used": signals.sources_used,
+                "timestamp": signals.timestamp.isoformat() if hasattr(signals, 'timestamp') and signals.timestamp else None
+            },
+            "derived_policy": None,  # TODO: Implement derived policy in MLSignals
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting ML signals: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/governance/decisions")
+async def list_decisions(
+    limit: int = Query(default=20, le=100),
+    offset: int = Query(default=0, ge=0),
+    state_filter: Optional[str] = Query(default=None)
+):
+    """
+    Lister les décisions de gouvernance
+    
+    Retourne l'historique des décisions avec leur état, métadonnées,
+    et résultats d'exécution.
+    """
+    try:
+        decisions_data = []
+        
+        # Filtrer et paginer les décisions
+        all_decisions = list(governance_engine.decisions.values())
+        
+        if state_filter:
+            all_decisions = [d for d in all_decisions if d.state.state.value == state_filter.upper()]
+        
+        paginated_decisions = all_decisions[offset:offset + limit]
+        
+        for decision in paginated_decisions:
+            decision_data = {
+                "id": decision.id,
+                "plan_id": decision.plan_id,
+                "state": decision.state.state.value,
+                "mode": decision.state.mode.value,
+                "contradiction_index": decision.state.contradiction_index,
+                "created_at": decision.created_at.isoformat(),
+                "approved_at": decision.approved_at.isoformat() if decision.approved_at else None,
+                "executed_at": decision.executed_at.isoformat() if decision.executed_at else None,
+                "targets": [target.dict() for target in decision.targets],
+                "active_policy": decision.state.active_policy.dict() if decision.state.active_policy else None,
+                "approval_reason": decision.approval_reason,
+                "execution_stats": decision.execution_stats
+            }
+            decisions_data.append(decision_data)
+        
+        return {
+            "decisions": decisions_data,
+            "total": len(all_decisions),
+            "limit": limit,
+            "offset": offset,
+            "state_filter": state_filter
+        }
+        
+    except Exception as e:
+        logger.error(f"Error listing decisions: {e}")
         raise HTTPException(status_code=500, detail=str(e))

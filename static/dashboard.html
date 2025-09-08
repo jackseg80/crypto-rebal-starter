@@ -794,6 +794,44 @@
                 // Force complete reload of dashboard data
                 loadDashboardData();
             });
+
+            // Reformat values when display currency changes
+            window.addEventListener('configChanged', (ev) => {
+                try {
+                    const key = ev?.detail?.key;
+                    if (key === 'display_currency') {
+                        console.debug('💱 Display currency changed, re-rendering amounts...');
+                        const cur = (window.globalConfig && window.globalConfig.get('display_currency')) || 'USD';
+                        const maybeRender = () => {
+                          if (dashboardData && dashboardData.portfolio) {
+                              updatePortfolioDisplay(dashboardData.portfolio);
+                          }
+                          if (dashboardData && dashboardData.recentActivity) {
+                              updateRecentActivity(dashboardData.recentActivity);
+                          }
+                          if (dashboardData && dashboardData.executionStats) {
+                              updateExecutionStatus(dashboardData.executionStats);
+                          }
+                        };
+                        if (window.currencyManager && cur !== 'USD') {
+                          window.currencyManager.ensureRate(cur).then(maybeRender).catch(maybeRender);
+                        } else {
+                          maybeRender();
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Currency change re-render failed:', e);
+                }
+            });
+
+            // Also re-render when async rate fetch completes
+            window.addEventListener('currencyRateUpdated', () => {
+                try {
+                    if (dashboardData && dashboardData.portfolio) updatePortfolioDisplay(dashboardData.portfolio);
+                    if (dashboardData && dashboardData.recentActivity) updateRecentActivity(dashboardData.recentActivity);
+                    if (dashboardData && dashboardData.executionStats) updateExecutionStatus(dashboardData.executionStats);
+                } catch (e) { console.warn('Re-render on rate update failed:', e); }
+            });
         });
 
         async function loadDashboardData() {
@@ -814,10 +852,16 @@
                     totalValue: portfolioResult?.metrics?.total_value_usd,
                     assetCount: portfolioResult?.metrics?.asset_count
                 });
-                await updatePortfolioDisplay(portfolioResult);
-                updateConnectionsDisplay(connectionsData.status === 'fulfilled' ? connectionsData.value : null);
-                updateRecentActivity(historyData.status === 'fulfilled' ? historyData.value : null);
-                updateExecutionStatus(executionStatus.status === 'fulfilled' ? executionStatus.value : null);
+                // Store for re-rendering on currency change
+                dashboardData.portfolio = portfolioResult;
+                dashboardData.connections = connectionsData.status === 'fulfilled' ? connectionsData.value : null;
+                dashboardData.recentActivity = historyData.status === 'fulfilled' ? historyData.value : null;
+                dashboardData.executionStats = executionStatus.status === 'fulfilled' ? executionStatus.value : null;
+
+                await updatePortfolioDisplay(dashboardData.portfolio);
+                updateConnectionsDisplay(dashboardData.connections);
+                updateRecentActivity(dashboardData.recentActivity);
+                updateExecutionStatus(dashboardData.executionStats);
                 updateScoresDisplay(scoresData.status === 'fulfilled' ? scoresData.value : null);
                 updateSystemHealth();
 
@@ -1274,8 +1318,19 @@
         }
 
         function formatUSD(v) {
-            if (!v) return '$0.00';
-            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
+            const cur = (window.globalConfig && window.globalConfig.get('display_currency')) || 'USD';
+            const rate = (window.currencyManager && window.currencyManager.getRateSync(cur)) || 1;
+            if (cur !== 'USD' && (!rate || rate <= 0)) return '—';
+            const val = (v == null || isNaN(v)) ? 0 : (v * rate);
+            try {
+              // BTC is not a standard ISO code; Intl may throw
+              const decimals = (cur === 'BTC') ? 8 : 2;
+              const out = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(val);
+              return (cur === 'USD') ? out.replace(/\s?US$/, '') : out;
+            } catch (_) {
+              const decimals = (cur === 'BTC') ? 8 : 2;
+              return `${val.toFixed(decimals)} ${cur}`;
+            }
         }
         function formatTimeAgo(ts) {
             if (!ts) return 'N/A';

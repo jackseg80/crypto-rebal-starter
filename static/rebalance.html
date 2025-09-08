@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="shared-theme.css">
   <link rel="stylesheet" href="theme-compat.css">
   <script type="module" src="components/nav.js"></script>
+  <script type="module" src="core/risk-dashboard-store.js"></script>
 
   <script src="debug-logger.js"></script>
   <script src="input-validator.js"></script>
@@ -611,6 +612,9 @@
     const $ = sel => document.querySelector(sel);
     const el = id => document.getElementById(id);
 
+    /* ---------- Governance Store Access ---------- */
+    // Le store est chargé comme module via script type="module" dans le header
+
     /* ---------- Variables globales pour stratégies ---------- */
     let availableStrategies = {};
     let selectedStrategyId = null;
@@ -991,7 +995,7 @@
       }
     }
 
-    function applyStrategy() {
+    async function applyStrategy() {
       if (!selectedStrategyId || !availableStrategies[selectedStrategyId]) {
         showNotification('Aucune stratégie sélectionnée', 'warning');
         return;
@@ -999,19 +1003,44 @@
 
       const strategy = availableStrategies[selectedStrategyId];
 
+      // Check governance state first
+      try {
+        await window.riskStore.syncGovernanceState();
+        const governanceStatus = window.riskStore.getGovernanceStatus();
+        
+        if (governanceStatus.state === 'FROZEN') {
+          showNotification('❄️ Système gelé - Impossible d\'appliquer la stratégie', 'error');
+          return;
+        }
+
+        if (governanceStatus.needsAttention && governanceStatus.pendingCount > 0) {
+          showNotification(`⚠️ ${governanceStatus.pendingCount} décision(s) en attente d'approbation`, 'warning');
+        }
+
+      } catch (error) {
+        console.warn('Governance check failed:', error);
+        // Continue with strategy application even if governance check fails
+      }
+
       // Utiliser le système dynamicTargets pour appliquer la stratégie
       dynamicTargets = strategy.allocations;
       useDynamicTargets = true;
 
-      // Mettre à jour l'indicateur UI
+      // Mettre à jour l'indicateur UI avec gouvernance
       const indicator = el("dynamicTargetsIndicator");
+      const governanceState = window.riskStore.get('governance');
+      const activePolicy = governanceState?.active_policy;
+      
       if (indicator) {
         indicator.style.display = 'inline-block';
-        indicator.textContent = `🎯 ${strategy.name}`;
+        const policyInfo = activePolicy ? ` (Gov: ${Math.round(activePolicy.cap_daily * 100)}% cap)` : '';
+        indicator.textContent = `🎯 ${strategy.name}${policyInfo}`;
       }
 
-      // Notification
-      showNotification(`✅ Stratégie "${strategy.name}" appliquée!`, 'success');
+      // Notification avec gouvernance
+      const governanceStatus = window.riskStore.getGovernanceStatus();
+      const govInfo = governanceStatus.mode !== 'manual' ? ` (mode: ${governanceStatus.mode})` : '';
+      showNotification(`✅ Stratégie "${strategy.name}" appliquée${govInfo}!`, 'success');
 
       // Régénérer automatiquement le plan
       setTimeout(() => {
@@ -1057,6 +1086,19 @@
 
     const fmt = n => (n == null || isNaN(n)) ? "" : Number(n).toLocaleString(undefined, { maximumFractionDigits: 8 });
     const fmt2 = n => (n == null || isNaN(n)) ? "—" : Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
+    const formatMoney = (usd) => {
+      const cur = (window.globalConfig && window.globalConfig.get('display_currency')) || 'USD';
+      const rate = (window.currencyManager && window.currencyManager.getRateSync(cur)) || 1;
+      if (cur !== 'USD' && (!rate || rate <= 0)) return '—';
+      const v = (usd == null || isNaN(usd)) ? 0 : (usd * rate);
+      try {
+        const dec = (cur === 'BTC') ? 8 : 2;
+        const out = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, minimumFractionDigits: dec, maximumFractionDigits: dec }).format(v);
+        return (cur === 'USD') ? out.replace(/\s?US$/, '') : out;
+      } catch (_) {
+        return `${v.toFixed(cur==='BTC'?8:2)} ${cur}`;
+      }
+    };
 
     /* ---------- Dynamic Targets Support ---------- */
     let dynamicTargets = null;
@@ -1140,7 +1182,15 @@
 
         const totalValue = balances.reduce((sum, item) => sum + item.value_usd, 0);
 
-        console.log(`🔍 Loaded ${balances.length} assets from CSV, total: $${totalValue.toFixed(2)}`);
+        const cur = (window.globalConfig && window.globalConfig.get('display_currency')) || 'USD';
+        const rate = (window.currencyManager && window.currencyManager.getRateSync(cur)) || 1;
+        const totalDisp = totalValue * rate;
+        try {
+          const dec = (cur === 'BTC') ? 8 : 2;
+          console.log(`🔍 Loaded ${balances.length} assets from CSV, total: ` + new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, minimumFractionDigits: dec, maximumFractionDigits: dec }).format(totalDisp));
+        } catch (_) {
+          console.log(`🔍 Loaded ${balances.length} assets from CSV, total: ${totalDisp.toFixed(cur==='BTC'?8:2)} ${cur}`);
+        }
 
         // Group assets by ASSET_GROUPS
         const groupedData = groupAssetsByAliases(balances);
@@ -1676,12 +1726,34 @@
 
         if (liquidExchanges.length > 0) {
           const best = liquidExchanges[0];
-          return `${best.exchange} ($${best.value.toLocaleString()})`;
+          const cur = (window.globalConfig && window.globalConfig.get('display_currency')) || 'USD';
+          const rate = (window.currencyManager && window.currencyManager.getRateSync(cur)) || 1;
+          const val = best.value * rate;
+          let formatted;
+          try {
+            const dec = (cur === 'BTC') ? 8 : 2;
+            formatted = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, minimumFractionDigits: dec, maximumFractionDigits: dec }).format(val);
+          } catch (_) {
+            formatted = `${val.toFixed(cur==='BTC'?8:2)} ${cur}`;
+          }
+          return `${best.exchange} (${formatted})`;
         }
 
         // Fallback to largest holding
         const largest = sortedExchanges[0];
-        return `${largest.exchange} ($${largest.value.toLocaleString()})`;
+        {
+          const cur = (window.globalConfig && window.globalConfig.get('display_currency')) || 'USD';
+          const rate = (window.currencyManager && window.currencyManager.getRateSync(cur)) || 1;
+          const val = largest.value * rate;
+          let formatted;
+          try {
+            const dec = (cur === 'BTC') ? 8 : 2;
+            formatted = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, minimumFractionDigits: dec, maximumFractionDigits: dec }).format(val);
+          } catch (_) {
+            formatted = `${val.toFixed(cur==='BTC'?8:2)} ${cur}`;
+          }
+          return `${largest.exchange} (${formatted})`;
+        }
       } else {
         // For buys, prefer main trading exchanges
         const tradingExchanges = ['Binance', 'Kraken', 'Kraken Earn'];
@@ -1704,7 +1776,7 @@
     function getExchangeSummary(coinSymbol, exchangeData) {
       const coinExchanges = exchangeData[coinSymbol] || {};
       const exchanges = Object.entries(coinExchanges).map(([exchange, data]) => {
-        return `${exchange}: $${data.value_usd.toLocaleString()}`;
+        return `${exchange}: ${formatMoney(data.value_usd)}`;
       }).join(', ');
 
       return exchanges || 'No exchange data';
@@ -1758,7 +1830,7 @@
     }
     function setTotal(v) {
       const n = Number(v || 0);
-      el("total").textContent = "Total : " + (isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) + " $" : "—");
+      el("total").textContent = "Total : " + (isFinite(n) ? formatMoney(n) : "—");
     }
 
     async function postJson(url, body) {
@@ -1869,9 +1941,9 @@
       <td>${a.alias || ""}</td>
       <td>${a.symbol || ""}</td>
       <td>${a.action || ""}</td>
-      <td class="right">${fmt(a.usd)}</td>
+      <td class="right">${formatMoney(a.usd)}</td>
       <td class="right">${fmt(a.est_quantity)}</td>
-      <td class="right">${fmt(a.price_used)}</td>
+      <td class="right">${formatMoney(a.price_used)}</td>
       <td>${a.exec_hint || a.location || ""}</td>
     </tr>
   `).join("");
@@ -1914,10 +1986,10 @@
         return `<div class="card">
       <div class="row" style="justify-content:space-between">
         <div class="badge">${g}</div>
-        <div class="muted small">${fmt2(grp[g])} $</div>
+        <div class="muted small">${formatMoney(grp[g])}</div>
       </div>
       <div class="small mt8">Actuel: <strong>${fmt2(cur)}%</strong> • Cible: <strong>${fmt2(tgt)}%</strong></div>
-      <div class="small">Delta: <strong class="${cls}">${fmt2(du)} $</strong></div>
+      <div class="small">Delta: <strong class="${cls}">${formatMoney(du)}</strong></div>
     </div>`;
       }).join("");
       $("#summary").innerHTML = html || '<span class="muted">Aucun résumé disponible.</span>';
@@ -2317,6 +2389,22 @@
         window.applyAppearance();
       }
       console.log('Current theme after rebalance init:', document.documentElement.getAttribute('data-theme'));
+
+      // Initialize governance system
+      setTimeout(async () => {
+        try {
+          console.log('🏛️ Initializing governance system in rebalance dashboard...');
+          await window.riskStore.syncGovernanceState();
+          await window.riskStore.syncMLSignals();
+          console.log('✅ Governance system initialized in rebalance dashboard');
+          
+          // Display governance status in UI (if we add a status area later)
+          const governanceStatus = window.riskStore.getGovernanceStatus();
+          console.log('Governance status:', governanceStatus);
+        } catch (error) {
+          console.warn('⚠️ Failed to initialize governance in rebalance:', error);
+        }
+      }, 500);
 
       // CCS data will be loaded from configured real source when needed
 

@@ -4,6 +4,7 @@ Plateforme **complète de gestion de portefeuille crypto** avec ML/IA avancé :
 
 ## 🚀 **Fonctionnalités Principales**
 - 🎯 **Rebalancing intelligent** avec allocations dynamiques et exec hints par exchange
+- 🏛️ **Decision Engine avec gouvernance** : Single-writer architecture, approbations AI/manuelles
 - 🧠 **Machine Learning avancé** : LSTM, Transformers, modèles prédictifs
 - 📊 **Analytics sophistiqués** : Métriques Sharpe, Calmar, drawdown, VaR/CVaR
 - 🛡️ **Gestion des risques** avec matrices de corrélation et stress testing
@@ -126,6 +127,32 @@ python crypto_toolbox_api.py  # Port 8001
 - ✅ **+50% maintenabilité** avec source unique par domaine
 - ✅ **+90% clarté** architecture et navigation simplifiées
 - ✅ **Performance** cache unifié avec TTL adaptatif
+
+---
+
+## 🏛️ Decision Engine & Gouvernance
+
+### **Architecture Single-Writer Unifiée**
+- **Gouvernance centralisée** : Mode manuel/AI assisté/full AI avec approbations
+- **State Machine** : DRAFT → REVIEWED → APPROVED → ACTIVE → EXECUTED
+- **Signaux ML intégrés** : Volatilité, régime, corrélation, sentiment avec index de contradiction
+- **Politique d'exécution dynamique** : Mode/cap/ramp dérivés des signaux ML
+- **Interface complète** : Panel de gouvernance avec contrôles freeze/unfreeze
+
+### **Endpoints Gouvernance**
+| Endpoint | Description |
+|----------|-------------|
+| `/execution/governance/state` | État global du Decision Engine |
+| `/execution/governance/signals` | Signaux ML actuels avec TTL |
+| `/execution/governance/approve` | Approbation de décisions proposées |
+| `/execution/governance/freeze` | Gel d'urgence du système |
+| `/execution/governance/unfreeze` | Déblocage du système |
+
+### **Composants UI**
+- **GovernancePanel.js** : Interface de gouvernance réutilisable
+- **Modal d'approbation** : Détails complets des décisions avec métriques ML
+- **Indicateurs temps réel** : Status, mode, contradiction index, policy active
+- **Intégration dashboards** : Risk Dashboard, Analytics Unified, Rebalance
 
 ---
 

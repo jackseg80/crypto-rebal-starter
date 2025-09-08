@@ -339,7 +339,7 @@
                         <td>${s.exchange || '-'}</td>
                         <td>${s.total_orders}</td>
                         <td>${(s.successful_orders || 0)}/${s.total_orders}</td>
-                        <td>${(s.total_volume_usd || 0).toLocaleString('fr-FR', { style: 'currency', currency: 'USD' })}</td>
+                        <td>${formatUSD(s.total_volume_usd || 0)}</td>
                         <td>${(s.total_fees || 0).toFixed(2)}</td>
                         <td>${(s.avg_slippage_bps || 0)} bps</td>
                       </tr>
@@ -399,13 +399,23 @@
     // ========== UTILITAIRES ==========
 
     function formatUSD(value) {
-      if (value === null || value === undefined) return '$0.00';
-      return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      }).format(value);
+      const cur = (window.globalConfig && window.globalConfig.get('display_currency')) || 'USD';
+      const rate = (window.currencyManager && window.currencyManager.getRateSync(cur)) || 1;
+      if (cur !== 'USD' && (!rate || rate <= 0)) return '—';
+      const v = (value === null || value === undefined || isNaN(value)) ? 0 : (value * rate);
+      try {
+        const decimals = (cur === 'BTC') ? 8 : 2;
+        const out = new Intl.NumberFormat('fr-FR', {
+          style: 'currency',
+          currency: cur,
+          minimumFractionDigits: decimals,
+          maximumFractionDigits: decimals
+        }).format(v);
+        return (cur === 'USD') ? out.replace(/\s?US$/, '') : out;
+      } catch (_) {
+        const decimals = (cur === 'BTC') ? 8 : 2;
+        return `${v.toFixed(decimals)} ${cur}`;
+      }
     }
 
     function formatPercent(value) {
@@ -436,6 +446,27 @@
         </div>
       `;
     }
+
+    // Reformat visible amounts when display currency changes
+    window.addEventListener('configChanged', (ev) => {
+      if (ev?.detail?.key === 'display_currency') {
+        try {
+          const cur = (window.globalConfig && window.globalConfig.get('display_currency')) || 'USD';
+          const rerender = () => { try { refreshMonitoring(); loadPlansHistory(); loadExchanges(); } catch(_){} };
+          if (window.currencyManager && cur !== 'USD') {
+            window.currencyManager.ensureRate(cur).then(rerender).catch(rerender);
+          } else {
+            rerender();
+          }
+        } catch (e) {
+          console.warn('Currency change re-render failed (execution):', e);
+        }
+      }
+    });
+
+    window.addEventListener('currencyRateUpdated', () => {
+      try { refreshMonitoring(); loadPlansHistory(); loadExchanges(); } catch(_){}
+    });
 
     // ========== NAVIGATION ONGLETS ==========
 

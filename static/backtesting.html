@@ -507,7 +507,17 @@
             }
             
             if (config.initial_capital < 100) {
-                showStatus('error', 'Le capital initial doit être d\'au moins 100$');
+                const cur = (window.globalConfig && window.globalConfig.get('display_currency')) || 'USD';
+                const rate = (window.currencyManager && window.currencyManager.getRateSync(cur)) || 1;
+                const minVal = 100 * rate;
+                let label;
+                try {
+                    const dec = (cur === 'BTC') ? 8 : 2;
+                    label = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, minimumFractionDigits: dec, maximumFractionDigits: dec }).format(minVal);
+                } catch (_) {
+                    label = `${minVal.toFixed(cur==='BTC'?8:2)} ${cur}`;
+                }
+                showStatus('error', `Le capital initial doit être d'au moins ${label}`);
                 return false;
             }
             

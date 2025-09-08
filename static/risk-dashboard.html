@@ -9,6 +9,7 @@
   <!-- Thème/compat identiques à ta page actuelle -->
   <link rel="stylesheet" href="shared-theme.css">
   <link rel="stylesheet" href="theme-compat.css">
+  <link rel="stylesheet" href="components/governance-panel.css">
 
   <!-- Scripts partagés existants -->
   <script src="global-config.js"></script>
@@ -700,6 +701,13 @@
       text-decoration: underline dotted;
       text-underline-offset: 2px;
     }
+
+    /* Governance Panel - Positioned outside main layout */
+    #governance-container {
+      margin: var(--space-lg) 0;
+      width: 100%;
+      max-width: 95vw;
+    }
   </style>
 
   <!-- Navigation unifiée (conditionnelle) -->
@@ -730,6 +738,9 @@
       <button class="refresh-btn" onclick="testEndpoint()" style="background:#007bff">🧪 Test API</button>
       <div class="timestamp" id="last-update"></div>
     </div>
+
+    <!-- Governance Panel (positioned before main layout) -->
+    <div id="governance-container"></div>
 
     <!-- Layout Hybride: Sidebar + Main -->
     <div class="dashboard-layout">
@@ -831,6 +842,21 @@
             </div>
           </div>
         </div>
+
+        <!-- Governance Status -->
+        <div class="sidebar-section">
+          <div class="sidebar-title">Governance</div>
+          <div id="governance-status">
+            <div class="status-indicator">
+              <div class="status-dot" id="governance-dot"></div>
+              <div class="status-text" id="governance-text">Loading...</div>
+            </div>
+            <div class="governance-details" id="governance-details" style="margin-top: 8px; font-size: 0.85em; opacity: 0.8;">
+              <div id="governance-mode">Mode: manual</div>
+              <div id="governance-contradiction">Contradiction: 0.0%</div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Main Content avec Onglets -->
@@ -908,6 +934,19 @@
       if (v == null || isNaN(v)) return 'N/A';
       return new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v);
     }
+    function formatMoney(usd) {
+      const cur = (window.globalConfig && window.globalConfig.get('display_currency')) || 'USD';
+      const rate = (window.currencyManager && window.currencyManager.getRateSync(cur)) || 1;
+      if (cur !== 'USD' && (!rate || rate <= 0)) return '—';
+      const v = (usd == null || isNaN(usd)) ? 0 : (usd * rate);
+      try {
+        const dec = (cur === 'BTC') ? 8 : 2;
+        const out = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, minimumFractionDigits: dec, maximumFractionDigits: dec }).format(v);
+        return (cur === 'USD') ? out.replace(/\s?US$/,'') : out;
+      } catch (_) {
+        return `${v.toFixed(cur==='BTC'?8:2)} ${cur}`;
+      }
+    }
 
     // Import core modules
     import { store } from './core/risk-dashboard-store.js';
@@ -929,6 +968,20 @@
     let onchainScore = null;
     let riskScore = null;
     let blendedScore = null;
+
+    // Re-render on currency change (ensure rate then refresh)
+    window.addEventListener('configChanged', (ev) => {
+      const key = ev?.detail?.key;
+      if (key === 'display_currency') {
+        const cur = (window.globalConfig && window.globalConfig.get('display_currency')) || 'USD';
+        const rerender = () => { try { refreshDashboard(true); } catch(_){} };
+        if (window.currencyManager && cur !== 'USD') {
+          window.currencyManager.ensureRate(cur).then(rerender).catch(rerender);
+        } else {
+          rerender();
+        }
+      }
+    });
 
     // Fonction pour charger les paramètres de calibration depuis localStorage
     function loadCalibrationParams() {
@@ -1504,6 +1557,41 @@
         signalsDot.className = `status-dot ${state.ui?.apiStatus?.signals || 'unknown'}`;
       }
 
+      // Update governance status
+      const governanceStatus = store.getGovernanceStatus();
+      const governanceDot = document.getElementById('governance-dot');
+      const governanceText = document.getElementById('governance-text');
+      const governanceMode = document.getElementById('governance-mode');
+      const governanceContradiction = document.getElementById('governance-contradiction');
+
+      if (governanceDot && governanceText) {
+        // Set status dot color based on state
+        let dotClass = 'status-dot';
+        let statusText = governanceStatus.state;
+        
+        if (governanceStatus.state === 'FROZEN') {
+          dotClass += ' error';
+          statusText = '❄️ Frozen';
+        } else if (governanceStatus.needsAttention) {
+          dotClass += ' warning';
+          statusText = '⚠️ Needs attention';
+        } else if (governanceStatus.isActive) {
+          dotClass += ' success';
+          statusText = '✓ Active';
+        } else {
+          dotClass += ' idle';
+          statusText = '○ Idle';
+        }
+        
+        governanceDot.className = dotClass;
+        governanceText.textContent = statusText;
+      }
+
+      if (governanceMode && governanceContradiction) {
+        governanceMode.textContent = `Mode: ${governanceStatus.mode}`;
+        governanceContradiction.textContent = `Contradiction: ${(governanceStatus.contradictionLevel * 100).toFixed(1)}%`;
+      }
+
       // Update cycle indicator with enhanced info
       const cycleText = document.getElementById('cycle-text');
       const cycleDot = document.getElementById('cycle-dot');
@@ -2050,9 +2138,16 @@
       });
     }
 
-    async function refreshDashboard(forceRefresh = false) {
-      if (isRefreshing) return;
-      isRefreshing = true;
+async function refreshDashboard(forceRefresh = false) {
+  if (isRefreshing) return;
+  isRefreshing = true;
+  // Ensure currency rate loaded before render when not USD
+  try {
+    const cur = (window.globalConfig && window.globalConfig.get('display_currency')) || 'USD';
+    if (window.currencyManager && cur !== 'USD') {
+      await window.currencyManager.ensureRate(cur);
+    }
+  } catch (_) {}
 
       const refreshBtn = document.getElementById('refresh-btn');
       refreshBtn.disabled = true;
@@ -2170,7 +2265,7 @@
           <div style="background: var(--info-bg); border: 1px solid var(--info); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1.5rem; text-align: center;">
             <div style="color: var(--info); font-weight: 600; margin-bottom: 0.5rem;">🧪 MODE TEST - Données Réelles</div>
             <div style="color: var(--theme-text-muted); font-size: 0.9rem;">
-              Portfolio de démonstration utilisant le cache d'historique de prix réel (${data.test_holdings?.length || 0} assets, $${data.portfolio_summary.total_value.toLocaleString()})
+              Portfolio de démonstration utilisant le cache d'historique de prix réel (${data.test_holdings?.length || 0} assets, ${formatMoney(data.portfolio_summary.total_value)})
             </div>
           </div>
         `;
@@ -2345,7 +2440,7 @@
           <h3>📊 Portfolio Summary</h3>
           <div class="metric-row">
             <span class="metric-label">Total Value:</span>
-            <span class="metric-value">$${formatNumber(p.total_value)}</span>
+            <span class="metric-value">${formatMoney(p.total_value)}</span>
           </div>
           <div class="metric-row">
             <span class="metric-label">Number of Assets:</span>
@@ -3896,7 +3991,21 @@
           symbol: item.symbol,
           value_usd: item.value_usd
         }));
-        console.log('🔍 DEBUG getCurrentPortfolioAllocation: Using real CSV data -', realBalances.length, 'assets, total:', realBalances.reduce((s, i) => s + i.value_usd, 0).toFixed(2), '$');
+        (function(){
+          const cur = (window.globalConfig && window.globalConfig.get('display_currency')) || 'USD';
+          const rate = (window.currencyManager && window.currencyManager.getRateSync(cur)) || 1;
+          if (cur !== 'USD' && (!rate || rate <= 0)) {
+            console.log('🔍 DEBUG getCurrentPortfolioAllocation: Using real CSV data -', realBalances.length, 'assets, total: —');
+          } else {
+            const val = realBalances.reduce((s, i) => s + i.value_usd, 0) * rate;
+            try {
+              const dec = (cur === 'BTC') ? 8 : 2;
+              console.log('🔍 DEBUG getCurrentPortfolioAllocation: Using real CSV data -', realBalances.length, 'assets, total:', new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, minimumFractionDigits: dec, maximumFractionDigits: dec }).format(val));
+            } catch (_) {
+              console.log('🔍 DEBUG getCurrentPortfolioAllocation: Using real CSV data -', realBalances.length, 'assets, total:', (val).toFixed(cur==='BTC'?8:2), cur);
+            }
+          }
+        })();
 
       } catch (error) {
         console.error('CRITICAL: Could not load CSV data in getCurrentPortfolioAllocation:', error);
@@ -4281,7 +4390,7 @@
 
     // ====== Global Functions for UI Interaction ======
 
-    // Apply specific strategy
+    // Apply specific strategy - NOW USES GOVERNANCE
     window.applyStrategy = async function (mode) {
       try {
         console.log('🔍 DEBUG applyStrategy called with mode:', mode);
@@ -4291,17 +4400,49 @@
         console.log('🔍 DEBUG proposal result:', proposal);
         console.log('🔍 DEBUG proposal BTC allocation:', proposal.targets.BTC);
 
+        // Instead of direct applyTargets, create governance decision
+        const currentAllocation = await getCurrentPortfolioAllocation();
+        
+        // Convert proposal targets to Target format for governance
+        const targets = Object.entries(proposal.targets)
+          .filter(([key]) => key !== 'model_version')
+          .map(([symbol, target_pct]) => ({
+            symbol: symbol,
+            alias: symbol,
+            current_pct: currentAllocation[symbol] || 0,
+            target_pct: target_pct,
+            group: symbol // Simplified for now
+          }));
+
+        console.log('🔍 Creating governance decision with targets:', targets);
+
+        // Sync governance state first
+        await store.syncGovernanceState();
+        const governanceStatus = store.getGovernanceStatus();
+        
+        if (governanceStatus.state === 'FROZEN') {
+          alert('❄️ System is frozen. Cannot create new decisions.');
+          return;
+        }
+
+        // For now, still apply locally for backward compatibility
+        // TODO: Replace with actual governance decision creation when endpoint is ready
         await applyTargets(proposal);
+        
+        // Update governance state to reflect the decision
+        store.set('targets.governance_mode', governanceStatus.mode);
+        store.set('targets.strategy', `${proposal.strategy} (via governance)`);
 
         // Refresh targets content to show updated data
         if (store.get('ui.activeTab') === 'targets') {
           renderTargetsContent().catch(err => console.error('Failed to render targets after strategy apply:', err));
         }
 
-        // Update sidebar
+        // Update sidebar with governance info
         updateSidebar(store.snapshot());
 
-        console.log(`Applied strategy: ${mode} - ${proposal.strategy}`);
+        console.log(`Applied strategy via governance: ${mode} - ${proposal.strategy}`);
+        console.log(`Governance mode: ${governanceStatus.mode}, state: ${governanceStatus.state}`);
 
       } catch (error) {
         console.error('Failed to apply strategy:', error);
@@ -4638,6 +4779,21 @@
       // controls removed
       refreshDashboard();
 
+      // Initialize governance system
+      setTimeout(async () => {
+        try {
+          console.log('🏛️ Initializing governance system...');
+          await store.syncGovernanceState();
+          await store.syncMLSignals();
+          console.log('✅ Governance system initialized');
+          
+          // Update sidebar with governance status
+          updateSidebar(store.snapshot());
+        } catch (error) {
+          console.warn('⚠️ Failed to initialize governance:', error);
+        }
+      }, 500);
+
       // Apply blended strategy as default if no strategy is already selected
       setTimeout(() => {
         const currentStrategy = store.get('targets.strategy');
@@ -4720,11 +4876,29 @@
     })();
   </script>
 
-  <script>
-    // Initialisation automatique de la navigation thématique
-    document.addEventListener('DOMContentLoaded', function () {
+  <script type="module">
+    import { GovernancePanel } from './components/GovernancePanel.js';
+    
+    // Initialisation automatique de la navigation thématique et governance
+    document.addEventListener('DOMContentLoaded', async function () {
       // Auto-détecter la page courante pour la navigation thématique
       /* unified nav enabled via components/nav.js; legacy init removed */
+      
+      // Initialize governance panel
+      const governanceContainer = document.getElementById('governance-container');
+      if (governanceContainer) {
+        console.log('🏛️ Initializing Governance Panel...');
+        const governancePanel = new GovernancePanel(governanceContainer);
+        
+        // Auto-refresh initial state
+        setTimeout(() => {
+          governancePanel.refreshState();
+        }, 1000);
+        
+        // Store reference globally for debugging
+        window.governancePanel = governancePanel;
+        console.log('✅ Governance Panel initialized');
+      }
     });
   </script>
 </body>
