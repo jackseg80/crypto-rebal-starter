@@ -5,6 +5,7 @@ Ce guide couvre les usages principaux avec exemples.
 ## 1. Chargement du portefeuille
 - Endpoint: `GET /balances/current?source=cointracking&min_usd=1`
 - UI: `static/dashboard.html`
+- Source sélectionnée dans `static/settings.html` (liste centralisée). Changer la source met à jour tous les écrans.
 
 ## 2. Génération d’un plan de rebalancement
 - Endpoint: `POST /rebalance/plan`
@@ -31,6 +32,7 @@ Flux type:
 ## 4. Gestion des risques
 - Endpoints: `/api/risk/metrics`, `/api/risk/correlation`, `/api/risk/stress-test`, `/api/risk/dashboard`
 - UI: `static/risk-dashboard.html`
+- La “Total Value” suit la devise d’affichage (réglée dans Settings). La conversion se fait à l’affichage (USD→EUR/BTC) et affiche `—` si le taux n’est pas disponible.
 
 Métriques incluses: VaR/CVaR, Sharpe, Sortino, Max Drawdown, Ulcer Index, skew/kurtosis.
 
@@ -51,3 +53,9 @@ Différence Base vs Avancé:
 - Export automatique: `POST /csv/download` (current_balance, balance_by_exchange, coins_by_exchange)
 
 Pour la liste complète, consultez `docs/api.md` ou l’OpenAPI (`/docs`).
+
+---
+
+### Paramètres UI globaux
+- `static/settings.html` — Réglages rapides: Source de données, Devise d’affichage, Seuil min USD, Thème, URL API.
+- Les sélecteurs rapide et détaillé (onglet Pricing) sont synchronisés; un changement re-formate automatiquement les montants sur les pages ouvertes.

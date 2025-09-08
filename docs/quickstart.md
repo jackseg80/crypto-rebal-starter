@@ -7,6 +7,9 @@
 ## Configuration
 1. Copiez `env.example` vers `.env` et renseignez vos clés CoinTracking (CT_API_KEY/CT_API_SECRET).
 2. Optionnel: `CORS_ORIGINS` pour servir l’UI depuis une autre origine.
+3. Ouvrez `static/settings.html` pour configurer:
+   - La source de données (démo/CSV/API) — liste centralisée.
+   - La devise d’affichage (USD/EUR/BTC). La conversion est réelle à l’affichage; si le taux est temporairement indisponible, l’UI affiche `—`.
 
 ## Lancer l’API
 ```bash
@@ -21,6 +24,8 @@ uvicorn api.main:app --reload --port 8000
 - Alias Manager: `static/alias-manager.html`
 - Monitoring: `static/monitoring-unified.html`
 
+Astuce: la barre de navigation unifiée est chargée automatiquement sur la plupart des pages (désactivable avec `?nav=off`).
+
 ## Endpoints essentiels
 - GET `/healthz`
 - GET `/balances/current`
@@ -28,4 +33,3 @@ uvicorn api.main:app --reload --port 8000
 - GET `/portfolio/metrics`
 
 Pour l’ensemble des endpoints: voir `docs/api.md`.
-
