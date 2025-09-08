@@ -792,7 +792,7 @@ class MLOrchestrator:
     async def load_regime_model(self) -> Dict[str, Any]:
         """Load regime detection model for auto-startup"""
         try:
-            from services.ml_pipeline_manager import pipeline_manager
+            from services.ml_pipeline_manager_optimized import optimized_pipeline_manager as pipeline_manager
             await pipeline_manager.load_regime_model()
             self.model_status['regime'] = 'ready'
             logger.info("Regime model loaded successfully")

@@ -235,68 +235,74 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
     ${u.contradictions[0]?.recommendation ? `<div style="font-size:.75rem; color: var(--theme-text); padding: .25rem; background: var(--theme-bg); border-radius: var(--radius-sm); border-left: 3px solid var(--warning);">💡 ${u.contradictions[0].recommendation}</div>` : ''}
   `, { accentLeft: 'var(--warning)' }) : '';
   
-  // ALLOCATION INSIGHTS (if available)
-  const allocationBlock = u.intelligence?.allocation && Object.keys(u.intelligence.allocation).length > 0 ? card(`
-    <div style="font-weight:700; margin-bottom:.5rem;">🎯 Allocation Suggérée</div>
-    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap:.25rem; font-size:.8rem;">
-      ${Object.entries(u.intelligence.allocation)
-        .filter(([key, value]) => typeof value === 'number' && value > 0.1)
-        .sort(([,a], [,b]) => b - a)
-        .slice(0, 8)
-        .map(([asset, pct]) => `
-          <div style="padding:.25rem .5rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-align: center;">
-            <div style="font-weight: 600;">${asset}</div>
-            <div style="color: var(--theme-text-muted);">${pct.toFixed(1)}%</div>
-          </div>
-        `).join('')}
-    </div>
-  `, { title: 'Régime-Based Allocation' }) : '';
-
-  // Build deltas vs current portfolio (non-blocking on failure)
-  let deltasBlock = '';
+  // ALLOCATION INSIGHTS unifiées, infos visibles sans survol
+  let allocationBlock = '';
   try {
-    const conf = u.decision.confidence || 0;
-    const contra = (u.contradictions?.length) || 0;
-    const mode = conf > 0.8 && contra === 0 ? { name: 'Deploy', cap: 12 } :
-                 conf > 0.65 && contra <= 1 ? { name: 'Rotate', cap: 7 } :
-                 conf > 0.55 ? { name: 'Hedge', cap: 3 } : { name: 'Observe', cap: 0 };
+    if (u.intelligence?.allocation && Object.keys(u.intelligence.allocation).length > 0) {
+      const conf = u.decision.confidence || 0;
+      const contra = (u.contradictions?.length) || 0;
+      const mode = conf > 0.8 && contra === 0 ? { name: 'Deploy', cap: 12 } :
+                   conf > 0.65 && contra <= 1 ? { name: 'Rotate', cap: 7 } :
+                   conf > 0.55 ? { name: 'Hedge', cap: 3 } : { name: 'Observe', cap: 0 };
 
-    const current = await getCurrentAllocationByGroup(5.0);
-    if (current && u.intelligence?.allocation) {
+      const current = await getCurrentAllocationByGroup(5.0);
       const targetAdj = applyCycleMultipliersToTargets(u.intelligence.allocation, u.cycle?.multipliers || {});
-      const pairs = [];
-      const keys = new Set([...Object.keys(current.pct || {}), ...Object.keys(targetAdj || {})]);
-      keys.forEach(k => {
-        const cur = Number((current.pct || {})[k] || 0);
+
+      const keys = new Set([
+        ...Object.keys(targetAdj || {}),
+        ...Object.keys((current && current.pct) || {})
+      ]);
+
+      const entries = Array.from(keys).map(k => {
+        const cur = Number((current?.pct || {})[k] || 0);
         const tgt = Number((targetAdj || {})[k] || 0);
         const delta = Math.round((tgt - cur) * 10) / 10;
-        if (Math.abs(delta) > 0.2) {
-          const suggested = Math.max(-mode.cap, Math.min(mode.cap, delta));
-          pairs.push({ k, cur, tgt, delta, suggested });
-        }
+        const suggested = Math.round((Math.max(-mode.cap, Math.min(mode.cap, delta))) * 10) / 10;
+        return { k, cur, tgt, delta, suggested };
       });
-      pairs.sort((a,b) => Math.abs(b.delta) - Math.abs(a.delta));
-      const top = pairs.slice(0, 6);
-      if (top.length) {
-        deltasBlock = card(`
-          <div style="font-weight:700; margin-bottom:.5rem;">⚖️ Écarts vs Cible (${mode.name})</div>
-          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:.35rem; font-size:.8rem;">
-            ${top.map(({k, cur, tgt, delta, suggested}) => `
-              <div style="background: var(--theme-bg); border: 1px solid var(--theme-border); border-radius: 6px; padding:.5rem;">
-                <div style="display:flex; justify-content:space-between; font-weight:600;"><span>${k}</span><span>${delta>0?'+':''}${delta}%</span></div>
-                <div style="display:flex; justify-content:space-between; color:var(--theme-text-muted);"><span>Actuel</span><span>${cur.toFixed(1)}%</span></div>
-                <div style="display:flex; justify-content:space-between; color:var(--theme-text-muted);"><span>Cible</span><span>${tgt.toFixed(1)}%</span></div>
-                <div style="margin-top:.25rem; font-size:.75rem; color:${suggested>0?'var(--success)':'var(--danger)'};">Mouvement suggéré: ${suggested>0?'+':''}${suggested}%</div>
+
+      const visible = entries
+        .filter(e => (e.tgt > 0.1) || Math.abs(e.delta) > 0.2)
+        .sort((a, b) => (b.tgt - a.tgt))
+        .slice(0, 12);
+
+      allocationBlock = card(`
+        <div style="font-weight:700; margin-bottom:.5rem;">🎯 Allocation Suggérée</div>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:.45rem; font-size:.8rem;">
+          ${visible.map(({k, cur, tgt, delta, suggested}) => {
+            const moveColor = suggested >= 0 ? 'var(--success)' : 'var(--danger)';
+            const sign = (v) => v > 0 ? '+' : '';
+            const curW = Math.max(0, Math.min(100, cur));
+            const tgtW = Math.max(0, Math.min(100, tgt));
+            return `
+              <div style="padding:.5rem .6rem; background: var(--theme-bg); border-radius: var(--radius-sm); border: 1px solid var(--theme-border);">
+                <div style="font-weight: 700; margin-bottom:.25rem;">${k}</div>
+                <div style="display:flex; justify-content:space-between; color: var(--theme-text-muted);">
+                  <span>Actuel</span><span>${cur.toFixed(1)}%</span>
+                </div>
+                <div style="height:4px; background: var(--theme-border); border-radius:3px; overflow:hidden;">
+                  <div style="width:${curW}%; height:100%; background: color-mix(in oklab, var(--theme-text) 25%, transparent);"></div>
+                </div>
+                <div style="display:flex; justify-content:space-between; color: var(--theme-text-muted); margin-top:.25rem;">
+                  <span>Cible</span><span>${tgt.toFixed(1)}%</span>
+                </div>
+                <div style="height:4px; background: var(--theme-border); border-radius:3px; overflow:hidden;">
+                  <div style="width:${tgtW}%; height:100%; background: var(--brand-primary);"></div>
+                </div>
+                <div style="margin-top:.35rem; font-size:.75rem; color:${moveColor}; font-weight:600; text-align:right;">Δ ${sign(delta)}${delta}% • ${sign(suggested)}${suggested}%</div>
               </div>
-            `).join('')}
-          </div>
-          <div style="margin-top:.4rem; font-size:.75rem; color:var(--theme-text-muted);">Mouvements bornés par le mode pour éviter des rotations excessives.</div>
-        `, { title: 'Ajustements Concrets' });
-      }
+            `;
+          }).join('')}
+        </div>
+        <div style="margin-top:.45rem; font-size:.75rem; color:var(--theme-text-muted);">Tri: Cible décroissant • Mode: <b>${mode.name}</b> (cap ±${mode.cap}%)</div>
+      `, { title: 'Régime-Based Allocation' });
     }
   } catch (e) {
-    console.warn('Delta allocation render skipped:', e.message || e);
+    console.warn('Unified allocation render skipped:', e.message || e);
   }
+
+  // Section des écarts séparée supprimée pour simplifier l'UI
+  const deltasBlock = '';
 
   el.innerHTML = `
     ${header}

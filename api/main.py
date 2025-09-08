@@ -1439,7 +1439,7 @@ async def get_ml_status_lazy():
     """Status ML avec chargement à la demande"""
     try:
         # Import seulement quand cette route est appelée
-        from services.ml_pipeline_manager import pipeline_manager
+        from services.ml_pipeline_manager_optimized import optimized_pipeline_manager as pipeline_manager
         status = pipeline_manager.get_pipeline_status()
         return {
             "pipeline_status": status,

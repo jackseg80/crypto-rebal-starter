@@ -13,6 +13,7 @@ from fastapi import Request, Response, HTTPException
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from typing import Callable
+from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
@@ -222,4 +223,67 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         # Ajouter le temps de traitement aux headers
         response.headers["X-Process-Time"] = str(process_time)
         
+        return response
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """Rate limiting simple en mémoire par IP.
+
+    Utilise un compteur glissant par fenêtre (par défaut 1h) défini par:
+      - settings.security.rate_limit_requests
+      - settings.security.rate_limit_window_sec
+
+    Ajoute les headers: X-RateLimit-Limit, X-RateLimit-Remaining, Retry-After (si bloqué)
+    """
+
+    def __init__(self, app):
+        super().__init__(app)
+        from config import get_settings
+        s = get_settings().security
+        self.limit = max(int(s.rate_limit_requests or 0), 0)
+        self.window = max(int(s.rate_limit_window_sec or 3600), 1)
+        # store: ip -> {"start": ts, "count": n}
+        self._buckets = defaultdict(lambda: {"start": 0, "count": 0})
+        # Paths exclus (statique/santé)
+        self._exempt_prefixes = ("/static/", "/data/", "/health", "/healthz")
+
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        # Pas de rate limit si disabled
+        if self.limit <= 0:
+            return await call_next(request)
+
+        path = request.url.path or ""
+        if any(path.startswith(p) for p in self._exempt_prefixes):
+            return await call_next(request)
+
+        ip = request.client.host if request.client else "unknown"
+        now = int(time.time())
+        bucket = self._buckets[ip]
+
+        # Nouvelle fenêtre
+        if bucket["start"] == 0 or now - bucket["start"] >= self.window:
+            bucket["start"] = now
+            bucket["count"] = 0
+
+        bucket["count"] += 1
+        remaining = max(self.limit - bucket["count"], 0)
+
+        if bucket["count"] > self.limit:
+            retry_after = self.window - (now - bucket["start"]) if bucket["start"] else self.window
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "error": True,
+                    "message": "Too Many Requests",
+                },
+                headers={
+                    "Retry-After": str(retry_after),
+                    "X-RateLimit-Limit": str(self.limit),
+                    "X-RateLimit-Remaining": "0",
+                },
+            )
+
+        response = await call_next(request)
+        response.headers["X-RateLimit-Limit"] = str(self.limit)
+        response.headers["X-RateLimit-Remaining"] = str(remaining)
         return response

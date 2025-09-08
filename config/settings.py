@@ -57,6 +57,24 @@ class SecurityConfig(BaseSettings):
     trusted_hosts: List[str] = Field(default=["localhost", "127.0.0.1"], description="Hôtes de confiance")
     max_request_size: int = Field(default=10*1024*1024, description="Taille max requête")
     rate_limit_requests: int = Field(default=1000, description="Limite taux par heure")
+    rate_limit_window_sec: int = Field(default=3600, description="Fenêtre de rate limiting (sec)")
+
+    # Content-Security-Policy (CSP) centralisée
+    csp_script_src: List[str] = Field(default=["'self'", "https://cdn.jsdelivr.net"], description="Sources autorisées pour scripts")
+    csp_style_src: List[str] = Field(default=["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"], description="Sources autorisées pour styles")
+    csp_img_src: List[str] = Field(default=["'self'", "data:", "https:"], description="Sources autorisées pour images")
+    csp_connect_src: List[str] = Field(
+        default=[
+            "'self'",
+            "https://api.stlouisfed.org",
+            "https://api.coingecko.com",
+            "https://api.alternative.me",
+            "https://crypto-toolbox.vercel.app"
+        ],
+        description="Sources autorisées pour connexions réseau"
+    )
+    csp_frame_ancestors: List[str] = Field(default=["'self'"], description="Origines autorisées pour l'embed (frame-ancestors)")
+    csp_allow_inline_dev: bool = Field(default=True, description="Autoriser 'unsafe-inline' et 'unsafe-eval' en dev pour /docs/")
     
     @field_validator('debug_token')
     @classmethod

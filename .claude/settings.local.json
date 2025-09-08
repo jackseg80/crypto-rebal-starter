@@ -144,7 +144,12 @@
       "Bash(timeout:*)",
       "Bash(start http://localhost:8000/static/test-ml-connections.html)",
       "Bash(start http://localhost:8000/balances/current?source=cointracking)",
-      "Bash(start http://localhost:8000/balances/current?source=stub)"
+      "Bash(start http://localhost:8000/balances/current?source=stub)",
+      "Bash(nvidia-smi:*)",
+      "Bash(for symbol in BTC ETH SOL)",
+      "Bash(ls:*)",
+      "Bash(for symbol in AVAX DOGE LINK)",
+      "Bash(cd:*)"
     ],
     "deny": [],
     "ask": [],
