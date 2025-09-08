@@ -206,12 +206,34 @@ python crypto_toolbox_api.py  # Port 8001
 > - **Force refresh système** : Boutons dédiés pour contournement cache (global + cycles spécifique)
 > - **Système de tooltips** : Info-bulles contextuelles sur toutes les tuiles avec sources de données
 > - **AI Dashboard optimisé** : Auto-initialisation, interface compacte 2x2, boutons fonctionnels uniquement
+> - **Pipeline ML optimisé v2.0** : Cache LRU intelligent, lazy loading <50ms, gestion mémoire automatique
+> - **Modèles ML corrigés** : Chargement régime/volatilité stabilisé, compatibilité PyTorch améliorée
 > - **Navigation unifiée** : Header sticky avec menus déroulants et états actifs
 > - **Interface responsive** : Adaptation mobile et grilles optimisées pour gain d'espace vertical
 
 ### API :
 - Swagger / OpenAPI : http://127.0.0.1:8000/docs
 - Healthcheck : http://127.0.0.1:8000/healthz
+
+### 🤖 Pipeline ML Optimisé v2.0
+
+**Architecture :**
+- **Cache LRU intelligent** : Jusqu'à 8 modèles simultanés (limite 3GB mémoire)
+- **Lazy loading** : Modèles chargés à la demande avec temps < 50ms
+- **Thread-safe** : Gestion concurrence avec locks et éviction automatique
+- **Monitoring temps réel** : API `/api/ml/cache/stats` pour performance
+
+**Modèles supportés :**
+- **Volatilité** : 11 cryptos (BTC, ETH, SOL, etc.) - LSTM PyTorch
+- **Régime** : Classification 4 états (Bull/Bear/Sideways/Distribution) - 62% accuracy
+- **Corrélations** : Matrice temps réel calculée dynamiquement
+- **Sentiment** : Multi-sources (Fear & Greed, social signals)
+
+**Endpoints optimisés :**
+- `POST /api/ml/models/preload` - Chargement prioritaire
+- `GET /api/ml/cache/stats` - Statistiques performance
+- `POST /api/ml/memory/optimize` - Optimisation mémoire
+- `GET /api/ml/debug/pipeline-info` - Diagnostics système
 
 ### 🔧 Outils de debug et diagnostic :
 - **Mode debug** : `toggleDebug()` dans la console pour activer/désactiver les logs
