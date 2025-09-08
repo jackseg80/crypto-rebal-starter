@@ -60,7 +60,7 @@ const initUnifiedNav = () => {
               </div>
             </li>
             <li><a href="rebalance.html" data-route="rebalance.html">Rebalancing</a></li>
-            <li><a href="ai-dashboard.html" data-route="ai-dashboard.html">🧠 AI Dashboard</a></li>
+            <li><a href="ai-dashboard.html" data-route="ai-dashboard.html">AI Dashboard</a></li>
             <li class="has-submenu">
               <a href="execution.html" data-route="execution.html">Execution</a>
               <div class="submenu" role="menu">
@@ -158,4 +158,4 @@ if (document.readyState === 'loading') {
   initUnifiedNav();
 }
 
-export {}; // ESM no-op
+export { }; // ESM no-op

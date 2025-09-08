@@ -531,12 +531,13 @@ class OptimizedMLPipelineManager:
             try:
                 import joblib
                 scaler = joblib.load(scaler_path)
-            except Exception:
+            except Exception as e:
+                logger.warning(f"Failed to load scaler with joblib: {e}")
                 try:
                     with open(scaler_path, 'rb') as f:
                         scaler = pickle.load(f)
-                except Exception as e:
-                    logger.warning(f"Failed to load scaler, using fallback: {e}")
+                except Exception as e2:
+                    logger.warning(f"Failed to load scaler with pickle: {e2}")
                     from sklearn.preprocessing import StandardScaler
                     scaler = StandardScaler()
             

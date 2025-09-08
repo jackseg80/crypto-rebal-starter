@@ -149,7 +149,11 @@
       "Bash(for symbol in BTC ETH SOL)",
       "Bash(ls:*)",
       "Bash(for symbol in AVAX DOGE LINK)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(start http://localhost:8000/debug_allocation.html)",
+      "Bash(start http://localhost:8000/debug_allocation_simple.html)",
+      "Bash(start http://localhost:8000/debug_allocation_final.html)",
+      "Bash(start http://localhost:8000/test_dashboard_stats.html)"
     ],
     "deny": [],
     "ask": [],

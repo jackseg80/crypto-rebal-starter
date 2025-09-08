@@ -25,6 +25,9 @@ from ..data_pipeline import MLDataPipeline
 
 logger = logging.getLogger(__name__)
 
+# Alias de compatibilité pour charger les anciens modèles
+RegimeClassifier = None  # Sera défini après RegimeClassificationNetwork
+
 class RegimeClassificationNetwork(nn.Module):
     """
     Neural Network for regime classification from features
@@ -101,6 +104,9 @@ class RegimeClassificationNetwork(nn.Module):
         logits = self.classifier(pooled_features)
         
         return logits, attention_weights
+
+# Alias de compatibilité pour les anciens modèles
+RegimeClassifier = RegimeClassificationNetwork
 
 class RegimeDetector:
     """

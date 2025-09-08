@@ -52,6 +52,22 @@ class BacktestRequest(BaseModel):
     rebalance_frequency_days: Optional[int] = 30
     transaction_cost_pct: Optional[float] = 0.001  # 0.1%
 
+@router.get("/status")
+async def get_risk_system_status():
+    """
+    Statut du système de gestion des risques
+    """
+    try:
+        status = risk_manager.get_system_status()
+        return {
+            "success": True,
+            "system_status": status,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting risk system status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/metrics", response_model=RiskMetricsResponse)
 async def get_portfolio_risk_metrics(
     price_history_days: int = Query(30, ge=10, le=365, description="Nombre de jours d'historique")

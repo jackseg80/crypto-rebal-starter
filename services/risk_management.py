@@ -2122,5 +2122,30 @@ class AdvancedRiskManager:
         
         return alerts
 
+    def get_system_status(self) -> Dict[str, Any]:
+        """
+        Obtient le statut du système de gestion des risques
+        
+        Returns:
+            Dict avec les informations de statut
+        """
+        try:
+            return {
+                "status": "operational",
+                "risk_manager_initialized": True,
+                "cache_size": len(self.risk_metrics_cache),
+                "alert_system_active": True,
+                "active_alerts_count": len(self.alert_system.get_active_alerts()),
+                "supported_scenarios": list(self.stress_scenarios.keys()),
+                "timestamp": datetime.now().isoformat()
+            }
+        except Exception as e:
+            logger.error(f"Error getting system status: {e}")
+            return {
+                "status": "error",
+                "error": str(e),
+                "timestamp": datetime.now().isoformat()
+            }
+
 # Instance globale du gestionnaire de risques
 risk_manager = AdvancedRiskManager()

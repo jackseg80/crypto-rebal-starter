@@ -29,9 +29,12 @@ async function getCurrentAllocationByGroup(minUsd = 1.0) {
     }
     const base = (window.globalConfig && (window.globalConfig.get?.('api_base_url') || window.globalConfig.get?.('base_url'))) || window.location.origin;
     const apiBase = base.replace(/\/$/, '');
+    const useCfg = !!(window.globalConfig && typeof window.globalConfig.getApiUrl === 'function');
+    const taxoUrl = useCfg ? window.globalConfig.getApiUrl('/taxonomy') : `${apiBase}/taxonomy`;
+    const balUrl = useCfg ? window.globalConfig.getApiUrl('/balances/current', { min_usd: minUsd }) : `${apiBase}/balances/current?min_usd=${encodeURIComponent(minUsd)}`;
     const [taxo, balances] = await Promise.all([
-      fetchJson(`${apiBase}/taxonomy`),
-      fetchJson(`${apiBase}/balances/current?min_usd=${encodeURIComponent(minUsd)}`)
+      fetchJson(taxoUrl),
+      fetchJson(balUrl)
     ]);
     const aliases = (taxo && taxo.aliases) || {};
     const groups = (taxo && taxo.groups) || [];
@@ -267,15 +270,26 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
         .slice(0, 12);
 
       allocationBlock = card(`
-        <div style="font-weight:700; margin-bottom:.5rem;">🎯 Allocation Suggérée</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.5rem;">
+          <div style="font-weight:700;">🎯 Allocation Suggérée</div>
+          <div style="font-size:.75rem; color:var(--theme-text-muted); background: var(--theme-bg); border:1px solid var(--theme-border); padding:.2rem .6rem; border-radius: 999px;">
+            Mode: <b>${mode.name}</b> (cap ±${mode.cap}%)
+          </div>
+        </div>
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:.45rem; font-size:.8rem;">
           ${visible.map(({k, cur, tgt, delta, suggested}) => {
             const moveColor = suggested >= 0 ? 'var(--success)' : 'var(--danger)';
             const sign = (v) => v > 0 ? '+' : '';
             const curW = Math.max(0, Math.min(100, cur));
             const tgtW = Math.max(0, Math.min(100, tgt));
+            const grand = Number(current?.grand || 0);
+            const curUsd = (cur / 100) * grand;
+            const tgtUsd = (tgt / 100) * grand;
+            const curUsdStr = `$${Math.round(curUsd).toLocaleString('en-US')}`;
+            const tgtUsdStr = `$${Math.round(tgtUsd).toLocaleString('en-US')}`;
+            const tip = `Actuel: ${curUsdStr} • Cible: ${tgtUsdStr}`;
             return `
-              <div style="padding:.5rem .6rem; background: var(--theme-bg); border-radius: var(--radius-sm); border: 1px solid var(--theme-border);">
+              <div data-tooltip="${tip}" style="padding:.5rem .6rem; background: var(--theme-bg); border-radius: var(--radius-sm); border: 1px solid var(--theme-border);">
                 <div style="font-weight: 700; margin-bottom:.25rem;">${k}</div>
                 <div style="display:flex; justify-content:space-between; color: var(--theme-text-muted);">
                   <span>Actuel</span><span>${cur.toFixed(1)}%</span>
@@ -294,7 +308,7 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
             `;
           }).join('')}
         </div>
-        <div style="margin-top:.45rem; font-size:.75rem; color:var(--theme-text-muted);">Tri: Cible décroissant • Mode: <b>${mode.name}</b> (cap ±${mode.cap}%)</div>
+        <div style="margin-top:.45rem; font-size:.75rem; color:var(--theme-text-muted);">Tri: Cible décroissant • Cap ±${mode.cap}%</div>
       `, { title: 'Régime-Based Allocation' });
     }
   } catch (e) {
@@ -334,10 +348,12 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
   });
 }
 
+export { getCurrentAllocationByGroup };
 export default { renderUnifiedInsights };
 
 // DEBUG: Log sophisticated data structure for development
 if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
   window.debugUnifiedState = getUnifiedState;
-  console.debug('🔧 Debug: window.debugUnifiedState() available for inspection');
+  window.debugGetCurrentAllocation = getCurrentAllocationByGroup;
+  console.debug('🔧 Debug: window.debugUnifiedState() and window.debugGetCurrentAllocation() available for inspection');
 }

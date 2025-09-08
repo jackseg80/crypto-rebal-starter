@@ -17,7 +17,6 @@ from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from pathlib import Path
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse
 
 # Charger les variables d'environnement depuis .env
 load_dotenv()
@@ -32,6 +31,13 @@ APP_DEBUG = DEBUG
 LOG_LEVEL = settings.logging.log_level
 CORS_ORIGINS = settings.get_cors_origins()
 ENVIRONMENT = settings.environment
+
+# Config logger (dev-friendly by default) — initialize early so it's available in imports below
+logging.basicConfig(
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger("crypto-rebalancer")
 
 # Import différé des connecteurs pour éviter les blocages réseau au démarrage
 # from connectors import cointracking as ct_file
@@ -85,12 +91,7 @@ from api.exceptions import (
 # from shared.exceptions import convert_standard_exception, PricingException
 from api.models import APIKeysRequest, PortfolioMetricsRequest
 
-# Config logger (dev-friendly by default)
-logging.basicConfig(
-    level=getattr(logging, LOG_LEVEL, logging.INFO),
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-)
-logger = logging.getLogger("crypto-rebalancer")
+# Logger already configured above
 
 app = FastAPI(docs_url="/docs", redoc_url="/redoc", openapi_url="/openapi.json")
 logger.info("FastAPI initialized: docs=%s redoc=%s openapi=%s", 
@@ -192,10 +193,19 @@ if not DEBUG:
     # HTTPS redirect en production seulement
     app.add_middleware(HTTPSRedirectMiddleware)
 
-app.add_middleware(
-    TrustedHostMiddleware,
-    allowed_hosts=["localhost", "127.0.0.1", "*.localhost"],
-)
+# TrustedHost config selon l'environnement
+if DEBUG:
+    # En développement, plus permissif pour les tests
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=["*"],  # Permet tous les hosts en dev
+    )
+else:
+    # En production, strict
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=["localhost", "127.0.0.1", "*.localhost"],
+    )
 
 # Compression GZip pour améliorer les performances
 app.add_middleware(GZipMiddleware, minimum_size=1000)
@@ -431,10 +441,17 @@ except ImportError as e:
         logger.info("Using fallback import for cointracking_api")
     except ImportError as fallback_error:
         logger.error(f"Could not import cointracking_api at all: {fallback_error}")
-        ct_api = None
+    ct_api = None
 except Exception as e:
     logger.error(f"Unexpected error importing cointracking_api: {e}")
     ct_api = None
+
+# CSV/API cointracking facade (safe import)
+try:
+    from connectors import cointracking as ct_file
+except Exception as e:
+    logger.warning(f"CoinTracking CSV/API facade not available: {e}")
+    ct_file = None
 
 from constants import (
     FAST_SELL_EXCHANGES, DEFI_HINTS, COLD_HINTS, normalize_exchange_name
@@ -653,7 +670,12 @@ async def resolve_current_balances(source: str = Query("cointracking_api")) -> D
             detailed = snap.get("detailed_holdings") or {}
 
             # 2) On récupère la vue "par coin" (totaux) via CT-API aussi (ou via pricing local si tu préfères)
-            api_bal = await ct_api_get_current_balances()  # items par coin (value_usd, amount)
+            if ct_file is not None:
+                api_bal = await ct_file.get_current_balances("cointracking_api")  # items par coin (value_usd, amount)
+            else:
+                # Fallback direct si module CSV non dispo
+                from connectors.cointracking_api import get_current_balances as _ctapi_bal
+                api_bal = await _ctapi_bal()
             items = api_bal.get("items") or []
 
             # 3) Pour CHAQUE coin, on met la location = exchange principal (max value_usd)
@@ -678,15 +700,28 @@ async def resolve_current_balances(source: str = Query("cointracking_api")) -> D
     # --- Fallback CSV/local (ancienne logique) ---
     items = []
     try:
-        raw = await ct_file.get_current_balances()
-        for r in raw.get("items", []):
-            items.append({
-                "symbol": r.get("symbol"),
-                "alias": r.get("alias") or r.get("symbol"),
-                "amount": r.get("amount"),
-                "value_usd": r.get("value_usd"),
-                "location": r.get("location") or "CoinTracking",
-            })
+        if ct_file is not None:
+            raw = await ct_file.get_current_balances("cointracking")
+            for r in raw.get("items", []):
+                items.append({
+                    "symbol": r.get("symbol"),
+                    "alias": r.get("alias") or r.get("symbol"),
+                    "amount": r.get("amount"),
+                    "value_usd": r.get("value_usd"),
+                    "location": r.get("location") or "CoinTracking",
+                })
+        else:
+            # Fallback lecture CSV directe si facade indisponible
+            from connectors.cointracking import get_current_balances_from_csv as _csv_bal
+            raw = _csv_bal()  # sync
+            for r in raw.get("items", []):
+                items.append({
+                    "symbol": r.get("symbol"),
+                    "alias": r.get("alias") or r.get("symbol"),
+                    "amount": r.get("amount"),
+                    "value_usd": r.get("value_usd"),
+                    "location": r.get("location") or "CoinTracking",
+                })
     except Exception:
         pass
 
