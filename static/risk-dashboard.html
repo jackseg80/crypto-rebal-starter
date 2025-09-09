@@ -1616,8 +1616,19 @@
       // Update CCS Mixte score (Score Directeur)
       const ccsMixEl = document.getElementById('ccs-ccs-mix');
       const ccsMixLabel = document.getElementById('ccs-mixte-label');
+      console.debug('🔍 DEBUG CCS Mixte storage condition:', {
+        'state.cycle?.ccsStar': state.cycle?.ccsStar,
+        'ccsScore': ccsScore,
+        'condition met': !!(state.cycle?.ccsStar && ccsScore)
+      });
+      
       if (state.cycle?.ccsStar && ccsScore) {
         ccsMixEl.textContent = Math.round(state.cycle.ccsStar);
+        
+        // STOCKER CCS MIXTE dans localStorage pour unified-scores.html (AU BON MOMENT)
+        localStorage.setItem('risk_score_ccs_mixte', state.cycle.ccsStar.toString());
+        console.debug('✅ Stored CCS Mixte in localStorage:', state.cycle.ccsStar);
+        
         if (ccsMixLabel) {
           const cycleWeight = Math.round((state.cycle?.weight || 0.3) * 100);
           ccsMixLabel.textContent = `CCS + Cycle (${cycleWeight}%)`;
@@ -1986,6 +1997,8 @@
         localStorage.setItem('risk_score_ccs', ccsScore !== null ? ccsScore.toString() : '');
         localStorage.setItem('risk_score_timestamp', Date.now().toString());
         localStorage.setItem('risk_score_data_source', dataSource);
+        
+        // STOCKER CCS MIXTE sera fait APRÈS le calcul du blending dans updateScoreDisplays
 
         console.debug('📊 All scores calculated:', {
           ccs: ccsScore,

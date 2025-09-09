@@ -61,6 +61,7 @@ const initUnifiedNav = () => {
             </li>
             <li><a href="rebalance.html" data-route="rebalance.html">Rebalancing</a></li>
             <li><a href="ai-dashboard.html" data-route="ai-dashboard.html">AI Dashboard</a></li>
+            <li><a href="unified-scores.html" data-route="unified-scores.html">📊 Scores Unifiés</a></li>
             <li class="has-submenu">
               <a href="execution.html" data-route="execution.html">Execution</a>
               <div class="submenu" role="menu">

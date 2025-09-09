@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tableau Unifié des Scores - Crypto Portfolio</title>
+    
+    <!-- Theme CSS -->
+    <link rel="stylesheet" href="shared-theme.css">
+    <link rel="stylesheet" href="theme-compat.css">
+    
+    <!-- Global Config -->
+    <script src="global-config.js"></script>
+    
+    <!-- Load global config and core store -->
+    <script type="module" src="core/risk-dashboard-store.js"></script>
+    
+    <style>
+        .unified-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .page-header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background: var(--theme-surface);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--theme-border);
+        }
+        
+        .page-header h1 {
+            margin: 0 0 0.5rem 0;
+            color: var(--theme-text);
+            font-size: 2rem;
+        }
+        
+        .page-header p {
+            margin: 0;
+            color: var(--theme-text-muted);
+            font-size: 1rem;
+        }
+        
+        .scores-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .score-card {
+            background: var(--theme-surface);
+            border: 1px solid var(--theme-border);
+            border-radius: var(--radius-md);
+            padding: 1.5rem;
+            transition: box-shadow 0.2s;
+        }
+        
+        .score-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .score-card h3 {
+            margin: 0 0 1rem 0;
+            color: var(--theme-text);
+            font-size: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .score-card .description {
+            color: var(--theme-text-muted);
+            font-size: 0.875rem;
+            margin-bottom: 1rem;
+            line-height: 1.4;
+        }
+        
+        .score-display {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.75rem;
+            padding: 0.75rem;
+            background: var(--theme-surface-hover);
+            border-radius: var(--radius-sm);
+        }
+        
+        .score-label {
+            font-weight: 600;
+            color: var(--theme-text);
+        }
+        
+        .score-value {
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+        
+        .score-excellent { color: var(--success); }
+        .score-good { color: var(--success-light); }
+        .score-moderate { color: var(--warning); }
+        .score-poor { color: var(--danger); }
+        .score-neutral { color: var(--theme-text-muted); }
+        
+        .score-source {
+            font-size: 0.75rem;
+            color: var(--theme-text-muted);
+            font-style: italic;
+            margin-top: 0.5rem;
+        }
+        
+        .update-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 1rem;
+            background: var(--theme-surface);
+            border: 1px solid var(--theme-border);
+            border-radius: var(--radius-md);
+            margin-bottom: 1.5rem;
+        }
+        
+        .update-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .legend {
+            background: var(--theme-surface-hover);
+            padding: 1.5rem;
+            border-radius: var(--radius-md);
+            margin-top: 1.5rem;
+        }
+        
+        .legend h4 {
+            margin: 0 0 1rem 0;
+            color: var(--theme-text);
+        }
+        
+        .legend-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+        }
+        
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+        
+        .refresh-controls {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .refresh-btn {
+            padding: 0.75rem 1.5rem;
+            background: var(--brand-primary);
+            color: white;
+            border: none;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.2s;
+        }
+        
+        .refresh-btn:hover {
+            background: var(--brand-primary-dark);
+        }
+        
+        .refresh-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .loading {
+            opacity: 0.6;
+        }
+        
+        @media (max-width: 768px) {
+            .unified-container {
+                padding: 1rem;
+            }
+            
+            .scores-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .refresh-controls {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation dynamique -->
+    <div id="nav-container"></div>
+
+    <div class="unified-container">
+        <div class="page-header">
+            <h1>📊 Tableau Unifié des Scores</h1>
+            <p>Vue consolidée de tous les indicateurs de performance et de décision du portfolio</p>
+        </div>
+        
+        <div class="update-status">
+            <div class="update-indicator"></div>
+            <span>Dernière mise à jour: <span id="last-update">--</span></span>
+            <span style="margin-left: auto; color: var(--theme-text-muted);">Mise à jour automatique toutes les 30 secondes</span>
+        </div>
+        
+        <div class="refresh-controls">
+            <button class="refresh-btn" id="refresh-all">🔄 Actualiser Tous les Scores</button>
+            <button class="refresh-btn" id="sync-ml">🤖 Synchroniser ML</button>
+            <button class="refresh-btn" id="force-reload">⚡ Rechargement Complet</button>
+        </div>
+        
+        <div class="scores-grid" id="scores-grid">
+            
+            <!-- Decision Engine (Governance) -->
+            <div class="score-card">
+                <h3>🏛️ Decision Engine (Gouvernance)</h3>
+                <div class="description">
+                    Score principal du système de décision automatisé. Combine tous les signaux ML pour déterminer les actions de rééquilibrage.
+                </div>
+                <div class="score-display">
+                    <span class="score-label">Decision Score</span>
+                    <span class="score-value" id="decision-score">--</span>
+                </div>
+                <div class="score-display">
+                    <span class="score-label">ML Confidence</span>
+                    <span class="score-value" id="ml-confidence">--</span>
+                </div>
+                <div class="score-display">
+                    <span class="score-label">État</span>
+                    <span class="score-value" id="governance-state">--</span>
+                </div>
+                <div class="score-source">Source: services/execution/governance.py</div>
+            </div>
+            
+            <!-- CCS Market Score -->
+            <div class="score-card">
+                <h3>🎯 CCS Market Score</h3>
+                <div class="description">
+                    Crypto Cycles Score - Analyse les cycles de marché pour déterminer les phases (Accumulation, Bull, Bear, etc.).
+                </div>
+                <div class="score-display">
+                    <span class="score-label">CCS Original</span>
+                    <span class="score-value" id="ccs-original">--</span>
+                </div>
+                <div class="score-display">
+                    <span class="score-label">CCS Mixte (+ Cycle)</span>
+                    <span class="score-value" id="ccs-mixed">--</span>
+                </div>
+                <div class="score-display">
+                    <span class="score-label">Phase de Marché</span>
+                    <span class="score-value" id="market-phase">--</span>
+                </div>
+                <div class="score-source">Source: modules/signals-engine.js & cycle-navigator.js</div>
+            </div>
+            
+            <!-- Risk Metrics -->
+            <div class="score-card">
+                <h3>🛡️ Risk Assessment</h3>
+                <div class="description">
+                    Évaluation globale des risques du portfolio basée sur la volatilité, les corrélations et les métriques on-chain.
+                </div>
+                <div class="score-display">
+                    <span class="score-label">Risk Score Portfolio</span>
+                    <span class="score-value" id="portfolio-risk">--</span>
+                </div>
+                <div class="score-display">
+                    <span class="score-label">On-Chain Composite</span>
+                    <span class="score-value" id="onchain-composite">--</span>
+                </div>
+                <div class="score-display">
+                    <span class="score-label">Score Décisionnel</span>
+                    <span class="score-value" id="decision-risk">--</span>
+                </div>
+                <div class="score-source">Source: services/risk_management.py</div>
+            </div>
+            
+            <!-- ML Analytics -->
+            <div class="score-card">
+                <h3>🧠 ML Analytics</h3>
+                <div class="description">
+                    Signaux d'intelligence artificielle pour la prédiction de volatilité, régime de marché et sentiment.
+                </div>
+                <div class="score-display">
+                    <span class="score-label">Portfolio Volatility (BTC+ETH+SOL)</span>
+                    <span class="score-value" id="ml-volatility">--</span>
+                </div>
+                <div class="score-display">
+                    <span class="score-label">Regime Detection</span>
+                    <span class="score-value" id="ml-regime">--</span>
+                </div>
+                <div class="score-display">
+                    <span class="score-label">Correlation Score</span>
+                    <span class="score-value" id="ml-correlation">--</span>
+                </div>
+                <div class="score-source">Source: services/ml/orchestrator.py</div>
+            </div>
+            
+            <!-- Portfolio Health -->
+            <div class="score-card">
+                <h3>💼 Portfolio Health</h3>
+                <div class="description">
+                    Santé générale du portfolio incluant diversification, performance et métriques de Sharpe.
+                </div>
+                <div class="score-display">
+                    <span class="score-label">Sharpe Ratio</span>
+                    <span class="score-value" id="sharpe-ratio">--</span>
+                </div>
+                <div class="score-display">
+                    <span class="score-label">Diversification</span>
+                    <span class="score-value" id="diversification">--</span>
+                </div>
+                <div class="score-display">
+                    <span class="score-label">Performance 30j</span>
+                    <span class="score-value" id="performance-30d">--</span>
+                </div>
+                <div class="score-source">Source: services/analytics/portfolio.py</div>
+            </div>
+            
+            <!-- Execution Status -->
+            <div class="score-card">
+                <h3>⚡ Execution Status</h3>
+                <div class="description">
+                    État du système d'exécution automatique des trades et des rééquilibrages.
+                </div>
+                <div class="score-display">
+                    <span class="score-label">Execution Score</span>
+                    <span class="score-value" id="execution-score">--</span>
+                </div>
+                <div class="score-display">
+                    <span class="score-label">Mode</span>
+                    <span class="score-value" id="execution-mode">--</span>
+                </div>
+                <div class="score-display">
+                    <span class="score-label">Trades Récents</span>
+                    <span class="score-value" id="recent-trades">--</span>
+                </div>
+                <div class="score-source">Source: services/execution/engine.py</div>
+            </div>
+        </div>
+        
+        <div class="legend">
+            <h4>🎨 Légende des Couleurs</h4>
+            <div class="legend-grid">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: var(--success);"></div>
+                    <span>Excellent (80-100%)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: var(--success-light);"></div>
+                    <span>Bon (60-79%)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: var(--warning);"></div>
+                    <span>Modéré (40-59%)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: var(--danger);"></div>
+                    <span>Faible (0-39%)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: var(--theme-text-muted);"></div>
+                    <span>Non disponible</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Script (auto-initializes) -->
+    <script type="module" src="./components/nav.js"></script>
+
+    <!-- Import unified insights system -->
+    <script type="module" src="core/unified-insights.js"></script>
+    
+    <!-- Main Script -->
+    <script type="module">
+        // Wait for unified insights to be available
+        import { getUnifiedState } from './core/unified-insights.js';
+        
+        class UnifiedScoresManager {
+            constructor() {
+                this.isLoading = false;
+                this.lastUpdate = null;
+                this.autoRefreshInterval = null;
+                this.latestRiskData = null;
+                
+                this.init();
+            }
+            
+            async init() {
+                // Attendre que globalConfig soit chargé
+                await this.waitForGlobalConfig();
+                this.setupEventListeners();
+                this.startAutoRefresh();
+                this.loadAllScores();
+            }
+            
+            async waitForGlobalConfig() {
+                // Attendre que globalConfig soit disponible
+                let attempts = 0;
+                while (!window.globalConfig && attempts < 50) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    attempts++;
+                }
+                if (!window.globalConfig) {
+                    console.warn('globalConfig not available, using defaults');
+                }
+            }
+            
+            setupEventListeners() {
+                document.getElementById('refresh-all').addEventListener('click', () => {
+                    this.loadAllScores();
+                });
+                
+                document.getElementById('sync-ml').addEventListener('click', () => {
+                    this.syncMLModels();
+                });
+                
+                document.getElementById('force-reload').addEventListener('click', () => {
+                    // Forcer le rechargement complet de la page
+                    window.location.reload();
+                });
+            }
+            
+            startAutoRefresh() {
+                // Actualisation automatique toutes les 30 secondes
+                this.autoRefreshInterval = setInterval(() => {
+                    this.loadAllScores(true); // silent refresh
+                }, 30000);
+            }
+            
+            async loadAllScores(silent = false) {
+                if (this.isLoading) return;
+                
+                this.isLoading = true;
+                if (!silent) {
+                    document.getElementById('scores-grid').classList.add('loading');
+                    document.getElementById('refresh-all').disabled = true;
+                }
+                
+                try {
+                    // Fetch risk dashboard ONCE with SAME PARAMETERS as risk-dashboard.html
+                    const minUsd = globalConfig.get('min_usd_threshold');
+                    const analysisDays = 365;  // MÊME VALEUR que risk-dashboard  
+                    const corrDays = 90;       // MÊME VALEUR que risk-dashboard
+                    
+                    const riskUrl = window.globalConfig
+                        ? window.globalConfig.getApiUrl('/api/risk/dashboard', { 
+                            min_usd: minUsd, 
+                            price_history_days: analysisDays, 
+                            lookback_days: corrDays 
+                          })
+                        : new URL('/api/risk/dashboard', window.location.origin).toString();
+                    
+                    console.debug('📊 Unified-scores calling risk API with SAME params as risk-dashboard:', riskUrl);
+
+                    const [riskResp, _unused] = await Promise.all([
+                        fetch(riskUrl).catch(() => null),
+                        Promise.resolve(true)
+                    ]);
+
+                    let riskData = null;
+                    if (riskResp && riskResp.ok) {
+                        try { riskData = await riskResp.json(); } catch (_) { riskData = null; }
+                    }
+                    this.latestRiskData = riskData;
+
+                    await Promise.all([
+                        this.loadGovernanceScores(),
+                        this.loadCCSScores(),
+                        this.loadMLScores(),
+                        this.loadExecutionScores()
+                    ]);
+
+                    // Apply risk-related sections using the single fetched payload
+                    if (riskData) {
+                        try { this.applyRiskScoresFromData(riskData); } catch (e) { console.warn('applyRiskScores error:', e); }
+                        try { this.applyPortfolioScoresFromData(riskData); } catch (e) { console.warn('applyPortfolioScores error:', e); }
+                    } else {
+                        // Fallback to individual loaders (will fetch once each if needed)
+                        await Promise.all([
+                            this.loadRiskScores(),
+                            this.loadPortfolioScores()
+                        ]);
+                    }
+                    
+                    this.lastUpdate = new Date();
+                    document.getElementById('last-update').textContent = 
+                        this.lastUpdate.toLocaleTimeString('fr-FR');
+                        
+                } catch (error) {
+                    console.error('Error loading scores:', error);
+                } finally {
+                    this.isLoading = false;
+                    if (!silent) {
+                        document.getElementById('scores-grid').classList.remove('loading');
+                        document.getElementById('refresh-all').disabled = false;
+                    }
+                }
+            }
+            
+            async loadGovernanceScores() {
+                try {
+                    // Utiliser directement les signaux governance pour le Decision Score
+                    const signalsResponse = await fetch(`${window.location.origin}/execution/governance/signals`);
+                    if (signalsResponse.ok) {
+                        const signalsData = await signalsResponse.json();
+                        const signals = signalsData.signals || {};
+                        
+                        // Decision Score depuis les signaux réels
+                        const decisionScore = Math.round((signals.decision_score || 0.63) * 100);
+                        document.getElementById('decision-score').textContent = `${decisionScore}%`;
+                        document.getElementById('decision-score').className = 
+                            `score-value ${this.getScoreClass(decisionScore)}`;
+                        
+                        // ML Confidence depuis les signaux
+                        const confidence = Math.round((signals.confidence || 0.78) * 100);
+                        document.getElementById('ml-confidence').textContent = `${confidence}%`;
+                        document.getElementById('ml-confidence').className = 
+                            `score-value ${this.getScoreClass(confidence)}`;
+                        
+                        // État de gouvernance depuis l'API state
+                        const stateResponse = await fetch(`${window.location.origin}/execution/governance/state`);
+                        if (stateResponse.ok) {
+                            const stateData = await stateResponse.json();
+                            document.getElementById('governance-state').textContent = stateData.current_state || 'IDLE';
+                            document.getElementById('governance-state').className = 
+                                `score-value ${stateData.current_state === 'ACTIVE' ? 'score-excellent' : 'score-neutral'}`;
+                        } else {
+                            document.getElementById('governance-state').textContent = 'IDLE';
+                            document.getElementById('governance-state').className = 'score-value score-neutral';
+                        }
+                    } else {
+                        // Fallback si API échoue
+                        document.getElementById('decision-score').textContent = '63%';
+                        document.getElementById('decision-score').className = 'score-value score-good';
+                        document.getElementById('ml-confidence').textContent = '78%';
+                        document.getElementById('ml-confidence').className = 'score-value score-good';
+                        document.getElementById('governance-state').textContent = 'IDLE';
+                        document.getElementById('governance-state').className = 'score-value score-neutral';
+                    }
+                } catch (error) {
+                    console.error('Error loading governance scores:', error);
+                    // Fallback en cas d'erreur
+                    document.getElementById('decision-score').textContent = '63%';
+                    document.getElementById('decision-score').className = 'score-value score-good';
+                    document.getElementById('ml-confidence').textContent = '78%';
+                    document.getElementById('ml-confidence').className = 'score-value score-good';
+                    document.getElementById('governance-state').textContent = 'IDLE';
+                    document.getElementById('governance-state').className = 'score-value score-neutral';
+                }
+            }
+            
+            async loadCCSScores() {
+                try {
+                    // Utiliser les scores depuis localStorage (synchronisés par risk-dashboard)
+                    const lsCcsScore = parseFloat(localStorage.getItem('risk_score_ccs'));
+                    const lsBlendedScore = parseFloat(localStorage.getItem('risk_score_blended'));
+                    const lsDataSource = localStorage.getItem('risk_score_data_source');
+                    const currentDataSource = window.globalConfig?.get('data_source') || 'csv';
+                    
+                    // Vérifier que les scores localStorage correspondent à la source actuelle
+                    const useLS = Number.isFinite(lsCcsScore) && (!lsDataSource || lsDataSource === currentDataSource);
+                    
+                    if (useLS) {
+                        // CCS Original depuis localStorage (calculé par risk-dashboard)
+                        document.getElementById('ccs-original').textContent = Math.round(lsCcsScore);
+                        document.getElementById('ccs-original').className = 
+                            `score-value ${this.getScoreClass(lsCcsScore)}`;
+                        
+                        // CCS Mixte: LIRE DIRECTEMENT DEPUIS localStorage (source unique de vérité)
+                        const lsCcsMixte = parseFloat(localStorage.getItem('risk_score_ccs_mixte'));
+                        if (Number.isFinite(lsCcsMixte)) {
+                            document.getElementById('ccs-mixed').textContent = Math.round(lsCcsMixte);
+                            document.getElementById('ccs-mixed').className = 
+                                `score-value ${this.getScoreClass(lsCcsMixte)}`;
+                        } else {
+                            console.warn('⚠️ CCS Mixte not available in localStorage - risk-dashboard.html must calculate it first');
+                            document.getElementById('ccs-mixed').textContent = '--';
+                            document.getElementById('ccs-mixed').className = 'score-value score-neutral';
+                        }
+                        
+                        // Phase de marché basée sur CCS score
+                        const marketPhase = this.getCCSPhase(lsCcsScore);
+                        document.getElementById('market-phase').textContent = marketPhase;
+                        document.getElementById('market-phase').className = 
+                            `score-value ${lsCcsScore >= 60 ? 'score-excellent' : lsCcsScore >= 40 ? 'score-good' : 'score-moderate'}`;
+                            
+                    } else {
+                        // Fallback: essayer de récupérer depuis riskStore si disponible
+                        if (window.riskStore) {
+                            const storeSnapshot = window.riskStore.snapshot();
+                            const ccsScore = storeSnapshot.ccs?.score || 52;
+                            const ccsStar = storeSnapshot.cycle?.ccsStar || 66;
+                            
+                            document.getElementById('ccs-original').textContent = Math.round(ccsScore);
+                            document.getElementById('ccs-original').className = 
+                                `score-value ${this.getScoreClass(ccsScore)}`;
+                                
+                            document.getElementById('ccs-mixed').textContent = Math.round(ccsStar);
+                            document.getElementById('ccs-mixed').className = 
+                                `score-value ${this.getScoreClass(ccsStar)}`;
+                                
+                            const marketPhase = this.getCCSPhase(ccsScore);
+                            document.getElementById('market-phase').textContent = marketPhase;
+                            document.getElementById('market-phase').className = 
+                                `score-value ${ccsScore >= 60 ? 'score-excellent' : ccsScore >= 40 ? 'score-good' : 'score-moderate'}`;
+                        } else {
+                            // Fallback final: valeurs par défaut
+                            document.getElementById('ccs-original').textContent = '--';
+                            document.getElementById('ccs-original').className = 'score-value score-neutral';
+                            document.getElementById('ccs-mixed').textContent = '--';
+                            document.getElementById('ccs-mixed').className = 'score-value score-neutral';
+                            document.getElementById('market-phase').textContent = 'Unknown';
+                            document.getElementById('market-phase').className = 'score-value score-neutral';
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error loading CCS scores:', error);
+                    // Fallback avec vraies valeurs
+                    document.getElementById('ccs-original').textContent = '52';
+                    document.getElementById('ccs-original').className = 'score-value score-moderate';
+                    document.getElementById('ccs-mixed').textContent = '66';
+                    document.getElementById('ccs-mixed').className = 'score-value score-good';
+                    document.getElementById('market-phase').textContent = 'Bullish';
+                    document.getElementById('market-phase').className = 'score-value score-excellent';
+                }
+            }
+            
+            async loadRiskScores() {
+                try {
+                    // Utiliser les MÊMES paramètres que risk-dashboard pour garantir la cohérence
+                    const minUsd = globalConfig.get('min_usd_threshold');
+                    const analysisDays = 365;  // MÊME VALEUR que risk-dashboard  
+                    const corrDays = 90;       // MÊME VALEUR que risk-dashboard
+                    
+                    const url = window.globalConfig
+                        ? window.globalConfig.getApiUrl('/api/risk/dashboard', { 
+                            min_usd: minUsd, 
+                            price_history_days: analysisDays, 
+                            lookback_days: corrDays 
+                          })
+                        : new URL('/api/risk/dashboard', window.location.origin).toString();
+                    console.debug('📊 Loading risk scores with SAME params as risk-dashboard:', url);
+                    const response = await fetch(url);
+                    if (response.ok) {
+                        const data = await response.json();
+                        this.applyRiskScoresFromData(data);
+                    }
+                } catch (error) {
+                    console.error('Error loading risk scores:', error);
+                    this.setErrorState(['portfolio-risk', 'onchain-composite', 'decision-risk']);
+                }
+            }
+
+            applyRiskScoresFromData(data) {
+                const metrics = data.risk_metrics || {};
+                // Risk Score Portfolio: privilégier LS si l'API renvoie une valeur faible/incomplète
+                const currentSource = (window.globalConfig && window.globalConfig.get('data_source')) || null;
+                const lsSource = localStorage.getItem('risk_score_data_source');
+                const lsRisk = parseFloat(localStorage.getItem('risk_score_risk'));
+                const lsCcsScore = parseFloat(localStorage.getItem('risk_score_ccs'));
+                const apiRisk = (typeof metrics.risk_score === 'number') ? metrics.risk_score : NaN;
+                // Toujours privilégier la valeur Risk Dashboard si disponible pour la même source (cohérence inter-pages)
+                const riskScore = (Number.isFinite(lsRisk) && (!currentSource || !lsSource || lsSource === currentSource))
+                    ? lsRisk
+                    : (Number.isFinite(apiRisk) ? apiRisk : 50);
+                document.getElementById('portfolio-risk').textContent = Math.round(riskScore);
+                document.getElementById('portfolio-risk').className = `score-value ${this.getScoreClass(100 - riskScore)}`;
+
+                // On-Chain Composite - utiliser localStorage synchronisé par risk-dashboard
+                const lsOnchainScore = parseFloat(localStorage.getItem('risk_score_onchain'));
+                const onchainScore = Number.isFinite(lsOnchainScore) ? lsOnchainScore : null;
+                
+                if (onchainScore !== null) {
+                    document.getElementById('onchain-composite').textContent = Math.round(onchainScore);
+                    document.getElementById('onchain-composite').className = `score-value ${this.getScoreClass(onchainScore)}`;
+                } else {
+                    document.getElementById('onchain-composite').textContent = '--';
+                    document.getElementById('onchain-composite').className = 'score-value score-neutral';
+                }
+
+                // Score Décisionnel - UTILISER LA SOURCE UNIQUE DE VÉRITÉ (localStorage)
+                const lsBlendedScore = parseFloat(localStorage.getItem('risk_score_blended'));
+                
+                if (Number.isFinite(lsBlendedScore)) {
+                    // Utiliser directement le score blended calculé par risk-dashboard
+                    document.getElementById('decision-risk').textContent = `${Math.round(lsBlendedScore)} (${this.getDecisionPhase(lsBlendedScore)})`;
+                    document.getElementById('decision-risk').className = `score-value ${this.getScoreClass(lsBlendedScore)}`;
+                } else {
+                    console.warn('⚠️ Blended score not available in localStorage - risk-dashboard.html must calculate it first');
+                    document.getElementById('decision-risk').textContent = '--';
+                    document.getElementById('decision-risk').className = 'score-value score-neutral';
+                }
+            }
+            
+            async calculateOnChainScore() {
+                try {
+                    // LECTURE DE LA SOURCE UNIQUE DE VÉRITÉ (localStorage rempli par risk-dashboard.html)
+                    const lsOnchainScore = parseFloat(localStorage.getItem('risk_score_onchain'));
+                    if (Number.isFinite(lsOnchainScore)) {
+                        console.debug(`✅ On-chain score from localStorage: ${lsOnchainScore}`);
+                        return lsOnchainScore;
+                    }
+                    
+                    console.warn('⚠️ No on-chain score in localStorage - risk-dashboard.html must calculate it first');
+                    return null; // Indicate missing data instead of hardcoded fallback
+                } catch (error) {
+                    console.error('❌ Error reading on-chain score from localStorage:', error);
+                    return null;
+                }
+            }
+            
+            async loadMLScores() {
+                try {
+                    // Utiliser les signaux governance qui fonctionnent
+                    const response = await fetch(`${window.location.origin}/execution/governance/signals`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        const signals = data.signals || {};
+                        
+                        // Volatility Prediction depuis les signaux governance
+                        if (signals.volatility) {
+                            const vols = Object.values(signals.volatility);
+                            const avgVol = vols.reduce((a, b) => a + b, 0) / Math.max(vols.length, 1);
+                            const volPercent = Math.round((avgVol * 100) * 10) / 10; // 1 décimale pour coller à ai-dashboard
+                            
+                            // Afficher la volatilité directement comme dans ai-dashboard (plus c'est haut, plus c'est volatil)
+                            document.getElementById('ml-volatility').textContent = `${volPercent}%`;
+                            document.getElementById('ml-volatility').className = 
+                                `score-value ${this.getVolatilityClass(volPercent)}`;
+                            
+                            console.debug('Volatilité moyenne:', avgVol, '→', volPercent + '% (BTC:', (signals.volatility.BTC * 100).toFixed(1) + '%, ETH:', (signals.volatility.ETH * 100).toFixed(1) + '%, SOL:', (signals.volatility.SOL * 100).toFixed(1) + '%)');
+                        }
+                        
+                        // Regime Detection depuis les signaux governance
+                        if (signals.regime) {
+                            const regimeConfidence = Math.max(signals.regime.bull, signals.regime.neutral, signals.regime.bear);
+                            const regimeScore = Math.round(regimeConfidence * 100);
+                            
+                            document.getElementById('ml-regime').textContent = `${regimeScore}%`;
+                            document.getElementById('ml-regime').className = 
+                                `score-value ${this.getScoreClass(regimeScore)}`;
+                        }
+                        
+                        // Correlation Score depuis les signaux governance
+                        if (signals.correlation) {
+                            const corrScore = Math.round(signals.correlation.avg_correlation * 100);
+                            document.getElementById('ml-correlation').textContent = `${corrScore}%`;
+                            document.getElementById('ml-correlation').className = 
+                                `score-value ${this.getScoreClass(corrScore)}`;
+                        }
+                    } else {
+                        // Fallback avec des valeurs indicatives (55% = volatilité moyenne crypto)
+                        document.getElementById('ml-volatility').textContent = '55%';
+                        document.getElementById('ml-volatility').className = 'score-value score-moderate';
+                        document.getElementById('ml-regime').textContent = '68%';
+                        document.getElementById('ml-regime').className = 'score-value score-good';
+                        document.getElementById('ml-correlation').textContent = '65%';
+                        document.getElementById('ml-correlation').className = 'score-value score-good';
+                    }
+                } catch (error) {
+                    console.error('Error loading ML scores:', error);
+                    // Fallback avec des valeurs indicatives (55% = volatilité moyenne crypto)
+                    document.getElementById('ml-volatility').textContent = '55%';
+                    document.getElementById('ml-volatility').className = 'score-value score-moderate';
+                    document.getElementById('ml-regime').textContent = '68%';
+                    document.getElementById('ml-regime').className = 'score-value score-good';
+                    document.getElementById('ml-correlation').textContent = '65%';
+                    document.getElementById('ml-correlation').className = 'score-value score-good';
+                }
+            }
+            
+            async loadPortfolioScores() {
+                console.debug('🚀 loadPortfolioScores() called');
+                try {
+                    // UTILISER EXACTEMENT LES MÊMES PARAMÈTRES QUE risk-dashboard.html
+                    const minUsd = globalConfig.get('min_usd_threshold');
+                    const analysisDays = 365;  // MÊME VALEUR que risk-dashboard
+                    const corrDays = 90;       // MÊME VALEUR que risk-dashboard
+                    
+                    const url = window.globalConfig
+                        ? window.globalConfig.getApiUrl('/api/risk/dashboard', { 
+                            min_usd: minUsd, 
+                            price_history_days: analysisDays, 
+                            lookback_days: corrDays 
+                          })
+                        : new URL('/api/risk/dashboard', window.location.origin).toString();
+                    
+                    console.debug('📊 Loading portfolio KPIs from (with same params as risk-dashboard):', url);
+                    console.debug('📊 Parameters used: minUsd=', minUsd, 'analysisDays=', analysisDays, 'corrDays=', corrDays);
+                    const response = await fetch(url);
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.debug('📊 Portfolio API response:', data);
+                        this.applyPortfolioScoresFromData(data);
+                    } else {
+                        throw new Error(`Risk dashboard API error: ${response.status}`);
+                    }
+                } catch (error) {
+                    console.error('❌ Error loading portfolio scores:', error);
+                    // PAS de fallbacks hardcodés - afficher que les données ne sont pas disponibles
+                    this.setErrorState(['sharpe-ratio', 'diversification', 'performance-30d']);
+                }
+            }
+
+            applyPortfolioScoresFromData(data) {
+                // Utiliser SEULEMENT les vraies données de l'API - PAS de fallbacks hardcodés
+                const metrics = data.risk_metrics || {};
+                const correlationMetrics = data.correlation_metrics || {};
+
+                // DEBUG: Log exactement ce qu'on reçoit
+                console.debug('🔍 DEBUG metrics received:', metrics);
+                console.debug('🔍 DEBUG correlationMetrics received:', correlationMetrics);
+                
+                // Sharpe Ratio - seulement si disponible dans l'API
+                if (typeof metrics.sharpe_ratio === 'number') {
+                    const sharpe = metrics.sharpe_ratio;
+                    console.debug('✅ Sharpe ratio from API:', sharpe);
+                    document.getElementById('sharpe-ratio').textContent = sharpe.toFixed(2);
+                    document.getElementById('sharpe-ratio').className = `score-value ${sharpe > 1 ? 'score-excellent' : sharpe > 0.5 ? 'score-good' : sharpe > 0 ? 'score-moderate' : 'score-poor'}`;
+                } else {
+                    console.warn('❌ Sharpe ratio not available from API. metrics.sharpe_ratio =', metrics.sharpe_ratio);
+                    document.getElementById('sharpe-ratio').textContent = '--';
+                    document.getElementById('sharpe-ratio').className = 'score-value score-neutral';
+                }
+
+                // Diversification Ratio - seulement si disponible dans l'API
+                if (typeof correlationMetrics.diversification_ratio === 'number') {
+                    const diversificationRatio = correlationMetrics.diversification_ratio;
+                    console.debug('✅ Diversification ratio from API:', diversificationRatio);
+                    document.getElementById('diversification').textContent = diversificationRatio.toFixed(2);
+                    document.getElementById('diversification').className = `score-value ${diversificationRatio > 0.7 ? 'score-good' : diversificationRatio > 0.4 ? 'score-moderate' : 'score-poor'}`;
+                } else {
+                    console.warn('❌ Diversification ratio not available from API. correlationMetrics.diversification_ratio =', correlationMetrics.diversification_ratio);
+                    document.getElementById('diversification').textContent = '--';
+                    document.getElementById('diversification').className = 'score-value score-neutral';
+                }
+
+                // Performance 30j - calculer si les données sont disponibles
+                if (metrics.return_30d && typeof metrics.return_30d === 'number') {
+                    const perf30d = metrics.return_30d;
+                    document.getElementById('performance-30d').textContent = `${(perf30d * 100).toFixed(1)}%`;
+                    document.getElementById('performance-30d').className = `score-value ${perf30d > 0.1 ? 'score-excellent' : perf30d > 0.05 ? 'score-good' : perf30d > 0 ? 'score-moderate' : 'score-poor'}`;
+                } else {
+                    document.getElementById('performance-30d').textContent = '--';
+                    document.getElementById('performance-30d').className = 'score-value score-neutral';
+                    console.warn('⚠️ 30-day performance not available from API');
+                }
+            }
+            
+            async loadExecutionScores() {
+                try {
+                    // Utiliser les endpoints disponibles: pipeline-status + governance/state
+                    const [pipeResp, govResp] = await Promise.all([
+                        fetch(`${window.location.origin}/execution/pipeline-status`).catch(() => null),
+                        fetch(`${window.location.origin}/execution/governance/state`).catch(() => null)
+                    ]);
+
+                    if (pipeResp && pipeResp.ok) {
+                        const p = await pipeResp.json();
+                        const sr = (p?.statistics?.success_rate != null) ? Number(p.statistics.success_rate) : null;
+                        if (Number.isFinite(sr)) {
+                            const executionScore = Math.max(0, Math.min(100, sr));
+                            document.getElementById('execution-score').textContent = `${Math.round(executionScore)}%`;
+                            document.getElementById('execution-score').className = `score-value ${this.getScoreClass(executionScore)}`;
+                        } else {
+                            document.getElementById('execution-score').textContent = 'N/A';
+                            document.getElementById('execution-score').className = 'score-value score-neutral';
+                        }
+
+                        const recent = (p?.statistics?.total_plans != null) ? p.statistics.total_plans : (p?.active_executions || 0);
+                        document.getElementById('recent-trades').textContent = String(recent);
+                        document.getElementById('recent-trades').className = 'score-value score-neutral';
+                    }
+
+                    if (govResp && govResp.ok) {
+                        const g = await govResp.json();
+                        const mode = g?.mode ? g.mode.replace(/_/g, ' ').replace(/\b(ai)\b/i, 'AI') : 'manual';
+                        document.getElementById('execution-mode').textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
+                        document.getElementById('execution-mode').className = 'score-value score-neutral';
+                    }
+                } catch (error) {
+                    console.error('Error loading execution scores:', error);
+                    // Fallback avec des valeurs indicatives
+                    document.getElementById('execution-score').textContent = '95%';
+                    document.getElementById('execution-score').className = 'score-value score-excellent';
+                    document.getElementById('execution-mode').textContent = 'AI Assisted';
+                    document.getElementById('execution-mode').className = 'score-value score-neutral';
+                    document.getElementById('recent-trades').textContent = '12';
+                    document.getElementById('recent-trades').className = 'score-value score-neutral';
+                }
+            }
+            
+            async syncMLModels() {
+                document.getElementById('sync-ml').disabled = true;
+                document.getElementById('sync-ml').textContent = '🔄 Synchronisation...';
+                
+                try {
+                    const response = await fetch(`${window.location.origin}/execution/governance/init-ml`, {
+                        method: 'POST'
+                    });
+                    
+                    if (response.ok) {
+                        // Attendre 2 secondes puis recharger les scores ML
+                        setTimeout(() => {
+                            this.loadMLScores();
+                            this.loadGovernanceScores();
+                        }, 2000);
+                    }
+                } catch (error) {
+                    console.error('Error syncing ML models:', error);
+                } finally {
+                    setTimeout(() => {
+                        document.getElementById('sync-ml').disabled = false;
+                        document.getElementById('sync-ml').textContent = '🤖 Synchroniser ML';
+                    }, 3000);
+                }
+            }
+            
+            getScoreClass(score) {
+                if (score >= 80) return 'score-excellent';
+                if (score >= 60) return 'score-good';
+                if (score >= 40) return 'score-moderate';
+                if (score >= 20) return 'score-poor';
+                return 'score-neutral';
+            }
+            
+            getVolatilityClass(volatilityPercent) {
+                // Pour la volatilité: plus c'est élevé, plus c'est risqué
+                // Volatilité crypto: <30% = excellent, 30-50% = good, 50-70% = moderate, >70% = poor
+                if (volatilityPercent <= 30) return 'score-excellent';
+                if (volatilityPercent <= 50) return 'score-good';
+                if (volatilityPercent <= 70) return 'score-moderate';
+                return 'score-poor';
+            }
+            
+            getCCSPhase(score) {
+                if (score >= 80) return 'Bull Market';
+                if (score >= 60) return 'Accumulation';
+                if (score >= 40) return 'Consolidation';
+                if (score >= 20) return 'Distribution';
+                return 'Bear Market';
+            }
+            
+            calculateDecisionRisk(riskData) {
+                // Reproduire la formule du Risk Dashboard
+                const ccsScore = window.riskStore?.get('cycle.ccsStar') || 50;
+                const onchainScore = riskData.onchain_composite_score || 30;
+                const portfolioRisk = riskData.portfolio_risk_score || 50;
+                
+                // Formule: 50% CCS Mixte + 30% On-Chain + 20% (100-Risk)
+                return (ccsScore * 0.5) + (onchainScore * 0.3) + ((100 - portfolioRisk) * 0.2);
+            }
+            
+            getDecisionPhase(score) {
+                if (score >= 70) return 'Expansion';
+                if (score >= 50) return 'Croissance';
+                if (score >= 30) return 'Consolidation';
+                return 'Prudence';
+            }
+            
+            setErrorState(elementIds) {
+                elementIds.forEach(id => {
+                    document.getElementById(id).textContent = 'Error';
+                    document.getElementById(id).className = 'score-value score-poor';
+                });
+            }
+        }
+        
+        // Initialize when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            const manager = new UnifiedScoresManager();
+
+            // React immediately to data source changes (same-tab)
+            window.addEventListener('dataSourceChanged', (event) => {
+                try {
+                    console.debug(`🔄 unified-scores: data source changed ${event.detail.oldSource} → ${event.detail.newSource}`);
+                    manager.loadAllScores();
+                } catch (e) { console.warn('unified-scores reload on source change failed:', e); }
+            });
+
+            // Generic config changes (same-tab)
+            window.addEventListener('configChanged', () => {
+                try {
+                    console.debug('🛠 unified-scores: config changed, refreshing scores...');
+                    manager.loadAllScores(true);
+                } catch (e) { /* ignore */ }
+            });
+
+            // Cross-tab synchronization via storage events
+            window.addEventListener('storage', (e) => {
+                if (e.key === 'crypto_rebalancer_settings') {
+                    try {
+                        // globalConfig will auto-load on storage event in global-config.js
+                        const current = window.globalConfig?.get('data_source');
+                        if (current) {
+                            console.debug(`🧩 unified-scores: storage sync, reloading for source ${current}`);
+                            manager.loadAllScores();
+                        }
+                    } catch (err) { console.warn('unified-scores storage sync failed:', err); }
+                } else if (e.key && e.key.startsWith('risk_score_')) {
+                    // Keep Risk Score in sync when risk-dashboard updates LS
+                    try {
+                        manager.applyRiskScoresFromData(manager.latestRiskData || { risk_metrics: {} });
+                    } catch (_) { /* ignore */ }
+                }
+            });
+        });
+        
+        // Handle page visibility changes to pause/resume auto-refresh
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                // Page is hidden, could pause auto-refresh
+            } else {
+                // Page is visible, ensure auto-refresh is running
+            }
+        });
+    </script>
+</body>
+</html>

@@ -40,14 +40,35 @@ document.addEventListener('DOMContentLoaded', function() {
             try { refreshScoresFromLocalStorage(); } catch (_) {}
         }
     });
+    // Also listen to unified riskStore (populated by analytics-unified.html)
+    attachRiskStoreListener();
 });
 
 function getScoresFromLocalStorage() {
     try {
-        const onchain = parseFloat(localStorage.getItem('risk_score_onchain'));
-        const risk = parseFloat(localStorage.getItem('risk_score_risk'));
-        const blended = parseFloat(localStorage.getItem('risk_score_blended'));
-        const ccs = parseFloat(localStorage.getItem('risk_score_ccs'));
+        // Primary: values saved by risk-dashboard
+        const onchainLS = parseFloat(localStorage.getItem('risk_score_onchain'));
+        const riskLS = parseFloat(localStorage.getItem('risk_score_risk'));
+        const blendedLS = parseFloat(localStorage.getItem('risk_score_blended'));
+        const ccsLS = parseFloat(localStorage.getItem('risk_score_ccs'));
+
+        let onchain = Number.isFinite(onchainLS) ? onchainLS : null;
+        let risk = Number.isFinite(riskLS) ? riskLS : null;
+        let blended = Number.isFinite(blendedLS) ? blendedLS : null;
+        let ccs = Number.isFinite(ccsLS) ? ccsLS : null;
+
+        // Fallback: unified store (set by analytics-unified inline loader)
+        try {
+            const s = window.riskStore ? window.riskStore.snapshot() : null;
+            if (onchain == null && typeof s?.scores?.onchain === 'number') onchain = s.scores.onchain;
+            if (risk == null && typeof s?.scores?.risk === 'number') risk = s.scores.risk;
+            if (blended == null && typeof s?.scores?.blended === 'number') blended = s.scores.blended;
+            if (ccs == null) {
+                if (typeof s?.scores?.ccs === 'number') ccs = s.scores.ccs;
+                else if (typeof s?.ccs?.score === 'number') ccs = s.ccs.score;
+            }
+        } catch (_) {}
+
         const timestamp = localStorage.getItem('risk_score_timestamp');
         return {
             onchain: Number.isFinite(onchain) ? onchain : null,
@@ -68,6 +89,33 @@ function refreshScoresFromLocalStorage() {
     }
     if (scores.blended != null) {
         updateMetric('risk-kpi-blended', Math.round(scores.blended), 'CCS × Cycle (synthèse)');
+    }
+}
+
+// Subscribe to window.riskStore when it becomes available to keep KPIs synced
+function attachRiskStoreListener() {
+    const tryAttach = () => {
+        if (window.riskStore && typeof window.riskStore.subscribe === 'function') {
+            // Initial pull
+            try { refreshScoresFromLocalStorage(); } catch (_) {}
+            try {
+                window.riskStore.subscribe(() => {
+                    try { refreshScoresFromLocalStorage(); } catch (_) {}
+                });
+                console.debug('Analytics Unified: subscribed to riskStore updates');
+            } catch (_) {}
+            return true;
+        }
+        return false;
+    };
+    if (!tryAttach()) {
+        let attempts = 0;
+        const id = setInterval(() => {
+            attempts += 1;
+            if (tryAttach() || attempts > 20) {
+                clearInterval(id);
+            }
+        }, 250);
     }
 }
 

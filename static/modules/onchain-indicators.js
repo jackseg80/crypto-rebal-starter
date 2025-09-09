@@ -996,16 +996,143 @@ function convertCryptoToolboxPercentToScore(percent, isContrarian = false) {
 }
 
 /**
+ * Génère des indicateurs simulés selon la source de données stub sélectionnée
+ */
+function getSimulatedIndicators(dataSource) {
+  const baseIndicators = {
+    fear_greed: {
+      name: 'Fear & Greed Index',
+      value: 0,
+      value_numeric: 0,
+      raw_value: 0,
+      threshold_numeric: 80,
+      in_critical_zone: false,
+      threshold: '80% (Extreme Greed)',
+      raw_threshold: 80,
+      threshold_operator: '>',
+      source: 'Simulated',
+      timestamp: new Date()
+    },
+    mvrv: {
+      name: 'MVRV Ratio',
+      value: 0,
+      value_numeric: 0,
+      raw_value: 0,
+      threshold_numeric: 3.0,
+      in_critical_zone: false,
+      threshold: '3.0 (Overvalued)',
+      raw_threshold: 3.0,
+      threshold_operator: '>',
+      source: 'Simulated',
+      timestamp: new Date()
+    },
+    nvt: {
+      name: 'NVT Ratio',
+      value: 0,
+      value_numeric: 0,
+      raw_value: 0,
+      threshold_numeric: 100,
+      in_critical_zone: false,
+      threshold: '100 (Overvalued)',
+      raw_threshold: 100,
+      threshold_operator: '>',
+      source: 'Simulated',
+      timestamp: new Date()
+    }
+  };
+
+  // Configure indicators based on data source
+  switch (dataSource) {
+    case 'stub_conservative':
+      // Conservative: Low risk signals
+      baseIndicators.fear_greed.value_numeric = 30; // Fear
+      baseIndicators.fear_greed.value = 30;
+      baseIndicators.fear_greed.raw_value = 30;
+      
+      baseIndicators.mvrv.value_numeric = 1.5; // Undervalued
+      baseIndicators.mvrv.value = 1.5;
+      baseIndicators.mvrv.raw_value = 1.5;
+      
+      baseIndicators.nvt.value_numeric = 50; // Normal
+      baseIndicators.nvt.value = 50;
+      baseIndicators.nvt.raw_value = 50;
+      break;
+      
+    case 'stub_balanced':
+      // Balanced: Moderate signals
+      baseIndicators.fear_greed.value_numeric = 55; // Neutral-Greed
+      baseIndicators.fear_greed.value = 55;
+      baseIndicators.fear_greed.raw_value = 55;
+      
+      baseIndicators.mvrv.value_numeric = 2.2; // Fairly valued
+      baseIndicators.mvrv.value = 2.2;
+      baseIndicators.mvrv.raw_value = 2.2;
+      
+      baseIndicators.nvt.value_numeric = 75; // Slightly elevated
+      baseIndicators.nvt.value = 75;
+      baseIndicators.nvt.raw_value = 75;
+      break;
+      
+    case 'stub_shitcoins':
+      // Risky: High risk signals
+      baseIndicators.fear_greed.value_numeric = 85; // Extreme Greed - CRITICAL ZONE
+      baseIndicators.fear_greed.value = 85;
+      baseIndicators.fear_greed.raw_value = 85;
+      baseIndicators.fear_greed.in_critical_zone = true;
+      
+      baseIndicators.mvrv.value_numeric = 3.5; // Overvalued - CRITICAL ZONE
+      baseIndicators.mvrv.value = 3.5;
+      baseIndicators.mvrv.raw_value = 3.5;
+      baseIndicators.mvrv.in_critical_zone = true;
+      
+      baseIndicators.nvt.value_numeric = 120; // Overvalued - CRITICAL ZONE
+      baseIndicators.nvt.value = 120;
+      baseIndicators.nvt.raw_value = 120;
+      baseIndicators.nvt.in_critical_zone = true;
+      break;
+      
+    default:
+      // Default to balanced
+      return getSimulatedIndicators('stub_balanced');
+  }
+
+  // Add metadata
+  const result = {
+    ...baseIndicators,
+    _metadata: {
+      available_count: Object.keys(baseIndicators).length,
+      critical_count: Object.values(baseIndicators).filter(i => i.in_critical_zone).length,
+      source: dataSource,
+      timestamp: new Date().toISOString(),
+      simulated: true
+    }
+  };
+
+  console.debug(`🧪 Generated ${result._metadata.available_count} simulated indicators for ${dataSource} (${result._metadata.critical_count} critical)`);
+  return Promise.resolve(result);
+}
+
+/**
  * Récupère tous les indicateurs disponibles avec cache stable
  */
 export async function fetchAllIndicators() {
-  console.debug('🔍 Fetching REAL on-chain indicators from unified backend...');
+  console.debug('🔍 Fetching on-chain indicators...');
   
   const indicators = {};
   const errors = [];
   
+  // Check current data source configuration
+  const dataSource = globalConfig?.get('data_source') || 'stub_balanced';
+  console.debug(`🎯 Current data source: ${dataSource}`);
+  
+  // For stub sources, use simulated data instead of external APIs
+  if (dataSource.startsWith('stub_')) {
+    console.debug(`🧪 Using simulated indicators for ${dataSource}`);
+    return getSimulatedIndicators(dataSource);
+  }
+  
   try {
-    // 1. Fetch all indicators from Crypto-Toolbox backend (30+ indicators)
+    // 1. Fetch all indicators from Crypto-Toolbox backend (30+ indicators) - only for real data sources
     console.debug('🌐 Calling fetchCryptoToolboxIndicators for all indicators...');
     const cryptoToolboxData = await fetchCryptoToolboxIndicators();
     console.debug('🔍 CryptoToolbox result:', cryptoToolboxData);

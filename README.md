@@ -9,7 +9,32 @@ Plateforme **complète de gestion de portefeuille crypto** avec ML/IA avancé :
 - 📊 **Analytics sophistiqués** : Métriques Sharpe, Calmar, drawdown, VaR/CVaR
 - 🛡️ **Gestion des risques** avec matrices de corrélation et stress testing
 - 📈 **Interface moderne** avec 35+ dashboards et navigation unifiée
+- 🔄 **Synchronisation de scores** : Architecture single-source-of-truth avec cache localStorage
 - 🔗 **Multi-sources** : CoinTracking CSV/API, exchanges, données temps réel
+
+## 🔄 **Synchronisation des Scores Cross-Dashboard**
+
+Architecture **single-source-of-truth** garantissant la cohérence des données entre tous les dashboards :
+
+### Architecture de Synchronisation
+- **Source de vérité** : `risk-dashboard.html` calcule et stocke tous les scores dans localStorage  
+- **Consommateurs** : `analytics-unified.html`, `unified-scores.html` lisent les scores depuis localStorage
+- **Cache persistant** : TTL 12h avec invalidation automatique cross-tab
+- **API standardisée** : Tous les appels `/api/risk/dashboard` utilisent les mêmes paramètres :
+  - `min_usd`: Seuil de filtrage assets
+  - `price_history_days: 365`: Période d'analyse historique  
+  - `lookback_days: 90`: Fenêtre de corrélation
+
+### Scores Synchronisés
+- **CCS Mixte** : Score composite central du Decision Engine
+- **Portfolio Health** : Sharpe ratio, diversification, métriques de performance
+- **Risk Scores** : On-chain, technique, sentiment, scores pondérés
+- **Decision Signals** : Signaux ML temps réel avec niveaux de confiance
+
+### Outils de Debug
+- `debug_localStorage_scores.html` : Monitoring des scores en temps réel
+- Event listeners `storage` : Synchronisation automatique cross-tab
+- Logs détaillés : Traçabilité complète des calculs et stockage
 
 ## 🧠 **Système ML/IA**
 - **Auto-initialisation** : 5 modèles ML s'initialisent automatiquement au démarrage
@@ -189,6 +214,19 @@ python crypto_toolbox_api.py  # Port 8001
 - **État de la machine** : IDLE → DRAFT → APPROVED → ACTIVE → EXECUTED
 - **Endpoints governance** : `/execution/governance/signals`, `/execution/governance/init-ml`
 - **Interface UI** : GovernancePanel intégré dans Risk Dashboard
+
+### 📊 **Tableau Unifié des Scores** (`unified-scores.html`)
+**Interface de consolidation pour éliminer la confusion des scores multiples** :
+
+- **🎯 Vue d'ensemble complète** : Tous les scores importants sur une seule page
+- **🏛️ Decision Engine** : Score de décision, ML Confidence, État de gouvernance
+- **🎯 CCS Market Score** : CCS Original, CCS Mixte, Phase de marché 
+- **🛡️ Risk Assessment** : Risk Score Portfolio, On-Chain Composite, Score Décisionnel
+- **🧠 ML Analytics** : Volatility Prediction, Regime Detection, Correlation Score
+- **💼 Portfolio Health** : Sharpe Ratio, Diversification, Performance 30j
+- **⚡ Execution Status** : Execution Score, Mode, Trades récents
+- **🔄 Actualisation automatique** : Mise à jour toutes les 30 secondes
+- **🎨 Codage couleur** : Excellent (vert) → Bon → Modéré → Faible (rouge)
 
 ### 🖥️ **Dashboard ML Unifié** (`unified-ml-dashboard.html`)
 **Interface de contrôle complète pour le pipeline ML** avec :
