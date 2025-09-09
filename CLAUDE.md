@@ -22,6 +22,7 @@
 
 - API: `api/main.py` (CORS/CSP/GZip/TrustedHost, montages `/static`, `/data`, `/tests`) + routers `api/*_endpoints.py`.
 - Services: `services/*` (risk mgmt, execution, analytics, ML…).
+- Governance: `services/execution/governance.py` (Decision Engine single-writer) + auto-init ML dans `api/main.py` 
 - Connecteurs: `connectors/cointracking*.py`, autres.
 - Front: `static/*` (dashboards, `components/nav.js`, `global-config.js`, `lazy-loader.js`, modules `static/modules/*.js`, store `static/core/risk-dashboard-store.js`).
 - Config: `config/settings.py` (Pydantic settings)
@@ -31,21 +32,26 @@
 Fichiers clés:
 
 ```
-api/main.py
+api/main.py (auto-init ML au startup)
+api/execution_endpoints.py (governance routes)
 api/risk_endpoints.py
 api/advanced_analytics_endpoints.py
 api/backtesting_endpoints.py
 api/portfolio_optimization_endpoints.py
+services/execution/governance.py (Decision Engine)
+services/ml/orchestrator.py (MLOrchestrator)
 services/risk_management.py
 services/analytics/*.py
 services/ml/*.py
 static/components/nav.js
+static/components/GovernancePanel.js (nouveau)
 static/global-config.js
+static/ai-dashboard.html (signaux ML temps réel)
 static/analytics-unified.html
-static/risk-dashboard.html
+static/risk-dashboard.html (avec GovernancePanel)
 static/portfolio-optimization.html
 static/modules/*.js
-static/core/risk-dashboard-store.js
+static/core/risk-dashboard-store.js (sync governance)
 ```
 
 ---

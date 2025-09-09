@@ -276,6 +276,64 @@ export class RiskDashboardStore {
     }
     return false;
   }
+
+  async setGovernanceMode(mode, reason = 'Mode change from UI') {
+    try {
+      const response = await fetch(`${window.location.origin}/execution/governance/mode`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: mode,
+          reason: reason
+        })
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Governance mode change result:', result);
+        
+        // Refresh governance state after mode change
+        await this.syncGovernanceState();
+        return true;
+      }
+    } catch (error) {
+      console.error('Failed to set governance mode:', error);
+      this.set('ui.errors', [...(this.get('ui.errors') || []), `Mode change error: ${error.message}`]);
+    }
+    return false;
+  }
+
+  async proposeDecision(targets = null, reason = 'Test proposal from UI') {
+    try {
+      const defaultTargets = [
+        { symbol: 'BTC', weight: 0.6 },
+        { symbol: 'ETH', weight: 0.3 },
+        { symbol: 'SOL', weight: 0.1 }
+      ];
+
+      const response = await fetch(`${window.location.origin}/execution/governance/propose`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          targets: targets || defaultTargets,
+          reason: reason
+        })
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Decision proposal result:', result);
+        
+        // Refresh governance state after proposal
+        await this.syncGovernanceState();
+        return result;
+      }
+    } catch (error) {
+      console.error('Failed to propose decision:', error);
+      this.set('ui.errors', [...(this.get('ui.errors') || []), `Proposal error: ${error.message}`]);
+    }
+    return false;
+  }
   
   // Get governance status for UI display
   getGovernanceStatus() {

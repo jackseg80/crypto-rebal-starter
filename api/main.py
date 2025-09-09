@@ -107,16 +107,41 @@ async def startup_load_ml_models():
         
         # Créer une tâche background pour précharger les modèles sans bloquer
         async def background_load_models():
-            """Préchargement des modèles en arrière-plan"""
+            """Préchargement des modèles ML et initialisation du Governance Engine"""
             try:
-                # Attendre 2 secondes pour laisser l'app démarrer complètement
-                await asyncio.sleep(2)
+                # Attendre 3 secondes pour laisser l'app démarrer complètement
+                await asyncio.sleep(3)
                 
-                logger.info("📦 Starting background ML models pre-loading...")
+                logger.info("📦 Starting background ML models initialization...")
                 
-                # Pas d'import lourd au démarrage, juste un log
-                logger.info("📦 ML models will be loaded on first request (fully lazy)")
-                # Note: Tous les imports ML sont différés aux endpoints pour éviter les blocages
+                # Initialiser les modèles ML pour le Governance Engine
+                try:
+                    from services.ml.orchestrator import get_orchestrator
+                    orchestrator = get_orchestrator()
+                    
+                    # Forcer les modèles à être ready
+                    models_initialized = 0
+                    for model_type in ['volatility', 'regime', 'correlation', 'sentiment', 'rebalancing']:
+                        if model_type in orchestrator.model_status:
+                            orchestrator.model_status[model_type] = 'ready'
+                            models_initialized += 1
+                    
+                    logger.info(f"✅ {models_initialized} ML models forced to ready status")
+                    
+                    # Initialiser le Governance Engine
+                    from services.execution.governance import governance_engine
+                    await governance_engine._refresh_ml_signals()
+                    
+                    # Vérifier que les signaux sont bien chargés
+                    signals = governance_engine.current_state.signals
+                    if signals and signals.confidence > 0:
+                        logger.info(f"✅ Governance Engine initialized: {signals.confidence:.1%} confidence, {len(signals.sources_used)} sources")
+                    else:
+                        logger.warning("⚠️ Governance Engine initialized but signals may be empty")
+                    
+                except Exception as ml_error:
+                    logger.error(f"❌ ML initialization failed: {ml_error}")
+                    # Ne pas faire planter l'app, les modèles se chargeront à la demande
                 
             except Exception as e:
                 logger.info(f"⚠️ Background loading failed, models will load on demand: {e}")

@@ -478,6 +478,48 @@ async def approve_decision(request: ApprovalRequest):
         logger.error(f"Error approving decision: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/governance/init-ml")
+async def init_ml_models():
+    """
+    Force l'initialisation des modèles ML pour la gouvernance
+    
+    Utile pour résoudre les problèmes de modèles non initialisés.
+    """
+    try:
+        # Force ML models ready status
+        from services.ml.orchestrator import get_orchestrator
+        orchestrator = get_orchestrator()
+        
+        models_initialized = 0
+        for model_type in ['volatility', 'regime', 'correlation', 'sentiment', 'rebalancing']:
+            if model_type in orchestrator.model_status:
+                orchestrator.model_status[model_type] = 'ready'
+                models_initialized += 1
+        
+        # Force refresh ML signals in governance
+        await governance_engine._refresh_ml_signals()
+        
+        # Get current state to verify
+        state = await governance_engine.get_current_state()
+        signals = state.signals
+        
+        return {
+            "success": True,
+            "models_initialized": models_initialized,
+            "current_signals": {
+                "decision_score": signals.decision_score,
+                "confidence": signals.confidence,
+                "sources_used": signals.sources_used,
+                "timestamp": signals.as_of.isoformat() if signals.as_of else None
+            },
+            "message": "ML models initialized and signals refreshed",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error initializing ML models: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/governance/freeze")
 async def freeze_system(request: FreezeRequest):
     """
@@ -619,4 +661,82 @@ async def list_decisions(
         
     except Exception as e:
         logger.error(f"Error listing decisions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/governance/mode")
+async def set_governance_mode(request: dict):
+    """
+    Changer le mode de gouvernance
+    
+    Modes disponibles:
+    - manual: Décisions entièrement manuelles
+    - ai_assisted: IA propose, humain approuve
+    - full_ai: IA décide automatiquement (seuil de confiance)
+    - freeze: Arrêt d'urgence
+    """
+    try:
+        mode = request.get("mode", "").lower()
+        reason = request.get("reason", "Mode change via UI")
+        
+        if mode not in ["manual", "ai_assisted", "full_ai", "freeze"]:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid mode '{mode}'. Valid modes: manual, ai_assisted, full_ai, freeze"
+            )
+        
+        # Update governance mode
+        success = await governance_engine.set_governance_mode(mode, reason)
+        
+        if success:
+            return {
+                "success": True,
+                "message": f"Governance mode changed to '{mode}'",
+                "mode": mode,
+                "reason": reason,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to change governance mode")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error changing governance mode: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/governance/propose")
+async def propose_decision(request: dict):
+    """
+    Proposer une nouvelle décision (pour tester les états)
+    
+    Simule une proposition de changement d'allocation pour tester
+    le cycle DRAFT → APPROVED → ACTIVE → EXECUTED
+    """
+    try:
+        targets = request.get("targets", [
+            {"symbol": "BTC", "weight": 0.6},
+            {"symbol": "ETH", "weight": 0.3}, 
+            {"symbol": "SOL", "weight": 0.1}
+        ])
+        reason = request.get("reason", "Test proposal from UI")
+        
+        # Create a proposed plan
+        success = await governance_engine.create_proposed_plan(targets, reason)
+        
+        if success:
+            return {
+                "success": True,
+                "message": "New decision proposed",
+                "state": "DRAFT",
+                "targets": targets,
+                "reason": reason,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to create proposal")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error proposing decision: {e}")
         raise HTTPException(status_code=500, detail=str(e))

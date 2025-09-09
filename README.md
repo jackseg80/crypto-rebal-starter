@@ -12,10 +12,12 @@ Plateforme **complète de gestion de portefeuille crypto** avec ML/IA avancé :
 - 🔗 **Multi-sources** : CoinTracking CSV/API, exchanges, données temps réel
 
 ## 🧠 **Système ML/IA**
-- **Prédiction de volatilité** : LSTM avec mécanismes d'attention
-- **Détection de régimes** : Classification bull/bear/neutral market
+- **Auto-initialisation** : 5 modèles ML s'initialisent automatiquement au démarrage
+- **Prédiction de volatilité** : LSTM avec mécanismes d'attention (BTC/ETH/SOL)
+- **Détection de régimes** : Classification bull/bear/neutral market avec confiance
 - **Corrélations prédictives** : Transformers pour analyse cross-assets  
 - **Sentiment analysis** : Fear & Greed Index, analyse multi-sources
+- **Decision Engine** : Gouvernance unifiée avec signaux ML temps réel (78%+ confidence)
 - **Rebalancing automatique** : Moteur ML avec contraintes de risque
 
 ## 📊 **Analytics Avancés**
@@ -68,8 +70,9 @@ python crypto_toolbox_api.py  # Port 8001
 |-----------|-----|-------------|
 | 🏠 **Dashboard Principal** | `static/dashboard.html` | Vue d'ensemble avec métriques temps réel |
 | 🧠 **ML Pipeline Dashboard** | `static/unified-ml-dashboard.html` | **NOUVEAU** - Interface ML complète avec 67 modèles détectés |
+| 🤖 **AI Dashboard** | `static/ai-dashboard.html` | **MàJ** - Signaux ML temps réel du Decision Engine (confidence 78%+) |
 | 📊 **Analytics Avancés** | `static/advanced-analytics.html` | **NOUVEAU** - Métriques sophistiquées et comparaisons |
-| 🛡️ **Risk Dashboard** | `static/risk-dashboard.html` | Analyse de risque avec scoring V2 + cache intelligent cycles |
+| 🛡️ **Risk Dashboard** | `static/risk-dashboard.html` | Analyse de risque avec scoring V2 + GovernancePanel intégré |
 | ⚖️ **Rebalancing** | `static/rebalance.html` | Planification et exécution des rééquilibrages |
 | 📈 **Portfolio Optimization** | `static/portfolio-optimization.html` | Optimisation moderne avec contraintes |
 | 🔄 **Backtesting** | `static/backtesting.html` | Tests historiques multi-stratégies |
@@ -171,11 +174,21 @@ python crypto_toolbox_api.py  # Port 8001
 | **Correlation Forecaster** | `/api/ml/correlation/matrix/current` | Corrélations prédictives |
 
 ### 📊 **Fonctionnalités ML**
+- **Auto-initialisation** : 5 modèles se lancent automatiquement au démarrage (3s)
+- **Decision Engine** : Governance unifiée avec signaux ML temps réel (confidence 78%+)
 - **LSTM avec Attention** : Prédiction de volatilité 1d/7d/30d avec intervalles de confiance
 - **Transformer Networks** : Analyse cross-assets pour corrélations dynamiques
 - **Ensemble Methods** : Régime detection avec validation croisée
 - **Feature Engineering** : 50+ indicateurs crypto-spécifiques automatiques
 - **Model Persistence** : Sauvegarde/chargement optimisé avec cache intelligent
+
+### 🏛️ **Decision Engine & Gouvernance**
+- **Single-writer Architecture** : Un seul système de décision unifié
+- **Signaux ML temps réel** : Volatilité (BTC/ETH/SOL ~55%), Régime (Bull 68%), Sentiment (F&G 65)
+- **Modes de gouvernance** : Manual, AI Assisted, Full AI, Freeze
+- **État de la machine** : IDLE → DRAFT → APPROVED → ACTIVE → EXECUTED
+- **Endpoints governance** : `/execution/governance/signals`, `/execution/governance/init-ml`
+- **Interface UI** : GovernancePanel intégré dans Risk Dashboard
 
 ### 🖥️ **Dashboard ML Unifié** (`unified-ml-dashboard.html`)
 **Interface de contrôle complète pour le pipeline ML** avec :

@@ -80,12 +80,30 @@ class GovernancePanel {
             </div>
           </div>
           
+          <!-- Mode Selection Section -->
+          <div class="governance-section">
+            <h4>🎛️ Governance Mode</h4>
+            <div class="mode-selector" id="mode-selector">
+              <select class="gov-select" id="governance-mode-select">
+                <option value="manual">🤝 Manual</option>
+                <option value="ai_assisted">🤖 AI Assisted</option>
+                <option value="full_ai">🚀 Full AI</option>
+              </select>
+              <button class="gov-btn secondary" id="btn-change-mode">
+                Change Mode
+              </button>
+            </div>
+          </div>
+
           <!-- Actions Section -->
           <div class="governance-section">
             <h4>⚡ Actions</h4>
             <div class="actions-grid">
               <button class="gov-btn primary" id="btn-refresh" title="Refresh governance state">
                 🔄 Refresh
+              </button>
+              <button class="gov-btn secondary" id="btn-propose" title="Propose test decision">
+                📋 Propose
               </button>
               <button class="gov-btn warning" id="btn-freeze" title="Freeze system (emergency stop)">
                 ❄️ Freeze
@@ -142,9 +160,18 @@ class GovernancePanel {
       this.togglePanel();
     });
     
+    // Mode selector
+    document.getElementById('btn-change-mode').addEventListener('click', () => {
+      this.changeGovernanceMode();
+    });
+
     // Action buttons
     document.getElementById('btn-refresh').addEventListener('click', () => {
       this.refreshState();
+    });
+
+    document.getElementById('btn-propose').addEventListener('click', () => {
+      this.proposeDecision();
     });
     
     document.getElementById('btn-freeze').addEventListener('click', () => {
@@ -219,7 +246,7 @@ class GovernancePanel {
   updateDisplay() {
     const governanceStatus = store.getGovernanceStatus();
     const governance = store.get('governance');
-    const mlSignals = store.get('ml_signals');
+    const mlSignals = store.get('governance.ml_signals');
     
     // Update status badges
     const stateEl = document.getElementById('gov-state');
@@ -228,11 +255,19 @@ class GovernancePanel {
     
     document.getElementById('gov-mode').textContent = governanceStatus.mode;
     
-    // Update policy info
+    // Update mode selector
+    const modeSelect = document.getElementById('governance-mode-select');
+    if (modeSelect) {
+      modeSelect.value = governanceStatus.mode === 'freeze' ? 'manual' : governanceStatus.mode;
+    }
+    
+    // Update policy info from active_policy
     const activePolicy = governance?.active_policy;
     if (activePolicy) {
       const capPercent = Math.round(activePolicy.cap_daily * 100);
       document.getElementById('gov-policy').textContent = `${activePolicy.mode} ${capPercent}%`;
+    } else {
+      document.getElementById('gov-policy').textContent = 'Normal 8%';
     }
     
     // Update contradiction index
@@ -250,7 +285,9 @@ class GovernancePanel {
     const freezeBtn = document.getElementById('btn-freeze');
     const unfreezeBtn = document.getElementById('btn-unfreeze');
     
-    if (governanceStatus.state === 'FROZEN') {
+    // Check if system is frozen based on governance mode
+    const isFrozen = governanceStatus.mode === 'freeze';
+    if (isFrozen) {
       freezeBtn.disabled = true;
       unfreezeBtn.disabled = false;
     } else {
@@ -303,7 +340,7 @@ class GovernancePanel {
   
   async freezeSystem() {
     try {
-      const result = await store.freezeSystem({ reason: 'Manual freeze from UI' });
+      const result = await store.freezeSystem('Manual freeze from UI');
       if (result) {
         this.showNotification('System frozen successfully', 'success');
         this.refreshState();
@@ -330,13 +367,71 @@ class GovernancePanel {
       this.showNotification('Error unfreezing system', 'error');
     }
   }
+
+  async changeGovernanceMode() {
+    try {
+      const modeSelect = document.getElementById('governance-mode-select');
+      const selectedMode = modeSelect.value;
+      const currentMode = store.getGovernanceStatus().mode;
+      
+      if (selectedMode === currentMode) {
+        this.showNotification('Mode already set to ' + selectedMode, 'warning');
+        return;
+      }
+
+      const btn = document.getElementById('btn-change-mode');
+      btn.disabled = true;
+      btn.textContent = 'Changing...';
+
+      const result = await store.setGovernanceMode(selectedMode, `Mode change: ${currentMode} → ${selectedMode}`);
+      if (result) {
+        this.showNotification(`Mode changed to ${selectedMode}`, 'success');
+        this.refreshState();
+      } else {
+        this.showNotification('Failed to change mode', 'error');
+      }
+
+      btn.disabled = false;
+      btn.textContent = 'Change Mode';
+      
+    } catch (error) {
+      console.error('Change mode error:', error);
+      this.showNotification('Error changing mode', 'error');
+    }
+  }
+
+  async proposeDecision() {
+    try {
+      const btn = document.getElementById('btn-propose');
+      btn.disabled = true;
+      btn.textContent = 'Proposing...';
+
+      const currentMode = store.getGovernanceStatus().mode;
+      const reason = `Test proposal in ${currentMode} mode`;
+      
+      const result = await store.proposeDecision(null, reason);
+      if (result) {
+        this.showNotification('Decision proposed successfully', 'success');
+        this.refreshState();
+      } else {
+        this.showNotification('Failed to propose decision', 'error');
+      }
+
+      btn.disabled = false;
+      btn.textContent = '📋 Propose';
+      
+    } catch (error) {
+      console.error('Propose decision error:', error);
+      this.showNotification('Error proposing decision', 'error');
+    }
+  }
   
   showApprovalModal() {
     const modal = document.getElementById('approval-modal');
     const modalBody = document.getElementById('modal-body');
     
     const governance = store.get('governance');
-    const mlSignals = store.get('ml_signals');
+    const mlSignals = store.get('governance.ml_signals');
     
     modalBody.innerHTML = `
       <div class="approval-details">
@@ -372,15 +467,15 @@ class GovernancePanel {
           <table class="details-table">
             <tr>
               <td>Mode:</td>
-              <td><strong>${governance?.active_policy?.mode || 'Normal'}</strong></td>
+              <td><strong>${governance?.mode || 'manual'}</strong></td>
             </tr>
             <tr>
-              <td>Daily Cap:</td>
-              <td><strong>${Math.round((governance?.active_policy?.cap_daily || 0.08) * 100)}%</strong></td>
+              <td>State:</td>
+              <td><strong>${governance?.current_state || 'IDLE'}</strong></td>
             </tr>
             <tr>
-              <td>Ramp Hours:</td>
-              <td><strong>${governance?.active_policy?.ramp_hours || 12}h</strong></td>
+              <td>Contradiction:</td>
+              <td><strong>${Math.round((governance?.contradiction_index || 0) * 100)}%</strong></td>
             </tr>
           </table>
         </div>
@@ -405,7 +500,8 @@ class GovernancePanel {
   
   async approveDecision() {
     try {
-      const result = await store.approveDecision({ approved_by: 'UI_User' });
+      const decisionId = store.get('governance.last_decision_id') || 'current';
+      const result = await store.approveDecision(decisionId, true, 'Approved from UI');
       if (result) {
         this.showNotification('Decision approved successfully', 'success');
         this.hideApprovalModal();
