@@ -45,6 +45,18 @@ Architecture **single-source-of-truth** garantissant la cohérence des données 
 - **Decision Engine** : Gouvernance unifiée avec signaux ML temps réel (78%+ confidence)
 - **Rebalancing automatique** : Moteur ML avec contraintes de risque
 
+## 🚨 **Système d'Alertes Prédictives (Phase 1)**
+- **Évaluation automatique** : Surveillance continue des signaux ML avec évaluation toutes les 60s
+- **6 types d'alertes ML** : Volatilité élevée, changements de régime, corrélation systémique, contradictions ML, baisse de confiance, coûts d'exécution
+- **3 niveaux de sévérité** : S1 (Info), S2 (Warning → mode Slow), S3 (Critical → freeze système)
+- **Escalade automatique** : 2+ alertes S2 → 1 alerte S3 avec anti-bruit robuste
+- **Interface temps réel** : Affichage sidebar + onglet historique complet dans Risk Dashboard
+- **Actions interactives** : Acknowledge, snooze (30min), avec idempotency-key pour éviter doublons
+- **Hot-reload configuration** : Modification des seuils sans redémarrage (60s auto-reload)
+- **Monitoring production** : Métriques Prometheus, health checks, rate limiting, budgets quotidiens
+- **Gouvernance intégrée** : Suggestions automatiques freeze/slow selon sévérité
+- **Respect Phase 0** : Non-intrusif, transparence totale, contrôle utilisateur
+
 ## 📊 **Analytics Avancés**
 - **Métriques de performance** : Ratios Sharpe, Sortino, Calmar, Omega
 - **Analyse de drawdown** : Périodes, durées, taux de récupération
@@ -1354,7 +1366,45 @@ Tous les cas d'usage critiques ont été testés et validés :
 - **Symbol normalization** : Support variants CoinTracking (SOL2→SOL, WETH→ETH)
 - **Numerical stability** : Protection contre cas edge (vol=0, corrélations extrêmes)
 
-### API Endpoints
+### API Endpoints Alertes 🚨
+
+```bash
+# Alertes actives avec filtres
+GET /api/alerts/active?include_snoozed=false&severity_filter=S3&type_filter=VOL_Q90_CROSS
+
+# Historique des alertes avec pagination  
+GET /api/alerts/history?limit=20&offset=0&severity_filter=S2
+
+# Acquitter une alerte
+POST /api/alerts/acknowledge/{alert_id}
+Content-Type: application/json
+{ "notes": "Acknowledged from dashboard" }
+
+# Snooze une alerte
+POST /api/alerts/snooze/{alert_id}  
+Content-Type: application/json
+{ "minutes": 30 }
+
+# Métriques système (JSON)
+GET /api/alerts/metrics
+
+# Métriques Prometheus  
+GET /api/alerts/metrics/prometheus
+
+# Santé du système d'alertes
+GET /api/alerts/health
+
+# Types d'alertes disponibles
+GET /api/alerts/types
+
+# Hot-reload configuration (RBAC requis)
+POST /api/alerts/config/reload
+
+# Configuration actuelle (RBAC requis)
+GET /api/alerts/config/current
+```
+
+### API Endpoints Portfolio 📊
 ```bash
 # Optimisation portfolio
 POST /api/portfolio/optimization/optimize?source=cointracking&min_usd=100&min_history_days=365

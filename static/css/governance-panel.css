@@ -1,0 +1,271 @@
+/* GovernancePanel Enhanced Styles - Phase 2A */
+
+/* Header Badges */
+.governance-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 15px;
+  border-bottom: 1px solid #eee;
+}
+
+.header-badges {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.transparency-badge, .alerts-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.75em;
+  font-weight: 600;
+  border: 1px solid;
+}
+
+/* Transparency Badge Variants */
+.transparency-normal {
+  background: #e8f5e8;
+  color: #2d5a2d;
+  border-color: #4caf50;
+}
+
+.transparency-high {
+  background: #fff3cd;
+  color: #856404;
+  border-color: #ffc107;
+  animation: pulse-warning 2s infinite;
+}
+
+.transparency-critical {
+  background: #f8d7da;
+  color: #721c24;
+  border-color: #dc3545;
+  animation: pulse-critical 1.5s infinite;
+}
+
+/* Alerts Badge Variants */
+.alerts-info {
+  background: #d4edda;
+  color: #155724;
+  border-color: #28a745;
+}
+
+.alerts-warning {
+  background: #fff3cd;
+  color: #856404;
+  border-color: #ffc107;
+}
+
+.alerts-critical {
+  background: #f8d7da;
+  color: #721c24;
+  border-color: #dc3545;
+  animation: pulse-critical 1s infinite;
+}
+
+/* Pulse Animations */
+@keyframes pulse-warning {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes pulse-critical {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.05); }
+}
+
+/* Status Grid Enhancements */
+.status-item {
+  position: relative;
+}
+
+.status-timestamp {
+  font-size: 0.7em;
+  color: #666;
+  margin-left: 8px;
+  opacity: 0.8;
+}
+
+.mode-explanation {
+  margin-top: 4px;
+  padding: 4px 8px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  border-left: 3px solid #007bff;
+}
+
+.mode-help-text {
+  color: #6c757d;
+  font-style: italic;
+}
+
+/* Freeze Status Timer */
+#freeze-status {
+  background: #fff3cd;
+  padding: 8px;
+  border-radius: 6px;
+  border-left: 4px solid #ffc107;
+}
+
+.freeze-timer {
+  font-weight: 600;
+  color: #856404;
+}
+
+.freeze-progress {
+  width: 100%;
+  height: 6px;
+  background: #fff;
+  border-radius: 3px;
+  margin-top: 6px;
+  overflow: hidden;
+}
+
+.freeze-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #ffc107, #ff8c00);
+  transition: width 0.3s ease;
+  border-radius: 3px;
+}
+
+/* Confirmation Modal Enhancements */
+.confirmation-modal .modal-content {
+  max-width: 500px;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+}
+
+.confirmation-message {
+  font-size: 1.1em;
+  margin-bottom: 15px;
+  line-height: 1.4;
+}
+
+.confirmation-warning {
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 6px;
+  padding: 12px;
+  margin-top: 10px;
+}
+
+.confirmation-warning strong {
+  color: #856404;
+}
+
+.confirmation-warning ul {
+  margin: 8px 0 0 16px;
+  color: #856404;
+}
+
+.confirmation-info {
+  background: #d4edda;
+  border: 1px solid #28a745;
+  border-radius: 6px;
+  padding: 12px;
+  margin-top: 10px;
+}
+
+.confirmation-info strong {
+  color: #155724;
+}
+
+.confirmation-info ul {
+  margin: 8px 0 0 16px;
+  color: #155724;
+}
+
+/* Idempotency Section */
+.idempotency-section {
+  border-top: 1px solid #eee;
+  padding-top: 15px;
+}
+
+.idempotency-section label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.idempotency-section input[type="checkbox"] {
+  margin-right: 8px;
+  transform: scale(1.1);
+}
+
+.idempotency-info {
+  background: #f8f9fa;
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #dee2e6;
+}
+
+.idempotency-key {
+  color: #495057;
+  font-size: 0.8em;
+}
+
+/* Button States */
+.gov-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.gov-btn.danger:not(:disabled):hover {
+  background: #c82333;
+  transform: translateY(-1px);
+}
+
+.gov-btn.success:not(:disabled):hover {
+  background: #218838;
+  transform: translateY(-1px);
+}
+
+/* Modal Overlay Enhancement */
+.governance-modal {
+  backdrop-filter: blur(4px);
+  background: rgba(0,0,0,0.3);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .header-badges {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  
+  .transparency-badge, .alerts-badge {
+    font-size: 0.7em;
+    padding: 2px 6px;
+  }
+  
+  .confirmation-modal .modal-content {
+    margin: 10px;
+    max-width: calc(100% - 20px);
+  }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  .mode-explanation {
+    background: #2d3748;
+    border-left-color: #4299e1;
+  }
+  
+  .mode-help-text {
+    color: #a0aec0;
+  }
+  
+  .idempotency-info {
+    background: #2d3748;
+    border-color: #4a5568;
+  }
+  
+  .idempotency-key {
+    color: #e2e8f0;
+  }
+}

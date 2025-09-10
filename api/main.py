@@ -83,6 +83,7 @@ from api.performance_endpoints import router as performance_router
 from api.unified_ml_endpoints import router as ml_router
 from api.multi_asset_endpoints import router as multi_asset_router
 from api.backtesting_endpoints import router as backtesting_router
+from api.alerts_endpoints import router as alerts_router
 from api.exceptions import (
     CryptoRebalancerException, APIException, ValidationException, 
     ConfigurationException, TradingException, DataException, ErrorCodes
@@ -138,6 +139,32 @@ async def startup_load_ml_models():
                         logger.info(f"✅ Governance Engine initialized: {signals.confidence:.1%} confidence, {len(signals.sources_used)} sources")
                     else:
                         logger.warning("⚠️ Governance Engine initialized but signals may be empty")
+                    
+                    # Initialiser le système d'alertes
+                    try:
+                        from services.alerts.alert_engine import AlertEngine
+                        from api.alerts_endpoints import initialize_alert_engine
+                        
+                        # Créer l'instance AlertEngine avec références au governance engine
+                        alert_engine = AlertEngine(
+                            governance_engine=governance_engine,
+                            config_file_path="config/alerts_rules.json"
+                        )
+                        
+                        # Initialiser l'AlertEngine pour les API endpoints
+                        initialize_alert_engine(alert_engine)
+                        
+                        # Démarrer le scheduler d'alertes en arrière-plan
+                        scheduler_started = await alert_engine.start()
+                        
+                        if scheduler_started:
+                            logger.info("✅ AlertEngine scheduler started successfully")
+                        else:
+                            logger.info("📊 AlertEngine initialized in standby mode (scheduler locked by another instance)")
+                        
+                    except Exception as alert_error:
+                        logger.error(f"❌ AlertEngine initialization failed: {alert_error}")
+                        # Ne pas faire planter l'app, le système peut fonctionner sans alertes
                     
                 except Exception as ml_error:
                     logger.error(f"❌ ML initialization failed: {ml_error}")
@@ -1491,6 +1518,7 @@ app.include_router(portfolio_monitoring_router)
 app.include_router(csv_router)
 app.include_router(portfolio_optimization_router)
 app.include_router(performance_router)
+app.include_router(alerts_router)
 # ML endpoints avec chargement ultra-lazy (pas d'import au démarrage)
 ml_router_lazy = APIRouter(prefix="/api/ml", tags=["ML (lazy)"])
 

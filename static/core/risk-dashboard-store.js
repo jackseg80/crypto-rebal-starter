@@ -230,14 +230,25 @@ export class RiskDashboardStore {
     return false;
   }
   
-  async freezeSystem(reason, durationMinutes = null) {
+  async freezeSystem(reason, options = {}) {
     try {
-      const response = await fetch(`${window.location.origin}/execution/governance/freeze`, {
+      const { idempotencyKey, ttl_minutes = 360, source = 'ui' } = options;
+      const headers = { 
+        'Content-Type': 'application/json'
+      };
+      
+      // Add idempotency key if provided
+      if (idempotencyKey) {
+        headers['Idempotency-Key'] = idempotencyKey;
+      }
+      
+      const response = await fetch(`${window.location.origin}/api/governance/freeze`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           reason: reason,
-          duration_minutes: durationMinutes
+          ttl_minutes: ttl_minutes,
+          source_alert_id: source === 'alert' ? options.alertId : null
         })
       });
       
@@ -247,19 +258,39 @@ export class RiskDashboardStore {
         
         // Refresh governance state after freeze
         await this.syncGovernanceState();
-        return true;
+        return result;
+      } else if (response.status === 409) {
+        // Idempotent request - already processed
+        const error = new Error('Action already processed (idempotent request)');
+        error.idempotent = true;
+        throw error;
       }
     } catch (error) {
+      if (error.idempotent) {
+        throw error;
+      }
       console.error('Failed to freeze system:', error);
       this.set('ui.errors', [...(this.get('ui.errors') || []), `System freeze error: ${error.message}`]);
     }
     return false;
   }
   
-  async unfreezeSystem() {
+  async unfreezeSystem(options = {}) {
     try {
-      const response = await fetch(`${window.location.origin}/execution/governance/unfreeze`, {
-        method: 'POST'
+      const { idempotencyKey, source = 'ui' } = options;
+      const headers = { 
+        'Content-Type': 'application/json'
+      };
+      
+      // Add idempotency key if provided
+      if (idempotencyKey) {
+        headers['Idempotency-Key'] = idempotencyKey;
+      }
+      
+      const response = await fetch(`${window.location.origin}/api/governance/unfreeze`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ source })
       });
       
       if (response.ok) {
@@ -268,9 +299,17 @@ export class RiskDashboardStore {
         
         // Refresh governance state after unfreeze
         await this.syncGovernanceState();
-        return true;
+        return result;
+      } else if (response.status === 409) {
+        // Idempotent request - already processed
+        const error = new Error('Action already processed (idempotent request)');
+        error.idempotent = true;
+        throw error;
       }
     } catch (error) {
+      if (error.idempotent) {
+        throw error;
+      }
       console.error('Failed to unfreeze system:', error);
       this.set('ui.errors', [...(this.get('ui.errors') || []), `System unfreeze error: ${error.message}`]);
     }

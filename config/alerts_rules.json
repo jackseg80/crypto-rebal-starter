@@ -1,0 +1,129 @@
+{
+  "alerting_config": {
+    "enabled": true,
+    "global_rate_limit_per_hour": 20,
+    "escalation_window_minutes": 30,
+    "dedup_window_minutes": 15,
+    "daily_budgets": {
+      "S1": 50,
+      "S2": 12,
+      "S3": 5
+    }
+  },
+  "alert_types": {
+    "VOL_Q90_CROSS": {
+      "enabled": true,
+      "thresholds": {
+        "S2": 0.75,
+        "S3": 0.85
+      },
+      "hysteresis_pct": 0.05,
+      "min_interval_minutes": 60,
+      "rate_limit_per_day": 8
+    },
+    "REGIME_FLIP": {
+      "enabled": true,
+      "thresholds": {
+        "S2": 0.7,
+        "S3": 0.85
+      },
+      "hysteresis_pct": 0.1,
+      "min_interval_minutes": 120,
+      "rate_limit_per_day": 4
+    },
+    "CORR_HIGH": {
+      "enabled": true,
+      "thresholds": {
+        "S2": 0.8,
+        "S3": 0.9
+      },
+      "hysteresis_pct": 0.08,
+      "min_interval_minutes": 180,
+      "rate_limit_per_day": 6
+    },
+    "CONTRADICTION_SPIKE": {
+      "enabled": true,
+      "thresholds": {
+        "S2": 0.65,
+        "S3": 0.8
+      },
+      "hysteresis_pct": 0.12,
+      "min_interval_minutes": 45,
+      "rate_limit_per_day": 10
+    },
+    "DECISION_DROP": {
+      "enabled": true,
+      "thresholds": {
+        "S2": 0.6,
+        "S3": 0.4
+      },
+      "hysteresis_pct": 0.15,
+      "min_interval_minutes": 30,
+      "rate_limit_per_day": 12
+    },
+    "EXEC_COST_SPIKE": {
+      "enabled": true,
+      "thresholds": {
+        "S2": 2.0,
+        "S3": 3.5
+      },
+      "hysteresis_pct": 0.2,
+      "min_interval_minutes": 90,
+      "rate_limit_per_day": 6
+    }
+  },
+  "suggested_actions": {
+    "S1": {
+      "type": "acknowledge_only",
+      "message": "Information - Acknowledging situation awareness"
+    },
+    "S2": {
+      "type": "policy_change",
+      "mode": "Slow",
+      "cap_daily": 0.03,
+      "ramp_hours": 24,
+      "message": "Major alert - Consider reducing system aggressiveness"
+    },
+    "S3": {
+      "type": "system_freeze",
+      "ttl_minutes": 120,
+      "message": "Critical alert - Immediate system freeze recommended"
+    }
+  },
+  "escalation_rules": {
+    "enabled": true,
+    "S2_to_S3": {
+      "count_threshold": 2,
+      "window_minutes": 30,
+      "enabled": true
+    }
+  },
+  "notifications": {
+    "enabled": true,
+    "channels": {
+      "log": {
+        "enabled": true,
+        "level": "INFO"
+      },
+      "webhook": {
+        "enabled": false,
+        "url": null,
+        "timeout_seconds": 10
+      },
+      "email": {
+        "enabled": false,
+        "recipients": [],
+        "smtp_config": null
+      }
+    }
+  },
+  "evaluation_interval_seconds": 60,
+  "jitter_max_seconds": 10,
+  "scheduler_lock_ttl_seconds": 90,
+  "metadata": {
+    "config_version": "restored-1757475328",
+    "created_at": "2025-01-14T00:00:00Z",
+    "description": "Production alerting configuration with anti-noise mechanisms and governance integration",
+    "last_modified": "2025-09-10T05:35:28.282409"
+  }
+}
