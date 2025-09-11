@@ -1,0 +1,276 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Phase 2A Storage Performance & Degradation",
+    "tags": ["crypto-rebal", "alerts", "storage", "performance"],
+    "style": "dark",
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Current Storage Mode",
+        "type": "singlestat",
+        "targets": [
+          {
+            "expr": "crypto_rebal_alert_storage_mode",
+            "legendFormat": "Storage Mode"
+          }
+        ],
+        "valueMaps": [
+          {"value": "0", "text": "Redis"},
+          {"value": "1", "text": "File"},  
+          {"value": "2", "text": "Memory"}
+        ],
+        "colorBackground": true,
+        "colors": ["green", "yellow", "red"],
+        "thresholds": "1,2",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Storage Degraded Status",
+        "type": "singlestat", 
+        "targets": [
+          {
+            "expr": "crypto_rebal_alert_storage_degraded",
+            "legendFormat": "Degraded"
+          }
+        ],
+        "valueMaps": [
+          {"value": "0", "text": "Normal"},
+          {"value": "1", "text": "DEGRADED"}
+        ],
+        "colorBackground": true,
+        "colors": ["green", "red"],
+        "thresholds": "0.5",
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Memory Alerts Count",
+        "type": "singlestat",
+        "targets": [
+          {
+            "expr": "crypto_rebal_alert_memory_storage_count",
+            "legendFormat": "Memory Alerts"
+          }
+        ],
+        "colorBackground": true,
+        "colors": ["green", "yellow", "red"],
+        "thresholds": "100,1000",
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0}
+      },
+      {
+        "id": 4,
+        "title": "Last Engine Run",
+        "type": "singlestat",
+        "targets": [
+          {
+            "expr": "time() - crypto_rebal_alert_engine_last_run_timestamp",
+            "legendFormat": "Seconds Ago"
+          }
+        ],
+        "unit": "s",
+        "colorBackground": true,
+        "colors": ["green", "yellow", "red"],
+        "thresholds": "60,300",
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0}
+      },
+      {
+        "id": 5,
+        "title": "Storage Operation Latency (P95)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, crypto_rebal_alert_storage_operation_duration_seconds_bucket{operation=\"store\"})",
+            "legendFormat": "Store P95 {{storage_mode}}"
+          },
+          {
+            "expr": "histogram_quantile(0.95, crypto_rebal_alert_storage_operation_duration_seconds_bucket{operation=\"get\"})",
+            "legendFormat": "Get P95 {{storage_mode}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Duration (seconds)",
+            "min": 0,
+            "logBase": 1
+          }
+        ],
+        "alert": {
+          "conditions": [
+            {
+              "query": {"params": ["A", "5m", "now"]},
+              "reducer": {"params": [], "type": "last"},
+              "evaluator": {"params": [0.1], "type": "gt"}
+            }
+          ],
+          "executionErrorState": "alerting",
+          "for": "1m",
+          "frequency": "10s",
+          "handler": 1,
+          "name": "Storage P95 Latency Alert",
+          "noDataState": "no_data",
+          "notifications": []
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4}
+      },
+      {
+        "id": 6,
+        "title": "Storage Operation Success Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(crypto_rebal_alert_storage_operations_total{result=\"success\"}[5m]) / rate(crypto_rebal_alert_storage_operations_total[5m]) * 100",
+            "legendFormat": "{{operation}} {{storage_mode}} Success %"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Success Rate %",
+            "min": 0,
+            "max": 100
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4}
+      },
+      {
+        "id": 7,
+        "title": "Redis vs File vs Memory Performance",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, crypto_rebal_alert_storage_operation_duration_seconds_bucket{storage_mode=\"redis\"})",
+            "legendFormat": "Redis P50"
+          },
+          {
+            "expr": "histogram_quantile(0.50, crypto_rebal_alert_storage_operation_duration_seconds_bucket{storage_mode=\"file\"})",
+            "legendFormat": "File P50"
+          },
+          {
+            "expr": "histogram_quantile(0.50, crypto_rebal_alert_storage_operation_duration_seconds_bucket{storage_mode=\"in_memory\"})",
+            "legendFormat": "Memory P50"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Median Duration (seconds)",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12}
+      },
+      {
+        "id": 8,
+        "title": "Failure Rates by Storage Type",
+        "type": "graph", 
+        "targets": [
+          {
+            "expr": "rate(crypto_rebal_alert_redis_failures_total[5m])",
+            "legendFormat": "Redis Failures/sec {{operation_type}}"
+          },
+          {
+            "expr": "rate(crypto_rebal_alert_file_failures_total[5m])",
+            "legendFormat": "File Failures/sec {{operation_type}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Failures/sec",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12}
+      },
+      {
+        "id": 9,
+        "title": "Lua Script Performance",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, crypto_rebal_alert_lua_duration_seconds_bucket)",
+            "legendFormat": "P95 {{script_name}}"
+          },
+          {
+            "expr": "histogram_quantile(0.99, crypto_rebal_alert_lua_duration_seconds_bucket)",
+            "legendFormat": "P99 {{script_name}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Duration (seconds)",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 20}
+      },
+      {
+        "id": 10,
+        "title": "Lua Script Success Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(crypto_rebal_alert_lua_executions_total{result=\"success\"}[5m]) / rate(crypto_rebal_alert_lua_executions_total[5m]) * 100",
+            "legendFormat": "{{script_name}} Success %"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Success Rate %",
+            "min": 95,
+            "max": 100
+          }
+        ],
+        "alert": {
+          "conditions": [
+            {
+              "query": {"params": ["A", "5m", "now"]},
+              "reducer": {"params": [], "type": "last"},
+              "evaluator": {"params": [99], "type": "lt"}
+            }
+          ],
+          "executionErrorState": "alerting",
+          "for": "2m",
+          "frequency": "10s",
+          "handler": 1,
+          "name": "Lua Script Success Rate Alert",
+          "noDataState": "no_data",
+          "notifications": []
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 20}
+      }
+    ],
+    "time": {
+      "from": "now-30m",
+      "to": "now"
+    },
+    "timepicker": {
+      "refresh_intervals": [
+        "5s",
+        "10s",
+        "30s",
+        "1m",
+        "5m"
+      ]
+    },
+    "refresh": "10s",
+    "annotations": {
+      "list": [
+        {
+          "name": "Storage Mode Changes",
+          "datasource": "prometheus",
+          "expr": "changes(crypto_rebal_alert_storage_mode[1h])",
+          "iconColor": "red",
+          "textFormat": "Storage mode changed"
+        },
+        {
+          "name": "Degradation Events", 
+          "datasource": "prometheus",
+          "expr": "increase(crypto_rebal_alert_storage_degraded[1h])",
+          "iconColor": "yellow",
+          "textFormat": "Storage degradation event"
+        }
+      ]
+    }
+  }
+}

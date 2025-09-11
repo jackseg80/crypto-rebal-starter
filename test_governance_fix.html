@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test - GovernancePanel Fix</title>
+    <link rel="stylesheet" href="/static/shared-theme.css">
+    <link rel="stylesheet" href="/static/components/governance-panel.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: var(--theme-background);
+            font-family: var(--font-sans);
+            color: var(--theme-text);
+        }
+        .test-container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .test-header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 1rem;
+            background: var(--theme-surface);
+            border-radius: 8px;
+        }
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            margin: 0.5rem;
+        }
+        .status-success {
+            background: var(--success-bg);
+            color: var(--success);
+        }
+        .status-warning {
+            background: var(--warning-bg);
+            color: var(--warning);
+        }
+        .status-error {
+            background: var(--danger-bg);
+            color: var(--danger);
+        }
+        .logs {
+            background: var(--theme-bg);
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.875rem;
+            height: 200px;
+            overflow-y: auto;
+            border: 1px solid var(--theme-border);
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <header class="test-header">
+            <h1>🔧 Test - GovernancePanel Error Handling</h1>
+            <p>Test du nouveau système de gestion d'erreurs pour les dashboards</p>
+            <div id="test-status">
+                <div class="status-indicator status-warning">
+                    <span>⏳</span>
+                    <span>Initializing tests...</span>
+                </div>
+            </div>
+        </header>
+
+        <div id="governance-container-test"></div>
+
+        <div style="margin-top: 2rem;">
+            <h3>🔍 Console Logs</h3>
+            <div id="console-logs" class="logs">Initializing...\n</div>
+        </div>
+
+        <div style="margin-top: 1rem;">
+            <button onclick="testRefresh()" style="padding: 0.75rem 1.5rem; background: var(--brand-primary); color: white; border: none; border-radius: 4px; cursor: pointer;">
+                🧪 Test Refresh
+            </button>
+            <button onclick="testWithMockStore()" style="padding: 0.75rem 1.5rem; background: var(--success); color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 0.5rem;">
+                ✅ Test with Mock Store
+            </button>
+            <button onclick="clearLogs()" style="padding: 0.75rem 1.5rem; background: var(--theme-border); color: var(--theme-text); border: none; border-radius: 4px; cursor: pointer; margin-left: 0.5rem;">
+                🧹 Clear Logs
+            </button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { GovernancePanel } from '/static/components/GovernancePanel.js';
+
+        const logElement = document.getElementById('console-logs');
+        const statusElement = document.getElementById('test-status');
+        
+        // Intercept console logs
+        const originalLog = console.log;
+        const originalWarn = console.warn;
+        const originalError = console.error;
+        
+        function addLog(level, message) {
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.textContent += `[${timestamp}] ${level.toUpperCase()}: ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        console.log = (...args) => {
+            originalLog.apply(console, args);
+            addLog('info', args.join(' '));
+        };
+        
+        console.warn = (...args) => {
+            originalWarn.apply(console, args);
+            addLog('warn', args.join(' '));
+        };
+        
+        console.error = (...args) => {
+            originalError.apply(console, args);
+            addLog('error', args.join(' '));
+        };
+
+        // Mock store if not available
+        if (!window.store) {
+            window.store = {
+                getGovernanceStatus: () => ({
+                    state: 'IDLE',
+                    mode: 'manual',
+                    confidence: 'Low',
+                    contradiction_level: 'Normal'
+                }),
+                get: (key) => {
+                    if (key === 'governance') return {
+                        current_state: 'IDLE',
+                        mode: 'manual',
+                        contradiction_index: 0.1,
+                        last_update: new Date().toISOString()
+                    };
+                    if (key === 'governance.ml_signals') return {
+                        confidence: 0.65,
+                        decision_score: 0.72
+                    };
+                    return null;
+                },
+                set: (key, value) => {
+                    console.log(`Store SET: ${key} =`, value);
+                },
+                syncGovernanceState: () => Promise.reject(new Error('Mock governance sync failure')),
+                syncMLSignals: () => Promise.reject(new Error('Mock ML signals sync failure'))
+            };
+        }
+
+        let governancePanel;
+
+        try {
+            statusElement.innerHTML = `
+                <div class="status-indicator status-warning">
+                    <span>⏳</span>
+                    <span>Initializing GovernancePanel...</span>
+                </div>
+            `;
+            
+            // Initialize governance panel
+            const container = document.getElementById('governance-container-test');
+            governancePanel = new GovernancePanel(container);
+            
+            console.log('GovernancePanel initialized successfully');
+            
+            // Test the refresh functionality immediately
+            setTimeout(() => {
+                console.log('Testing automatic refresh...');
+                testRefresh();
+            }, 1000);
+            
+        } catch (error) {
+            console.error('Failed to initialize GovernancePanel:', error);
+            statusElement.innerHTML = `
+                <div class="status-indicator status-error">
+                    <span>❌</span>
+                    <span>Initialization failed: ${error.message}</span>
+                </div>
+            `;
+        }
+
+        // Global test functions
+        window.testRefresh = function() {
+            if (!governancePanel) {
+                console.error('GovernancePanel not initialized');
+                return;
+            }
+            
+            console.log('--- Testing refreshState() ---');
+            statusElement.innerHTML = `
+                <div class="status-indicator status-warning">
+                    <span>⏳</span>
+                    <span>Testing refresh state...</span>
+                </div>
+            `;
+            
+            governancePanel.refreshState().then(() => {
+                console.log('Refresh test completed successfully');
+                statusElement.innerHTML = `
+                    <div class="status-indicator status-success">
+                        <span>✅</span>
+                        <span>Refresh test completed - check logs for details</span>
+                    </div>
+                `;
+            }).catch(error => {
+                console.error('Refresh test failed:', error);
+                statusElement.innerHTML = `
+                    <div class="status-indicator status-error">
+                        <span>❌</span>
+                        <span>Refresh test failed: ${error.message}</span>
+                    </div>
+                `;
+            });
+        };
+
+        window.testWithMockStore = function() {
+            console.log('--- Testing with working mock data ---');
+            
+            // Create a working mock store
+            window.store.syncGovernanceState = () => Promise.resolve();
+            window.store.syncMLSignals = () => Promise.resolve();
+            
+            testRefresh();
+        };
+
+        window.clearLogs = function() {
+            logElement.textContent = '';
+        };
+        
+        // Test completion
+        setTimeout(() => {
+            if (statusElement.innerHTML.includes('⏳')) {
+                statusElement.innerHTML = `
+                    <div class="status-indicator status-success">
+                        <span>✅</span>
+                        <span>GovernancePanel initialized - ready for testing</span>
+                    </div>
+                `;
+            }
+        }, 2000);
+    </script>
+</body>
+</html>

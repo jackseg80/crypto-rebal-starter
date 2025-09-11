@@ -921,10 +921,84 @@
       color: var(--theme-text);
     }
 
+    .alert-action-btn {
+      background: var(--brand-primary);
+      color: white;
+      border: none;
+      border-radius: var(--radius-sm);
+      padding: var(--space-xs) var(--space-sm);
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      white-space: nowrap;
+    }
+
+    .alert-action-btn:hover {
+      background: var(--brand-primary-dark);
+      transform: translateY(-1px);
+    }
+
     .alert-message-detail {
       color: var(--theme-text-muted);
       font-size: 0.8rem;
       margin-top: 4px;
+    }
+    
+    /* ===== Format Unifié d'Alertes ===== */
+    .alert-message-cell {
+      max-width: 400px;
+      min-width: 300px;
+    }
+    
+    .alert-unified-format {
+      font-size: 0.85rem;
+      line-height: 1.4;
+    }
+    
+    .alert-action {
+      margin-bottom: var(--space-xs);
+      color: var(--theme-text);
+    }
+    
+    .alert-action strong {
+      color: var(--brand-primary);
+      font-weight: 600;
+    }
+    
+    .alert-impact {
+      margin-bottom: var(--space-xs);
+      color: var(--theme-text-muted);
+    }
+    
+    .alert-impact-value {
+      font-weight: 600;
+      color: var(--success);
+    }
+    
+    .alert-reasons {
+      margin-bottom: var(--space-xs);
+      color: var(--theme-text-muted);
+    }
+    
+    .alert-reasons-list {
+      margin: 0;
+      padding-left: var(--space-md);
+      list-style-type: disc;
+    }
+    
+    .alert-reasons-list li {
+      margin: 2px 0;
+      color: var(--theme-text);
+      font-size: 0.8rem;
+    }
+    
+    .alert-details {
+      font-size: 0.8rem;
+      color: var(--theme-text-muted);
+      font-style: italic;
+      border-left: 2px solid var(--theme-border);
+      padding-left: var(--space-sm);
+      margin-top: var(--space-xs);
     }
 
     .alert-timestamp {
@@ -1020,6 +1094,436 @@
 
       .alerts-stats {
         justify-content: center;
+      }
+    }
+
+    /* ===== PHASE 2A: Toast Notifications ===== */
+    #toast-container {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 1050;
+      max-width: 350px;
+      pointer-events: none;
+    }
+
+    .toast {
+      background: var(--theme-surface);
+      border: 1px solid var(--theme-border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      margin-bottom: var(--space-sm);
+      padding: var(--space-lg);
+      position: relative;
+      transform: translateX(100%);
+      transition: all 0.3s ease-in-out;
+      pointer-events: auto;
+      min-width: 320px;
+    }
+
+    .toast.show {
+      transform: translateX(0);
+    }
+
+    .toast.hide {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+
+    .toast-s3 {
+      border-left: 4px solid var(--danger);
+      background: var(--danger-bg);
+    }
+
+    .toast-s2 {
+      border-left: 4px solid var(--warning);
+      background: var(--warning-bg);
+    }
+
+    .toast-s1 {
+      border-left: 4px solid var(--info);
+      background: var(--info-bg);
+    }
+
+    .toast-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--space-sm);
+      font-weight: 600;
+    }
+
+    .toast-severity {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-xs);
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.025em;
+    }
+
+    .toast-severity-icon {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+    }
+
+    .toast-severity-s3 .toast-severity-icon {
+      background: var(--danger);
+    }
+
+    .toast-severity-s2 .toast-severity-icon {
+      background: var(--warning);
+    }
+
+    .toast-severity-s1 .toast-severity-icon {
+      background: var(--info);
+    }
+
+    .toast-close {
+      background: none;
+      border: none;
+      font-size: 1.2rem;
+      cursor: pointer;
+      color: var(--theme-text-muted);
+      padding: 0;
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .toast-close:hover {
+      color: var(--theme-text);
+    }
+
+    .toast-body {
+      font-size: 0.875rem;
+      line-height: 1.4;
+      color: var(--theme-text);
+    }
+
+    .toast-title {
+      font-weight: 600;
+      margin-bottom: var(--space-xs);
+    }
+
+    .toast-description {
+      color: var(--theme-text-muted);
+      margin-bottom: var(--space-sm);
+    }
+
+    .toast-actions {
+      display: flex;
+      gap: var(--space-sm);
+      margin-top: var(--space-sm);
+    }
+
+    .toast-action {
+      background: var(--brand-primary);
+      color: white;
+      border: none;
+      border-radius: var(--radius-sm);
+      padding: var(--space-xs) var(--space-sm);
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+
+    .toast-action:hover {
+      background: var(--brand-primary-dark);
+      transform: translateY(-1px);
+    }
+
+    .toast-action-secondary {
+      background: var(--theme-border);
+      color: var(--theme-text);
+    }
+
+    .toast-action-secondary:hover {
+      background: var(--theme-text-muted);
+    }
+
+    /* ===== PHASE 2A: Alert Detail Modal ===== */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      z-index: 1100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-xl);
+    }
+
+    .modal-overlay.show {
+      display: flex;
+      animation: modalFadeIn 0.2s ease-out;
+    }
+
+    @keyframes modalFadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .modal {
+      background: var(--theme-surface);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-xl);
+      max-width: 600px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      transform: scale(0.9);
+      transition: all 0.2s ease-out;
+    }
+
+    .modal-overlay.show .modal {
+      transform: scale(1);
+    }
+
+    .modal-header {
+      padding: var(--space-xl);
+      border-bottom: 1px solid var(--theme-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .modal-title {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+
+    .modal-severity-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-xs);
+      padding: var(--space-xs) var(--space-sm);
+      border-radius: var(--radius-full);
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.025em;
+    }
+
+    .modal-severity-s3 {
+      background: var(--danger-bg);
+      color: var(--danger);
+    }
+
+    .modal-severity-s2 {
+      background: var(--warning-bg);
+      color: var(--warning);
+    }
+
+    .modal-severity-s1 {
+      background: var(--info-bg);
+      color: var(--info);
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: var(--theme-text-muted);
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius-full);
+      transition: all var(--transition-fast);
+    }
+
+    .modal-close:hover {
+      background: var(--theme-border);
+      color: var(--theme-text);
+    }
+
+    .modal-body {
+      padding: var(--space-xl);
+    }
+
+    .modal-section {
+      margin-bottom: var(--space-xl);
+    }
+
+    .modal-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .modal-section-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--theme-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: var(--space-sm);
+    }
+
+    .alert-metadata {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: var(--space-sm);
+    }
+
+    .metadata-item {
+      background: var(--theme-bg-alt);
+      border-radius: var(--radius-sm);
+      padding: var(--space-sm);
+    }
+
+    .metadata-label {
+      font-size: 0.75rem;
+      color: var(--theme-text-muted);
+      font-weight: 500;
+      display: block;
+      margin-bottom: var(--space-xs);
+    }
+
+    .metadata-value {
+      font-family: 'Monaco', 'Consolas', monospace;
+      font-size: 0.875rem;
+      color: var(--theme-text);
+      font-weight: 600;
+    }
+
+    .signals-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: var(--space-sm);
+    }
+
+    .signal-card {
+      background: var(--theme-bg-alt);
+      border: 1px solid var(--theme-border);
+      border-radius: var(--radius-sm);
+      padding: var(--space-sm);
+    }
+
+    .signal-name {
+      font-size: 0.75rem;
+      color: var(--theme-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.025em;
+      margin-bottom: var(--space-xs);
+    }
+
+    .signal-value {
+      font-family: 'Monaco', 'Consolas', monospace;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--theme-text);
+    }
+
+    .suggested-action {
+      background: var(--brand-bg);
+      border: 1px solid var(--brand-primary);
+      border-radius: var(--radius-sm);
+      padding: var(--space-lg);
+    }
+
+    .action-type {
+      font-weight: 600;
+      color: var(--brand-primary);
+      margin-bottom: var(--space-xs);
+    }
+
+    .action-details {
+      font-size: 0.875rem;
+      color: var(--theme-text);
+      line-height: 1.4;
+    }
+
+    .modal-actions {
+      padding: var(--space-xl);
+      border-top: 1px solid var(--theme-border);
+      display: flex;
+      gap: var(--space-sm);
+      justify-content: flex-end;
+    }
+
+    .modal-action {
+      padding: var(--space-sm) var(--space-lg);
+      border-radius: var(--radius-sm);
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      border: 1px solid transparent;
+    }
+
+    .modal-action-primary {
+      background: var(--brand-primary);
+      color: white;
+    }
+
+    .modal-action-primary:hover {
+      background: var(--brand-primary-dark);
+    }
+
+    .modal-action-secondary {
+      background: var(--theme-surface);
+      color: var(--theme-text);
+      border-color: var(--theme-border);
+    }
+
+    .modal-action-secondary:hover {
+      background: var(--theme-bg-alt);
+    }
+
+    .modal-action-danger {
+      background: var(--danger);
+      color: white;
+    }
+
+    .modal-action-danger:hover {
+      background: var(--danger-dark);
+    }
+
+    /* Mobile responsiveness for modals */
+    @media (max-width: 768px) {
+      .modal-overlay {
+        padding: var(--space-sm);
+      }
+      
+      .modal {
+        max-height: 95vh;
+      }
+      
+      .modal-header,
+      .modal-body,
+      .modal-actions {
+        padding: var(--space-lg);
+      }
+      
+      .alert-metadata {
+        grid-template-columns: 1fr;
+      }
+      
+      .signals-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      #toast-container {
+        right: 10px;
+        left: 10px;
+        max-width: none;
+      }
+      
+      .toast {
+        min-width: auto;
       }
     }
   </style>
@@ -1180,8 +1684,13 @@
               <div class="status-dot" id="alerts-dot"></div>
               <div class="status-text" id="alerts-text">Loading alerts...</div>
             </div>
-            <div id="alerts-list" style="margin-top: 8px; max-height: 200px; overflow-y: auto;">
-              <!-- Alert items will be populated here -->
+            <div id="alerts-list" style="margin-top: 8px; max-height: 150px; overflow-y: auto;">
+              <!-- Alert items will be populated here (limited to 5 most recent) -->
+            </div>
+            <div style="text-align: center; margin-top: 8px; font-size: 0.75rem;">
+              <button onclick="switchTab('alerts')" style="background: var(--brand-primary); color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.7rem;">
+                📋 View All History
+              </button>
             </div>
           </div>
         </div>
@@ -1227,13 +1736,13 @@
                 <h3>🚨 Alerts History</h3>
                 <div class="alerts-controls">
                   <select id="alerts-severity-filter" onchange="filterAlertsHistory()">
-                    <option value="">All Severities</option>
+                    <option value="" selected>All Severities</option>
                     <option value="S1">S1 - Info</option>
                     <option value="S2">S2 - Warning</option>
                     <option value="S3">S3 - Critical</option>
                   </select>
                   <select id="alerts-type-filter" onchange="filterAlertsHistory()">
-                    <option value="">All Types</option>
+                    <option value="" selected>All Types</option>
                     <option value="VOL_Q90_CROSS">High Volatility</option>
                     <option value="REGIME_FLIP">Regime Change</option>
                     <option value="CORR_HIGH">High Correlation</option>
@@ -1951,6 +2460,18 @@
         alertsDot.className = 'status-dot healthy';
         alertsText.textContent = 'No active alerts';
         alertsList.innerHTML = '';
+        
+        // Always show the "View All History" button even when no active alerts
+        const historyButton = document.createElement('div');
+        historyButton.style.textAlign = 'center';
+        historyButton.style.marginTop = '8px';
+        historyButton.style.fontSize = '0.75rem';
+        historyButton.innerHTML = `
+          <button onclick="switchTab('alerts')" style="background: var(--brand-primary); color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.7rem;">
+            📋 View All History
+          </button>
+        `;
+        alertsList.appendChild(historyButton);
         return;
       }
       
@@ -1990,10 +2511,22 @@
         return new Date(b.created_at) - new Date(a.created_at);
       });
       
-      sortedAlerts.forEach(alert => {
+      // Limit to 5 most important alerts in sidebar
+      sortedAlerts.slice(0, 5).forEach(alert => {
         const alertItem = createAlertItem(alert);
         alertsList.appendChild(alertItem);
       });
+      
+      // Add "show more" indicator if there are more alerts
+      if (sortedAlerts.length > 5) {
+        const moreItem = document.createElement('div');
+        moreItem.style.textAlign = 'center';
+        moreItem.style.padding = '4px';
+        moreItem.style.fontSize = '0.7rem';
+        moreItem.style.color = 'var(--theme-text-muted)';
+        moreItem.textContent = `+${sortedAlerts.length - 5} more alerts...`;
+        alertsList.appendChild(moreItem);
+      }
     }
     
     function createAlertItem(alert) {
@@ -2146,7 +2679,7 @@
 
     async function fetchAlertsHistory(filters = {}) {
       try {
-        console.debug('Loading alerts history...');
+        console.debug('Loading alerts history...', filters);
         
         const apiBaseUrl = globalConfig.get('api_base_url');
         
@@ -2156,22 +2689,24 @@
         params.append('offset', '0');
         params.append('include_snoozed', 'true');
         
-        if (filters.severity) {
+        // Only add filters if they have values (don't filter if empty)
+        if (filters.severity && filters.severity.trim() !== '') {
           params.append('severity_filter', filters.severity);
         }
-        if (filters.type) {
+        if (filters.type && filters.type.trim() !== '') {
           params.append('type_filter', filters.type);
         }
         
-        const response = await fetch(`${apiBaseUrl}/api/alerts/history?${params}`);
+        // Use active endpoint (formatted has auth issues)
+        const response = await fetch(`${apiBaseUrl}/api/alerts/active?${params}`);
         if (!response.ok) {
           throw new Error(`History API Error: ${response.status}`);
         }
         
-        const data = await response.json();
-        console.debug(`History loaded: ${data.alerts?.length || 0} alerts`);
+        const alerts = await response.json();
+        console.debug(`History loaded: ${alerts?.length || 0} alerts`, alerts.slice(0, 2));
         
-        return data.alerts || [];
+        return alerts || [];
         
       } catch (error) {
         console.error('Failed to load alerts history:', error);
@@ -2191,9 +2726,15 @@
 
     async function loadAlertsHistory() {
       try {
-        const severityFilter = document.getElementById('alerts-severity-filter').value;
-        const typeFilter = document.getElementById('alerts-type-filter').value;
-        const periodDays = parseInt(document.getElementById('alerts-period-filter').value);
+        const severityFilterEl = document.getElementById('alerts-severity-filter');
+        const typeFilterEl = document.getElementById('alerts-type-filter');
+        const periodFilterEl = document.getElementById('alerts-period-filter');
+        
+        const severityFilter = severityFilterEl ? severityFilterEl.value : '';
+        const typeFilter = typeFilterEl ? typeFilterEl.value : '';
+        const periodDays = periodFilterEl ? parseInt(periodFilterEl.value) : 7;
+        
+        console.debug('Loading alerts with filters:', { severityFilter, typeFilter, periodDays });
         
         // Fetch all alerts with basic filters
         let alerts = await fetchAlertsHistory({
@@ -2205,6 +2746,10 @@
         alerts = filterAlertsHistoryByPeriod(alerts, periodDays);
         
         alertsHistoryData = alerts;
+        
+        // Store globally for modal system
+        window.currentAlertsData = alerts;
+        
         currentAlertsPage = 1;
         totalAlertsPages = Math.ceil(alerts.length / alertsPerPage);
         
@@ -2246,6 +2791,7 @@
             <th>Message</th>
             <th>Created</th>
             <th>Status</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -2269,12 +2815,77 @@
       
       const getStatusText = (alert) => {
         if (alert.acknowledged_at) {
-          return `<span style="color: var(--success)">Acknowledged</span>`;
+          return `<span style="color: var(--success)">✅ Acknowledged</span>`;
         }
         if (alert.snooze_until && new Date(alert.snooze_until) > new Date()) {
-          return `<span style="color: var(--warning)">Snoozed</span>`;
+          return `<span style="color: var(--warning)">⏸️ Snoozed</span>`;
         }
-        return `<span style="color: var(--info)">Active</span>`;
+        return `<span style="color: var(--error)">🚨 Active</span>`;
+      };
+      
+      // Format unifié : Action → Impact € → 2 raisons → Détails  
+      const formatUnifiedAlert = (alert) => {
+        // Simuler le formatage unifié côté client
+        const formatted = formatAlertClientSide(alert);
+        
+        return `
+          <div class="alert-unified-format">
+            <div class="alert-action">
+              <strong>🎯 ${formatted.action}</strong>
+            </div>
+            <div class="alert-impact">
+              💰 Impact: <span class="alert-impact-value">${formatted.impact}</span>
+            </div>
+            <div class="alert-reasons">
+              📋 Raisons:
+              <ul class="alert-reasons-list">
+                ${formatted.reasons.map(reason => `<li>${reason}</li>`).join('')}
+              </ul>
+            </div>
+            <div class="alert-details">
+              ℹ️ ${formatted.details}
+            </div>
+          </div>
+        `;
+      };
+      
+      // Formatage unifié côté client
+      const formatAlertClientSide = (alert) => {
+        const alertType = alert.alert_type;
+        const severity = alert.severity;
+        const currentValue = alert.data?.current_value || 0;
+        const portfolioValue = 100000; // €100k par défaut
+        
+        // Templates simplifiés
+        const templates = {
+          'VOL_Q90_CROSS': {
+            'S1': { action: 'Surveillance volatilité', impact_base: 0.5, reasons: ['Volatilité Q90 dépassée', 'Conditions de marché agitées'] },
+            'S2': { action: 'Réduction exposition (mode Slow)', impact_base: 2.0, reasons: ['Volatilité critique détectée', 'Risque de drawdown majoré'] },
+            'S3': { action: 'Arrêt immédiat trading (Freeze)', impact_base: 8.0, reasons: ['Volatilité extrême mesurée', 'Protection capital prioritaire'] }
+          },
+          'EXEC_COST_SPIKE': {
+            'S1': { action: 'Surveillance coûts exécution', impact_base: 0.2, reasons: ['Coûts trading légèrement élevés', 'Conditions liquidité moyennes'] },
+            'S2': { action: 'Ralentissement trading (mode Slow)', impact_base: 1.5, reasons: ['Coûts exécution anormalement hauts', 'Liquidité marché dégradée'] },
+            'S3': { action: 'Arrêt trading (mode Freeze)', impact_base: 4.0, reasons: ['Coûts exécution prohibitifs', 'Liquidité marché très dégradée'] }
+          },
+          'DECISION_DROP': {
+            'S1': { action: 'Monitoring confiance décision', impact_base: 0.4, reasons: ['Score décision en baisse', 'Confiance allocation réduite'] },
+            'S2': { action: 'Mode prudent allocation', impact_base: 2.2, reasons: ['Chute confiance décision significative', 'Qualité allocation dégradée'] },
+            'S3': { action: 'Mode ultra-conservateur (Freeze)', impact_base: 9.0, reasons: ['Effondrement confiance décision', 'Allocations potentiellement erronées'] }
+          }
+        };
+        
+        const template = templates[alertType]?.[severity] || 
+                        { action: `Alerte ${alertType}`, impact_base: 1.0, reasons: ['Situation détectée', 'Action recommandée'] };
+        
+        const impact_euro = portfolioValue * template.impact_base / 100;
+        
+        return {
+          action: template.action,
+          impact: impact_euro >= 1 ? `€${Math.round(impact_euro).toLocaleString()}` : `€${impact_euro.toFixed(2)}`,
+          reasons: template.reasons,
+          details: `Valeur ${currentValue} détectée - ${severity} à ${new Date(alert.created_at).toLocaleTimeString()}`
+        };
       };
       
       return `
@@ -2285,32 +2896,43 @@
           <td>
             <div class="alert-type-label">${formatAlertType(alert.alert_type)}</div>
           </td>
-          <td>
-            <div>${formatAlertMessage(alert)}</div>
-            ${alert.data ? `<div class="alert-message-detail">${JSON.stringify(alert.data)}</div>` : ''}
+          <td class="alert-message-cell">
+            ${formatUnifiedAlert(alert)}
           </td>
           <td>
             <div class="alert-timestamp">${formatTime(alert.created_at)}</div>
-            <div class="alert-timestamp" style="font-size: 0.7rem;">${formatRelativeTime(alert.created_at)}</div>
+            <div class="alert-timestamp" style="font-size: 0.7rem; color: var(--text-muted);">${formatRelativeTime(alert.created_at)}</div>
           </td>
           <td>
             ${getStatusText(alert)}
+          </td>
+          <td>
+            <button 
+              class="alert-action-btn" 
+              onclick="openAlertModal('${alert.id}')"
+              title="View alert details">
+              📋 Details
+            </button>
           </td>
         </tr>
       `;
     }
 
     function updateAlertsStats(alerts) {
+      console.debug('Updating alerts stats for', alerts?.length || 0, 'alerts');
+      
       const stats = {
-        total: alerts.length,
-        S1: alerts.filter(a => a.severity === 'S1').length,
-        S2: alerts.filter(a => a.severity === 'S2').length,
-        S3: alerts.filter(a => a.severity === 'S3').length,
-        acknowledged: alerts.filter(a => a.acknowledged_at).length
+        total: alerts?.length || 0,
+        S1: alerts?.filter(a => a.severity === 'S1').length || 0,
+        S2: alerts?.filter(a => a.severity === 'S2').length || 0,
+        S3: alerts?.filter(a => a.severity === 'S3').length || 0,
+        acknowledged: alerts?.filter(a => a.acknowledged_at).length || 0
       };
       
+      console.debug('Computed stats:', stats);
+      
       const statsHtml = `
-        <div class="alerts-stats">
+        <div class="alerts-stats" id="alerts-stats-display">
           <div class="alerts-stat">
             <div class="alerts-stat-number">${stats.total}</div>
             <div class="alerts-stat-label">Total</div>
@@ -2335,7 +2957,18 @@
       `;
       
       const container = document.getElementById('alerts-history-content');
-      container.insertAdjacentHTML('afterbegin', statsHtml);
+      if (container) {
+        // Remove existing stats if present
+        const existingStats = document.getElementById('alerts-stats-display');
+        if (existingStats) {
+          existingStats.remove();
+        }
+        
+        container.insertAdjacentHTML('afterbegin', statsHtml);
+        console.debug('Stats HTML inserted into container');
+      } else {
+        console.warn('alerts-history-content container not found');
+      }
     }
 
     function updateAlertsPagination() {
@@ -2369,9 +3002,10 @@
       }
     }
 
-    function filterAlertsHistory() {
+    // DEFINE GLOBALLY
+    window.filterAlertsHistory = function() {
       loadAlertsHistory();
-    }
+    };
 
     function refreshAlertsHistory() {
       loadAlertsHistory();
@@ -5354,6 +5988,629 @@ async function refreshDashboard(forceRefresh = false) {
     window.toggleRefreshMenu = toggleRefreshMenu;
     window.closeRefreshMenu = closeRefreshMenu;
 
+    // ===== PHASE 2A: TOAST NOTIFICATION SYSTEM =====
+    let toastIdCounter = 0;
+
+    function showToast(message, type = 'info', options = {}) {
+      const {
+        duration = type === 'error' ? 8000 : 5000,
+        actions = [],
+        title = null,
+        alertData = null
+      } = options;
+
+      const toastId = `toast-${++toastIdCounter}`;
+      const toastContainer = document.getElementById('toast-container');
+
+      if (!toastContainer) {
+        console.error('Toast container not found');
+        return;
+      }
+
+      // Map type to severity for styling
+      let severityClass = 'toast-s1';
+      let severityText = 'INFO';
+      let severityIcon = '●';
+
+      if (type === 'error' || type === 'critical' || type === 's3') {
+        severityClass = 'toast-s3';
+        severityText = 'CRITICAL';
+        severityIcon = '⚠';
+      } else if (type === 'warning' || type === 's2') {
+        severityClass = 'toast-s2';
+        severityText = 'WARNING';
+        severityIcon = '⚠';
+      }
+
+      const toast = document.createElement('div');
+      toast.id = toastId;
+      toast.className = `toast ${severityClass}`;
+      
+      let actionsHtml = '';
+      if (actions.length > 0) {
+        actionsHtml = `
+          <div class="toast-actions">
+            ${actions.map(action => `
+              <button class="toast-action ${action.secondary ? 'toast-action-secondary' : ''}" 
+                      onclick="${action.onclick}">${action.label}</button>
+            `).join('')}
+          </div>`;
+      }
+
+      toast.innerHTML = `
+        <div class="toast-header">
+          <div class="toast-severity toast-severity-${type === 'error' || type === 's3' ? 's3' : type === 'warning' || type === 's2' ? 's2' : 's1'}">
+            <div class="toast-severity-icon"></div>
+            ${severityText}
+          </div>
+          <button class="toast-close" onclick="hideToast('${toastId}')">&times;</button>
+        </div>
+        <div class="toast-body">
+          ${title ? `<div class="toast-title">${title}</div>` : ''}
+          <div class="toast-description">${message}</div>
+          ${actionsHtml}
+        </div>
+      `;
+
+      toastContainer.appendChild(toast);
+
+      // Animate in
+      setTimeout(() => toast.classList.add('show'), 10);
+
+      // Auto-hide (except for critical alerts)
+      if (type !== 'error' && type !== 'critical' && type !== 's3') {
+        setTimeout(() => hideToast(toastId), duration);
+      }
+
+      return toastId;
+    }
+
+    // Track dismissed toasts to prevent re-showing
+    const dismissedToasts = new Set();
+    
+    // Load previously dismissed alerts from localStorage
+    function loadDismissedAlerts() {
+      try {
+        const stored = localStorage.getItem('dismissedAlerts');
+        if (stored) {
+          const alertIds = JSON.parse(stored);
+          alertIds.forEach(id => dismissedToasts.add(id));
+          console.log('Loaded dismissed alerts:', alertIds.length);
+        }
+      } catch (e) {
+        console.warn('Failed to load dismissed alerts:', e);
+      }
+    }
+    
+    // Check if alert should be shown (not dismissed)
+    function shouldShowAlert(alertId) {
+      return !dismissedToasts.has(alertId);
+    }
+    
+    // DEFINE GLOBALLY
+    window.hideToast = function(toastId) {
+      console.log('Hiding toast:', toastId);
+      const toast = document.getElementById(toastId);
+      if (!toast) {
+        console.warn('Toast not found:', toastId);
+        return;
+      }
+
+      // Extract alert ID from toast ID (format: toast-{alertId})
+      const alertId = toastId.replace('toast-', '');
+      dismissedToasts.add(alertId);
+      console.log('Added to dismissed list:', alertId);
+      localStorage.setItem('dismissedAlerts', JSON.stringify([...dismissedToasts]));
+
+      console.log('Adding hide class to toast:', toastId);
+      toast.classList.add('hide');
+      console.log('Toast classes after adding hide:', toast.className);
+      
+      setTimeout(() => {
+        if (toast && toast.parentNode) {
+          toast.remove();
+          console.log('Toast removed:', toastId);
+        }
+      }, 300);
+    };
+    
+    // Function to hide all toasts - DEFINE GLOBALLY
+    window.hideAllToasts = function() {
+      console.log('Hiding all toasts...');
+      const toastContainer = document.getElementById('toast-container');
+      if (!toastContainer) {
+        console.log('Toast container not found');
+        return;
+      }
+      
+      const toasts = toastContainer.querySelectorAll('.toast');
+      console.log(`Found ${toasts.length} toasts to hide in container`);
+      
+      if (toasts.length === 0) {
+        // Try fallback - look for toasts anywhere in document
+        const allToasts = document.querySelectorAll('.toast');
+        console.log(`Fallback: Found ${allToasts.length} toasts in entire document`);
+        allToasts.forEach((toast, index) => {
+          console.log(`Force removing toast ${index}:`, toast.id || 'no-id');
+          toast.remove();
+        });
+      } else {
+        // Normal path
+        toasts.forEach((toast, index) => {
+          console.log(`Hiding toast ${index}:`, toast.id || 'no-id');
+          toast.classList.add('hide');
+          setTimeout(() => {
+            if (toast && toast.parentNode) {
+              toast.remove();
+              console.log(`Removed toast ${index}`);
+            }
+          }, 300);
+        });
+      }
+      
+      // Force clear container if needed
+      setTimeout(() => {
+        const remainingToasts = toastContainer.querySelectorAll('.toast');
+        if (remainingToasts.length > 0) {
+          console.log(`Force clearing ${remainingToasts.length} remaining toasts`);
+          toastContainer.innerHTML = '';
+        }
+      }, 500);
+      
+      console.log('All toasts cleared');
+    };
+
+    // Show toast for S3 alerts specifically
+    function showS3AlertToast(alert) {
+      // Check if this alert has already been dismissed
+      if (!shouldShowAlert(alert.id)) {
+        console.log('Skipping already dismissed alert:', alert.id);
+        return;
+      }
+      
+      const title = getAlertTypeDisplayName(alert.alert_type);
+      const message = `${alert.data.current_value?.toFixed(2) || 'N/A'} > ${alert.data.adaptive_threshold?.toFixed(2) || 'N/A'}`;
+      
+      // Use alert ID for consistent tracking
+      const nextToastId = `toast-${alert.id}`;
+      
+      const actions = [
+        {
+          label: 'View Details',
+          onclick: `window.openAlertModal('${alert.id}').then(() => hideToast('${nextToastId}'))`
+        },
+        {
+          label: 'Dismiss',
+          secondary: true,
+          onclick: `hideToast('${nextToastId}')`
+        }
+      ];
+
+      const toastId = showToast(message, 's3', {
+        title: `🚨 ${title}`,
+        actions,
+        duration: 0, // Don't auto-hide critical alerts
+        alertData: alert
+      });
+      
+      // Update the toast ID to match alert ID for proper tracking
+      const toastElement = document.getElementById(toastId);
+      if (toastElement) {
+        toastElement.id = nextToastId;
+      }
+      
+      return nextToastId;
+    }
+
+    // ===== PHASE 2A: ALERT MODAL SYSTEM =====
+    let currentAlert = null;
+
+    async function openAlertModal(alertId) {
+      console.log('Opening modal for alert:', alertId);
+      
+      // Try to find alert in current data first
+      let alert = findAlertById(alertId);
+      
+      // If not found, fetch from API
+      if (!alert) {
+        console.log('Alert not found in cache, fetching from API...');
+        try {
+          const apiBaseUrl = globalConfig.get('api_base_url');
+          const response = await fetch(`${apiBaseUrl}/api/alerts/active`);
+          if (response.ok) {
+            const alerts = await response.json();
+            alert = alerts.find(a => a.id === alertId);
+            console.log('Found alert in API:', !!alert);
+          }
+        } catch (error) {
+          console.error('Failed to fetch alert from API:', error);
+        }
+      }
+      
+      if (!alert) {
+        console.error('Alert not found anywhere:', alertId);
+        showToast('Alert not found', 'error');
+        return;
+      }
+
+      currentAlert = alert;
+      populateAlertModal(alert);
+
+      const modal = document.getElementById('alert-modal');
+      modal.classList.add('show');
+      document.body.style.overflow = 'hidden';
+
+      // Close on Escape key
+      const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+          closeAlertModal();
+          document.removeEventListener('keydown', handleEscape);
+        }
+      };
+      document.addEventListener('keydown', handleEscape);
+    }
+
+    function closeAlertModal() {
+      const modal = document.getElementById('alert-modal');
+      modal.classList.remove('show');
+      document.body.style.overflow = '';
+      currentAlert = null;
+    }
+
+    function populateAlertModal(alert) {
+      // Update header
+      document.getElementById('modal-severity-badge').textContent = alert.severity;
+      document.getElementById('modal-severity-badge').className = `modal-severity-badge modal-severity-${alert.severity.toLowerCase()}`;
+      document.getElementById('modal-alert-type').textContent = getAlertTypeDisplayName(alert.alert_type);
+
+      // Update overview
+      document.getElementById('modal-alert-id').textContent = alert.id;
+      document.getElementById('modal-created-at').textContent = formatDateTime(alert.created_at);
+      document.getElementById('modal-current-value').textContent = alert.data.current_value?.toFixed(4) || 'N/A';
+      document.getElementById('modal-threshold').textContent = alert.data.adaptive_threshold?.toFixed(4) || 'N/A';
+
+      // Update signals snapshot
+      const signalsContainer = document.getElementById('signals-snapshot');
+      signalsContainer.innerHTML = '';
+
+      if (alert.data.signals_snapshot) {
+        const signals = alert.data.signals_snapshot;
+        
+        // Add key signals
+        if (signals.volatility) {
+          Object.entries(signals.volatility).forEach(([asset, value]) => {
+            addSignalCard(signalsContainer, `Volatility ${asset}`, value, 'number');
+          });
+        }
+        
+        if (signals.regime) {
+          Object.entries(signals.regime).forEach(([regime, value]) => {
+            addSignalCard(signalsContainer, regime.toUpperCase(), value, 'percentage');
+          });
+        }
+
+        if (signals.correlation) {
+          addSignalCard(signalsContainer, 'Avg Correlation', signals.correlation.avg_correlation, 'percentage');
+        }
+
+        if (signals.sentiment) {
+          addSignalCard(signalsContainer, 'Fear & Greed', signals.sentiment.fear_greed, 'number');
+        }
+
+        addSignalCard(signalsContainer, 'Decision Score', signals.decision_score, 'percentage');
+        addSignalCard(signalsContainer, 'Confidence', signals.confidence, 'percentage');
+        addSignalCard(signalsContainer, 'Contradiction', signals.contradiction_index, 'percentage');
+      }
+
+      // Update suggested action
+      if (alert.suggested_action) {
+        document.getElementById('action-type').textContent = formatActionType(alert.suggested_action.type);
+        document.getElementById('action-details').textContent = formatActionDetails(alert.suggested_action);
+        
+        // Show/hide apply button based on action type
+        const applyBtn = document.getElementById('apply-btn');
+        if (alert.suggested_action.type === 'freeze' || alert.suggested_action.type === 'apply_policy') {
+          applyBtn.style.display = 'block';
+        } else {
+          applyBtn.style.display = 'none';
+        }
+      }
+
+      // Update button states
+      updateModalButtonStates(alert);
+    }
+
+    function addSignalCard(container, name, value, type) {
+      const card = document.createElement('div');
+      card.className = 'signal-card';
+      
+      let displayValue = '';
+      if (type === 'percentage') {
+        displayValue = `${(value * 100).toFixed(1)}%`;
+      } else if (type === 'number') {
+        displayValue = typeof value === 'number' ? value.toFixed(3) : String(value);
+      } else {
+        displayValue = String(value);
+      }
+
+      card.innerHTML = `
+        <div class="signal-name">${name}</div>
+        <div class="signal-value">${displayValue}</div>
+      `;
+      
+      container.appendChild(card);
+    }
+
+    function formatActionType(type) {
+      const typeMap = {
+        'freeze': 'Freeze Trading',
+        'apply_policy': 'Apply Risk Policy',
+        'notify_only': 'Notification Only',
+        'escalate': 'Escalate Alert'
+      };
+      return typeMap[type] || type;
+    }
+
+    function formatActionDetails(action) {
+      if (action.type === 'freeze') {
+        return `Duration: ${action.ttl_minutes} minutes. ${action.reason || ''}`;
+      } else if (action.type === 'apply_policy') {
+        return `Mode: ${action.mode}, Daily Cap: ${(action.cap_daily * 100).toFixed(1)}%, Ramp Hours: ${action.ramp_hours}`;
+      }
+      return JSON.stringify(action, null, 2);
+    }
+
+    function updateModalButtonStates(alert) {
+      const ackBtn = document.getElementById('ack-btn');
+      const snoozeBtn = document.getElementById('snooze-btn');
+      
+      // Disable if already acknowledged
+      if (alert.acknowledged_at) {
+        ackBtn.textContent = 'Acknowledged';
+        ackBtn.disabled = true;
+        ackBtn.classList.add('modal-action-secondary');
+        ackBtn.classList.remove('modal-action-primary');
+      } else {
+        ackBtn.textContent = 'Acknowledge';
+        ackBtn.disabled = false;
+        ackBtn.classList.add('modal-action-primary');
+        ackBtn.classList.remove('modal-action-secondary');
+      }
+
+      // Disable snooze if already snoozed
+      if (alert.snooze_until && new Date(alert.snooze_until) > new Date()) {
+        snoozeBtn.textContent = 'Snoozed';
+        snoozeBtn.disabled = true;
+      } else {
+        snoozeBtn.textContent = 'Snooze 30m';
+        snoozeBtn.disabled = false;
+      }
+    }
+
+    // Modal action functions
+    async function acknowledgeCurrentAlert() {
+      if (!currentAlert) return;
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/alerts/${currentAlert.id}/acknowledge`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Idempotency-Key': `ack-${currentAlert.id}-${Date.now()}`
+          },
+          body: JSON.stringify({
+            acknowledged_by: 'user'
+          })
+        });
+
+        if (response.ok) {
+          showToast('Alert acknowledged successfully', 'success');
+          currentAlert.acknowledged_at = new Date().toISOString();
+          currentAlert.acknowledged_by = 'user';
+          updateModalButtonStates(currentAlert);
+          
+          // Refresh alerts tab if visible
+          refreshAlertsTab();
+        } else {
+          throw new Error(`HTTP ${response.status}`);
+        }
+      } catch (error) {
+        console.error('Failed to acknowledge alert:', error);
+        showToast('Failed to acknowledge alert', 'error');
+      }
+    }
+
+    async function snoozeCurrentAlert() {
+      if (!currentAlert) return;
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/alerts/${currentAlert.id}/snooze`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Idempotency-Key': `snooze-${currentAlert.id}-${Date.now()}`
+          },
+          body: JSON.stringify({
+            minutes: 30
+          })
+        });
+
+        if (response.ok) {
+          showToast('Alert snoozed for 30 minutes', 'success');
+          currentAlert.snooze_until = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+          updateModalButtonStates(currentAlert);
+          closeAlertModal();
+          
+          // Refresh alerts tab if visible
+          refreshAlertsTab();
+        } else {
+          throw new Error(`HTTP ${response.status}`);
+        }
+      } catch (error) {
+        console.error('Failed to snooze alert:', error);
+        showToast('Failed to snooze alert', 'error');
+      }
+    }
+
+    async function applyAction() {
+      if (!currentAlert || !currentAlert.suggested_action) return;
+
+      const action = currentAlert.suggested_action;
+      const confirmMessage = `Apply ${formatActionType(action.type)}?\\n\\nDetails: ${formatActionDetails(action)}`;
+
+      if (!confirm(confirmMessage)) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/alerts/${currentAlert.id}/apply`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Idempotency-Key': `apply-${currentAlert.id}-${Date.now()}`
+          },
+          body: JSON.stringify({
+            applied_by: 'user'
+          })
+        });
+
+        if (response.ok) {
+          showToast(`${formatActionType(action.type)} applied successfully`, 'success');
+          currentAlert.applied_at = new Date().toISOString();
+          currentAlert.applied_by = 'user';
+          closeAlertModal();
+          
+          // Refresh alerts and governance
+          refreshAlertsTab();
+          refreshGovernancePanel();
+        } else {
+          throw new Error(`HTTP ${response.status}`);
+        }
+      } catch (error) {
+        console.error('Failed to apply action:', error);
+        showToast('Failed to apply action', 'error');
+      }
+    }
+
+    // Helper functions
+    function getAlertTypeDisplayName(alertType) {
+      const typeMap = {
+        'VOL_Q90_CROSS': 'Volatility Q90 Cross',
+        'REGIME_FLIP': 'Regime Flip',
+        'CORR_HIGH': 'High Correlation',
+        'CONTRADICTION_SPIKE': 'Contradiction Spike',
+        'DECISION_DROP': 'Decision Drop',
+        'EXEC_COST_SPIKE': 'Execution Cost Spike'
+      };
+      return typeMap[alertType] || alertType.replace(/_/g, ' ');
+    }
+
+    function findAlertById(alertId) {
+      // This will be populated by the alerts tab when it loads
+      if (window.currentAlertsData) {
+        return window.currentAlertsData.find(alert => alert.id === alertId);
+      }
+      return null;
+    }
+
+    function formatDateTime(dateStr) {
+      if (!dateStr) return 'N/A';
+      const date = new Date(dateStr);
+      return date.toLocaleString();
+    }
+
+    // ===== PHASE 2A: REAL-TIME S3 ALERT MONITORING =====
+    let alertPollingInterval = null;
+    let lastKnownAlerts = [];
+
+    function startAlertMonitoring() {
+      if (alertPollingInterval) {
+        clearInterval(alertPollingInterval);
+      }
+
+      // Check for new S3 alerts every 30 seconds
+      alertPollingInterval = setInterval(checkForNewS3Alerts, 30000);
+      
+      // Initial check
+      checkForNewS3Alerts();
+    }
+
+    async function checkForNewS3Alerts() {
+      try {
+        const apiBaseUrl = globalConfig.get('api_base_url');
+        const response = await fetch(`${apiBaseUrl}/api/alerts/active?severity_filter=S3`);
+        
+        if (response.ok) {
+          const currentAlerts = await response.json();
+          
+          // Find new S3 alerts
+          const newAlerts = currentAlerts.filter(alert => 
+            alert.severity === 'S3' && 
+            !lastKnownAlerts.some(old => old.id === alert.id)
+          );
+
+          // Show toast for each new S3 alert
+          newAlerts.forEach(alert => {
+            showS3AlertToast(alert);
+          });
+
+          lastKnownAlerts = currentAlerts;
+        }
+      } catch (error) {
+        console.error('Failed to check for new S3 alerts:', error);
+      }
+    }
+
+    // Expose functions globally
+    window.showToast = showToast;
+    window.hideToast = hideToast;
+    window.openAlertModal = openAlertModal;
+    window.closeAlertModal = closeAlertModal;
+    window.acknowledgeAlert = acknowledgeAlert;
+    window.snoozeAlert = snoozeAlert;
+    window.applyAction = applyAction;
+    window.startAlertMonitoring = startAlertMonitoring;
+    window.refreshAlertsHistory = refreshAlertsHistory;
+
+    // Start monitoring when page loads
+    document.addEventListener('DOMContentLoaded', () => {
+      loadDismissedAlerts();  // Load previously dismissed alerts
+      startAlertMonitoring();
+      
+      // Add event delegation for toast dismiss buttons
+      const toastContainer = document.getElementById('toast-container');
+      if (toastContainer) {
+        toastContainer.addEventListener('click', (event) => {
+          // Handle close button clicks
+          if (event.target.classList.contains('toast-close')) {
+            const toast = event.target.closest('.toast');
+            if (toast) {
+              console.log('Toast close button clicked:', toast.id);
+              hideToast(toast.id);
+            }
+          }
+          
+          // Handle action button clicks
+          if (event.target.classList.contains('toast-action')) {
+            const onclickAttr = event.target.getAttribute('onclick');
+            if (onclickAttr) {
+              // Execute the onclick code safely
+              try {
+                eval(onclickAttr);
+              } catch (error) {
+                console.error('Error executing toast action:', error);
+              }
+            }
+          }
+        });
+      }
+      
+      // Remove old reference since function is now defined globally above
+      // window.hideAllToasts = hideAllToasts;
+      
+      // Debug logging removed - system ready for production
+    });
+
     // ===== Refresh menu helpers =====
     function toggleRefreshMenu(event) {
       event.stopPropagation?.();
@@ -5765,6 +7022,89 @@ async function refreshDashboard(forceRefresh = false) {
       }
     });
   </script>
+
+  <!-- PHASE 2A: Toast Container -->
+  <div id="toast-container">
+    <!-- Toasts will appear here -->
+  </div>
+
+  <!-- Fixed button outside toast container -->
+  <div id="toast-buttons" style="position: fixed; bottom: 20px; right: 20px; z-index: 3000; pointer-events: auto;">
+    <button onclick="hideAllToasts()" style="
+      background: var(--danger); 
+      color: white; 
+      border: none; 
+      padding: 8px 16px; 
+      border-radius: var(--radius-md); 
+      cursor: pointer;
+      font-size: 0.875rem;
+      box-shadow: var(--shadow-md);
+      pointer-events: auto;
+    ">🗑️ Clear All Alerts</button>
+  </div>
+
+  <!-- PHASE 2A: Alert Detail Modal -->
+  <div class="modal-overlay" id="alert-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modal-title">
+          <span class="modal-severity-badge" id="modal-severity-badge">S3</span>
+          <span id="modal-alert-type">VOL_Q90_CROSS</span>
+        </h2>
+        <button class="modal-close" onclick="closeAlertModal()">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Alert Overview -->
+        <div class="modal-section">
+          <div class="modal-section-title">Alert Overview</div>
+          <div class="alert-metadata" id="alert-overview">
+            <div class="metadata-item">
+              <span class="metadata-label">Alert ID</span>
+              <span class="metadata-value" id="modal-alert-id">-</span>
+            </div>
+            <div class="metadata-item">
+              <span class="metadata-label">Created</span>
+              <span class="metadata-value" id="modal-created-at">-</span>
+            </div>
+            <div class="metadata-item">
+              <span class="metadata-label">Current Value</span>
+              <span class="metadata-value" id="modal-current-value">-</span>
+            </div>
+            <div class="metadata-item">
+              <span class="metadata-label">Threshold</span>
+              <span class="metadata-value" id="modal-threshold">-</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ML Signals Snapshot -->
+        <div class="modal-section">
+          <div class="modal-section-title">ML Signals Snapshot</div>
+          <div class="signals-grid" id="signals-snapshot">
+            <!-- Dynamic signal cards will be inserted here -->
+          </div>
+        </div>
+
+        <!-- Suggested Action -->
+        <div class="modal-section">
+          <div class="modal-section-title">Suggested Action</div>
+          <div class="suggested-action" id="suggested-action">
+            <div class="action-type" id="action-type">Apply Policy</div>
+            <div class="action-details" id="action-details">Mode: Slow, Cap Daily: 4%, Ramp Hours: 24</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="modal-action modal-action-secondary" onclick="closeAlertModal()">Close</button>
+        <button class="modal-action modal-action-secondary" onclick="snoozeCurrentAlert()" id="snooze-btn">Snooze 30m</button>
+        <button class="modal-action modal-action-primary" onclick="acknowledgeCurrentAlert()" id="ack-btn">Acknowledge</button>
+        <button class="modal-action modal-action-danger" onclick="applyAction()" id="apply-btn" style="display:none;">Apply Action</button>
+      </div>
+    </div>
+  </div>
+
 </body>
 
 </html>

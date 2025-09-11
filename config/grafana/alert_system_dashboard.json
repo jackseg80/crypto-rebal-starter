@@ -1,0 +1,279 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Phase 2A Alert System Monitoring",
+    "tags": ["crypto-rebal", "alerts", "phase2a"],
+    "style": "dark",
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Alert Generation Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "rate(crypto_rebal_alerts_generated_total[5m])",
+            "legendFormat": "{{alert_type}} {{severity}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 0.1},
+                {"color": "red", "value": 1}
+              ]
+            },
+            "unit": "ops"
+          }
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Active Alerts by Severity",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "crypto_rebal_alerts_active",
+            "legendFormat": "{{severity}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "S1"},
+              "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]
+            },
+            {
+              "matcher": {"id": "byName", "options": "S2"},
+              "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "yellow"}}]
+            },
+            {
+              "matcher": {"id": "byName", "options": "S3"},
+              "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "blue"}}]
+            }
+          ]
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 6, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Storage Mode & Degradation",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "crypto_rebal_alert_storage_mode",
+            "legendFormat": "Storage Mode"
+          },
+          {
+            "expr": "crypto_rebal_alert_storage_degraded",
+            "legendFormat": "Degraded"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "red", "value": 1}
+              ]
+            },
+            "mappings": [
+              {"type": "value", "value": "0", "text": "Redis"},
+              {"type": "value", "value": "1", "text": "File"},
+              {"type": "value", "value": "2", "text": "Memory"}
+            ]
+          }
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0}
+      },
+      {
+        "id": 4,
+        "title": "Engine Evaluation Duration",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "crypto_rebal_alert_engine_evaluation_duration_seconds",
+            "legendFormat": "P95"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 5},
+                {"color": "red", "value": 10}
+              ]
+            },
+            "unit": "s"
+          }
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0}
+      },
+      {
+        "id": 5,
+        "title": "Storage Operation Performance",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, crypto_rebal_alert_storage_operation_duration_seconds_bucket)",
+            "legendFormat": "P95 {{operation}} {{storage_mode}}"
+          },
+          {
+            "expr": "histogram_quantile(0.50, crypto_rebal_alert_storage_operation_duration_seconds_bucket)",
+            "legendFormat": "P50 {{operation}} {{storage_mode}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Duration (seconds)",
+            "logBase": 1,
+            "min": null,
+            "max": null
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 6,
+        "title": "Redis Failures & Recovery",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(crypto_rebal_alert_redis_failures_total[5m])",
+            "legendFormat": "Redis Failures/sec"
+          },
+          {
+            "expr": "rate(crypto_rebal_alert_file_failures_total[5m])",
+            "legendFormat": "File Failures/sec"
+          },
+          {
+            "expr": "crypto_rebal_alert_memory_storage_count",
+            "legendFormat": "Memory Alerts Count"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Rate/Count",
+            "logBase": 1,
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      },
+      {
+        "id": 7,
+        "title": "Rate Limiting",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(crypto_rebal_alert_rate_limit_hits_total[5m])",
+            "legendFormat": "Rate Limit Hits {{alert_type}} {{severity}}"
+          },
+          {
+            "expr": "crypto_rebal_alert_rate_limit_budget_remaining",
+            "legendFormat": "Budget Remaining {{alert_type}} {{window}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+      },
+      {
+        "id": 8,
+        "title": "ML Signal Quality",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "crypto_rebal_alert_ml_signal_quality",
+            "legendFormat": "{{signal_type}} Quality"
+          },
+          {
+            "expr": "crypto_rebal_alert_ml_contradiction_index",
+            "legendFormat": "Contradiction Index"
+          },
+          {
+            "expr": "crypto_rebal_alert_ml_confidence_score",
+            "legendFormat": "Confidence Score"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Score",
+            "min": 0,
+            "max": 1
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+      },
+      {
+        "id": 9,
+        "title": "Alert Actions & Escalations",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(crypto_rebal_alerts_acknowledged_total[5m])",
+            "legendFormat": "Acknowledged {{alert_type}} {{severity}}"
+          },
+          {
+            "expr": "rate(crypto_rebal_alerts_snoozed_total[5m])",
+            "legendFormat": "Snoozed {{alert_type}} {{severity}}"
+          },
+          {
+            "expr": "rate(crypto_rebal_alert_escalations_total[5m])",
+            "legendFormat": "Escalations {{from_severity}}→{{to_severity}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24}
+      },
+      {
+        "id": 10,
+        "title": "Lua Script Performance",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, crypto_rebal_alert_lua_duration_seconds_bucket)",
+            "legendFormat": "P95 {{script_name}}"
+          },
+          {
+            "expr": "rate(crypto_rebal_alert_lua_executions_total[5m])",
+            "legendFormat": "Executions/sec {{script_name}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24}
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "timepicker": {
+      "refresh_intervals": [
+        "5s",
+        "10s", 
+        "30s",
+        "1m",
+        "5m",
+        "15m",
+        "30m",
+        "1h"
+      ]
+    },
+    "refresh": "30s"
+  }
+}

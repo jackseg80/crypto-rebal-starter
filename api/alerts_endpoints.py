@@ -6,14 +6,17 @@ Intègre avec le système de gouvernance Phase 0 sans le violer.
 """
 
 from fastapi import APIRouter, HTTPException, Header, Depends, Query, BackgroundTasks
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field, validator
 from typing import Dict, List, Any, Optional
 import logging
 from datetime import datetime
 import uuid
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 from services.alerts.alert_engine import AlertEngine
 from services.alerts.alert_types import Alert, AlertType, AlertSeverity
+from services.alerts.prometheus_metrics import get_alert_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +167,78 @@ async def get_active_alerts(
         
     except Exception as e:
         logger.error(f"Error getting active alerts: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.get("/formatted")
+async def get_formatted_alerts(
+    include_snoozed: bool = Query(default=False, description="Inclure alertes snoozées"),
+    severity_filter: Optional[str] = Query(default=None, description="Filtrer par gravité"),
+    type_filter: Optional[str] = Query(default=None, description="Filtrer par type"),
+    portfolio_value: Optional[float] = Query(default=None, description="Valeur portfolio pour calcul impact €"),
+    engine: AlertEngine = Depends(get_alert_engine),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Récupère les alertes actives avec format unifié pour UI
+    
+    Format : Action → Impact € → 2 raisons → Détails
+    Accessible à tous les utilisateurs authentifiés.
+    """
+    try:
+        alerts = engine.get_active_alerts()
+        
+        # Filtrage identique à /active
+        if not include_snoozed:
+            now = datetime.now()
+            alerts = [
+                alert for alert in alerts
+                if not alert.snooze_until or alert.snooze_until <= now
+            ]
+        
+        if severity_filter:
+            alerts = [alert for alert in alerts if alert.severity.value == severity_filter]
+            
+        if type_filter:
+            alerts = [alert for alert in alerts if alert.alert_type.value == type_filter]
+        
+        # Injection valeur portfolio si fournie
+        if portfolio_value:
+            for alert in alerts:
+                if alert.data is None:
+                    alert.data = {}
+                alert.data["portfolio_value"] = portfolio_value
+        
+        # Format unifié pour chaque alerte
+        formatted_alerts = []
+        for alert in alerts:
+            formatted = alert.format_unified_message()
+            
+            formatted_alerts.append({
+                "id": alert.id,
+                "created_at": alert.created_at.isoformat(),
+                "acknowledged_at": alert.acknowledged_at.isoformat() if alert.acknowledged_at else None,
+                "acknowledged_by": alert.acknowledged_by,
+                "snooze_until": alert.snooze_until.isoformat() if alert.snooze_until else None,
+                "escalation_count": alert.escalation_count,
+                # Format unifié
+                **formatted
+            })
+        
+        return {
+            "alerts": formatted_alerts,
+            "meta": {
+                "total": len(formatted_alerts),
+                "active_only": not include_snoozed,
+                "filters": {
+                    "severity": severity_filter,
+                    "type": type_filter
+                },
+                "timestamp": datetime.now().isoformat()
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting formatted alerts: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/acknowledge/{alert_id}")
@@ -463,56 +538,50 @@ async def get_health_status(
             "timestamp": datetime.now().isoformat()
         }
 
-@router.get("/metrics/prometheus")
+@router.get("/metrics/prometheus", response_class=PlainTextResponse)
 async def get_prometheus_metrics(
     engine: AlertEngine = Depends(get_alert_engine),
     current_user: User = Depends(require_role("viewer"))
 ):
     """
-    Métriques au format Prometheus
+    Phase 2A Comprehensive Prometheus Metrics
     
-    Expose les métriques dans le format texte Prometheus pour scraping.
+    Expose toutes les métriques Phase 2A pour monitoring production.
+    Inclut: alertes, storage, performance, dégradation, ML signals.
     """
     try:
-        metrics = engine.get_metrics()
-        prometheus_lines = []
+        # Update metrics from AlertEngine
+        engine_metrics = engine.get_metrics()
+        storage_metrics = engine.storage.get_metrics()
         
-        # Headers
-        prometheus_lines.append("# HELP crypto_rebal_alerts_total Total number of alerts by type and severity")
-        prometheus_lines.append("# TYPE crypto_rebal_alerts_total counter")
+        # Update Prometheus metrics
+        alert_metrics = get_alert_metrics()
+        alert_metrics.update_storage_metrics(storage_metrics)
         
-        # Compteurs d'alertes
-        alert_counters = metrics["alert_engine"]["counters"].get("alerts_emitted_total", {})
-        for type_sev, count in alert_counters.items():
-            if ':' in type_sev:
-                alert_type, severity = type_sev.split(':', 1)
-                prometheus_lines.append(f'crypto_rebal_alerts_total{{type="{alert_type}",severity="{severity}"}} {count}')
+        # Update alert counts 
+        alert_counts = {
+            'active_s1': len([a for a in engine.storage.get_active_alerts() if a.severity.value == 'S1']),
+            'active_s2': len([a for a in engine.storage.get_active_alerts() if a.severity.value == 'S2']), 
+            'active_s3': len([a for a in engine.storage.get_active_alerts() if a.severity.value == 'S3']),
+            'snoozed': len([a for a in engine.storage.get_active_alerts(include_snoozed=True) 
+                           if hasattr(a, 'snoozed_until') and a.snoozed_until and a.snoozed_until > datetime.now()])
+        }
+        alert_metrics.update_alert_counts(alert_counts)
         
-        # Alertes supprimées
-        prometheus_lines.append("# HELP crypto_rebal_alerts_suppressed_total Suppressed alerts by reason")
-        prometheus_lines.append("# TYPE crypto_rebal_alerts_suppressed_total counter")
+        # Record engine run metrics
+        last_eval = engine_metrics["alert_engine"]["gauges"].get("last_evaluation_timestamp", 0)
+        if last_eval > 0:
+            alert_metrics.engine_last_run.set(last_eval)
         
-        suppressed_counters = metrics["alert_engine"]["counters"].get("alerts_suppressed_total", {})
-        for reason, count in suppressed_counters.items():
-            prometheus_lines.append(f'crypto_rebal_alerts_suppressed_total{{reason="{reason}"}} {count}')
+        # Update ML signals if available
+        if "ml_signals" in engine_metrics:
+            alert_metrics.update_ml_signals(engine_metrics["ml_signals"])
         
-        # Gauges
-        prometheus_lines.append("# HELP crypto_rebal_alerts_active_count Current number of active alerts")
-        prometheus_lines.append("# TYPE crypto_rebal_alerts_active_count gauge")
-        active_count = metrics["alert_engine"]["gauges"].get("active_alerts_count", 0)
-        prometheus_lines.append(f"crypto_rebal_alerts_active_count {active_count}")
-        
-        # Info sur le host
-        prometheus_lines.append("# HELP crypto_rebal_alert_engine_info Alert engine information")  
-        prometheus_lines.append("# TYPE crypto_rebal_alert_engine_info gauge")
-        host_id = metrics["host_info"]["host_id"]
-        is_scheduler = 1 if metrics["host_info"]["is_scheduler"] else 0
-        prometheus_lines.append(f'crypto_rebal_alert_engine_info{{host_id="{host_id}"}} {is_scheduler}')
-        
-        return "\n".join(prometheus_lines)
+        # Generate comprehensive Prometheus output
+        return generate_latest().decode('utf-8')
         
     except Exception as e:
-        logger.error(f"Error generating Prometheus metrics: {e}")
+        logger.error(f"Error generating Phase 2A Prometheus metrics: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 # Hook pour initialisation depuis main.py

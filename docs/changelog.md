@@ -2,6 +2,16 @@
 
 Ce changelog regroupe les informations essentielles issues de `RELEASE_NOTES` et `RECENT_FIXES` en une vue compacte et actionnable.
 
+## 2025-09-11 — Phase 2A: Phase-Aware Alerting System ✅
+- **Moteur Phase-Aware**: Phase lagging (15min), persistence (3 ticks), anti-oscillation, gating matrix BTC/ETH/Large/Alt.
+- **Neutralisation contradiction**: Seuil 0.70 avec bypass automatique, adaptive thresholds (base × phase_factor × market_factor).
+- **Format unifié alertes**: Action → Impact € → 2 raisons → Détails + microcopy français (6 types × 3 sévérités).
+- **UI intégration**: Toast dismissal localStorage, Clear All Alerts, filtres, modal détails, synchronisation temps réel.
+- **Métriques Prometheus**: 10+ métriques Phase 2A (transitions, gating, neutralisations, performance).
+- **Tests complets**: 8 tests unitaires, 6 tests d'intégration, benchmarks performance (0.9μs gating, 1M+ ops/sec).
+
+Impact: Système d'alertes prédictif avec intelligence contextuelle de phase, anti-circularité, et observabilité enterprise.
+
 ## 2025-08-28 — Risk Dashboard 2.0 (Real‑Time Analytics)
 - Market data live: Fear & Greed, BTC dominance, funding rates, ETH/BTC ratio, volatilité 7j, momentum.
 - Portfolio risk analytics: VaR/CVaR (95/99), Sharpe/Sortino, matrice de corrélation 11×11, score diversification.

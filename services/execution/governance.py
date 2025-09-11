@@ -42,7 +42,15 @@ class Policy(BaseModel):
     ramp_hours: int = Field(default=12, ge=1, le=72, description="Ramping sur N heures")
     min_trade: float = Field(default=100.0, ge=10.0, description="Trade minimum en USD")
     slippage_limit_bps: int = Field(default=50, ge=1, le=500, description="Limite slippage [1-500 bps]")
-    cooldown_hours: int = Field(default=24, ge=1, le=168, description="Cooldown entre plans [1-168h]")
+    
+    # TTL vs Cooldown separation (critique essentielle)
+    signals_ttl_seconds: int = Field(default=1800, ge=60, le=7200, description="TTL des signaux ML [1min-2h]")
+    plan_cooldown_hours: int = Field(default=24, ge=1, le=168, description="Cooldown publication plans [1-168h]")
+    
+    # No-trade zone et coûts
+    no_trade_threshold_pct: float = Field(default=0.02, ge=0.001, le=0.10, description="Zone no-trade [0.1-10%]")
+    execution_cost_bps: int = Field(default=15, ge=1, le=100, description="Coût d'execution estimé [1-100 bps]")
+    
     notes: Optional[str] = Field(default=None, description="Notes explicatives")
 
 class MLSignals(BaseModel):
@@ -72,6 +80,13 @@ class DecisionPlan(BaseModel):
     version: int = Field(default=1, ge=1, description="Version pour concurrency")
     etag: str = Field(..., description="ETag pour optimistic concurrency")
     
+    # State transition timestamps
+    reviewed_at: Optional[datetime] = Field(default=None, description="Date de review")
+    approved_at: Optional[datetime] = Field(default=None, description="Date d'approbation")
+    activated_at: Optional[datetime] = Field(default=None, description="Date d'activation")
+    executed_at: Optional[datetime] = Field(default=None, description="Date d'exécution")
+    cancelled_at: Optional[datetime] = Field(default=None, description="Date d'annulation")
+    
     # Contenu du plan
     targets: List[Target] = Field(..., description="Cibles d'allocation")
     governance_mode: GovernanceMode = Field(..., description="Mode de gouvernance")
@@ -81,10 +96,13 @@ class DecisionPlan(BaseModel):
     risk_budget: Optional[float] = Field(default=None, description="Budget de risque")
     non_removable: List[str] = Field(default_factory=list, description="Assets non supprimables")
     
-    # Metadata
+    # State transition metadata
     created_by: str = Field(default="system", description="Créateur du plan")
+    reviewed_by: Optional[str] = Field(default=None, description="Reviewer du plan")
     approved_by: Optional[str] = Field(default=None, description="Approbateur")
     notes: Optional[str] = Field(default=None, description="Notes du plan")
+    review_notes: Optional[str] = Field(default=None, description="Notes de review")
+    approval_notes: Optional[str] = Field(default=None, description="Notes d'approbation")
 
 class DecisionState(BaseModel):
     """État global du Decision Engine"""
@@ -102,6 +120,7 @@ class DecisionState(BaseModel):
     # Métadonnées
     last_update: datetime = Field(default_factory=datetime.now, description="Dernière MAJ")
     system_status: str = Field(default="operational", description="Statut système")
+    auto_unfreeze_at: Optional[datetime] = Field(default=None, description="Auto-unfreeze programmé")
 
 
 class GovernanceEngine:
@@ -118,36 +137,59 @@ class GovernanceEngine:
     def __init__(self, api_base_url: str = "http://localhost:8000"):
         self.api_base_url = api_base_url.rstrip("/")
         self.current_state = DecisionState()
-        self._last_signals_fetch = datetime.min
-        self._signals_cache_ttl = 300  # 5 minutes
         
-        logger.info("GovernanceEngine initialized")
+        # TTL vs Cooldown separation (critique essentielle)
+        self._last_signals_fetch = datetime.min
+        self._last_plan_publication = datetime.min
+        
+        # Default policy values - will be overridden by derived policy
+        self._signals_ttl_seconds = 1800  # 30 minutes - signaux peuvent être rafraîchis
+        self._plan_cooldown_hours = 24     # 24 heures - nouvelles publications limitées
+        
+        logger.info("GovernanceEngine initialized with TTL/cooldown separation")
     
     async def get_current_state(self) -> DecisionState:
         """
         Retourne l'état actuel du Decision Engine
         Agrège : store local + signaux ML + policy dérivée
+        Sépare TTL (signaux) et cooldown (plans)
         """
         try:
-            # Refresh signals si nécessaire
-            if (datetime.now() - self._last_signals_fetch).seconds > self._signals_cache_ttl:
-                await self._refresh_ml_signals()
+            # Check auto-unfreeze TTL
+            await self.check_auto_unfreeze()
             
-            # Dérive la policy depuis les signaux
+            # Dérive la policy AVANT de vérifier les signaux (pour obtenir TTL/cooldown actualisés)
             self.current_state.execution_policy = self._derive_execution_policy()
+            
+            # TTL check : Refresh signals si TTL expiré
+            signals_expired = (datetime.now() - self._last_signals_fetch).total_seconds() > self.current_state.execution_policy.signals_ttl_seconds
+            if signals_expired:
+                await self._refresh_ml_signals()
+                logger.debug(f"ML signals refreshed (TTL {self.current_state.execution_policy.signals_ttl_seconds}s expired)")
+            
+            # Cooldown check : Vérifier si on peut publier de nouveaux plans
+            plan_cooldown_active = (datetime.now() - self._last_plan_publication).total_seconds() < (self.current_state.execution_policy.plan_cooldown_hours * 3600)
+            
+            # Actualiser l'état global
             self.current_state.last_update = datetime.now()
             
             logger.debug(f"Current governance state: mode={self.current_state.governance_mode}, "
-                        f"contradiction={self.current_state.signals.contradiction_index:.3f}")
+                        f"contradiction={self.current_state.signals.contradiction_index:.3f}, "
+                        f"signals_fresh={(not signals_expired)}, cooldown_active={plan_cooldown_active}")
             
             return self.current_state
             
         except Exception as e:
             logger.error(f"Error getting current state: {e}")
-            # Fallback : état par défaut safe
+            # Fallback : état par défaut safe avec policy conservatrice
             return DecisionState(
                 governance_mode="manual",
-                execution_policy=Policy(mode="Freeze", cap_daily=0.01),
+                execution_policy=Policy(
+                    mode="Freeze", 
+                    cap_daily=0.01,
+                    signals_ttl_seconds=300,  # TTL court en cas d'erreur
+                    plan_cooldown_hours=48    # Cooldown long en cas d'erreur
+                ),
                 system_status="error"
             )
     
@@ -308,14 +350,27 @@ class GovernanceEngine:
                 mode = "Freeze"
                 cap = 0.01
                 
+            # Ajuster no-trade zone et coûts selon la volatilité
+            vol_signals = signals.volatility
+            avg_volatility = sum(vol_signals.values()) / len(vol_signals) if vol_signals else 0.15
+            
+            # No-trade zone plus large si volatilité élevée (évite le churning)
+            no_trade_threshold = min(0.10, 0.02 + avg_volatility * 0.5)  # 2-10% selon volatilité
+            
+            # Coûts d'exécution estimés (spread + slippage + frais)
+            execution_cost = 15 + (avg_volatility * 100)  # 15-30 bps selon volatilité
+            
             policy = Policy(
                 mode=mode,
                 cap_daily=cap,
                 ramp_hours=ramp_hours,
                 min_trade=100.0,
                 slippage_limit_bps=50,
-                cooldown_hours=24,
-                notes=f"Derived from ML signals: contradiction={contradiction:.2f}, confidence={confidence:.2f}"
+                signals_ttl_seconds=self._signals_ttl_seconds,
+                plan_cooldown_hours=self._plan_cooldown_hours,
+                no_trade_threshold_pct=no_trade_threshold,
+                execution_cost_bps=min(100, int(execution_cost)),  # Cap à 100 bps
+                notes=f"Derived from ML signals: contradiction={contradiction:.2f}, confidence={confidence:.2f}, vol={avg_volatility:.3f}"
             )
             
             logger.debug(f"Execution policy derived: mode={mode}, cap={cap:.1%}, "
@@ -411,14 +466,21 @@ class GovernanceEngine:
             return None
 
     async def freeze_system(self, reason: str, duration_minutes: Optional[int] = None) -> bool:
-        """Freeze le système (mode d'urgence)"""
+        """Freeze le système (mode d'urgence) avec TTL optionnel"""
         try:
-            logger.info(f"Freezing system: {reason}")
+            logger.info(f"Freezing system: {reason} (TTL: {duration_minutes}min)" if duration_minutes else f"Freezing system: {reason}")
             
             # Set governance mode to freeze
             self.current_state.governance_mode = "freeze"
             self.current_state.system_status = "frozen"
             self.current_state.last_update = datetime.now()
+            
+            # Store auto-unfreeze time if TTL specified
+            if duration_minutes:
+                self.current_state.auto_unfreeze_at = datetime.now() + timedelta(minutes=duration_minutes)
+                logger.info(f"Auto-unfreeze scheduled for: {self.current_state.auto_unfreeze_at}")
+            else:
+                self.current_state.auto_unfreeze_at = None
             
             # Update execution policy to freeze mode
             self.current_state.execution_policy = Policy(
@@ -426,7 +488,7 @@ class GovernanceEngine:
                 cap_daily=0.01,
                 ramp_hours=1,
                 cooldown_hours=168,  # 1 week
-                notes=f"System frozen: {reason}"
+                notes=f"System frozen: {reason}" + (f" (auto-unfreeze: {duration_minutes}min)" if duration_minutes else "")
             )
             
             logger.info("System successfully frozen")
@@ -445,6 +507,7 @@ class GovernanceEngine:
             self.current_state.governance_mode = "manual"
             self.current_state.system_status = "operational"
             self.current_state.last_update = datetime.now()
+            self.current_state.auto_unfreeze_at = None  # Clear auto-unfreeze
             
             # Derive normal execution policy
             self.current_state.execution_policy = self._derive_execution_policy()
@@ -456,29 +519,330 @@ class GovernanceEngine:
             logger.error(f"Error unfreezing system: {e}")
             return False
 
+    async def check_auto_unfreeze(self) -> bool:
+        """Vérifie et exécute auto-unfreeze si TTL écoulé"""
+        try:
+            if (self.current_state.governance_mode == "freeze" and 
+                self.current_state.auto_unfreeze_at and 
+                datetime.now() >= self.current_state.auto_unfreeze_at):
+                
+                logger.info("Auto-unfreeze TTL expired, unfreezing system")
+                await self.unfreeze_system()
+                return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error checking auto-unfreeze: {e}")
+            return False
+
+    async def review_plan(self, plan_id: str, reviewed_by: str, notes: Optional[str] = None, expected_etag: Optional[str] = None) -> bool:
+        """Transition DRAFT → REVIEWED with optional ETag validation"""
+        try:
+            plan = self._find_plan_by_id(plan_id)
+            if not plan:
+                logger.error(f"Plan {plan_id} not found")
+                return False
+            
+            # ETag validation if provided
+            if expected_etag and not self.validate_etag(plan_id, expected_etag):
+                logger.error(f"ETag validation failed for plan {plan_id}")
+                return False
+                
+            if plan.status != "DRAFT":
+                logger.error(f"Plan {plan_id} is not in DRAFT state (current: {plan.status})")
+                return False
+            
+            # Update plan state
+            plan.status = "REVIEWED"
+            plan.reviewed_at = datetime.now()
+            plan.reviewed_by = reviewed_by
+            plan.review_notes = notes
+            plan.version += 1
+            plan.etag = f"etag_{datetime.now().timestamp()}"
+            
+            self.current_state.last_update = datetime.now()
+            logger.info(f"Plan {plan_id} reviewed by {reviewed_by}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error reviewing plan {plan_id}: {e}")
+            return False
+
+    async def approve_plan(self, plan_id: str, approved_by: str, notes: Optional[str] = None, expected_etag: Optional[str] = None) -> bool:
+        """Transition REVIEWED → APPROVED with optional ETag validation"""
+        try:
+            plan = self._find_plan_by_id(plan_id)
+            if not plan:
+                logger.error(f"Plan {plan_id} not found")
+                return False
+            
+            # ETag validation if provided
+            if expected_etag and not self.validate_etag(plan_id, expected_etag):
+                logger.error(f"ETag validation failed for plan {plan_id}")
+                return False
+                
+            if plan.status != "REVIEWED":
+                logger.error(f"Plan {plan_id} is not in REVIEWED state (current: {plan.status})")
+                return False
+            
+            # Update plan state
+            plan.status = "APPROVED"
+            plan.approved_at = datetime.now()
+            plan.approved_by = approved_by
+            plan.approval_notes = notes
+            plan.version += 1
+            plan.etag = f"etag_{datetime.now().timestamp()}"
+            
+            self.current_state.last_update = datetime.now()
+            logger.info(f"Plan {plan_id} approved by {approved_by}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error approving plan {plan_id}: {e}")
+            return False
+
+    async def activate_plan(self, plan_id: str, expected_etag: Optional[str] = None) -> bool:
+        """Transition APPROVED → ACTIVE with optional ETag validation"""
+        try:
+            plan = self._find_plan_by_id(plan_id)
+            if not plan:
+                logger.error(f"Plan {plan_id} not found")
+                return False
+            
+            # ETag validation if provided
+            if expected_etag and not self.validate_etag(plan_id, expected_etag):
+                logger.error(f"ETag validation failed for plan {plan_id}")
+                return False
+                
+            if plan.status != "APPROVED":
+                logger.error(f"Plan {plan_id} is not in APPROVED state (current: {plan.status})")
+                return False
+            
+            # Deactivate current active plan if any
+            if self.current_state.current_plan and self.current_state.current_plan.status == "ACTIVE":
+                self.current_state.current_plan.status = "EXECUTED"
+                self.current_state.current_plan.executed_at = datetime.now()
+                logger.info(f"Previous plan {self.current_state.current_plan.plan_id} marked as executed")
+            
+            # Activate new plan
+            plan.status = "ACTIVE"
+            plan.activated_at = datetime.now()
+            plan.version += 1
+            plan.etag = f"etag_{datetime.now().timestamp()}"
+            
+            # Move to current plan
+            self.current_state.current_plan = plan
+            if self.current_state.proposed_plan and self.current_state.proposed_plan.plan_id == plan_id:
+                self.current_state.proposed_plan = None
+            
+            self.current_state.last_update = datetime.now()
+            logger.info(f"Plan {plan_id} activated")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error activating plan {plan_id}: {e}")
+            return False
+
+    async def execute_plan(self, plan_id: str, expected_etag: Optional[str] = None) -> bool:
+        """Transition ACTIVE → EXECUTED with optional ETag validation"""
+        try:
+            plan = self._find_plan_by_id(plan_id)
+            if not plan:
+                logger.error(f"Plan {plan_id} not found")
+                return False
+            
+            # ETag validation if provided
+            if expected_etag and not self.validate_etag(plan_id, expected_etag):
+                logger.error(f"ETag validation failed for plan {plan_id}")
+                return False
+                
+            if plan.status != "ACTIVE":
+                logger.error(f"Plan {plan_id} is not in ACTIVE state (current: {plan.status})")
+                return False
+            
+            # Update plan state
+            plan.status = "EXECUTED"
+            plan.executed_at = datetime.now()
+            plan.version += 1
+            plan.etag = f"etag_{datetime.now().timestamp()}"
+            
+            self.current_state.last_update = datetime.now()
+            logger.info(f"Plan {plan_id} marked as executed")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error executing plan {plan_id}: {e}")
+            return False
+
+    async def cancel_plan(self, plan_id: str, cancelled_by: str, reason: Optional[str] = None, expected_etag: Optional[str] = None) -> bool:
+        """Cancel plan from any state → CANCELLED with optional ETag validation"""
+        try:
+            plan = self._find_plan_by_id(plan_id)
+            if not plan:
+                logger.error(f"Plan {plan_id} not found")
+                return False
+            
+            # ETag validation if provided
+            if expected_etag and not self.validate_etag(plan_id, expected_etag):
+                logger.error(f"ETag validation failed for plan {plan_id}")
+                return False
+                
+            if plan.status in ["EXECUTED", "CANCELLED"]:
+                logger.error(f"Plan {plan_id} cannot be cancelled (current: {plan.status})")
+                return False
+            
+            # Update plan state
+            plan.status = "CANCELLED"
+            plan.cancelled_at = datetime.now()
+            plan.notes = f"{plan.notes or ''} | Cancelled by {cancelled_by}: {reason or 'No reason provided'}"
+            plan.version += 1
+            plan.etag = f"etag_{datetime.now().timestamp()}"
+            
+            # Remove from active positions if needed
+            if self.current_state.current_plan and self.current_state.current_plan.plan_id == plan_id:
+                self.current_state.current_plan = None
+            if self.current_state.proposed_plan and self.current_state.proposed_plan.plan_id == plan_id:
+                self.current_state.proposed_plan = None
+            
+            self.current_state.last_update = datetime.now()
+            logger.info(f"Plan {plan_id} cancelled by {cancelled_by}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error cancelling plan {plan_id}: {e}")
+            return False
+
+    def _find_plan_by_id(self, plan_id: str) -> Optional[DecisionPlan]:
+        """Helper to find plan by ID in current state"""
+        if self.current_state.current_plan and self.current_state.current_plan.plan_id == plan_id:
+            return self.current_state.current_plan
+        if self.current_state.proposed_plan and self.current_state.proposed_plan.plan_id == plan_id:
+            return self.current_state.proposed_plan
+        return None
+
+    def validate_etag(self, plan_id: str, provided_etag: str) -> bool:
+        """
+        Valide l'ETag pour le contrôle de concurrence optimiste
+        Retourne True si l'ETag correspond, False sinon
+        """
+        plan = self._find_plan_by_id(plan_id)
+        if not plan:
+            logger.warning(f"Plan {plan_id} not found for ETag validation")
+            return False
+        
+        current_etag = plan.etag
+        if current_etag != provided_etag:
+            logger.warning(f"ETag mismatch for plan {plan_id}: expected {current_etag}, got {provided_etag}")
+            return False
+        
+        logger.debug(f"ETag validation successful for plan {plan_id}")
+        return True
+
+    def is_change_within_no_trade_zone(self, current_weights: Dict[str, float], target_weights: Dict[str, float]) -> Tuple[bool, Dict[str, float]]:
+        """
+        Vérifie si les changements d'allocation respectent la no-trade zone
+        Retourne: (within_zone, changes_dict)
+        """
+        try:
+            policy = self.current_state.execution_policy
+            no_trade_threshold = policy.no_trade_threshold_pct if policy else 0.02
+            
+            changes = {}
+            all_within_zone = True
+            
+            # Vérifier tous les assets (union des deux dictionnaires)
+            all_symbols = set(current_weights.keys()) | set(target_weights.keys())
+            
+            for symbol in all_symbols:
+                current_weight = current_weights.get(symbol, 0.0)
+                target_weight = target_weights.get(symbol, 0.0)
+                change = abs(target_weight - current_weight)
+                
+                changes[symbol] = {
+                    'current': current_weight,
+                    'target': target_weight,
+                    'change': change,
+                    'within_zone': change <= no_trade_threshold
+                }
+                
+                if change > no_trade_threshold:
+                    all_within_zone = False
+            
+            logger.debug(f"No-trade zone check: threshold={no_trade_threshold:.1%}, all_within={all_within_zone}")
+            return all_within_zone, changes
+            
+        except Exception as e:
+            logger.error(f"Error checking no-trade zone: {e}")
+            return False, {}
+
+    def estimate_execution_cost(self, target_weights: Dict[str, float], current_portfolio_usd: float = 100000) -> Dict[str, Any]:
+        """
+        Estime les coûts d'exécution pour un changement d'allocation
+        Retourne: dict avec détails des coûts
+        """
+        try:
+            policy = self.current_state.execution_policy
+            execution_cost_bps = policy.execution_cost_bps if policy else 15
+            
+            # Calcul des volumes de trading nécessaires
+            total_volume = 0
+            trade_details = {}
+            
+            for symbol, target_weight in target_weights.items():
+                current_weight = 0  # Simplification - dans une vraie implémentation, on lirait le portefeuille actuel
+                weight_change = abs(target_weight - current_weight)
+                trade_volume_usd = weight_change * current_portfolio_usd
+                
+                trade_details[symbol] = {
+                    'volume_usd': trade_volume_usd,
+                    'cost_bps': execution_cost_bps,
+                    'estimated_cost_usd': trade_volume_usd * execution_cost_bps / 10000
+                }
+                
+                total_volume += trade_volume_usd
+            
+            total_cost_usd = total_volume * execution_cost_bps / 10000
+            cost_percentage = (total_cost_usd / current_portfolio_usd) * 100
+            
+            execution_summary = {
+                'total_volume_usd': total_volume,
+                'total_cost_usd': total_cost_usd,
+                'cost_percentage': cost_percentage,
+                'cost_bps': execution_cost_bps,
+                'trade_details': trade_details,
+                'cost_efficient': cost_percentage < 0.5  # Flag si coût < 0.5% du portfolio
+            }
+            
+            logger.debug(f"Execution cost estimate: ${total_cost_usd:.2f} ({cost_percentage:.2f}%)")
+            return execution_summary
+            
+        except Exception as e:
+            logger.error(f"Error estimating execution cost: {e}")
+            return {'error': str(e)}
+
     async def approve_decision(self, decision_id: str, approved: bool, reason: Optional[str] = None) -> bool:
-        """Approve ou reject une décision"""
+        """Legacy method - redirect to approve_plan for compatibility"""
         try:
             logger.info(f"Decision {decision_id}: approved={approved}, reason={reason}")
             
             if approved:
-                # Move proposed plan to current
-                if self.current_state.proposed_plan:
-                    self.current_state.current_plan = self.current_state.proposed_plan
-                    self.current_state.current_plan.status = "ACTIVE"
-                    self.current_state.proposed_plan = None
-                    logger.info("Decision approved and activated")
+                # Try to find and approve plan
+                plan = self._find_plan_by_id(decision_id)
+                if plan:
+                    if plan.status == "DRAFT":
+                        await self.review_plan(decision_id, "system", "Auto-reviewed for approval")
+                    if plan.status == "REVIEWED":
+                        await self.approve_plan(decision_id, "system", reason)
+                    if plan.status == "APPROVED":
+                        await self.activate_plan(decision_id)
+                    return True
                 else:
-                    logger.warning("No proposed plan to approve")
+                    logger.warning("No plan found to approve")
+                    return False
             else:
-                # Reject proposed plan
-                if self.current_state.proposed_plan:
-                    self.current_state.proposed_plan.status = "CANCELLED"
-                    self.current_state.proposed_plan = None
-                    logger.info("Decision rejected")
-            
-            self.current_state.last_update = datetime.now()
-            return True
+                # Cancel the plan
+                return await self.cancel_plan(decision_id, "system", reason)
             
         except Exception as e:
             logger.error(f"Error approving decision: {e}")
@@ -511,10 +875,44 @@ class GovernanceEngine:
             logger.error(f"Error setting governance mode: {e}")
             return False
 
-    async def create_proposed_plan(self, targets: List[Dict], reason: str = "New proposal") -> bool:
-        """Crée un plan proposé pour tester les états"""
+    def can_publish_new_plan(self) -> Tuple[bool, str]:
+        """
+        Vérifie si on peut publier un nouveau plan (respecte le cooldown)
+        Retourne: (can_publish, reason)
+        """
+        try:
+            policy = self.current_state.execution_policy
+            if not policy:
+                return False, "No execution policy available"
+            
+            # Calculer le temps restant du cooldown
+            time_since_last = (datetime.now() - self._last_plan_publication).total_seconds()
+            cooldown_seconds = policy.plan_cooldown_hours * 3600
+            
+            if time_since_last < cooldown_seconds:
+                remaining_hours = (cooldown_seconds - time_since_last) / 3600
+                return False, f"Cooldown active: {remaining_hours:.1f}h remaining"
+            
+            return True, "Cooldown expired, can publish"
+            
+        except Exception as e:
+            logger.error(f"Error checking cooldown: {e}")
+            return False, f"Error checking cooldown: {e}"
+
+    async def create_proposed_plan(self, targets: List[Dict], reason: str = "New proposal", force_override_cooldown: bool = False) -> Tuple[bool, str]:
+        """
+        Crée un plan proposé en respectant le cooldown
+        Retourne: (success, message)
+        """
         try:
             logger.info(f"Creating proposed plan: {reason}")
+            
+            # Vérifier le cooldown (sauf si force override)
+            if not force_override_cooldown:
+                can_publish, cooldown_reason = self.can_publish_new_plan()
+                if not can_publish:
+                    logger.warning(f"Plan creation blocked by cooldown: {cooldown_reason}")
+                    return False, f"Cannot publish plan: {cooldown_reason}"
             
             # Convert targets to Target objects
             target_objects = []
@@ -525,8 +923,9 @@ class GovernanceEngine:
                 weight = target.get("weight", 0.0)
                 
                 if not symbol or weight <= 0:
-                    logger.error(f"Invalid target: {target}")
-                    return False
+                    error_msg = f"Invalid target: {target}"
+                    logger.error(error_msg)
+                    return False, error_msg
                     
                 target_objects.append(Target(symbol=symbol, weight=weight))
                 total_weight += weight
@@ -551,12 +950,17 @@ class GovernanceEngine:
             self.current_state.proposed_plan = proposed_plan
             self.current_state.last_update = datetime.now()
             
-            logger.info(f"Proposed plan created: {proposed_plan.plan_id}")
-            return True
+            # Marquer le timestamp de publication
+            self._last_plan_publication = datetime.now()
+            
+            success_msg = f"Proposed plan created: {proposed_plan.plan_id}"
+            logger.info(success_msg)
+            return True, success_msg
             
         except Exception as e:
-            logger.error(f"Error creating proposed plan: {e}")
-            return False
+            error_msg = f"Error creating proposed plan: {e}"
+            logger.error(error_msg)
+            return False, error_msg
 
     def _extract_real_volatility_signals(self, ml_predictions: Dict[str, Any]) -> Dict[str, float]:
         """Extrait les signaux de volatilité depuis les vraies prédictions ML"""

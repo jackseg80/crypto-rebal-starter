@@ -1,0 +1,13 @@
+apiVersion: 1
+
+providers:
+  # Phase 2A Alert System Dashboards
+  - name: 'crypto-rebal-alerts'
+    orgId: 1
+    folder: 'Crypto Rebal'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/crypto-rebal

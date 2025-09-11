@@ -84,6 +84,7 @@ from api.unified_ml_endpoints import router as ml_router
 from api.multi_asset_endpoints import router as multi_asset_router
 from api.backtesting_endpoints import router as backtesting_router
 from api.alerts_endpoints import router as alerts_router
+from api.strategy_endpoints import router as strategy_router
 from api.exceptions import (
     CryptoRebalancerException, APIException, ValidationException, 
     ConfigurationException, TradingException, DataException, ErrorCodes
@@ -1560,6 +1561,7 @@ app.include_router(ml_router)
 app.include_router(multi_asset_router)
 app.include_router(backtesting_router)
 app.include_router(advanced_analytics_router)
+app.include_router(strategy_router)
 
 # ---------- Portfolio Analytics ----------
 @app.get("/portfolio/metrics")

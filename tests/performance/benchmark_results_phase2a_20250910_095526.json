@@ -1,0 +1,110 @@
+{
+  "timestamp": "2025-09-10T09:55:26.514419",
+  "redis_url": null,
+  "phase": "2A",
+  "single_threaded": {
+    "mode": "In_Memory_Cascade",
+    "store_latency": {
+      "p50": 0.040699998862692155,
+      "p95": 0.15359999815700576,
+      "p99": 0.15359999815700576,
+      "mean": 0.06013333343920143,
+      "min": 0.03520000245771371,
+      "max": 0.15359999815700576,
+      "count": 6
+    },
+    "get_latency": {
+      "p50": 0.024150001991074532,
+      "p95": 0.03179999839630909,
+      "p99": 0.07240000195452012,
+      "mean": 0.025648000082583167,
+      "min": 0.022099997295299545,
+      "max": 0.07240000195452012,
+      "count": 100
+    },
+    "storage_metrics": {
+      "total_alerts": 6,
+      "active_alerts": 6,
+      "storage_mode": "in_memory",
+      "redis_failures": 0,
+      "file_failures": 0,
+      "is_degraded": true
+    }
+  },
+  "concurrent": {
+    "concurrent_latency": {
+      "p50": 0.0025000008463393897,
+      "p95": 0.00419999923906289,
+      "p99": 0.013100001524435356,
+      "mean": 0.0028326000610832125,
+      "min": 0.0020999978005420417,
+      "max": 0.017000002117129043,
+      "count": 500
+    },
+    "throughput_ops_per_sec": 80445.34542382545,
+    "total_operations": 500,
+    "total_time_sec": 0.006215400000655791,
+    "threads": 10
+  },
+  "fallback_cascade": {
+    "memory": {
+      "mode": "Memory",
+      "store_latency": {
+        "p50": 0.04385000102047343,
+        "p95": 0.10339999789721332,
+        "p99": 0.10339999789721332,
+        "mean": 0.05264999951274755,
+        "min": 0.03479999941191636,
+        "max": 0.10339999789721332,
+        "count": 6
+      },
+      "get_latency": {
+        "p50": 0.02680000034160912,
+        "p95": 0.03310000101919286,
+        "p99": 0.06949999806238338,
+        "mean": 0.027417999917815905,
+        "min": 0.023399999918183312,
+        "max": 0.06949999806238338,
+        "count": 100
+      },
+      "storage_metrics": {
+        "total_alerts": 6,
+        "active_alerts": 6,
+        "storage_mode": "in_memory",
+        "redis_failures": 0,
+        "file_failures": 0,
+        "is_degraded": true
+      }
+    }
+  },
+  "legacy_comparison": {
+    "mode": "Legacy_File",
+    "store_latency": {
+      "p50": 11.394299999665236,
+      "p95": 12.460199999623,
+      "p99": 12.460199999623,
+      "mean": 11.262383333208467,
+      "min": 9.994100000767503,
+      "max": 12.460199999623,
+      "count": 6
+    },
+    "get_latency": {
+      "p50": 0.6965499997022562,
+      "p95": 0.8836000015435275,
+      "p99": 12.68270000218763,
+      "mean": 0.8380600002055871,
+      "min": 0.6433999988075811,
+      "max": 12.68270000218763,
+      "count": 100
+    },
+    "storage_metrics": {
+      "total_alerts": 6,
+      "active_alerts": 6,
+      "storage_mode": "in_memory",
+      "redis_failures": 0,
+      "file_failures": 0,
+      "is_degraded": true
+    }
+  },
+  "error": "'charmap' codec can't encode character '\\u2713' in position 33: character maps to <undefined>"
+}

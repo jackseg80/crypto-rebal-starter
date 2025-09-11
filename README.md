@@ -57,6 +57,16 @@ Architecture **single-source-of-truth** garantissant la cohérence des données 
 - **Gouvernance intégrée** : Suggestions automatiques freeze/slow selon sévérité
 - **Respect Phase 0** : Non-intrusif, transparence totale, contrôle utilisateur
 
+## 🚨 **Système d'Alertes Phase 2A : Phase-Aware Alerting** ✅
+- **Intelligence Phase-Aware** : Système d'alertes contextuel avec phase lagging (15min) et persistance (3 ticks)
+- **Gating Matrix Advanced** : Activation/atténuation/blocage des alertes par phase (BTC/ETH/Large/Alt)
+- **Neutralisation Anti-Circularité** : Seuil contradiction (0.70) avec bypass automatique
+- **Seuils Adaptatifs** : Calcul dynamique `base × phase_factor × market_factor` selon contexte
+- **Format Unifié** : Action → Impact € → 2 raisons → Détails avec microcopy français (6 types × 3 sévérités)
+- **UI Temps Réel** : Toast dismissal localStorage, Clear All Alerts, filtres, modal détails
+- **Métriques Prometheus** : 10+ métriques Phase 2A (transitions, gating, neutralisations, performance)
+- **Tests Production** : 8 tests unitaires, 6 tests d'intégration, benchmarks (0.9μs gating, 1M+ ops/sec)
+
 ## 📊 **Analytics Avancés**
 - **Métriques de performance** : Ratios Sharpe, Sortino, Calmar, Omega
 - **Analyse de drawdown** : Périodes, durées, taux de récupération

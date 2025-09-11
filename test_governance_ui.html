@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test - Nouvelle UI Decision Engine</title>
+    <link rel="stylesheet" href="/static/shared-theme.css">
+    <link rel="stylesheet" href="/static/components/governance-panel.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: var(--theme-background);
+            font-family: var(--font-sans);
+            color: var(--theme-text);
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .test-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .test-comparison {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+        .responsive-test {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        .mobile-preview, .desktop-preview {
+            flex: 1;
+            border: 2px solid var(--theme-border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .mobile-preview {
+            max-width: 375px;
+        }
+        .preview-header {
+            background: var(--theme-surface);
+            padding: 0.5rem 1rem;
+            font-weight: 600;
+            color: var(--theme-text-secondary);
+            border-bottom: 1px solid var(--theme-border);
+        }
+        .preview-content {
+            padding: 1rem;
+            background: var(--theme-background);
+            max-width: 100%;
+            overflow-x: auto;
+        }
+        .test-notes {
+            background: var(--theme-surface);
+            padding: 1.5rem;
+            border-radius: 8px;
+            border-left: 4px solid var(--brand-primary);
+        }
+        .test-notes h3 {
+            margin-top: 0;
+            color: var(--brand-primary);
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <header class="test-header">
+            <h1>🎨 Test - Nouvelle UI Decision Engine</h1>
+            <p>Restructuration des sections ML Signals et System Status en cartes compactes</p>
+        </header>
+
+        <div class="test-comparison">
+            <div class="desktop-preview">
+                <div class="preview-header">🖥️ Vue Desktop</div>
+                <div class="preview-content">
+                    <div id="governance-container-desktop"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="responsive-test">
+            <div class="mobile-preview">
+                <div class="preview-header">📱 Vue Mobile</div>
+                <div class="preview-content" style="max-width: 343px;">
+                    <div id="governance-container-mobile"></div>
+                </div>
+            </div>
+            <div class="test-notes">
+                <h3>✅ Améliorations apportées</h3>
+                <ul>
+                    <li><strong>Distance visuelle réduite</strong> : Information groupée dans des cartes compactes</li>
+                    <li><strong>Lisibilité améliorée</strong> : Plus besoin de chercher l'info à l'autre bout de l'écran</li>
+                    <li><strong>Design cohérent</strong> : Pattern de cartes réutilisable et élégant</li>
+                    <li><strong>Responsive design</strong> : Adaptation mobile avec colonnes empilées</li>
+                    <li><strong>Expérience utilisateur</strong> : Scan visuel plus rapide et intuitif</li>
+                </ul>
+                
+                <h3>🔧 Détails techniques</h3>
+                <ul>
+                    <li><strong>ML Signals</strong> : Grid 2x1 avec cartes de 200px min-width</li>
+                    <li><strong>Status Section</strong> : Grid responsive avec cartes de 180px min-width</li>
+                    <li><strong>Barres compactes</strong> : 6px de hauteur au lieu de 20px</li>
+                    <li><strong>Breakpoints</strong> : 768px (tablet), 480px (mobile)</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { GovernancePanel } from '/static/components/GovernancePanel.js';
+
+        // Simuler des données ML pour le test
+        const mockMLSignals = {
+            confidence: 0.78,
+            decision_score: 0.65
+        };
+
+        const mockGovernance = {
+            current_state: 'ACTIVE',
+            mode: 'ai_assisted',
+            active_policy: { mode: 'Normal', cap_daily: 0.08 },
+            contradiction_index: 0.15,
+            last_update: new Date().toISOString()
+        };
+
+        // Mock du store global
+        window.store = {
+            getGovernanceStatus: () => ({
+                state: 'ACTIVE',
+                mode: 'ai_assisted',
+                confidence: 'High',
+                contradiction_level: 'Low'
+            }),
+            get: (key) => {
+                if (key === 'governance') return mockGovernance;
+                if (key === 'governance.ml_signals') return mockMLSignals;
+                return null;
+            },
+            syncGovernanceState: () => Promise.resolve(),
+            syncMLSignals: () => Promise.resolve()
+        };
+
+        // Initialiser les deux panels
+        const desktopPanel = new GovernancePanel(document.getElementById('governance-container-desktop'));
+        const mobilePanel = new GovernancePanel(document.getElementById('governance-container-mobile'));
+
+        // Forcer l'expansion pour le test
+        setTimeout(() => {
+            desktopPanel.isVisible = true;
+            mobilePanel.isVisible = true;
+            
+            // Mettre à jour avec des données de test
+            desktopPanel.updateMLSignals(mockMLSignals);
+            mobilePanel.updateMLSignals(mockMLSignals);
+            
+            // Afficher le contenu
+            document.getElementById('governance-content').style.display = 'block';
+            document.querySelectorAll('#governance-content').forEach(el => {
+                el.style.display = 'block';
+            });
+            
+            // Simuler une mise à jour de données
+            setTimeout(() => {
+                const updatedSignals = {
+                    confidence: 0.82,
+                    decision_score: 0.71
+                };
+                desktopPanel.updateMLSignals(updatedSignals);
+                mobilePanel.updateMLSignals(updatedSignals);
+            }, 2000);
+        }, 500);
+    </script>
+</body>
+</html>

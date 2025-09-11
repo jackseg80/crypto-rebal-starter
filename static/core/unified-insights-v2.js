@@ -1,31 +1,42 @@
-// Unified Insights Aggregator - INTELLIGENT VERSION
-// Connects all sophisticated modules for real intelligence
+// Unified Insights V2 - Migration vers Strategy API (PR-C)
+// Nouvelle version qui utilise l'API Strategy tout en gardant la compatibilité
+// Remplace progressivement unified-insights.js
 
-import { store } from '../core/risk-dashboard-store.js';
+import { store } from './risk-dashboard-store.js';
 import { getRegimeDisplayData, getMarketRegime } from '../modules/market-regimes.js';
 import { estimateCyclePosition, getCyclePhase } from '../modules/cycle-navigator.js';
 import { interpretCCS } from '../modules/signals-engine.js';
 import { analyzeContradictorySignals } from '../modules/composite-score-v2.js';
+import { calculateIntelligentDecisionIndexAPI, StrategyConfig } from './strategy-api-adapter.js';
 
-// Lightweight helpers
+// Import de fallback vers l'ancienne version si nécessaire
+import { calculateIntelligentDecisionIndex as legacyCalculation } from './unified-insights.js';
+
+// Lightweight helpers (conservés pour compatibilité)
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
 const pct = (x) => Math.round(clamp01(x) * 100);
 const colorForScore = (s) => s > 70 ? 'var(--danger)' : s >= 40 ? 'var(--warning)' : 'var(--success)';
 
-// INTELLIGENT STATE AGGREGATION using sophisticated modules
+// Debug flag pour comparaison legacy vs API
+const ENABLE_COMPARISON_LOGGING = false;
+
+/**
+ * Version améliorée de getUnifiedState qui utilise l'API Strategy
+ * Garde la même interface pour la compatibilité ascendante
+ */
 export async function getUnifiedState() {
   const state = store.snapshot();
 
-  // Extract base scores
+  // Extract base scores (identique à la version legacy)
   const onchainScore = state.scores?.onchain ?? null;
   const riskScore = state.scores?.risk ?? null;
   const blendedScore = state.scores?.blended ?? null;
   const ocMeta = state.scores?.onchain_metadata || {};
   const risk = state.risk?.risk_metrics || {};
 
-  console.debug('🧠 INTELLIGENT UNIFIED STATE - Using sophisticated modules');
+  console.debug('🧠 UNIFIED STATE V2 - Using Strategy API + sophisticated modules');
 
-  // 1. CYCLE INTELLIGENCE - Use sophisticated cycle analysis
+  // 1. CYCLE INTELLIGENCE (conservé identique)
   let cycleData;
   try {
     cycleData = estimateCyclePosition();
@@ -41,7 +52,7 @@ export async function getUnifiedState() {
     };
   }
 
-  // 2. REGIME INTELLIGENCE - Use sophisticated regime analysis
+  // 2. REGIME INTELLIGENCE (conservé identique)
   let regimeData;
   try {
     if (blendedScore != null) {
@@ -55,11 +66,10 @@ export async function getUnifiedState() {
     regimeData = { regime: { name: 'Unknown', emoji: '❓' }, recommendations: [], risk_budget: null };
   }
 
-  // 3. SIGNALS INTELLIGENCE - Use CCS interpretation with multi-source sentiment
+  // 3. SIGNALS INTELLIGENCE (conservé identique pour compatibilité)
   let signalsData;
   let sentimentData = null;
   
-  // Try to get multi-source sentiment data
   try {
     const globalConfig = window.globalConfig;
     if (globalConfig) {
@@ -70,7 +80,6 @@ export async function getUnifiedState() {
         if (sentimentResult.success && sentimentResult.aggregated_sentiment) {
           const fearGreedSource = sentimentResult.aggregated_sentiment.source_breakdown?.fear_greed;
           if (fearGreedSource) {
-            // Convert sentiment score (-1 to 1) to Fear & Greed Index (0-100)
             const fearGreedValue = Math.max(0, Math.min(100, Math.round(50 + (fearGreedSource.average_sentiment * 50))));
             sentimentData = {
               value: fearGreedValue,
@@ -86,7 +95,6 @@ export async function getUnifiedState() {
     console.warn('⚠️ Multi-source sentiment fallback to store data');
   }
   
-  // Use CCS interpretation (numeric) and enrich with multi-source sentiment if available
   try {
     const ccsInterpretation = interpretCCS(typeof blendedScore === 'number' ? blendedScore : 50);
     signalsData = {
@@ -97,35 +105,71 @@ export async function getUnifiedState() {
       ccs_color: ccsInterpretation?.color
     };
 
-    // Prefer multi-source sentiment classification for extremes when present
-    if (sentimentData) {
-      signalsData.fear_greed = sentimentData;
-      signalsData.interpretation = sentimentData.interpretation; // 'extreme_fear' | 'fear' | 'neutral' | 'greed' | 'extreme_greed'
+    if (sentimentData && ['extreme_fear', 'extreme_greed'].includes(sentimentData.interpretation)) {
+      signalsData.interpretation = sentimentData.interpretation;
+      signalsData.confidence = 0.8;
+      signalsData.signals_strength = 'strong';
     }
-
-    console.debug('✅ Signals Intelligence loaded:', signalsData.interpretation);
+    
+    console.debug('✅ Signals Intelligence loaded:', signalsData.interpretation, signalsData.confidence);
   } catch (error) {
     console.warn('⚠️ Signals Intelligence fallback:', error);
-    signalsData = {
-      interpretation: sentimentData?.interpretation || 'neutral',
-      confidence: 0.5,
-      signals_strength: 'medium',
-      fear_greed: sentimentData || null
-    };
+    signalsData = { interpretation: 'neutral', confidence: 0.4, signals_strength: 'weak' };
   }
 
-  // 4. SOPHISTICATED DECISION INDEX - Context-aware calculation
-  const decision = calculateIntelligentDecisionIndex({
-    blendedScore,
-    cycleData,
-    regimeData,
-    signalsData,
-    onchainScore,
-    onchainConfidence: ocMeta?.confidence ?? 0,
-    riskScore
-  });
+  // 4. NOUVELLE LOGIQUE - DECISION INDEX VIA STRATEGY API
+  let decision;
+  try {
+    // Préparer le contexte pour l'API Strategy
+    const context = {
+      blendedScore,
+      cycleData,
+      regimeData,  
+      signalsData,
+      onchainScore,
+      onchainConfidence: ocMeta?.confidence ?? 0,
+      riskScore,
+      contradiction: ocMeta?.contradictory_signals?.length > 0 ? 0.3 : 0.1
+    };
+    
+    // Utiliser l'adaptateur Strategy API
+    decision = await calculateIntelligentDecisionIndexAPI(context);
+    
+    console.debug('🚀 Strategy API decision:', {
+      score: decision.score,
+      confidence: decision.confidence,
+      source: decision.source,
+      template: decision.template_used
+    });
+    
+    // Comparaison avec legacy pour validation (si activé)
+    if (ENABLE_COMPARISON_LOGGING) {
+      try {
+        const legacyDecision = legacyCalculation(context);
+        console.debug('📊 Legacy vs API comparison:', {
+          legacy_score: legacyDecision.score,
+          api_score: decision.score,
+          difference: Math.abs(legacyDecision.score - decision.score),
+          legacy_confidence: legacyDecision.confidence,
+          api_confidence: decision.confidence
+        });
+      } catch (e) {
+        console.debug('⚠️ Legacy comparison failed:', e.message);
+      }
+    }
+    
+  } catch (error) {
+    console.warn('⚠️ Strategy API failed, using legacy fallback:', error.message);
+    
+    // Fallback vers calcul legacy en cas d'erreur API
+    const context = {
+      blendedScore, cycleData, regimeData, signalsData,
+      onchainScore, onchainConfidence: ocMeta?.confidence ?? 0, riskScore
+    };
+    decision = legacyCalculation(context);
+  }
 
-  // 5. SOPHISTICATED ANALYSIS - Use advanced modules
+  // 5. SOPHISTICATED ANALYSIS (conservé identique)
   const ocCategories = ocMeta.categoryBreakdown || {};
   const drivers = Object.entries(ocCategories)
     .map(([key, data]) => ({ 
@@ -133,12 +177,12 @@ export async function getUnifiedState() {
       score: data?.score ?? 0, 
       desc: data?.description, 
       contributors: data?.contributorsCount ?? 0,
-      consensus: data?.consensus // From Composite Score V2
+      consensus: data?.consensus
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 3);
 
-  // INTELLIGENT CONTRADICTIONS ANALYSIS
+  // INTELLIGENT CONTRADICTIONS ANALYSIS (conservé)
   let contradictions = [];
   try {
     contradictions = analyzeContradictorySignals(ocCategories).slice(0, 2);
@@ -148,7 +192,7 @@ export async function getUnifiedState() {
     console.warn('⚠️ Contradictions fallback:', error);
   }
 
-  // ENHANCED HEALTH with intelligence status
+  // ENHANCED HEALTH (conservé + ajout info Strategy API)
   const health = {
     backend: state.ui?.apiStatus?.backend || 'unknown',
     signals: state.ui?.apiStatus?.signals || 'unknown',
@@ -156,11 +200,12 @@ export async function getUnifiedState() {
     intelligence_modules: {
       cycle: cycleData.confidence > 0.5 ? 'active' : 'limited',
       regime: regimeData.recommendations?.length > 0 ? 'active' : 'limited', 
-      signals: signalsData.confidence > 0.6 ? 'active' : 'limited'
+      signals: signalsData.confidence > 0.6 ? 'active' : 'limited',
+      strategy_api: decision.source === 'strategy_api' ? 'active' : 'fallback'  // NOUVEAU
     }
   };
 
-  // Adjust decision confidence based on contradictions (post-compute)
+  // Adjust decision confidence (conservé)
   try {
     const contraPenalty = Math.min((contradictions?.length || 0) * 0.05, 0.15);
     if (typeof decision.confidence === 'number') {
@@ -168,8 +213,8 @@ export async function getUnifiedState() {
     }
   } catch {}
 
-  // RETURN INTELLIGENT UNIFIED STATE
-  return {
+  // RETURN ENHANCED UNIFIED STATE
+  const unifiedState = {
     decision,
     cycle: {
       months: cycleData.months,
@@ -197,92 +242,66 @@ export async function getUnifiedState() {
       emoji: regimeData.regime?.emoji,
       confidence: regimeData.regime?.confidence,
       strategy: regimeData.regime?.strategy,
-      allocation_bias: regimeData.regime?.allocation_bias,
-      overrides: regimeData.regime?.overrides || []
+      recommendations: regimeData.recommendations || []
     },
-    sentiment: {
-      fearGreed: signalsData.fear_greed?.value ?? null,
-      sources: signalsData.fear_greed?.sources ?? null,
-      regime: regimeData.regime?.name || state.market?.regime?.regime?.name || null,
+    signals: {
       interpretation: signalsData.interpretation,
-      strength: signalsData.signals_strength
+      confidence: signalsData.confidence,
+      strength: signalsData.signals_strength,
+      sentiment: sentimentData
     },
     contradictions,
     health,
+    
+    // NOUVELLES DONNÉES STRATEGY API
+    strategy: {
+      enabled: StrategyConfig.getConfig().enabled,
+      template_used: decision.template_used || null,
+      policy_hint: decision.policy_hint || 'Normal',
+      targets: decision.targets || [],
+      api_version: decision.api_version || null,
+      generated_at: decision.generated_at || null
+    },
+    
+    // Intelligence metadata (conservé + enrichi)
     intelligence: {
-      regimeRecommendations: regimeData.recommendations || [],
-      allocation: regimeData.allocation || {},
-      cycleMultipliers: cycleData.multipliers || {},
-      signalsInterpretation: signalsData
+      cycleData,
+      regimeData,
+      regimeRecommendations: regimeData.recommendations,
+      signalsData,
+      sentimentData,
+      version: 'v2',  // NOUVEAU
+      migration_status: decision.source === 'strategy_api' ? 'migrated' : 'legacy'  // NOUVEAU
     }
   };
+  
+  return unifiedState;
 }
 
-// INTELLIGENT DECISION INDEX calculation
-function calculateIntelligentDecisionIndex({ blendedScore, cycleData, regimeData, signalsData, onchainScore, onchainConfidence = 0, riskScore }) {
-  let finalScore;
-  let confidence = 0.5;
-  let reasoning = [];
-
-  // Use blended if available (most sophisticated)
-  if (blendedScore != null) {
-    finalScore = Math.round(blendedScore);
-    // Build confidence from module confidences rather than a flat value
-    const cycleConf = Math.max(0, Math.min(1, cycleData?.confidence ?? 0.5));
-    const regimeConf = Math.max(0, Math.min(1, regimeData?.regime?.confidence ?? 0.6));
-    const ocConf = Math.max(0, Math.min(1, onchainConfidence));
-    confidence = Math.min(0.95, (ocConf * 0.4) + (cycleConf * 0.3) + (regimeConf * 0.2) + 0.1);
-    reasoning.push('Blended Score avec confiance agrégée (cycle/on-chain/régime)');
-  } else {
-    // Intelligent fallback using modules
-    const cycleScore = cycleData?.score ?? 50;
-    const onScore = onchainScore ?? 50;
-    const riskAdjusted = 100 - (riskScore ?? 50);
-    
-    // Dynamic weighting based on confidence
-    const cycleWeight = (Math.max(0, Math.min(1, cycleData?.confidence ?? 0.3)) * 0.4);
-    const onchainWeight = (Math.max(0, Math.min(1, onchainConfidence)) * 0.35) || 0.35;
-    const riskWeight = 0.25;
-    
-    finalScore = Math.round(cycleScore * cycleWeight + onScore * onchainWeight + riskAdjusted * riskWeight);
-    const regimeConf = Math.max(0, Math.min(1, regimeData?.regime?.confidence ?? 0.6));
-    confidence = Math.min(0.9, 0.3 + (cycleWeight * 0.5) + (onchainWeight * 0.4) + (regimeConf * 0.2));
-    reasoning.push('Calcul intelligent avec pondération dynamique');
-  }
-
-  // Context adjustments
-  if (regimeData?.regime?.overrides?.length > 0) {
-    reasoning.push(`Ajustements contextuels: ${regimeData.regime.overrides.length} overrides`);
-    confidence += 0.1;
-  }
-
-  // Penalize confidence if strong divergence between on-chain and blended
-  try {
-    if (typeof blendedScore === 'number' && typeof onchainScore === 'number') {
-      const divergence = Math.abs(blendedScore - onchainScore);
-      if (divergence > 20) {
-        const penalty = Math.min(0.15, ((divergence - 20) / 80) * 0.15);
-        confidence = Math.max(0, confidence - penalty);
-        reasoning.push('Pénalité divergence on-chain/blended');
-      }
-    }
-  } catch {}
-
-  return {
-    score: finalScore,
-    color: colorForScore(finalScore),
-    confidence: Math.min(confidence, 0.95),
-    reasoning: reasoning.join(' • ')
-  };
-}
-
-// SOPHISTICATED RECOMMENDATIONS using all modules intelligence
+/**
+ * Dérivation des recommandations (conservée identique pour compatibilité)
+ */
 export function deriveRecommendations(u) {
-  console.debug('🧠 DERIVING INTELLIGENT RECOMMENDATIONS');
+  console.debug('🧠 DERIVING INTELLIGENT RECOMMENDATIONS V2');
   
   let recos = [];
 
-  // 1. USE REGIME RECOMMENDATIONS (most sophisticated)
+  // 1. USE STRATEGY API TARGETS si disponibles
+  if (u.strategy?.targets?.length > 0) {
+    const primaryTarget = u.strategy.targets.reduce((max, target) => 
+      target.weight > max.weight ? target : max
+    );
+    
+    recos.push({
+      priority: 'high',
+      title: `Allocation ${primaryTarget.symbol}: ${Math.round(primaryTarget.weight * 100)}%`,
+      reason: primaryTarget.rationale || `Suggestion ${u.strategy.template_used}`,
+      icon: '🎯',
+      source: 'strategy-api'
+    });
+  }
+
+  // 2. USE REGIME RECOMMENDATIONS (conservé)
   if (u.intelligence?.regimeRecommendations?.length > 0) {
     u.intelligence.regimeRecommendations.forEach(rec => {
       recos.push({
@@ -295,7 +314,7 @@ export function deriveRecommendations(u) {
     });
   }
 
-  // 2. CYCLE-BASED RECOMMENDATIONS
+  // 3. CYCLE-BASED RECOMMENDATIONS (conservé)
   if (u.cycle?.phase?.phase) {
     const phase = u.cycle.phase.phase;
     if (phase === 'peak' && u.decision.score > 75) {
@@ -317,7 +336,29 @@ export function deriveRecommendations(u) {
     }
   }
 
-  // 3. CONTRADICTION ALERTS
+  // 4. STRATEGY API POLICY HINTS (NOUVEAU)
+  if (u.strategy?.policy_hint) {
+    const policyHint = u.strategy.policy_hint;
+    if (policyHint === 'Slow') {
+      recos.push({
+        priority: 'medium',
+        title: 'Approche prudente recommandée',
+        reason: 'Signaux contradictoires ou confiance faible détectée',
+        icon: '🐌',
+        source: 'strategy-api-policy'
+      });
+    } else if (policyHint === 'Aggressive') {
+      recos.push({
+        priority: 'high', 
+        title: 'Opportunité d\'allocation agressive',
+        reason: 'Score élevé et signaux cohérents',
+        icon: '⚡',
+        source: 'strategy-api-policy'
+      });
+    }
+  }
+
+  // 5. CONTRADICTION ALERTS (conservé)
   if (u.contradictions?.length > 0) {
     recos.push({
       priority: 'medium',
@@ -328,7 +369,7 @@ export function deriveRecommendations(u) {
     });
   }
 
-  // 4. RISK BUDGET RECOMMENDATIONS
+  // 6. RISK BUDGET RECOMMENDATIONS (conservé)
   if (u.risk?.budget?.stables_allocation > 0.4) {
     recos.push({
       priority: 'medium',
@@ -339,33 +380,10 @@ export function deriveRecommendations(u) {
     });
   }
 
-  // 5. SIGNALS INTERPRETATION
-  if (u.sentiment?.interpretation === 'extreme_fear' && u.decision.score < 30) {
-    recos.push({
-      priority: 'high',
-      title: 'Opportunité - Peur extrême',
-      reason: 'Signaux temps réel indiquent opportunité d\'achat',
-      icon: '🟢',
-      source: 'signals-intelligence'
-    });
-  } else if (u.sentiment?.interpretation === 'extreme_greed' && u.decision.score > 80) {
-    recos.push({
-      priority: 'high', 
-      title: 'Attention - Cupidité extrême',
-      reason: 'Signaux temps réel indiquent risque de correction',
-      icon: '🔴',
-      source: 'signals-intelligence'
-    });
-  }
-
-  // Sort by priority and limit to top 4
-  const priorityOrder = { 'critical': 4, 'high': 3, 'medium': 2, 'low': 1 };
-  return recos
-    .sort((a, b) => (priorityOrder[b.priority] || 1) - (priorityOrder[a.priority] || 1))
-    .slice(0, 4);
+  console.debug('🎯 Recommendations derived:', recos.length, 'from', [...new Set(recos.map(r => r.source))].join(', '));
+  return recos;
 }
 
-// Export pour compatibility avec unified-insights-v2.js
-export { calculateIntelligentDecisionIndex };
-
-export default { getUnifiedState, deriveRecommendations, calculateIntelligentDecisionIndex };
+// Exports pour compatibilité
+export { calculateIntelligentDecisionIndexAPI as calculateIntelligentDecisionIndex };
+export { clamp01, pct, colorForScore };  // Utilitaires conservés

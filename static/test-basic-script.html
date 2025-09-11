@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Basic Script</title>
+</head>
+<body>
+    <h1>🧪 Test Basic Script</h1>
+    <div id="output">Initial state</div>
+    <button onclick="testBasic()">Test Basic</button>
+    <button onclick="testFetch()">Test Fetch</button>
+
+    <script>
+        console.log('✅ Script loaded successfully');
+        
+        function testBasic() {
+            document.getElementById('output').innerHTML = '✅ Basic JavaScript works! ' + new Date().toISOString();
+            console.log('✅ Basic test works');
+        }
+        
+        async function testFetch() {
+            try {
+                console.log('Testing fetch to strategy API...');
+                const response = await fetch('/api/strategy/templates');
+                console.log('Fetch response:', response);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Strategy templates:', data);
+                
+                document.getElementById('output').innerHTML = `
+                    <h3>✅ Fetch Success!</h3>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                console.error('❌ Fetch failed:', error);
+                document.getElementById('output').innerHTML = `
+                    <h3>❌ Fetch Error</h3>
+                    <p>${error.message}</p>
+                `;
+            }
+        }
+        
+        // Auto test on load
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('✅ DOM loaded, running auto test...');
+            setTimeout(testFetch, 1000);
+        });
+    </script>
+</body>
+</html>

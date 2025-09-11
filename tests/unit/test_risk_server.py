@@ -28,10 +28,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Servir les fichiers statiques
-BASE_DIR = Path(__file__).resolve().parent
+# Servir les fichiers statiques (pointer vers le vrai répertoire static)
+BASE_DIR = Path(__file__).resolve().parent.parent.parent  # remonte à la racine du projet
 STATIC_DIR = BASE_DIR / "static"
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 
 # Inclure les routes de risque
 app.include_router(risk_router)

@@ -11,6 +11,7 @@ import logging
 import uuid
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Tuple
+from dataclasses import dataclass
 import socket
 import random
 import json
@@ -19,8 +20,91 @@ from pathlib import Path
 
 from .alert_types import AlertEvaluator, Alert, AlertType, AlertSeverity
 from .alert_storage import AlertStorage
+from .prometheus_metrics import get_alert_metrics
+from ..execution.phase_engine import PhaseEngine, Phase, PhaseState
 
 logger = logging.getLogger(__name__)
+
+@dataclass
+class PhaseSnapshot:
+    """Snapshot de phase avec timestamp pour le lag"""
+    phase: Phase
+    confidence: float
+    persistence_count: int
+    captured_at: datetime
+    contradiction_index: float = 0.0
+
+class PhaseAwareContext:
+    """Gestionnaire de phase laggée avec persistance pour anti-oscillation"""
+    
+    def __init__(self, lag_minutes: int = 15, persistence_ticks: int = 3, metrics=None):
+        self.lag_minutes = lag_minutes
+        self.persistence_ticks = persistence_ticks
+        self.phase_history: List[PhaseSnapshot] = []
+        self.current_lagged_phase: Optional[PhaseSnapshot] = None
+        self.metrics = metrics
+        
+    def update_phase(self, phase_state: PhaseState, contradiction_index: float = 0.0):
+        """Met à jour l'historique de phase et calcule la phase laggée"""
+        now = datetime.utcnow()
+        
+        # Ajouter le snapshot actuel
+        snapshot = PhaseSnapshot(
+            phase=phase_state.phase_now,
+            confidence=phase_state.confidence,
+            persistence_count=phase_state.persistence_count,
+            captured_at=now,
+            contradiction_index=contradiction_index
+        )
+        
+        self.phase_history.append(snapshot)
+        
+        # Nettoyer l'historique > 2 * lag_minutes
+        cutoff = now - timedelta(minutes=self.lag_minutes * 2)
+        self.phase_history = [s for s in self.phase_history if s.captured_at > cutoff]
+        
+        # Calculer la phase laggée
+        lag_cutoff = now - timedelta(minutes=self.lag_minutes)
+        lagged_snapshots = [s for s in self.phase_history if s.captured_at <= lag_cutoff]
+        
+        if lagged_snapshots:
+            # Prendre le plus récent dans la fenêtre laggée
+            candidate = max(lagged_snapshots, key=lambda x: x.captured_at)
+            
+            # Vérifier la persistance: phases similaires consécutives
+            if candidate.persistence_count >= self.persistence_ticks:
+                # Record phase transition if phase changed
+                if self.current_lagged_phase and self.current_lagged_phase.phase != candidate.phase:
+                    if self.metrics:
+                        self.metrics.record_phase_transition(
+                            self.current_lagged_phase.phase.value.lower(),
+                            candidate.phase.value.lower()
+                        )
+                
+                self.current_lagged_phase = candidate
+                
+                # Update current phase metrics
+                if self.metrics:
+                    self.metrics.update_current_lagged_phase(
+                        candidate.phase.value.lower(),
+                        candidate.persistence_count
+                    )
+                
+                logger.debug(f"Phase laggée mise à jour: {candidate.phase.value} "
+                           f"(persistance: {candidate.persistence_count}, "
+                           f"contradiction: {candidate.contradiction_index:.2f})")
+        
+        return self.current_lagged_phase
+    
+    def get_lagged_phase(self) -> Optional[PhaseSnapshot]:
+        """Retourne la phase laggée actuelle"""
+        return self.current_lagged_phase
+    
+    def is_phase_stable(self) -> bool:
+        """Vérifie si la phase laggée est stable (persistance suffisante)"""
+        if not self.current_lagged_phase:
+            return False
+        return self.current_lagged_phase.persistence_count >= self.persistence_ticks
 
 class AlertMetrics:
     """Collecteur de métriques pour observabilité"""
@@ -92,7 +176,8 @@ class AlertEngine:
                  storage: AlertStorage = None,
                  config: Dict[str, Any] = None,
                  config_file_path: Optional[str] = None,
-                 redis_url: Optional[str] = None):
+                 redis_url: Optional[str] = None,
+                 prometheus_registry = None):
         
         self.governance_engine = governance_engine
         self.storage = storage or AlertStorage(redis_url=redis_url)
@@ -102,11 +187,36 @@ class AlertEngine:
         self._config_mtime = 0
         self.config = config or self._load_config()
         
-        # Évaluateur de règles avec config
-        self.evaluator = AlertEvaluator(self.config)
-        
         # Métriques pour observabilité
         self.metrics = AlertMetrics()
+        
+        # Prometheus metrics pour monitoring externe
+        self.prometheus_metrics = get_alert_metrics(registry=prometheus_registry)
+        
+        # Évaluateur de règles avec config
+        self.evaluator = AlertEvaluator(self.config, metrics=self.prometheus_metrics)
+        
+        # Phase-aware context pour lag et persistance
+        phase_config = self.config.get("alerting_config", {}).get("phase_aware", {})
+        self.phase_aware_enabled = phase_config.get("enabled", True)
+        if self.phase_aware_enabled:
+            lag_minutes = phase_config.get("phase_lag_minutes", 15)
+            persistence_ticks = phase_config.get("phase_persistence_ticks", 3)
+            self.phase_context = PhaseAwareContext(lag_minutes, persistence_ticks, metrics=self.prometheus_metrics)
+            self.phase_engine = PhaseEngine()
+            
+            # Initialize Phase 2A metrics
+            self.prometheus_metrics.update_phase_aware_config(True, lag_minutes, persistence_ticks)
+            
+            logger.info(f"Phase-aware alerting enabled: lag={lag_minutes}min, persistence={persistence_ticks}")
+        else:
+            self.phase_context = None
+            self.phase_engine = None
+            
+            # Record disabled state in metrics
+            self.prometheus_metrics.update_phase_aware_config(False, 0, 0)
+            
+            logger.info("Phase-aware alerting disabled")
         
         # État interne
         self.host_id = f"{socket.gethostname()}:{os.getpid()}"
@@ -118,6 +228,66 @@ class AlertEngine:
         self._escalation_cache = {}
         
         logger.info(f"AlertEngine initialized for host {self.host_id} with config: {self.config_file_path}")
+    
+    def get_lagged_phase(self) -> Optional[PhaseSnapshot]:
+        """Retourne la phase laggée actuelle pour utilisation dans gating"""
+        if self.phase_aware_enabled and self.phase_context:
+            return self.phase_context.get_lagged_phase()
+        return None
+    
+    def is_phase_stable(self) -> bool:
+        """Vérifie si la phase laggée est stable (pour gating)"""
+        if self.phase_aware_enabled and self.phase_context:
+            return self.phase_context.is_phase_stable()
+        return False
+    
+    def _check_phase_gating(self, alert_type: AlertType, signals: Dict[str, Any]) -> Tuple[bool, str]:
+        """
+        Vérifie si l'alerte est gatée par la phase actuelle ou neutralisée par contradiction
+        Retourne (allowed, reason)
+        """
+        if not self.phase_aware_enabled or not self.phase_context:
+            return True, "phase_aware_disabled"
+        
+        lagged_phase = self.phase_context.get_lagged_phase()
+        if not lagged_phase:
+            return True, "no_stable_phase"
+        
+        # Vérifier neutralisation par contradiction
+        contradiction_threshold = self.config.get("alerting_config", {}).get("phase_aware", {}).get("contradiction_neutralize_threshold", 0.70)
+        contradiction_index = signals.get('contradiction_index', 0.0)
+        
+        if contradiction_index > contradiction_threshold:
+            # Record contradiction neutralization metric
+            self.prometheus_metrics.record_contradiction_neutralization(alert_type.value)
+            logger.debug(f"Phase gating neutralized by high contradiction: {contradiction_index:.2f} > {contradiction_threshold}")
+            return True, f"contradiction_neutralized_{contradiction_index:.2f}"
+        
+        # Récupérer la matrice de gating
+        gating_matrix = self.config.get("alerting_config", {}).get("phase_aware", {}).get("gating_matrix", {})
+        phase_config = gating_matrix.get(lagged_phase.phase.value, {})
+        alert_gating = phase_config.get(alert_type.value, "enabled")
+        
+        if alert_gating == "disabled":
+            # Record gating matrix block
+            self.prometheus_metrics.record_gating_matrix_block(
+                lagged_phase.phase.value.lower(),
+                alert_type.value,
+                "disabled"
+            )
+            return False, f"phase_gate_{lagged_phase.phase.value}"
+        elif alert_gating == "attenuated":
+            # Record gating matrix attenuation
+            self.prometheus_metrics.record_gating_matrix_block(
+                lagged_phase.phase.value.lower(),
+                alert_type.value,
+                "attenuated"
+            )
+            # Pour l'atténuation, on laisse passer mais avec un facteur réduit
+            # (sera appliqué dans le calcul des seuils adaptatifs)
+            return True, f"phase_attenuated_{lagged_phase.phase.value}"
+        else:  # "enabled"
+            return True, f"phase_enabled_{lagged_phase.phase.value}"
     
     def _load_config(self) -> Dict[str, Any]:
         """Charge la configuration depuis le fichier JSON avec fallback"""
@@ -162,7 +332,7 @@ class AlertEngine:
                 self.config = self._load_config()
                 
                 # Recrée l'évaluateur avec nouvelle config
-                self.evaluator = AlertEvaluator(self.config)
+                self.evaluator = AlertEvaluator(self.config, metrics=self.prometheus_metrics)
                 
                 new_config_version = self.config.get('metadata', {}).get('config_version', 'unknown')
                 logger.info(f"Config reloaded: {old_config_version} → {new_config_version}")
@@ -288,6 +458,9 @@ class AlertEngine:
         
         Consomme les signaux ML depuis governance_engine (cache Phase 0)
         """
+        import time
+        start_time = time.time()
+        
         try:
             if not self.governance_engine:
                 logger.warning("No governance engine available for alert evaluation")
@@ -310,6 +483,24 @@ class AlertEngine:
                 "execution_cost_bps": current_state.execution_policy.execution_cost_bps if current_state.execution_policy else 15
             }
             
+            # Mettre à jour la phase laggée si phase-aware activé
+            if self.phase_aware_enabled and self.phase_engine and self.phase_context:
+                try:
+                    # Obtenir la phase actuelle
+                    current_phase_state = await self.phase_engine.get_current_phase()
+                    if current_phase_state:
+                        contradiction_index = signals_dict.get('contradiction_index', 0.0)
+                        lagged_phase = self.phase_context.update_phase(current_phase_state, contradiction_index)
+                        
+                        if lagged_phase:
+                            logger.debug(f"Phase laggée active: {lagged_phase.phase.value} "
+                                       f"(persistance: {lagged_phase.persistence_count}, "
+                                       f"contradiction: {lagged_phase.contradiction_index:.2f})")
+                        else:
+                            logger.debug("Aucune phase laggée stable disponible")
+                except Exception as e:
+                    logger.warning(f"Erreur mise à jour phase laggée: {e}")
+            
             logger.debug(f"Evaluating alerts with signals: contradiction={signals_dict.get('contradiction_index', 0):.3f}, "
                         f"confidence={signals_dict.get('confidence', 0):.3f}")
             
@@ -319,6 +510,10 @@ class AlertEngine:
             
             self.last_evaluation = datetime.now()
             
+            # Record Prometheus metrics for evaluation run
+            evaluation_duration = time.time() - start_time
+            self.prometheus_metrics.record_engine_run(evaluation_duration)
+            
         except Exception as e:
             logger.error(f"Error evaluating alerts: {e}")
             raise
@@ -326,8 +521,27 @@ class AlertEngine:
     async def _evaluate_alert_type(self, alert_type: AlertType, signals: Dict[str, Any]):
         """Évalue un type d'alerte spécifique"""
         try:
-            # Évaluer avec hystérésis
-            result = self.evaluator.evaluate_alert(alert_type, signals)
+            # Vérifier le gating par phase (incluant neutralisation contradiction)
+            allowed, gating_reason = self._check_phase_gating(alert_type, signals)
+            if not allowed:
+                logger.debug(f"Alert {alert_type.value} suppressed by phase gating: {gating_reason}")
+                self.metrics.increment("alerts_suppressed_total", {"reason": "phase_gate"})
+                return
+            
+            # Préparer le contexte phase-aware pour seuils adaptatifs
+            phase_context = None
+            if self.phase_aware_enabled and self.phase_context:
+                lagged_phase = self.phase_context.get_lagged_phase()
+                if lagged_phase:
+                    phase_context = {
+                        "phase": lagged_phase.phase,
+                        "gating_reason": gating_reason,
+                        "contradiction_index": signals.get('contradiction_index', 0.0),
+                        "phase_factors": self.config.get("alerting_config", {}).get("phase_aware", {}).get("phase_factors", {})
+                    }
+            
+            # Évaluer avec hystérésis et seuils adaptatifs
+            result = self.evaluator.evaluate_alert(alert_type, signals, phase_context)
             
             if not result:
                 return  # Pas d'alerte à déclencher
@@ -352,7 +566,12 @@ class AlertEngine:
                 self.metrics.increment("alerts_suppressed_total", {"reason": "rate_limit"})
                 return
             
-            # Générer l'alerte
+            # Générer l'alerte avec traçabilité gating
+            alert_data.update({
+                "gating_reason": gating_reason,
+                "phase_snapshot": self.get_lagged_phase().__dict__ if self.get_lagged_phase() else None,
+                "contradiction_index": signals.get('contradiction_index', 0.0)
+            })
             alert = self._create_alert(alert_type, severity, alert_data)
             
             # Stocker avec dedup
@@ -360,6 +579,12 @@ class AlertEngine:
                 logger.info(f"Alert generated: {alert.id} ({alert_type}:{severity})")
                 self.metrics.increment("alerts_emitted_total", 
                                      {"type": alert_type.value, "severity": severity.value})
+                # Record Prometheus metrics
+                self.prometheus_metrics.record_alert_generated(
+                    alert_type=alert_type.value,
+                    severity=severity.value,
+                    source="ml_signals"
+                )
             else:
                 logger.debug(f"Alert {alert.id} deduplicated")
                 self.metrics.increment("alerts_suppressed_total", {"reason": "dedup"})
