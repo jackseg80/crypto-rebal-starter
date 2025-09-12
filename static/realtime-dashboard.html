@@ -1,21 +1,25 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Phase 3B - Real-time Risk Monitoring</title>
-    
+
     <!-- Thème unifié -->
     <link rel="stylesheet" href="shared-theme.css">
     <link rel="stylesheet" href="theme-compat.css">
-    
+
+    <!-- Navigation unifiée (même approche que dashboard.html) -->
+    <script type="module" src="components/nav.js"></script>
+
     <style>
         .realtime-dashboard {
             padding: 20px;
             max-width: 1600px;
             margin: 0 auto;
         }
-        
+
         .dashboard-header {
             display: flex;
             justify-content: space-between;
@@ -26,37 +30,52 @@
             border-radius: 12px;
             color: white;
         }
-        
+
         .connection-status {
             display: flex;
             align-items: center;
             gap: 10px;
             font-size: 14px;
         }
-        
+
         .status-indicator {
             width: 12px;
             height: 12px;
             border-radius: 50%;
             animation: pulse 2s infinite;
         }
-        
-        .status-connected { background-color: #28a745; }
-        .status-connecting { background-color: #ffc107; }
-        .status-disconnected { background-color: #dc3545; }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+
+        .status-connected {
+            background-color: #28a745;
         }
-        
+
+        .status-connecting {
+            background-color: #ffc107;
+        }
+
+        .status-disconnected {
+            background-color: #dc3545;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
         .dashboard-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 20px;
             margin-bottom: 30px;
         }
-        
+
         .realtime-card {
             background: var(--card-background);
             border: 1px solid var(--border-color);
@@ -64,7 +83,7 @@
             padding: 20px;
             box-shadow: var(--shadow-md);
         }
-        
+
         .card-header {
             display: flex;
             justify-content: space-between;
@@ -73,7 +92,7 @@
             padding-bottom: 10px;
             border-bottom: 1px solid var(--border-color);
         }
-        
+
         .card-title {
             font-size: 18px;
             font-weight: 600;
@@ -82,34 +101,34 @@
             align-items: center;
             gap: 8px;
         }
-        
+
         .metrics-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
             gap: 15px;
             margin-bottom: 20px;
         }
-        
+
         .metric-item {
             text-align: center;
             padding: 12px;
             background: var(--secondary-background);
             border-radius: 8px;
         }
-        
+
         .metric-value {
             font-size: 24px;
             font-weight: bold;
             color: var(--primary-color);
             margin-bottom: 4px;
         }
-        
+
         .metric-label {
             font-size: 12px;
             color: var(--text-muted);
             text-transform: uppercase;
         }
-        
+
         .alert-feed {
             height: 400px;
             overflow-y: auto;
@@ -117,7 +136,7 @@
             border-radius: 8px;
             background: var(--secondary-background);
         }
-        
+
         .alert-item {
             padding: 12px 16px;
             border-bottom: 1px solid var(--border-color);
@@ -126,82 +145,89 @@
             gap: 12px;
             animation: slideIn 0.3s ease-out;
         }
-        
+
         .alert-item:last-child {
             border-bottom: none;
         }
-        
+
         .alert-icon {
             font-size: 20px;
             flex-shrink: 0;
         }
-        
+
         .alert-content {
             flex-grow: 1;
         }
-        
+
         .alert-title {
             font-weight: 600;
             margin-bottom: 4px;
         }
-        
+
         .alert-details {
             font-size: 12px;
             color: var(--text-muted);
         }
-        
+
         .alert-timestamp {
             font-size: 11px;
             color: var(--text-muted);
             flex-shrink: 0;
         }
-        
-        .alert-S1 { border-left: 4px solid #17a2b8; }
-        .alert-S2 { border-left: 4px solid #ffc107; }
-        .alert-S3 { border-left: 4px solid #dc3545; }
-        
+
+        .alert-S1 {
+            border-left: 4px solid #17a2b8;
+        }
+
+        .alert-S2 {
+            border-left: 4px solid #ffc107;
+        }
+
+        .alert-S3 {
+            border-left: 4px solid #dc3545;
+        }
+
         @keyframes slideIn {
             from {
                 opacity: 0;
                 transform: translateX(-10px);
             }
+
             to {
                 opacity: 1;
                 transform: translateX(0);
             }
         }
-        
+
         .risk-metrics {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 15px;
         }
-        
+
         .risk-gauge {
             position: relative;
             width: 100px;
             height: 100px;
             margin: 0 auto 10px;
         }
-        
+
         .gauge-circle {
             width: 100%;
             height: 100%;
             border-radius: 50%;
-            background: conic-gradient(
-                from 0deg,
-                #28a745 0deg,
-                #28a745 120deg,
-                #ffc107 120deg,
-                #ffc107 240deg,
-                #dc3545 240deg,
-                #dc3545 360deg
-            );
+            background: conic-gradient(from 0deg,
+                    #28a745 0deg,
+                    #28a745 120deg,
+                    #ffc107 120deg,
+                    #ffc107 240deg,
+                    #dc3545 240deg,
+                    #dc3545 360deg);
             display: flex;
             align-items: center;
             justify-content: center;
         }
-        
+
         .gauge-inner {
             width: 75%;
             height: 75%;
@@ -212,24 +238,24 @@
             justify-content: center;
             flex-direction: column;
         }
-        
+
         .gauge-value {
             font-size: 18px;
             font-weight: bold;
             color: var(--primary-color);
         }
-        
+
         .gauge-label {
             font-size: 10px;
             color: var(--text-muted);
         }
-        
+
         .streaming-stats {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 15px;
         }
-        
+
         .chart-container {
             height: 200px;
             background: var(--secondary-background);
@@ -241,7 +267,7 @@
             color: var(--text-muted);
             font-size: 14px;
         }
-        
+
         .controls-panel {
             display: flex;
             gap: 10px;
@@ -250,19 +276,19 @@
             background: var(--secondary-background);
             border-radius: 8px;
         }
-        
+
         .control-group {
             display: flex;
             flex-direction: column;
             gap: 5px;
         }
-        
+
         .control-group label {
             font-size: 12px;
             color: var(--text-muted);
             text-transform: uppercase;
         }
-        
+
         .btn {
             padding: 8px 16px;
             border: none;
@@ -272,32 +298,32 @@
             font-weight: 500;
             transition: all 0.2s;
         }
-        
+
         .btn-primary {
             background: var(--primary-color);
             color: white;
         }
-        
+
         .btn-primary:hover {
             background: var(--primary-dark);
         }
-        
+
         .btn-secondary {
             background: var(--border-color);
             color: var(--text-color);
         }
-        
+
         .btn-secondary:hover {
             background: var(--text-muted);
         }
-        
+
         .subscription-tags {
             display: flex;
             gap: 5px;
             flex-wrap: wrap;
             margin-top: 10px;
         }
-        
+
         .subscription-tag {
             padding: 4px 8px;
             background: var(--primary-color);
@@ -305,13 +331,13 @@
             border-radius: 4px;
             font-size: 11px;
         }
-        
+
         .empty-state {
             text-align: center;
             padding: 40px;
             color: var(--text-muted);
         }
-        
+
         .phase-indicator {
             display: inline-block;
             padding: 4px 8px;
@@ -320,16 +346,32 @@
             font-weight: 600;
             text-transform: uppercase;
         }
-        
-        .phase-accumulation { background: #d4edda; color: #155724; }
-        .phase-markup { background: #cce6ff; color: #004085; }
-        .phase-distribution { background: #fff3cd; color: #856404; }
-        .phase-markdown { background: #f8d7da; color: #721c24; }
+
+        .phase-accumulation {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .phase-markup {
+            background: #cce6ff;
+            color: #004085;
+        }
+
+        .phase-distribution {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .phase-markdown {
+            background: #f8d7da;
+            color: #721c24;
+        }
     </style>
 </head>
+
 <body>
     <nav id="navigation-container"></nav>
-    
+
     <div class="realtime-dashboard">
         <div class="dashboard-header">
             <div>
@@ -342,7 +384,7 @@
                 <div class="subscription-tags" id="subscriptionTags"></div>
             </div>
         </div>
-        
+
         <div class="dashboard-grid">
             <!-- Métriques streaming en temps réel -->
             <div class="realtime-card">
@@ -370,13 +412,13 @@
                         <div class="metric-label">Durée</div>
                     </div>
                 </div>
-                
+
                 <div class="chart-container">
                     📈 Graphique temps réel des événements
                     <br><small>(À implémenter avec Chart.js)</small>
                 </div>
             </div>
-            
+
             <!-- Métriques de risque en temps réel -->
             <div class="realtime-card">
                 <div class="card-header">
@@ -411,7 +453,7 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Feed d'alertes en temps réel -->
         <div class="realtime-card">
             <div class="card-header">
@@ -430,7 +472,7 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Contrôles de connexion -->
         <div class="controls-panel">
             <div class="control-group">
@@ -455,10 +497,9 @@
             </div>
         </div>
     </div>
-    
-    <script src="components/nav.js"></script>
+
     <script src="global-config.js"></script>
-    
+
     <script>
         // State management
         let websocket = null;
@@ -466,7 +507,7 @@
         let messageCount = 0;
         let connectionStartTime = null;
         let alertCount = 0;
-        
+
         // Configuration
         const config = {
             wsUrl: `ws://${window.location.host}/api/realtime/ws`,
@@ -474,43 +515,43 @@
             maxReconnectAttempts: 10,
             reconnectAttempts: 0
         };
-        
+
         // Initialisation
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             // Auto-connect
             setTimeout(connect, 1000);
-            
+
             // Mise à jour périodique des métriques
             setInterval(updateMetricsDisplay, 1000);
-            
+
             // Charger les métriques initiales
             loadInitialMetrics();
         });
-        
+
         // WebSocket Management
         function connect() {
             if (websocket && websocket.readyState === WebSocket.OPEN) {
                 return;
             }
-            
+
             const clientId = document.getElementById('clientId').value;
             const subscriptionSelect = document.getElementById('subscriptionSelect');
             const subscriptions = Array.from(subscriptionSelect.selectedOptions)
                 .map(option => option.value)
                 .join(',');
-            
+
             const wsUrl = `${config.wsUrl}?client_id=${clientId}&subscriptions=${subscriptions}`;
-            
+
             updateConnectionStatus('connecting', 'Connexion...');
-            
+
             websocket = new WebSocket(wsUrl);
-            
+
             websocket.onopen = handleWebSocketOpen;
             websocket.onmessage = handleWebSocketMessage;
             websocket.onclose = handleWebSocketClose;
             websocket.onerror = handleWebSocketError;
         }
-        
+
         function disconnect() {
             if (websocket) {
                 websocket.close();
@@ -518,22 +559,22 @@
             }
             updateConnectionStatus('disconnected', 'Déconnecté');
         }
-        
+
         function handleWebSocketOpen(event) {
             isConnected = true;
             connectionStartTime = new Date();
             messageCount = 0;
             config.reconnectAttempts = 0;
-            
+
             updateConnectionStatus('connected', 'Connecté');
             updateSubscriptionTags();
-            
+
             console.log('WebSocket connecté');
         }
-        
+
         function handleWebSocketMessage(event) {
             messageCount++;
-            
+
             try {
                 const data = JSON.parse(event.data);
                 processIncomingMessage(data);
@@ -541,13 +582,13 @@
                 console.error('Erreur parsing message WebSocket:', e);
             }
         }
-        
+
         function handleWebSocketClose(event) {
             isConnected = false;
             connectionStartTime = null;
-            
+
             updateConnectionStatus('disconnected', 'Déconnecté');
-            
+
             // Auto-reconnect
             if (config.reconnectAttempts < config.maxReconnectAttempts) {
                 config.reconnectAttempts++;
@@ -555,12 +596,12 @@
                 setTimeout(connect, config.reconnectInterval);
             }
         }
-        
+
         function handleWebSocketError(error) {
             console.error('Erreur WebSocket:', error);
             updateConnectionStatus('disconnected', 'Erreur de connexion');
         }
-        
+
         // Message Processing
         function processIncomingMessage(data) {
             if (data.command) {
@@ -571,7 +612,7 @@
                 console.log('Message reçu:', data);
             }
         }
-        
+
         function handleCommandResponse(data) {
             switch (data.command) {
                 case 'pong':
@@ -582,10 +623,10 @@
                     break;
             }
         }
-        
+
         function handleStreamEvent(data) {
             console.log('Événement streaming:', data);
-            
+
             switch (data.event_type) {
                 case 'risk_alert':
                 case 'var_breach':
@@ -593,45 +634,45 @@
                 case 'correlation_spike':
                     addAlertToFeed(data);
                     break;
-                    
+
                 case 'market_data':
                     updateMarketData(data.data);
                     break;
-                    
+
                 case 'portfolio_update':
                     updatePortfolioMetrics(data.data);
                     break;
-                    
+
                 case 'system_status':
                     updateSystemStatus(data.data);
                     break;
             }
         }
-        
+
         // UI Updates
         function updateConnectionStatus(status, text) {
             const indicator = document.getElementById('statusIndicator');
             const statusText = document.getElementById('connectionStatus');
-            
+
             indicator.className = `status-indicator status-${status}`;
             statusText.textContent = text;
         }
-        
+
         function updateSubscriptionTags() {
             const container = document.getElementById('subscriptionTags');
             const select = document.getElementById('subscriptionSelect');
             const selected = Array.from(select.selectedOptions).map(opt => opt.value);
-            
-            container.innerHTML = selected.map(sub => 
+
+            container.innerHTML = selected.map(sub =>
                 `<span class="subscription-tag">${sub}</span>`
             ).join('');
         }
-        
+
         function updateMetricsDisplay() {
             // Mise à jour du compteur de connexions
             document.getElementById('connectionsCount').textContent = isConnected ? '1' : '0';
             document.getElementById('messagesReceived').textContent = messageCount;
-            
+
             // Mise à jour durée de connexion
             if (connectionStartTime) {
                 const elapsed = Math.floor((new Date() - connectionStartTime) / 1000);
@@ -640,36 +681,36 @@
                 document.getElementById('uptime').textContent = '0s';
             }
         }
-        
+
         function addAlertToFeed(eventData) {
             const feed = document.getElementById('alertFeed');
-            
+
             // Supprimer l'état vide s'il existe
             const emptyState = feed.querySelector('.empty-state');
             if (emptyState) {
                 emptyState.remove();
             }
-            
+
             const alertItem = createAlertElement(eventData);
             feed.insertBefore(alertItem, feed.firstChild);
-            
+
             // Limiter à 50 alertes
             while (feed.children.length > 50) {
                 feed.removeChild(feed.lastChild);
             }
-            
+
             alertCount++;
         }
-        
+
         function createAlertElement(eventData) {
             const div = document.createElement('div');
             const data = eventData.data || {};
-            
+
             // Déterminer la sévérité
             const severity = data.severity || 'S1';
             const icon = getAlertIcon(eventData.event_type);
             const title = getAlertTitle(eventData.event_type, data);
-            
+
             div.className = `alert-item alert-${severity}`;
             div.innerHTML = `
                 <div class="alert-icon">${icon}</div>
@@ -679,10 +720,10 @@
                 </div>
                 <div class="alert-timestamp">${formatTime(eventData.timestamp)}</div>
             `;
-            
+
             return div;
         }
-        
+
         function getAlertIcon(eventType) {
             const icons = {
                 'var_breach': '⚠️',
@@ -694,7 +735,7 @@
             };
             return icons[eventType] || '🔔';
         }
-        
+
         function getAlertTitle(eventType, data) {
             const titles = {
                 'var_breach': `Dépassement VaR - ${data.method || 'Unknown'}`,
@@ -706,10 +747,10 @@
             };
             return titles[eventType] || 'Événement';
         }
-        
+
         function getAlertDetails(eventData) {
             const data = eventData.data || {};
-            
+
             if (eventData.event_type === 'var_breach') {
                 return `VaR: ${data.var_current || 'N/A'} / Limite: ${data.var_limit || 'N/A'}`;
             } else if (eventData.event_type === 'stress_test') {
@@ -717,35 +758,35 @@
             } else if (data.message) {
                 return data.message;
             }
-            
+
             return `Source: ${eventData.source || 'Unknown'}`;
         }
-        
+
         function formatTime(timestamp) {
             if (!timestamp) return '--:--';
             return new Date(timestamp).toLocaleTimeString('fr-FR');
         }
-        
+
         function formatDuration(seconds) {
             if (seconds < 60) return `${seconds}s`;
             const minutes = Math.floor(seconds / 60);
             const remainingSeconds = seconds % 60;
             return `${minutes}m ${remainingSeconds}s`;
         }
-        
+
         // Control Functions
         function sendPing() {
             if (websocket && websocket.readyState === WebSocket.OPEN) {
-                websocket.send(JSON.stringify({command: 'ping'}));
+                websocket.send(JSON.stringify({ command: 'ping' }));
             }
         }
-        
+
         function refreshMetrics() {
             if (websocket && websocket.readyState === WebSocket.OPEN) {
-                websocket.send(JSON.stringify({command: 'get_stats'}));
+                websocket.send(JSON.stringify({ command: 'get_stats' }));
             }
         }
-        
+
         function clearAlertFeed() {
             const feed = document.getElementById('alertFeed');
             feed.innerHTML = `
@@ -756,12 +797,12 @@
             `;
             alertCount = 0;
         }
-        
+
         async function simulateAlert() {
             try {
                 const response = await fetch('/api/realtime/publish', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         event_type: 'risk_alert',
                         data: {
@@ -776,7 +817,7 @@
                         source: 'dashboard_simulation'
                     })
                 });
-                
+
                 if (response.ok) {
                     console.log('Alerte simulée envoyée');
                 }
@@ -784,7 +825,7 @@
                 console.error('Erreur simulation alerte:', e);
             }
         }
-        
+
         async function loadInitialMetrics() {
             try {
                 const response = await fetch('/api/realtime/status');
@@ -796,7 +837,7 @@
                 console.warn('Impossible de charger les métriques initiales:', e);
             }
         }
-        
+
         function updateStreamingMetrics(data) {
             if (data.events_processed !== undefined) {
                 document.getElementById('eventsProcessed').textContent = data.events_processed;
@@ -805,17 +846,17 @@
                 document.getElementById('connectionsCount').textContent = data.connections;
             }
         }
-        
+
         function updateMarketData(data) {
             // Mise à jour des métriques de marché
             console.log('Données marché mises à jour:', data);
         }
-        
+
         function updatePortfolioMetrics(data) {
             // Mise à jour des métriques de portfolio
             console.log('Métriques portfolio mises à jour:', data);
         }
-        
+
         function updateSystemStatus(data) {
             // Mise à jour du status système
             if (data.component === 'alert_engine') {
@@ -824,4 +865,5 @@
         }
     </script>
 </body>
+
 </html>
