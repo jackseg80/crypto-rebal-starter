@@ -36,6 +36,54 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/phase3", tags=["Phase 3 Unified"])
 
+# Mock endpoints pour tests rapides d'interface
+@router.post("/intelligence/explain-decision")
+async def mock_explain_decision(
+    request: Dict[str, Any]
+):
+    """Mock endpoint pour tester les explications d'IA"""
+    model_name = request.get("model_name", "risk_assessor")
+    prediction = request.get("prediction", 0.7)
+    features = request.get("features", {})
+    
+    return {
+        "prediction": prediction,
+        "confidence": max(0.3, min(0.95, prediction + 0.1)),
+        "confidence_level": "medium",
+        "model_name": model_name,
+        "feature_contributions": [
+            {
+                "feature_name": "volatility_btc",
+                "value": features.get("volatility_btc", 0.035),
+                "contribution": 0.4,
+                "importance": 0.6,
+                "direction": "positive",
+                "description": "La volatilité Bitcoin augmente le risque"
+            },
+            {
+                "feature_name": "correlation_btc_eth", 
+                "value": features.get("correlation_btc_eth", 0.79),
+                "contribution": 0.2,
+                "importance": 0.3,
+                "direction": "positive",
+                "description": "Corrélation élevée augmente le risque systémique"
+            },
+            {
+                "feature_name": "sentiment_score",
+                "value": features.get("sentiment_score", 0.36),
+                "contribution": -0.1,
+                "importance": 0.1,
+                "direction": "negative", 
+                "description": "Sentiment négatif atténue légèrement le risque"
+            }
+        ],
+        "summary": f"Confiance modérée - Risque élevé détecté ({prediction:.2f}). Facteur principal: Volatilité Bitcoin (24h)",
+        "detailed_explanation": f"Le modèle {model_name} identifie un niveau de risque de {prediction:.1%} basé sur l'analyse des métriques de marché. La volatilité Bitcoin est le facteur dominant, contribuant à 40% de la prédiction. La corrélation élevée BTC-ETH amplifie le risque systémique. Recommandation: surveiller de près les mouvements BTC et considérer une réduction d'exposition si la volatilité persiste.",
+        "explanation_type": ["feature_importance"],
+        "timestamp": datetime.now().isoformat(),
+        "explanation_id": f"mock_{model_name}_{int(datetime.now().timestamp())}"
+    }
+
 # Pydantic models for API
 class UnifiedDecisionRequest(BaseModel):
     """Request for unified Phase 3 decision processing"""

@@ -63,7 +63,29 @@ Toutes les interfaces utilisent maintenant la même configuration centralisée v
 ### Pages alignées
 - Dashboard (`static/dashboard.html`)
 - Exécution (`static/execution.html`)
-- Historique d’exécution (`static/execution_history.html`)
+- Historique d'exécution (`static/execution_history.html`)
 - Rebalancing (`static/rebalance.html`)
 - Risk Dashboard (`static/risk-dashboard.html`)
+- Intelligence Dashboard (`static/intelligence-dashboard.html`)
 - Fonctions partagées (`static/shared-ml-functions.js`)
+
+## Architecture API Post-Refactoring (v2.0.0)
+
+### Namespaces Principaux
+- **`/api/ml/*`** - Machine Learning unifié (remplace /api/ml-predictions)
+- **`/api/risk/*`** - Risk Management consolidé (/api/risk/advanced/* pour fonctions avancées)  
+- **`/api/alerts/*`** - Alertes centralisées (acknowledge, resolve, monitoring)
+- **`/api/governance/*`** - Governance avec endpoints unifiés
+- **`/api/realtime/*`** - Streaming temps réel (endpoints sécurisés)
+
+### Endpoints Sécurisés
+- **ML Debug**: `/api/ml/debug/*` nécessite header `X-Admin-Key: crypto-rebal-admin-2024`
+- **Endpoints supprimés**: Tous `/api/test/*` et endpoints de broadcast supprimés pour sécurité
+
+### Migration depuis v1.x
+Consulter `REFACTORING_SUMMARY.md` et utiliser les outils de validation :
+```bash
+python find_broken_consumers.py          # Scan des références cassées
+python tests/smoke_test_refactored_endpoints.py  # Validation endpoints
+python verify_openapi_changes.py         # Analyse breaking changes
+```

@@ -854,36 +854,8 @@ async def get_risk_alerts(
             "message": f"Erreur lors de la récupération: {str(e)}"
         }
 
-@router.post("/alerts/{alert_id}/resolve")
-async def resolve_alert(
-    alert_id: str,
-    resolution_note: Optional[str] = ""
-):
-    """
-    Résout une alerte active
-    
-    Marque l'alerte comme résolue et ajoute une note de résolution.
-    """
-    try:
-        success = risk_manager.alert_system.resolve_alert(alert_id, resolution_note)
-        
-        if success:
-            return {
-                "success": True,
-                "message": f"Alerte {alert_id} résolue avec succès"
-            }
-        else:
-            return {
-                "success": False,
-                "message": f"Alerte {alert_id} introuvable ou déjà résolue"
-            }
-            
-    except Exception as e:
-        logger.error(f"Erreur résolution alerte: {e}")
-        return {
-            "success": False,
-            "message": f"Erreur lors de la résolution: {str(e)}"
-        }
+# REMOVED: Duplicate alert resolution endpoint - use /api/alerts/resolve/{alert_id} instead
+# Alert management should be centralized in alerts_endpoints.py
 
 @router.get("/alerts/history")
 async def get_alerts_history(

@@ -15,7 +15,7 @@ from services.risk.advanced_risk_engine import (
     StressTestResult, MonteCarloResult
 )
 
-router = APIRouter(prefix="/api/advanced-risk", tags=["advanced-risk"])
+router = APIRouter(prefix="/api/risk/advanced", tags=["risk-management"])
 log = logging.getLogger(__name__)
 
 # Response Models

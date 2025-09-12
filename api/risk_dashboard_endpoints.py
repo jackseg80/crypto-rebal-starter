@@ -10,9 +10,9 @@ from services.risk_management import risk_manager
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api", tags=["risk-dashboard"])
+router = APIRouter(prefix="/api/risk", tags=["risk-management"])
 
-@router.get("/risk/dashboard")
+@router.get("/dashboard")
 async def real_risk_dashboard(
     source: str = Query("cointracking", description="Source des données (stub|cointracking|cointracking_api)"),
     min_usd: float = Query(1.0, description="Seuil minimal en USD par asset"),

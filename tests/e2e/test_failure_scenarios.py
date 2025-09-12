@@ -197,15 +197,12 @@ class FailureScenarioTests:
         
         print(f"      [OK] Engine stop/restart cycle completed")
         
-        # Test broadcast sans connexions actives
-        print("   Testing broadcast with no active connections...")
-        broadcast_data = {"type": "test", "message": "No connections test"}
-        
-        broadcast_response = self.session.post(f"{self.base_url}/api/realtime/broadcast", json=broadcast_data)
-        broadcast_result = broadcast_response.json()
+        # DISABLED: broadcast endpoint removed for security
+        print("   [DISABLED] Broadcast test disabled (endpoint removed for security)")
+        broadcast_result = {"success": True, "target_connections": 0}  # Mock
         
         results["broadcast_no_connections"] = {
-            "status": "PASS" if broadcast_result["success"] else "FAIL",
+            "status": "DISABLED",
             "target_connections": broadcast_result.get("target_connections", 0),
             "success": broadcast_result["success"]
         }

@@ -1233,6 +1233,8 @@ class GovernancePanel {
           ...(etag && { 'If-Match': etag })
         },
         body: JSON.stringify({
+          resource_type: 'plan',
+          approved: true,
           approved_by: 'UI_User',
           notes: 'Approved via GovernancePanel UI'
         })

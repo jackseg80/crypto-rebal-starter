@@ -76,10 +76,11 @@ Architecture **single-source-of-truth** garantissant la cohérence des données 
 - **Multi-timeframe** : Support 1h, 4h, 1d avec clustering automatique
 - **Phase-aware gating** : Modulation par asset class (BTC/ETH/Large/Alt)
 
-### API Endpoints
+### API Endpoints (Architecture Unifiée)
 - `/api/alerts/cross-asset/status` - Status global corrélations temps réel
 - `/api/alerts/cross-asset/systemic-risk` - Score risque systémique (0-1)
-- `/api/alerts/cross-asset/top-correlated` - Top paires corrélées avec seuils
+- `/api/alerts/acknowledge/{alert_id}` - Acquittement centralisé d'alertes
+- `/api/alerts/resolve/{alert_id}` - Résolution centralisée d'alertes
 
 ### Performance & Monitoring
 - **Calcul matrice** : 25ms (target <50ms) pour 10x10 assets
@@ -102,17 +103,35 @@ Architecture **single-source-of-truth** garantissant la cohérence des données 
 - **Ensemble Models** : RandomForest (60%) + GradientBoosting (40%)
 - **Drift Detection** : Performance monitoring + auto-retraining
 
-### API ML Avancée
-- `/api/ml-predictions/predict` - Prédictions temps réel multi-horizon
-- `/api/ml-predictions/models/status` - Santé modèles + métriques
-- `/api/ml-predictions/features/current` - Features live + qualité données
-- `/api/ml-predictions/models/retrain` - Retraining manuel/automatique
+### API ML Unifiée 🔄
+- `/api/ml/predict` - Prédictions temps réel multi-horizon (unifié)
+- `/api/ml/status` - Santé pipeline + métriques modèles
+- `/api/ml/volatility/predict/{symbol}` - Prédictions volatilité spécialisées
+- `/api/ml/debug/pipeline-info` - Debug pipeline (🔒 admin-only)
 
 ### Production Features
 - **MLflow Integration** : Registry modèles + versioning + artifacts
 - **A/B Testing** : Pipeline automatisé avec promotion gagnant
 - **Performance Target** : <200ms batch prediction, <100MB memory
 - **Métriques Prometheus** : 8+ métriques ML monitoring spécialisées
+
+## 🔄 **Refactoring d'Architecture - DÉCEMBRE 2024** ✅
+**API consolidée, sécurisée et prête pour production**
+
+### Consolidation des Endpoints
+- **Namespaces unifiés** : 6 → 3 namespaces principaux (`/api/ml`, `/api/risk`, `/api/alerts`)
+- **Sécurité renforcée** : Suppression de 5 endpoints dangereux, protection admin pour debug
+- **Governance unifié** : `/api/governance/approve/{resource_id}` pour toutes approbations
+- **Alertes centralisées** : Toutes les opérations sous `/api/alerts/*`
+
+### Breaking Changes ⚠️
+- **Supprimé** : `/api/ml-predictions/*` → `/api/ml/*`
+- **Supprimé** : `/api/test/*` et `/api/alerts/test/*` (sécurité)
+- **Supprimé** : `/api/realtime/publish` & `/broadcast` (sécurité)
+- **Déplacé** : `/api/advanced-risk/*` → `/api/risk/advanced/*`
+
+### Migration Guide
+Voir `REFACTORING_SUMMARY.md` pour guide complet et outils de validation.
 
 ## 🎯 **Phase 3 Frontend Integration - PRODUCTION READY** ✅
 **Score global E2E : 95.8/100 - EXCELLENT**

@@ -49,7 +49,7 @@ class TestAdvancedRiskAPI:
         with patch('services.risk.advanced_risk_engine.get_historical_prices', 
                   return_value=mock_price_data):
             response = client.post(
-                "/api/advanced-risk/var/calculate",
+                "/api/risk/advanced/var/calculate",
                 json=sample_portfolio,
                 params={
                     "method": "parametric",
@@ -83,7 +83,7 @@ class TestAdvancedRiskAPI:
         with patch('services.risk.advanced_risk_engine.get_historical_prices', 
                   return_value=mock_price_data):
             response = client.post(
-                "/api/advanced-risk/var/calculate",
+                "/api/risk/advanced/var/calculate",
                 json=sample_portfolio,
                 params={
                     "method": "historical",
@@ -101,7 +101,7 @@ class TestAdvancedRiskAPI:
     def test_var_invalid_method(self, client, sample_portfolio):
         """Test VaR calculation with invalid method"""
         response = client.post(
-            "/api/advanced-risk/var/calculate",
+            "/api/risk/advanced/var/calculate",
             json=sample_portfolio,
             params={
                 "method": "invalid_method",
@@ -121,7 +121,7 @@ class TestAdvancedRiskAPI:
         }
         
         response = client.post(
-            "/api/advanced-risk/var/calculate",
+            "/api/risk/advanced/var/calculate",
             json=invalid_portfolio,
             params={
                 "method": "parametric",
@@ -137,7 +137,7 @@ class TestAdvancedRiskAPI:
         with patch('services.risk.advanced_risk_engine.get_historical_prices', 
                   return_value=mock_price_data):
             response = client.post(
-                "/api/advanced-risk/stress-test/run",
+                "/api/risk/advanced/stress-test/run",
                 json=sample_portfolio,
                 params={"scenario": "crisis_2008"}
             )
@@ -165,7 +165,7 @@ class TestAdvancedRiskAPI:
         with patch('services.risk.advanced_risk_engine.get_historical_prices', 
                   return_value=mock_price_data):
             response = client.post(
-                "/api/advanced-risk/stress-test/run",
+                "/api/risk/advanced/stress-test/run",
                 json=sample_portfolio,
                 params={"scenario": "covid_2020"}
             )
@@ -177,7 +177,7 @@ class TestAdvancedRiskAPI:
     def test_stress_test_invalid_scenario(self, client, sample_portfolio):
         """Test stress test with invalid scenario"""
         response = client.post(
-            "/api/advanced-risk/stress-test/run",
+            "/api/risk/advanced/stress-test/run",
             json=sample_portfolio,
             params={"scenario": "invalid_scenario"}
         )
@@ -190,7 +190,7 @@ class TestAdvancedRiskAPI:
         with patch('services.risk.advanced_risk_engine.get_historical_prices', 
                   return_value=mock_price_data):
             response = client.post(
-                "/api/advanced-risk/monte-carlo/simulate",
+                "/api/risk/advanced/monte-carlo/simulate",
                 json=sample_portfolio,
                 params={
                     "simulations": 1000,
@@ -223,7 +223,7 @@ class TestAdvancedRiskAPI:
         """Test Monte Carlo simulation parameter validation"""
         # Test too few simulations
         response = client.post(
-            "/api/advanced-risk/monte-carlo/simulate",
+            "/api/risk/advanced/monte-carlo/simulate",
             json=sample_portfolio,
             params={"simulations": 500}  # Below minimum of 1000
         )
@@ -231,7 +231,7 @@ class TestAdvancedRiskAPI:
         
         # Test too many simulations
         response = client.post(
-            "/api/advanced-risk/monte-carlo/simulate",
+            "/api/risk/advanced/monte-carlo/simulate",
             json=sample_portfolio,
             params={"simulations": 150000}  # Above maximum of 100000
         )
@@ -242,7 +242,7 @@ class TestAdvancedRiskAPI:
         with patch('services.risk.advanced_risk_engine.get_historical_prices', 
                   return_value=mock_price_data):
             response = client.post(
-                "/api/advanced-risk/attribution/analyze",
+                "/api/risk/advanced/attribution/analyze",
                 json=sample_portfolio,
                 params={"confidence_level": 0.95}
             )
@@ -274,7 +274,7 @@ class TestAdvancedRiskAPI:
         with patch('services.risk.advanced_risk_engine.get_historical_prices', 
                   return_value=mock_price_data):
             response = client.post(
-                "/api/advanced-risk/summary",
+                "/api/risk/advanced/summary",
                 json=sample_portfolio,
                 params={
                     "include_stress_tests": True,
@@ -308,7 +308,7 @@ class TestAdvancedRiskAPI:
         with patch('services.risk.advanced_risk_engine.get_historical_prices', 
                   return_value=mock_price_data):
             response = client.post(
-                "/api/advanced-risk/summary",
+                "/api/risk/advanced/summary",
                 json=sample_portfolio,
                 params={
                     "include_stress_tests": False,
@@ -329,7 +329,7 @@ class TestAdvancedRiskAPI:
     
     def test_scenarios_list_endpoint(self, client):
         """Test stress scenarios listing endpoint"""
-        response = client.get("/api/advanced-risk/scenarios/list")
+        response = client.get("/api/risk/advanced/scenarios/list")
         
         assert response.status_code == 200
         data = response.json()
@@ -353,7 +353,7 @@ class TestAdvancedRiskAPI:
     
     def test_methods_info_endpoint(self, client):
         """Test methods information endpoint"""
-        response = client.get("/api/advanced-risk/methods/info")
+        response = client.get("/api/risk/advanced/methods/info")
         
         assert response.status_code == 200
         data = response.json()
@@ -397,7 +397,7 @@ class TestAdvancedRiskAPIErrorHandling:
     def test_missing_portfolio_data(self, client):
         """Test API with missing portfolio data"""
         response = client.post(
-            "/api/advanced-risk/var/calculate",
+            "/api/risk/advanced/var/calculate",
             json={},  # Empty portfolio
             params={"method": "parametric", "confidence_level": 0.95}
         )
@@ -412,7 +412,7 @@ class TestAdvancedRiskAPIErrorHandling:
         }
         
         response = client.post(
-            "/api/advanced-risk/var/calculate",
+            "/api/risk/advanced/var/calculate",
             json=portfolio,
             params={
                 "method": "parametric",
@@ -433,7 +433,7 @@ class TestAdvancedRiskAPIErrorHandling:
         with patch('api.advanced_risk_endpoints.create_advanced_risk_engine', 
                   side_effect=Exception("Risk engine init failed")):
             response = client.post(
-                "/api/advanced-risk/var/calculate",
+                "/api/risk/advanced/var/calculate",
                 json=portfolio,
                 params={"method": "parametric", "confidence_level": 0.95}
             )
@@ -473,7 +473,7 @@ class TestAdvancedRiskAPIPerformance:
             start_time = time.time()
             
             response = client.post(
-                "/api/advanced-risk/var/calculate",
+                "/api/risk/advanced/var/calculate",
                 json=large_portfolio,
                 params={"method": "parametric", "confidence_level": 0.95}
             )
@@ -499,7 +499,7 @@ class TestAdvancedRiskAPIPerformance:
             start_time = time.time()
             
             response = client.post(
-                "/api/advanced-risk/monte-carlo/simulate",
+                "/api/risk/advanced/monte-carlo/simulate",
                 json=large_portfolio,
                 params={"simulations": 5000, "horizon_days": 30}
             )

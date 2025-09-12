@@ -222,7 +222,7 @@ async def get_performance_metrics(
 @router.get("/trends")
 async def get_execution_trends(
     days: int = Query(30, ge=7, le=90, description="Period for trend analysis"),
-    interval: str = Query("daily", regex="^(hourly|daily|weekly)$", description="Aggregation interval"),
+    interval: str = Query("daily", pattern="^(hourly|daily|weekly)$", description="Aggregation interval"),
     exchange: Optional[str] = Query(None, description="Filter by exchange")
 ):
     """Analyser les tendances d'exécution"""

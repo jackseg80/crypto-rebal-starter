@@ -65,6 +65,10 @@ class AckRequest(BaseModel):
     """Requête d'acquittement (optionnel body)"""
     notes: Optional[str] = Field(None, max_length=200, description="Notes optionnelles")
 
+class ResolveRequest(BaseModel):
+    """Requête de résolution d'alerte"""
+    resolution_note: Optional[str] = Field(None, max_length=500, description="Note de résolution")
+
 class AlertResponse(BaseModel):
     """Réponse alerte formatée"""
     id: str
@@ -303,6 +307,39 @@ async def snooze_alert(
         raise
     except Exception as e:
         logger.error(f"Error snoozing alert {alert_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.post("/resolve/{alert_id}")
+async def resolve_alert(
+    alert_id: str,
+    request: ResolveRequest = ResolveRequest(),
+    engine: AlertEngine = Depends(get_alert_engine),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Résout définitivement une alerte
+    
+    Marque l'alerte comme résolue avec une note de résolution.
+    Accessible à tous les utilisateurs authentifiés.
+    """
+    try:
+        success = await engine.resolve_alert(alert_id, current_user.username, request.resolution_note)
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="Alert not found")
+        
+        return {
+            "success": True,
+            "message": f"Alert {alert_id} resolved",
+            "resolved_by": current_user.username,
+            "resolution_note": request.resolution_note,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error resolving alert {alert_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/metrics", response_model=MetricsResponse)
@@ -664,7 +701,7 @@ async def get_prometheus_metrics(
 
 @router.get("/cross-asset/status")
 async def get_cross_asset_status(
-    timeframe: str = Query("1h", regex="^(1h|4h|1d)$", description="Analysis timeframe"),
+    timeframe: str = Query("1h", pattern="^(1h|4h|1d)$", description="Analysis timeframe"),
     engine: AlertEngine = Depends(get_alert_engine)
 ):
     """
@@ -737,7 +774,7 @@ async def get_cross_asset_status(
 
 @router.get("/cross-asset/top-correlated")
 async def get_top_correlated_pairs(
-    timeframe: str = Query("1h", regex="^(1h|4h|1d)$", description="Analysis timeframe"),
+    timeframe: str = Query("1h", pattern="^(1h|4h|1d)$", description="Analysis timeframe"),
     top_n: int = Query(3, ge=1, le=10, description="Number of top pairs to return"),
     engine: AlertEngine = Depends(get_alert_engine)
 ):
@@ -781,7 +818,7 @@ async def get_top_correlated_pairs(
 
 @router.get("/cross-asset/systemic-risk")
 async def get_systemic_risk(
-    timeframe: str = Query("1h", regex="^(1h|4h|1d)$", description="Analysis timeframe"),
+    timeframe: str = Query("1h", pattern="^(1h|4h|1d)$", description="Analysis timeframe"),
     engine: AlertEngine = Depends(get_alert_engine)
 ):
     """
@@ -825,6 +862,10 @@ async def get_systemic_risk(
     except Exception as e:
         logger.error(f"Error calculating systemic risk: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+# REMOVED: Test endpoints for debugging Phase 3 (production cleanup)
+# Former endpoints: /test/generate, /test/clear, /test/force-evaluation
+# These were temporary debug endpoints that should not be exposed in production
 
 # Hook pour initialisation depuis main.py
 def initialize_alert_engine(engine: AlertEngine):

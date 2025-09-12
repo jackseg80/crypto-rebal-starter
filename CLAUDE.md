@@ -33,22 +33,22 @@ Fichiers clés:
 
 ```
 api/main.py (auto-init ML au startup)
-api/execution_endpoints.py (governance routes)
+api/execution_endpoints.py (governance routes unifiées)
 api/risk_endpoints.py
-api/advanced_analytics_endpoints.py
-api/backtesting_endpoints.py
-api/portfolio_optimization_endpoints.py
+api/alerts_endpoints.py (alertes centralisées)
+api/unified_ml_endpoints.py (ML unifié)
+api/realtime_endpoints.py
 services/execution/governance.py (Decision Engine)
 services/ml/orchestrator.py (MLOrchestrator)
 services/risk_management.py
 services/analytics/*.py
 services/ml/*.py
 static/components/nav.js
-static/components/GovernancePanel.js (nouveau)
+static/components/GovernancePanel.js (intégré dans risk-dashboard)
 static/global-config.js
-static/ai-dashboard.html (signaux ML temps réel)
+static/intelligence-dashboard.html (signaux ML temps réel)
 static/analytics-unified.html
-static/risk-dashboard.html (avec GovernancePanel)
+static/risk-dashboard.html (avec GovernancePanel intégré)
 static/portfolio-optimization.html
 static/modules/*.js
 static/core/risk-dashboard-store.js (sync governance)
@@ -93,7 +93,7 @@ async def compute(assets: List[str] = Query(default=[], max_items=50)):
 
 Objectif: endpoint batch, latence p95 < 100 ms (CPU), lazy‑loading + LRU des modèles.
 
-Service (ex.): `services/ml/orchestrator.py` (cache LRU, TTL d’inactivité). Endpoint dans `api/ml_endpoints.py`:
+Service (ex.): `services/ml/orchestrator.py` (cache LRU, TTL d'inactivité). Endpoint dans `api/unified_ml_endpoints.py`:
 
 ```python
 from fastapi import APIRouter, Query, HTTPException
@@ -101,7 +101,7 @@ from pydantic import BaseModel
 from typing import List, Dict
 from services.ml.orchestrator import predict_vol_batch
 
-router = APIRouter(prefix="/api/ai", tags=["ml"])
+router = APIRouter(prefix="/api/ml", tags=["Machine Learning"])
 
 class VolResponse(BaseModel):
     horizon: str
@@ -133,7 +133,8 @@ async def vol_predict(assets: List[str] = Query(..., min_items=1, max_items=50),
 
 - Unit: logique pure (services).
 - Integration: TestClient FastAPI (pinger endpoint + vérifier schémas/contrats).
-- E2E: flux complet si nécessaire.
+- E2E: flux complet si nécessaire (utiliser tests/e2e existants ou tests/integration).
+- Smoke: `tests/smoke_test_refactored_endpoints.py` pour validation post-refactoring.
 
 ---
 
@@ -183,7 +184,8 @@ Tests:
 
 ```bash
 pytest -q tests/unit
-pytest -q tests/integration/test_smoke_api.py
+pytest -q tests/integration
+python tests/smoke_test_refactored_endpoints.py
 ```
 
 Docker:
@@ -221,9 +223,32 @@ docker run -p 8000:8000 --env-file .env crypto-rebal
 
 ---
 
-## 8) Notes spécifiques
+## 8) Architecture endpoints post-refactoring (important)
+
+**Namespaces consolidés** (ne pas créer de nouveaux) :
+- `/api/ml/*` - Toutes fonctions ML (remplace /api/ml-predictions, /api/ai)
+- `/api/risk/*` - Risk management unifié (/api/risk/advanced/* pour fonctions avancées)
+- `/api/alerts/*` - Alertes centralisées (acknowledge, resolve)
+- `/api/governance/approve/{resource_id}` - Approbations unifiées (decisions + plans)
+
+**Endpoints supprimés** (ne pas recréer) :
+- `/api/test/*` et `/api/alerts/test/*` - Endpoints de test supprimés
+- `/api/realtime/publish` et `/broadcast` - Supprimés pour sécurité
+- `/api/advanced-risk/*` - Déplacé vers `/api/risk/advanced/*`
+
+**Sécurité** :
+- ML debug `/api/ml/debug/*` nécessite header `X-Admin-Key`
+- Pas d'endpoints de test en production
+
+**Dashboard existants** :
+- `intelligence-dashboard.html` (pas ai-dashboard.html)
+- GovernancePanel intégré dans `risk-dashboard.html` (ne pas créer séparément)
+
+---
+
+## 9) Notes spécifiques
 
 - Réutiliser les patterns existants (cache, modèles Pydantic, `global-config.js`).
 - Préférer nowcasting simple pour corrélations (fenêtre ~90j) avant des modèles séquentiels.
-- Pour l’optimisation portefeuille, éviter d’exposer des chemins absolus; respecter `api_base_url` et `?nav=off`.
+- Pour l'optimisation portefeuille, éviter d'exposer des chemins absolus; respecter `api_base_url` et `?nav=off`.
 

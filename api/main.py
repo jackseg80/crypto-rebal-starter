@@ -66,13 +66,13 @@ except Exception as e:
     PORTFOLIO_AVAILABLE = False
 from api.taxonomy_endpoints import router as taxonomy_router
 from api.execution_endpoints import router as execution_router
-from api.ml_predictions_endpoints import router as ml_predictions_router
+# REMOVED: ml_predictions_endpoints (namespace collision resolved - functionality merged to unified_ml_endpoints)
 from api.analytics_endpoints import router as analytics_router
 from api.kraken_endpoints import router as kraken_router
 from api.smart_taxonomy_endpoints import router as smart_taxonomy_router  # FIXED - aiohttp mocké
 from api.advanced_rebalancing_endpoints import router as advanced_rebalancing_router
 from api.risk_endpoints import router as risk_router
-from api.test_risk_endpoints import router as test_risk_router
+# REMOVED: test_risk_endpoints (production cleanup)
 from api.risk_dashboard_endpoints import router as risk_dashboard_router
 from api.execution_history import router as execution_history_router
 from api.monitoring_advanced import router as monitoring_advanced_router
@@ -158,6 +158,11 @@ async def startup_load_ml_models():
                         
                         # Initialiser l'AlertEngine pour les API endpoints
                         initialize_alert_engine(alert_engine)
+                        
+                        # Initialiser la facade unifiée pour les systèmes legacy
+                        from services.alerts.unified_alert_facade import get_unified_alert_facade
+                        unified_facade = get_unified_alert_facade(alert_engine)
+                        logger.info("✅ Unified alert facade initialized for legacy system migration")
                         
                         # Démarrer le scheduler d'alertes en arrière-plan
                         scheduler_started = await alert_engine.start()
@@ -1510,13 +1515,13 @@ async def update_api_keys(payload: APIKeysRequest, debug_token: str = None):
 # inclure les routes taxonomie, execution, monitoring et analytics
 app.include_router(taxonomy_router)
 app.include_router(execution_router)
-app.include_router(ml_predictions_router)
+# REMOVED: ml_predictions_router (namespace collision resolved)
 app.include_router(analytics_router)
 app.include_router(kraken_router)
 app.include_router(smart_taxonomy_router)
 app.include_router(advanced_rebalancing_router)
 app.include_router(risk_router)
-app.include_router(test_risk_router)
+# REMOVED: test_risk_router (production cleanup)
 app.include_router(risk_dashboard_router)
 app.include_router(execution_history_router)
 app.include_router(monitoring_advanced_router)

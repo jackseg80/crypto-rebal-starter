@@ -78,6 +78,93 @@ async def explain_decision(
         log.error(f"Failed to explain decision: {e}")
         raise HTTPException(500, f"explanation_failed: {str(e)}")
 
+# Test endpoint for debugging
+@router.post("/explain/decision-simple")
+async def explain_decision_simple(
+    model_name: str = Body(...),
+    prediction: float = Body(...),
+    features: Dict[str, float] = Body(...),
+    xai_engine: ExplainableAIEngine = Depends(get_explainable_ai_engine)
+):
+    """Test endpoint - Générer une explication avec structure simplifiée"""
+    try:
+        explanation = await xai_engine.explain_decision(
+            model_name=model_name,
+            prediction=prediction,
+            features=features,
+            explanation_types=[ExplanationType.FEATURE_IMPORTANCE]
+        )
+        
+        return explanation.to_dict()
+        
+    except Exception as e:
+        log.error(f"Failed to explain decision (simple): {e}")
+        raise HTTPException(500, f"explanation_failed: {str(e)}")
+
+# Quick diagnostic endpoint
+@router.get("/explain/test")
+async def test_explanation_engine(
+    xai_engine: ExplainableAIEngine = Depends(get_explainable_ai_engine)
+):
+    """Test rapide du moteur d'IA explicable"""
+    try:
+        # Test simple sans appel asyncrone coûteux
+        metrics = xai_engine.get_metrics()
+        return {
+            "engine_status": "active", 
+            "metrics": metrics,
+            "test_result": "ok"
+        }
+    except Exception as e:
+        log.error(f"Engine test failed: {e}")
+        raise HTTPException(500, f"engine_test_failed: {str(e)}")
+
+# Mock endpoint pour tests du frontend
+@router.post("/explain/decision-mock")
+async def explain_decision_mock(
+    model_name: str = Body(...),
+    prediction: float = Body(...),
+    features: Dict[str, float] = Body(...)
+):
+    """Endpoint mock pour tester le frontend sans dépendances XAI"""
+    return {
+        "prediction": prediction,
+        "confidence": max(0.3, min(0.95, prediction + 0.1)),
+        "confidence_level": "medium",
+        "model_name": model_name,
+        "feature_contributions": [
+            {
+                "feature_name": "volatility_btc",
+                "value": features.get("volatility_btc", 0.035),
+                "contribution": 0.4,
+                "importance": 0.6,
+                "direction": "positive",
+                "description": "La volatilité Bitcoin augmente le risque"
+            },
+            {
+                "feature_name": "correlation_btc_eth", 
+                "value": features.get("correlation_btc_eth", 0.79),
+                "contribution": 0.2,
+                "importance": 0.3,
+                "direction": "positive",
+                "description": "Corrélation élevée augmente le risque systémique"
+            },
+            {
+                "feature_name": "sentiment_score",
+                "value": features.get("sentiment_score", 0.36),
+                "contribution": -0.1,
+                "importance": 0.1,
+                "direction": "negative", 
+                "description": "Sentiment négatif atténue légèrement le risque"
+            }
+        ],
+        "summary": f"Confiance modérée - Risque élevé détecté ({prediction:.2f}). Facteur principal: Volatilité Bitcoin (24h)",
+        "detailed_explanation": f"Le modèle {model_name} identifie un niveau de risque de {prediction:.1%} basé sur l'analyse des métriques de marché. La volatilité Bitcoin est le facteur dominant, contribuant à 40% de la prédiction. La corrélation élevée BTC-ETH amplifie le risque systémique. Recommandation: surveiller de près les mouvements BTC et considérer une réduction d'exposition si la volatilité persiste.",
+        "explanation_type": ["feature_importance"],
+        "timestamp": datetime.now().isoformat(),
+        "explanation_id": f"mock_{model_name}_{int(datetime.now().timestamp())}"
+    }
+
 @router.post("/explain/alert")
 async def explain_alert(
     alert_data: Dict[str, Any] = Body(...),

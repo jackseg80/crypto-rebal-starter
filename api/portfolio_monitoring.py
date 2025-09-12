@@ -338,40 +338,8 @@ async def get_performance_analytics(
         logger.error(f"Error getting performance analytics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/alerts/{alert_id}/resolve")
-async def resolve_alert(alert_id: str):
-    """Résoudre une alerte spécifique"""
-    try:
-        # Charger les alertes actuelles
-        alerts_data = load_json_file(ALERTS_FILE, {"alerts": []})
-        
-        # Trouver et résoudre l'alerte
-        alert_found = False
-        for alert in alerts_data.get("alerts", []):
-            if alert.get("id") == alert_id:
-                alert["resolved"] = True
-                alert["resolved_at"] = datetime.now(timezone.utc).isoformat()
-                alert_found = True
-                break
-        
-        if not alert_found:
-            raise HTTPException(status_code=404, detail="Alert not found")
-        
-        # Sauvegarder les alertes mises à jour
-        alerts_data["last_updated"] = datetime.now(timezone.utc).isoformat()
-        save_json_file(ALERTS_FILE, alerts_data)
-        
-        return JSONResponse({
-            "message": "Alert resolved successfully",
-            "alert_id": alert_id,
-            "resolved_at": alerts_data["alerts"][-1].get("resolved_at")
-        })
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error resolving alert {alert_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+# REMOVED: Duplicate alert resolution endpoint - use /api/alerts/resolve/{alert_id} instead
+# Alert management should be centralized in alerts_endpoints.py
 
 @router.get("/strategy-performance")
 async def get_strategy_performance(

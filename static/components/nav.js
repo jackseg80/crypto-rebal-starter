@@ -48,8 +48,27 @@ const initUnifiedNav = () => {
     `;
     document.head.appendChild(style);
 
-    const header = document.createElement('header');
-    header.className = 'app-header';
+    // Vérifier si l'élément navigation-container existe déjà
+    let header = document.getElementById('navigation-container');
+
+    if (!header) {
+      // Créer un nouvel élément header si aucun n'existe
+      header = document.createElement('header');
+      header.id = 'navigation-container';
+      header.className = 'app-header';
+
+      const maybeInsertBefore = document.body.firstElementChild;
+      if (maybeInsertBefore) {
+        document.body.insertBefore(header, maybeInsertBefore);
+      } else {
+        document.body.appendChild(header);
+      }
+    } else {
+      // Utiliser l'élément existant et s'assurer qu'il a la bonne classe
+      header.className = 'app-header';
+    }
+
+    // Injecter le contenu de la navigation
     header.innerHTML = `
       <div class="nav-inner">
         <div class="brand">Crypto Rebal</div>
@@ -61,6 +80,7 @@ const initUnifiedNav = () => {
               <div class="submenu" role="menu">
                 <a href="analytics-unified.html" data-route="analytics-unified.html">Analytics</a>
                 <a href="risk-dashboard.html" data-route="risk-dashboard.html">Risk Dashboard</a>
+                <a href="realtime-dashboard.html" data-route="realtime-dashboard.html">Real-time Dashboard</a>
                 <div class="menu-separator"></div>
                 <a href="unified-scores.html" data-route="unified-scores.html">Scores Unifiés</a>
                 <a href="performance-monitor.html" data-route="performance-monitor.html">Performance Monitor</a>
@@ -70,7 +90,13 @@ const initUnifiedNav = () => {
               </div>
             </li>
             <li><a href="rebalance.html" data-route="rebalance.html">Rebalancing</a></li>
-            <li><a href="ai-dashboard.html" data-route="ai-dashboard.html">AI Dashboard</a></li>
+            <li class="has-submenu">
+              <a href="ai-dashboard.html" data-route="ai-dashboard.html">AI Dashboard</a>
+              <div class="submenu" role="menu">
+                <a href="ai-dashboard.html" data-route="ai-dashboard.html">AI Dashboard</a>
+                <a href="intelligence-dashboard.html" data-route="intelligence-dashboard.html">Intelligence Dashboard</a>
+              </div>
+            </li>
             <li class="has-submenu">
               <a href="execution.html" data-route="execution.html">Execution</a>
               <div class="submenu" role="menu">
@@ -101,13 +127,6 @@ const initUnifiedNav = () => {
         </div>
       </div>
     `;
-
-    const maybeInsertBefore = document.body.firstElementChild;
-    if (maybeInsertBefore) {
-      document.body.insertBefore(header, maybeInsertBefore);
-    } else {
-      document.body.appendChild(header);
-    }
 
     // Activer le lien courant
     const current = location.pathname.split('/').pop() || 'index.html';
@@ -168,16 +187,16 @@ const initUnifiedNav = () => {
     });
 
     // ===== Human-in-the-loop Badge Management =====
-    
+
     let websocketConnection = null;
     let fallbackInterval = null;
-    
+
     function updateHumanLoopBadgeFromData(data) {
       const pendingCount = data.pending_decisions?.length || 0;
-      
+
       const badge = document.getElementById('human-loop-badge');
       const countElement = document.getElementById('badge-count');
-      
+
       if (pendingCount > 0) {
         countElement.textContent = pendingCount;
         badge.style.display = 'flex';
@@ -186,7 +205,7 @@ const initUnifiedNav = () => {
         badge.style.display = 'none';
       }
     }
-    
+
     async function fallbackBadgeUpdate() {
       try {
         const response = await fetch('/api/phase3/intelligence/human-decisions');
@@ -200,35 +219,35 @@ const initUnifiedNav = () => {
         if (badge) badge.style.display = 'none';
       }
     }
-    
+
     function initWebSocketConnection() {
       try {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/api/realtime/ws?client_id=nav_badge`;
-        
+
         websocketConnection = new WebSocket(wsUrl);
-        
+
         websocketConnection.onopen = () => {
           console.debug('WebSocket connection opened for navigation badge');
-          
+
           // Subscribe to system events for human-loop notifications
           const subscribeMessage = {
             type: 'subscribe',
             subscriptions: ['system', 'all']
           };
           websocketConnection.send(JSON.stringify(subscribeMessage));
-          
+
           // Clear fallback polling if WebSocket works
           if (fallbackInterval) {
             clearInterval(fallbackInterval);
             fallbackInterval = null;
           }
         };
-        
+
         websocketConnection.onmessage = (event) => {
           try {
             const message = JSON.parse(event.data);
-            
+
             // Handle human-loop decision updates
             if (message.event_type === 'system_status' || message.type === 'system_update') {
               // Trigger a fetch for latest decision count
@@ -238,21 +257,21 @@ const initUnifiedNav = () => {
             console.debug('Error parsing WebSocket message:', error);
           }
         };
-        
+
         websocketConnection.onclose = () => {
           console.debug('WebSocket connection closed, falling back to polling');
           websocketConnection = null;
-          
+
           // Fall back to polling every 30 seconds
           if (!fallbackInterval) {
             fallbackInterval = setInterval(fallbackBadgeUpdate, 30000);
           }
         };
-        
+
         websocketConnection.onerror = (error) => {
           console.debug('WebSocket error, will fall back to polling:', error);
         };
-        
+
       } catch (error) {
         console.debug('Failed to initialize WebSocket, falling back to polling:', error);
         // Fall back to polling immediately
@@ -263,7 +282,7 @@ const initUnifiedNav = () => {
     }
 
     // Global function for opening human-loop panel
-    window.openHumanLoopPanel = function() {
+    window.openHumanLoopPanel = function () {
       // Check if we're on a page that can handle the panel
       if (window.location.pathname.includes('intelligence-dashboard.html')) {
         // Already on intelligence dashboard, just scroll to decisions

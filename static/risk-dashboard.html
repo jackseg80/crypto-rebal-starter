@@ -131,6 +131,243 @@
     }
 
     /* Tons dynamiques (utilisent les variables déjà adaptatives light/dark) */
+
+    /* ===== CSP Compliance: Replace inline styles ===== */
+    .refresh-group {
+      position: relative;
+      display: inline-flex;
+      align-items: stretch;
+    }
+    
+    .refresh-menu-btn {
+      padding: 0 .6rem;
+      width: auto;
+    }
+    
+    .refresh-menu {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      background: var(--theme-bg);
+      border: 1px solid var(--theme-border);
+      border-radius: var(--radius-sm);
+      box-shadow: 0 6px 14px rgba(0,0,0,.25);
+      min-width: 220px;
+      z-index: 1000;
+    }
+    
+    .refresh-menu.show {
+      display: block;
+    }
+    
+    .refresh-menu-item {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: .5rem .75rem;
+      background: none;
+      border: none;
+      color: var(--theme-text);
+      cursor: pointer;
+    }
+    
+    .refresh-menu-item:hover {
+      background: var(--theme-surface-alt);
+    }
+    
+    .test-api-btn {
+      background: #007bff;
+    }
+    
+    .sidebar-toggle-full {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .5rem;
+      background: var(--theme-bg);
+      color: var(--theme-text);
+      border: 1px solid var(--theme-border);
+      border-radius: var(--radius-md);
+      padding: .5rem;
+      margin-bottom: var(--space-md);
+      cursor: pointer;
+    }
+    
+    .sidebar-section-top {
+      margin-top: 1.5rem;
+    }
+    
+    .sidebar-title {
+      font-size: 1rem;
+      font-weight: 700;
+    }
+    
+    .blended-gauge-container {
+      padding: 2rem;
+      border: 2px solid var(--theme-border);
+      box-shadow: 0 0 12px rgba(0,0,0,0.15);
+    }
+    
+    .ccs-score {
+      font-size: 3rem;
+    }
+    
+    .ccs-label {
+      font-size: 1rem;
+      font-weight: 700;
+    }
+    
+    .governance-details {
+      margin-top: 8px;
+      font-size: 0.85em;
+      opacity: 0.8;
+    }
+    
+    .alerts-list-container {
+      margin-top: 8px;
+      max-height: 150px;
+      overflow-y: auto;
+    }
+    
+    .alerts-button-container {
+      text-align: center;
+      margin-top: 8px;
+      font-size: 0.75rem;
+    }
+    
+    .alerts-history-btn {
+      background: var(--brand-primary);
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.7rem;
+    }
+    
+    .status-acknowledged {
+      color: var(--success);
+    }
+    
+    .status-snoozed {
+      color: var(--warning);
+    }
+    
+    .status-active {
+      color: var(--error);
+    }
+    
+    .alert-timestamp {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+    
+    .cycle-text-container {
+      font-size: 11px;
+      font-weight: 600;
+    }
+    
+    .cycle-subtext {
+      font-size: 10px;
+      opacity: 0.8;
+    }
+    
+    .regime-text-bold {
+      font-weight: bold;
+    }
+    
+    .regime-subtext {
+      font-size: 0.8rem;
+      margin-top: 2px;
+    }
+    
+    .test-mode-banner {
+      background: var(--info-bg);
+      border: 1px solid var(--info);
+      border-radius: var(--radius-md);
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+      text-align: center;
+    }
+    
+    .test-mode-title {
+      color: var(--info);
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+    
+    .test-mode-desc {
+      color: var(--theme-text-muted);
+      font-size: 0.9rem;
+    }
+    
+    .insights-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: .75rem;
+    }
+    
+    .insight-title {
+      font-weight: 600;
+      color: var(--theme-text);
+    }
+    
+    .insight-desc {
+      color: var(--theme-text-muted);
+      margin-top: 0.25rem;
+    }
+    
+    .metric-label {
+      font-size: .8rem;
+      color: var(--theme-text);
+      opacity: .7;
+      font-weight: 500;
+      margin-left: .5rem;
+    }
+    
+    .loading-center {
+      text-align: center;
+      padding: 2rem;
+      color: var(--theme-text-muted);
+    }
+    
+    .error-title {
+      font-size: 1.2rem;
+      margin-bottom: 1rem;
+    }
+    
+    .error-message {
+      font-size: 0.9rem;
+    }
+    
+    .error-hint {
+      font-size: 0.8rem;
+      margin-top: 0.5rem;
+    }
+    
+    .section-toggle-btn {
+      background: none;
+      border: 1px solid var(--theme-border);
+      border-radius: 4px;
+      padding: 4px 8px;
+      cursor: pointer;
+      color: var(--theme-text);
+      font-size: 0.8rem;
+    }
+    
+    .dynamic-weighting-label {
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    
+    .dynamic-weighting-checkbox {
+      transform: scale(1.1);
+    }
     #blended-gauge[data-tone="success"] {
       background: var(--success-bg);
       border-color: var(--success);
@@ -1829,17 +2066,17 @@
     <!-- Controls Header -->
     <div class="controls">
       <!-- Split refresh button with dropdown -->
-      <div class="refresh-group" style="position: relative; display: inline-flex; align-items: stretch;">
-        <button class="refresh-btn" onclick="refreshDashboard()" id="refresh-btn" title="Actualiser les données">🔄 Refresh</button>
-        <button class="refresh-btn" id="refresh-menu-btn" aria-haspopup="true" aria-expanded="false" title="Options de rafraîchissement" style="padding: 0 .6rem; width: auto;" onclick="toggleRefreshMenu(event)">▾</button>
-        <div id="refresh-menu" class="refresh-menu" style="display:none; position:absolute; top: 100%; left: 0; background: var(--theme-bg); border: 1px solid var(--theme-border); border-radius: var(--radius-sm); box-shadow: 0 6px 14px rgba(0,0,0,.25); min-width: 220px; z-index: 1000;">
-          <button class="refresh-menu-item" style="display:block; width:100%; text-align:left; padding:.5rem .75rem; background:none; border:none; color: var(--theme-text); cursor:pointer;" onclick="closeRefreshMenu(); refreshDashboard(true)" title="Ignorer le cache et recalculer tous les scores">🧹 Force Refresh</button>
-          <button class="refresh-menu-item" style="display:block; width:100%; text-align:left; padding:.5rem .75rem; background:none; border:none; color: var(--theme-text); cursor:pointer;" onclick="closeRefreshMenu(); forceCycleRefresh()" title="Vider le cache cycles et recharger uniquement les cycles">🔄 Refresh Cycles</button>
+      <div class="refresh-group">
+        <button class="refresh-btn" id="refresh-btn" title="Actualiser les données">🔄 Refresh</button>
+        <button class="refresh-btn refresh-menu-btn" id="refresh-menu-btn" aria-haspopup="true" aria-expanded="false" title="Options de rafraîchissement">▾</button>
+        <div id="refresh-menu" class="refresh-menu">
+          <button class="refresh-menu-item" id="force-refresh-btn" title="Ignorer le cache et recalculer tous les scores">🧹 Force Refresh</button>
+          <button class="refresh-menu-item" id="force-cycle-refresh-btn" title="Vider le cache cycles et recharger uniquement les cycles">🔄 Refresh Cycles</button>
         </div>
       </div>
 
-      <button class="refresh-btn" onclick="enableAutoRefresh()" id="auto-refresh-btn">⏱️ Enable Auto-Refresh (30s)</button>
-      <button class="refresh-btn" onclick="testEndpoint()" style="background:#007bff">🧪 Test API</button>
+      <button class="refresh-btn" id="auto-refresh-btn">⏱️ Enable Auto-Refresh (30s)</button>
+      <button class="refresh-btn test-api-btn" id="test-endpoint-btn">🧪 Test API</button>
       <div class="timestamp" id="last-update"></div>
     </div>
 
@@ -1853,10 +2090,7 @@
         <!-- 🎯 Cockpit Principal - 3 Scores + 1 Synthèse -->
 
         <!-- Toggle sidebar -->
-        <button id="sidebar-toggle" aria-label="Réduire la barre latérale" title="Réduire/agrandir la barre" style="width:100%; display:flex; align-items:center; justify-content:center; gap:.5rem;
-                      background: var(--theme-bg); color: var(--theme-text);
-                      border: 1px solid var(--theme-border); border-radius: var(--radius-md);
-                      padding: .5rem; margin-bottom: var(--space-md); cursor: pointer;">
+        <button id="sidebar-toggle" aria-label="Réduire la barre latérale" title="Réduire/agrandir la barre" class="sidebar-toggle-full">
           <span id="sidebar-toggle-icon">⟨⟨</span>
           <span class="sidebar-toggle-text">Réduire</span>
         </button>
@@ -2086,23 +2320,65 @@
     // Note: calibrateCycleParams & getCycleParams seront importés à la volée, ce qui
     // évite tout problème si le bouton est injecté après coup.
 
-    // 🔗 Écoute déléguée (le bouton est ajouté dynamiquement)
+    // 🔗 CSP Compliance: Replace inline onclick handlers with event listeners
     document.addEventListener('click', async (e) => {
-      const btn = e.target?.closest('#btn-calibrate');
-      if (!btn) return;
-      try {
-        const { calibrateCycleParams, getCycleParams } = await import('./modules/cycle-navigator.js');
-        const res = calibrateCycleParams(); // ancres par défaut
-        console.debug('Cycle params calibrés:', getCycleParams(), 'score=', res.score);
-        // ✅ Redessiner le même canvas (force refresh after calibration)
-        await createBitcoinCycleChart('bitcoin-cycle-chart', true);
-        // Also clear cycle content cache as calibration affects data
-        const cycleContentConfig = CACHE_CONFIG.CYCLE_CONTENT;
-        if (cycleContentConfig) localStorage.removeItem(cycleContentConfig.key);
-        window.showToast?.('Cycle calibré sur historiques', 'success');
-      } catch (e) {
-        console.error(e);
-        window.showToast?.('Échec calibration', 'error');
+      // Calibration button (existing)
+      const calibrateBtn = e.target?.closest('#btn-calibrate');
+      if (calibrateBtn) {
+        try {
+          const { calibrateCycleParams, getCycleParams } = await import('./modules/cycle-navigator.js');
+          const res = calibrateCycleParams(); // ancres par défaut
+          console.debug('Cycle params calibrés:', getCycleParams(), 'score=', res.score);
+          // ✅ Redessiner le même canvas (force refresh after calibration)
+          await createBitcoinCycleChart('bitcoin-cycle-chart', true);
+          // Also clear cycle content cache as calibration affects data
+          const cycleContentConfig = CACHE_CONFIG.CYCLE_CONTENT;
+          if (cycleContentConfig) localStorage.removeItem(cycleContentConfig.key);
+          window.showToast?.('Cycle calibré sur historiques', 'success');
+        } catch (e) {
+          console.error(e);
+          window.showToast?.('Échec calibration', 'error');
+        }
+        return;
+      }
+      
+      // Refresh buttons
+      if (e.target?.closest('#refresh-btn')) {
+        refreshDashboard();
+        return;
+      }
+      
+      if (e.target?.closest('#refresh-menu-btn')) {
+        toggleRefreshMenu(e);
+        return;
+      }
+      
+      if (e.target?.closest('#force-refresh-btn')) {
+        closeRefreshMenu();
+        refreshDashboard(true);
+        return;
+      }
+      
+      if (e.target?.closest('#force-cycle-refresh-btn')) {
+        closeRefreshMenu(); 
+        forceCycleRefresh();
+        return;
+      }
+      
+      if (e.target?.closest('#auto-refresh-btn')) {
+        enableAutoRefresh();
+        return;
+      }
+      
+      if (e.target?.closest('#test-endpoint-btn')) {
+        testEndpoint();
+        return;
+      }
+      
+      // View alerts history button
+      if (e.target?.closest('[data-action="view-alerts-history"]')) {
+        switchTab('alerts');
+        return;
       }
     });
 
@@ -2758,18 +3034,18 @@
         // No alerts
         alertsDot.className = 'status-dot healthy';
         alertsText.textContent = 'No active alerts';
-        alertsList.innerHTML = '';
+        alertsList.replaceChildren(); // CSP safe replacement for innerHTML = ''
         
         // Always show the "View All History" button even when no active alerts
         const historyButton = document.createElement('div');
-        historyButton.style.textAlign = 'center';
-        historyButton.style.marginTop = '8px';
-        historyButton.style.fontSize = '0.75rem';
-        historyButton.innerHTML = `
-          <button onclick="switchTab('alerts')" style="background: var(--brand-primary); color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.7rem;">
-            📋 View All History
-          </button>
-        `;
+        historyButton.className = 'alerts-button-container';
+        
+        const viewHistoryBtn = document.createElement('button');
+        viewHistoryBtn.className = 'alerts-history-btn';
+        viewHistoryBtn.textContent = '📋 View All History';
+        viewHistoryBtn.setAttribute('data-action', 'view-alerts-history');
+        
+        historyButton.appendChild(viewHistoryBtn);
         alertsList.appendChild(historyButton);
         return;
       }
@@ -2798,7 +3074,7 @@
       alertsText.textContent = statusText;
       
       // Render alerts list
-      alertsList.innerHTML = '';
+      alertsList.replaceChildren(); // CSP safe replacement for innerHTML = ''
       
       // Sort alerts by severity (S3, S2, S1) and creation time
       const sortedAlerts = [...alertsData].sort((a, b) => {
@@ -6063,7 +6339,7 @@ async function refreshDashboard(forceRefresh = false) {
             <ol style="color: var(--theme-text-muted); line-height: 1.6;">
               <li>Démarrer le serveur backend Python : <code style="background: var(--theme-surface); padding: 0.2rem 0.4rem; border-radius: 3px;">python main.py</code></li>
               <li>Initialiser le cache d'historique : <code style="background: var(--theme-surface); padding: 0.2rem 0.4rem; border-radius: 3px;">python scripts/init_price_history.py</code></li>
-              <li>Vérifier que l'API répond sur <a href="http://localhost:8000/api/test/risk/dashboard" target="_blank" style="color: var(--brand-primary);">localhost:8000</a></li>
+              <li>Vérifier que l'API répond sur <a href="http://localhost:8000/api/risk/dashboard" target="_blank" style="color: var(--brand-primary);">localhost:8000</a></li>
             </ol>
           </div>
 
@@ -6691,14 +6967,14 @@ async function refreshDashboard(forceRefresh = false) {
       if (!currentAlert) return;
 
       try {
-        const response = await fetch(`${API_BASE_URL}/api/alerts/${currentAlert.id}/acknowledge`, {
+        const apiBaseUrl = globalConfig.get('api_base_url');
+        const response = await fetch(`${apiBaseUrl}/api/alerts/acknowledge/${currentAlert.id}`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'Idempotency-Key': `ack-${currentAlert.id}-${Date.now()}`
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            acknowledged_by: 'user'
+            notes: 'Acknowledged from dashboard modal'
           })
         });
 
@@ -6708,8 +6984,8 @@ async function refreshDashboard(forceRefresh = false) {
           currentAlert.acknowledged_by = 'user';
           updateModalButtonStates(currentAlert);
           
-          // Refresh alerts tab if visible
-          refreshAlertsTab();
+          // Refresh alerts history if visible
+          refreshAlertsHistory();
         } else {
           throw new Error(`HTTP ${response.status}`);
         }
@@ -6723,7 +6999,8 @@ async function refreshDashboard(forceRefresh = false) {
       if (!currentAlert) return;
 
       try {
-        const response = await fetch(`${API_BASE_URL}/api/alerts/${currentAlert.id}/snooze`, {
+        const apiBaseUrl = globalConfig.get('api_base_url');
+        const response = await fetch(`${apiBaseUrl}/api/alerts/snooze/${currentAlert.id}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -6740,8 +7017,8 @@ async function refreshDashboard(forceRefresh = false) {
           updateModalButtonStates(currentAlert);
           closeAlertModal();
           
-          // Refresh alerts tab if visible
-          refreshAlertsTab();
+          // Refresh alerts history if visible
+          refreshAlertsHistory();
         } else {
           throw new Error(`HTTP ${response.status}`);
         }
@@ -6780,7 +7057,7 @@ async function refreshDashboard(forceRefresh = false) {
           closeAlertModal();
           
           // Refresh alerts and governance
-          refreshAlertsTab();
+          refreshAlertsHistory();
           refreshGovernancePanel();
         } else {
           throw new Error(`HTTP ${response.status}`);
@@ -6867,6 +7144,8 @@ async function refreshDashboard(forceRefresh = false) {
     window.closeAlertModal = closeAlertModal;
     window.acknowledgeAlert = acknowledgeAlert;
     window.snoozeAlert = snoozeAlert;
+    window.acknowledgeCurrentAlert = acknowledgeCurrentAlert;
+    window.snoozeCurrentAlert = snoozeCurrentAlert;
     window.applyAction = applyAction;
     window.startAlertMonitoring = startAlertMonitoring;
     window.refreshAlertsHistory = refreshAlertsHistory;

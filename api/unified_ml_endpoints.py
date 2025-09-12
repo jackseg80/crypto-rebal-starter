@@ -3,7 +3,7 @@ Unified ML Pipeline API Endpoints
 Endpoints consolidés pour la gestion centralisée des modèles ML
 """
 
-from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, Depends, Header
 from typing import Dict, List, Optional, Any
 import logging
 from datetime import datetime
@@ -342,8 +342,21 @@ async def clear_ml_cache():
 
 # ========== NOUVEAUX ENDPOINTS OPTIMISÉS ==========
 
+# Admin Authentication dependency
+async def verify_admin_access(x_admin_key: str = Header(None)):
+    """Verify admin access via header"""
+    if not x_admin_key:
+        raise HTTPException(status_code=401, detail="Admin key required")
+    
+    # Simple admin key check (in production, use proper env variable)
+    expected_key = "crypto-rebal-admin-2024"  # TODO: Move to environment variable
+    if x_admin_key != expected_key:
+        raise HTTPException(status_code=403, detail="Invalid admin key")
+    
+    return True
+
 @router.get("/debug/pipeline-info")
-async def debug_pipeline_info():
+async def debug_pipeline_info(admin_verified: bool = Depends(verify_admin_access)):
     """Endpoint de debug pour analyser les instances du pipeline manager"""
     try:
         # Informations sur l'instance
@@ -379,24 +392,8 @@ async def debug_pipeline_info():
             "timestamp": datetime.now().isoformat()
         }
 
-@router.get("/test/simple-status")
-async def test_simple_status():
-    """Test simple de statut sans cache ni complications"""
-    try:
-        status = pipeline_manager.get_pipeline_status()
-        return {
-            "test_result": "success",
-            "pipeline_status": status,
-            "timestamp": datetime.now().isoformat()
-        }
-    except Exception as e:
-        import traceback
-        return {
-            "test_result": "error",
-            "error": str(e),
-            "traceback": traceback.format_exc(),
-            "timestamp": datetime.now().isoformat()
-        }
+# REMOVED: test endpoint /test/simple-status (production cleanup)
+# Former functionality moved to regular /status endpoint
 
 @router.get("/cache/stats")
 async def get_cache_statistics():

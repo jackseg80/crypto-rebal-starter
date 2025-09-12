@@ -30,7 +30,7 @@ GET /api/risk/dashboard?price_history_days=365&lookback_days=90&source=cointrack
 
 ### Test (avec support source dynamique)
 ```
-GET /api/test/risk/dashboard?source=cointracking&min_usd=1.0
+GET /api/risk/dashboard?source=cointracking&min_usd=1.0
 ```
 
 **Paramètres** :
@@ -53,7 +53,7 @@ Le backend calcule chaque métrique avec une fenêtre dédiée (cycle-aware):
 Note: “(1D)” indique l’horizon de perte (jour), pas le lookback utilisé pour estimer la distribution.
 
 ## Frontend
-- `static/risk-dashboard.html` appelle `/api/risk/dashboard` ou `/api/test/risk/dashboard` pour les métriques.
+- `static/risk-dashboard.html` appelle `/api/risk/dashboard` pour les métriques.
 - **Configuration dynamique**: Utilise `globalConfig.get('data_source')` pour sélectionner automatiquement la source
 - **Cache management**: Vide automatiquement le cache lors du changement de source via `dataSourceChanged` event
 - Le slider de lookback global et le sélecteur de corrélations ont été retirés; l'UI affiche des libellés "lookback" dans les titres de cartes.

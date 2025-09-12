@@ -176,6 +176,14 @@ class ApprovalRequest(BaseModel):
     approved: bool
     reason: Optional[str] = None
 
+class UnifiedApprovalRequest(BaseModel):
+    """Requête d'approbation unifiée pour décisions et plans"""
+    resource_type: str = Field(..., pattern="^(decision|plan)$", description="Type: decision ou plan")
+    approved: bool = Field(..., description="Approuver (true) ou rejeter (false)")
+    approved_by: str = Field(default="system", description="Identifiant de l'approbateur")
+    reason: Optional[str] = Field(None, max_length=500, description="Raison de l'approbation/rejet")
+    notes: Optional[str] = Field(None, max_length=500, description="Notes additionnelles")
+
 class FreezeRequest(BaseModel):
     """Requête de gel du système avec TTL"""
     reason: str = Field(..., max_length=140, description="Raison du freeze")
@@ -776,35 +784,8 @@ async def get_governance_state():
         logger.error(f"Error getting governance state: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/governance/approve")
-async def approve_decision(request: ApprovalRequest):
-    """
-    Approuver ou rejeter une décision en attente
-    
-    En mode manuel ou ai_assisted, les décisions doivent être approuvées
-    avant d'être exécutées.
-    """
-    try:
-        success = await governance_engine.approve_decision(
-            decision_id=request.decision_id,
-            approved=request.approved,
-            reason=request.reason
-        )
-        
-        if not success:
-            raise HTTPException(status_code=404, detail="Decision not found or not in approvalable state")
-        
-        return {
-            "success": True,
-            "message": f"Decision {request.decision_id} {'approved' if request.approved else 'rejected'}",
-            "decision_id": request.decision_id
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error approving decision: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+# REMOVED: Old /governance/approve endpoint - replaced by unified /governance/approve/{resource_id}
+# Former functionality available with resource_type="decision"
 
 @router.post("/governance/init-ml")
 async def init_ml_models():
@@ -1083,35 +1064,73 @@ async def review_plan(plan_id: str, request: dict, if_match: Optional[str] = Hea
         logger.error(f"Error reviewing plan: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/governance/approve/{plan_id}")
-async def approve_plan_endpoint(plan_id: str, request: dict):
+@router.post("/governance/approve/{resource_id}")
+async def unified_approval_endpoint(resource_id: str, request: UnifiedApprovalRequest):
     """
-    Approuver un plan REVIEWED → APPROVED
+    Endpoint unifié pour approuver/rejeter des décisions ou des plans
     
-    Validation finale avant activation
+    Remplace les anciens endpoints séparés /governance/approve et /governance/approve/{plan_id}
     """
     try:
-        approved_by = request.get("approved_by", "system")
-        notes = request.get("notes", "Approved via API")
-        
-        success = await governance_engine.approve_plan(plan_id, approved_by, notes)
-        
-        if success:
+        if request.resource_type == "decision":
+            # Approbation de décision (ancien comportement /governance/approve)
+            success = await governance_engine.approve_decision(
+                decision_id=resource_id,
+                approved=request.approved,
+                reason=request.reason
+            )
+            
+            if not success:
+                raise HTTPException(status_code=404, detail="Decision not found or not in approvable state")
+            
             return {
                 "success": True,
-                "message": f"Plan {plan_id} approved by {approved_by}",
-                "plan_id": plan_id,
-                "new_state": "APPROVED",
-                "approved_by": approved_by,
+                "resource_type": "decision",
+                "resource_id": resource_id,
+                "action": "approved" if request.approved else "rejected",
+                "message": f"Decision {resource_id} {'approved' if request.approved else 'rejected'}",
+                "approved_by": request.approved_by,
                 "timestamp": datetime.now().isoformat()
             }
-        else:
-            raise HTTPException(status_code=400, detail="Plan not found or not in approvable state")
+        
+        elif request.resource_type == "plan":
+            # Approbation de plan (ancien comportement /governance/approve/{plan_id})
+            if not request.approved:
+                # TODO: Implémenter le rejet de plan
+                return {
+                    "success": False,
+                    "message": "Plan rejection not yet implemented",
+                    "resource_type": "plan",
+                    "resource_id": resource_id
+                }
             
+            success = await governance_engine.approve_plan(
+                resource_id, 
+                request.approved_by, 
+                request.notes or request.reason or "Approved via API"
+            )
+            
+            if success:
+                return {
+                    "success": True,
+                    "resource_type": "plan",
+                    "resource_id": resource_id,
+                    "action": "approved",
+                    "message": f"Plan {resource_id} approved by {request.approved_by}",
+                    "new_state": "APPROVED",
+                    "approved_by": request.approved_by,
+                    "timestamp": datetime.now().isoformat()
+                }
+            else:
+                raise HTTPException(status_code=400, detail="Plan not found or not in approvable state")
+        
+        else:
+            raise HTTPException(status_code=400, detail="Invalid resource_type. Must be 'decision' or 'plan'")
+        
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error approving plan: {e}")
+        logger.error(f"Error in unified approval for {request.resource_type} {resource_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/governance/activate/{plan_id}")

@@ -389,6 +389,58 @@
 
                 <!-- Vue d'ensemble -->
                 <div id="overview-tab" class="tab-content active">
+                    <!-- Section Alertes Phase 3 -->
+                    <div class="ml-card" style="margin-bottom: 2rem; border: 2px solid var(--brand-primary); background: linear-gradient(135deg, var(--theme-surface) 0%, color-mix(in oklab, var(--brand-primary) 5%, var(--theme-surface)) 100%);">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <span class="card-icon">🚨</span>
+                                Système d'Alertes Phase 3
+                            </div>
+                        </div>
+                        <div class="card-content">
+                            <div class="status-grid" id="alerts-status-grid">
+                                <div class="status-item">
+                                    <span class="status-label">Alertes Actives</span>
+                                    <span class="status-value" id="active-alerts-count">-</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">AlertEngine</span>
+                                    <span class="status-value" id="alert-engine-status">-</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">ML Alert Predictor</span>
+                                    <span class="status-value" id="ml-predictor-status">Désactivé</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Advanced Risk Engine</span>
+                                    <span class="status-value" id="risk-engine-status">-</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-actions">
+                            <button id="check-alerts-status" class="btn primary">📊 Vérifier Alertes</button>
+                            <button id="open-test-alerts" class="btn secondary">🧪 Tests Alertes</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Section Quick Links vers nouveaux dashboards -->
+                    <div class="ml-card" style="margin-bottom: 2rem;">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <span class="card-icon">🔗</span>
+                                Accès Rapide Dashboards Phase 3
+                            </div>
+                        </div>
+                        <div class="card-content">
+                            <div class="card-actions" style="justify-content: flex-start; margin: 0; flex-wrap: wrap;">
+                                <button onclick="window.open('realtime-dashboard.html', '_blank')" class="btn primary">⚡ Real-time Dashboard</button>
+                                <button onclick="window.open('intelligence-dashboard.html', '_blank')" class="btn primary">🧠 Intelligence Dashboard</button>
+                                <button onclick="window.open('monitoring-unified.html', '_blank')" class="btn primary">📊 Monitoring Unifié</button>
+                                <button onclick="window.open('/tests/test_alerts_generation.html', '_blank')" class="btn secondary">🧪 Test Alertes</button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div id="models-overview" class="ml-cards-grid">
                         <!-- Les cartes seront générées par JavaScript -->
                     </div>
@@ -1045,6 +1097,20 @@
             // Bouton Exporter Prédictions
             document.getElementById('export-predictions').addEventListener('click', () => {
                 showSuccess('💾 Export des prédictions en cours...');
+            });
+
+            // === NOUVEAUX BOUTONS ALERTES PHASE 3 ===
+            
+            // Bouton Vérifier Alertes
+            document.getElementById('check-alerts-status')?.addEventListener('click', async () => {
+                showSuccess('🔄 Vérification du statut des alertes...');
+                await checkAlertsSystemStatus();
+            });
+
+            // Bouton Ouvrir Tests Alertes  
+            document.getElementById('open-test-alerts')?.addEventListener('click', () => {
+                window.open('/tests/test_alerts_generation.html', '_blank');
+                showSuccess('🧪 Interface de test des alertes ouverte');
             });
 
             // === BOUTONS ONGLET ADMINISTRATION ===
@@ -1898,8 +1964,65 @@
             }
         };
 
+        // ========== FONCTIONS ALERTES PHASE 3 ==========
+        
+        async function checkAlertsSystemStatus() {
+            try {
+                console.log('🔄 Vérification du système d\'alertes Phase 3...');
+                const config = await fetchUserConfig();
+                
+                // 1. Vérifier les alertes actives
+                let activeAlertsCount = 0;
+                try {
+                    const alertsResponse = await fetch(`${config.api_base_url}/api/alerts/active`);
+                    if (alertsResponse.ok) {
+                        const alerts = await alertsResponse.json();
+                        activeAlertsCount = alerts.length;
+                        document.getElementById('active-alerts-count').textContent = activeAlertsCount;
+                        console.log('✅ Alertes actives:', activeAlertsCount);
+                    }
+                } catch (e) {
+                    document.getElementById('active-alerts-count').textContent = 'Erreur';
+                    console.warn('⚠️ Impossible de récupérer les alertes actives');
+                }
+                
+                // 2. Vérifier le statut AlertEngine
+                try {
+                    const healthResponse = await fetch(`${config.api_base_url}/api/alerts/health`);
+                    if (healthResponse.ok) {
+                        const health = await healthResponse.json();
+                        document.getElementById('alert-engine-status').textContent = health.status === 'healthy' ? 'Actif' : 'Problème';
+                        console.log('✅ AlertEngine statut:', health.status);
+                    } else {
+                        document.getElementById('alert-engine-status').textContent = 'Non disponible';
+                    }
+                } catch (e) {
+                    document.getElementById('alert-engine-status').textContent = 'Erreur';
+                    console.warn('⚠️ Impossible de vérifier AlertEngine');
+                }
+                
+                // 3. Vérifier Advanced Risk Engine (toujours configuré mais pas intégré)
+                document.getElementById('risk-engine-status').textContent = 'Configuré (non intégré)';
+                
+                // 4. ML Alert Predictor reste désactivé volontairement
+                document.getElementById('ml-predictor-status').textContent = 'Désactivé (config)';
+                
+                console.log('✅ Vérification système d\'alertes terminée');
+                showSuccess('✅ Statut alertes mis à jour');
+                
+            } catch (error) {
+                console.error('❌ Erreur lors de la vérification du système d\'alertes:', error);
+                showError('❌ Erreur lors de la vérification du système d\'alertes');
+            }
+        }
+
         // Auto-actualisation toutes les 30 secondes
         setInterval(refreshAllStatus, 30000);
+        
+        // Vérifier les alertes à l'initialisation
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(checkAlertsSystemStatus, 2000);
+        });
     </script>
 </body>
 

@@ -117,9 +117,9 @@ class AlertMetrics:
             "alerts_emitted_total": {},      # {type:severity: count}
             "alerts_suppressed_total": {},   # {reason: count}
             "policy_changes_total": {},      # {mode: count}
-            "freeze_seconds_total": 0,
-            "alerts_ack_total": 0,
-            "alerts_snoozed_total": 0
+            "freeze_seconds_total": {},      # fixed: should be dict like others
+            "alerts_ack_total": {},          # fixed: should be dict like others
+            "alerts_snoozed_total": {}       # fixed: should be dict like others
         }
         
         self.gauges = {

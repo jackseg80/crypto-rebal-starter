@@ -798,32 +798,23 @@
             alertCount = 0;
         }
 
-        async function simulateAlert() {
-            try {
-                const response = await fetch('/api/realtime/publish', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        event_type: 'risk_alert',
-                        data: {
-                            alert_type: 'VAR_BREACH',
-                            severity: 'S2',
-                            portfolio_value: 150000,
-                            var_current: 8500,
-                            var_limit: 5000,
-                            method: 'parametric',
-                            confidence_level: 0.95
-                        },
-                        source: 'dashboard_simulation'
-                    })
-                });
-
-                if (response.ok) {
-                    console.log('Alerte simulée envoyée');
-                }
-            } catch (e) {
-                console.error('Erreur simulation alerte:', e);
-            }
+        function simulateAlert() {
+            // Simulation locale d'alerte (endpoint /api/realtime/publish supprimé pour sécurité)
+            const simulatedAlert = {
+                alert_type: 'VAR_BREACH',
+                severity: 'S2',
+                portfolio_value: 150000,
+                var_current: 8500,
+                var_limit: 5000,
+                method: 'parametric',
+                confidence_level: 0.95,
+                timestamp: new Date().toISOString(),
+                source: 'dashboard_simulation'
+            };
+            
+            // Afficher l'alerte simulée directement
+            displayAlert(simulatedAlert);
+            console.log('Alerte simulée localement (endpoints realtime/publish supprimés)');
         }
 
         async function loadInitialMetrics() {

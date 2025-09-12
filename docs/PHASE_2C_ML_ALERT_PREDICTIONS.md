@@ -196,7 +196,7 @@ Pipeline automatisé pour tester nouvelles versions :
 
 ## API Reference
 
-### GET /api/ml-predictions/predict
+### GET /api/ml/predict
 
 **Description** : Génère prédictions ML temps réel
 
@@ -231,7 +231,7 @@ Pipeline automatisé pour tester nouvelles versions :
 }
 ```
 
-### GET /api/ml-predictions/models/status
+### GET /api/ml/models/status
 
 **Description** : Statut global des modèles ML
 
@@ -258,7 +258,7 @@ Pipeline automatisé pour tester nouvelles versions :
 }
 ```
 
-### GET /api/ml-predictions/features/current
+### GET /api/ml/features/current
 
 **Description** : Features actuelles utilisées pour prédictions
 
@@ -285,7 +285,7 @@ Pipeline automatisé pour tester nouvelles versions :
 }
 ```
 
-### POST /api/ml-predictions/models/retrain
+### POST /api/ml/models/retrain
 
 **Description** : Déclenche réentraînement des modèles
 
@@ -419,9 +419,9 @@ logging.getLogger('mlflow').setLevel(logging.INFO)
 ### Health Checks
 
 Endpoints de santé :
-- `/api/ml-predictions/models/status` : Santé globale
-- `/api/ml-predictions/features/current` : Qualité des features  
-- `/api/ml-predictions/ab-tests` : Status des tests
+- `/api/ml/models/status` : Santé globale
+- `/api/ml/features/current` : Qualité des features  
+- `/api/ml/ab-tests` : Status des tests
 
 ---
 

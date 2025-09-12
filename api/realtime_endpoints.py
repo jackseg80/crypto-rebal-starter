@@ -215,89 +215,16 @@ async def get_stream_info(
         log.error(f"Failed to get stream info for {stream_name}: {e}")
         raise HTTPException(500, "failed_to_get_stream_info")
 
-@router.post("/publish")
-async def publish_event(
-    request: PublishEventRequest,
-    engine: RealtimeEngine = Depends(get_realtime_engine)
-):
-    """Publier un événement dans le système de streaming (pour tests/debug)"""
-    try:
-        # Valider le type d'événement
-        try:
-            event_type = StreamEventType(request.event_type)
-        except ValueError:
-            raise HTTPException(400, f"Invalid event_type: {request.event_type}")
-        
-        # Publier l'événement selon le type
-        if event_type in [StreamEventType.VAR_BREACH, StreamEventType.RISK_ALERT, 
-                         StreamEventType.STRESS_TEST, StreamEventType.CORRELATION_SPIKE]:
-            message_id = await engine.publish_risk_event(event_type, request.data, request.source)
-        elif event_type == StreamEventType.MARKET_DATA:
-            message_id = await engine.publish_market_data(request.data)
-        else:
-            # Événement générique
-            event = StreamEvent(
-                event_type=event_type,
-                timestamp=datetime.now(),
-                data=request.data,
-                source=request.source
-            )
-            message_id = await engine.redis_manager.publish_event("risk_events", event)
-            await engine.websocket_manager.broadcast_event(event)
-        
-        return {
-            "success": True,
-            "message_id": message_id,
-            "event_type": request.event_type,
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.error(f"Failed to publish event: {e}")
-        raise HTTPException(500, "failed_to_publish_event")
-
-@router.post("/broadcast")
-async def broadcast_message(
-    message: Dict[str, Any],
-    subscription_type: Optional[str] = Query("all", description="Type de souscription ciblée"),
-    engine: RealtimeEngine = Depends(get_realtime_engine)
-):
-    """Diffuser un message à tous les clients connectés (pour tests/debug)"""
-    try:
-        # Créer un événement système
-        event = StreamEvent(
-            event_type=StreamEventType.SYSTEM_STATUS,
-            timestamp=datetime.now(),
-            data=message,
-            source="broadcast_api"
-        )
-        
-        # Déterminer le type de souscription
-        target_sub = None
-        if subscription_type and subscription_type != "all":
-            try:
-                target_sub = SubscriptionType(subscription_type)
-            except ValueError:
-                raise HTTPException(400, f"Invalid subscription_type: {subscription_type}")
-        
-        # Diffuser
-        await engine.websocket_manager.broadcast_event(event, target_sub)
-        
-        return {
-            "success": True,
-            "message": "Message broadcasted",
-            "target_connections": len(engine.websocket_manager.active_connections),
-            "subscription_type": subscription_type,
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.error(f"Failed to broadcast message: {e}")
-        raise HTTPException(500, "failed_to_broadcast")
+# REMOVED: Dangerous debug endpoints /publish and /broadcast
+# These endpoints allowed arbitrary event publishing and could spam clients
+# They have been removed for production security
+# 
+# Former functionality:
+# - POST /api/realtime/publish -> allowed publishing arbitrary events to all subscribers
+# - POST /api/realtime/broadcast -> allowed broadcasting arbitrary messages to all clients
+# 
+# These operations should only be performed by internal system components,
+# not exposed via public API endpoints.
 
 @router.get("/demo")
 async def get_demo_page():

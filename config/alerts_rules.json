@@ -2,6 +2,9 @@
   "alerting_config": {
     "enabled": true,
     "global_rate_limit_per_hour": 20,
+    "advanced_risk": {
+      "enabled": true
+    },
     "escalation_window_minutes": 30,
     "dedup_window_minutes": 15,
     "daily_budgets": {
@@ -172,6 +175,76 @@
       "hysteresis_pct": 0.04,
       "min_interval_minutes": 240,
       "rate_limit_per_day": 5
+    },
+    "PORTFOLIO_DRIFT": {
+      "enabled": true,
+      "thresholds": {
+        "S2": 0.05,
+        "S3": 0.10
+      },
+      "hysteresis_pct": 0.10,
+      "min_interval_minutes": 60,
+      "rate_limit_per_day": 8
+    },
+    "EXECUTION_FAILURE": {
+      "enabled": true,
+      "thresholds": {
+        "S2": 0.20,
+        "S3": 0.40
+      },
+      "hysteresis_pct": 0.05,
+      "min_interval_minutes": 30,
+      "rate_limit_per_day": 12
+    },
+    "PERFORMANCE_ANOMALY": {
+      "enabled": true,
+      "thresholds": {
+        "S2": 2.0,
+        "S3": 3.0
+      },
+      "hysteresis_pct": 0.10,
+      "min_interval_minutes": 120,
+      "rate_limit_per_day": 4
+    },
+    "API_CONNECTIVITY": {
+      "enabled": true,
+      "thresholds": {
+        "S2": 0.80,
+        "S3": 0.95
+      },
+      "hysteresis_pct": 0.05,
+      "min_interval_minutes": 15,
+      "rate_limit_per_day": 20
+    },
+    "CONNECTION_HEALTH": {
+      "enabled": true,
+      "thresholds": {
+        "S2": 0.85,
+        "S3": 0.95
+      },
+      "hysteresis_pct": 0.05,
+      "min_interval_minutes": 30,
+      "rate_limit_per_day": 16
+    },
+    "EXCHANGE_OFFLINE": {
+      "enabled": true,
+      "thresholds": {
+        "S2": 0.60,
+        "S3": 0.90
+      },
+      "hysteresis_pct": 0.10,
+      "min_interval_minutes": 15,
+      "rate_limit_per_day": 24
+    },
+    "RISK_THRESHOLD_LEGACY": {
+      "enabled": true,
+      "thresholds": {
+        "S2": 0.70,
+        "S3": 0.85
+      },
+      "hysteresis_pct": 0.08,
+      "min_interval_minutes": 60,
+      "rate_limit_per_day": 10
     }
   },
   "suggested_actions": {

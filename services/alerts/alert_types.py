@@ -40,6 +40,19 @@ class AlertType(str, Enum):
     STRESS_TEST_FAILED = "STRESS_TEST_FAILED" # Échec stress test critique
     MONTE_CARLO_EXTREME = "MONTE_CARLO_EXTREME" # Scénario extrême détecté MC
     RISK_CONCENTRATION = "RISK_CONCENTRATION" # Concentration risque excessive
+    
+    # Legacy System Migration: From notifications/alert_manager.py
+    PORTFOLIO_DRIFT = "PORTFOLIO_DRIFT"       # Portfolio dérive des targets
+    EXECUTION_FAILURE = "EXECUTION_FAILURE"   # Échec d'exécution trades
+    PERFORMANCE_ANOMALY = "PERFORMANCE_ANOMALY" # Performance anormale détectée
+    API_CONNECTIVITY = "API_CONNECTIVITY"     # Problème connectivité API
+    
+    # Legacy System Migration: From monitoring/connection_monitor.py
+    CONNECTION_HEALTH = "CONNECTION_HEALTH"   # Santé connexion exchange
+    EXCHANGE_OFFLINE = "EXCHANGE_OFFLINE"     # Exchange hors ligne
+    
+    # Legacy System Migration: From risk_management.py (non-duplicate)
+    RISK_THRESHOLD_LEGACY = "RISK_THRESHOLD_LEGACY"  # Seuil risque legacy dépassé
 
 class AlertFormatter:
     """

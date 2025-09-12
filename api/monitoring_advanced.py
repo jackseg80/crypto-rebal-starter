@@ -232,41 +232,8 @@ async def get_alerts(
         logger.error(f"Error getting alerts: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/alerts/{alert_id}/resolve")
-async def resolve_alert(alert_id: str):
-    """Résoudre manuellement une alerte"""
-    try:
-        # Trouver l'alerte
-        alert = None
-        for a in connection_monitor.alerts:
-            if a.id == alert_id:
-                alert = a
-                break
-                
-        if not alert:
-            raise HTTPException(status_code=404, detail="Alert not found")
-            
-        if alert.resolved:
-            return JSONResponse({"message": "Alert already resolved"})
-            
-        # Résoudre l'alerte
-        alert.resolved = True
-        alert.resolution_time = datetime.now(timezone.utc).isoformat()
-        
-        # Persister la modification
-        await connection_monitor._persist_alert(alert)
-        
-        return JSONResponse({
-            "message": "Alert resolved successfully",
-            "alert_id": alert_id,
-            "resolved_at": alert.resolution_time
-        })
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error resolving alert {alert_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+# REMOVED: Duplicate alert resolution endpoint - use /api/alerts/resolve/{alert_id} instead
+# Alert management should be centralized in alerts_endpoints.py
 
 @router.get("/metrics/{exchange}")
 async def get_exchange_metrics(
