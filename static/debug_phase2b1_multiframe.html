@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phase 2B1: Multi-Timeframe System Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin-bottom: 30px; border: 1px solid #ddd; padding: 15px; }
+        .result { margin-top: 10px; padding: 10px; border-radius: 5px; }
+        .success { background-color: #d4edda; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; border: 1px solid #f5c6cb; }
+        .loading { background-color: #fff3cd; border: 1px solid #ffeaa7; }
+        button { margin: 5px; padding: 8px 16px; }
+        pre { background: #f8f9fa; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Phase 2B1 Multi-Timeframe System Test</h1>
+    
+    <div class="test-section">
+        <h2>Multi-Timeframe Status</h2>
+        <button onclick="testMultiTimeframeStatus()">Test Status Endpoint</button>
+        <div id="status-result" class="result" style="display: none;"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Coherence Analysis</h2>
+        <select id="alert-type">
+            <option value="VOL_Q90_CROSS">VOL_Q90_CROSS</option>
+            <option value="REGIME_FLIP">REGIME_FLIP</option>
+            <option value="CORR_HIGH">CORR_HIGH</option>
+            <option value="CONTRADICTION_SPIKE">CONTRADICTION_SPIKE</option>
+        </select>
+        <button onclick="testCoherenceAnalysis()">Test Coherence</button>
+        <div id="coherence-result" class="result" style="display: none;"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Regular Alerts API (for comparison)</h2>
+        <button onclick="testRegularAlerts()">Test /api/alerts/active</button>
+        <div id="regular-result" class="result" style="display: none;"></div>
+    </div>
+
+    <script>
+        async function testMultiTimeframeStatus() {
+            const resultDiv = document.getElementById('status-result');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result loading';
+            resultDiv.innerHTML = 'Testing multi-timeframe status...';
+
+            try {
+                const response = await fetch('/api/alerts/multi-timeframe/status');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                resultDiv.className = 'result success';
+                resultDiv.innerHTML = `
+                    <h3>✅ Multi-Timeframe Status Success</h3>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+                
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `
+                    <h3>❌ Multi-Timeframe Status Error</h3>
+                    <p>Error: ${error.message}</p>
+                    <p>This suggests the Phase 2B1 system is not fully operational.</p>
+                `;
+            }
+        }
+
+        async function testCoherenceAnalysis() {
+            const alertType = document.getElementById('alert-type').value;
+            const resultDiv = document.getElementById('coherence-result');
+            
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result loading';
+            resultDiv.innerHTML = `Testing coherence analysis for ${alertType}...`;
+
+            try {
+                const response = await fetch(`/api/alerts/multi-timeframe/coherence/${alertType}?lookback_minutes=60`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                resultDiv.className = 'result success';
+                resultDiv.innerHTML = `
+                    <h3>✅ Coherence Analysis Success</h3>
+                    <p><strong>Alert Type:</strong> ${alertType}</p>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+                
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `
+                    <h3>❌ Coherence Analysis Error</h3>
+                    <p><strong>Alert Type:</strong> ${alertType}</p>
+                    <p>Error: ${error.message}</p>
+                    <p>This suggests the Phase 2B1 multi-timeframe analyzer is not accessible.</p>
+                `;
+            }
+        }
+
+        async function testRegularAlerts() {
+            const resultDiv = document.getElementById('regular-result');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result loading';
+            resultDiv.innerHTML = 'Testing regular alerts API...';
+
+            try {
+                const response = await fetch('/api/alerts/active?limit=3');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                resultDiv.className = 'result success';
+                resultDiv.innerHTML = `
+                    <h3>✅ Regular Alerts Success (${data.length} alerts)</h3>
+                    <p>This confirms the basic alerts system is working.</p>
+                    <pre>${JSON.stringify(data.slice(0, 2), null, 2)}</pre>
+                `;
+                
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `
+                    <h3>❌ Regular Alerts Error</h3>
+                    <p>Error: ${error.message}</p>
+                    <p>This suggests a broader API issue.</p>
+                `;
+            }
+        }
+
+        // Auto-test on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Phase 2B1 Multi-Timeframe test page loaded');
+            // Auto-test the basic alerts first to verify API connectivity
+            setTimeout(testRegularAlerts, 1000);
+        });
+    </script>
+</body>
+</html>

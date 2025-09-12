@@ -21,7 +21,10 @@ from pathlib import Path
 from .alert_types import AlertEvaluator, Alert, AlertType, AlertSeverity
 from .alert_storage import AlertStorage
 from .prometheus_metrics import get_alert_metrics
+from .multi_timeframe import MultiTimeframeAnalyzer, TemporalGatingMatrix, Timeframe, TimeframeSignal
+from .cross_asset_correlation import CrossAssetCorrelationAnalyzer, create_cross_asset_analyzer
 from ..execution.phase_engine import PhaseEngine, Phase, PhaseState
+from ..streaming.realtime_engine import RealtimeEngine
 
 logger = logging.getLogger(__name__)
 
@@ -177,10 +180,14 @@ class AlertEngine:
                  config: Dict[str, Any] = None,
                  config_file_path: Optional[str] = None,
                  redis_url: Optional[str] = None,
-                 prometheus_registry = None):
+                 prometheus_registry = None,
+                 realtime_engine: Optional[RealtimeEngine] = None):
         
         self.governance_engine = governance_engine
         self.storage = storage or AlertStorage(redis_url=redis_url)
+        
+        # Phase 3B: Real-time streaming integration
+        self.realtime_engine = realtime_engine or RealtimeEngine(redis_url=redis_url)
         
         # Configuration avec hot-reload
         self.config_file_path = config_file_path or os.path.join(os.path.dirname(__file__), "../../config/alerts_rules.json")
@@ -205,16 +212,88 @@ class AlertEngine:
             self.phase_context = PhaseAwareContext(lag_minutes, persistence_ticks, metrics=self.prometheus_metrics)
             self.phase_engine = PhaseEngine()
             
+            # Phase 2B1: Multi-timeframe analyzer
+            multi_tf_config = self.config.get("alerting_config", {}).get("multi_timeframe", {})
+            self.multi_timeframe_enabled = multi_tf_config.get("enabled", True)
+            if self.multi_timeframe_enabled:
+                self.multi_timeframe_analyzer = MultiTimeframeAnalyzer(multi_tf_config)
+                
+                # Temporal gating matrix
+                base_gating = phase_config.get("gating_matrix", {})
+                self.temporal_gating = TemporalGatingMatrix(base_gating)
+                
+                logger.info("Multi-timeframe analysis enabled with temporal gating")
+            else:
+                self.multi_timeframe_analyzer = None
+                self.temporal_gating = None
+                logger.info("Multi-timeframe analysis disabled")
+            
             # Initialize Phase 2A metrics
             self.prometheus_metrics.update_phase_aware_config(True, lag_minutes, persistence_ticks)
+            
+            # Initialize Phase 2B1 metrics
+            if self.multi_timeframe_enabled:
+                self.prometheus_metrics.update_multi_timeframe_config(True)
+            
+            # Phase 2B2: Cross-Asset Correlation analyzer
+            cross_asset_config = self.config.get("alerting_config", {}).get("cross_asset_correlation", {})
+            self.cross_asset_enabled = cross_asset_config.get("enabled", True)
+            if self.cross_asset_enabled:
+                self.cross_asset_analyzer = create_cross_asset_analyzer(cross_asset_config)
+                logger.info("Cross-asset correlation analysis enabled")
+            else:
+                self.cross_asset_analyzer = None
+                logger.info("Cross-asset correlation analysis disabled")
+            
+            # Phase 2C: ML Alert Predictor
+            ml_predictor_config = self.config.get("alerting_config", {}).get("ml_alert_predictor", {})
+            self.ml_predictor_enabled = ml_predictor_config.get("enabled", False)
+            if self.ml_predictor_enabled:
+                from .ml_alert_predictor import create_ml_alert_predictor
+                self.ml_alert_predictor = create_ml_alert_predictor(ml_predictor_config)
+                if self.ml_alert_predictor:
+                    logger.info("ML Alert Predictor enabled - predictive alerts active")
+                else:
+                    logger.warning("ML Alert Predictor failed to initialize")
+                    self.ml_predictor_enabled = False
+            else:
+                self.ml_alert_predictor = None
+                logger.info("ML Alert Predictor disabled")
+            
+            # Phase 3A: Advanced Risk Engine
+            risk_engine_config = self.config.get("alerting_config", {}).get("advanced_risk", {})
+            self.risk_engine_enabled = risk_engine_config.get("enabled", False)
+            if self.risk_engine_enabled:
+                from services.risk.advanced_risk_engine import create_advanced_risk_engine
+                self.risk_engine = create_advanced_risk_engine(risk_engine_config)
+                if self.risk_engine:
+                    logger.info("Advanced Risk Engine enabled - VaR/Stress testing active")
+                else:
+                    logger.warning("Advanced Risk Engine failed to initialize")
+                    self.risk_engine_enabled = False
+            else:
+                self.risk_engine = None
+                logger.info("Advanced Risk Engine disabled")
+            
+            # Phase 3B: Real-time Streaming Integration
+            streaming_config = self.config.get("alerting_config", {}).get("realtime_streaming", {})
+            self.streaming_enabled = streaming_config.get("enabled", True)  # Default enabled
+            if self.streaming_enabled:
+                logger.info("Phase 3B Real-time alert streaming enabled")
+            else:
+                logger.info("Phase 3B Real-time alert streaming disabled")
             
             logger.info(f"Phase-aware alerting enabled: lag={lag_minutes}min, persistence={persistence_ticks}")
         else:
             self.phase_context = None
             self.phase_engine = None
+            self.multi_timeframe_analyzer = None
+            self.temporal_gating = None
+            self.cross_asset_analyzer = None  # Phase 2B2: Pas d'analyzer si phase-aware désactivé
             
             # Record disabled state in metrics
             self.prometheus_metrics.update_phase_aware_config(False, 0, 0)
+            self.prometheus_metrics.update_multi_timeframe_config(False)
             
             logger.info("Phase-aware alerting disabled")
         
@@ -235,12 +314,84 @@ class AlertEngine:
             return self.phase_context.get_lagged_phase()
         return None
     
+    def get_multi_timeframe_status(self) -> Dict[str, Any]:
+        """Retourne le status du système multi-timeframe (Phase 2B1)"""
+        if not self.multi_timeframe_enabled or not self.multi_timeframe_analyzer:
+            return {
+                "enabled": False,
+                "reason": "Multi-timeframe analysis disabled"
+            }
+        
+        status = self.multi_timeframe_analyzer.get_timeframe_status()
+        status["enabled"] = True
+        status["coherence_thresholds"] = self.multi_timeframe_analyzer.coherence_thresholds
+        status["temporal_gating_enabled"] = self.temporal_gating is not None
+        
+        return status
+    
     def is_phase_stable(self) -> bool:
         """Vérifie si la phase laggée est stable (pour gating)"""
         if self.phase_aware_enabled and self.phase_context:
             return self.phase_context.is_phase_stable()
         return False
     
+    def _extract_assets_data_from_signals(self, signals: Dict[str, Any]) -> Optional[Dict[str, Dict[str, float]]]:
+        """
+        Extrait les données d'assets (prix, volume) depuis les signaux ML
+        
+        Format attendu par CrossAssetCorrelationAnalyzer:
+        {"BTC": {"price": 45000, "volume": 1000000}, "ETH": {...}}
+        """
+        try:
+            assets_data = {}
+            
+            # Extraire depuis différentes sources dans les signaux
+            if "prices" in signals:
+                # Format direct: {"prices": {"BTC": 45000, "ETH": 3200, ...}}
+                prices = signals["prices"]
+                for asset, price in prices.items():
+                    if isinstance(price, (int, float)) and price > 0:
+                        assets_data[asset] = {
+                            "price": float(price),
+                            "volume": 1.0  # Volume par défaut si pas disponible
+                        }
+            
+            elif "market_data" in signals:
+                # Format market_data: {"market_data": {"BTC": {"price": 45000, "volume": 1000}, ...}}
+                market_data = signals["market_data"]
+                for asset, data in market_data.items():
+                    if isinstance(data, dict):
+                        price = data.get("price", 0)
+                        volume = data.get("volume", 1.0)
+                        if price > 0:
+                            assets_data[asset] = {
+                                "price": float(price),
+                                "volume": float(volume)
+                            }
+            
+            elif "volatility" in signals:
+                # Fallback: générer prix simulé depuis volatility (pour tests)
+                # Format: {"volatility": {"BTC": 0.45, "ETH": 0.52, ...}}
+                base_prices = {"BTC": 45000, "ETH": 3200, "SOL": 110, "AVAX": 35, "ADA": 0.45}
+                volatility_data = signals["volatility"]
+                
+                for asset, vol in volatility_data.items():
+                    if asset in base_prices and isinstance(vol, (int, float)):
+                        # Prix simulé avec variation basée sur volatilité
+                        price_variation = 1.0 + (vol - 0.5) * 0.1  # ±5% variation max
+                        simulated_price = base_prices[asset] * price_variation
+                        
+                        assets_data[asset] = {
+                            "price": float(simulated_price),
+                            "volume": 1000000.0  # Volume simulé
+                        }
+            
+            return assets_data if assets_data else None
+            
+        except Exception as e:
+            logger.warning(f"Error extracting assets data from signals: {e}")
+            return None
+
     def _check_phase_gating(self, alert_type: AlertType, signals: Dict[str, Any]) -> Tuple[bool, str]:
         """
         Vérifie si l'alerte est gatée par la phase actuelle ou neutralisée par contradiction
@@ -519,8 +670,339 @@ class AlertEngine:
             raise
     
     async def _evaluate_alert_type(self, alert_type: AlertType, signals: Dict[str, Any]):
-        """Évalue un type d'alerte spécifique"""
+        """Évalue un type d'alerte spécifique avec analyse multi-timeframe"""
         try:
+            # Phase 2B1: Multi-timeframe coherence check
+            multi_timeframe_metadata = {}
+            if self.multi_timeframe_enabled and self.multi_timeframe_analyzer:
+                # Simuler signaux multi-timeframe pour cette évaluation
+                # Dans un vrai système, ces signaux viendraient de data feeds temps réel
+                current_timeframes = [Timeframe.H1, Timeframe.H4, Timeframe.D1]  # Timeframes principaux
+                
+                for tf in current_timeframes:
+                    # Créer signal simulé pour ce timeframe
+                    tf_signal = TimeframeSignal(
+                        timeframe=tf,
+                        alert_type=alert_type,
+                        severity=AlertSeverity.S2,  # À déterminer par la logique réelle
+                        threshold_value=0.75,
+                        actual_value=signals.get('volatility', {}).get('BTC', 0.5),
+                        confidence=signals.get('confidence', 0.7),
+                        timestamp=datetime.utcnow(),
+                        phase=self.get_lagged_phase().phase if self.get_lagged_phase() else None
+                    )
+                    self.multi_timeframe_analyzer.add_signal(tf_signal)
+                
+                # Vérifier cohérence multi-timeframe
+                should_trigger, tf_metadata = self.multi_timeframe_analyzer.should_trigger_alert(
+                    alert_type, AlertSeverity.S2
+                )
+                
+                multi_timeframe_metadata = tf_metadata
+                
+                # Enregistrer métriques multi-timeframe
+                coherence_score = tf_metadata.get("coherence_score", 0.5)
+                self.prometheus_metrics.record_coherence_score(alert_type.value, coherence_score)
+                
+                # Déterminer le niveau de cohérence pour les métriques
+                if coherence_score >= 0.80:
+                    coherence_level = "high"
+                elif coherence_score >= 0.60:
+                    coherence_level = "medium"  
+                elif coherence_score >= 0.40:
+                    coherence_level = "low"
+                else:
+                    coherence_level = "divergent"
+                
+                if not should_trigger:
+                    logger.debug(f"Alert {alert_type.value} suppressed by multi-timeframe analysis: {tf_metadata.get('reason')}")
+                    self.metrics.increment("alerts_suppressed_total", {"reason": "multi_timeframe"})
+                    
+                    # Enregistrer suppression multi-timeframe
+                    self.prometheus_metrics.record_multi_timeframe_suppression(
+                        reason=tf_metadata.get("reason", "unknown"),
+                        alert_type=alert_type.value,
+                        coherence_level=coherence_level
+                    )
+                    return
+                else:
+                    # Enregistrer déclenchement multi-timeframe
+                    self.prometheus_metrics.record_multi_timeframe_trigger(
+                        reason=tf_metadata.get("reason", "unknown"),
+                        alert_type=alert_type.value,
+                        coherence_level=coherence_level
+                    )
+                    
+                    # Enregistrer ratio d'accord des timeframes
+                    agreement_ratio = tf_metadata.get("timeframe_agreement", 0.0)
+                    self.prometheus_metrics.update_timeframe_agreement_ratio(
+                        alert_type.value, agreement_ratio
+                    )
+            
+            # Phase 2B2: Cross-asset correlation analysis
+            cross_asset_metadata = {}
+            if self.cross_asset_enabled and self.cross_asset_analyzer:
+                # Mettre à jour les données prix/volumes pour l'analyzer
+                assets_data = self._extract_assets_data_from_signals(signals)
+                if assets_data:
+                    self.cross_asset_analyzer.update_price_data(assets_data)
+                
+                # Analyser spécifiquement CORR_HIGH et CORR_SPIKE
+                if alert_type == AlertType.CORR_HIGH:
+                    # Calculer score de risque systémique pour CORR_HIGH
+                    systemic_risk = self.cross_asset_analyzer.calculate_systemic_risk_score()
+                    correlation_status = self.cross_asset_analyzer.get_status()
+                    
+                    cross_asset_metadata = {
+                        "systemic_risk_score": systemic_risk,
+                        "avg_correlation": correlation_status.avg_correlation,
+                        "max_correlation": correlation_status.max_correlation,
+                        "active_clusters": len(correlation_status.active_clusters)
+                    }
+                    
+                    # Enrichir les signaux avec données cross-asset
+                    if "correlation" not in signals:
+                        signals["correlation"] = {}
+                    signals["correlation"]["avg_correlation"] = correlation_status.avg_correlation
+                    signals["correlation"]["systemic_risk"] = systemic_risk
+                    
+                elif alert_type == AlertType.CORR_SPIKE:
+                    # Détecter spikes de corrélation
+                    spikes = self.cross_asset_analyzer.detect_correlation_spikes()
+                    
+                    if spikes:
+                        cross_asset_metadata = {
+                            "spikes_count": len(spikes),
+                            "max_spike_severity": max(s.severity for s in spikes),
+                            "affected_pairs": [f"{s.asset_pair[0]}-{s.asset_pair[1]}" for s in spikes[:3]]
+                        }
+                        
+                        # Enrichir signaux avec spikes détectés
+                        signals["correlation_spikes"] = [
+                            {
+                                "asset_pair": f"{s.asset_pair[0]}-{s.asset_pair[1]}",
+                                "absolute_change": s.absolute_change,
+                                "relative_change": s.relative_change,
+                                "severity": s.severity,
+                                "timeframe": s.timeframe
+                            }
+                            for s in spikes
+                        ]
+                        
+                        logger.info(f"Detected {len(spikes)} correlation spikes: {cross_asset_metadata['affected_pairs']}")
+                    else:
+                        # Pas de spikes détectés, pas besoin de déclencher
+                        if alert_type == AlertType.CORR_SPIKE:
+                            logger.debug("No correlation spikes detected, suppressing CORR_SPIKE alert")
+                            return
+            
+            # Phase 2C: ML Alert Predictions
+            ml_prediction_metadata = {}
+            if self.ml_predictor_enabled and self.ml_alert_predictor:
+                # Évaluer seulement les alertes prédictives
+                predictive_types = {
+                    AlertType.SPIKE_LIKELY, 
+                    AlertType.REGIME_CHANGE_PENDING,
+                    AlertType.CORRELATION_BREAKDOWN, 
+                    AlertType.VOLATILITY_SPIKE_IMMINENT
+                }
+                
+                if alert_type in predictive_types:
+                    try:
+                        # Extraire features pour prédiction ML
+                        correlation_data = self._extract_correlation_data(signals)
+                        price_data = self._extract_price_data(signals) 
+                        market_data = self._extract_market_data(signals)
+                        
+                        features = self.ml_alert_predictor.extract_features(
+                            correlation_data, price_data, market_data
+                        )
+                        
+                        # Générer prédictions
+                        default_horizon = self.config.get("alerting_config", {}).get("ml_alert_predictor", {}).get("default_horizon", "24h")
+                        predictions = self.ml_alert_predictor.predict_alerts(
+                            features, horizons=[default_horizon]
+                        )
+                        
+                        # Chercher prédiction pour ce type d'alerte
+                        matching_prediction = None
+                        for pred in predictions:
+                            if pred.alert_type.value == alert_type.value:
+                                matching_prediction = pred
+                                break
+                        
+                        if matching_prediction:
+                            # Enrichir signaux avec prédiction ML
+                            signals["ml_prediction"] = {
+                                "probability": matching_prediction.probability,
+                                "confidence": matching_prediction.confidence,
+                                "horizon": matching_prediction.horizon.value,
+                                "target_time": matching_prediction.target_time,
+                                "severity_estimate": matching_prediction.severity_estimate,
+                                "model_version": matching_prediction.model_version,
+                                "features": matching_prediction.features
+                            }
+                            
+                            ml_prediction_metadata = {
+                                "prediction_probability": matching_prediction.probability,
+                                "model_confidence": matching_prediction.confidence,
+                                "prediction_horizon": matching_prediction.horizon.value,
+                                "assets_affected": matching_prediction.assets
+                            }
+                            
+                            logger.info(f"ML prediction for {alert_type.value}: "
+                                      f"prob={matching_prediction.probability:.0%}, "
+                                      f"confidence={matching_prediction.confidence:.0%}, "
+                                      f"horizon={matching_prediction.horizon.value}")
+                        else:
+                            # Pas de prédiction pour ce type - suppresion
+                            logger.debug(f"No ML prediction for {alert_type.value}, suppressing predictive alert")
+                            return
+                            
+                    except Exception as e:
+                        logger.error(f"ML prediction error for {alert_type.value}: {e}")
+                        return
+            
+            # Phase 3A: Advanced Risk Analysis
+            risk_analysis_metadata = {}
+            if self.risk_engine_enabled and self.risk_engine:
+                # Évaluer seulement les alertes de risque avancé
+                advanced_risk_types = {
+                    AlertType.VAR_BREACH, 
+                    AlertType.STRESS_TEST_FAILED,
+                    AlertType.MONTE_CARLO_EXTREME, 
+                    AlertType.RISK_CONCENTRATION
+                }
+                
+                if alert_type in advanced_risk_types:
+                    try:
+                        # Obtenir portfolio actuel depuis governance
+                        current_state = await self.governance_engine.get_current_state()
+                        if current_state and current_state.execution_policy:
+                            portfolio_weights = current_state.execution_policy.target_allocation
+                            portfolio_value = 100000  # TODO: Récupérer valeur réelle
+                            
+                            if alert_type == AlertType.VAR_BREACH:
+                                # Calculer VaR et vérifier limites
+                                from services.risk.advanced_risk_engine import VaRMethod
+                                var_result = self.risk_engine.calculate_var(
+                                    portfolio_weights, portfolio_value, 
+                                    method=VaRMethod.PARAMETRIC, confidence_level=0.95
+                                )
+                                
+                                # Limites VaR (configurables)
+                                var_limits = self.config.get("alerting_config", {}).get("advanced_risk", {}).get("var_limits", {
+                                    "daily_95": 0.05,  # 5% du portfolio
+                                    "daily_99": 0.08   # 8% du portfolio
+                                })
+                                
+                                var_limit_95 = portfolio_value * var_limits["daily_95"]
+                                var_breach = var_result.var_absolute > var_limit_95
+                                
+                                if var_breach:
+                                    signals["var_breach"] = {
+                                        "var_current": var_result.var_absolute,
+                                        "var_limit": var_limit_95,
+                                        "var_method": var_result.method.value,
+                                        "confidence_level": var_result.confidence_level,
+                                        "var_ratio": var_result.var_absolute / var_limit_95,
+                                        "horizon": var_result.horizon.value
+                                    }
+                                    
+                                    risk_analysis_metadata = {
+                                        "var_breach_severity": "critical" if var_result.var_absolute > var_limit_95 * 2 else "major",
+                                        "var_excess": var_result.var_absolute - var_limit_95
+                                    }
+                                else:
+                                    logger.debug("VaR within limits, suppressing VAR_BREACH alert")
+                                    return
+                            
+                            elif alert_type == AlertType.STRESS_TEST_FAILED:
+                                # Run stress tests
+                                stress_results = self.risk_engine.run_stress_test(
+                                    portfolio_weights, portfolio_value
+                                )
+                                
+                                # Trouver le pire scénario
+                                worst_scenario = min(stress_results, key=lambda x: x.portfolio_pnl_pct)
+                                stress_threshold = -0.15  # -15% max acceptable loss
+                                
+                                if worst_scenario.portfolio_pnl_pct < stress_threshold:
+                                    signals["stress_test_failed"] = {
+                                        "stress_scenario": worst_scenario.scenario,
+                                        "stress_loss": abs(worst_scenario.portfolio_pnl),
+                                        "stress_loss_pct": abs(worst_scenario.portfolio_pnl_pct),
+                                        "worst_asset": worst_scenario.worst_asset,
+                                        "recovery_days": worst_scenario.recovery_time_days
+                                    }
+                                    
+                                    risk_analysis_metadata = {
+                                        "failed_scenarios": len([r for r in stress_results if r.portfolio_pnl_pct < stress_threshold]),
+                                        "worst_loss_pct": abs(worst_scenario.portfolio_pnl_pct)
+                                    }
+                                else:
+                                    logger.debug("All stress tests passed, suppressing STRESS_TEST_FAILED alert")
+                                    return
+                            
+                            elif alert_type == AlertType.MONTE_CARLO_EXTREME:
+                                # Monte Carlo simulation
+                                mc_result = self.risk_engine.run_monte_carlo_simulation(
+                                    portfolio_weights, portfolio_value, horizon_days=30
+                                )
+                                
+                                # Seuil extrême (P5 outcome)
+                                extreme_threshold = -0.25  # -25% loss
+                                extreme_prob = (mc_result.confidence_intervals["P5"] < extreme_threshold)
+                                
+                                if extreme_prob or mc_result.confidence_intervals["P1"] < -0.40:
+                                    signals["monte_carlo_extreme"] = {
+                                        "mc_extreme_prob": abs(mc_result.confidence_intervals["P5"]),
+                                        "mc_threshold": portfolio_value * 0.25,  # 25% threshold
+                                        "max_dd_p99": mc_result.max_drawdown_p99,
+                                        "horizon": mc_result.horizon_days
+                                    }
+                                    
+                                    risk_analysis_metadata = {
+                                        "simulation_count": mc_result.simulations_count,
+                                        "worst_p1": mc_result.confidence_intervals["P1"]
+                                    }
+                                else:
+                                    logger.debug("Monte Carlo within acceptable range, suppressing alert")
+                                    return
+                            
+                            elif alert_type == AlertType.RISK_CONCENTRATION:
+                                # Risk attribution analysis
+                                var_result = self.risk_engine.calculate_var(portfolio_weights, portfolio_value)
+                                attribution = self.risk_engine.get_risk_attribution(portfolio_weights, var_result)
+                                
+                                # Trouver asset le plus concentré
+                                risk_contributions = attribution["risk_contribution"]
+                                max_contributor = max(risk_contributions.keys(), key=lambda k: risk_contributions[k])
+                                max_contribution = risk_contributions[max_contributor]
+                                
+                                concentration_threshold = 0.6  # 60% max concentration
+                                if max_contribution > concentration_threshold:
+                                    signals["risk_concentration"] = {
+                                        "concentrated_asset": max_contributor,
+                                        "concentration_pct": max_contribution,
+                                        "marginal_var": attribution["marginal_var"][max_contributor]
+                                    }
+                                    
+                                    risk_analysis_metadata = {
+                                        "concentration_level": "extreme" if max_contribution > 0.8 else "high",
+                                        "diversification_ratio": 1 - max_contribution
+                                    }
+                                else:
+                                    logger.debug("Risk concentration within limits, suppressing alert")
+                                    return
+                        else:
+                            logger.warning("No portfolio state available for risk analysis")
+                            return
+                            
+                    except Exception as e:
+                        logger.error(f"Advanced risk analysis error for {alert_type.value}: {e}")
+                        return
+            
             # Vérifier le gating par phase (incluant neutralisation contradiction)
             allowed, gating_reason = self._check_phase_gating(alert_type, signals)
             if not allowed:
@@ -566,11 +1048,12 @@ class AlertEngine:
                 self.metrics.increment("alerts_suppressed_total", {"reason": "rate_limit"})
                 return
             
-            # Générer l'alerte avec traçabilité gating
+            # Générer l'alerte avec traçabilité gating et multi-timeframe
             alert_data.update({
                 "gating_reason": gating_reason,
                 "phase_snapshot": self.get_lagged_phase().__dict__ if self.get_lagged_phase() else None,
-                "contradiction_index": signals.get('contradiction_index', 0.0)
+                "contradiction_index": signals.get('contradiction_index', 0.0),
+                "multi_timeframe": multi_timeframe_metadata
             })
             alert = self._create_alert(alert_type, severity, alert_data)
             
@@ -606,13 +1089,18 @@ class AlertEngine:
             if suggested_action.get("type") == "freeze":
                 suggested_action["reason"] = f"Alert {alert_id} suggested freeze"
         
-        return Alert(
+        alert = Alert(
             id=alert_id,
             alert_type=alert_type,
             severity=severity,
             data=alert_data,
             suggested_action=suggested_action
         )
+        
+        # Phase 3B: Broadcast alert en temps réel
+        asyncio.create_task(self._broadcast_alert_realtime(alert))
+        
+        return alert
     
     async def _check_escalations(self):
         """Vérifie et applique les règles d'escalade automatique"""
@@ -782,3 +1270,197 @@ class AlertEngine:
                 "last_evaluation": self.last_evaluation.isoformat() if self.last_evaluation != datetime.min else None
             }
         }
+    
+    # Phase 2C: Helper methods for ML data extraction
+    
+    def _extract_correlation_data(self, signals: Dict[str, Any]) -> Dict[str, Any]:
+        """Extrait données de corrélation pour features ML"""
+        if self.cross_asset_enabled and self.cross_asset_analyzer:
+            try:
+                # Obtenir status corrélation actuel
+                status = self.cross_asset_analyzer.get_correlation_status("1h")
+                return {
+                    "correlation_matrices": {
+                        "1h": status.get("matrix", {}).get("correlation_matrix", np.array([])),
+                        "4h": np.array([]),  # TODO: implémenter multi-timeframe 
+                        "1d": np.array([])
+                    },
+                    "correlation_history": getattr(self.cross_asset_analyzer, '_correlation_history', {}),
+                    "systemic_risk": status.get("risk_assessment", {}),
+                    "assets": status.get("matrix", {}).get("assets", [])
+                }
+            except Exception as e:
+                logger.warning(f"Error extracting correlation data: {e}")
+        
+        # Données par défaut si cross-asset désactivé
+        return {
+            "correlation_matrices": {"1h": np.array([]), "4h": np.array([]), "1d": np.array([])},
+            "correlation_history": {},
+            "systemic_risk": {"concentration": 0.0},
+            "assets": []
+        }
+    
+    def _extract_price_data(self, signals: Dict[str, Any]) -> Dict[str, Any]:
+        """Extrait données de prix pour features ML"""
+        # Pour MVP, utiliser données simplifiées depuis signaux
+        price_data = {}
+        
+        # Extraire volatilités comme proxy des prix
+        volatility_signals = signals.get("volatility", {})
+        if isinstance(volatility_signals, dict):
+            for asset, vol in volatility_signals.items():
+                # Simuler données prix basées sur volatilité
+                price_data[asset] = {
+                    "current_price": vol * 50000,  # Normalisation approximative
+                    "volatility_1h": vol,
+                    "volatility_4h": vol * 1.2,
+                    "historical_prices": [vol * 50000 * (1 + 0.01 * i) for i in range(-10, 1)]
+                }
+        
+        return price_data
+    
+    def _extract_market_data(self, signals: Dict[str, Any]) -> Dict[str, Any]:
+        """Extrait données macro pour features ML"""
+        return {
+            "fear_greed_index": 50,  # Neutre par défaut
+            "funding_rates": {"BTC": 0.01, "ETH": 0.01},
+            "market_sentiment": signals.get("sentiment", {}).get("composite", 0.5),
+            "regime_state": signals.get("regime", {}).get("current_regime", "normal"),
+            "decision_confidence": signals.get("confidence", 0.75)
+        }
+    
+    # Phase 3B: Real-time Streaming Integration Methods
+    
+    async def _get_realtime_broadcaster(self):
+        """Get Phase 3B RealtimeEngine for broadcasting"""
+        if not self.streaming_enabled:
+            return None
+            
+        if self.realtime_engine is None:
+            logger.warning("Phase 3B RealtimeEngine not available")
+            return None
+            
+        # Initialize if needed
+        try:
+            if not hasattr(self.realtime_engine, '_initialized') or not self.realtime_engine._initialized:
+                await self.realtime_engine.initialize()
+                logger.debug("Phase 3B RealtimeEngine initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize Phase 3B RealtimeEngine: {e}")
+            return None
+                
+        return self.realtime_engine
+    
+    async def _broadcast_alert_realtime(self, alert: Alert):
+        """Diffuse une alerte en temps réel via Phase 3B WebSocket + Redis Streams"""
+        if not self.streaming_enabled:
+            return
+        
+        try:
+            realtime_engine = await self._get_realtime_broadcaster()
+            if realtime_engine:
+                # Create stream event for the alert
+                event_data = {
+                    "alert_id": alert.id,
+                    "type": alert.type.value,
+                    "severity": alert.severity.value,
+                    "message": alert.message,
+                    "context": alert.context,
+                    "timestamp": alert.created_at.isoformat(),
+                    "source": "alert_engine"
+                }
+                
+                # Broadcast via Phase 3B streaming
+                success = await realtime_engine.broadcast_event(
+                    event_type="alert_triggered",
+                    data=event_data,
+                    stream_name="alerts"
+                )
+                
+                if success:
+                    logger.debug(f"Successfully broadcasted alert {alert.id} via Phase 3B streaming")
+                    self.metrics.increment("streaming_broadcasts_success")
+                else:
+                    logger.warning(f"Failed to broadcast alert {alert.id} via Phase 3B streaming")
+                    self.metrics.increment("streaming_broadcasts_failed")
+            
+        except Exception as e:
+            logger.error(f"Error broadcasting alert {alert.id} via Phase 3B: {e}")
+            self.metrics.increment("streaming_broadcasts_failed")
+    
+    async def broadcast_risk_event(self, event_type: str, data: Dict[str, Any], severity: str = "S2"):
+        """
+        API publique pour broadcaster des événements de risque personnalisés
+        Utilisé notamment par Phase 3A Advanced Risk Engine
+        """
+        if not self.streaming_enabled:
+            return False
+        
+        try:
+            realtime_engine = await self._get_realtime_broadcaster()
+            if realtime_engine:
+                # Create stream event for risk event
+                event_data = {
+                    "event_type": event_type,
+                    "severity": severity,
+                    "timestamp": datetime.now().isoformat(),
+                    "source": "risk_engine",
+                    **data
+                }
+                
+                success = await realtime_engine.broadcast_event(
+                    event_type="risk_event",
+                    data=event_data,
+                    stream_name="risk_events"
+                )
+                
+                if success:
+                    self.metrics.increment("streaming_risk_events_success")
+                    logger.debug(f"Broadcasted risk event via Phase 3B: {event_type}")
+                else:
+                    self.metrics.increment("streaming_risk_events_failed")
+                return success
+            
+        except Exception as e:
+            logger.error(f"Error broadcasting risk event {event_type} via Phase 3B: {e}")
+            self.metrics.increment("streaming_risk_events_failed")
+        
+        return False
+    
+    async def broadcast_system_status(self, additional_data: Dict[str, Any] = None):
+        """Diffuse le status du système d'alertes"""
+        if not self.streaming_enabled:
+            return False
+        
+        try:
+            realtime_engine = await self._get_realtime_broadcaster()
+            if realtime_engine:
+                status_data = {
+                    "alert_engine": {
+                        "is_scheduler": self.is_scheduler,
+                        "last_evaluation": self.last_evaluation.isoformat() if self.last_evaluation != datetime.min else None,
+                        "active_alerts_count": len(self.get_active_alerts()),
+                        "phase_aware_enabled": self.phase_aware_enabled,
+                        "multi_timeframe_enabled": getattr(self, 'multi_timeframe_enabled', False),
+                        "cross_asset_enabled": getattr(self, 'cross_asset_enabled', False),
+                        "ml_predictor_enabled": getattr(self, 'ml_predictor_enabled', False),
+                        "risk_engine_enabled": getattr(self, 'risk_engine_enabled', False),
+                        "realtime_streaming_enabled": self.streaming_enabled
+                    },
+                    "timestamp": datetime.now().isoformat(),
+                    "source": "alert_engine"
+                }
+                
+                if additional_data:
+                    status_data.update(additional_data)
+                
+                return await realtime_engine.broadcast_event(
+                    event_type="system_status",
+                    data=status_data,
+                    stream_name="system_status"
+                )
+            
+        except Exception as e:
+            logger.error(f"Error broadcasting system status: {e}")
+        
+        return False

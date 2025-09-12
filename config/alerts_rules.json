@@ -132,6 +132,46 @@
       "hysteresis_pct": 0.2,
       "min_interval_minutes": 90,
       "rate_limit_per_day": 6
+    },
+    "SPIKE_LIKELY": {
+      "enabled": false,
+      "thresholds": {
+        "S2": 0.70,
+        "S3": 0.85
+      },
+      "hysteresis_pct": 0.05,
+      "min_interval_minutes": 360,
+      "rate_limit_per_day": 4
+    },
+    "REGIME_CHANGE_PENDING": {
+      "enabled": false,
+      "thresholds": {
+        "S2": 0.65,
+        "S3": 0.80
+      },
+      "hysteresis_pct": 0.08,
+      "min_interval_minutes": 480,
+      "rate_limit_per_day": 3
+    },
+    "CORRELATION_BREAKDOWN": {
+      "enabled": false,
+      "thresholds": {
+        "S2": 0.75,
+        "S3": 0.90
+      },
+      "hysteresis_pct": 0.06,
+      "min_interval_minutes": 720,
+      "rate_limit_per_day": 2
+    },
+    "VOLATILITY_SPIKE_IMMINENT": {
+      "enabled": false,
+      "thresholds": {
+        "S2": 0.80,
+        "S3": 0.95
+      },
+      "hysteresis_pct": 0.04,
+      "min_interval_minutes": 240,
+      "rate_limit_per_day": 5
     }
   },
   "suggested_actions": {
@@ -182,6 +222,131 @@
   "evaluation_interval_seconds": 60,
   "jitter_max_seconds": 10,
   "scheduler_lock_ttl_seconds": 90,
+  "multi_timeframe": {
+    "enabled": true,
+    "timeframes": ["1m", "5m", "15m", "1h", "4h", "1d"],
+    "coherence_thresholds": {
+      "high_coherence": 0.80,
+      "medium_coherence": 0.60,
+      "low_coherence": 0.40,
+      "divergence_alert": 0.30
+    },
+    "timeframe_weights": {
+      "1m": 0.05,
+      "5m": 0.10,
+      "15m": 0.15,
+      "1h": 0.30,
+      "4h": 0.25,
+      "1d": 0.15
+    },
+    "coherence_lookback_minutes": 60,
+    "signal_history_hours": 24,
+    "temporal_overrides": {
+      "VOL_Q90_CROSS": {
+        "1m": "attenuated",
+        "5m": "attenuated",
+        "1h": "enabled",
+        "4h": "enabled",
+        "1d": "enabled"
+      },
+      "REGIME_FLIP": {
+        "1m": "disabled",
+        "5m": "disabled", 
+        "15m": "attenuated",
+        "1h": "enabled",
+        "4h": "enabled",
+        "1d": "enabled"
+      }
+    }
+  },
+  "cross_asset_correlation": {
+    "enabled": true,
+    "calculation_windows": {
+      "1h": 6,
+      "4h": 24,
+      "1d": 168
+    },
+    "correlation_thresholds": {
+      "low_risk": 0.6,
+      "medium_risk": 0.75,
+      "high_risk": 0.85,
+      "systemic_risk": 0.95
+    },
+    "concentration_limits": {
+      "single_asset_max": 0.8,
+      "cluster_max": 0.9
+    },
+    "spike_thresholds": {
+      "relative_min": 0.15,
+      "absolute_min": 0.20
+    },
+    "concentration_mode": "clustering"
+  },
+  "ml_alert_predictor": {
+    "enabled": false,
+    "default_horizon": "24h",
+    "models": {
+      "random_forest": {
+        "n_estimators": 100,
+        "max_depth": 10,
+        "min_samples_split": 5,
+        "random_state": 42
+      },
+      "gradient_boosting": {
+        "n_estimators": 100,
+        "learning_rate": 0.1,
+        "max_depth": 6,
+        "random_state": 42
+      }
+    },
+    "prediction_thresholds": {
+      "SPIKE_LIKELY": 0.7,
+      "REGIME_CHANGE_PENDING": 0.65,
+      "CORRELATION_BREAKDOWN": 0.75,
+      "VOLATILITY_SPIKE_IMMINENT": 0.8
+    },
+    "features": {
+      "lookback_hours": 168,
+      "min_data_points": 50,
+      "update_frequency_minutes": 15
+    },
+    "cache_ttl_minutes": 10,
+    "model_path": "data/ml_models/alert_predictor"
+  },
+  "advanced_risk": {
+    "enabled": true,
+    "var": {
+      "confidence_levels": [0.95, 0.99],
+      "methods": ["parametric", "historical", "monte_carlo"],
+      "lookback_days": 252,
+      "min_observations": 100
+    },
+    "var_limits": {
+      "daily_95": 0.05,
+      "daily_99": 0.08,
+      "weekly_95": 0.12,
+      "monthly_95": 0.20
+    },
+    "stress_testing": {
+      "enabled_scenarios": [
+        "crisis_2008", "covid_2020", "china_ban", "tether_collapse"
+      ],
+      "max_acceptable_loss": 0.15,
+      "recovery_model": "exponential"
+    },
+    "monte_carlo": {
+      "simulations": 10000,
+      "max_horizon_days": 30,
+      "distribution": "student_t",
+      "correlation_model": "dynamic",
+      "extreme_percentiles": [1, 5, 95, 99]
+    },
+    "concentration": {
+      "max_single_asset_risk": 0.6,
+      "max_sector_risk": 0.8,
+      "diversification_threshold": 0.4
+    }
+  },
   "metadata": {
     "config_version": "restored-1757475328",
     "created_at": "2025-01-14T00:00:00Z",

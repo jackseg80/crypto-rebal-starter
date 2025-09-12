@@ -23,6 +23,17 @@ except ImportError as e:
     logger.warning(f"ML Orchestrator not available: {e}")
     ML_ORCHESTRATOR_AVAILABLE = False
 
+# Phase 3C: Import Hybrid Intelligence components
+try:
+    from ..intelligence.explainable_ai import ExplainableAIEngine
+    from ..intelligence.human_loop import HumanInTheLoopEngine
+    from ..intelligence.feedback_learning import FeedbackLearningEngine
+    from ..orchestration.hybrid_orchestrator import HybridOrchestrator
+    HYBRID_INTELLIGENCE_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Phase 3C Hybrid Intelligence not available: {e}")
+    HYBRID_INTELLIGENCE_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 # Types pour la governance
@@ -146,7 +157,25 @@ class GovernanceEngine:
         self._signals_ttl_seconds = 1800  # 30 minutes - signaux peuvent être rafraîchis
         self._plan_cooldown_hours = 24     # 24 heures - nouvelles publications limitées
         
-        logger.info("GovernanceEngine initialized with TTL/cooldown separation")
+        # Phase 3C: Initialize Hybrid Intelligence components
+        self.hybrid_intelligence_enabled = HYBRID_INTELLIGENCE_AVAILABLE
+        if self.hybrid_intelligence_enabled:
+            try:
+                self.explainable_ai = ExplainableAIEngine()
+                self.human_loop = HumanInTheLoopEngine()
+                self.feedback_learning = FeedbackLearningEngine()
+                self.hybrid_orchestrator = HybridOrchestrator()
+                logger.info("Phase 3C Hybrid Intelligence components initialized")
+            except Exception as e:
+                logger.error(f"Failed to initialize Phase 3C components: {e}")
+                self.hybrid_intelligence_enabled = False
+        else:
+            self.explainable_ai = None
+            self.human_loop = None
+            self.feedback_learning = None
+            self.hybrid_orchestrator = None
+        
+        logger.info(f"GovernanceEngine initialized with TTL/cooldown separation, Hybrid Intelligence: {self.hybrid_intelligence_enabled}")
     
     async def get_current_state(self) -> DecisionState:
         """
@@ -586,7 +615,46 @@ class GovernanceEngine:
                 logger.error(f"Plan {plan_id} is not in REVIEWED state (current: {plan.status})")
                 return False
             
-            # Update plan state
+            # Phase 3C: Check if human-in-the-loop intervention is needed
+            if self.hybrid_intelligence_enabled and self.human_loop:
+                try:
+                    # Assess if this decision needs human oversight
+                    risk_assessment = await self._assess_decision_risk(plan)
+                    
+                    if risk_assessment.get("requires_human_review", False):
+                        # Create human decision request
+                        human_request = {
+                            "plan_id": plan_id,
+                            "decision_type": "plan_approval",
+                            "risk_level": risk_assessment.get("risk_level", "medium"),
+                            "context": {
+                                "targets": [{"symbol": t.symbol, "weight": t.weight} for t in plan.targets],
+                                "risk_factors": risk_assessment.get("risk_factors", []),
+                                "ai_confidence": risk_assessment.get("ai_confidence", 0.5)
+                            },
+                            "deadline": datetime.now() + timedelta(hours=2),  # 2-hour timeout
+                            "fallback_action": "reject"
+                        }
+                        
+                        # Submit to human loop for review
+                        human_decision = await self.human_loop.request_human_decision(
+                            decision_request=human_request,
+                            urgency="high" if risk_assessment.get("risk_level") == "high" else "medium"
+                        )
+                        
+                        # If human intervention is pending, mark plan as requiring human review
+                        if human_decision and not human_decision.get("completed", False):
+                            plan.status = "PENDING_HUMAN_REVIEW"
+                            plan.human_review_requested = datetime.now()
+                            plan.human_review_context = risk_assessment
+                            logger.info(f"Plan {plan_id} requires human review due to {risk_assessment.get('primary_concern', 'high risk')}")
+                            return True  # Plan is in review, not yet approved
+                            
+                except Exception as e:
+                    logger.error(f"Phase 3C human loop assessment failed for plan {plan_id}: {e}")
+                    # Continue with normal approval if human loop fails
+            
+            # Update plan state (normal approval or human loop cleared)
             plan.status = "APPROVED"
             plan.approved_at = datetime.now()
             plan.approved_by = approved_by
@@ -947,13 +1015,49 @@ class GovernanceEngine:
                 notes=reason
             )
             
+            # Phase 3C: Add Hybrid Intelligence analysis
+            if self.hybrid_intelligence_enabled and self.explainable_ai:
+                try:
+                    # Generate explainable AI analysis for the proposed plan
+                    decision_context = {
+                        "plan_id": proposed_plan.plan_id,
+                        "targets": [{"symbol": t.symbol, "weight": t.weight} for t in target_objects],
+                        "governance_mode": self.current_state.governance_mode,
+                        "reason": reason,
+                        "ml_signals": self.current_state.raw_signals
+                    }
+                    
+                    # Get decision explanation from XAI
+                    explanation = await self.explainable_ai.explain_decision(
+                        decision_type="allocation_plan",
+                        decision_context=decision_context,
+                        model_predictions=self.current_state.raw_signals
+                    )
+                    
+                    # Store explanation in plan notes for transparency
+                    if explanation and explanation.explanation_text:
+                        proposed_plan.notes += f"\n\nAI Explanation: {explanation.explanation_text}"
+                        
+                        # Add confidence and feature contributions to context
+                        ai_context = {
+                            "confidence": explanation.confidence_score,
+                            "key_factors": [f.feature_name for f in explanation.feature_contributions[:3]],
+                            "explanation_method": explanation.method_used
+                        }
+                        proposed_plan.context = {**proposed_plan.context, "ai_explanation": ai_context} if hasattr(proposed_plan, 'context') and proposed_plan.context else {"ai_explanation": ai_context}
+                    
+                    logger.info(f"Phase 3C XAI explanation added to plan {proposed_plan.plan_id}")
+                    
+                except Exception as e:
+                    logger.error(f"Phase 3C XAI analysis failed for plan {proposed_plan.plan_id}: {e}")
+            
             self.current_state.proposed_plan = proposed_plan
             self.current_state.last_update = datetime.now()
             
             # Marquer le timestamp de publication
             self._last_plan_publication = datetime.now()
             
-            success_msg = f"Proposed plan created: {proposed_plan.plan_id}"
+            success_msg = f"Proposed plan created with Phase 3C analysis: {proposed_plan.plan_id}"
             logger.info(success_msg)
             return True, success_msg
             
@@ -961,6 +1065,128 @@ class GovernanceEngine:
             error_msg = f"Error creating proposed plan: {e}"
             logger.error(error_msg)
             return False, error_msg
+    
+    async def _assess_decision_risk(self, plan: DecisionPlan) -> Dict[str, Any]:
+        """Phase 3C: Assess risk level of a decision plan to determine human oversight needs"""
+        try:
+            risk_factors = []
+            risk_score = 0.0
+            
+            # Check for large allocation changes
+            current_allocation = {}  # Would fetch from portfolio service
+            for target in plan.targets:
+                current_weight = current_allocation.get(target.symbol, 0.0)
+                weight_change = abs(target.weight - current_weight)
+                
+                if weight_change > 0.2:  # >20% change
+                    risk_factors.append(f"Large allocation change for {target.symbol}: {weight_change:.1%}")
+                    risk_score += 0.3
+                elif weight_change > 0.1:  # >10% change
+                    risk_factors.append(f"Significant allocation change for {target.symbol}: {weight_change:.1%}")
+                    risk_score += 0.15
+            
+            # Check AI confidence from XAI analysis
+            ai_context = getattr(plan, 'context', {}).get("ai_explanation", {})
+            ai_confidence = ai_context.get("confidence", 0.5)
+            
+            if ai_confidence < 0.6:
+                risk_factors.append(f"Low AI confidence: {ai_confidence:.2f}")
+                risk_score += 0.2
+            elif ai_confidence < 0.7:
+                risk_factors.append(f"Medium AI confidence: {ai_confidence:.2f}")
+                risk_score += 0.1
+            
+            # Check market volatility from ML signals
+            if hasattr(self.current_state, 'raw_signals') and self.current_state.raw_signals:
+                volatility_data = self.current_state.raw_signals.get('models', {}).get('volatility', {})
+                high_vol_assets = []
+                
+                for symbol, vol_predictions in volatility_data.items():
+                    if isinstance(vol_predictions, dict):
+                        for horizon, data in vol_predictions.items():
+                            if isinstance(data, dict) and data.get('volatility_forecast', 0) > 0.4:
+                                high_vol_assets.append(symbol)
+                                break
+                
+                if high_vol_assets:
+                    risk_factors.append(f"High volatility assets: {', '.join(high_vol_assets)}")
+                    risk_score += 0.2
+            
+            # Check governance mode
+            if plan.governance_mode in ["full_ai"]:
+                risk_factors.append("Full AI mode requires additional oversight")
+                risk_score += 0.1
+            
+            # Determine risk level and human review requirement
+            if risk_score >= 0.5:
+                risk_level = "high"
+                requires_human_review = True
+                primary_concern = "Multiple high-risk factors detected"
+            elif risk_score >= 0.3:
+                risk_level = "medium"
+                requires_human_review = True
+                primary_concern = "Moderate risk factors present"
+            else:
+                risk_level = "low"
+                requires_human_review = False
+                primary_concern = None
+            
+            return {
+                "risk_score": risk_score,
+                "risk_level": risk_level,
+                "requires_human_review": requires_human_review,
+                "risk_factors": risk_factors,
+                "primary_concern": primary_concern,
+                "ai_confidence": ai_confidence,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error assessing decision risk: {e}")
+            return {
+                "risk_score": 0.5,
+                "risk_level": "medium",
+                "requires_human_review": True,
+                "risk_factors": ["Risk assessment failed"],
+                "primary_concern": "Unable to assess risk",
+                "ai_confidence": 0.5,
+                "error": str(e)
+            }
+    
+    async def record_plan_outcome(self, plan_id: str, outcome: str, performance_data: Dict[str, Any] = None):
+        """Phase 3C: Record plan execution outcome for feedback learning"""
+        if not self.hybrid_intelligence_enabled or not self.feedback_learning:
+            return
+            
+        try:
+            plan = self._find_plan_by_id(plan_id)
+            if not plan:
+                logger.warning(f"Cannot record outcome for unknown plan: {plan_id}")
+                return
+            
+            # Create feedback data
+            feedback_data = {
+                "plan_id": plan_id,
+                "outcome": outcome,
+                "targets": [{"symbol": t.symbol, "weight": t.weight} for t in plan.targets],
+                "governance_mode": plan.governance_mode,
+                "ai_explanation": getattr(plan, 'context', {}).get("ai_explanation", {}),
+                "risk_assessment": getattr(plan, 'human_review_context', {}),
+                "performance_data": performance_data or {},
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            # Submit to feedback learning system
+            await self.feedback_learning.record_decision_outcome(
+                decision_id=plan_id,
+                outcome=outcome,
+                feedback_data=feedback_data
+            )
+            
+            logger.info(f"Phase 3C: Recorded outcome '{outcome}' for plan {plan_id}")
+            
+        except Exception as e:
+            logger.error(f"Phase 3C: Error recording plan outcome for {plan_id}: {e}")
 
     def _extract_real_volatility_signals(self, ml_predictions: Dict[str, Any]) -> Dict[str, float]:
         """Extrait les signaux de volatilité depuis les vraies prédictions ML"""

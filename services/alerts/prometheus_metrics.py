@@ -6,7 +6,7 @@ storage degradation, and operational health.
 """
 
 from prometheus_client import Counter, Gauge, Histogram, Enum, Info, CollectorRegistry, REGISTRY
-from typing import Dict, Any
+from typing import Dict, Any, List
 import time
 from datetime import datetime
 
@@ -248,6 +248,84 @@ class AlertPrometheusMetrics:
             'crypto_rebal_alert_config_version',
             'Current alert configuration version'
         )
+        
+        # Phase 2B1: Multi-Timeframe Analysis Metrics
+        self.multi_timeframe_enabled = Gauge(
+            'crypto_rebal_alert_multi_timeframe_enabled',
+            'Multi-timeframe analysis enabled status'
+        )
+        
+        self.multi_timeframe_signals_total = Counter(
+            'crypto_rebal_alert_multi_timeframe_signals_total',
+            'Total signals processed by timeframe',
+            ['timeframe', 'alert_type', 'severity']
+        )
+        
+        self.multi_timeframe_coherence_scores = Histogram(
+            'crypto_rebal_alert_multi_timeframe_coherence_scores',
+            'Distribution of coherence scores by alert type',
+            ['alert_type'],
+            buckets=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+        )
+        
+        self.multi_timeframe_alerts_suppressed_total = Counter(
+            'crypto_rebal_alert_multi_timeframe_suppressed_total',
+            'Alerts suppressed by multi-timeframe analysis',
+            ['reason', 'alert_type', 'coherence_level']
+        )
+        
+        self.multi_timeframe_alerts_triggered_total = Counter(
+            'crypto_rebal_alert_multi_timeframe_triggered_total',
+            'Alerts triggered by multi-timeframe analysis',
+            ['reason', 'alert_type', 'coherence_level']
+        )
+        
+        self.temporal_gating_blocks_total = Counter(
+            'crypto_rebal_alert_temporal_gating_blocks_total',
+            'Total alerts blocked by temporal gating',
+            ['timeframe', 'alert_type', 'gating_action']
+        )
+        
+        self.timeframe_divergences_detected_total = Counter(
+            'crypto_rebal_alert_timeframe_divergences_total',
+            'Total timeframe divergences detected',
+            ['alert_type', 'conflicting_timeframes']
+        )
+        
+        self.timeframe_agreement_ratio = Gauge(
+            'crypto_rebal_alert_timeframe_agreement_ratio',
+            'Current timeframe agreement ratio by alert type',
+            ['alert_type']
+        )
+        
+        self.dominant_timeframe_changes_total = Counter(
+            'crypto_rebal_alert_dominant_timeframe_changes_total',
+            'Total dominant timeframe changes',
+            ['alert_type', 'from_timeframe', 'to_timeframe']
+        )
+        
+        # Phase 2B2: Cross-Asset Correlation Metrics
+        self.correlation_spikes_total = Counter(
+            'crypto_rebal_alert_correlation_spikes_total',
+            'Total correlation spikes detected',
+            ['asset_pair', 'severity', 'timeframe']
+        )
+        
+        self.systemic_risk_score = Gauge(
+            'crypto_rebal_alert_systemic_risk_score',
+            'Current systemic risk score (0-1)'
+        )
+        
+        self.correlation_matrix_values = Histogram(
+            'crypto_rebal_alert_correlation_matrix_values',
+            'Distribution of correlation matrix values',
+            buckets=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+        )
+        
+        self.concentration_clusters_detected = Gauge(
+            'crypto_rebal_alert_concentration_clusters_detected',
+            'Number of concentration clusters detected'
+        )
     
     def record_alert_generated(self, alert_type: str, severity: str, source: str = "ml_signals"):
         """Record an alert generation"""
@@ -443,6 +521,70 @@ class AlertPrometheusMetrics:
             action=action
         ).inc()
     
+    # Phase 2B1: Multi-Timeframe Metrics Methods
+    def update_multi_timeframe_config(self, enabled: bool):
+        """Update multi-timeframe enabled status"""
+        self.multi_timeframe_enabled.set(1 if enabled else 0)
+    
+    def record_multi_timeframe_signal(self, timeframe: str, alert_type: str, severity: str):
+        """Record a signal processed by timeframe"""
+        self.multi_timeframe_signals_total.labels(
+            timeframe=timeframe,
+            alert_type=alert_type,
+            severity=severity
+        ).inc()
+    
+    def record_coherence_score(self, alert_type: str, coherence_score: float):
+        """Record coherence score distribution"""
+        self.multi_timeframe_coherence_scores.labels(
+            alert_type=alert_type
+        ).observe(coherence_score)
+    
+    def record_multi_timeframe_suppression(self, reason: str, alert_type: str, coherence_level: str):
+        """Record alert suppressed by multi-timeframe analysis"""
+        self.multi_timeframe_alerts_suppressed_total.labels(
+            reason=reason,
+            alert_type=alert_type,
+            coherence_level=coherence_level
+        ).inc()
+    
+    def record_multi_timeframe_trigger(self, reason: str, alert_type: str, coherence_level: str):
+        """Record alert triggered by multi-timeframe analysis"""
+        self.multi_timeframe_alerts_triggered_total.labels(
+            reason=reason,
+            alert_type=alert_type,
+            coherence_level=coherence_level
+        ).inc()
+    
+    def record_temporal_gating_block(self, timeframe: str, alert_type: str, gating_action: str):
+        """Record alert blocked by temporal gating"""
+        self.temporal_gating_blocks_total.labels(
+            timeframe=timeframe,
+            alert_type=alert_type,
+            gating_action=gating_action
+        ).inc()
+    
+    def record_timeframe_divergence(self, alert_type: str, conflicting_timeframes: str):
+        """Record timeframe divergence detection"""
+        self.timeframe_divergences_detected_total.labels(
+            alert_type=alert_type,
+            conflicting_timeframes=conflicting_timeframes
+        ).inc()
+    
+    def update_timeframe_agreement_ratio(self, alert_type: str, agreement_ratio: float):
+        """Update current timeframe agreement ratio"""
+        self.timeframe_agreement_ratio.labels(
+            alert_type=alert_type
+        ).set(agreement_ratio)
+    
+    def record_dominant_timeframe_change(self, alert_type: str, from_timeframe: str, to_timeframe: str):
+        """Record dominant timeframe change"""
+        self.dominant_timeframe_changes_total.labels(
+            alert_type=alert_type,
+            from_timeframe=from_timeframe,
+            to_timeframe=to_timeframe
+        ).inc()
+    
     def record_adaptive_threshold_adjustment(self, alert_type: str, phase: str):
         """Record an adaptive threshold adjustment"""
         self.adaptive_threshold_adjustments_total.labels(
@@ -455,6 +597,28 @@ class AlertPrometheusMetrics:
         self.contradiction_neutralizations_total.labels(
             alert_type=alert_type
         ).inc()
+    
+    # Phase 2B2: Cross-Asset Correlation Metrics Methods
+    def record_correlation_spike(self, asset_pair: str, severity: str, absolute_change: float, timeframe: str):
+        """Record a correlation spike detection"""
+        self.correlation_spikes_total.labels(
+            asset_pair=asset_pair,
+            severity=severity,
+            timeframe=timeframe
+        ).inc()
+    
+    def update_systemic_risk_score(self, score: float):
+        """Update systemic risk score gauge"""
+        self.systemic_risk_score.set(score)
+    
+    def record_concentration_cluster(self, cluster_size: int, risk_score: float):
+        """Record concentration cluster detection"""
+        self.concentration_clusters_detected.set(1)  # At least one cluster detected
+        
+    def update_correlation_matrix_values(self, correlation_values: List[float]):
+        """Update correlation matrix values distribution"""
+        for value in correlation_values:
+            self.correlation_matrix_values.observe(abs(value))
     
     def get_metrics_summary(self) -> Dict[str, Any]:
         """Get a summary of current metrics for debugging"""
@@ -544,6 +708,41 @@ class AlertPrometheusStub:
         pass
     
     def record_contradiction_neutralization(self, alert_type: str):
+        pass
+    
+    # Phase 2B1: Stub methods for multi-timeframe metrics
+    def update_multi_timeframe_config(self, enabled: bool):
+        pass
+    
+    def record_coherence_score(self, alert_type: str, score: float):
+        pass
+    
+    def record_multi_timeframe_alert_suppression(self, alert_type: str, reason: str):
+        pass
+    
+    def record_temporal_gating_block(self, alert_type: str, timeframe: str, reason: str):
+        pass
+    
+    def record_timeframe_signal_count(self, timeframe: str, count: int):
+        pass
+    
+    def record_multi_timeframe_decision(self, alert_type: str, decision: str, confidence_adjustment: float):
+        pass
+    
+    def record_multi_timeframe_trigger(self, alert_type: str, triggered: bool, coherence_score: float):
+        pass
+    
+    # Phase 2B2: Stub methods for cross-asset correlation metrics
+    def record_correlation_spike(self, asset_pair: str, severity: str, absolute_change: float, timeframe: str):
+        pass
+    
+    def update_systemic_risk_score(self, score: float):
+        pass
+    
+    def record_concentration_cluster(self, cluster_size: int, risk_score: float):
+        pass
+        
+    def update_correlation_matrix_values(self, correlation_values: List[float]):
         pass
 
 

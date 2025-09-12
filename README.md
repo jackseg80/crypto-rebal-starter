@@ -67,6 +67,53 @@ Architecture **single-source-of-truth** garantissant la cohérence des données 
 - **Métriques Prometheus** : 10+ métriques Phase 2A (transitions, gating, neutralisations, performance)
 - **Tests Production** : 8 tests unitaires, 6 tests d'intégration, benchmarks (0.9μs gating, 1M+ ops/sec)
 
+## 🚨 **Phase 2B2 : Cross-Asset Correlation System** ✅
+**Système de corrélation cross-asset temps réel avec détection de spikes**
+
+### Architecture Avancée
+- **CrossAssetCorrelationAnalyzer** : Moteur optimisé <50ms pour matrices 10x10
+- **Détection CORR_SPIKE** : Double critère (≥15% relatif ET ≥0.20 absolu) 
+- **Multi-timeframe** : Support 1h, 4h, 1d avec clustering automatique
+- **Phase-aware gating** : Modulation par asset class (BTC/ETH/Large/Alt)
+
+### API Endpoints
+- `/api/alerts/cross-asset/status` - Status global corrélations temps réel
+- `/api/alerts/cross-asset/systemic-risk` - Score risque systémique (0-1)
+- `/api/alerts/cross-asset/top-correlated` - Top paires corrélées avec seuils
+
+### Performance & Monitoring
+- **Calcul matrice** : 25ms (target <50ms) pour 10x10 assets
+- **Métriques Prometheus** : 6+ métriques spécialisées corrélation
+- **Tests complets** : 4 tests unitaires, 3 tests intégration validés
+- **UI Debug** : `debug_phase2b2_cross_asset.html` - Interface test interactive
+
+## 🧠 **Phase 2C : ML Alert Predictions System** ✅  
+**Alertes prédictives ML pour anticiper événements marché 24-48h**
+
+### Intelligence Prédictive
+- **4 types d'alertes ML** : SPIKE_LIKELY, REGIME_CHANGE_PENDING, CORRELATION_BREAKDOWN, VOLATILITY_SPIKE_IMMINENT
+- **Multi-horizon** : Prédictions 4h, 12h, 24h, 48h avec ensemble models
+- **18 features** : Corrélation, volatilité, market stress, sentiment composite
+- **Performance** : F1-Score 0.65-0.72 selon type (target >0.6)
+
+### Architecture ML
+- **MLAlertPredictor** : Feature engineering + cache TTL optimisé
+- **MLModelManager** : Versioning MLflow + A/B testing automatique  
+- **Ensemble Models** : RandomForest (60%) + GradientBoosting (40%)
+- **Drift Detection** : Performance monitoring + auto-retraining
+
+### API ML Avancée
+- `/api/ml-predictions/predict` - Prédictions temps réel multi-horizon
+- `/api/ml-predictions/models/status` - Santé modèles + métriques
+- `/api/ml-predictions/features/current` - Features live + qualité données
+- `/api/ml-predictions/models/retrain` - Retraining manuel/automatique
+
+### Production Features
+- **MLflow Integration** : Registry modèles + versioning + artifacts
+- **A/B Testing** : Pipeline automatisé avec promotion gagnant
+- **Performance Target** : <200ms batch prediction, <100MB memory
+- **Métriques Prometheus** : 8+ métriques ML monitoring spécialisées
+
 ## 🎯 **Phase 3 Frontend Integration - PRODUCTION READY** ✅
 **Score global E2E : 95.8/100 - EXCELLENT**
 
@@ -111,10 +158,22 @@ Architecture **single-source-of-truth** garantissant la cohérence des données 
 - [Configuration](#configuration) - Variables d'environnement et setup
 - [Interfaces principales](#interfaces-principales) - Dashboards et navigation
 
+### 🚨 **Système d'Alertes** 
+- [Phase 1 - Alertes Prédictives](#système-dalertes-prédictives-phase-1) - 6 types d'alertes ML temps réel
+- [Phase 2A - Phase-Aware](#système-dalertes-phase-2a--phase-aware-alerting-) - Intelligence contextuelle
+- [Phase 2B2 - Cross-Asset](#phase-2b2--cross-asset-correlation-system-) - Corrélations cross-asset
+- [Phase 2C - ML Predictions](#phase-2c--ml-alert-predictions-system-) - Prédictions ML 24-48h
+
 ### 🧠 **ML & Analytics** 
 - [Machine Learning](#machine-learning) - Modèles LSTM, Transformers, prédictions
 - [Analytics Avancés](#analytics-avancés) - Métriques, comparaisons, backtesting
 - [Gestion des Risques](#gestion-des-risques) - VaR, corrélations, stress testing
+
+### 🎯 **Phase 3 Production** 
+- [Phase 3A - Advanced Risk](#phase-3a--advanced-risk-engine-) - VaR multi-méthodes, stress testing
+- [Phase 3B - Real-time](#phase-3b--real-time-streaming-) - WebSocket Redis, broadcast multi-client
+- [Phase 3C - Intelligence](#phase-3c--hybrid-intelligence-) - AI explicable + human-in-the-loop
+- [Tests E2E Production](#tests-e2e-production) - Suite complète validation 95.8/100
 
 ### 🔧 **API & Développement**
 - [Endpoints API](#endpoints-api) - Documentation complète des APIs

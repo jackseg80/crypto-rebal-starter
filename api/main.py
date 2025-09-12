@@ -66,6 +66,7 @@ except Exception as e:
     PORTFOLIO_AVAILABLE = False
 from api.taxonomy_endpoints import router as taxonomy_router
 from api.execution_endpoints import router as execution_router
+from api.ml_predictions_endpoints import router as ml_predictions_router
 from api.analytics_endpoints import router as analytics_router
 from api.kraken_endpoints import router as kraken_router
 from api.smart_taxonomy_endpoints import router as smart_taxonomy_router  # FIXED - aiohttp mocké
@@ -85,6 +86,9 @@ from api.multi_asset_endpoints import router as multi_asset_router
 from api.backtesting_endpoints import router as backtesting_router
 from api.alerts_endpoints import router as alerts_router
 from api.strategy_endpoints import router as strategy_router
+from api.advanced_risk_endpoints import router as advanced_risk_router
+from api.realtime_endpoints import router as realtime_router
+from api.intelligence_endpoints import router as intelligence_router
 from api.exceptions import (
     CryptoRebalancerException, APIException, ValidationException, 
     ConfigurationException, TradingException, DataException, ErrorCodes
@@ -1506,6 +1510,7 @@ async def update_api_keys(payload: APIKeysRequest, debug_token: str = None):
 # inclure les routes taxonomie, execution, monitoring et analytics
 app.include_router(taxonomy_router)
 app.include_router(execution_router)
+app.include_router(ml_predictions_router)
 app.include_router(analytics_router)
 app.include_router(kraken_router)
 app.include_router(smart_taxonomy_router)
@@ -1562,6 +1567,13 @@ app.include_router(multi_asset_router)
 app.include_router(backtesting_router)
 app.include_router(advanced_analytics_router)
 app.include_router(strategy_router)
+app.include_router(advanced_risk_router)
+app.include_router(realtime_router)
+app.include_router(intelligence_router)
+
+# Phase 3 Unified Orchestration
+from api.unified_phase3_endpoints import router as unified_phase3_router
+app.include_router(unified_phase3_router)
 
 # ---------- Portfolio Analytics ----------
 @app.get("/portfolio/metrics")

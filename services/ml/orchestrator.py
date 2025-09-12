@@ -17,6 +17,7 @@ from .models.correlation_forecaster import CorrelationForecaster
 from .models.sentiment_analyzer import SentimentAnalysisEngine
 from .models.regime_detector import RegimeDetector
 from .models.rebalancing_engine import RebalancingEngine
+from services.risk.advanced_risk_engine import AdvancedRiskEngine, VaRMethod, RiskHorizon
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,30 @@ class MLOrchestrator:
             'regime': RegimeDetector(),
             'rebalancing': RebalancingEngine()
         }
+        
+        # Initialize Advanced Risk Engine (Phase 3A integration)
+        advanced_risk_config = {
+            "var": {
+                "confidence_levels": [0.95, 0.99],
+                "methods": ["parametric", "historical", "monte_carlo"],
+                "lookback_days": 252,
+                "min_observations": 100
+            },
+            "stress_testing": {
+                "enabled_scenarios": [
+                    "crisis_2008", "covid_2020", "china_ban", "tether_collapse"
+                ],
+                "custom_scenarios": {},
+                "recovery_model": "exponential"
+            },
+            "monte_carlo": {
+                "simulations": 10000,
+                "distribution": "student_t",
+                "correlation_decay": 0.94
+            }
+        }
+        self.advanced_risk_engine = AdvancedRiskEngine(advanced_risk_config)
+        self.models['advanced_risk'] = self.advanced_risk_engine
         
         # Model status tracking
         self.model_status = {name: 'uninitialized' for name in self.models.keys()}
@@ -212,6 +237,11 @@ class MLOrchestrator:
                         # Initialize rebalancing engine
                         self.model_status[model_name] = 'ready'
                     
+                    elif model_name == 'advanced_risk':
+                        # Initialize Advanced Risk Engine with portfolio data
+                        await self._initialize_advanced_risk_engine(training_data, force_retrain)
+                        self.model_status[model_name] = 'ready'
+                    
                     initialization_report['models_initialized'].append(model_name)
                     logger.info(f"Successfully initialized {model_name} model")
                     
@@ -303,6 +333,33 @@ class MLOrchestrator:
             logger.error(f"Error training regime model: {e}")
             self.model_status['regime'] = 'failed'
     
+    async def _initialize_advanced_risk_engine(self, training_data: Dict[str, Any], force_retrain: bool):
+        """Initialize Advanced Risk Engine with portfolio data"""
+        try:
+            if not force_retrain:
+                last_training = self.last_training.get('advanced_risk')
+                if last_training and (datetime.now() - last_training) < timedelta(days=1):
+                    logger.info("Advanced Risk Engine recently initialized, skipping")
+                    return
+            
+            logger.info("Initializing Advanced Risk Engine with portfolio data")
+            
+            # Prepare historical data for VaR calculations
+            portfolio_symbols = list(training_data.keys())[:10]  # Limit for performance
+            
+            # Initialize with portfolio configuration
+            await self.advanced_risk_engine.initialize_portfolio(
+                symbols=portfolio_symbols,
+                historical_data=training_data
+            )
+            
+            self.last_training['advanced_risk'] = datetime.now()
+            logger.info("Advanced Risk Engine initialized successfully")
+            
+        except Exception as e:
+            logger.error(f"Error initializing Advanced Risk Engine: {e}")
+            self.model_status['advanced_risk'] = 'failed'
+    
     async def get_unified_predictions(self, symbols: Optional[List[str]] = None, 
                                    horizons: List[int] = [1, 7, 30]) -> Dict[str, Any]:
         """
@@ -355,6 +412,10 @@ class MLOrchestrator:
                     elif model_name == 'correlation':
                         correlation_data = await self._get_correlation_forecasts(symbols)
                         predictions['models']['correlation'] = correlation_data
+                    
+                    elif model_name == 'advanced_risk':
+                        risk_analysis = await self._get_advanced_risk_analysis(symbols, horizons)
+                        predictions['models']['advanced_risk'] = risk_analysis
                     
                 except Exception as e:
                     error_msg = f"Error getting {model_name} predictions: {str(e)}"
@@ -468,6 +529,69 @@ class MLOrchestrator:
                 'error': str(e),
                 'timestamp': datetime.now().isoformat()
             }
+    
+    async def calculate_portfolio_var(self, portfolio_weights: Dict[str, float], 
+                                    portfolio_value: float = 100000,
+                                    confidence_level: float = 0.95,
+                                    horizon_days: int = 1,
+                                    method: str = 'historical') -> Dict[str, Any]:
+        """
+        Public method for portfolio VaR calculation
+        Used by advanced risk endpoints
+        """
+        try:
+            if self.model_status.get('advanced_risk') != 'ready':
+                logger.warning("Advanced Risk Engine not ready for VaR calculation")
+                return {
+                    'error': 'Advanced Risk Engine not initialized',
+                    'fallback_var': portfolio_value * 0.03,  # 3% fallback
+                    'confidence_level': confidence_level,
+                    'method': 'fallback',
+                    'timestamp': datetime.now().isoformat()
+                }
+            
+            # Map method string to enum
+            var_method = VaRMethod.HISTORICAL if method.lower() == 'historical' else VaRMethod.PARAMETRIC
+            
+            # Map horizon to enum
+            if horizon_days == 1:
+                horizon = RiskHorizon.DAILY
+            elif horizon_days <= 7:
+                horizon = RiskHorizon.WEEKLY
+            else:
+                horizon = RiskHorizon.MONTHLY
+            
+            # Calculate VaR using Advanced Risk Engine
+            var_result = await self.advanced_risk_engine.calculate_var(
+                portfolio_weights=portfolio_weights,
+                portfolio_value=portfolio_value,
+                method=var_method,
+                confidence_level=confidence_level,
+                horizon=horizon
+            )
+            
+            return {
+                'var_absolute': var_result.var_absolute,
+                'cvar_absolute': var_result.cvar_absolute,
+                'confidence_level': var_result.confidence_level,
+                'method': var_result.method.value,
+                'horizon': var_result.horizon.value,
+                'portfolio_value': var_result.portfolio_value,
+                'component_contributions': var_result.component_contributions,
+                'model_parameters': var_result.model_parameters,
+                'timestamp': datetime.now().isoformat(),
+                'engine_version': '3.0.0'
+            }
+            
+        except Exception as e:
+            logger.error(f"Error calculating portfolio VaR: {e}")
+            return {
+                'error': str(e),
+                'fallback_var': portfolio_value * 0.03,
+                'confidence_level': confidence_level,
+                'method': method,
+                'timestamp': datetime.now().isoformat()
+            }
 
     async def _get_regime_predictions(self, symbols: List[str]) -> Dict[str, Any]:
         """Get market regime predictions"""
@@ -491,6 +615,211 @@ class MLOrchestrator:
                 }
         return correlations
     
+    async def _get_advanced_risk_analysis(self, symbols: List[str], horizons: List[int]) -> Dict[str, Any]:
+        """Get comprehensive risk analysis using Advanced Risk Engine"""
+        try:
+            if self.model_status.get('advanced_risk') != 'ready':
+                logger.warning("Advanced Risk Engine not ready, using fallback analysis")
+                return {
+                    'status': 'fallback',
+                    'var_absolutes': {symbol: {'1d': 0.05, '7d': 0.15, '30d': 0.35} for symbol in symbols[:5]},
+                    'portfolio_risk': {'daily_var_95': 0.03, 'cvar_absolute': 0.045},
+                    'stress_test_summary': 'Engine not initialized'
+                }
+            
+            risk_analysis = {
+                'timestamp': datetime.now().isoformat(),
+                'symbols_analyzed': symbols[:10],  # Limit for performance
+                'var_analysis': {},
+                'stress_tests': {},
+                'monte_carlo': {},
+                'portfolio_metrics': {},
+                'risk_alerts': []
+            }
+            
+            # Get portfolio weights (simplified - equal weight for now)
+            num_assets = min(len(symbols), 10)
+            equal_weight = 1.0 / num_assets
+            portfolio_weights = {symbol: equal_weight for symbol in symbols[:num_assets]}
+            portfolio_value = 100000  # $100k portfolio for analysis
+            
+            # Calculate VaR for different horizons and methods
+            for horizon_days in horizons:
+                horizon = RiskHorizon.DAILY if horizon_days == 1 else RiskHorizon.WEEKLY if horizon_days <= 7 else RiskHorizon.MONTHLY
+                
+                # Parametric VaR
+                var_parametric = await self.advanced_risk_engine.calculate_var(
+                    portfolio_weights=portfolio_weights,
+                    portfolio_value=portfolio_value,
+                    method=VaRMethod.PARAMETRIC,
+                    confidence_level=0.95,
+                    horizon=horizon
+                )
+                
+                # Historical VaR 
+                var_historical = await self.advanced_risk_engine.calculate_var(
+                    portfolio_weights=portfolio_weights,
+                    portfolio_value=portfolio_value,
+                    method=VaRMethod.HISTORICAL,
+                    confidence_level=0.95,
+                    horizon=horizon
+                )
+                
+                risk_analysis['var_analysis'][f'{horizon_days}d'] = {
+                    'parametric_var': var_parametric.var_absolute,
+                    'historical_var': var_historical.var_absolute,
+                    'cvar_absolute': var_parametric.cvar_absolute,
+                    'confidence_level': 0.95,
+                    'method_comparison': {
+                        'parametric_vs_historical_ratio': var_parametric.var_absolute / max(var_historical.var_absolute, 0.001),
+                        'recommended_method': 'historical' if var_historical.var_absolute > var_parametric.var_absolute * 1.2 else 'parametric'
+                    }
+                }
+            
+            # Run stress tests for major market scenarios
+            stress_scenarios = ['covid_2020', 'crypto_winter_2022', 'china_ban_2021']
+            
+            for scenario in stress_scenarios:
+                try:
+                    stress_result = await self.advanced_risk_engine.run_stress_test(
+                        portfolio_weights=portfolio_weights,
+                        portfolio_value=portfolio_value,
+                        scenario_name=scenario
+                    )
+                    
+                    risk_analysis['stress_tests'][scenario] = {
+                        'portfolio_loss': stress_result.portfolio_loss,
+                        'loss_percentage': stress_result.loss_percentage,
+                        'assets_affected': stress_result.asset_impacts,
+                        'recovery_estimate_days': stress_result.recovery_estimate_days
+                    }
+                    
+                    # Generate risk alerts for severe stress test results
+                    if stress_result.loss_percentage > 0.3:  # >30% loss
+                        risk_analysis['risk_alerts'].append({
+                            'type': 'severe_stress_risk',
+                            'scenario': scenario,
+                            'potential_loss': stress_result.loss_percentage,
+                            'recommendation': 'Consider reducing portfolio risk exposure'
+                        })
+                        
+                except Exception as e:
+                    logger.error(f"Stress test {scenario} failed: {e}")
+                    risk_analysis['stress_tests'][scenario] = {'error': str(e)}
+            
+            # Run Monte Carlo simulation for 1-day horizon
+            try:
+                monte_carlo_result = await self.advanced_risk_engine.run_monte_carlo_simulation(
+                    portfolio_weights=portfolio_weights,
+                    portfolio_value=portfolio_value,
+                    days=1,
+                    simulations=5000,  # Reduced for performance
+                    confidence_level=0.95
+                )
+                
+                risk_analysis['monte_carlo'] = {
+                    'var_absolute': monte_carlo_result.var_absolute,
+                    'expected_return': monte_carlo_result.expected_return,
+                    'volatility': monte_carlo_result.volatility,
+                    'skewness': monte_carlo_result.skewness,
+                    'kurtosis': monte_carlo_result.kurtosis,
+                    'simulations_run': monte_carlo_result.simulations,
+                    'tail_risk_analysis': {
+                        'extreme_loss_probability': monte_carlo_result.tail_risk_metrics.get('extreme_loss_prob', 0),
+                        'max_simulated_loss': monte_carlo_result.tail_risk_metrics.get('max_loss', 0)
+                    }
+                }
+                
+            except Exception as e:
+                logger.error(f"Monte Carlo simulation failed: {e}")
+                risk_analysis['monte_carlo'] = {'error': str(e)}
+            
+            # Calculate portfolio-level risk metrics
+            risk_analysis['portfolio_metrics'] = {
+                'total_portfolio_value': portfolio_value,
+                'number_of_assets': len(portfolio_weights),
+                'concentration_risk': max(portfolio_weights.values()),  # Largest single position
+                'diversification_ratio': 1.0 / len(portfolio_weights),  # Simple diversification measure
+                'risk_assessment': await self._assess_overall_portfolio_risk(risk_analysis),
+                'recommendation': await self._generate_risk_recommendation(risk_analysis)
+            }
+            
+            logger.info(f"Advanced risk analysis completed for {len(symbols)} assets")
+            return risk_analysis
+            
+        except Exception as e:
+            logger.error(f"Error in advanced risk analysis: {e}")
+            return {
+                'error': str(e),
+                'status': 'failed',
+                'timestamp': datetime.now().isoformat(),
+                'fallback_message': 'Risk analysis failed, using conservative estimates'
+            }
+    
+    async def _assess_overall_portfolio_risk(self, risk_analysis: Dict[str, Any]) -> str:
+        """Assess overall portfolio risk level based on analysis results"""
+        try:
+            risk_indicators = []
+            
+            # Check VaR levels
+            if 'var_analysis' in risk_analysis and '1d' in risk_analysis['var_analysis']:
+                daily_var = risk_analysis['var_analysis']['1d'].get('historical_var', 0)
+                if daily_var > 0.05:  # >5% daily VaR
+                    risk_indicators.append('high_var')
+                elif daily_var > 0.03:
+                    risk_indicators.append('moderate_var')
+            
+            # Check stress test results
+            if 'stress_tests' in risk_analysis:
+                severe_scenarios = 0
+                for scenario_result in risk_analysis['stress_tests'].values():
+                    if isinstance(scenario_result, dict) and 'loss_percentage' in scenario_result:
+                        if scenario_result['loss_percentage'] > 0.4:  # >40% loss
+                            severe_scenarios += 1
+                
+                if severe_scenarios >= 2:
+                    risk_indicators.append('stress_vulnerable')
+                elif severe_scenarios == 1:
+                    risk_indicators.append('moderate_stress_risk')
+            
+            # Check Monte Carlo tail risk
+            if 'monte_carlo' in risk_analysis and 'tail_risk_analysis' in risk_analysis['monte_carlo']:
+                extreme_loss_prob = risk_analysis['monte_carlo']['tail_risk_analysis'].get('extreme_loss_probability', 0)
+                if extreme_loss_prob > 0.05:  # >5% probability of extreme loss
+                    risk_indicators.append('tail_risk')
+            
+            # Determine overall risk level
+            if len(risk_indicators) >= 3:
+                return 'high'
+            elif len(risk_indicators) >= 2:
+                return 'moderate_high'
+            elif len(risk_indicators) >= 1:
+                return 'moderate'
+            else:
+                return 'low_moderate'
+                
+        except Exception as e:
+            logger.error(f"Error assessing portfolio risk: {e}")
+            return 'unknown'
+    
+    async def _generate_risk_recommendation(self, risk_analysis: Dict[str, Any]) -> str:
+        """Generate risk management recommendation based on analysis"""
+        try:
+            risk_level = await self._assess_overall_portfolio_risk(risk_analysis)
+            
+            if risk_level == 'high':
+                return 'Consider significant risk reduction: decrease position sizes, increase diversification, add hedging positions'
+            elif risk_level == 'moderate_high':
+                return 'Moderate risk reduction advised: review position sizing and consider partial profit-taking'
+            elif risk_level == 'moderate':
+                return 'Monitor closely: current risk levels acceptable but watch for deterioration'
+            else:
+                return 'Risk levels appear manageable: maintain current allocation with regular monitoring'
+                
+        except Exception as e:
+            logger.error(f"Error generating risk recommendation: {e}")
+            return 'Unable to generate recommendation due to analysis error'
+    
     async def _create_ensemble_predictions(self, model_predictions: Dict[str, Any]) -> Dict[str, Any]:
         """Create ensemble predictions from all models using weighted voting and confidence scoring"""
         
@@ -508,10 +837,11 @@ class MLOrchestrator:
         try:
             # Model weights based on historical performance and reliability
             model_weights = {
-                'volatility': 0.25,
-                'sentiment': 0.20,
-                'regime': 0.30,
-                'correlation': 0.25
+                'volatility': 0.20,
+                'sentiment': 0.15,
+                'regime': 0.25,
+                'correlation': 0.20,
+                'advanced_risk': 0.20  # Phase 3A integration
             }
             
             # Collect sentiment signals
@@ -623,6 +953,43 @@ class MLOrchestrator:
                         'signal': 'bearish' if increasing_corr/total_pairs > 0.6 else 'bullish' if increasing_corr/total_pairs < 0.4 else 'neutral',
                         'confidence': abs(increasing_corr/total_pairs - 0.5) * 2,
                         'data': f"rising_corr: {increasing_corr}/{total_pairs}"
+                    }
+            
+            # Process Advanced Risk Analysis (Phase 3A integration)
+            if 'advanced_risk' in model_predictions:
+                risk_data = model_predictions['advanced_risk']
+                
+                if isinstance(risk_data, dict) and 'portfolio_metrics' in risk_data:
+                    risk_assessment = risk_data['portfolio_metrics'].get('risk_assessment', 'unknown')
+                    
+                    # Map risk assessment to sentiment signal
+                    if risk_assessment in ['high', 'moderate_high']:
+                        sentiment_signals.append(('bearish', model_weights['advanced_risk'], f'high_portfolio_risk_{risk_assessment}'))
+                        risk_signal = 'bearish'
+                    elif risk_assessment in ['low_moderate']:
+                        sentiment_signals.append(('bullish', model_weights['advanced_risk'], f'low_portfolio_risk_{risk_assessment}'))
+                        risk_signal = 'bullish'
+                    else:  # moderate
+                        sentiment_signals.append(('neutral', model_weights['advanced_risk'], f'moderate_portfolio_risk_{risk_assessment}'))
+                        risk_signal = 'neutral'
+                    
+                    # Check for severe VaR levels
+                    var_confidence = 0.5
+                    if 'var_analysis' in risk_data and '1d' in risk_data['var_analysis']:
+                        daily_historical_var = risk_data['var_analysis']['1d'].get('historical_var', 0)
+                        if daily_historical_var > 0.05:  # >5% daily VaR indicates high confidence in bearish signal
+                            var_confidence = 0.9
+                        elif daily_historical_var > 0.03:
+                            var_confidence = 0.7
+                        else:
+                            var_confidence = 0.6
+                    
+                    ensemble['model_contributions']['advanced_risk'] = {
+                        'signal': risk_signal,
+                        'confidence': var_confidence,
+                        'data': f"risk_level: {risk_assessment}, var_1d: {daily_historical_var:.3f}" if 'daily_historical_var' in locals() else f"risk_level: {risk_assessment}",
+                        'risk_alerts': risk_data.get('risk_alerts', []),
+                        'recommendation': risk_data['portfolio_metrics'].get('recommendation', 'Monitor portfolio risk')
                     }
             
             # Calculate weighted ensemble sentiment

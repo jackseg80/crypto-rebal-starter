@@ -24,9 +24,22 @@ class AlertType(str, Enum):
     VOL_Q90_CROSS = "VOL_Q90_CROSS"           # Volatilité dépasse Q90
     REGIME_FLIP = "REGIME_FLIP"               # Changement de régime marché  
     CORR_HIGH = "CORR_HIGH"                   # Corrélation systémique élevée
+    CORR_SPIKE = "CORR_SPIKE"                 # Phase 2B2: Spike corrélation brutal
     CONTRADICTION_SPIKE = "CONTRADICTION_SPIKE" # Index de contradiction élevé
     DECISION_DROP = "DECISION_DROP"           # Chute de confiance decision score
     EXEC_COST_SPIKE = "EXEC_COST_SPIKE"       # Coûts d'exécution anormaux
+    
+    # Phase 2C: Alertes prédictives ML
+    SPIKE_LIKELY = "SPIKE_LIKELY"             # Spike corrélation probable 24-48h
+    REGIME_CHANGE_PENDING = "REGIME_CHANGE_PENDING"   # Changement régime attendu
+    CORRELATION_BREAKDOWN = "CORRELATION_BREAKDOWN"   # Décorrélation majeure prédite
+    VOLATILITY_SPIKE_IMMINENT = "VOLATILITY_SPIKE_IMMINENT"  # Spike volatilité imminent
+    
+    # Phase 3A: Advanced Risk Models
+    VAR_BREACH = "VAR_BREACH"                 # VaR limite dépassée
+    STRESS_TEST_FAILED = "STRESS_TEST_FAILED" # Échec stress test critique
+    MONTE_CARLO_EXTREME = "MONTE_CARLO_EXTREME" # Scénario extrême détecté MC
+    RISK_CONCENTRATION = "RISK_CONCENTRATION" # Concentration risque excessive
 
 class AlertFormatter:
     """
@@ -100,6 +113,26 @@ class AlertFormatter:
                     "details": "Corrélation {correlation:.0%}! Diversification nulle. Freeze immédiat 3h"
                 }
             },
+            AlertType.CORR_SPIKE: {
+                "S1": {
+                    "action": "Surveillance spike corrélation",
+                    "impact_base": 1.2,
+                    "reasons": ["Choc corrélation détecté", "Variation brutale liens assets"],
+                    "details": "Spike {asset_pair}: {corr_before:.2f}→{corr_after:.2f} (Δ{delta:.1%}) en {timeframe}. Changement régime possible"
+                },
+                "S2": {
+                    "action": "Ajustement allocation (mode Slow)",
+                    "impact_base": 3.5,
+                    "reasons": ["Spike corrélation majeur confirmé", "Instabilité structure portfolio"],
+                    "details": "Spike critique {asset_pair}: Δ{delta:.1%} en {timeframe}. Mode Slow 24h. Recalibration matrice risque nécessaire"
+                },
+                "S3": {
+                    "action": "Pause trading (Freeze 6h)",
+                    "impact_base": 8.0,
+                    "reasons": ["Choc corrélation extrême", "Rupture structure marché - instabilité systémique"],
+                    "details": "SPIKE CRITIQUE {asset_pair}! Δ{delta:.1%} brutal. Freeze 6h - analyse contagion. Risque cascade systémique"
+                }
+            },
             AlertType.CONTRADICTION_SPIKE: {
                 "S1": {
                     "action": "Vérification cohérence signaux",
@@ -159,6 +192,170 @@ class AlertFormatter:
                     "reasons": ["Coûts exécution prohibitifs", "Liquidité marché très dégradée"],
                     "details": "Coûts {exec_cost:.0f}bps prohibitifs! Freeze - étalement sur 72h max"
                 }
+            },
+            
+            # Phase 2C: Templates pour alertes prédictives ML
+            AlertType.SPIKE_LIKELY: {
+                "S1": {
+                    "action": "Préparation spike corrélation",
+                    "impact_base": 0.8,
+                    "reasons": ["ML prédit spike corrélation probable", "Horizon {horizon} - probabilité {probability:.0%}"],
+                    "details": "Spike {asset_pair} prédit dans {horizon} (prob {probability:.0%}, confiance {confidence:.0%}). Préparatifs: réduction allocation"
+                },
+                "S2": {
+                    "action": "Réduction préventive positions", 
+                    "impact_base": 2.5,
+                    "reasons": ["Spike corrélation très probable", "Anticipation choc systémique ML"],
+                    "details": "SPIKE PROBABLE {asset_pair} dans {horizon}! Prob {probability:.0%}. Mode Slow préventif 24h - cap 2%/jour"
+                },
+                "S3": {
+                    "action": "Protection préventive (mode Freeze)",
+                    "impact_base": 5.0,
+                    "reasons": ["ML prédit spike critique imminent", "Protection proactive capital"],
+                    "details": "SPIKE CRITIQUE prédit {asset_pair} dans {horizon}! Prob {probability:.0%} - Freeze préventif recommandé"
+                }
+            },
+            AlertType.REGIME_CHANGE_PENDING: {
+                "S1": {
+                    "action": "Surveillance changement régime ML",
+                    "impact_base": 1.0,
+                    "reasons": ["ML détecte transition régime probable", "Signaux précurseurs identifiés"],
+                    "details": "Régime flip prédit dans {horizon} (prob {probability:.0%}). Préparation recalibration matrice risque"
+                },
+                "S2": {
+                    "action": "Adaptation anticipée allocation",
+                    "impact_base": 3.2,
+                    "reasons": ["Changement régime imminent ML", "Paramètres actuels obsolètes prévus"],
+                    "details": "Régime change IMMINENT dans {horizon}! Prob {probability:.0%}. Transition mode Slow 36h - anticipation paramètres"
+                },
+                "S3": {
+                    "action": "Arrêt préventif trading",
+                    "impact_base": 7.0,
+                    "reasons": ["Flip régime critique prédit ML", "Incertitude majeure paramètres"],
+                    "details": "RÉGIME FLIP critique prédit {horizon}! Prob {probability:.0%} - Freeze total jusqu'à confirmation"
+                }
+            },
+            AlertType.CORRELATION_BREAKDOWN: {
+                "S1": {
+                    "action": "Monitoring décorrélation prédite",
+                    "impact_base": 1.5,
+                    "reasons": ["ML prédit breakdown corrélations", "Diversification attendue améliorée"],
+                    "details": "Décorrélation prédite dans {horizon} (prob {probability:.0%}). Opportunité diversification - surveillance"
+                },
+                "S2": {
+                    "action": "Repositionnement anticipé portfolio", 
+                    "impact_base": 2.8,
+                    "reasons": ["Breakdown corrélation majeur prédit", "Restructuration portfolio requise"],
+                    "details": "DÉCORRÉLATION majeure prédite dans {horizon}! Prob {probability:.0%}. Repositionnement actif recommandé"
+                },
+                "S3": {
+                    "action": "Reconfiguration majeure positions",
+                    "impact_base": 6.5,
+                    "reasons": ["Breakdown systémique prédit", "Révision complète allocation nécessaire"],
+                    "details": "BREAKDOWN SYSTÉMIQUE prédit {horizon}! Prob {probability:.0%} - Révision allocation complète urgente"
+                }
+            },
+            AlertType.VOLATILITY_SPIKE_IMMINENT: {
+                "S1": {
+                    "action": "Préparation spike volatilité",
+                    "impact_base": 0.6,
+                    "reasons": ["ML prédit spike volatilité probable", "Conditions marché précurseurs"],
+                    "details": "Spike vol prédit dans {horizon} (prob {probability:.0%}). Préparatifs réduction exposition recommandés"
+                },
+                "S2": {
+                    "action": "Réduction anticipée exposition",
+                    "impact_base": 3.8,
+                    "reasons": ["Spike volatilité imminent ML", "Protection drawdown préventive"],
+                    "details": "SPIKE VOLATILITÉ imminent dans {horizon}! Prob {probability:.0%}. Mode Slow immédiat - cap 3%/jour"
+                },
+                "S3": {
+                    "action": "Protection maximale (Freeze)",
+                    "impact_base": 9.0,
+                    "reasons": ["Spike volatilité extrême prédit", "Protection capitale priorité absolue"],
+                    "details": "VOLATILITÉ EXTRÊME prédite {horizon}! Prob {probability:.0%} - FREEZE TOTAL jusqu'à passage"
+                }
+            },
+            
+            # Phase 3A: Templates pour Advanced Risk Models
+            AlertType.VAR_BREACH: {
+                "S1": {
+                    "action": "Surveillance dépassement VaR",
+                    "impact_base": 1.2,
+                    "reasons": ["Perte potentielle dépasse VaR {confidence_level:.0%}", "Niveau de risque élevé détecté"],
+                    "details": "VaR {method} breached: {var_current:.0f}€ vs limite {var_limit:.0f}€. Horizon {horizon} - Confiance {confidence_level:.0%}"
+                },
+                "S2": {
+                    "action": "Réduction immédiate exposition",
+                    "impact_base": 3.0,
+                    "reasons": ["VaR critique largement dépassée", "Protection capital nécessaire"],
+                    "details": "VaR BREACH majeur! {var_current:.0f}€ vs {var_limit:.0f}€ ({var_ratio:.1f}x). Réduction positions immédiate recommandée"
+                },
+                "S3": {
+                    "action": "Liquidation partielle urgente",
+                    "impact_base": 8.5,
+                    "reasons": ["VaR extrême - risque systémique", "Protection capitale critique"],
+                    "details": "VaR EXTREME! {var_current:.0f}€ ({var_ratio:.1f}x limite). LIQUIDATION partielle urgente - risque majeur détecté"
+                }
+            },
+            AlertType.STRESS_TEST_FAILED: {
+                "S1": {
+                    "action": "Révision allocation stress",
+                    "impact_base": 1.8,
+                    "reasons": ["Échec stress test {scenario}", "Vulnérabilité scenario identifiée"],
+                    "details": "Stress test {scenario}: perte {stress_loss:.0f}€ ({stress_loss_pct:.1%}). Vulnérabilité détectée - ajustements requis"
+                },
+                "S2": {
+                    "action": "Hedging défensif immédiat",
+                    "impact_base": 4.2,
+                    "reasons": ["Stress test critique failed", "Exposition dangereuse scenario {scenario}"],
+                    "details": "STRESS FAIL critique {scenario}! Perte simulée {stress_loss:.0f}€ ({stress_loss_pct:.1%}). Hedging immédiat requis"
+                },
+                "S3": {
+                    "action": "Restructuration portfolio urgente",
+                    "impact_base": 12.0,
+                    "reasons": ["Stress test catastrophique", "Survie portfolio menacée scenario {scenario}"],
+                    "details": "STRESS CATASTROPHIQUE {scenario}! Perte {stress_loss:.0f}€ ({stress_loss_pct:.1%}). RESTRUCTURATION totale urgente"
+                }
+            },
+            AlertType.MONTE_CARLO_EXTREME: {
+                "S1": {
+                    "action": "Monitoring scénarios extrêmes",
+                    "impact_base": 1.0,
+                    "reasons": ["Monte Carlo détecte outcomes négatifs", "Probabilité events extrêmes élevée"],
+                    "details": "MC simulation: {mc_extreme_prob:.1%} chance perte >{mc_threshold:.0f}€. Horizon {horizon}j - monitoring renforcé"
+                },
+                "S2": {
+                    "action": "Réduction risque préventive",
+                    "impact_base": 3.8,
+                    "reasons": ["Scénarios extrêmes MC très probables", "Tail risk significatif détecté"],
+                    "details": "MC EXTREME: {mc_extreme_prob:.1%} chance perte >{mc_threshold:.0f}€! Max DD P99: {max_dd_p99:.1%}. Action préventive requise"
+                },
+                "S3": {
+                    "action": "Protection tail risk maximale",
+                    "impact_base": 10.0,
+                    "reasons": ["Monte Carlo prédit catastrophe possible", "Tail risk inacceptable"],
+                    "details": "MC CATASTROPHIQUE! {mc_extreme_prob:.1%} risque perte >{mc_threshold:.0f}€. Max DD P99: {max_dd_p99:.1%}. PROTECTION maximale"
+                }
+            },
+            AlertType.RISK_CONCENTRATION: {
+                "S1": {
+                    "action": "Surveillance concentration risque",
+                    "impact_base": 0.8,
+                    "reasons": ["Concentration risque élevée détectée", "Diversification insuffisante"],
+                    "details": "Risk concentration: {concentrated_asset} représente {concentration_pct:.1%} du risque total. Marginal VaR: {marginal_var:.0f}€"
+                },
+                "S2": {
+                    "action": "Rééquilibrage diversification",
+                    "impact_base": 2.5,
+                    "reasons": ["Concentration critique sur {concentrated_asset}", "Risque portfolio non diversifié"],
+                    "details": "CONCENTRATION critique! {concentrated_asset}: {concentration_pct:.1%} du risque. Marginal VaR {marginal_var:.0f}€. Rééquilibrage requis"
+                },
+                "S3": {
+                    "action": "Diversification urgente portfolio",
+                    "impact_base": 6.0,
+                    "reasons": ["Concentration extrême {concentrated_asset}", "Portfolio mono-risque dangereux"],
+                    "details": "CONCENTRATION EXTRÊME! {concentrated_asset}: {concentration_pct:.1%} risque total! Marginal VaR {marginal_var:.0f}€ - diversification URGENTE"
+                }
             }
         }
     
@@ -182,6 +379,7 @@ class AlertFormatter:
             
             # Formatage des détails avec interpolation
             details = template["details"].format(
+                # Variables existantes
                 current_vol=data.get("current_value", 0.0),
                 threshold=data.get("adaptive_threshold", 0.0),
                 phase=data.get("phase", "unknown"),
@@ -191,7 +389,35 @@ class AlertFormatter:
                 contradiction=data.get("current_value", 0.0) * 100,
                 decision_drop=data.get("current_value", 0.0) * 100,
                 exec_cost=data.get("current_value", 30),
-                normal_cost=data.get("normal_cost", 15)
+                normal_cost=data.get("normal_cost", 15),
+                
+                # Variables Phase 2B2 (CORR_SPIKE)
+                asset_pair=data.get("asset_pair", "BTC/ETH"),
+                corr_before=data.get("correlation_before", 0.0),
+                corr_after=data.get("correlation_after", 0.0),
+                delta=data.get("relative_change", 0.0),
+                timeframe=data.get("timeframe", "1h"),
+                
+                # Variables Phase 2C (alertes prédictives ML)
+                horizon=data.get("horizon", "24h"),
+                probability=data.get("probability", 0.0) * 100,  # Convertir 0-1 en %
+                model_confidence=data.get("model_confidence", 0.75),
+                
+                # Variables Phase 3A (Advanced Risk Models)
+                method=data.get("var_method", "parametric"),
+                confidence_level=data.get("confidence_level", 0.95) * 100,  # 95%
+                var_current=data.get("var_current", 0),
+                var_limit=data.get("var_limit", 10000),
+                var_ratio=data.get("var_current", 0) / max(data.get("var_limit", 1), 1),
+                scenario=data.get("stress_scenario", "unknown"),
+                stress_loss=abs(data.get("stress_loss", 0)),
+                stress_loss_pct=abs(data.get("stress_loss_pct", 0.0)) * 100,
+                mc_extreme_prob=data.get("mc_extreme_prob", 0.05) * 100,
+                mc_threshold=data.get("mc_threshold", 50000),
+                max_dd_p99=data.get("max_dd_p99", 0.0) * 100,
+                concentrated_asset=data.get("concentrated_asset", "BTC"),
+                concentration_pct=data.get("concentration_pct", 0.0) * 100,
+                marginal_var=data.get("marginal_var", 0)
             )
             
             return {
@@ -332,6 +558,24 @@ class AlertEvaluator:
             }
         )
         
+        # CORR_SPIKE - Phase 2B2: Spike corrélation brutal
+        rules[AlertType.CORR_SPIKE] = AlertRule(
+            alert_type=AlertType.CORR_SPIKE,
+            base_threshold=0.20,  # 20% variation absolue minimum
+            adaptive_multiplier=1.0,
+            hysteresis_minutes=2,  # Réaction rapide pour spikes
+            severity_thresholds={
+                "S1": 0.25,  # Δ≥25% (minor spike)
+                "S2": 0.35,  # Δ≥35% (major spike) 
+                "S3": 0.50   # Δ≥50% (critical spike)
+            },
+            suggested_actions={
+                "S1": {"type": "acknowledge"},
+                "S2": {"type": "apply_policy", "mode": "Slow", "cap_daily": 0.02, "ramp_hours": 24},
+                "S3": {"type": "freeze", "ttl_minutes": 360}  # 6h freeze pour spike critique
+            }
+        )
+        
         # CONTRADICTION_SPIKE - Index de contradiction élevé
         rules[AlertType.CONTRADICTION_SPIKE] = AlertRule(
             alert_type=AlertType.CONTRADICTION_SPIKE,
@@ -463,6 +707,13 @@ class AlertEvaluator:
                 correlation = signals.get("correlation", {})
                 return correlation.get("avg_correlation", 0.0)
                 
+            elif alert_type == AlertType.CORR_SPIKE:
+                # Phase 2B2: Extraire max absolute change des spikes détectés
+                spikes = signals.get("correlation_spikes", [])
+                if spikes:
+                    return max(spike.get("absolute_change", 0.0) for spike in spikes)
+                return 0.0
+                
             elif alert_type == AlertType.CONTRADICTION_SPIKE:
                 return signals.get("contradiction_index", 0.0)
                 
@@ -560,7 +811,7 @@ class AlertEvaluator:
     
     def _check_trigger_condition(self, alert_type: AlertType, value: float, threshold: float) -> bool:
         """Vérifie si la condition de déclenchement est remplie"""
-        if alert_type in [AlertType.VOL_Q90_CROSS, AlertType.CORR_HIGH, 
+        if alert_type in [AlertType.VOL_Q90_CROSS, AlertType.CORR_HIGH, AlertType.CORR_SPIKE,
                          AlertType.CONTRADICTION_SPIKE, AlertType.EXEC_COST_SPIKE]:
             return value > threshold
         elif alert_type in [AlertType.REGIME_FLIP, AlertType.DECISION_DROP]:

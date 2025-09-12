@@ -169,7 +169,12 @@
       "Bash(start http://localhost:8000/static/test-basic-script.html)",
       "Bash(start http://localhost:8000/static/test-migration-simple.html)",
       "Bash(start http://localhost:8000/debug_alerts_test.html)",
-      "Bash(start http://localhost:8000/static/debug_alerts_test.html)"
+      "Bash(start http://localhost:8000/static/debug_alerts_test.html)",
+      "Bash(start http://localhost:8000/static/debug_phase2b1_multiframe.html)",
+      "Bash(start http://localhost:8000/static/debug_phase2b2_cross_asset.html)",
+      "Bash(pytest:*)",
+      "Bash(start:*)",
+      "Bash(run_all_e2e_tests.bat)"
     ],
     "deny": [],
     "ask": [],

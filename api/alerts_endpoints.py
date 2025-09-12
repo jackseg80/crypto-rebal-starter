@@ -538,6 +538,82 @@ async def get_health_status(
             "timestamp": datetime.now().isoformat()
         }
 
+@router.get("/multi-timeframe/status")
+async def get_multi_timeframe_status(
+    engine: AlertEngine = Depends(get_alert_engine)
+):
+    """
+    Phase 2B1: Multi-Timeframe Analysis Status
+    
+    Retourne le statut complet du système multi-timeframe incluant:
+    - Cohérence par timeframe 
+    - Signaux récents par timeframe
+    - Métriques de performance temporal gating
+    """
+    try:
+        status = engine.get_multi_timeframe_status()
+        
+        # Ajouter des informations de configuration
+        if status.get("enabled", False):
+            config = engine.config.get("alerting_config", {}).get("multi_timeframe", {})
+            status["configuration"] = {
+                "coherence_lookback_minutes": config.get("coherence_lookback_minutes", 60),
+                "signal_history_hours": config.get("signal_history_hours", 24),
+                "timeframe_weights": config.get("timeframe_weights", {}),
+                "temporal_overrides": config.get("temporal_overrides", {})
+            }
+        
+        return status
+        
+    except Exception as e:
+        logger.error(f"Error getting multi-timeframe status: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.get("/multi-timeframe/coherence/{alert_type}")
+async def get_alert_type_coherence(
+    alert_type: str,
+    lookback_minutes: int = Query(60, ge=15, le=1440, description="Lookback period in minutes"),
+    engine: AlertEngine = Depends(get_alert_engine)
+):
+    """
+    Phase 2B1: Alert Type Coherence Analysis
+    
+    Analyse la cohérence multi-timeframe pour un type d'alerte spécifique.
+    """
+    try:
+        if not engine.multi_timeframe_enabled or not engine.multi_timeframe_analyzer:
+            raise HTTPException(status_code=404, detail="Multi-timeframe analysis not enabled")
+        
+        # Valider le type d'alerte
+        try:
+            alert_type_enum = AlertType(alert_type)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid alert type: {alert_type}")
+        
+        coherence = engine.multi_timeframe_analyzer.calculate_coherence_score(
+            alert_type_enum, lookback_minutes
+        )
+        
+        return {
+            "alert_type": alert_type,
+            "coherence": {
+                "overall_score": coherence.overall_score,
+                "timeframe_agreement": coherence.timeframe_agreement,
+                "divergence_severity": coherence.divergence_severity,
+                "dominant_timeframe": coherence.dominant_timeframe.value if coherence.dominant_timeframe else None,
+                "conflicting_signals": [
+                    {"tf1": tf1.value, "tf2": tf2.value} 
+                    for tf1, tf2 in coherence.conflicting_signals
+                ]
+            },
+            "analysis_period": f"{lookback_minutes}m",
+            "calculated_at": coherence.calculated_at.isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error calculating coherence for {alert_type}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
 @router.get("/metrics/prometheus", response_class=PlainTextResponse)
 async def get_prometheus_metrics(
     engine: AlertEngine = Depends(get_alert_engine),
@@ -582,6 +658,172 @@ async def get_prometheus_metrics(
         
     except Exception as e:
         logger.error(f"Error generating Phase 2A Prometheus metrics: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# Phase 2B2: Cross-Asset Correlation Endpoints
+
+@router.get("/cross-asset/status")
+async def get_cross_asset_status(
+    timeframe: str = Query("1h", regex="^(1h|4h|1d)$", description="Analysis timeframe"),
+    engine: AlertEngine = Depends(get_alert_engine)
+):
+    """
+    Phase 2B2: Cross-Asset Correlation Status
+    
+    Retourne le statut complet du système de corrélation cross-asset incluant:
+    - Matrice de corrélation actuelle
+    - Score de risque systémique  
+    - Clusters de concentration détectés
+    - Spikes récents
+    """
+    try:
+        if not engine.cross_asset_enabled or not engine.cross_asset_analyzer:
+            raise HTTPException(status_code=404, detail="Cross-asset correlation analysis not enabled")
+        
+        # Obtenir status complet
+        status = engine.cross_asset_analyzer.get_status(timeframe)
+        
+        # Convertir en format JSON-serializable
+        return {
+            "timestamp": status.timestamp.isoformat(),
+            "timeframe": timeframe,
+            "matrix": {
+                "total_assets": status.total_assets,
+                "shape": status.correlation_matrix_shape,
+                "avg_correlation": round(status.avg_correlation, 3),
+                "max_correlation": round(status.max_correlation, 3)
+            },
+            "risk_assessment": {
+                "systemic_risk_score": round(status.systemic_risk_score, 3),
+                "risk_level": (
+                    "critical" if status.systemic_risk_score >= 0.8 else
+                    "high" if status.systemic_risk_score >= 0.6 else
+                    "medium" if status.systemic_risk_score >= 0.4 else
+                    "low"
+                )
+            },
+            "concentration": {
+                "active_clusters": len(status.active_clusters),
+                "clusters": [
+                    {
+                        "id": cluster.cluster_id,
+                        "assets": list(cluster.assets),
+                        "avg_correlation": round(cluster.avg_correlation, 3),
+                        "risk_score": round(cluster.risk_score, 3)
+                    }
+                    for cluster in status.active_clusters[:5]  # Top 5 clusters
+                ]
+            },
+            "recent_activity": {
+                "spikes_1h": len(status.recent_spikes),
+                "spikes": [
+                    {
+                        "asset_pair": f"{spike.asset_pair[0]}-{spike.asset_pair[1]}",
+                        "severity": spike.severity,
+                        "change": f"{spike.relative_change:.1%}",
+                        "timeframe": spike.timeframe
+                    }
+                    for spike in status.recent_spikes[:3]  # Top 3 recent spikes
+                ]
+            },
+            "performance": {
+                "calculation_latency_ms": round(status.calculation_latency_ms, 1)
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting cross-asset status: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.get("/cross-asset/top-correlated")
+async def get_top_correlated_pairs(
+    timeframe: str = Query("1h", regex="^(1h|4h|1d)$", description="Analysis timeframe"),
+    top_n: int = Query(3, ge=1, le=10, description="Number of top pairs to return"),
+    engine: AlertEngine = Depends(get_alert_engine)
+):
+    """
+    Phase 2B2: Top Correlated Asset Pairs
+    
+    Retourne les paires d'assets les plus corrélées pour dashboard temps réel.
+    """
+    try:
+        if not engine.cross_asset_enabled or not engine.cross_asset_analyzer:
+            raise HTTPException(status_code=404, detail="Cross-asset correlation analysis not enabled")
+        
+        # Obtenir top paires corrélées
+        top_pairs = engine.cross_asset_analyzer.get_top_correlated_pairs(timeframe, top_n=top_n)
+        
+        return {
+            "timeframe": timeframe,
+            "top_n": top_n,
+            "pairs": [
+                {
+                    "rank": pair["rank"],
+                    "asset1": pair["asset1"],
+                    "asset2": pair["asset2"],
+                    "correlation": round(pair["correlation"], 3),
+                    "abs_correlation": round(pair["abs_correlation"], 3),
+                    "strength": (
+                        "very_strong" if pair["abs_correlation"] >= 0.9 else
+                        "strong" if pair["abs_correlation"] >= 0.7 else
+                        "moderate" if pair["abs_correlation"] >= 0.5 else
+                        "weak"
+                    )
+                }
+                for pair in top_pairs
+            ],
+            "calculated_at": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting top correlated pairs: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.get("/cross-asset/systemic-risk")
+async def get_systemic_risk(
+    timeframe: str = Query("1h", regex="^(1h|4h|1d)$", description="Analysis timeframe"),
+    engine: AlertEngine = Depends(get_alert_engine)
+):
+    """
+    Phase 2B2: Systemic Risk Assessment
+    
+    Retourne l'évaluation complète du risque systémique.
+    """
+    try:
+        if not engine.cross_asset_enabled or not engine.cross_asset_analyzer:
+            raise HTTPException(status_code=404, detail="Cross-asset correlation analysis not enabled")
+        
+        # Calculer score de risque systémique
+        risk_score = engine.cross_asset_analyzer.calculate_systemic_risk_score(timeframe)
+        status = engine.cross_asset_analyzer.get_status(timeframe)
+        
+        return {
+            "timeframe": timeframe,
+            "systemic_risk": {
+                "score": round(risk_score, 3),
+                "level": (
+                    "critical" if risk_score >= 0.8 else
+                    "high" if risk_score >= 0.6 else
+                    "medium" if risk_score >= 0.4 else
+                    "low"
+                ),
+                "factors": {
+                    "avg_correlation": round(status.avg_correlation, 3),
+                    "active_clusters": len(status.active_clusters),
+                    "recent_spikes": len(status.recent_spikes)
+                }
+            },
+            "recommendations": (
+                ["Immediate freeze recommended", "Review portfolio composition", "Monitor contagion risk"] if risk_score >= 0.8 else
+                ["Reduce position sizes", "Enable slow trading mode", "Monitor closely"] if risk_score >= 0.6 else
+                ["Continue monitoring", "Review correlation trends"] if risk_score >= 0.4 else
+                ["Normal operation", "Standard monitoring"]
+            ),
+            "calculated_at": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error calculating systemic risk: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 # Hook pour initialisation depuis main.py
