@@ -339,6 +339,22 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
       const current = await getCurrentAllocationByGroup(5.0);
       const targetAdj = applyCycleMultipliersToTargets(u.intelligence.allocation, u.cycle?.multipliers || {});
 
+      // Persist suggested allocation for rebalance.html consumption
+      try {
+        if (targetAdj && Object.keys(targetAdj).length > 0) {
+          const payload = {
+            targets: targetAdj,
+            strategy: 'Regime-Based Allocation',
+            timestamp: new Date().toISOString(),
+            source: 'analytics-unified'
+          };
+          localStorage.setItem('unified_suggested_allocation', JSON.stringify(payload));
+          window.dispatchEvent(new CustomEvent('unifiedSuggestedAllocationUpdated', { detail: payload }));
+        }
+      } catch (e) {
+        console.warn('Persist unified suggested allocation failed:', e?.message || e);
+      }
+
       const keys = new Set([
         ...Object.keys(targetAdj || {}),
         ...Object.keys((current && current.pct) || {})

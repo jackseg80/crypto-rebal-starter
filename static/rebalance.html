@@ -545,14 +545,15 @@
     <div class="card">
       <div style="display:flex; align-items:center; gap:.5rem; margin-bottom:.5rem;">
         <h3 style="margin:0;">Optimization</h3>
-        <button id="openOptimizationNewTab" class="btn secondary small" style="margin-left:auto;">Open in new tab</button>
+        <button id="openOptimizationNewTab" class="btn secondary small" style="margin-left:auto;">Open in new
+          tab</button>
       </div>
       <div id="optimization-container"></div>
       <div id="optimization-status" class="small muted" style="margin-top:.5rem; display:none"></div>
     </div>
   </section>
 
-  
+
   <script>
     // Gestion des onglets Rebalancing / Optimization
     (function () {
@@ -735,6 +736,42 @@
       return null;
     }
 
+    /* ---------- Fonction de synchronisation Allocation Suggérée (Unified) ---------- */
+    function syncUnifiedSuggestedTargets() {
+      try {
+        const raw = localStorage.getItem('unified_suggested_allocation');
+        console.debug('syncUnifiedSuggestedTargets - raw:', raw);
+        if (!raw) return null;
+
+        const data = JSON.parse(raw);
+        if (!data || typeof data !== 'object' || !data.targets || !data.timestamp) return null;
+        if (data.source && data.source !== 'analytics-unified') return null;
+
+        // freshness window: 2 hours
+        const age = Date.now() - new Date(data.timestamp).getTime();
+        if (age > 2 * 60 * 60 * 1000) {
+          console.debug('syncUnifiedSuggestedTargets - data too old');
+          return null;
+        }
+
+        const cleanTargets = {};
+        Object.entries(data.targets).forEach(([key, value]) => {
+          if (key !== 'model_version' && typeof value === 'number' && isFinite(value)) {
+            cleanTargets[key] = value;
+          }
+        });
+
+        return {
+          targets: cleanTargets,
+          strategy: data.strategy || 'Regime-Based Allocation',
+          timestamp: data.timestamp
+        };
+      } catch (e) {
+        console.warn('syncUnifiedSuggestedTargets - parse error:', e);
+        return null;
+      }
+    }
+
     /* ---------- Fonctions Stratégies ---------- */
     async function loadStrategies() {
       try {
@@ -848,10 +885,41 @@
               }
             }
           };
+          // Garder 6 stratégies max: on retire la plus "niche"
+          try { delete availableStrategies['defi_focused']; } catch (e) { }
         }
 
-        // Tenter d'ajouter la stratégie dynamique CCS (sans bloquer en cas d'erreur)
+        // Tenter d'ajouter les stratégies dynamiques en premier (sans bloquer en cas d'erreur)
         try {
+          // Ajouter l'allocation suggérée (Unified Analytics) en premier
+          try {
+            const unified = syncUnifiedSuggestedTargets();
+            if (unified) {
+              availableStrategies['unified-suggested'] = {
+                name: 'Allocation Suggérée (Unified)',
+                icon: '🧠',
+                description: `Allocation Suggérée - ${unified.strategy}`,
+                risk_level: 'Variable',
+                allocations: unified.targets,
+                _isUnified: true,
+                _unifiedData: unified
+              };
+              console.log('Added Unified Suggested allocation:', unified);
+            } else {
+              availableStrategies['unified-suggested-placeholder'] = {
+                name: 'Allocation Suggérée (Unified)',
+                icon: '🧠',
+                description: 'Ouvrez Analytics Unified → Allocation Suggérée pour générer les données',
+                risk_level: 'N/A',
+                allocations: {},
+                _isPlaceholder: true
+              };
+            }
+          } catch (e) {
+            console.warn('Unified Suggested allocation not available:', e);
+          }
+
+          // Ajouter la stratégie dynamique CCS en deuxième
           const ccsTargets = syncCCSTargets();
           if (ccsTargets) {
             availableStrategies['ccs-dynamic'] = {
@@ -875,8 +943,9 @@
               _isPlaceholder: true
             };
           }
+
         } catch (syncError) {
-          console.warn('Erreur synchronisation CCS (non bloquante):', syncError);
+          console.warn('Erreur synchronisation stratégies dynamiques (non bloquante):', syncError);
           // Ajouter une stratégie d'erreur pour informer l'utilisateur
           availableStrategies['ccs-dynamic-error'] = {
             name: 'Strategic (Dynamic)',
@@ -887,6 +956,33 @@
             _isError: true
           };
         }
+
+        // Réorganiser l'ordre des stratégies pour mettre les dynamiques en premier
+        const orderedStrategies = {};
+
+        // Ajouter d'abord les stratégies dynamiques
+        if (availableStrategies['unified-suggested']) {
+          orderedStrategies['unified-suggested'] = availableStrategies['unified-suggested'];
+        } else if (availableStrategies['unified-suggested-placeholder']) {
+          orderedStrategies['unified-suggested-placeholder'] = availableStrategies['unified-suggested-placeholder'];
+        }
+
+        if (availableStrategies['ccs-dynamic']) {
+          orderedStrategies['ccs-dynamic'] = availableStrategies['ccs-dynamic'];
+        } else if (availableStrategies['ccs-dynamic-placeholder']) {
+          orderedStrategies['ccs-dynamic-placeholder'] = availableStrategies['ccs-dynamic-placeholder'];
+        } else if (availableStrategies['ccs-dynamic-error']) {
+          orderedStrategies['ccs-dynamic-error'] = availableStrategies['ccs-dynamic-error'];
+        }
+
+        // Ajouter ensuite les stratégies prédéfinies classiques
+        Object.entries(availableStrategies).forEach(([id, strategy]) => {
+          if (!id.includes('unified') && !id.includes('ccs') && !id.includes('dynamic') && !id.includes('error') && !id.includes('placeholder')) {
+            orderedStrategies[id] = strategy;
+          }
+        });
+
+        availableStrategies = orderedStrategies;
 
         renderStrategiesUI();
 
@@ -923,6 +1019,7 @@
 
       const strategiesHtml = Object.entries(availableStrategies).map(([id, strategy]) => {
         const isDynamic = strategy._isDynamic;
+        const isUnified = strategy._isUnified;
         const isPlaceholder = strategy._isPlaceholder;
         const isError = strategy._isError;
 
@@ -932,6 +1029,10 @@
 
         if (isDynamic) {
           cardClass += ' dynamic-strategy';
+          borderStyle = 'border: 2px solid var(--warning); background: linear-gradient(135deg, var(--theme-surface), var(--warning-bg));';
+        } else if (isUnified) {
+          // Style identique à la stratégie dynamique pour cohérence visuelle
+          cardClass += ' unified-strategy';
           borderStyle = 'border: 2px solid var(--warning); background: linear-gradient(135deg, var(--theme-surface), var(--warning-bg));';
         } else if (isPlaceholder) {
           cardClass += ' placeholder-strategy';
@@ -1007,7 +1108,7 @@
       try {
         await window.riskStore.syncGovernanceState();
         const governanceStatus = window.riskStore.getGovernanceStatus();
-        
+
         if (governanceStatus.state === 'FROZEN') {
           showNotification('❄️ Système gelé - Impossible d\'appliquer la stratégie', 'error');
           return;
@@ -1030,7 +1131,7 @@
       const indicator = el("dynamicTargetsIndicator");
       const governanceState = window.riskStore.get('governance');
       const activePolicy = governanceState?.active_policy;
-      
+
       if (indicator) {
         indicator.style.display = 'inline-block';
         const policyInfo = activePolicy ? ` (Gov: ${Math.round(activePolicy.cap_daily * 100)}% cap)` : '';
@@ -1096,7 +1197,7 @@
         const out = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, minimumFractionDigits: dec, maximumFractionDigits: dec }).format(v);
         return (cur === 'USD') ? out.replace(/\s?US$/, '') : out;
       } catch (_) {
-        return `${v.toFixed(cur==='BTC'?8:2)} ${cur}`;
+        return `${v.toFixed(cur === 'BTC' ? 8 : 2)} ${cur}`;
       }
     };
 
@@ -1189,7 +1290,7 @@
           const dec = (cur === 'BTC') ? 8 : 2;
           console.log(`🔍 Loaded ${balances.length} assets from CSV, total: ` + new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, minimumFractionDigits: dec, maximumFractionDigits: dec }).format(totalDisp));
         } catch (_) {
-          console.log(`🔍 Loaded ${balances.length} assets from CSV, total: ${totalDisp.toFixed(cur==='BTC'?8:2)} ${cur}`);
+          console.log(`🔍 Loaded ${balances.length} assets from CSV, total: ${totalDisp.toFixed(cur === 'BTC' ? 8 : 2)} ${cur}`);
         }
 
         // Group assets by ASSET_GROUPS
@@ -1734,7 +1835,7 @@
             const dec = (cur === 'BTC') ? 8 : 2;
             formatted = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, minimumFractionDigits: dec, maximumFractionDigits: dec }).format(val);
           } catch (_) {
-            formatted = `${val.toFixed(cur==='BTC'?8:2)} ${cur}`;
+            formatted = `${val.toFixed(cur === 'BTC' ? 8 : 2)} ${cur}`;
           }
           return `${best.exchange} (${formatted})`;
         }
@@ -1750,7 +1851,7 @@
             const dec = (cur === 'BTC') ? 8 : 2;
             formatted = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, minimumFractionDigits: dec, maximumFractionDigits: dec }).format(val);
           } catch (_) {
-            formatted = `${val.toFixed(cur==='BTC'?8:2)} ${cur}`;
+            formatted = `${val.toFixed(cur === 'BTC' ? 8 : 2)} ${cur}`;
           }
           return `${largest.exchange} (${formatted})`;
         }
@@ -2397,7 +2498,7 @@
           await window.riskStore.syncGovernanceState();
           await window.riskStore.syncMLSignals();
           console.log('✅ Governance system initialized in rebalance dashboard');
-          
+
           // Display governance status in UI (if we add a status area later)
           const governanceStatus = window.riskStore.getGovernanceStatus();
           console.log('Governance status:', governanceStatus);
