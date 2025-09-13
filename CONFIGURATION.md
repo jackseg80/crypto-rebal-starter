@@ -15,9 +15,9 @@ Ajouter/retirer une source = modifier `DATA_SOURCES` uniquement; l’onglet “R
 Toutes les 19 routes backend ont maintenant des interfaces frontend :
 
 ### Principales
-- `dashboard.html` - Vue d'ensemble portfolio
-- `rebalance.html` - Rééquilibrage strategies  
-- `risk-dashboard.html` - Analyse des risques
+- `dashboard.html` - Vue d'ensemble portfolio avec Global Insight (Updated: HH:MM:SS • Contrad: X% • Cap: Y%)
+- `rebalance.html` - Rééquilibrage strategies
+- `risk-dashboard.html` - Analyse des risques avec gouvernance intégrée
 - `execution.html` - Exécution des trades
 - `execution_history.html` - Historique des exécutions
 - `settings.html` - Configuration système
@@ -61,12 +61,13 @@ Toutes les interfaces utilisent maintenant la même configuration centralisée v
 - Formateurs homogènes (locale `fr-FR`), suppression du suffixe "US" ajouté par Intl pour USD (affiche seulement `$`).
 
 ### Pages alignées
-- Dashboard (`static/dashboard.html`)
+- Dashboard (`static/dashboard.html`) - Badge Global Insight avec données gouvernance temps réel
 - Exécution (`static/execution.html`)
 - Historique d'exécution (`static/execution_history.html`)
 - Rebalancing (`static/rebalance.html`)
-- Risk Dashboard (`static/risk-dashboard.html`)
+- Risk Dashboard (`static/risk-dashboard.html`) - Source de vérité pour scores cross-dashboard
 - Intelligence Dashboard (`static/intelligence-dashboard.html`)
+- Analytics Unified (`static/analytics-unified.html`) - Badges cohérents avec Risk Dashboard
 - Fonctions partagées (`static/shared-ml-functions.js`)
 
 ## Architecture API Post-Refactoring (v2.0.0)

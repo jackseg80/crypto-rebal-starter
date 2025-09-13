@@ -1472,6 +1472,10 @@ _LAST_RECOMPUTE_TS = 0.0
 _RECOMPUTE_WINDOW = []  # timestamps for burst control (last 10s)
 _RECOMPUTE_CACHE = {}   # idempotency cache: key -> {response, ts}
 
+# Phase 2B: Concurrency safety
+import asyncio
+_RECOMPUTE_LOCK = asyncio.Lock()  # Mutex pour éviter recompute concurrent
+
 @router.post("/governance/signals/recompute")
 async def recompute_ml_signals(
     request: RecomputeSignalsRequest,
@@ -1479,63 +1483,148 @@ async def recompute_ml_signals(
     idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key"),
     x_csrf_token: Optional[str] = Header(default=None, alias="X-CSRF-Token"),
 ):
-    """Recompute blended score server-side from components and attach to governance signals."""
-    try:
-        global _LAST_RECOMPUTE_TS, _RECOMPUTE_WINDOW, _RECOMPUTE_CACHE
-        # CSRF basic check
-        if not x_csrf_token:
-            raise HTTPException(status_code=403, detail="missing_csrf_token")
-
-        # Idempotency check
-        if idempotency_key and idempotency_key in _RECOMPUTE_CACHE:
-            return _RECOMPUTE_CACHE[idempotency_key]["response"]
-
-        # Simple in-process rate-limit: 1 call/sec + burst 5/10s
-        now_ts = datetime.now().timestamp()
-        if (now_ts - _LAST_RECOMPUTE_TS) < 1.0:
-            raise HTTPException(status_code=429, detail="too_many_requests")
-        _LAST_RECOMPUTE_TS = now_ts
-        # Burst window
-        _RECOMPUTE_WINDOW = [t for t in _RECOMPUTE_WINDOW if (now_ts - t) < 10.0]
-        if len(_RECOMPUTE_WINDOW) >= 5:
-            raise HTTPException(status_code=429, detail="too_many_requests_burst")
-        _RECOMPUTE_WINDOW.append(now_ts)
-
-        state = await governance_engine.get_current_state()
-        signals = state.signals
-
-        # Pull components if provided; otherwise fall back to safe neutrals
-        ccs_mixte = request.ccs_mixte if request.ccs_mixte is not None else 50.0
-        onchain = request.onchain_score if request.onchain_score is not None else 50.0
-        risk = request.risk_score if request.risk_score is not None else 50.0
-
-        # Strategic blended: 50% CCS Mixte + 30% On-Chain + 20% (100-Risk)
-        blended = (ccs_mixte * 0.50) + (onchain * 0.30) + ((100.0 - risk) * 0.20)
-        blended = max(0.0, min(100.0, blended))
-
+    """
+    Recompute blended score server-side from components and attach to governance signals.
+    Phase 2B: With concurrency safety mutex
+    """
+    # Phase 2B: Acquire lock to prevent concurrent recompute
+    async with _RECOMPUTE_LOCK:
         try:
-            setattr(signals, 'blended_score', float(blended))
-            setattr(signals, 'as_of', datetime.now())
-        except Exception:
-            pass
+            global _LAST_RECOMPUTE_TS, _RECOMPUTE_WINDOW, _RECOMPUTE_CACHE
 
-        # Structured audit log (simple)
-        logger.info(f"recompute_blended user={getattr(current_user, 'username', 'unknown')} blended={blended}")
+            # CSRF basic check
+            if not x_csrf_token:
+                raise HTTPException(status_code=403, detail="missing_csrf_token")
 
-        response_payload = {
-            "success": True,
-            "blended_score": blended,
-            "blended_formula_version": "1.0",
-            "timestamp": datetime.now().isoformat()
-        }
-        # Idempotency cache
-        if idempotency_key:
+            # Idempotency check
+            if idempotency_key and idempotency_key in _RECOMPUTE_CACHE:
+                return _RECOMPUTE_CACHE[idempotency_key]["response"]
+
+            # Simple in-process rate-limit: 1 call/sec + burst 5/10s
+            now_ts = datetime.now().timestamp()
+            user_id = getattr(current_user, 'username', 'unknown')
+
+            if (now_ts - _LAST_RECOMPUTE_TS) < 1.0:
+                # Phase 2A: Log rate limit metric
+                logger.warning(f"METRICS: recompute_429_total=1 user={user_id} reason=rate_limit")
+                raise HTTPException(status_code=429, detail="too_many_requests")
+            _LAST_RECOMPUTE_TS = now_ts
+
+            # Burst window
+            _RECOMPUTE_WINDOW = [t for t in _RECOMPUTE_WINDOW if (now_ts - t) < 10.0]
+            if len(_RECOMPUTE_WINDOW) >= 5:
+                # Phase 2A: Log burst limit metric
+                logger.warning(f"METRICS: recompute_429_total=1 user={user_id} reason=burst_limit window_size={len(_RECOMPUTE_WINDOW)}")
+                raise HTTPException(status_code=429, detail="too_many_requests_burst")
+            _RECOMPUTE_WINDOW.append(now_ts)
+
+            state = await governance_engine.get_current_state()
+            signals = state.signals
+
+            # Phase 2B: Validate component freshness for 409 NeedsRefresh
+            missing_components = []
+            if request.ccs_mixte is None:
+                missing_components.append("ccs_mixte")
+            if request.onchain_score is None:
+                missing_components.append("onchain_score")
+            if request.risk_score is None:
+                missing_components.append("risk_score")
+
+            if missing_components:
+                # Phase 2B: 409 si composantes manquantes/non-fraîches
+                logger.warning(f"AUDIT_RECOMPUTE_409: user={user_id} missing_components={missing_components}")
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"NeedsRefresh: missing components {missing_components}"
+                )
+
+            # Pull components if provided; otherwise fall back to safe neutrals
+            ccs_mixte = request.ccs_mixte if request.ccs_mixte is not None else 50.0
+            onchain = request.onchain_score if request.onchain_score is not None else 50.0
+            risk = request.risk_score if request.risk_score is not None else 50.0
+
+            # Get previous blended score for audit trail
+            blended_old = getattr(signals, 'blended_score', None)
+
+            # Strategic blended: 50% CCS Mixte + 30% On-Chain + 20% (100-Risk)
+            blended = (ccs_mixte * 0.50) + (onchain * 0.30) + ((100.0 - risk) * 0.20)
+            blended = max(0.0, min(100.0, blended))
+
             try:
-                _RECOMPUTE_CACHE[idempotency_key] = {"response": response_payload, "ts": datetime.now().timestamp()}
+                setattr(signals, 'blended_score', float(blended))
+                setattr(signals, 'as_of', datetime.now())
             except Exception:
                 pass
 
-        return response_payload
-    except Exception as e:
-        logger.error(f"Error recomputing ML signals: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+            # Phase 2A: Enriched structured audit logging with unique calc_timestamp
+            policy = state.execution_policy
+            backend_status = "ok"  # TODO: derive from actual backend health check
+            calc_timestamp = datetime.now()
+
+            try:
+                # Check if components are fresh (simulate backend status)
+                signals_age = (calc_timestamp - signals.as_of).total_seconds() if signals.as_of else 0
+                if signals_age > 3600:  # 1h stale
+                    backend_status = "stale"
+                if signals_age > 7200:  # 2h error
+                    backend_status = "error"
+            except:
+                pass
+
+            audit_data = {
+                "event": "recompute_blended",
+                "user": getattr(current_user, 'username', 'unknown'),
+                "timestamp": calc_timestamp.isoformat(),
+                "calc_timestamp": calc_timestamp.isoformat(),  # Phase 2B: Unique timestamp
+                "blended_old": blended_old,
+                "blended_new": round(blended, 1),
+                "inputs": {
+                    "ccs_mixte": ccs_mixte,
+                    "onchain": onchain,
+                    "risk": risk
+                },
+                "policy_cap_before": round(policy.cap_daily * 100, 1) if policy else None,
+                "policy_cap_after": round(policy.cap_daily * 100, 1) if policy else None,  # Will be updated after policy refresh
+                "idempotency_hit": idempotency_key in _RECOMPUTE_CACHE if idempotency_key else False,
+                "backend_status": backend_status,
+                "rate_limit_window": len(_RECOMPUTE_WINDOW),
+                "session_id": idempotency_key[:8] if idempotency_key else "none"
+            }
+
+            # Log structured audit entry (JSON for easier parsing)
+            logger.info(f"AUDIT_RECOMPUTE: {audit_data}")
+
+            # Also log readable summary
+            logger.info(f"recompute_blended user={audit_data['user']} "
+                       f"blended={audit_data['blended_old']}→{audit_data['blended_new']} "
+                       f"inputs=({ccs_mixte},{onchain},{risk}) "
+                       f"backend={backend_status} "
+                       f"idempotency={'HIT' if audit_data['idempotency_hit'] else 'NEW'}")
+
+            # Phase 2A: Simple metrics tracking (logs-analytics pattern)
+            try:
+                # Log metrics for downstream analytics
+                logger.info(f"METRICS: recompute_ok_total=1 user={audit_data['user']} backend_status={backend_status}")
+                if audit_data['idempotency_hit']:
+                    logger.info(f"METRICS: recompute_idempotency_hit_total=1 user={audit_data['user']}")
+            except:
+                pass
+
+            response_payload = {
+                "success": True,
+                "blended_score": blended,
+                "blended_formula_version": "1.0",
+                "timestamp": calc_timestamp.isoformat(),
+                "calc_timestamp": calc_timestamp.isoformat()  # Phase 2B: Unique timestamp
+            }
+            # Idempotency cache
+            if idempotency_key:
+                try:
+                    _RECOMPUTE_CACHE[idempotency_key] = {"response": response_payload, "ts": calc_timestamp.timestamp()}
+                except Exception:
+                    pass
+
+            return response_payload
+        except Exception as e:
+            logger.error(f"Error recomputing ML signals: {e}")
+            raise HTTPException(status_code=500, detail=str(e))

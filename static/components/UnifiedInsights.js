@@ -131,16 +131,36 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
   const header = card(`
     <div style="display:flex; align-items:center; justify-content: space-between; gap:.75rem;">
       <div>
-        <div style="font-size: .9rem; color: var(--theme-text-muted); font-weight:600;">Decision Index ${u.decision.confidence ? `(${Math.round(u.decision.confidence * 100)}%)` : ''} ${u.decision_source ? `<span style=\"background: var(--theme-text-muted); color: white; padding: 1px 6px; border-radius: 10px; font-size: .65rem; text-transform:uppercase; margin-left:.4rem;\">${u.decision_source}</span>` : ''}
-          ${(() => { try { 
-            const ml = store.get('governance.ml_signals'); 
-            const ts = ml?.timestamp ? new Date(ml.timestamp) : null; 
-            const hh = ts ? ts.toLocaleTimeString() : null; 
-            const ci = ml?.contradiction_index != null ? Math.round(ml.contradiction_index * 100) : null; 
+        <div style="font-size: .9rem; color: var(--theme-text-muted); font-weight:600;">Decision Index ${u.decision.confidence ? `(${Math.round(u.decision.confidence * 100)}%)` : ''}
+          <div style="margin-top: .2rem;">
+          ${(() => { try {
+            const ml = store.get('governance.ml_signals');
+            const ts = ml?.timestamp ? new Date(ml.timestamp) : null;
+            const hh = ts ? ts.toLocaleTimeString() : null;
+            const ci = ml?.contradiction_index != null ? Math.round(ml.contradiction_index * 100) : null;
             const policy = store.get('governance.active_policy');
             const cap = policy && typeof policy.cap_daily === 'number' ? Math.round(policy.cap_daily * 100) : null;
-            return `${ci!=null?` • Contrad: ${ci}%`:''}${cap!=null?` • Cap: ${cap}%`:''}${hh?` • Updated ${hh}`:''}`; 
-          } catch { return ''; } })()}
+            const source = u.decision_source || 'SMART';
+            const backendStatus = store.get('ui.apiStatus.backend');
+
+            // Phase 1D: Badges parité Analytics/Risk - Format identique
+            const badges = [];
+            badges.push(source);
+            if (hh) badges.push(`Updated ${hh}`);
+            if (ci != null) badges.push(`Contrad ${ci}%`);
+            if (cap != null) badges.push(`Cap ${cap}%`);
+
+            // Overrides count (simulate for now)
+            const overrides = 0; // TODO: Get from governance state
+            if (overrides > 0) badges.push(`Overrides ${overrides}`);
+
+            // Status indicators
+            if (backendStatus === 'stale') badges.push('STALE');
+            if (backendStatus === 'error') badges.push('ERROR');
+
+            return badges.join(' • ');
+          } catch { return 'Source: SMART'; } })()}
+          </div>
         </div>
         <div style="font-size: 2rem; font-weight: 800; color:${colorPositive(u.decision.score)};">${u.decision.score}/100</div>
         <div style="font-size: .8rem; color: var(--theme-text-muted);">${u.cycle?.phase?.emoji || ''} ${u.regime?.name || u.cycle?.phase?.phase?.replace('_',' ').toUpperCase() || '—'}</div>

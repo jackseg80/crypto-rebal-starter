@@ -41,6 +41,83 @@ GovernanceMode = Literal["manual", "ai_assisted", "full_ai", "freeze"]
 PlanStatus = Literal["DRAFT", "REVIEWED", "APPROVED", "ACTIVE", "EXECUTED", "CANCELLED"]
 ExecMode = Literal["Freeze", "Slow", "Normal", "Aggressive"]
 
+# Phase 1C: Sémantique Freeze claire
+class FreezeType:
+    """Types de freeze avec sémantique précise"""
+    FULL_FREEZE = "full_freeze"       # Tout bloqué (urgence)
+    S3_ALERT_FREEZE = "s3_freeze"     # Freeze achats, rotations↓ stables OK, hedge OK
+    ERROR_FREEZE = "error_freeze"     # Freeze prudent, réductions risque autorisées
+
+class FreezeSemantics:
+    """
+    Définit précisément ce qui est autorisé/bloqué selon le type de freeze
+    Phase 1C: Sémantique claire pour éviter confusion opérationnelle
+    """
+
+    @staticmethod
+    def get_allowed_operations(freeze_type: str) -> Dict[str, bool]:
+        """Retourne les opérations autorisées selon le type de freeze"""
+
+        if freeze_type == FreezeType.FULL_FREEZE:
+            return {
+                "new_purchases": False,     # Pas de nouveaux achats
+                "sell_to_stables": False,   # Pas de ventes vers stables
+                "asset_rotations": False,   # Pas de rotations BTC→ETH, etc.
+                "hedge_operations": False,  # Pas de hedge
+                "risk_reductions": False,   # Pas de réductions risque
+                "emergency_exits": True,    # Seules sorties d'urgence autorisées
+            }
+        elif freeze_type == FreezeType.S3_ALERT_FREEZE:
+            return {
+                "new_purchases": False,     # Pas de nouveaux achats
+                "sell_to_stables": True,    # Rotations↓ stables OK
+                "asset_rotations": False,   # Pas de rotations entre risky assets
+                "hedge_operations": True,   # Hedge autorisé (protection)
+                "risk_reductions": True,    # Réductions risque autorisées
+                "emergency_exits": True,    # Sorties d'urgence toujours OK
+            }
+        elif freeze_type == FreezeType.ERROR_FREEZE:
+            return {
+                "new_purchases": False,     # Pas de nouveaux achats
+                "sell_to_stables": True,    # Ventes vers stables OK
+                "asset_rotations": False,   # Pas de rotations risquées
+                "hedge_operations": True,   # Hedge OK
+                "risk_reductions": True,    # Réductions risque prioritaires
+                "emergency_exits": True,    # Sorties d'urgence toujours OK
+            }
+        else:
+            # Mode normal : tout autorisé
+            return {
+                "new_purchases": True,
+                "sell_to_stables": True,
+                "asset_rotations": True,
+                "hedge_operations": True,
+                "risk_reductions": True,
+                "emergency_exits": True,
+            }
+
+    @staticmethod
+    def validate_operation(freeze_type: str, operation_type: str) -> Tuple[bool, str]:
+        """
+        Valide si une opération est autorisée selon le freeze actuel
+
+        Returns:
+            (allowed: bool, reason: str)
+        """
+        allowed_ops = FreezeSemantics.get_allowed_operations(freeze_type)
+
+        if operation_type not in allowed_ops:
+            return False, f"Operation type '{operation_type}' not recognized"
+
+        is_allowed = allowed_ops[operation_type]
+
+        if not is_allowed:
+            reason = f"{operation_type} blocked by {freeze_type}"
+        else:
+            reason = f"{operation_type} allowed under {freeze_type}"
+
+        return is_allowed, reason
+
 class Target(BaseModel):
     """Cible d'allocation pour un groupe/asset"""
     symbol: str = Field(..., description="Symbole ou groupe (BTC, ETH, Stablecoins, etc.)")
@@ -134,6 +211,9 @@ class DecisionState(BaseModel):
     system_status: str = Field(default="operational", description="Statut système")
     auto_unfreeze_at: Optional[datetime] = Field(default=None, description="Auto-unfreeze programmé")
 
+    # Phase 1C: Type de freeze avec sémantique claire
+    freeze_type: Optional[str] = Field(default=None, description="Type de freeze actuel (s3_freeze, error_freeze, full_freeze)")
+
 
 class GovernanceEngine:
     """
@@ -149,14 +229,20 @@ class GovernanceEngine:
     def __init__(self, api_base_url: str = "http://localhost:8000"):
         self.api_base_url = api_base_url.rstrip("/")
         self.current_state = DecisionState()
-        
+
         # TTL vs Cooldown separation (critique essentielle)
         self._last_signals_fetch = datetime.min
         self._last_plan_publication = datetime.min
-        
+
         # Default policy values - will be overridden by derived policy
         self._signals_ttl_seconds = 1800  # 30 minutes - signaux peuvent être rafraîchis
         self._plan_cooldown_hours = 24     # 24 heures - nouvelles publications limitées
+
+        # Phase 1A: Cap stability variables (hystérésis + smoothing)
+        self._last_cap = 0.08  # Dernière cap calculée pour smoothing
+        self._prudent_mode = False  # État hystérésis prudent/normal
+        self._alert_cap_reduction = 0.0  # Réduction cap par AlertEngine
+        self._alert_cooldown_until = datetime.min  # Cooldown AlertEngine
         
         # Phase 3C: Initialize Hybrid Intelligence components
         self.hybrid_intelligence_enabled = HYBRID_INTELLIGENCE_AVAILABLE
@@ -344,36 +430,58 @@ class GovernanceEngine:
         """
         Dérive la politique d'exécution depuis les signaux ML
         Extrait la logique cap/mode depuis UnifiedInsights
+        Phase 1A: Avec hystérésis + smoothing pour éviter oscillations
         """
         try:
             signals = self.current_state.signals
             contradiction = signals.contradiction_index
             confidence = signals.confidence
-            
-            # Logique extraite d'UnifiedInsights (cap ±3/7/12%)
+
+            # Phase 1A: Hystérésis pour éviter flip-flop mode prudent/normal
+            # Prudent si contradiction ≥ 0.45, Normal si contradiction ≤ 0.40
+            if contradiction >= 0.45:
+                self._prudent_mode = True
+            elif contradiction <= 0.40:
+                self._prudent_mode = False
+            # Entre 0.40-0.45 : conserver l'état précédent (hystérésis)
+
+            # Logique extraite d'UnifiedInsights avec hystérésis appliquée
             if contradiction > 0.7 or confidence < 0.3:
                 # Mode défensif
                 mode = "Freeze" if contradiction > 0.8 else "Slow"
-                cap = max(0.03, 0.12 - contradiction * 0.09)  # 3-12% inversé
+                cap_raw = max(0.03, 0.12 - contradiction * 0.09)  # 3-12% inversé
                 ramp_hours = 48
-                
-            elif contradiction > 0.5 or confidence < 0.6:
-                # Mode prudent
+
+            elif self._prudent_mode or confidence < 0.6:  # Utilise hystérésis
+                # Mode prudent (avec hystérésis)
                 mode = "Slow"
-                cap = 0.07  # 7% comme dans UnifiedInsights "Rotate"
+                cap_raw = 0.07  # 7% comme dans UnifiedInsights "Rotate"
                 ramp_hours = 24
-                
+
             elif confidence > 0.8 and contradiction < 0.2:
                 # Mode agressif
-                mode = "Aggressive" 
-                cap = 0.12  # 12% comme dans UnifiedInsights "Deploy"
+                mode = "Aggressive"
+                cap_raw = 0.12  # 12% comme dans UnifiedInsights "Deploy"
                 ramp_hours = 6
-                
+
             else:
                 # Mode normal
                 mode = "Normal"
-                cap = 0.08  # 8% baseline
+                cap_raw = 0.08  # 8% baseline
                 ramp_hours = 12
+
+            # Phase 1A: Smoothing cap = 0.7*cap(t-1) + 0.3*cap_raw
+            cap_smoothed = 0.7 * self._last_cap + 0.3 * cap_raw
+
+            # Garde-fou : pas de variation > 2 pts entre runs (sauf stale/error)
+            max_variation = 0.02  # 2 points de pourcentage
+            if abs(cap_smoothed - self._last_cap) > max_variation:
+                if cap_smoothed > self._last_cap:
+                    cap_smoothed = self._last_cap + max_variation
+                else:
+                    cap_smoothed = self._last_cap - max_variation
+
+            cap = cap_smoothed
             
             # Garde-fou: ne jamais 'Aggressive' si blended < 70 (si disponible)
             try:
@@ -390,7 +498,40 @@ class GovernanceEngine:
             if self.current_state.governance_mode == "freeze":
                 mode = "Freeze"
                 cap = 0.01
-                
+
+            # Phase 1A: Ordre de priorité caps: error(5%) > stale(8%) > alert > engine
+            cap_engine = cap  # Cap calculé par engine
+            cap_alert = cap_engine - self._alert_cap_reduction  # Cap réduit par AlertEngine
+            cap_stale = None
+            cap_error = None
+
+            # Vérifier backend status pour stale/error clamps (TODO: intégrer détection backend)
+            # Pour l'instant, simuler avec des signaux existants
+            try:
+                # Backend stale si signaux trop anciens
+                signals_age = (datetime.now() - signals.as_of).total_seconds()
+                if signals_age > 3600:  # 1h = stale
+                    cap_stale = 0.08  # 8% stale clamp
+                if signals_age > 7200:  # 2h = error
+                    cap_error = 0.05  # 5% error clamp
+            except:
+                pass
+
+            # Appliquer la priorité stricte
+            original_cap = cap
+            if cap_error is not None:
+                cap = cap_error
+                mode = "Freeze"  # Error force freeze
+            elif cap_stale is not None:
+                cap = min(cap, cap_stale)
+            elif self._alert_cap_reduction > 0:
+                cap = cap_alert
+
+            # Mettre à jour _last_cap pour le prochain smoothing (mais seulement si pas stale/error)
+            if cap_error is None and cap_stale is None:
+                self._last_cap = cap
+            # Sinon, garder _last_cap pour revenir au smoothing quand stale/error disparaît
+
             # Ajuster no-trade zone et coûts selon la volatilité
             vol_signals = signals.volatility
             avg_volatility = sum(vol_signals.values()) / len(vol_signals) if vol_signals else 0.15
@@ -401,6 +542,20 @@ class GovernanceEngine:
             # Coûts d'exécution estimés (spread + slippage + frais)
             execution_cost = 15 + (avg_volatility * 100)  # 15-30 bps selon volatilité
             
+            # Enrichir les notes avec les informations de caps
+            cap_notes = []
+            if cap_error is not None:
+                cap_notes.append(f"ERROR_CLAMP(5%)")
+            elif cap_stale is not None:
+                cap_notes.append(f"STALE_CLAMP(8%)")
+            elif self._alert_cap_reduction > 0:
+                cap_notes.append(f"ALERT_REDUCTION(-{self._alert_cap_reduction:.1%})")
+
+            if self._prudent_mode:
+                cap_notes.append("HYSTERESIS_PRUDENT")
+
+            cap_info = f" [{', '.join(cap_notes)}]" if cap_notes else ""
+
             policy = Policy(
                 mode=mode,
                 cap_daily=cap,
@@ -411,17 +566,83 @@ class GovernanceEngine:
                 plan_cooldown_hours=self._plan_cooldown_hours,
                 no_trade_threshold_pct=no_trade_threshold,
                 execution_cost_bps=min(100, int(execution_cost)),  # Cap à 100 bps
-                notes=f"Derived from ML signals: contradiction={contradiction:.2f}, confidence={confidence:.2f}, vol={avg_volatility:.3f}"
+                notes=f"ML: contradiction={contradiction:.2f}, confidence={confidence:.2f}, vol={avg_volatility:.3f}{cap_info}"
             )
-            
-            logger.debug(f"Execution policy derived: mode={mode}, cap={cap:.1%}, "
-                        f"contradiction={contradiction:.3f}")
-            
+
+            # Logging enrichi Phase 1A
+            logger.debug(f"Policy derived: mode={mode}, cap={cap:.1%} (engine={cap_engine:.1%}), "
+                        f"contradiction={contradiction:.3f}, prudent_mode={self._prudent_mode}, "
+                        f"alert_reduction={self._alert_cap_reduction:.1%}{cap_info}")
+
             return policy
             
         except Exception as e:
             logger.error(f"Error deriving execution policy: {e}")
             return Policy(mode="Freeze", cap_daily=0.01, notes="Error fallback")
+
+    def apply_alert_cap_reduction(self, reduction_percentage: float, alert_id: str, reason: str) -> bool:
+        """
+        Phase 1B: AlertEngine peut déclencher réduction cap
+        Max rule: pas d'empilement, cooldown 60min, remontée progressive
+
+        Args:
+            reduction_percentage: Réduction en pourcentage (ex: 0.03 pour -3%)
+            alert_id: ID de l'alerte qui déclenche
+            reason: Raison (VaR>4%, contradiction>55%, etc.)
+        """
+        try:
+            # Cooldown check: ne pas réduire si déjà en cooldown
+            if datetime.now() < self._alert_cooldown_until:
+                logger.info(f"Alert cap reduction ignored (cooldown until {self._alert_cooldown_until})")
+                return False
+
+            # Max rule: prendre la plus forte réduction, pas additive
+            new_reduction = max(self._alert_cap_reduction, reduction_percentage)
+
+            if new_reduction > self._alert_cap_reduction:
+                old_reduction = self._alert_cap_reduction
+                self._alert_cap_reduction = new_reduction
+                # Cooldown 60min après nouvelle réduction
+                self._alert_cooldown_until = datetime.now() + timedelta(minutes=60)
+
+                logger.warning(f"Alert cap reduction applied: {old_reduction:.1%} → {new_reduction:.1%} "
+                             f"(Alert: {alert_id}, Reason: {reason})")
+                return True
+            else:
+                logger.info(f"Alert cap reduction {reduction_percentage:.1%} ignored "
+                          f"(current: {self._alert_cap_reduction:.1%} is higher)")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error applying alert cap reduction: {e}")
+            return False
+
+    def clear_alert_cap_reduction(self, progressive: bool = True) -> bool:
+        """
+        Phase 1B: Nettoyer réduction cap AlertEngine
+        Si progressive=True, remontée +1pt/30min
+        """
+        try:
+            if self._alert_cap_reduction <= 0:
+                return True  # Déjà à 0
+
+            if progressive:
+                # Remontée progressive +1pt/30min
+                step = 0.01  # 1 point de pourcentage
+                self._alert_cap_reduction = max(0, self._alert_cap_reduction - step)
+                logger.info(f"Alert cap reduction progressive clear: {self._alert_cap_reduction:.1%} remaining")
+            else:
+                # Clear immédiat
+                old_reduction = self._alert_cap_reduction
+                self._alert_cap_reduction = 0.0
+                self._alert_cooldown_until = datetime.min
+                logger.info(f"Alert cap reduction cleared: {old_reduction:.1%} → 0%")
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Error clearing alert cap reduction: {e}")
+            return False
     
     def _extract_volatility_signals(self, ml_status: Dict[str, Any]) -> Dict[str, float]:
         """Extrait les signaux de volatilité depuis le ML status"""
@@ -506,59 +727,171 @@ class GovernanceEngine:
             logger.error(f"Error getting current ML signals: {e}")
             return None
 
-    async def freeze_system(self, reason: str, duration_minutes: Optional[int] = None) -> bool:
-        """Freeze le système (mode d'urgence) avec TTL optionnel"""
+    async def freeze_system(self, reason: str, duration_minutes: Optional[int] = None, freeze_type: str = None) -> bool:
+        """
+        Phase 1C: Freeze système avec sémantique claire
+
+        Args:
+            reason: Raison du freeze
+            duration_minutes: TTL auto-unfreeze
+            freeze_type: Type de freeze (s3_freeze, error_freeze, full_freeze)
+        """
         try:
-            logger.info(f"Freezing system: {reason} (TTL: {duration_minutes}min)" if duration_minutes else f"Freezing system: {reason}")
-            
-            # Set governance mode to freeze
+            # Déterminer le type de freeze automatiquement si non spécifié
+            if freeze_type is None:
+                if "S3" in reason or "alert" in reason.lower():
+                    freeze_type = FreezeType.S3_ALERT_FREEZE
+                elif "error" in reason.lower() or "backend" in reason.lower():
+                    freeze_type = FreezeType.ERROR_FREEZE
+                else:
+                    freeze_type = FreezeType.FULL_FREEZE
+
+            logger.info(f"Freezing system: {reason} (Type: {freeze_type}, TTL: {duration_minutes}min)"
+                       if duration_minutes else f"Freezing system: {reason} (Type: {freeze_type})")
+
+            # Set governance mode to freeze avec type sémantique
             self.current_state.governance_mode = "freeze"
+            self.current_state.freeze_type = freeze_type
             self.current_state.system_status = "frozen"
             self.current_state.last_update = datetime.now()
-            
+
             # Store auto-unfreeze time if TTL specified
             if duration_minutes:
                 self.current_state.auto_unfreeze_at = datetime.now() + timedelta(minutes=duration_minutes)
                 logger.info(f"Auto-unfreeze scheduled for: {self.current_state.auto_unfreeze_at}")
             else:
                 self.current_state.auto_unfreeze_at = None
-            
-            # Update execution policy to freeze mode
+
+            # Caps et policy selon le type de freeze
+            if freeze_type == FreezeType.FULL_FREEZE:
+                cap_daily = 0.01  # Très restrictif
+                ramp_hours = 1
+            elif freeze_type == FreezeType.S3_ALERT_FREEZE:
+                cap_daily = 0.03  # Permet réductions risque
+                ramp_hours = 6
+            elif freeze_type == FreezeType.ERROR_FREEZE:
+                cap_daily = 0.05  # Permet hedge et réductions
+                ramp_hours = 12
+            else:
+                cap_daily = 0.01
+                ramp_hours = 1
+
+            # Update execution policy avec sémantique freeze
+            allowed_ops = FreezeSemantics.get_allowed_operations(freeze_type)
+            ops_summary = [k for k, v in allowed_ops.items() if v]
+
             self.current_state.execution_policy = Policy(
                 mode="Freeze",
-                cap_daily=0.01,
-                ramp_hours=1,
-                cooldown_hours=168,  # 1 week
-                notes=f"System frozen: {reason}" + (f" (auto-unfreeze: {duration_minutes}min)" if duration_minutes else "")
+                cap_daily=cap_daily,
+                ramp_hours=ramp_hours,
+                plan_cooldown_hours=168,  # 1 week
+                notes=f"Freeze {freeze_type}: {reason}. Allowed: {', '.join(ops_summary)}" +
+                      (f" (auto-unfreeze: {duration_minutes}min)" if duration_minutes else "")
             )
-            
-            logger.info("System successfully frozen")
+
+            logger.info(f"System frozen with {freeze_type}: allowed operations: {ops_summary}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Error freezing system: {e}")
             return False
 
     async def unfreeze_system(self) -> bool:
-        """Unfreeze le système"""
+        """Phase 1C: Unfreeze système avec nettoyage sémantique"""
         try:
-            logger.info("Unfreezing system")
-            
+            previous_freeze_type = self.current_state.freeze_type
+            logger.info(f"Unfreezing system (was: {previous_freeze_type})")
+
             # Restore normal governance mode
             self.current_state.governance_mode = "manual"
+            self.current_state.freeze_type = None  # Clear freeze type
             self.current_state.system_status = "operational"
             self.current_state.last_update = datetime.now()
             self.current_state.auto_unfreeze_at = None  # Clear auto-unfreeze
-            
+
             # Derive normal execution policy
             self.current_state.execution_policy = self._derive_execution_policy()
-            
-            logger.info("System successfully unfrozen")
+
+            logger.info(f"System successfully unfrozen from {previous_freeze_type}")
             return True
             
         except Exception as e:
             logger.error(f"Error unfreezing system: {e}")
             return False
+
+    def validate_operation(self, operation_type: str) -> Tuple[bool, str]:
+        """
+        Phase 1C: Valide si une opération est autorisée selon le freeze actuel
+
+        Args:
+            operation_type: Type d'opération (new_purchases, sell_to_stables, etc.)
+
+        Returns:
+            (allowed: bool, reason: str)
+        """
+        try:
+            current_freeze = self.current_state.freeze_type
+            if current_freeze is None:
+                return True, "No freeze active - operation allowed"
+
+            return FreezeSemantics.validate_operation(current_freeze, operation_type)
+
+        except Exception as e:
+            logger.error(f"Error validating operation {operation_type}: {e}")
+            return False, f"Error validating operation: {str(e)}"
+
+    def get_freeze_status(self) -> Dict[str, Any]:
+        """
+        Phase 1C: Retourne le statut freeze détaillé pour UI
+
+        Returns:
+            Dict avec freeze_type, allowed_operations, remaining_time, etc.
+        """
+        try:
+            freeze_type = self.current_state.freeze_type
+            auto_unfreeze = self.current_state.auto_unfreeze_at
+
+            if freeze_type is None:
+                return {
+                    "is_frozen": False,
+                    "freeze_type": None,
+                    "allowed_operations": FreezeSemantics.get_allowed_operations("normal"),
+                    "status_message": "System operational - all operations allowed"
+                }
+
+            allowed_ops = FreezeSemantics.get_allowed_operations(freeze_type)
+            remaining_minutes = None
+
+            if auto_unfreeze:
+                remaining_seconds = (auto_unfreeze - datetime.now()).total_seconds()
+                remaining_minutes = max(0, int(remaining_seconds / 60))
+
+            # Message résumé selon le type
+            if freeze_type == FreezeType.S3_ALERT_FREEZE:
+                status_msg = "S3 Alert Freeze: purchases blocked, risk reductions allowed"
+            elif freeze_type == FreezeType.ERROR_FREEZE:
+                status_msg = "Error Freeze: purchases blocked, hedge & reductions allowed"
+            elif freeze_type == FreezeType.FULL_FREEZE:
+                status_msg = "Full Freeze: only emergency exits allowed"
+            else:
+                status_msg = f"Freeze active: {freeze_type}"
+
+            return {
+                "is_frozen": True,
+                "freeze_type": freeze_type,
+                "allowed_operations": allowed_ops,
+                "remaining_minutes": remaining_minutes,
+                "auto_unfreeze_at": auto_unfreeze.isoformat() if auto_unfreeze else None,
+                "status_message": status_msg
+            }
+
+        except Exception as e:
+            logger.error(f"Error getting freeze status: {e}")
+            return {
+                "is_frozen": False,
+                "freeze_type": None,
+                "error": str(e)
+            }
 
     async def check_auto_unfreeze(self) -> bool:
         """Vérifie et exécute auto-unfreeze si TTL écoulé"""

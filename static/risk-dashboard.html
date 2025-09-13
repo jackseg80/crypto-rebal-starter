@@ -3787,17 +3787,36 @@
         // 👉 applique le “tone” pour que le CSS choisisse fond/bordure/ombre
         blendedGauge.setAttribute('data-tone', tone);
 
-        // Update blended meta: source, contradiction, updated
+        // Phase 1D: Update blended meta with badges parité Analytics/Risk
         try {
           const metaEl = document.getElementById('blended-meta');
           const ml = store.get('governance.ml_signals');
-          const source = (ml && typeof ml.decision_score === 'number') ? 'backend' : 'blended';
+          const policy = store.get('governance.active_policy');
+
+          const source = (ml && typeof ml.decision_score === 'number') ? 'backend' : 'SMART';
           const ci = ml && typeof ml.contradiction_index === 'number' ? Math.round(ml.contradiction_index * 100) : null;
           const ts = ml && ml.timestamp ? new Date(ml.timestamp) : null;
           const hh = ts ? ts.toLocaleTimeString() : null;
+          const cap = policy && typeof policy.cap_daily === 'number' ? Math.round(policy.cap_daily * 100) : null;
           const backendStatus = store.get('ui.apiStatus.backend');
+
           if (metaEl) {
-            metaEl.textContent = `${source}${ci!=null?` • Contrad: ${ci}%`:''}${hh?` • Updated ${hh}`:''}${backendStatus==='stale'?` • STALE`:''}${backendStatus==='error'?` • ERROR`:''}`;
+            // Phase 1D: Format identique Analytics/Risk
+            const badges = [];
+            badges.push(source);
+            if (hh) badges.push(`Updated ${hh}`);
+            if (ci != null) badges.push(`Contrad ${ci}%`);
+            if (cap != null) badges.push(`Cap ${cap}%`);
+
+            // Overrides count (simulate for now)
+            const overrides = 0; // TODO: Get from governance state
+            if (overrides > 0) badges.push(`Overrides ${overrides}`);
+
+            // Status indicators
+            if (backendStatus === 'stale') badges.push('STALE');
+            if (backendStatus === 'error') badges.push('ERROR');
+
+            metaEl.textContent = badges.join(' • ');
           }
         } catch {}
       } else {

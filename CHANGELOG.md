@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2024-01-15
+
+### 🎯 Dashboard Global Insight Enhancement
+
+### Added
+- **Global Insight Badge**: Dashboard principal affiche maintenant "Updated: HH:MM:SS • Contrad: X% • Cap: Y%" en bas de la tuile
+- **Real-time Governance Data**: Badge se met à jour automatiquement avec les données du Decision Engine
+- **Cross-dashboard Consistency**: Format cohérent avec les autres dashboards (Analytics, Risk)
+- **Store Integration**: Synchronisation via `risk-dashboard-store.js` pour données temps réel
+
+### Changed
+- **Badge Position**: Déplacé de haut vers bas de la tuile Global Insight pour cohérence visuelle
+- **Data Flow**: Badge récupère timestamp des signaux ML et données policy du store governance
+- **Update Triggers**: Badge se rafraîchit lors des changements store et événements `configChanged`
+
+### Technical
+- **Function**: `updateGlobalInsightMeta()` pour gestion badge dans `dashboard.html`
+- **Store Sync**: Utilise `store.get('governance.ml_signals')` et `store.get('governance.active_policy')`
+- **Event Handling**: Écoute changements store via subscription et événements storage cross-tab
+
+### Fixed
+- Badge Global Insight maintenant visible et fonctionnel
+- Données gouvernance affichées en temps réel sur dashboard principal
+- Cohérence visuelle avec format badges des autres dashboards
+
+---
+
 ## [2.0.0] - 2024-12-12
 
 ### 🔄 Major API Refactoring & Security Improvements

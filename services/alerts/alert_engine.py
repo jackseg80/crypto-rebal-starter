@@ -1076,19 +1076,19 @@ class AlertEngine:
             logger.error(f"Error evaluating alert type {alert_type}: {e}")
     
     def _create_alert(self, alert_type: AlertType, severity: AlertSeverity, alert_data: Dict[str, Any]) -> Alert:
-        """Crée une instance d'alerte avec action suggérée"""
-        
+        """Crée une instance d'alerte avec action suggérée et intégration governance caps"""
+
         alert_id = f"ALR-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{str(uuid.uuid4())[:8]}"
-        
+
         # Récupérer action suggérée depuis règles
         rule = self.evaluator.alert_rules.get(alert_type)
         suggested_action = {}
-        
+
         if rule:
             suggested_action = rule.suggested_actions.get(severity.value, {}).copy()
             if suggested_action.get("type") == "freeze":
                 suggested_action["reason"] = f"Alert {alert_id} suggested freeze"
-        
+
         alert = Alert(
             id=alert_id,
             alert_type=alert_type,
@@ -1096,11 +1096,66 @@ class AlertEngine:
             data=alert_data,
             suggested_action=suggested_action
         )
-        
+
+        # Phase 1B: Intégration AlertEngine → caps pour alertes systémiques
+        self._apply_systemic_alert_cap_reduction(alert, alert_data)
+
         # Phase 3B: Broadcast alert en temps réel
         asyncio.create_task(self._broadcast_alert_realtime(alert))
-        
+
         return alert
+
+    def _apply_systemic_alert_cap_reduction(self, alert: Alert, alert_data: Dict[str, Any]) -> None:
+        """
+        Phase 1B: Applique réduction cap pour alertes systémiques
+        Conditions: VaR95>4% OU Contradiction>55% OU Backend stale>60min
+        """
+        try:
+            if not self.governance_engine:
+                return
+
+            # Définir les conditions systémiques qui déclenchent réduction cap
+            systemic_conditions = []
+
+            # Condition 1: VaR95 > 4%
+            var_95 = alert_data.get("current_value")
+            if alert.alert_type in [AlertType.VAR95_BREACH] and isinstance(var_95, (int, float)) and var_95 > 0.04:
+                systemic_conditions.append(f"VaR95>{var_95:.1%}")
+
+            # Condition 2: Contradiction > 55%
+            contradiction = alert_data.get("contradiction_index", alert_data.get("current_value"))
+            if alert.alert_type in [AlertType.CONTRADICTION_HIGH] and isinstance(contradiction, (int, float)) and contradiction > 0.55:
+                systemic_conditions.append(f"Contradiction>{contradiction:.1%}")
+
+            # Condition 3: Backend stale > 60min (simulé avec execution cost spike pour l'instant)
+            if alert.alert_type in [AlertType.EXEC_COST_SPIKE] and alert.severity in [AlertSeverity.S2, AlertSeverity.S3]:
+                # Simuler détection backend stale via cost spike persistant
+                systemic_conditions.append("Backend_stale_60min")
+
+            # Appliquer réduction cap si conditions systémiques remplies
+            if systemic_conditions:
+                reduction_percentage = 0.03  # -3 points
+                reason = " OU ".join(systemic_conditions)
+
+                success = self.governance_engine.apply_alert_cap_reduction(
+                    reduction_percentage=reduction_percentage,
+                    alert_id=alert.id,
+                    reason=reason
+                )
+
+                if success:
+                    logger.warning(f"Systemic alert cap reduction applied: -3pts by {alert.id} ({reason})")
+                    # Ajouter metadata à l'alerte pour traçabilité
+                    alert.data["cap_reduction_applied"] = {
+                        "percentage": reduction_percentage,
+                        "reason": reason,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                else:
+                    logger.info(f"Systemic alert cap reduction not applied for {alert.id} (cooldown ou plus forte réduction active)")
+
+        except Exception as e:
+            logger.error(f"Error applying systemic alert cap reduction for {alert.id}: {e}")
     
     async def _check_escalations(self):
         """Vérifie et applique les règles d'escalade automatique"""

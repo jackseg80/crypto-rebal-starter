@@ -59,8 +59,12 @@
                 
                 const onchainEl = document.getElementById('gi-onchain');
                 if (onchainEl) {
-                    const onchainScore = unifiedState.onchain?.score ?? '--';
-                    onchainEl.textContent = onchainScore;
+                    let onchainScore = unifiedState.onchain?.score;
+                    if (onchainScore == null) {
+                        const lsOn = Number(localStorage.getItem('risk_score_onchain'));
+                        if (Number.isFinite(lsOn)) onchainScore = Math.round(lsOn);
+                    }
+                    onchainEl.textContent = (onchainScore != null) ? onchainScore : '--';
                     if (unifiedState.onchain?.criticalCount > 0) {
                         onchainEl.title = `${unifiedState.onchain.criticalCount} indicateur(s) critique(s) détecté(s)`;
                         onchainEl.style.fontWeight = '700';
@@ -69,8 +73,12 @@
                 
                 const riskEl = document.getElementById('gi-risk');
                 if (riskEl) {
-                    const riskScore = unifiedState.risk?.score ?? '--';
-                    riskEl.textContent = riskScore;
+                    let riskScore = unifiedState.risk?.score;
+                    if (riskScore == null) {
+                        const lsRisk = Number(localStorage.getItem('risk_score_risk'));
+                        if (Number.isFinite(lsRisk)) riskScore = Math.round(lsRisk);
+                    }
+                    riskEl.textContent = (riskScore != null) ? riskScore : '--';
                     if (unifiedState.risk?.budget?.percentages?.stables) {
                         riskEl.title = `Budget recommandé - Stables: ${unifiedState.risk.budget.percentages.stables}%`;
                     }
@@ -106,7 +114,10 @@
                     recommendations_count: recommendations.length,
                     top_recommendation: recommendations[0]?.title
                 });
-                
+
+                // Update the meta badge with governance data
+                updateGlobalInsightMeta();
+
             } catch (error) {
                 console.warn('⚠️ Global Insight fallback to simple calculation:', error);
                 console.debug('Error details:', error.stack || error);
@@ -131,6 +142,9 @@
                     reco.textContent = score>=70 ? '⚠️ Alléger 10–20%' : score<=35 ? '🟢 DCA prudent' : '⏸️ Neutre / Attente';
                     reco.title = 'Recommandation basique (système intelligent non disponible)';
                 }
+
+                // Update meta badge even in fallback
+                updateGlobalInsightMeta();
             }
         }
         
@@ -149,6 +163,11 @@
                 store.set('cycle.months', c.months);
                 store.set('cycle.score', cycleScore);
                 store.set('cycle.phase', phase);
+                // Hydrate governance state to prefer backend Decision Engine
+                try {
+                    await store.syncGovernanceState();
+                    await store.syncMLSignals();
+                } catch {}
                 console.log('✅ Cycle data loaded for dashboard');
                 
                 // 2. Try to get cached scores from localStorage (from analytics-unified cache)
@@ -233,12 +252,54 @@
                 loadUnifiedDataForDashboard();
             }
         }
-        
+
+        // Update Global Insight meta badge with governance data
+        function updateGlobalInsightMeta() {
+            try {
+                const metaEl = document.getElementById('gi-meta');
+                if (!metaEl) return;
+
+                // Get data from store
+                const ml = store.get('governance.ml_signals');
+                const policy = store.get('governance.active_policy');
+
+                // Format timestamp
+                const ts = ml?.timestamp ? new Date(ml.timestamp) : null;
+                const timeStr = ts ? ts.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '--:--:--';
+
+                // Get contradiction index (0-1 scale, convert to percentage)
+                const contradiction = ml?.contradiction_index != null ? Math.round(ml.contradiction_index * 100) : null;
+
+                // Get cap from policy (0-1 scale, convert to percentage)
+                const cap = policy?.cap_daily != null ? Math.round(policy.cap_daily * 100) : null;
+
+                // Build badge text
+                const badges = [`Updated: ${timeStr}`];
+                if (contradiction !== null) badges.push(`Contrad: ${contradiction}%`);
+                if (cap !== null) badges.push(`Cap: ${cap}%`);
+
+                metaEl.textContent = badges.join(' • ');
+
+                console.debug('🏷️ Global Insight meta updated:', {
+                    timestamp: timeStr,
+                    contradiction,
+                    cap,
+                    text: metaEl.textContent
+                });
+
+            } catch (error) {
+                console.warn('Failed to update Global Insight meta:', error);
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', ()=>{
-            // Subscribe to store changes for reactive updates  
+            // Subscribe to store changes for reactive updates
             store.subscribe(()=> {
                 clearTimeout(window.giRefreshTimer);
-                window.giRefreshTimer = setTimeout(refreshGI, 300);
+                window.giRefreshTimer = setTimeout(() => {
+                    refreshGI();
+                    updateGlobalInsightMeta();
+                }, 300);
             });
             
             // Smart initial load - wait for data to be ready
@@ -512,6 +573,7 @@
                     </div>
                 </div>
                 <div id="gi-reco" style="margin-top:.5rem; font-size:.9rem; color: var(--theme-text);"></div>
+                <div id="gi-meta" style="text-align:center; font-size:11px; color:var(--theme-text-muted); margin-top:8px; padding-top:8px; border-top:1px solid var(--theme-border);"></div>
             </div>
 
             <!-- Portfolio Overview - Disposition améliorée pour gagner de la place -->
@@ -822,6 +884,8 @@
                 } catch (e) {
                     console.warn('Currency change re-render failed:', e);
                 }
+                // Update meta badge (Updated / Contrad / Cap)
+                updateGlobalInsightMeta();
             });
 
             // Also re-render when async rate fetch completes

@@ -308,7 +308,8 @@ python crypto_toolbox_api.py  # Port 8001
 - **GovernancePanel.js** : Interface de gouvernance réutilisable
 - **Modal d'approbation** : Détails complets des décisions avec métriques ML
 - **Indicateurs temps réel** : Status, mode, contradiction index, policy active
-- **Intégration dashboards** : Risk Dashboard, Analytics Unified, Rebalance
+- **Global Insight Badge** : Dashboard principal avec format "Updated: HH:MM:SS • Contrad: X% • Cap: Y%"
+- **Intégration dashboards** : Risk Dashboard, Analytics Unified, Rebalance, Dashboard principal
 
 ---
 
