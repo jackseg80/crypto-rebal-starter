@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <base href="/static/">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Alertes Simple - Crypto Rebal</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #1a202c;
+            color: #e2e8f0;
+            line-height: 1.6;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .card {
+            background: #2d3748;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border: 1px solid #4a5568;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 5px;
+            transition: all 0.2s;
+        }
+        .btn-primary { background: #4299e1; color: white; }
+        .btn-success { background: #48bb78; color: white; }
+        .btn-danger { background: #e53e3e; color: white; }
+        .btn:hover { opacity: 0.8; }
+        .result {
+            padding: 12px;
+            border-radius: 6px;
+            margin: 8px 0;
+        }
+        .result.success {
+            background: #065f46;
+            border: 1px solid #10b981;
+            color: #6ee7b7;
+        }
+        .result.error {
+            background: #7f1d1d;
+            border: 1px solid #ef4444;
+            color: #fca5a5;
+        }
+        .alert-item {
+            background: #1f2937;
+            border: 1px solid #374151;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #f59e0b;
+        }
+        .logs {
+            background: #111827;
+            color: #d1d5db;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            padding: 15px;
+            border-radius: 6px;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            border: 1px solid #374151;
+        }
+        h1 { color: #60a5fa; }
+        h2 { color: #a78bfa; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔔 Test Alertes Simple (Version Debug)</h1>
+        
+        <div class="card">
+            <h2>Tests API Alertes (Fonctionnels)</h2>
+            <button class="btn btn-primary" id="btn-types" data-action="testTypes">Types d'Alertes</button>
+            <button class="btn btn-primary" id="btn-health" data-action="testHealth">Santé Système</button>
+            <button class="btn btn-primary" id="btn-metrics" data-action="testMetrics">Métriques</button>
+            <button class="btn btn-success" id="btn-load-alerts" data-action="loadAlerts">Charger Alertes</button>
+            
+            <div id="results"></div>
+        </div>
+
+        <div class="card">
+            <h2>Alertes Actives (Simulation)</h2>
+            <p>Cette version simule les actions acknowledge/snooze côté client</p>
+            <div id="alerts-display"></div>
+            <button class="btn btn-danger" id="btn-clear-sim" data-action="clearSimulation">Clear Simulation</button>
+        </div>
+
+        <div class="card">
+            <h2>Post-Refactoring Tests</h2>
+            <button class="btn btn-primary" id="btn-test-new" data-action="testNewEndpoints">Test Nouveaux Endpoints</button>
+            <button class="btn btn-danger" id="btn-test-removed" data-action="testRemovedEndpoints">Test Endpoints Supprimés</button>
+            <div id="refactor-results"></div>
+        </div>
+
+        <div class="card">
+            <h2>Logs Debug</h2>
+            <button class="btn btn-danger" id="btn-clear" data-action="clearLogs">Clear Logs</button>
+            <div id="logs" class="logs">Page chargée - version simulation client-side\n</div>
+        </div>
+    </div>
+
+    <script src="../tests/test_alerts_simple.js"></script>
+</body>
+</html>

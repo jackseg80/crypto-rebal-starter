@@ -867,6 +867,110 @@ async def get_systemic_risk(
 # Former endpoints: /test/generate, /test/clear, /test/force-evaluation
 # These were temporary debug endpoints that should not be exposed in production
 
+# Test endpoints without authentication (for debugging/testing only)
+@router.post("/test/acknowledge/{alert_id}")
+async def test_acknowledge_alert(
+    alert_id: str,
+    engine: AlertEngine = Depends(get_alert_engine)
+):
+    """
+    Test endpoint pour acknowledge sans auth (DEBUG ONLY)
+    """
+    try:
+        success = await engine.acknowledge_alert(alert_id, "test_user")
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="Alert not found")
+        
+        return {
+            "success": True,
+            "message": f"Alert {alert_id} acknowledged by test_user",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in test acknowledge: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.post("/test/snooze/{alert_id}")
+async def test_snooze_alert(
+    alert_id: str,
+    snooze_request: SnoozeRequest = None,
+    engine: AlertEngine = Depends(get_alert_engine)
+):
+    """
+    Test endpoint pour snooze sans auth (DEBUG ONLY)
+    """
+    try:
+        # Default to 60 minutes if no request body provided
+        minutes = snooze_request.minutes if snooze_request else 60
+        success = await engine.snooze_alert(alert_id, minutes)
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="Alert not found")
+        
+        return {
+            "success": True,
+            "message": f"Alert {alert_id} snoozed for {minutes} minutes",
+            "snooze_until": (datetime.now() + timedelta(minutes=minutes)).isoformat(),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in test snooze: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.post("/test/generate/{count}")
+async def test_generate_alerts(
+    count: int = 3,
+    engine: AlertEngine = Depends(get_alert_engine)
+):
+    """
+    Endpoint de test pour générer des alertes de démonstration (DEBUG ONLY)
+    """
+    try:
+        from services.alerts.alert_models import AlertType, AlertSeverity
+        import uuid
+        
+        test_alerts = []
+        alert_types = [AlertType.PORTFOLIO_DRIFT, AlertType.VOL_Q90_CROSS, AlertType.REGIME_FLIP]
+        severities = [AlertSeverity.S1, AlertSeverity.S2, AlertSeverity.S3]
+        
+        for i in range(min(count, 10)):  # Limit to 10 alerts max
+            alert_type = alert_types[i % len(alert_types)]
+            severity = severities[i % len(severities)]
+            
+            alert_data = {
+                "id": str(uuid.uuid4()),
+                "alert_type": alert_type,
+                "severity": severity,
+                "message": f"Test alert #{i+1} - {alert_type.value}",
+                "data": {
+                    "test": True,
+                    "index": i+1,
+                    "trigger_value": 0.85 + (i * 0.1),
+                    "threshold": 0.8
+                },
+                "created_at": datetime.now(),
+                "acknowledged": False,
+                "snoozed_until": None
+            }
+            
+            # Store the alert directly in the engine
+            await engine.storage.store_alert(alert_data)
+            test_alerts.append(alert_data)
+        
+        return {
+            "success": True,
+            "message": f"Generated {len(test_alerts)} test alerts",
+            "alerts": [{"id": a["id"], "type": a["alert_type"].value, "severity": a["severity"].value} for a in test_alerts],
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error generating test alerts: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
 # Hook pour initialisation depuis main.py
 def initialize_alert_engine(engine: AlertEngine):
     """Initialise l'instance globale AlertEngine"""
