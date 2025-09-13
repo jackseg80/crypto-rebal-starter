@@ -95,27 +95,27 @@ def main():
         response = requests.get("http://localhost:8000/openapi.json", timeout=10)
         
         if response.status_code != 200:
-            print("❌ Could not fetch OpenAPI spec from localhost:8000")
+            print("ERROR Could not fetch OpenAPI spec from localhost:8000")
             print("   Make sure the server is running: uvicorn api.main:app --host localhost --port 8000")
             return 1
         
         spec = response.json()
-        print("✅ OpenAPI spec loaded successfully")
+        print("OK OpenAPI spec loaded successfully")
         
     except Exception as e:
-        print(f"❌ Error loading OpenAPI spec: {e}")
+        print(f"ERROR Error loading OpenAPI spec: {e}")
         return 1
     
     # Extraire les endpoints
     endpoints = extract_endpoints_from_spec(spec)
-    print(f"📊 Found {len(endpoints)} endpoints total")
+    print(f">> Found {len(endpoints)} endpoints total")
     
     # Identifier les breaking changes
     breaking_changes = identify_breaking_changes(endpoints)
     
     # Rapport détaillé
     print(f"\n{'='*60}")
-    print("🔍 BREAKING CHANGES ANALYSIS")
+    print(">> BREAKING CHANGES ANALYSIS")
     print(f"{'='*60}")
     
     # Routes supprimées

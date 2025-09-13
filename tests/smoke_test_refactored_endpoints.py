@@ -18,19 +18,19 @@ class SmokeTestResult:
         self.errors = []
     
     def add_pass(self, test_name: str):
-        print(f"✅ {test_name}")
+        print(f"OK {test_name}")
         self.passed += 1
     
     def add_fail(self, test_name: str, error: str):
-        print(f"❌ {test_name}: {error}")
+        print(f"FAIL {test_name}: {error}")
         self.failed += 1
         self.errors.append(f"{test_name}: {error}")
     
     def summary(self):
         total = self.passed + self.failed
-        print(f"\n📊 Results: {self.passed}/{total} passed")
+        print(f"\n>> Results: {self.passed}/{total} passed")
         if self.errors:
-            print("\n🚨 Errors:")
+            print("\n!! Errors:")
             for error in self.errors:
                 print(f"  - {error}")
         return self.failed == 0
@@ -54,11 +54,11 @@ def test_endpoint(method: str, url: str, expected_status: int = 200, data: Dict[
 def main():
     result = SmokeTestResult()
     
-    print("🚀 Starting smoke tests for refactored endpoints...")
+    print(">> Starting smoke tests for refactored endpoints...")
     print(f"Testing against: {BASE_URL}\n")
     
     # Test 1: Vérifier que les anciennes routes retournent 404
-    print("1️⃣ Testing removed endpoints return 404")
+    print("1. Testing removed endpoints return 404")
     
     removed_endpoints = [
         ("GET", "/api/ml-predictions/predict"),
@@ -82,7 +82,7 @@ def main():
                 result.add_fail(f"Removed endpoint {method} {endpoint}", str(e))
     
     # Test 2: Vérifier les nouveaux endpoints unifiés
-    print("\n2️⃣ Testing unified endpoints")
+    print("\n2. Testing unified endpoints")
     
     # Test unified ML namespace
     try:
@@ -115,7 +115,7 @@ def main():
         result.add_fail("Consolidated risk/advanced namespace", str(e))
     
     # Test 3: Test endpoints d'alerte centralisés
-    print("\n3️⃣ Testing centralized alert endpoints")
+    print("\n3. Testing centralized alert endpoints")
     
     try:
         response = test_endpoint("GET", f"{BASE_URL}/api/alerts/active")
@@ -127,7 +127,7 @@ def main():
         result.add_fail("Centralized alerts endpoint", str(e))
     
     # Test 4: Test admin-protected ML debug
-    print("\n4️⃣ Testing admin-protected ML debug endpoints")
+    print("\n4. Testing admin-protected ML debug endpoints")
     
     # Sans auth admin - doit échouer
     try:
@@ -154,7 +154,7 @@ def main():
         result.add_fail("ML debug endpoint with auth", str(e))
     
     # Test 5: Test OpenAPI spec accessibility
-    print("\n5️⃣ Testing OpenAPI spec")
+    print("\n5. Testing OpenAPI spec")
     
     try:
         response = test_endpoint("GET", f"{BASE_URL}/openapi.json")
@@ -173,10 +173,10 @@ def main():
     success = result.summary()
     
     if success:
-        print("🎉 All smoke tests passed!")
+        print(">> All smoke tests passed!")
         return 0
     else:
-        print("🚨 Some smoke tests failed!")
+        print("!! Some smoke tests failed!")
         return 1
 
 if __name__ == "__main__":
