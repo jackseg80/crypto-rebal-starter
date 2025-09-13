@@ -9,7 +9,19 @@ class LazyLoader {
         this.loadedStyles = new Set();
         this.pendingLoads = new Map();
         this.intersectionObserver = this.setupIntersectionObserver();
-        this.initializeLazyLoading();
+
+        // Démarrer l'initialisation quand le DOM est prêt
+        if (document.readyState === 'loading') {
+            console.log('🔧 DOM not ready, waiting for DOMContentLoaded...');
+            document.addEventListener('DOMContentLoaded', () => {
+                console.log('🔧 DOM ready, initializing lazy loading...');
+                this.initializeLazyLoading();
+            });
+        } else {
+            console.log('🔧 DOM already ready, initializing lazy loading immediately...');
+            // DOM déjà prêt, initialiser immédiatement
+            this.initializeLazyLoading();
+        }
     }
 
     /**
@@ -21,10 +33,17 @@ class LazyLoader {
             return null;
         }
 
+        console.log('🔧 Setting up IntersectionObserver with rootMargin: 50px, threshold: 0.1');
+
         return new IntersectionObserver((entries) => {
+            console.log(`📊 IntersectionObserver triggered with ${entries.length} entries`);
             entries.forEach(entry => {
+                console.log(`📊 Element ${entry.target.tagName} isIntersecting: ${entry.isIntersecting}, boundingRect:`, entry.boundingClientRect);
                 if (entry.isIntersecting) {
+                    console.log('✅ Element is intersecting, loading...');
                     this.loadVisibleElement(entry.target);
+                } else {
+                    console.log('❌ Element not intersecting yet');
                 }
             });
         }, {
@@ -38,10 +57,16 @@ class LazyLoader {
      */
     initializeLazyLoading() {
         // Charger les éléments avec l'attribut data-lazy-load
-        document.querySelectorAll('[data-lazy-load]').forEach(el => {
+        const lazyElements = document.querySelectorAll('[data-lazy-load]');
+        console.log(`🔍 Found ${lazyElements.length} elements with data-lazy-load attribute`);
+
+        lazyElements.forEach((el, index) => {
+            console.log(`📝 Element ${index}: ${el.tagName}, data-lazy-load="${el.dataset.lazyLoad}", data-lazy-component="${el.dataset.lazyComponent}"`);
             if (this.intersectionObserver) {
+                console.log(`👁️ Adding element ${index} to IntersectionObserver`);
                 this.intersectionObserver.observe(el);
             } else {
+                console.log(`⚡ Fallback: loading element ${index} immediately`);
                 // Fallback: charger immédiatement
                 this.loadVisibleElement(el);
             }
@@ -73,10 +98,23 @@ class LazyLoader {
                 });
             });
 
-            mutationObserver.observe(document.body, {
-                childList: true,
-                subtree: true
-            });
+            // S'assurer que document.body existe avant d'observer
+            if (document.body) {
+                mutationObserver.observe(document.body, {
+                    childList: true,
+                    subtree: true
+                });
+            } else {
+                // Si body n'existe pas encore, attendre
+                document.addEventListener('DOMContentLoaded', () => {
+                    if (document.body) {
+                        mutationObserver.observe(document.body, {
+                            childList: true,
+                            subtree: true
+                        });
+                    }
+                });
+            }
         }
     }
 
@@ -87,33 +125,41 @@ class LazyLoader {
         const lazyType = element.dataset.lazyLoad;
         const src = element.dataset.lazySrc;
 
+        console.log(`🚀 Loading visible element: type="${lazyType}", src="${src}"`);
+
         if (this.intersectionObserver) {
+            console.log('👁️ Unobserving element from IntersectionObserver');
             this.intersectionObserver.unobserve(element);
         }
 
         try {
             switch (lazyType) {
                 case 'script':
+                    console.log(`📜 Loading script: ${src}`);
                     await this.loadScript(src);
                     break;
                 case 'style':
+                    console.log(`🎨 Loading stylesheet: ${src}`);
                     await this.loadStyle(src);
                     break;
                 case 'image':
+                    console.log(`🖼️ Loading image: ${src}`);
                     await this.loadImage(element, src);
                     break;
                 case 'component':
+                    console.log(`🧩 Loading component: ${element.dataset.lazyComponent}`);
                     await this.loadComponent(element);
                     break;
                 default:
                     console.warn(`Unknown lazy load type: ${lazyType}`);
             }
 
+            console.log(`✅ Successfully loaded ${lazyType}`);
             element.classList.add('lazy-loaded');
             element.dispatchEvent(new CustomEvent('lazyLoaded'));
 
         } catch (error) {
-            console.error(`Failed to lazy load ${lazyType}:`, error);
+            console.error(`❌ Failed to lazy load ${lazyType}:`, error);
             element.classList.add('lazy-error');
         }
     }
@@ -217,18 +263,32 @@ class LazyLoader {
         const componentName = element.dataset.lazyComponent;
         const componentSrc = element.dataset.lazySrc;
 
+        console.log(`🧩 Loading component: name="${componentName}", src="${componentSrc}"`);
+
         if (componentSrc) {
+            console.log(`📜 Loading component script: ${componentSrc}`);
             await this.loadScript(componentSrc);
         }
 
         if (componentName && window[componentName]) {
             try {
+                console.log(`🔧 Initializing component ${componentName}...`);
                 const component = new window[componentName](element);
                 if (typeof component.init === 'function') {
+                    console.log(`⚡ Calling init() on component ${componentName}`);
                     await component.init();
+                } else {
+                    console.log(`ℹ️ Component ${componentName} has no init() method`);
                 }
+                console.log(`✅ Component ${componentName} successfully initialized`);
             } catch (error) {
-                console.error(`Failed to initialize component ${componentName}:`, error);
+                console.error(`❌ Failed to initialize component ${componentName}:`, error);
+            }
+        } else {
+            if (!componentName) {
+                console.error('❌ No component name specified');
+            } else {
+                console.error(`❌ Component ${componentName} not found in window object. Available:`, Object.keys(window).filter(k => k.endsWith('Chart') || k.includes('Component')));
             }
         }
     }
@@ -435,3 +495,5 @@ styleSheet.textContent = lazyStyles;
 document.head.appendChild(styleSheet);
 
 console.log('🚀 Lazy Loader initialized successfully');
+console.log('📊 Lazy loader instance:', lazyLoader);
+console.log('👁️ IntersectionObserver available:', !!lazyLoader.intersectionObserver);

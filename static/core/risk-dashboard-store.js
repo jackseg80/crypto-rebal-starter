@@ -176,6 +176,8 @@ export class RiskDashboardStore {
         this.set('governance.last_sync', Date.now());
         
         console.debug('Governance state synced:', governanceState.current_state);
+        // Update backend health TTL
+        this._updateBackendStatusFromGovernance();
         return true;
       }
     } catch (error) {
@@ -194,6 +196,8 @@ export class RiskDashboardStore {
         this.set('governance.last_sync', Date.now());
         
         console.debug('ML signals synced, contradiction index:', data.signals?.contradiction_index);
+        // Update backend health TTL
+        this._updateBackendStatusFromGovernance();
         return data.signals;
       }
     } catch (error) {
@@ -201,6 +205,89 @@ export class RiskDashboardStore {
       this.set('ui.errors', [...(this.get('ui.errors') || []), `ML signals sync error: ${error.message}`]);
     }
     return null;
+  }
+
+  // Update governance ML signals with client-side context (e.g., blended_score)
+  async updateGovernanceBlendedScore(score) {
+    try {
+      if (typeof score !== 'number') return false;
+      const now = Date.now();
+      this._lastBlendUpdate = this._lastBlendUpdate || 0;
+      if (now - this._lastBlendUpdate < 3000) {
+        // debounce to avoid spamming the backend
+        return false;
+      }
+      this._lastBlendUpdate = now;
+      const response = await fetch(`${window.location.origin}/execution/governance/signals/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blended_score: score })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        // Optionally refresh governance state to reflect changes
+        try { await this.syncGovernanceState(); } catch {}
+        console.debug('Blended score sent to governance:', data?.updated?.blended_score);
+        return true;
+      }
+    } catch (error) {
+      console.warn('Failed to update governance blended score:', error);
+    }
+    return false;
+  }
+
+  // Recompute blended score server-side from components (preferred path)
+  async recomputeGovernanceBlended(ccsMixte, onchainScore, riskScore) {
+    try {
+      const now = Date.now();
+      this._lastBlendRecompute = this._lastBlendRecompute || 0;
+      if (now - this._lastBlendRecompute < 3000) {
+        // debounce: skip if called too frequently
+        return false;
+      }
+      this._lastBlendRecompute = now;
+
+      const body = {
+        ccs_mixte: typeof ccsMixte === 'number' ? ccsMixte : null,
+        onchain_score: typeof onchainScore === 'number' ? onchainScore : null,
+        risk_score: typeof riskScore === 'number' ? riskScore : null
+      };
+      // Generate simple idempotency key and CSRF token (UI scope)
+      const idemKey = `blend-${now}-${Math.random().toString(36).slice(2, 10)}`;
+      const csrf = localStorage.getItem('csrf_token') || Math.random().toString(36).slice(2, 10);
+      try { localStorage.setItem('csrf_token', csrf); } catch {}
+      const response = await fetch(`${window.location.origin}/execution/governance/signals/recompute`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Idempotency-Key': idemKey,
+          'X-CSRF-Token': csrf
+        },
+        body: JSON.stringify(body)
+      });
+      if (response.ok) {
+        const data = await response.json();
+        try { await this.syncGovernanceState(); } catch {}
+        console.debug('Blended score recomputed server-side:', data?.blended_score);
+        return true;
+      }
+    } catch (error) {
+      console.warn('Failed to recompute governance blended score:', error);
+    }
+    return false;
+  }
+
+  // Compute backend health based on governance timestamps (TTL in minutes)
+  _updateBackendStatusFromGovernance(ttlMinutes = 30) {
+    try {
+      const gov = this.get('governance');
+      const ts = gov?.ml_signals?.timestamp ? new Date(gov.ml_signals.timestamp).getTime() : (gov?.last_sync || 0);
+      const age = ts ? (Date.now() - ts) : Number.POSITIVE_INFINITY;
+      const ttlMs = ttlMinutes * 60 * 1000;
+      const current = this.get('ui.apiStatus.backend') || 'unknown';
+      const next = age === Number.POSITIVE_INFINITY ? current : (age > ttlMs ? 'stale' : 'healthy');
+      if (next !== current) this.set('ui.apiStatus.backend', next);
+    } catch {}
   }
   
   async approveDecision(decisionId, approved, reason = null) {

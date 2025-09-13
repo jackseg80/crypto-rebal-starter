@@ -1,9 +1,11 @@
 <!DOCTYPE html>
+<!-- Legacy ML demo page. Prefer using static/ai-dashboard.html for unified dashboards. -->
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🧠 Advanced ML Dashboard - Crypto Portfolio</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🧠 Advanced ML Dashboard - Crypto Portfolio</title>
+  <meta name="robots" content="noindex,nofollow">
     
     <link rel="stylesheet" href="shared-theme.css">
     <link rel="stylesheet" href="theme-compat.css">
@@ -208,9 +210,15 @@
         .log-level-error { color: var(--danger); }
         .log-level-success { color: var(--success); }
     </style>
-  <script type="module" src="components/tooltips.js"></script>`n</head>
+  <script type="module" src="components/tooltips.js"></script>
+</head>
 
 <body>
+    <!-- Legacy notice banner (kept minimal to not interfere with layout) -->
+    <div style="background: #fffbdd; color: #4d3800; border: 1px solid #ffe58f; padding: .6rem .9rem; font-size: .9rem;">
+      Cette page est une démo ML legacy. Pour une vue complète unifiée, utilisez
+      <a href="/static/ai-dashboard.html" style="color:#614700; font-weight:600; text-decoration: underline;">AI Dashboard</a>.
+    </div>
     <div class="wrap"><div class="dashboard-container">
         <h1>🧠 Advanced ML Dashboard</h1>
         <p>Machine Learning & AI pour la gestion de portfolio crypto avancée</p>
@@ -438,14 +446,16 @@
             addLog('INFO', 'Refreshing ML status...');
             
             try {
-                // Check ML models status
-                const statusResponse = await fetch(`${API_BASE}/api/ml/models/status`);
+                // Check ML models status (unified endpoint)
+                // Prefer globalConfig when available
+                const base = (window.globalConfig && window.globalConfig.get && window.globalConfig.get('api_base_url')) || API_BASE;
+                const statusResponse = await fetch(`${base}/api/ml/status`);
                 const statusData = await statusResponse.json();
                 
                 updateModelStatuses(statusData);
                 
                 // Get current predictions if models are ready
-                if (statusData.pipeline_trained) {
+                if (statusData.success && statusData.pipeline_status) {
                     await refreshPredictions();
                 }
                 
@@ -456,11 +466,17 @@
         }
         
         function updateModelStatuses(statusData) {
-            // Update volatility status
-            document.getElementById('volatility-status').textContent = 
-                statusData.regime_model_exists ? 'Active' : 'Inactive';
-            document.getElementById('volatility-status').className = 
-                `status-badge ${statusData.regime_model_exists ? 'status-active' : 'status-inactive'}`;
+            const ps = (statusData && statusData.pipeline_status) || {};
+            const volLoaded = (ps.volatility_models && (ps.volatility_models.models_loaded || ps.volatility_models.loaded)) || ps.loaded_models_count > 0;
+            const regimeLoaded = (ps.regime_models && (ps.regime_models.model_loaded || ps.regime_models.model_exists)) || false;
+
+            const volEl = document.getElementById('volatility-status');
+            volEl.textContent = volLoaded ? 'Active' : 'Inactive';
+            volEl.className = `status-badge ${volLoaded ? 'status-active' : 'status-inactive'}`;
+
+            const regEl = document.getElementById('regime-status');
+            regEl.textContent = regimeLoaded ? 'Active' : 'Inactive';
+            regEl.className = `status-badge ${regimeLoaded ? 'status-active' : 'status-inactive'}`;
         }
         
         async function trainVolatilityModel() {
@@ -468,23 +484,16 @@
             updateStatus('volatility-status', 'Training...', 'status-training');
             
             try {
-                const response = await fetch(`${API_BASE}/api/ml/volatility/train-portfolio`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        source: 'cointracking',
-                        min_usd: 100,
-                        days: 365
-                    })
-                });
+                // Unified: preload/load volatility models instead of training endpoint
+                const response = await fetch(`${API_BASE}/api/ml/models/preload?symbols=BTC&symbols=ETH`, { method: 'POST' });
                 
                 const data = await response.json();
                 
                 if (data.success) {
-                    addLog('SUCCESS', `Volatility training started for ${data.trainable_assets} assets`);
-                    addLog('INFO', `Estimated duration: ${data.estimated_duration_minutes} minutes`);
+                    addLog('SUCCESS', `Volatility models preloaded (${data.loaded_models}/${data.total_requested})`);
+                    updateStatus('volatility-status', 'Active', 'status-active');
                 } else {
-                    throw new Error(data.detail || 'Training failed');
+                    throw new Error(data.detail || 'Preload failed');
                 }
             } catch (error) {
                 addLog('ERROR', `Volatility training failed: ${error.message}`);
@@ -496,13 +505,15 @@
             addLog('INFO', 'Generating volatility predictions...');
             
             try {
-                const response = await fetch(`${API_BASE}/api/ml/volatility/batch-predict`, {
+                const response = await fetch(`${API_BASE}/api/ml/predict`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        symbols: ['BTC', 'ETH', 'SOL'],
-                        lookback_days: 90,
-                        confidence_level: 0.95
+                        assets: ['BTC', 'ETH', 'SOL'],
+                        horizons: [1, 7, 30],
+                        include_regime: false,
+                        include_volatility: true,
+                        include_confidence: false
                     })
                 });
                 
@@ -510,7 +521,7 @@
                 
                 if (data.success && data.predictions) {
                     updateVolatilityPredictions(data.predictions);
-                    addLog('SUCCESS', `Volatility predictions generated for ${data.successful_predictions} assets`);
+                    addLog('SUCCESS', 'Volatility predictions generated');
                 } else {
                     throw new Error('Prediction failed - model may need training');
                 }
@@ -523,12 +534,16 @@
             const container = document.getElementById('volatility-predictions');
             const items = container.querySelectorAll('.prediction-value');
             
-            // Example: show BTC predictions if available
-            if (predictions.BTC) {
-                const btcPred = predictions.BTC.predictions;
-                items[0].textContent = btcPred['1d'] ? `${(btcPred['1d'] * 100).toFixed(1)}%` : '--';
-                items[1].textContent = btcPred['7d'] ? `${(btcPred['7d'] * 100).toFixed(1)}%` : '--';
-                items[2].textContent = btcPred['30d'] ? `${(btcPred['30d'] * 100).toFixed(1)}%` : '--';
+            // Use BTC if available, fallback to first key
+            const symbol = predictions.BTC ? 'BTC' : Object.keys(predictions)[0];
+            if (symbol) {
+                const p = predictions[symbol];
+                const h1 = p['horizon_1d'] || p['1d'] || p['H1'];
+                const h7 = p['horizon_7d'] || p['7d'] || p['H7'];
+                const h30 = p['horizon_30d'] || p['30d'] || p['H30'];
+                items[0].textContent = h1 && h1.volatility ? `${(h1.volatility * 100).toFixed(1)}%` : '--';
+                items[1].textContent = h7 && h7.volatility ? `${(h7.volatility * 100).toFixed(1)}%` : '--';
+                items[2].textContent = h30 && h30.volatility ? `${(h30.volatility * 100).toFixed(1)}%` : '--';
             }
         }
         
@@ -537,22 +552,16 @@
             updateStatus('regime-status', 'Training...', 'status-training');
             
             try {
-                const response = await fetch(`${API_BASE}/api/ml/regime/train`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        source: 'cointracking',
-                        min_usd: 500,
-                        days: 1095
-                    })
-                });
+                // Unified: load regime model (no training endpoint exposed here)
+                const response = await fetch(`${API_BASE}/api/ml/models/load-regime`, { method: 'POST' });
                 
                 const data = await response.json();
                 
                 if (data.success) {
-                    addLog('SUCCESS', `Regime training started with ${data.assets_for_training.length} assets`);
+                    addLog('SUCCESS', 'Regime model loaded');
+                    updateStatus('regime-status', 'Active', 'status-active');
                 } else {
-                    throw new Error(data.detail || 'Training failed');
+                    throw new Error(data.detail || 'Load failed');
                 }
             } catch (error) {
                 addLog('ERROR', `Regime training failed: ${error.message}`);
@@ -564,12 +573,15 @@
             addLog('INFO', 'Detecting current market regime...');
             
             try {
-                const response = await fetch(`${API_BASE}/api/ml/regime/current?lookback_days=90`);
+                // Prefer live predictions endpoint for regime (more stable shape)
+                const response = await fetch(`${API_BASE}/api/ml/predictions/live`);
                 const data = await response.json();
                 
-                if (data.success && data.regime_prediction) {
-                    updateRegimeDisplay(data.regime_prediction);
-                    addLog('SUCCESS', `Regime detected: ${data.regime_prediction.regime_name}`);
+                const regime = data.regime_prediction || data.market_regime;
+                if (data.success && regime) {
+                    updateRegimeDisplay(regime);
+                    const name = (typeof regime === 'string') ? regime : (regime.regime_name || regime.name || 'Unknown');
+                    addLog('SUCCESS', `Regime detected: ${name}`);
                 } else {
                     throw new Error('Regime detection failed - model may need training');
                 }
@@ -579,21 +591,23 @@
         }
         
         function updateRegimeDisplay(regimeData) {
-            document.getElementById('current-regime').textContent = regimeData.regime_name || 'Unknown';
-            document.getElementById('regime-confidence').textContent = 
-                regimeData.confidence ? `${(regimeData.confidence * 100).toFixed(0)}%` : '--';
+            const name = (typeof regimeData === 'string') ? regimeData : (regimeData.regime_name || regimeData.name || 'Unknown');
+            const conf = (typeof regimeData === 'object' && regimeData.confidence != null) ? regimeData.confidence : null;
+            document.getElementById('current-regime').textContent = name;
+            document.getElementById('regime-confidence').textContent = conf != null ? `${(conf * 100).toFixed(0)}%` : '--';
         }
         
         async function analyzeCorrelations() {
             addLog('INFO', 'Analyzing asset correlations...');
             
             try {
-                const response = await fetch(`${API_BASE}/api/ml/correlation/matrix/current?window_days=30`);
+                // Use risk endpoint for correlation matrix
+                const response = await fetch(`${API_BASE}/api/risk/correlation?lookback_days=30&source=cointracking`);
                 const data = await response.json();
                 
                 if (data.success) {
                     updateCorrelationMatrix(data);
-                    addLog('SUCCESS', `Correlation analysis completed for ${data.assets.length} assets`);
+                    addLog('SUCCESS', 'Correlation analysis completed');
                 } else {
                     throw new Error('Correlation analysis failed');
                 }
@@ -601,13 +615,40 @@
                 addLog('ERROR', `Correlation analysis failed: ${error.message}`);
             }
         }
+
+        // Unified pipeline: correlation does not require explicit training.
+        async function trainCorrelationModel() {
+            addLog('INFO', 'Correlation model training is not required in unified mode.');
+            updateStatus('correlation-status', 'Active', 'status-active');
+        }
         
         function updateCorrelationMatrix(data) {
-            document.getElementById('avg-correlation').textContent = 
-                data.market_metrics ? `${(data.market_metrics.average_correlation * 100).toFixed(1)}%` : '--';
-            document.getElementById('diversification-ratio').textContent = 
-                data.market_metrics ? `${(data.market_metrics.diversification_ratio * 100).toFixed(1)}%` : '--';
-                
+            // Support both unified alias (data.market_metrics) and risk endpoint shape (data.correlation_matrix)
+            const metrics = data.market_metrics || (data.correlation_matrix ? {
+                average_correlation: null,
+                diversification_ratio: data.correlation_matrix.diversification_ratio
+            } : null);
+
+            // Compute average correlation if missing but correlations are present
+            let avg = metrics && metrics.average_correlation;
+            if ((avg == null) && (data.correlations || (data.correlation_matrix && data.correlation_matrix.correlations))) {
+                const corrMap = data.correlations || data.correlation_matrix.correlations;
+                let vals = [];
+                for (const a in corrMap) {
+                    const row = corrMap[a] || {};
+                    for (const b in row) {
+                        if (a === b) continue;
+                        const v = parseFloat(row[b]);
+                        if (!isNaN(v)) vals.push(Math.abs(v));
+                    }
+                }
+                if (vals.length) avg = vals.reduce((s,x)=>s+x,0)/vals.length;
+            }
+
+            const divRatio = metrics && metrics.diversification_ratio;
+
+            document.getElementById('avg-correlation').textContent = (avg != null) ? `${(avg*100).toFixed(1)}%` : '--';
+            document.getElementById('diversification-ratio').textContent = (divRatio != null) ? `${(divRatio*100).toFixed(1)}%` : '--';
             updateStatus('correlation-status', 'Active', 'status-active');
         }
         
@@ -615,7 +656,8 @@
             addLog('INFO', 'Analyzing market sentiment...');
             
             try {
-                const response = await fetch(`${API_BASE}/api/ml/sentiment/analyze?symbols=BTC,ETH&days=3`);
+                // Call unified sentiment for a symbol as a demo
+                const response = await fetch(`${API_BASE}/api/ml/sentiment/BTC?days=3`);
                 const data = await response.json();
                 
                 if (data.success) {
@@ -630,9 +672,33 @@
         }
         
         function updateSentimentDisplay(data) {
-            // Update sentiment metrics (simplified)
-            document.getElementById('sentiment-score').textContent = 'Analyzing...';
-            updateStatus('sentiment-status', 'Active', 'status-active');
+            try {
+                const agg = data.aggregated_sentiment || {};
+                // Score normalization: prefer explicit score; fallback to overall_sentiment in [-1,1]
+                let score = agg.score;
+                if (score == null && typeof agg.overall_sentiment === 'number') {
+                    score = (agg.overall_sentiment + 1) / 2; // map [-1,1] -> [0,1]
+                }
+                const scorePct = (score != null) ? `${(score*100).toFixed(1)}%` : '--';
+                document.getElementById('sentiment-score').textContent = scorePct;
+
+                // Fear & Greed could also be set here if present
+                const fg = agg.fear_greed_index != null ? agg.fear_greed_index : (agg.source_breakdown && agg.source_breakdown.fear_greed && agg.source_breakdown.fear_greed.value);
+                if (fg != null) {
+                    document.getElementById('fear-greed').textContent = `${fg}`;
+                }
+
+                // Social volume/qualitative
+                const sv = agg.source_breakdown && agg.source_breakdown.social_media && agg.source_breakdown.social_media.volume;
+                if (sv) {
+                    document.getElementById('social-volume').textContent = `${sv}`;
+                }
+
+                updateStatus('sentiment-status', 'Active', 'status-active');
+            } catch (e) {
+                // leave placeholders
+                updateStatus('sentiment-status', 'Active', 'status-active');
+            }
         }
         
         async function getFearGreed() {
@@ -642,10 +708,12 @@
                 const response = await fetch(`${API_BASE}/api/ml/sentiment/fear-greed?days=7`);
                 const data = await response.json();
                 
-                if (data.success && data.current_reading) {
-                    document.getElementById('fear-greed').textContent = 
-                        `${data.current_reading.value} (${data.current_reading.classification})`;
-                    addLog('SUCCESS', `Fear & Greed: ${data.current_reading.value}`);
+                if (data.success && (data.fear_greed_data || data.current_reading)) {
+                    const fg = data.fear_greed_data || data.current_reading;
+                    const value = fg.value != null ? fg.value : fg.fear_greed_index;
+                    const cls = fg.classification || 'Unknown';
+                    document.getElementById('fear-greed').textContent = `${value} (${cls})`;
+                    addLog('SUCCESS', `Fear & Greed: ${value}`);
                 } else {
                     throw new Error('Fear & Greed data unavailable');
                 }

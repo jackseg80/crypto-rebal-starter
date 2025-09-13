@@ -65,6 +65,8 @@ const DEFAULT_SETTINGS = {
   cointracking_api_secret: '',
   fred_api_key: '',
   api_base_url: detectDefaultApiBase(),
+  // Admin/debug access for protected endpoints (dev only)
+  admin_key: '',
   refresh_interval: 5,
   enable_coingecko_classification: true,
   enable_portfolio_snapshots: true,

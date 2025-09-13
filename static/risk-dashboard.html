@@ -14,6 +14,7 @@
   <!-- Scripts partagés existants -->
   <script src="global-config.js"></script>
   <script src="appearance.js"></script>
+  <script src="lazy-loader.js"></script>
 
   <!-- Core modules ESM -->
   <script type="module" src="core/risk-dashboard-store.js"></script>
@@ -26,10 +27,7 @@
   <script type="module" src="modules/onchain-indicators.js"></script>
   <script type="module" src="modules/market-regimes.js"></script>
 
-  <!-- Chart.js for Bitcoin Cycle Visualization -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
-  <script
-    src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <!-- Chart.js will be lazy-loaded when needed -->
 
   <style>
     /* ===== Container responsive ===== */
@@ -1886,10 +1884,31 @@
       font-weight: 600;
     }
 
+    /* Two-column layout for advanced risk: left stack (3 tiles), right stack (Stress Testing) */
+    .two-col-advanced {
+      grid-template-columns: 2fr 1fr;
+      align-items: start;
+    }
+    .two-col-advanced .left-stack { display: grid; gap: var(--space-lg); }
+    .two-col-advanced .right-stack { display: block; }
+    /* Let stress scenarios grow freely in right column */
+    .two-col-advanced #stress-test-content .stress-scenarios { max-height: none; overflow: visible; }
+    @media (max-width: 1024px) {
+      .two-col-advanced { grid-template-columns: 1fr; }
+      .two-col-advanced .right-stack { margin-top: var(--space-lg); }
+    }
+
     .var-methods, .stress-scenarios, .monte-carlo-summary {
       display: flex;
       flex-direction: column;
       gap: var(--space-sm);
+    }
+
+    /* Keep Stress Testing card compact with internal scroll */
+    .stress-scenarios {
+      max-height: 340px; /* prevents pushing other tiles */
+      overflow: auto;
+      padding-right: 4px;
     }
 
     .var-method, .sim-stat {
@@ -2061,6 +2080,9 @@
 </head>
 
 <body>
+  <div id="backend-fallback-banner" style="display:none; background: color-mix(in oklab, var(--warning) 20%, transparent); border: 1px solid var(--warning); color: var(--theme-text); padding: .6rem; margin: .5rem auto; max-width: 95vw; border-radius: 6px;">
+    ⚠ Backend indisponible — mode prudent (cap réduit).
+  </div>
 
   <div class="wrap">
     <!-- Controls Header -->
@@ -2127,10 +2149,11 @@
           <div class="sidebar-title" style="font-size:1rem; font-weight:700;">
             ⚖️ Score Décisionnel
           </div>
-          <div class="ccs-gauge" id="blended-gauge"
+          <div class="ccs-gauge decision-card" id="blended-gauge"
             style="padding:2rem; border:2px solid var(--theme-border); box-shadow:0 0 12px rgba(0,0,0,0.15);">
             <div class="ccs-score" id="kpi-blended" data-score="blended" style="font-size:3rem;">--</div>
             <div class="ccs-label" id="blended-label" style="font-size:1rem; font-weight:700;">Loading...</div>
+            <div class="ccs-meta" id="blended-meta" style="font-size:.75rem; color: var(--theme-text-muted); margin-top:.25rem;"></div>
           </div>
         </div>
 
@@ -2192,6 +2215,7 @@
             <div class="governance-details" id="governance-details" style="margin-top: 8px; font-size: 0.85em; opacity: 0.8;">
               <div id="governance-mode">Mode: manual</div>
               <div id="governance-contradiction">Contradiction: 0.0%</div>
+              <div id="governance-constraints" style="font-size:.75rem;color:var(--warning);margin-top:4px;"></div>
             </div>
           </div>
         </div>
@@ -2330,7 +2354,11 @@
           const res = calibrateCycleParams(); // ancres par défaut
           console.debug('Cycle params calibrés:', getCycleParams(), 'score=', res.score);
           // ✅ Redessiner le même canvas (force refresh after calibration)
-          await createBitcoinCycleChart('bitcoin-cycle-chart', true);
+          if (window.Chart) {
+            await createBitcoinCycleChart('bitcoin-cycle-chart', true);
+          } else {
+            console.log('📊 Chart.js not loaded, skipping chart refresh');
+          }
           // Also clear cycle content cache as calibration affects data
           const cycleContentConfig = CACHE_CONFIG.CYCLE_CONTENT;
           if (cycleContentConfig) localStorage.removeItem(cycleContentConfig.key);
@@ -3205,7 +3233,7 @@
     async function acknowledgeAlert(alertId) {
       try {
         const apiBaseUrl = globalConfig.get('api_base_url');
-        const response = await fetch(`${apiBaseUrl}/api/alerts/acknowledge/${alertId}`, {
+        const response = await fetch(`${apiBaseUrl}/api/alerts/test/acknowledge/${alertId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ notes: 'Acknowledged from dashboard' })
@@ -3227,7 +3255,7 @@
     async function snoozeAlert(alertId, minutes) {
       try {
         const apiBaseUrl = globalConfig.get('api_base_url');
-        const response = await fetch(`${apiBaseUrl}/api/alerts/snooze/${alertId}`, {
+        const response = await fetch(`${apiBaseUrl}/api/alerts/test/snooze/${alertId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ minutes })
@@ -3642,7 +3670,18 @@
 
       if (governanceMode && governanceContradiction) {
         governanceMode.textContent = `Mode: ${governanceStatus.mode}`;
-        governanceContradiction.textContent = `Contradiction: ${(governanceStatus.contradictionLevel * 100).toFixed(1)}%`;
+        const contraPct = (governanceStatus.contradictionLevel * 100);
+        governanceContradiction.textContent = `Contradiction: ${contraPct.toFixed(1)}%`;
+
+        // Gate 'Aggressive' mode in UI: blended < 70 or contradiction > 40%
+        try {
+          const constraintsEl = document.getElementById('governance-constraints');
+          const blended = state.scores?.blended || 0;
+          const gated = (blended < 70) || (contraPct > 40);
+          if (constraintsEl) {
+            constraintsEl.textContent = gated ? 'Aggressive disabled (blended < 70 or contradiction > 40%)' : '';
+          }
+        } catch {}
       }
 
       // Update cycle indicator with enhanced info
@@ -3747,11 +3786,27 @@
 
         // 👉 applique le “tone” pour que le CSS choisisse fond/bordure/ombre
         blendedGauge.setAttribute('data-tone', tone);
+
+        // Update blended meta: source, contradiction, updated
+        try {
+          const metaEl = document.getElementById('blended-meta');
+          const ml = store.get('governance.ml_signals');
+          const source = (ml && typeof ml.decision_score === 'number') ? 'backend' : 'blended';
+          const ci = ml && typeof ml.contradiction_index === 'number' ? Math.round(ml.contradiction_index * 100) : null;
+          const ts = ml && ml.timestamp ? new Date(ml.timestamp) : null;
+          const hh = ts ? ts.toLocaleTimeString() : null;
+          const backendStatus = store.get('ui.apiStatus.backend');
+          if (metaEl) {
+            metaEl.textContent = `${source}${ci!=null?` • Contrad: ${ci}%`:''}${hh?` • Updated ${hh}`:''}${backendStatus==='stale'?` • STALE`:''}${backendStatus==='error'?` • ERROR`:''}`;
+          }
+        } catch {}
       } else {
         blendedEl.textContent = '--';
         blendedLabel.textContent = 'Loading...';
         blendedLabel.style.color = '';
         blendedGauge.removeAttribute('data-tone');
+        const metaEl = document.getElementById('blended-meta');
+        if (metaEl) metaEl.textContent = '';
       }
 
       // Update targets summary placeholder
@@ -3970,6 +4025,19 @@
       return Math.max(0, Math.min(100, finalScore));
     }
 
+    // Apply UI state based on blended decision score
+    function applyDecisionState(score) {
+      try {
+        const el = document.getElementById('blended-gauge');
+        if (!el || typeof score !== 'number') return;
+        el.classList.remove('decision--bullish','decision--neutral','decision--defensive');
+        let state = 'neutral';
+        if (score >= 70) state = 'bullish';
+        else if (score < 45) state = 'defensive';
+        el.classList.add(`decision--${state}`);
+      } catch (e) { /* no-op */ }
+    }
+
     // Main function to calculate all scores
     async function calculateAllScores(riskData, ccsData) {
       try {
@@ -4025,11 +4093,16 @@
 
         // Calculate Strategic Blended Score (nouvelle formule)
         blendedScore = calculateBlendedScore(ccsMixteScore, onchainScore, riskScore);
+        // Reflect decision state in UI card
+        try { applyDecisionState(blendedScore); } catch {}
 
         // Store the scores in the store for use by other modules
         store.set('scores.onchain', onchainScore);
         store.set('scores.risk', riskScore);
         store.set('scores.blended', blendedScore);
+
+        // Prefer server-side recompute of blended (source of truth)
+        try { await store.recomputeGovernanceBlended(ccsMixteScore, onchainScore, riskScore); } catch {}
 
         // Store scores in persistent cache
         const scoreData = {
@@ -4115,6 +4188,15 @@
     }
 
     // ====== Dynamic Weighting Functions ======
+    // Fallback banner toggle (backend status)
+    setInterval(() => {
+      try {
+        const status = store.get('ui.apiStatus.backend');
+        const banner = document.getElementById('backend-fallback-banner');
+        if (!banner) return;
+        banner.style.display = (status && status !== 'healthy') ? 'block' : 'none';
+      } catch {}
+    }, 2000);
 
     window.toggleDynamicWeighting = function () {
       const toggle = document.getElementById('dynamic-weighting-toggle');
@@ -4164,6 +4246,40 @@
 
     // ====== Section Collapse Functions ======
 
+    // ✅ NOUVEAU: Fonction de debug pour forcer le chargement du Bitcoin Chart
+    window.debugBitcoinChart = function() {
+      console.log('🐛 DEBUG: Force loading Bitcoin Chart');
+
+      const lazyElement = document.querySelector('[data-lazy-load="component"][data-lazy-component="BitcoinCycleChart"]');
+
+      if (!lazyElement) {
+        console.error('❌ Bitcoin Chart element not found');
+        alert('❌ Bitcoin Chart element not found');
+        return;
+      }
+
+      console.log('✅ Bitcoin Chart element found:', lazyElement);
+      console.log('Lazy loader available:', !!window.lazyLoader);
+      console.log('BitcoinCycleChart class available:', !!window.BitcoinCycleChart);
+      console.log('Element classes:', lazyElement.className);
+
+      if (!window.lazyLoader) {
+        console.error('❌ Lazy loader not available');
+        alert('❌ Lazy loader not available');
+        return;
+      }
+
+      try {
+        console.log('🚀 Forcing lazy load...');
+        window.lazyLoader.loadVisibleElement(lazyElement);
+        console.log('✅ Force load triggered');
+        alert('🚀 Force load triggered - check console');
+      } catch (error) {
+        console.error('❌ Error during force load:', error);
+        alert('❌ Error: ' + error.message);
+      }
+    };
+
     window.toggleSection = function (sectionId) {
       const content = document.getElementById(sectionId + '-content');
       const arrow = document.getElementById(sectionId + '-arrow');
@@ -4176,6 +4292,34 @@
         content.style.display = '';
         arrow.textContent = '▼';
         localStorage.setItem(`section_${sectionId}_collapsed`, 'false');
+
+        // Observe lazy elements; only force-load if they are near viewport
+        setTimeout(() => {
+          const lazyElements = content.querySelectorAll('[data-lazy-load]');
+          console.log(`🔍 Section ${sectionId} expanded, checking ${lazyElements.length} lazy elements`);
+
+          const isNearViewport = (el, margin = 150) => {
+            try {
+              const r = el.getBoundingClientRect();
+              const vh = window.innerHeight || document.documentElement.clientHeight;
+              return r.top < vh + margin && r.bottom > -margin;
+            } catch (_) { return false; }
+          };
+
+          lazyElements.forEach(element => {
+            if (!element.classList.contains('lazy-loaded') && !element.classList.contains('lazy-error')) {
+              if (isNearViewport(element)) {
+                console.log(`📊 Element near viewport; loading now in section ${sectionId}`);
+                window.lazyLoader?.loadVisibleElement(element);
+              } else {
+                console.log(`👁️ Element not near viewport; ensuring observer is attached`);
+                if (window.lazyLoader?.intersectionObserver) {
+                  try { window.lazyLoader.intersectionObserver.observe(element); } catch (_) {}
+                }
+              }
+            }
+          });
+        }, 100);
       } else {
         content.style.display = 'none';
         arrow.textContent = '▶';
@@ -4199,6 +4343,36 @@
           } else {
             content.style.display = '';
             arrow.textContent = '▼';
+
+            // Ensure lazy elements are observed; only force-load if near viewport
+            setTimeout(() => {
+              const lazyElements = content.querySelectorAll('[data-lazy-load]');
+              if (lazyElements.length > 0) {
+                console.log(`🔍 Section ${sectionId} is open by default, checking ${lazyElements.length} lazy elements`);
+
+                lazyElements.forEach(element => {
+                  if (!element.classList.contains('lazy-loaded') && !element.classList.contains('lazy-error')) {
+                    const isNearViewport = (el, margin = 150) => {
+                      try {
+                        const r = el.getBoundingClientRect();
+                        const vh = window.innerHeight || document.documentElement.clientHeight;
+                        return r.top < vh + margin && r.bottom > -margin;
+                      } catch (_) { return false; }
+                    };
+
+                    if (isNearViewport(element)) {
+                      console.log(`📊 Element near viewport; loading now in open section ${sectionId}`);
+                      setTimeout(() => { window.lazyLoader?.loadVisibleElement(element); }, 300);
+                    } else {
+                      console.log(`👁️ Element not near viewport; ensuring observer is attached`);
+                      if (window.lazyLoader?.intersectionObserver) {
+                        try { window.lazyLoader.intersectionObserver.observe(element); } catch (_) {}
+                      }
+                    }
+                  }
+                });
+              }
+            }, 100);
           }
         }
       });
@@ -5399,6 +5573,12 @@ async function refreshDashboard(forceRefresh = false) {
       }
     }
 
+    // Make chart creator available to lazy-loaded component
+    // Ensures BitcoinCycleChart.init() can call it after Chart.js loads
+    if (!window.createBitcoinCycleChart) {
+      window.createBitcoinCycleChart = createBitcoinCycleChart;
+    }
+
     // ====== On-Chain Indicators (version themée) ======
     async function loadOnChainIndicators() {
       try {
@@ -5829,19 +6009,32 @@ async function refreshDashboard(forceRefresh = false) {
           </div>
         </div>
         
-        <!-- Bitcoin Cycle Chart -->
-        <div class="risk-card" style="margin-bottom: 2rem;">
+        <!-- Bitcoin Cycle Chart (Lazy-loaded) -->
+        <div class="risk-card" style="margin-bottom: 2rem;"
+             data-lazy-load="component"
+             data-lazy-component="BitcoinCycleChart">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
             <h3 style="margin: 0;">📈 Graphique des Cycles Bitcoin</h3>
-            <button onclick="toggleSection('bitcoin-cycle')" style="background: none; border: 1px solid var(--theme-border); border-radius: 4px; padding: 4px 8px; cursor: pointer; color: var(--theme-text); font-size: 0.8rem;" title="Réduire/Agrandir">
-              <span id="bitcoin-cycle-arrow">▼</span>
-            </button>
+            <div style="display: flex; gap: 0.5rem;">
+              <button onclick="debugBitcoinChart()" style="background: #ff6b35; color: white; border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 0.8rem;" title="Debug - Force Load Chart">
+                🐛 DEBUG
+              </button>
+              <button onclick="toggleSection('bitcoin-cycle')" style="background: none; border: 1px solid var(--theme-border); border-radius: 4px; padding: 4px 8px; cursor: pointer; color: var(--theme-text); font-size: 0.8rem;" title="Réduire/Agrandir">
+                <span id="bitcoin-cycle-arrow">▼</span>
+              </button>
+            </div>
           </div>
           <div id="bitcoin-cycle-content">
             <!-- Label de source injecté dynamiquement -->
             <div id="btc-source-label" style="margin-left:auto;color:var(--theme-text-muted);font-size:12px;"></div>
             <div style="height: 520px; position: relative; margin: 1rem 0;">
-              <canvas id="bitcoin-cycle-chart" style="width: 100%; height: 100%;"></canvas>
+              <div class="chart-lazy-placeholder" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: var(--theme-bg-secondary); color: var(--theme-text-muted); border: 1px dashed var(--theme-border); border-radius: 8px;">
+                <div style="text-align: center;">
+                  <div style="font-size: 2rem; margin-bottom: 0.5rem;">📊</div>
+                  <div>Graphique se charge au scroll...</div>
+                </div>
+              </div>
+              <canvas id="bitcoin-cycle-chart" style="width: 100%; height: 100%; display: none;"></canvas>
             </div>
           </div>
           <div style="font-size: 0.85rem; color: var(--theme-text-muted); text-align: center; margin-top: 1rem;">
@@ -5980,19 +6173,12 @@ async function refreshDashboard(forceRefresh = false) {
         </div>
       `;
 
-      // Create Bitcoin cycle chart after DOM is ready
-      setTimeout(async () => {
-        // Prevent multiple concurrent chart creations
-        if (window.bitcoinChartCreating) {
-          console.log('⚠️ Bitcoin chart creation already in progress, skipping...');
-          return;
-        }
-
-        window.bitcoinChartCreating = true;
-        try {
-          await createBitcoinCycleChart('bitcoin-cycle-chart');
-        } finally {
-          window.bitcoinChartCreating = false;
+      // Do NOT force-create the chart here. Let IntersectionObserver
+      // load the component when it scrolls into view to avoid upfront cost.
+      setTimeout(() => {
+        const lazyElement = document.querySelector('[data-lazy-load="component"][data-lazy-component="BitcoinCycleChart"]');
+        if (lazyElement && window.lazyLoader?.intersectionObserver) {
+          try { window.lazyLoader.intersectionObserver.observe(lazyElement); } catch (_) {}
         }
       }, 100);
     }
@@ -6008,26 +6194,50 @@ async function refreshDashboard(forceRefresh = false) {
         console.warn('Chart canvas not found for cache recreation');
         return;
       }
+
+      const isNearViewport = (el, margin = 150) => {
+        try {
+          const r = el.getBoundingClientRect();
+          const vh = window.innerHeight || document.documentElement.clientHeight;
+          return r.top < vh + margin && r.bottom > -margin;
+        } catch (_) { return false; }
+      };
       
       if (cachedChart?.chartConfig) {
         console.debug('⚡ Recreating chart from cache');
         try {
+          // Only recreate if in or near viewport and Chart.js is ready
+          if (!isNearViewport(canvas)) {
+            console.log('⏸️ Chart not in viewport yet; deferring recreation to lazy loader');
+            return;
+          }
+          if (!window.Chart) {
+            console.log('📊 Chart.js not loaded yet; lazy loader will handle when visible');
+            return;
+          }
+
           // Destroy existing chart if any
           if (window.bitcoinCycleChart) {
             window.bitcoinCycleChart.destroy();
           }
-          
+
           // Recreate from cached config
           window.bitcoinCycleChart = new Chart(canvas, cachedChart.chartConfig);
           console.debug('✅ Chart recreated from cache');
-          
+
         } catch (error) {
           console.warn('Failed to recreate cached chart, falling back to fresh render:', error);
-          await createBitcoinCycleChart('bitcoin-cycle-chart');
+          if (window.Chart) {
+            await createBitcoinCycleChart('bitcoin-cycle-chart');
+          }
         }
       } else {
-        console.debug('🔄 No cached chart config, creating fresh chart');
-        await createBitcoinCycleChart('bitcoin-cycle-chart');
+        console.debug('🔄 No cached chart config; will let lazy loader create when visible.');
+        // Ensure element is being observed
+        const lazyElement = document.querySelector('[data-lazy-load="component"][data-lazy-component="BitcoinCycleChart"]');
+        if (lazyElement && window.lazyLoader?.intersectionObserver) {
+          try { window.lazyLoader.intersectionObserver.observe(lazyElement); } catch (_) {}
+        }
       }
     }
 
@@ -6194,6 +6404,7 @@ async function refreshDashboard(forceRefresh = false) {
           <div class="risk-card">
             <h3>🎯 Proposed Targets</h3>
             ${renderTargetsTable(appliedTargets, appliedStrategy)}
+            ${renderExposureDelta(smartProposal)}
             <div style="margin-top: var(--space-lg); text-align: center; padding: var(--space-sm); background: var(--info-bg); border-radius: var(--radius-md); border: 1px solid var(--info);">
               <div style="font-size: 0.875rem; color: var(--info); font-weight: 600; margin-bottom: var(--space-xs);">
                 💡 Nouvelle méthode d'application
@@ -6232,6 +6443,29 @@ async function refreshDashboard(forceRefresh = false) {
             `).join('')}
         </div>
       `;
+    }
+
+    function renderExposureDelta(smart) {
+      try {
+        if (!smart) return '';
+        const base = Number(smart.base_risky || 0);
+        const fin = Number(smart.final_risky || 0);
+        const cap = smart.exposure_cap != null ? Number(smart.exposure_cap) : null;
+        const backendStatus = smart.backend_status || 'unknown';
+        const delta = Math.round((base - fin) * 10) / 10;
+        const hasOverflow = delta > 0.05; // >0.05% considered meaningful
+        const capText = cap != null ? `${Math.round(cap)}%` : (backendStatus === 'error' ? '5% (fallback)' : 'n/a');
+
+        return `
+          <div style="margin-top: .75rem; padding: .6rem; border-radius: 6px; border: 1px solid var(--theme-border); background: var(--theme-bg);">
+            <div style="font-size:.85rem; color: var(--theme-text-muted);">
+              Cap d'exposition: <b>${capText}</b>
+              ${backendStatus === 'error' ? `<span style="margin-left:.5rem; color: var(--warning);">Backend indisponible — mode prudent</span>` : ''}
+            </div>
+            ${hasOverflow ? `<div style="margin-top:.25rem; font-size:.85rem; color: var(--warning);">Cible risky ${Math.round(base)}% → Cap ${Math.round(fin)}% (<b>−${delta} pts non exécutables</b>)</div>` : ''}
+          </div>
+        `;
+      } catch { return ''; }
     }
 
     function renderActionPlan(current, proposed) {
@@ -6968,7 +7202,7 @@ async function refreshDashboard(forceRefresh = false) {
 
       try {
         const apiBaseUrl = globalConfig.get('api_base_url');
-        const response = await fetch(`${apiBaseUrl}/api/alerts/acknowledge/${currentAlert.id}`, {
+        const response = await fetch(`${apiBaseUrl}/api/alerts/test/acknowledge/${currentAlert.id}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -7000,7 +7234,7 @@ async function refreshDashboard(forceRefresh = false) {
 
       try {
         const apiBaseUrl = globalConfig.get('api_base_url');
-        const response = await fetch(`${apiBaseUrl}/api/alerts/snooze/${currentAlert.id}`, {
+        const response = await fetch(`${apiBaseUrl}/api/alerts/test/snooze/${currentAlert.id}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -7642,36 +7876,37 @@ async function refreshDashboard(forceRefresh = false) {
                   <span class="status-badge active">VaR Models Active</span>
                 </div>
                 <div class="card-content">
-                  <div class="risk-grid">
-                    <!-- VaR Analysis -->
-                    <div class="risk-card">
-                      <h4>Value at Risk (VaR)</h4>
-                      <div id="var-analysis-content">
-                        <div class="loading">Loading VaR analysis...</div>
+                  <div class="risk-grid two-col-advanced">
+                    <div class="left-stack">
+                      <!-- VaR Analysis -->
+                      <div class="risk-card">
+                        <h4>Value at Risk (VaR)</h4>
+                        <div id="var-analysis-content">
+                          <div class="loading">Loading VaR analysis...</div>
+                        </div>
+                      </div>
+                      <!-- Monte Carlo -->
+                      <div class="risk-card">
+                        <h4>Monte Carlo Simulation</h4>
+                        <div id="monte-carlo-content">
+                          <div class="loading">Loading simulations...</div>
+                        </div>
+                      </div>
+                      <!-- Risk Attribution -->
+                      <div class="risk-card">
+                        <h4>Risk Attribution</h4>
+                        <div id="risk-attribution-content">
+                          <div class="loading">Loading attribution analysis...</div>
+                        </div>
                       </div>
                     </div>
-                    
-                    <!-- Stress Testing -->
-                    <div class="risk-card">
-                      <h4>Stress Testing</h4>
-                      <div id="stress-test-content">
-                        <div class="loading">Loading stress tests...</div>
-                      </div>
-                    </div>
-                    
-                    <!-- Monte Carlo -->
-                    <div class="risk-card">
-                      <h4>Monte Carlo Simulation</h4>
-                      <div id="monte-carlo-content">
-                        <div class="loading">Loading simulations...</div>
-                      </div>
-                    </div>
-                    
-                    <!-- Risk Attribution -->
-                    <div class="risk-card">
-                      <h4>Risk Attribution</h4>
-                      <div id="risk-attribution-content">
-                        <div class="loading">Loading attribution analysis...</div>
+                    <div class="right-stack">
+                      <!-- Stress Testing (free height on the right) -->
+                      <div class="risk-card">
+                        <h4>Stress Testing</h4>
+                        <div id="stress-test-content">
+                          <div class="loading">Loading stress tests...</div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -7703,6 +7938,8 @@ async function refreshDashboard(forceRefresh = false) {
               await loadStressTestScenarios();
               // Load Monte Carlo results
               await loadMonteCarloResults();
+              // Load Risk Attribution
+              await loadRiskAttribution();
             } else {
               document.getElementById('var-analysis-content').innerHTML = 
                 '<div class="warning">Advanced Risk Engine not available</div>';
@@ -7968,6 +8205,62 @@ async function refreshDashboard(forceRefresh = false) {
           `;
         }
 
+        async function loadRiskAttribution() {
+          const el = document.getElementById('risk-attribution-content');
+          if (!el) return;
+          try {
+            // Collect and normalize current weights to sum to 1.0
+            let weights = getCurrentPortfolioWeights();
+            const sum = Object.values(weights).reduce((a, b) => a + (Number(b) || 0), 0);
+            if (!(sum > 0)) {
+              weights = { BTC: 0.6, ETH: 0.4 };
+            } else {
+              Object.keys(weights).forEach(k => { weights[k] = (Number(weights[k]) || 0) / sum; });
+            }
+            const value = getCurrentPortfolioValue();
+
+            const resp = await fetch('/api/risk/advanced/attribution/analyze?confidence_level=0.95', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ weights, value })
+            });
+            if (!resp.ok) throw new Error(`Attribution API failed: ${resp.status}`);
+            const data = await resp.json();
+
+            // Build a compact attribution view
+            const contr = data.risk_contribution_pct || {};
+            const compVar = data.component_var || {};
+            const entries = Object.keys(contr)
+              .map(k => ({ k, pct: contr[k] ?? 0, cvar: compVar[k] ?? 0 }))
+              .sort((a, b) => (b.pct - a.pct))
+              .slice(0, 6);
+
+            const rows = entries.map(e => `
+              <div class="var-method">
+                <span class="method-label">${e.k}</span>
+                <span class="stat-value">${e.pct.toFixed(1)}% <small style="color:var(--theme-text-muted);">(cVaR ${e.cvar.toFixed(2)})</small></span>
+              </div>
+            `).join('');
+
+            el.innerHTML = `
+              <div class="var-methods">
+                <div class="sim-stat" style="justify-content:space-between;">
+                  <span class="stat-label">Concentration</span>
+                  <span class="stat-value">${Math.round((data.concentration_risk||0)*100)}%</span>
+                </div>
+                <div class="sim-stat" style="justify-content:space-between;">
+                  <span class="stat-label">Diversification</span>
+                  <span class="stat-value">${(data.diversification_ratio||0).toFixed(2)}</span>
+                </div>
+                ${rows}
+              </div>
+            `;
+          } catch (e) {
+            console.warn('Risk attribution load failed:', e);
+            el.innerHTML = `<div class="warning">Attribution indisponible pour le moment</div>`;
+          }
+        }
+
         // Initialize mode from localStorage
         document.addEventListener('DOMContentLoaded', function() {
           const savedMode = localStorage.getItem('risk-dashboard-mode');
@@ -8067,6 +8360,128 @@ async function refreshDashboard(forceRefresh = false) {
       </div>
     </div>
   </div>
+
+  <!-- Bitcoin Cycle Chart Lazy Loading Component -->
+  <script>
+    // Composant pour le chargement lazy de Chart.js et du graphique Bitcoin Cycle
+    class BitcoinCycleChart {
+      constructor(element) {
+        console.log('🔧 BitcoinCycleChart constructor called with element:', element);
+        this.element = element;
+        this.chartLoaded = false;
+        this.placeholder = element.querySelector('.chart-lazy-placeholder');
+        this.canvas = element.querySelector('#bitcoin-cycle-chart');
+        console.log('🔍 Placeholder found:', !!this.placeholder, 'Canvas found:', !!this.canvas);
+      }
+
+      async init() {
+        console.log('🚀 BitcoinCycleChart init() called');
+        try {
+          // Afficher un indicateur de chargement
+          if (this.placeholder) {
+            console.log('✅ Showing loading indicator');
+            this.placeholder.innerHTML = `
+              <div style="text-align: center;">
+                <div style="font-size: 2rem; margin-bottom: 0.5rem;">📊</div>
+                <div>Chargement de Chart.js...</div>
+                <div class="lazy-loading" style="margin-top: 1rem;"></div>
+              </div>
+            `;
+          } else {
+            console.warn('⚠️ No placeholder found for loading indicator');
+          }
+
+          // Charger Chart.js de manière asynchrone
+          console.log('📊 Starting to load Chart.js...');
+          await this.loadChartJS();
+          console.log('✅ Chart.js loaded successfully');
+
+          // Masquer le placeholder et afficher le canvas
+          console.log('🔄 Switching from placeholder to canvas...');
+          if (this.placeholder) {
+            this.placeholder.style.display = 'none';
+            console.log('✅ Placeholder hidden');
+          }
+          if (this.canvas) {
+            this.canvas.style.display = 'block';
+            console.log('✅ Canvas shown');
+          } else {
+            console.warn('⚠️ No canvas found to show');
+          }
+
+          // Créer le graphique Bitcoin Cycle
+          if (typeof createBitcoinCycleChart === 'function') {
+            console.log('📊 Calling createBitcoinCycleChart...');
+            await createBitcoinCycleChart('bitcoin-cycle-chart');
+            console.log('✅ createBitcoinCycleChart completed');
+          } else {
+            console.error('❌ createBitcoinCycleChart function not found');
+          }
+
+          this.chartLoaded = true;
+          console.log('✅ Bitcoin Cycle Chart loaded successfully via lazy loading');
+
+        } catch (error) {
+          console.error('❌ Failed to lazy load Bitcoin Cycle Chart:', error);
+
+          // Afficher l'erreur dans le placeholder
+          if (this.placeholder) {
+            this.placeholder.innerHTML = `
+              <div style="text-align: center; color: var(--theme-error, #dc3545);">
+                <div style="font-size: 2rem; margin-bottom: 0.5rem;">⚠️</div>
+                <div>Erreur lors du chargement du graphique</div>
+                <div style="font-size: 0.8rem; margin-top: 0.5rem;">${error.message}</div>
+              </div>
+            `;
+          }
+        }
+      }
+
+      async loadChartJS() {
+        // Vérifier si Chart.js est déjà chargé
+        if (window.Chart) {
+          console.log('📊 Chart.js already loaded');
+          return Promise.resolve();
+        }
+
+        console.log('📊 Loading Chart.js...');
+
+        // Charger Chart.js principal
+        const chartPromise = new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js';
+          script.onload = resolve;
+          script.onerror = () => reject(new Error('Failed to load Chart.js'));
+          document.head.appendChild(script);
+        });
+
+        await chartPromise;
+
+        // Charger l'adaptateur de dates
+        const adapterPromise = new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js';
+          script.onload = resolve;
+          script.onerror = () => reject(new Error('Failed to load Chart.js date adapter'));
+          document.head.appendChild(script);
+        });
+
+        await adapterPromise;
+
+        // Petit délai pour s'assurer que Chart.js est disponible
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        if (!window.Chart) {
+          throw new Error('Chart.js failed to initialize');
+        }
+
+        console.log('✅ Chart.js loaded successfully');
+      }
+    }
+
+    // Enregistrer le composant globalement pour le lazy loader
+    window.BitcoinCycleChart = BitcoinCycleChart;
+  </script>
 
 </body>
 

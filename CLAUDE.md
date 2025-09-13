@@ -8,13 +8,17 @@
 ## 0) Règles d’or (strict)
 
 1. Secrets: ne jamais lire/committer `.env` ni publier des clés.
-2. Navigation/UI: conserver le menu unifié `static/components/nav.js` + thèmes `shared-theme.css`/`theme-compat.css`.
+2. Navigation/UI: conserver le menu unifié `static/components/nav.js` + thèmes `shared-theme.css`/`theme-compat.css`. Ne pas réintroduire `static/shared-header.js` (archivé).
 3. Config front: aucune URL API en dur. Toujours passer par `static/global-config.js` (détection `window.location.origin`).
 4. Modifs minimales: patchs ciblés, pas de refontes/renommages massifs sans demande explicite.
 5. Perf: favoriser endpoints batch, cache, lazy‑loading.
 6. Terminologie: garder certains anglicismes (coin, wallet, airdrop…).
 7. Sécurité: valider Pydantic, limiter tailles/paginer, penser rate‑limit sur endpoints sensibles.
 8. Tests: tests unitaires pour logique non triviale + smoke test d’API pour tout nouvel endpoint.
+
+Note endpoints de test/dev:
+- Les routes `/api/alerts/test/*` sont désactivées par défaut et toujours désactivées en production.
+- Pour activer en dev: définir `ENABLE_ALERTS_TEST_ENDPOINTS=true` dans l’environnement (non-prod uniquement).
 
 ---
 

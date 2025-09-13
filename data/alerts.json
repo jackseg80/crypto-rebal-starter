@@ -699,6 +699,82 @@
       "escalated_to": "ESC-20250910-103646-4cd33245"
     },
     {
+      "id": "TEST-20250913-001",
+      "alert_type": "PORTFOLIO_DRIFT",
+      "severity": "S2",
+      "created_at": "2025-09-13T08:44:00.000000",
+      "data": {
+        "current_value": 0.12,
+        "threshold": 0.08,
+        "test_alert": true,
+        "portfolio_composition": {
+          "BTC": 0.55,
+          "ETH": 0.3,
+          "SOL": 0.15
+        }
+      },
+      "acknowledged_at": null,
+      "acknowledged_by": null,
+      "snooze_until": null,
+      "resolved_at": null,
+      "suggested_action": {
+        "type": "rebalance",
+        "urgency": "medium"
+      },
+      "applied_at": null,
+      "applied_by": null,
+      "escalation_sources": [],
+      "escalation_count": 0
+    },
+    {
+      "id": "TEST-20250913-002",
+      "alert_type": "VOL_Q90_CROSS",
+      "severity": "S3",
+      "created_at": "2025-09-13T08:45:00.000000",
+      "data": {
+        "current_value": 0.28,
+        "threshold": 0.15,
+        "test_alert": true,
+        "volatility_spike": "High volatility detected across all assets"
+      },
+      "acknowledged_at": null,
+      "acknowledged_by": null,
+      "snooze_until": null,
+      "resolved_at": null,
+      "suggested_action": {
+        "type": "freeze",
+        "ttl_minutes": 120
+      },
+      "applied_at": null,
+      "applied_by": null,
+      "escalation_sources": [],
+      "escalation_count": 0
+    },
+    {
+      "id": "TEST-20250913-003",
+      "alert_type": "REGIME_FLIP",
+      "severity": "S1",
+      "created_at": "2025-09-13T08:46:00.000000",
+      "data": {
+        "current_regime": "bear",
+        "previous_regime": "bull",
+        "confidence": 0.89,
+        "test_alert": true
+      },
+      "acknowledged_at": null,
+      "acknowledged_by": null,
+      "snooze_until": null,
+      "resolved_at": null,
+      "suggested_action": {
+        "type": "strategy_change",
+        "new_strategy": "defensive"
+      },
+      "applied_at": null,
+      "applied_by": null,
+      "escalation_sources": [],
+      "escalation_count": 0
+    },
+    {
       "id": "ESC-20250910-103646-4cd33245",
       "alert_type": "EXEC_COST_SPIKE",
       "severity": "S3",
@@ -733,6 +809,6 @@
   "metadata": {
     "created_at": "2025-09-10T00:47:55.910662",
     "version": "1.0",
-    "last_purge": "2025-09-12T22:00:44.966148"
+    "last_purge": "2025-09-13T16:00:56.099409"
   }
 }

@@ -56,6 +56,13 @@
   --radius-md: 0.5rem;
   --radius-lg: 0.75rem;
   --radius-xl: 1rem;
+
+  /* Decision card variables */
+  --decision-bg: var(--theme-surface);
+  --decision-fg: var(--theme-text);
+  --decision-accent-good: #16a34a;   /* green-600 */
+  --decision-accent-warn: #eab308;   /* amber-500 */
+  --decision-accent-risk: #ef4444;   /* red-500 */
 }
 
 /* Mode clair (défaut) */
@@ -627,6 +634,26 @@ body {
 
 .text-subtle {
   color: var(--theme-text-subtle);
+}
+
+/* ========== DECISION CARD (Blended) ========== */
+.decision-card {
+  transition: background-color var(--transition-normal), color var(--transition-normal), border-color var(--transition-normal);
+  background: var(--decision-bg);
+  color: var(--decision-fg);
+  border: 2px solid var(--theme-border);
+}
+.decision--bullish {
+  /* Favorable: subtle blend toward green */
+  --decision-bg: color-mix(in oklab, var(--theme-surface-elevated) 85%, var(--decision-accent-good));
+}
+.decision--neutral {
+  /* Caution: blend toward amber */
+  --decision-bg: color-mix(in oklab, var(--theme-surface-elevated) 88%, var(--decision-accent-warn));
+}
+.decision--defensive {
+  /* Defensive: blend toward red */
+  --decision-bg: color-mix(in oklab, var(--theme-surface-elevated) 88%, var(--decision-accent-risk));
 }
 
 /* Utilitaires d'espacement */

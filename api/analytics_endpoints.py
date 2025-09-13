@@ -537,7 +537,117 @@ async def _get_portfolio_history_data(days_back: int) -> List[Dict[str, Any]]:
             current_date += timedelta(days=1)
         
         return portfolio_history
-        
+
     except Exception as e:
         logger.error(f"Error retrieving portfolio history: {e}")
         return []
+
+
+class MarketBreadthResponse(BaseModel):
+    """Réponse pour l'analyse de largeur de marché"""
+    advance_decline_ratio: float = Field(description="Ratio avance/déclin [0-1]")
+    new_highs_count: int = Field(description="Nombre de nouveaux ATH récents")
+    volume_concentration: float = Field(description="Concentration du volume [0-1]")
+    momentum_dispersion: float = Field(description="Dispersion du momentum [0-1]")
+    meta: Dict[str, Any] = Field(description="Métadonnées")
+
+
+@router.get("/market-breadth", response_model=MarketBreadthResponse)
+async def get_market_breadth():
+    """
+    Analyse de largeur de marché (market breadth)
+
+    Fournit des métriques sur la participation du marché:
+    - Ratio avance/déclin: proportion d'actifs en hausse
+    - Nouveaux ATH: nombre d'actifs à des nouveaux sommets
+    - Concentration volume: degré de concentration du volume
+    - Dispersion momentum: variabilité des performances
+    """
+    try:
+        logger.info("Calculating market breadth metrics")
+
+        # Utiliser les données de balances existantes pour calculer les métriques
+        from api.balances import get_unified_filtered_balances
+
+        balances = await get_unified_filtered_balances()
+
+        if not balances:
+            logger.warning("No balance data available for market breadth calculation")
+            return MarketBreadthResponse(
+                advance_decline_ratio=0.5,
+                new_highs_count=0,
+                volume_concentration=0.5,
+                momentum_dispersion=0.5,
+                meta={"status": "no_data", "timestamp": datetime.now().isoformat()}
+            )
+
+        # 1. Calculer le ratio avance/déclin
+        # Utiliser le changement sur 24h comme proxy pour avance/déclin
+        advancing_assets = 0
+        total_assets = 0
+
+        for balance in balances:
+            change_24h = balance.get('price_change_percentage_24h', 0)
+            if change_24h is not None:
+                total_assets += 1
+                if change_24h > 0:
+                    advancing_assets += 1
+
+        advance_decline_ratio = advancing_assets / total_assets if total_assets > 0 else 0.5
+
+        # 2. Calculer les nouveaux ATH (approximation)
+        # Dans un vrai système, on comparerait avec les ATH historiques
+        # Ici on utilise les actifs avec de très fortes performances (>20% sur 24h)
+        new_highs_count = sum(1 for balance in balances
+                             if balance.get('price_change_percentage_24h', 0) > 20)
+
+        # 3. Concentration du volume
+        # Calculer la concentration du volume sur les top assets
+        total_volume = sum(float(balance.get('value_usd', 0)) for balance in balances)
+        top_10_volume = sum(float(balance.get('value_usd', 0)) for balance in balances[:10])
+        volume_concentration = top_10_volume / total_volume if total_volume > 0 else 0.5
+
+        # 4. Dispersion du momentum
+        # Calculer la variance des rendements comme mesure de dispersion
+        returns_24h = [balance.get('price_change_percentage_24h', 0)
+                      for balance in balances
+                      if balance.get('price_change_percentage_24h') is not None]
+
+        if returns_24h:
+            import statistics
+            mean_return = statistics.mean(returns_24h)
+            variance = statistics.variance(returns_24h) if len(returns_24h) > 1 else 0
+            # Normaliser la dispersion (0 = très concentré, 1 = très dispersé)
+            momentum_dispersion = min(1.0, variance / 100)  # Normalisation approximative
+        else:
+            momentum_dispersion = 0.5
+
+        result = MarketBreadthResponse(
+            advance_decline_ratio=round(advance_decline_ratio, 3),
+            new_highs_count=new_highs_count,
+            volume_concentration=round(volume_concentration, 3),
+            momentum_dispersion=round(momentum_dispersion, 3),
+            meta={
+                "assets_analyzed": len(balances),
+                "advancing_assets": advancing_assets,
+                "total_assets": total_assets,
+                "timestamp": datetime.now().isoformat(),
+                "source": "portfolio_data"
+            }
+        )
+
+        logger.info(f"Market breadth calculated: A/D={advance_decline_ratio:.3f}, "
+                   f"New highs={new_highs_count}, Vol conc={volume_concentration:.3f}")
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Error calculating market breadth: {e}")
+        # Retourner des valeurs par défaut en cas d'erreur
+        return MarketBreadthResponse(
+            advance_decline_ratio=0.5,
+            new_highs_count=0,
+            volume_concentration=0.5,
+            momentum_dispersion=0.5,
+            meta={"status": "error", "error": str(e), "timestamp": datetime.now().isoformat()}
+        )

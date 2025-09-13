@@ -31,6 +31,8 @@ APP_DEBUG = DEBUG
 LOG_LEVEL = settings.logging.log_level
 CORS_ORIGINS = settings.get_cors_origins()
 ENVIRONMENT = settings.environment
+ALLOW_STUB_SOURCES = (os.getenv("ALLOW_STUB_SOURCES", "true").strip().lower() == "true")
+COMPUTE_ON_STUB_SOURCES = (os.getenv("COMPUTE_ON_STUB_SOURCES", "false").strip().lower() == "true")
 
 # Config logger (dev-friendly by default) — initialize early so it's available in imports below
 logging.basicConfig(
@@ -89,8 +91,9 @@ from api.strategy_endpoints import router as strategy_router
 from api.advanced_risk_endpoints import router as advanced_risk_router
 from api.realtime_endpoints import router as realtime_router
 from api.intelligence_endpoints import router as intelligence_router
+# from api.market_endpoints import router as market_router  # Temporarily commented out
 from api.exceptions import (
-    CryptoRebalancerException, APIException, ValidationException, 
+    CryptoRebalancerException, APIException, ValidationException,
     ConfigurationException, TradingException, DataException, ErrorCodes
 )
 # Imports optionnels pour extensions futures (réservé)
@@ -660,6 +663,7 @@ async def resolve_current_balances(source: str = Query("cointracking_api")) -> D
     """
     
     # --- Sources stub: 3 profils de démo différents ---
+    # Respect strict mode: if ALLOW_STUB_SOURCES is False, do not return mock data
     if source.startswith("stub"):
         if source == "stub_conservative":
             # Portfolio conservateur: 80% BTC, 15% ETH, 5% stables
@@ -893,6 +897,21 @@ async def health():
 @app.get("/healthz")
 async def healthz():
     return {"ok": True}
+
+@app.get("/favicon.ico")
+async def favicon():
+    """Serve a tiny placeholder favicon to avoid 404s in the browser console."""
+    try:
+        import base64
+        # 1x1 transparent PNG
+        b64 = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO1iYl8AAAAASUVORK5CYII="
+        )
+        data = base64.b64decode(b64)
+        return Response(content=data, media_type="image/png")
+    except Exception:
+        # Fallback to no-content if decoding somehow fails
+        return Response(status_code=204)
 
 @app.get("/test-simple")
 async def test_simple():
@@ -1517,6 +1536,7 @@ app.include_router(taxonomy_router)
 app.include_router(execution_router)
 # REMOVED: ml_predictions_router (namespace collision resolved)
 app.include_router(analytics_router)
+# app.include_router(market_router)  # Temporarily commented out
 app.include_router(kraken_router)
 app.include_router(smart_taxonomy_router)
 app.include_router(advanced_rebalancing_router)
@@ -1589,6 +1609,9 @@ async def portfolio_metrics(source: str = Query("cointracking")):
         res = await resolve_current_balances(source=source)
         rows = _to_rows(res.get("items", []))
         balances = {"source_used": res.get("source_used"), "items": rows}
+        # Do not compute on stub sources unless explicitly allowed
+        if ((balances.get('source_used') or '').startswith('stub') or balances.get('source_used') == 'none') and not COMPUTE_ON_STUB_SOURCES:
+            return {"ok": False, "message": "No real data: stub source in use"}
         
         # Calculer les métriques
         metrics = portfolio_analytics.calculate_portfolio_metrics(balances)
@@ -1960,3 +1983,4 @@ async def get_configured_data_source():
 
 # Force reload
 # Force reload 2
+# Force reload

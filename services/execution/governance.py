@@ -78,6 +78,7 @@ class MLSignals(BaseModel):
     decision_score: float = Field(default=0.5, ge=0.0, le=1.0, description="Score décisionnel global")
     confidence: float = Field(default=0.5, ge=0.0, le=1.0, description="Confiance dans la décision")
     contradiction_index: float = Field(default=0.0, ge=0.0, le=1.0, description="Index de contradiction")
+    blended_score: Optional[float] = Field(default=None, ge=0.0, le=100.0, description="Blended Decision Score (0-100) si disponible")
     
     # Metadata
     ttl_seconds: int = Field(default=1800, ge=60, description="TTL des signaux")
@@ -374,6 +375,17 @@ class GovernanceEngine:
                 cap = 0.08  # 8% baseline
                 ramp_hours = 12
             
+            # Garde-fou: ne jamais 'Aggressive' si blended < 70 (si disponible)
+            try:
+                if mode == "Aggressive":
+                    bscore = getattr(self.current_state.signals, 'blended_score', None)
+                    if isinstance(bscore, (int, float)) and bscore < 70:
+                        mode = "Normal"
+                        cap = min(cap, 0.08)
+                        ramp_hours = max(ramp_hours, 12)
+            except Exception:
+                pass
+
             # Ajustements selon governance mode
             if self.current_state.governance_mode == "freeze":
                 mode = "Freeze"

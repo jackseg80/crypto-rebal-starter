@@ -729,7 +729,10 @@ class AlertPrometheusStub:
     def record_multi_timeframe_decision(self, alert_type: str, decision: str, confidence_adjustment: float):
         pass
     
-    def record_multi_timeframe_trigger(self, alert_type: str, triggered: bool, coherence_score: float):
+    def record_multi_timeframe_trigger(self, reason: str, alert_type: str, coherence_level: str):
+        pass
+    
+    def update_timeframe_agreement_ratio(self, alert_type: str, agreement_ratio: float):
         pass
     
     # Phase 2B2: Stub methods for cross-asset correlation metrics

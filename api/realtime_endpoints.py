@@ -300,6 +300,9 @@ async def get_demo_page():
             
             <div class="controls">
                 <h4>Test Events (for debugging)</h4>
+                <p style="color:#6c757d; font-size:12px;">
+                  Simulation is disabled in this build (dangerous endpoints removed). Append <code>?simulate=1</code> to URL to enable demo buttons.
+                </p>
                 <button onclick="simulateRiskAlert()">Simulate Risk Alert</button>
                 <button onclick="simulateMarketData()">Simulate Market Data</button>
                 <button onclick="simulateVarBreach()">Simulate VaR Breach</button>
@@ -310,6 +313,7 @@ async def get_demo_page():
             let ws = null;
             let messageCount = 0;
             let connectionTime = null;
+            const enableSim = new URLSearchParams(window.location.search).get('simulate') === '1';
             
             function connect() {
                 if (ws) {
@@ -421,56 +425,18 @@ async def get_demo_page():
             
             // Fonctions de simulation pour tests
             async function simulateRiskAlert() {
-                await fetch('/api/realtime/publish', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        event_type: 'risk_alert',
-                        data: {
-                            alert_type: 'VAR_BREACH',
-                            severity: 'S2',
-                            portfolio_value: 100000,
-                            var_current: 8500,
-                            var_limit: 5000
-                        },
-                        source: 'demo_simulation'
-                    })
-                });
+                if (!enableSim) { alert('Simulation disabled. Append ?simulate=1'); return; }
+                console.warn('Publish endpoint removed; simulation is a no-op.');
             }
             
             async function simulateMarketData() {
-                await fetch('/api/realtime/publish', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        event_type: 'market_data',
-                        data: {
-                            BTC: 45000 + Math.random() * 1000,
-                            ETH: 3000 + Math.random() * 200,
-                            SOL: 100 + Math.random() * 10
-                        },
-                        source: 'demo_market_feed'
-                    })
-                });
+                if (!enableSim) { alert('Simulation disabled. Append ?simulate=1'); return; }
+                console.warn('Publish endpoint removed; simulation is a no-op.');
             }
             
             async function simulateVarBreach() {
-                await fetch('/api/realtime/publish', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        event_type: 'var_breach',
-                        data: {
-                            method: 'parametric',
-                            confidence_level: 0.95,
-                            var_current: 12000,
-                            var_limit: 8000,
-                            breach_percentage: 50.0,
-                            portfolio_value: 150000
-                        },
-                        source: 'demo_risk_engine'
-                    })
-                });
+                if (!enableSim) { alert('Simulation disabled. Append ?simulate=1'); return; }
+                console.warn('Publish endpoint removed; simulation is a no-op.');
             }
             
             // Auto-connect on page load

@@ -5,12 +5,13 @@ Expose les fonctionnalités d'alertes avec RBAC, idempotency et validation stric
 Intègre avec le système de gouvernance Phase 0 sans le violer.
 """
 
-from fastapi import APIRouter, HTTPException, Header, Depends, Query, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Header, Depends, Query, BackgroundTasks, Request
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field, validator
 from typing import Dict, List, Any, Optional
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
+import os
 import uuid
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
@@ -118,6 +119,38 @@ def get_alert_engine() -> AlertEngine:
     if not alert_engine:
         raise HTTPException(status_code=503, detail="Alert engine not initialized")
     return alert_engine
+
+# Guard for test endpoints (disabled by default and always off in production)
+from config import get_settings
+_settings = get_settings()
+
+def ensure_test_endpoints_enabled(request: Request):
+    """Gate test-only endpoints.
+
+    Policy:
+    - Always disabled in production.
+    - Enabled in any non-production environment (dev/staging) regardless of DEBUG flag.
+    - Additionally, can be forced via ENABLE_ALERTS_TEST_ENDPOINTS=true.
+    """
+    # Always allow from localhost for developer tests
+    try:
+        client_host = (request.client.host if request and request.client else None)
+        host_header = (request.headers.get('host', '') or '').split(':')[0].lower()
+    except Exception:
+        client_host, host_header = None, ''
+
+    if client_host in ('127.0.0.1', '::1') or host_header in ('localhost', '127.0.0.1', '::1'):
+        return True
+
+    # If running in production environment, allow only when explicit flag is set
+    if _settings.is_production():
+        flag = str(os.getenv("ENABLE_ALERTS_TEST_ENDPOINTS", "false")).strip().lower() == "true"
+        if flag:
+            return True
+        raise HTTPException(status_code=404, detail="test_endpoints_disabled")
+
+    # Non-production environments: allow by default
+    return True
 
 # Endpoints
 
@@ -871,7 +904,8 @@ async def get_systemic_risk(
 @router.post("/test/acknowledge/{alert_id}")
 async def test_acknowledge_alert(
     alert_id: str,
-    engine: AlertEngine = Depends(get_alert_engine)
+    engine: AlertEngine = Depends(get_alert_engine),
+    enabled: bool = Depends(ensure_test_endpoints_enabled)
 ):
     """
     Test endpoint pour acknowledge sans auth (DEBUG ONLY)
@@ -888,6 +922,9 @@ async def test_acknowledge_alert(
             "timestamp": datetime.now().isoformat()
         }
         
+    except HTTPException:
+        # Propager 404/503 correctement
+        raise
     except Exception as e:
         logger.error(f"Error in test acknowledge: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -895,15 +932,23 @@ async def test_acknowledge_alert(
 @router.post("/test/snooze/{alert_id}")
 async def test_snooze_alert(
     alert_id: str,
-    snooze_request: SnoozeRequest = None,
-    engine: AlertEngine = Depends(get_alert_engine)
+    payload: Dict[str, Any] = None,
+    engine: AlertEngine = Depends(get_alert_engine),
+    enabled: bool = Depends(ensure_test_endpoints_enabled)
 ):
     """
     Test endpoint pour snooze sans auth (DEBUG ONLY)
     """
     try:
-        # Default to 60 minutes if no request body provided
-        minutes = snooze_request.minutes if snooze_request else 60
+        # Support both structured and ad-hoc payloads
+        minutes = 60
+        if isinstance(payload, dict):
+            if 'minutes' in payload and isinstance(payload['minutes'], (int, float)):
+                minutes = int(payload['minutes'])
+            elif 'snooze_duration_minutes' in payload and isinstance(payload['snooze_duration_minutes'], (int, float)):
+                minutes = int(payload['snooze_duration_minutes'])
+        if minutes < 5:
+            minutes = 5
         success = await engine.snooze_alert(alert_id, minutes)
         
         if not success:
@@ -916,6 +961,9 @@ async def test_snooze_alert(
             "timestamp": datetime.now().isoformat()
         }
         
+    except HTTPException:
+        # Propager 404 correctement
+        raise
     except Exception as e:
         logger.error(f"Error in test snooze: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -923,13 +971,15 @@ async def test_snooze_alert(
 @router.post("/test/generate/{count}")
 async def test_generate_alerts(
     count: int = 3,
-    engine: AlertEngine = Depends(get_alert_engine)
+    engine: AlertEngine = Depends(get_alert_engine),
+    enabled: bool = Depends(ensure_test_endpoints_enabled)
 ):
     """
     Endpoint de test pour générer des alertes de démonstration (DEBUG ONLY)
     """
     try:
-        from services.alerts.alert_models import AlertType, AlertSeverity
+        # Correct imports and object creation
+        from services.alerts.alert_types import Alert, AlertType, AlertSeverity
         import uuid
         
         test_alerts = []
@@ -940,36 +990,45 @@ async def test_generate_alerts(
             alert_type = alert_types[i % len(alert_types)]
             severity = severities[i % len(severities)]
             
-            alert_data = {
-                "id": str(uuid.uuid4()),
-                "alert_type": alert_type,
-                "severity": severity,
-                "message": f"Test alert #{i+1} - {alert_type.value}",
-                "data": {
+            alert = Alert(
+                id=str(uuid.uuid4()),
+                alert_type=alert_type,
+                severity=severity,
+                data={
                     "test": True,
-                    "index": i+1,
+                    "index": i + 1,
                     "trigger_value": 0.85 + (i * 0.1),
                     "threshold": 0.8
                 },
-                "created_at": datetime.now(),
-                "acknowledged": False,
-                "snoozed_until": None
-            }
+                created_at=datetime.now()
+            )
             
-            # Store the alert directly in the engine
-            await engine.storage.store_alert(alert_data)
-            test_alerts.append(alert_data)
+            # Store the alert using storage API
+            stored = engine.storage.store_alert(alert)
+            if stored:
+                test_alerts.append(alert)
         
         return {
             "success": True,
             "message": f"Generated {len(test_alerts)} test alerts",
-            "alerts": [{"id": a["id"], "type": a["alert_type"].value, "severity": a["severity"].value} for a in test_alerts],
+            "alerts": [{"id": a.id, "type": a.alert_type.value, "severity": a.severity.value} for a in test_alerts],
+            "alert_id": (test_alerts[0].id if test_alerts else None),
             "timestamp": datetime.now().isoformat()
         }
         
     except Exception as e:
         logger.error(f"Error generating test alerts: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+# Convenience alias: allow both POST and GET without path param
+@router.post("/test/generate")
+@router.get("/test/generate")
+async def test_generate_alerts_default(
+    engine: AlertEngine = Depends(get_alert_engine),
+    enabled: bool = Depends(ensure_test_endpoints_enabled)
+):
+    """Alias sans paramètre de chemin: génère 3 alertes par défaut."""
+    return await test_generate_alerts(count=3, engine=engine)
 
 # Hook pour initialisation depuis main.py
 def initialize_alert_engine(engine: AlertEngine):

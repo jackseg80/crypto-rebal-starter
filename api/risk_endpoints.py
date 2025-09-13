@@ -12,10 +12,12 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from services.risk_management import risk_manager, RiskMetrics, CorrelationMatrix, StressTestResult, StressScenario, PerformanceAttribution, BacktestResult, RiskAlert, AlertSeverity, AlertCategory
+import os
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/risk", tags=["risk-management"])
+COMPUTE_ON_STUB_SOURCES = (os.getenv("COMPUTE_ON_STUB_SOURCES", "false").strip().lower() == "true")
 
 class RiskMetricsResponse(BaseModel):
     """Réponse pour les métriques de risque"""
@@ -90,6 +92,9 @@ async def get_portfolio_risk_metrics(
         
         # Récupération des holdings actuels via le système unifié
         balances_response = await get_unified_filtered_balances(source="cointracking", min_usd=1.0)
+        src_used = (balances_response or {}).get('source_used', '')
+        if (src_used.startswith('stub') or src_used == 'none') and not COMPUTE_ON_STUB_SOURCES:
+            return RiskMetricsResponse(success=False, message="No real data: stub source in use")
         balances = balances_response.get('items', [])
         if not balances or len(balances) == 0:
             return RiskMetricsResponse(
@@ -164,6 +169,9 @@ async def get_correlation_matrix(
         
         # Récupération des holdings actuels via le système unifié
         balances_response = await get_unified_filtered_balances(source=source, min_usd=1.0)
+        src_used = (balances_response or {}).get('source_used', '')
+        if (src_used.startswith('stub') or src_used == 'none') and not COMPUTE_ON_STUB_SOURCES:
+            return CorrelationResponse(success=False, message="No real data: stub source in use")
         balances = balances_response.get('items', [])
         logger.info(f"🔍 Correlation endpoint: received {len(balances)} holdings from unified data source='{source}'")
         

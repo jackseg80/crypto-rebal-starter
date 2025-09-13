@@ -3,9 +3,10 @@ Unified ML Pipeline API Endpoints
 Endpoints consolidés pour la gestion centralisée des modèles ML
 """
 
-from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, Depends, Header
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, Depends, Header, Body
 from typing import Dict, List, Optional, Any
 import logging
+import numpy as np
 from datetime import datetime
 from pydantic import BaseModel
 
@@ -340,16 +341,163 @@ async def clear_ml_cache():
         logger.error(f"Error clearing ML cache: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# ===== Backward-Compatibility Aliases (pre-unification front-ends) =====
+
+@router.get("/models/status")
+async def alias_models_status():
+    """Alias of /api/ml/status for legacy front-ends."""
+    return await get_unified_pipeline_status()
+
+@router.get("/volatility/models/status")
+async def alias_volatility_models_status():
+    """Expose a volatility-focused status for legacy widgets."""
+    base = await get_unified_pipeline_status()
+    ps = base.get("pipeline_status", {}) if isinstance(base, dict) else {}
+    return {
+        "success": True,
+        "pipeline_trained": bool(ps.get("loaded_models_count", 0) > 0) or bool((ps.get("regime_models") or {}).get("model_loaded")),
+        "volatility_models": ps.get("volatility_models", {}),
+        "regime_models": ps.get("regime_models", {}),
+        "timestamp": base.get("timestamp") if isinstance(base, dict) else None,
+    }
+
+@router.post("/volatility/train-portfolio")
+async def alias_train_portfolio(symbols: Optional[List[str]] = Query(None)):
+    """Alias that preloads requested volatility models instead of training."""
+    try:
+        req_symbols = symbols or ["BTC", "ETH"]
+        results = {}
+        for s in req_symbols:
+            results[s] = pipeline_manager.load_volatility_model(s)
+        loaded = sum(1 for v in results.values() if v)
+        return {
+            "success": True,
+            "trainable_assets": len(req_symbols),
+            "estimated_duration_minutes": 1,
+            "results": results,
+            "loaded": loaded
+        }
+    except Exception as e:
+        logger.error(f"Alias train-portfolio failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/volatility/batch-predict")
+async def alias_batch_predict(payload: Dict[str, Any] = Body(default={})):  # legacy shape
+    """Alias that forwards to unified /predict."""
+    try:
+        assets = payload.get("symbols") or payload.get("assets") or ["BTC", "ETH"]
+        horizons = [1, 7, 30]
+        req = PredictionRequest(assets=assets, horizons=horizons, include_regime=False, include_volatility=True)
+        return await unified_predictions(req)
+    except Exception as e:
+        logger.error(f"Alias batch-predict failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/regime/train")
+async def alias_regime_train():
+    """Alias that loads the regime model."""
+    return await load_regime_model()
+
+@router.get("/regime/current")
+async def alias_regime_current():
+    """Alias that returns current/live regime signal."""
+    try:
+        live = await get_live_predictions()
+        regime_val = live.get("regime_prediction") or live.get("market_regime")
+        # Normalize to object with name + confidence for UI
+        if isinstance(regime_val, str):
+            regime_obj = {"regime_name": regime_val, "confidence": 0.68, "duration_days": 0}
+        elif isinstance(regime_val, dict):
+            regime_obj = {
+                "regime_name": regime_val.get("regime_name") or regime_val.get("name") or "Unknown",
+                "confidence": regime_val.get("confidence", 0.68),
+                "duration_days": regime_val.get("duration_days", 0)
+            }
+        else:
+            regime_obj = {"regime_name": "Unknown", "confidence": 0.5, "duration_days": 0}
+        return {
+            "success": True,
+            "regime_prediction": regime_obj,
+            "timestamp": live.get("timestamp")
+        }
+    except Exception as e:
+        logger.error(f"Alias regime/current failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/correlation/matrix/current")
+async def alias_correlation_matrix(window_days: int = Query(30)):
+    """Alias routed to risk correlation endpoint logic."""
+    try:
+        # Reuse risk engine directly to avoid HTTP loopback
+        from api.unified_data import get_unified_filtered_balances
+        from services.risk_management import risk_manager
+        balances_response = await get_unified_filtered_balances(source="cointracking", min_usd=1.0)
+        balances = balances_response.get('items', [])
+        corr_matrix = await risk_manager.calculate_correlation_matrix(holdings=balances, lookback_days=window_days)
+
+        # Compute average absolute off-diagonal correlation for convenience in UI
+        avg_corr = None
+        try:
+            corrs = corr_matrix.correlations or {}
+            vals = []
+            for a, row in corrs.items():
+                if not isinstance(row, dict):
+                    continue
+                for b, v in row.items():
+                    if a == b:
+                        continue
+                    try:
+                        vals.append(abs(float(v)))
+                    except Exception:
+                        pass
+            if vals:
+                avg_corr = sum(vals) / len(vals)
+        except Exception:
+            avg_corr = None
+
+        return {
+            "success": True,
+            "assets": list({row.get('symbol') for row in balances if row.get('symbol')}),
+            "correlations": corr_matrix.correlations,
+            "market_metrics": {
+                "diversification_ratio": corr_matrix.diversification_ratio,
+                "effective_assets": corr_matrix.effective_assets,
+                "eigen_values": corr_matrix.eigen_values[:5],
+                "average_correlation": avg_corr
+            },
+            "calculation_time": None
+        }
+    except Exception as e:
+        logger.error(f"Alias correlation matrix failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/sentiment/analyze")
+async def alias_sentiment_analyze(symbols: str = Query("BTC,ETH"), days: int = Query(7)):
+    """Alias that aggregates sentiment for multiple symbols."""
+    try:
+        syms = [s.strip().upper() for s in symbols.split(',') if s.strip()]
+        results = {}
+        for s in syms:
+            # Use the existing sentiment endpoint per symbol
+            single = await get_sentiment(s, days)
+            results[s] = single.get("aggregated_sentiment") if isinstance(single, dict) else None
+        return {"success": True, "results": results, "days": days}
+    except Exception as e:
+        logger.error(f"Alias sentiment analyze failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # ========== NOUVEAUX ENDPOINTS OPTIMISÉS ==========
 
 # Admin Authentication dependency
+import os
+
 async def verify_admin_access(x_admin_key: str = Header(None)):
     """Verify admin access via header"""
     if not x_admin_key:
         raise HTTPException(status_code=401, detail="Admin key required")
     
-    # Simple admin key check (in production, use proper env variable)
-    expected_key = "crypto-rebal-admin-2024"  # TODO: Move to environment variable
+    # Simple admin key check (now configurable via environment variable)
+    expected_key = os.getenv("ADMIN_KEY", "crypto-rebal-admin-2024")
     if x_admin_key != expected_key:
         raise HTTPException(status_code=403, detail="Invalid admin key")
     
@@ -486,30 +634,7 @@ async def preload_priority_models(
         logger.error(f"Error preloading models: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.delete("/models/{model_key}")
-async def unload_specific_model(model_key: str):
-    """
-    Décharger un modèle spécifique de la mémoire
-    """
-    try:
-        success = pipeline_manager.unload_model(model_key)
-        
-        if success:
-            return {
-                "success": True,
-                "message": f"Model {model_key} unloaded successfully"
-            }
-        else:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Model {model_key} not found in cache"
-            )
-            
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error unloading model {model_key}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+# NOTE: Duplicate DELETE /models/{model_key} removed to avoid route conflicts.
 
 # --- PREDICTION & TRAINING ENDPOINTS ---
 
@@ -1009,3 +1134,514 @@ async def get_symbol_sentiment(
                 "error": str(e)
             }
         )
+
+
+# === NOUVEAUX ENDPOINTS AVEC CONTRAT UNIFIE ===
+
+from api.schemas.ml_contract import (
+    UnifiedMLRequest, UnifiedMLResponse, ModelType, Horizon,
+    VolatilityPrediction, create_fallback_response
+)
+from api.ml.gating import get_gating_system
+
+
+@router.post("/unified/predict", response_model=UnifiedMLResponse)
+async def unified_predict(request: UnifiedMLRequest):
+    """
+    Endpoint unifié de prédiction ML avec gating et incertitude
+
+    Supports: volatility, sentiment, risk scoring
+    """
+    start_time = datetime.now()
+    gating_system = get_gating_system()
+
+    try:
+        logger.debug(f"Unified prediction request: {request.model_type} for {len(request.assets)} assets")
+
+        predictions = []
+        failed_assets = []
+        warnings = []
+
+        for asset in request.assets:
+            try:
+                # Obtenir la prédiction brute selon le type de modèle
+                raw_prediction = await _get_raw_prediction(
+                    asset, request.model_type, request.horizon
+                )
+
+                # Appliquer le gating
+                model_key = f"{request.model_type.value}_{request.horizon.value if request.horizon else 'default'}"
+
+                gated_prediction, accepted = gating_system.gate_prediction(
+                    asset=asset,
+                    raw_prediction=raw_prediction,
+                    model_key=model_key,
+                    model_type=request.model_type,
+                    context={
+                        'data_age_hours': 1.0,  # Simulé
+                        'feature_availability': 0.9  # Simulé
+                    }
+                )
+
+                # Ajouter métadonnées si demandées
+                if request.include_metadata:
+                    from api.schemas.ml_contract import ModelMetadata
+                    gated_prediction.metadata = ModelMetadata(
+                        name=model_key,
+                        version="1.0.0",
+                        model_type=request.model_type,
+                        horizon=request.horizon
+                    )
+
+                # Filtrer par seuil de confiance
+                if gated_prediction.quality.confidence >= request.confidence_threshold:
+                    predictions.append(gated_prediction)
+                else:
+                    failed_assets.append(asset)
+                    warnings.append(f"{asset}: confidence below threshold")
+
+            except Exception as e:
+                logger.error(f"Failed to predict for {asset}: {e}")
+                failed_assets.append(asset)
+                warnings.append(f"{asset}: {str(e)}")
+
+        # Calculer métriques globales
+        processing_time = (datetime.now() - start_time).total_seconds() * 1000
+
+        # Agrégations optionnelles
+        aggregated = {}
+        if predictions:
+            values = [p.value for p in predictions]
+            confidences = [p.quality.confidence for p in predictions]
+            aggregated = {
+                "avg_prediction": float(np.mean(values)),
+                "avg_confidence": float(np.mean(confidences)),
+                "prediction_range": [float(min(values)), float(max(values))]
+            }
+
+        return UnifiedMLResponse(
+            success=len(predictions) > 0,
+            model_type=request.model_type,
+            horizon=request.horizon,
+            predictions=predictions,
+            aggregated=aggregated,
+            processing_time_ms=processing_time,
+            warnings=warnings,
+            failed_assets=failed_assets
+        )
+
+    except Exception as e:
+        logger.error(f"Unified prediction failed: {e}")
+        return create_fallback_response(
+            request.model_type,
+            request.assets,
+            f"Unified prediction error: {str(e)}"
+        )
+
+
+@router.get("/unified/volatility/{symbol}", response_model=UnifiedMLResponse)
+async def unified_volatility_predict(
+    symbol: str,
+    horizon: Horizon = Query(Horizon.D30, description="Prediction horizon"),
+    include_uncertainty: bool = Query(True, description="Include uncertainty measures"),
+    include_metadata: bool = Query(False, description="Include model metadata")
+):
+    """
+    Prédiction de volatilité avec contrat unifié
+    """
+    request = UnifiedMLRequest(
+        assets=[symbol.upper()],
+        model_type=ModelType.VOLATILITY,
+        horizon=horizon,
+        include_uncertainty=include_uncertainty,
+        include_metadata=include_metadata
+    )
+
+    return await unified_predict(request)
+
+
+async def _get_raw_prediction(asset: str, model_type: ModelType, horizon: Optional[Horizon]) -> float:
+    """
+    Obtenir une prédiction brute selon le type de modèle
+
+    Cette fonction fait le bridge avec les services ML existants
+    """
+    try:
+        orchestrator = get_orchestrator()
+
+        if model_type == ModelType.VOLATILITY:
+            # Convertir horizon en jours
+            days_mapping = {
+                Horizon.H1: 1/24,
+                Horizon.H4: 4/24,
+                Horizon.D1: 1,
+                Horizon.D7: 7,
+                Horizon.D30: 30,
+                Horizon.D90: 90
+            }
+            days = days_mapping.get(horizon, 30)
+            result = await orchestrator.predict_volatility(asset, int(days))
+
+            # Extraire la valeur numérique de la prédiction
+            if isinstance(result, dict) and 'prediction' in result:
+                return float(result['prediction'])
+            elif isinstance(result, (int, float)):
+                return float(result)
+            else:
+                return 0.15  # Volatilité par défaut
+
+        elif model_type == ModelType.SENTIMENT:
+            # Simuler sentiment score [-1, 1]
+            return np.random.normal(0, 0.3)
+
+        elif model_type == ModelType.RISK:
+            # Simuler risk score [0, 1]
+            return np.random.uniform(0.2, 0.8)
+
+        else:
+            logger.warning(f"Unsupported model type: {model_type}")
+            return 0.0
+
+    except Exception as e:
+        logger.error(f"Raw prediction failed for {asset}/{model_type}: {e}")
+        return 0.0
+
+
+# === ENDPOINTS DE MONITORING ET METRIQUES ===
+
+from api.schemas.ml_contract import MLSystemHealth, ModelHealth
+import json
+import os
+from pathlib import Path
+
+
+@router.get("/monitoring/health", response_model=MLSystemHealth)
+async def get_ml_system_health():
+    """
+    Obtenir l'état de santé global du système ML
+    """
+    try:
+        gating_system = get_gating_system()
+        models_status = []
+
+        # Modèles disponibles (basé sur l'historique du gating)
+        for model_key in gating_system.prediction_history.keys():
+            health_report = gating_system.get_model_health_report(model_key)
+
+            if "error" not in health_report:
+                model_health = ModelHealth(
+                    model_name=model_key.split('_')[0],
+                    version="1.0.0",
+                    is_healthy=health_report["health_score"] > 0.5,
+                    last_prediction=health_report.get("last_prediction"),
+                    error_rate_24h=health_report["error_rate"],
+                    avg_confidence=health_report["avg_confidence"],
+                    drift_score=None  # TODO: calculer drift
+                )
+                models_status.append(model_health)
+
+        # Calcul de la santé globale
+        if models_status:
+            health_scores = [
+                m.avg_confidence * (1 - m.error_rate_24h)
+                for m in models_status if m.avg_confidence is not None and m.error_rate_24h is not None
+            ]
+            overall_health = float(np.mean(health_scores)) if health_scores else 0.5
+        else:
+            overall_health = 0.8  # Santé par défaut si pas d'historique
+
+        # Métriques système
+        system_metrics = {
+            "active_models": len(models_status),
+            "healthy_models": sum(1 for m in models_status if m.is_healthy),
+            "total_predictions_24h": sum(
+                gating_system.get_model_health_report(key).get("total_predictions_24h", 0)
+                for key in gating_system.prediction_history.keys()
+            )
+        }
+
+        return MLSystemHealth(
+            overall_health=overall_health,
+            models_status=models_status,
+            system_metrics=system_metrics
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to get ML system health: {e}")
+        return MLSystemHealth(
+            overall_health=0.3,
+            models_status=[],
+            system_metrics={"error": str(e)}
+        )
+
+
+@router.get("/metrics/{model_name}")
+async def get_model_metrics(model_name: str, version: Optional[str] = None):
+    """
+    Obtenir les métriques pour un modèle spécifique
+    """
+    try:
+        # Chercher dans le cache de métriques (JSON simple pour commencer)
+        metrics_file = Path("data/ml_metrics.json")
+
+        if metrics_file.exists():
+            with open(metrics_file, 'r') as f:
+                all_metrics = json.load(f)
+
+            model_data = all_metrics.get(model_name, {})
+            if version:
+                version_data = model_data.get("versions", {}).get(version, {})
+                return {"model": model_name, "version": version, "metrics": version_data}
+            else:
+                # Retourner la dernière version
+                versions = model_data.get("versions", {})
+                if versions:
+                    latest_version = max(versions.keys())
+                    return {"model": model_name, "version": latest_version, "metrics": versions[latest_version]}
+
+        # Générer des métriques de base depuis le gating system
+        gating_system = get_gating_system()
+        matching_keys = [key for key in gating_system.prediction_history.keys() if model_name in key]
+
+        if matching_keys:
+            key = matching_keys[0]
+            health_report = gating_system.get_model_health_report(key)
+
+            return {
+                "model": model_name,
+                "version": "1.0.0",
+                "metrics": {
+                    "predictions_24h": health_report.get("total_predictions_24h", 0),
+                    "error_rate": health_report.get("error_rate", 0.0),
+                    "avg_confidence": health_report.get("avg_confidence", 0.5),
+                    "acceptance_rate": health_report.get("acceptance_rate", 0.8),
+                    "last_updated": health_report.get("last_prediction", datetime.now()).isoformat()
+                }
+            }
+
+        return {"error": f"No metrics found for model {model_name}"}
+
+    except Exception as e:
+        logger.error(f"Failed to get metrics for {model_name}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/versions/{model_name}")
+async def get_model_versions(model_name: str):
+    """
+    Lister les versions disponibles d'un modèle
+    """
+    try:
+        metrics_file = Path("data/ml_metrics.json")
+
+        if metrics_file.exists():
+            with open(metrics_file, 'r') as f:
+                all_metrics = json.load(f)
+
+            model_data = all_metrics.get(model_name, {})
+            versions = list(model_data.get("versions", {}).keys())
+
+            return {
+                "model": model_name,
+                "available_versions": versions,
+                "total_versions": len(versions)
+            }
+
+        # Fallback vers versions par défaut
+        return {
+            "model": model_name,
+            "available_versions": ["1.0.0"],
+            "total_versions": 1
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get versions for {model_name}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/metrics/{model_name}/update")
+async def update_model_metrics(
+    model_name: str,
+    version: str,
+    metrics: Dict[str, Any] = Body(...)
+):
+    """
+    Mettre à jour les métriques d'un modèle (version spécifique)
+    """
+    try:
+        # Assurer que le répertoire data existe
+        os.makedirs("data", exist_ok=True)
+        metrics_file = Path("data/ml_metrics.json")
+
+        # Charger les métriques existantes
+        if metrics_file.exists():
+            with open(metrics_file, 'r') as f:
+                all_metrics = json.load(f)
+        else:
+            all_metrics = {}
+
+        # Mettre à jour
+        if model_name not in all_metrics:
+            all_metrics[model_name] = {"versions": {}}
+
+        all_metrics[model_name]["versions"][version] = {
+            **metrics,
+            "last_updated": datetime.now().isoformat()
+        }
+
+        # Sauvegarder
+        with open(metrics_file, 'w') as f:
+            json.dump(all_metrics, f, indent=2)
+
+        return {
+            "success": True,
+            "model": model_name,
+            "version": version,
+            "message": "Metrics updated successfully"
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to update metrics for {model_name}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# === ENDPOINTS MODEL REGISTRY ===
+
+from services.ml.model_registry import get_model_registry, ModelStatus
+
+
+@router.get("/registry/models")
+async def list_registered_models(model_type: Optional[str] = None):
+    """
+    Lister les modèles enregistrés dans le registry
+    """
+    try:
+        registry = get_model_registry()
+        models = registry.list_models(model_type=model_type)
+
+        return {
+            "success": True,
+            "models": models,
+            "total": len(models)
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to list registered models: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/registry/models/{model_name}")
+async def get_model_info(model_name: str, version: Optional[str] = None):
+    """
+    Obtenir les informations détaillées d'un modèle
+    """
+    try:
+        registry = get_model_registry()
+        manifest = registry.get_manifest(model_name, version)
+
+        return {
+            "success": True,
+            "manifest": manifest.to_dict()
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get model info for {model_name}: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/registry/models/{model_name}/versions")
+async def get_model_versions_registry(model_name: str):
+    """
+    Obtenir toutes les versions d'un modèle depuis le registry
+    """
+    try:
+        registry = get_model_registry()
+
+        if model_name not in registry.models:
+            raise HTTPException(status_code=404, detail=f"Model {model_name} not found")
+
+        versions_info = []
+        for version, manifest in registry.models[model_name].items():
+            versions_info.append({
+                "version": version,
+                "status": manifest.status,
+                "created_at": manifest.created_at,
+                "model_type": manifest.model_type,
+                "file_size": manifest.file_size,
+                "validation_metrics": manifest.validation_metrics,
+                "tags": manifest.tags
+            })
+
+        # Trier par date de création (plus récent en premier)
+        versions_info.sort(key=lambda x: x['created_at'], reverse=True)
+
+        return {
+            "success": True,
+            "model_name": model_name,
+            "versions": versions_info,
+            "total_versions": len(versions_info),
+            "latest_version": registry.get_latest_version(model_name)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get versions for {model_name}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/registry/models/{model_name}/versions/{version}/status")
+async def update_model_status(
+    model_name: str,
+    version: str,
+    status: ModelStatus,
+    reason: Optional[str] = Body(None)
+):
+    """
+    Mettre à jour le statut d'un modèle
+    """
+    try:
+        registry = get_model_registry()
+
+        if status == ModelStatus.DEPRECATED:
+            registry.deprecate_model(model_name, version, reason)
+        else:
+            registry.update_status(model_name, version, status)
+
+        return {
+            "success": True,
+            "model": model_name,
+            "version": version,
+            "new_status": status,
+            "message": f"Status updated to {status}"
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to update status for {model_name}:{version}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/registry/models/{model_name}/versions/{version}/metrics")
+async def update_model_performance_metrics(
+    model_name: str,
+    version: str,
+    validation_metrics: Optional[Dict[str, float]] = Body(None),
+    test_metrics: Optional[Dict[str, float]] = Body(None)
+):
+    """
+    Mettre à jour les métriques de performance d'un modèle
+    """
+    try:
+        registry = get_model_registry()
+        registry.update_metrics(model_name, version, validation_metrics, test_metrics)
+
+        return {
+            "success": True,
+            "model": model_name,
+            "version": version,
+            "message": "Performance metrics updated"
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to update metrics for {model_name}:{version}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

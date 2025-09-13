@@ -4,6 +4,7 @@ Crypto-Toolbox API Backend
 Scrape crypto-toolbox.vercel.app avec Playwright et expose les données via API
 """
 
+import os
 import re
 import time
 import json
@@ -12,6 +13,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from playwright.sync_api import sync_playwright
 import logging
+import socket
 
 # Configuration
 app = Flask(__name__)
@@ -196,11 +198,47 @@ if __name__ == '__main__':
     logger.info("🚀 Starting Crypto-Toolbox API Backend...")
     logger.info(f"📊 Target URL: {CRYPTO_TOOLBOX_URL}")
     logger.info(f"💾 Cache duration: {CACHE_DURATION} seconds")
-    
+    # Configuration host/port via variables d'environnement (avec valeurs par défaut)
+    host = os.getenv('CRYPTO_TOOLBOX_HOST', '127.0.0.1')
+    try:
+        preferred_port = int(os.getenv('CRYPTO_TOOLBOX_PORT', '8001'))
+    except ValueError:
+        logger.warning("Invalid CRYPTO_TOOLBOX_PORT; falling back to 8001")
+        preferred_port = 8001
+
+    # Vérifie si le port est bindable, sinon bascule sur une liste de ports sûrs
+    def can_bind(h: str, p: int) -> bool:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            s.bind((h, p))
+            return True
+        except OSError:
+            return False
+        finally:
+            try:
+                s.close()
+            except Exception:
+                pass
+
+    fallback_ports = [8801, 8888, 5001, 5050, 5500, 8601, 8201]
+    port = preferred_port
+    if not can_bind(host, port):
+        logger.warning(f"Port {port} non disponible ou réservé. Recherche d'un port alternatif…")
+        for cand in fallback_ports:
+            if can_bind(host, cand):
+                logger.info(f"⚠️ Bascule automatique vers le port {cand}")
+                port = cand
+                break
+        else:
+            logger.error("Aucun port alternatif disponible dans la liste. Définis CRYPTO_TOOLBOX_PORT vers un port libre.")
+            raise SystemExit(1)
+
+    logger.info(f"🛰️ Binding on http://{host}:{port}")
+
     # Démarrer le serveur Flask
     app.run(
-        host='127.0.0.1',
-        port=8001,
+        host=host,
+        port=port,
         debug=True,
         threaded=True
     )

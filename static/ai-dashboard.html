@@ -482,6 +482,11 @@
 
                 <!-- Administration Pipeline ML -->
                 <div id="administration-tab" class="tab-content">
+                    <div class="admin-mini-toolbar" style="display:flex; justify-content:flex-end; align-items:center; gap:.5rem; margin:0 0 .5rem 0;">
+                        <span id="admin-mini-status" class="text-muted" style="font-size:.85rem;">Admin: OFF</span>
+                        <button id="admin-mini-key-btn" class="btn secondary" style="padding:4px 8px; font-size:.85rem;" title="Configurer clé admin (dev)">🔐</button>
+                    </div>
+
                     <div class="ml-cards-grid">
                         <!-- Statut Global Pipeline -->
                         <div class="ml-card">
@@ -632,6 +637,18 @@
             try {
                 console.log('🚀 Initialisation du Dashboard AI...');
 
+                // Option de configuration rapide de la clé admin via paramètre d'URL (dev-only)
+                try {
+                    const params = new URLSearchParams(window.location.search);
+                    const ak = params.get('admin_key');
+                    if (ak && window.globalConfig && typeof window.globalConfig.set === 'function') {
+                        window.globalConfig.set('admin_key', ak);
+                        console.log('🔑 Clé admin chargée depuis l\'URL');
+                        const mini = document.getElementById('admin-mini-status');
+                        if (mini) mini.textContent = 'Admin: OK';
+                    }
+                } catch {}
+
                 // Initialiser le gestionnaire de cartes
                 initializeCardManager();
 
@@ -643,6 +660,14 @@
 
                 // Configuration des boutons d'action
                 setupActionButtons();
+                // Indicateur admin key mini-toolbar
+                try {
+                    if (window.globalConfig) {
+                        const current = window.globalConfig.get('admin_key') || '';
+                        const mini = document.getElementById('admin-mini-status');
+                        if (mini) mini.textContent = current ? 'Admin: OK' : 'Admin: OFF';
+                    }
+                } catch {}
 
                 // Configuration des onglets
                 setupTabs();
@@ -1117,6 +1142,24 @@
 
             // Actualiser Status Pipeline
             document.getElementById('admin-refresh-status')?.addEventListener('click', refreshPipelineStatus);
+
+            // Configurer clé admin (mini bouton)
+            document.getElementById('admin-mini-key-btn')?.addEventListener('click', () => {
+                try {
+                    const existing = (window.globalConfig && window.globalConfig.get('admin_key')) || '';
+                    const entered = window.prompt('Entrer la clé admin (dev):', existing ? '********' : '');
+                    if (entered === null) return; // cancel
+                    const val = (entered === '********') ? existing : String(entered).trim();
+                    if (!val) { showError('Clé admin vide'); return; }
+                    if (window.globalConfig && typeof window.globalConfig.set === 'function') {
+                        window.globalConfig.set('admin_key', val);
+                        addAdminLog('🔑 Clé admin enregistrée');
+                        const mini = document.getElementById('admin-mini-status');
+                        if (mini) mini.textContent = 'Admin: OK';
+                        refreshPipelineStatus();
+                    }
+                } catch (e) { console.error(e); }
+            });
 
             // Vider Mémoire
             document.getElementById('admin-clear-all')?.addEventListener('click', clearAllModels);
@@ -1658,7 +1701,9 @@
 
         // ========== FONCTIONS ONGLET ADMINISTRATION ==========
 
-        const PIPELINE_API_BASE = 'http://localhost:8000/api/ml';
+        const PIPELINE_API_BASE = ((window.globalConfig && window.globalConfig.get('api_base_url'))
+            || (window.location && window.location.origin)
+            || 'http://127.0.0.1:8000') + '/api/ml';
 
         // Système de logs pour l'administration
         function addAdminLog(message, type = 'info') {
@@ -1690,9 +1735,11 @@
         // Appels API Pipeline
         async function pipelineApiCall(endpoint, options = {}) {
             try {
+                const adminKey = (window.globalConfig && window.globalConfig.get('admin_key')) || '';
                 const response = await fetch(`${PIPELINE_API_BASE}${endpoint}`, {
                     headers: {
                         'Content-Type': 'application/json',
+                        ...(adminKey ? { 'X-Admin-Key': adminKey } : {}),
                         ...options.headers
                     },
                     ...options

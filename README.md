@@ -1800,3 +1800,20 @@ curl http://localhost:8000/api/ml/status
 ---
 
 **🎉 Ce projet représente maintenant une plateforme complète de trading & risk management institutionnel market-aware avec plus de 20,000 lignes de code, 49 tests organisés, système de régimes de marché IA, rebalancing intelligent automatisé, et infrastructure Docker production-ready.**
+
+## 🧭 Synchronisation & Source de Vérité (v2)
+
+Nouvelle architecture avec gouvernance comme source unique des scores décisionnels:
+
+- Source de vérité: Decision Engine (gouvernance) via `governance.ml_signals` (backend). Le `blended_score` est recalculé côté serveur (formule 50% CCS Mixte + 30% On‑Chain + 20% (100 − Risk)).
+- Producteur: `risk-dashboard.html` calcule les composantes (CCS mixte, on-chain, risk) et appelle `POST /execution/governance/signals/recompute` (RBAC + CSRF + Idempotency) pour attacher le `blended_score` aux signaux.
+- Consommateurs: `analytics-unified.html`, `risk-dashboard.html` lisent le statut `governance` via le store (`syncGovernanceState()`/`syncMLSignals()`) et affichent des badges (Source, Updated, Contrad, Cap).
+- TTL & états: backend marqué `healthy | stale | error` selon fraîcheur (`timestamp`). En `stale`, exposition clampée à 8%; en `error`, à 5%.
+- Compat cache: localStorage conservé pour la latence (clés `risk_score_*`), mais la gouvernance reste maître.
+
+### Sécurité endpoint recompute
+- Route: `POST /execution/governance/signals/recompute`
+- Headers requis: `Idempotency-Key`, `X-CSRF-Token`
+- RBAC: rôle `governance_admin` (via `require_role`)
+- Rate-limit: ≥1 req/s (front debounce), comportement idempotent (retourne la même réponse si rejoué)
+

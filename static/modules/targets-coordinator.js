@@ -267,6 +267,8 @@ export function generateSmartTargets() {
   const onchainScore = state.scores?.onchain;
   const riskScore = state.scores?.risk;
   const onchainMetadata = state.scores?.onchain_metadata;
+  const backendSignals = state.governance?.ml_signals || null;
+  const backendStatus = state.ui?.apiStatus?.backend || 'unknown';
   
   console.debug('🧠 Generating SMART targets with scores:', { 
     blendedScore, 
@@ -296,11 +298,42 @@ export function generateSmartTargets() {
       adjustedRegime = applyOnChainIntelligence(adjustedRegime, onchainMetadata);
     }
     
-    // Calculate risk budget
+    // Calculate risk budget (context)
     const riskBudget = calculateRiskBudget(blendedScore, riskScore);
-    
-    // Allocate risky budget according to regime
-    const smartAllocation = allocateRiskyBudget(riskBudget.percentages.risky, adjustedRegime);
+
+    // Backend-driven exposure cap (Decision Engine)
+    let exposureCap = null;
+    let exposureSource = 'fallback';
+    try {
+      if (backendSignals && typeof backendSignals.decision_score === 'number') {
+        const ds = backendSignals.decision_score;           // 0..1
+        const dc = Math.max(0, Math.min(1, backendSignals.confidence ?? 0.5));
+        const volVals = backendSignals.volatility ? Object.values(backendSignals.volatility).filter(v => typeof v === 'number') : [];
+        const avgVol = volVals.length ? (volVals.reduce((a, b) => a + b, 0) / volVals.length) : 0.0; // decimal (e.g., 0.25)
+        const raw = ds * dc;
+        // Base cap tiers
+        let cap = (raw >= 0.8 && blendedScore >= 70) ? 85 : (raw >= 0.65 ? 70 : 55);
+        // Volatility adjustment: downscale if vol high (>20%)
+        const volPenalty = Math.max(0, Math.round((avgVol - 0.20) * 100)); // e.g., 0.30 -> 10
+        cap = Math.max(30, Math.min(95, cap - Math.min(15, volPenalty)));
+        exposureCap = cap; // percent of portfolio risky max
+        exposureSource = 'backend';
+      }
+    } catch {}
+
+    // Final risky budget after cap and backend fallback
+    const baseRisky = riskBudget.percentages.risky; // % risky suggested by regime/risk
+    let finalRisky = (typeof exposureCap === 'number') ? Math.min(baseRisky, exposureCap) : baseRisky;
+    // If backend is down, enforce a prudent fallback cap (5%)
+    if (backendStatus === 'error') {
+      finalRisky = Math.min(finalRisky, 5);
+    } else if (backendStatus === 'stale') {
+      // If signals are stale, enforce a conservative cap (8%)
+      finalRisky = Math.min(finalRisky, 8);
+    }
+
+    // Allocate risky budget according to regime with finalRisky
+    const smartAllocation = allocateRiskyBudget(finalRisky, adjustedRegime);
     
     // Generate recommendations
     const recommendations = generateRegimeRecommendations(adjustedRegime, riskBudget);
@@ -309,7 +342,7 @@ export function generateSmartTargets() {
     console.debug('📊 Risk budget:', riskBudget.percentages);
     console.debug('🎯 Regime:', adjustedRegime.name);
     
-    const strategy = `${adjustedRegime.emoji} ${adjustedRegime.name} (${Math.round(blendedScore)}) | ${riskBudget.percentages.stables}% Stables`;
+    const strategy = `${adjustedRegime.emoji} ${adjustedRegime.name} (${Math.round(blendedScore)}) | ${Math.round(100 - finalRisky)}% Stables${exposureCap != null ? ` | Cap ${exposureCap}% (Decision Engine)` : ''}`;
     
     return {
       targets: normalizeTargets(smartAllocation),
@@ -319,6 +352,11 @@ export function generateSmartTargets() {
       risk_budget: riskBudget,
       recommendations,
       confidence: adjustedRegime.confidence,
+      base_risky: baseRisky,
+      final_risky: finalRisky,
+      exposure_cap: exposureCap,
+      exposure_source: exposureSource,
+      backend_status: backendStatus,
       timestamp: new Date().toISOString()
     };
     

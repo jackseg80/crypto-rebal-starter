@@ -315,6 +315,16 @@
       });
       // initial data load
       loadUnifiedData();
+
+      // Simple fallback banner toggle
+      setInterval(() => {
+        try {
+          const status = store.get('ui.apiStatus.backend');
+          const banner = document.getElementById('backend-fallback-banner');
+          if (!banner) return;
+          banner.style.display = (status && status !== 'healthy') ? 'block' : 'none';
+        } catch {}
+      }, 2000);
     });
   </script>
   <style>
@@ -391,6 +401,9 @@
 </head>
 
 <body>
+  <div id="backend-fallback-banner" style="display:none; background: color-mix(in oklab, var(--warning) 20%, transparent); border: 1px solid var(--warning); color: var(--theme-text); padding: .6rem; margin: .5rem auto; max-width: 95vw; border-radius: 6px;">
+    ⚠ Backend indisponible — mode prudent (cap réduit).
+  </div>
   <div class="wrap">
     <!-- Governance Panel -->
     <div id="governance-container"></div>

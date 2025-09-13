@@ -174,7 +174,9 @@
       "Bash(start http://localhost:8000/static/debug_phase2b2_cross_asset.html)",
       "Bash(pytest:*)",
       "Bash(start:*)",
-      "Bash(run_all_e2e_tests.bat)"
+      "Bash(run_all_e2e_tests.bat)",
+      "Bash(run_smoke_tests.bat)",
+      "Bash(netstat:*)"
     ],
     "deny": [],
     "ask": [],

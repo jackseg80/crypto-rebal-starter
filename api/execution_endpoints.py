@@ -879,6 +879,7 @@ async def get_ml_signals():
                 "decision_score": signals.decision_score,
                 "confidence": signals.confidence,
                 "contradiction_index": signals.contradiction_index,
+                "blended_score": getattr(signals, 'blended_score', None),
                 "sources_used": signals.sources_used,
                 "timestamp": signals.timestamp.isoformat() if hasattr(signals, 'timestamp') and signals.timestamp else None
             },
@@ -1422,4 +1423,119 @@ async def validate_allocation_change(request: dict):
         
     except Exception as e:
         logger.error(f"Error validating allocation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+class UpdateSignalsRequest(BaseModel):
+    """Payload pour mise à jour partielle des signaux ML (ex: blended score issu du front)"""
+    blended_score: Optional[float] = Field(default=None, ge=0.0, le=100.0, description="Blended Decision Score 0-100")
+
+@router.post("/governance/signals/update")
+async def update_ml_signals(request: UpdateSignalsRequest):
+    """
+    Mettre à jour des champs de signaux ML maintenus côté gouvernance.
+    Actuellement: accepte `blended_score` (0-100) pour activer les garde-fous backend.
+    """
+    try:
+        # Ensure we have a current state
+        state = await governance_engine.get_current_state()
+        signals = state.signals
+
+        # Update blended score if provided
+        if request.blended_score is not None:
+            try:
+                # Attach blended score directly to signals model
+                setattr(signals, 'blended_score', float(request.blended_score))
+            except Exception:
+                # Graceful fallback if assignment fails
+                pass
+
+        return {
+            "success": True,
+            "updated": {
+                "blended_score": getattr(signals, 'blended_score', None)
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error updating ML signals: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+class RecomputeSignalsRequest(BaseModel):
+    """Optionally provide components for blended recomputation.
+    If omitted, backend falls back to neutral values.
+    """
+    ccs_mixte: Optional[float] = Field(default=None, ge=0.0, le=100.0)
+    onchain_score: Optional[float] = Field(default=None, ge=0.0, le=100.0)
+    risk_score: Optional[float] = Field(default=None, ge=0.0, le=100.0)
+
+_LAST_RECOMPUTE_TS = 0.0
+_RECOMPUTE_WINDOW = []  # timestamps for burst control (last 10s)
+_RECOMPUTE_CACHE = {}   # idempotency cache: key -> {response, ts}
+
+@router.post("/governance/signals/recompute")
+async def recompute_ml_signals(
+    request: RecomputeSignalsRequest,
+    current_user: User = Depends(require_role("governance_admin")),
+    idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key"),
+    x_csrf_token: Optional[str] = Header(default=None, alias="X-CSRF-Token"),
+):
+    """Recompute blended score server-side from components and attach to governance signals."""
+    try:
+        global _LAST_RECOMPUTE_TS, _RECOMPUTE_WINDOW, _RECOMPUTE_CACHE
+        # CSRF basic check
+        if not x_csrf_token:
+            raise HTTPException(status_code=403, detail="missing_csrf_token")
+
+        # Idempotency check
+        if idempotency_key and idempotency_key in _RECOMPUTE_CACHE:
+            return _RECOMPUTE_CACHE[idempotency_key]["response"]
+
+        # Simple in-process rate-limit: 1 call/sec + burst 5/10s
+        now_ts = datetime.now().timestamp()
+        if (now_ts - _LAST_RECOMPUTE_TS) < 1.0:
+            raise HTTPException(status_code=429, detail="too_many_requests")
+        _LAST_RECOMPUTE_TS = now_ts
+        # Burst window
+        _RECOMPUTE_WINDOW = [t for t in _RECOMPUTE_WINDOW if (now_ts - t) < 10.0]
+        if len(_RECOMPUTE_WINDOW) >= 5:
+            raise HTTPException(status_code=429, detail="too_many_requests_burst")
+        _RECOMPUTE_WINDOW.append(now_ts)
+
+        state = await governance_engine.get_current_state()
+        signals = state.signals
+
+        # Pull components if provided; otherwise fall back to safe neutrals
+        ccs_mixte = request.ccs_mixte if request.ccs_mixte is not None else 50.0
+        onchain = request.onchain_score if request.onchain_score is not None else 50.0
+        risk = request.risk_score if request.risk_score is not None else 50.0
+
+        # Strategic blended: 50% CCS Mixte + 30% On-Chain + 20% (100-Risk)
+        blended = (ccs_mixte * 0.50) + (onchain * 0.30) + ((100.0 - risk) * 0.20)
+        blended = max(0.0, min(100.0, blended))
+
+        try:
+            setattr(signals, 'blended_score', float(blended))
+            setattr(signals, 'as_of', datetime.now())
+        except Exception:
+            pass
+
+        # Structured audit log (simple)
+        logger.info(f"recompute_blended user={getattr(current_user, 'username', 'unknown')} blended={blended}")
+
+        response_payload = {
+            "success": True,
+            "blended_score": blended,
+            "blended_formula_version": "1.0",
+            "timestamp": datetime.now().isoformat()
+        }
+        # Idempotency cache
+        if idempotency_key:
+            try:
+                _RECOMPUTE_CACHE[idempotency_key] = {"response": response_payload, "ts": datetime.now().timestamp()}
+            except Exception:
+                pass
+
+        return response_payload
+    except Exception as e:
+        logger.error(f"Error recomputing ML signals: {e}")
         raise HTTPException(status_code=500, detail=str(e))

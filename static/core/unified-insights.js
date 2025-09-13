@@ -20,6 +20,7 @@ export async function getUnifiedState() {
   const onchainScore = state.scores?.onchain ?? null;
   const riskScore = state.scores?.risk ?? null;
   const blendedScore = state.scores?.blended ?? null;
+  const backendSignals = state.governance?.ml_signals || null;
   const ocMeta = state.scores?.onchain_metadata || {};
   const risk = state.risk?.risk_metrics || {};
 
@@ -114,7 +115,7 @@ export async function getUnifiedState() {
     };
   }
 
-  // 4. SOPHISTICATED DECISION INDEX - Context-aware calculation
+  // 4. SOPHISTICATED DECISION INDEX - Prioritize backend Decision Engine, then blended, then fallback
   const decision = calculateIntelligentDecisionIndex({
     blendedScore,
     cycleData,
@@ -122,7 +123,11 @@ export async function getUnifiedState() {
     signalsData,
     onchainScore,
     onchainConfidence: ocMeta?.confidence ?? 0,
-    riskScore
+    riskScore,
+    backendDecision: backendSignals ? {
+      score: typeof backendSignals.decision_score === 'number' ? backendSignals.decision_score : null,
+      confidence: typeof backendSignals.confidence === 'number' ? backendSignals.confidence : null
+    } : null
   });
 
   // 5. SOPHISTICATED ANALYSIS - Use advanced modules
@@ -169,8 +174,10 @@ export async function getUnifiedState() {
   } catch {}
 
   // RETURN INTELLIGENT UNIFIED STATE
+  const decisionSource = backendSignals ? 'backend' : (blendedScore != null ? 'blended' : 'fallback');
   return {
     decision,
+    decision_source: (decision && decision.source) ? decision.source : decisionSource,
     cycle: {
       months: cycleData.months,
       score: Math.round(cycleData.score ?? 50),
@@ -219,10 +226,28 @@ export async function getUnifiedState() {
 }
 
 // INTELLIGENT DECISION INDEX calculation
-function calculateIntelligentDecisionIndex({ blendedScore, cycleData, regimeData, signalsData, onchainScore, onchainConfidence = 0, riskScore }) {
+function calculateIntelligentDecisionIndex({ blendedScore, cycleData, regimeData, signalsData, onchainScore, onchainConfidence = 0, riskScore, backendDecision = null }) {
   let finalScore;
   let confidence = 0.5;
   let reasoning = [];
+  let source = 'fallback';
+
+  // Prefer backend Decision Engine if available (score 0..1)
+  try {
+    if (backendDecision && typeof backendDecision.score === 'number') {
+      finalScore = Math.round(backendDecision.score * 100);
+      confidence = Math.max(0, Math.min(1, backendDecision.confidence ?? confidence));
+      source = 'backend';
+      reasoning.push('Index basé sur Decision Engine (backend)');
+      return {
+        score: finalScore,
+        color: colorForScore(finalScore),
+        confidence: Math.min(confidence, 0.95),
+        reasoning: reasoning.join(' \u0007 '),
+        source
+      };
+    }
+  } catch {}
 
   // Use blended if available (most sophisticated)
   if (blendedScore != null) {
@@ -233,6 +258,7 @@ function calculateIntelligentDecisionIndex({ blendedScore, cycleData, regimeData
     const ocConf = Math.max(0, Math.min(1, onchainConfidence));
     confidence = Math.min(0.95, (ocConf * 0.4) + (cycleConf * 0.3) + (regimeConf * 0.2) + 0.1);
     reasoning.push('Blended Score avec confiance agrégée (cycle/on-chain/régime)');
+    source = 'blended';
   } else {
     // Intelligent fallback using modules
     const cycleScore = cycleData?.score ?? 50;
@@ -248,6 +274,7 @@ function calculateIntelligentDecisionIndex({ blendedScore, cycleData, regimeData
     const regimeConf = Math.max(0, Math.min(1, regimeData?.regime?.confidence ?? 0.6));
     confidence = Math.min(0.9, 0.3 + (cycleWeight * 0.5) + (onchainWeight * 0.4) + (regimeConf * 0.2));
     reasoning.push('Calcul intelligent avec pondération dynamique');
+    source = 'fallback';
   }
 
   // Context adjustments
