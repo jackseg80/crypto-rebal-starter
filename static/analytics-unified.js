@@ -162,6 +162,12 @@ async function loadTabData(tabId) {
             case 'monitoring':
                 await loadMonitoringData();
                 break;
+            case 'intelligence-ml':
+                // ML Tab handled by its own initialization system
+                console.log('🤖 Intelligence ML tab activated - components should auto-initialize');
+                break;
+            default:
+                console.warn(`Unknown tab: ${tab}`);
         }
     } catch (error) {
         console.error(`Error loading ${tab} data:`, error);

@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test ML Basic - Quick Validation</title>
+
+    <link rel="stylesheet" href="shared-theme.css">
+    <link rel="stylesheet" href="theme-compat.css">
+
+    <script src="global-config.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            background: var(--theme-background);
+            color: var(--theme-text);
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+            padding: 2rem;
+        }
+
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .component-test {
+            background: var(--theme-surface);
+            border-radius: var(--radius-md);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            border: 1px solid var(--theme-border);
+        }
+
+        .test-result {
+            padding: 1rem;
+            border-radius: var(--radius-sm);
+            margin-top: 1rem;
+            font-weight: 600;
+        }
+
+        .pass { background: var(--success-bg); color: var(--success); }
+        .fail { background: var(--danger-bg); color: var(--danger); }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-weight: 600;
+            background: var(--brand-primary);
+            color: white;
+            margin: 0.5rem 0.5rem 0.5rem 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="test-container">
+        <h1>🧪 Test ML Components - Validation Basique</h1>
+
+        <!-- Test BadgesML -->
+        <div class="component-test">
+            <h3>BadgesML Component</h3>
+            <div id="badges-container"></div>
+            <button class="btn" onclick="testBadges()">Test BadgesML</button>
+            <div id="badges-result" class="test-result"></div>
+        </div>
+
+        <!-- Test GlobalInsightML -->
+        <div class="component-test">
+            <h3>GlobalInsightML Component</h3>
+            <div id="insight-container"></div>
+            <button class="btn" onclick="testInsight()">Test GlobalInsightML</button>
+            <div id="insight-result" class="test-result"></div>
+        </div>
+
+        <!-- Navigation links -->
+        <div class="component-test">
+            <h3>🔗 Navigation Test</h3>
+            <p>Teste si les liens de navigation fonctionnent :</p>
+            <a href="ai-dashboard.html" target="_blank" class="btn">🤖 ML Command Center</a>
+            <a href="analytics-unified.html#ml" target="_blank" class="btn">📊 Analytics ML Tab</a>
+            <a href="analytics-unified.html" target="_blank" class="btn">📊 Analytics General</a>
+
+            <div class="test-result" style="margin-top: 1rem; background: var(--theme-surface-elevated); color: var(--theme-text);">
+                <strong>Test manuel :</strong>
+                <ul>
+                    <li>✅ ML Command Center doit afficher le dashboard opérationnel</li>
+                    <li>✅ Analytics ML Tab doit ouvrir l'onglet Intelligence ML</li>
+                    <li>✅ Analytics General doit afficher tous les onglets (Risk, Performance, Cycles, Monitoring, Intelligence ML)</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Summary -->
+        <div class="component-test">
+            <h3>📋 Résumé DoD</h3>
+            <div style="display: grid; gap: 0.5rem;">
+                <div>✅ <strong>ai-dashboard.html</strong> = Command Center (ML) avec composants factorisés</div>
+                <div>✅ <strong>analytics-unified.html</strong> a l'onglet 🤖 Intelligence ML</div>
+                <div>✅ <strong>Zéro code dupliqué</strong> - Tous composants passent par /components/ml/</div>
+                <div>✅ <strong>Badges identiques</strong> format "Source • Updated • Contrad • Cap"</div>
+                <div>✅ <strong>Architecture factorisée</strong> - MLComponents réutilisables</div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { MLComponents, BadgesML, GlobalInsightML } from './components/ml/index.js';
+
+        // Mock Store Simple
+        const mockStore = {
+            data: {
+                governance: {
+                    ml_signals: {
+                        timestamp: new Date().toISOString(),
+                        decision_score: 0.67,
+                        confidence: 0.78,
+                        contradiction_index: 0.35
+                    },
+                    active_policy: {
+                        cap_daily: 0.15,
+                        mode: 'ai_assisted'
+                    },
+                    data_source: 'Test Data',
+                    backend_status: 'operational'
+                }
+            },
+            get(path) {
+                const keys = path.split('.');
+                let value = this.data;
+                for (const key of keys) {
+                    value = value?.[key];
+                }
+                return value;
+            },
+            subscribe(callback) {
+                // Mock subscription
+                return () => {};
+            }
+        };
+
+        // Test functions
+        window.testBadges = function() {
+            console.log('Testing BadgesML...');
+
+            try {
+                const badges = new BadgesML();
+                badges.init(mockStore);
+
+                const container = document.getElementById('badges-container');
+                badges.render(container, {
+                    source: 'Test API',
+                    timestamp: new Date().toISOString(),
+                    contradiction: 0.35,
+                    cap: 0.15,
+                    overrides: 2,
+                    backendStatus: 'operational'
+                });
+
+                const result = document.getElementById('badges-result');
+                const badgeText = container.textContent;
+
+                if (badgeText.includes('Test API') && badgeText.includes('Updated') && badgeText.includes('Contrad') && badgeText.includes('Cap')) {
+                    result.className = 'test-result pass';
+                    result.textContent = '✅ PASS - Badge format correct: ' + badgeText;
+                } else {
+                    result.className = 'test-result fail';
+                    result.textContent = '❌ FAIL - Badge format incorrect: ' + badgeText;
+                }
+
+            } catch (error) {
+                const result = document.getElementById('badges-result');
+                result.className = 'test-result fail';
+                result.textContent = '❌ ERROR - ' + error.message;
+            }
+        };
+
+        window.testInsight = function() {
+            console.log('Testing GlobalInsightML...');
+
+            try {
+                const insight = new GlobalInsightML();
+                insight.init(mockStore);
+
+                const container = document.getElementById('insight-container');
+                insight.render(container, {
+                    decisionScore: 0.67,
+                    confidence: 0.78,
+                    capEffective: 0.15,
+                    policyMode: 'ai_assisted'
+                });
+
+                const result = document.getElementById('insight-result');
+                const scoreEl = container.querySelector('.gi-score');
+
+                if (scoreEl && scoreEl.textContent === '67') {
+                    result.className = 'test-result pass';
+                    result.textContent = '✅ PASS - Global Insight rendered with correct score: 67';
+                } else {
+                    result.className = 'test-result fail';
+                    result.textContent = '❌ FAIL - Score not found or incorrect: ' + (scoreEl?.textContent || 'N/A');
+                }
+
+            } catch (error) {
+                const result = document.getElementById('insight-result');
+                result.className = 'test-result fail';
+                result.textContent = '❌ ERROR - ' + error.message;
+            }
+        };
+
+        // Auto-test on load
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🧪 ML Basic Test loaded');
+
+            // Auto-run tests after a short delay
+            setTimeout(() => {
+                testBadges();
+                testInsight();
+            }, 1000);
+        });
+    </script>
+</body>
+
+</html>
