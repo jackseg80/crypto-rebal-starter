@@ -63,3 +63,4 @@ tests/fixtures/diagnostic_*.html
 # Debug output (keep tools, exclude output)
 debug_output/
 *.debug
+nul
