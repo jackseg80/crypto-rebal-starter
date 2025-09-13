@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Lazy Chart Loading</title>
+
+  <script src="lazy-loader.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 2rem;
+      background: #1a1a1a;
+      color: #ffffff;
+    }
+
+    .chart-container {
+      margin: 2rem 0;
+      padding: 1rem;
+      border: 1px solid #333;
+      border-radius: 8px;
+      background: #2a2a2a;
+    }
+
+    .chart-lazy-placeholder {
+      width: 100%;
+      height: 300px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #333;
+      color: #aaa;
+      border: 2px dashed #555;
+      border-radius: 8px;
+      transition: all 0.3s ease;
+    }
+
+    .chart-lazy-placeholder:hover {
+      background: #444;
+      border-color: #666;
+    }
+
+    canvas {
+      max-width: 100%;
+      height: 300px;
+    }
+
+    .content {
+      height: 800px;
+      background: linear-gradient(45deg, #2a2a2a, #1a1a1a);
+      margin: 2rem 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      font-size: 1.5rem;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>🧪 Test Lazy Loading Chart.js</h1>
+
+  <p>Cette page teste le lazy-loading de Chart.js. Scroll vers le bas pour voir le graphique se charger automatiquement.</p>
+
+  <div class="content">
+    <div>📜 Contenu avant le graphique - scroll vers le bas</div>
+  </div>
+
+  <!-- Add more content to push chart out of viewport -->
+  <div class="content" style="height: 1200px; background: linear-gradient(135deg, #2a2a2a, #1a1a1a, #3a3a3a);">
+    <div>🔽 Scrollez encore plus bas pour voir le lazy loading en action...</div>
+  </div>
+
+  <!-- Chart Container with Lazy Loading -->
+  <div class="chart-container"
+       data-lazy-load="component"
+       data-lazy-component="SimpleChart">
+    <h2>📊 Graphique Lazy-Loaded</h2>
+
+    <div class="chart-lazy-placeholder">
+      <div style="text-align: center;">
+        <div style="font-size: 2rem; margin-bottom: 0.5rem;">📊</div>
+        <div>Graphique se charge au scroll...</div>
+      </div>
+    </div>
+
+    <canvas id="test-chart" style="display: none;"></canvas>
+  </div>
+
+  <div class="content">
+    <div>📄 Contenu après le graphique</div>
+  </div>
+
+  <script>
+    // Composant Simple Chart pour test
+    class SimpleChart {
+      constructor(element) {
+        this.element = element;
+        this.placeholder = element.querySelector('.chart-lazy-placeholder');
+        this.canvas = element.querySelector('#test-chart');
+        console.log('🔧 SimpleChart constructor called', { element, placeholder: this.placeholder, canvas: this.canvas });
+      }
+
+      async init() {
+        console.log('🚀 SimpleChart init() called');
+
+        try {
+          // Afficher un indicateur de chargement
+          if (this.placeholder) {
+            this.placeholder.innerHTML = `
+              <div style="text-align: center;">
+                <div style="font-size: 2rem; margin-bottom: 0.5rem;">⏳</div>
+                <div>Chargement de Chart.js...</div>
+                <div style="margin-top: 1rem;">
+                  <div style="width: 40px; height: 4px; background: #333; border-radius: 2px; margin: 0 auto; overflow: hidden;">
+                    <div style="width: 100%; height: 100%; background: linear-gradient(90deg, transparent, #0088ff, transparent); animation: loading 1.5s infinite;"></div>
+                  </div>
+                </div>
+              </div>
+              <style>
+                @keyframes loading {
+                  0% { transform: translateX(-100%); }
+                  100% { transform: translateX(100%); }
+                }
+              </style>
+            `;
+          }
+
+          // Charger Chart.js de manière asynchrone
+          await this.loadChartJS();
+
+          // Masquer le placeholder et afficher le canvas
+          if (this.placeholder) {
+            this.placeholder.style.display = 'none';
+          }
+          if (this.canvas) {
+            this.canvas.style.display = 'block';
+          }
+
+          // Créer un graphique simple
+          await this.createChart();
+
+          console.log('✅ SimpleChart loaded successfully');
+
+        } catch (error) {
+          console.error('❌ Failed to load SimpleChart:', error);
+
+          // Afficher l'erreur dans le placeholder
+          if (this.placeholder) {
+            this.placeholder.innerHTML = `
+              <div style="text-align: center; color: #ff4444;">
+                <div style="font-size: 2rem; margin-bottom: 0.5rem;">⚠️</div>
+                <div>Erreur lors du chargement</div>
+                <div style="font-size: 0.8rem; margin-top: 0.5rem; opacity: 0.7;">${error.message}</div>
+              </div>
+            `;
+          }
+        }
+      }
+
+      async loadChartJS() {
+        // Vérifier si Chart.js est déjà chargé
+        if (window.Chart) {
+          console.log('📊 Chart.js already loaded');
+          return Promise.resolve();
+        }
+
+        console.log('📊 Loading Chart.js...');
+
+        // Charger Chart.js principal
+        const chartPromise = new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js';
+          script.onload = () => {
+            console.log('✅ Chart.js script loaded');
+            resolve();
+          };
+          script.onerror = () => reject(new Error('Failed to load Chart.js'));
+          document.head.appendChild(script);
+        });
+
+        await chartPromise;
+
+        // Petit délai pour s'assurer que Chart.js est disponible
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        if (!window.Chart) {
+          throw new Error('Chart.js failed to initialize');
+        }
+
+        console.log('✅ Chart.js loaded and ready:', typeof window.Chart);
+      }
+
+      async createChart() {
+        if (!this.canvas || !window.Chart) {
+          throw new Error('Canvas or Chart.js not available');
+        }
+
+        // Données de test
+        const data = {
+          labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+          datasets: [{
+            label: 'Données de test',
+            data: [12, 19, 3, 5, 2, 3],
+            backgroundColor: 'rgba(0, 136, 255, 0.2)',
+            borderColor: 'rgba(0, 136, 255, 1)',
+            borderWidth: 2,
+            fill: true
+          }]
+        };
+
+        const config = {
+          type: 'line',
+          data: data,
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              title: {
+                display: true,
+                text: '📊 Graphique Lazy-Loaded avec Chart.js',
+                color: '#ffffff'
+              },
+              legend: {
+                labels: {
+                  color: '#ffffff'
+                }
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: { color: '#ffffff' },
+                grid: { color: '#444' }
+              },
+              x: {
+                ticks: { color: '#ffffff' },
+                grid: { color: '#444' }
+              }
+            }
+          }
+        };
+
+        // Créer le graphique
+        this.chart = new Chart(this.canvas, config);
+        console.log('📈 Chart created successfully');
+      }
+    }
+
+    // Enregistrer le composant globalement
+    window.SimpleChart = SimpleChart;
+
+    console.log('🔧 Test page loaded, SimpleChart registered');
+
+    // Test manuel du lazy loading après 2 secondes
+    setTimeout(() => {
+      console.log('🧪 Manual test: forcing lazy loading check');
+      const lazyElements = document.querySelectorAll('[data-lazy-load="component"]');
+      console.log(`🧪 Found ${lazyElements.length} lazy elements`);
+
+      lazyElements.forEach((el, i) => {
+        const rect = el.getBoundingClientRect();
+        console.log(`🧪 Element ${i} position:`, {
+          top: rect.top,
+          bottom: rect.bottom,
+          left: rect.left,
+          right: rect.right,
+          visible: rect.top < window.innerHeight && rect.bottom > 0
+        });
+
+        // Force manually trigger if visible
+        if (rect.top < window.innerHeight && rect.bottom > 0) {
+          console.log(`🧪 Manually triggering lazy load for element ${i}`);
+          if (window.lazyLoader) {
+            window.lazyLoader.loadVisibleElement(el);
+          }
+        }
+      });
+    }, 2000);
+  </script>
+</body>
+</html>

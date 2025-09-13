@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bitcoin Chart Debug Ultra Simple</title>
+  <script src="lazy-loader.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 2rem;
+      background: #1a1a1a;
+      color: #ffffff;
+    }
+
+    #logs {
+      background: #000;
+      color: #0f0;
+      padding: 1rem;
+      font-family: monospace;
+      font-size: 0.9rem;
+      height: 200px;
+      overflow-y: auto;
+      border: 1px solid #333;
+      margin-bottom: 2rem;
+    }
+
+    .test-container {
+      border: 2px solid #ff0;
+      padding: 1rem;
+      margin: 2rem 0;
+    }
+
+    .chart-lazy-placeholder {
+      width: 100%;
+      height: 300px;
+      background: #333;
+      border: 2px dashed #555;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #aaa;
+    }
+
+    canvas {
+      width: 100%;
+      height: 300px;
+      background: #222;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>🔍 Bitcoin Chart Debug - Ultra Simple</h1>
+
+  <div id="logs"></div>
+
+  <!-- Test Container with explicit logging -->
+  <div class="test-container"
+       data-lazy-load="component"
+       data-lazy-component="BitcoinCycleChart">
+
+    <h2>📊 Bitcoin Chart Test Container</h2>
+
+    <div class="chart-lazy-placeholder">
+      <div>📊 Waiting for lazy loading...</div>
+    </div>
+
+    <canvas id="bitcoin-cycle-chart" style="display: none;"></canvas>
+  </div>
+
+  <script>
+    // Ultra simple logging
+    const logContainer = document.getElementById('logs');
+    let logCount = 0;
+
+    function log(msg) {
+      logCount++;
+      const time = new Date().toLocaleTimeString();
+      logContainer.innerHTML += `[${logCount}] ${time}: ${msg}\n`;
+      logContainer.scrollTop = logContainer.scrollHeight;
+      console.log(`[${logCount}] ${msg}`);
+    }
+
+    log("🚀 Page starting...");
+
+    // Override console to capture everything
+    const originalLog = console.log;
+    const originalError = console.error;
+
+    console.log = (...args) => {
+      originalLog.apply(console, args);
+      log("LOG: " + args.join(' '));
+    };
+
+    console.error = (...args) => {
+      originalError.apply(console, args);
+      log("ERROR: " + args.join(' '));
+    };
+
+    // Simple chart creation function
+    window.createBitcoinCycleChart = function(canvasId) {
+      log(`📊 createBitcoinCycleChart called with canvasId: ${canvasId}`);
+
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) {
+        log(`❌ No canvas found with ID: ${canvasId}`);
+        return null;
+      }
+
+      if (!window.Chart) {
+        log(`❌ Chart.js not available`);
+        return null;
+      }
+
+      log(`✅ Creating simple chart on canvas ${canvasId}`);
+
+      const data = {
+        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May'],
+        datasets: [{
+          label: 'Bitcoin Test',
+          data: [30000, 35000, 32000, 45000, 50000],
+          borderColor: '#f7931a',
+          backgroundColor: 'rgba(247, 147, 26, 0.1)'
+        }]
+      };
+
+      const config = {
+        type: 'line',
+        data: data,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false
+        }
+      };
+
+      try {
+        const chart = new Chart(canvas, config);
+        log(`✅ Chart created successfully!`);
+        return chart;
+      } catch (error) {
+        log(`❌ Chart creation failed: ${error.message}`);
+        return null;
+      }
+    };
+
+    // Simple BitcoinCycleChart component
+    class BitcoinCycleChart {
+      constructor(element) {
+        log(`🔧 BitcoinCycleChart constructor called`);
+        this.element = element;
+        this.placeholder = element.querySelector('.chart-lazy-placeholder');
+        this.canvas = element.querySelector('#bitcoin-cycle-chart');
+
+        log(`🔍 Constructor - Placeholder: ${!!this.placeholder}, Canvas: ${!!this.canvas}`);
+      }
+
+      async init() {
+        log(`🚀 BitcoinCycleChart.init() called`);
+
+        try {
+          // Show loading
+          if (this.placeholder) {
+            log(`📝 Updating placeholder to show loading...`);
+            this.placeholder.innerHTML = '<div>⏳ Loading Chart.js...</div>';
+          }
+
+          // Load Chart.js
+          log(`📊 Loading Chart.js...`);
+          await this.loadChartJS();
+          log(`✅ Chart.js loaded`);
+
+          // Hide placeholder, show canvas
+          if (this.placeholder) {
+            log(`👁️ Hiding placeholder`);
+            this.placeholder.style.display = 'none';
+          }
+
+          if (this.canvas) {
+            log(`👁️ Showing canvas`);
+            this.canvas.style.display = 'block';
+          }
+
+          // Create chart
+          if (typeof createBitcoinCycleChart === 'function') {
+            log(`📊 Calling createBitcoinCycleChart...`);
+            await createBitcoinCycleChart('bitcoin-cycle-chart');
+            log(`✅ Chart creation completed`);
+          } else {
+            log(`❌ createBitcoinCycleChart function not available`);
+          }
+
+          log(`✅ BitcoinCycleChart.init() completed successfully`);
+
+        } catch (error) {
+          log(`❌ BitcoinCycleChart.init() failed: ${error.message}`);
+          if (this.placeholder) {
+            this.placeholder.innerHTML = `<div style="color: #f44;">❌ Error: ${error.message}</div>`;
+          }
+        }
+      }
+
+      async loadChartJS() {
+        if (window.Chart) {
+          log(`📊 Chart.js already loaded`);
+          return;
+        }
+
+        log(`📊 Loading Chart.js script...`);
+
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js';
+
+        const promise = new Promise((resolve, reject) => {
+          script.onload = () => {
+            log(`✅ Chart.js script loaded`);
+            resolve();
+          };
+          script.onerror = () => {
+            log(`❌ Chart.js script failed to load`);
+            reject(new Error('Failed to load Chart.js'));
+          };
+        });
+
+        document.head.appendChild(script);
+        await promise;
+
+        // Wait a bit
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        if (!window.Chart) {
+          throw new Error('Chart.js not available after loading');
+        }
+
+        log(`✅ Chart.js loaded and available: ${typeof window.Chart}`);
+      }
+    }
+
+    // Register globally
+    window.BitcoinCycleChart = BitcoinCycleChart;
+    log(`📝 BitcoinCycleChart class registered globally`);
+
+    // Wait for DOM and lazy loader
+    document.addEventListener('DOMContentLoaded', () => {
+      log(`📄 DOM content loaded`);
+
+      setTimeout(() => {
+        log(`🔍 Checking lazy loader availability...`);
+        log(`Lazy loader available: ${!!window.lazyLoader}`);
+
+        if (window.lazyLoader) {
+          const lazyElements = document.querySelectorAll('[data-lazy-load]');
+          log(`Found ${lazyElements.length} lazy elements`);
+
+          lazyElements.forEach((el, i) => {
+            log(`Lazy element ${i}: ${el.tagName}, component: ${el.dataset.lazyComponent}`);
+          });
+        } else {
+          log(`❌ Lazy loader not available yet, will retry...`);
+
+          // Retry in case lazy loader is loading
+          setTimeout(() => {
+            log(`🔍 Retry - Lazy loader: ${!!window.lazyLoader}`);
+            if (window.lazyLoader) {
+              log(`✅ Lazy loader now available`);
+            } else {
+              log(`❌ Lazy loader still not available after retry`);
+            }
+          }, 1000);
+        }
+      }, 500);
+    });
+
+    log(`📄 Script loaded, waiting for DOM...`);
+  </script>
+</body>
+</html>

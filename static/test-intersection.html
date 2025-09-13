@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Intersection Observer</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 2rem;
+      background: #1a1a1a;
+      color: #fff;
+    }
+    .spacer {
+      height: 100vh;
+      background: #333;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 2rem 0;
+    }
+    .test-element {
+      width: 100%;
+      height: 400px;
+      background: #444;
+      border: 2px solid #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 2rem 0;
+    }
+    #logs {
+      background: #000;
+      color: #0f0;
+      padding: 1rem;
+      font-family: monospace;
+      height: 200px;
+      overflow-y: auto;
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 400px;
+      z-index: 1000;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="logs"></div>
+  <h1>🔍 Test Intersection Observer</h1>
+
+  <div class="spacer">Scroll vers le bas</div>
+  <div class="spacer">Encore plus bas</div>
+
+  <div class="test-element" data-test="target">
+    🎯 TARGET ELEMENT - Should be detected when visible
+  </div>
+
+  <div class="spacer">Après l'élément cible</div>
+
+  <script>
+    const logs = document.getElementById('logs');
+    let logCount = 0;
+
+    function log(msg) {
+      const time = new Date().toLocaleTimeString();
+      logs.innerHTML += `[${++logCount}] ${time}: ${msg}\n`;
+      logs.scrollTop = logs.scrollHeight;
+      console.log(msg);
+    }
+
+    log("🚀 Starting intersection test");
+
+    // Create intersection observer
+    const observer = new IntersectionObserver((entries) => {
+      log(`📊 IntersectionObserver callback triggered with ${entries.length} entries`);
+
+      entries.forEach((entry, index) => {
+        log(`Entry ${index}: isIntersecting=${entry.isIntersecting}, ratio=${entry.intersectionRatio.toFixed(3)}`);
+        log(`  BoundingRect: top=${entry.boundingClientRect.top.toFixed(0)}, bottom=${entry.boundingClientRect.bottom.toFixed(0)}`);
+        log(`  RootBounds: height=${entry.rootBounds.height.toFixed(0)}`);
+
+        if (entry.isIntersecting) {
+          log(`✅ TARGET IS VISIBLE! Intersection ratio: ${entry.intersectionRatio}`);
+          entry.target.style.background = '#0f0';
+          entry.target.innerHTML = '✅ DETECTED!';
+        } else {
+          log(`❌ Target not intersecting`);
+          entry.target.style.background = '#444';
+          entry.target.innerHTML = '🎯 TARGET ELEMENT - Should be detected when visible';
+        }
+      });
+    }, {
+      rootMargin: '50px',
+      threshold: 0.1
+    });
+
+    // Wait for DOM then observe
+    document.addEventListener('DOMContentLoaded', () => {
+      log("📄 DOM loaded");
+
+      const target = document.querySelector('[data-test="target"]');
+      if (target) {
+        log("🎯 Target element found, starting observation");
+        observer.observe(target);
+        log("👁️ Observer started");
+      } else {
+        log("❌ Target element not found");
+      }
+    });
+
+    // Also log scroll events
+    window.addEventListener('scroll', () => {
+      const scrollY = window.scrollY;
+      log(`📜 Scroll: ${scrollY}px`);
+    });
+
+    log("📝 Script loaded");
+  </script>
+</body>
+</html>

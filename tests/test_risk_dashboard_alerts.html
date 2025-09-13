@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Risk Dashboard Alert Actions</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .result { margin: 10px 0; padding: 10px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #cce7ff; color: #004085; }
+        iframe { width: 100%; height: 600px; border: 1px solid #ddd; }
+    </style>
+</head>
+<body>
+    <h1>Test du Risk Dashboard - Actions d'Alertes</h1>
+    
+    <div id="test-info" class="result info">
+        <h2>Test Instructions:</h2>
+        <p>1. Chargez le risk dashboard ci-dessous</p>
+        <p>2. Attendez que les alertes se chargent</p>
+        <p>3. Testez les boutons ACK et Snooze sur les alertes</p>
+        <p>4. Vérifiez qu'il n'y a plus d'erreur "Failed to acknowledge alert"</p>
+    </div>
+    
+    <h2>Risk Dashboard avec Navigation Désactivée</h2>
+    <iframe src="/static/risk-dashboard.html?nav=off&debug=true"></iframe>
+    
+    <div id="manual-test" class="result info">
+        <h2>Test Manuel des Endpoints</h2>
+        <button onclick="testEndpoint('/api/alerts/test/acknowledge/TEST-001', 'POST', {user_id: 'test'})">Test ACK Endpoint</button>
+        <button onclick="testEndpoint('/api/alerts/test/snooze/TEST-001', 'POST', {user_id: 'test', snooze_duration_minutes: 60})">Test Snooze Endpoint</button>
+        <div id="manual-results"></div>
+    </div>
+
+    <script>
+        async function testEndpoint(endpoint, method, body) {
+            const container = document.getElementById('manual-results');
+            
+            try {
+                const response = await fetch(endpoint, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                
+                const div = document.createElement('div');
+                div.className = `result ${response.ok ? 'success' : 'error'}`;
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    div.textContent = `✓ ${method} ${endpoint}: ${response.status} - ${JSON.stringify(result)}`;
+                } else {
+                    div.textContent = `✗ ${method} ${endpoint}: ${response.status} ${response.statusText}`;
+                }
+                
+                container.appendChild(div);
+            } catch (error) {
+                const div = document.createElement('div');
+                div.className = 'result error';
+                div.textContent = `✗ ${method} ${endpoint}: ${error.message}`;
+                container.appendChild(div);
+            }
+        }
+    </script>
+</body>
+</html>
