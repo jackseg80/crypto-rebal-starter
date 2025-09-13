@@ -708,50 +708,16 @@
     </div>
   </section>
 
-  <!-- Import ML Components -->
-  <script type="module" src="components/ml/index.js"></script>
   <script type="module">
-    // ML Components Integration pour onglet Intelligence ML
-    import { MLComponents } from './components/ml/index.js';
+    // Intelligence ML Tab - Simplified integration without external ML components
 
-    let mlComponentsInstance = null;
+    let mlTabInitialized = false;
 
     // Initialisation quand l'onglet ML est sélectionné
     function initializeMLTab() {
       console.log('🤖 Initializing Intelligence ML tab...');
 
       try {
-        // Récupération du store depuis le scope global
-        const store = window.store || { get: () => null, subscribe: () => {} };
-
-        // Créer l'instance des composants ML
-        mlComponentsInstance = new MLComponents(store);
-        mlComponentsInstance.addStyles();
-
-        // Rendu des badges ML
-        mlComponentsInstance.badges.setupAutoUpdate(
-          document.getElementById('ml-stats-badges-container'),
-          { compact: false }
-        );
-
-        // Global Insight détaillé
-        mlComponentsInstance.globalInsight.setupAutoUpdate(
-          document.getElementById('ml-global-insight-container'),
-          { compact: true, showDetails: false } // Plus compact dans analytics
-        );
-
-        // Model Health détaillé
-        mlComponentsInstance.modelHealth.setupAutoUpdate(
-          document.getElementById('ml-models-health-container'),
-          { compact: false, showActions: true }
-        );
-
-        // Ops KPIs pour admin
-        mlComponentsInstance.opsKpis.setupAutoUpdate(
-          document.getElementById('ml-admin-ops-container'),
-          { compact: false, showAdvanced: true }
-        );
-
         // Démarrer les prédictions temps réel
         loadMLPredictions();
         loadMLPipelineStatus();
@@ -760,6 +726,7 @@
         setInterval(loadMLPredictions, 60000); // 1 minute
         setInterval(loadMLPipelineStatus, 120000); // 2 minutes
 
+        mlTabInitialized = true;
         console.log('✅ Intelligence ML tab initialized');
 
       } catch (error) {
@@ -933,7 +900,7 @@
       if (mlTab) {
         mlTab.addEventListener('click', () => {
           setTimeout(() => {
-            if (!mlComponentsInstance) {
+            if (!mlTabInitialized) {
               initializeMLTab();
             }
           }, 100); // Petit délai pour que l'onglet soit visible
