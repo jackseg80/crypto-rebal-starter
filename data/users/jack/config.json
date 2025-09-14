@@ -8,7 +8,6 @@
   "cointracking_api_secret": "demo_secret_jack",
   "coingecko_api_key": "",
   "fred_api_key": "",
-  "debug_token": "",
   "pricing": "local",
   "refresh_interval": 5,
   "enable_coingecko_classification": true,

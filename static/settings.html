@@ -508,7 +508,7 @@
         <div class="help">Clé API gratuite FRED pour historique Bitcoin complet depuis 2014 (vs 365j CoinGecko).</div>
       </div>
 
-      <div class="form-group">
+      <div class="form-group" id="debug_token_group" style="display:none;">
         <label>Debug Token (requis pour sync .env)</label>
         <div style="display: flex; gap: 8px; align-items: center;">
           <input type="password" id="debug_token" placeholder="Token sécurisé pour accès debug" style="flex: 1;">
@@ -517,7 +517,7 @@
         <div class="help">Token requis pour accéder aux endpoints de debug et synchroniser les clés avec .env</div>
       </div>
 
-      <div style="display: flex; gap: 8px; margin-top: 12px;">
+      <div id="env_sync_buttons" style="display:none; gap: 8px; margin-top: 12px;">
         <button class="btn secondary small" onclick="syncApiKeysFromEnv()">📥 Charger depuis .env</button>
         <button class="btn small" onclick="syncApiKeysToEnv()">💾 Sauver vers .env</button>
       </div>
@@ -817,6 +817,10 @@
 
   <script src="/static/global-config.js"></script>
   <script>
+    // Helper: récupérer l'utilisateur actif depuis localStorage (aligné avec nav.js)
+    function getActiveUser() {
+      try { return localStorage.getItem('activeUser') || 'demo'; } catch (_) { return 'demo'; }
+    }
     // Tabs logic
     (function(){
       const btns = document.querySelectorAll('.tab-btn');
@@ -855,7 +859,7 @@
       try {
         // Récupérer les sources disponibles pour l'utilisateur actuel
         const response = await fetch('/api/users/sources', {
-          headers: { 'X-User': window.currentUser || 'demo' }
+          headers: { 'X-User': getActiveUser() }
         });
 
         if (!response.ok) {
@@ -1022,7 +1026,7 @@
     async function loadSettings() {
       try {
         const response = await fetch('/api/users/settings', {
-          headers: { 'X-User': window.currentUser || 'demo' }
+          headers: { 'X-User': getActiveUser() }
         });
         if (response.ok) {
           window.userSettings = await response.json();
@@ -1039,6 +1043,22 @@
       updateUI();
       await updateStatusSummary();
       if (window.globalConfig) await initQuickSettings();
+
+      // Masquer les contrôles .env si mode debug désactivé
+      const debugMode = (window.userSettings || getDefaultSettings()).debug_mode === true;
+      const dbgGroup = document.getElementById('debug_token_group');
+      const envBtns = document.getElementById('env_sync_buttons');
+      if (dbgGroup) dbgGroup.style.display = debugMode ? '' : 'none';
+      if (envBtns) envBtns.style.display = debugMode ? '' : 'none';
+
+      // Synchroniser la source/pricing avec la config globale pour les autres pages
+      try {
+        if (window.globalConfig && typeof window.globalConfig.set === 'function') {
+          const s = window.userSettings || getDefaultSettings();
+          window.globalConfig.set('data_source', s.data_source || 'cointracking');
+          window.globalConfig.set('pricing', s.pricing || 'local');
+        }
+      } catch (_) {}
     }
 
     // Sauvegarder les settings via l'API utilisateur
@@ -1048,7 +1068,7 @@
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            'X-User': window.currentUser || 'demo'
+            'X-User': getActiveUser()
           },
           body: JSON.stringify(window.userSettings)
         });
@@ -1142,7 +1162,7 @@
       let sourceLabel = globalSettings.data_source;
       try {
         const response = await fetch('/api/users/sources', {
-          headers: { 'X-User': window.currentUser || 'demo' }
+          headers: { 'X-User': getActiveUser() }
         });
         if (response.ok) {
           const data = await response.json();
@@ -1189,6 +1209,12 @@
       document.querySelectorAll('.radio-option').forEach(el => el.classList.remove('selected'));
       if (!window.userSettings) window.userSettings = getDefaultSettings();
       window.userSettings.data_source = source;
+      if (window.globalConfig && typeof window.globalConfig.set === 'function') {
+        try { window.globalConfig.set('data_source', source); } catch(_){}
+      }
+      // Synchroniser le sélecteur rapide "Résumé"
+      const quickSel = document.getElementById('quick_data_source');
+      if (quickSel) { try { quickSel.value = source; } catch(_){} }
       document.getElementById(`source_${source}`).checked = true;
       document.querySelector(`.radio-option input[value="${source}"]`).parentElement.classList.add('selected');
       await updateStatusSummary();
@@ -1199,6 +1225,12 @@
       document.querySelectorAll('.radio-option').forEach(el => el.classList.remove('selected'));
       if (!window.userSettings) window.userSettings = getDefaultSettings();
       window.userSettings.pricing = pricing;
+      if (window.globalConfig && typeof window.globalConfig.set === 'function') {
+        try { window.globalConfig.set('pricing', pricing); } catch(_){}
+      }
+      // Synchroniser le sélecteur rapide "Résumé"
+      const quickPrice = document.getElementById('quick_pricing');
+      if (quickPrice) { try { quickPrice.value = pricing; } catch(_){} }
       document.getElementById(`pricing_${pricing}`).checked = true;
       document.querySelector(`.radio-option input[value="${pricing}"]`).parentElement.classList.add('selected');
       await updateStatusSummary();
@@ -1235,32 +1267,23 @@
       window.userSettings.display_currency = document.getElementById('display_currency').value;
       window.userSettings.min_usd_threshold = parseFloat(document.getElementById('min_usd_threshold').value);
 
-      // Pour les clés API, utiliser la vraie valeur si le champ n'est pas masqué, sinon garder la valeur stockée
-      const coingeckoField = document.getElementById('coingecko_api_key');
-      if (coingeckoField.type === 'text') {
-        // Champ visible, prendre la vraie valeur
-        window.userSettings.coingecko_api_key = coingeckoField.value;
-      }
+      // Pour les clés API, enregistrer si la valeur n'est pas masquée ou si le champ est en clair
+      const saveSecret = (fieldId, key) => {
+        const el = document.getElementById(fieldId);
+        if (!el) return;
+        const val = (el.value || '').trim();
+        if (!val) return;
+        const isMasked = val.includes('•');
+        if (el.type === 'text' || !isMasked) {
+          window.userSettings[key] = val;
+        }
+      };
 
-      const ctKeyField = document.getElementById('cointracking_api_key');
-      if (ctKeyField.type === 'text') {
-        window.userSettings.cointracking_api_key = ctKeyField.value;
-      }
-
-      const ctSecretField = document.getElementById('cointracking_api_secret');
-      if (ctSecretField.type === 'text') {
-        window.userSettings.cointracking_api_secret = ctSecretField.value;
-      }
-
-      const fredKeyField = document.getElementById('fred_api_key');
-      if (fredKeyField.type === 'text') {
-        window.userSettings.fred_api_key = fredKeyField.value;
-      }
-
-      const debugTokenField = document.getElementById('debug_token');
-      if (debugTokenField.type === 'text') {
-        window.userSettings.debug_token = debugTokenField.value;
-      }
+      saveSecret('coingecko_api_key', 'coingecko_api_key');
+      saveSecret('cointracking_api_key', 'cointracking_api_key');
+      saveSecret('cointracking_api_secret', 'cointracking_api_secret');
+      saveSecret('fred_api_key', 'fred_api_key');
+      saveSecret('debug_token', 'debug_token');
 
       window.userSettings.api_base_url = document.getElementById('api_base_url').value;
       window.userSettings.refresh_interval = parseInt(document.getElementById('refresh_interval').value);
@@ -1286,11 +1309,12 @@
       testDiv.innerHTML = '<div class="test-result">🧪 Test en cours...</div>';
 
       try {
-        const globalSettings = window.userSettings || getDefaultSettings();
-        const response = await fetch(`${globalSettings.api_base_url}/balances/current?source=${globalSettings.data_source}`);
-        const data = await response.json();
+        const s = window.userSettings || getDefaultSettings();
+        const data = await window.globalConfig.apiRequest('/balances/current', {
+          params: { source: s.data_source }
+        });
 
-        if (response.ok && data.items && data.items.length > 0) {
+        if (data && data.items && data.items.length > 0) {
           testDiv.innerHTML = `
         <div class="test-result" style="color: var(--pos);">
           ✅ <strong>Succès</strong><br>
@@ -1319,6 +1343,10 @@
 
     // Auto-détecter le DEBUG_TOKEN depuis l'environnement
     async function autoDetectDebugToken() {
+      // Seulement si le mode debug est activé côté utilisateur
+      if (!((window.userSettings || getDefaultSettings()).debug_mode === true)) {
+        return;
+      }
       // Pour l'instant, essayer une liste de tokens courants pour le dev
       const commonTokens = [
         'crypto-rebal-debug-2025-secure',
@@ -1347,6 +1375,10 @@
 
     // Auto-détecter les clés depuis .env du serveur
     async function autoDetectApiKeys() {
+      // Seulement si le mode debug est activé côté utilisateur
+      if (!((window.userSettings || getDefaultSettings()).debug_mode === true)) {
+        return;
+      }
       try {
         const globalSettings = window.userSettings || getDefaultSettings();
         // Essayer de récupérer les clés depuis le backend  
@@ -1456,6 +1488,10 @@
     // Synchroniser depuis .env
     async function syncApiKeysFromEnv() {
       try {
+        if (!((window.userSettings || getDefaultSettings()).debug_mode === true)) {
+          showNotification('🚫 Mode debug désactivé', 'warning');
+          return;
+        }
         const debugToken = (window.userSettings || getDefaultSettings()).debug_token;
         if (!debugToken) {
           showNotification('❌ DEBUG_TOKEN requis pour synchroniser depuis .env', 'error');
@@ -1523,6 +1559,10 @@
 
     // Synchroniser vers .env
     async function syncApiKeysToEnv() {
+      if (!((window.userSettings || getDefaultSettings()).debug_mode === true)) {
+        showNotification('🚫 Mode debug désactivé', 'warning');
+        return;
+      }
       const payload = {
         coingecko_api_key: (window.userSettings || getDefaultSettings()).coingecko_api_key || '',
         cointracking_api_key: (window.userSettings || getDefaultSettings()).cointracking_api_key || '',
@@ -1631,8 +1671,7 @@
 
       // Test source de données
       try {
-        const balanceResponse = await fetch(`${globalSettings.api_base_url}/balances/current?source=${globalSettings.data_source}`);
-        const balanceData = await balanceResponse.json();
+        const balanceData = await window.globalConfig.apiRequest('/balances/current', { params: { source: globalSettings.data_source } });
         results.push(`📊 Balances: ${balanceData.items?.length > 0 ? '✅ OK (' + balanceData.items.length + ' assets)' : '❌ Vide'}`);
       } catch (e) {
         results.push(`📊 Balances: ❌ ${e.message}`);
@@ -1640,8 +1679,7 @@
 
       // Test portfolio analytics
       try {
-        const metricsResponse = await fetch(`${globalSettings.api_base_url}/portfolio/metrics?source=${globalSettings.data_source}`);
-        const metricsData = await metricsResponse.json();
+        const metricsData = await window.globalConfig.apiRequest('/portfolio/metrics', { params: { source: globalSettings.data_source } });
         results.push(`📈 Analytics: ${metricsData.ok && metricsData.metrics?.total_value_usd > 0 ? '✅ OK' : '❌ Erreur'}`);
       } catch (e) {
         results.push(`📈 Analytics: ❌ ${e.message}`);
@@ -1744,11 +1782,39 @@
       applyThemeImmediately();
       
       loadSettings().then(() => {
-        // Tenter de récupérer le DEBUG_TOKEN depuis le serveur
-        autoDetectDebugToken();
+        // En mode debug uniquement, tenter de récupérer le DEBUG_TOKEN depuis le serveur
+        if ((window.userSettings || getDefaultSettings()).debug_mode === true) {
+          autoDetectDebugToken();
+          // Tenter l'auto-détection des clés immédiatement
+          autoDetectApiKeys();
+        }
+        // Autosave sur Entrée/blur pour les champs de clés API (par utilisateur)
+        try {
+          const bindAutosave = (fieldId, settingKey, statusKey) => {
+            const el = document.getElementById(fieldId);
+            if (!el) return;
+            const persist = async () => {
+              const val = (el.value || '').trim();
+              if (!val || val.includes('•') || val === '***masked***' || val.endsWith('...')) return;
+              if (!window.userSettings) window.userSettings = getDefaultSettings();
+              window.userSettings[settingKey] = val;
+              await saveSettings();
+              if (statusKey) updateApiKeyStatus(statusKey, !!val);
+              showNotification('🔐 Clé enregistrée', 'success');
+              // Re-masquer si le champ était en clair
+              if (el.type === 'text') toggleApiKeyVisibility(fieldId);
+            };
+            el.addEventListener('keydown', async (e) => {
+              if (e.key === 'Enter') { e.preventDefault(); await persist(); }
+            });
+            el.addEventListener('blur', async () => { await persist(); });
+          };
+          bindAutosave('cointracking_api_key', 'cointracking_api_key', 'cointracking_key');
+          bindAutosave('cointracking_api_secret', 'cointracking_api_secret', 'cointracking_secret');
+          bindAutosave('coingecko_api_key', 'coingecko_api_key', 'coingecko');
+          bindAutosave('fred_api_key', 'fred_api_key', 'fred');
+        } catch (_) {}
       });
-      // Tenter l'auto-détection des clés immédiatement
-      autoDetectApiKeys();
 
       // Écouter les changements de thème système pour mettre à jour l'interface
       window.addEventListener('themeChanged', (event) => {

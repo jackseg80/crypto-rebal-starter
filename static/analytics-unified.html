@@ -39,7 +39,8 @@
     // Generate cache key that includes data source to invalidate on source change
     function getCacheKey(baseKey) {
       const dataSource = globalConfig.get('data_source') || 'unknown';
-      return `${baseKey}_${dataSource}`;
+      const user = (localStorage.getItem('activeUser') || 'demo');
+      return `${baseKey}_${user}_${dataSource}`;
     }
     
     function isCacheValid(cacheKey, ttl) {
@@ -137,11 +138,10 @@
         } else {
           try {
             const minUsd = globalConfig.get('min_usd_threshold');
-            const riskUrl = globalConfig.getApiUrl('/api/risk/dashboard', { price_history_days: priceDays, lookback_days: corrDays, min_usd: minUsd });
-            console.log(`🔍 Fetching risk data from: ${riskUrl} (source: ${globalConfig.get('data_source')})`);
-            const r = await fetch(riskUrl);
-            if (r.ok) {
-              const riskData = await r.json();
+            const riskData = await window.globalConfig.apiRequest('/api/risk/dashboard', {
+              params: { price_history_days: priceDays, lookback_days: corrDays, min_usd: minUsd }
+            });
+            if (riskData && riskData.success) {
               setCache(CACHE_CONFIG.risk.key, riskData);
               store.set('risk', riskData);
               const rs = riskData?.risk_metrics?.risk_score;
@@ -201,10 +201,8 @@
             // Fallback minimal si score null: utiliser Fear & Greed pour produire un score on-chain basique
             if (finalComposite.score == null) {
               try {
-                const apiBase = globalConfig.get('api_base_url');
-                const resp = await fetch(`${apiBase}/api/ml/sentiment/fear-greed?days=1`);
-                if (resp.ok) {
-                  const data = await resp.json();
+                const data = await window.globalConfig.apiRequest('/api/ml/sentiment/fear-greed', { params: { days: 1 } });
+                if (data) {
                   const latest = (data.fear_greed_data && (data.fear_greed_data[0] || data.fear_greed_data)) || null;
                   const fg = latest?.value ?? latest?.fear_greed_index;
                   if (typeof fg === 'number') {
@@ -853,19 +851,20 @@
         const { getUnifiedMLStatus } = await import('./shared-ml-functions.js');
         const mlStatus = await getUnifiedMLStatus();
 
-        // Statistiques globales depuis source centralisée
-        document.getElementById('ml-active-models').textContent = `${mlStatus.totalLoaded}/${mlStatus.totalModels}`;
+        if (mlStatus && mlStatus.individual) {
+          // Statistiques globales depuis source centralisée
+          document.getElementById('ml-active-models').textContent = `${mlStatus.totalLoaded}/${mlStatus.totalModels}`;
 
-        // Confiance depuis source centralisée
-        const confidencePercent = Math.round((mlStatus.confidence || 0) * 100);
-        document.getElementById('ml-avg-confidence').textContent = `${confidencePercent}%`;
+          // Confiance depuis source centralisée
+          const confidencePercent = Math.round((mlStatus.confidence || 0) * 100);
+          document.getElementById('ml-avg-confidence').textContent = `${confidencePercent}%`;
 
-        // Dernière mise à jour depuis source centralisée
-        document.getElementById('ml-last-update').textContent =
-          mlStatus.timestamp ? new Date(mlStatus.timestamp).toLocaleTimeString('fr-FR') : '--';
+          // Dernière mise à jour depuis source centralisée
+          document.getElementById('ml-last-update').textContent =
+            mlStatus.timestamp ? new Date(mlStatus.timestamp).toLocaleTimeString('fr-FR') : '--';
 
-        // Statuts des modèles individuels depuis source centralisée
-        const individual = mlStatus.individual;
+          // Statuts des modèles individuels depuis source centralisée
+          const individual = mlStatus.individual;
 
           // Volatility LSTM depuis source centralisée
           const volModelsLoaded = individual.volatility.loaded;
@@ -918,7 +917,7 @@
         }
 
         // 2) Volatilité BTC/ETH
-        const volResponse = await fetch('/api/ml/volatility/predict/BTC?horizon=1d');
+        const volResponse = await fetch('/api/ml/volatility/predict/BTC?horizon_days=1');
         if (volResponse.ok) {
           const volData = await volResponse.json();
           const vol = volData.volatility_forecast?.volatility_forecast || volData.volatility;
@@ -926,7 +925,7 @@
             vol ? `${(vol * 100).toFixed(1)}%` : '--';
         }
 
-        const volETHResponse = await fetch('/api/ml/volatility/predict/ETH?horizon=1d');
+        const volETHResponse = await fetch('/api/ml/volatility/predict/ETH?horizon_days=1');
         if (volETHResponse.ok) {
           const volETHData = await volETHResponse.json();
           const vol = volETHData.volatility_forecast?.volatility_forecast || volETHData.volatility;

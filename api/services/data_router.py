@@ -141,7 +141,9 @@ class UserDataRouter:
 
     def should_use_csv(self) -> bool:
         """Détermine si l'utilisateur doit utiliser CSV."""
-        return self.data_source == "csv" or self.data_source == "cointracking"
+        # N'utiliser CSV que si l'utilisateur a explicitement sélectionné un fichier indexé (csv_{i})
+        ds = str(self.data_source or "")
+        return ds.startswith("csv_")
 
     def get_data_source_info(self) -> Dict[str, Any]:
         """
@@ -189,10 +191,12 @@ class UserDataRouter:
                 return "stub"
 
         elif self.should_use_csv():
+            # Utiliser CSV seulement s'il y a des fichiers disponibles
             if self.get_csv_files("balance"):
                 return "cointracking"
             else:
                 logger.warning(f"CSV mode requested for user {self.user_id} but no CSV files found")
-                return "stub"
+                return "none"
 
-        return "stub"
+        # Aucun mode explicite -> aucune donnée réelle par défaut
+        return "none"

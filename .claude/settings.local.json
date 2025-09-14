@@ -176,7 +176,12 @@
       "Bash(start:*)",
       "Bash(run_all_e2e_tests.bat)",
       "Bash(run_smoke_tests.bat)",
-      "Bash(netstat:*)"
+      "Bash(netstat:*)",
+      "Bash(for user in jack donato elda roberto clea)",
+      "Bash(if [ -f \"data/users/$user/config.json\" ])",
+      "Bash(then echo \"Has config.json\")",
+      "Bash(else echo \"Missing config.json\")",
+      "Bash(fi)"
     ],
     "deny": [],
     "ask": [],

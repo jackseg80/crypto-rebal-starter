@@ -759,12 +759,13 @@ async def resolve_current_balances(source: str = Query("cointracking_api"), user
         logger.debug(f"Using stub source: {source}")
         # Garder les stubs existants pour compatibilité
     else:
-        # --- Déterminer la source effective selon l'utilisateur ---
+        # --- Déterminer les capacités utilisateur ---
         effective_source = data_router.get_effective_source()
         logger.debug(f"Effective source for user '{user_id}': {effective_source}")
 
-        # --- API Mode ---
-        if effective_source == "cointracking_api" and source in ("cointracking_api", "auto"):
+        # --- API Mode (respecter le 'source' de la requête si explicite) ---
+        wants_api = source in ("cointracking_api", "auto")
+        if wants_api:
             try:
                 credentials = data_router.get_api_credentials()
                 api_key = credentials.get("api_key")
@@ -799,9 +800,45 @@ async def resolve_current_balances(source: str = Query("cointracking_api"), user
                 logger.error(f"API mode initialization failed for user {user_id}: {e}")
 
         # --- CSV Mode ---
-        if effective_source == "cointracking" and source in ("cointracking", "csv", "local", "auto"):
+        # Supporte plusieurs variantes:
+        #  - source == 'csv_{i}' => i-ème fichier
+        #  - sinon si source in ('cointracking','csv','local','auto') ET l'utilisateur a configuré un csv_{i} par défaut, on l'utilise
+        wants_csv = (source.startswith("csv_") or source in ("cointracking", "csv", "local", "auto"))
+        if wants_csv:
             try:
-                csv_file = data_router.get_most_recent_csv("balance")
+                csv_file = None
+                if source.startswith("csv_"):
+                    try:
+                        idx = int(source.split("_", 1)[1])
+                    except Exception:
+                        idx = 0
+                    files = data_router.get_csv_files("balance")
+                    if files:
+                        if 0 <= idx < len(files):
+                            csv_file = files[idx]
+                        else:
+                            # Index invalide: fallback vers le plus récent
+                            csv_file = files[0]
+                else:
+                    # Si l'utilisateur a explicitement choisi un fichier (csv_{i}) dans ses settings, le respecter par défaut
+                    try:
+                        user_selected = (data_router.settings or {}).get("data_source", "")
+                    except Exception:
+                        user_selected = ""
+                    if isinstance(user_selected, str) and user_selected.startswith("csv_"):
+                        try:
+                            idx = int(user_selected.split("_", 1)[1])
+                        except Exception:
+                            idx = 0
+                        files = data_router.get_csv_files("balance")
+                        if files:
+                            if 0 <= idx < len(files):
+                                csv_file = files[idx]
+                            else:
+                                csv_file = files[0]
+                    # Sinon, utiliser le plus récent
+                    if not csv_file:
+                        csv_file = data_router.get_most_recent_csv("balance")
                 if csv_file:
                     items = await _load_csv_balances(csv_file)
                     logger.debug(f"CSV mode successful for user {user_id}: {len(items)} items from {csv_file}")
@@ -811,6 +848,11 @@ async def resolve_current_balances(source: str = Query("cointracking_api"), user
 
             except Exception as e:
                 logger.error(f"CSV mode failed for user {user_id}: {e}")
+
+        # Si aucune des sources n'a retourné de données,
+        # ne pas retomber sur les CSV globaux. Retourner une source vide.
+        if True:
+            return {"source_used": "none", "items": []}
 
     # --- LEGACY CODE FALLBACK --- (keep original behavior for compatibility)
     
@@ -1139,13 +1181,14 @@ async def rebalance_plan(
     pricing: str = Query("local"),   # local | auto
     dynamic_targets: bool = Query(False, description="Use dynamic targets from CCS/cycle module"),
     payload: Dict[str, Any] = Body(...),
-    pricing_diag: bool = Query(False, description="Include pricing diagnostic details in response meta")
+    pricing_diag: bool = Query(False, description="Include pricing diagnostic details in response meta"),
+    user: str = Depends(get_active_user)
 ):
     min_usd = _parse_min_usd(min_usd_raw, default=1.0)
 
     # portefeuille - utiliser la fonction helper unifiée
     from api.unified_data import get_unified_filtered_balances
-    unified_data = await get_unified_filtered_balances(source=source, min_usd=min_usd)
+    unified_data = await get_unified_filtered_balances(source=source, min_usd=min_usd, user_id=user)
     rows = unified_data.get("items", [])
 
     # targets - support for dynamic CCS-based targets
@@ -1248,7 +1291,8 @@ async def pricing_diagnostic(
     source: str = Query("cointracking", description="Source des balances (cointracking|stub|cointracking_api)"),
     min_usd: float = Query(1.0, description="Seuil minimum en USD pour filtrer les lignes"),
     mode: str = Query("auto", description="Mode pricing à diagnostiquer: local|auto"),
-    limit: int = Query(50, ge=1, le=500, description="Nombre max de symboles à analyser")
+    limit: int = Query(50, ge=1, le=500, description="Nombre max de symboles à analyser"),
+    user: str = Depends(get_active_user)
 ):
     """Diagnostique la source de prix retenue par symbole selon la logique actuelle.
 
@@ -1261,7 +1305,7 @@ async def pricing_diagnostic(
     try:
         # Récupérer holdings unifiés avec filtrage homogène
         from api.unified_data import get_unified_filtered_balances
-        unified = await get_unified_filtered_balances(source=source, min_usd=min_usd)
+        unified = await get_unified_filtered_balances(source=source, min_usd=min_usd, user_id=user)
         rows = unified.get("items", [])
         source_used = unified.get("source_used", source)
 
@@ -1795,11 +1839,11 @@ app.include_router(unified_phase3_router)
 
 # ---------- Portfolio Analytics ----------
 @app.get("/portfolio/metrics")
-async def portfolio_metrics(source: str = Query("cointracking")):
+async def portfolio_metrics(source: str = Query("cointracking"), user: str = Depends(get_active_user)):
     """Métriques calculées du portfolio"""
     try:
         # Récupérer les données de balance actuelles
-        res = await resolve_current_balances(source=source)
+        res = await resolve_current_balances(source=source, user_id=user)
         rows = _to_rows(res.get("items", []))
         balances = {"source_used": res.get("source_used"), "items": rows}
         # Do not compute on stub sources unless explicitly allowed
@@ -1819,11 +1863,11 @@ async def portfolio_metrics(source: str = Query("cointracking")):
         return {"ok": False, "error": str(e)}
 
 @app.post("/portfolio/snapshot")
-async def save_portfolio_snapshot(source: str = Query("cointracking")):
+async def save_portfolio_snapshot(source: str = Query("cointracking"), user: str = Depends(get_active_user)):
     """Sauvegarde un snapshot du portfolio pour suivi historique"""
     try:
         # Récupérer les données actuelles
-        res = await resolve_current_balances(source=source)
+        res = await resolve_current_balances(source=source, user_id=user)
         rows = _to_rows(res.get("items", []))
         balances = {"source_used": res.get("source_used"), "items": rows}
         
@@ -2019,11 +2063,11 @@ async def get_strategy_details(strategy_id: str):
     }
 
 @app.get("/portfolio/alerts")
-async def get_portfolio_alerts(source: str = Query("cointracking"), drift_threshold: float = Query(10.0)):
+async def get_portfolio_alerts(source: str = Query("cointracking"), drift_threshold: float = Query(10.0), user: str = Depends(get_active_user)):
     """Calcule les alertes de dérive du portfolio par rapport aux targets"""
     try:
         # Récupérer les données de portfolio
-        res = await resolve_current_balances(source=source)
+        res = await resolve_current_balances(source=source, user_id=user)
         rows = _to_rows(res.get("items", []))
         balances = {"source_used": res.get("source_used"), "items": rows}
         

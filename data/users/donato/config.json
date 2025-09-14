@@ -1,5 +1,5 @@
 {
-  "data_source": "csv",
+  "data_source": "csv_0",
   "api_base_url": "http://localhost:8000",
   "display_currency": "EUR",
   "min_usd_threshold": 5.0,
@@ -8,7 +8,6 @@
   "cointracking_api_secret": "",
   "coingecko_api_key": "",
   "fred_api_key": "",
-  "debug_token": "",
   "pricing": "local",
   "refresh_interval": 5,
   "enable_coingecko_classification": true,

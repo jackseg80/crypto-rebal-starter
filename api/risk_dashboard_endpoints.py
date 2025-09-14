@@ -2,7 +2,8 @@
 Endpoint principal pour le risk dashboard avec données réelles
 """
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
+from api.deps import get_active_user
 from datetime import datetime
 import logging
 
@@ -17,7 +18,8 @@ async def real_risk_dashboard(
     source: str = Query("cointracking", description="Source des données (stub|cointracking|cointracking_api)"),
     min_usd: float = Query(1.0, description="Seuil minimal en USD par asset"),
     price_history_days: int = Query(365, description="Nombre de jours d'historique prix"),
-    lookback_days: int = Query(90, description="Fenêtre de lookback pour corrélations")
+    lookback_days: int = Query(90, description="Fenêtre de lookback pour corrélations"),
+    user: str = Depends(get_active_user)
 ):
     """
     Endpoint principal utilisant le vrai portfolio depuis les CSV avec le système de risque réel
@@ -29,7 +31,7 @@ async def real_risk_dashboard(
         from api.main import resolve_current_balances, _to_rows
         
         # Récupérer les données de portfolio selon la source demandée (stub/CSV/CT-API)
-        res = await resolve_current_balances(source=source)
+        res = await resolve_current_balances(source=source, user_id=user)
         logger.info(f"🔍 resolve_current_balances result: {len(res.get('items', []))} items")
         rows = _to_rows(res.get("items", []))
         logger.info(f"🔍 _to_rows result: {len(rows)} rows")
