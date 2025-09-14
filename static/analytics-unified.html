@@ -13,6 +13,17 @@
   <script type="module" src="components/nav.js"></script>
   <script type="module" src="analytics-unified.js"></script>
   <script type="module">
+    import { initDeepLinks } from './components/deep-links.js';
+    // Ancres pour analytics-unified.html : #unified #ml #cycles #performance #monitoring
+    initDeepLinks({
+      'unified': 'Analytics Unifiés',
+      'ml': 'Machine Learning',
+      'cycles': 'Analyse des Cycles',
+      'performance': 'Performance',
+      'monitoring': 'Monitoring'
+    });
+  </script>
+  <script type="module">
     import { renderUnifiedInsights } from './components/UnifiedInsights.js';
     import { store } from './core/risk-dashboard-store.js';
     import { GovernancePanel } from './components/GovernancePanel.js';
@@ -56,6 +67,56 @@
       } catch { return null; }
     }
     
+    // Update badges with current analytics data
+    function updateAnalyticsBadges() {
+      if (!window.analyticsBadges) return;
+
+      try {
+        const now = new Date();
+
+        // Risk badge
+        const riskData = store.get('risk');
+        const riskScore = store.get('scores.risk');
+        const riskStatus = store.get('ui.apiStatus.backend') === 'healthy' ? 'ok' : 'error';
+
+        if (window.analyticsBadges.risk) {
+          window.analyticsBadges.risk.updateData({
+            source: 'Risk API',
+            updated: now,
+            contradiction: Math.round((riskData?.correlations?.average_correlation || 0.3) * 100),
+            status: riskStatus
+          });
+        }
+
+        // Performance badge
+        const performance = store.get('performance') || {};
+        if (window.analyticsBadges.performance) {
+          window.analyticsBadges.performance.updateData({
+            source: 'Performance',
+            updated: now,
+            contradiction: Math.round((performance.volatility || 0.15) * 100),
+            status: 'ok'
+          });
+        }
+
+        // Intelligence badge
+        const mlStatus = store.get('ml.status') || {};
+        const intelligenceStatus = mlStatus.ready ? 'ok' : 'stale';
+
+        if (window.analyticsBadges.intelligence) {
+          window.analyticsBadges.intelligence.updateData({
+            source: 'ML Engine',
+            updated: now,
+            status: intelligenceStatus
+          });
+        }
+
+        console.log('🏷️ Analytics badges updated');
+      } catch (error) {
+        console.warn('Badge update failed:', error);
+      }
+    }
+
     // Lightweight unified data loader with INTELLIGENT CACHING
     async function loadUnifiedData() {
       console.log('🧠 Loading unified data with intelligent caching...');
@@ -239,6 +300,9 @@
         const cacheEfficiency = loadedFromCache > 0 ? `${loadedFromCache}/4 from cache` : 'full calculation';
         console.log(`🎯 Unified data loading completed - ${cacheEfficiency}${loadedFromCache > 0 ? ' ⚡' : ''}`);
 
+        // Update badges with latest data
+        updateAnalyticsBadges();
+
       } catch (e) {
         console.error('Unified loader fatal:', e);
       }
@@ -283,7 +347,8 @@
         const governancePanel = new GovernancePanel(governanceContainer);
         window.governancePanel = governancePanel; // For debugging
       }
-      
+
+
       // initial paint
       renderUnifiedInsights('unified-root');
       
@@ -407,7 +472,8 @@
   <div class="wrap">
     <!-- Governance Panel -->
     <div id="governance-container"></div>
-    
+
+
     <div id="unified-root"></div>
     <div style="height: 1rem;"></div>
     <div class="tabs" id="analytics-tabs">
@@ -421,7 +487,10 @@
 
   <section class="wrap tab-panel active" id="tab-risk">
     <div class="panel-card">
-      <h3>🛡️ Risk Dashboard</h3>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h3>🛡️ Risk Dashboard</h3>
+        <div id="risk-badge-container"></div>
+      </div>
       <div
         style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
         <div class="metric-card" data-metric="risk-var">
@@ -485,7 +554,10 @@
   </section>
   <section class="wrap tab-panel" id="tab-performance">
     <div class="panel-card">
-      <h3>📊 Performance Monitor</h3>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h3>📊 Performance Monitor</h3>
+        <div id="performance-badge-container"></div>
+      </div>
       <div
         style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
         <div class="metric-card" data-metric="perf-cache-size">
@@ -614,7 +686,10 @@
   <!-- Intelligence ML Tab Panel -->
   <section class="wrap tab-panel" id="tab-intelligence-ml">
     <div class="panel-card">
-      <h3>🤖 Intelligence ML - Vue Analyse Complète</h3>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h3>🤖 Intelligence ML - Vue Analyse Complète</h3>
+        <div id="intelligence-badge-container"></div>
+      </div>
       <p style="color: var(--theme-text-muted); margin-bottom: 2rem;">
         Analyse détaillée des modèles ML, prédictions temps réel et administration avancée
       </p>
@@ -622,14 +697,50 @@
       <!-- Stats ML Globales -->
       <div class="ml-stats-section" style="margin-bottom: 2rem;">
         <h4 style="margin-bottom: 1rem;">📊 Statistiques ML Globales</h4>
-        <div id="ml-stats-badges-container" style="margin-bottom: 1rem;"></div>
-        <div id="ml-global-insight-container"></div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+          <div class="metric-card">
+            <h5>Modèles Actifs</h5>
+            <div class="metric-value" id="ml-active-models">--/4</div>
+            <small>Modèles chargés</small>
+          </div>
+          <div class="metric-card">
+            <h5>Confiance Moyenne</h5>
+            <div class="metric-value" id="ml-avg-confidence">--%</div>
+            <small>Niveau de confiance</small>
+          </div>
+          <div class="metric-card">
+            <h5>Dernière Mise à Jour</h5>
+            <div class="metric-value" id="ml-last-update">--</div>
+            <small>Status ML</small>
+          </div>
+        </div>
       </div>
 
       <!-- Vue Modèles Détaillée -->
       <div class="ml-models-section" style="margin-bottom: 2rem;">
         <h4 style="margin-bottom: 1rem;">🧠 Santé des Modèles</h4>
-        <div id="ml-models-health-container"></div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+          <div class="metric-card">
+            <h5>🌊 Volatility LSTM</h5>
+            <div class="metric-value" id="ml-vol-model-status">⚪ Unknown</div>
+            <small id="ml-vol-model-details">Statut du modèle</small>
+          </div>
+          <div class="metric-card">
+            <h5>🔄 Regime HMM</h5>
+            <div class="metric-value" id="ml-regime-model-status">⚪ Unknown</div>
+            <small id="ml-regime-model-details">Statut du modèle</small>
+          </div>
+          <div class="metric-card">
+            <h5>🔗 Correlation Transformer</h5>
+            <div class="metric-value" id="ml-corr-model-status">⚪ Unknown</div>
+            <small id="ml-corr-model-details">Statut du modèle</small>
+          </div>
+          <div class="metric-card">
+            <h5>💭 Sentiment Composite</h5>
+            <div class="metric-value" id="ml-sent-model-status">⚪ Unknown</div>
+            <small id="ml-sent-model-details">Statut du modèle</small>
+          </div>
+        </div>
       </div>
 
       <!-- Prédictions Temps Réel -->
@@ -735,42 +846,113 @@
       }
     }
 
-    // Chargement des prédictions ML temps réel
+    // Chargement du statut ML global et prédictions - UTILISE SOURCE CENTRALISÉE
     async function loadMLPredictions() {
       try {
-        // Volatilité BTC/ETH
+        // 1) Statut ML global depuis source unifiée
+        const { getUnifiedMLStatus } = await import('./shared-ml-functions.js');
+        const mlStatus = await getUnifiedMLStatus();
+
+        // Statistiques globales depuis source centralisée
+        document.getElementById('ml-active-models').textContent = `${mlStatus.totalLoaded}/${mlStatus.totalModels}`;
+
+        // Confiance depuis source centralisée
+        const confidencePercent = Math.round((mlStatus.confidence || 0) * 100);
+        document.getElementById('ml-avg-confidence').textContent = `${confidencePercent}%`;
+
+        // Dernière mise à jour depuis source centralisée
+        document.getElementById('ml-last-update').textContent =
+          mlStatus.timestamp ? new Date(mlStatus.timestamp).toLocaleTimeString('fr-FR') : '--';
+
+        // Statuts des modèles individuels depuis source centralisée
+        const individual = mlStatus.individual;
+
+          // Volatility LSTM depuis source centralisée
+          const volModelsLoaded = individual.volatility.loaded;
+          const volSymbols = individual.volatility.symbols || 0;
+          const volStatus = volModelsLoaded > 0 ? 'active' : 'inactive';
+          const volStatusEl = document.getElementById('ml-vol-model-status');
+          const volDetailsEl = document.getElementById('ml-vol-model-details');
+          if (volStatusEl && volDetailsEl) {
+            const icons = { 'active': '🟢', 'ready': '🟢', 'training': '🔄', 'error': '🔴', 'inactive': '⚪', 'unknown': '❓' };
+            volStatusEl.textContent = `${icons[volStatus]} ${volStatus.charAt(0).toUpperCase() + volStatus.slice(1)}`;
+            volDetailsEl.textContent = `${volModelsLoaded} modèles • ${volSymbols} symboles`;
+          }
+
+          // Regime HMM depuis source centralisée
+          const regimeStatus = individual.regime.loaded > 0 ? 'active' : 'inactive';
+          const regimeStatusEl = document.getElementById('ml-regime-model-status');
+          const regimeDetailsEl = document.getElementById('ml-regime-model-details');
+          if (regimeStatusEl && regimeDetailsEl) {
+            const icons = { 'active': '🟢', 'ready': '🟢', 'training': '🔄', 'error': '🔴', 'inactive': '⚪', 'unknown': '❓' };
+            regimeStatusEl.textContent = `${icons[regimeStatus]} ${regimeStatus.charAt(0).toUpperCase() + regimeStatus.slice(1)}`;
+            regimeDetailsEl.textContent = individual.regime.available ? 'Modèle disponible' : 'Non disponible';
+          }
+
+          // Correlation Transformer depuis source centralisée
+          const corrModelsLoaded = individual.correlation.loaded;
+          const corrStatus = corrModelsLoaded > 0 ? 'active' : 'inactive';
+          const corrStatusEl = document.getElementById('ml-corr-model-status');
+          const corrDetailsEl = document.getElementById('ml-corr-model-details');
+          if (corrStatusEl && corrDetailsEl) {
+            const icons = { 'active': '🟢', 'ready': '🟢', 'training': '🔄', 'error': '🔴', 'inactive': '⚪', 'unknown': '❓' };
+            corrStatusEl.textContent = `${icons[corrStatus]} ${corrStatus.charAt(0).toUpperCase() + corrStatus.slice(1)}`;
+            corrDetailsEl.textContent = `${corrModelsLoaded} modèles chargés`;
+          }
+
+          // Sentiment Composite depuis source centralisée
+          const sentStatusEl = document.getElementById('ml-sent-model-status');
+          const sentDetailsEl = document.getElementById('ml-sent-model-details');
+          if (sentStatusEl && sentDetailsEl) {
+            const sentStatus = individual.sentiment.loaded > 0 ? 'active' : 'inactive';
+            const icons = { 'active': '🟢', 'inactive': '⚪' };
+            sentStatusEl.textContent = `${icons[sentStatus]} ${sentStatus.charAt(0).toUpperCase() + sentStatus.slice(1)}`;
+            sentDetailsEl.textContent = individual.sentiment.available ? 'API composite disponible' : 'Non disponible';
+          }
+
+          console.log(`✅ ML Status chargé depuis source centralisée: ${mlStatus.source}`);
+        } else {
+          console.warn('⚠️ Impossible de charger le statut ML unifié, utilisation des API individuelles...');
+          // Fallback vers l'ancien système si source centralisée échoue
+          await loadMLPredictionsFallback();
+        }
+
+        // 2) Volatilité BTC/ETH
         const volResponse = await fetch('/api/ml/volatility/predict/BTC?horizon=1d');
         if (volResponse.ok) {
           const volData = await volResponse.json();
+          const vol = volData.volatility_forecast?.volatility_forecast || volData.volatility;
           document.getElementById('ml-vol-btc').textContent =
-            volData.volatility ? `${(volData.volatility * 100).toFixed(1)}%` : '--';
+            vol ? `${(vol * 100).toFixed(1)}%` : '--';
         }
 
         const volETHResponse = await fetch('/api/ml/volatility/predict/ETH?horizon=1d');
         if (volETHResponse.ok) {
           const volETHData = await volETHResponse.json();
+          const vol = volETHData.volatility_forecast?.volatility_forecast || volETHData.volatility;
           document.getElementById('ml-vol-eth').textContent =
-            volETHData.volatility ? `${(volETHData.volatility * 100).toFixed(1)}%` : '--';
+            vol ? `${(vol * 100).toFixed(1)}%` : '--';
         }
 
-        // Régime de marché
+        // 3) Régime de marché
         const regimeResponse = await fetch('/api/ml/regime/current');
         if (regimeResponse.ok) {
           const regimeData = await regimeResponse.json();
           const regimeEl = document.getElementById('ml-regime');
-          if (regimeData.regime) {
-            regimeEl.textContent = regimeData.regime.current || '--';
-            regimeEl.className = `metric-value regime-${regimeData.regime.current?.toLowerCase() || 'unknown'}`;
+          if (regimeData.regime_prediction) {
+            const regime = regimeData.regime_prediction.regime_name || '--';
+            regimeEl.textContent = regime;
+            regimeEl.className = `metric-value regime-${regime.toLowerCase() === 'sideways' ? 'neutral' : regime.toLowerCase()}`;
           }
         }
 
-        // Sentiment F&G
-        const sentResponse = await fetch('/api/ml/sentiment?symbol=BTC&days=7');
+        // 4) Sentiment F&G
+        const sentResponse = await fetch('/api/ml/sentiment/fear-greed?days=1');
         if (sentResponse.ok) {
           const sentData = await sentResponse.json();
           const sentEl = document.getElementById('ml-sentiment');
-          if (sentData.composite_score) {
-            const score = Math.round(sentData.composite_score);
+          if (sentData.aggregated_sentiment) {
+            const score = Math.round(sentData.aggregated_sentiment.score * 100); // Score sur 100
             sentEl.textContent = score;
             sentEl.className = `metric-value sentiment-${score < 25 ? 'fear' : score > 75 ? 'greed' : 'neutral'}`;
           }
@@ -778,6 +960,32 @@
 
       } catch (error) {
         console.warn('ML predictions update failed:', error);
+      }
+    }
+
+    // Fallback vers ancien système si source centralisée échoue
+    async function loadMLPredictionsFallback() {
+      try {
+        // Ancien système comme fallback
+        const statusResponse = await fetch('/api/ml/status');
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json();
+          const pipeline = statusData.pipeline_status || {};
+
+          const totalLoaded = Math.min(Math.max(0, pipeline.loaded_models_count || 0), 4);
+          document.getElementById('ml-active-models').textContent = `${totalLoaded}/4`;
+
+          const confidencePercent = Math.min(100, Math.round((totalLoaded / 4) * 100));
+          document.getElementById('ml-avg-confidence').textContent = `${confidencePercent}%`;
+
+          const lastUpdate = pipeline.timestamp || statusData.timestamp;
+          document.getElementById('ml-last-update').textContent =
+            lastUpdate ? new Date(lastUpdate).toLocaleTimeString('fr-FR') : '--';
+
+          console.log('⚠️ Using ML fallback system');
+        }
+      } catch (error) {
+        console.error('ML fallback also failed:', error);
       }
     }
 
@@ -895,21 +1103,37 @@
 
     // Auto-initialisation quand l'onglet devient actif
     document.addEventListener('DOMContentLoaded', () => {
-      // Observer les changements d'onglets
-      const mlTab = document.querySelector('[data-target="#tab-intelligence-ml"]');
-      if (mlTab) {
-        mlTab.addEventListener('click', () => {
-          setTimeout(() => {
-            if (!mlTabInitialized) {
-              initializeMLTab();
-            }
-          }, 100); // Petit délai pour que l'onglet soit visible
+      // Observer les changements d'onglets - intégration avec le système existant
+      const tabButtons = document.querySelectorAll('.tab-btn');
+
+      tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+          const targetId = button.dataset.target;
+
+          // Si c'est l'onglet Intelligence ML
+          if (targetId === '#tab-intelligence-ml') {
+            setTimeout(() => {
+              if (!mlTabInitialized) {
+                initializeMLTab();
+              }
+            }, 100); // Petit délai pour que l'onglet soit visible
+          }
         });
-      }
+      });
+
+      // Initialisation préventive des données ML (même si l'onglet n'est pas actif)
+      // Cela permet d'avoir les données prêtes quand l'utilisateur clique sur l'onglet
+      setTimeout(() => {
+        console.log('🤖 Pre-loading ML data for Intelligence tab...');
+        loadMLPredictions();
+        loadMLPipelineStatus();
+        mlTabInitialized = true;
+      }, 1000); // Délai pour laisser la page se charger
 
       // Auto-init si l'URL contient #ml
       if (window.location.hash === '#ml' || window.location.search.includes('tab=ml')) {
         setTimeout(() => {
+          const mlTab = document.querySelector('[data-target="#tab-intelligence-ml"]');
           mlTab?.click();
         }, 500);
       }
