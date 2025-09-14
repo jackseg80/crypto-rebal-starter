@@ -851,67 +851,103 @@
   </script>
   <script>
     // Construit dynamiquement les contrôles de source de données à partir de la source centralisée
-    function buildDataSourceControls() {
-      const keys = (window.getDataSourceKeys && window.getDataSourceKeys()) || [];
+    async function buildDataSourceControls() {
+      try {
+        // Récupérer les sources disponibles pour l'utilisateur actuel
+        const response = await fetch('/api/users/sources', {
+          headers: { 'X-User': window.currentUser || 'demo' }
+        });
 
-      // 1) Peupler le select rapide
-      const quickSelect = document.getElementById('quick_data_source');
-      if (quickSelect) {
-        quickSelect.innerHTML = '';
-        for (const key of keys) {
-          const opt = document.createElement('option');
-          opt.value = key;
-          opt.textContent = window.getDataSourceLabel ? window.getDataSourceLabel(key) : key;
-          quickSelect.appendChild(opt);
+        if (!response.ok) {
+          console.error('Failed to load user data sources');
+          return;
         }
-      }
 
-      // 2) Construire les groupes radio de l'onglet Source (démo vs CoinTracking)
-      const demoContainer = document.getElementById('data_source_demo');
-      const ctContainer = document.getElementById('data_source_ct');
-      if (demoContainer) demoContainer.innerHTML = '';
-      if (ctContainer) ctContainer.innerHTML = '';
+        const data = await response.json();
+        const sources = data.sources || [];
 
-      const buildOption = (key) => {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'radio-option';
-        wrapper.setAttribute('onclick', `selectDataSource('${key}')`);
+        // 1) Peupler le select rapide
+        const quickSelect = document.getElementById('quick_data_source');
+        if (quickSelect) {
+          quickSelect.innerHTML = '';
+          for (const source of sources) {
+            const opt = document.createElement('option');
+            opt.value = source.key;
+            opt.textContent = source.label;
+            quickSelect.appendChild(opt);
+          }
+        }
 
-        const input = document.createElement('input');
-        input.type = 'radio';
-        input.name = 'data_source';
-        input.value = key;
-        input.id = `source_${key}`;
+        // 2) Construire les groupes radio de l'onglet Source
+        const csvContainer = document.getElementById('data_source_demo'); // Réutiliser pour CSV
+        const apiContainer = document.getElementById('data_source_ct');   // Réutiliser pour API
 
-        const label = document.createElement('label');
-        label.setAttribute('for', `source_${key}`);
-        label.innerHTML = `${window.getDataSourceLabel ? window.getDataSourceLabel(key) : key}`;
+        if (csvContainer) {
+          csvContainer.innerHTML = '<h4 style="margin: 0 0 0.5rem 0; color: var(--theme-text-muted);">📄 Fichiers CSV</h4>';
+        }
+        if (apiContainer) {
+          apiContainer.innerHTML = '<h4 style="margin: 1rem 0 0.5rem 0; color: var(--theme-text-muted);">🌐 API</h4>';
+        }
 
-        wrapper.appendChild(input);
-        wrapper.appendChild(label);
-        return wrapper;
-      };
+        const buildOption = (source) => {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'radio-option';
+          wrapper.setAttribute('onclick', `selectDataSource('${source.key}')`);
+        wrapper.addEventListener('click', async () => await selectDataSource(source.key));
 
-      for (const key of keys) {
-        const meta = (window.DATA_SOURCES && window.DATA_SOURCES[key]) || {};
-        const kind = meta.kind || '';
-        const node = buildOption(key);
-        if ((kind === 'stub') && demoContainer) {
-          demoContainer.appendChild(node);
-        } else if ((kind === 'csv' || kind === 'api') && ctContainer) {
-          ctContainer.appendChild(node);
-        } else if (ctContainer) {
-          // Par défaut, tout ce qui n'est pas stub va avec CoinTracking/externes
-          ctContainer.appendChild(node);
+          const input = document.createElement('input');
+          input.type = 'radio';
+          input.name = 'data_source';
+          input.value = source.key;
+          input.id = `source_${source.key}`;
+
+          const label = document.createElement('label');
+          label.setAttribute('for', `source_${source.key}`);
+          label.innerHTML = source.label;
+
+          wrapper.appendChild(input);
+          wrapper.appendChild(label);
+          return wrapper;
+        };
+
+        let hasCSV = false;
+        let hasAPI = false;
+
+        for (const source of sources) {
+          const node = buildOption(source);
+          if (source.type === 'csv') {
+            if (csvContainer) csvContainer.appendChild(node);
+            hasCSV = true;
+          } else if (source.type === 'api') {
+            if (apiContainer) apiContainer.appendChild(node);
+            hasAPI = true;
+          }
+        }
+
+        // Masquer les sections vides
+        if (csvContainer && !hasCSV) {
+          csvContainer.style.display = 'none';
+        }
+        if (apiContainer && !hasAPI) {
+          apiContainer.style.display = 'none';
+        }
+
+      } catch (error) {
+        console.error('Error building data source controls:', error);
+
+        // Fallback: afficher une option générique
+        const quickSelect = document.getElementById('quick_data_source');
+        if (quickSelect) {
+          quickSelect.innerHTML = '<option value="csv">📄 Fichiers CSV</option>';
         }
       }
     }
 
     // Initialisation des réglages rapides
-    function initQuickSettings() {
-      const s = globalConfig.getAll();
+    async function initQuickSettings() {
+      const s = window.userSettings || getDefaultSettings();
       // S'assurer que les contrôles sont construits d'abord
-      buildDataSourceControls();
+      await buildDataSourceControls();
       // Valeurs initiales
       if (document.getElementById('quick_data_source')) {
         document.getElementById('quick_data_source').value = s.data_source || 'stub_balanced';
@@ -924,50 +960,116 @@
 
       // Listeners: appliquent immédiatement dans globalConfig
       if (document.getElementById('quick_data_source')) {
-        document.getElementById('quick_data_source').addEventListener('change', (e)=> selectDataSource(e.target.value));
+        document.getElementById('quick_data_source').addEventListener('change', async (e)=> await selectDataSource(e.target.value));
       }
-      document.getElementById('quick_pricing').addEventListener('change', (e)=> selectPricing(e.target.value));
-      document.getElementById('quick_min_usd').addEventListener('change', (e)=> globalConfig.set('min_usd_threshold', parseFloat(e.target.value) || 0));
+      document.getElementById('quick_pricing').addEventListener('change', async (e)=> await selectPricing(e.target.value));
+      document.getElementById('quick_min_usd').addEventListener('change', (e)=> {
+        if (!window.userSettings) window.userSettings = getDefaultSettings();
+        window.userSettings.min_usd_threshold = parseFloat(e.target.value) || 0;
+      });
       document.getElementById('quick_currency').addEventListener('change', async (e)=> {
         const val = e.target.value;
         // Mettre à jour la config et synchroniser le select détaillé
-        globalConfig.set('display_currency', val);
+        if (!window.userSettings) window.userSettings = getDefaultSettings();
+        window.userSettings.display_currency = val;
         const mainSel = document.getElementById('display_currency');
         if (mainSel) mainSel.value = val;
         try { if (window.currencyManager && val !== 'USD') await window.currencyManager.ensureRate(val); } catch(_){}
         updateStatusSummary();
       });
-      document.getElementById('quick_theme').addEventListener('change', (e)=> selectTheme(e.target.value));
-      document.getElementById('quick_api_base_url').addEventListener('change', (e)=> globalConfig.set('api_base_url', e.target.value));
+      document.getElementById('quick_theme').addEventListener('change', async (e)=> await selectTheme(e.target.value));
+      document.getElementById('quick_api_base_url').addEventListener('change', (e)=> {
+        if (!window.userSettings) window.userSettings = getDefaultSettings();
+        window.userSettings.api_base_url = e.target.value;
+      });
 
       // Actions
-      document.getElementById('quick_save_btn').addEventListener('click', ()=> {
-        // Rien de plus: tout est déjà écrit dans globalConfig par les listeners
-        saveSettings();
+      document.getElementById('quick_save_btn').addEventListener('click', async ()=> {
+        // Rien de plus: tout est déjà écrit dans userSettings par les listeners
+        await saveSettings();
         showNotification('✅ Réglages rapides sauvegardés', 'success');
       });
-      document.getElementById('quick_apply_btn').addEventListener('click', ()=> {
-        updateStatusSummary();
+      document.getElementById('quick_apply_btn').addEventListener('click', async ()=> {
+        await updateStatusSummary();
         showNotification('⚡ Réglages rapides appliqués', 'info');
       });
     }
 
-    // Charger les settings depuis globalConfig
-    function loadSettings() {
-      // Mettre à jour l'interface
-      updateUI();
-      updateStatusSummary();
-      if (window.globalConfig) initQuickSettings();
+    // Fonction helper pour obtenir les settings par défaut
+    function getDefaultSettings() {
+      return {
+        data_source: "csv",
+        api_base_url: "http://localhost:8000",
+        display_currency: "USD",
+        min_usd_threshold: 1.0,
+        csv_glob: "csv/*.csv",
+        cointracking_api_key: "",
+        cointracking_api_secret: "",
+        coingecko_api_key: "",
+        fred_api_key: "",
+        debug_token: "",
+        pricing: "local",
+        refresh_interval: 5,
+        enable_coingecko_classification: true,
+        enable_portfolio_snapshots: true,
+        enable_performance_tracking: true,
+        theme: "auto",
+        debug_mode: false
+      };
     }
 
-    // Sauvegarder les settings via globalConfig
-    function saveSettings() {
-      updateStatusSummary();
+    // Charger les settings depuis l'API utilisateur
+    async function loadSettings() {
+      try {
+        const response = await fetch('/api/users/settings', {
+          headers: { 'X-User': window.currentUser || 'demo' }
+        });
+        if (response.ok) {
+          window.userSettings = await response.json();
+        } else {
+          console.warn('Failed to load user settings, using defaults');
+          window.userSettings = getDefaultSettings();
+        }
+      } catch (error) {
+        console.error('Error loading user settings:', error);
+        window.userSettings = getDefaultSettings();
+      }
+
+      // Mettre à jour l'interface
+      updateUI();
+      await updateStatusSummary();
+      if (window.globalConfig) await initQuickSettings();
+    }
+
+    // Sauvegarder les settings via l'API utilisateur
+    async function saveSettings() {
+      try {
+        const response = await fetch('/api/users/settings', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User': window.currentUser || 'demo'
+          },
+          body: JSON.stringify(window.userSettings)
+        });
+
+        if (response.ok) {
+          console.log('User settings saved successfully');
+        } else {
+          const error = await response.json();
+          console.error('Failed to save user settings:', error);
+          showNotification('❌ Erreur lors de la sauvegarde', 'error');
+        }
+      } catch (error) {
+        console.error('Error saving user settings:', error);
+        showNotification('❌ Erreur lors de la sauvegarde', 'error');
+      }
+      await updateStatusSummary();
     }
 
     // Mettre à jour l'interface avec les valeurs actuelles
     function updateUI() {
-      const globalSettings = globalConfig.getAll();
+      const globalSettings = window.userSettings || getDefaultSettings();
 
       // Nettoyer les sélections précédentes
       document.querySelectorAll('.radio-option').forEach(el => el.classList.remove('selected'));
@@ -1021,20 +1123,37 @@
       if (mainCurrency) {
         mainCurrency.addEventListener('change', async (e) => {
           const val = e.target.value;
-          globalConfig.set('display_currency', val);
+          if (!window.userSettings) window.userSettings = getDefaultSettings();
+        window.userSettings.display_currency = val;
           const quick = document.getElementById('quick_currency');
           if (quick) quick.value = val;
           try { if (window.currencyManager && val !== 'USD') await window.currencyManager.ensureRate(val); } catch(_){}
-          updateStatusSummary();
+          await updateStatusSummary();
         });
       }
     });
 
     // Mettre à jour le résumé du statut
-    function updateStatusSummary() {
+    async function updateStatusSummary() {
       const summary = document.getElementById('status-summary');
-      const globalSettings = globalConfig.getAll();
-      const getLabel = (window.getDataSourceLabel || (()=>''));
+      const globalSettings = window.userSettings || getDefaultSettings();
+
+      // Récupérer le label de source depuis l'API utilisateur
+      let sourceLabel = globalSettings.data_source;
+      try {
+        const response = await fetch('/api/users/sources', {
+          headers: { 'X-User': window.currentUser || 'demo' }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const currentSource = data.sources.find(s => s.key === globalSettings.data_source);
+          if (currentSource) {
+            sourceLabel = currentSource.label;
+          }
+        }
+      } catch (error) {
+        console.debug('Could not load source labels:', error);
+      }
 
       const pricingLabels = {
         'local': '🏠 Prix locaux',
@@ -1050,7 +1169,7 @@
       summary.innerHTML = `
       <div style="display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px;">
         <span class="status-indicator status-ok">
-          ${getLabel(globalSettings.data_source)}
+          ${sourceLabel}
       </span>
         <span class="status-indicator status-ok">
           ${pricingLabels[globalSettings.pricing]}
@@ -1066,92 +1185,96 @@
     }
 
     // Sélection de source de données
-    function selectDataSource(source) {
+    async function selectDataSource(source) {
       document.querySelectorAll('.radio-option').forEach(el => el.classList.remove('selected'));
-      globalConfig.set('data_source', source);
+      if (!window.userSettings) window.userSettings = getDefaultSettings();
+      window.userSettings.data_source = source;
       document.getElementById(`source_${source}`).checked = true;
       document.querySelector(`.radio-option input[value="${source}"]`).parentElement.classList.add('selected');
-      updateStatusSummary();
+      await updateStatusSummary();
     }
 
     // Sélection de pricing
-    function selectPricing(pricing) {
+    async function selectPricing(pricing) {
       document.querySelectorAll('.radio-option').forEach(el => el.classList.remove('selected'));
-      globalConfig.set('pricing', pricing);
+      if (!window.userSettings) window.userSettings = getDefaultSettings();
+      window.userSettings.pricing = pricing;
       document.getElementById(`pricing_${pricing}`).checked = true;
       document.querySelector(`.radio-option input[value="${pricing}"]`).parentElement.classList.add('selected');
-      updateStatusSummary();
+      await updateStatusSummary();
     }
 
     // Sélection de thème
-    function selectTheme(theme) {
+    async function selectTheme(theme) {
       console.debug('Setting theme to:', theme);
       document.querySelectorAll('.radio-option').forEach(el => el.classList.remove('selected'));
       
-      // Utiliser globalConfig.setTheme pour gérer le changement de thème
-      globalConfig.setTheme(theme);
+      if (!window.userSettings) window.userSettings = getDefaultSettings();
+      window.userSettings.theme = theme;
+      // Appliquer le thème directement
+      document.documentElement.setAttribute('data-theme', theme);
       
       // Mettre à jour l'interface
       document.getElementById(`theme_${theme}`).checked = true;
       document.querySelector(`.radio-option input[value="${theme}"]`).parentElement.classList.add('selected');
-      updateStatusSummary();
+      await updateStatusSummary();
       
       // Appliquer immédiatement le thème
       if (window.applyAppearance) {
         window.applyAppearance();
       }
       
-      console.debug('Theme applied, current globalConfig theme:', globalConfig.get('theme'));
+      console.debug('Theme applied, current userSettings theme:', (window.userSettings || getDefaultSettings()).theme);
     }
 
     // Sauvegarder tous les settings
-    function saveAllSettings() {
-      // Récupérer toutes les valeurs des champs
-      globalConfig.set('display_currency', document.getElementById('display_currency').value);
-      globalConfig.set('min_usd_threshold', parseFloat(document.getElementById('min_usd_threshold').value));
+    async function saveAllSettings() {
+      // Récupérer toutes les valeurs des champs et les stocker dans userSettings
+      if (!window.userSettings) window.userSettings = getDefaultSettings();
+
+      window.userSettings.display_currency = document.getElementById('display_currency').value;
+      window.userSettings.min_usd_threshold = parseFloat(document.getElementById('min_usd_threshold').value);
 
       // Pour les clés API, utiliser la vraie valeur si le champ n'est pas masqué, sinon garder la valeur stockée
       const coingeckoField = document.getElementById('coingecko_api_key');
       if (coingeckoField.type === 'text') {
         // Champ visible, prendre la vraie valeur
-        globalConfig.set('coingecko_api_key', coingeckoField.value);
+        window.userSettings.coingecko_api_key = coingeckoField.value;
       }
 
       const ctKeyField = document.getElementById('cointracking_api_key');
       if (ctKeyField.type === 'text') {
-        globalConfig.set('cointracking_api_key', ctKeyField.value);
+        window.userSettings.cointracking_api_key = ctKeyField.value;
       }
 
       const ctSecretField = document.getElementById('cointracking_api_secret');
       if (ctSecretField.type === 'text') {
-        globalConfig.set('cointracking_api_secret', ctSecretField.value);
+        window.userSettings.cointracking_api_secret = ctSecretField.value;
       }
 
       const fredKeyField = document.getElementById('fred_api_key');
       if (fredKeyField.type === 'text') {
-        globalConfig.set('fred_api_key', fredKeyField.value);
+        window.userSettings.fred_api_key = fredKeyField.value;
       }
 
       const debugTokenField = document.getElementById('debug_token');
       if (debugTokenField.type === 'text') {
-        globalConfig.set('debug_token', debugTokenField.value);
+        window.userSettings.debug_token = debugTokenField.value;
       }
 
-      globalConfig.set('api_base_url', document.getElementById('api_base_url').value);
-      globalConfig.set('refresh_interval', parseInt(document.getElementById('refresh_interval').value));
-      globalConfig.set('enable_coingecko_classification', document.getElementById('enable_coingecko_classification').checked);
-      globalConfig.set('enable_portfolio_snapshots', document.getElementById('enable_portfolio_snapshots').checked);
-      globalConfig.set('enable_performance_tracking', document.getElementById('enable_performance_tracking').checked);
-
-      const globalSettings = globalConfig.getAll();
+      window.userSettings.api_base_url = document.getElementById('api_base_url').value;
+      window.userSettings.refresh_interval = parseInt(document.getElementById('refresh_interval').value);
+      window.userSettings.enable_coingecko_classification = document.getElementById('enable_coingecko_classification').checked;
+      window.userSettings.enable_portfolio_snapshots = document.getElementById('enable_portfolio_snapshots').checked;
+      window.userSettings.enable_performance_tracking = document.getElementById('enable_performance_tracking').checked;
 
       // Mettre à jour les statuts
-      updateApiKeyStatus('coingecko', !!globalSettings.coingecko_api_key);
-      updateApiKeyStatus('cointracking_key', !!globalSettings.cointracking_api_key);
-      updateApiKeyStatus('cointracking_secret', !!globalSettings.cointracking_api_secret);
-      updateApiKeyStatus('fred', !!globalSettings.fred_api_key);
+      updateApiKeyStatus('coingecko', !!window.userSettings.coingecko_api_key);
+      updateApiKeyStatus('cointracking_key', !!window.userSettings.cointracking_api_key);
+      updateApiKeyStatus('cointracking_secret', !!window.userSettings.cointracking_api_secret);
+      updateApiKeyStatus('fred', !!window.userSettings.fred_api_key);
 
-      saveSettings();
+      await saveSettings();
 
       // Notification
       showNotification('⚙️ Configuration sauvegardée !', 'success');
@@ -1163,7 +1286,7 @@
       testDiv.innerHTML = '<div class="test-result">🧪 Test en cours...</div>';
 
       try {
-        const globalSettings = globalConfig.getAll();
+        const globalSettings = window.userSettings || getDefaultSettings();
         const response = await fetch(`${globalSettings.api_base_url}/balances/current?source=${globalSettings.data_source}`);
         const data = await response.json();
 
@@ -1205,9 +1328,10 @@
       
       for (const token of commonTokens) {
         try {
-          const response = await fetch(`${globalConfig.get('api_base_url')}/debug/api-keys?debug_token=${token}`);
+          const response = await fetch(`${(window.userSettings || getDefaultSettings()).api_base_url}/debug/api-keys?debug_token=${token}`);
           if (response.ok) {
-            globalConfig.set('debug_token', token);
+            if (!window.userSettings) window.userSettings = getDefaultSettings();
+            window.userSettings.debug_token = token;
             document.getElementById('debug_token').value = maskApiKey(token);
             console.debug('DEBUG_TOKEN auto-détecté et configuré');
             showNotification('🔑 DEBUG_TOKEN auto-détecté', 'success');
@@ -1224,9 +1348,9 @@
     // Auto-détecter les clés depuis .env du serveur
     async function autoDetectApiKeys() {
       try {
-        const globalSettings = globalConfig.getAll();
+        const globalSettings = window.userSettings || getDefaultSettings();
         // Essayer de récupérer les clés depuis le backend  
-        const debugToken = globalConfig.get('debug_token');
+        const debugToken = (window.userSettings || getDefaultSettings()).debug_token;
         if (!debugToken) {
           console.debug('Auto-détection désactivée: DEBUG_TOKEN requis');
           return;
@@ -1238,41 +1362,45 @@
 
           // CoinGecko - utiliser la clé du serveur si pas de clé locale
           if (data.coingecko_api_key && !globalSettings.coingecko_api_key) {
-            globalConfig.set('coingecko_api_key', data.coingecko_api_key);
+            if (!window.userSettings) window.userSettings = getDefaultSettings();
+            window.userSettings.coingecko_api_key = data.coingecko_api_key;
             foundKeys = true;
           }
-          if (globalConfig.get('coingecko_api_key')) {
-            document.getElementById('coingecko_api_key').value = maskApiKey(globalConfig.get('coingecko_api_key'));
+          if ((window.userSettings || getDefaultSettings()).coingecko_api_key) {
+            document.getElementById('coingecko_api_key').value = maskApiKey((window.userSettings || getDefaultSettings()).coingecko_api_key);
             updateApiKeyStatus('coingecko', true);
           }
 
           // FRED - utiliser la clé du serveur si pas de clé locale
           if (data.fred_api_key && !globalSettings.fred_api_key) {
-            globalConfig.set('fred_api_key', data.fred_api_key);
+            if (!window.userSettings) window.userSettings = getDefaultSettings();
+            window.userSettings.fred_api_key = data.fred_api_key;
             foundKeys = true;
           }
-          if (globalConfig.get('fred_api_key')) {
-            document.getElementById('fred_api_key').value = maskApiKey(globalConfig.get('fred_api_key'));
+          if ((window.userSettings || getDefaultSettings()).fred_api_key) {
+            document.getElementById('fred_api_key').value = maskApiKey((window.userSettings || getDefaultSettings()).fred_api_key);
             updateApiKeyStatus('fred', true);
           }
 
           // CoinTracking Key - utiliser la clé du serveur si pas de clé locale
           if (data.cointracking_api_key && !globalSettings.cointracking_api_key) {
-            globalConfig.set('cointracking_api_key', data.cointracking_api_key);
+            if (!window.userSettings) window.userSettings = getDefaultSettings();
+            window.userSettings.cointracking_api_key = data.cointracking_api_key;
             foundKeys = true;
           }
-          if (globalConfig.get('cointracking_api_key')) {
-            document.getElementById('cointracking_api_key').value = maskApiKey(globalConfig.get('cointracking_api_key'));
+          if ((window.userSettings || getDefaultSettings()).cointracking_api_key) {
+            document.getElementById('cointracking_api_key').value = maskApiKey((window.userSettings || getDefaultSettings()).cointracking_api_key);
             updateApiKeyStatus('cointracking_key', true);
           }
 
           // CoinTracking Secret - utiliser la clé du serveur si pas de clé locale
           if (data.cointracking_api_secret && !globalSettings.cointracking_api_secret) {
-            globalConfig.set('cointracking_api_secret', data.cointracking_api_secret);
+            if (!window.userSettings) window.userSettings = getDefaultSettings();
+            window.userSettings.cointracking_api_secret = data.cointracking_api_secret;
             foundKeys = true;
           }
-          if (globalConfig.get('cointracking_api_secret')) {
-            document.getElementById('cointracking_api_secret').value = maskApiKey(globalConfig.get('cointracking_api_secret'));
+          if ((window.userSettings || getDefaultSettings()).cointracking_api_secret) {
+            document.getElementById('cointracking_api_secret').value = maskApiKey((window.userSettings || getDefaultSettings()).cointracking_api_secret);
             updateApiKeyStatus('cointracking_secret', true);
           }
 
@@ -1315,31 +1443,33 @@
         // Afficher la vraie clé
         const settingKey = fieldId; // même nom que dans globalConfig
         field.type = 'text';
-        field.value = globalConfig.get(settingKey) || '';
+        field.value = (window.userSettings || getDefaultSettings())[settingKey] || '';
       } else {
         // Masquer avec des points
         field.type = 'password';
         const settingKey = fieldId;
-        field.value = globalConfig.get(settingKey) ? maskApiKey(globalConfig.get(settingKey)) : '';
+        const value = (window.userSettings || getDefaultSettings())[settingKey];
+        field.value = value ? maskApiKey(value) : '';
       }
     }
 
     // Synchroniser depuis .env
     async function syncApiKeysFromEnv() {
       try {
-        const debugToken = globalConfig.get('debug_token');
+        const debugToken = (window.userSettings || getDefaultSettings()).debug_token;
         if (!debugToken) {
           showNotification('❌ DEBUG_TOKEN requis pour synchroniser depuis .env', 'error');
           return;
         }
-        const response = await fetch(`${globalConfig.get('api_base_url')}/debug/api-keys?debug_token=${debugToken}`);
+        const response = await fetch(`${(window.userSettings || getDefaultSettings()).api_base_url}/debug/api-keys?debug_token=${debugToken}`);
         if (response.ok) {
           const data = await response.json();
           let foundKeys = false;
 
           // Forcer le rechargement de toutes les clés depuis .env
           if (data.coingecko_api_key) {
-            globalConfig.set('coingecko_api_key', data.coingecko_api_key);
+            if (!window.userSettings) window.userSettings = getDefaultSettings();
+            window.userSettings.coingecko_api_key = data.coingecko_api_key;
             document.getElementById('coingecko_api_key').value = maskApiKey(data.coingecko_api_key);
             updateApiKeyStatus('coingecko', true);
             foundKeys = true;
@@ -1348,7 +1478,8 @@
           }
 
           if (data.fred_api_key) {
-            globalConfig.set('fred_api_key', data.fred_api_key);
+            if (!window.userSettings) window.userSettings = getDefaultSettings();
+            window.userSettings.fred_api_key = data.fred_api_key;
             document.getElementById('fred_api_key').value = maskApiKey(data.fred_api_key);
             updateApiKeyStatus('fred', true);
             foundKeys = true;
@@ -1357,7 +1488,8 @@
           }
 
           if (data.cointracking_api_key) {
-            globalConfig.set('cointracking_api_key', data.cointracking_api_key);
+            if (!window.userSettings) window.userSettings = getDefaultSettings();
+            window.userSettings.cointracking_api_key = data.cointracking_api_key;
             document.getElementById('cointracking_api_key').value = maskApiKey(data.cointracking_api_key);
             updateApiKeyStatus('cointracking_key', true);
             foundKeys = true;
@@ -1366,7 +1498,8 @@
           }
 
           if (data.cointracking_api_secret) {
-            globalConfig.set('cointracking_api_secret', data.cointracking_api_secret);
+            if (!window.userSettings) window.userSettings = getDefaultSettings();
+            window.userSettings.cointracking_api_secret = data.cointracking_api_secret;
             document.getElementById('cointracking_api_secret').value = maskApiKey(data.cointracking_api_secret);
             updateApiKeyStatus('cointracking_secret', true);
             foundKeys = true;
@@ -1391,19 +1524,19 @@
     // Synchroniser vers .env
     async function syncApiKeysToEnv() {
       const payload = {
-        coingecko_api_key: globalConfig.get('coingecko_api_key') || '',
-        cointracking_api_key: globalConfig.get('cointracking_api_key') || '',
-        cointracking_api_secret: globalConfig.get('cointracking_api_secret') || '',
-        fred_api_key: globalConfig.get('fred_api_key') || ''
+        coingecko_api_key: (window.userSettings || getDefaultSettings()).coingecko_api_key || '',
+        cointracking_api_key: (window.userSettings || getDefaultSettings()).cointracking_api_key || '',
+        cointracking_api_secret: (window.userSettings || getDefaultSettings()).cointracking_api_secret || '',
+        fred_api_key: (window.userSettings || getDefaultSettings()).fred_api_key || ''
       };
 
       try {
-        const debugToken = globalConfig.get('debug_token');
+        const debugToken = (window.userSettings || getDefaultSettings()).debug_token;
         if (!debugToken) {
           showNotification('❌ DEBUG_TOKEN requis pour sauvegarder vers .env', 'error');
           return;
         }
-        const response = await fetch(`${globalConfig.get('api_base_url')}/debug/api-keys?debug_token=${debugToken}`, {
+        const response = await fetch(`${(window.userSettings || getDefaultSettings()).api_base_url}/debug/api-keys?debug_token=${debugToken}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -1610,9 +1743,10 @@
       // Appliquer le thème immédiatement
       applyThemeImmediately();
       
-      loadSettings();
-      // Tenter de récupérer le DEBUG_TOKEN depuis le serveur
-      autoDetectDebugToken();
+      loadSettings().then(() => {
+        // Tenter de récupérer le DEBUG_TOKEN depuis le serveur
+        autoDetectDebugToken();
+      });
       // Tenter l'auto-détection des clés immédiatement
       autoDetectApiKeys();
 
@@ -1630,8 +1764,9 @@
       const statusDiv = document.getElementById('csv-download-status');
       
       // Vérifier les clés API
-      const apiKey = globalConfig.get('cointracking_api_key');
-      const apiSecret = globalConfig.get('cointracking_api_secret');
+      const userSettings = window.userSettings || getDefaultSettings();
+      const apiKey = userSettings.cointracking_api_key;
+      const apiSecret = userSettings.cointracking_api_secret;
       
       if (!apiKey || !apiSecret) {
         statusDiv.innerHTML = '<div class="error">❌ Clés API CoinTracking requises pour le téléchargement automatique.</div>';
@@ -1816,16 +1951,29 @@
 
     // Charger le status des CSV au chargement de la page
     document.addEventListener('DOMContentLoaded', () => {
-      try { loadSettings(); } catch (_) {}
+      try { loadSettings().catch(console.error); } catch (_) {}
       setTimeout(checkCSVStatus, 1000); // Attendre que globalConfig soit prêt
       setTimeout(loadSaxoIntegrationStatus, 1500); // Load Saxo status
+
+      // Écouter les changements d'utilisateur pour recharger les settings
+      const userSelector = document.getElementById('user-selector');
+      if (userSelector) {
+        userSelector.addEventListener('change', async (e) => {
+          console.log('User changed, reloading settings...');
+          try {
+            await loadSettings();
+          } catch (error) {
+            console.error('Failed to reload settings after user change:', error);
+          }
+        });
+      }
     });
 
     // ========== SAXO INTEGRATION MANAGEMENT ==========
 
     async function loadSaxoIntegrationStatus() {
       try {
-        const response = await fetch(globalConfig.getApiUrl('/api/saxo/portfolios'));
+        const response = await fetch(`${(window.userSettings || getDefaultSettings()).api_base_url}/api/saxo/portfolios`);
         if (!response.ok) {
           throw new Error('Failed to load Saxo portfolios');
         }

@@ -95,28 +95,40 @@ def _cache_set(key: tuple, payload: dict) -> None:
     if len(_CACHE) > _CACHE_CLEANUP_THRESHOLD:
         _cleanup_cache()
 
-async def _post_api_cached_async(method: str, params: Optional[Dict[str, Any]] = None, ttl: int = 60) -> Dict[str, Any]:
+async def _post_api_cached_async(method: str, params: Optional[Dict[str, Any]] = None, ttl: int = 60,
+                                api_key: Optional[str] = None, api_secret: Optional[str] = None) -> Dict[str, Any]:
     """Version async de _post_api_cached utilisant un executor pour éviter le blocking I/O"""
-    key = (method, json.dumps(params or {}, sort_keys=True))
+    # Inclure les clés API dans la clé de cache pour éviter les collisions entre utilisateurs
+    cache_key_parts = [method, json.dumps(params or {}, sort_keys=True)]
+    if api_key:
+        cache_key_parts.append(f"key_{api_key[:8]}")
+    key = tuple(cache_key_parts)
+
     hit = _cache_get(key, ttl)
     if hit is not None:
         return hit
-    
+
     # Utiliser un executor pour ne pas bloquer la boucle d'événements
     loop = asyncio.get_running_loop()
-    payload = await loop.run_in_executor(None, partial(_post_api, method, params))
+    payload = await loop.run_in_executor(None, partial(_post_api, method, params, api_key, api_secret))
     
     if isinstance(payload, dict):
         _cache_set(key, payload)
     return payload
 
 # Garde la version synchrone pour compatibilité
-def _post_api_cached(method: str, params: Optional[Dict[str, Any]] = None, ttl: int = 60) -> Dict[str, Any]:
-    key = (method, json.dumps(params or {}, sort_keys=True))
+def _post_api_cached(method: str, params: Optional[Dict[str, Any]] = None, ttl: int = 60,
+                     api_key: Optional[str] = None, api_secret: Optional[str] = None) -> Dict[str, Any]:
+    # Inclure les clés API dans la clé de cache pour éviter les collisions entre utilisateurs
+    cache_key_parts = [method, json.dumps(params or {}, sort_keys=True)]
+    if api_key:
+        cache_key_parts.append(f"key_{api_key[:8]}")  # Juste les 8 premiers caractères pour l'unicité
+    key = tuple(cache_key_parts)
+
     hit = _cache_get(key, ttl)
     if hit is not None:
         return hit
-    payload = _post_api(method, params)
+    payload = _post_api(method, params, api_key, api_secret)
     if isinstance(payload, dict):
         _cache_set(key, payload)
     return payload
@@ -224,18 +236,25 @@ async def get_items_by_exchange(client, min_usd: float = 0.0):
 
 
 # --- HTTP Low-level ----------------------------------------------------------
-def _post_api(method: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def _post_api(method: str, params: Optional[Dict[str, Any]] = None,
+              api_key: Optional[str] = None, api_secret: Optional[str] = None) -> Dict[str, Any]:
     """
     Appel POST CoinTracking v1 :
       - URL = {API_BASE}/
       - body form-urlencoded: method, nonce, ...extra params
       - headers: Key, Sign (HMAC-SHA512 du body avec SECRET)
     """
-    # Rafraîchir dynamiquement les clés si le module a été importé avant l'écriture dans .env
-    key = API_KEY or os.getenv("CT_API_KEY") or os.getenv("COINTRACKING_API_KEY") or os.getenv("API_COINTRACKING_API_KEY") or ""
-    sec = API_SECRET or os.getenv("CT_API_SECRET") or os.getenv("COINTRACKING_API_SECRET") or os.getenv("API_COINTRACKING_API_SECRET") or ""
+    # Utiliser les clés fournies en paramètre ou fallback sur les variables d'environnement
+    if api_key and api_secret:
+        key = api_key
+        sec = api_secret
+    else:
+        # Rafraîchir dynamiquement les clés si le module a été importé avant l'écriture dans .env
+        key = API_KEY or os.getenv("CT_API_KEY") or os.getenv("COINTRACKING_API_KEY") or os.getenv("API_COINTRACKING_API_KEY") or ""
+        sec = API_SECRET or os.getenv("CT_API_SECRET") or os.getenv("COINTRACKING_API_SECRET") or os.getenv("API_COINTRACKING_API_SECRET") or ""
+
     if not key or not sec:
-        raise RuntimeError("CT_API_KEY / CT_API_SECRET manquants (ou vides)")
+        raise RuntimeError("CT_API_KEY / CT_API_SECRET manquants (ou vides) - fournir en paramètre ou dans l'environnement")
 
     url = API_BASE.rstrip("/") + "/"
     form: Dict[str, Any] = {"method": method, "nonce": _now_ms()}
@@ -631,14 +650,15 @@ def _get_details_dict(payload: Dict[str, Any]) -> Dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 # --- Public API --------------------------------------------------------------
-async def get_current_balances(source: str = "cointracking_api") -> dict:
+async def get_current_balances(source: str = "cointracking_api",
+                               api_key: Optional[str] = None, api_secret: Optional[str] = None) -> dict:
     """
     Préfère getBalance (par coin) ; fallback sur getGroupedBalance (par exchange)
     Ne filtre PAS ici par value_usd (le filtre min_usd est fait par /balances/current).
     """
     # 1) getBalance
     try:
-        p = await _post_api_cached_async("getBalance", {}, ttl=60)
+        p = await _post_api_cached_async("getBalance", {}, ttl=60, api_key=api_key, api_secret=api_secret)
         rows = _extract_rows_from_getBalance(p) or []
         if not rows and isinstance(p, dict) and isinstance(p.get("result"), dict):
             rows = _extract_rows_from_getBalance(p["result"]) or []
@@ -649,13 +669,14 @@ async def get_current_balances(source: str = "cointracking_api") -> dict:
 
     # 2) fallback: getGroupedBalance + recomposition des valeurs via une price map
     try:
-        payload = await _post_api_cached_async("getGroupedBalance", {"group": "exchange"}, ttl=60)
+        payload = await _post_api_cached_async("getGroupedBalance", {"group": "exchange"}, ttl=60,
+                                              api_key=api_key, api_secret=api_secret)
         items = _extract_rows_from_groupedBalance(payload)  # amount>0, value_usd poss. 0
 
         # price map depuis getBalance
         price_map: dict[str, float] = {}
         try:
-            p2 = await _post_api_cached_async("getBalance", {}, ttl=30)
+            p2 = await _post_api_cached_async("getBalance", {}, ttl=30, api_key=api_key, api_secret=api_secret)
             details = p2.get("details")
             if details is None and isinstance(p2.get("result"), dict):
                 details = p2["result"].get("details")
@@ -699,7 +720,7 @@ def _get_coin_value_fiat(d: dict) -> float | None:
 
 # cointracking_api.py
 
-async def get_balances_by_exchange_via_api() -> Dict[str, Any]:
+async def get_balances_by_exchange_via_api(api_key: Optional[str] = None, api_secret: Optional[str] = None) -> Dict[str, Any]:
     """
     1) getBalance -> récupère un prix par symbole (source de vérité pour la valorisation)
     2) getGroupedBalance(group='exchange', exclude_dep_with=1) -> quantités par exchange
@@ -717,7 +738,8 @@ async def get_balances_by_exchange_via_api() -> Dict[str, Any]:
             return 0.0
 
     # 1) Récupération des données groupées et déduplication intelligente
-    p_gb = await _post_api_cached_async("getGroupedBalance", {"group": "exchange", "exclude_dep_with": "1"}, ttl=60)
+    p_gb = await _post_api_cached_async("getGroupedBalance", {"group": "exchange", "exclude_dep_with": "1"}, ttl=60,
+                                       api_key=api_key, api_secret=api_secret)
     rows_gb = _extract_rows_from_groupedBalance(p_gb)
     
     # 2) Déduplication: pour chaque symbol, aggréger les quantités mais garder la location principale

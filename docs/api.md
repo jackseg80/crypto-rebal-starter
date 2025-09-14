@@ -9,6 +9,7 @@ Référence synthétique, avec exemples clés. La source canonique reste l’Ope
 - `GET /balances/current?source=cointracking|cointracking_api&min_usd=1`
 - `GET /portfolio/metrics`
 - `POST /rebalance/plan` (targets manuels/dynamiques)
+- `GET /debug/ctapi` (sonde CoinTracking API)
 
 Exemple `POST /rebalance/plan` (extrait):
 ```json
@@ -69,3 +70,10 @@ Exemple `POST /rebalance/plan` (extrait):
 Notes:
 - Certains endpoints “dashboard/history” retournent des données simulées en dev.
 - Pour payloads complets et schémas, se référer à l’OpenAPI.
+
+## CoinTracking (sources & debug)
+
+- `source=cointracking` → CSV strict via `connectors/cointracking.py`
+- `source=cointracking_api` → API CT strict via `connectors/cointracking_api.py`
+- Pas de fallback silencieux entre les deux. En cas d’erreur API, la réponse inclut `source_used: "cointracking_api"` avec un champ `error`.
+- Debug: `GET /debug/ctapi` (présence clés, aperçu des données, erreurs format/HTTP)

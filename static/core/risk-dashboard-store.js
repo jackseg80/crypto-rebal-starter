@@ -329,7 +329,7 @@ export class RiskDashboardStore {
         headers['Idempotency-Key'] = idempotencyKey;
       }
       
-      const response = await fetch(`${window.location.origin}/api/governance/freeze`, {
+      const response = await fetch(`${window.location.origin}/execution/governance/freeze`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -374,7 +374,7 @@ export class RiskDashboardStore {
         headers['Idempotency-Key'] = idempotencyKey;
       }
       
-      const response = await fetch(`${window.location.origin}/api/governance/unfreeze`, {
+      const response = await fetch(`${window.location.origin}/execution/governance/unfreeze`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ source })

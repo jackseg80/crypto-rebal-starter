@@ -185,5 +185,21 @@
       "D:\\d D:\\Python\\crypto-rebal-starter",
       "D:\\"
     ]
-  }
+  },
+  "include": [
+    "CLAUDE.md",
+    "README.md",
+    "docs/**",
+    "api/**",
+    "services/**",
+    "connectors/**",
+    "static/components/**",
+    "static/*.html",
+    "tests/**"
+  ],
+  "exclude": [
+    "**/.env",
+    "**/data/**",
+    "**/.ruff_cache/**"
+  ]
 }
