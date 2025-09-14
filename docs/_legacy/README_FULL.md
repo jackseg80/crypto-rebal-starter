@@ -1,6 +1,8 @@
-# Crypto Rebal Starter — Plateforme ML & Analytics Complète
+# Crypto Rebal Starter — Cockpit Patrimoine Modulaire
 
-Plateforme **complète de gestion de portefeuille crypto** avec ML/IA avancé :
+**Cockpit patrimoine cross-asset** intégrant Crypto, Bourse (Saxo), Banque et actifs divers avec intelligence artificielle avancée et gestion unifiée des risques.
+
+Cette plateforme consolidée offre une navigation simplifiée autour de 6 pages canoniques - **Portfolio**, **Analytics**, **Risk**, **Rebalance**, **Execution** et **Settings** - avec un système de filtrage contextuel permettant de gérer l'ensemble de votre patrimoine depuis une interface unique.
 
 ## 🚀 **Fonctionnalités Principales**
 - 🎯 **Rebalancing intelligent** avec allocations dynamiques et exec hints par exchange
@@ -11,6 +13,12 @@ Plateforme **complète de gestion de portefeuille crypto** avec ML/IA avancé :
 - 📈 **Interface moderne** avec 35+ dashboards et navigation unifiée
 - 🔄 **Synchronisation de scores** : Architecture single-source-of-truth avec cache localStorage
 - 🔗 **Multi-sources** : CoinTracking CSV/API, exchanges, données temps réel
+
+## 📖 **Documentation**
+
+- **[Navigation & Architecture](docs/navigation.md)** - Structure des menus et liens profonds
+- **[Architecture Technique](docs/architecture.md)** - Hiérarchie décisionnelle SMART → Decision Engine
+- **[Modules Patrimoniaux](docs/wealth-modules.md)** - Crypto, Bourse, Banque, Divers
 
 ## 🔄 **Synchronisation des Scores Cross-Dashboard**
 

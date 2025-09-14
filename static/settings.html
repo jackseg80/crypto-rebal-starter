@@ -318,9 +318,11 @@
       <button class="tab-btn" data-target="#tab-pricing">Pricing</button>
       <button class="tab-btn" data-target="#tab-api">Clés API</button>
       <button class="tab-btn" data-target="#tab-csv">CSV</button>
+      <button class="tab-btn" data-target="#tab-integrations">Intégrations</button>
       <button class="tab-btn" data-target="#tab-interface">Interface</button>
       <button class="tab-btn" data-target="#tab-advanced">Avancé</button>
     </div>
+
 
     <!-- Overview Tab -->
     <section class="tab-panel active" id="tab-overview">
@@ -686,7 +688,109 @@
       </div>
     </section>
 
-    
+    <!-- Integrations Tab -->
+    <section class="tab-panel" id="tab-integrations">
+      <div class="card" data-tooltip="Gérez vos intégrations cross-asset (Crypto, Bourse, Banque, Divers)."
+         data-source="Connecteurs et imports de données">
+        <h3>🔗 Intégrations Cross-Asset</h3>
+        <p style="color: var(--theme-text-muted); margin-bottom: 1.5rem;">
+          Importez et gérez vos portfolios de différentes sources pour une vue unifiée de votre patrimoine.
+        </p>
+
+        <!-- Crypto Integration -->
+        <div class="card-subsection">
+          <h4>₿ Crypto (CoinTracking)</h4>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <p style="margin: 0; color: var(--theme-text-muted);">Import automatique via API ou CSV</p>
+              <div style="font-size: 0.875rem; color: var(--success); margin-top: 0.25rem;">
+                <span id="cointracking-status">✅ Connecté</span>
+              </div>
+            </div>
+            <div>
+              <button class="btn secondary" onclick="window.location.href='#tab-csv'">⚙️ Configurer</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stock Integration -->
+        <div class="card-subsection" style="margin-top: 1.5rem;">
+          <h4>📈 Bourse (Saxo Bank)</h4>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <p style="margin: 0; color: var(--theme-text-muted);">Import CSV/XLSX de vos positions actions</p>
+              <div style="font-size: 0.875rem; color: var(--theme-text-muted); margin-top: 0.25rem;">
+                <span id="saxo-portfolios-count">Aucun portfolio importé</span>
+              </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+              <button class="btn primary" onclick="window.location.href='saxo-upload.html'">📤 Import</button>
+              <button class="btn secondary" onclick="window.location.href='saxo-dashboard.html'" id="saxo-dashboard-btn" disabled>📊 Dashboard</button>
+            </div>
+          </div>
+          <div style="margin-top: 1rem; padding: 1rem; background: var(--info-bg); border-radius: var(--radius-md); border: 1px solid var(--info);">
+            <div style="font-size: 0.875rem; color: var(--info);">
+              <strong>Format supporté:</strong> Exportez vos positions depuis Saxo Bank au format CSV ou XLSX avec les colonnes: Position ID, Instrument, Quantity, Market Value, Currency
+            </div>
+          </div>
+        </div>
+
+        <!-- Banking Integration (Placeholder) -->
+        <div class="card-subsection" style="margin-top: 1.5rem;">
+          <h4>🏦 Banque</h4>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <p style="margin: 0; color: var(--theme-text-muted);">Import comptes bancaires et liquidités</p>
+              <div style="font-size: 0.875rem; color: var(--theme-text-muted); margin-top: 0.25rem;">
+                <span>À venir - UBS, CS, PostFinance</span>
+              </div>
+            </div>
+            <div>
+              <button class="btn secondary" disabled>🔧 Bientôt disponible</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Other Assets Integration (Placeholder) -->
+        <div class="card-subsection" style="margin-top: 1.5rem;">
+          <h4>📊 Divers</h4>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <p style="margin: 0; color: var(--theme-text-muted);">Import autres actifs (immobilier, commodités, P2P)</p>
+              <div style="font-size: 0.875rem; color: var(--theme-text-muted); margin-top: 0.25rem;">
+                <span>À venir - CSV générique</span>
+              </div>
+            </div>
+            <div>
+              <button class="btn secondary" disabled>🔧 Bientôt disponible</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Integration Status Summary -->
+        <div style="margin-top: 2rem; padding: 1.5rem; background: var(--theme-bg); border-radius: var(--radius-md); border: 1px solid var(--theme-border);">
+          <h4>📋 Résumé Intégrations</h4>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1rem;">
+            <div style="text-align: center;">
+              <div style="font-size: 1.5rem; font-weight: 700; color: var(--success);" id="crypto-value">$0</div>
+              <div style="font-size: 0.875rem; color: var(--theme-text-muted);">Crypto</div>
+            </div>
+            <div style="text-align: center;">
+              <div style="font-size: 1.5rem; font-weight: 700; color: var(--brand-primary);" id="stock-value">$0</div>
+              <div style="font-size: 0.875rem; color: var(--theme-text-muted);">Bourse</div>
+            </div>
+            <div style="text-align: center;">
+              <div style="font-size: 1.5rem; font-weight: 700; color: var(--theme-border);" id="bank-value">$0</div>
+              <div style="font-size: 0.875rem; color: var(--theme-text-muted);">Banque</div>
+            </div>
+            <div style="text-align: center;">
+              <div style="font-size: 1.5rem; font-weight: 700; color: var(--theme-border);" id="other-value">$0</div>
+              <div style="font-size: 0.875rem; color: var(--theme-text-muted);">Divers</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <!-- Advanced Tab -->
     <section class="tab-panel" id="tab-advanced">
@@ -1714,7 +1818,52 @@
     document.addEventListener('DOMContentLoaded', () => {
       try { loadSettings(); } catch (_) {}
       setTimeout(checkCSVStatus, 1000); // Attendre que globalConfig soit prêt
+      setTimeout(loadSaxoIntegrationStatus, 1500); // Load Saxo status
     });
+
+    // ========== SAXO INTEGRATION MANAGEMENT ==========
+
+    async function loadSaxoIntegrationStatus() {
+      try {
+        const response = await fetch(globalConfig.getApiUrl('/api/saxo/portfolios'));
+        if (!response.ok) {
+          throw new Error('Failed to load Saxo portfolios');
+        }
+
+        const data = await response.json();
+        updateSaxoStatus(data);
+
+      } catch (error) {
+        console.debug('Saxo integration not available or error:', error);
+        updateSaxoStatus({ portfolios: [] });
+      }
+    }
+
+    function updateSaxoStatus(data) {
+      const countSpan = document.getElementById('saxo-portfolios-count');
+      const dashboardBtn = document.getElementById('saxo-dashboard-btn');
+
+      if (data.portfolios && data.portfolios.length > 0) {
+        const totalValue = data.portfolios.reduce((sum, p) => sum + p.total_value_usd, 0);
+
+        countSpan.textContent = `${data.portfolios.length} portfolio(s) - $${totalValue.toLocaleString()}`;
+        countSpan.style.color = 'var(--success)';
+
+        dashboardBtn.disabled = false;
+        dashboardBtn.style.opacity = '1';
+
+        // Update stock value in summary
+        document.getElementById('stock-value').textContent = `$${totalValue.toLocaleString()}`;
+        document.getElementById('stock-value').style.color = 'var(--brand-primary)';
+
+      } else {
+        countSpan.textContent = 'Aucun portfolio importé';
+        countSpan.style.color = 'var(--theme-text-muted)';
+
+        dashboardBtn.disabled = true;
+        dashboardBtn.style.opacity = '0.5';
+      }
+    }
 
   </script>
 

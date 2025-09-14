@@ -243,6 +243,20 @@ class GovernanceEngine:
         self._prudent_mode = False  # État hystérésis prudent/normal
         self._alert_cap_reduction = 0.0  # Réduction cap par AlertEngine
         self._alert_cooldown_until = datetime.min  # Cooldown AlertEngine
+
+        # Phase 4: Hystérésis anti-yo-yo pour VaR et stale detection
+        self._var_hysteresis_state = "normal"  # "normal" | "prudent"
+        self._stale_hysteresis_state = "normal"  # "normal" | "stale"
+        self._var_hysteresis_history = []  # Historique VaR pour trend detection
+        self._stale_hysteresis_history = []  # Historique staleness
+        self._hysteresis_config = {
+            "var_activate_threshold": 75,    # Active hystérésis si VaR > 75
+            "var_deactivate_threshold": 65,  # Désactive si VaR < 65 (gap anti-yo-yo)
+            "stale_activate_seconds": 3600,  # Active si stale > 1h
+            "stale_deactivate_seconds": 1800, # Désactive si fresh < 30min (gap anti-yo-yo)
+            "history_window": 5,             # Fenêtre historique pour trend detection
+            "trend_stability_required": 3    # Nb points stables requis avant changement
+        }
         
         # Phase 3C: Initialize Hybrid Intelligence components
         self.hybrid_intelligence_enabled = HYBRID_INTELLIGENCE_AVAILABLE
@@ -499,23 +513,33 @@ class GovernanceEngine:
                 mode = "Freeze"
                 cap = 0.01
 
-            # Phase 1A: Ordre de priorité caps: error(5%) > stale(8%) > alert > engine
+            # Phase 4: Ordre de priorité caps avec hystérésis: error(5%) > stale(8%) > alert > engine
             cap_engine = cap  # Cap calculé par engine
             cap_alert = cap_engine - self._alert_cap_reduction  # Cap réduit par AlertEngine
             cap_stale = None
             cap_error = None
 
-            # Vérifier backend status pour stale/error clamps (TODO: intégrer détection backend)
-            # Pour l'instant, simuler avec des signaux existants
+            # Intégrer hystérésis avancée pour éviter oscillations yo-yo
             try:
-                # Backend stale si signaux trop anciens
                 signals_age = (datetime.now() - signals.as_of).total_seconds()
-                if signals_age > 3600:  # 1h = stale
-                    cap_stale = 0.08  # 8% stale clamp
-                if signals_age > 7200:  # 2h = error
+                var_state, stale_state = self._update_hysteresis_state(signals, signals_age)
+
+                # Appliquer caps basées sur états d'hystérésis (plus stables)
+                if stale_state == "stale":
+                    cap_stale = 0.08  # 8% stale clamp avec hystérésis
+
+                # Error condition : toujours prioritaire, sans hystérésis (urgence)
+                if signals_age > 7200:  # 2h = error critique immédiat
                     cap_error = 0.05  # 5% error clamp
+
+                # Modifier mode selon hystérésis VaR
+                if var_state == "prudent" and mode == "Aggressive":
+                    mode = "Normal"  # Downgrade si VaR élevé persistant
+                    cap = min(cap, 0.08)  # Plafonner cap
+
             except:
-                pass
+                signals_age = 0
+                var_state, stale_state = "normal", "normal"
 
             # Appliquer la priorité stricte
             original_cap = cap
@@ -542,17 +566,28 @@ class GovernanceEngine:
             # Coûts d'exécution estimés (spread + slippage + frais)
             execution_cost = 15 + (avg_volatility * 100)  # 15-30 bps selon volatilité
             
-            # Enrichir les notes avec les informations de caps
+            # Enrichir les notes avec les informations de caps et hystérésis
             cap_notes = []
             if cap_error is not None:
                 cap_notes.append(f"ERROR_CLAMP(5%)")
             elif cap_stale is not None:
-                cap_notes.append(f"STALE_CLAMP(8%)")
+                cap_notes.append(f"STALE_HYSTERESIS(8%)")  # Indication hystérésis
             elif self._alert_cap_reduction > 0:
                 cap_notes.append(f"ALERT_REDUCTION(-{self._alert_cap_reduction:.1%})")
 
+            # Phase 4: Notes d'hystérésis avancées
+            hysteresis_notes = []
+            if var_state == "prudent":
+                hysteresis_notes.append("VAR_HYSTERESIS")
+            if stale_state == "stale":
+                hysteresis_notes.append("STALE_HYSTERESIS")
+
+            if hysteresis_notes:
+                cap_notes.extend(hysteresis_notes)
+
+            # Legacy support (pour compatibilité UI)
             if self._prudent_mode:
-                cap_notes.append("HYSTERESIS_PRUDENT")
+                cap_notes.append("HYSTERESIS_PRUDENT_LEGACY")
 
             cap_info = f" [{', '.join(cap_notes)}]" if cap_notes else ""
 
@@ -643,7 +678,76 @@ class GovernanceEngine:
         except Exception as e:
             logger.error(f"Error clearing alert cap reduction: {e}")
             return False
-    
+
+    def _update_hysteresis_state(self, signals: Any, signals_age: float) -> Tuple[str, str]:
+        """
+        Phase 4: Hystérésis anti-yo-yo avec seuils d'activation/désactivation distincts
+
+        Returns:
+            Tuple[var_state, stale_state] : États d'hystérésis ("normal"/"prudent", "normal"/"stale")
+        """
+        try:
+            # 1. VaR Hysteresis - utilise blended_score comme proxy VaR
+            var_proxy = getattr(signals, 'blended_score', 70)  # Default safe value
+            self._var_hysteresis_history.append(var_proxy)
+
+            # Maintenir fenêtre historique
+            if len(self._var_hysteresis_history) > self._hysteresis_config["history_window"]:
+                self._var_hysteresis_history.pop(0)
+
+            # Logique d'hystérésis VaR avec gap anti-yo-yo
+            if self._var_hysteresis_state == "normal":
+                # Condition d'activation prudent : VaR élevé + tendance stable
+                if (var_proxy > self._hysteresis_config["var_activate_threshold"] and
+                    len(self._var_hysteresis_history) >= self._hysteresis_config["trend_stability_required"]):
+                    # Vérifier tendance stable vers le haut
+                    recent_values = self._var_hysteresis_history[-self._hysteresis_config["trend_stability_required"]:]
+                    if all(v > self._hysteresis_config["var_activate_threshold"] for v in recent_values):
+                        self._var_hysteresis_state = "prudent"
+                        logger.warning(f"VaR hysteresis activated: prudent mode (score={var_proxy})")
+            else:  # "prudent"
+                # Condition de désactivation : VaR bas + tendance stable (gap anti-yo-yo)
+                if (var_proxy < self._hysteresis_config["var_deactivate_threshold"] and
+                    len(self._var_hysteresis_history) >= self._hysteresis_config["trend_stability_required"]):
+                    # Vérifier tendance stable vers le bas
+                    recent_values = self._var_hysteresis_history[-self._hysteresis_config["trend_stability_required"]:]
+                    if all(v < self._hysteresis_config["var_deactivate_threshold"] for v in recent_values):
+                        self._var_hysteresis_state = "normal"
+                        logger.info(f"VaR hysteresis deactivated: normal mode (score={var_proxy})")
+
+            # 2. Stale Hysteresis - utilise signals_age
+            self._stale_hysteresis_history.append(signals_age)
+
+            # Maintenir fenêtre historique
+            if len(self._stale_hysteresis_history) > self._hysteresis_config["history_window"]:
+                self._stale_hysteresis_history.pop(0)
+
+            # Logique d'hystérésis staleness avec gap anti-yo-yo
+            if self._stale_hysteresis_state == "normal":
+                # Condition d'activation stale : signaux anciens + tendance stable
+                if (signals_age > self._hysteresis_config["stale_activate_seconds"] and
+                    len(self._stale_hysteresis_history) >= self._hysteresis_config["trend_stability_required"]):
+                    # Vérifier tendance stable vers staleness
+                    recent_ages = self._stale_hysteresis_history[-self._hysteresis_config["trend_stability_required"]:]
+                    if all(age > self._hysteresis_config["stale_activate_seconds"] for age in recent_ages):
+                        self._stale_hysteresis_state = "stale"
+                        logger.warning(f"Stale hysteresis activated: stale mode (age={signals_age:.0f}s)")
+            else:  # "stale"
+                # Condition de désactivation : signaux frais + tendance stable (gap anti-yo-yo)
+                if (signals_age < self._hysteresis_config["stale_deactivate_seconds"] and
+                    len(self._stale_hysteresis_history) >= self._hysteresis_config["trend_stability_required"]):
+                    # Vérifier tendance stable vers freshness
+                    recent_ages = self._stale_hysteresis_history[-self._hysteresis_config["trend_stability_required"]:]
+                    if all(age < self._hysteresis_config["stale_deactivate_seconds"] for age in recent_ages):
+                        self._stale_hysteresis_state = "normal"
+                        logger.info(f"Stale hysteresis deactivated: normal mode (age={signals_age:.0f}s)")
+
+            return self._var_hysteresis_state, self._stale_hysteresis_state
+
+        except Exception as e:
+            logger.error(f"Error in hysteresis state update: {e}")
+            return "normal", "normal"  # Safe fallback
+
     def _extract_volatility_signals(self, ml_status: Dict[str, Any]) -> Dict[str, float]:
         """Extrait les signaux de volatilité depuis le ML status"""
         try:

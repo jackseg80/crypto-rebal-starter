@@ -9,6 +9,18 @@
     <link rel="stylesheet" href="theme-compat.css">
     <script type="module" src="components/nav.js"></script>
     <script type="module" src="components/tooltips.js"></script>
+    <script type="module">
+        import { initDeepLinks } from './components/deep-links.js';
+        // Ancres pour dashboard.html : #overview #crypto #bourse #banque #divers #fx
+        initDeepLinks({
+            'overview': 'Vue d\'ensemble',
+            'crypto': 'Crypto Portfolio',
+            'bourse': 'Actions & ETF',
+            'banque': 'Comptes bancaires',
+            'divers': 'Actifs divers',
+            'fx': 'Devises & Changes'
+        });
+    </script>
 
     <script src="debug-logger.js"></script>
     <script src="input-validator.js"></script>
@@ -554,7 +566,7 @@
     <div class="wrap">
         <div class="dashboard-grid">
             <!-- Global Insight (Unified view) -->
-            <div class="card" id="card-global-insight" draggable="true"
+            <div class="card" id="overview" draggable="true"
                 data-tooltip="Vue unifiée: décision, cycle, on-chain, risque, sentiment"
                 data-source="Scores unifiés du Risk Dashboard">
                 <div class="card-header">
@@ -577,7 +589,7 @@
             </div>
 
             <!-- Portfolio Overview - Disposition améliorée pour gagner de la place -->
-            <div class="card" id="card-portfolio" draggable="true" style="grid-column: span 2;"
+            <div class="card" id="crypto" draggable="true" style="grid-column: span 2;"
                 data-tooltip="Vue d'ensemble complète de votre portefeuille crypto avec répartition, métriques de performance et graphiques en temps réel."
                 data-source="API /balances/current + prix CoinGecko/CoinGlass">
                 <div class="card-header">

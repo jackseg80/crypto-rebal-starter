@@ -794,48 +794,15 @@
         // D'abord essayer de charger depuis l'API, mais ne pas échouer si non disponible
         let response = null;
         try {
-          // Nouveau: utiliser les templates du Strategy Registry
-          response = await globalConfig.apiRequest('/api/strategy/templates');
+          response = await globalConfig.apiRequest('/api/strategies/list');
         } catch (apiError) {
-          console.log('API strategy/templates not available, using built-in strategies:', apiError.message);
+          console.log('API strategies not available, using built-in strategies:', apiError.message);
         }
 
         // Utiliser les stratégies de l'API si disponibles, sinon utiliser des stratégies par défaut
         if (response && response.ok && response.strategies) {
-          // Compat: ancien format (non utilisé ici, mais on garde par sécurité)
           availableStrategies = response.strategies;
-        } else if (response && typeof response === 'object' && !Array.isArray(response)) {
-          // Nouveau format: dict { template_id: { name, description, template, risk_level } }
-          const iconForRisk = (risk) => {
-            const r = (risk || '').toString().toLowerCase();
-            if (r.includes('low') || r.includes('faible')) return '🛡️';
-            if (r.includes('high') || r.includes('élev')) return '🚀';
-            return '⚖️';
-          };
-          availableStrategies = {};
-          try {
-            Object.entries(response).forEach(([templateId, info]) => {
-              const name = (info && info.name) ? info.name : templateId;
-              const desc = (info && info.description) ? info.description : 'Template stratégie';
-              const risk = (info && info.risk_level) ? info.risk_level : 'medium';
-              availableStrategies[templateId] = {
-                name,
-                icon: iconForRisk(risk),
-                description: desc,
-                risk_level: risk,
-                // Pas d'allocations dans /api/strategy/templates: on les chargera à la demande via /api/strategy/preview
-                allocations: {},
-                _isTemplate: true,
-                _templateId: templateId
-              };
-            });
-          } catch (e) {
-            console.warn('Error parsing /api/strategy/templates response, fallback to defaults', e);
-            availableStrategies = null;
-          }
-        }
-
-        if (!availableStrategies) {
+        } else {
           // Stratégies par défaut si l'API n'est pas disponible
           availableStrategies = {
             'conservative': {

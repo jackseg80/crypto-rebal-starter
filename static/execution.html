@@ -8,6 +8,21 @@
   <link rel="stylesheet" href="shared-theme.css">
   <link rel="stylesheet" href="theme-compat.css">
   <script type="module" src="components/nav.js"></script>
+  <script type="module">
+    import { initDeepLinks } from './components/deep-links.js';
+    import { wealthContextBar } from './components/WealthContextBar.js';
+
+    // Ancres pour execution.html : #orders #history #costs #venues
+    initDeepLinks({
+      'orders': 'Créer Plan',
+      'history': 'Historique',
+      'costs': 'Monitoring',
+      'venues': 'Exchanges'
+    });
+
+    // Exposer wealthContextBar globalement pour usage dans le script principal
+    window.wealthContextBar = wealthContextBar;
+  </script>
 
   <script src="debug-logger.js"></script>
   <script src="input-validator.js"></script>
@@ -219,7 +234,7 @@
       </div>
 
       <!-- Onglet Création de Plan -->
-      <div id="tab-create" class="tab-content active">
+      <div id="orders" class="tab-content active">
         <div class="alert alert-info">
           <strong>ℹ️ Information :</strong> Importez un plan de rebalancement existant ou saisissez les actions
           manuellement.
@@ -275,7 +290,7 @@
       </div>
 
       <!-- Onglet Monitoring -->
-      <div id="tab-monitor" class="tab-content">
+      <div id="costs" class="tab-content">
         <div class="grid grid-3">
           <div class="metric-card">
             <div class="metric-value" id="active-executions">0</div>
@@ -301,7 +316,7 @@
       </div>
 
       <!-- Onglet Historique -->
-      <div id="tab-history" class="tab-content">
+      <div id="history" class="tab-content">
         <div class="section">
           <div class="section-content">
             <h3 style="margin-top:0">📋 Historique d'Exécution</h3>
@@ -368,7 +383,7 @@
       </div>
 
       <!-- Onglet Exchanges -->
-      <div id="tab-exchanges" class="tab-content">
+      <div id="venues" class="tab-content">
         <div class="alert alert-info">
           <strong>🏢 Exchanges Configurés :</strong> Statut des adaptateurs d'exchange disponibles
         </div>
@@ -481,8 +496,15 @@
         btn.classList.remove('active');
       });
 
-      // Activer l'onglet sélectionné
-      document.getElementById(`tab-${tabName}`).classList.add('active');
+      // Activer l'onglet sélectionné - mapper les noms vers les nouveaux IDs
+      const tabIdMap = {
+        'create': 'orders',
+        'monitor': 'costs',
+        'history': 'history',
+        'exchanges': 'venues'
+      };
+      const targetId = tabIdMap[tabName] || `tab-${tabName}`;
+      document.getElementById(targetId).classList.add('active');
 
       // Activer le bouton correspondant
       if (buttonElement) {
@@ -897,6 +919,167 @@
       window.open(`/static/execution-details.html?plan_id=${planId}`, '_blank');
     }
 
+    // ========== WEALTH CONTEXT BAR INTEGRATION ==========
+
+    let currentWealthContext = {
+      household: 'Household 1',
+      account: 'All Accounts',
+      module: 'crypto',
+      currency: 'USD'
+    };
+
+    function initWealthContextIntegration() {
+      console.debug('🏦 Initializing WealthContextBar integration for execution...');
+
+      if (!window.wealthContextBar) {
+        console.warn('WealthContextBar not available');
+        return;
+      }
+
+      // Récupérer le contexte initial
+      currentWealthContext = { ...window.wealthContextBar.getContext() };
+      console.debug('Initial wealth context for execution:', currentWealthContext);
+
+      // Écouter les changements de contexte
+      window.addEventListener('wealth:change', (event) => {
+        console.debug('Wealth context changed in execution:', event.detail);
+        currentWealthContext = { ...event.detail };
+        reloadDataWithExecutionContext();
+        updateUIForExecutionCapabilities(currentWealthContext.module);
+        updateExecutionModuleBadge(currentWealthContext.module);
+      });
+
+      // Appliquer le contexte initial
+      updateUIForExecutionCapabilities(currentWealthContext.module);
+      updateExecutionModuleBadge(currentWealthContext.module);
+    }
+
+    function reloadDataWithExecutionContext() {
+      console.debug('🔄 Reloading execution data with context:', currentWealthContext);
+
+      // Recharger les exchanges selon le module
+      if (window.loadExchanges) {
+        window.loadExchanges();
+      }
+
+      // Adapter les données selon le contexte
+      switch (currentWealthContext.module) {
+        case 'crypto':
+          // Crypto execution - exchanges crypto, DEX, etc.
+          break;
+        case 'bourse':
+          // Stock execution - brokers, Saxo, etc.
+          break;
+        case 'banque':
+          // Bank execution - transfers, deposits
+          break;
+        case 'divers':
+          // Autres assets - commodities, real estate, etc.
+          break;
+      }
+    }
+
+    function updateUIForExecutionCapabilities(module) {
+      console.debug('🔧 Updating execution UI for module:', module);
+
+      // Mise à jour des capabilities selon le module
+      const exchangesSection = document.querySelector('#venues .section-content');
+      const ordersSection = document.querySelector('#orders .section-content');
+
+      if (exchangesSection) {
+        // Adapter les exchanges/brokers disponibles
+        updateAvailableVenues(module);
+      }
+
+      if (ordersSection) {
+        // Adapter les types d'ordres disponibles
+        updateOrderTypes(module);
+      }
+
+      // Mettre à jour les exemples de données
+      updateExampleActions(module);
+    }
+
+    function updateAvailableVenues(module) {
+      // Cette fonction sera étendue pour adapter les venues selon le module
+      const venueInfo = {
+        'crypto': 'Exchanges crypto (Binance, Kraken, Coinbase, DEX)',
+        'bourse': 'Brokers (Saxo Bank, Interactive Brokers, Trading212)',
+        'banque': 'Institutions bancaires (UBS, CS, PostFinance)',
+        'divers': 'Autres venues (Commodities, Real Estate, P2P)'
+      };
+
+      console.debug(`Available venues for ${module}: ${venueInfo[module] || 'Unknown'}`);
+    }
+
+    function updateOrderTypes(module) {
+      // Cette fonction sera étendue pour adapter les types d'ordres
+      const orderTypes = {
+        'crypto': ['market', 'limit', 'stop-loss', 'dca', 'dex-swap'],
+        'bourse': ['market', 'limit', 'stop-loss', 'trailing-stop'],
+        'banque': ['transfer', 'deposit', 'withdrawal'],
+        'divers': ['purchase', 'sale', 'subscription', 'redemption']
+      };
+
+      console.debug(`Order types for ${module}:`, orderTypes[module] || []);
+    }
+
+    function updateExampleActions(module) {
+      const rebalanceInput = document.getElementById('rebalance-actions');
+      if (!rebalanceInput) return;
+
+      const examples = {
+        'crypto': [
+          { "symbol": "BTC", "action": "sell", "usd": -1000, "exec_hint": "Sell on Binance", "group": "BTC" },
+          { "symbol": "ETH", "action": "buy", "usd": 500, "exec_hint": "Buy on Kraken", "group": "ETH" },
+          { "symbol": "SOL", "action": "buy", "usd": 500, "exec_hint": "Buy on Binance", "group": "SOL" }
+        ],
+        'bourse': [
+          { "symbol": "AAPL", "action": "buy", "usd": 1000, "exec_hint": "Buy on Saxo Bank", "group": "US Tech" },
+          { "symbol": "MSFT", "action": "sell", "usd": -500, "exec_hint": "Sell on Saxo Bank", "group": "US Tech" }
+        ],
+        'banque': [
+          { "symbol": "CHF", "action": "transfer", "usd": 5000, "exec_hint": "Transfer to UBS", "group": "Cash" }
+        ]
+      };
+
+      const moduleExamples = examples[module] || examples['crypto'];
+      rebalanceInput.value = JSON.stringify(moduleExamples, null, 2);
+    }
+
+    function updateExecutionModuleBadge(module) {
+      // Créer ou mettre à jour un badge indiquant le module d'exécution actuel
+      let badge = document.getElementById('execution-module-badge');
+      if (!badge) {
+        badge = document.createElement('div');
+        badge.id = 'execution-module-badge';
+        badge.className = 'module-badge';
+        badge.style.cssText = `
+          position: fixed;
+          top: 80px;
+          right: 20px;
+          background: var(--brand-primary);
+          color: white;
+          padding: 0.5rem 1rem;
+          border-radius: var(--radius-md);
+          font-size: 0.9em;
+          font-weight: 600;
+          box-shadow: var(--shadow-md);
+          z-index: 1000;
+        `;
+        document.body.appendChild(badge);
+      }
+
+      const moduleLabels = {
+        'crypto': '₿ Crypto',
+        'bourse': '📈 Bourse',
+        'banque': '🏦 Banque',
+        'divers': '📊 Divers'
+      };
+
+      badge.textContent = `Exécution: ${moduleLabels[module] || module}`;
+    }
+
     // ========== INITIALISATION ==========
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -924,6 +1107,9 @@
         { "symbol": "ETH", "action": "buy", "usd": 500, "exec_hint": "Buy on Kraken", "group": "ETH" },
         { "symbol": "SOL", "action": "buy", "usd": 500, "exec_hint": "Buy on Binance", "group": "SOL" }
       ], null, 2);
+
+      // ========== WEALTH CONTEXT BAR INTEGRATION ==========
+      initWealthContextIntegration();
 
       // Écouter les changements de thème pour synchronisation cross-tab
       window.addEventListener('storage', function (e) {

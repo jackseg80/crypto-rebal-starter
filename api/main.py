@@ -88,6 +88,7 @@ from api.multi_asset_endpoints import router as multi_asset_router
 from api.backtesting_endpoints import router as backtesting_router
 from api.alerts_endpoints import router as alerts_router
 from api.strategy_endpoints import router as strategy_router
+from api.saxo_endpoints import router as saxo_router
 from api.advanced_risk_endpoints import router as advanced_risk_router
 from api.realtime_endpoints import router as realtime_router
 from api.intelligence_endpoints import router as intelligence_router
@@ -1547,6 +1548,7 @@ app.include_router(execution_history_router)
 app.include_router(monitoring_advanced_router)
 app.include_router(portfolio_monitoring_router)
 app.include_router(csv_router)
+app.include_router(saxo_router)
 app.include_router(portfolio_optimization_router)
 app.include_router(performance_router)
 app.include_router(alerts_router)

@@ -2105,6 +2105,7 @@
     <!-- Governance Panel (positioned before main layout) -->
     <div id="governance-container"></div>
 
+
     <!-- Layout Hybride: Sidebar + Main -->
     <div class="dashboard-layout">
       <!-- Sidebar Fixe -->
@@ -2252,6 +2253,7 @@
         <div class="tab-content">
           <!-- Risk Overview Tab -->
           <div class="tab-pane active" id="risk-tab">
+            <div id="risk-overview-badge-container" style="float: right; margin-bottom: 1rem;"></div>
             <!-- Mode Toggle -->
             <div class="mode-toggle">
               <label for="mode-switch">Basic Mode</label>
@@ -2273,6 +2275,7 @@
 
           <!-- Market Cycles Tab -->
           <div class="tab-pane" id="cycles-tab">
+            <div id="cycles-badge-container" style="float: right; margin-bottom: 1rem;"></div>
             <div id="cycles-content">
               <div class="loading">Loading cycle analysis...</div>
             </div>
@@ -2280,6 +2283,7 @@
 
           <!-- Strategic Targets Tab -->
           <div class="tab-pane" id="targets-tab">
+            <div id="targets-badge-container" style="float: right; margin-bottom: 1rem;"></div>
             <div id="targets-content">
               <h3>🎯 Strategic Targets</h3>
               <p>Target management will be implemented here...</p>
@@ -4518,6 +4522,56 @@ async function refreshDashboard(forceRefresh = false) {
       }
     }
 
+    // Update badges with current risk data
+    function updateRiskDashboardBadges(data) {
+      if (!window.riskDashboardBadges) return;
+
+      try {
+        const now = new Date();
+
+        // Risk Overview badge
+        const riskMetrics = data?.risk_metrics || {};
+        const portfolioSummary = data?.portfolio_summary || {};
+        const contradiction = Math.round((data?.correlation_metrics?.average_correlation || 0.3) * 100);
+        const varCap = Math.round((riskMetrics.var_95_1d || 0.05) * 100);
+
+        if (window.riskDashboardBadges.riskOverview) {
+          window.riskDashboardBadges.riskOverview.updateData({
+            source: 'Risk Engine',
+            updated: now,
+            contradiction: contradiction,
+            cap: varCap,
+            overrides: data?.overrides_count || 0,
+            status: data ? 'ok' : 'error'
+          });
+        }
+
+        // Cycles badge
+        if (window.riskDashboardBadges.cycles) {
+          window.riskDashboardBadges.cycles.updateData({
+            source: 'Market Cycles',
+            updated: now,
+            contradiction: Math.round(Math.random() * 50), // Placeholder
+            status: 'ok'
+          });
+        }
+
+        // Targets badge
+        if (window.riskDashboardBadges.targets) {
+          window.riskDashboardBadges.targets.updateData({
+            source: 'Targets',
+            updated: now,
+            contradiction: Math.round(Math.random() * 30), // Placeholder
+            status: 'ok'
+          });
+        }
+
+        console.log('🏷️ Risk dashboard badges updated');
+      } catch (error) {
+        console.warn('Risk badge update failed:', error);
+      }
+    }
+
     function renderRiskDashboard(data) {
       const container = document.getElementById('risk-dashboard-content');
       if (!data || !data.risk_metrics || !data.correlation_metrics || !data.portfolio_summary) {
@@ -6442,6 +6496,9 @@ async function refreshDashboard(forceRefresh = false) {
         <!-- Decision History -->
         ${renderDecisionHistory()}
       `;
+
+      // Update badges with current data
+      updateRiskDashboardBadges(data);
     }
 
     function renderTargetsTable(targets, strategy) {
@@ -7841,15 +7898,17 @@ async function refreshDashboard(forceRefresh = false) {
       if (governanceContainer) {
         console.log('🏛️ Initializing Governance Panel...');
         const governancePanel = new GovernancePanel(governanceContainer);
-        
+
         // Auto-refresh initial state
         setTimeout(() => {
           governancePanel.refreshState();
         }, 1000);
-        
+
         // Store reference globally for debugging
         window.governancePanel = governancePanel;
         console.log('✅ Governance Panel initialized');
+      }
+
 
         // ===== Toggle Basic/Advanced Mode =====
         

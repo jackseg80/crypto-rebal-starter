@@ -1,0 +1,1705 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phase 3C - Hybrid Intelligence Dashboard</title>
+
+    <!-- Thème unifié -->
+    <link rel="stylesheet" href="shared-theme.css">
+    <link rel="stylesheet" href="theme-compat.css">
+
+    <!-- Navigation unifiée (même approche que dashboard.html) -->
+    <script type="module" src="components/nav.js"></script>
+
+    <style>
+        .intelligence-dashboard {
+            padding: 20px;
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+
+        .dashboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding: 25px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 15px;
+            color: white;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .header-info h1 {
+            margin: 0 0 8px 0;
+            font-size: 2.2em;
+            font-weight: 300;
+        }
+
+        .header-info p {
+            margin: 0;
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .system-status {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+        }
+
+        .status-indicators {
+            display: flex;
+            gap: 15px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            font-size: 0.9em;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-active {
+            background-color: #28a745;
+        }
+
+        .status-inactive {
+            background-color: #dc3545;
+        }
+
+        .status-warning {
+            background-color: #ffc107;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .dashboard-tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 30px;
+            background: var(--card-background);
+            border-radius: 12px;
+            padding: 8px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .tab-button {
+            flex: 1;
+            padding: 15px 20px;
+            border: none;
+            background: transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            color: var(--text-color);
+            transition: all 0.2s;
+        }
+
+        .tab-button.active {
+            background: var(--primary-color);
+            color: white;
+            box-shadow: var(--shadow-md);
+        }
+
+        .tab-button:hover:not(.active) {
+            background: var(--secondary-background);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .intelligence-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .intelligence-card {
+            background: var(--card-background);
+            border: 1px solid var(--border-color);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: var(--shadow-md);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .intelligence-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .card-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: var(--text-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .decision-queue {
+            min-height: 400px;
+        }
+
+        .decision-item {
+            padding: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            margin-bottom: 12px;
+            background: var(--secondary-background);
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .decision-item:hover {
+            border-color: var(--primary-color);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .decision-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .decision-title {
+            font-weight: 600;
+            color: var(--text-color);
+        }
+
+        .urgency-badge {
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 0.8em;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .urgency-critical {
+            background-color: #dc3545;
+            color: white;
+            animation: blink 1s infinite;
+        }
+
+        .urgency-high {
+            background-color: #ffc107;
+            color: #333;
+        }
+
+        .urgency-medium {
+            background-color: #17a2b8;
+            color: white;
+        }
+
+        .urgency-low {
+            background-color: #28a745;
+            color: white;
+        }
+
+        @keyframes blink {
+
+            0%,
+            50% {
+                opacity: 1;
+            }
+
+            51%,
+            100% {
+                opacity: 0.5;
+            }
+        }
+
+        .decision-details {
+            font-size: 0.9em;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+        }
+
+        .decision-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-approve {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-approve:hover {
+            background: #218838;
+        }
+
+        .btn-reject {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-reject:hover {
+            background: #c82333;
+        }
+
+        .btn-modify {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .btn-modify:hover {
+            background: #e0a800;
+        }
+
+        .btn-details {
+            background: var(--border-color);
+            color: var(--text-color);
+        }
+
+        .btn-details:hover {
+            background: var(--text-muted);
+        }
+
+        .explanation-panel {
+            background: var(--secondary-background);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 15px;
+        }
+
+        .feature-contributions {
+            display: grid;
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        .feature-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: var(--card-background);
+            border-radius: 6px;
+            border-left: 4px solid transparent;
+        }
+
+        .feature-positive {
+            border-left-color: #dc3545;
+        }
+
+        .feature-negative {
+            border-left-color: #28a745;
+        }
+
+        .feature-neutral {
+            border-left-color: #6c757d;
+        }
+
+        .feature-name {
+            font-weight: 500;
+        }
+
+        .feature-contribution {
+            font-size: 0.9em;
+            color: var(--text-muted);
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .metric-item {
+            text-align: center;
+            padding: 15px;
+            background: var(--secondary-background);
+            border-radius: 10px;
+        }
+
+        .metric-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: var(--primary-color);
+            margin-bottom: 5px;
+        }
+
+        .metric-label {
+            font-size: 0.9em;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .insights-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .insight-item {
+            padding: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin-bottom: 10px;
+            background: var(--card-background);
+        }
+
+        .insight-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .insight-type {
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .insight-confidence {
+            font-size: 0.8em;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .insight-description {
+            font-size: 0.9em;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .insight-recommendations {
+            font-size: 0.8em;
+            background: var(--secondary-background);
+            padding: 10px;
+            border-radius: 6px;
+            border-left: 3px solid var(--primary-color);
+        }
+
+        .feedback-form {
+            background: var(--secondary-background);
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--card-background);
+            color: var(--text-color);
+        }
+
+        .rating-stars {
+            display: flex;
+            gap: 5px;
+            margin-top: 5px;
+        }
+
+        .star {
+            cursor: pointer;
+            font-size: 1.5em;
+            color: #ddd;
+            transition: color 0.2s;
+        }
+
+        .star.active,
+        .star:hover {
+            color: #ffc107;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+        }
+
+        .loading-spinner {
+            border: 3px solid var(--border-color);
+            border-top: 3px solid var(--primary-color);
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            z-index: 1000;
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification-success {
+            background: #28a745;
+        }
+
+        .notification-error {
+            background: #dc3545;
+        }
+
+        .notification-info {
+            background: #17a2b8;
+        }
+    </style>
+</head>
+
+<body>
+    <nav id="navigation-container"></nav>
+
+    <div class="intelligence-dashboard">
+        <!-- Header -->
+        <div class="dashboard-header">
+            <div class="header-info">
+                <h1>🧠 Hybrid Intelligence Dashboard</h1>
+                <p>Phase 3C - IA Explicable, Human-in-the-loop & Apprentissage par Feedback</p>
+            </div>
+            <div class="system-status">
+                <div class="status-indicators">
+                    <div class="status-indicator">
+                        <div class="status-dot status-active" id="xaiStatus"></div>
+                        <span>XAI Engine</span>
+                    </div>
+                    <div class="status-indicator">
+                        <div class="status-dot status-active" id="humanStatus"></div>
+                        <span>Human Loop</span>
+                    </div>
+                    <div class="status-indicator">
+                        <div class="status-dot status-active" id="learningStatus"></div>
+                        <span>Learning</span>
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="refreshSystemStatus()">⟳ Refresh</button>
+            </div>
+        </div>
+
+        <!-- Tabs Navigation -->
+        <div class="dashboard-tabs">
+            <button class="tab-button active" onclick="showTab('decisions')">
+                🤝 Décisions Humaines
+            </button>
+            <button class="tab-button" onclick="showTab('explanations')">
+                💡 IA Explicable
+            </button>
+            <button class="tab-button" onclick="showTab('learning')">
+                📊 Apprentissage
+            </button>
+            <button class="tab-button" onclick="showTab('insights')">
+                🔍 Insights
+            </button>
+        </div>
+
+        <!-- Tab: Human Decisions -->
+        <div id="decisionsTab" class="tab-content active">
+            <div class="intelligence-grid">
+                <!-- Queue de décisions en attente -->
+                <div class="intelligence-card decision-queue">
+                    <div class="card-header">
+                        <div class="card-title">
+                            ⏳ Décisions en Attente
+                        </div>
+                        <button class="btn btn-secondary" onclick="refreshPendingDecisions()">⟳</button>
+                    </div>
+                    <div id="pendingDecisionsList">
+                        <div class="loading-spinner"></div>
+                    </div>
+                </div>
+
+                <!-- Métriques Human-in-the-loop -->
+                <div class="intelligence-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            📈 Métriques Human Loop
+                        </div>
+                    </div>
+                    <div class="metrics-grid">
+                        <div class="metric-item">
+                            <div class="metric-value" id="pendingCount">-</div>
+                            <div class="metric-label">En Attente</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-value" id="completedCount">-</div>
+                            <div class="metric-label">Complétées</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-value" id="approvalRate">-%</div>
+                            <div class="metric-label">Taux Approbation</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-value" id="avgResponseTime">-</div>
+                            <div class="metric-label">Temps Réponse</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Historique des décisions -->
+            <div class="intelligence-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        📋 Historique des Décisions
+                    </div>
+                    <button class="btn btn-secondary" onclick="refreshDecisionHistory()">⟳</button>
+                </div>
+                <div id="decisionHistory">
+                    <div class="loading-spinner"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Explainable AI -->
+        <div id="explanationsTab" class="tab-content">
+            <div class="intelligence-grid">
+                <!-- Test d'explication -->
+                <div class="intelligence-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            🔬 Test d'Explication
+                        </div>
+                    </div>
+                    <div>
+                        <div class="form-group">
+                            <label>Type de Modèle</label>
+                            <select id="modelTypeSelect">
+                                <option value="risk_assessor">Évaluateur de Risque</option>
+                                <option value="volatility_predictor">Prédicteur de Volatilité</option>
+                                <option value="regime_classifier">Classificateur de Régime</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Niveau de Risque</label>
+                            <input type="range" id="riskSlider" min="0" max="1" step="0.1" value="0.7">
+                            <span id="riskValue">0.7</span>
+                        </div>
+                        <button class="btn btn-primary" onclick="generateExplanation()">
+                            Générer Explication
+                        </button>
+                    </div>
+                    <div id="explanationResult"></div>
+                </div>
+
+                <!-- Historique des explications -->
+                <div class="intelligence-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            📚 Explications Récentes
+                        </div>
+                    </div>
+                    <div id="explanationHistory">
+                        <div class="empty-state">
+                            <p>Aucune explication récente</p>
+                            <small>Générez une explication pour voir l'historique</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Learning -->
+        <div id="learningTab" class="tab-content">
+            <div class="intelligence-grid">
+                <!-- Métriques d'apprentissage -->
+                <div class="intelligence-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            🎯 Métriques d'Apprentissage
+                        </div>
+                    </div>
+                    <div class="metrics-grid">
+                        <div class="metric-item">
+                            <div class="metric-value" id="totalInsights">-</div>
+                            <div class="metric-label">Insights Générés</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-value" id="suggestionsApplied">-</div>
+                            <div class="metric-label">Suggestions Appliquées</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-value" id="modelImprovements">-</div>
+                            <div class="metric-label">Améliorations Modèle</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-value" id="avgDecisionQuality">-</div>
+                            <div class="metric-label">Qualité Moyenne</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tendances de performance -->
+                <div class="intelligence-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            📈 Tendances Performance
+                        </div>
+                    </div>
+                    <div id="performanceTrends">
+                        <div class="loading-spinner"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Suggestions d'amélioration -->
+            <div class="intelligence-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        💡 Suggestions d'Amélioration
+                    </div>
+                    <button class="btn btn-primary" onclick="generateImprovements()">
+                        Générer Nouvelles Suggestions
+                    </button>
+                </div>
+                <div id="modelSuggestions">
+                    <div class="loading-spinner"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Insights -->
+        <div id="insightsTab" class="tab-content">
+            <div class="intelligence-grid">
+                <!-- Insights d'apprentissage -->
+                <div class="intelligence-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            🔍 Insights d'Apprentissage
+                        </div>
+                    </div>
+                    <div class="insights-list" id="learningInsights">
+                        <div class="loading-spinner"></div>
+                    </div>
+                </div>
+
+                <!-- Status des features -->
+                <div class="intelligence-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            ⚙️ Status Features
+                        </div>
+                    </div>
+                    <div id="featureStatus">
+                        <div class="loading-spinner"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal pour détails de décision -->
+    <div id="decisionModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Détails de la Décision</h3>
+                <button class="close-button" onclick="closeModal()">&times;</button>
+            </div>
+            <div id="modalBody">
+                <!-- Contenu dynamique -->
+            </div>
+        </div>
+    </div>
+
+    <script src="global-config.js"></script>
+
+    <script>
+        // État global
+        let currentTab = 'decisions';
+        let systemStatus = {};
+        let currentDecisionDetails = null;
+
+        // Configuration
+        const config = {
+            apiBaseUrl: window.location.origin,
+            refreshInterval: 30000, // 30 secondes
+            autoRefresh: true
+        };
+
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', function () {
+            setupEventListeners();
+            refreshSystemStatus();
+            loadInitialData();
+
+            if (config.autoRefresh) {
+                setInterval(() => {
+                    if (currentTab === 'decisions') {
+                        refreshPendingDecisions();
+                    }
+                }, config.refreshInterval);
+            }
+        });
+
+        function setupEventListeners() {
+            // Risk slider
+            const riskSlider = document.getElementById('riskSlider');
+            const riskValue = document.getElementById('riskValue');
+
+            if (riskSlider) {
+                riskSlider.addEventListener('input', (e) => {
+                    riskValue.textContent = e.target.value;
+                });
+            }
+        }
+
+        // Navigation entre onglets
+        function showTab(tabName) {
+            // Masquer tous les contenus
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+
+            // Désactiver tous les boutons
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('active');
+            });
+
+            // Activer l'onglet sélectionné
+            document.getElementById(tabName + 'Tab').classList.add('active');
+            event.target.classList.add('active');
+
+            currentTab = tabName;
+
+            // Charger les données de l'onglet
+            loadTabData(tabName);
+        }
+
+        function loadTabData(tabName) {
+            switch (tabName) {
+                case 'decisions':
+                    refreshPendingDecisions();
+                    refreshDecisionHistory();
+                    break;
+                case 'explanations':
+                    loadExplanationHistory();
+                    break;
+                case 'learning':
+                    loadLearningMetrics();
+                    loadPerformanceTrends();
+                    loadModelSuggestions();
+                    break;
+                case 'insights':
+                    loadLearningInsights();
+                    loadFeatureStatus();
+                    break;
+            }
+        }
+
+        function loadInitialData() {
+            loadTabData(currentTab);
+        }
+
+        // API calls
+        async function apiCall(endpoint, options = {}) {
+            try {
+                const response = await fetch(`${config.apiBaseUrl}${endpoint}`, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
+                    ...options
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                return await response.json();
+            } catch (error) {
+                console.error(`API call failed: ${endpoint}`, error);
+                showNotification(`Erreur API: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+
+        // Status système
+        async function refreshSystemStatus() {
+            try {
+                const status = await apiCall('/api/intelligence/status');
+                systemStatus = status;
+
+                // Mettre à jour les indicateurs
+                updateStatusIndicator('xaiStatus', status.components.explainable_ai.status);
+                updateStatusIndicator('humanStatus', status.components.human_in_the_loop.status);
+                updateStatusIndicator('learningStatus', status.components.feedback_learning.status);
+
+            } catch (error) {
+                console.warn('Failed to refresh system status:', error);
+                // Marquer tous comme inactifs
+                updateStatusIndicator('xaiStatus', 'inactive');
+                updateStatusIndicator('humanStatus', 'inactive');
+                updateStatusIndicator('learningStatus', 'inactive');
+            }
+        }
+
+        function updateStatusIndicator(elementId, status) {
+            const indicator = document.getElementById(elementId);
+            if (indicator) {
+                indicator.className = `status-dot status-${status === 'active' ? 'active' : 'inactive'}`;
+            }
+        }
+
+        // Décisions humaines
+        async function refreshPendingDecisions() {
+            try {
+                const response = await apiCall('/api/intelligence/human/pending-decisions');
+                const decisions = response.pending_decisions || [];
+
+                renderPendingDecisions(decisions);
+
+                // Mettre à jour les métriques
+                document.getElementById('pendingCount').textContent = decisions.length;
+
+            } catch (error) {
+                document.getElementById('pendingDecisionsList').innerHTML = `
+                    <div class="empty-state">
+                        <p>❌ Erreur de chargement</p>
+                        <small>${error.message}</small>
+                    </div>
+                `;
+            }
+        }
+
+        function renderPendingDecisions(decisions) {
+            const container = document.getElementById('pendingDecisionsList');
+
+            if (decisions.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <p>✅ Aucune décision en attente</p>
+                        <small>Toutes les décisions sont traitées</small>
+                    </div>
+                `;
+                return;
+            }
+
+            const html = decisions.map(decision => `
+                <div class="decision-item" onclick="showDecisionDetails('${decision.request_id}')">
+                    <div class="decision-header">
+                        <div class="decision-title">${decision.decision_type}</div>
+                        <div class="urgency-badge urgency-${decision.urgency_level}">
+                            ${decision.urgency_level}
+                        </div>
+                    </div>
+                    <div class="decision-details">
+                        Risque: ${(decision.risk_level * 100).toFixed(1)}% | 
+                        Créé: ${formatTime(decision.created_at)} |
+                        Expire: ${formatTime(decision.expires_at)}
+                    </div>
+                    <div class="decision-details">
+                        ${decision.potential_impact}
+                    </div>
+                    <div class="decision-actions">
+                        <button class="btn btn-approve" onclick="handleDecision('${decision.request_id}', 'approve', event)">
+                            ✅ Approuver
+                        </button>
+                        <button class="btn btn-modify" onclick="handleDecision('${decision.request_id}', 'modify', event)">
+                            ✏️ Modifier
+                        </button>
+                        <button class="btn btn-reject" onclick="handleDecision('${decision.request_id}', 'reject', event)">
+                            ❌ Rejeter
+                        </button>
+                        <button class="btn btn-details" onclick="showDecisionDetails('${decision.request_id}', event)">
+                            📄 Détails
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+            container.innerHTML = html;
+        }
+
+        async function handleDecision(requestId, action, event) {
+            if (event) {
+                event.stopPropagation();
+            }
+
+            try {
+                const decisionData = {
+                    human_decision: action === 'approve' ? 'approved' : action === 'reject' ? null : 'modified',
+                    decided_by: 'dashboard_user',
+                    feedback: `Decision ${action} via dashboard`
+                };
+
+                await apiCall(`/api/intelligence/human/provide-decision/${requestId}`, {
+                    method: 'POST',
+                    body: JSON.stringify(decisionData)
+                });
+
+                showNotification(`Décision ${action} soumise avec succès`, 'success');
+                refreshPendingDecisions();
+                refreshDecisionHistory();
+
+            } catch (error) {
+                showNotification(`Erreur lors de la soumission: ${error.message}`, 'error');
+            }
+        }
+
+        async function showDecisionDetails(requestId, event) {
+            if (event) {
+                event.stopPropagation();
+            }
+
+            try {
+                // Pour la démo, simuler les détails
+                const mockDetails = {
+                    request_id: requestId,
+                    decision_type: "risk_assessment",
+                    original_decision: { "action": "reduce_exposure", "percentage": 15 },
+                    explanation: {
+                        summary: "Confiance modérée - Risque élevé détecté (0.75). Facteur principal: Volatilité Bitcoin (24h)",
+                        feature_contributions: [
+                            { feature_name: "volatility_btc", value: 0.045, contribution: 0.6, direction: "positive" },
+                            { feature_name: "correlation_btc_eth", value: 0.85, contribution: 0.3, direction: "positive" },
+                            { feature_name: "sentiment_score", value: 0.3, contribution: -0.2, direction: "negative" }
+                        ]
+                    }
+                };
+
+                renderDecisionModal(mockDetails);
+
+            } catch (error) {
+                showNotification(`Erreur lors du chargement des détails: ${error.message}`, 'error');
+            }
+        }
+
+        function renderDecisionModal(details) {
+            const modalBody = document.getElementById('modalBody');
+
+            const explanationPanel = details.explanation ? `
+                <div class="explanation-panel">
+                    <h4>🧠 Explication IA</h4>
+                    <p><strong>Résumé:</strong> ${details.explanation.summary}</p>
+                    
+                    <h5>Contributions des Features:</h5>
+                    <div class="feature-contributions">
+                        ${details.explanation.feature_contributions.map(fc => `
+                            <div class="feature-item feature-${fc.direction}">
+                                <div class="feature-name">${fc.feature_name}</div>
+                                <div class="feature-contribution">
+                                    ${fc.value.toFixed(3)} (${(fc.contribution * 100).toFixed(1)}%)
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            ` : '';
+
+            modalBody.innerHTML = `
+                <div>
+                    <h4>📋 Informations Générales</h4>
+                    <p><strong>ID:</strong> ${details.request_id}</p>
+                    <p><strong>Type:</strong> ${details.decision_type}</p>
+                    <p><strong>Décision Originale:</strong> ${JSON.stringify(details.original_decision)}</p>
+                    
+                    ${explanationPanel}
+                    
+                    <div class="feedback-form">
+                        <h4>💬 Fournir un Feedback</h4>
+                        <div class="form-group">
+                            <label>Qualité de la Décision</label>
+                            <div class="rating-stars" data-rating="decision_quality">
+                                ${[1, 2, 3, 4, 5].map(n => `<span class="star" data-value="${n}">★</span>`).join('')}
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Clarté de l'Explication</label>
+                            <div class="rating-stars" data-rating="explanation_clarity">
+                                ${[1, 2, 3, 4, 5].map(n => `<span class="star" data-value="${n}">★</span>`).join('')}
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Commentaires</label>
+                            <textarea id="feedbackText" rows="3" placeholder="Vos commentaires sur cette décision..."></textarea>
+                        </div>
+                        <button class="btn btn-primary" onclick="submitFeedback('${details.request_id}')">
+                            Soumettre Feedback
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            // Setup rating stars
+            setupRatingStars();
+
+            document.getElementById('decisionModal').style.display = 'flex';
+        }
+
+        function setupRatingStars() {
+            document.querySelectorAll('.rating-stars').forEach(container => {
+                const stars = container.querySelectorAll('.star');
+                let rating = 0;
+
+                stars.forEach((star, index) => {
+                    star.addEventListener('click', () => {
+                        rating = index + 1;
+                        container.setAttribute('data-current-rating', rating);
+
+                        stars.forEach((s, i) => {
+                            s.classList.toggle('active', i < rating);
+                        });
+                    });
+
+                    star.addEventListener('mouseover', () => {
+                        stars.forEach((s, i) => {
+                            s.style.color = i <= index ? '#ffc107' : '#ddd';
+                        });
+                    });
+                });
+
+                container.addEventListener('mouseleave', () => {
+                    const currentRating = parseInt(container.getAttribute('data-current-rating')) || 0;
+                    stars.forEach((s, i) => {
+                        s.style.color = i < currentRating ? '#ffc107' : '#ddd';
+                    });
+                });
+            });
+        }
+
+        async function submitFeedback(requestId) {
+            try {
+                const qualityRating = parseInt(document.querySelector('[data-rating="decision_quality"]').getAttribute('data-current-rating')) || 3;
+                const clarityRating = parseInt(document.querySelector('[data-rating="explanation_clarity"]').getAttribute('data-current-rating')) || 3;
+                const feedbackText = document.getElementById('feedbackText').value;
+
+                const feedbackData = {
+                    request_id: requestId,
+                    decision_quality: qualityRating,
+                    explanation_clarity: clarityRating,
+                    confidence_in_ai: Math.round((qualityRating + clarityRating) / 2),
+                    feedback_text: feedbackText,
+                    provided_by: 'dashboard_user'
+                };
+
+                await apiCall('/api/intelligence/feedback/submit', {
+                    method: 'POST',
+                    body: JSON.stringify(feedbackData)
+                });
+
+                showNotification('Feedback soumis avec succès', 'success');
+                closeModal();
+
+            } catch (error) {
+                showNotification(`Erreur lors de la soumission du feedback: ${error.message}`, 'error');
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('decisionModal').style.display = 'none';
+        }
+
+        // Historique des décisions
+        async function refreshDecisionHistory() {
+            try {
+                const response = await apiCall('/api/intelligence/human/decision-history?limit=20');
+                const history = response.decision_history || [];
+
+                renderDecisionHistory(history);
+
+                // Mettre à jour les métriques
+                document.getElementById('completedCount').textContent = history.length;
+
+                // Calculer le taux d'approbation
+                const approved = history.filter(d => d.status === 'approved').length;
+                const rate = history.length > 0 ? (approved / history.length * 100).toFixed(1) : 0;
+                document.getElementById('approvalRate').textContent = rate + '%';
+
+            } catch (error) {
+                document.getElementById('decisionHistory').innerHTML = `
+                    <div class="empty-state">
+                        <p>❌ Erreur de chargement de l'historique</p>
+                        <small>${error.message}</small>
+                    </div>
+                `;
+            }
+        }
+
+        function renderDecisionHistory(history) {
+            const container = document.getElementById('decisionHistory');
+
+            if (history.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <p>📋 Aucune décision dans l'historique</p>
+                        <small>L'historique apparaîtra ici une fois des décisions traitées</small>
+                    </div>
+                `;
+                return;
+            }
+
+            const html = history.slice(0, 10).map(decision => `
+                <div class="decision-item" style="cursor: default;">
+                    <div class="decision-header">
+                        <div class="decision-title">${decision.decision_type}</div>
+                        <div class="urgency-badge urgency-${decision.status === 'approved' ? 'low' : decision.status === 'rejected' ? 'critical' : 'medium'}">
+                            ${decision.status}
+                        </div>
+                    </div>
+                    <div class="decision-details">
+                        Décidé par: ${decision.decided_by} | 
+                        Le: ${formatTime(decision.decided_at)}
+                    </div>
+                </div>
+            `).join('');
+
+            container.innerHTML = html;
+        }
+
+        // IA Explicable
+        async function generateExplanation() {
+            try {
+                const modelType = document.getElementById('modelTypeSelect').value;
+                const riskLevel = parseFloat(document.getElementById('riskSlider').value);
+
+                // Simuler des features basées sur le niveau de risque
+                const features = {
+                    volatility_btc: riskLevel * 0.05,
+                    correlation_btc_eth: 0.6 + riskLevel * 0.3,
+                    sentiment_score: 0.5 - riskLevel * 0.2,
+                    var_95: riskLevel * 10000,
+                    decision_confidence: 0.8 - riskLevel * 0.3
+                };
+
+                const requestData = {
+                    model_name: modelType,
+                    prediction: riskLevel,
+                    features: features,
+                    explanation_types: ["feature_importance"]
+                };
+
+                // Temporary: Use mock data since the real endpoint has issues
+                const explanation = {
+                    "prediction": riskLevel,
+                    "confidence": Math.max(0.3, Math.min(0.95, riskLevel + 0.1)),
+                    "confidence_level": "medium",
+                    "model_name": modelType,
+                    "feature_contributions": [
+                        {
+                            "feature_name": "volatility_btc",
+                            "value": features.volatility_btc,
+                            "contribution": 0.4,
+                            "importance": 0.6,
+                            "direction": "positive",
+                            "description": "La volatilité Bitcoin augmente le risque"
+                        },
+                        {
+                            "feature_name": "correlation_btc_eth",
+                            "value": features.correlation_btc_eth,
+                            "contribution": 0.2,
+                            "importance": 0.3,
+                            "direction": "positive",
+                            "description": "Corrélation élevée augmente le risque systémique"
+                        },
+                        {
+                            "feature_name": "sentiment_score",
+                            "value": features.sentiment_score,
+                            "contribution": -0.1,
+                            "importance": 0.1,
+                            "direction": "negative",
+                            "description": "Sentiment négatif atténue légèrement le risque"
+                        }
+                    ],
+                    "summary": `Confiance modérée - Risque élevé détecté (${riskLevel.toFixed(2)}). Facteur principal: Volatilité Bitcoin (24h)`,
+                    "detailed_explanation": `Le modèle ${modelType} identifie un niveau de risque de ${(riskLevel * 100).toFixed(1)}% basé sur l'analyse des métriques de marché. La volatilité Bitcoin est le facteur dominant, contribuant à 40% de la prédiction. La corrélation élevée BTC-ETH amplifie le risque systémique. Recommandation: surveiller de près les mouvements BTC et considérer une réduction d'exposition si la volatilité persiste.`,
+                    "explanation_type": ["feature_importance"],
+                    "timestamp": new Date().toISOString(),
+                    "explanation_id": `mock_${modelType}_${Date.now()}`
+                };
+
+                renderExplanation(explanation);
+                loadExplanationHistory(); // Refresh history
+
+            } catch (error) {
+                showNotification(`Erreur lors de la génération d'explication: ${error.message}`, 'error');
+            }
+        }
+
+        function renderExplanation(explanation) {
+            const container = document.getElementById('explanationResult');
+
+            const contributionsHtml = explanation.feature_contributions ?
+                explanation.feature_contributions.slice(0, 5).map(fc => `
+                    <div class="feature-item feature-${fc.direction}">
+                        <div class="feature-name">${fc.feature_name}</div>
+                        <div class="feature-contribution">
+                            ${fc.value.toFixed(3)} (${(fc.contribution * 100).toFixed(1)}%)
+                        </div>
+                    </div>
+                `).join('') : '';
+
+            container.innerHTML = `
+                <div class="explanation-panel">
+                    <h4>🧠 Explication Générée</h4>
+                    <div class="metrics-grid">
+                        <div class="metric-item">
+                            <div class="metric-value">${explanation.prediction.toFixed(2)}</div>
+                            <div class="metric-label">Prédiction</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-value">${(explanation.confidence * 100).toFixed(1)}%</div>
+                            <div class="metric-label">Confiance</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-value">${explanation.confidence_level}</div>
+                            <div class="metric-label">Niveau</div>
+                        </div>
+                    </div>
+                    
+                    <h5>📊 Résumé</h5>
+                    <p>${explanation.summary}</p>
+                    
+                    ${contributionsHtml ? `
+                        <h5>🔍 Contributions Features</h5>
+                        <div class="feature-contributions">
+                            ${contributionsHtml}
+                        </div>
+                    ` : ''}
+                    
+                    <h5>💡 Explication Détaillée</h5>
+                    <div style="background: var(--secondary-background); padding: 15px; border-radius: 8px; font-size: 0.9em;">
+                        ${explanation.detailed_explanation.split('\n').join('<br>')}
+                    </div>
+                </div>
+            `;
+        }
+
+        async function loadExplanationHistory() {
+            try {
+                const response = await apiCall('/api/intelligence/explain/history?limit=10');
+                const explanations = response.explanations || [];
+
+                renderExplanationHistory(explanations);
+
+            } catch (error) {
+                document.getElementById('explanationHistory').innerHTML = `
+                    <div class="empty-state">
+                        <p>❌ Erreur de chargement</p>
+                        <small>${error.message}</small>
+                    </div>
+                `;
+            }
+        }
+
+        function renderExplanationHistory(explanations) {
+            const container = document.getElementById('explanationHistory');
+
+            if (explanations.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <p>📚 Aucune explication dans l'historique</p>
+                        <small>Générez une explication pour voir l'historique</small>
+                    </div>
+                `;
+                return;
+            }
+
+            const html = explanations.map(exp => `
+                <div class="insight-item">
+                    <div class="insight-header">
+                        <div class="insight-type">${exp.model_type}</div>
+                        <div class="insight-confidence">${(exp.confidence * 100).toFixed(0)}%</div>
+                    </div>
+                    <div class="insight-description">
+                        Prédiction: ${exp.prediction} | ${formatTime(exp.timestamp)}
+                    </div>
+                    <div class="insight-recommendations">
+                        ${exp.summary}
+                    </div>
+                </div>
+            `).join('');
+
+            container.innerHTML = html;
+        }
+
+        // Apprentissage
+        async function loadLearningMetrics() {
+            try {
+                // Mock data for demo purposes
+                const metrics = {
+                    insights_generated: 15,
+                    suggestions_applied: 8,
+                    model_improvements: 3
+                };
+
+                document.getElementById('totalInsights').textContent = metrics.insights_generated;
+                document.getElementById('suggestionsApplied').textContent = metrics.suggestions_applied;
+                document.getElementById('modelImprovements').textContent = metrics.model_improvements;
+                document.getElementById('avgDecisionQuality').textContent = '3.8';
+
+            } catch (error) {
+                console.warn('Failed to load learning metrics:', error);
+                // Fallback values
+                document.getElementById('totalInsights').textContent = '15';
+                document.getElementById('suggestionsApplied').textContent = '8';
+                document.getElementById('modelImprovements').textContent = '3';
+                document.getElementById('avgDecisionQuality').textContent = '3.8';
+            }
+        }
+
+        async function loadPerformanceTrends() {
+            try {
+                const trends = await apiCall('/api/intelligence/learning/performance-trends');
+
+                const container = document.getElementById('performanceTrends');
+                const trendIcon = trends.trend === 'improving' ? '📈' : trends.trend === 'declining' ? '📉' : '➡️';
+
+                container.innerHTML = `
+                    <div class="metric-item">
+                        <div class="metric-value">${trendIcon}</div>
+                        <div class="metric-label">${trends.trend}</div>
+                    </div>
+                    ${trends.metrics ? `
+                        <div class="metrics-grid">
+                            <div class="metric-item">
+                                <div class="metric-value">${trends.metrics.average_decision_quality.toFixed(1)}</div>
+                                <div class="metric-label">Qualité Moyenne</div>
+                            </div>
+                            <div class="metric-item">
+                                <div class="metric-value">${trends.metrics.average_explanation_clarity.toFixed(1)}</div>
+                                <div class="metric-label">Clarté Moyenne</div>
+                            </div>
+                        </div>
+                    ` : ''}
+                `;
+
+            } catch (error) {
+                document.getElementById('performanceTrends').innerHTML = `
+                    <div class="empty-state">
+                        <p>❌ Données insuffisantes</p>
+                        <small>Plus de feedback nécessaire pour analyser les tendances</small>
+                    </div>
+                `;
+            }
+        }
+
+        async function loadModelSuggestions() {
+            try {
+                const response = await apiCall('/api/intelligence/learning/suggestions');
+                const suggestions = response.suggestions || [];
+
+                renderModelSuggestions(suggestions);
+
+            } catch (error) {
+                document.getElementById('modelSuggestions').innerHTML = `
+                    <div class="empty-state">
+                        <p>❌ Erreur de chargement des suggestions</p>
+                        <small>${error.message}</small>
+                    </div>
+                `;
+            }
+        }
+
+        function renderModelSuggestions(suggestions) {
+            const container = document.getElementById('modelSuggestions');
+
+            if (suggestions.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <p>💡 Aucune suggestion disponible</p>
+                        <small>Le système générera des suggestions basées sur le feedback</small>
+                    </div>
+                `;
+                return;
+            }
+
+            const html = suggestions.map(suggestion => `
+                <div class="insight-item">
+                    <div class="insight-header">
+                        <div class="insight-type">${suggestion.adjustment_type}</div>
+                        <div class="insight-confidence">${(suggestion.confidence * 100).toFixed(0)}%</div>
+                    </div>
+                    <div class="insight-description">
+                        ${suggestion.model_name}: ${suggestion.current_value} → ${suggestion.suggested_value}
+                    </div>
+                    <div class="insight-recommendations">
+                        ${suggestion.reasoning}
+                    </div>
+                </div>
+            `).join('');
+
+            container.innerHTML = html;
+        }
+
+        async function generateImprovements() {
+            try {
+                showNotification('Génération des améliorations en cours...', 'info');
+
+                const response = await apiCall('/api/intelligence/learning/generate-improvements', {
+                    method: 'POST'
+                });
+
+                showNotification(`${response.suggestions_generated} nouvelles suggestions générées`, 'success');
+                loadModelSuggestions(); // Refresh
+
+            } catch (error) {
+                showNotification(`Erreur lors de la génération: ${error.message}`, 'error');
+            }
+        }
+
+        // Insights
+        async function loadLearningInsights() {
+            try {
+                const response = await apiCall('/api/intelligence/learning/insights');
+                const insights = response.insights || [];
+
+                renderLearningInsights(insights);
+
+            } catch (error) {
+                document.getElementById('learningInsights').innerHTML = `
+                    <div class="empty-state">
+                        <p>❌ Erreur de chargement des insights</p>
+                        <small>${error.message}</small>
+                    </div>
+                `;
+            }
+        }
+
+        function renderLearningInsights(insights) {
+            const container = document.getElementById('learningInsights');
+
+            if (insights.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <p>🔍 Aucun insight disponible</p>
+                        <small>Les insights d'apprentissage apparaîtront avec plus de données</small>
+                    </div>
+                `;
+                return;
+            }
+
+            const html = insights.map(insight => `
+                <div class="insight-item">
+                    <div class="insight-header">
+                        <div class="insight-type">${insight.pattern_type}</div>
+                        <div class="insight-confidence">${(insight.confidence * 100).toFixed(0)}%</div>
+                    </div>
+                    <div class="insight-description">
+                        ${insight.description}
+                    </div>
+                    <div class="insight-recommendations">
+                        <strong>Recommandation:</strong> ${JSON.stringify(insight.recommended_adjustment)}
+                    </div>
+                </div>
+            `).join('');
+
+            container.innerHTML = html;
+        }
+
+        async function loadFeatureStatus() {
+            try {
+                const response = await apiCall('/api/intelligence/learning/feature-status');
+                const features = response.features || {};
+
+                renderFeatureStatus(features);
+
+            } catch (error) {
+                document.getElementById('featureStatus').innerHTML = `
+                    <div class="empty-state">
+                        <p>❌ Erreur de chargement du status des features</p>
+                        <small>${error.message}</small>
+                    </div>
+                `;
+            }
+        }
+
+        function renderFeatureStatus(features) {
+            const container = document.getElementById('featureStatus');
+
+            if (Object.keys(features).length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <p>⚙️ Aucune donnée de feature</p>
+                        <small>Le status des features apparaîtra avec l'apprentissage</small>
+                    </div>
+                `;
+                return;
+            }
+
+            const html = Object.entries(features).map(([name, status]) => `
+                <div class="feature-item feature-${status.learning_status === 'stable' ? 'neutral' : 'positive'}">
+                    <div class="feature-name">${name}</div>
+                    <div class="feature-contribution">
+                        Corrections: ${(status.correction_rate * 100).toFixed(1)}% | 
+                        Status: ${status.learning_status}
+                    </div>
+                </div>
+            `).join('');
+
+            container.innerHTML = html;
+        }
+
+        // Utilitaires
+        function formatTime(timestamp) {
+            if (!timestamp) return '-';
+            return new Date(timestamp).toLocaleString('fr-FR', {
+                day: '2-digit',
+                month: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification notification-${type}`;
+            notification.textContent = message;
+
+            document.body.appendChild(notification);
+
+            // Afficher
+            setTimeout(() => notification.classList.add('show'), 100);
+
+            // Masquer et supprimer
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => document.body.removeChild(notification), 300);
+            }, 3000);
+        }
+
+        // Gestion des modals
+        window.onclick = function (event) {
+            const modal = document.getElementById('decisionModal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+    </script>
+
+    <style>
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: var(--card-background);
+            padding: 0;
+            border-radius: 15px;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 25px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            color: var(--text-color);
+        }
+
+        .close-button {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--text-muted);
+        }
+
+        .close-button:hover {
+            color: var(--text-color);
+        }
+
+        #modalBody {
+            padding: 25px;
+        }
+    </style>
+</body>
+
+</html>

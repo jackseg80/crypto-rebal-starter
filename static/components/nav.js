@@ -1,6 +1,47 @@
 // Composant de navigation unifié (ES module, zéro dépendance)
 // Injecte un <header class="app-header"> sticky avec liens actifs et menu Admin.
 
+// Import dynamique du WealthContextBar
+const loadWealthContextBar = async () => {
+  try {
+    await import('./WealthContextBar.js');
+  } catch (error) {
+    console.debug('WealthContextBar not loaded:', error);
+  }
+};
+
+// Vérification des rôles RBAC pour menu Admin
+const checkAdminRole = () => {
+  try {
+    // MODE DEV : Forcer admin si localhost ou dev
+    const isDev = location.hostname === 'localhost' || location.hostname === '127.0.0.1' ||
+                  location.hostname.includes('dev') || location.port === '8000';
+
+    if (isDev) {
+      console.debug('🔧 Dev mode detected - Admin role forced');
+      return true;
+    }
+
+    // Vérifier localStorage pour rôles utilisateur
+    const userRoles = localStorage.getItem('user_roles');
+    if (userRoles) {
+      const roles = JSON.parse(userRoles);
+      return roles.includes('governance_admin') || roles.includes('ml_admin');
+    }
+
+    // Fallback: vérifier variables globales ou cookies
+    if (window.userRoles) {
+      return window.userRoles.includes('governance_admin') || window.userRoles.includes('ml_admin');
+    }
+
+    // Par défaut, masquer le menu Admin
+    return false;
+  } catch (error) {
+    console.debug('Error checking admin roles:', error);
+    return false;
+  }
+};
+
 const initUnifiedNav = () => {
   try {
     if (window.__navInitialized) return;
@@ -68,42 +109,21 @@ const initUnifiedNav = () => {
       header.className = 'app-header';
     }
 
+    // Vérifier les rôles utilisateur pour affichage Admin RBAC
+    const hasAdminRole = checkAdminRole();
+
     // Injecter le contenu de la navigation
     header.innerHTML = `
       <div class="nav-inner">
         <div class="brand">Crypto Rebal</div>
         <nav class="main-nav" aria-label="Navigation principale">
           <ul class="menu">
-            <li><a href="dashboard.html" data-route="dashboard.html">Dashboard</a></li>
-            <li class="has-submenu">
-              <a href="analytics-unified.html" data-route="analytics-unified.html">Analytics</a>
-              <div class="submenu" role="menu">
-                <a href="analytics-unified.html" data-route="analytics-unified.html">Analytics</a>
-                <a href="risk-dashboard.html" data-route="risk-dashboard.html">Risk Dashboard</a>
-                <a href="realtime-dashboard.html" data-route="realtime-dashboard.html">Real-time Dashboard</a>
-                <div class="menu-separator"></div>
-                <a href="unified-scores.html" data-route="unified-scores.html">Scores Unifiés</a>
-                <a href="performance-monitor.html" data-route="performance-monitor.html">Performance Monitor</a>
-                <a href="advanced-analytics.html" data-route="advanced-analytics.html">Advanced Analytics</a>
-                <a href="cycle-analysis.html" data-route="cycle-analysis.html">Cycle Analysis</a>
-                <a href="portfolio-optimization.html" data-route="portfolio-optimization.html">Portfolio Optimization</a>
-              </div>
-            </li>
-            <li><a href="rebalance.html" data-route="rebalance.html">Rebalancing</a></li>
-            <li class="has-submenu">
-              <a href="ai-dashboard.html" data-route="ai-dashboard.html">AI Dashboard</a>
-              <div class="submenu" role="menu">
-                <a href="ai-dashboard.html" data-route="ai-dashboard.html">AI Dashboard</a>
-                <a href="intelligence-dashboard.html" data-route="intelligence-dashboard.html">Intelligence Dashboard</a>
-              </div>
-            </li>
-            <li class="has-submenu">
-              <a href="execution.html" data-route="execution.html">Execution</a>
-              <div class="submenu" role="menu">
-                <a href="execution.html" data-route="execution.html">Live / Plan</a>
-                <a href="execution_history.html" data-route="execution_history.html">History</a>
-              </div>
-            </li>
+            <li><a href="dashboard.html" data-route="dashboard.html">Portfolio</a></li>
+            <li><a href="analytics-unified.html" data-route="analytics-unified.html">Analytics</a></li>
+            <li><a href="risk-dashboard.html" data-route="risk-dashboard.html">Risk</a></li>
+            <li><a href="saxo-dashboard.html" data-route="saxo-dashboard.html">Bourse</a></li>
+            <li><a href="rebalance.html" data-route="rebalance.html">Rebalance</a></li>
+            <li><a href="execution.html" data-route="execution.html">Execution</a></li>
             <li><a href="settings.html" data-route="settings.html">Settings</a></li>
           </ul>
         </nav>
@@ -117,14 +137,20 @@ const initUnifiedNav = () => {
         </div>
         
         <div class="spacer"></div>
+        ${hasAdminRole ? `
         <div class="admin">
           <button class="admin-btn" id="admin-toggle" aria-haspopup="true" aria-expanded="false">Admin ▾</button>
           <div class="dropdown" id="admin-dropdown" role="menu">
-            <a href="backtesting.html">Backtesting</a>
-            <a href="alias-manager.html">Alias Manager</a>
-            <a href="debug-menu.html">Debug</a>
+            <a href="analytics-unified.html#ml">ML Command Center</a>
+            <a href="analytics-unified.html#ml">Model Registry/Jobs</a>
+            <div class="menu-separator"></div>
+            <a href="settings.html#integrations">Imports & Connecteurs</a>
+            <a href="debug-menu.html">Tools & Debug</a>
+            <div class="menu-separator"></div>
+            <a href="static/archive/index.html">Archive</a>
           </div>
         </div>
+        ` : ''}
       </div>
     `;
 
@@ -166,25 +192,27 @@ const initUnifiedNav = () => {
       }
     });
 
-    // Dropdown Admin
+    // Dropdown Admin (seulement si visible pour utilisateur RBAC)
     const toggle = header.querySelector('#admin-toggle');
     const dropdown = header.querySelector('#admin-dropdown');
-    const closeDropdown = () => {
-      dropdown.classList.remove('open');
-      toggle.setAttribute('aria-expanded', 'false');
-    };
-    toggle.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const isOpen = dropdown.classList.toggle('open');
-      toggle.setAttribute('aria-expanded', String(isOpen));
-    });
-    document.addEventListener('click', (e) => {
-      if (!dropdown.classList.contains('open')) return;
-      if (!dropdown.contains(e.target) && e.target !== toggle) closeDropdown();
-    });
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') closeDropdown();
-    });
+    if (toggle && dropdown && hasAdminRole) {
+      const closeDropdown = () => {
+        dropdown.classList.remove('open');
+        toggle.setAttribute('aria-expanded', 'false');
+      };
+      toggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = dropdown.classList.toggle('open');
+        toggle.setAttribute('aria-expanded', String(isOpen));
+      });
+      document.addEventListener('click', (e) => {
+        if (!dropdown.classList.contains('open')) return;
+        if (!dropdown.contains(e.target) && e.target !== toggle) closeDropdown();
+      });
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeDropdown();
+      });
+    }
 
     // ===== Human-in-the-loop Badge Management =====
 
@@ -299,6 +327,9 @@ const initUnifiedNav = () => {
     // Initialize badge system - try WebSocket first, fall back to polling
     fallbackBadgeUpdate(); // Initial check
     initWebSocketConnection();
+
+    // Load WealthContextBar after nav is initialized
+    loadWealthContextBar();
 
     // Cleanup on page unload
     window.addEventListener('beforeunload', () => {
