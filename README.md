@@ -25,17 +25,26 @@ cp env.example .env
 ```
 uvicorn api.main:app --reload --port 8000
 ```
-3) Ouvrir l’UI (pages statiques servies par FastAPI)
+3) Ouvrir l’UI (servie par FastAPI)
+```
+http://localhost:8000/static/settings.html
+```
+Dans Settings:
+- Choisir la source de données (démo, CoinTracking CSV, CoinTracking API)
+- (Optionnel) Saisir les clés CoinGecko / CoinTracking, puis « Sauver vers .env »
+- Tester: « 🧪 Tester les APIs » et « 🧪 Tester la Source »
+
+Dashboards:
 ```
 http://localhost:8000/static/dashboard.html
 http://localhost:8000/static/risk-dashboard.html
 http://localhost:8000/static/rebalance.html
-http://localhost:8000/static/settings.html
 ```
 
 Docs API: `http://localhost:8000/docs` • OpenAPI: `/openapi.json`
 
 ## Documentation
+- Guide agent: `CLAUDE.md`
 - Index docs: `docs/index.md`
 - Quickstart: `docs/quickstart.md`
 - Configuration: `docs/configuration.md`
@@ -48,9 +57,16 @@ Docs API: `http://localhost:8000/docs` • OpenAPI: `/openapi.json`
 - Intégrations: `docs/integrations.md`
 - Refactoring & migration: `docs/refactoring.md`
 
+Endpoints utiles:
+```
+GET  /healthz
+GET  /balances/current?source=cointracking       # CSV
+GET  /balances/current?source=cointracking_api   # API CT
+GET  /debug/ctapi                                # Sonde CoinTracking API
+```
+
 Changelog: `CHANGELOG.md`
 
 ## Notes
 - Les documents détaillés et historiques sont archivés sous `docs/_legacy/`.
 - Les endpoints ML/Risk/Alerts ont été consolidés; voir `docs/refactoring.md` pour la migration.
-
