@@ -10,6 +10,92 @@ const loadWealthContextBar = async () => {
   }
 };
 
+// Initialisation du sélecteur d'utilisateur
+const initUserSwitcher = async () => {
+  try {
+    // Charger la liste des utilisateurs depuis config/users.json
+    const usersResponse = await fetch('/config/users.json', { cache: 'no-store' });
+    if (!usersResponse.ok) {
+      console.warn('Could not load users config');
+      return;
+    }
+
+    const usersConfig = await usersResponse.json();
+    const users = usersConfig.users || [];
+    const defaultUser = usersConfig.default || 'demo';
+
+    // Récupérer l'utilisateur actuel depuis localStorage
+    const currentUser = localStorage.getItem('activeUser') || defaultUser;
+
+    // Remplir le sélecteur
+    const selector = document.getElementById('user-selector');
+    if (!selector) return;
+
+    selector.innerHTML = '';
+    users.forEach(user => {
+      const option = document.createElement('option');
+      option.value = user.id;
+      option.textContent = user.label;  // Plus de mode affiché
+      if (user.id === currentUser) {
+        option.selected = true;
+      }
+      selector.appendChild(option);
+    });
+
+    // Ajouter l'event listener pour le changement d'utilisateur
+    selector.addEventListener('change', (e) => {
+      const newUser = e.target.value;
+      if (newUser !== currentUser) {
+        switchUser(newUser);
+      }
+    });
+
+    console.debug(`User switcher initialized, current user: ${currentUser}`);
+
+  } catch (error) {
+    console.error('Failed to initialize user switcher:', error);
+  }
+};
+
+// Fonction pour changer d'utilisateur
+const switchUser = (newUserId) => {
+  try {
+    const oldUser = localStorage.getItem('activeUser');
+    localStorage.setItem('activeUser', newUserId);
+
+    console.log(`Switching from user '${oldUser}' to '${newUserId}'`);
+
+    // Émettre un événement pour informer les autres composants
+    const event = new CustomEvent('active-user-changed', {
+      detail: { oldUser, newUser: newUserId }
+    });
+    window.dispatchEvent(event);
+
+    // Purger les caches pour éviter les données croisées
+    if (window.clearCache) {
+      window.clearCache();
+    }
+
+    // Vider les caches localStorage liés aux données
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('risk_score') || key.startsWith('cache:') || key.startsWith('portfolio_'))) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+
+    // Recharger la page pour appliquer les changements
+    setTimeout(() => {
+      window.location.reload();
+    }, 100);
+
+  } catch (error) {
+    console.error('Error switching user:', error);
+  }
+};
+
 // Vérification des rôles RBAC pour menu Admin
 const checkAdminRole = () => {
   try {
@@ -84,6 +170,9 @@ const initUnifiedNav = () => {
       .app-header .notification-badge:active { transform: scale(0.95); }
       .app-header .badge-icon { font-size: 1.1em; }
       .app-header .badge-count { background: rgba(255,255,255,0.9); color: var(--brand-danger); border-radius: var(--radius-full); padding: .1rem .35rem; font-size: .75em; min-width: 1.2em; text-align: center; }
+      .app-header .user-switcher { display: flex; align-items: center; margin-right: 1rem; }
+      .app-header .user-switcher label { margin: 0; }
+      .app-header .user-switcher select { min-width: 120px; }
       @media (max-width: 1024px) { .app-header nav { display: flex; flex-wrap: wrap; gap: .25rem; } .app-header .nav-inner { gap: .5rem; } }
       @media (max-width: 720px) { .app-header nav a { padding: .4rem .6rem; font-size: 14px; } .app-header .notification-badge { padding: .3rem .5rem; font-size: .75em; } }
     `;
@@ -137,6 +226,14 @@ const initUnifiedNav = () => {
         </div>
         
         <div class="spacer"></div>
+        <!-- User Switcher (independent from Admin) -->
+        <div class="user-switcher">
+          <label style="font-size: 0.85em; color: var(--theme-text-muted); margin-right: 0.5rem;">Utilisateur:</label>
+          <select id="user-selector" style="padding: 0.3rem 0.5rem; border-radius: var(--radius-sm); border: 1px solid var(--theme-border); background: var(--theme-bg); color: var(--theme-text); font-size: 0.9em;">
+            <option value="demo">Chargement...</option>
+          </select>
+        </div>
+
         ${hasAdminRole ? `
         <div class="admin">
           <button class="admin-btn" id="admin-toggle" aria-haspopup="true" aria-expanded="false">Admin ▾</button>
@@ -327,6 +424,9 @@ const initUnifiedNav = () => {
     // Initialize badge system - try WebSocket first, fall back to polling
     fallbackBadgeUpdate(); // Initial check
     initWebSocketConnection();
+
+    // Initialize user switcher (always available)
+    initUserSwitcher();
 
     // Load WealthContextBar after nav is initialized
     loadWealthContextBar();

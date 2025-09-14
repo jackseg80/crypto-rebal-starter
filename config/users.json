@@ -1,0 +1,11 @@
+{
+  "default": "demo",
+  "users": [
+    {"id": "demo", "label": "Démo"},
+    {"id": "jack", "label": "Jack"},
+    {"id": "donato", "label": "Donato"},
+    {"id": "elda", "label": "Elda"},
+    {"id": "roberto", "label": "Roberto"},
+    {"id": "clea", "label": "Cléa"}
+  ]
+}

@@ -217,11 +217,16 @@ class GlobalConfig {
    */
   async apiRequest(endpoint, options = {}) {
     const url = this.getApiUrl(endpoint, options.params || {});
+
+    // Ajouter automatiquement le header X-User
+    const activeUser = localStorage.getItem('activeUser') || 'demo';
+
     const requestOptions = {
       ...options, // ← d'abord
       method: options.method || 'GET',
       headers: {
         'Content-Type': 'application/json',
+        'X-User': activeUser,
         ...(options.headers || {})
       }
     };
@@ -472,9 +477,9 @@ window.loadBalanceData = async function() {
       case 'cointracking_api': {
         // CoinTracking API via backend
         console.debug('📡 Using CoinTracking API source');
-        const apiResponse = await fetch(`${apiBaseUrl}/balances/current?source=cointracking_api&_t=${timestamp}`);
-        if (!apiResponse.ok) throw new Error(`API Error: ${apiResponse.status}`);
-        const apiData = await apiResponse.json();
+        const apiData = await globalConfig.apiRequest('/balances/current', {
+          params: { source: 'cointracking_api', _t: timestamp }
+        });
         return { success: true, data: apiData, source: apiData?.source_used || 'cointracking_api' };
       }
 
@@ -485,9 +490,9 @@ window.loadBalanceData = async function() {
       case 'stub_shitcoins': {
         const chosen = dataSource;
         console.debug(`🧪 Using stub data source: ${chosen}`);
-        const stubResponse = await fetch(`${apiBaseUrl}/balances/current?source=${chosen}&_t=${timestamp}`);
-        if (!stubResponse.ok) throw new Error(`Stub Error: ${stubResponse.status}`);
-        const stubData = await stubResponse.json();
+        const stubData = await globalConfig.apiRequest('/balances/current', {
+          params: { source: chosen, _t: timestamp }
+        });
         return { success: true, data: stubData, source: stubData?.source_used || chosen };
       }
 
@@ -495,9 +500,9 @@ window.loadBalanceData = async function() {
       default: {
         // Local CoinTracking CSV via API backend
         console.debug('📄 Using local CoinTracking CSV files via API');
-        const csvResponse = await fetch(`${apiBaseUrl}/balances/current?source=cointracking&_t=${timestamp}`);
-        if (!csvResponse.ok) throw new Error(`CSV API Error: ${csvResponse.status}`);
-        const csvData = await csvResponse.json();
+        const csvData = await globalConfig.apiRequest('/balances/current', {
+          params: { source: 'cointracking', _t: timestamp }
+        });
         return { success: true, data: csvData, source: csvData?.source_used || 'cointracking' };
       }
     }
@@ -539,12 +544,11 @@ window.loadBalanceData = async function() {
         // Use the current stub flavor if applicable, else default to plain 'stub'
         const cfg = globalConfig.get('data_source');
         const stubFlavor = (cfg && cfg.startsWith('stub')) ? cfg : 'stub';
-        const stubResponse = await fetch(`${globalConfig.get('api_base_url')}/balances/current?source=${stubFlavor}&_t=${timestamp}`);
-        if (stubResponse.ok) {
-          const stubData = await stubResponse.json();
-          console.log('✅ Successfully loaded stub data from API');
-          return { success: true, data: stubData, source: stubData?.source_used || stubFlavor };
-        }
+        const stubData = await globalConfig.apiRequest('/balances/current', {
+          params: { source: stubFlavor, _t: timestamp }
+        });
+        console.log('✅ Successfully loaded stub data from API');
+        return { success: true, data: stubData, source: stubData?.source_used || stubFlavor };
       } catch (stubError) {
         console.error('❌ Stub data via API also failed:', stubError);
       }

@@ -5,7 +5,7 @@ from time import monotonic
 import os, sys, inspect, hashlib, time
 from datetime import datetime
 import httpx
-from fastapi import FastAPI, Query, Body, Response, HTTPException, Request, APIRouter
+from fastapi import FastAPI, Query, Body, Response, HTTPException, Request, APIRouter, Depends
 import logging
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -92,11 +92,13 @@ from api.saxo_endpoints import router as saxo_router
 from api.advanced_risk_endpoints import router as advanced_risk_router
 from api.realtime_endpoints import router as realtime_router
 from api.intelligence_endpoints import router as intelligence_router
+from api.user_settings_endpoints import router as user_settings_router
 # from api.market_endpoints import router as market_router  # Temporarily commented out
 from api.exceptions import (
     CryptoRebalancerException, APIException, ValidationException,
     ConfigurationException, TradingException, DataException, ErrorCodes
 )
+from api.deps import get_active_user
 # Imports optionnels pour extensions futures (réservé)
 # from shared.exceptions import convert_standard_exception, PricingException
 from api.models import APIKeysRequest, PortfolioMetricsRequest
@@ -414,6 +416,15 @@ app.mount(
     name="data",
 )
 
+# Mount config directory for users.json access
+CONFIG_DIR = BASE_DIR / "config"
+if CONFIG_DIR.exists():
+    app.mount(
+        "/config",
+        StaticFiles(directory=str(CONFIG_DIR)),
+        name="config",
+    )
+
 # Optionnel: exposer les pages de test HTML en local (sécurisé par DEBUG)
 try:
     TESTS_DIR = BASE_DIR / "tests"
@@ -653,15 +664,155 @@ def _norm_primary_symbols(x: Any) -> Dict[str, List[str]]:
 
 
 # ---------- source resolver ----------
+# --- Helper function for CSV parsing ---
+async def _load_csv_balances(csv_file_path: str) -> list[dict]:
+    """Charge et parse un fichier CSV de balances."""
+    import csv
+    import os
+
+    items = []
+    if not os.path.exists(csv_file_path):
+        return items
+
+    try:
+        with open(csv_file_path, 'r', encoding='utf-8-sig', newline='') as f:
+            sample = f.read(4096)
+            f.seek(0)
+            try:
+                dialect = csv.Sniffer().sniff(sample, delimiters=",;")
+            except Exception:
+                class _Dialect:
+                    delimiter = ","
+                dialect = _Dialect()
+
+            reader = csv.DictReader(f, dialect=dialect)
+            for row in reader:
+                # Normaliser les clés et valeurs
+                normalized_row = {
+                    (k.strip() if isinstance(k, str) else k): (v.strip() if isinstance(v, str) else v)
+                    for k, v in row.items()
+                }
+
+                # Extraire les champs nécessaires
+                symbol = None
+                for key in ("Ticker", "Currency", "Coin", "Symbol", "Asset"):
+                    if key in normalized_row and normalized_row[key]:
+                        symbol = normalized_row[key].upper().strip()
+                        break
+
+                amount = 0.0
+                for key in ("Amount", "amount", "Qty", "Quantity", "quantity"):
+                    if key in normalized_row and normalized_row[key]:
+                        try:
+                            amount = float(str(normalized_row[key]).replace(",", "."))
+                            break
+                        except ValueError:
+                            continue
+
+                value_usd = 0.0
+                for key in ("Value in USD", "Value (USD)", "USD Value", "Current Value (USD)", "value_usd", "Value", "value"):
+                    if key in normalized_row and normalized_row[key]:
+                        try:
+                            value_usd = float(str(normalized_row[key]).replace(",", "."))
+                            break
+                        except ValueError:
+                            continue
+
+                location = "CoinTracking"
+                for key in ("Exchange", "exchange", "Location", "location", "Wallet", "wallet"):
+                    if key in normalized_row and normalized_row[key]:
+                        location = normalized_row[key].strip()
+                        break
+
+                if symbol and amount > 0 and value_usd > 0:
+                    items.append({
+                        "symbol": symbol,
+                        "alias": symbol,
+                        "amount": amount,
+                        "value_usd": value_usd,
+                        "location": location
+                    })
+
+    except Exception as e:
+        logger.error(f"Error parsing CSV file {csv_file_path}: {e}")
+
+    return items
+
 # --- REPLACE THIS WHOLE FUNCTION IN main.py ---
 
-async def resolve_current_balances(source: str = Query("cointracking_api")) -> Dict[str, Any]:
+async def resolve_current_balances(source: str = Query("cointracking_api"), user_id: str = "demo") -> Dict[str, Any]:
     """
     Retourne {source_used, items:[{symbol, alias, amount, value_usd, location}]}
-    - Si CT-API dispo: affecte une location "principale" par coin (échange avec la plus grosse part)
-    - Sinon: fallback CSV/local avec location=CoinTracking
-    - Source "stub": données de démo pour les tests
+    Utilise UserDataRouter pour router les données par utilisateur.
     """
+    from api.services.data_router import UserDataRouter
+    import os
+
+    logger.info(f"Resolving balances for user '{user_id}' with source '{source}'")
+
+    # Créer le data router pour cet utilisateur
+    project_root = str(BASE_DIR)
+    data_router = UserDataRouter(project_root, user_id)
+
+    # --- Sources stub: utiliser les stubs par défaut ---
+    if source.startswith("stub"):
+        logger.debug(f"Using stub source: {source}")
+        # Garder les stubs existants pour compatibilité
+    else:
+        # --- Déterminer la source effective selon l'utilisateur ---
+        effective_source = data_router.get_effective_source()
+        logger.debug(f"Effective source for user '{user_id}': {effective_source}")
+
+        # --- API Mode ---
+        if effective_source == "cointracking_api" and source in ("cointracking_api", "auto"):
+            try:
+                credentials = data_router.get_api_credentials()
+                api_key = credentials.get("api_key")
+                api_secret = credentials.get("api_secret")
+
+                if api_key and api_secret:
+                    try:
+                        from connectors.cointracking_api import get_current_balances as _ctapi_bal
+                        # Passer directement les clés API au connecteur
+                        api_result = await _ctapi_bal(api_key=api_key, api_secret=api_secret)
+                        items = []
+
+                        for r in api_result.get("items", []):
+                            items.append({
+                                "symbol": r.get("symbol"),
+                                "alias": r.get("alias") or r.get("symbol"),
+                                "amount": r.get("amount"),
+                                "value_usd": r.get("value_usd"),
+                                "location": r.get("location") or "CoinTracking",
+                            })
+
+                        logger.debug(f"API mode successful for user {user_id}: {len(items)} items")
+                        return {"source_used": "cointracking_api", "items": items}
+
+                    except Exception as e:
+                        logger.error(f"CoinTracking API error for user {user_id}: {e}")
+                        # Fallback to CSV will be handled below
+                else:
+                    logger.warning(f"No CoinTracking API credentials configured for user {user_id}")
+
+            except Exception as e:
+                logger.error(f"API mode initialization failed for user {user_id}: {e}")
+
+        # --- CSV Mode ---
+        if effective_source == "cointracking" and source in ("cointracking", "csv", "local", "auto"):
+            try:
+                csv_file = data_router.get_most_recent_csv("balance")
+                if csv_file:
+                    items = await _load_csv_balances(csv_file)
+                    logger.debug(f"CSV mode successful for user {user_id}: {len(items)} items from {csv_file}")
+                    return {"source_used": "cointracking", "items": items}
+                else:
+                    logger.warning(f"No CSV files found for user {user_id}")
+
+            except Exception as e:
+                logger.error(f"CSV mode failed for user {user_id}: {e}")
+
+    # --- LEGACY CODE FALLBACK --- (keep original behavior for compatibility)
     
     # --- Sources stub: 3 profils de démo différents ---
     # Respect strict mode: if ALLOW_STUB_SOURCES is False, do not return mock data
@@ -973,10 +1124,11 @@ async def schema():
 @app.get("/balances/current")
 async def balances_current(
     source: str = Query("cointracking"),
-    min_usd: float = Query(1.0)
+    min_usd: float = Query(1.0),
+    user: str = Depends(get_active_user)
 ):
     from api.unified_data import get_unified_filtered_balances
-    return await get_unified_filtered_balances(source=source, min_usd=min_usd)
+    return await get_unified_filtered_balances(source=source, min_usd=min_usd, user_id=user)
 
 
 # ---------- rebalance (JSON) ----------
@@ -1635,6 +1787,7 @@ app.include_router(strategy_router)
 app.include_router(advanced_risk_router)
 app.include_router(realtime_router)
 app.include_router(intelligence_router)
+app.include_router(user_settings_router)
 
 # Phase 3 Unified Orchestration
 from api.unified_phase3_endpoints import router as unified_phase3_router

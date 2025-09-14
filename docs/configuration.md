@@ -2,15 +2,26 @@
 
 Document déplacé depuis `CONFIGURATION.md` pour centraliser la configuration sous `docs/`.
 
-## Sources de Données — Source de vérité centralisée
+## Sources de Données — Système Multi-Utilisateurs
 
-La liste des sources est centralisée dans `static/global-config.js` via `window.DATA_SOURCES` (+ ordre via `window.DATA_SOURCE_ORDER`).
+Le système de sources a été modernisé pour supporter les utilisateurs multiples avec isolation complète des données.
 
-### Groupes affichés dans Settings
-- "Sources de démo" → entrées avec `kind: 'stub'`
-- "Sources CoinTracking" → entrées avec `kind: 'csv'` et `kind: 'api'`
+### Architecture Multi-Utilisateurs
+- **6 utilisateurs configurés** : demo, jack, donato, elda, roberto, clea
+- **Sélecteur utilisateur** : dans la barre de navigation (hors du menu Admin)
+- **Isolation complète** : chaque utilisateur a ses propres CSV, clés API et configurations
+- **Settings individuels** : stockés dans `data/users/{user}/config.json`
 
-Ajouter/retirer une source = modifier `DATA_SOURCES` uniquement; l’onglet “Résumé”, l’onglet “Source”, les validations (`static/input-validator.js`) et l’ensemble des pages consomment `globalConfig.get('data_source')`.
+### Sources Dynamiques par Utilisateur
+- **CSV** : liste les fichiers CSV réels de chaque utilisateur (`data/users/{user}/csv/`)
+- **API CoinTracking** : apparaît seulement si l'utilisateur a configuré des clés API
+- **Sections adaptatives** : masquage automatique des options non disponibles
+
+### Endpoints Multi-Utilisateurs
+- `GET /api/users/sources` : sources disponibles pour l'utilisateur actuel
+- `GET /api/users/settings` : configuration de l'utilisateur
+- `PUT /api/users/settings` : sauvegarde des settings utilisateur
+- Header `X-User` : identification automatique via le sélecteur
 
 ## Interfaces Frontend Disponibles
 

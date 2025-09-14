@@ -1,6 +1,6 @@
 # CLAUDE.md — Guide de travail pour agents (Crypto Rebal Starter)
 
-> But: permettre à un agent (Claude/Code) d’intervenir vite et bien sans casser l’existant
+> But: permettre à un agent (Claude/Code) d’intervenir vite et bien sans casser l’existant  
 > Périmètre: FastAPI `api/`, services Python `services/`, front HTML/JS `static/`, connecteurs `connectors/`, tests `tests/`.
 
 ---
@@ -11,13 +11,17 @@
 2. Navigation/UI: conserver le menu unifié `static/components/nav.js` + thèmes `shared-theme.css`/`theme-compat.css`. Ne pas réintroduire `static/shared-header.js` (archivé).
 3. Config front: aucune URL API en dur. Toujours passer par `static/global-config.js` (détection `window.location.origin`).
 4. Modifs minimales: patchs ciblés, pas de refontes/renommages massifs sans demande explicite.
-5. Perf: favoriser endpoints batch, cache, lazy‑loading.
+5. Perf: favoriser endpoints batch, cache, lazy-loading.
 6. Terminologie: garder certains anglicismes (coin, wallet, airdrop…).
-7. Sécurité: valider Pydantic, limiter tailles/paginer, penser rate‑limit sur endpoints sensibles.
+7. Sécurité: valider Pydantic, limiter tailles/paginer, penser rate-limit sur endpoints sensibles.
 8. Tests: tests unitaires pour logique non triviale + smoke test d’API pour tout nouvel endpoint.
+9. **Realtime (sécurité)**: `api/realtime_endpoints.py` ne doit fournir que des flux **read-only** (SSE/WS).  
+   **Interdit** d’ajouter `/realtime/publish` et `/broadcast`.  
+   Toute écriture d’événements temps réel se fait côté serveur via la gouvernance.
+10. **GovernancePanel**: déjà intégré dans `static/risk-dashboard.html`. **Ne pas créer** de panneau standalone ni le dupliquer.
 
-Note endpoints de test/dev:
-- Les routes `/api/alerts/test/*` sont désactivées par défaut et toujours désactivées en production.
+Note endpoints de test/dev:  
+- Les routes `/api/alerts/test/*` sont désactivées par défaut et toujours désactivées en production.  
 - Pour activer en dev: définir `ENABLE_ALERTS_TEST_ENDPOINTS=true` dans l’environnement (non-prod uniquement).
 
 ---
@@ -45,8 +49,8 @@ api/realtime_endpoints.py
 services/execution/governance.py (Decision Engine)
 services/ml/orchestrator.py (MLOrchestrator)
 services/risk_management.py
-services/analytics/*.py
-services/ml/*.py
+services/analytics/.py
+services/ml/.py
 static/components/nav.js
 static/components/GovernancePanel.js (intégré dans risk-dashboard)
 static/global-config.js
@@ -64,9 +68,9 @@ static/core/risk-dashboard-store.js (sync governance)
 
 ### A) Ajouter un endpoint FastAPI
 
-1) Créer `api/<module>_endpoints.py` avec schémas Pydantic, tailles limitées.
-2) Inclure le router dans `api/main.py` si nécessaire.
-3) Logguer latence et taille d’entrée si pertinent.
+1) Créer `api/<module>_endpoints.py` avec schémas Pydantic, tailles limitées.  
+2) Inclure le router dans `api/main.py` si nécessaire.  
+3) Logguer latence et taille d’entrée si pertinent.  
 4) Ajouter un smoke test simple.
 
 Exemple:
