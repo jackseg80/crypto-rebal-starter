@@ -9,6 +9,22 @@
   <link rel="stylesheet" href="theme-compat.css">
   <script type="module" src="components/nav.js"></script>
   <script type="module" src="core/risk-dashboard-store.js"></script>
+  <script type="module">
+    import { initDeepLinks } from './components/deep-links.js';
+    import { wealthContextBar } from './components/WealthContextBar.js';
+
+    // Ancres pour rebalance.html : #proposed-targets #bourse #funding-plan #dca-schedule #constraints
+    initDeepLinks({
+      'proposed-targets': 'Objectifs Proposés',
+      'bourse': 'Rebalance Bourse',
+      'funding-plan': 'Plan de Financement',
+      'dca-schedule': 'Planning DCA',
+      'constraints': 'Contraintes'
+    });
+
+    // Exposer wealthContextBar globalement pour usage dans le script principal
+    window.wealthContextBar = wealthContextBar;
+  </script>
 
   <script src="debug-logger.js"></script>
   <script src="input-validator.js"></script>
@@ -398,7 +414,7 @@
 
   <div class="wrap" style="padding-top: var(--space-lg);">
     <!-- Stratégies de Rebalancing -->
-    <div class="card" style="margin-bottom: 16px;">
+    <div id="proposed-targets" class="card" style="margin-bottom: 16px;">
       <h3 style="cursor: pointer; display: flex; align-items: center; justify-content: space-between;"
         onclick="toggleStrategiesSection()">
         <span>🎯 Stratégies Prédéfinies</span>
@@ -474,13 +490,13 @@
     </section>
 
     <!-- Résumé -->
-    <section class="card mt16">
+    <section id="dca-schedule" class="card mt16">
       <h3>Résumé par groupe</h3>
       <div id="summary" class="grid g3 mt8"></div>
     </section>
 
     <!-- Actions -->
-    <section class="card mt16">
+    <section id="funding-plan" class="card mt16">
       <div class="row" style="justify-content:space-between;align-items:flex-end">
         <h3>Actions</h3>
         <div id="pricing-badge"></div>
@@ -505,7 +521,7 @@
     </section>
 
     <!-- Unknown aliases -->
-    <section class="card mt16">
+    <section id="constraints" class="card mt16">
       <div class="row" style="justify-content:space-between;align-items:flex-end">
         <div>
           <h3>Unknown aliases</h3>
@@ -541,7 +557,7 @@
     </section>
   </main>
 
-  <section class="wrap tab-panel" id="optimization-tab">
+  <section id="bourse" class="wrap tab-panel">
     <div class="card">
       <div style="display:flex; align-items:center; gap:.5rem; margin-bottom:.5rem;">
         <h3 style="margin:0;">Optimization</h3>
@@ -778,15 +794,48 @@
         // D'abord essayer de charger depuis l'API, mais ne pas échouer si non disponible
         let response = null;
         try {
-          response = await globalConfig.apiRequest('/api/strategies/list');
+          // Nouveau: utiliser les templates du Strategy Registry
+          response = await globalConfig.apiRequest('/api/strategy/templates');
         } catch (apiError) {
-          console.log('API strategies not available, using built-in strategies:', apiError.message);
+          console.log('API strategy/templates not available, using built-in strategies:', apiError.message);
         }
 
         // Utiliser les stratégies de l'API si disponibles, sinon utiliser des stratégies par défaut
         if (response && response.ok && response.strategies) {
+          // Compat: ancien format (non utilisé ici, mais on garde par sécurité)
           availableStrategies = response.strategies;
-        } else {
+        } else if (response && typeof response === 'object' && !Array.isArray(response)) {
+          // Nouveau format: dict { template_id: { name, description, template, risk_level } }
+          const iconForRisk = (risk) => {
+            const r = (risk || '').toString().toLowerCase();
+            if (r.includes('low') || r.includes('faible')) return '🛡️';
+            if (r.includes('high') || r.includes('élev')) return '🚀';
+            return '⚖️';
+          };
+          availableStrategies = {};
+          try {
+            Object.entries(response).forEach(([templateId, info]) => {
+              const name = (info && info.name) ? info.name : templateId;
+              const desc = (info && info.description) ? info.description : 'Template stratégie';
+              const risk = (info && info.risk_level) ? info.risk_level : 'medium';
+              availableStrategies[templateId] = {
+                name,
+                icon: iconForRisk(risk),
+                description: desc,
+                risk_level: risk,
+                // Pas d'allocations dans /api/strategy/templates: on les chargera à la demande via /api/strategy/preview
+                allocations: {},
+                _isTemplate: true,
+                _templateId: templateId
+              };
+            });
+          } catch (e) {
+            console.warn('Error parsing /api/strategy/templates response, fallback to defaults', e);
+            availableStrategies = null;
+          }
+        }
+
+        if (!availableStrategies) {
           // Stratégies par défaut si l'API n'est pas disponible
           availableStrategies = {
             'conservative': {
@@ -1063,6 +1112,12 @@
         ${Object.keys(strategy.allocations).length > 0 ?
             Object.entries(strategy.allocations)
               .filter(([group, pct]) => group !== 'model_version')
+              .sort((a, b) => {
+                // Trier par pourcentage décroissant
+                const valueA = typeof a[1] === 'number' ? a[1] : parseFloat(a[1]) || 0;
+                const valueB = typeof b[1] === 'number' ? b[1] : parseFloat(b[1]) || 0;
+                return valueB - valueA;
+              })
               .map(([group, pct]) => {
                 log.debug('renderStrategiesUI - Rendering allocation:', group, pct);
                 return `<span class="allocation-pill">${group}: ${typeof pct === 'number' ? pct.toFixed(1) : pct}%</span>`;
@@ -1103,6 +1158,38 @@
       }
 
       const strategy = availableStrategies[selectedStrategyId];
+
+      // Si la stratégie provient d'un template et n'a pas encore d'allocations, récupérer un aperçu serveur
+      if (strategy._isTemplate && (!strategy.allocations || Object.keys(strategy.allocations).length === 0)) {
+        try {
+          const preview = await globalConfig.apiRequest('/api/strategy/preview', {
+            method: 'POST',
+            body: JSON.stringify({ template_id: strategy._templateId || selectedStrategyId, force_refresh: false })
+          });
+          if (preview && Array.isArray(preview.targets)) {
+            const alloc = {};
+            preview.targets.forEach(t => {
+              const sym = t.symbol || t.group;
+              const w = typeof t.weight === 'number' ? t.weight : parseFloat(t.weight);
+              if (sym && isFinite(w)) {
+                alloc[sym] = Math.round(w * 1000) / 10; // pourcentage à 0.1% près
+              }
+            });
+            strategy.allocations = alloc;
+          } else {
+            console.warn('Preview did not return targets, keeping empty allocations');
+          }
+        } catch (err) {
+          console.warn('Failed to fetch strategy preview:', err);
+          showNotification("Impossible de récupérer l'allocation du template (preview)", 'warning');
+        }
+      }
+
+      // Si aucune allocation n'est disponible (template sans preview), ne pas activer targets dynamiques
+      if (!strategy.allocations || Object.keys(strategy.allocations).length === 0) {
+        showNotification('Aucune allocation disponible pour ce template', 'warning');
+        return;
+      }
 
       // Check governance state first
       try {
@@ -2476,6 +2563,117 @@
       window.open('alias-manager.html', '_blank');
     }
 
+    /* ---------- WealthContextBar Integration ---------- */
+    let currentWealthContext = {
+      household: 'all',
+      account: 'all',
+      module: 'all',
+      currency: 'USD'
+    };
+
+    function initWealthContextIntegration() {
+      console.log('🏛️ Initializing WealthContextBar integration in rebalance...');
+
+      // Écouter les changements de contexte wealth
+      window.addEventListener('wealth:change', (event) => {
+        console.log('💰 Wealth context changed:', event.detail);
+        currentWealthContext = { ...event.detail };
+
+        // Recharger les données avec le nouveau contexte
+        reloadDataWithContext();
+
+        // Mettre à jour l'UI selon le module
+        updateUIForModule(currentWealthContext.module);
+      });
+
+      // Récupérer le contexte initial
+      if (window.wealthContextBar) {
+        currentWealthContext = window.wealthContextBar.getContext();
+        console.log('📊 Initial wealth context:', currentWealthContext);
+
+        // Appliquer le contexte initial
+        updateUIForModule(currentWealthContext.module);
+      }
+    }
+
+    function reloadDataWithContext() {
+      console.log('🔄 Reloading data with context:', currentWealthContext);
+
+      // Recharger les données filtrées
+      if (currentWealthContext.module === 'crypto' || currentWealthContext.module === 'all') {
+        loadStrategies();
+        // Optionnel: recharger exchange data si nécessaire
+        loadExchangeData().catch(console.warn);
+      }
+
+      // TODO: Charger données pour autres modules (bourse, banque, divers)
+    }
+
+    function updateUIForModule(module) {
+      console.log('🎨 Updating UI for module:', module);
+
+      // Badge module si différent de 'all' ou 'crypto'
+      updateModuleBadge(module);
+
+      // Masquer/afficher sections selon le module
+      const onchainSections = document.querySelectorAll('[data-crypto-only]');
+      const isNonCrypto = module !== 'all' && module !== 'crypto';
+
+      onchainSections.forEach(section => {
+        if (isNonCrypto) {
+          section.style.display = 'none';
+        } else {
+          section.style.display = '';
+        }
+      });
+
+      // Masquer onglet ML si module non-crypto
+      const mlTabs = document.querySelectorAll('[data-tab="ml"], .ml-section');
+      mlTabs.forEach(tab => {
+        if (isNonCrypto) {
+          tab.style.display = 'none';
+        } else {
+          tab.style.display = '';
+        }
+      });
+    }
+
+    function updateModuleBadge(module) {
+      let badgeContainer = document.getElementById('module-badge-container');
+
+      if (!badgeContainer) {
+        // Créer le container de badge si il n'existe pas
+        badgeContainer = document.createElement('div');
+        badgeContainer.id = 'module-badge-container';
+        badgeContainer.style.cssText = 'margin-bottom: 1rem; text-align: center;';
+
+        // Insérer au début du contenu principal
+        const mainContent = document.querySelector('.wrap') || document.body;
+        if (mainContent.firstChild) {
+          mainContent.insertBefore(badgeContainer, mainContent.firstChild);
+        } else {
+          mainContent.appendChild(badgeContainer);
+        }
+      }
+
+      if (module !== 'all' && module !== 'crypto') {
+        const moduleNames = {
+          'bourse': 'Bourse (Saxo)',
+          'banque': 'Banque & Épargne',
+          'divers': 'Actifs Divers'
+        };
+
+        badgeContainer.innerHTML = `
+          <div style="background: var(--info-bg); color: var(--info); padding: 0.5rem 1rem; border-radius: var(--radius-md); display: inline-block; font-weight: 600;">
+            📊 Module: ${moduleNames[module] || module}
+            ${module !== 'crypto' ? ' • Lecture seule' : ''}
+          </div>
+        `;
+      } else {
+        badgeContainer.innerHTML = '';
+      }
+    }
+
     /* ---------- Init ---------- */
     window.addEventListener("DOMContentLoaded", () => {
       // Initialiser le header partagé
@@ -2508,6 +2706,9 @@
       }, 500);
 
       // CCS data will be loaded from configured real source when needed
+
+      // Initialize WealthContextBar integration
+      initWealthContextIntegration();
 
       // Charger les stratégies
       loadStrategies();
