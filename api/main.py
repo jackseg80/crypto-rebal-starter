@@ -730,17 +730,16 @@ async def resolve_current_balances(source: str = Query("cointracking_api")) -> D
             ]
             return {"source_used": source, "items": demo_data}
     
-    if source in ("cointracking_api", "cointracking"):
+    if source == "cointracking_api":
         try:
             # 1) On charge le snapshot par exchange via CT-API
             snap = await _load_ctapi_exchanges(min_usd=0.0)
             detailed = snap.get("detailed_holdings") or {}
 
-            # 2) On récupère la vue "par coin" (totaux) via CT-API aussi (ou via pricing local si tu préfères)
+            # 2) Vue "par coin" via CT-API
             if ct_file is not None:
-                api_bal = await ct_file.get_current_balances("cointracking_api")  # items par coin (value_usd, amount)
+                api_bal = await ct_file.get_current_balances("cointracking_api")
             else:
-                # Fallback direct si module CSV non dispo
                 from connectors.cointracking_api import get_current_balances as _ctapi_bal
                 api_bal = await _ctapi_bal()
             items = api_bal.get("items") or []
@@ -750,19 +749,48 @@ async def resolve_current_balances(source: str = Query("cointracking_api")) -> D
             for it in items:
                 sym = it.get("symbol")
                 loc = _pick_primary_location_for_symbol(sym, detailed)
-                o = {
+                out.append({
                     "symbol": sym,
                     "alias": it.get("alias") or sym,
                     "amount": it.get("amount"),
                     "value_usd": it.get("value_usd"),
                     "location": loc or "CoinTracking",
-                }
-                out.append(o)
+                })
 
+            if not out:
+                return {"source_used": "cointracking_api", "items": [], "error": "no_items_from_api"}
             return {"source_used": "cointracking_api", "items": out}
+        except Exception as e:
+            return {"source_used": "cointracking_api", "items": [], "error": str(e)}
+
+    if source == "cointracking":
+        # CSV/local uniquement, ne JAMAIS appeler l'API ici
+        items = []
+        try:
+            if ct_file is not None:
+                raw = await ct_file.get_current_balances("cointracking")
+                for r in raw.get("items", []):
+                    items.append({
+                        "symbol": r.get("symbol"),
+                        "alias": r.get("alias") or r.get("symbol"),
+                        "amount": r.get("amount"),
+                        "value_usd": r.get("value_usd"),
+                        "location": r.get("location") or "CoinTracking",
+                    })
+            else:
+                from connectors.cointracking import get_current_balances_from_csv as _csv_bal
+                raw = _csv_bal()  # sync
+                for r in raw.get("items", []):
+                    items.append({
+                        "symbol": r.get("symbol"),
+                        "alias": r.get("alias") or r.get("symbol"),
+                        "amount": r.get("amount"),
+                        "value_usd": r.get("value_usd"),
+                        "location": r.get("location") or "CoinTracking",
+                    })
         except Exception:
-            # Fallback silencieux CSV/local
             pass
+        return {"source_used": "cointracking", "items": items}
 
     # --- Fallback CSV/local (ancienne logique) ---
     items = []
@@ -1395,8 +1423,17 @@ async def debug_ctapi():
     """Endpoint de debug pour CoinTracking API"""
     if not DEBUG:
         raise HTTPException(status_code=404, detail="Debug endpoint not available")
-    
-    return _debug_probe()
+    # Utilise la façade ct_api importée dynamiquement plus haut
+    if ct_api is None:
+        raise HTTPException(status_code=503, detail="cointracking_api module not available")
+    try:
+        return ct_api._debug_probe()
+    except Exception as e:
+        # Encapsuler proprement les erreurs pour le frontend de test
+        return {"ok": False, "error": str(e), "env": {
+            "has_key": bool(os.getenv("COINTRACKING_API_KEY") or os.getenv("CT_API_KEY") or os.getenv("API_COINTRACKING_API_KEY")),
+            "has_secret": bool(os.getenv("COINTRACKING_API_SECRET") or os.getenv("CT_API_SECRET") or os.getenv("API_COINTRACKING_API_SECRET")),
+        }}
 
 @app.get("/debug/api-keys")
 async def debug_api_keys(debug_token: str = None):
@@ -1524,11 +1561,12 @@ async def update_api_keys(payload: APIKeysRequest, debug_token: str = None):
     
     if updated:
         env_file.write_text(content)
-        # Recharger les variables d'environnement
+        # Recharger les variables d'environnement dans le process courant
         import os
         for field_key, env_key in key_mappings.items():
-            if field_key in payload and payload[field_key]:
-                os.environ[env_key] = payload[field_key]
+            val = payload_dict.get(field_key)
+            if val:
+                os.environ[env_key] = val
     
     return {"success": True, "updated": updated}
 

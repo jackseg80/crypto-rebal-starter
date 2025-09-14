@@ -18,10 +18,28 @@ logger.debug("CT-API parser version: %s", "2025-08-22-1")
 load_dotenv()
 
 # --- Config (.env) -----------------------------------------------------------
-# On supporte les 2 variantes de noms d'env pour être tolérant :
-API_BASE = os.getenv("CT_API_BASE") or os.getenv("COINTRACKING_API_BASE") or "https://cointracking.info/api/v1/"
-API_KEY = (os.getenv("CT_API_KEY") or os.getenv("COINTRACKING_API_KEY") or "").strip()
-API_SECRET = (os.getenv("CT_API_SECRET") or os.getenv("COINTRACKING_API_SECRET") or "").strip()
+# Supporter plusieurs variantes de noms d'ENV pour être tolérant aux configs:
+# - CT_API_* (historique)
+# - COINTRACKING_API_* (clair)
+# - API_COINTRACKING_API_* (pydantic settings API_ prefix)
+API_BASE = (
+    os.getenv("CT_API_BASE")
+    or os.getenv("COINTRACKING_API_BASE")
+    or os.getenv("API_COINTRACKING_API_BASE")
+    or "https://cointracking.info/api/v1/"
+)
+API_KEY = (
+    os.getenv("CT_API_KEY")
+    or os.getenv("COINTRACKING_API_KEY")
+    or os.getenv("API_COINTRACKING_API_KEY")
+    or ""
+).strip()
+API_SECRET = (
+    os.getenv("CT_API_SECRET")
+    or os.getenv("COINTRACKING_API_SECRET")
+    or os.getenv("API_COINTRACKING_API_SECRET")
+    or ""
+).strip()
 
 # Optionnel : exclure certains exchanges (ex: "FTX,Cryptopia") pour l'affichage
 # EXCLUDE_EXCHANGES = set(s.strip() for s in (os.getenv("CT_EXCLUDE_EXCHANGES") or "").split(",") if s.strip()
@@ -213,7 +231,10 @@ def _post_api(method: str, params: Optional[Dict[str, Any]] = None) -> Dict[str,
       - body form-urlencoded: method, nonce, ...extra params
       - headers: Key, Sign (HMAC-SHA512 du body avec SECRET)
     """
-    if not API_KEY or not API_SECRET:
+    # Rafraîchir dynamiquement les clés si le module a été importé avant l'écriture dans .env
+    key = API_KEY or os.getenv("CT_API_KEY") or os.getenv("COINTRACKING_API_KEY") or os.getenv("API_COINTRACKING_API_KEY") or ""
+    sec = API_SECRET or os.getenv("CT_API_SECRET") or os.getenv("COINTRACKING_API_SECRET") or os.getenv("API_COINTRACKING_API_SECRET") or ""
+    if not key or not sec:
         raise RuntimeError("CT_API_KEY / CT_API_SECRET manquants (ou vides)")
 
     url = API_BASE.rstrip("/") + "/"
@@ -222,13 +243,13 @@ def _post_api(method: str, params: Optional[Dict[str, Any]] = None) -> Dict[str,
         form.update(params)
 
     body = urlencode(form).encode("utf-8")
-    sign = hmac.new(API_SECRET.encode("utf-8"), body, hashlib.sha512).hexdigest()
+    sign = hmac.new(sec.encode("utf-8"), body, hashlib.sha512).hexdigest()
 
     req = Request(
         url,
         data=body,
         headers={
-            "Key": API_KEY,
+            "Key": key,
             "Sign": sign,
             "Content-Type": "application/x-www-form-urlencoded",
             "User-Agent": "crypto-rebal-starter/1.0",
