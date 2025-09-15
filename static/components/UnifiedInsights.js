@@ -416,50 +416,94 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
         .sort((a, b) => (b.tgt - a.tgt) || (b.cur - a.cur))
         .slice(0, 12);
 
-      allocationBlock = card(`
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.5rem;">
-          <div style="font-weight:700;">🎯 Allocation Suggérée</div>
-          <div style="display: flex; gap: 0.5rem; align-items: center;">
-            ${activePolicy ? `<div style="font-size:.7rem; color: var(--success); background: var(--theme-bg); border:1px solid var(--success); padding:.1rem .4rem; border-radius: 999px;">🏛️ Governance</div>` : ''}
+      // NOUVEAU - Séparation Budget vs Exécution
+      const riskBudget = u.risk_budget || {};
+      const execution = u.execution || {};
+      const stablesTheorique = riskBudget.target_stables_pct || null;
+      const estimatedIters = execution.estimated_iters_to_target || 'N/A';
+
+      allocationBlock = `
+        ${card(`
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.75rem;">
+            <div style="font-weight:700;">💡 Objectifs Théoriques</div>
             <div style="font-size:.75rem; color:var(--theme-text-muted); background: var(--theme-bg); border:1px solid var(--theme-border); padding:.2rem .6rem; border-radius: 999px;">
-              Mode: <b>${mode.name}</b> (cap ±${mode.cap}%)
+              Budget Risque: ${riskBudget.methodology || 'regime_based'}
             </div>
           </div>
-        </div>
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:.45rem; font-size:.8rem;">
-          ${visible.map(({k, cur, tgt, delta, suggested}) => {
-            const moveColor = suggested >= 0 ? 'var(--success)' : 'var(--danger)';
-            const sign = (v) => v > 0 ? '+' : '';
-            const curW = Math.max(0, Math.min(100, cur));
-            const tgtW = Math.max(0, Math.min(100, tgt));
-            const grand = Number(current?.grand || 0);
-            const curUsd = (cur / 100) * grand;
-            const tgtUsd = (tgt / 100) * grand;
-            const curUsdStr = `$${Math.round(curUsd).toLocaleString('en-US')}`;
-            const tgtUsdStr = `$${Math.round(tgtUsd).toLocaleString('en-US')}`;
-            const tip = `Actuel: ${curUsdStr} • Cible: ${tgtUsdStr}`;
-            return `
-              <div data-tooltip="${tip}" style="padding:.5rem .6rem; background: var(--theme-bg); border-radius: var(--radius-sm); border: 1px solid var(--theme-border);">
-                <div style="font-weight: 700; margin-bottom:.25rem;">${k}</div>
-                <div style="display:flex; justify-content:space-between; color: var(--theme-text-muted);">
-                  <span>Actuel</span><span>${cur.toFixed(1)}%</span>
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:.5rem; font-size:.85rem;">
+            ${visible.map(({k, cur, tgt}) => {
+              const grand = Number(current?.grand || 0);
+              const tgtUsd = (tgt / 100) * grand;
+              const tgtUsdStr = `$${Math.round(tgtUsd).toLocaleString('en-US')}`;
+              const tgtW = Math.max(0, Math.min(100, tgt));
+              return `
+                <div style="padding:.5rem .7rem; background: var(--theme-surface); border-radius: var(--radius-sm); border: 1px solid var(--theme-border);">
+                  <div style="font-weight: 600; margin-bottom:.3rem; color: var(--theme-text);">${k}</div>
+                  <div style="display:flex; justify-content:space-between; margin-bottom:.2rem;">
+                    <span style="color: var(--theme-text-muted);">Objectif</span>
+                    <span style="font-weight: 600;">${tgt.toFixed(1)}%</span>
+                  </div>
+                  <div style="height:6px; background: var(--theme-border); border-radius:3px; overflow:hidden;">
+                    <div style="width:${tgtW}%; height:100%; background: var(--brand-primary);"></div>
+                  </div>
+                  <div style="font-size:.75rem; color:var(--theme-text-muted); margin-top:.3rem;">${tgtUsdStr}</div>
                 </div>
-                <div style="height:4px; background: var(--theme-border); border-radius:3px; overflow:hidden;">
-                  <div style="width:${curW}%; height:100%; background: color-mix(in oklab, var(--theme-text) 25%, transparent);"></div>
-                </div>
-                <div style="display:flex; justify-content:space-between; color: var(--theme-text-muted); margin-top:.25rem;">
-                  <span>Cible</span><span>${tgt.toFixed(1)}%</span>
-                </div>
-                <div style="height:4px; background: var(--theme-border); border-radius:3px; overflow:hidden;">
-                  <div style="width:${tgtW}%; height:100%; background: var(--brand-primary);"></div>
-                </div>
-                <div style="margin-top:.35rem; font-size:.75rem; color:${moveColor}; font-weight:600; text-align:right;">Δ ${sign(delta)}${delta}% • ${sign(suggested)}${suggested}%</div>
+              `;
+            }).join('')}
+          </div>
+          ${stablesTheorique ? `<div style="margin-top:.6rem; font-size:.75rem; color:var(--theme-text-muted); padding:.4rem; background: var(--theme-bg); border-radius: 6px; border: 1px solid var(--theme-border);">
+            💰 Budget stables théorique: <b>${stablesTheorique}%</b> (calculé par algorithme de risque)
+          </div>` : ''}
+        `, { title: 'Budget & Objectifs' })}
+
+        ${card(`
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.75rem;">
+            <div style="font-weight:700;">🎯 Plan d'Exécution (Itération ${execution.current_iteration || 1})</div>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+              ${activePolicy ? `<div style="font-size:.7rem; color: var(--success); background: var(--theme-bg); border:1px solid var(--success); padding:.1rem .4rem; border-radius: 999px;">🏛️ Governance</div>` : ''}
+              <div style="font-size:.75rem; color:var(--theme-text-muted); background: var(--theme-bg); border:1px solid var(--theme-border); padding:.2rem .6rem; border-radius: 999px;">
+                Cap ±${mode.cap}%
               </div>
-            `;
-          }).join('')}
-        </div>
-        <div style="margin-top:.45rem; font-size:.75rem; color:var(--theme-text-muted);">Tri: Cible décroissant • Cap ±${mode.cap}%</div>
-      `, { title: 'Régime-Based Allocation' });
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:.45rem; font-size:.8rem;">
+            ${visible.map(({k, cur, tgt, delta, suggested}) => {
+              const moveColor = suggested >= 0 ? 'var(--success)' : 'var(--danger)';
+              const sign = (v) => v > 0 ? '+' : '';
+              const curW = Math.max(0, Math.min(100, cur));
+              const suggestedTgt = cur + suggested; // Cible de cette itération
+              const suggestedW = Math.max(0, Math.min(100, suggestedTgt));
+              const grand = Number(current?.grand || 0);
+              const curUsd = (cur / 100) * grand;
+              const suggestedUsd = (suggestedTgt / 100) * grand;
+              const curUsdStr = `$${Math.round(curUsd).toLocaleString('en-US')}`;
+              const suggestedUsdStr = `$${Math.round(suggestedUsd).toLocaleString('en-US')}`;
+              const tip = `Actuel: ${curUsdStr} → Cette itération: ${suggestedUsdStr}`;
+              return `
+                <div data-tooltip="${tip}" style="padding:.5rem .6rem; background: var(--theme-bg); border-radius: var(--radius-sm); border: 1px solid var(--theme-border);">
+                  <div style="font-weight: 700; margin-bottom:.25rem;">${k}</div>
+                  <div style="display:flex; justify-content:space-between; color: var(--theme-text-muted);">
+                    <span>Actuel</span><span>${cur.toFixed(1)}%</span>
+                  </div>
+                  <div style="height:4px; background: var(--theme-border); border-radius:3px; overflow:hidden;">
+                    <div style="width:${curW}%; height:100%; background: color-mix(in oklab, var(--theme-text) 25%, transparent);"></div>
+                  </div>
+                  <div style="display:flex; justify-content:space-between; color: var(--theme-text-muted); margin-top:.25rem;">
+                    <span>Itération 1</span><span>${suggestedTgt.toFixed(1)}%</span>
+                  </div>
+                  <div style="height:4px; background: var(--theme-border); border-radius:3px; overflow:hidden;">
+                    <div style="width:${suggestedW}%; height:100%; background: var(--warning);"></div>
+                  </div>
+                  <div style="margin-top:.35rem; font-size:.75rem; color:${moveColor}; font-weight:600; text-align:right;">Δ ${sign(suggested)}${suggested}%</div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+          <div style="margin-top:.6rem; font-size:.75rem; color:var(--theme-text-muted); padding:.4rem; background: var(--theme-bg); border-radius: 6px; border: 1px solid var(--theme-border);">
+            ⏱️ Convergence estimée: <b>${estimatedIters} rebalances</b> pour atteindre les objectifs théoriques
+          </div>
+        `, { title: 'Exécution Cap ±' + mode.cap + '%' })}
+      `;
     }
   } catch (e) {
     console.warn('Unified allocation render skipped:', e.message || e);

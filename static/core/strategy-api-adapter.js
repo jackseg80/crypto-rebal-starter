@@ -3,6 +3,7 @@
 // Garde la compatibilité ascendante tout en utilisant le backend unifié
 
 import { store } from './risk-dashboard-store.js';
+import { calculateHierarchicalAllocation } from './allocation-engine.js';
 
 // Configuration de migration avec feature flags
 const MIGRATION_CONFIG = {
@@ -11,7 +12,14 @@ const MIGRATION_CONFIG = {
   fallback_on_error: true,  // Fallback vers logique frontend si API échoue
   cache_ttl_ms: 60000,  // Cache 1 minute
   api_timeout_ms: 3000,  // Timeout API 3s
-  debug_mode: false  // Logs de debug
+  debug_mode: true,  // Logs de debug ACTIVÉS pour voir V2 en action
+
+  // NOUVEAU - Configuration Allocation Engine V2
+  allocation: {
+    topdown_v2: true,  // Feature flag pour allocation hiérarchique
+    respect_incumbency: true,  // Protection positions détenues
+    enable_floors: true  // Floors contextuels activés
+  }
 };
 
 // Cache simple pour éviter appels répétés
@@ -201,21 +209,56 @@ export async function calculateIntelligentDecisionIndexAPI(context) {
       return _strategyCache.data;
     }
     
-    // Appeler l'API Strategy
-    const strategyResult = await getStrategyFromAPI(templateId);
-    
-    // Convertir au format legacy
-    const legacyResult = convertStrategyResultToLegacyFormat(strategyResult, context);
+    // NOUVEAU - Utiliser Allocation Engine V2 si activé
+    let finalResult;
+
+    if (MIGRATION_CONFIG.allocation.topdown_v2) {
+      debugLog('🏗️ Using Allocation Engine V2 for hierarchical allocation');
+
+      // Récupérer positions actuelles depuis le store ou context
+      const currentPositions = await getCurrentPositions();
+
+      // Calculer allocation hiérarchique
+      const v2Allocation = await calculateHierarchicalAllocation(
+        {
+          cycleScore: context.cycleData?.score ?? 50,
+          onchainScore: context.onchainScore ?? 50,
+          riskScore: context.riskScore ?? 50,
+          adaptiveWeights: context.adaptiveWeights,
+          risk_budget: extractRiskBudgetFromContext(context),
+          contradiction: context.contradiction ?? 0,
+          execution: { cap_pct_per_iter: 7 }
+        },
+        currentPositions,
+        { enableV2: true }
+      );
+
+      if (v2Allocation) {
+        // Succès V2 - convertir au format legacy
+        finalResult = convertV2AllocationToLegacyFormat(v2Allocation, context);
+        debugLog('✅ V2 allocation successful, converted to legacy format');
+      } else {
+        // Fallback API Strategy classique
+        debugLog('⚠️ V2 allocation failed, fallback to API Strategy');
+        const strategyResult = await getStrategyFromAPI(templateId);
+        finalResult = convertStrategyResultToLegacyFormat(strategyResult, context);
+      }
+    } else {
+      // V1 classique - API Strategy
+      debugLog('Using classic API Strategy (V1)');
+      const strategyResult = await getStrategyFromAPI(templateId);
+      finalResult = convertStrategyResultToLegacyFormat(strategyResult, context);
+    }
     
     // Mettre en cache
     _strategyCache = {
       timestamp: now,
-      data: legacyResult,
+      data: finalResult,
       template: templateId
     };
-    
-    debugLog('Strategy API successful, returning converted result');
-    return legacyResult;
+
+    debugLog('Strategy processing successful, returning result');
+    return finalResult;
     
   } catch (error) {
     console.warn('Strategy API failed, using fallback:', error.message);
@@ -320,6 +363,91 @@ export const StrategyConfig = {
     debugLog('Cache cleared');
   }
 };
+
+/**
+ * NOUVELLES FONCTIONS UTILITAIRES POUR V2
+ */
+
+/**
+ * Récupère les positions actuelles du portefeuille
+ */
+async function getCurrentPositions() {
+  try {
+    // Essayer d'obtenir depuis le globalConfig ou API
+    if (window.globalConfig) {
+      const apiResponse = await window.globalConfig.apiRequest('/balances/current');
+      return apiResponse?.items || [];
+    }
+
+    // Fallback: positions mockées pour développement
+    console.debug('⚠️ Using mock positions for V2 allocation engine');
+    return [
+      { symbol: 'BTC', value_usd: 1000 },
+      { symbol: 'ETH', value_usd: 800 },
+      { symbol: 'SOL', value_usd: 300 },
+      { symbol: 'USDC', value_usd: 1500 },
+      { symbol: 'LINK', value_usd: 200 }
+    ];
+  } catch (error) {
+    console.warn('Failed to get current positions:', error.message);
+    return [];
+  }
+}
+
+/**
+ * Extrait le budget de risque depuis le contexte
+ */
+function extractRiskBudgetFromContext(context) {
+  return {
+    target_stables_pct: context.regimeData?.risk_budget?.stables_target_pct ?? 40,
+    methodology: 'regime_based'
+  };
+}
+
+/**
+ * Convertit l'allocation V2 au format legacy
+ */
+function convertV2AllocationToLegacyFormat(v2Allocation, context) {
+  const allocation = v2Allocation.allocation;
+
+  // Conversion allocation vers targets format
+  const targets = Object.entries(allocation).map(([asset, weight]) => ({
+    symbol: asset,
+    weight: weight,
+    weight_pct: Math.round(weight * 100),
+    rationale: `V2 engine allocation (${v2Allocation.metadata.phase} phase)`
+  }));
+
+  // Calculer decision score basé sur la cohérence
+  const decisionScore = v2Allocation.metadata.total_check.isValid ? 65 : 45;
+
+  return {
+    score: decisionScore,
+    color: getColorForScore(decisionScore),
+    confidence: 0.8, // Bonne confiance avec V2
+    reasoning: `V2 hierarchical allocation • ${v2Allocation.metadata.phase} phase • Floors applied`,
+
+    // Données V2 spécifiques
+    policy_hint: v2Allocation.execution.convergence_strategy === 'gradual' ? 'Slow' : 'Normal',
+    strategy_used: 'topdown_v2',
+    generated_at: new Date().toISOString(),
+
+    // Allocation targets
+    targets,
+
+    // Metadata
+    source: 'allocation_engine_v2',
+    api_version: 'v2',
+    template_used: 'hierarchical',
+    governance_cap: v2Allocation.execution.cap_per_iter || 7,
+
+    // Données d'exécution exposées
+    execution_plan: {
+      estimated_iters: v2Allocation.execution.estimated_iters_to_target,
+      convergence_time: v2Allocation.execution.convergence_time_estimate
+    }
+  };
+}
 
 // Export pour compatibilité ascendante
 export { calculateIntelligentDecisionIndexAPI as calculateIntelligentDecisionIndex };

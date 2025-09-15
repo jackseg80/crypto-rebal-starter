@@ -21,6 +21,61 @@ const colorForScore = (s) => s > 70 ? 'var(--danger)' : s >= 40 ? 'var(--warning
 const ENABLE_COMPARISON_LOGGING = false;
 
 /**
+ * Calcule les pondérations adaptatives selon le contexte de marché
+ * Cycle ≥ 90 → augmente wCycle, plafonne pénalité On-Chain
+ */
+function calculateAdaptiveWeights(cycleData, onchainScore, contradictions) {
+  const cycleScore = cycleData?.score ?? 50;
+  const contradictionLevel = contradictions?.length ?? 0;
+
+  // Pondérations de base
+  let wCycle = 0.5;
+  let wOnchain = 0.3;
+  let wRisk = 0.2;
+
+  // RÈGLE 1: Cycle ≥ 90 → boost wCycle, préserve exposition Alts
+  if (cycleScore >= 90) {
+    wCycle = 0.65; // Boost cycle fort
+    wOnchain = 0.25; // Réduit impact on-chain faible
+    wRisk = 0.1; // Moins de poids au risque en phase bullish
+    console.debug('🚀 Adaptive weights: Cycle ≥ 90 → boost cycle influence');
+  } else if (cycleScore >= 70) {
+    wCycle = 0.55;
+    wOnchain = 0.28;
+    wRisk = 0.17;
+  }
+
+  // RÈGLE 2: Plafond de pénalité On-Chain pour préserver floors Alts
+  const onchainPenaltyFloor = cycleScore >= 90 ? 0.3 : 0.0; // Pas moins de 30% si cycle fort
+  const adjustedOnchainScore = Math.max(onchainPenaltyFloor * 100, onchainScore ?? 50);
+
+  // RÈGLE 3: Contradiction → affecte vitesse (cap), pas objectif
+  let speedMultiplier = 1.0;
+  if (contradictionLevel >= 3) {
+    speedMultiplier = 0.6; // Ralentit exécution
+  } else if (contradictionLevel >= 2) {
+    speedMultiplier = 0.8;
+  }
+
+  const result = {
+    wCycle,
+    wOnchain,
+    wRisk,
+    onchainFloor: onchainPenaltyFloor,
+    adjustedOnchainScore,
+    speedMultiplier,
+    reasoning: {
+      cycleBoost: cycleScore >= 90,
+      onchainFloorApplied: adjustedOnchainScore > (onchainScore ?? 50),
+      contradictionSlowdown: speedMultiplier < 1.0
+    }
+  };
+
+  console.debug('⚖️ Adaptive weights calculated:', result);
+  return result;
+}
+
+/**
  * Version améliorée de getUnifiedState qui utilise l'API Strategy
  * Garde la même interface pour la compatibilité ascendante
  */
@@ -120,16 +175,20 @@ export async function getUnifiedState() {
   // 4. NOUVELLE LOGIQUE - DECISION INDEX VIA STRATEGY API
   let decision;
   try {
+    // BLENDING ADAPTATIF - Pondérations contextuelles
+    const adaptiveWeights = calculateAdaptiveWeights(cycleData, onchainScore, contradictions);
+
     // Préparer le contexte pour l'API Strategy
     const context = {
       blendedScore,
       cycleData,
-      regimeData,  
+      regimeData,
       signalsData,
       onchainScore,
       onchainConfidence: ocMeta?.confidence ?? 0,
       riskScore,
-      contradiction: ocMeta?.contradictory_signals?.length > 0 ? 0.3 : 0.1
+      contradiction: contradictions?.length > 0 ? Math.min(contradictions.length * 0.15, 0.48) : 0.1,
+      adaptiveWeights // Nouveau - utilisé par strategy-api-adapter
     };
     
     // Utiliser l'adaptateur Strategy API
@@ -237,6 +296,21 @@ export async function getUnifiedState() {
       var95_1d: risk?.var_95_1d ?? risk?.var95_1d ?? null,
       budget: regimeData.risk_budget
     },
+
+    // NOUVEAUX EXPOSÉS - Budget vs Exécution
+    risk_budget: {
+      target_stables_pct: regimeData.risk_budget?.stables_target_pct ?? null,
+      risky_target_pct: regimeData.risk_budget?.risky_target_pct ?? null,
+      methodology: regimeData.risk_budget?.methodology || 'regime_based',
+      confidence: regimeData.risk_budget?.confidence ?? null
+    },
+
+    execution: {
+      cap_pct_per_iter: decision.governance_cap ?? 7, // From governance/strategy
+      estimated_iters_to_target: null, // Will be calculated by allocation engine
+      current_iteration: 1,
+      convergence_strategy: decision.policy_hint?.toLowerCase() === 'slow' ? 'gradual' : 'standard'
+    },
     regime: {
       name: regimeData.regime?.name,
       emoji: regimeData.regime?.emoji,
@@ -271,7 +345,13 @@ export async function getUnifiedState() {
       signalsData,
       sentimentData,
       version: 'v2',  // NOUVEAU
-      migration_status: decision.source === 'strategy_api' ? 'migrated' : 'legacy'  // NOUVEAU
+      migration_status: decision.source === 'strategy_api' ? 'migrated' : 'legacy',  // NOUVEAU
+      // Legacy allocation support - convert strategy targets to old format
+      allocation: decision.targets?.length > 0 ?
+        decision.targets.reduce((acc, target) => {
+          acc[target.symbol] = target.weight * 100; // Convert to percentage
+          return acc;
+        }, {}) : null
     }
   };
   
