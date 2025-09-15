@@ -7,7 +7,9 @@ Plateforme de gestion de patrimoine cross‑asset (Crypto, Bourse, Banque, Diver
 - Decision Engine avec gouvernance (approbations AI/manuelles)
 - ML avancé (LSTM, Transformers), signaux temps réel
 - Analytics: Sharpe/Calmar, drawdown, VaR/CVaR
-- Risk management: corrélations, stress testing, alertes
+- Risk management v2: corrélations, stress testing, alertes, GRI (Group Risk Index)
+- Strategy API v2: allocation suggérée avec templates (balanced, conservative, aggressive)
+- Classification unifiée des assets via taxonomy_aliases.json (source unique de vérité)
 - 35+ dashboards, navigation unifiée, deep links
 - Multi‑sources: CoinTracking CSV/API, données temps réel
 - Système multi-utilisateurs avec isolation complète des données
@@ -98,3 +100,4 @@ Changelog: `CHANGELOG.md`
 ## Notes
 - Les documents détaillés et historiques sont archivés sous `docs/_legacy/`.
 - Les endpoints ML/Risk/Alerts ont été consolidés; voir `docs/refactoring.md` pour la migration.
+- Classification des assets: `data/taxonomy_aliases.json` est la source unique de vérité pour tous les groupes d'assets. Les dashboards utilisent automatiquement cette classification via l'API `/taxonomy` et le module `static/shared-asset-groups.js`.

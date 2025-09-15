@@ -2,6 +2,7 @@
 // Displays sophisticated analysis from all modules - MIGRATED TO V2
 import { getUnifiedState, deriveRecommendations } from '../core/unified-insights-v2.js';
 import { store } from '../core/risk-dashboard-store.js';
+import { KNOWN_ASSET_MAPPING, getAssetGroup, GROUP_ORDER, getAllGroups, getAliasMapping } from '../shared-asset-groups.js';
 
 // Lightweight fetch helper with timeout
 async function fetchJson(url, opts = {}) {
@@ -47,36 +48,27 @@ async function getCurrentAllocationByGroup(minUsd = 1.0) {
       window.globalConfig.apiRequest('/taxonomy').catch(() => null),
       window.globalConfig.apiRequest('/balances/current', { params: { min_usd: cfgMin } })
     ]);
-    // Mapping d'alias: préférer taxonomy, sinon fallback identique au dashboard
-    const fallbackAliases = {
-      'BTC': 'BTC', 'TBTC': 'BTC', 'WBTC': 'BTC',
-      'ETH': 'ETH', 'WETH': 'ETH', 'STETH': 'ETH', 'WSTETH': 'ETH', 'RETH': 'ETH', 'CBETH': 'ETH',
-      'USDC': 'Stablecoins', 'USDT': 'Stablecoins', 'USD': 'Stablecoins', 'DAI': 'Stablecoins', 'TUSD': 'Stablecoins', 'FDUSD': 'Stablecoins', 'BUSD': 'Stablecoins',
-      'SOL': 'L1/L0 majors', 'SOL2': 'L1/L0 majors', 'ATOM': 'L1/L0 majors', 'ATOM2': 'L1/L0 majors', 'DOT': 'L1/L0 majors', 'DOT2': 'L1/L0 majors', 'ADA': 'L1/L0 majors',
-      'AVAX': 'L1/L0 majors', 'NEAR': 'L1/L0 majors', 'LINK': 'L1/L0 majors', 'XRP': 'L1/L0 majors', 'BCH': 'L1/L0 majors', 'XLM': 'L1/L0 majors', 'LTC': 'L1/L0 majors', 'SUI3': 'L1/L0 majors', 'TRX': 'L1/L0 majors',
-      'BNB': 'Exchange Tokens', 'BGB': 'Exchange Tokens', 'CHSB': 'Exchange Tokens',
-      'AAVE': 'DeFi', 'JUPSOL': 'DeFi', 'JITOSOL': 'DeFi', 'FET': 'DeFi', 'UNI': 'DeFi', 'SUSHI': 'DeFi', 'COMP': 'DeFi', 'MKR': 'DeFi', '1INCH': 'DeFi', 'CRV': 'DeFi',
-      'DOGE': 'Memecoins',
-      'XMR': 'Privacy',
-      'IMO': 'Others', 'VVV3': 'Others', 'TAO6': 'Others', 'OTHERS': 'Others'
-    };
-    const aliases = (taxo && taxo.aliases) || fallbackAliases;
-    const groups = (taxo && taxo.groups) || Array.from(new Set(Object.values(fallbackAliases)));
+    // Utiliser le système unifié de classification (même logique que dashboard)
+    // Priorité: API taxonomy -> shared-asset-groups -> fallback
+    let groups = [];
+    if (taxo && taxo.groups && taxo.groups.length > 0) {
+      groups = taxo.groups;
+    } else {
+      // Utiliser la fonction async pour récupérer les groupes depuis shared-asset-groups
+      try {
+        groups = await getAllGroups();
+      } catch (error) {
+        console.warn('⚠️ Failed to get groups from shared-asset-groups, using fallback');
+        groups = ['BTC', 'ETH', 'Stablecoins', 'SOL', 'L1/L0 majors', 'L2/Scaling', 'DeFi', 'AI/Data', 'Gaming/NFT', 'Memecoins', 'Others'];
+      }
+    }
     const items = (balances && balances.items) || [];
-    const mapAlias = (sym) => aliases[(sym || '').toUpperCase()] || null;
-    const fallbackGroup = (sym) => {
-      const s = (sym || '').toUpperCase();
-      if (s === 'BTC' || s === 'WBTC' || s === 'TBTC') return 'BTC';
-      if (s === 'ETH' || s === 'WETH') return 'ETH';
-      if (s === 'SOL') return 'SOL';
-      if (['USDT','USDC','DAI','TUSD','FDUSD','BUSD'].includes(s)) return 'Stablecoins';
-      return 'Others';
-    };
     const totals = {};
     let grand = 0;
     for (const r of items) {
-      const alias = r.alias || r.symbol;
-      const g = mapAlias(alias) || fallbackGroup(alias);
+      // Utiliser uniquement le symbol pour la classification (plus simple et cohérent)
+      const symbol = r.symbol;
+      const g = getAssetGroup(symbol);
       const v = Number(r.value_usd || 0);
       if (v <= 0) continue;
       totals[g] = (totals[g] || 0) + v;
@@ -332,12 +324,31 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
   let allocationBlock = '';
   try {
     // Support both legacy (u.intelligence.allocation) and new Strategy API (u.strategy.targets)
-    const allocation = u.intelligence?.allocation ||
-                      (u.strategy?.targets ?
-                        u.strategy.targets.reduce((acc, target) => {
-                          acc[target.symbol] = target.weight * 100; // Convert to percentage
-                          return acc;
-                        }, {}) : null);
+    let allocation = null;
+
+    if (u.intelligence?.allocation) {
+      console.log('🐛 Using legacy u.intelligence.allocation:', u.intelligence.allocation);
+      // Convert any symbol keys to groups
+      allocation = {};
+      Object.entries(u.intelligence.allocation).forEach(([key, weight]) => {
+        // Check if key is already a group or a symbol
+        const group = getAssetGroup(key) !== 'Others' ? getAssetGroup(key) : key;
+        console.log(`🐛 Intelligence allocation: ${key} → ${group} (${weight}%)`);
+        allocation[group] = (allocation[group] || 0) + weight;
+      });
+    } else if (u.strategy?.targets) {
+      console.log('🐛 Using u.strategy.targets:', u.strategy.targets);
+      allocation = u.strategy.targets.reduce((acc, target) => {
+        // Convert symbol to group using unified classification system
+        const group = getAssetGroup(target.symbol);
+        const weight = target.weight * 100; // Convert to percentage
+        console.log(`🐛 Strategy target: ${target.symbol} → ${group} (${weight}%)`);
+        acc[group] = (acc[group] || 0) + weight; // Aggregate by group
+        return acc;
+      }, {});
+    } else {
+      console.log('🐛 No allocation data found');
+    }
 
     if (allocation && Object.keys(allocation).length > 0) {
       const conf = u.decision.confidence || 0;
@@ -401,8 +412,8 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
       });
 
       const visible = entries
-        .filter(e => (e.tgt > 0.1) || Math.abs(e.delta) > 0.2)
-        .sort((a, b) => (b.tgt - a.tgt))
+        .filter(e => (e.tgt > 0.1) || Math.abs(e.delta) > 0.2 || e.cur > 0.1)
+        .sort((a, b) => (b.tgt - a.tgt) || (b.cur - a.cur))
         .slice(0, 12);
 
       allocationBlock = card(`

@@ -31,6 +31,7 @@
         // INTELLIGENT GLOBAL INSIGHT - Using sophisticated unified intelligence
         import { getUnifiedState, deriveRecommendations } from './core/unified-insights-v2.js';
         import { store } from './core/risk-dashboard-store.js';
+        import { UNIFIED_ASSET_GROUPS, getAssetGroup, groupAssetsByClassification } from './shared-asset-groups.js';
         
         const colorForScore = (s) => s>70?'var(--danger)':s>=40?'var(--warning)':'var(--success)';
         
@@ -1552,36 +1553,10 @@
         // Classification dynamique - sera chargée depuis alias-manager
         let ASSET_GROUPS = null;
 
-        // Charger la classification depuis alias-manager
+        // Fonction simplifiée - plus besoin de charger séparément, utilise directement les fonctions
         async function loadAssetGroups() {
-            console.debug('🔍 Loading asset groups...');
-            await useFallbackAssetGroups();
-        }
-
-        async function useFallbackAssetGroups() {
-            const fallbackAliases = {
-                'BTC': 'BTC', 'TBTC': 'BTC',
-                'ETH': 'ETH', 'WETH': 'ETH', 'STETH': 'ETH', 'WSTETH': 'ETH', 'RETH': 'ETH', 'CBETH': 'ETH',
-                'USDC': 'Stablecoins', 'USDT': 'Stablecoins', 'USD': 'Stablecoins', 'DAI': 'Stablecoins',
-                'SOL': 'L1/L0 majors', 'SOL2': 'L1/L0 majors',
-                'ATOM': 'L1/L0 majors', 'ATOM2': 'L1/L0 majors', 'DOT': 'L1/L0 majors', 'DOT2': 'L1/L0 majors', 'ADA': 'L1/L0 majors',
-                'AVAX': 'L1/L0 majors', 'NEAR': 'L1/L0 majors', 'LINK': 'L1/L0 majors', 'XRP': 'L1/L0 majors',
-                'BCH': 'L1/L0 majors', 'XLM': 'L1/L0 majors', 'LTC': 'L1/L0 majors', 'SUI3': 'L1/L0 majors',
-                'BNB': 'Exchange Tokens', 'BGB': 'Exchange Tokens', 'CHSB': 'Exchange Tokens',
-                'AAVE': 'DeFi', 'JUPSOL': 'DeFi', 'JITOSOL': 'DeFi', 'FET': 'DeFi',
-                'DOGE': 'Memecoins', 'XMR': 'Privacy', 'TRX': 'L1/L0 majors',
-                'IMO': 'Others', 'VVV3': 'Others', 'TAO6': 'Others', 'OTHERS': 'Others'
-            };
-
-            ASSET_GROUPS = {};
-            Object.entries(fallbackAliases).forEach(([asset, group]) => {
-                if (!ASSET_GROUPS[group]) {
-                    ASSET_GROUPS[group] = [];
-                }
-                ASSET_GROUPS[group].push(asset);
-            });
-
-            console.debug('✅ Asset groups loaded:', Object.keys(ASSET_GROUPS));
+            console.debug('🔍 Asset groups ready via unified functions');
+            // Plus besoin de charger, les fonctions sont directement disponibles
         }
 
         // Parser CSV : wrapper auto qui utilise window.parseCSVBalances si dispo, sinon notre local
@@ -1653,84 +1628,95 @@
         }
 
         function groupAssetsByAliases(items) {
-            const groups = new Map();
-            const ungrouped = [];
+            // Utiliser la fonction unifiée de groupement (synchrone)
+            try {
+                console.log('🔄 Trying unified groupAssetsByClassification with', items.length, 'items');
+                const result = groupAssetsByClassification(items);
+                console.log('✅ Unified grouping succeeded, found', result.length, 'groups');
+                return result;
+            } catch (error) {
+                console.warn('⚠️ Unified grouping failed, using fallback with manual grouping:', error);
+                // Fallback qui utilise aussi le groupement par classification
+                const groups = new Map();
 
-            log.debug('Grouping', items.length, 'assets by aliases');
+                items.forEach(item => {
+                    const symbol = (item.symbol || '').toUpperCase();
+                    let group;
 
-            // Si ASSET_GROUPS n'est pas encore chargé, mettre tout dans "Others"
-            if (!ASSET_GROUPS) {
-                console.warn('⚠️ ASSET_GROUPS not loaded yet, putting all assets in Others');
-                const totalValue = items.reduce((sum, item) => sum + parseFloat(item.value_usd || 0), 0);
-                return [{
-                    label: 'Others',
-                    value: totalValue,
-                    assets: items.map(item => item.symbol)
-                }];
-            }
+                    // Essayer d'abord l'API taxonomy directement
+                    group = getGroupFromTaxonomyAPI(symbol);
 
-            items.forEach(item => {
-                const symbol = (item.symbol || '').toUpperCase();
-                let foundGroup = null;
-
-                // Chercher dans quel groupe appartient ce symbol
-                for (const [groupName, aliases] of Object.entries(ASSET_GROUPS)) {
-                    if (aliases.includes(symbol)) {
-                        foundGroup = groupName;
-                        break;
+                    if (!group) {
+                        try {
+                            group = getAssetGroup(symbol);
+                        } catch (e) {
+                            // Si même getAssetGroup échoue, utiliser classification basique
+                            group = autoClassifySymbol(symbol);
+                        }
                     }
-                }
 
-                if (foundGroup) {
-                    if (!groups.has(foundGroup)) {
-                        groups.set(foundGroup, {
-                            label: foundGroup,
+                    // Debug temporaire pour voir les classifications
+                    if (parseFloat(item.value_usd || 0) > 100) { // Seulement pour les assets significatifs
+                        console.log(`🔍 ${symbol} → ${group} ($${parseFloat(item.value_usd || 0).toFixed(2)})`);
+                    }
+
+                    if (!groups.has(group)) {
+                        groups.set(group, {
+                            label: group,
                             value: 0,
                             assets: []
                         });
                     }
-                    const group = groups.get(foundGroup);
-                    group.value += parseFloat(item.value_usd || 0);
-                    group.assets.push(symbol);
+                    const groupObj = groups.get(group);
+                    groupObj.value += parseFloat(item.value_usd || 0);
+                    groupObj.assets.push(symbol);
+                });
 
-                    // Debug log for BTC group specifically
-                    if (foundGroup === 'BTC') {
-                        log.debug('BTC GROUP: Added', symbol, 'value:', item.value_usd.toFixed(2), 'new total:', group.value.toFixed(2));
-                    }
+                return Array.from(groups.values());
+            }
+        }
 
-                    // Debug log for significant groupings
-                    if (item.value_usd > 5000) {
-                        log.debug('Grouped', symbol, 'into', foundGroup, '- value:', item.value_usd.toFixed(2));
-                    }
-                } else {
-                    ungrouped.push({
-                        label: symbol,
-                        value: parseFloat(item.value_usd || 0)
-                    });
+        // Cache local pour l'API taxonomy
+        let taxonomyAPICache = null;
 
-                    // Debug log for ungrouped assets
-                    if (item.value_usd > 1000) {
-                        log.debug('UNGROUPED asset:', symbol, '- value:', item.value_usd.toFixed(2));
+        // Fonction pour récupérer directement depuis l'API taxonomy (synchrone)
+        function getGroupFromTaxonomyAPI(symbol) {
+            if (!taxonomyAPICache) {
+                try {
+                    // Chargement synchrone de la taxonomy
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('GET', '/taxonomy', false); // false = synchrone
+                    xhr.send();
+
+                    if (xhr.status === 200) {
+                        const data = JSON.parse(xhr.responseText);
+                        taxonomyAPICache = data.aliases || {};
+                        console.log('✅ Taxonomy API loaded synchronously for dashboard fallback');
                     }
+                } catch (e) {
+                    console.warn('Failed to load taxonomy API for fallback:', e);
+                    taxonomyAPICache = {};
                 }
-            });
+            }
 
-            log.debug('Final groups:', groups.size, 'grouped +', ungrouped.length, 'ungrouped');
-            const result = [...Array.from(groups.values()), ...ungrouped];
+            return taxonomyAPICache[symbol] || null;
+        }
 
-            // Debug final result - especially BTC group
-            result.forEach(group => {
-                if (group.label === 'BTC') {
-                    log.debug('FINAL BTC GROUP: value:', group.value.toFixed(2), 'assets:', group.assets.join(', '));
-                } else if (group.value > 1000) {
-                    log.debug('Final group:', group.label, '- value:', group.value.toFixed(2));
-                    if (group.assets && group.assets.length > 1) {
-                        console.debug('  └─ Assets:', group.assets.join(', '));
-                    }
-                }
-            });
+        // Fonction de classification basique en cas d'urgence
+        function autoClassifySymbol(symbol) {
+            const upperSymbol = symbol.toUpperCase();
 
-            return result;
+            if (upperSymbol.includes('BTC') || upperSymbol.includes('WBTC')) {
+                return 'BTC';
+            } else if (upperSymbol.includes('ETH') || upperSymbol.includes('STETH') || upperSymbol.includes('RETH')) {
+                return 'ETH';
+            } else if (['USDT', 'USDC', 'DAI', 'USD', 'BUSD', 'TUSD', 'EUR'].includes(upperSymbol)) {
+                return 'Stablecoins';
+            } else if (upperSymbol.includes('SOL')) {
+                return 'SOL';
+            } else {
+                return 'Others';
+            }
         }
 
         // Créer ou mettre à jour le graphique portfolio
@@ -1743,12 +1729,7 @@
                 return;
             }
 
-            // Vérifier que ASSET_GROUPS est chargé - forcer le chargement si nécessaire
-            if (!ASSET_GROUPS) {
-                console.debug('❌ ASSET_GROUPS not loaded, loading fallback immediately...');
-                await useFallbackAssetGroups();
-                // Continue avec ASSET_GROUPS maintenant disponible
-            }
+            // Plus besoin de vérifier ASSET_GROUPS, utilise directement les fonctions
 
             let canvas = document.getElementById('portfolioChartCanvas');
             if (!canvas) {
@@ -1940,13 +1921,18 @@
             console.debug('🔄 Force refresh demandé par utilisateur');
             console.debug('📊 Current source before refresh:', globalConfig.get('data_source'));
             console.debug('📊 Known source before refresh:', window.lastKnownDataSource);
-            
+
             // Clear any potential caches
             if (window.portfolioChart) {
                 window.portfolioChart.destroy();
                 window.portfolioChart = null;
             }
-            
+
+            // Force reload taxonomy
+            if (window.forceReloadTaxonomy) {
+                window.forceReloadTaxonomy();
+            }
+
             // Force reload
             await loadDashboardData();
         }
