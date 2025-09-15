@@ -27,6 +27,8 @@
   <script type="module" src="modules/onchain-indicators.js"></script>
   <script type="module" src="modules/market-regimes.js"></script>
 
+  <!-- Risk v2 uses API instead of local modules -->
+
   <!-- Chart.js will be lazy-loaded when needed -->
 
   <style>
@@ -136,12 +138,12 @@
       display: inline-flex;
       align-items: stretch;
     }
-    
+
     .refresh-menu-btn {
       padding: 0 .6rem;
       width: auto;
     }
-    
+
     .refresh-menu {
       display: none;
       position: absolute;
@@ -150,15 +152,15 @@
       background: var(--theme-bg);
       border: 1px solid var(--theme-border);
       border-radius: var(--radius-sm);
-      box-shadow: 0 6px 14px rgba(0,0,0,.25);
+      box-shadow: 0 6px 14px rgba(0, 0, 0, .25);
       min-width: 220px;
       z-index: 1000;
     }
-    
+
     .refresh-menu.show {
       display: block;
     }
-    
+
     .refresh-menu-item {
       display: block;
       width: 100%;
@@ -169,15 +171,15 @@
       color: var(--theme-text);
       cursor: pointer;
     }
-    
+
     .refresh-menu-item:hover {
       background: var(--theme-surface-alt);
     }
-    
+
     .test-api-btn {
       background: #007bff;
     }
-    
+
     .sidebar-toggle-full {
       width: 100%;
       display: flex;
@@ -192,49 +194,49 @@
       margin-bottom: var(--space-md);
       cursor: pointer;
     }
-    
+
     .sidebar-section-top {
       margin-top: 1.5rem;
     }
-    
+
     .sidebar-title {
       font-size: 1rem;
       font-weight: 700;
     }
-    
+
     .blended-gauge-container {
       padding: 2rem;
       border: 2px solid var(--theme-border);
-      box-shadow: 0 0 12px rgba(0,0,0,0.15);
+      box-shadow: 0 0 12px rgba(0, 0, 0, 0.15);
     }
-    
+
     .ccs-score {
       font-size: 3rem;
     }
-    
+
     .ccs-label {
       font-size: 1rem;
       font-weight: 700;
     }
-    
+
     .governance-details {
       margin-top: 8px;
       font-size: 0.85em;
       opacity: 0.8;
     }
-    
+
     .alerts-list-container {
       margin-top: 8px;
       max-height: 150px;
       overflow-y: auto;
     }
-    
+
     .alerts-button-container {
       text-align: center;
       margin-top: 8px;
       font-size: 0.75rem;
     }
-    
+
     .alerts-history-btn {
       background: var(--brand-primary);
       color: white;
@@ -244,43 +246,43 @@
       cursor: pointer;
       font-size: 0.7rem;
     }
-    
+
     .status-acknowledged {
       color: var(--success);
     }
-    
+
     .status-snoozed {
       color: var(--warning);
     }
-    
+
     .status-active {
       color: var(--error);
     }
-    
+
     .alert-timestamp {
       font-size: 0.7rem;
       color: var(--text-muted);
     }
-    
+
     .cycle-text-container {
       font-size: 11px;
       font-weight: 600;
     }
-    
+
     .cycle-subtext {
       font-size: 10px;
       opacity: 0.8;
     }
-    
+
     .regime-text-bold {
       font-weight: bold;
     }
-    
+
     .regime-subtext {
       font-size: 0.8rem;
       margin-top: 2px;
     }
-    
+
     .test-mode-banner {
       background: var(--info-bg);
       border: 1px solid var(--info);
@@ -289,34 +291,34 @@
       margin-bottom: 1.5rem;
       text-align: center;
     }
-    
+
     .test-mode-title {
       color: var(--info);
       font-weight: 600;
       margin-bottom: 0.5rem;
     }
-    
+
     .test-mode-desc {
       color: var(--theme-text-muted);
       font-size: 0.9rem;
     }
-    
+
     .insights-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: .75rem;
     }
-    
+
     .insight-title {
       font-weight: 600;
       color: var(--theme-text);
     }
-    
+
     .insight-desc {
       color: var(--theme-text-muted);
       margin-top: 0.25rem;
     }
-    
+
     .metric-label {
       font-size: .8rem;
       color: var(--theme-text);
@@ -324,27 +326,27 @@
       font-weight: 500;
       margin-left: .5rem;
     }
-    
+
     .loading-center {
       text-align: center;
       padding: 2rem;
       color: var(--theme-text-muted);
     }
-    
+
     .error-title {
       font-size: 1.2rem;
       margin-bottom: 1rem;
     }
-    
+
     .error-message {
       font-size: 0.9rem;
     }
-    
+
     .error-hint {
       font-size: 0.8rem;
       margin-top: 0.5rem;
     }
-    
+
     .section-toggle-btn {
       background: none;
       border: 1px solid var(--theme-border);
@@ -354,7 +356,7 @@
       color: var(--theme-text);
       font-size: 0.8rem;
     }
-    
+
     .dynamic-weighting-label {
       display: flex;
       align-items: center;
@@ -362,10 +364,11 @@
       cursor: pointer;
       font-weight: 600;
     }
-    
+
     .dynamic-weighting-checkbox {
       transform: scale(1.1);
     }
+
     #blended-gauge[data-tone="success"] {
       background: var(--success-bg);
       border-color: var(--success);
@@ -887,13 +890,34 @@
     }
 
     /* Split refresh button: visual cohesion */
-    .refresh-group { border-radius: var(--radius-md); box-shadow: var(--shadow-sm); }
-    .refresh-group .refresh-btn { margin: 0; border-radius: 0; }
-    .refresh-group .refresh-btn:first-child { border-top-left-radius: var(--radius-md); border-bottom-left-radius: var(--radius-md); }
-    .refresh-group .refresh-btn:last-child { border-top-right-radius: var(--radius-md); border-bottom-right-radius: var(--radius-md); }
-    .refresh-group .refresh-btn + .refresh-btn { border-left: 1px solid var(--theme-border); }
+    .refresh-group {
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .refresh-group .refresh-btn {
+      margin: 0;
+      border-radius: 0;
+    }
+
+    .refresh-group .refresh-btn:first-child {
+      border-top-left-radius: var(--radius-md);
+      border-bottom-left-radius: var(--radius-md);
+    }
+
+    .refresh-group .refresh-btn:last-child {
+      border-top-right-radius: var(--radius-md);
+      border-bottom-right-radius: var(--radius-md);
+    }
+
+    .refresh-group .refresh-btn+.refresh-btn {
+      border-left: 1px solid var(--theme-border);
+    }
+
     /* Prevent lift on hover causing misalignment within group */
-    .refresh-group .refresh-btn:hover:not(:disabled) { transform: none; }
+    .refresh-group .refresh-btn:hover:not(:disabled) {
+      transform: none;
+    }
 
     /* ===== Tooltip (léger, autonome) ===== */
     .tooltip {
@@ -1027,9 +1051,17 @@
     }
 
     @keyframes pulse-critical {
-      0% { opacity: 1; }
-      50% { opacity: 0.7; }
-      100% { opacity: 1; }
+      0% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.7;
+      }
+
+      100% {
+        opacity: 1;
+      }
     }
 
     /* Alert actions */
@@ -1098,7 +1130,7 @@
       background: var(--theme-bg);
       border-radius: var(--radius-md);
       overflow: hidden;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
 
     .alerts-table th {
@@ -1178,55 +1210,55 @@
       font-size: 0.8rem;
       margin-top: 4px;
     }
-    
+
     /* ===== Format Unifié d'Alertes ===== */
     .alert-message-cell {
       max-width: 400px;
       min-width: 300px;
     }
-    
+
     .alert-unified-format {
       font-size: 0.85rem;
       line-height: 1.4;
     }
-    
+
     .alert-action {
       margin-bottom: var(--space-xs);
       color: var(--theme-text);
     }
-    
+
     .alert-action strong {
       color: var(--brand-primary);
       font-weight: 600;
     }
-    
+
     .alert-impact {
       margin-bottom: var(--space-xs);
       color: var(--theme-text-muted);
     }
-    
+
     .alert-impact-value {
       font-weight: 600;
       color: var(--success);
     }
-    
+
     .alert-reasons {
       margin-bottom: var(--space-xs);
       color: var(--theme-text-muted);
     }
-    
+
     .alert-reasons-list {
       margin: 0;
       padding-left: var(--space-md);
       list-style-type: disc;
     }
-    
+
     .alert-reasons-list li {
       margin: 2px 0;
       color: var(--theme-text);
       font-size: 0.8rem;
     }
-    
+
     .alert-details {
       font-size: 0.8rem;
       color: var(--theme-text-muted);
@@ -1502,8 +1534,13 @@
     }
 
     @keyframes modalFadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
     }
 
     .modal {
@@ -1732,114 +1769,38 @@
       .modal-overlay {
         padding: var(--space-sm);
       }
-      
+
       .modal {
         max-height: 95vh;
       }
-      
+
       .modal-header,
       .modal-body,
       .modal-actions {
         padding: var(--space-lg);
       }
-      
+
       .alert-metadata {
         grid-template-columns: 1fr;
       }
-      
+
       .signals-grid {
         grid-template-columns: 1fr;
       }
-      
+
       #toast-container {
         right: 10px;
         left: 10px;
         max-width: none;
       }
-      
+
       .toast {
         min-width: auto;
       }
     }
 
-    /* ===== Toggle Basic/Advanced Mode ===== */
-    .mode-toggle {
-      display: flex;
-      align-items: center;
-      gap: var(--space-md);
-      margin: var(--space-lg) 0;
-      padding: var(--space-md) var(--space-lg);
-      background: var(--theme-surface);
-      border: 1px solid var(--theme-border);
-      border-radius: var(--radius-md);
-      box-shadow: var(--shadow-sm);
-    }
-
-    .mode-toggle label {
-      font-weight: 600;
-      color: var(--theme-text);
-    }
-
-    .toggle-switch {
-      position: relative;
-      display: inline-block;
-      width: 60px;
-      height: 30px;
-    }
-
-    .toggle-switch input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-    }
-
-    .toggle-slider {
-      position: absolute;
-      cursor: pointer;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: var(--theme-bg);
-      border: 1px solid var(--theme-border);
-      transition: 0.3s;
-      border-radius: 30px;
-    }
-
-    .toggle-slider:before {
-      position: absolute;
-      content: "";
-      height: 22px;
-      width: 22px;
-      left: 3px;
-      bottom: 3px;
-      background: var(--theme-text-muted);
-      transition: 0.3s;
-      border-radius: 50%;
-    }
-
-    .toggle-switch input:checked + .toggle-slider {
-      background: var(--brand-primary);
-      border-color: var(--brand-primary);
-    }
-
-    .toggle-switch input:checked + .toggle-slider:before {
-      transform: translateX(30px);
-      background: white;
-    }
-
-    .mode-description {
-      font-size: 0.9em;
-      color: var(--theme-text-muted);
-      margin-left: auto;
-    }
-
-    /* Advanced sections initially hidden */
+    /* All sections always visible */
     .advanced-section {
-      display: none;
-    }
-
-    .advanced-mode .advanced-section {
       display: block;
     }
 
@@ -1858,8 +1819,15 @@
     }
 
     @keyframes fadeInUp {
-      from { opacity: 0; transform: translateY(20px); }
-      to { opacity: 1; transform: translateY(0); }
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
     .risk-grid {
@@ -1889,16 +1857,35 @@
       grid-template-columns: 2fr 1fr;
       align-items: start;
     }
-    .two-col-advanced .left-stack { display: grid; gap: var(--space-lg); }
-    .two-col-advanced .right-stack { display: block; }
-    /* Let stress scenarios grow freely in right column */
-    .two-col-advanced #stress-test-content .stress-scenarios { max-height: none; overflow: visible; }
-    @media (max-width: 1024px) {
-      .two-col-advanced { grid-template-columns: 1fr; }
-      .two-col-advanced .right-stack { margin-top: var(--space-lg); }
+
+    .two-col-advanced .left-stack {
+      display: grid;
+      gap: var(--space-lg);
     }
 
-    .var-methods, .stress-scenarios, .monte-carlo-summary {
+    .two-col-advanced .right-stack {
+      display: block;
+    }
+
+    /* Let stress scenarios grow freely in right column */
+    .two-col-advanced #stress-test-content .stress-scenarios {
+      max-height: none;
+      overflow: visible;
+    }
+
+    @media (max-width: 1024px) {
+      .two-col-advanced {
+        grid-template-columns: 1fr;
+      }
+
+      .two-col-advanced .right-stack {
+        margin-top: var(--space-lg);
+      }
+    }
+
+    .var-methods,
+    .stress-scenarios,
+    .monte-carlo-summary {
       display: flex;
       flex-direction: column;
       gap: var(--space-sm);
@@ -1906,12 +1893,14 @@
 
     /* Keep Stress Testing card compact with internal scroll */
     .stress-scenarios {
-      max-height: 340px; /* prevents pushing other tiles */
+      max-height: 340px;
+      /* prevents pushing other tiles */
       overflow: auto;
       padding-right: 4px;
     }
 
-    .var-method, .sim-stat {
+    .var-method,
+    .sim-stat {
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -1920,12 +1909,14 @@
       border-radius: var(--radius-sm);
     }
 
-    .method-label, .stat-label {
+    .method-label,
+    .stat-label {
       color: var(--theme-text-muted);
       font-size: 0.9em;
     }
 
-    .var-value, .stat-value {
+    .var-value,
+    .stat-value {
       font-weight: 600;
       color: var(--theme-text);
     }
@@ -1969,13 +1960,8 @@
       .risk-grid {
         grid-template-columns: 1fr;
       }
-      
-      .mode-toggle {
-        flex-direction: column;
-        gap: var(--space-sm);
-        text-align: center;
-      }
-      
+
+
       .mode-description {
         margin-left: 0;
       }
@@ -2063,12 +2049,12 @@
         flex-direction: column;
         gap: var(--space-xs);
       }
-      
+
       .scenarios-footer {
         flex-direction: column;
       }
     }
-    </style>
+  </style>
 
   <!-- Navigation unifiée (conditionnelle) -->
   <script type="module">
@@ -2080,7 +2066,8 @@
 </head>
 
 <body>
-  <div id="backend-fallback-banner" style="display:none; background: color-mix(in oklab, var(--warning) 20%, transparent); border: 1px solid var(--warning); color: var(--theme-text); padding: .6rem; margin: .5rem auto; max-width: 95vw; border-radius: 6px;">
+  <div id="backend-fallback-banner"
+    style="display:none; background: color-mix(in oklab, var(--warning) 20%, transparent); border: 1px solid var(--warning); color: var(--theme-text); padding: .6rem; margin: .5rem auto; max-width: 95vw; border-radius: 6px;">
     ⚠ Backend indisponible — mode prudent (cap réduit).
   </div>
 
@@ -2090,10 +2077,13 @@
       <!-- Split refresh button with dropdown -->
       <div class="refresh-group">
         <button class="refresh-btn" id="refresh-btn" title="Actualiser les données">🔄 Refresh</button>
-        <button class="refresh-btn refresh-menu-btn" id="refresh-menu-btn" aria-haspopup="true" aria-expanded="false" title="Options de rafraîchissement">▾</button>
+        <button class="refresh-btn refresh-menu-btn" id="refresh-menu-btn" aria-haspopup="true" aria-expanded="false"
+          title="Options de rafraîchissement">▾</button>
         <div id="refresh-menu" class="refresh-menu">
-          <button class="refresh-menu-item" id="force-refresh-btn" title="Ignorer le cache et recalculer tous les scores">🧹 Force Refresh</button>
-          <button class="refresh-menu-item" id="force-cycle-refresh-btn" title="Vider le cache cycles et recharger uniquement les cycles">🔄 Refresh Cycles</button>
+          <button class="refresh-menu-item" id="force-refresh-btn"
+            title="Ignorer le cache et recalculer tous les scores">🧹 Force Refresh</button>
+          <button class="refresh-menu-item" id="force-cycle-refresh-btn"
+            title="Vider le cache cycles et recharger uniquement les cycles">🔄 Refresh Cycles</button>
         </div>
       </div>
 
@@ -2113,7 +2103,8 @@
         <!-- 🎯 Cockpit Principal - 3 Scores + 1 Synthèse -->
 
         <!-- Toggle sidebar -->
-        <button id="sidebar-toggle" aria-label="Réduire la barre latérale" title="Réduire/agrandir la barre" class="sidebar-toggle-full">
+        <button id="sidebar-toggle" aria-label="Réduire la barre latérale" title="Réduire/agrandir la barre"
+          class="sidebar-toggle-full">
           <span id="sidebar-toggle-icon">⟨⟨</span>
           <span class="sidebar-toggle-text">Réduire</span>
         </button>
@@ -2154,7 +2145,8 @@
             style="padding:2rem; border:2px solid var(--theme-border); box-shadow:0 0 12px rgba(0,0,0,0.15);">
             <div class="ccs-score" id="kpi-blended" data-score="blended" style="font-size:3rem;">--</div>
             <div class="ccs-label" id="blended-label" style="font-size:1rem; font-weight:700;">Loading...</div>
-            <div class="ccs-meta" id="blended-meta" style="font-size:.75rem; color: var(--theme-text-muted); margin-top:.25rem;"></div>
+            <div class="ccs-meta" id="blended-meta"
+              style="font-size:.75rem; color: var(--theme-text-muted); margin-top:.25rem;"></div>
           </div>
         </div>
 
@@ -2213,7 +2205,8 @@
               <div class="status-dot" id="governance-dot"></div>
               <div class="status-text" id="governance-text">Loading...</div>
             </div>
-            <div class="governance-details" id="governance-details" style="margin-top: 8px; font-size: 0.85em; opacity: 0.8;">
+            <div class="governance-details" id="governance-details"
+              style="margin-top: 8px; font-size: 0.85em; opacity: 0.8;">
               <div id="governance-mode">Mode: manual</div>
               <div id="governance-contradiction">Contradiction: 0.0%</div>
               <div id="governance-constraints" style="font-size:.75rem;color:var(--warning);margin-top:4px;"></div>
@@ -2233,7 +2226,8 @@
               <!-- Alert items will be populated here (limited to 5 most recent) -->
             </div>
             <div style="text-align: center; margin-top: 8px; font-size: 0.75rem;">
-              <button onclick="switchTab('alerts')" style="background: var(--brand-primary); color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.7rem;">
+              <button onclick="switchTab('alerts')"
+                style="background: var(--brand-primary); color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.7rem;">
                 📋 View All History
               </button>
             </div>
@@ -2254,18 +2248,6 @@
           <!-- Risk Overview Tab -->
           <div class="tab-pane active" id="risk-tab">
             <div id="risk-overview-badge-container" style="float: right; margin-bottom: 1rem;"></div>
-            <!-- Mode Toggle -->
-            <div class="mode-toggle">
-              <label for="mode-switch">Basic Mode</label>
-              <label class="toggle-switch">
-                <input type="checkbox" id="mode-switch" onchange="toggleAdvancedMode()">
-                <span class="toggle-slider"></span>
-              </label>
-              <label for="mode-switch">Advanced Mode</label>
-              <span class="mode-description" id="mode-description">
-                Essential risk metrics and portfolio overview
-              </span>
-            </div>
 
             <!-- Persistent Controls (do not get replaced by dynamic render) -->
             <div id="risk-dashboard-content">
@@ -2319,7 +2301,7 @@
                   <button class="refresh-btn" onclick="refreshAlertsHistory()">Refresh</button>
                 </div>
               </div>
-              
+
               <div id="alerts-history-content">
                 <div class="loading">Loading alerts history...</div>
               </div>
@@ -2373,40 +2355,40 @@
         }
         return;
       }
-      
+
       // Refresh buttons
       if (e.target?.closest('#refresh-btn')) {
         refreshDashboard();
         return;
       }
-      
+
       if (e.target?.closest('#refresh-menu-btn')) {
         toggleRefreshMenu(e);
         return;
       }
-      
+
       if (e.target?.closest('#force-refresh-btn')) {
         closeRefreshMenu();
         refreshDashboard(true);
         return;
       }
-      
+
       if (e.target?.closest('#force-cycle-refresh-btn')) {
-        closeRefreshMenu(); 
+        closeRefreshMenu();
         forceCycleRefresh();
         return;
       }
-      
+
       if (e.target?.closest('#auto-refresh-btn')) {
         enableAutoRefresh();
         return;
       }
-      
+
       if (e.target?.closest('#test-endpoint-btn')) {
         testEndpoint();
         return;
       }
-      
+
       // View alerts history button
       if (e.target?.closest('[data-action="view-alerts-history"]')) {
         switchTab('alerts');
@@ -2429,9 +2411,9 @@
       try {
         const dec = (cur === 'BTC') ? 8 : 2;
         const out = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, minimumFractionDigits: dec, maximumFractionDigits: dec }).format(v);
-        return (cur === 'USD') ? out.replace(/\s?US$/,'') : out;
+        return (cur === 'USD') ? out.replace(/\s?US$/, '') : out;
       } catch (_) {
-        return `${v.toFixed(cur==='BTC'?8:2)} ${cur}`;
+        return `${v.toFixed(cur === 'BTC' ? 8 : 2)} ${cur}`;
       }
     }
 
@@ -2461,7 +2443,7 @@
       const key = ev?.detail?.key;
       if (key === 'display_currency') {
         const cur = (window.globalConfig && window.globalConfig.get('display_currency')) || 'USD';
-        const rerender = () => { try { refreshDashboard(true); } catch(_){} };
+        const rerender = () => { try { refreshDashboard(true); } catch (_) { } };
         if (window.currencyManager && cur !== 'USD') {
           window.currencyManager.ensureRate(cur).then(rerender).catch(rerender);
         } else {
@@ -2502,11 +2484,11 @@
     console.debug(`📊 Risk Dashboard initialized with data source: ${lastKnownDataSource}`);
 
     // Listen for data source changes from settings
-    window.addEventListener('storage', function(e) {
+    window.addEventListener('storage', function (e) {
       const expectedKey = (window.globalConfig?.getStorageKey && window.globalConfig.getStorageKey()) || 'crypto_rebal_settings_v1';
       if (e.key === expectedKey) {
         console.debug('Settings changed in another tab, checking for data source changes...');
-        
+
         const currentSource = globalConfig.get('data_source');
         if (currentSource && currentSource !== lastKnownDataSource) {
           console.debug(`🔄 Data source changed from ${lastKnownDataSource} to ${currentSource}, auto-refreshing...`);
@@ -2525,6 +2507,26 @@
       // Clear cache when source changes
       clearAllPersistentCache();
       setTimeout(() => refreshDashboard(true), 500); // Force refresh to recalculate with new source
+
+      // Reload Phase 3A data with new source/user context
+      setTimeout(() => {
+        if (document.querySelector('.advanced-risk-panel') && typeof loadPhase3AData === 'function') {
+          console.debug('🔄 Reloading Phase 3A data after source change...');
+          loadPhase3AData().catch(e => console.warn('Phase 3A reload failed:', e.message));
+        }
+      }, 1000);
+    });
+
+    // Listen for active user changes to reload Phase 3A data
+    window.addEventListener('activeUserChanged', (event) => {
+      console.debug(`🔄 Active user changed: ${event.detail?.oldUser || 'unknown'} → ${event.detail?.newUser || 'unknown'}`);
+      // Reload Phase 3A data with new user context
+      setTimeout(() => {
+        if (document.querySelector('.advanced-risk-panel') && typeof loadPhase3AData === 'function') {
+          console.debug('🔄 Reloading Phase 3A data after user change...');
+          loadPhase3AData().catch(e => console.warn('Phase 3A reload failed:', e.message));
+        }
+      }, 500);
     });
 
     // ====== Tab Management ======
@@ -2623,7 +2625,7 @@
 
         // Utiliser directement les données de balance et calculer le risque côté client
         const balanceResult = await fetchCached(
-          `risk-dashboard-balance:${(localStorage.getItem('activeUser')||'demo')}:${dataSource}:${minUsd}`,
+          `risk-dashboard-balance:${(localStorage.getItem('activeUser') || 'demo')}:${dataSource}:${minUsd}`,
           () => window.globalConfig.apiRequest('/balances/current', { params: { min_usd: minUsd } }),
           'risk'
         );
@@ -3022,50 +3024,50 @@
     async function fetchAlertsData() {
       try {
         console.debug('Loading alerts data...');
-        
+
         const alertsData = await window.globalConfig.apiRequest('/api/alerts/active', {
           params: { include_snoozed: false }
         });
         console.debug(`Alerts loaded: ${alertsData.length} active alerts`);
-        
+
         return alertsData;
-        
+
       } catch (error) {
         console.error('Failed to load alerts data:', error);
         throw error;
       }
     }
-    
+
     function updateAlertsDisplay(alertsData) {
       const alertsDot = document.getElementById('alerts-dot');
       const alertsText = document.getElementById('alerts-text');
       const alertsList = document.getElementById('alerts-list');
-      
+
       if (!alertsDot || !alertsText || !alertsList) {
         console.warn('Alerts display elements not found');
         return;
       }
-      
+
       if (!alertsData || alertsData.length === 0) {
         // No alerts
         alertsDot.className = 'status-dot healthy';
         alertsText.textContent = 'No active alerts';
         alertsList.replaceChildren(); // CSP safe replacement for innerHTML = ''
-        
+
         // Always show the "View All History" button even when no active alerts
         const historyButton = document.createElement('div');
         historyButton.className = 'alerts-button-container';
-        
+
         const viewHistoryBtn = document.createElement('button');
         viewHistoryBtn.className = 'alerts-history-btn';
         viewHistoryBtn.textContent = '📋 View All History';
         viewHistoryBtn.setAttribute('data-action', 'view-alerts-history');
-        
+
         historyButton.appendChild(viewHistoryBtn);
         alertsList.appendChild(historyButton);
         return;
       }
-      
+
       // Count alerts by severity
       const severityCounts = { S1: 0, S2: 0, S3: 0 };
       alertsData.forEach(alert => {
@@ -3073,11 +3075,11 @@
           severityCounts[alert.severity]++;
         }
       });
-      
+
       // Set status based on highest severity
       let statusClass = 'healthy';
       let statusText = `${alertsData.length} alert${alertsData.length > 1 ? 's' : ''}`;
-      
+
       if (severityCounts.S3 > 0) {
         statusClass = 'error';
         statusText = `${severityCounts.S3} critical alert${severityCounts.S3 > 1 ? 's' : ''}`;
@@ -3085,29 +3087,29 @@
         statusClass = 'warning';
         statusText = `${severityCounts.S2} warning alert${severityCounts.S2 > 1 ? 's' : ''}`;
       }
-      
+
       alertsDot.className = `status-dot ${statusClass}`;
       alertsText.textContent = statusText;
-      
+
       // Render alerts list
       alertsList.replaceChildren(); // CSP safe replacement for innerHTML = ''
-      
+
       // Sort alerts by severity (S3, S2, S1) and creation time
       const sortedAlerts = [...alertsData].sort((a, b) => {
         const severityOrder = { S3: 0, S2: 1, S1: 2 };
         const severityDiff = severityOrder[a.severity] - severityOrder[b.severity];
         if (severityDiff !== 0) return severityDiff;
-        
+
         // Then by creation time (newest first)
         return new Date(b.created_at) - new Date(a.created_at);
       });
-      
+
       // Limit to 5 most important alerts in sidebar
       sortedAlerts.slice(0, 5).forEach(alert => {
         const alertItem = createAlertItem(alert);
         alertsList.appendChild(alertItem);
       });
-      
+
       // Add "show more" indicator if there are more alerts
       if (sortedAlerts.length > 5) {
         const moreItem = document.createElement('div');
@@ -3119,62 +3121,62 @@
         alertsList.appendChild(moreItem);
       }
     }
-    
+
     function createAlertItem(alert) {
       const item = document.createElement('div');
       item.className = `alert-item severity-${alert.severity}`;
-      
+
       const severity = document.createElement('div');
       severity.className = `alert-severity ${alert.severity}`;
       severity.textContent = alert.severity;
-      
+
       const content = document.createElement('div');
       content.className = 'alert-content';
-      
+
       const type = document.createElement('div');
       type.className = 'alert-type';
       type.textContent = formatAlertType(alert.alert_type);
-      
+
       const message = document.createElement('div');
       message.className = 'alert-message';
       message.textContent = formatAlertMessage(alert);
-      
+
       const timestamp = document.createElement('div');
       timestamp.className = 'alert-timestamp';
       timestamp.textContent = formatRelativeTime(alert.created_at);
-      
+
       content.appendChild(type);
       content.appendChild(message);
       content.appendChild(timestamp);
-      
+
       // Add action buttons for major alerts
       if (alert.severity === 'S2' || alert.severity === 'S3') {
         const actions = document.createElement('div');
         actions.className = 'alert-actions';
-        
+
         const ackButton = document.createElement('button');
         ackButton.className = 'alert-action-btn';
         ackButton.textContent = 'Ack';
         ackButton.title = 'Acknowledge alert';
         ackButton.onclick = () => acknowledgeAlert(alert.id);
-        
+
         const snoozeButton = document.createElement('button');
         snoozeButton.className = 'alert-action-btn';
         snoozeButton.textContent = 'Snooze';
         snoozeButton.title = 'Snooze for 30 minutes';
         snoozeButton.onclick = () => snoozeAlert(alert.id, 30);
-        
+
         actions.appendChild(ackButton);
         actions.appendChild(snoozeButton);
         content.appendChild(actions);
       }
-      
+
       item.appendChild(severity);
       item.appendChild(content);
-      
+
       return item;
     }
-    
+
     function formatAlertType(alertType) {
       const typeMap = {
         'VOL_Q90_CROSS': 'High Volatility',
@@ -3184,10 +3186,10 @@
         'DECISION_DROP': 'Low Confidence',
         'EXEC_COST_SPIKE': 'High Exec Cost'
       };
-      
+
       return typeMap[alertType] || alertType;
     }
-    
+
     function formatAlertMessage(alert) {
       if (alert.data && typeof alert.data === 'object') {
         // Extract meaningful data from alert
@@ -3198,33 +3200,33 @@
           return `Confidence: ${(alert.data.confidence * 100).toFixed(1)}%`;
         }
       }
-      
+
       return alert.suggested_action?.reason || 'Alert triggered';
     }
-    
+
     function formatRelativeTime(timestamp) {
       const now = new Date();
       const alertTime = new Date(timestamp);
       const diffMs = now - alertTime;
       const diffMins = Math.floor(diffMs / 60000);
-      
+
       if (diffMins < 1) return 'Just now';
       if (diffMins < 60) return `${diffMins}m ago`;
-      
+
       const diffHours = Math.floor(diffMins / 60);
       if (diffHours < 24) return `${diffHours}h ago`;
-      
+
       const diffDays = Math.floor(diffHours / 24);
       return `${diffDays}d ago`;
     }
-    
+
     async function acknowledgeAlert(alertId) {
       try {
         const response = await window.globalConfig.apiRequest(`/api/alerts/test/acknowledge/${alertId}`, {
           method: 'POST',
           body: JSON.stringify({ notes: 'Acknowledged from dashboard' })
         });
-        
+
         if (response && (response.ok || response.success || !response.error)) {
           // Refresh alerts display
           const alertsData = await fetchAlertsData();
@@ -3237,14 +3239,14 @@
         console.error('Error acknowledging alert:', error);
       }
     }
-    
+
     async function snoozeAlert(alertId, minutes) {
       try {
         const response = await window.globalConfig.apiRequest(`/api/alerts/test/snooze/${alertId}`, {
           method: 'POST',
           body: JSON.stringify({ minutes })
         });
-        
+
         if (response && (response.ok || response.success || !response.error)) {
           // Refresh alerts display
           const alertsData = await fetchAlertsData();
@@ -3267,13 +3269,13 @@
     async function fetchAlertsHistory(filters = {}) {
       try {
         console.debug('Loading alerts history...', filters);
-        
+
         // Build query parameters
         const params = new URLSearchParams();
         params.append('limit', '100'); // Fetch more for client-side filtering
         params.append('offset', '0');
         params.append('include_snoozed', 'true');
-        
+
         // Only add filters if they have values (don't filter if empty)
         if (filters.severity && filters.severity.trim() !== '') {
           params.append('severity_filter', filters.severity);
@@ -3281,15 +3283,15 @@
         if (filters.type && filters.type.trim() !== '') {
           params.append('type_filter', filters.type);
         }
-        
+
         // Use active endpoint with X-User header via globalConfig
         const alerts = await window.globalConfig.apiRequest('/api/alerts/active', {
           params: Object.fromEntries(params)
         });
         console.debug(`History loaded: ${alerts?.length || 0} alerts`, alerts.slice(0, 2));
-        
+
         return alerts || [];
-        
+
       } catch (error) {
         console.error('Failed to load alerts history:', error);
         throw error;
@@ -3299,7 +3301,7 @@
     function filterAlertsHistoryByPeriod(alerts, days) {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - days);
-      
+
       return alerts.filter(alert => {
         const alertDate = new Date(alert.created_at);
         return alertDate >= cutoffDate;
@@ -3311,36 +3313,36 @@
         const severityFilterEl = document.getElementById('alerts-severity-filter');
         const typeFilterEl = document.getElementById('alerts-type-filter');
         const periodFilterEl = document.getElementById('alerts-period-filter');
-        
+
         const severityFilter = severityFilterEl ? severityFilterEl.value : '';
         const typeFilter = typeFilterEl ? typeFilterEl.value : '';
         const periodDays = periodFilterEl ? parseInt(periodFilterEl.value) : 7;
-        
+
         console.debug('Loading alerts with filters:', { severityFilter, typeFilter, periodDays });
-        
+
         // Fetch all alerts with basic filters
         let alerts = await fetchAlertsHistory({
           severity: severityFilter,
           type: typeFilter
         });
-        
+
         // Filter by period client-side
         alerts = filterAlertsHistoryByPeriod(alerts, periodDays);
-        
+
         alertsHistoryData = alerts;
-        
+
         // Store globally for modal system
         window.currentAlertsData = alerts;
-        
+
         currentAlertsPage = 1;
         totalAlertsPages = Math.ceil(alerts.length / alertsPerPage);
-        
+
         renderAlertsHistoryPage();
         updateAlertsStats(alerts);
-        
+
       } catch (error) {
         console.error('Error loading alerts history:', error);
-        document.getElementById('alerts-history-content').innerHTML = 
+        document.getElementById('alerts-history-content').innerHTML =
           '<div class="error">Failed to load alerts history. Please try again.</div>';
       }
     }
@@ -3348,22 +3350,22 @@
     function renderAlertsHistoryPage() {
       const container = document.getElementById('alerts-history-content');
       const paginationContainer = document.getElementById('alerts-pagination');
-      
+
       if (!alertsHistoryData.length) {
         container.innerHTML = '<div class="no-data">No alerts found for the selected criteria.</div>';
         paginationContainer.style.display = 'none';
         return;
       }
-      
+
       // Calculate pagination
       const start = (currentAlertsPage - 1) * alertsPerPage;
       const end = start + alertsPerPage;
       const pageAlerts = alertsHistoryData.slice(start, end);
-      
+
       // Render alerts table
       const table = document.createElement('table');
       table.className = 'alerts-table';
-      
+
       // Table header
       table.innerHTML = `
         <thead>
@@ -3380,10 +3382,10 @@
           ${pageAlerts.map(alert => createAlertsHistoryRow(alert)).join('')}
         </tbody>
       `;
-      
+
       container.innerHTML = '';
       container.appendChild(table);
-      
+
       // Update pagination
       updateAlertsPagination();
     }
@@ -3394,7 +3396,7 @@
         const date = new Date(timestamp);
         return date.toLocaleString();
       };
-      
+
       const getStatusText = (alert) => {
         if (alert.acknowledged_at) {
           return `<span style="color: var(--success)">✅ Acknowledged</span>`;
@@ -3404,12 +3406,12 @@
         }
         return `<span style="color: var(--error)">🚨 Active</span>`;
       };
-      
+
       // Format unifié : Action → Impact € → 2 raisons → Détails  
       const formatUnifiedAlert = (alert) => {
         // Simuler le formatage unifié côté client
         const formatted = formatAlertClientSide(alert);
-        
+
         return `
           <div class="alert-unified-format">
             <div class="alert-action">
@@ -3430,14 +3432,14 @@
           </div>
         `;
       };
-      
+
       // Formatage unifié côté client
       const formatAlertClientSide = (alert) => {
         const alertType = alert.alert_type;
         const severity = alert.severity;
         const currentValue = alert.data?.current_value || 0;
         const portfolioValue = 100000; // €100k par défaut
-        
+
         // Templates simplifiés
         const templates = {
           'VOL_Q90_CROSS': {
@@ -3456,12 +3458,12 @@
             'S3': { action: 'Mode ultra-conservateur (Freeze)', impact_base: 9.0, reasons: ['Effondrement confiance décision', 'Allocations potentiellement erronées'] }
           }
         };
-        
-        const template = templates[alertType]?.[severity] || 
-                        { action: `Alerte ${alertType}`, impact_base: 1.0, reasons: ['Situation détectée', 'Action recommandée'] };
-        
+
+        const template = templates[alertType]?.[severity] ||
+          { action: `Alerte ${alertType}`, impact_base: 1.0, reasons: ['Situation détectée', 'Action recommandée'] };
+
         const impact_euro = portfolioValue * template.impact_base / 100;
-        
+
         return {
           action: template.action,
           impact: impact_euro >= 1 ? `€${Math.round(impact_euro).toLocaleString()}` : `€${impact_euro.toFixed(2)}`,
@@ -3469,7 +3471,7 @@
           details: `Valeur ${currentValue} détectée - ${severity} à ${new Date(alert.created_at).toLocaleTimeString()}`
         };
       };
-      
+
       return `
         <tr>
           <td>
@@ -3502,7 +3504,7 @@
 
     function updateAlertsStats(alerts) {
       console.debug('Updating alerts stats for', alerts?.length || 0, 'alerts');
-      
+
       const stats = {
         total: alerts?.length || 0,
         S1: alerts?.filter(a => a.severity === 'S1').length || 0,
@@ -3510,9 +3512,9 @@
         S3: alerts?.filter(a => a.severity === 'S3').length || 0,
         acknowledged: alerts?.filter(a => a.acknowledged_at).length || 0
       };
-      
+
       console.debug('Computed stats:', stats);
-      
+
       const statsHtml = `
         <div class="alerts-stats" id="alerts-stats-display">
           <div class="alerts-stat">
@@ -3537,7 +3539,7 @@
           </div>
         </div>
       `;
-      
+
       const container = document.getElementById('alerts-history-content');
       if (container) {
         // Remove existing stats if present
@@ -3545,7 +3547,7 @@
         if (existingStats) {
           existingStats.remove();
         }
-        
+
         container.insertAdjacentHTML('afterbegin', statsHtml);
         console.debug('Stats HTML inserted into container');
       } else {
@@ -3558,12 +3560,12 @@
       const prevBtn = document.getElementById('alerts-prev-btn');
       const nextBtn = document.getElementById('alerts-next-btn');
       const pageInfo = document.getElementById('alerts-page-info');
-      
+
       if (totalAlertsPages <= 1) {
         paginationContainer.style.display = 'none';
         return;
       }
-      
+
       paginationContainer.style.display = 'flex';
       prevBtn.disabled = currentAlertsPage <= 1;
       nextBtn.disabled = currentAlertsPage >= totalAlertsPages;
@@ -3585,7 +3587,7 @@
     }
 
     // DEFINE GLOBALLY
-    window.filterAlertsHistory = function() {
+    window.filterAlertsHistory = function () {
       loadAlertsHistory();
     };
 
@@ -3628,7 +3630,7 @@
         // Set status dot color based on state
         let dotClass = 'status-dot';
         let statusText = governanceStatus.state;
-        
+
         if (governanceStatus.state === 'FROZEN') {
           dotClass += ' error';
           statusText = '❄️ Frozen';
@@ -3642,7 +3644,7 @@
           dotClass += ' idle';
           statusText = '○ Idle';
         }
-        
+
         governanceDot.className = dotClass;
         governanceText.textContent = statusText;
       }
@@ -3660,7 +3662,7 @@
           if (constraintsEl) {
             constraintsEl.textContent = gated ? 'Aggressive disabled (blended < 70 or contradiction > 40%)' : '';
           }
-        } catch {}
+        } catch { }
       }
 
       // Update cycle indicator with enhanced info
@@ -3692,14 +3694,14 @@
         'ccsScore': ccsScore,
         'condition met': !!(state.cycle?.ccsStar && ccsScore)
       });
-      
+
       if (state.cycle?.ccsStar && ccsScore) {
         ccsMixEl.textContent = Math.round(state.cycle.ccsStar);
-        
+
         // STOCKER CCS MIXTE dans localStorage pour unified-scores.html (AU BON MOMENT)
         localStorage.setItem('risk_score_ccs_mixte', state.cycle.ccsStar.toString());
         console.debug('✅ Stored CCS Mixte in localStorage:', state.cycle.ccsStar);
-        
+
         if (ccsMixLabel) {
           const cycleWeight = Math.round((state.cycle?.weight || 0.3) * 100);
           ccsMixLabel.textContent = `CCS + Cycle (${cycleWeight}%)`;
@@ -3797,7 +3799,7 @@
 
             metaEl.textContent = badges.join(' • ');
           }
-        } catch {}
+        } catch { }
       } else {
         blendedEl.textContent = '--';
         blendedLabel.textContent = 'Loading...';
@@ -4028,7 +4030,7 @@
       try {
         const el = document.getElementById('blended-gauge');
         if (!el || typeof score !== 'number') return;
-        el.classList.remove('decision--bullish','decision--neutral','decision--defensive');
+        el.classList.remove('decision--bullish', 'decision--neutral', 'decision--defensive');
         let state = 'neutral';
         if (score >= 70) state = 'bullish';
         else if (score < 45) state = 'defensive';
@@ -4092,7 +4094,7 @@
         // Calculate Strategic Blended Score (nouvelle formule)
         blendedScore = calculateBlendedScore(ccsMixteScore, onchainScore, riskScore);
         // Reflect decision state in UI card
-        try { applyDecisionState(blendedScore); } catch {}
+        try { applyDecisionState(blendedScore); } catch { }
 
         // Store the scores in the store for use by other modules
         store.set('scores.onchain', onchainScore);
@@ -4100,7 +4102,7 @@
         store.set('scores.blended', blendedScore);
 
         // Prefer server-side recompute of blended (source of truth)
-        try { await store.recomputeGovernanceBlended(ccsMixteScore, onchainScore, riskScore); } catch {}
+        try { await store.recomputeGovernanceBlended(ccsMixteScore, onchainScore, riskScore); } catch { }
 
         // Store scores in persistent cache
         const scoreData = {
@@ -4124,8 +4126,8 @@
           localStorage.setItem(__prefix('risk_score_ccs'), ccsScore !== null ? ccsScore.toString() : '');
           localStorage.setItem(__prefix('risk_score_timestamp'), Date.now().toString());
           localStorage.setItem(__prefix('risk_score_data_source'), dataSource);
-        } catch (_) {}
-        
+        } catch (_) { }
+
         // STOCKER CCS MIXTE sera fait APRÈS le calcul du blending dans updateScoreDisplays
 
         console.debug('📊 All scores calculated:', {
@@ -4197,7 +4199,7 @@
         const banner = document.getElementById('backend-fallback-banner');
         if (!banner) return;
         banner.style.display = (status && status !== 'healthy') ? 'block' : 'none';
-      } catch {}
+      } catch { }
     }, 2000);
 
     window.toggleDynamicWeighting = function () {
@@ -4248,39 +4250,6 @@
 
     // ====== Section Collapse Functions ======
 
-    // ✅ NOUVEAU: Fonction de debug pour forcer le chargement du Bitcoin Chart
-    window.debugBitcoinChart = function() {
-      console.log('🐛 DEBUG: Force loading Bitcoin Chart');
-
-      const lazyElement = document.querySelector('[data-lazy-load="component"][data-lazy-component="BitcoinCycleChart"]');
-
-      if (!lazyElement) {
-        console.error('❌ Bitcoin Chart element not found');
-        alert('❌ Bitcoin Chart element not found');
-        return;
-      }
-
-      console.log('✅ Bitcoin Chart element found:', lazyElement);
-      console.log('Lazy loader available:', !!window.lazyLoader);
-      console.log('BitcoinCycleChart class available:', !!window.BitcoinCycleChart);
-      console.log('Element classes:', lazyElement.className);
-
-      if (!window.lazyLoader) {
-        console.error('❌ Lazy loader not available');
-        alert('❌ Lazy loader not available');
-        return;
-      }
-
-      try {
-        console.log('🚀 Forcing lazy load...');
-        window.lazyLoader.loadVisibleElement(lazyElement);
-        console.log('✅ Force load triggered');
-        alert('🚀 Force load triggered - check console');
-      } catch (error) {
-        console.error('❌ Error during force load:', error);
-        alert('❌ Error: ' + error.message);
-      }
-    };
 
     window.toggleSection = function (sectionId) {
       const content = document.getElementById(sectionId + '-content');
@@ -4316,7 +4285,7 @@
               } else {
                 console.log(`👁️ Element not near viewport; ensuring observer is attached`);
                 if (window.lazyLoader?.intersectionObserver) {
-                  try { window.lazyLoader.intersectionObserver.observe(element); } catch (_) {}
+                  try { window.lazyLoader.intersectionObserver.observe(element); } catch (_) { }
                 }
               }
             }
@@ -4368,7 +4337,7 @@
                     } else {
                       console.log(`👁️ Element not near viewport; ensuring observer is attached`);
                       if (window.lazyLoader?.intersectionObserver) {
-                        try { window.lazyLoader.intersectionObserver.observe(element); } catch (_) {}
+                        try { window.lazyLoader.intersectionObserver.observe(element); } catch (_) { }
                       }
                     }
                   }
@@ -4380,16 +4349,16 @@
       });
     }
 
-async function refreshDashboard(forceRefresh = false) {
-  if (isRefreshing) return;
-  isRefreshing = true;
-  // Ensure currency rate loaded before render when not USD
-  try {
-    const cur = (window.globalConfig && window.globalConfig.get('display_currency')) || 'USD';
-    if (window.currencyManager && cur !== 'USD') {
-      await window.currencyManager.ensureRate(cur);
-    }
-  } catch (_) {}
+    async function refreshDashboard(forceRefresh = false) {
+      if (isRefreshing) return;
+      isRefreshing = true;
+      // Ensure currency rate loaded before render when not USD
+      try {
+        const cur = (window.globalConfig && window.globalConfig.get('display_currency')) || 'USD';
+        if (window.currencyManager && cur !== 'USD') {
+          await window.currencyManager.ensureRate(cur);
+        }
+      } catch (_) { }
 
       const refreshBtn = document.getElementById('refresh-btn');
       refreshBtn.disabled = true;
@@ -4438,6 +4407,9 @@ async function refreshDashboard(forceRefresh = false) {
           if (riskData.timestamp && riskData.calculation_time) {
             updateTimestamp(riskData.timestamp, riskData.calculation_time);
           }
+
+          // Load advanced components after main dashboard is rendered
+          await loadAdvancedRiskComponents();
 
           // If CCS data loaded successfully, compute blended CCS
           if (ccsData) {
@@ -5026,10 +4998,10 @@ async function refreshDashboard(forceRefresh = false) {
         const state = store.snapshot();
         const currentHash = generateCycleDataHash(state);
         const cachedChart = getCachedData('CYCLE_CHART');
-        
+
         if (cachedChart?.chartConfig && cachedChart.dataHash === currentHash) {
           console.debug('⚡ Using cached chart config');
-          
+
           // Destroy existing chart if it exists
           if (window.bitcoinCycleChart) {
             window.bitcoinCycleChart.destroy();
@@ -5038,7 +5010,7 @@ async function refreshDashboard(forceRefresh = false) {
           if (existingChart) {
             existingChart.destroy();
           }
-          
+
           try {
             window.bitcoinCycleChart = new Chart(canvas, cachedChart.chartConfig);
             console.debug('✅ Chart recreated from cache');
@@ -5594,13 +5566,13 @@ async function refreshDashboard(forceRefresh = false) {
           const state = store.snapshot();
           const currentHash = generateCycleDataHash(state);
           const chartConfig = window.bitcoinCycleChart.config;
-          
+
           setCachedData('CYCLE_CHART', {
             chartConfig: JSON.parse(JSON.stringify(chartConfig)), // Deep clone
             dataHash: currentHash,
             timestamp: Date.now()
           });
-          
+
           console.debug('💾 Chart configuration cached');
         } catch (cacheError) {
           console.warn('Failed to cache chart config:', cacheError);
@@ -5962,7 +5934,7 @@ async function refreshDashboard(forceRefresh = false) {
     }
 
     // ====== Cycles Content ======
-    
+
     /**
      * Cached version of renderCyclesContent - checks cache before rendering
      */
@@ -6068,9 +6040,6 @@ async function refreshDashboard(forceRefresh = false) {
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
             <h3 style="margin: 0;">📈 Graphique des Cycles Bitcoin</h3>
             <div style="display: flex; gap: 0.5rem;">
-              <button onclick="debugBitcoinChart()" style="background: #ff6b35; color: white; border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 0.8rem;" title="Debug - Force Load Chart">
-                🐛 DEBUG
-              </button>
               <button onclick="toggleSection('bitcoin-cycle')" style="background: none; border: 1px solid var(--theme-border); border-radius: 4px; padding: 4px 8px; cursor: pointer; color: var(--theme-text); font-size: 0.8rem;" title="Réduire/Agrandir">
                 <span id="bitcoin-cycle-arrow">▼</span>
               </button>
@@ -6230,7 +6199,7 @@ async function refreshDashboard(forceRefresh = false) {
       setTimeout(() => {
         const lazyElement = document.querySelector('[data-lazy-load="component"][data-lazy-component="BitcoinCycleChart"]');
         if (lazyElement && window.lazyLoader?.intersectionObserver) {
-          try { window.lazyLoader.intersectionObserver.observe(lazyElement); } catch (_) {}
+          try { window.lazyLoader.intersectionObserver.observe(lazyElement); } catch (_) { }
         }
       }, 100);
     }
@@ -6241,7 +6210,7 @@ async function refreshDashboard(forceRefresh = false) {
     async function recreateCachedChart() {
       const cachedChart = getCachedData('CYCLE_CHART');
       const canvas = document.getElementById('bitcoin-cycle-chart');
-      
+
       if (!canvas) {
         console.warn('Chart canvas not found for cache recreation');
         return;
@@ -6254,7 +6223,7 @@ async function refreshDashboard(forceRefresh = false) {
           return r.top < vh + margin && r.bottom > -margin;
         } catch (_) { return false; }
       };
-      
+
       if (cachedChart?.chartConfig) {
         console.debug('⚡ Recreating chart from cache');
         try {
@@ -6288,7 +6257,7 @@ async function refreshDashboard(forceRefresh = false) {
         // Ensure element is being observed
         const lazyElement = document.querySelector('[data-lazy-load="component"][data-lazy-component="BitcoinCycleChart"]');
         if (lazyElement && window.lazyLoader?.intersectionObserver) {
-          try { window.lazyLoader.intersectionObserver.observe(lazyElement); } catch (_) {}
+          try { window.lazyLoader.intersectionObserver.observe(lazyElement); } catch (_) { }
         }
       }
     }
@@ -6326,7 +6295,7 @@ async function refreshDashboard(forceRefresh = false) {
           symbol: item.symbol,
           value_usd: item.value_usd
         }));
-        (function(){
+        (function () {
           const cur = (window.globalConfig && window.globalConfig.get('display_currency')) || 'USD';
           const rate = (window.currencyManager && window.currencyManager.getRateSync(cur)) || 1;
           if (cur !== 'USD' && (!rate || rate <= 0)) {
@@ -6337,7 +6306,7 @@ async function refreshDashboard(forceRefresh = false) {
               const dec = (cur === 'BTC') ? 8 : 2;
               console.log('🔍 DEBUG getCurrentPortfolioAllocation: Using real CSV data -', realBalances.length, 'assets, total:', new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, minimumFractionDigits: dec, maximumFractionDigits: dec }).format(val));
             } catch (_) {
-              console.log('🔍 DEBUG getCurrentPortfolioAllocation: Using real CSV data -', realBalances.length, 'assets, total:', (val).toFixed(cur==='BTC'?8:2), cur);
+              console.log('🔍 DEBUG getCurrentPortfolioAllocation: Using real CSV data -', realBalances.length, 'assets, total:', (val).toFixed(cur === 'BTC' ? 8 : 2), cur);
             }
           }
         })();
@@ -6764,7 +6733,7 @@ async function refreshDashboard(forceRefresh = false) {
 
         // Instead of direct applyTargets, create governance decision
         const currentAllocation = await getCurrentPortfolioAllocation();
-        
+
         // Convert proposal targets to Target format for governance
         const targets = Object.entries(proposal.targets)
           .filter(([key]) => key !== 'model_version')
@@ -6781,7 +6750,7 @@ async function refreshDashboard(forceRefresh = false) {
         // Sync governance state first
         await store.syncGovernanceState();
         const governanceStatus = store.getGovernanceStatus();
-        
+
         if (governanceStatus.state === 'FROZEN') {
           alert('❄️ System is frozen. Cannot create new decisions.');
           return;
@@ -6790,7 +6759,7 @@ async function refreshDashboard(forceRefresh = false) {
         // For now, still apply locally for backward compatibility
         // TODO: Replace with actual governance decision creation when endpoint is ready
         await applyTargets(proposal);
-        
+
         // Update governance state to reflect the decision
         store.set('targets.governance_mode', governanceStatus.mode);
         store.set('targets.strategy', `${proposal.strategy} (via governance)`);
@@ -6814,9 +6783,9 @@ async function refreshDashboard(forceRefresh = false) {
 
 
     // ====== Force Cycle Refresh ======
-    window.forceCycleRefresh = async function() {
+    window.forceCycleRefresh = async function () {
       console.log('🔄 Force refreshing cycle content and charts...');
-      
+
       try {
         // Clear all cycle caches
         const cycleConfigs = ['CYCLE_CONTENT', 'CYCLE_DATA', 'CYCLE_CHART'];
@@ -6827,7 +6796,7 @@ async function refreshDashboard(forceRefresh = false) {
             console.debug(`🗑️ Cleared ${configType} cache`);
           }
         });
-        
+
         // Force refresh cycle content
         if (document.getElementById('cycles-tab').classList.contains('active')) {
           await renderCyclesContent(true);
@@ -6835,9 +6804,9 @@ async function refreshDashboard(forceRefresh = false) {
         } else {
           console.debug('Cycles tab not active, cache cleared for next access');
         }
-        
+
         window.showToast?.('Cache cycles vidé et contenu rafraîchi', 'success');
-        
+
       } catch (error) {
         console.error('Failed to force refresh cycles:', error);
         window.showToast?.('Erreur lors du refresh cycles', 'error');
@@ -6889,7 +6858,7 @@ async function refreshDashboard(forceRefresh = false) {
       const toast = document.createElement('div');
       toast.id = toastId;
       toast.className = `toast ${severityClass}`;
-      
+
       let actionsHtml = '';
       if (actions.length > 0) {
         actionsHtml = `
@@ -6931,7 +6900,7 @@ async function refreshDashboard(forceRefresh = false) {
 
     // Track dismissed toasts to prevent re-showing
     const dismissedToasts = new Set();
-    
+
     // Load previously dismissed alerts from localStorage
     function loadDismissedAlerts() {
       try {
@@ -6945,14 +6914,14 @@ async function refreshDashboard(forceRefresh = false) {
         console.warn('Failed to load dismissed alerts:', e);
       }
     }
-    
+
     // Check if alert should be shown (not dismissed)
     function shouldShowAlert(alertId) {
       return !dismissedToasts.has(alertId);
     }
-    
+
     // DEFINE GLOBALLY
-    window.hideToast = function(toastId) {
+    window.hideToast = function (toastId) {
       console.log('Hiding toast:', toastId);
       const toast = document.getElementById(toastId);
       if (!toast) {
@@ -6969,7 +6938,7 @@ async function refreshDashboard(forceRefresh = false) {
       console.log('Adding hide class to toast:', toastId);
       toast.classList.add('hide');
       console.log('Toast classes after adding hide:', toast.className);
-      
+
       setTimeout(() => {
         if (toast && toast.parentNode) {
           toast.remove();
@@ -6977,19 +6946,19 @@ async function refreshDashboard(forceRefresh = false) {
         }
       }, 300);
     };
-    
+
     // Function to hide all toasts - DEFINE GLOBALLY
-    window.hideAllToasts = function() {
+    window.hideAllToasts = function () {
       console.log('Hiding all toasts...');
       const toastContainer = document.getElementById('toast-container');
       if (!toastContainer) {
         console.log('Toast container not found');
         return;
       }
-      
+
       const toasts = toastContainer.querySelectorAll('.toast');
       console.log(`Found ${toasts.length} toasts to hide in container`);
-      
+
       if (toasts.length === 0) {
         // Try fallback - look for toasts anywhere in document
         const allToasts = document.querySelectorAll('.toast');
@@ -7011,7 +6980,7 @@ async function refreshDashboard(forceRefresh = false) {
           }, 300);
         });
       }
-      
+
       // Force clear container if needed
       setTimeout(() => {
         const remainingToasts = toastContainer.querySelectorAll('.toast');
@@ -7020,7 +6989,7 @@ async function refreshDashboard(forceRefresh = false) {
           toastContainer.innerHTML = '';
         }
       }, 500);
-      
+
       console.log('All toasts cleared');
     };
 
@@ -7031,13 +7000,13 @@ async function refreshDashboard(forceRefresh = false) {
         console.log('Skipping already dismissed alert:', alert.id);
         return;
       }
-      
+
       const title = getAlertTypeDisplayName(alert.alert_type);
       const message = `${alert.data.current_value?.toFixed(2) || 'N/A'} > ${alert.data.adaptive_threshold?.toFixed(2) || 'N/A'}`;
-      
+
       // Use alert ID for consistent tracking
       const nextToastId = `toast-${alert.id}`;
-      
+
       const actions = [
         {
           label: 'View Details',
@@ -7056,13 +7025,13 @@ async function refreshDashboard(forceRefresh = false) {
         duration: 0, // Don't auto-hide critical alerts
         alertData: alert
       });
-      
+
       // Update the toast ID to match alert ID for proper tracking
       const toastElement = document.getElementById(toastId);
       if (toastElement) {
         toastElement.id = nextToastId;
       }
-      
+
       return nextToastId;
     }
 
@@ -7071,10 +7040,10 @@ async function refreshDashboard(forceRefresh = false) {
 
     async function openAlertModal(alertId) {
       console.log('Opening modal for alert:', alertId);
-      
+
       // Try to find alert in current data first
       let alert = findAlertById(alertId);
-      
+
       // If not found, fetch from API
       if (!alert) {
         console.log('Alert not found in cache, fetching from API...');
@@ -7088,7 +7057,7 @@ async function refreshDashboard(forceRefresh = false) {
           console.error('Failed to fetch alert from API:', error);
         }
       }
-      
+
       if (!alert) {
         console.error('Alert not found anywhere:', alertId);
         showToast('Alert not found', 'error');
@@ -7137,14 +7106,14 @@ async function refreshDashboard(forceRefresh = false) {
 
       if (alert.data.signals_snapshot) {
         const signals = alert.data.signals_snapshot;
-        
+
         // Add key signals
         if (signals.volatility) {
           Object.entries(signals.volatility).forEach(([asset, value]) => {
             addSignalCard(signalsContainer, `Volatility ${asset}`, value, 'number');
           });
         }
-        
+
         if (signals.regime) {
           Object.entries(signals.regime).forEach(([regime, value]) => {
             addSignalCard(signalsContainer, regime.toUpperCase(), value, 'percentage');
@@ -7168,7 +7137,7 @@ async function refreshDashboard(forceRefresh = false) {
       if (alert.suggested_action) {
         document.getElementById('action-type').textContent = formatActionType(alert.suggested_action.type);
         document.getElementById('action-details').textContent = formatActionDetails(alert.suggested_action);
-        
+
         // Show/hide apply button based on action type
         const applyBtn = document.getElementById('apply-btn');
         if (alert.suggested_action.type === 'freeze' || alert.suggested_action.type === 'apply_policy') {
@@ -7185,7 +7154,7 @@ async function refreshDashboard(forceRefresh = false) {
     function addSignalCard(container, name, value, type) {
       const card = document.createElement('div');
       card.className = 'signal-card';
-      
+
       let displayValue = '';
       if (type === 'percentage') {
         displayValue = `${(value * 100).toFixed(1)}%`;
@@ -7199,7 +7168,7 @@ async function refreshDashboard(forceRefresh = false) {
         <div class="signal-name">${name}</div>
         <div class="signal-value">${displayValue}</div>
       `;
-      
+
       container.appendChild(card);
     }
 
@@ -7225,7 +7194,7 @@ async function refreshDashboard(forceRefresh = false) {
     function updateModalButtonStates(alert) {
       const ackBtn = document.getElementById('ack-btn');
       const snoozeBtn = document.getElementById('snooze-btn');
-      
+
       // Disable if already acknowledged
       if (alert.acknowledged_at) {
         ackBtn.textContent = 'Acknowledged';
@@ -7264,7 +7233,7 @@ async function refreshDashboard(forceRefresh = false) {
           currentAlert.acknowledged_at = new Date().toISOString();
           currentAlert.acknowledged_by = 'user';
           updateModalButtonStates(currentAlert);
-          
+
           // Refresh alerts history if visible
           refreshAlertsHistory();
         } else {
@@ -7291,7 +7260,7 @@ async function refreshDashboard(forceRefresh = false) {
           currentAlert.snooze_until = new Date(Date.now() + 30 * 60 * 1000).toISOString();
           updateModalButtonStates(currentAlert);
           closeAlertModal();
-          
+
           // Refresh alerts history if visible
           refreshAlertsHistory();
         } else {
@@ -7330,7 +7299,7 @@ async function refreshDashboard(forceRefresh = false) {
           currentAlert.applied_at = new Date().toISOString();
           currentAlert.applied_by = 'user';
           closeAlertModal();
-          
+
           // Refresh alerts and governance
           refreshAlertsHistory();
           refreshGovernancePanel();
@@ -7381,7 +7350,7 @@ async function refreshDashboard(forceRefresh = false) {
 
       // Check for new S3 alerts every 30 seconds
       alertPollingInterval = setInterval(checkForNewS3Alerts, 30000);
-      
+
       // Initial check
       checkForNewS3Alerts();
     }
@@ -7390,13 +7359,13 @@ async function refreshDashboard(forceRefresh = false) {
       try {
         const apiBaseUrl = globalConfig.get('api_base_url');
         const response = await fetch(`${apiBaseUrl}/api/alerts/active?severity_filter=S3`);
-        
+
         if (response.ok) {
           const currentAlerts = await response.json();
-          
+
           // Find new S3 alerts
-          const newAlerts = currentAlerts.filter(alert => 
-            alert.severity === 'S3' && 
+          const newAlerts = currentAlerts.filter(alert =>
+            alert.severity === 'S3' &&
             !lastKnownAlerts.some(old => old.id === alert.id)
           );
 
@@ -7429,7 +7398,7 @@ async function refreshDashboard(forceRefresh = false) {
     document.addEventListener('DOMContentLoaded', () => {
       loadDismissedAlerts();  // Load previously dismissed alerts
       startAlertMonitoring();
-      
+
       // Add event delegation for toast dismiss buttons
       const toastContainer = document.getElementById('toast-container');
       if (toastContainer) {
@@ -7442,7 +7411,7 @@ async function refreshDashboard(forceRefresh = false) {
               hideToast(toast.id);
             }
           }
-          
+
           // Handle action button clicks
           if (event.target.classList.contains('toast-action')) {
             const onclickAttr = event.target.getAttribute('onclick');
@@ -7457,10 +7426,10 @@ async function refreshDashboard(forceRefresh = false) {
           }
         });
       }
-      
+
       // Remove old reference since function is now defined globally above
       // window.hideAllToasts = hideAllToasts;
-      
+
       // Debug logging removed - system ready for production
     });
 
@@ -7540,7 +7509,7 @@ async function refreshDashboard(forceRefresh = false) {
     function setCachedData(type, data) {
       const config = CACHE_CONFIG[type];
       if (!config) return false;
-      
+
       // Make cache keys data-source-aware
       const dataSource = globalConfig.get('data_source') || 'unknown';
       const sourceAwareKey = `${config.key}_${dataSource}`;
@@ -7565,7 +7534,7 @@ async function refreshDashboard(forceRefresh = false) {
     function getCachedData(type) {
       const config = CACHE_CONFIG[type];
       if (!config) return null;
-      
+
       // Make cache keys data-source-aware
       const dataSource = globalConfig.get('data_source') || 'unknown';
       const sourceAwareKey = `${config.key}_${dataSource}`;
@@ -7600,13 +7569,13 @@ async function refreshDashboard(forceRefresh = false) {
     function clearAllPersistentCache() {
       // Clear both old format and new data-source-aware format cache entries
       const dataSource = globalConfig.get('data_source') || 'unknown';
-      
+
       Object.values(CACHE_CONFIG).forEach(config => {
         // Clear old format
         localStorage.removeItem(config.key);
         // Clear new data-source-aware format
         localStorage.removeItem(`${config.key}_${dataSource}`);
-        
+
         // Also clear other potential data sources to ensure complete cleanup
         ['cointracking', 'api', 'unknown'].forEach(source => {
           localStorage.removeItem(`${config.key}_${source}`);
@@ -7625,13 +7594,13 @@ async function refreshDashboard(forceRefresh = false) {
       const cyclePhase = state.cycle?.phase?.phase || 'unknown';
       const onchainScore = state.scores?.onchain || 0;
       const riskScore = state.scores?.risk || 0;
-      
+
       // Include calibration params if available
       const calibParams = localStorage.getItem('bitcoin_cycle_params');
       const calibHash = calibParams ? btoa(calibParams).slice(0, 10) : 'default';
-      
+
       const dataString = `${ccsScore}-${cycleMonths}-${cyclePhase}-${onchainScore}-${riskScore}-${calibHash}`;
-      
+
       // Simple hash function
       let hash = 0;
       for (let i = 0; i < dataString.length; i++) {
@@ -7639,7 +7608,7 @@ async function refreshDashboard(forceRefresh = false) {
         hash = ((hash << 5) - hash) + char;
         hash = hash & hash; // Convert to 32bit integer
       }
-      
+
       return Math.abs(hash).toString(16);
     }
 
@@ -7649,20 +7618,20 @@ async function refreshDashboard(forceRefresh = false) {
     function shouldRefreshCycleContent(state) {
       const currentHash = generateCycleDataHash(state);
       const cachedContent = getCachedData('CYCLE_CONTENT');
-      
+
       if (!cachedContent || !cachedContent.dataHash) {
         console.debug('🔄 Cycle cache miss - no cached content');
         return { shouldRefresh: true, reason: 'cache_miss' };
       }
-      
+
       if (cachedContent.dataHash !== currentHash) {
-        console.debug('🔄 Cycle data changed', { 
-          cached: cachedContent.dataHash, 
-          current: currentHash 
+        console.debug('🔄 Cycle data changed', {
+          cached: cachedContent.dataHash,
+          current: currentHash
         });
         return { shouldRefresh: true, reason: 'data_changed' };
       }
-      
+
       console.debug('⚡ Cycle data unchanged - using cache');
       return { shouldRefresh: false, reason: 'cache_hit' };
     }
@@ -7760,7 +7729,7 @@ async function refreshDashboard(forceRefresh = false) {
           await store.syncGovernanceState();
           await store.syncMLSignals();
           console.log('✅ Governance system initialized');
-          
+
           // Update sidebar with governance status
           updateSidebar(store.snapshot());
         } catch (error) {
@@ -7782,11 +7751,11 @@ async function refreshDashboard(forceRefresh = false) {
         const expectedKey = (window.globalConfig?.getStorageKey && window.globalConfig.getStorageKey()) || 'crypto_rebal_settings_v1';
         if (e.key === expectedKey) {
           console.log('Settings changed in another tab, checking for theme and data source changes...');
-          
+
           // Check if data source changed
           const currentSource = globalConfig.get('data_source');
           const previousSource = window.lastKnownDataSource;
-          
+
           if (currentSource && currentSource !== previousSource) {
             console.log(`🔄 Data source changed from ${previousSource} to ${currentSource}, clearing cache and reloading...`);
             window.lastKnownDataSource = currentSource;
@@ -7796,7 +7765,7 @@ async function refreshDashboard(forceRefresh = false) {
               window.location.reload();
             }, 500);
           }
-          
+
           // Apply theme changes
           setTimeout(() => {
             if (window.globalConfig && window.globalConfig.applyTheme) {
@@ -7852,12 +7821,12 @@ async function refreshDashboard(forceRefresh = false) {
 
   <script type="module">
     import { GovernancePanel } from './components/GovernancePanel.js';
-    
+
     // Initialisation automatique de la navigation thématique et governance
     document.addEventListener('DOMContentLoaded', async function () {
       // Auto-détecter la page courante pour la navigation thématique
       /* unified nav enabled via components/nav.js; legacy init removed */
-      
+
       // Initialize governance panel
       const governanceContainer = document.getElementById('governance-container');
       if (governanceContainer) {
@@ -7875,44 +7844,23 @@ async function refreshDashboard(forceRefresh = false) {
       }
 
 
-        // ===== Toggle Basic/Advanced Mode =====
-        
-        function toggleAdvancedMode() {
-          const modeSwitch = document.getElementById('mode-switch');
-          const modeDescription = document.getElementById('mode-description');
-          const riskTab = document.getElementById('risk-tab');
-          
-          if (modeSwitch.checked) {
-            // Advanced Mode
-            riskTab.classList.add('advanced-mode');
-            modeDescription.textContent = 'Advanced risk analysis with VaR, stress tests, and Monte Carlo simulations';
-            
-            // Load Phase 3A components if not already loaded
-            loadAdvancedRiskComponents();
-          } else {
-            // Basic Mode
-            riskTab.classList.remove('advanced-mode');
-            modeDescription.textContent = 'Essential risk metrics and portfolio overview';
+      // ===== Toggle Basic/Advanced Mode =====
+
+
+      async function loadAdvancedRiskComponents() {
+        try {
+          // Check if advanced components are already loaded
+          if (document.querySelector('.advanced-risk-panel')) {
+            return; // Already loaded
           }
-          
-          // Save user preference
-          localStorage.setItem('risk-dashboard-mode', modeSwitch.checked ? 'advanced' : 'basic');
-        }
 
-        async function loadAdvancedRiskComponents() {
-          try {
-            // Check if advanced components are already loaded
-            if (document.querySelector('.advanced-risk-panel')) {
-              return; // Already loaded
-            }
+          // Add advanced sections after basic content
+          const riskContent = document.getElementById('risk-dashboard-content');
 
-            // Add advanced sections after basic content
-            const riskContent = document.getElementById('risk-dashboard-content');
-            
-            // Create Advanced Risk Analysis Panel
-            const advancedPanel = document.createElement('div');
-            advancedPanel.className = 'advanced-section advanced-risk-panel';
-            advancedPanel.innerHTML = `
+          // Create Advanced Risk Analysis Panel
+          const advancedPanel = document.createElement('div');
+          advancedPanel.className = 'advanced-section advanced-risk-panel';
+          advancedPanel.innerHTML = `
               <div class="card">
                 <div class="card-header">
                   <h3>🎯 Phase 3A: Advanced Risk Analysis</h3>
@@ -7921,11 +7869,11 @@ async function refreshDashboard(forceRefresh = false) {
                 <div class="card-content">
                   <div class="risk-grid two-col-advanced">
                     <div class="left-stack">
-                      <!-- VaR Analysis -->
+                      <!-- Group Risk Index (GRI) -->
                       <div class="risk-card">
-                        <h4>Value at Risk (VaR)</h4>
-                        <div id="var-analysis-content">
-                          <div class="loading">Loading VaR analysis...</div>
+                        <h4>Group Risk Index (GRI)</h4>
+                        <div id="gri-analysis-content">
+                          <div class="loading">Loading GRI analysis...</div>
                         </div>
                       </div>
                       <!-- Monte Carlo -->
@@ -7956,209 +7904,237 @@ async function refreshDashboard(forceRefresh = false) {
                 </div>
               </div>
             `;
-            
-            riskContent.appendChild(advancedPanel);
-            
-            // Load actual Phase 3A data
-            await loadPhase3AData();
-            
-          } catch (error) {
-            console.error('Error loading advanced risk components:', error);
-            showToast('Failed to load advanced risk analysis', 'error');
+
+          riskContent.appendChild(advancedPanel);
+
+          // Load actual Phase 3A data
+          await loadPhase3AData();
+
+        } catch (error) {
+          console.error('Error loading advanced risk components:', error);
+          showToast('Failed to load advanced risk analysis', 'error');
+        }
+      }
+
+      async function loadPhase3AData() {
+        try {
+          // Get Phase 3A status using globalConfig.apiRequest
+          const statusData = await window.globalConfig.apiRequest('/api/phase3/status');
+
+          if (statusData.phase_3a_advanced_risk?.status === 'active') {
+            // Load GRI analysis
+            await loadGRIAnalysis();
+            // Load stress testing scenarios
+            await loadStressTestScenarios();
+            // Load Monte Carlo results
+            await loadMonteCarloResults();
+            // Load Risk Attribution
+            await loadRiskAttribution();
+          } else {
+            document.getElementById('var-analysis-content').innerHTML =
+              '<div class="warning">Advanced Risk Engine not available</div>';
           }
+        } catch (error) {
+          console.error('Error loading Phase 3A data:', error);
+        }
+      }
+
+      // Helper functions for portfolio data
+      function getCurrentPortfolioWeights() {
+        // Get portfolio weights from current UI state or default
+        const btcWeight = parseFloat(document.querySelector('[data-asset="BTC"] .allocation-value')?.textContent || '0.6');
+        const ethWeight = parseFloat(document.querySelector('[data-asset="ETH"] .allocation-value')?.textContent || '0.4');
+        const solWeight = parseFloat(document.querySelector('[data-asset="SOL"] .allocation-value')?.textContent || '0');
+
+        return { BTC: btcWeight, ETH: ethWeight, SOL: solWeight };
+      }
+
+      function getCurrentPortfolioValue() {
+        // Get portfolio value from UI or default to 10000
+        const valueElement = document.querySelector('.portfolio-value');
+        if (valueElement) {
+          const valueText = valueElement.textContent.replace(/[,$€]/g, '');
+          return parseFloat(valueText) || 10000;
+        }
+        return 10000;
+      }
+
+      // NEW V2 FUNCTIONS FOR VAR AND GRI - USING API
+
+      // Debug metadata banner function
+      function showDebugMetadataBanner(meta) {
+        let banner = document.getElementById('debug-metadata-banner');
+        if (!banner) {
+          banner = document.createElement('div');
+          banner.id = 'debug-metadata-banner';
+          banner.style.cssText = `
+            position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+            background: color-mix(in oklab, var(--info) 90%, transparent);
+            border-bottom: 1px solid var(--info);
+            color: var(--theme-text); padding: 0.5rem 1rem; font-size: 0.8rem;
+            display: flex; justify-content: space-between; align-items: center;
+          `;
+          document.body.appendChild(banner);
         }
 
-        async function loadPhase3AData() {
-          try {
-            // Get Phase 3A status
-            const statusResponse = await fetch('/api/phase3/status');
-            const statusData = await statusResponse.json();
-            
-            if (statusData.phase_3a_advanced_risk?.status === 'active') {
-              // Load VaR analysis
-              await loadVaRAnalysis();
-              // Load stress testing scenarios  
-              await loadStressTestScenarios();
-              // Load Monte Carlo results
-              await loadMonteCarloResults();
-              // Load Risk Attribution
-              await loadRiskAttribution();
-            } else {
-              document.getElementById('var-analysis-content').innerHTML = 
-                '<div class="warning">Advanced Risk Engine not available</div>';
+        banner.innerHTML = `
+          <div>
+            🏷️ <strong>Debug Metadata:</strong>
+            User: <code>${meta.user_id}</code> |
+            Source: <code>${meta.source_id}</code> |
+            Taxonomy: <code>${meta.taxonomy_version}:${meta.taxonomy_hash}</code> |
+            Generated: <code>${new Date(meta.generated_at).toLocaleTimeString()}</code>
+            ${meta.correlation_id ? `| ID: <code>${meta.correlation_id}</code>` : ''}
+          </div>
+          <button onclick="this.parentElement.style.display='none'" style="background:none;border:none;color:var(--theme-text);cursor:pointer;font-size:1.2rem;">×</button>
+        `;
+      }
+
+      async function loadGRIAnalysis() {
+        try {
+          // Get data from API risk dashboard for GRI analysis using globalConfig.apiRequest
+          const minUsd = globalConfig.get('min_usd_threshold') || 1.0;
+          const priceDays = 365;
+          const corrDays = 90;
+
+          const data = await window.globalConfig.apiRequest('/api/risk/dashboard', {
+            params: {
+              price_history_days: priceDays,
+              lookback_days: corrDays,
+              min_usd: minUsd
             }
-          } catch (error) {
-            console.error('Error loading Phase 3A data:', error);
-          }
-        }
+          });
 
-        // Helper functions for portfolio data
-        function getCurrentPortfolioWeights() {
-          // Get portfolio weights from current UI state or default
-          const btcWeight = parseFloat(document.querySelector('[data-asset="BTC"] .allocation-value')?.textContent || '0.6');
-          const ethWeight = parseFloat(document.querySelector('[data-asset="ETH"] .allocation-value')?.textContent || '0.4');
-          const solWeight = parseFloat(document.querySelector('[data-asset="SOL"] .allocation-value')?.textContent || '0');
-          
-          return { BTC: btcWeight, ETH: ethWeight, SOL: solWeight };
-        }
-        
-        function getCurrentPortfolioValue() {
-          // Get portfolio value from UI or default to 10000
-          const valueElement = document.querySelector('.portfolio-value');
-          if (valueElement) {
-            const valueText = valueElement.textContent.replace(/[,$€]/g, '');
-            return parseFloat(valueText) || 10000;
+          if (!data.success) {
+            throw new Error(data.message || 'API request failed');
           }
-          return 10000;
-        }
 
-        async function loadVaRAnalysis() {
-          try {
-            // Get current portfolio data for VaR calculation
-            const currentPortfolio = getCurrentPortfolioWeights();
-            const portfolioValue = getCurrentPortfolioValue();
-            
-            // Call real Phase 3A VaR API
-            const response = await fetch('/api/phase3/risk/comprehensive-analysis', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                portfolio_weights: currentPortfolio,
-                portfolio_value: portfolioValue,
-                analysis_types: ['var_parametric', 'var_historical'],
-                confidence_levels: [0.95, 0.99],
-                horizons: ['1d']
-              })
-            });
-            
-            if (!response.ok) {
-              throw new Error(`VaR API failed: ${response.status}`);
-            }
-            
-            const apiData = await response.json();
-            
-            // Extract VaR values from API response
-            const var_95_1d = apiData.var_analysis['95%_1d'];
-            const var_99_1d = apiData.var_analysis['99%_1d'] || { parametric_var: 0, historical_var: 0 };
-            
-            const varData = {
-              parametric: { 
-                var_95: var_95_1d.parametric_var, 
-                var_99: var_99_1d.parametric_var 
-              },
-              historical: { 
-                var_95: var_95_1d.historical_var, 
-                var_99: var_99_1d.historical_var 
-              },
-              monte_carlo: { var_95: 1320.0, var_99: 1950.0 } // Keep mock for now
-            };
-            
-            document.getElementById('var-analysis-content').innerHTML = `
-              <div class="var-methods">
+          // Display debug metadata banner if debug mode is enabled
+          if (localStorage.getItem('debug_metadata') === 'true' && data.meta) {
+            showDebugMetadataBanner(data.meta);
+          }
+
+          const metrics = data.risk_metrics;
+          const exposureByGroup = metrics.exposure_by_group || {};
+          const gri = metrics.group_risk_index || 0;
+
+          // Convert exposure to display format
+          const topGroups = Object.entries(exposureByGroup)
+            .sort(([, a], [, b]) => b - a)  // Sort by weight descending
+            .slice(0, 5)  // Top 5 groups
+            .map(([name, weight]) => ({
+              name,
+              weight: Math.round(weight * 100),
+              weight_raw: weight
+            }));
+
+          // Color coding for GRI score
+          const griColor = gri < 3 ? 'var(--success)' : gri < 6 ? 'var(--warning)' : 'var(--danger)';
+          const griLevel = gri < 3 ? 'LOW' : gri < 6 ? 'MEDIUM' : 'HIGH';
+
+          document.getElementById('gri-analysis-content').innerHTML = `
+              <div class="gri-overview">
                 <div class="var-method">
-                  <span class="method-label">Parametric</span>
-                  <span class="var-value">$${varData.parametric.var_95.toLocaleString()} (95%)</span>
+                  <span class="method-label">Group Risk Index (GRI)</span>
+                  <span class="var-value" style="color: ${griColor}">${gri.toFixed(1)}/10</span>
                 </div>
                 <div class="var-method">
-                  <span class="method-label">Historical</span>
-                  <span class="var-value">$${varData.historical.var_95.toLocaleString()} (95%)</span>
+                  <span class="method-label">Risk Level</span>
+                  <span class="var-value">${griLevel}</span>
                 </div>
                 <div class="var-method">
-                  <span class="method-label">Monte Carlo</span>
-                  <span class="var-value">$${varData.monte_carlo.var_95.toLocaleString()} (95%)</span>
+                  <span class="method-label">Groups Count</span>
+                  <span class="var-value">${Object.keys(exposureByGroup).length}</span>
+                </div>
+              </div>
+              <div class="gri-groups">
+                <h5>Exposition par Groupes</h5>
+                ${topGroups.map(group => `
+                  <div class="var-method">
+                    <span class="method-label">${group.name}</span>
+                    <span class="var-value">${group.weight}%</span>
+                  </div>
+                `).join('')}
+              </div>
+              <div class="gri-interpretation">
+                <div class="metric-interpretation">
+                  ${gri < 3 ? '✅ Portfolio faible risque' :
+              gri < 6 ? '⚠️ Portfolio risque modéré' :
+                '🚨 Portfolio haut risque - Considérer diversifier'}
                 </div>
               </div>
             `;
-          } catch (error) {
-            console.error('Error loading VaR analysis:', error);
-            // Fallback to mock data if API fails
-            const varData = {
-              parametric: { var_95: 1250.0, var_99: 1890.0 },
-              historical: { var_95: 1180.0, var_99: 2100.0 },
-              monte_carlo: { var_95: 1320.0, var_99: 1950.0 }
-            };
-            
-            document.getElementById('var-analysis-content').innerHTML = `
-              <div class="var-methods">
-                <div class="var-method">
-                  <span class="method-label">Parametric</span>
-                  <span class="var-value">$${varData.parametric.var_95.toLocaleString()} (95%)</span>
-                </div>
-                <div class="var-method">
-                  <span class="method-label">Historical</span>
-                  <span class="var-value">$${varData.historical.var_95.toLocaleString()} (95%)</span>
-                </div>
-                <div class="var-method">
-                  <span class="method-label">Monte Carlo</span>
-                  <span class="var-value">$${varData.monte_carlo.var_95.toLocaleString()} (95%) [Mock]</span>
-                </div>
-              </div>
-              <div class="api-status error">⚠️ Using fallback data - API unavailable</div>
-            `;
-          }
+        } catch (error) {
+          console.error('Error loading GRI Analysis:', error);
+          document.getElementById('gri-analysis-content').innerHTML =
+            '<div class="error">Failed to load GRI analysis from API</div>';
         }
+      }
 
-        async function loadStressTestScenarios() {
-          try {
-            // Business-friendly stress scenarios with realistic data
-            const scenarios = [
-              {
-                id: "crisis_2008",
-                name: "📉 Crise Financière 2008",
-                description: "Réplique la chute des marchés de septembre-novembre 2008",
-                impact: { min: -45, max: -60 },
-                probability: 0.02, // 2% sur 10 ans
-                duration: "6-12 mois",
-                context: "Effondrement Lehman Brothers, crise des subprimes"
-              },
-              {
-                id: "covid_2020", 
-                name: "🦠 Crash COVID-19 Mars 2020",
-                description: "Chute brutale liée à la pandémie mondiale",
-                impact: { min: -35, max: -50 },
-                probability: 0.05, // 5% sur 10 ans (pandémie)
-                duration: "2-6 mois",
-                context: "Confinements mondiaux, arrêt économique brutal"
-              },
-              {
-                id: "china_ban",
-                name: "🇨🇳 Interdiction Crypto Chine",
-                description: "Bannissement complet des cryptos par autorités chinoises",
-                impact: { min: -25, max: -40 },
-                probability: 0.10, // 10% sur 10 ans (régulation)
-                duration: "3-9 mois",
-                context: "Fermeture exchanges, interdiction mining"
-              },
-              {
-                id: "tether_collapse",
-                name: "💰 Effondrement Tether",
-                description: "Perte de confiance totale dans USDT",
-                impact: { min: -30, max: -55 },
-                probability: 0.08, // 8% sur 10 ans (risque stablecoin)
-                duration: "1-4 mois", 
-                context: "Découverte de sous-collatéralisation massive"
-              },
-              {
-                id: "fed_emergency",
-                name: "🏦 Hausse Taux Fed d'Urgence",
-                description: "Remontée brutale des taux pour lutter contre l'inflation",
-                impact: { min: -20, max: -35 },
-                probability: 0.15, // 15% sur 10 ans (politique monétaire)
-                duration: "6-18 mois",
-                context: "Taux directeur à 8-10%, fuite des capitaux risqués"
-              },
-              {
-                id: "exchange_hack",
-                name: "🔓 Hack Exchange Majeur",
-                description: "Piratage d'un exchange de premier plan (Binance/Coinbase)",
-                impact: { min: -15, max: -30 },
-                probability: 0.20, // 20% sur 10 ans (sécurité)
-                duration: "1-3 mois",
-                context: "Vol de plusieurs milliards, panique générale"
-              }
-            ];
+      // VaR and GRI now use API data - no local generation needed
 
-            const scenariosHtml = scenarios.map(scenario => `
+
+      async function loadStressTestScenarios() {
+        try {
+          // Business-friendly stress scenarios with realistic data
+          const scenarios = [
+            {
+              id: "crisis_2008",
+              name: "📉 Crise Financière 2008",
+              description: "Réplique la chute des marchés de septembre-novembre 2008",
+              impact: { min: -45, max: -60 },
+              probability: 0.02, // 2% sur 10 ans
+              duration: "6-12 mois",
+              context: "Effondrement Lehman Brothers, crise des subprimes"
+            },
+            {
+              id: "covid_2020",
+              name: "🦠 Crash COVID-19 Mars 2020",
+              description: "Chute brutale liée à la pandémie mondiale",
+              impact: { min: -35, max: -50 },
+              probability: 0.05, // 5% sur 10 ans (pandémie)
+              duration: "2-6 mois",
+              context: "Confinements mondiaux, arrêt économique brutal"
+            },
+            {
+              id: "china_ban",
+              name: "🇨🇳 Interdiction Crypto Chine",
+              description: "Bannissement complet des cryptos par autorités chinoises",
+              impact: { min: -25, max: -40 },
+              probability: 0.10, // 10% sur 10 ans (régulation)
+              duration: "3-9 mois",
+              context: "Fermeture exchanges, interdiction mining"
+            },
+            {
+              id: "tether_collapse",
+              name: "💰 Effondrement Tether",
+              description: "Perte de confiance totale dans USDT",
+              impact: { min: -30, max: -55 },
+              probability: 0.08, // 8% sur 10 ans (risque stablecoin)
+              duration: "1-4 mois",
+              context: "Découverte de sous-collatéralisation massive"
+            },
+            {
+              id: "fed_emergency",
+              name: "🏦 Hausse Taux Fed d'Urgence",
+              description: "Remontée brutale des taux pour lutter contre l'inflation",
+              impact: { min: -20, max: -35 },
+              probability: 0.15, // 15% sur 10 ans (politique monétaire)
+              duration: "6-18 mois",
+              context: "Taux directeur à 8-10%, fuite des capitaux risqués"
+            },
+            {
+              id: "exchange_hack",
+              name: "🔓 Hack Exchange Majeur",
+              description: "Piratage d'un exchange de premier plan (Binance/Coinbase)",
+              impact: { min: -15, max: -30 },
+              probability: 0.20, // 20% sur 10 ans (sécurité)
+              duration: "1-3 mois",
+              context: "Vol de plusieurs milliards, panique générale"
+            }
+          ];
+
+          const scenariosHtml = scenarios.map(scenario => `
               <div class="scenario-card" onclick="showScenarioDetails('${scenario.id}')">
                 <div class="scenario-header">
                   <h5>${scenario.name}</h5>
@@ -8176,7 +8152,7 @@ async function refreshDashboard(forceRefresh = false) {
               </div>
             `).join('');
 
-            document.getElementById('stress-test-content').innerHTML = `
+          document.getElementById('stress-test-content').innerHTML = `
               <div class="stress-scenarios">
                 <div class="scenarios-header">
                   <p class="scenarios-description">
@@ -8195,42 +8171,42 @@ async function refreshDashboard(forceRefresh = false) {
               </div>
             `;
 
-            // Store scenarios globally for interactions
-            window.stressScenarios = scenarios;
+          // Store scenarios globally for interactions
+          window.stressScenarios = scenarios;
 
-          } catch (error) {
-            console.error('Error loading stress test scenarios:', error);
-            document.getElementById('stress-test-content').innerHTML = `
+        } catch (error) {
+          console.error('Error loading stress test scenarios:', error);
+          document.getElementById('stress-test-content').innerHTML = `
               <div class="error">Erreur de chargement des scénarios de stress</div>
             `;
-          }
         }
+      }
 
-        // Interaction functions for stress scenarios
-        window.showScenarioDetails = function(scenarioId) {
-          const scenario = window.stressScenarios?.find(s => s.id === scenarioId);
-          if (!scenario) return;
-          
-          // Show modal or detailed view (for now, just alert)
-          alert(`${scenario.name}\\n\\n${scenario.description}\\n\\nImpact estimé: ${scenario.impact.min}% à ${scenario.impact.max}%\\nProbabilité sur 10 ans: ${(scenario.probability * 100).toFixed(1)}%\\nDurée typique: ${scenario.duration}`);
-        };
+      // Interaction functions for stress scenarios
+      window.showScenarioDetails = function (scenarioId) {
+        const scenario = window.stressScenarios?.find(s => s.id === scenarioId);
+        if (!scenario) return;
 
-        window.runAllStressTests = async function() {
-          showToast('Lancement des tests de stress en cours...', 'info');
-          // In a real implementation, this would call the Phase 3A API
-          // For now, simulate loading
-          setTimeout(() => {
-            showToast('Tests de stress terminés. Résultats mis à jour.', 'success');
-          }, 2000);
-        };
+        // Show modal or detailed view (for now, just alert)
+        alert(`${scenario.name}\\n\\n${scenario.description}\\n\\nImpact estimé: ${scenario.impact.min}% à ${scenario.impact.max}%\\nProbabilité sur 10 ans: ${(scenario.probability * 100).toFixed(1)}%\\nDurée typique: ${scenario.duration}`);
+      };
 
-        window.createCustomScenario = function() {
-          // In a real implementation, this would open a modal for custom scenario creation
-          showToast('Fonctionnalité de scénarios personnalisés à venir', 'info');
-        };
+      window.runAllStressTests = async function () {
+        showToast('Lancement des tests de stress en cours...', 'info');
+        // In a real implementation, this would call the Phase 3A API
+        // For now, simulate loading
+        setTimeout(() => {
+          showToast('Tests de stress terminés. Résultats mis à jour.', 'success');
+        }, 2000);
+      };
 
-        async function loadMonteCarloResults() {
-          document.getElementById('monte-carlo-content').innerHTML = `
+      window.createCustomScenario = function () {
+        // In a real implementation, this would open a modal for custom scenario creation
+        showToast('Fonctionnalité de scénarios personnalisés à venir', 'info');
+      };
+
+      async function loadMonteCarloResults() {
+        document.getElementById('monte-carlo-content').innerHTML = `
             <div class="monte-carlo-summary">
               <div class="sim-stat">
                 <span class="stat-label">Simulations</span>
@@ -8246,78 +8222,81 @@ async function refreshDashboard(forceRefresh = false) {
               </div>
             </div>
           `;
-        }
+      }
 
-        async function loadRiskAttribution() {
-          const el = document.getElementById('risk-attribution-content');
-          if (!el) return;
-          try {
-            // Collect and normalize current weights to sum to 1.0
-            let weights = getCurrentPortfolioWeights();
-            const sum = Object.values(weights).reduce((a, b) => a + (Number(b) || 0), 0);
-            if (!(sum > 0)) {
-              weights = { BTC: 0.6, ETH: 0.4 };
-            } else {
-              Object.keys(weights).forEach(k => { weights[k] = (Number(weights[k]) || 0) / sum; });
+      async function loadRiskAttribution() {
+        const el = document.getElementById('risk-attribution-content');
+        if (!el) return;
+        try {
+          // Use data from unified risk dashboard for simplified attribution using globalConfig.apiRequest
+          const minUsd = globalConfig.get('min_usd_threshold') || 1.0;
+          const priceDays = 365;
+          const corrDays = 90;
+
+          const data = await window.globalConfig.apiRequest('/api/risk/dashboard', {
+            params: {
+              price_history_days: priceDays,
+              lookback_days: corrDays,
+              min_usd: minUsd
             }
-            const value = getCurrentPortfolioValue();
+          });
+          if (!data.success) {
+            throw new Error(data.message || 'API request failed');
+          }
 
-            const resp = await fetch('/api/risk/advanced/attribution/analyze?confidence_level=0.95', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ weights, value })
-            });
-            if (!resp.ok) throw new Error(`Attribution API failed: ${resp.status}`);
-            const data = await resp.json();
+          const riskMetrics = data.risk_metrics;
+          const exposureByGroup = riskMetrics.exposure_by_group || {};
+          const correlationMetrics = data.correlation_metrics || {};
 
-            // Build a compact attribution view
-            const contr = data.risk_contribution_pct || {};
-            const compVar = data.component_var || {};
-            const entries = Object.keys(contr)
-              .map(k => ({ k, pct: contr[k] ?? 0, cvar: compVar[k] ?? 0 }))
-              .sort((a, b) => (b.pct - a.pct))
-              .slice(0, 6);
+          // Group risk levels for attribution calculation
+          const GROUP_RISK_LEVELS = {
+            'Stablecoins': 0, 'BTC': 2, 'ETH': 3, 'L2/Scaling': 5,
+            'DeFi': 5, 'AI/Data': 5, 'SOL': 6, 'L1/L0 majors': 6,
+            'Gaming/NFT': 6, 'Others': 7, 'Memecoins': 9
+          };
 
-            const rows = entries.map(e => `
+          // Calculate risk contribution by group
+          const riskContributions = Object.entries(exposureByGroup)
+            .map(([group, weight]) => ({
+              group,
+              weight: weight * 100,
+              riskLevel: GROUP_RISK_LEVELS[group] || 5,
+              riskContribution: weight * (GROUP_RISK_LEVELS[group] || 5) * 100
+            }))
+            .sort((a, b) => b.riskContribution - a.riskContribution)
+            .slice(0, 6);
+
+          const rows = riskContributions.map(item => `
               <div class="var-method">
-                <span class="method-label">${e.k}</span>
-                <span class="stat-value">${e.pct.toFixed(1)}% <small style="color:var(--theme-text-muted);">(cVaR ${e.cvar.toFixed(2)})</small></span>
+                <span class="method-label">${item.group}</span>
+                <span class="stat-value">${item.weight.toFixed(1)}% <small style="color:var(--theme-text-muted);">(niveau ${item.riskLevel}/10)</small></span>
               </div>
             `).join('');
 
-            el.innerHTML = `
+          el.innerHTML = `
               <div class="var-methods">
                 <div class="sim-stat" style="justify-content:space-between;">
-                  <span class="stat-label">Concentration</span>
-                  <span class="stat-value">${Math.round((data.concentration_risk||0)*100)}%</span>
+                  <span class="stat-label">Diversification Ratio</span>
+                  <span class="stat-value">${(correlationMetrics.diversification_ratio || 0).toFixed(2)}</span>
                 </div>
                 <div class="sim-stat" style="justify-content:space-between;">
-                  <span class="stat-label">Diversification</span>
-                  <span class="stat-value">${(data.diversification_ratio||0).toFixed(2)}</span>
+                  <span class="stat-label">Effective Assets</span>
+                  <span class="stat-value">${Math.round(correlationMetrics.effective_assets || 0)}</span>
                 </div>
+                <div class="attribution-header" style="margin: 1rem 0 0.5rem 0; font-weight: 600; font-size: 0.9rem;">Attribution par Groupe:</div>
                 ${rows}
               </div>
             `;
-          } catch (e) {
-            console.warn('Risk attribution load failed:', e);
-            el.innerHTML = `<div class="warning">Attribution indisponible pour le moment</div>`;
-          }
+        } catch (e) {
+          console.warn('Risk attribution load failed:', e);
+          el.innerHTML = `<div class="warning">Erreur lors du calcul d'attribution: ${e.message}</div>`;
         }
+      }
 
-        // Initialize mode from localStorage
-        document.addEventListener('DOMContentLoaded', function() {
-          const savedMode = localStorage.getItem('risk-dashboard-mode');
-          const modeSwitch = document.getElementById('mode-switch');
-          
-          if (savedMode === 'advanced' && modeSwitch) {
-            modeSwitch.checked = true;
-            toggleAdvancedMode();
-          }
-        });
+      // Advanced components now loaded automatically after dashboard render
 
-        // Make functions globally available
-        window.toggleAdvancedMode = toggleAdvancedMode;
-        window.loadAdvancedRiskComponents = loadAdvancedRiskComponents;
+      // Make functions globally available
+      window.loadAdvancedRiskComponents = loadAdvancedRiskComponents;
     });
   </script>
 
@@ -8396,9 +8375,12 @@ async function refreshDashboard(forceRefresh = false) {
 
       <div class="modal-actions">
         <button class="modal-action modal-action-secondary" onclick="closeAlertModal()">Close</button>
-        <button class="modal-action modal-action-secondary" onclick="snoozeCurrentAlert()" id="snooze-btn">Snooze 30m</button>
-        <button class="modal-action modal-action-primary" onclick="acknowledgeCurrentAlert()" id="ack-btn">Acknowledge</button>
-        <button class="modal-action modal-action-danger" onclick="applyAction()" id="apply-btn" style="display:none;">Apply Action</button>
+        <button class="modal-action modal-action-secondary" onclick="snoozeCurrentAlert()" id="snooze-btn">Snooze
+          30m</button>
+        <button class="modal-action modal-action-primary" onclick="acknowledgeCurrentAlert()"
+          id="ack-btn">Acknowledge</button>
+        <button class="modal-action modal-action-danger" onclick="applyAction()" id="apply-btn"
+          style="display:none;">Apply Action</button>
       </div>
     </div>
   </div>

@@ -347,7 +347,7 @@ class StrategyRegistry:
             targets.extend([
                 AllocationTarget("BTC", 0.35, "Base solide"),
                 AllocationTarget("ETH", 0.25, "Growth potential"),
-                AllocationTarget("LARGE", 0.2, "Diversification"), 
+                AllocationTarget("L1/L0 majors", 0.2, "Diversification"), 
                 AllocationTarget("USDC", 0.2, "Buffer")
             ])
         else:
@@ -357,25 +357,25 @@ class StrategyRegistry:
                 targets.extend([
                     AllocationTarget("BTC", 0.5, f"Phase {phase.value}"),
                     AllocationTarget("ETH", 0.3, "Prêt transition"),
-                    AllocationTarget("LARGE", 0.2, "Opportuniste")
+                    AllocationTarget("L1/L0 majors", 0.2, "Opportuniste")
                 ])
             elif phase == Phase.ETH:
                 targets.extend([
                     AllocationTarget("BTC", 0.3, "Base"),
                     AllocationTarget("ETH", 0.4, f"Phase {phase.value}"),
-                    AllocationTarget("LARGE", 0.3, "Rotation")
+                    AllocationTarget("L1/L0 majors", 0.3, "Rotation")
                 ])
             elif phase == Phase.LARGE:
                 targets.extend([
                     AllocationTarget("BTC", 0.25, "Base"),
                     AllocationTarget("ETH", 0.25, "Co-leader"),
-                    AllocationTarget("LARGE", 0.5, f"Phase {phase.value}")
+                    AllocationTarget("L1/L0 majors", 0.5, f"Phase {phase.value}")
                 ])
             else:  # ALT
                 targets.extend([
                     AllocationTarget("BTC", 0.2, "Base"),
                     AllocationTarget("ETH", 0.2, "Bridge"),
-                    AllocationTarget("LARGE", 0.3, "Large caps"),
+                    AllocationTarget("L1/L0 majors", 0.3, "Large caps"),
                     AllocationTarget("ALT", 0.3, f"Phase {phase.value}")
                 ])
         

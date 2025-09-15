@@ -1,6 +1,6 @@
-// UnifiedInsights UI Component - INTELLIGENT VERSION
-// Displays sophisticated analysis from all modules
-import { getUnifiedState, deriveRecommendations } from '../core/unified-insights.js';
+// UnifiedInsights UI Component - INTELLIGENT VERSION V2
+// Displays sophisticated analysis from all modules - MIGRATED TO V2
+import { getUnifiedState, deriveRecommendations } from '../core/unified-insights-v2.js';
 import { store } from '../core/risk-dashboard-store.js';
 
 // Lightweight fetch helper with timeout
@@ -18,7 +18,7 @@ async function fetchJson(url, opts = {}) {
   }
 }
 
-// Simple in-memory cache for current allocation per user/source to avoid frequent API calls
+// Enhanced in-memory cache for current allocation per user/source/taxonomy to avoid frequent API calls
 const _allocCache = { ts: 0, data: null, key: null };
 
 // Current allocation by group using taxonomy aliases
@@ -27,7 +27,16 @@ async function getCurrentAllocationByGroup(minUsd = 1.0) {
     const now = Date.now();
     const user = (localStorage.getItem('activeUser') || 'demo');
     const source = (window.globalConfig && window.globalConfig.get?.('data_source')) || 'unknown';
-    const cacheKey = `${user}:${source}`;
+
+    // Get taxonomy for hash calculation
+    let taxonomyHash = 'unknown';
+    try {
+      const taxo = await window.globalConfig.apiRequest('/taxonomy').catch(() => null);
+      taxonomyHash = taxo?.hash || taxo?.version || 'v2';
+    } catch { }
+
+    // Enhanced cache key with taxonomy hash and version
+    const cacheKey = `${user}:${source}:${taxonomyHash}:v2`;
     if (_allocCache.data && _allocCache.key === cacheKey && (now - _allocCache.ts) < 60000) { // 60s TTL
       return _allocCache.data;
     }
@@ -270,11 +279,11 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
       ${card(`
         <div style="font-weight:700;">🤖 Régime & Sentiment</div>
         <div style="font-size:1.2rem; font-weight:800; display: flex; align-items: center; gap: .5rem;">
-          ${u.regime?.emoji || '🤖'} ${u.regime?.name || u.sentiment.regime || '—'}
+          ${u.regime?.emoji || '🤖'} ${u.regime?.name || u.sentiment?.regime || '—'}
           ${u.regime?.confidence ? `<span style="background: var(--info); color: white; padding: 1px 4px; border-radius: 3px; font-size: .7rem;">${Math.round(u.regime.confidence * 100)}%</span>` : ''}
         </div>
-        <div style="font-size:.85rem; color: var(--theme-text-muted);">${u.sentiment.sources && u.sentiment.sources.length > 1 ? `Sentiment (${u.sentiment.sources.length} sources): ${u.sentiment.fearGreed ?? '—'}` : `Fear & Greed: ${u.sentiment.fearGreed ?? '—'}`} • ${u.sentiment.interpretation || 'Neutre'}</div>
-        ${u.sentiment.sources && u.sentiment.sources.length > 1 ? `<div style="font-size:.75rem; color: var(--theme-text-muted); margin-top: .25rem;">${u.sentiment.sources.map(s => s.replace('_', ' ')).join(', ')}</div>` : ''}
+        <div style="font-size:.85rem; color: var(--theme-text-muted);">${u.sentiment?.sources && u.sentiment.sources.length > 1 ? `Sentiment (${u.sentiment.sources.length} sources): ${u.sentiment.fearGreed ?? '—'}` : `Fear & Greed: ${u.sentiment?.fearGreed ?? '—'}`} • ${u.sentiment?.interpretation || 'Neutre'}</div>
+        ${u.sentiment?.sources && u.sentiment.sources.length > 1 ? `<div style="font-size:.75rem; color: var(--theme-text-muted); margin-top: .25rem;">${u.sentiment.sources.map(s => s.replace('_', ' ')).join(', ')}</div>` : ''}
         ${u.regime?.overrides && u.regime.overrides.length > 0 ? `<div style="font-size:.75rem; color: var(--warning); margin-top: .5rem;">⚡ ${u.regime.overrides.length} override(s) actif(s)</div>` : ''}
       `)}
     </div>
@@ -322,7 +331,15 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
   // ALLOCATION INSIGHTS unifiées, infos visibles sans survol
   let allocationBlock = '';
   try {
-    if (u.intelligence?.allocation && Object.keys(u.intelligence.allocation).length > 0) {
+    // Support both legacy (u.intelligence.allocation) and new Strategy API (u.strategy.targets)
+    const allocation = u.intelligence?.allocation ||
+                      (u.strategy?.targets ?
+                        u.strategy.targets.reduce((acc, target) => {
+                          acc[target.symbol] = target.weight * 100; // Convert to percentage
+                          return acc;
+                        }, {}) : null);
+
+    if (allocation && Object.keys(allocation).length > 0) {
       const conf = u.decision.confidence || 0;
       const contra = (u.contradictions?.length) || 0;
       const governanceStatus = store.getGovernanceStatus();
@@ -352,7 +369,7 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
       }
 
       const current = await getCurrentAllocationByGroup(5.0);
-      const targetAdj = applyCycleMultipliersToTargets(u.intelligence.allocation, u.cycle?.multipliers || {});
+      const targetAdj = applyCycleMultipliersToTargets(allocation, u.cycle?.multipliers || {});
 
       // Persist suggested allocation for rebalance.html consumption
       try {
@@ -470,12 +487,41 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
   });
 }
 
-export { getCurrentAllocationByGroup };
+// Cache invalidation helpers
+function invalidateAllocationCache() {
+  _allocCache.data = null;
+  _allocCache.key = null;
+  _allocCache.ts = 0;
+  console.log('🗑️ Allocation cache invalidated due to source/user/taxonomy change');
+}
+
+// Listen for data source and user changes to invalidate cache
+if (typeof window !== 'undefined') {
+  window.addEventListener('dataSourceChanged', (event) => {
+    console.debug(`🔄 Data source change detected: ${event.detail?.oldSource || 'unknown'} → ${event.detail?.newSource || 'unknown'}`);
+    invalidateAllocationCache();
+  });
+
+  window.addEventListener('activeUserChanged', (event) => {
+    console.debug(`👤 Active user change detected: ${event.detail?.oldUser || 'unknown'} → ${event.detail?.newUser || 'unknown'}`);
+    invalidateAllocationCache();
+  });
+
+  window.addEventListener('storage', (event) => {
+    if (event.key === 'activeUser' || event.key?.includes('crypto_rebal_settings')) {
+      console.debug('📊 Settings change detected via storage, invalidating cache');
+      setTimeout(invalidateAllocationCache, 100); // Small delay to ensure settings are updated
+    }
+  });
+}
+
+export { getCurrentAllocationByGroup, invalidateAllocationCache };
 export default { renderUnifiedInsights };
 
 // DEBUG: Log sophisticated data structure for development
 if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
   window.debugUnifiedState = getUnifiedState;
   window.debugGetCurrentAllocation = getCurrentAllocationByGroup;
-  console.debug('🔧 Debug: window.debugUnifiedState() and window.debugGetCurrentAllocation() available for inspection');
+  window.debugInvalidateCache = invalidateAllocationCache;
+  console.debug('🔧 Debug: window.debugUnifiedState(), window.debugGetCurrentAllocation() and window.debugInvalidateCache() available for inspection');
 }

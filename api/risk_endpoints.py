@@ -5,7 +5,7 @@ Fournit les métriques VaR/CVaR, corrélation, stress tests et monitoring temps 
 
 from __future__ import annotations
 import logging
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Query, Depends
@@ -19,6 +19,112 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/risk", tags=["risk-management"])
 COMPUTE_ON_STUB_SOURCES = (os.getenv("COMPUTE_ON_STUB_SOURCES", "false").strip().lower() == "true")
+
+# ===== Helper: Risk Score V2 (feature-flagged) =====
+def _calculate_risk_score_v2(
+    risk_metrics,
+    exposure_by_group: Dict[str, float],
+    group_risk_index: float,
+    balances: List[Dict[str, Any]],
+    correlation_metrics
+) -> Tuple[float, Dict[str, Any]]:
+    """Compute Risk Score V2 with VaR/CVaR + structure + GRI.
+    Returns (score, breakdown dict).
+    """
+    def clamp(x, a, b):
+        return max(a, min(b, x))
+
+    score = 50.0
+    breakdown: Dict[str, float] = {}
+
+    # VaR/CVaR (positive values)
+    var95 = float(getattr(risk_metrics, 'var_95_1d', 0.0) or 0.0)
+    cvar95 = float(getattr(risk_metrics, 'cvar_95_1d', 0.0) or 0.0)
+    d_var = -5.0 if var95 < 0.04 else (0.0 if var95 <= 0.08 else 5.0)
+    d_cvar = -3.0 if cvar95 < 0.06 else (0.0 if cvar95 <= 0.12 else 3.0)
+    score += d_var + d_cvar
+    breakdown['var95'] = d_var
+    breakdown['cvar95'] = d_cvar
+
+    # Drawdown (use absolute)
+    max_dd = abs(float(getattr(risk_metrics, 'max_drawdown', 0.0) or 0.0))
+    if max_dd < 0.15:
+        d_dd = -10.0
+    elif max_dd <= 0.30:
+        d_dd = 0.0
+    elif max_dd <= 0.50:
+        d_dd = 10.0
+    else:
+        d_dd = 20.0
+    score += d_dd
+    breakdown['drawdown'] = d_dd
+
+    # Volatility annualized
+    vol = float(getattr(risk_metrics, 'volatility_annualized', 0.0) or 0.0)
+    d_vol = -5.0 if vol < 0.30 else (0.0 if vol <= 0.60 else 10.0)
+    score += d_vol
+    breakdown['volatility'] = d_vol
+
+    # Sharpe/Sortino (use the worse)
+    sharpe = float(getattr(risk_metrics, 'sharpe_ratio', 0.0) or 0.0)
+    sortino = float(getattr(risk_metrics, 'sortino_ratio', sharpe) or sharpe)
+    perf_ratio = min(sharpe, sortino)
+    if perf_ratio < 0.5:
+        d_perf = 10.0
+    elif perf_ratio <= 1.0:
+        d_perf = 0.0
+    elif perf_ratio <= 1.5:
+        d_perf = -5.0
+    else:
+        d_perf = -10.0
+    score += d_perf
+    breakdown['risk_adjusted_perf'] = d_perf
+
+    # Structure: stables share from exposure_by_group
+    stables_share = float(exposure_by_group.get('Stablecoins', 0.0) or 0.0)
+    if stables_share >= 0.20:
+        d_stables = -5.0
+    elif stables_share >= 0.10:
+        d_stables = -2.0
+    elif stables_share < 0.05:
+        d_stables = 3.0
+    else:
+        d_stables = 0.0
+    score += d_stables
+    breakdown['stables'] = d_stables
+
+    # Concentration: Top5 and HHI
+    try:
+        total = sum(float(h.get('value_usd', 0.0) or 0.0) for h in balances)
+        weights = []
+        if total > 0:
+            weights = sorted([(float(h.get('value_usd', 0.0))/total) for h in balances if float(h.get('value_usd', 0.0)) > 0], reverse=True)
+        top5 = sum(weights[:5]) if weights else 0.0
+        hhi = sum(w*w for w in weights)
+    except Exception:
+        top5 = 0.0
+        hhi = 0.0
+    d_conc = 0.0
+    if top5 > 0.80:
+        d_conc += 5.0
+    elif hhi > 0.20:
+        d_conc += 3.0
+    score += d_conc
+    breakdown['concentration'] = d_conc
+
+    # Diversification via diversification_ratio
+    div_ratio = float(getattr(correlation_metrics, 'diversification_ratio', 1.0) or 1.0)
+    d_div = 0.0 if div_ratio > 0.7 else (3.0 if div_ratio >= 0.4 else 6.0)
+    score += d_div
+    breakdown['diversification'] = d_div
+
+    # Group Risk Index
+    d_gri = min(10.0, max(0.0, (float(group_risk_index) - 4.0) * 2.0))
+    score += d_gri
+    breakdown['gri'] = d_gri
+
+    score = clamp(score, 0.0, 100.0)
+    return score, breakdown
 
 class RiskMetricsResponse(BaseModel):
     """Réponse pour les métriques de risque"""
@@ -439,27 +545,53 @@ async def get_risk_dashboard(
             price_data=price_df,
             min_correlation_threshold=0.7
         )
-        
+
+        # Exposition par groupes (via Taxonomy) + Group Risk Index (GRI)
+        total_value = sum(float(h.get("value_usd", 0.0)) for h in balances) or 0.0
+        from services.taxonomy import Taxonomy
+        taxonomy = Taxonomy.load()
+        exposure_by_group = {}
+        if total_value > 0:
+            for h in balances:
+                symbol = str(h.get('symbol', '')).upper()
+                group = taxonomy.group_for_alias(symbol)
+                w = float(h.get('value_usd', 0.0)) / total_value
+                exposure_by_group[group] = exposure_by_group.get(group, 0.0) + w
+
+        # Barème de risque par groupe (0-10), simple et explicable
+        GROUP_RISK_LEVELS = {
+            'Stablecoins': 0,
+            'BTC': 2,
+            'ETH': 3,
+            'L2/Scaling': 5,
+            'DeFi': 5,
+            'AI/Data': 5,
+            'SOL': 6,
+            'L1/L0 majors': 6,
+            'Gaming/NFT': 6,
+            'Others': 7,
+            'Memecoins': 9,
+        }
+        if exposure_by_group:
+            gri_raw = 0.0
+            for g, w in exposure_by_group.items():
+                level = GROUP_RISK_LEVELS.get(g, 6)  # défaut modéré si inconnu
+                gri_raw += w * level
+            group_risk_index = max(0.0, min(10.0, gri_raw))
+        else:
+            group_risk_index = 0.0
+
         # Construction de la réponse dashboard avec métriques centralisées
         
-        # Calculer le score de risque global (0-100, plus haut = plus risqué)
-        risk_score = 50  # Base neutre
-        if risk_metrics.sharpe_ratio < 0.5:
-            risk_score += 20
-        elif risk_metrics.sharpe_ratio > 1.0:
-            risk_score -= 15
-            
-        if abs(risk_metrics.max_drawdown) > 0.3:
-            risk_score += 25
-        elif abs(risk_metrics.max_drawdown) < 0.15:
-            risk_score -= 10
-            
-        if risk_metrics.volatility_annualized > 0.6:
-            risk_score += 15
-        elif risk_metrics.volatility_annualized < 0.3:
-            risk_score -= 10
-            
-        risk_score = max(0, min(100, risk_score))  # Clamp entre 0-100
+        # Calculer le Risk Score v2 avec intégration GRI
+        risk_score_result = _calculate_risk_score_v2(
+            risk_metrics=risk_metrics,
+            exposure_by_group=exposure_by_group,
+            group_risk_index=group_risk_index,
+            balances=balances,
+            correlation_metrics=correlation_metrics
+        )
+        risk_score = risk_score_result[0]  # Score final
         
         # Déterminer le niveau de risque
         if risk_score >= 75:
@@ -497,6 +629,9 @@ async def get_risk_dashboard(
                 "kurtosis": risk_metrics.kurtosis,
                 "overall_risk_level": overall_risk_level,
                 "risk_score": risk_score,
+                # Exposition par groupes et indice GRI (0-10)
+                "exposure_by_group": exposure_by_group,
+                "group_risk_index": group_risk_index,
                 "calculation_date": risk_metrics.calculation_date.isoformat(),
                 "data_points": risk_metrics.data_points,
                 "confidence_level": risk_metrics.confidence_level
@@ -510,11 +645,29 @@ async def get_risk_dashboard(
         }
         
         logger.info(f"✅ Centralized metrics calculated: Sharpe={risk_metrics.sharpe_ratio:.2f}, Vol={risk_metrics.volatility_annualized:.2f}, MaxDD={risk_metrics.max_drawdown:.2%}, RiskScore={risk_score}")
-        
+
         end_time = datetime.now()
         calculation_time = f"{(end_time - start_time).total_seconds():.2f}s"
         dashboard_data["calculation_time"] = calculation_time
-        
+
+        # Add normalized metadata for frontend traceability
+        import hashlib
+        taxonomy_version = "v2"  # Current taxonomy version
+        # Simple hash based on groups used for consistency checking
+        groups_hash = hashlib.md5(",".join(sorted(exposure_by_group.keys())).encode()).hexdigest()[:8]
+
+        dashboard_data["meta"] = {
+            "user_id": user,
+            "source_id": source_used,
+            "taxonomy_version": taxonomy_version,
+            "taxonomy_hash": groups_hash,
+            "generated_at": datetime.now().isoformat(),
+            "correlation_id": f"risk-{user}-{int(datetime.now().timestamp())}"
+        }
+
+        # Log metadata for traceability
+        logger.info(f"🏷️ Risk dashboard metadata: user={user}, source={source_used}, taxonomy={taxonomy_version}:{groups_hash}")
+
         return dashboard_data
         
     except Exception as e:
