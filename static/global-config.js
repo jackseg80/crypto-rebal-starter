@@ -461,26 +461,70 @@ window.updateGlobalSetting = (key, value) => globalConfig.set(key, value);
 window.getApiUrl = (endpoint, params) => globalConfig.getApiUrl(endpoint, params);
 window.apiRequest = (endpoint, options) => globalConfig.apiRequest(endpoint, options);
 
+// Fonctions de gestion du cache balance
+window.clearBalanceCache = (user = null) => balanceCache.clear(user);
+window.refreshBalanceData = () => window.loadBalanceData(true); // Force refresh
+
+/**
+ * Cache intelligent pour les données de balance
+ */
+const balanceCache = {
+  data: null,
+  timestamp: 0,
+  ttl: 2 * 60 * 1000, // 2 minutes TTL par défaut
+
+  isValid(user = 'default') {
+    if (!this.data || !this.data[user]) return false;
+    return (Date.now() - this.data[user].timestamp) < this.ttl;
+  },
+
+  set(data, user = 'default') {
+    if (!this.data) this.data = {};
+    this.data[user] = { data, timestamp: Date.now() };
+  },
+
+  get(user = 'default') {
+    return this.data?.[user]?.data || null;
+  },
+
+  clear(user = null) {
+    if (user) {
+      if (this.data) delete this.data[user];
+    } else {
+      this.data = null;
+    }
+  }
+};
+
 /**
  * Fonction centralisée pour charger les données de balance selon la source configurée
  */
-window.loadBalanceData = async function() {
+window.loadBalanceData = async function(forceRefresh = false) {
   const dataSource = globalConfig.get('data_source');
   const apiBaseUrl = globalConfig.get('api_base_url');
+  const currentUser = localStorage.getItem('activeUser') || 'demo';
 
-  // Add cache-busting timestamp to prevent browser caching
-  const timestamp = Date.now();
-  console.debug(`🔍 Loading balance data using source: ${dataSource} (cache-bust: ${timestamp})`);
+  // Vérifier cache (sauf si refresh forcé)
+  if (!forceRefresh && balanceCache.isValid(currentUser)) {
+    console.debug(`🚀 Balance data loaded from cache (user: ${currentUser})`);
+    return { success: true, data: balanceCache.get(currentUser), source: 'cache', cached: true };
+  }
+
+  // Cache miss ou refresh forcé - charger depuis API
+  const timestamp = forceRefresh ? Date.now() : '';
+  console.debug(`🔍 Loading balance data using source: ${dataSource} (user: ${currentUser}, cache-bust: ${timestamp || 'none'})`);
 
   try {
     switch (dataSource) {
       case 'cointracking_api': {
         // CoinTracking API via backend
         console.debug('📡 Using CoinTracking API source');
-        const apiData = await globalConfig.apiRequest('/balances/current', {
-          params: { source: 'cointracking_api', _t: timestamp }
-        });
-        return { success: true, data: apiData, source: apiData?.source_used || 'cointracking_api' };
+        const params = { source: 'cointracking_api' };
+        if (forceRefresh) params._t = timestamp;
+        const apiData = await globalConfig.apiRequest('/balances/current', { params });
+        const result = { success: true, data: apiData, source: apiData?.source_used || 'cointracking_api' };
+        balanceCache.set(apiData, currentUser);
+        return result;
       }
 
       // All stub flavors should use the backend stub variants
@@ -490,20 +534,24 @@ window.loadBalanceData = async function() {
       case 'stub_shitcoins': {
         const chosen = dataSource;
         console.debug(`🧪 Using stub data source: ${chosen}`);
-        const stubData = await globalConfig.apiRequest('/balances/current', {
-          params: { source: chosen, _t: timestamp }
-        });
-        return { success: true, data: stubData, source: stubData?.source_used || chosen };
+        const params = { source: chosen };
+        if (forceRefresh) params._t = timestamp;
+        const stubData = await globalConfig.apiRequest('/balances/current', { params });
+        const result = { success: true, data: stubData, source: stubData?.source_used || chosen };
+        balanceCache.set(stubData, currentUser);
+        return result;
       }
 
       case 'cointracking':
       default: {
         // Local CoinTracking CSV via API backend
         console.debug('📄 Using local CoinTracking CSV files via API');
-        const csvData = await globalConfig.apiRequest('/balances/current', {
-          params: { source: 'cointracking', _t: timestamp }
-        });
-        return { success: true, data: csvData, source: csvData?.source_used || 'cointracking' };
+        const params = { source: 'cointracking' };
+        if (forceRefresh) params._t = timestamp;
+        const csvData = await globalConfig.apiRequest('/balances/current', { params });
+        const result = { success: true, data: csvData, source: csvData?.source_used || 'cointracking' };
+        balanceCache.set(csvData, currentUser);
+        return result;
       }
     }
   } catch (error) {

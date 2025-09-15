@@ -44,7 +44,10 @@
                 if ((window.globalConfig?.get?.('theme') || 'auto') === 'auto') applyAppearance();
             });
         }
-    } catch (_) { }
+    } catch (e) {
+        // Defensive logging: match media peut échouer sur anciens navigateurs
+        console.debug('Appearance: échec configuration auto-thème (ignoré):', e.message);
+    }
 
     // Synchroniser entre pages/onglets : réagir aux modifications de settings
     window.addEventListener('storage', (e) => {

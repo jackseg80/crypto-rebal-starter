@@ -148,15 +148,11 @@ function tryParseLocalStorage(key) {
 export function clearCache() {
   RAM_CACHE.clear();
   
-  // Clear localStorage cache entries
-  const keysToRemove = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key?.startsWith('cache:')) {
-      keysToRemove.push(key);
-    }
-  }
-  keysToRemove.forEach(key => localStorage.removeItem(key));
+  // Clear localStorage cache entries efficiently
+  // Au lieu d'itérer sur tout localStorage, filtrer directement les clés
+  const allKeys = Object.keys(localStorage);
+  const cacheKeys = allKeys.filter(key => key.startsWith('cache:'));
+  cacheKeys.forEach(key => localStorage.removeItem(key));
   
   console.debug('All caches cleared');
 }
@@ -168,12 +164,9 @@ export function getCacheStats() {
   const ramSize = RAM_CACHE.size;
   let diskCount = 0;
   
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key?.startsWith('cache:')) {
-      diskCount++;
-    }
-  }
+  // Compter les clés cache efficacement
+  const cacheKeys = Object.keys(localStorage).filter(key => key.startsWith('cache:'));
+  diskCount = cacheKeys.length;
   
   return { ramSize, diskCount };
 }
