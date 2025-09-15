@@ -18,27 +18,41 @@ async function fetchJson(url, opts = {}) {
   }
 }
 
-// Simple in-memory cache for current allocation to avoid frequent API calls
-const _allocCache = { ts: 0, data: null };
+// Simple in-memory cache for current allocation per user/source to avoid frequent API calls
+const _allocCache = { ts: 0, data: null, key: null };
 
 // Current allocation by group using taxonomy aliases
 async function getCurrentAllocationByGroup(minUsd = 1.0) {
   try {
     const now = Date.now();
-    if (_allocCache.data && (now - _allocCache.ts) < 60000) { // 60s TTL
+    const user = (localStorage.getItem('activeUser') || 'demo');
+    const source = (window.globalConfig && window.globalConfig.get?.('data_source')) || 'unknown';
+    const cacheKey = `${user}:${source}`;
+    if (_allocCache.data && _allocCache.key === cacheKey && (now - _allocCache.ts) < 60000) { // 60s TTL
       return _allocCache.data;
     }
-    const base = (window.globalConfig && (window.globalConfig.get?.('api_base_url') || window.globalConfig.get?.('base_url'))) || window.location.origin;
-    const apiBase = base.replace(/\/$/, '');
-    const useCfg = !!(window.globalConfig && typeof window.globalConfig.getApiUrl === 'function');
-    const taxoUrl = useCfg ? window.globalConfig.getApiUrl('/taxonomy') : `${apiBase}/taxonomy`;
-    const balUrl = useCfg ? window.globalConfig.getApiUrl('/balances/current', { min_usd: minUsd }) : `${apiBase}/balances/current?min_usd=${encodeURIComponent(minUsd)}`;
+    // Utiliser le seuil global configuré pour rester cohérent avec dashboard
+    const cfgMin = (window.globalConfig && window.globalConfig.get?.('min_usd_threshold')) || minUsd || 1.0;
+    // Fetch with X-User via globalConfig
     const [taxo, balances] = await Promise.all([
-      fetchJson(taxoUrl),
-      fetchJson(balUrl)
+      window.globalConfig.apiRequest('/taxonomy').catch(() => null),
+      window.globalConfig.apiRequest('/balances/current', { params: { min_usd: cfgMin } })
     ]);
-    const aliases = (taxo && taxo.aliases) || {};
-    const groups = (taxo && taxo.groups) || [];
+    // Mapping d'alias: préférer taxonomy, sinon fallback identique au dashboard
+    const fallbackAliases = {
+      'BTC': 'BTC', 'TBTC': 'BTC', 'WBTC': 'BTC',
+      'ETH': 'ETH', 'WETH': 'ETH', 'STETH': 'ETH', 'WSTETH': 'ETH', 'RETH': 'ETH', 'CBETH': 'ETH',
+      'USDC': 'Stablecoins', 'USDT': 'Stablecoins', 'USD': 'Stablecoins', 'DAI': 'Stablecoins', 'TUSD': 'Stablecoins', 'FDUSD': 'Stablecoins', 'BUSD': 'Stablecoins',
+      'SOL': 'L1/L0 majors', 'SOL2': 'L1/L0 majors', 'ATOM': 'L1/L0 majors', 'ATOM2': 'L1/L0 majors', 'DOT': 'L1/L0 majors', 'DOT2': 'L1/L0 majors', 'ADA': 'L1/L0 majors',
+      'AVAX': 'L1/L0 majors', 'NEAR': 'L1/L0 majors', 'LINK': 'L1/L0 majors', 'XRP': 'L1/L0 majors', 'BCH': 'L1/L0 majors', 'XLM': 'L1/L0 majors', 'LTC': 'L1/L0 majors', 'SUI3': 'L1/L0 majors', 'TRX': 'L1/L0 majors',
+      'BNB': 'Exchange Tokens', 'BGB': 'Exchange Tokens', 'CHSB': 'Exchange Tokens',
+      'AAVE': 'DeFi', 'JUPSOL': 'DeFi', 'JITOSOL': 'DeFi', 'FET': 'DeFi', 'UNI': 'DeFi', 'SUSHI': 'DeFi', 'COMP': 'DeFi', 'MKR': 'DeFi', '1INCH': 'DeFi', 'CRV': 'DeFi',
+      'DOGE': 'Memecoins',
+      'XMR': 'Privacy',
+      'IMO': 'Others', 'VVV3': 'Others', 'TAO6': 'Others', 'OTHERS': 'Others'
+    };
+    const aliases = (taxo && taxo.aliases) || fallbackAliases;
+    const groups = (taxo && taxo.groups) || Array.from(new Set(Object.values(fallbackAliases)));
     const items = (balances && balances.items) || [];
     const mapAlias = (sym) => aliases[(sym || '').toUpperCase()] || null;
     const fallbackGroup = (sym) => {
@@ -68,6 +82,7 @@ async function getCurrentAllocationByGroup(minUsd = 1.0) {
     const result = { totals, pct, grand, groups };
     _allocCache.data = result;
     _allocCache.ts = now;
+    _allocCache.key = cacheKey;
     return result;
   } catch (e) {
     console.warn('Current allocation fetch failed:', e.message || e);

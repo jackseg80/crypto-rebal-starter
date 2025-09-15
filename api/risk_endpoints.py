@@ -8,7 +8,8 @@ import logging
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
+from api.deps import get_active_user
 from pydantic import BaseModel
 
 from services.risk_management import risk_manager, RiskMetrics, CorrelationMatrix, StressTestResult, StressScenario, PerformanceAttribution, BacktestResult, RiskAlert, AlertSeverity, AlertCategory
@@ -72,7 +73,8 @@ async def get_risk_system_status():
 
 @router.get("/metrics", response_model=RiskMetricsResponse)
 async def get_portfolio_risk_metrics(
-    price_history_days: int = Query(30, ge=10, le=365, description="Nombre de jours d'historique")
+    price_history_days: int = Query(30, ge=10, le=365, description="Nombre de jours d'historique"),
+    user: str = Depends(get_active_user)
 ):
     """
     Calcule les métriques de risque complètes du portfolio
@@ -91,7 +93,7 @@ async def get_portfolio_risk_metrics(
         from api.unified_data import get_unified_filtered_balances
         
         # Récupération des holdings actuels via le système unifié
-        balances_response = await get_unified_filtered_balances(source="cointracking", min_usd=1.0)
+        balances_response = await get_unified_filtered_balances(source="cointracking", min_usd=1.0, user_id=user)
         src_used = (balances_response or {}).get('source_used', '')
         if (src_used.startswith('stub') or src_used == 'none') and not COMPUTE_ON_STUB_SOURCES:
             return RiskMetricsResponse(success=False, message="No real data: stub source in use")
@@ -150,7 +152,8 @@ async def get_portfolio_risk_metrics(
 @router.get("/correlation", response_model=CorrelationResponse)
 async def get_correlation_matrix(
     lookback_days: int = Query(30, ge=10, le=365, description="Nombre de jours pour calcul corrélation"),
-    source: str = Query("cointracking", description="Source de données: stub_balanced, cointracking, ou cointracking_api")
+    source: str = Query("cointracking", description="Source de données: stub_balanced, cointracking, ou cointracking_api"),
+    user: str = Depends(get_active_user)
 ):
     """
     Calcule la matrice de corrélation temps réel entre assets
@@ -168,7 +171,7 @@ async def get_correlation_matrix(
         from api.unified_data import get_unified_filtered_balances
         
         # Récupération des holdings actuels via le système unifié
-        balances_response = await get_unified_filtered_balances(source=source, min_usd=1.0)
+        balances_response = await get_unified_filtered_balances(source=source, min_usd=1.0, user_id=user)
         src_used = (balances_response or {}).get('source_used', '')
         if (src_used.startswith('stub') or src_used == 'none') and not COMPUTE_ON_STUB_SOURCES:
             return CorrelationResponse(success=False, message="No real data: stub source in use")
@@ -370,7 +373,8 @@ async def get_risk_dashboard(
     pricing: str = Query("local", description="Source de prix: local ou coingecko"),
     min_usd: float = Query(1.0, description="Seuil minimum en USD"),
     price_history_days: int = Query(30, ge=10, le=365, description="Fenêtre d'historique pour métriques (jours)"),
-    lookback_days: int = Query(30, ge=10, le=365, description="Fenêtre pour corrélations (jours)")
+    lookback_days: int = Query(30, ge=10, le=365, description="Fenêtre pour corrélations (jours)"),
+    user: str = Depends(get_active_user)
 ):
     """
     Endpoint pour dashboard de risque temps réel
@@ -381,7 +385,7 @@ async def get_risk_dashboard(
         
         # Récupération unifiée des balances (supporte stub | cointracking | cointracking_api)
         from api.unified_data import get_unified_filtered_balances
-        unified = await get_unified_filtered_balances(source=source, min_usd=min_usd)
+        unified = await get_unified_filtered_balances(source=source, min_usd=min_usd, user_id=user)
         balances = unified.get("items", [])
         source_used = unified.get("source_used", source)
         

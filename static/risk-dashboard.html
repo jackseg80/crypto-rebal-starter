@@ -2623,25 +2623,15 @@
 
         // Utiliser directement les données de balance et calculer le risque côté client
         const balanceResult = await fetchCached(
-          `risk-dashboard-balance:${dataSource}:${minUsd}`,
-          () => fetch(url)
-            .then(r => {
-              if (!r.ok) throw new Error(`HTTP ${r.status}: ${r.statusText}`);
-              return r.json();
-            }),
+          `risk-dashboard-balance:${(localStorage.getItem('activeUser')||'demo')}:${dataSource}:${minUsd}`,
+          () => window.globalConfig.apiRequest('/balances/current', { params: { min_usd: minUsd } }),
           'risk'
         );
 
         // Use the real backend endpoint for risk dashboard
-        const riskUrl = globalConfig.getApiUrl('/api/risk/dashboard', { min_usd: minUsd, price_history_days: analysisDays, lookback_days: corrDays });
-        console.debug(`🔍 Fetching risk metrics from: ${riskUrl}`);
-
-        const riskResponse = await fetch(riskUrl);
-        if (!riskResponse.ok) {
-          throw new Error(`Risk API Error: ${riskResponse.status}`);
-        }
-
-        const apiResult = await riskResponse.json();
+        const apiResult = await window.globalConfig.apiRequest('/api/risk/dashboard', {
+          params: { min_usd: minUsd, price_history_days: analysisDays, lookback_days: corrDays }
+        });
         // Inclure les balances pour calculer concentration/stablecoins côté UI
         try {
           apiResult.balances = Array.isArray(balanceResult?.items) ? balanceResult.items : [];
@@ -3033,15 +3023,9 @@
       try {
         console.debug('Loading alerts data...');
         
-        const apiBaseUrl = globalConfig.get('api_base_url');
-        const alertsUrl = `${apiBaseUrl}/api/alerts/active?include_snoozed=false`;
-        
-        const response = await fetch(alertsUrl);
-        if (!response.ok) {
-          throw new Error(`Alerts API Error: ${response.status}`);
-        }
-        
-        const alertsData = await response.json();
+        const alertsData = await window.globalConfig.apiRequest('/api/alerts/active', {
+          params: { include_snoozed: false }
+        });
         console.debug(`Alerts loaded: ${alertsData.length} active alerts`);
         
         return alertsData;
@@ -3236,14 +3220,12 @@
     
     async function acknowledgeAlert(alertId) {
       try {
-        const apiBaseUrl = globalConfig.get('api_base_url');
-        const response = await fetch(`${apiBaseUrl}/api/alerts/test/acknowledge/${alertId}`, {
+        const response = await window.globalConfig.apiRequest(`/api/alerts/test/acknowledge/${alertId}`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ notes: 'Acknowledged from dashboard' })
         });
         
-        if (response.ok) {
+        if (response && (response.ok || response.success || !response.error)) {
           // Refresh alerts display
           const alertsData = await fetchAlertsData();
           updateAlertsDisplay(alertsData);
@@ -3258,14 +3240,12 @@
     
     async function snoozeAlert(alertId, minutes) {
       try {
-        const apiBaseUrl = globalConfig.get('api_base_url');
-        const response = await fetch(`${apiBaseUrl}/api/alerts/test/snooze/${alertId}`, {
+        const response = await window.globalConfig.apiRequest(`/api/alerts/test/snooze/${alertId}`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ minutes })
         });
         
-        if (response.ok) {
+        if (response && (response.ok || response.success || !response.error)) {
           // Refresh alerts display
           const alertsData = await fetchAlertsData();
           updateAlertsDisplay(alertsData);
@@ -3288,8 +3268,6 @@
       try {
         console.debug('Loading alerts history...', filters);
         
-        const apiBaseUrl = globalConfig.get('api_base_url');
-        
         // Build query parameters
         const params = new URLSearchParams();
         params.append('limit', '100'); // Fetch more for client-side filtering
@@ -3304,13 +3282,10 @@
           params.append('type_filter', filters.type);
         }
         
-        // Use active endpoint (formatted has auth issues)
-        const response = await fetch(`${apiBaseUrl}/api/alerts/active?${params}`);
-        if (!response.ok) {
-          throw new Error(`History API Error: ${response.status}`);
-        }
-        
-        const alerts = await response.json();
+        // Use active endpoint with X-User header via globalConfig
+        const alerts = await window.globalConfig.apiRequest('/api/alerts/active', {
+          params: Object.fromEntries(params)
+        });
         console.debug(`History loaded: ${alerts?.length || 0} alerts`, alerts.slice(0, 2));
         
         return alerts || [];
@@ -4140,12 +4115,16 @@
         // Also store scores in localStorage for cross-page access (compatibility)
         // Include data source in the score keys for proper synchronization
         const dataSource = globalConfig.get('data_source') || 'unknown';
-        localStorage.setItem('risk_score_onchain', onchainScore !== null ? onchainScore.toString() : '');
-        localStorage.setItem('risk_score_risk', riskScore !== null ? riskScore.toString() : '');
-        localStorage.setItem('risk_score_blended', blendedScore !== null ? blendedScore.toString() : '');
-        localStorage.setItem('risk_score_ccs', ccsScore !== null ? ccsScore.toString() : '');
-        localStorage.setItem('risk_score_timestamp', Date.now().toString());
-        localStorage.setItem('risk_score_data_source', dataSource);
+        const __user = (localStorage.getItem('activeUser') || 'demo');
+        const __prefix = (k) => `${k}:${__user}`;
+        try {
+          localStorage.setItem(__prefix('risk_score_onchain'), onchainScore !== null ? onchainScore.toString() : '');
+          localStorage.setItem(__prefix('risk_score_risk'), riskScore !== null ? riskScore.toString() : '');
+          localStorage.setItem(__prefix('risk_score_blended'), blendedScore !== null ? blendedScore.toString() : '');
+          localStorage.setItem(__prefix('risk_score_ccs'), ccsScore !== null ? ccsScore.toString() : '');
+          localStorage.setItem(__prefix('risk_score_timestamp'), Date.now().toString());
+          localStorage.setItem(__prefix('risk_score_data_source'), dataSource);
+        } catch (_) {}
         
         // STOCKER CCS MIXTE sera fait APRÈS le calcul du blending dans updateScoreDisplays
 
@@ -7100,10 +7079,8 @@ async function refreshDashboard(forceRefresh = false) {
       if (!alert) {
         console.log('Alert not found in cache, fetching from API...');
         try {
-          const apiBaseUrl = globalConfig.get('api_base_url');
-          const response = await fetch(`${apiBaseUrl}/api/alerts/active`);
-          if (response.ok) {
-            const alerts = await response.json();
+          const alerts = await window.globalConfig.apiRequest('/api/alerts/active');
+          if (Array.isArray(alerts)) {
             alert = alerts.find(a => a.id === alertId);
             console.log('Found alert in API:', !!alert);
           }
@@ -7277,18 +7254,12 @@ async function refreshDashboard(forceRefresh = false) {
       if (!currentAlert) return;
 
       try {
-        const apiBaseUrl = globalConfig.get('api_base_url');
-        const response = await fetch(`${apiBaseUrl}/api/alerts/test/acknowledge/${currentAlert.id}`, {
+        const response = await window.globalConfig.apiRequest(`/api/alerts/test/acknowledge/${currentAlert.id}`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            notes: 'Acknowledged from dashboard modal'
-          })
+          body: JSON.stringify({ notes: 'Acknowledged from dashboard modal' })
         });
 
-        if (response.ok) {
+        if (response && (response.ok || response.success || !response.error)) {
           showToast('Alert acknowledged successfully', 'success');
           currentAlert.acknowledged_at = new Date().toISOString();
           currentAlert.acknowledged_by = 'user';
@@ -7309,16 +7280,10 @@ async function refreshDashboard(forceRefresh = false) {
       if (!currentAlert) return;
 
       try {
-        const apiBaseUrl = globalConfig.get('api_base_url');
-        const response = await fetch(`${apiBaseUrl}/api/alerts/test/snooze/${currentAlert.id}`, {
+        const response = await window.globalConfig.apiRequest(`/api/alerts/test/snooze/${currentAlert.id}`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Idempotency-Key': `snooze-${currentAlert.id}-${Date.now()}`
-          },
-          body: JSON.stringify({
-            minutes: 30
-          })
+          headers: { 'Idempotency-Key': `snooze-${currentAlert.id}-${Date.now()}` },
+          body: JSON.stringify({ minutes: 30 })
         });
 
         if (response.ok) {
@@ -8353,7 +8318,6 @@ async function refreshDashboard(forceRefresh = false) {
         // Make functions globally available
         window.toggleAdvancedMode = toggleAdvancedMode;
         window.loadAdvancedRiskComponents = loadAdvancedRiskComponents;
-      }
     });
   </script>
 

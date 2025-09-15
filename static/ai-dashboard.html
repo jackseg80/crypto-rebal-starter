@@ -647,7 +647,10 @@
                         const mini = document.getElementById('admin-mini-status');
                         if (mini) mini.textContent = 'Admin: OK';
                     }
-                } catch {}
+                } catch (e) {
+                    // Defensive logging: échoue silencieusement mais log l'erreur pour debug
+                    console.debug('AI Dashboard: échec chargement clé admin depuis URL (ignoré):', e.message);
+                }
 
                 // Initialiser le gestionnaire de cartes
                 initializeCardManager();
@@ -667,7 +670,10 @@
                         const mini = document.getElementById('admin-mini-status');
                         if (mini) mini.textContent = current ? 'Admin: OK' : 'Admin: OFF';
                     }
-                } catch {}
+                } catch (e) {
+                    // Defensive logging: échec silencieux mais traceable pour debug
+                    console.debug('AI Dashboard: échec mise à jour statut admin key (ignoré):', e.message);
+                }
 
                 // Configuration des onglets
                 setupTabs();

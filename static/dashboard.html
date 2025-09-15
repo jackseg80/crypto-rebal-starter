@@ -73,7 +73,8 @@
                 if (onchainEl) {
                     let onchainScore = unifiedState.onchain?.score;
                     if (onchainScore == null) {
-                        const lsOn = Number(localStorage.getItem('risk_score_onchain'));
+                        const user = localStorage.getItem('activeUser') || 'demo';
+                        const lsOn = Number(localStorage.getItem(`risk_score_onchain:${user}`) || localStorage.getItem('risk_score_onchain'));
                         if (Number.isFinite(lsOn)) onchainScore = Math.round(lsOn);
                     }
                     onchainEl.textContent = (onchainScore != null) ? onchainScore : '--';
@@ -87,7 +88,8 @@
                 if (riskEl) {
                     let riskScore = unifiedState.risk?.score;
                     if (riskScore == null) {
-                        const lsRisk = Number(localStorage.getItem('risk_score_risk'));
+                        const user = localStorage.getItem('activeUser') || 'demo';
+                        const lsRisk = Number(localStorage.getItem(`risk_score_risk:${user}`) || localStorage.getItem('risk_score_risk'));
                         if (Number.isFinite(lsRisk)) riskScore = Math.round(lsRisk);
                     }
                     riskEl.textContent = (riskScore != null) ? riskScore : '--';
@@ -185,7 +187,10 @@
                 // 2. Try to get cached scores from localStorage (from analytics-unified cache)
                 const getCachedScore = (key) => {
                     try {
-                        const cached = localStorage.getItem(key);
+                        const user = localStorage.getItem('activeUser') || 'demo';
+                        const ds = (window.globalConfig && window.globalConfig.get('data_source')) || 'unknown';
+                        const fullKey = `${key}_${user}_${ds}`;
+                        const cached = localStorage.getItem(fullKey) || localStorage.getItem(key);
                         if (!cached) return null;
                         const data = JSON.parse(cached);
                         const age = Date.now() - data.timestamp;
@@ -1150,12 +1155,14 @@
                 console.debug('📊 Loading scores data...');
 
                 // Essayer de récupérer les scores depuis localStorage (stockés par risk-dashboard)
+                const __user = localStorage.getItem('activeUser') || 'demo';
+                const get = (k) => localStorage.getItem(`${k}:${__user}`) || localStorage.getItem(k);
                 const scores = {
-                    onchain: localStorage.getItem('risk_score_onchain'),
-                    risk: localStorage.getItem('risk_score_risk'),
-                    blended: localStorage.getItem('risk_score_blended'),
-                    ccs: localStorage.getItem('risk_score_ccs'),
-                    timestamp: localStorage.getItem('risk_score_timestamp')
+                    onchain: get('risk_score_onchain'),
+                    risk: get('risk_score_risk'),
+                    blended: get('risk_score_blended'),
+                    ccs: get('risk_score_ccs'),
+                    timestamp: get('risk_score_timestamp')
                 };
 
                 // Vérifier si au moins un score est disponible et récent (moins de 5 minutes)

@@ -171,7 +171,10 @@ export async function getUnifiedState() {
     if (typeof decision.confidence === 'number') {
       decision.confidence = Math.max(0, Math.min(0.95, decision.confidence - contraPenalty));
     }
-  } catch {}
+  } catch (e) {
+    // Defensive logging: calcul penalty contradiction peut échouer sur données corrompues
+    console.debug('UnifiedInsights: échec ajustement confidence contradictions (ignoré):', e.message);
+  }
 
   // RETURN INTELLIGENT UNIFIED STATE
   const decisionSource = backendSignals ? 'backend' : (blendedScore != null ? 'blended' : 'fallback');
