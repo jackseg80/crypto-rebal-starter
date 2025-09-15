@@ -2711,10 +2711,34 @@
       el("apply-strategy-btn").addEventListener("click", applyStrategy);
       el("reset-strategy-btn").addEventListener("click", resetToManual);
 
-      // Écouter les changements de thème pour synchronisation cross-tab
+      // Track current data source to detect changes
+      let lastKnownDataSource = globalConfig.get('data_source');
+      console.debug(`🔄 Rebalance initialized with data source: ${lastKnownDataSource}`);
+
+      // Écouter les changements de thème et source pour synchronisation cross-tab
       window.addEventListener('storage', function (e) {
-        if (e.key === 'crypto_rebalancer_settings') {
-          console.log('Settings changed in another tab, reapplying theme...');
+        const expectedKey = (window.globalConfig?.getStorageKey && window.globalConfig.getStorageKey()) || 'crypto_rebal_settings_v1';
+        if (e.key === expectedKey) {
+          console.log('Settings changed in another tab, checking for theme and data source changes...');
+
+          // Check if data source changed
+          const currentSource = globalConfig.get('data_source');
+          if (currentSource && currentSource !== lastKnownDataSource) {
+            console.debug(`🔄 Data source changed from ${lastKnownDataSource} to ${currentSource}, refreshing rebalance...`);
+            lastKnownDataSource = currentSource;
+
+            // Clear any cached balance data
+            if (typeof window.clearBalanceCache === 'function') {
+              window.clearBalanceCache();
+            }
+
+            // Force refresh the rebalance data
+            setTimeout(() => {
+              loadBalance(true); // Force refresh
+            }, 500);
+          }
+
+          // Apply theme changes
           setTimeout(() => {
             if (window.globalConfig && window.globalConfig.applyTheme) {
               window.globalConfig.applyTheme();

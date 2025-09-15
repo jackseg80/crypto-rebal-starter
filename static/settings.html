@@ -1188,6 +1188,30 @@
     async function selectDataSource(source) {
       document.querySelectorAll('.radio-option').forEach(el => el.classList.remove('selected'));
       if (!window.userSettings) window.userSettings = getDefaultSettings();
+
+      // Vider tous les caches quand la source change
+      const oldSource = window.userSettings.data_source;
+      if (oldSource && oldSource !== source) {
+        console.log(`🔄 Source change detected: ${oldSource} -> ${source}, clearing all caches`);
+
+        // Vider le cache balance
+        if (typeof window.clearBalanceCache === 'function') {
+          window.clearBalanceCache();
+        }
+
+        // Vider localStorage cache
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('cache:') || key.includes('risk_score') || key.includes('balance_')) {
+            localStorage.removeItem(key);
+          }
+        });
+
+        // Mettre à jour global config aussi
+        if (typeof window.globalConfig !== 'undefined') {
+          window.globalConfig.set('data_source', source);
+        }
+      }
+
       window.userSettings.data_source = source;
       document.getElementById(`source_${source}`).checked = true;
       document.querySelector(`.radio-option input[value="${source}"]`).parentElement.classList.add('selected');
@@ -1360,8 +1384,11 @@
           const data = await response.json();
           let foundKeys = false;
 
-          // CoinGecko - utiliser la clé du serveur si pas de clé locale
-          if (data.coingecko_api_key && !globalSettings.coingecko_api_key) {
+          // CoinGecko - ne pas sauvegarder les clés masquées du serveur
+          if (data.coingecko_api_key && data.coingecko_api_key.endsWith('...')) {
+            // Clé masquée du serveur - ne pas l'assigner aux settings utilisateur
+            console.debug('CoinGecko API key found on server (masked)');
+          } else if (data.coingecko_api_key && !globalSettings.coingecko_api_key) {
             if (!window.userSettings) window.userSettings = getDefaultSettings();
             window.userSettings.coingecko_api_key = data.coingecko_api_key;
             foundKeys = true;
@@ -1371,8 +1398,11 @@
             updateApiKeyStatus('coingecko', true);
           }
 
-          // FRED - utiliser la clé du serveur si pas de clé locale
-          if (data.fred_api_key && !globalSettings.fred_api_key) {
+          // FRED - ne pas sauvegarder les clés masquées du serveur
+          if (data.fred_api_key && data.fred_api_key.endsWith('...')) {
+            // Clé masquée du serveur - ne pas l'assigner aux settings utilisateur
+            console.debug('FRED API key found on server (masked)');
+          } else if (data.fred_api_key && !globalSettings.fred_api_key) {
             if (!window.userSettings) window.userSettings = getDefaultSettings();
             window.userSettings.fred_api_key = data.fred_api_key;
             foundKeys = true;
@@ -1382,8 +1412,11 @@
             updateApiKeyStatus('fred', true);
           }
 
-          // CoinTracking Key - utiliser la clé du serveur si pas de clé locale
-          if (data.cointracking_api_key && !globalSettings.cointracking_api_key) {
+          // CoinTracking Key - ne pas sauvegarder les clés masquées du serveur
+          if (data.cointracking_api_key && data.cointracking_api_key.endsWith('...')) {
+            // Clé masquée du serveur - ne pas l'assigner aux settings utilisateur
+            console.debug('CoinTracking API key found on server (masked)');
+          } else if (data.cointracking_api_key && !globalSettings.cointracking_api_key) {
             if (!window.userSettings) window.userSettings = getDefaultSettings();
             window.userSettings.cointracking_api_key = data.cointracking_api_key;
             foundKeys = true;
@@ -1393,8 +1426,11 @@
             updateApiKeyStatus('cointracking_key', true);
           }
 
-          // CoinTracking Secret - utiliser la clé du serveur si pas de clé locale
-          if (data.cointracking_api_secret && !globalSettings.cointracking_api_secret) {
+          // CoinTracking Secret - ne pas sauvegarder les clés masquées du serveur
+          if (data.cointracking_api_secret && data.cointracking_api_secret === '***masked***') {
+            // Clé masquée du serveur - ne pas l'assigner aux settings utilisateur
+            console.debug('CoinTracking API secret found on server (masked)');
+          } else if (data.cointracking_api_secret && !globalSettings.cointracking_api_secret) {
             if (!window.userSettings) window.userSettings = getDefaultSettings();
             window.userSettings.cointracking_api_secret = data.cointracking_api_secret;
             foundKeys = true;
@@ -1466,10 +1502,12 @@
           const data = await response.json();
           let foundKeys = false;
 
-          // Forcer le rechargement de toutes les clés depuis .env
+          // Forcer le rechargement de toutes les clés depuis .env (ne pas sauver les masquées)
           if (data.coingecko_api_key) {
-            if (!window.userSettings) window.userSettings = getDefaultSettings();
-            window.userSettings.coingecko_api_key = data.coingecko_api_key;
+            if (!data.coingecko_api_key.endsWith('...')) {
+              if (!window.userSettings) window.userSettings = getDefaultSettings();
+              window.userSettings.coingecko_api_key = data.coingecko_api_key;
+            }
             document.getElementById('coingecko_api_key').value = maskApiKey(data.coingecko_api_key);
             updateApiKeyStatus('coingecko', true);
             foundKeys = true;
@@ -1478,8 +1516,10 @@
           }
 
           if (data.fred_api_key) {
-            if (!window.userSettings) window.userSettings = getDefaultSettings();
-            window.userSettings.fred_api_key = data.fred_api_key;
+            if (!data.fred_api_key.endsWith('...')) {
+              if (!window.userSettings) window.userSettings = getDefaultSettings();
+              window.userSettings.fred_api_key = data.fred_api_key;
+            }
             document.getElementById('fred_api_key').value = maskApiKey(data.fred_api_key);
             updateApiKeyStatus('fred', true);
             foundKeys = true;
@@ -1488,8 +1528,10 @@
           }
 
           if (data.cointracking_api_key) {
-            if (!window.userSettings) window.userSettings = getDefaultSettings();
-            window.userSettings.cointracking_api_key = data.cointracking_api_key;
+            if (!data.cointracking_api_key.endsWith('...')) {
+              if (!window.userSettings) window.userSettings = getDefaultSettings();
+              window.userSettings.cointracking_api_key = data.cointracking_api_key;
+            }
             document.getElementById('cointracking_api_key').value = maskApiKey(data.cointracking_api_key);
             updateApiKeyStatus('cointracking_key', true);
             foundKeys = true;
@@ -1498,8 +1540,10 @@
           }
 
           if (data.cointracking_api_secret) {
-            if (!window.userSettings) window.userSettings = getDefaultSettings();
-            window.userSettings.cointracking_api_secret = data.cointracking_api_secret;
+            if (data.cointracking_api_secret !== '***masked***') {
+              if (!window.userSettings) window.userSettings = getDefaultSettings();
+              window.userSettings.cointracking_api_secret = data.cointracking_api_secret;
+            }
             document.getElementById('cointracking_api_secret').value = maskApiKey(data.cointracking_api_secret);
             updateApiKeyStatus('cointracking_secret', true);
             foundKeys = true;
