@@ -201,9 +201,10 @@ function calculateSectorAllocation(macroAllocation, floors, isBullishPhase) {
   // Others = reste
   const allocatedAlts = Object.entries(allocation)
     .filter(([key]) => altSectors.includes(key))
-    .reduce((sum, [, value]) => sum + value, 0);
+    .reduce((sum, [, value]) => sum + (isNaN(value) ? 0 : value), 0);
 
-  allocation.Others = Math.max(floors.Others || 0, altsTotal - allocatedAlts);
+  const othersWeight = Math.max(floors.Others || 0, altsTotal - allocatedAlts);
+  allocation.Others = isNaN(othersWeight) ? floors.Others || 0.01 : othersWeight;
 
   return allocation;
 }
@@ -237,7 +238,8 @@ function calculateCoinAllocation(sectorAllocation, currentPositions, floors) {
 
         // Distribution égale + incumbency
         heldInSector.forEach(asset => {
-          coinAllocation[asset] = floors.incumbency + (remainingWeight / heldInSector.length);
+          const assetWeight = floors.incumbency + (remainingWeight / heldInSector.length);
+          coinAllocation[asset] = isNaN(assetWeight) ? floors.incumbency : assetWeight;
         });
 
         // Le reste va au secteur global (pour nouveaux achats potentiels)

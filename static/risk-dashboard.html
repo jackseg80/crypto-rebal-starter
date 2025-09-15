@@ -27,6 +27,9 @@
   <script type="module" src="modules/onchain-indicators.js"></script>
   <script type="module" src="modules/market-regimes.js"></script>
 
+  <!-- Unified asset groups system -->
+  <script type="module" src="shared-asset-groups.js"></script>
+
   <!-- Risk v2 uses API instead of local modules -->
 
   <!-- Chart.js will be lazy-loaded when needed -->
@@ -2893,72 +2896,31 @@
 
     // NOTE: calculateCorrelationMetrics() supprimée - corrélations calculées par le backend Python
 
-    // Asset grouping function - HARMONISÉ avec les 11 groupes du targets-coordinator
-    const ASSET_GROUPS = {
-      'BTC': ['BTC', 'TBTC'], // Bitcoin et dérivés
-      'ETH': ['ETH', 'WETH', 'STETH', 'WSTETH', 'RETH', 'CBETH'], // Ethereum et liquid staking
-      'Stablecoins': ['USDC', 'USDT', 'USD', 'DAI', 'USTC'], // Stablecoins
-      'SOL': ['SOL2', 'JUPSOL', 'JITOSOL'], // SOL ecosystem (groupe séparé)
-      'L1/L0 majors': ['ATOM2', 'DOT2', 'ADA', 'AVAX', 'NEAR', 'BCH', 'XLM', 'LTC', 'SUI3', 'TRX', 'VET', 'XTZ', 'EGLD3', 'ETC', 'TONCOIN', 'XNO2', 'NEO', 'ICP2', 'BNB', 'BGB', 'CHSB', 'CRO'], // Layer 1 blockchains majors + Exchange tokens
-      'L2/Scaling': ['POL3', 'IMX2', 'LRC', 'THETA2'], // Layer 2 et solutions de scalabilité
-      'DeFi': ['AAVE', 'SUSHI', 'LDO', 'UNI2', 'COMP', 'YFI', 'ZRX', 'ORCA', 'JUP2', 'LINK', 'GRT'], // DeFi tokens
-      'AI/Data': ['RENDER', 'TAO6', 'FET'], // AI and Data tokens
-      'Gaming/NFT': ['GALA', 'MANA', 'SAND', 'CHZ'], // Gaming and NFT
-      'Memecoins': ['DOGE', 'SHIB', 'PEPE4', 'BONK'], // Meme tokens
-      'Others': ['XRP', 'XMR', 'IMO', 'VVV3', 'S5', 'INJ2', 'ERA', 'CFG', 'PAXG', 'OXT', 'CAKE', 'PENGU7', 'BAT', 'SUN2', 'ZEC', 'DYDX', 'GNO', 'KSM', 'ALGO', 'GHST', 'BNT', 'QTUM', 'SCRT', 'ARPA', 'SAGA3', 'BNKR', 'IOTA2', 'EUR', 'LUNA2', 'KAVA', 'JMPT', 'WLD3', 'AKT', 'SFP', 'ZIL', 'ROSE', 'EWT', 'DOGI3', 'ANKR', 'RIF', 'XVG', 'REN', 'ATR', 'ENA', 'HEI2', 'LCX', 'GMT5', 'KNC', 'FIL', 'TIA3', 'VTHO', 'HTM', 'DIAMOND', 'RPL', 'HBAR', 'EIGEN'] // Tous les autres assets
-    };
+    // Import unified asset grouping functions
+    let groupAssetsByClassification, getAssetGroup;
+
+    // Load unified asset groups dynamically
+    import('./shared-asset-groups.js').then(module => {
+      groupAssetsByClassification = module.groupAssetsByClassification;
+      getAssetGroup = module.getAssetGroup;
+      console.debug('✅ Risk Dashboard: Unified asset groups loaded');
+    });
 
     function groupAssetsByAliases(items) {
-      const groups = new Map();
-      const ungrouped = [];
+      console.debug('🔍 DEBUG Risk Dashboard: Grouping', items.length, 'assets by unified taxonomy');
 
-      console.debug('🔍 DEBUG Risk Dashboard: Grouping', items.length, 'assets by aliases');
-
-      items.forEach(item => {
-        const symbol = (item.symbol || '').toUpperCase();
-        let foundGroup = null;
-
-        // Chercher dans quel groupe appartient ce symbol
-        for (const [groupName, aliases] of Object.entries(ASSET_GROUPS)) {
-          if (aliases.includes(symbol)) {
-            foundGroup = groupName;
-            break;
-          }
-        }
-
-        if (foundGroup) {
-          if (!groups.has(foundGroup)) {
-            groups.set(foundGroup, {
-              label: foundGroup,
-              value: 0,
-              assets: []
-            });
-          }
-          const group = groups.get(foundGroup);
-          group.value += parseFloat(item.value_usd || 0);
-          group.assets.push(symbol);
-
-          // Debug log for significant groupings
-          if (item.value_usd > 5000) {
-            console.debug('🔍 DEBUG Risk Dashboard: Grouped', symbol, 'into', foundGroup, '- value:', item.value_usd.toFixed(2));
-          }
-        } else {
-          ungrouped.push({
-            label: symbol,
-            value: parseFloat(item.value_usd || 0)
-          });
-
-          // Debug log for ungrouped assets
-          if (item.value_usd > 1000) {
-            console.debug('⚠️ DEBUG Risk Dashboard: UNGROUPED asset:', symbol, '- value:', item.value_usd.toFixed(2));
-          }
-        }
-      });
-
-      console.debug('🔍 DEBUG Risk Dashboard: Final groups:', groups.size, 'grouped +', ungrouped.length, 'ungrouped');
-      const result = [...Array.from(groups.values()), ...ungrouped];
-
-      return result;
+      // Utiliser le système unifié si disponible, sinon fallback simple
+      if (groupAssetsByClassification) {
+        return groupAssetsByClassification(items);
+      } else {
+        // Fallback simple si le module n'est pas encore chargé
+        console.warn('⚠️ Risk Dashboard: Unified groups not loaded yet, using simple fallback');
+        return items.map(item => ({
+          label: item.symbol,
+          value: parseFloat(item.value_usd || 0),
+          assets: [item.symbol]
+        }));
+      }
     }
 
     // ====== CCS Functions ======
@@ -6318,31 +6280,20 @@
 
       const totalValue = realBalances.reduce((sum, item) => sum + item.value_usd, 0);
 
-      // Use the same ASSET_GROUPS classification as dashboard.html for consistency
-      const classification = ASSET_GROUPS;
+      // Use the unified asset classification system
+      const { getAssetGroup, UNIFIED_ASSET_GROUPS, GROUP_ORDER } = await import('./shared-asset-groups.js');
 
-      // Initialize allocation object with all ASSET_GROUPS categories
+      // Initialize allocation object with all groups
       const allocation = {};
-      Object.keys(ASSET_GROUPS).forEach(category => {
+      GROUP_ORDER.forEach(category => {
         allocation[category] = 0;
       });
       allocation.model_version = 'portfolio-actuel';
 
-      // Classifier chaque asset using the same logic as dashboard.html
+      // Classifier chaque asset using unified system
       realBalances.forEach(item => {
         const symbol = item.symbol.toUpperCase();
-        let foundGroup = null;
-
-        // Find which group this asset belongs to
-        for (const [groupName, aliases] of Object.entries(classification)) {
-          if (aliases.includes(symbol)) {
-            foundGroup = groupName;
-            break;
-          }
-        }
-
-        // Add to appropriate group or Others
-        const targetGroup = foundGroup || 'Others';
+        const targetGroup = getAssetGroup(symbol);
         allocation[targetGroup] += (item.value_usd / totalValue) * 100;
       });
 
