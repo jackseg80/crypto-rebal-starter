@@ -176,7 +176,8 @@
       "Bash(start:*)",
       "Bash(run_all_e2e_tests.bat)",
       "Bash(run_smoke_tests.bat)",
-      "Bash(netstat:*)"
+      "Bash(netstat:*)",
+      "Bash(git tag:*)"
     ],
     "deny": [],
     "ask": [],

@@ -52,6 +52,8 @@ class UserDataRouter:
         # Propriétés d'accès rapide
         self.data_source = self.settings.get("data_source", "csv")
         self.csv_glob = self.settings.get("csv_glob", "csv/*.csv")
+        # Fichier CSV sélectionné explicitement (nom de fichier)
+        self.selected_csv = self.settings.get("csv_selected_file")
         self.api_credentials = {
             "api_key": self.settings.get("cointracking_api_key", ""),
             "api_secret": self.settings.get("cointracking_api_secret", "")
@@ -109,9 +111,24 @@ class UserDataRouter:
         return []
 
     def get_most_recent_csv(self, file_type: str = "balance") -> Optional[str]:
-        """Retourne le fichier CSV le plus récent pour un type."""
+        """Retourne le fichier CSV à utiliser pour un type.
+
+        Si un fichier a été sélectionné explicitement dans le profil
+        (self.selected_csv), il est prioritaire s'il existe.
+        Sinon, retourne le plus récent.
+        """
         files = self.get_csv_files(file_type)
-        return files[0] if files else None
+        if not files:
+            return None
+
+        # Priorité au fichier explicitement sélectionné (comparaison par nom)
+        if self.selected_csv:
+            for f in files:
+                if Path(f).name == self.selected_csv:
+                    return f
+
+        # Sinon, retourner le plus récent
+        return files[0]
 
     def get_api_profile(self) -> Dict[str, Any]:
         """

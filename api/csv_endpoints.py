@@ -2,7 +2,7 @@
 Endpoints pour gestion et téléchargement automatique des fichiers CSV CoinTracking
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
 import os
@@ -11,6 +11,8 @@ from datetime import datetime
 import aiohttp
 import asyncio
 from pathlib import Path
+from api.deps import get_active_user
+from api.services.user_fs import UserScopedFS
 
 router = APIRouter()
 
@@ -32,17 +34,31 @@ class CSVDownloadResponse(BaseModel):
     error: Optional[str] = None
 
 
-def get_cointracking_credentials():
+def get_cointracking_credentials_for_user(user: str) -> tuple[str, str]:
     """Récupère les credentials CoinTracking depuis l'environnement"""
-    api_key = os.getenv("CT_API_KEY") or os.getenv("COINTRACKING_API_KEY")
-    api_secret = os.getenv("CT_API_SECRET") or os.getenv("COINTRACKING_API_SECRET")
-    
+    # Utiliser d'abord les clés du profil utilisateur
+    try:
+        project_root = str(Path(__file__).parent.parent)
+        user_fs = UserScopedFS(project_root, user)
+        settings = user_fs.read_json("config.json")
+        api_key = settings.get("cointracking_api_key")
+        api_secret = settings.get("cointracking_api_secret")
+    except Exception:
+        api_key = None
+        api_secret = None
+
+    # Fallback éventuel vers env (dev only)
+    if not api_key:
+        api_key = os.getenv("CT_API_KEY") or os.getenv("COINTRACKING_API_KEY")
+    if not api_secret:
+        api_secret = os.getenv("CT_API_SECRET") or os.getenv("COINTRACKING_API_SECRET")
+
     if not api_key or not api_secret:
         raise HTTPException(
-            status_code=400, 
-            detail="Clés API CoinTracking non configurées. Vérifiez vos variables d'environnement."
+            status_code=400,
+            detail="Clés API CoinTracking non configurées pour cet utilisateur"
         )
-    
+
     return api_key, api_secret
 
 
@@ -84,16 +100,19 @@ def generate_csv_filename(file_type: str, auto_name: bool = True) -> str:
 
 
 @router.post("/csv/download")
-async def download_csv_file(request: CSVDownloadRequest) -> CSVDownloadResponse:
+async def download_csv_file(request: CSVDownloadRequest, user: str = Depends(get_active_user)) -> CSVDownloadResponse:
     """Télécharge un fichier CSV depuis CoinTracking avec nom automatique"""
     try:
-        api_key, api_secret = get_cointracking_credentials()
+        api_key, api_secret = get_cointracking_credentials_for_user(user)
         
         # Générer le nom de fichier  
         filename = generate_csv_filename(request.file_type, request.auto_name)
         
         # Créer le dossier de destination si nécessaire
-        download_dir = Path(request.download_path)
+        # Forcer le téléchargement dans le dossier csv du profil utilisateur
+        project_root = str(Path(__file__).parent.parent)
+        user_fs = UserScopedFS(project_root, user)
+        download_dir = Path(user_fs.get_path("csv"))
         download_dir.mkdir(parents=True, exist_ok=True)
         
         file_path = download_dir / filename
@@ -157,17 +176,15 @@ async def download_csv_file(request: CSVDownloadRequest) -> CSVDownloadResponse:
 
 
 @router.get("/csv/status")
-async def get_csv_files_status() -> CSVStatusResponse:
+async def get_csv_files_status(user: str = Depends(get_active_user)) -> CSVStatusResponse:
     """Retourne le status des fichiers CSV disponibles localement"""
     try:
-        data_dir = Path("data/raw/")
+        project_root = str(Path(__file__).parent.parent)
+        user_fs = UserScopedFS(project_root, user)
+        data_dir = Path(user_fs.get_path("csv"))
         
         if not data_dir.exists():
-            return CSVStatusResponse(
-                success=True,
-                files=[],
-                error="Dossier data/raw/ n'existe pas"
-            )
+            return CSVStatusResponse(success=True, files=[], error="Aucun dossier csv/ pour ce profil")
         
         # Patterns pour trouver les fichiers CSV CoinTracking
         patterns = [

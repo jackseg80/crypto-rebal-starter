@@ -514,13 +514,15 @@
           <input type="password" id="debug_token" placeholder="Token sécurisé pour accès debug" style="flex: 1;">
           <button class="btn small secondary" onclick="toggleApiKeyVisibility('debug_token')" style="min-width: 60px;">👁️</button>
         </div>
-        <div class="help">Token requis pour accéder aux endpoints de debug et synchroniser les clés avec .env</div>
+        <div class="help">Token requis pour certains endpoints de debug</div>
       </div>
 
-      <div style="display: flex; gap: 8px; margin-top: 12px;">
-        <button class="btn secondary small" onclick="syncApiKeysFromEnv()">📥 Charger depuis .env</button>
-        <button class="btn small" onclick="syncApiKeysToEnv()">💾 Sauver vers .env</button>
+      <!-- Actions spécifiques Clés API -->
+      <div style="display:flex; gap:8px; margin: 8px 0 12px 0;">
+        <button class="btn" onclick="saveAllSettings()">💾 Sauvegarder</button>
+        <button class="btn secondary" onclick="updateStatusSummary()">Appliquer sans sauvegarder</button>
       </div>
+
 
       <div class="test-section">
         <button class="btn secondary small" onclick="testApiKeys()">🧪 Tester les APIs</button>
@@ -559,7 +561,7 @@
       <div class="form-group">
         <label>Dossier de destination</label>
         <div style="display: flex; gap: 8px; align-items: center;">
-          <input type="text" id="csv_download_path" value="data/raw/" placeholder="data/raw/" style="flex: 1;">
+          <input type="text" id="csv_download_path" value="csv/" placeholder="csv/" style="flex: 1;">
           <button class="btn small secondary" onclick="browseDownloadFolder()">📁</button>
         </div>
         <div class="help">Dossier où sauvegarder les fichiers CSV téléchargés.</div>
@@ -850,12 +852,21 @@
     }, 0);
   </script>
   <script>
+    // Active user helper for per-user settings
+    function getActiveUser() {
+      try {
+        const u = localStorage.getItem('activeUser');
+        return u && typeof u === 'string' ? u : 'demo';
+      } catch (_) { return 'demo'; }
+    }
+    // Back-compat: expose currentUser
+    window.currentUser = getActiveUser();
     // Construit dynamiquement les contrôles de source de données à partir de la source centralisée
     async function buildDataSourceControls() {
       try {
         // Récupérer les sources disponibles pour l'utilisateur actuel
         const response = await fetch('/api/users/sources', {
-          headers: { 'X-User': window.currentUser || 'demo' }
+          headers: { 'X-User': getActiveUser() }
         });
 
         if (!response.ok) {
@@ -865,6 +876,8 @@
 
         const data = await response.json();
         const sources = data.sources || [];
+        // Rendre disponible globalement pour lookup lors de la sélection
+        window.availableSources = sources;
 
         // 1) Peupler le select rapide
         const quickSelect = document.getElementById('quick_data_source');
@@ -892,19 +905,34 @@
         const buildOption = (source) => {
           const wrapper = document.createElement('div');
           wrapper.className = 'radio-option';
-          wrapper.setAttribute('onclick', `selectDataSource('${source.key}')`);
-        wrapper.addEventListener('click', async () => await selectDataSource(source.key));
+          // Sélection selon type
+          if (source.type === 'csv') {
+            wrapper.addEventListener('click', async () => {
+              // Enregistrer le fichier sélectionné (nom de base)
+              const fname = (source.file_path || '').split(/[/\\\\]/).pop();
+              if (!window.userSettings) window.userSettings = getDefaultSettings();
+              window.userSettings.csv_selected_file = fname || null;
+              await selectDataSource(source.key);
+              try { await saveSettings(); } catch(_) {}
+            });
+          } else {
+            wrapper.addEventListener('click', async () => await selectDataSource(source.key));
+          }
 
           const input = document.createElement('input');
           input.type = 'radio';
           input.name = 'data_source';
           input.value = source.key;
+          if (source.type === 'csv') {
+            const fname = (source.file_path || '').split(/[/\\\\]/).pop();
+            if (fname) input.setAttribute('data-file', fname);
+          }
           input.id = `source_${source.key}`;
 
           const label = document.createElement('label');
           label.setAttribute('for', `source_${source.key}`);
           label.innerHTML = source.label;
-
+          
           wrapper.appendChild(input);
           wrapper.appendChild(label);
           return wrapper;
@@ -950,7 +978,16 @@
       await buildDataSourceControls();
       // Valeurs initiales
       if (document.getElementById('quick_data_source')) {
-        document.getElementById('quick_data_source').value = s.data_source || 'stub_balanced';
+        const quickEl = document.getElementById('quick_data_source');
+        quickEl.value = s.data_source || 'stub_balanced';
+        // Si un CSV spécifique a été choisi, refléter la clé correspondante si disponible
+        try {
+          const list = window.availableSources || [];
+          if ((s.data_source === 'csv' || s.data_source === 'cointracking') && s.csv_selected_file) {
+            const match = list.find(src => src.type === 'csv' && (src.file_path || '').split(/[/\\\\]/).pop() === s.csv_selected_file);
+            if (match) quickEl.value = match.key;
+          }
+        } catch(_){}
       }
       document.getElementById('quick_pricing').value = s.pricing || 'auto';
       document.getElementById('quick_min_usd').value = (s.min_usd_threshold ?? 1);
@@ -958,9 +995,29 @@
       document.getElementById('quick_theme').value = s.theme || 'auto';
       document.getElementById('quick_api_base_url').value = s.api_base_url || window.location.origin;
 
+      // Synchroniser l'état initial des radios Source avec la valeur actuelle
+      if (s.data_source) {
+        try { await selectDataSource(s.data_source); } catch(_) {}
+      }
+
       // Listeners: appliquent immédiatement dans globalConfig
       if (document.getElementById('quick_data_source')) {
-        document.getElementById('quick_data_source').addEventListener('change', async (e)=> await selectDataSource(e.target.value));
+        document.getElementById('quick_data_source').addEventListener('change', async (e)=> {
+          const key = e.target.value;
+          // Si l'utilisateur choisit un CSV spécifique via le select, enregistrer le fichier
+          try {
+            const src = (window.availableSources || []).find(s => s.key === key);
+            if (src && src.type === 'csv') {
+              const fname = (src.file_path || '').split(/[/\\\\]/).pop();
+              if (!window.userSettings) window.userSettings = getDefaultSettings();
+              window.userSettings.csv_selected_file = fname || null;
+              await selectDataSource(key);
+              try { await saveSettings(); } catch(_) {}
+              return;
+            }
+          } catch(_) {}
+          await selectDataSource(key);
+        });
       }
       document.getElementById('quick_pricing').addEventListener('change', async (e)=> await selectPricing(e.target.value));
       document.getElementById('quick_min_usd').addEventListener('change', (e)=> {
@@ -1022,7 +1079,7 @@
     async function loadSettings() {
       try {
         const response = await fetch('/api/users/settings', {
-          headers: { 'X-User': window.currentUser || 'demo' }
+          headers: { 'X-User': getActiveUser() }
         });
         if (response.ok) {
           window.userSettings = await response.json();
@@ -1048,7 +1105,7 @@
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            'X-User': window.currentUser || 'demo'
+            'X-User': getActiveUser()
           },
           body: JSON.stringify(window.userSettings)
         });
@@ -1075,11 +1132,22 @@
       document.querySelectorAll('.radio-option').forEach(el => el.classList.remove('selected'));
 
       // Source de données
-      const srcInput = document.getElementById(`source_${globalSettings.data_source}`);
-      if (srcInput) {
-        srcInput.checked = true;
-        const parent = document.querySelector(`.radio-option input[value="${globalSettings.data_source}"]`);
-        if (parent && parent.parentElement) parent.parentElement.classList.add('selected');
+      let srcSelected = false;
+      if ((globalSettings.data_source === 'csv' || globalSettings.data_source === 'cointracking') && globalSettings.csv_selected_file) {
+        const byFile = document.querySelector(`.radio-option input[name="data_source"][data-file="${globalSettings.csv_selected_file}"]`);
+        if (byFile) {
+          byFile.checked = true;
+          if (byFile.parentElement) byFile.parentElement.classList.add('selected');
+          srcSelected = true;
+        }
+      }
+      if (!srcSelected) {
+        const srcInput = document.getElementById(`source_${globalSettings.data_source}`);
+        if (srcInput) {
+          srcInput.checked = true;
+          const parent = document.querySelector(`.radio-option input[name="data_source"][value="${globalSettings.data_source}"]`);
+          if (parent && parent.parentElement) parent.parentElement.classList.add('selected');
+        }
       }
 
       // Pricing
@@ -1139,16 +1207,24 @@
       const globalSettings = window.userSettings || getDefaultSettings();
 
       // Récupérer le label de source depuis l'API utilisateur
-      let sourceLabel = globalSettings.data_source;
+      let sourceLabel = 'Aucune source';
       try {
         const response = await fetch('/api/users/sources', {
-          headers: { 'X-User': window.currentUser || 'demo' }
+          headers: { 'X-User': getActiveUser() }
         });
         if (response.ok) {
           const data = await response.json();
-          const currentSource = data.sources.find(s => s.key === globalSettings.data_source);
+          let currentSource = data.sources.find(s => s.key === globalSettings.data_source);
+          // Si CSV générique, essayer de trouver l'entrée par nom de fichier sélectionné
+          if ((!currentSource) && (globalSettings.data_source === 'csv' || globalSettings.data_source === 'cointracking') && globalSettings.csv_selected_file) {
+            currentSource = data.sources.find(s => s.type === 'csv' && (s.file_path || '').split(/[/\\\\]/).pop() === globalSettings.csv_selected_file);
+          }
           if (currentSource) {
             sourceLabel = currentSource.label;
+          } else if (data.sources.length === 0) {
+            sourceLabel = 'Aucune source';
+          } else {
+            sourceLabel = globalSettings.data_source;
           }
         }
       } catch (error) {
@@ -1186,12 +1262,17 @@
 
     // Sélection de source de données
     async function selectDataSource(source) {
-      document.querySelectorAll('.radio-option').forEach(el => el.classList.remove('selected'));
+      // Ne retirer la sélection que pour le groupe des sources
+      document.querySelectorAll('input[name="data_source"]').forEach(inp => {
+        if (inp && inp.parentElement) inp.parentElement.classList.remove('selected');
+      });
       if (!window.userSettings) window.userSettings = getDefaultSettings();
 
       // Vider tous les caches quand la source change
       const oldSource = window.userSettings.data_source;
-      if (oldSource && oldSource !== source) {
+      const isCsvKey = typeof source === 'string' && source.startsWith('csv_');
+      const effectiveNew = isCsvKey ? 'cointracking' : source;
+      if (oldSource && oldSource !== effectiveNew) {
         console.log(`🔄 Source change detected: ${oldSource} -> ${source}, clearing all caches`);
 
         // Vider le cache balance
@@ -1208,14 +1289,60 @@
 
         // Mettre à jour global config aussi
         if (typeof window.globalConfig !== 'undefined') {
-          window.globalConfig.set('data_source', source);
+          window.globalConfig.set('data_source', effectiveNew);
         }
       }
 
-      window.userSettings.data_source = source;
-      document.getElementById(`source_${source}`).checked = true;
-      document.querySelector(`.radio-option input[value="${source}"]`).parentElement.classList.add('selected');
+      // Déterminer si on sélectionne une option CSV spécifique (recalcul local si appelé hors bloc ci-dessus)
+      // const isCsvKey = typeof source === 'string' && source.startsWith('csv_');
+
+      // Mettre à jour la valeur stockée
+      if (isCsvKey) {
+        window.userSettings.data_source = 'cointracking';
+      } else {
+        window.userSettings.data_source = source;
+      }
+
+      // Synchroniser le select rapide (Résumé)
+      const quickSelect = document.getElementById('quick_data_source');
+      if (quickSelect) {
+        if (isCsvKey) {
+          quickSelect.value = source;
+        } else if ((window.userSettings.data_source === 'cointracking' || window.userSettings.data_source === 'csv') && window.userSettings.csv_selected_file) {
+          try {
+            const list = window.availableSources || [];
+            const match = list.find(s => s.type === 'csv' && (s.file_path || '').split(/[/\\\\]/).pop() === window.userSettings.csv_selected_file);
+            if (match) quickSelect.value = match.key; else quickSelect.value = window.userSettings.data_source;
+          } catch(_) { quickSelect.value = window.userSettings.data_source; }
+        } else {
+          quickSelect.value = window.userSettings.data_source;
+        }
+      }
+
+      // Cocher la radio correspondante (onglet Source)
+      let radioMarked = false;
+      if ((window.userSettings.data_source === 'cointracking' || window.userSettings.data_source === 'csv') && window.userSettings.csv_selected_file) {
+        const byFile = document.querySelector(`.radio-option input[name="data_source"][data-file="${window.userSettings.csv_selected_file}"]`);
+        if (byFile) {
+          byFile.checked = true;
+          if (byFile.parentElement) byFile.parentElement.classList.add('selected');
+          radioMarked = true;
+        }
+      }
+      if (!radioMarked) {
+        const radio = document.getElementById(`source_${source}`);
+        if (radio) {
+          radio.checked = true;
+          const parent = document.querySelector(`.radio-option input[name=\"data_source\"][value=\"${source}\"]`);
+          if (parent && parent.parentElement) parent.parentElement.classList.add('selected');
+        }
+      }
       await updateStatusSummary();
+
+      // Persister la sélection si elle change réellement
+      if (!oldSource || oldSource !== source) {
+        try { await saveSettings(); } catch (_) {}
+      }
     }
 
     // Sélection de pricing
@@ -1259,32 +1386,24 @@
       window.userSettings.display_currency = document.getElementById('display_currency').value;
       window.userSettings.min_usd_threshold = parseFloat(document.getElementById('min_usd_threshold').value);
 
-      // Pour les clés API, utiliser la vraie valeur si le champ n'est pas masqué, sinon garder la valeur stockée
-      const coingeckoField = document.getElementById('coingecko_api_key');
-      if (coingeckoField.type === 'text') {
-        // Champ visible, prendre la vraie valeur
-        window.userSettings.coingecko_api_key = coingeckoField.value;
+      // Clés API: sauvegarder si champ visible OU si valeur différente du masque actuel
+      function saveSecretIfProvided(fieldId, settingKey) {
+        const field = document.getElementById(fieldId);
+        if (!field) return;
+        const current = (window.userSettings || getDefaultSettings())[settingKey] || '';
+        const masked = current ? maskApiKey(current) : '';
+        const incoming = (field.value || '').trim();
+        if (!incoming) return; // rien saisi
+        if (field.type === 'text' || incoming !== masked) {
+          window.userSettings[settingKey] = incoming;
+        }
       }
 
-      const ctKeyField = document.getElementById('cointracking_api_key');
-      if (ctKeyField.type === 'text') {
-        window.userSettings.cointracking_api_key = ctKeyField.value;
-      }
-
-      const ctSecretField = document.getElementById('cointracking_api_secret');
-      if (ctSecretField.type === 'text') {
-        window.userSettings.cointracking_api_secret = ctSecretField.value;
-      }
-
-      const fredKeyField = document.getElementById('fred_api_key');
-      if (fredKeyField.type === 'text') {
-        window.userSettings.fred_api_key = fredKeyField.value;
-      }
-
-      const debugTokenField = document.getElementById('debug_token');
-      if (debugTokenField.type === 'text') {
-        window.userSettings.debug_token = debugTokenField.value;
-      }
+      saveSecretIfProvided('coingecko_api_key', 'coingecko_api_key');
+      saveSecretIfProvided('cointracking_api_key', 'cointracking_api_key');
+      saveSecretIfProvided('cointracking_api_secret', 'cointracking_api_secret');
+      saveSecretIfProvided('fred_api_key', 'fred_api_key');
+      saveSecretIfProvided('debug_token', 'debug_token');
 
       window.userSettings.api_base_url = document.getElementById('api_base_url').value;
       window.userSettings.refresh_interval = parseInt(document.getElementById('refresh_interval').value);
@@ -1311,7 +1430,9 @@
 
       try {
         const globalSettings = window.userSettings || getDefaultSettings();
-        const response = await fetch(`${globalSettings.api_base_url}/balances/current?source=${globalSettings.data_source}`);
+        const response = await fetch(`${globalSettings.api_base_url}/balances/current?source=${globalSettings.data_source}` , {
+          headers: { 'X-User': getActiveUser() }
+        });
         const data = await response.json();
 
         if (response.ok && data.items && data.items.length > 0) {
@@ -1352,7 +1473,9 @@
       
       for (const token of commonTokens) {
         try {
-          const response = await fetch(`${(window.userSettings || getDefaultSettings()).api_base_url}/debug/api-keys?debug_token=${token}`);
+          const response = await fetch(`${(window.userSettings || getDefaultSettings()).api_base_url}/debug/api-keys?debug_token=${token}`, {
+            headers: { 'X-User': getActiveUser() }
+          });
           if (response.ok) {
             if (!window.userSettings) window.userSettings = getDefaultSettings();
             window.userSettings.debug_token = token;
@@ -1379,7 +1502,9 @@
           console.debug('Auto-détection désactivée: DEBUG_TOKEN requis');
           return;
         }
-        const response = await fetch(`${globalSettings.api_base_url}/debug/api-keys?debug_token=${debugToken}`);
+        const response = await fetch(`${globalSettings.api_base_url}/debug/api-keys?debug_token=${debugToken}`, {
+          headers: { 'X-User': getActiveUser() }
+        });
         if (response.ok) {
           const data = await response.json();
           let foundKeys = false;
@@ -1582,7 +1707,7 @@
         }
         const response = await fetch(`${(window.userSettings || getDefaultSettings()).api_base_url}/debug/api-keys?debug_token=${debugToken}`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'X-User': getActiveUser() },
           body: JSON.stringify(payload)
         });
 
@@ -1612,7 +1737,7 @@
       // Test CoinGecko
       if (globalSettings.coingecko_api_key) {
         try {
-          const response = await fetch(`${globalSettings.api_base_url}/taxonomy/coingecko-stats`);
+          const response = await fetch(`${globalSettings.api_base_url}/taxonomy/coingecko-stats`, { headers: { 'X-User': getActiveUser() } });
           const data = await response.json();
           results.push(`🥷 CoinGecko: ${data.ok ? '✅ OK' : '❌ Erreur'}`);
         } catch (e) {
@@ -1639,7 +1764,7 @@
       // Test CoinTracking API
       if (globalSettings.cointracking_api_key && globalSettings.cointracking_api_secret && globalSettings.data_source === 'cointracking_api') {
         try {
-          const response = await fetch(`${globalSettings.api_base_url}/debug/ctapi`);
+          const response = await fetch(`${globalSettings.api_base_url}/debug/ctapi`, { headers: { 'X-User': getActiveUser() } });
           const data = await response.json();
           results.push(`📊 CoinTracking API: ${response.ok ? '✅ OK' : '❌ Erreur'}`);
         } catch (e) {
@@ -1667,7 +1792,7 @@
 
       // Test backend
       try {
-        const healthResponse = await fetch(`${globalSettings.api_base_url}/healthz`);
+        const healthResponse = await fetch(`${globalSettings.api_base_url}/healthz`, { headers: { 'X-User': getActiveUser() } });
         results.push(`🏥 Backend: ${healthResponse.ok ? '✅ OK' : '❌ Erreur'}`);
       } catch (e) {
         results.push(`🏥 Backend: ❌ ${e.message}`);
@@ -1675,7 +1800,7 @@
 
       // Test source de données
       try {
-        const balanceResponse = await fetch(`${globalSettings.api_base_url}/balances/current?source=${globalSettings.data_source}`);
+        const balanceResponse = await fetch(`${globalSettings.api_base_url}/balances/current?source=${globalSettings.data_source}`, { headers: { 'X-User': getActiveUser() } });
         const balanceData = await balanceResponse.json();
         results.push(`📊 Balances: ${balanceData.items?.length > 0 ? '✅ OK (' + balanceData.items.length + ' assets)' : '❌ Vide'}`);
       } catch (e) {
@@ -1684,7 +1809,7 @@
 
       // Test portfolio analytics
       try {
-        const metricsResponse = await fetch(`${globalSettings.api_base_url}/portfolio/metrics?source=${globalSettings.data_source}`);
+        const metricsResponse = await fetch(`${globalSettings.api_base_url}/portfolio/metrics?source=${globalSettings.data_source}`, { headers: { 'X-User': getActiveUser() } });
         const metricsData = await metricsResponse.json();
         results.push(`📈 Analytics: ${metricsData.ok && metricsData.metrics?.total_value_usd > 0 ? '✅ OK' : '❌ Erreur'}`);
       } catch (e) {
@@ -1693,7 +1818,7 @@
 
       // Test taxonomie
       try {
-        const taxResponse = await fetch(`${globalSettings.api_base_url}/taxonomy/suggestions`);
+        const taxResponse = await fetch(`${globalSettings.api_base_url}/taxonomy/suggestions`, { headers: { 'X-User': getActiveUser() } });
         const taxData = await taxResponse.json();
         results.push(`🏷️ Taxonomie: ${taxResponse.ok ? '✅ OK' : '❌ Erreur'}`);
       } catch (e) {
@@ -1945,7 +2070,7 @@
       const statusDiv = document.getElementById('csv-download-status');
       
       if (!files || files.length === 0) {
-        statusDiv.innerHTML = '<div class="warning">⚠️ Aucun fichier CSV trouvé dans data/raw/</div>';
+        statusDiv.innerHTML = '<div class="warning">⚠️ Aucun fichier CSV trouvé pour ce profil</div>';
         return;
       }
       

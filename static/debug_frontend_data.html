@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Frontend Data Loading</title>
+</head>
+<body>
+    <h1>Debug Frontend Data Loading</h1>
+    <button onclick="testDirectAPI()">Test Direct API</button>
+    <button onclick="testGlobalConfig()">Test Global Config</button>
+    <button onclick="testLoadBalanceData()">Test loadBalanceData</button>
+    <button onclick="clearLocalStorage()">Clear localStorage</button>
+    <button onclick="clearBalanceCache()">Clear Balance Cache</button>
+
+    <pre id="results"></pre>
+
+    <script src="/static/global-config.js"></script>
+    <script>
+        function log(msg) {
+            document.getElementById('results').textContent += msg + '\n';
+        }
+
+        async function testDirectAPI() {
+            log('=== Test Direct API ===');
+            try {
+                const response = await fetch('/balances/current?source=csv_0', {
+                    headers: { 'X-User': 'demo' }
+                });
+                const data = await response.json();
+                log(`Status: ${response.status}`);
+                log(`Items count: ${data.items?.length || 0}`);
+                log(`Source used: ${data.source_used}`);
+                if (data.items?.length > 0) {
+                    log(`First item: ${JSON.stringify(data.items[0])}`);
+                }
+            } catch (error) {
+                log(`Error: ${error.message}`);
+            }
+        }
+
+        async function testGlobalConfig() {
+            log('=== Test Global Config ===');
+            try {
+                log(`API Base: ${globalConfig.get('api_base_url')}`);
+                log(`Data Source: ${globalConfig.get('data_source')}`);
+                log(`Active User: ${localStorage.getItem('activeUser')}`);
+
+                const apiData = await globalConfig.apiRequest('/balances/current', {
+                    params: { source: 'csv_0' }
+                });
+                log(`Global Config API result: ${JSON.stringify(apiData?.items?.slice(0,1) || 'No items')}`);
+            } catch (error) {
+                log(`Global Config Error: ${error.message}`);
+            }
+        }
+
+        async function testLoadBalanceData() {
+            log('=== Test loadBalanceData ===');
+            try {
+                if (typeof window.loadBalanceData === 'function') {
+                    const result = await window.loadBalanceData(true); // Force refresh
+                    log(`loadBalanceData result: ${JSON.stringify(result)}`);
+                    log(`Items count: ${result.data?.items?.length || 0}`);
+                } else {
+                    log('loadBalanceData function not found');
+                }
+            } catch (error) {
+                log(`loadBalanceData Error: ${error.message}`);
+            }
+        }
+
+        function clearLocalStorage() {
+            localStorage.clear();
+            log('localStorage cleared');
+        }
+
+        function clearBalanceCache() {
+            if (typeof window.clearBalanceCache === 'function') {
+                window.clearBalanceCache();
+                log('Balance cache cleared');
+            } else {
+                log('clearBalanceCache function not found');
+            }
+        }
+    </script>
+</body>
+</html>

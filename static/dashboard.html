@@ -1046,10 +1046,12 @@
             const currentSource = globalConfig.get('data_source');
             console.debug(`📊 Using data source: ${currentSource}`);
 
-            // Update source display
+            // Update source display (show cointracking_csv when using CSV files)
             const sourceDisplay = document.getElementById('portfolio-source-display');
             if (sourceDisplay) {
-                sourceDisplay.textContent = currentSource || 'Unknown';
+                let displaySource = currentSource || 'Unknown';
+                if (displaySource === 'cointracking') displaySource = 'cointracking_csv';
+                sourceDisplay.textContent = displaySource;
             }
 
             console.debug('📡 About to call window.loadBalanceData()...');

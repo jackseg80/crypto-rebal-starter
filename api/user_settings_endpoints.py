@@ -23,6 +23,8 @@ class UserSettings(BaseModel):
     display_currency: str = "USD"
     min_usd_threshold: float = 1.0
     csv_glob: str = "csv/*.csv"
+    # Nom du fichier CSV sélectionné explicitement (dans data/users/<user>/csv)
+    csv_selected_file: str | None = None
     cointracking_api_key: str = ""
     cointracking_api_secret: str = ""
     coingecko_api_key: str = ""
@@ -178,10 +180,10 @@ async def get_user_data_sources(user: str = Depends(get_active_user)) -> Dict[st
 
         sources = []
 
-        # CSV: lister les fichiers CSV disponibles
+        # CSV: lister les fichiers CSV disponibles (par profil uniquement)
         csv_files = data_router.get_csv_files("balance")
         if csv_files:
-            for i, csv_file in enumerate(csv_files[:5]):  # Limiter à 5 fichiers max
+            for i, csv_file in enumerate(csv_files[:20]):  # Montrer jusqu'à 20 fichiers si besoin
                 file_name = Path(csv_file).name
                 sources.append({
                     "key": f"csv_{i}",
@@ -189,15 +191,6 @@ async def get_user_data_sources(user: str = Depends(get_active_user)) -> Dict[st
                     "type": "csv",
                     "file_path": csv_file
                 })
-
-        # Ajouter une option CSV générique si pas de fichiers spécifiques
-        if not csv_files:
-            sources.append({
-                "key": "csv",
-                "label": "📄 Fichiers CSV",
-                "type": "csv",
-                "file_path": None
-            })
 
         # API CoinTracking: seulement si l'utilisateur a des clés API
         user_settings = data_router.settings
