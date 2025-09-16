@@ -3,6 +3,31 @@
 import { getUnifiedState, deriveRecommendations } from '../core/unified-insights-v2.js';
 import { store } from '../core/risk-dashboard-store.js';
 import { KNOWN_ASSET_MAPPING, getAssetGroup, GROUP_ORDER, getAllGroups, getAliasMapping } from '../shared-asset-groups.js';
+// buildTheoreticalTargets removed - using u.targets_by_group (dynamic computation)
+
+/**
+ * Normalise les alias crypto (SOL2→SOL, UNI2→UNI, etc.) via taxonomy
+ */
+function normalizeAlias(symbol) {
+  if (!symbol) return symbol;
+
+  const upperSymbol = symbol.toUpperCase();
+
+  // Utiliser la map d'aliases si disponible
+  if (KNOWN_ASSET_MAPPING && KNOWN_ASSET_MAPPING[upperSymbol]) {
+    const group = KNOWN_ASSET_MAPPING[upperSymbol];
+    // Si l'alias mappe vers un groupe qui a le même nom qu'un coin, retourner le coin
+    if (['BTC', 'ETH', 'SOL'].includes(group)) {
+      return group;
+    }
+  }
+
+  // Fallback: suppression suffixes numériques courants (SOL2→SOL, UNI2→UNI)
+  const normalized = upperSymbol.replace(/[2-9]+$/, '');
+
+  console.debug(`🔄 Normalize alias: ${symbol} → ${normalized}`);
+  return normalized;
+}
 
 // Lightweight fetch helper with timeout
 async function fetchJson(url, opts = {}) {
@@ -17,6 +42,100 @@ async function fetchJson(url, opts = {}) {
     clearTimeout(id);
     throw e;
   }
+}
+
+/**
+ * Calcule les mouvements avec contrainte cap ±X% et somme nulle
+ * Algorithme : prioriser les mouvements les plus urgents sans dépasser le cap global
+ */
+function calculateZeroSumCappedMoves(entries, cap) {
+  // Clone entries to avoid mutation
+  const result = entries.map(entry => ({...entry, suggested: 0}));
+
+  console.debug('🔄 CORRECT LOGIC: Applying individual cap ±' + cap + '% to each asset independently');
+
+  // Phase 1: Appliquer le cap individuellement à chaque asset
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+    const requestedMove = entry.delta;
+
+    // Appliquer le cap INDIVIDUELLEMENT (pas de budget global)
+    if (requestedMove > cap) {
+      result[i].suggested = cap; // Limité à +cap%
+    } else if (requestedMove < -cap) {
+      result[i].suggested = -cap; // Limité à -cap%
+    } else {
+      result[i].suggested = requestedMove; // Mouvement complet si dans la limite
+    }
+
+    result[i].suggested = Math.round(result[i].suggested * 10) / 10;
+  }
+
+  console.debug('🔄 Individual moves after cap:', result.map(r =>
+    `${r.k}: requested=${r.delta.toFixed(1)}%, capped=${r.suggested.toFixed(1)}%`
+  ));
+
+  // Phase 2: Vérifier contrainte zéro-somme et ajuster proportionnellement
+  const totalSuggested = result.reduce((sum, entry) => sum + entry.suggested, 0);
+
+  console.debug('🔄 Zero-sum check:', {
+    total_suggested: totalSuggested.toFixed(1) + '%',
+    needs_adjustment: Math.abs(totalSuggested) > 0.1
+  });
+
+  if (Math.abs(totalSuggested) > 0.1) {
+    // Ajustement zéro-somme INTELLIGENT qui respecte les caps individuels
+    let remaining = totalSuggested;
+    const maxIterations = 5;
+    let iteration = 0;
+
+    console.debug('🔄 Zero-sum adjustment needed:', {
+      excess: totalSuggested.toFixed(1) + '%',
+      starting_adjustment: 'intelligent cap-respecting'
+    });
+
+    while (Math.abs(remaining) > 0.1 && iteration < maxIterations) {
+      iteration++;
+      const adjustableEntries = result.filter(r => {
+        const currentSuggested = r.suggested;
+        const delta = r.delta;
+
+        // Peut-on ajuster cette entrée sans violer le cap ?
+        if (remaining > 0) {
+          // Besoin de réduire les mouvements positifs ou augmenter les négatifs
+          return (currentSuggested > -cap) && (currentSuggested > delta - cap);
+        } else {
+          // Besoin d'augmenter les mouvements positifs ou réduire les négatifs
+          return (currentSuggested < cap) && (currentSuggested < delta + cap);
+        }
+      });
+
+      if (adjustableEntries.length === 0) {
+        console.warn('🔄 Cannot achieve zero-sum without violating caps');
+        break;
+      }
+
+      const adjustment = -remaining / adjustableEntries.length;
+
+      adjustableEntries.forEach(entry => {
+        const newValue = entry.suggested + adjustment;
+        // Appliquer l'ajustement en respectant les caps
+        entry.suggested = Math.max(-cap, Math.min(cap, newValue));
+        entry.suggested = Math.round(entry.suggested * 10) / 10;
+      });
+
+      remaining = result.reduce((sum, entry) => sum + entry.suggested, 0);
+    }
+
+    console.debug('🔄 Zero-sum adjustment completed:', {
+      iterations: iteration,
+      final_total: remaining.toFixed(1) + '%',
+      converged: Math.abs(remaining) <= 0.1,
+      final_moves: result.map(r => `${r.k}: ${r.suggested.toFixed(1)}%`)
+    });
+  }
+
+  return result;
 }
 
 // Enhanced in-memory cache for current allocation per user/source/taxonomy to avoid frequent API calls
@@ -84,6 +203,16 @@ async function getCurrentAllocationByGroup(minUsd = 1.0) {
     _allocCache.data = result;
     _allocCache.ts = now;
     _allocCache.key = cacheKey;
+
+    // DEBUG: Log current allocation result
+    console.debug('🏦 CURRENT ALLOCATION RESULT:', {
+      pct_keys: Object.keys(pct),
+      pct_values: pct,
+      pct_total: Object.values(pct).reduce((a, b) => a + b, 0),
+      grand_total_usd: grand,
+      groups_count: groups.length
+    });
+
     return result;
   } catch (e) {
     console.warn('Current allocation fetch failed:', e.message || e);
@@ -93,19 +222,47 @@ async function getCurrentAllocationByGroup(minUsd = 1.0) {
 
 function applyCycleMultipliersToTargets(targets, multipliers) {
   try {
-    if (!targets || !multipliers) return targets || {};
-    const adjusted = {};
-    let sum = 0;
-    for (const [k, v] of Object.entries(targets)) {
-      if (typeof v !== 'number') continue;
-      const m = typeof multipliers[k] === 'number' ? multipliers[k] : 1;
-      adjusted[k] = Math.max(0, v * m);
-      sum += adjusted[k];
+    if (!targets) return {};
+    const STABLE = 'Stablecoins';
+    const stables = Number(targets[STABLE] ?? 0);
+
+    // 1) Appliquer les multiplicateurs uniquement sur les non-stables
+    const nonStableKeys = Object.keys(targets).filter(k => k !== STABLE);
+    const out = {};
+    let nonStableSum = 0;
+
+    for (const k of nonStableKeys) {
+      const v = Number(targets[k] ?? 0);
+      const m = (multipliers && typeof multipliers[k] === 'number') ? multipliers[k] : 1;
+      out[k] = Math.max(0, v * m);
+      nonStableSum += out[k];
     }
-    if (sum > 0) {
-      Object.keys(adjusted).forEach(k => { adjusted[k] = adjusted[k] * (100 / sum); });
+
+    // 2) Renormaliser UNIQUEMENT les non-stables sur (100 - stables)
+    const space = Math.max(0, 100 - stables);
+    if (nonStableSum > 0 && space > 0) {
+      const scale = space / nonStableSum;
+      for (const k of nonStableKeys) out[k] *= scale;
+    } else {
+      // pas de non-stables → tout en stables (déjà fixé)
+      for (const k of nonStableKeys) out[k] = 0;
     }
-    return adjusted;
+
+    // 3) Réinjecter les stables tels quels
+    out[STABLE] = stables;
+
+    // 4) Correction d'arrondi douce (ramener la somme à 100%)
+    const total = Object.values(out).reduce((a, b) => a + (isFinite(b) ? b : 0), 0);
+    const diff = 100 - total;
+    if (Math.abs(diff) > 0.1) {
+      // pousser le delta vers BTC si présent, sinon vers la plus grosse clé non-stable
+      const candidates = nonStableKeys.sort((a, b) => (out[b] || 0) - (out[a] || 0));
+      const key = out.BTC != null ? 'BTC' : (candidates[0] || STABLE);
+      out[key] = (out[key] || 0) + diff;
+    }
+
+    console.debug(`✅ Cycle multipliers applied: stables preserved at ${stables.toFixed(1)}%, non-stables in ${space.toFixed(1)}% space`);
+    return out;
   } catch {
     return targets || {};
   }
@@ -141,7 +298,19 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
   const el = document.getElementById(containerId);
   if (!el) return;
 
+  console.debug('🚀 VERSION 16:26 - RENDER DEBUG: renderUnifiedInsights appelée', {
+    containerId,
+    timestamp: new Date().toISOString(),
+    call_count: (window._renderCallCount = (window._renderCallCount || 0) + 1)
+  });
+
   const u = await getUnifiedState();
+
+  console.debug('🔍 getUnifiedState returned:', {
+    has_risk_scores: !!u?.risk_scores,
+    blended_score: u?.risk_scores?.blended || u?.blended_score,
+    data_keys: Object.keys(u || {})
+  });
   const recos = deriveRecommendations(u);
 
   const header = card(`
@@ -232,10 +401,17 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
           `;
         })()}
         <div style="margin-top: .25rem;">Intelligence:</div>
-        <div>Cycle: ${intelligenceBadge(u.health.intelligence_modules?.cycle || 'unknown')}</div>
+        <div>Cycle: ${intelligenceBadge(u.health.intelligence_modules?.cycle || 'unknown')} <span style="font-size: .65rem; color: var(--theme-text-muted);">(score ${u.cycle?.score || '?'}, conf. ${u.cycle?.confidence ? (u.cycle.confidence * 100).toFixed(0) + '%' : '?'})</span></div>
         <div>Regime: ${intelligenceBadge(u.health.intelligence_modules?.regime || 'unknown')}</div>
         <div>Signals: ${intelligenceBadge(u.health.intelligence_modules?.signals || 'unknown')}</div>
-        <div style="margin-top: .25rem; font-size: .7rem;">Updated: ${u.health.lastUpdate ? new Date(u.health.lastUpdate).toLocaleString() : '—'}</div>
+        <div style="margin-top: .25rem; font-size: .7rem;">Updated: ${(() => {
+          // SOURCE CANONIQUE UNIQUE: Utiliser risk.budget.generated_at en priorité
+          const canonicalTime = u.risk?.budget?.generated_at;
+          const fallbackTime = u.risk_budget?.generated_at || u.strategy?.generated_at || u.health?.lastUpdate;
+          console.debug('🕐 timestamp debug:', { canonicalTime, fallbackTime });
+          const timestamp = canonicalTime || fallbackTime || new Date().toISOString();
+          return new Date(timestamp).toLocaleString();
+        })()}</div>
       </div>
     </div>
   `, { accentLeft: colorPositive(u.decision.score) });
@@ -323,32 +499,125 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
   // ALLOCATION INSIGHTS unifiées, infos visibles sans survol
   let allocationBlock = '';
   try {
-    // Support both legacy (u.intelligence.allocation) and new Strategy API (u.strategy.targets)
-    let allocation = null;
+    // SOURCE CANONIQUE UNIQUE: Utiliser targets_by_group (même source que plan d'exécution)
+    console.warn('🔥 UNIFIED SOURCE: Using u.targets_by_group as canonical source');
+    let allocation = u.targets_by_group;
+    console.warn('🔥 UNIFIED SOURCE: targets_by_group result:', allocation);
 
-    if (u.intelligence?.allocation) {
-      console.log('🐛 Using legacy u.intelligence.allocation:', u.intelligence.allocation);
-      // Convert any symbol keys to groups
-      allocation = {};
-      Object.entries(u.intelligence.allocation).forEach(([key, weight]) => {
-        // Check if key is already a group or a symbol
-        const group = getAssetGroup(key) !== 'Others' ? getAssetGroup(key) : key;
-        console.log(`🐛 Intelligence allocation: ${key} → ${group} (${weight}%)`);
-        allocation[group] = (allocation[group] || 0) + weight;
+    // PATCH C - Moteur unique : utiliser groupAssetsByClassification comme Rebalance (DÉSACTIVÉ pour test)
+    let allocation_backup = null;
+    try {
+      // FORCE: Utiliser toutes les sources possibles pour récupérer les balances
+      let balanceData = store.snapshot()?.wallet?.balances || [];
+
+      // Fallback vers les clés store directes si snapshot échoue
+      if (balanceData.length === 0) {
+        balanceData = store.get('wallet.balances') || [];
+        console.debug('🔧 PATCH C: Using direct store access for balances');
+      }
+
+      // Dernier recours : attendre que l'injection soit finie et réessayer
+      if (balanceData.length === 0) {
+        await new Promise(resolve => setTimeout(resolve, 100)); // 100ms
+        balanceData = store.snapshot()?.wallet?.balances || store.get('wallet.balances') || [];
+        console.debug('🔧 PATCH C: Retry after 100ms delay');
+      }
+
+      console.debug('🔧 PATCH C starting with balances:', balanceData.length, 'items', {
+        from_snapshot: store.snapshot()?.wallet?.balances?.length || 0,
+        from_direct: store.get('wallet.balances')?.length || 0,
+        final_used: balanceData.length
       });
-    } else if (u.strategy?.targets) {
-      console.log('🐛 Using u.strategy.targets:', u.strategy.targets);
-      allocation = u.strategy.targets.reduce((acc, target) => {
-        // Convert symbol to group using unified classification system
-        const group = getAssetGroup(target.symbol);
-        const weight = target.weight * 100; // Convert to percentage
-        console.log(`🐛 Strategy target: ${target.symbol} → ${group} (${weight}%)`);
-        acc[group] = (acc[group] || 0) + weight; // Aggregate by group
-        return acc;
-      }, {});
-    } else {
-      console.log('🐛 No allocation data found');
+
+      if (balanceData.length > 0) {
+        const { groupAssetsByClassification } = await import('../shared-asset-groups.js');
+        const groupedData = groupAssetsByClassification(balanceData);
+        const totalValue = groupedData.reduce((sum, g) => sum + g.value, 0);
+
+        if (totalValue > 0) {
+          // Convertir au format attendu par l'UI (% par groupe)
+          allocation = {};
+          GROUP_ORDER.forEach(group => {
+            const found = groupedData.find(g => g.label === group);
+            allocation[group] = found ? (found.value / totalValue) * 100 : 0;
+          });
+
+          console.debug('🔧 PATCH C SUCCESS: Analytics utilise maintenant groupAssetsByClassification comme Rebalance:', {
+            groups: Object.entries(allocation).map(([k,v]) => `${k}: ${v.toFixed(1)}%`),
+            othersCheck: allocation['Others']?.toFixed(1) + '%',
+            source: 'groupAssetsByClassification',
+            totalValue
+          });
+        } else {
+          console.warn('🔧 PATCH C: totalValue is 0, skipping allocation');
+        }
+      } else {
+        console.warn('🔧 PATCH C: No balance data available');
+      }
+    } catch (e) {
+      console.error('🔧 PATCH C failed with error:', e.message, e.stack);
     }
+
+    // Fallback vers u.targets_by_group si patch échoue (plus de presets hardcodés)
+    if (!allocation || Object.keys(allocation).length === 0) {
+      console.warn('🚨 PATCH C FAILED - Using dynamic targets_by_group as fallback');
+
+      // Fallback ultime : utiliser les positions actuelles normalisées
+      allocation = {};
+      GROUP_ORDER.forEach(group => allocation[group] = 0);
+
+      // Utiliser la même logique que PATCH C pour fallback
+      try {
+        const balanceData = store.snapshot()?.wallet?.balances || [];
+        if (balanceData.length > 0) {
+          const { groupAssetsByClassification } = await import('../shared-asset-groups.js');
+          const groupedData = groupAssetsByClassification(balanceData);
+          const totalValue = groupedData.reduce((sum, g) => sum + g.value, 0);
+
+          if (totalValue > 0) {
+            GROUP_ORDER.forEach(group => {
+              const found = groupedData.find(g => g.label === group);
+              allocation[group] = found ? (found.value / totalValue) * 100 : 0;
+            });
+            console.debug('✅ FALLBACK: Using groupAssetsByClassification as allocation targets');
+          }
+        }
+      } catch (e) {
+        console.error('Fallback also failed:', e.message);
+      }
+
+      // Dernier recours: utiliser targets_by_group (dynamique)
+      if (!allocation || Object.values(allocation).every(v => v === 0)) {
+        allocation = u.targets_by_group || {};
+        console.warn('⚠️ ULTIMATE FALLBACK: u.targets_by_group utilisé (calcul dynamique)');
+      }
+    }
+
+    // Allocation fournie par u.targets_by_group (calcul dynamique) - vérification
+    if (!allocation || Object.keys(allocation).length === 0) {
+      console.error('🚨 ERREUR CRITIQUE: targets_by_group vide', { u, allocation });
+      return '<div class="error-message">❌ Erreur: calculs dynamiques indisponibles</div>';
+    }
+
+    // GARDE-FOUS - Checksum et validation
+    const total = Object.values(allocation || {}).reduce((a, b) => a + (isFinite(b) ? b : 0), 0);
+    if (Math.abs(total - 100) > 0.5) {
+      console.warn(`⚠️ target_sum_mismatch: somme = ${total.toFixed(1)}% (≠ 100%)`);
+      // Petite normalisation douce (hors stables)
+      if (allocation && allocation['Stablecoins'] != null) {
+        const st = allocation['Stablecoins'];
+        const space = Math.max(0, 100 - st);
+        const nonKeys = Object.keys(allocation).filter(k => k !== 'Stablecoins');
+        const nonSum = nonKeys.reduce((s, k) => s + allocation[k], 0) || 1;
+        nonKeys.forEach(k => allocation[k] = allocation[k] * (space / nonSum));
+        const newTotal = Object.values(allocation).reduce((a, b) => a + b, 0);
+        if (Math.abs(newTotal - 100) > 0.5) {
+          console.warn(`⚠️ soft renorm failed: ${newTotal.toFixed(2)}%`);
+        }
+      }
+    }
+
+    // Allocation déjà générée par u.targets_by_group (dynamique) - pas de fallback legacy nécessaire
 
     if (allocation && Object.keys(allocation).length > 0) {
       const conf = u.decision.confidence || 0;
@@ -373,30 +642,55 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
           cap: cap
         };
       } else {
-        // Fallback to standard logic
-        mode = conf > 0.8 && contra === 0 ? { name: 'Deploy', cap: 12 } :
-               conf > 0.65 && contra <= 1 ? { name: 'Rotate', cap: 7 } :
-               conf > 0.55 ? { name: 'Hedge', cap: 3 } : { name: 'Observe', cap: 0 };
+        // Fallback to standard logic avec caps légèrement augmentés pour meilleure couverture
+        mode = conf > 0.8 && contra === 0 ? { name: 'Deploy', cap: 15 } :
+               conf > 0.65 && contra <= 1 ? { name: 'Rotate', cap: 10 } :
+               conf > 0.55 ? { name: 'Hedge', cap: 5 } : { name: 'Observe', cap: 0 };
       }
 
       const current = await getCurrentAllocationByGroup(5.0);
-      const targetAdj = applyCycleMultipliersToTargets(allocation, u.cycle?.multipliers || {});
+      // Plus besoin d'applyCycleMultipliersToTargets ni de garde UI - u.targets_by_group (dynamique) fait tout
 
-      // Persist suggested allocation for rebalance.html consumption
-      try {
-        if (targetAdj && Object.keys(targetAdj).length > 0) {
-          const payload = {
-            targets: targetAdj,
-            strategy: 'Regime-Based Allocation',
-            timestamp: new Date().toISOString(),
-            source: 'analytics-unified'
-          };
-          localStorage.setItem('unified_suggested_allocation', JSON.stringify(payload));
-          window.dispatchEvent(new CustomEvent('unifiedSuggestedAllocationUpdated', { detail: payload }));
-        }
-      } catch (e) {
-        console.warn('Persist unified suggested allocation failed:', e?.message || e);
+      // DEBUG: Verify allocation before assigning to targetAdj
+      console.debug('🎯 ALLOCATION DEBUG before targetAdj:', {
+        allocation_keys: allocation ? Object.keys(allocation) : 'no allocation',
+        allocation_values: allocation,
+        allocation_total: allocation ? Object.values(allocation).reduce((a, b) => a + b, 0) : 'no allocation'
+      });
+
+      // SOURCE CANONIQUE UNIQUE: Utiliser targets_by_group (calculs dynamiques)
+      // Plus de presets hardcodés - tout est calculé dynamiquement dans unified-insights-v2.js
+      let executionTargets = allocation; // Current allocation (fallback de sécurité)
+
+      // LECTURE DIRECTE: Objectifs théoriques = source canonique dynamique
+      if (u.targets_by_group && Object.keys(u.targets_by_group).length > 0) {
+        executionTargets = { ...u.targets_by_group };
+        console.log('✅ DYNAMIC TARGETS utilisés (plus de presets!):', {
+          source: 'u.targets_by_group (computed dynamically)',
+          targets: Object.entries(executionTargets).map(([k,v]) => `${k}: ${v.toFixed(1)}%`),
+          stables_pct: executionTargets['Stablecoins']?.toFixed(1) + '%',
+          sum: Object.values(executionTargets).reduce((a,b) => a+b, 0).toFixed(1) + '%'
+        });
+      } else {
+        console.warn('⚠️ targets_by_group manquant, fallback sur allocation actuelle');
       }
+
+      const targetAdj = executionTargets;
+
+      // CORRECTION UNIFICATION: Forcer l'affichage théorique à utiliser les mêmes targets
+      // pour éviter l'incohérence entre objectifs théoriques et plan d'exécution
+      console.debug('🔄 BEFORE UNIFICATION:', {
+        allocation_before: allocation ? Object.entries(allocation).map(([k,v]) => `${k}: ${v.toFixed(1)}%`) : 'null',
+        executionTargets: Object.entries(executionTargets).map(([k,v]) => `${k}: ${v.toFixed(1)}%`)
+      });
+
+      allocation = executionTargets;
+
+      console.debug('🔄 AFTER UNIFICATION: Objectifs théoriques forcés à utiliser les mêmes targets que le plan d\'exécution:', {
+        allocation_after: Object.entries(allocation).map(([k,v]) => `${k}: ${v.toFixed(1)}%`),
+        unified_targets: Object.entries(executionTargets).map(([k,v]) => `${k}: ${v.toFixed(1)}%`),
+        note: 'Objectifs et plan maintenant cohérents'
+      });
 
       const keys = new Set([
         ...Object.keys(targetAdj || {}),
@@ -407,20 +701,99 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
         const cur = Number((current?.pct || {})[k] || 0);
         const tgt = Number((targetAdj || {})[k] || 0);
         const delta = Math.round((tgt - cur) * 10) / 10;
-        const suggested = Math.round((Math.max(-mode.cap, Math.min(mode.cap, delta))) * 10) / 10;
-        return { k, cur, tgt, delta, suggested };
+        return { k, cur, tgt, delta, suggested: 0 }; // suggested will be calculated with zero-sum constraint
       });
 
+      // DEBUG: Log execution plan calculation details
+      console.debug('🎯 EXECUTION PLAN DELTAS DEBUG:', {
+        cap_limit: mode.cap + '%',
+        all_deltas: entries.map(e => ({
+          asset: e.k,
+          current: e.cur.toFixed(1) + '%',
+          target: e.tgt.toFixed(1) + '%',
+          delta: e.delta.toFixed(1) + '%',
+          urgency: Math.abs(e.delta).toFixed(1)
+        })).sort((a, b) => parseFloat(b.urgency) - parseFloat(a.urgency)),
+        significant_deltas: entries.filter(e => Math.abs(e.delta) > 0.5).length,
+        total_positive_budget_needed: entries.filter(e => e.delta > 0).reduce((s, e) => s + e.delta, 0).toFixed(1) + '%',
+        total_negative_budget_needed: entries.filter(e => e.delta < 0).reduce((s, e) => s + Math.abs(e.delta), 0).toFixed(1) + '%'
+      });
+
+      // CONTRAINTE ZÉRO-SOMME: calculate suggested moves with cap and zero-sum constraint
+      const cappedEntries = calculateZeroSumCappedMoves(entries, mode.cap);
+      entries.forEach((entry, i) => {
+        entry.suggested = cappedEntries[i].suggested;
+      });
+
+      // HIÉRARCHIE STRICTE: seulement les groupes taxonomy autorisés
+      const TOP_LEVEL_GROUPS = GROUP_ORDER.length > 0 ? GROUP_ORDER : ['BTC', 'ETH', 'Stablecoins', 'SOL', 'L1/L0 majors', 'L2/Scaling', 'DeFi', 'AI/Data', 'Gaming/NFT', 'Memecoins', 'Others'];
+
       const visible = entries
-        .filter(e => (e.tgt > 0.1) || Math.abs(e.delta) > 0.2 || e.cur > 0.1)
+        .filter(e => {
+          // Filtre significatif
+          const isSignificant = (e.tgt > 0.1) || Math.abs(e.delta) > 0.2 || e.cur > 0.1;
+          // Filtre hiérarchique - SEULEMENT les groupes top-level
+          const isTopLevel = TOP_LEVEL_GROUPS.includes(e.k);
+
+          if (!isTopLevel && isSignificant) {
+            console.debug(`🚫 Coin ${e.k} excluded from top-level (child of group)`);
+          }
+
+          return isSignificant && isTopLevel;
+        })
         .sort((a, b) => (b.tgt - a.tgt) || (b.cur - a.cur))
-        .slice(0, 12);
+        .slice(0, 11); // Max 11 groupes
+
+      // Persist suggested allocation for rebalance.html consumption (moved here after 'visible' calculation)
+      try {
+        if (targetAdj && Object.keys(targetAdj).length > 0) {
+          // Utiliser le plan d'exécution pré-calculé (même source que cartes)
+          const executionPlan = u.execution?.plan_iter1 || {};
+          console.debug('🔄 Using pre-calculated execution plan:', executionPlan);
+
+          const payload = {
+            targets: targetAdj, // Final theoretical targets
+            execution_plan: executionPlan, // Iteration 1 targets with caps
+            cap_percent: mode.cap,
+            strategy: 'Regime-Based Allocation',
+            timestamp: new Date().toISOString(),
+            source: 'analytics-unified'
+          };
+          localStorage.setItem('unified_suggested_allocation', JSON.stringify(payload));
+          window.dispatchEvent(new CustomEvent('unifiedSuggestedAllocationUpdated', { detail: payload }));
+          console.debug('✅ Unified suggested allocation persisted:', {
+            targetsCount: Object.keys(targetAdj).length,
+            visibleCount: visible.length,
+            execPlanCount: Object.keys(executionPlan).length,
+            cap: mode.cap,
+            hasCurrentData: !!(current && current.groups)
+          });
+        } else {
+          console.warn('⚠️ No targetAdj data to persist', { targetAdj, keys: Object.keys(targetAdj || {}) });
+        }
+      } catch (e) {
+        console.warn('Persist unified suggested allocation failed:', e?.message || e);
+      }
 
       // NOUVEAU - Séparation Budget vs Exécution
       const riskBudget = u.risk_budget || {};
       const execution = u.execution || {};
       const stablesTheorique = riskBudget.target_stables_pct || null;
       const estimatedIters = execution.estimated_iters_to_target || 'N/A';
+
+      // TÂCHE 4 - Verrous anti-régression (dev uniquement) avant rendu
+      if (typeof window !== 'undefined' && window.location?.hostname === 'localhost') {
+        const stablesEntry = visible.find(v => v.k === 'Stablecoins');
+        const totalTgt = visible.reduce((sum, v) => sum + (Number(v.tgt) || 0), 0);
+
+        if (!stablesEntry || stablesEntry.tgt < 0.5) {
+          console.error('[ASSERT] UI RENDER: Stablecoins manquantes dans visible targets', { visible, stablesEntry });
+        }
+        if (Math.abs(totalTgt - 100) > 0.5) {
+          console.error('[ASSERT] UI RENDER: Somme targets visible ≠ 100%', { totalTgt, visible });
+        }
+        console.debug(`✅ UI RENDER: Verrous OK - Stables ${stablesEntry?.tgt?.toFixed(1) || 0}%, Total ${totalTgt.toFixed(1)}%`);
+      }
 
       allocationBlock = `
         ${card(`
@@ -560,10 +933,49 @@ if (typeof window !== 'undefined') {
   window.addEventListener('activeUserChanged', (event) => {
     console.debug(`👤 Active user change detected: ${event.detail?.oldUser || 'unknown'} → ${event.detail?.newUser || 'unknown'}`);
     invalidateAllocationCache();
+
+    // INVALIDATION MULTI-WALLET: forcer rechargement risk_budget et unified state
+    if (typeof window.debugInvalidateRiskBudget === 'function') {
+      window.debugInvalidateRiskBudget();
+    }
+
+    // Trigger unified state recalculation
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('riskBudgetInvalidated', {
+        detail: { reason: 'user_change', newUser: event.detail?.newUser }
+      }));
+    }, 200);
+  });
+
+  // TÂCHE 3 - Re-rendu événementiel quand budget arrive
+  window.addEventListener('riskBudgetInvalidated', (event) => {
+    console.debug(`💰 Risk budget invalidated: ${event.detail?.reason || 'unknown'}, re-rendering UnifiedInsights`);
+
+    // Force re-render des insights après invalidation du budget
+    setTimeout(async () => {
+      try {
+        const container = document.querySelector('[data-unified-insights]');
+        if (container && typeof window.renderUnifiedInsights === 'function') {
+          console.debug('🔄 Re-rendering UnifiedInsights after budget change...');
+          await window.renderUnifiedInsights();
+        }
+      } catch (e) {
+        console.warn('UnifiedInsights re-render failed:', e.message);
+      }
+    }, 100); // Court délai pour laisser le budget se mettre à jour
   });
 
   window.addEventListener('storage', (event) => {
-    if (event.key === 'activeUser' || event.key?.includes('crypto_rebal_settings')) {
+    if (event.key === 'activeUser') {
+      console.debug('👤 User change detected via storage, dispatching activeUserChanged and invalidating cache');
+      // Dispatch activeUserChanged event for synchronous chaining
+      const userChangeEvent = new CustomEvent('activeUserChanged', {
+        detail: { oldUser: event.oldValue, newUser: event.newValue }
+      });
+      window.dispatchEvent(userChangeEvent);
+      // Invalidate cache with slight delay to ensure event handlers complete
+      setTimeout(invalidateAllocationCache, 50);
+    } else if (event.key?.includes('crypto_rebal_settings')) {
       console.debug('📊 Settings change detected via storage, invalidating cache');
       setTimeout(invalidateAllocationCache, 100); // Small delay to ensure settings are updated
     }

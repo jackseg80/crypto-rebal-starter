@@ -761,7 +761,10 @@
 
         const data = JSON.parse(raw);
         if (!data || typeof data !== 'object' || !data.targets || !data.timestamp) return null;
-        if (data.source && data.source !== 'analytics-unified') return null;
+
+        // Accepter les nouvelles sources v2 et les anciennes pour compatibilité
+        const validSources = ['analytics-unified', 'analytics_unified_v2', null, undefined];
+        if (data.source && !validSources.includes(data.source)) return null;
 
         // freshness window: 2 hours
         const age = Date.now() - new Date(data.timestamp).getTime();
@@ -770,18 +773,62 @@
           return null;
         }
 
+        // CORRECTION: Toujours utiliser data.targets pour les allocations
+        // data.execution_plan contient des métadonnées (estimated_iters, etc.) pas des allocations!
+        const targetsSource = data.targets;
         const cleanTargets = {};
-        Object.entries(data.targets).forEach(([key, value]) => {
+        Object.entries(targetsSource).forEach(([key, value]) => {
           if (key !== 'model_version' && typeof value === 'number' && isFinite(value)) {
             cleanTargets[key] = value;
           }
         });
 
-        return {
+        // Nom de stratégie amélioré pour le nouveau système dynamique
+        let strategyName;
+        if (data.source === 'analytics_unified_v2') {
+          // Nouveau système avec calculs dynamiques
+          const methodLabel = data.methodology === 'unified_v2' ? 'Calcul Dynamique' : data.strategy || 'Dynamic';
+          strategyName = data.execution_plan ?
+            `${methodLabel} (Plan Exécution - Cap ±${data.cap_percent || 7}%)` :
+            `${methodLabel} (Objectifs Théoriques)`;
+        } else {
+          // Ancien système (compatibilité)
+          strategyName = data.execution_plan ?
+            `${data.strategy} (Itération 1 - Cap ±${data.cap_percent || 7}%)` :
+            data.strategy || 'Regime-Based Allocation';
+        }
+
+        const result = {
           targets: cleanTargets,
-          strategy: data.strategy || 'Regime-Based Allocation',
-          timestamp: data.timestamp
+          strategy: strategyName,
+          timestamp: data.timestamp,
+          is_execution_plan: !!data.execution_plan,
+          // Métadonnées pour debug
+          _debug: {
+            source: data.source,
+            methodology: data.methodology,
+            stables_source: data.stables_source,
+            cycle_score: data.cycle_score,
+            regime_name: data.regime_name
+          }
         };
+
+        console.log('✅ Unified targets synchronized from analytics:', {
+          strategy: strategyName,
+          targets_count: Object.keys(cleanTargets).length,
+          stables_pct: cleanTargets.Stablecoins,
+          sum: Object.values(cleanTargets).reduce((a,b) => a+b, 0).toFixed(1),
+          source: data.source,
+          has_plan: !!data.execution_plan
+        });
+
+        // DEBUG DÉTAILLÉ: Vérifier la structure des targets
+        console.debug('🔍 DEBUG cleanTargets détaillés:', cleanTargets);
+        console.debug('🔍 DEBUG targetsSource original:', targetsSource);
+        console.debug('🔍 DEBUG data.execution_plan:', data.execution_plan);
+        console.debug('🔍 DEBUG data.targets:', data.targets);
+
+        return result;
       } catch (e) {
         console.warn('syncUnifiedSuggestedTargets - parse error:', e);
         return null;
@@ -921,6 +968,9 @@
                 _unifiedData: unified
               };
               console.log('Added Unified Suggested allocation:', unified);
+              console.debug('🔍 DEBUG availableStrategies[unified-suggested]:', availableStrategies['unified-suggested']);
+              console.debug('🔍 DEBUG unified.targets structure:', unified.targets);
+              console.debug('🔍 DEBUG allocations in strategy:', availableStrategies['unified-suggested'].allocations);
             } else {
               availableStrategies['unified-suggested-placeholder'] = {
                 name: 'Allocation Suggérée (Unified)',
@@ -1315,6 +1365,17 @@
         console.log('🔍 Loading real portfolio data using configured source...');
         const balanceResult = await window.loadBalanceData();
 
+        // DEBUG A - Vérification parité Rebalance ↔ Analytics
+        console.log('[whoami]', {
+          currentUser: localStorage.getItem('activeUser') || 'demo',
+          currentSource: window.globalConfig?.get('data_source') || 'unknown'
+        });
+        console.log('[balances]', {
+          balanceData: balanceResult?.data?.items?.slice?.(0,5),
+          balanceTotal: balanceResult?.data?.total,
+          source: balanceResult?.source
+        });
+
         if (!balanceResult.success) {
           throw new Error(balanceResult.error);
         }
@@ -1431,19 +1492,40 @@
     }
 
     // Asset grouping function (same as other dashboards)
-    const ASSET_GROUPS = {
-      'BTC': ['BTC', 'TBTC'],
-      'ETH': ['ETH', 'WETH', 'STETH', 'WSTETH', 'RETH', 'CBETH'],
-      'Stablecoins': ['USDC', 'USDT', 'USD', 'DAI'],
-      'L1/L0 majors': ['SOL', 'SOL2', 'ATOM', 'ATOM2', 'DOT', 'DOT2', 'ADA', 'AVAX', 'NEAR', 'LINK', 'XRP', 'BCH', 'XLM', 'LTC', 'SUI3', 'TRX'],
-      'Exchange Tokens': ['BNB', 'BGB', 'CHSB'],
-      'DeFi': ['AAVE', 'JUPSOL', 'JITOSOL', 'FET'],
-      'Memecoins': ['DOGE'],
-      'Privacy': ['XMR'],
-      'Others': ['IMO', 'VVV3', 'TAO6']
-    };
+    // Import du système unifié de classification des assets
+    let ASSET_GROUPS = {};
+    let getAssetGroup, groupAssetsByClassification;
+
+    // Charger le système unifié au runtime avec protection taxonomie
+    import('./shared-asset-groups.js').then(async module => {
+      // TAXONOMIE SÉCURISÉE: Force reload pour éviter fallback "Others"
+      try {
+        await module.forceReloadTaxonomy();
+        ASSET_GROUPS = module.UNIFIED_ASSET_GROUPS;
+        getAssetGroup = module.getAssetGroup;
+        groupAssetsByClassification = module.groupAssetsByClassification;
+
+        if (!Object.keys(ASSET_GROUPS || {}).length) {
+          console.warn('⚠️ [rebalance] Taxonomy non chargée – risque de "Others" gonflé');
+        } else {
+          console.log('✅ Unified asset groups loaded in rebalance:', Object.keys(ASSET_GROUPS).length, 'groupes');
+        }
+      } catch (taxonomyError) {
+        console.warn('❌ [rebalance] Force reload taxonomy failed:', taxonomyError.message);
+        // Fallback vers l'import simple
+        ASSET_GROUPS = module.UNIFIED_ASSET_GROUPS;
+        getAssetGroup = module.getAssetGroup;
+        groupAssetsByClassification = module.groupAssetsByClassification;
+      }
+    });
 
     function groupAssetsByAliases(items) {
+      // Utiliser la fonction unifiée si disponible, sinon fallback
+      if (groupAssetsByClassification) {
+        return groupAssetsByClassification(items);
+      }
+
+      // Fallback temporaire si le module n'est pas encore chargé
       const groups = new Map();
       const ungrouped = [];
 
@@ -1669,7 +1751,7 @@
           // Only generate actions for significant changes (>$25)
           if (Math.abs(delta) >= 25) {
             const price = getRealPriceForSymbol(asset.symbol);
-            const group = getAssetGroup(asset.symbol);
+            const group = getAssetGroupLocal(asset.symbol);
             const action = delta > 0 ? 'BUY' : 'SELL';
 
             // Use smart exchange selection for location
@@ -1713,7 +1795,7 @@
       const assetsByGroup = {};
 
       individualBalances.forEach(asset => {
-        const group = getAssetGroup(asset.symbol);
+        const group = getAssetGroupLocal(asset.symbol);
         if (!assetsByGroup[group]) {
           assetsByGroup[group] = [];
         }
@@ -1749,7 +1831,13 @@
     }
 
     // Get the group classification for an asset
-    function getAssetGroup(symbol) {
+    function getAssetGroupLocal(symbol) {
+      // Utiliser la fonction unifiée si disponible
+      if (getAssetGroup && typeof getAssetGroup === 'function') {
+        return getAssetGroup(symbol);
+      }
+
+      // Fallback si le module n'est pas encore chargé
       for (const [group, symbols] of Object.entries(ASSET_GROUPS)) {
         if (symbols.includes(symbol.toUpperCase())) {
           return group;

@@ -1,6 +1,7 @@
 // Unified Insights V2 - Migration vers Strategy API (PR-C)
 // Nouvelle version qui utilise l'API Strategy tout en gardant la compatibilité
 // Remplace progressivement unified-insights.js
+console.warn('🔄 UNIFIED-INSIGHTS-V2.JS LOADED - FORCE CACHE RELOAD TIMESTAMP:', new Date().toISOString());
 
 import { store } from './risk-dashboard-store.js';
 import { getRegimeDisplayData, getMarketRegime } from '../modules/market-regimes.js';
@@ -76,10 +77,104 @@ function calculateAdaptiveWeights(cycleData, onchainScore, contradictions) {
 }
 
 /**
+ * DYNAMIQUE - Calcule les cibles d'allocation macro selon le contexte réel
+ * Remplace les presets hardcodés par un calcul adaptatif
+ * @param {object} ctx - Contexte (cycle, regime, sentiment, governance)
+ * @param {object} rb - Risk budget avec target_stables_pct
+ * @param {object} walletStats - Stats wallet (concentration, volatilité)
+ * @returns {object} Targets par groupe, somme = 100%
+ */
+function computeMacroTargetsDynamic(ctx, rb, walletStats) {
+  console.debug('🎯 computeMacroTargetsDynamic called:', { ctx, rb, walletStats });
+
+  // 0) Stables = SOURCE DE VÉRITÉ (risk budget)
+  let stables = rb?.target_stables_pct;
+  if (typeof stables !== 'number' || stables < 0 || stables > 100) {
+    console.warn('⚠️ target_stables_pct invalide, fallback 25%:', stables);
+    stables = 25;
+  }
+  const riskyPool = Math.max(0, 100 - stables); // Espace pour assets risqués
+
+  // 1) Poids de base relatifs (hors stables) - Portfolio neutre
+  let base = {
+    BTC: 0.42,           // 42% du risky pool
+    ETH: 0.28,           // 28% du risky pool
+    'L1/L0 majors': 0.06,
+    SOL: 0.06,
+    'L2/Scaling': 0.06,
+    DeFi: 0.05,
+    'AI/Data': 0.04,
+    'Gaming/NFT': 0.02,
+    Memecoins: 0.01,
+    Others: 0.00
+  };
+
+  // 2) Modulateurs simples par régime/sentiment
+  const bull = (ctx?.regime === 'bull') || (ctx?.cycle_score >= 70);
+  const bear = (ctx?.regime === 'bear') || (ctx?.cycle_score <= 30);
+  const hedge = (ctx?.governance_mode === 'Hedge');
+  const fear = (ctx?.sentiment === 'extreme_fear');
+
+  console.debug('🔍 Market conditions:', { bull, bear, hedge, fear, cycle_score: ctx?.cycle_score });
+
+  if (bull) {
+    // Mode bull: moins BTC, plus ETH/L2/SOL
+    base.BTC *= 0.95;
+    base.ETH *= 1.08;
+    base['L2/Scaling'] *= 1.15;
+    base.SOL *= 1.10;
+    console.debug('🚀 Bull mode: boost ETH/L2/SOL');
+  }
+
+  if (bear || hedge || fear) {
+    // Mode prudent: réduire long tail
+    base.Memecoins *= 0.5;
+    base['Gaming/NFT'] *= 0.7;
+    base.DeFi *= 0.85;
+    console.debug('🛡️ Defensive mode: reduce risky assets');
+  }
+
+  // 3) Diversification basée sur concentration wallet
+  if (walletStats?.topWeightSymbol === 'BTC' && walletStats?.topWeightPct > 35) {
+    base.BTC *= 0.92;
+    base.ETH *= 1.06;
+    base['L2/Scaling'] *= 1.06;
+    console.debug('⚖️ BTC over-concentration: rebalance to ETH/L2');
+  }
+
+  // 4) Normaliser la somme (hors stables)
+  const sumBase = Object.values(base).reduce((s, v) => s + v, 0) || 1;
+  for (const k in base) {
+    base[k] = base[k] / sumBase;
+  }
+
+  // 5) Convertir en points (%) sur le riskyPool
+  const targets = { Stablecoins: +stables.toFixed(1) };
+  for (const [k, v] of Object.entries(base)) {
+    targets[k] = +(v * riskyPool).toFixed(1);
+  }
+
+  // 6) Ajustement somme=100 (gestion arrondis)
+  const sum = Object.values(targets).reduce((a, b) => a + b, 0);
+  const diff = +(100 - sum).toFixed(1);
+  if (Math.abs(diff) >= 0.1) {
+    const heavy = 'BTC'; // Ajuster sur BTC
+    targets[heavy] = +(targets[heavy] + diff).toFixed(1);
+    console.debug('🔧 Sum adjustment applied:', { diff, heavy });
+  }
+
+  console.log('🎯 Dynamic targets computed:', targets);
+  console.debug('📊 Target breakdown: stables=' + stables + '%, risky=' + riskyPool + '%');
+
+  return targets;
+}
+
+/**
  * Version améliorée de getUnifiedState qui utilise l'API Strategy
  * Garde la même interface pour la compatibilité ascendante
  */
 export async function getUnifiedState() {
+  console.debug('🔄 getUnifiedState called - starting unified state construction');
   const state = store.snapshot();
 
   // Extract base scores (identique à la version legacy)
@@ -88,6 +183,19 @@ export async function getUnifiedState() {
   const blendedScore = state.scores?.blended ?? null;
   const ocMeta = state.scores?.onchain_metadata || {};
   const risk = state.risk?.risk_metrics || {};
+
+  // Extract categories for contradictions analysis (moved up to avoid initialization error)
+  const ocCategories = ocMeta.categoryBreakdown || {};
+
+  // CONTRADICTIONS ANALYSIS (moved up to avoid initialization error)
+  let contradictions = [];
+  try {
+    contradictions = analyzeContradictorySignals(ocCategories).slice(0, 2);
+    console.debug('✅ Contradictions Intelligence loaded:', contradictions.length);
+  } catch (error) {
+    contradictions = (state.scores?.contradictory_signals || []).slice(0, 2);
+    console.warn('⚠️ Contradictions fallback:', error);
+  }
 
   console.debug('🧠 UNIFIED STATE V2 - Using Strategy API + sophisticated modules');
 
@@ -112,7 +220,14 @@ export async function getUnifiedState() {
   try {
     if (blendedScore != null) {
       regimeData = getRegimeDisplayData(blendedScore, onchainScore, riskScore);
-      console.debug('✅ Regime Intelligence loaded:', regimeData.regime?.name, regimeData.recommendations?.length);
+      console.debug('✅ Regime Intelligence loaded:', {
+        regimeName: regimeData.regime?.name,
+        recommendationsCount: regimeData.recommendations?.length,
+        hasRiskBudget: !!regimeData.risk_budget,
+        riskBudgetKeys: regimeData.risk_budget ? Object.keys(regimeData.risk_budget) : null,
+        stablesAllocation: regimeData.risk_budget?.stables_allocation,
+        targetStablesPct: regimeData.risk_budget?.target_stables_pct
+      });
     } else {
       regimeData = { regime: getMarketRegime(50), recommendations: [], risk_budget: null };
     }
@@ -172,7 +287,21 @@ export async function getUnifiedState() {
     signalsData = { interpretation: 'neutral', confidence: 0.4, signals_strength: 'weak' };
   }
 
-  // 4. NOUVELLE LOGIQUE - DECISION INDEX VIA STRATEGY API
+  // 5. SOPHISTICATED ANALYSIS (conservé identique) - using ocCategories already declared above
+  const drivers = Object.entries(ocCategories)
+    .map(([key, data]) => ({ 
+      key, 
+      score: data?.score ?? 0, 
+      desc: data?.description, 
+      contributors: data?.contributorsCount ?? 0,
+      consensus: data?.consensus
+    }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3);
+
+  // INTELLIGENT CONTRADICTIONS ANALYSIS (already calculated above)
+
+  // 4. NOUVELLE LOGIQUE - DECISION INDEX VIA STRATEGY API (moved after contradictions)
   let decision;
   try {
     // BLENDING ADAPTATIF - Pondérations contextuelles
@@ -190,17 +319,17 @@ export async function getUnifiedState() {
       contradiction: contradictions?.length > 0 ? Math.min(contradictions.length * 0.15, 0.48) : 0.1,
       adaptiveWeights // Nouveau - utilisé par strategy-api-adapter
     };
-    
+
     // Utiliser l'adaptateur Strategy API
     decision = await calculateIntelligentDecisionIndexAPI(context);
-    
+
     console.debug('🚀 Strategy API decision:', {
       score: decision.score,
       confidence: decision.confidence,
       source: decision.source,
       template: decision.template_used
     });
-    
+
     // Comparaison avec legacy pour validation (si activé)
     if (ENABLE_COMPARISON_LOGGING) {
       try {
@@ -216,10 +345,10 @@ export async function getUnifiedState() {
         console.debug('⚠️ Legacy comparison failed:', e.message);
       }
     }
-    
+
   } catch (error) {
     console.warn('⚠️ Strategy API failed, using legacy fallback:', error.message);
-    
+
     // Fallback vers calcul legacy en cas d'erreur API
     const context = {
       blendedScore, cycleData, regimeData, signalsData,
@@ -228,37 +357,14 @@ export async function getUnifiedState() {
     decision = legacyCalculation(context);
   }
 
-  // 5. SOPHISTICATED ANALYSIS (conservé identique)
-  const ocCategories = ocMeta.categoryBreakdown || {};
-  const drivers = Object.entries(ocCategories)
-    .map(([key, data]) => ({ 
-      key, 
-      score: data?.score ?? 0, 
-      desc: data?.description, 
-      contributors: data?.contributorsCount ?? 0,
-      consensus: data?.consensus
-    }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 3);
-
-  // INTELLIGENT CONTRADICTIONS ANALYSIS (conservé)
-  let contradictions = [];
-  try {
-    contradictions = analyzeContradictorySignals(ocCategories).slice(0, 2);
-    console.debug('✅ Contradictions Intelligence loaded:', contradictions.length);
-  } catch (error) {
-    contradictions = (state.scores?.contradictory_signals || []).slice(0, 2);
-    console.warn('⚠️ Contradictions fallback:', error);
-  }
-
   // ENHANCED HEALTH (conservé + ajout info Strategy API)
   const health = {
     backend: state.ui?.apiStatus?.backend || 'unknown',
     signals: state.ui?.apiStatus?.signals || 'unknown',
     lastUpdate: state.ccs?.lastUpdate || null,
     intelligence_modules: {
-      cycle: cycleData.confidence > 0.5 ? 'active' : 'limited',
-      regime: regimeData.recommendations?.length > 0 ? 'active' : 'limited', 
+      cycle: (cycleData.confidence > 0.5 || cycleData.score > 85) ? 'active' : 'limited',
+      regime: regimeData.recommendations?.length > 0 ? 'active' : 'limited',
       signals: signalsData.confidence > 0.6 ? 'active' : 'limited',
       strategy_api: decision.source === 'strategy_api' ? 'active' : 'fallback'  // NOUVEAU
     }
@@ -271,6 +377,53 @@ export async function getUnifiedState() {
       decision.confidence = Math.max(0, Math.min(0.95, decision.confidence - contraPenalty));
     }
   } catch {}
+
+  // ASSERTIONS V2 - Invariants critiques
+  if (typeof window !== 'undefined' && window.location?.hostname === 'localhost') {
+    // Vérifier l'invariant risky + stables = 100%
+    const riskyPct = regimeData?.risk_budget?.percentages?.risky ?? 0;
+    const stablesPct = regimeData?.risk_budget?.percentages?.stables ?? 0;
+    const sum = riskyPct + stablesPct;
+
+    console.assert(
+      Math.abs(sum - 100) <= 0.1,
+      'Invariant failed: risky+stables must equal 100%',
+      { risky: riskyPct, stables: stablesPct, sum, regimeData: regimeData?.risk_budget }
+    );
+
+    // DEBUG - Analyser regimeData avant assertion
+    console.debug('🔍 REGIME DATA DEBUG DETAILLE:', {
+      hasRegimeData: !!regimeData,
+      hasRiskBudget: !!regimeData?.risk_budget,
+      riskBudgetKeys: regimeData?.risk_budget ? Object.keys(regimeData.risk_budget) : null,
+      targetStablesPct: regimeData?.risk_budget?.target_stables_pct,
+      percentages: regimeData?.risk_budget?.percentages,
+      riskBudgetFull: regimeData?.risk_budget,
+      // Vérifier si les champs raw existent
+      rawRiskyAllocation: regimeData?.risk_budget?.risky_allocation,
+      rawStablesAllocation: regimeData?.risk_budget?.stables_allocation,
+      generatedAt: regimeData?.risk_budget?.generated_at
+    });
+
+    // Vérifier présence target_stables_pct avec fallback
+    if (typeof regimeData?.risk_budget?.target_stables_pct !== 'number') {
+      console.warn('⚠️ target_stables_pct missing, creating fallback:', { regimeData: regimeData?.risk_budget });
+
+      // Fallback intelligent basé sur percentages.stables ou 41% par défaut
+      const fallbackStables = regimeData?.risk_budget?.percentages?.stables ?? 41;
+      if (regimeData?.risk_budget) {
+        regimeData.risk_budget.target_stables_pct = fallbackStables;
+        regimeData.risk_budget.generated_at = regimeData.risk_budget.generated_at || new Date().toISOString();
+        console.debug('✅ Fallback target_stables_pct applied:', fallbackStables + '%');
+      }
+    }
+
+    console.debug('✅ V2 invariants validated:', {
+      sum: `${sum}%`,
+      target_stables: regimeData?.risk_budget?.target_stables_pct,
+      timestamp: regimeData?.risk_budget?.generated_at ? '✅' : '⚠️'
+    });
+  }
 
   // RETURN ENHANCED UNIFIED STATE
   const unifiedState = {
@@ -297,19 +450,67 @@ export async function getUnifiedState() {
       budget: regimeData.risk_budget
     },
 
-    // NOUVEAUX EXPOSÉS - Budget vs Exécution
+    // NOUVEAUX EXPOSÉS - Budget vs Exécution (Hard-switch V2)
     risk_budget: {
-      target_stables_pct: regimeData.risk_budget?.stables_target_pct ?? null,
-      risky_target_pct: regimeData.risk_budget?.risky_target_pct ?? null,
+      // % entiers (0–100) - SOURCE UNIQUE depuis market-regimes.js
+      target_stables_pct: regimeData.risk_budget?.target_stables_pct ??
+                          regimeData.risk_budget?.percentages?.stables ??
+                          (regimeData.risk_budget?.stables_allocation != null
+                            ? Math.round(regimeData.risk_budget.stables_allocation * 100)
+                            : null),
+      risky_target_pct: regimeData.risk_budget?.percentages?.risky ??
+                        (regimeData.risk_budget?.risky_allocation != null
+                          ? Math.round(regimeData.risk_budget.risky_allocation * 100)
+                          : null),
       methodology: regimeData.risk_budget?.methodology || 'regime_based',
-      confidence: regimeData.risk_budget?.confidence ?? null
+      confidence: regimeData.risk_budget?.confidence ?? null,
+      percentages: regimeData.risk_budget?.percentages || null,
+      // Timestamp fiable depuis market-regimes
+      generated_at: regimeData.risk_budget?.generated_at ??
+                    regimeData.timestamp ??
+                    new Date().toISOString()
     },
+
+    // SOURCE CANONIQUE UNIQUE - Cibles dynamiques calculées selon contexte réel
+    targets_by_group: (() => {
+      // Construire le contexte pour calcul dynamique
+      const ctx = {
+        regime: regimeData.regime?.name?.toLowerCase(),
+        cycle_score: cycleData.score,
+        governance_mode: decision.governance_mode || 'Normal',
+        sentiment: sentimentData?.interpretation
+      };
+
+      // Risk budget (SOURCE DE VÉRITÉ pour stables)
+      const rb = regimeData.risk_budget;
+
+      // Stats wallet basiques (TODO: étendre avec vrais calculs)
+      const walletStats = {
+        topWeightSymbol: null, // TODO: calculer depuis current allocation
+        topWeightPct: null,
+        volatility: null
+      };
+
+      // CALCUL DYNAMIQUE: remplace les presets hardcodés
+      const dynamicTargets = computeMacroTargetsDynamic(ctx, rb, walletStats);
+
+      console.log('🎯 DYNAMIC TARGETS remplace decision.targets:', {
+        old_method: 'preset_from_api',
+        new_method: 'dynamic_computation',
+        targets: dynamicTargets,
+        stables_source: rb?.target_stables_pct
+      });
+
+      return dynamicTargets;
+    })(),
 
     execution: {
       cap_pct_per_iter: decision.governance_cap ?? 7, // From governance/strategy
-      estimated_iters_to_target: null, // Will be calculated by allocation engine
+      estimated_iters_to_target: decision.execution_plan?.estimated_iters ?? null, // From allocation engine V2
       current_iteration: 1,
-      convergence_strategy: decision.policy_hint?.toLowerCase() === 'slow' ? 'gradual' : 'standard'
+      convergence_strategy: decision.policy_hint?.toLowerCase() === 'slow' ? 'gradual' : 'standard',
+      // Plan d'exécution calculé depuis targets_by_group (même source que cartes)
+      plan_iter1: decision.execution_plan || null
     },
     regime: {
       name: regimeData.regime?.name,
@@ -354,7 +555,28 @@ export async function getUnifiedState() {
         }, {}) : null
     }
   };
-  
+
+  // GARDE-FOUS & COHÉRENCE (ajouté)
+  const rb = unifiedState?.risk?.budget || {};
+  console.assert(
+    (rb?.percentages?.risky ?? 0) + (rb?.percentages?.stables ?? 0) === 100,
+    'Invariant cassé: risky+stables doit faire 100', rb?.percentages
+  );
+
+  // Aligner stables du groupe sur le risk budget (si design l'exige)
+  if (typeof rb?.target_stables_pct === 'number' && unifiedState.targets_by_group?.Stablecoins != null) {
+    const stablesFinal = Math.round(unifiedState.targets_by_group.Stablecoins * 10) / 10;
+    const stablesBudget = Math.round(rb.target_stables_pct * 10) / 10;
+    console.assert(
+      Math.abs(stablesFinal - stablesBudget) < 1, // Tolérance 1%
+      'Stablecoins diffèrent entre targets_by_group et risk_budget.target_stables_pct',
+      { stablesFinal, stablesBudget }
+    );
+  }
+
+  // Timestamp fiable
+  unifiedState.lastUpdate = rb?.generated_at || unifiedState?.lastUpdate || new Date().toISOString();
+
   return unifiedState;
 }
 

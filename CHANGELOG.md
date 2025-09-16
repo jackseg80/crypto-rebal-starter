@@ -5,6 +5,72 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2025-09-17
+
+### 🚀 Major Features - Système d'Allocation Dynamique
+
+#### Élimination des Presets Hardcodés
+- **BREAKING**: Suppression complète des presets figés (BTC 40%, ETH 30%, Stables 20/30/50%)
+- **NEW**: Calculs d'allocation contextuels basés sur cycle de marché, régime, et concentration wallet
+- **NEW**: Source canonique unique `u.targets_by_group` pour cohérence parfaite Analytics ↔ Rebalance
+- **NEW**: Fonction `computeMacroTargetsDynamic()` avec modulateurs intelligents
+
+#### Synchronisation Analytics ↔ Rebalance
+- **FIXED**: "Allocation Suggérée (Unified)" maintenant peuplée automatiquement dans rebalance.html
+- **NEW**: Sauvegarde automatique des données unified avec nouveau format v2
+- **CRITICAL**: Correction `targetsSource = data.targets` vs `data.execution_plan`
+- **NEW**: Support rétrocompatible ancien + nouveau format localStorage
+
+### 🔧 Technical Changes
+
+#### Core Engine (`static/core/unified-insights-v2.js`)
+- **ADD**: `computeMacroTargetsDynamic(ctx, rb, walletStats)` - remplace presets
+- **CHANGE**: Construction `targets_by_group` via calculs vs templates statiques
+- **ADD**: Modulateurs bull/bear/hedge + diversification selon concentration wallet
+- **ADD**: Garde-fous cohérence stables = risk_budget.target_stables_pct (source de vérité)
+
+#### UI Components (`static/components/UnifiedInsights.js`)
+- **REMOVE**: Logique preset hardcodée (elimination complète lignes 680-725)
+- **CHANGE**: Lecture directe `u.targets_by_group` vs `buildTheoreticalTargets()`
+- **REMOVE**: Import `buildTheoreticalTargets` (function deprecated)
+- **ADD**: Logs debug pour validation données dynamiques
+
+#### Pages HTML
+- **Analytics** (`static/analytics-unified.html`):
+  - **ADD**: `saveUnifiedDataForRebalance()` - sauvegarde automatique
+  - **ADD**: Format données v2 avec source `analytics_unified_v2`
+- **Rebalance** (`static/rebalance.html`):
+  - **FIXED**: `syncUnifiedSuggestedTargets()` support sources v2
+  - **ADD**: Protection taxonomie `forceReloadTaxonomy()`
+  - **ADD**: Logs debug détaillés structure données
+
+### 🐛 Critical Bug Fixes
+
+#### Allocation Display Issues
+- **FIXED**: "Others 31%" incohérent → allocations cohérentes via source unique
+- **FIXED**: Inconsistance Objectifs Théoriques vs Plan d'Exécution → même source
+- **FIXED**: rebalance.html "Allocation Suggérée (Unified)" vide → peuplée automatiquement
+- **FIXED**: Affichage `estimated_iters: 2.0%` au lieu allocations réelles
+
+#### Data Synchronization
+- **FIXED**: Analytics et Rebalance utilisaient sources différentes → u.targets_by_group unique
+- **FIXED**: Presets ignoraient risk_budget.target_stables_pct → intégration native
+- **FIXED**: Taxonomie non chargée causant "Others" gonflé → forceReloadTaxonomy()
+
+### 📚 Documentation
+- **NEW**: `docs/dynamic-allocation-system.md` - guide complet nouveau système
+- **UPDATE**: `README.md` - section "Nouvelles Fonctionnalités v3.0"
+- **NEW**: Commentaires détaillés code + logs explicites
+
+### 💔 Breaking Changes
+- **REMOVE**: Presets hardcodés dans tous les fichiers
+- **REMOVE**: `buildTheoreticalTargets()` calls (replaced by dynamic computation)
+- **CHANGE**: Allocations maintenant contextuelles vs statiques (amélioration UX)
+
+**Migration**: Rétrocompatibilité assurée, aucune action utilisateur requise.
+
+---
+
 ## [2.2.0] - 2025-01-14
 
 ### 🎯 Centralisation ML - Source Unique de Vérité

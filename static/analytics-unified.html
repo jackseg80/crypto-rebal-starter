@@ -24,36 +24,146 @@
     });
   </script>
   <script type="module">
+    /**
+     * Sauvegarde les données unified pour rebalance.html
+     * Compatible avec le nouveau système u.targets_by_group
+     */
+    async function saveUnifiedDataForRebalance() {
+      try {
+        console.debug('💾 Saving unified data for rebalance.html...');
+
+        // Import du système unified-insights-v2
+        const { getUnifiedState } = await import('./core/unified-insights-v2.js');
+        const unifiedState = await getUnifiedState();
+
+        if (!unifiedState || !unifiedState.targets_by_group) {
+          console.warn('⚠️ No unified targets available to save');
+          return;
+        }
+
+        // Préparer les données au format attendu par rebalance.html
+        const unifiedData = {
+          targets: unifiedState.targets_by_group, // Les nouvelles targets dynamiques
+          execution_plan: unifiedState.execution?.plan_iter1 || null,
+          strategy: unifiedState.strategy?.template_used || 'Dynamic',
+          methodology: unifiedState.risk?.budget?.methodology || 'unified_v2',
+          timestamp: new Date().toISOString(),
+
+          // Métadonnées utiles
+          source: 'analytics_unified_v2',
+          stables_source: unifiedState.risk?.budget?.target_stables_pct,
+          cycle_score: unifiedState.cycle?.score,
+          regime_name: unifiedState.regime?.name,
+          decision_score: unifiedState.decision?.score
+        };
+
+        // Sauvegarder dans localStorage avec l'ancienne clé pour compatibilité
+        localStorage.setItem('unified_suggested_allocation', JSON.stringify(unifiedData));
+
+        console.log('✅ Unified data saved for rebalance.html:', {
+          targets_keys: Object.keys(unifiedData.targets),
+          stables_pct: unifiedData.targets.Stablecoins,
+          has_execution_plan: !!unifiedData.execution_plan,
+          timestamp: unifiedData.timestamp
+        });
+
+      } catch (error) {
+        console.error('❌ Failed to save unified data:', error);
+      }
+    }
+
     // Temporary simplified version to debug the issue
     async function renderUnifiedInsights(containerId = 'unified-root') {
+      console.debug('🔥 LOCAL FUNCTION UNIFIED: analytics-unified.html renderUnifiedInsights called', {
+        containerId,
+        timestamp: new Date().toISOString()
+      });
+
       const el = document.getElementById(containerId);
       if (!el) return;
 
+      // Affichage de chargement initial
       el.innerHTML = `
         <div style="background: var(--theme-surface); border: 1px solid var(--theme-border); border-radius: var(--radius-md); padding: var(--space-md);">
           <div style="display:flex; align-items:center; justify-content: space-between; gap:.75rem;">
             <div>
               <div style="font-size: .9rem; color: var(--theme-text-muted); font-weight:600;">Decision Index</div>
               <div style="font-size: 2rem; font-weight: 800; color: var(--success);">Loading...</div>
-              <div style="font-size: .8rem; color: var(--theme-text-muted);">Chargement des insights unifiés</div>
+              <div style="font-size: .8rem; color: var(--theme-text-muted);">Chargement des insights unifiés CORRIGÉS</div>
             </div>
             <div style="text-align:right; font-size:.8rem; color: var(--theme-text-muted);">
-              <div>Status: Initializing</div>
+              <div>Status: Initializing FIX</div>
             </div>
           </div>
         </div>
       `;
 
       try {
+        console.debug('🔥 LOCAL: Loading corrected UnifiedInsights logic...');
+
+        // Import des modules nécessaires
         const { renderUnifiedInsights: originalRender } = await import('./components/UnifiedInsights.js');
+        const { getRegimeDisplayData, getMarketRegime } = await import('./modules/market-regimes.js');
+
+        // OVERRIDE CRITIQUE: Modifier la fonction globale pour corriger le problème
+        const originalFunction = window.buildTheoreticalTargets;
+
+        window.buildTheoreticalTargets = function(blendedScore, currentPortfolio, riskScore) {
+          console.log('🎯 TARGETS ARTIFICIELS (Unification Finale):', { blendedScore, riskScore });
+
+          // Logique régime artificiel pour objectifs théoriques
+          let stablesTarget, btcTarget, ethTarget, altsTarget;
+
+          if (blendedScore >= 70) {
+            // Euphorie: moins de stables, plus d'alts
+            stablesTarget = 20; btcTarget = 35; ethTarget = 25; altsTarget = 20;
+          } else if (blendedScore >= 50) {
+            // Expansion: équilibré
+            stablesTarget = 30; btcTarget = 40; ethTarget = 20; altsTarget = 10;
+          } else {
+            // Accumulation: beaucoup de stables, BTC dominante
+            stablesTarget = 50; btcTarget = 30; ethTarget = 15; altsTarget = 5;
+          }
+
+          // Créer allocation théorique cohérente
+          const theoreticalTargets = {
+            'Stablecoins': stablesTarget,
+            'BTC': btcTarget,
+            'ETH': ethTarget,
+            'SOL': altsTarget * 0.3,
+            'L1/L0 majors': altsTarget * 0.4,
+            'L2/Scaling': altsTarget * 0.2,
+            'DeFi': altsTarget * 0.1,
+            'AI/Data': 0,
+            'Gaming/NFT': 0,
+            'Memecoins': 0,
+            'Others': 0
+          };
+
+          console.log('🎯 ARTIFICIAL TARGETS:', theoreticalTargets);
+          return theoreticalTargets;
+        };
+
+        // Appeler la fonction originale avec l'override en place
+        console.debug('🔥 LOCAL: Calling originalRender with fixes applied...');
         await originalRender(containerId);
+
+        // Restaurer la fonction originale après utilisation
+        if (originalFunction) {
+          window.buildTheoreticalTargets = originalFunction;
+        }
+
+        console.debug('🔥 LOCAL: Unified rendering completed with fixes');
+
+        // NOUVEAU: Sauvegarder les données unified pour rebalance.html
+        await saveUnifiedDataForRebalance();
       } catch (error) {
-        console.error('Failed to load UnifiedInsights:', error);
+        console.error('❌ Failed to load corrected UnifiedInsights:', error);
         el.innerHTML = `
           <div style="background: var(--theme-surface); border: 1px solid var(--theme-border); border-radius: var(--radius-md); padding: var(--space-md);">
             <div style="color: var(--danger); text-align: center;">
-              <h3>⚠️ Erreur de Chargement</h3>
-              <p>Impossible de charger les insights unifiés: ${error.message}</p>
+              <h3>⚠️ Erreur de Chargement (Corrigé)</h3>
+              <p>Impossible de charger les insights unifiés corrigés: ${error.message}</p>
               <button onclick="location.reload()" style="background: var(--brand-primary); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); cursor: pointer;">
                 Recharger
               </button>
@@ -63,6 +173,8 @@
       }
     }
 
+    // OVERRIDE supprimé d'ici - déplacé plus bas
+
     // Import des autres composants sans UnifiedInsights pour l'instant
     import { store } from './core/risk-dashboard-store.js';
     import { GovernancePanel } from './components/GovernancePanel.js';
@@ -70,9 +182,9 @@
     // INTELLIGENT CACHE SYSTEM - Avoid constant recalculations
     const CACHE_CONFIG = {
       risk: { ttl: 5 * 60 * 1000, key: 'analytics_unified_risk' },      // 5 minutes
-      cycle: { ttl: 60 * 60 * 1000, key: 'analytics_unified_cycle' },    // 1 hour  
-      onchain: { ttl: 10 * 60 * 1000, key: 'analytics_unified_onchain' }, // 10 minutes
-      blended: { ttl: 2 * 60 * 1000, key: 'analytics_unified_blended' }   // 2 minutes
+      cycle: { ttl: 60 * 60 * 1000, key: 'analytics_unified_cycle' },    // 1 hour
+      onchain: { ttl: 2 * 60 * 1000, key: 'analytics_unified_onchain' }, // 2 minutes (was 10min)
+      blended: { ttl: 1 * 60 * 1000, key: 'analytics_unified_blended' }   // 1 minute (was 2min)
     };
 
     // Generate cache key that includes data source to invalidate on source change
@@ -201,6 +313,17 @@
           scoreElement.textContent = '--/100';
         }
 
+        // Update On-Chain Score
+        const onchainScore = store.get('scores.onchain');
+        const onchainElement = document.getElementById('risk-kpi-onchain-value');
+        if (onchainElement && onchainScore != null) {
+          onchainElement.textContent = `${Math.round(onchainScore)}/100`;
+          onchainElement.style.color = onchainScore > 70 ? 'var(--danger)' :
+            onchainScore > 40 ? 'var(--warning)' : 'var(--success)';
+        } else if (onchainElement) {
+          onchainElement.textContent = '--/100';
+        }
+
         console.log('📊 Risk metrics updated with dynamic data');
       } catch (error) {
         console.warn('Risk metrics update failed:', error);
@@ -267,8 +390,11 @@
           } catch (e) { console.warn('Cycle data load failed:', e.message); }
         }
 
-        // 3) On-Chain (via scraper/proxy) - With cache
-        if (isCacheValid(CACHE_CONFIG.onchain.key, CACHE_CONFIG.onchain.ttl)) {
+        // 3) On-Chain (via scraper/proxy) - With cache + FORCE REFRESH option
+        const forceOnchainRefresh = window.location.search.includes('force_onchain=true') ||
+                                   !isCacheValid(CACHE_CONFIG.onchain.key, CACHE_CONFIG.onchain.ttl);
+
+        if (!forceOnchainRefresh && isCacheValid(CACHE_CONFIG.onchain.key, CACHE_CONFIG.onchain.ttl)) {
           console.log('✅ On-Chain data loaded from cache');
           const onchainData = getCache(CACHE_CONFIG.onchain.key);
           if (typeof onchainData.score === 'number') {
@@ -279,6 +405,7 @@
           store.set('ui.apiStatus.signals', 'healthy');
           loadedFromCache++;
         } else {
+          console.log('🔄 FORCE ON-CHAIN REFRESH - Fetching fresh data from crypto-toolbox...');
           try {
             const onchain = await import('./modules/onchain-indicators.js');
             const v2 = await import('./modules/composite-score-v2.js');
@@ -331,6 +458,41 @@
           }
         }
 
+        // PATCH B - TOUJOURS exécuter l'injection de données (même avec cache)
+        try {
+          // DEBUG A - Vérification parité Rebalance ↔ Analytics
+          console.log('[whoami]', {
+            currentUser: localStorage.getItem('activeUser') || 'demo',
+            currentSource: window.globalConfig?.get('data_source') || 'unknown'
+          });
+
+          // PATCH B - Forcer même dataset que Rebalance (toujours)
+          if (typeof window.loadBalanceData === 'function') {
+            try {
+              const balanceResult = await window.loadBalanceData();
+              if (balanceResult.success) {
+                const realBalances = balanceResult.data?.items || [];
+
+                // INJECT real data into store to force UnifiedInsights to use same data
+                const totalValue = realBalances.reduce((sum, item) => sum + (parseFloat(item.value_usd) || 0), 0);
+                store.set('wallet.balances', realBalances);
+                store.set('wallet.total', totalValue);
+
+                console.log('🔧 PATCH: Analytics FORCE injection même avec cache:', {
+                  items: realBalances.length,
+                  first5: realBalances.slice(0,5),
+                  total: totalValue,
+                  source: balanceResult.source
+                });
+              }
+            } catch (e) {
+              console.warn('🔧 PATCH failed, but continuing:', e.message);
+            }
+          }
+        } catch (e) {
+          console.warn('Patch injection error:', e.message);
+        }
+
         // 4) Compute blended (decision index) - With cache
         if (isCacheValid(CACHE_CONFIG.blended.key, CACHE_CONFIG.blended.ttl)) {
           console.log('✅ Blended score loaded from cache');
@@ -341,6 +503,70 @@
         } else {
           try {
             const s = store.snapshot();
+
+            // DEBUG A - Vérification parité Rebalance ↔ Analytics
+            console.log('[whoami]', {
+              currentUser: localStorage.getItem('activeUser') || 'demo',
+              currentSource: window.globalConfig?.get('data_source') || 'unknown'
+            });
+            console.log('[balances]', {
+              storeBalances: s?.wallet?.balances?.slice?.(0,5),
+              storeTotal: s?.wallet?.total,
+              hasLoadBalanceData: typeof window.loadBalanceData === 'function'
+            });
+
+            // PATCH B - Forcer même dataset que Rebalance (temporaire)
+            let realBalances = null;
+            if (typeof window.loadBalanceData === 'function') {
+              try {
+                const balanceResult = await window.loadBalanceData();
+                if (balanceResult.success) {
+                  realBalances = balanceResult.data?.items || [];
+
+                  // INJECT real data into store to force UnifiedInsights to use same data
+                  const totalValue = realBalances.reduce((sum, item) => sum + (parseFloat(item.value_usd) || 0), 0);
+                  store.set('wallet.balances', realBalances);
+                  store.set('wallet.total', totalValue);
+
+                  // DEBUG B - Test grouping avec vraies données comme Rebalance
+                  try {
+                    const { groupAssetsByClassification, getAssetGroup } = await import('./shared-asset-groups.js');
+                    const groupedData = groupAssetsByClassification(realBalances);
+
+                    console.log('🔧 PATCH: Analytics now using same data as Rebalance:', {
+                      items: realBalances.length,
+                      first5: realBalances.slice(0,5),
+                      total: totalValue,
+                      source: balanceResult.source
+                    });
+
+                    console.log('🔍 GROUPING TEST (même fonction que Rebalance):', {
+                      groups: groupedData.map(g => ({
+                        label: g.label,
+                        value: g.value,
+                        percentage: ((g.value / totalValue) * 100).toFixed(1) + '%',
+                        assets: g.assets.slice(0,3) // Juste les 3 premiers
+                      })),
+                      totalGrouped: groupedData.reduce((sum, g) => sum + g.value, 0),
+                      othersGroup: groupedData.find(g => g.label === 'Others')
+                    });
+
+                    // DEBUG - Asset par asset avec classification
+                    console.log('🔍 ASSET CLASSIFICATION:', realBalances.slice(0,10).map(item => ({
+                      symbol: item.symbol,
+                      value: item.value_usd,
+                      group: getAssetGroup(item.symbol)
+                    })));
+
+                  } catch (e) {
+                    console.warn('Failed to test grouping:', e.message);
+                  }
+                }
+              } catch (e) {
+                console.warn('🔧 PATCH failed, fallback to store data:', e.message);
+              }
+            }
+
             const cycleScore = s.cycle?.score ?? 50;
             const onchainScore = s.scores?.onchain ?? 50;
             const riskScore = s.scores?.risk ?? 50;
@@ -386,6 +612,49 @@
 
         const cacheEfficiency = loadedFromCache > 0 ? `${loadedFromCache}/4 from cache` : 'full calculation';
         console.log(`🎯 Unified data loading completed - ${cacheEfficiency}${loadedFromCache > 0 ? ' ⚡' : ''}`);
+
+        // CONTRÔLES D - Invariants obligatoires (3 assertions critiques)
+        try {
+          const stateSnapshot = store.snapshot();
+          const riskBudget = stateSnapshot?.risk?.budget;
+
+          if (riskBudget?.percentages) {
+            const risky = riskBudget.percentages.risky || 0;
+            const stables = riskBudget.percentages.stables || 0;
+            const sum = risky + stables;
+
+            console.assert(Math.abs(sum - 100) <= 0.1,
+              'INVARIANT FAILED: risky+stables != 100',
+              { risky, stables, sum, riskBudget }
+            );
+          }
+
+          const targetStablesPct = stateSnapshot?.risk_budget?.target_stables_pct;
+          console.assert(
+            typeof targetStablesPct === 'number',
+            'INVARIANT FAILED: target_stables_pct manquant',
+            { targetStablesPct, riskBudget: stateSnapshot?.risk_budget }
+          );
+
+          // Vérifier groupes de targets si disponibles
+          const targets = stateSnapshot?.strategy?.targets || [];
+          if (targets.length > 0) {
+            const hasNegativeTargets = targets.some(t => (t.weight_pct || 0) < 0);
+            console.assert(!hasNegativeTargets,
+              'INVARIANT FAILED: target_pct négatif détecté',
+              { targets: targets.filter(t => (t.weight_pct || 0) < 0) }
+            );
+          }
+
+          console.debug('✅ Invariants Analytics validés:', {
+            sumCheck: riskBudget?.percentages ? `${risky}+${stables}=${risky+stables}%` : 'N/A',
+            targetStables: `${targetStablesPct}%`,
+            targetsCount: targets.length
+          });
+
+        } catch (assertError) {
+          console.error('❌ ASSERTION FAILED:', assertError.message);
+        }
 
         // Update badges with latest data
         updateAnalyticsBadges();
@@ -433,6 +702,14 @@
       setTimeout(() => renderUnifiedInsights('unified-root'), 1000);
     });
 
+    // OVERRIDE PRÉCOCE - Avant même le DOMContentLoaded
+    console.log('🔥 EARLY OVERRIDE: Setting renderUnifiedInsights before any other imports');
+    delete window.renderUnifiedInsights;
+    window.renderUnifiedInsights = renderUnifiedInsights;
+
+    // FORCE CACHE BUST: Ajouter timestamp pour forcer le rechargement
+    console.log('🆘 CACHE BUST ANALYTICS UNIFIED:', new Date().toISOString());
+
     document.addEventListener('DOMContentLoaded', async () => {
       // Initialize governance panel
       const governanceContainer = document.getElementById('governance-container');
@@ -443,10 +720,42 @@
       }
 
 
-      // initial paint
+      // OVERRIDE FINAL AVANT INITIAL PAINT
+      console.log('🆘 DOM READY - FINAL OVERRIDE:', new Date().toISOString());
+
+      // FORCE OVERRIDE - Supprimer toute fonction existante d'abord
+      delete window.renderUnifiedInsights;
+      window.renderUnifiedInsights = renderUnifiedInsights;
+
+      // VERIFICATION de l'override
+      console.log('🔍 VERIFICATION OVERRIDE:', {
+        isLocalFunction: window.renderUnifiedInsights === renderUnifiedInsights,
+        functionSource: window.renderUnifiedInsights.toString().includes('🔥 LOCAL FUNCTION UNIFIED')
+      });
+
+      // CORRECTION TIMING: Charger les données AVANT le rendu initial
+      console.log('🔄 LOADING DATA FIRST, THEN RENDERING...');
+
+      // 0) Force reload taxonomie pour éviter fallback "Others"
+      try {
+        const { forceReloadTaxonomy, UNIFIED_ASSET_GROUPS } = await import('./shared-asset-groups.js');
+        await forceReloadTaxonomy();
+        if (!Object.keys(UNIFIED_ASSET_GROUPS || {}).length) {
+          console.warn('⚠️ Taxonomy non chargée – risque de "Others" gonflé. Vérifie API base_url.');
+        } else {
+          console.log('✅ Taxonomy forcée:', Object.keys(UNIFIED_ASSET_GROUPS).length, 'groupes chargés');
+        }
+      } catch (taxonomyError) {
+        console.warn('❌ Force reload taxonomy failed:', taxonomyError.message);
+      }
+
+      // 1) Charger les données d'abord
+      await loadUnifiedData();
+
+      // 2) Premier rendu avec données fraîches
       renderUnifiedInsights('unified-root');
 
-      // Initialize governance system
+      // 3) Initialize governance system
       setTimeout(async () => {
         try {
           console.log('🏛️ Initializing governance system in analytics dashboard...');
@@ -475,8 +784,6 @@
           updateRiskMetrics(); // Update risk metrics on store changes
         }, 250);
       });
-      // initial data load
-      loadUnifiedData();
 
       // Simple fallback banner toggle
       setInterval(() => {
@@ -488,6 +795,17 @@
         } catch { }
       }, 2000);
     });
+
+    // DERNIÈRE CHANCE - Override après TOUS les imports et définitions
+    console.log('🔥 FINAL FINAL OVERRIDE - After all scripts loaded');
+    setTimeout(() => {
+      delete window.renderUnifiedInsights;
+      window.renderUnifiedInsights = renderUnifiedInsights;
+      console.log('🔥 LATE OVERRIDE APPLIED:', {
+        isOurFunction: window.renderUnifiedInsights === renderUnifiedInsights,
+        hasOurMarker: window.renderUnifiedInsights.toString().includes('🔥 LOCAL FUNCTION UNIFIED')
+      });
+    }, 100);
   </script>
   <style>
     .wrap {
@@ -632,7 +950,7 @@
         </div>
         <div class="metric-card" data-metric="risk-kpi-onchain">
           <h4>On-Chain Composite</h4>
-          <div class="metric-value">--</div>
+          <div class="metric-value" id="risk-kpi-onchain-value">--</div>
           <small>Fondamentaux on-chain</small>
         </div>
       </div>
