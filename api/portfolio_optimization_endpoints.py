@@ -776,6 +776,329 @@ async def get_default_constraints(conservative: bool = Query(False)):
         "description": "Conservative constraints limit risk but may reduce returns" if conservative else "Aggressive constraints allow higher risk for potentially higher returns"
     }
 
+class AdvancedOptimizationRequest(BaseModel):
+    """Request model for advanced portfolio optimization"""
+    objective: str = "max_sharpe"
+    lookback_days: int = 365
+    expected_return_method: str = "mean_reversion"
+    conservative: bool = False
+    include_current_weights: bool = True
+
+    # Black-Litterman specific
+    market_views: Optional[Dict[str, float]] = None
+    view_confidence: Optional[Dict[str, float]] = None
+
+    # Risk management
+    target_volatility: Optional[float] = None
+    confidence_level: Optional[float] = None
+    cvar_weight: Optional[float] = None
+
+    # Diversification
+    min_diversification_ratio: Optional[float] = None
+    max_correlation_exposure: Optional[float] = None
+
+    # Constraints
+    constraints: Optional[Dict[str, float]] = None
+
+    # Efficient frontier
+    n_points: Optional[int] = None
+    include_current: Optional[bool] = None
+
+@router.post("/optimize-advanced", response_model=OptimizationResponse)
+async def optimize_portfolio_advanced(
+    request: AdvancedOptimizationRequest,
+    source: str = Query("cointracking", description="Data source"),
+    min_usd: float = Query(100, description="Minimum USD value to include"),
+    min_history_days: int = Query(365, description="Minimum history days required"),
+    risk_free_rate: float = Query(0.02, description="Risk-free rate for Sharpe calculation")
+):
+    """
+    Advanced portfolio optimization with sophisticated algorithms:
+    - Black-Litterman with market views
+    - Risk Parity optimization
+    - CVaR optimization
+    - Max Diversification
+    - Efficient Frontier calculation
+    """
+
+    try:
+        # Input validation
+        if request.lookback_days < 30 or request.lookback_days > 2000:
+            raise HTTPException(status_code=400, detail="lookback_days must be between 30 and 2000")
+
+        # Validate algorithm-specific parameters
+        if request.objective == "black_litterman":
+            if not request.market_views:
+                raise HTTPException(status_code=400, detail="market_views required for Black-Litterman")
+            if not request.view_confidence:
+                raise HTTPException(status_code=400, detail="view_confidence required for Black-Litterman")
+
+            # Validate views
+            for asset, ret in request.market_views.items():
+                if not isinstance(ret, (int, float)) or ret < -1 or ret > 2:
+                    raise HTTPException(status_code=400, detail=f"Invalid return for {asset}: {ret}")
+
+            for asset, conf in request.view_confidence.items():
+                if not isinstance(conf, (int, float)) or conf < 0 or conf > 1:
+                    raise HTTPException(status_code=400, detail=f"Invalid confidence for {asset}: {conf}")
+
+        optimizer = PortfolioOptimizer()
+        optimizer.risk_free_rate = risk_free_rate
+
+        # Get portfolio data (same logic as standard optimization)
+        if source == "stub":
+            balances_response = {
+                "source_used": "stub",
+                "items": [
+                    {"symbol": "BTC", "value_usd": 105000.0, "amount": 2.5, "location": "Kraken"},
+                    {"symbol": "ETH", "value_usd": 47250.0, "amount": 15.75, "location": "Binance"},
+                    {"symbol": "USDC", "value_usd": 25000.0, "amount": 25000.0, "location": "Coinbase"},
+                    {"symbol": "SOL", "value_usd": 23400.0, "amount": 180.0, "location": "Phantom"},
+                    {"symbol": "AVAX", "value_usd": 13500.0, "amount": 450.0, "location": "Ledger"},
+                ]
+            }
+        elif source == "cointracking_api":
+            try:
+                result = await ct_file.get_unified_balances_by_exchange("cointracking_api")
+                items = []
+                if 'detailed_holdings' in result:
+                    for exchange, holdings in (result.get('detailed_holdings') or {}).items():
+                        for holding in holdings:
+                            if holding.get('value_usd', 0) >= min_usd:
+                                items.append(holding)
+                balances_response = {"source_used": "cointracking_api", "items": items}
+            except Exception as e:
+                logger.warning(f"CoinTracking API failed: {e}, falling back to CSV")
+                result = ct_file.get_balances_by_exchange_from_csv()
+                items = []
+                if 'detailed_holdings' in result:
+                    for exchange, holdings in result['detailed_holdings'].items():
+                        for holding in holdings:
+                            if holding.get('value_usd', 0) >= min_usd:
+                                items.append(holding)
+                balances_response = {"source_used": "cointracking_csv_fallback", "items": items}
+        else:
+            result = ct_file.get_balances_by_exchange_from_csv()
+            items = []
+            if 'detailed_holdings' in result:
+                for exchange, holdings in result['detailed_holdings'].items():
+                    for holding in holdings:
+                        if holding.get('value_usd', 0) >= min_usd:
+                            items.append(holding)
+            balances_response = {"source_used": "cointracking", "items": items}
+
+        if not balances_response.get("items"):
+            raise HTTPException(status_code=400, detail="No portfolio data found")
+
+        # Process portfolio data
+        def canonical_symbol(sym: str) -> str:
+            s = (sym or "").upper().strip()
+            if re.search(r"\d+$", s) and not re.match(r"^\d", s):
+                s = re.sub(r"\d+$", "", s)
+            return s
+
+        aggregated = {}
+        for item in balances_response["items"]:
+            raw_symbol = str(item.get("symbol") or "").upper()
+            value = float(item.get("value_usd") or 0)
+            if value <= 0 or not raw_symbol:
+                continue
+            cs = canonical_symbol(raw_symbol)
+            aggregated[cs] = aggregated.get(cs, 0.0) + value
+
+        if not aggregated:
+            raise HTTPException(status_code=400, detail="No eligible assets after normalization")
+
+        current_portfolio = dict(aggregated)
+        total_value = sum(current_portfolio.values())
+        symbols = list(current_portfolio.keys())
+        current_weights = {symbol: value/total_value for symbol, value in current_portfolio.items()}
+
+        # Get price history
+        price_data = {}
+        missing_symbols = []
+
+        for symbol in symbols:
+            try:
+                full_prices = get_cached_history(symbol)
+                if not full_prices or len(full_prices) < min_history_days:
+                    missing_symbols.append(symbol)
+                    continue
+
+                prices = get_cached_history(symbol, days=request.lookback_days)
+                if prices and len(prices) > 7:
+                    price_data[symbol] = prices
+                else:
+                    missing_symbols.append(symbol)
+            except Exception as e:
+                logger.warning(f"Could not get price history for {symbol}: {e}")
+                missing_symbols.append(symbol)
+
+        if len(price_data) < 3:
+            raise HTTPException(status_code=400, detail="Insufficient price history data")
+
+        # Create price DataFrame
+        price_df = price_history_to_dataframe(price_data)
+
+        if not validate_price_data(price_df, min_days=7):
+            raise HTTPException(status_code=400, detail="Insufficient historical data")
+
+        # Setup constraints
+        constraints = OptimizationConstraints()
+        if request.constraints:
+            for key, value in request.constraints.items():
+                if hasattr(constraints, key):
+                    setattr(constraints, key, value)
+
+        if request.target_volatility:
+            constraints.target_volatility = request.target_volatility
+        if request.min_diversification_ratio:
+            constraints.min_diversification_ratio = request.min_diversification_ratio
+        if request.max_correlation_exposure:
+            constraints.max_correlation_exposure = request.max_correlation_exposure
+
+        # Current weights for assets with price data
+        filtered_current_weights = {
+            symbol: current_weights.get(symbol, 0)
+            for symbol in price_df.columns
+        } if request.include_current_weights else None
+
+        # Run optimization based on objective
+        if request.objective == "efficient_frontier":
+            # Special case: calculate efficient frontier
+            n_points = request.n_points or 30
+            frontier_result = optimizer.calculate_efficient_frontier(
+                price_history=price_df,
+                constraints=constraints,
+                n_points=n_points
+            )
+
+            return {
+                "success": True,
+                "efficient_frontier": frontier_result,
+                "weights": {},
+                "expected_return": 0,
+                "volatility": 0,
+                "sharpe_ratio": 0,
+                "diversification_ratio": 0,
+                "optimization_score": 0,
+                "constraints_satisfied": True,
+                "risk_contributions": {},
+                "sector_exposures": {},
+                "rebalancing_trades": [],
+                "optimization_details": {
+                    "objective_used": "efficient_frontier",
+                    "n_points": frontier_result["n_points"],
+                    "method": "markowitz_frontier"
+                }
+            }
+
+        elif request.objective == "black_litterman":
+            # Black-Litterman optimization
+            result = optimizer.optimize_black_litterman(
+                price_history=price_df,
+                market_views=request.market_views,
+                view_confidence=request.view_confidence,
+                constraints=constraints,
+                current_weights=filtered_current_weights
+            )
+
+        else:
+            # Standard optimization with advanced objectives
+            expected_returns = optimizer.calculate_expected_returns(
+                price_df, method=request.expected_return_method
+            )
+            cov_matrix, _ = optimizer.calculate_risk_model(price_df)
+
+            # Parse objective
+            try:
+                objective = OptimizationObjective(request.objective)
+            except ValueError:
+                objective = OptimizationObjective.MAX_SHARPE
+
+            result = optimizer.optimize_portfolio(
+                expected_returns=expected_returns,
+                cov_matrix=cov_matrix,
+                constraints=constraints,
+                objective=objective,
+                current_weights=filtered_current_weights
+            )
+
+        # Calculate rebalancing trades
+        rebalancing_trades = []
+        if request.include_current_weights:
+            optimized_total_value = sum(
+                current_portfolio.get(symbol, 0)
+                for symbol in result.weights.keys()
+            )
+
+            for symbol in result.weights:
+                current_weight = current_weights.get(symbol, 0)
+                target_weight = result.weights[symbol]
+                weight_diff = target_weight - current_weight
+
+                if abs(weight_diff) > 0.01:
+                    value_diff = weight_diff * optimized_total_value
+                    rebalancing_trades.append({
+                        "symbol": symbol,
+                        "action": "buy" if weight_diff > 0 else "sell",
+                        "current_weight": round(current_weight, 4),
+                        "target_weight": round(target_weight, 4),
+                        "weight_change": round(weight_diff, 4),
+                        "amount_usd": round(abs(value_diff), 2),
+                        "priority": "high" if abs(weight_diff) > 0.05 else "medium"
+                    })
+
+        # Add VaR and CVaR estimates
+        portfolio_variance = np.dot(
+            list(result.weights.values()),
+            np.dot(
+                optimizer.calculate_risk_model(price_df)[0].values,
+                list(result.weights.values())
+            )
+        )
+        portfolio_volatility = np.sqrt(portfolio_variance)
+
+        # Simple VaR/CVaR estimates (assuming normal distribution)
+        var_95 = -1.645 * portfolio_volatility
+        cvar_95 = -2.06 * portfolio_volatility
+        max_drawdown = -2.5 * portfolio_volatility  # Rough estimate
+
+        # Enhanced result
+        enhanced_result = OptimizationResponse(
+            success=True,
+            weights={k: round(v, 4) for k, v in result.weights.items()},
+            expected_return=round(result.expected_return, 4),
+            volatility=round(result.volatility, 4),
+            sharpe_ratio=round(result.sharpe_ratio, 4),
+            diversification_ratio=round(result.diversification_ratio, 4),
+            optimization_score=round(result.optimization_score, 4),
+            constraints_satisfied=result.constraints_satisfied,
+            risk_contributions={k: round(v, 4) for k, v in result.risk_contributions.items()},
+            sector_exposures={k: round(v, 4) for k, v in result.sector_exposures.items()},
+            rebalancing_trades=rebalancing_trades,
+            optimization_details={
+                "objective_used": request.objective,
+                "method": request.expected_return_method,
+                "lookback_days": request.lookback_days,
+                "assets_optimized": len(result.weights),
+                "assets_excluded": len(missing_symbols),
+                "excluded_symbols": missing_symbols,
+                "var_95": round(var_95, 4),
+                "cvar_95": round(cvar_95, 4),
+                "max_drawdown": round(max_drawdown, 4),
+                "risk_free_rate": round(risk_free_rate, 4)
+            }
+        )
+
+        return enhanced_result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Advanced optimization failed: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Advanced optimization failed: {str(e)}")
+
 @router.post("/backtest")
 async def backtest_optimization(
     request: OptimizationRequest,
@@ -786,11 +1109,11 @@ async def backtest_optimization(
     """
     Backtest optimization strategy over historical periods
     """
-    
+
     try:
         # This would implement rolling optimization backtest
         # For now, return a placeholder structure
-        
+
         results = {
             "success": True,
             "backtest_summary": {
@@ -803,14 +1126,14 @@ async def backtest_optimization(
                 "average_rebalancing_cost": 0.002  # 0.2% per rebalance
             },
             "period_returns": [
-                {"period": i, "return": np.random.normal(0.01, 0.08)} 
+                {"period": i, "return": np.random.normal(0.01, 0.08)}
                 for i in range(test_periods)
             ],
             "note": "Backtesting implementation in progress. This is sample data."
         }
-        
+
         return results
-        
+
     except Exception as e:
         logger.error(f"Backtesting failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Backtesting failed: {str(e)}")

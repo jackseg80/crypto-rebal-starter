@@ -17,12 +17,16 @@ logger = logging.getLogger(__name__)
 class OptimizationObjective(Enum):
     """Portfolio optimization objectives"""
     MAX_SHARPE = "max_sharpe"
-    MIN_VARIANCE = "min_variance" 
+    MIN_VARIANCE = "min_variance"
     MAX_RETURN = "max_return"
     RISK_PARITY = "risk_parity"
     RISK_BUDGETING = "risk_budgeting"
     MEAN_REVERSION = "mean_reversion"
     MULTI_PERIOD = "multi_period"
+    BLACK_LITTERMAN = "black_litterman"
+    MAX_DIVERSIFICATION = "max_diversification"
+    CVAR_OPTIMIZATION = "cvar_optimization"
+    EFFICIENT_FRONTIER = "efficient_frontier"
 
 @dataclass
 class OptimizationConstraints:
@@ -244,6 +248,22 @@ class PortfolioOptimizer:
                 base_objective = self._risk_budgeting_objective(x, cov_matrix.values, risk_budget, assets)
             elif objective == OptimizationObjective.MEAN_REVERSION:
                 base_objective = self._mean_reversion_objective(x, expected_returns.values, cov_matrix.values)
+            elif objective == OptimizationObjective.BLACK_LITTERMAN:
+                # For Black-Litterman, the expected returns are already adjusted, so use max Sharpe
+                if portfolio_volatility <= 1e-12:
+                    base_objective = 1e6
+                else:
+                    base_objective = -(portfolio_return - self.risk_free_rate) / portfolio_volatility
+            elif objective == OptimizationObjective.MAX_DIVERSIFICATION:
+                # Maximize diversification ratio: weighted individual vols / portfolio vol
+                individual_vols = np.sqrt(np.diag(cov_matrix.values))
+                weighted_vol = np.dot(x, individual_vols)
+                base_objective = -weighted_vol / portfolio_volatility if portfolio_volatility > 1e-12 else 1e6
+            elif objective == OptimizationObjective.CVAR_OPTIMIZATION:
+                # Minimize Conditional Value at Risk (simplified approximation)
+                # CVaR ≈ -1.645 * σ for normal distribution at 95% confidence
+                cvar_estimate = 1.645 * portfolio_volatility
+                base_objective = cvar_estimate + 0.1 * portfolio_variance
             
             # Add transaction cost penalty if current weights provided and transaction costs enabled
             transaction_penalty = 0.0
@@ -721,6 +741,162 @@ class PortfolioOptimizer:
             weights = np.ones(len(expected_returns)) / len(expected_returns)
         
         return weights
+
+    def optimize_black_litterman(
+        self,
+        price_history: pd.DataFrame,
+        market_views: Dict[str, float],
+        view_confidence: Dict[str, float],
+        constraints: OptimizationConstraints,
+        current_weights: Optional[Dict[str, float]] = None
+    ) -> OptimizationResult:
+        """
+        Black-Litterman optimization with investor views
+
+        Args:
+            price_history: Historical price data
+            market_views: Dict of asset -> expected return views (e.g., {"BTC": 0.15, "ETH": 0.12})
+            view_confidence: Dict of asset -> confidence level 0-1 (e.g., {"BTC": 0.8, "ETH": 0.6})
+            constraints: Portfolio constraints
+            current_weights: Current portfolio weights (used as market equilibrium)
+        """
+        # Calculate basic inputs
+        returns = price_history.pct_change().dropna()
+        assets = returns.columns.tolist()
+
+        # Market equilibrium weights (current portfolio or equal weights)
+        if current_weights:
+            w_market = np.array([current_weights.get(asset, 0) for asset in assets])
+            w_market = w_market / w_market.sum() if w_market.sum() > 0 else np.ones(len(assets)) / len(assets)
+        else:
+            w_market = np.ones(len(assets)) / len(assets)
+
+        # Risk aversion parameter (typical range 2-10)
+        risk_aversion = 3.5
+
+        # Covariance matrix
+        cov_matrix = returns.cov().values * 252  # Annualized
+
+        # Implied equilibrium returns (reverse optimization)
+        pi = risk_aversion * cov_matrix @ w_market
+
+        # Prepare views
+        view_assets = [asset for asset in market_views.keys() if asset in assets]
+        if not view_assets:
+            raise ValueError("No valid assets found in market views")
+
+        k = len(view_assets)
+        n = len(assets)
+
+        # Picking matrix P (which assets have views)
+        P = np.zeros((k, n))
+        Q = np.zeros(k)  # View returns
+
+        for i, asset in enumerate(view_assets):
+            asset_idx = assets.index(asset)
+            P[i, asset_idx] = 1.0
+            Q[i] = market_views[asset]
+
+        # Uncertainty matrix Omega (diagonal)
+        omega = np.eye(k)
+        for i, asset in enumerate(view_assets):
+            confidence = view_confidence.get(asset, 0.5)
+            # Higher confidence = lower uncertainty
+            # tau * variance of the view
+            asset_idx = assets.index(asset)
+            asset_variance = cov_matrix[asset_idx, asset_idx]
+            omega[i, i] = (1 - confidence) * 0.05 * asset_variance
+
+        # Tau parameter (uncertainty of prior)
+        tau = 0.05
+
+        # Black-Litterman formula
+        M1 = np.linalg.inv(tau * cov_matrix)
+        M2 = P.T @ np.linalg.inv(omega) @ P
+        M3 = M1 @ pi + P.T @ np.linalg.inv(omega) @ Q
+
+        # New expected returns
+        mu_bl = np.linalg.inv(M1 + M2) @ M3
+
+        # New covariance matrix
+        sigma_bl = np.linalg.inv(M1 + M2)
+
+        # Convert to pandas for optimization
+        expected_returns = pd.Series(mu_bl, index=assets)
+        cov_df = pd.DataFrame(sigma_bl, index=assets, columns=assets)
+
+        # Optimize using max Sharpe with BL inputs
+        return self.optimize_portfolio(
+            expected_returns=expected_returns,
+            cov_matrix=cov_df,
+            constraints=constraints,
+            objective=OptimizationObjective.MAX_SHARPE,
+            current_weights=current_weights
+        )
+
+    def calculate_efficient_frontier(
+        self,
+        price_history: pd.DataFrame,
+        constraints: OptimizationConstraints,
+        n_points: int = 50
+    ) -> Dict[str, Any]:
+        """
+        Calculate the efficient frontier
+
+        Returns:
+            Dict with risks, returns, weights, and sharpe ratios for each point
+        """
+        returns = price_history.pct_change().dropna()
+        expected_returns = self.calculate_expected_returns(price_history, "mean_reversion")
+        cov_matrix, _ = self.calculate_risk_model(price_history)
+
+        assets = expected_returns.index.tolist()
+
+        # Range of target returns
+        min_ret = expected_returns.min()
+        max_ret = expected_returns.max()
+        target_returns = np.linspace(min_ret, max_ret, n_points)
+
+        efficient_weights = []
+        efficient_risks = []
+        efficient_returns = []
+        efficient_sharpes = []
+
+        for target_ret in target_returns:
+            try:
+                # Set target return constraint
+                temp_constraints = OptimizationConstraints(
+                    min_weight=constraints.min_weight,
+                    max_weight=constraints.max_weight,
+                    max_sector_weight=constraints.max_sector_weight,
+                    min_expected_return=target_ret
+                )
+
+                # Optimize for minimum variance at this return level
+                result = self.optimize_portfolio(
+                    expected_returns=expected_returns,
+                    cov_matrix=cov_matrix,
+                    constraints=temp_constraints,
+                    objective=OptimizationObjective.MIN_VARIANCE
+                )
+
+                if result.constraints_satisfied:
+                    efficient_weights.append(result.weights)
+                    efficient_risks.append(result.volatility)
+                    efficient_returns.append(result.expected_return)
+                    efficient_sharpes.append(result.sharpe_ratio)
+
+            except Exception as e:
+                logger.warning(f"Failed to optimize for target return {target_ret:.3f}: {e}")
+                continue
+
+        return {
+            "risks": efficient_risks,
+            "returns": efficient_returns,
+            "weights": efficient_weights,
+            "sharpe_ratios": efficient_sharpes,
+            "n_points": len(efficient_risks)
+        }
 
 def create_crypto_constraints(conservative: bool = False, n_assets: int = None) -> OptimizationConstraints:
     """Create crypto-specific optimization constraints with dynamic min_weight"""
