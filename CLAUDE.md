@@ -24,6 +24,18 @@ Note endpoints de test/dev:
 - Les routes `/api/alerts/test/*` sont désactivées par défaut et toujours désactivées en production.  
 - Pour activer en dev: définir `ENABLE_ALERTS_TEST_ENDPOINTS=true` dans l’environnement (non-prod uniquement).
 
+## 0bis) Environnement Windows (important)
+
+- OS cible : **Windows 11**
+- Shell : **PowerShell** (pas Bash)
+- Environnement Python : `.\.venv\Scripts\activate` (et pas `. ./venv/bin/activate`)
+- Commandes à utiliser :
+  - Copier : `copy` (ou `cp` via PowerShell Core, mais préférer `copy`)
+  - Supprimer : `Remove-Item` (au lieu de `rm`)
+  - Lister fichiers : `dir` (au lieu de `ls`)
+- Chemins : utiliser `\` (ex. `D:\Python\crypto-rebal-starter`) et pas `/`.
+- Encodage : UTF-8 simple, éviter les caractères spéciaux non supportés dans les noms de fichiers Windows.
+
 ---
 
 ## 1) Architecture (résumé)
@@ -216,6 +228,7 @@ docker run -p 8000:8000 --env-file .env crypto-rebal
     "CLAUDE.md",
     "CONFIGURATION.md",
     "README.md",
+    "docs/**/*.md",
     "api/**",
     "services/**",
     "static/components/nav.js",
