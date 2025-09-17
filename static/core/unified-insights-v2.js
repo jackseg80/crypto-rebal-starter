@@ -552,7 +552,7 @@ export async function getUnifiedState() {
             const phase = inferPhase(phaseInputs);
             console.debug('🔍 PhaseEngine: Phase detected:', phase);
 
-            const phaseResult = applyPhaseTilts(dynamicTargets, phase, {
+            const phaseResult = await applyPhaseTilts(dynamicTargets, phase, {
               DI: phaseInputs.DI,
               breadth_alts: phaseInputs.breadth_alts
             });
