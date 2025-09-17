@@ -416,10 +416,10 @@
                 mockAliases[symbol] = 'BTC';
               } else if (symbol.includes('ETH') || symbol.includes('STETH') || symbol.includes('RETH')) {
                 mockAliases[symbol] = 'ETH';
-              } else if (['USDT', 'USDC', 'DAI', 'USD', 'BUSD'].includes(symbol)) {
+              } else if (['USDT', 'USDC', 'DAI', 'USD', 'BUSD', 'EUR'].includes(symbol)) {
                 mockAliases[symbol] = 'Stablecoins';
               } else if (symbol.includes('SOL')) {
-                mockAliases[symbol] = 'L1/L0 majors';
+                mockAliases[symbol] = 'SOL';
               } else {
                 mockAliases[symbol] = 'Others';
               }

@@ -111,7 +111,7 @@ async function loadTaxonomyData() {
 }
 
 // Version synchrone pour les cas d'urgence
-function loadTaxonomyDataSync() {
+export function loadTaxonomyDataSync() {
   const now = Date.now();
 
   // Utiliser le cache si valide
