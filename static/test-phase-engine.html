@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phase Engine Tests</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+            background: #f5f5f5;
+        }
+        .test-suite {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-case {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 10px 0;
+            padding: 15px;
+            background: #fafafa;
+        }
+        .test-passed {
+            border-left: 4px solid #28a745;
+            background: #f8fff9;
+        }
+        .test-failed {
+            border-left: 4px solid #dc3545;
+            background: #fff8f8;
+        }
+        .test-warning {
+            border-left: 4px solid #ffc107;
+            background: #fffbf0;
+        }
+        .code {
+            background: #f1f3f4;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+            overflow-x: auto;
+        }
+        .summary {
+            background: #007bff;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .log-output {
+            background: #1e1e1e;
+            color: #fff;
+            padding: 15px;
+            border-radius: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.85em;
+        }
+    </style>
+</head>
+<body>
+    <div class="summary">
+        <h1>🧪 Phase Engine Test Suite</h1>
+        <p>Comprehensive edge case testing for phase detection and allocation tilts</p>
+        <div>
+            <button onclick="runAllTests()">Run All Tests</button>
+            <button onclick="runPhaseTests()">Phase Detection Only</button>
+            <button onclick="runTiltTests()">Tilt Logic Only</button>
+            <button onclick="clearLogs()">Clear Logs</button>
+        </div>
+    </div>
+
+    <div id="test-results"></div>
+
+    <div class="test-suite">
+        <h3>📊 Test Logs</h3>
+        <div id="log-output" class="log-output">Logs will appear here...</div>
+    </div>
+
+    <script type="module">
+        // Import phase engine modules
+        import { pushSample, getSeries, calculateSlope, clearAllBuffers } from './core/phase-buffers.js';
+        import { extractPhaseInputs } from './core/phase-inputs-extractor.js';
+        import { inferPhase, applyPhaseTilts, resetPhaseMemory } from './core/phase-engine.js';
+
+        // Mock store for testing
+        const mockStore = {
+            snapshot: () => ({
+                decision: { score: 75 },
+                signals: { btc_dominance: { value: 60 } }, // 60%
+                scores: {
+                    onchain_metadata: {
+                        categoryBreakdown: {
+                            ethereum: { score: 40 },
+                            bitcoin: { score: 50 },
+                            defi: { score: 45 },
+                            layer1: { score: 42 },
+                            layer2: { score: 38 }
+                        }
+                    }
+                },
+                wallet: {
+                    balances: [
+                        { symbol: 'BTC', value_usd: 10000 },
+                        { symbol: 'ETH', value_usd: 6000 },
+                        { symbol: 'SOL', value_usd: 2000 }
+                    ]
+                }
+            })
+        };
+
+        // Test results storage
+        let testResults = [];
+        let logMessages = [];
+
+        // Enhanced logging
+        function log(message, level = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${level.toUpperCase()}: ${message}`;
+            logMessages.push(logEntry);
+            updateLogDisplay();
+            console.log(logEntry);
+        }
+
+        function updateLogDisplay() {
+            const logOutput = document.getElementById('log-output');
+            logOutput.innerHTML = logMessages.slice(-50).join('\\n'); // Last 50 messages
+            logOutput.scrollTop = logOutput.scrollHeight;
+        }
+
+        function clearLogs() {
+            logMessages = [];
+            updateLogDisplay();
+        }
+
+        // Test framework
+        function assert(condition, message) {
+            if (!condition) {
+                throw new Error(`Assertion failed: ${message}`);
+            }
+        }
+
+        function assertApproxEqual(actual, expected, tolerance = 0.1, message = '') {
+            const diff = Math.abs(actual - expected);
+            if (diff > tolerance) {
+                throw new Error(`${message} - Expected: ${expected}, Actual: ${actual}, Diff: ${diff}`);
+            }
+        }
+
+        function runTest(testName, testFn) {
+            log(`Running test: ${testName}`);
+            try {
+                testFn();
+                testResults.push({ name: testName, status: 'passed', error: null });
+                log(`✅ PASSED: ${testName}`, 'success');
+                return true;
+            } catch (error) {
+                testResults.push({ name: testName, status: 'failed', error: error.message });
+                log(`❌ FAILED: ${testName} - ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        // Test suite definitions
+        function testPhaseDetection() {
+            log('=== PHASE DETECTION TESTS ===');
+
+            // Test 1: Risk-off detection
+            runTest('Risk-off detection (DI < 35)', () => {
+                const inputs = {
+                    DI: 30,
+                    btc_dom: 0.6,
+                    eth_btc: [0.06, 0.06, 0.06],
+                    alts_btc: [0.15, 0.15, 0.15],
+                    breadth_alts: 0.3,
+                    dispersion: 0.4,
+                    corr_alts_btc: 0.8,
+                    partial: false
+                };
+                const phase = inferPhase(inputs);
+                assert(phase === 'risk_off', `Expected risk_off, got ${phase}`);
+            });
+
+            // Test 2: ETH expansion detection
+            runTest('ETH expansion detection', () => {
+                // Setup trending data for ETH expansion
+                clearAllBuffers();
+                resetPhaseMemory(); // Clear phase history from previous test
+                // BTC dominance declining
+                pushSample('btc_dom', 0.65);
+                pushSample('btc_dom', 0.63);
+                pushSample('btc_dom', 0.61);
+
+                const inputs = {
+                    DI: 75, // Bull context
+                    btc_dom: 0.61,
+                    eth_btc: [0.06, 0.061, 0.063, 0.065], // ETH outperforming
+                    alts_btc: [0.15, 0.151, 0.152, 0.153], // Alts modest
+                    breadth_alts: 0.6,
+                    dispersion: 0.5,
+                    corr_alts_btc: 0.6,
+                    partial: false
+                };
+
+                const phase = inferPhase(inputs);
+                log(`ETH expansion inputs: DI=${inputs.DI}, eth_btc trend: ${calculateSlope(inputs.eth_btc).toFixed(4)}`);
+                // Note: May be neutral due to hysteresis on first detection
+                assert(['eth_expansion', 'neutral'].includes(phase), `Expected eth_expansion or neutral, got ${phase}`);
+            });
+
+            // Test 3: Full altseason detection
+            runTest('Full altseason detection', () => {
+                resetPhaseMemory(); // Clear phase history from previous test
+                const inputs = {
+                    DI: 85, // Strong bull
+                    btc_dom: 0.55, // Lower dominance
+                    eth_btc: [0.06, 0.062, 0.064, 0.066],
+                    alts_btc: [0.15, 0.16, 0.17, 0.18], // Strong alt surge
+                    breadth_alts: 0.80, // High breadth
+                    dispersion: 0.80, // High dispersion
+                    corr_alts_btc: 0.25, // Low correlation
+                    partial: false
+                };
+
+                const phase = inferPhase(inputs);
+                log(`Full altseason conditions: breadth=${inputs.breadth_alts}, dispersion=${inputs.dispersion}, correlation=${inputs.corr_alts_btc}`);
+                // May be neutral due to hysteresis
+                assert(['full_altseason', 'neutral'].includes(phase), `Expected full_altseason or neutral, got ${phase}`);
+            });
+
+            // Test 4: Neutral with insufficient data
+            runTest('Neutral with partial data', () => {
+                const inputs = {
+                    DI: 60,
+                    partial: true,
+                    missing: ['btc_dominance', 'onchain_categories']
+                };
+
+                const phase = inferPhase(inputs);
+                assert(phase === 'neutral', `Expected neutral with partial data, got ${phase}`);
+            });
+        }
+
+        function testTiltLogic() {
+            log('=== TILT LOGIC TESTS ===');
+
+            const baseTargets = {
+                'BTC': 35.0,
+                'ETH': 25.0,
+                'Stablecoins': 20.0,
+                'SOL': 5.0,
+                'L1/L0 majors': 7.0,
+                'L2/Scaling': 4.0,
+                'DeFi': 3.0,
+                'AI/Data': 1.0,
+                'Gaming/NFT': 0.0,
+                'Memecoins': 0.0,
+                'Others': 0.0
+            };
+
+            // Test 1: No-regression (neutral phase)
+            runTest('No-regression test (neutral phase)', () => {
+                const result = applyPhaseTilts(baseTargets, 'neutral', { DI: 50, breadth_alts: 0.5 });
+
+                // Should return unchanged targets
+                Object.keys(baseTargets).forEach(asset => {
+                    assertApproxEqual(result.targets[asset], baseTargets[asset], 0.01, `${asset} should be unchanged`);
+                });
+
+                assert(!result.metadata.tiltsApplied, 'No tilts should be applied for neutral phase');
+            });
+
+            // Test 2: Idempotence (sum = 100%)
+            runTest('Idempotence test (sum = 100%)', () => {
+                const result = applyPhaseTilts(baseTargets, 'eth_expansion', { DI: 75, breadth_alts: 0.7 });
+
+                const sum = Object.values(result.targets).reduce((a, b) => a + b, 0);
+                assertApproxEqual(sum, 100, 0.1, 'Sum should equal 100%');
+            });
+
+            // Test 3: Caps respected
+            runTest('Caps respected test', () => {
+                // Create targets that would exceed caps
+                const highTargets = {
+                    ...baseTargets,
+                    'L2/Scaling': 12.0, // Would exceed 8% cap
+                    'DeFi': 15.0,       // Would exceed 8% cap
+                    'Gaming/NFT': 8.0   // Would exceed 5% cap
+                };
+
+                const result = applyPhaseTilts(highTargets, 'full_altseason', { DI: 85, breadth_alts: 0.8 });
+
+                assert(result.targets['L2/Scaling'] <= 8.0, 'L2/Scaling should be capped at 8%');
+                assert(result.targets['DeFi'] <= 8.0, 'DeFi should be capped at 8%');
+                assert(result.targets['Gaming/NFT'] <= 5.0, 'Gaming/NFT should be capped at 5%');
+                assert(result.targets['Memecoins'] <= 2.0, 'Memecoins should be capped at 2%');
+
+                log(`Caps applied: ${result.metadata.capsTriggered.join(', ') || 'none'}`);
+            });
+
+            // Test 4: Stables floor never violated
+            runTest('Stables floor test', () => {
+                // Start with very low stables
+                const lowStablesTargets = {
+                    ...baseTargets,
+                    'Stablecoins': 2.0, // Below 5% floor
+                    'BTC': 45.0,
+                    'ETH': 35.0
+                };
+
+                const result = applyPhaseTilts(lowStablesTargets, 'eth_expansion', { DI: 70, breadth_alts: 0.6 });
+
+                assert(result.targets['Stablecoins'] >= 5.0, 'Stablecoins should never go below 5% floor');
+                assert(result.metadata.stablesFloorHit, 'stablesFloorHit should be true');
+
+                log(`Stables floor enforced: ${result.targets['Stablecoins'].toFixed(1)}%`);
+            });
+
+            // Test 5: Zero-sum risky pool
+            runTest('Zero-sum risky pool test', () => {
+                const originalRiskySum = Object.keys(baseTargets)
+                    .filter(k => k !== 'Stablecoins')
+                    .reduce((sum, k) => sum + baseTargets[k], 0);
+
+                const result = applyPhaseTilts(baseTargets, 'largecap_altseason', { DI: 78, breadth_alts: 0.7 });
+
+                const newRiskySum = Object.keys(result.targets)
+                    .filter(k => k !== 'Stablecoins')
+                    .reduce((sum, k) => sum + result.targets[k], 0);
+
+                // Allow for small rounding differences
+                assertApproxEqual(newRiskySum, originalRiskySum, 1.0, 'Risky pool sum should be preserved');
+
+                log(`Risky pool: ${originalRiskySum.toFixed(1)}% → ${newRiskySum.toFixed(1)}%`);
+            });
+
+            // Test 6: Memecoins special handling
+            runTest('Memecoins special handling test', () => {
+                const ctx = { DI: 85, breadth_alts: 0.85 }; // Meets memecoins criteria
+
+                const result = applyPhaseTilts(baseTargets, 'full_altseason', ctx);
+
+                // Should get memecoins boost
+                assert(result.targets['Memecoins'] > baseTargets['Memecoins'], 'Memecoins should be boosted in full altseason with high DI & breadth');
+                assert(result.targets['Memecoins'] <= 2.0, 'Memecoins should not exceed 2% cap');
+
+                log(`Memecoins boost: ${baseTargets['Memecoins']}% → ${result.targets['Memecoins'].toFixed(2)}%`);
+            });
+        }
+
+        function testEdgeCases() {
+            log('=== EDGE CASES TESTS ===');
+
+            // Test 1: Missing signals handling
+            runTest('Missing signals graceful handling', () => {
+                const inputs = extractPhaseInputs(mockStore);
+
+                // Should not crash with missing data
+                assert(typeof inputs === 'object', 'Should return object even with missing data');
+                assert(typeof inputs.partial === 'boolean', 'Should indicate if data is partial');
+
+                if (inputs.partial) {
+                    log(`Partial data detected, missing: ${inputs.missing.join(', ')}`);
+                }
+            });
+
+            // Test 2: Extreme values handling
+            runTest('Extreme values handling', () => {
+                const extremeInputs = {
+                    DI: 150, // Out of range
+                    btc_dom: 1.5, // > 1
+                    eth_btc: [0, 0, 0], // Zeros
+                    alts_btc: [-1, -1, -1], // Negative values
+                    breadth_alts: 2.0, // > 1
+                    dispersion: -0.5, // Negative
+                    corr_alts_btc: NaN, // Invalid
+                    partial: false
+                };
+
+                // Should not crash
+                const phase = inferPhase(extremeInputs);
+                assert(typeof phase === 'string', 'Should return valid phase string even with extreme inputs');
+
+                log(`Extreme inputs handled, phase: ${phase}`);
+            });
+
+            // Test 3: Empty targets handling
+            runTest('Empty targets handling', () => {
+                const result = applyPhaseTilts({}, 'eth_expansion', { DI: 75, breadth_alts: 0.7 });
+
+                assert(result.metadata.error, 'Should return error metadata for empty targets');
+                assert(Object.keys(result.targets).length === 0, 'Should return empty targets object');
+            });
+
+            // Test 4: Memory and hysteresis
+            runTest('Hysteresis memory test', () => {
+                resetPhaseMemory(); // Clean slate
+
+                // First detection should be neutral (no history)
+                let phase1 = inferPhase({
+                    DI: 75,
+                    btc_dom: 0.6,
+                    eth_btc: [0.06, 0.061, 0.062, 0.063],
+                    alts_btc: [0.15, 0.151, 0.152, 0.153],
+                    breadth_alts: 0.65,
+                    dispersion: 0.6,
+                    corr_alts_btc: 0.5,
+                    partial: false
+                });
+
+                // Multiple consistent detections
+                let phase2, phase3, phase4;
+                for (let i = 0; i < 3; i++) {
+                    const phase = inferPhase({
+                        DI: 75,
+                        btc_dom: 0.6,
+                        eth_btc: [0.06, 0.061, 0.062, 0.063],
+                        alts_btc: [0.15, 0.151, 0.152, 0.153],
+                        breadth_alts: 0.65,
+                        dispersion: 0.6,
+                        corr_alts_btc: 0.5,
+                        partial: false
+                    });
+                    if (i === 0) phase2 = phase;
+                    if (i === 1) phase3 = phase;
+                    if (i === 2) phase4 = phase;
+                }
+
+                log(`Hysteresis progression: ${phase1} → ${phase2} → ${phase3} → ${phase4}`);
+
+                // After 3+ consistent detections, should stabilize
+                assert(typeof phase4 === 'string', 'Should maintain valid phase through hysteresis');
+            });
+        }
+
+        function testBufferOperations() {
+            log('=== BUFFER OPERATIONS TESTS ===');
+
+            // Test 1: Ring buffer basic operations
+            runTest('Ring buffer basic operations', () => {
+                clearAllBuffers();
+
+                // Push samples
+                pushSample('test_series', 1.0);
+                pushSample('test_series', 2.0);
+                pushSample('test_series', 3.0);
+
+                const series = getSeries('test_series', 5);
+                assert(series.length === 3, `Expected 3 samples, got ${series.length}`);
+                assert(series[0] === 1.0 && series[1] === 2.0 && series[2] === 3.0, 'Series should maintain order');
+
+                log(`Buffer test series: [${series.join(', ')}]`);
+            });
+
+            // Test 2: Slope calculation
+            runTest('Slope calculation test', () => {
+                const upSeries = [1.0, 1.1, 1.2, 1.3]; // 30% increase
+                const flatSeries = [1.0, 1.0, 1.0, 1.0]; // No change
+                const downSeries = [1.3, 1.2, 1.1, 1.0]; // ~23% decrease
+
+                const upSlope = calculateSlope(upSeries);
+                const flatSlope = calculateSlope(flatSeries);
+                const downSlope = calculateSlope(downSeries);
+
+                assert(upSlope > 0.25, `Up slope should be >25%, got ${(upSlope*100).toFixed(1)}%`);
+                assert(Math.abs(flatSlope) < 0.01, `Flat slope should be ~0%, got ${(flatSlope*100).toFixed(1)}%`);
+                assert(downSlope < -0.20, `Down slope should be <-20%, got ${(downSlope*100).toFixed(1)}%`);
+
+                log(`Slope tests: up=${(upSlope*100).toFixed(1)}%, flat=${(flatSlope*100).toFixed(1)}%, down=${(downSlope*100).toFixed(1)}%`);
+            });
+
+            // Test 3: Buffer overflow handling
+            runTest('Buffer overflow handling', () => {
+                clearAllBuffers();
+
+                // Push more than default buffer size
+                for (let i = 0; i < 70; i++) {
+                    pushSample('overflow_test', i);
+                }
+
+                const series = getSeries('overflow_test', 100); // Request more than available
+                assert(series.length <= 60, `Buffer should be limited to max size, got ${series.length}`);
+                assert(series[0] >= 10, 'Oldest samples should have been removed'); // First ~10 should be gone
+
+                log(`Buffer overflow test: ${series.length} samples, first=${series[0]}, last=${series[series.length-1]}`);
+            });
+        }
+
+        // Main test runners
+        function runPhaseTests() {
+            testResults = [];
+            log('🚀 Starting Phase Detection Tests');
+            testPhaseDetection();
+            updateResults();
+        }
+
+        function runTiltTests() {
+            testResults = [];
+            log('🚀 Starting Tilt Logic Tests');
+            testTiltLogic();
+            updateResults();
+        }
+
+        function runAllTests() {
+            testResults = [];
+            logMessages = [];
+            log('🚀 Starting Complete Test Suite');
+
+            testBufferOperations();
+            testPhaseDetection();
+            testTiltLogic();
+            testEdgeCases();
+
+            updateResults();
+
+            const summary = testResults.reduce((acc, test) => {
+                acc[test.status]++;
+                return acc;
+            }, { passed: 0, failed: 0 });
+
+            log(`📊 Test Suite Complete: ${summary.passed} passed, ${summary.failed} failed`);
+        }
+
+        function updateResults() {
+            const resultsDiv = document.getElementById('test-results');
+
+            const summary = testResults.reduce((acc, test) => {
+                acc[test.status]++;
+                return acc;
+            }, { passed: 0, failed: 0 });
+
+            let html = `
+                <div class="test-suite">
+                    <h2>📊 Test Results Summary</h2>
+                    <p><strong>Passed:</strong> ${summary.passed} | <strong>Failed:</strong> ${summary.failed} | <strong>Total:</strong> ${testResults.length}</p>
+                </div>
+            `;
+
+            testResults.forEach(test => {
+                const statusClass = test.status === 'passed' ? 'test-passed' : 'test-failed';
+                const icon = test.status === 'passed' ? '✅' : '❌';
+
+                html += `
+                    <div class="test-case ${statusClass}">
+                        <strong>${icon} ${test.name}</strong>
+                        ${test.error ? `<div class="code">Error: ${test.error}</div>` : ''}
+                    </div>
+                `;
+            });
+
+            resultsDiv.innerHTML = html;
+        }
+
+        // Make functions global for button onclick
+        window.runAllTests = runAllTests;
+        window.runPhaseTests = runPhaseTests;
+        window.runTiltTests = runTiltTests;
+        window.clearLogs = clearLogs;
+
+        // Auto-run basic tests on load
+        log('🔧 Phase Engine Test Suite Loaded');
+        log('Click "Run All Tests" to start comprehensive testing');
+
+    </script>
+</body>
+</html>

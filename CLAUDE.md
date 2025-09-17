@@ -72,6 +72,11 @@ static/risk-dashboard.html (avec GovernancePanel intégré)
 static/portfolio-optimization.html
 static/modules/*.js
 static/core/risk-dashboard-store.js (sync governance)
+static/core/phase-engine.js (détection de phases market)
+static/core/phase-buffers.js (ring buffers pour time series)
+static/core/phase-inputs-extractor.js (extraction données phases)
+static/core/unified-insights-v2.js (intégration Phase Engine)
+static/test-phase-engine.html (suite de tests complète)
 ```
 
 ---
@@ -190,7 +195,51 @@ async def vol_predict(assets: List[str] = Query(..., min_items=1, max_items=50),
 
 ---
 
-## 6) Aides‑mémoire
+## 6) Phase Engine (Détection Proactive de Phases Market)
+
+**Objectif :** Appliquer des tilts d'allocation proactifs selon les phases market détectées (ETH expansion, altseason, risk-off).
+
+### Architecture
+- **`static/core/phase-engine.js`** : Core détection & tilts logic
+- **`static/core/phase-buffers.js`** : Ring buffers time series (60 samples max)
+- **`static/core/phase-inputs-extractor.js`** : Extraction données normalized
+- **`static/test-phase-engine.html`** : Suite tests complète (16 test cases)
+
+### Modes
+- **Off** : Phase Engine désactivé
+- **Shadow** (défaut) : Détection + logs, objectifs inchangés
+- **Apply** : Détection + application réelle des tilts
+
+### Contrôles Debug (localhost uniquement)
+```javascript
+// Forcer une phase pour tests
+window.debugPhaseEngine.forcePhase('eth_expansion')
+window.debugPhaseEngine.forcePhase('full_altseason')
+window.debugPhaseEngine.forcePhase('risk_off')
+window.debugPhaseEngine.clearForcePhase() // Normal detection
+
+// État actuel
+window.debugPhaseEngine.getCurrentForce()
+window._phaseEngineAppliedResult // Résultats détaillés
+```
+
+### Phases & Tilts
+- **Risk-off** : Stables +15%, alts -15% à -50%
+- **ETH Expansion** : ETH +5%, L2/Scaling +3%, stables -2%
+- **Large-cap Altseason** : L1/majors +8%, SOL +6%, Others +20%
+- **Full Altseason** : Memecoins +150%, Others +100%, stables -15%
+- **Neutral** : Aucun tilt
+
+### Feature Flags
+```javascript
+// Changer le mode
+localStorage.setItem('PHASE_ENGINE_ENABLED', 'shadow') // ou 'apply', 'off'
+localStorage.setItem('PHASE_ENGINE_DEBUG_FORCE', 'eth_expansion') // Force phase
+```
+
+---
+
+## 7) Aides‑mémoire
 
 Dev:
 

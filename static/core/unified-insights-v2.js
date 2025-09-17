@@ -478,7 +478,12 @@ export async function getUnifiedState() {
         regime: regimeData.regime?.name?.toLowerCase(),
         cycle_score: cycleData.score,
         governance_mode: decision.governance_mode || 'Normal',
-        sentiment: sentimentData?.interpretation
+        sentiment: sentimentData?.interpretation,
+        // NOUVEAU: Feature flags pour phase engine
+        flags: {
+          phase_engine: typeof window !== 'undefined' ?
+            localStorage.getItem('PHASE_ENGINE_ENABLED') || 'shadow' : 'off'
+        }
       };
 
       // Risk budget (SOURCE DE VÉRITÉ pour stables)
@@ -492,11 +497,174 @@ export async function getUnifiedState() {
       };
 
       // CALCUL DYNAMIQUE: remplace les presets hardcodés
-      const dynamicTargets = computeMacroTargetsDynamic(ctx, rb, walletStats);
+      let dynamicTargets = computeMacroTargetsDynamic(ctx, rb, walletStats);
 
-      console.log('🎯 DYNAMIC TARGETS remplace decision.targets:', {
+      // PHASE ENGINE INTEGRATION (shadow/apply modes)
+      if (ctx.flags.phase_engine === 'shadow' || ctx.flags.phase_engine === 'apply') {
+        console.debug('🧪 PhaseEngine: Flag detected:', ctx.flags.phase_engine);
+
+        // Store config in global scope for debugging
+        if (typeof window !== 'undefined') {
+          window._phaseEngineConfig = {
+            mode: ctx.flags.phase_engine,
+            enabled: true,
+            targets: { ...dynamicTargets },
+            context: { DI: decision.score || 50, breadth_alts: 0.5 }
+          };
+        }
+
+        // Use dynamic import and update targets synchronously when ready
+        (async () => {
+          try {
+            console.debug('🔄 PhaseEngine: Starting dynamic import...');
+
+            const [
+              { extractPhaseInputs },
+              { inferPhase, applyPhaseTilts, forcePhase, clearForcePhase }
+            ] = await Promise.all([
+              import('./phase-inputs-extractor.js'),
+              import('./phase-engine.js')
+            ]);
+
+            console.debug('✅ PhaseEngine: Modules loaded successfully');
+
+            // Expose debug controls globally after import
+            if (typeof window !== 'undefined' && window.location?.hostname === 'localhost') {
+              if (!window.debugPhaseEngine) {
+                window.debugPhaseEngine = {};
+              }
+              window.debugPhaseEngine.forcePhase = forcePhase;
+              window.debugPhaseEngine.clearForcePhase = clearForcePhase;
+              window.debugPhaseEngine.getCurrentForce = () => {
+                // Import fresh to get current state
+                return import('./phase-engine.js').then(m => m.getCurrentForce());
+              };
+            }
+
+            const phaseInputs = extractPhaseInputs(store);
+            console.debug('📊 PhaseEngine: Inputs extracted:', {
+              DI: phaseInputs.DI,
+              btc_dom: phaseInputs.btc_dom,
+              partial: phaseInputs.partial,
+              missing: phaseInputs.missing
+            });
+
+            const phase = inferPhase(phaseInputs);
+            console.debug('🔍 PhaseEngine: Phase detected:', phase);
+
+            const phaseResult = applyPhaseTilts(dynamicTargets, phase, {
+              DI: phaseInputs.DI,
+              breadth_alts: phaseInputs.breadth_alts
+            });
+
+            console.debug('⚡ PhaseEngine: Tilts calculated:', {
+              phase,
+              tiltsApplied: phaseResult.metadata.tiltsApplied,
+              capsTriggered: phaseResult.metadata.capsTriggered
+            });
+
+            if (ctx.flags.phase_engine === 'shadow') {
+              // Shadow mode: log detailed results
+              console.log('🧪 PhaseEngine Shadow Mode:', {
+                phase,
+                inputsQuality: phaseInputs.partial ? 'partial' : 'complete',
+                originalTargets: Object.keys(dynamicTargets).reduce((acc, k) => {
+                  acc[k] = (dynamicTargets[k] || 0).toFixed(1) + '%';
+                  return acc;
+                }, {}),
+                phaseTiltedTargets: Object.keys(phaseResult.targets).reduce((acc, k) => {
+                  acc[k] = (phaseResult.targets[k] || 0).toFixed(1) + '%';
+                  return acc;
+                }, {}),
+                deltas: Object.keys(dynamicTargets).reduce((acc, k) => {
+                  const original = dynamicTargets[k] || 0;
+                  const tilted = phaseResult.targets[k] || 0;
+                  const delta = tilted - original;
+                  if (Math.abs(delta) > 0.1) {
+                    acc[k] = (delta > 0 ? '+' : '') + delta.toFixed(2) + '%';
+                  }
+                  return acc;
+                }, {}),
+                metadata: phaseResult.metadata
+              });
+
+              // Store shadow result for UI consumption
+              if (typeof window !== 'undefined') {
+                window._phaseEngineShadowResult = {
+                  phase,
+                  inputs: phaseInputs,
+                  original: dynamicTargets,
+                  tilted: phaseResult.targets,
+                  metadata: phaseResult.metadata,
+                  timestamp: new Date().toISOString()
+                };
+              }
+
+            } else if (ctx.flags.phase_engine === 'apply') {
+              // Apply mode: Actually use the phase-tilted targets
+              dynamicTargets = phaseResult.targets;
+
+              console.log('✅ PhaseEngine Apply Mode - TARGETS MODIFIED:', {
+                phase,
+                tiltsApplied: phaseResult.metadata.tiltsApplied,
+                capsTriggered: phaseResult.metadata.capsTriggered,
+                stablesFloorHit: phaseResult.metadata.stablesFloorHit,
+                originalSum: Object.values(phaseResult.original || {}).reduce((a, b) => a + b, 0).toFixed(1) + '%',
+                newSum: Object.values(dynamicTargets).reduce((a, b) => a + b, 0).toFixed(1) + '%',
+                note: 'Phase tilts REALLY applied to targets'
+              });
+
+              // Store applied tilts for debugging AND sync storage for immediate access
+              if (typeof window !== 'undefined') {
+                window._phaseEngineAppliedResult = {
+                  phase,
+                  original: phaseResult.original || {},
+                  modified: dynamicTargets,
+                  metadata: phaseResult.metadata,
+                  timestamp: new Date().toISOString()
+                };
+
+                // Store in sync cache for immediate reuse
+                window._phaseEngineCurrentTargets = { ...dynamicTargets };
+              }
+            }
+
+          } catch (error) {
+            console.error('❌ PhaseEngine: Import/execution failed:', error);
+
+            // Fallback notification
+            if (typeof window !== 'undefined') {
+              window._phaseEngineError = {
+                error: error.message,
+                timestamp: new Date().toISOString(),
+                mode: ctx.flags.phase_engine
+              };
+            }
+          }
+        })();
+
+      }
+
+      // Check if Phase Engine has already computed targets (sync cache)
+      if (ctx.flags.phase_engine === 'apply' && typeof window !== 'undefined' && window._phaseEngineCurrentTargets) {
+        const cachedTargets = window._phaseEngineCurrentTargets;
+        const cacheAge = Date.now() - (window._phaseEngineAppliedResult?.timestamp ? new Date(window._phaseEngineAppliedResult.timestamp).getTime() : 0);
+
+        // Use cached targets if fresh (< 5 seconds old)
+        if (cacheAge < 5000) {
+          console.log('🚀 PhaseEngine: Using cached phase-tilted targets (sync):', {
+            cache_age_ms: cacheAge,
+            phase: window._phaseEngineAppliedResult?.phase,
+            targets: cachedTargets
+          });
+          dynamicTargets = { ...cachedTargets };
+        }
+      }
+
+      console.log('🎯 DYNAMIC TARGETS' + (ctx.flags.phase_engine !== 'off' ? ' + PHASE ENGINE' : '') + ':', {
         old_method: 'preset_from_api',
-        new_method: 'dynamic_computation',
+        new_method: 'dynamic_computation' + (ctx.flags.phase_engine !== 'off' ? ' + phase_tilts' : ''),
+        phase_engine_mode: ctx.flags.phase_engine,
         targets: dynamicTargets,
         stables_source: rb?.target_stables_pct
       });
