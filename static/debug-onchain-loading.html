@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug On-Chain Loading</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #fff; }
+        .section { margin: 20px 0; padding: 15px; background: #2a2a2a; border-radius: 5px; }
+        .error { color: #ff6b6b; }
+        .success { color: #51cf66; }
+        .warning { color: #ffd93d; }
+        pre { background: #000; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        button { padding: 10px 20px; margin: 5px; background: #4dabf7; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #339af0; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Debug On-Chain Data Loading</h1>
+
+    <div class="section">
+        <h3>1. Global Config Status</h3>
+        <div id="global-config-status">Loading...</div>
+    </div>
+
+    <div class="section">
+        <h3>2. Data Source Configuration</h3>
+        <div id="data-source-status">Loading...</div>
+    </div>
+
+    <div class="section">
+        <h3>3. API Connectivity Test</h3>
+        <button onclick="testApiConnectivity()">Test API Endpoints</button>
+        <div id="api-test-results"></div>
+    </div>
+
+    <div class="section">
+        <h3>4. On-Chain Indicators Test</h3>
+        <button onclick="testOnChainIndicators()">Fetch On-Chain Data</button>
+        <div id="onchain-test-results"></div>
+    </div>
+
+    <div class="section">
+        <h3>5. Composite Score Test</h3>
+        <button onclick="testCompositeScore()">Test Composite Calculation</button>
+        <div id="composite-test-results"></div>
+    </div>
+
+    <div class="section">
+        <h3>6. Local Storage Check</h3>
+        <div id="localstorage-status">Loading...</div>
+    </div>
+
+    <script src="global-config.js"></script>
+    <script type="module">
+        // Wait for global config to be available
+        function waitForGlobalConfig() {
+            return new Promise((resolve, reject) => {
+                if (window.globalConfig) {
+                    resolve();
+                } else {
+                    // Wait up to 5 seconds
+                    let attempts = 0;
+                    const checkInterval = setInterval(() => {
+                        attempts++;
+                        if (window.globalConfig) {
+                            clearInterval(checkInterval);
+                            resolve();
+                        } else if (attempts > 50) { // 5 seconds
+                            clearInterval(checkInterval);
+                            reject(new Error('globalConfig not loaded after 5 seconds'));
+                        }
+                    }, 100);
+                }
+            });
+        }
+
+        waitForGlobalConfig().then(() => {
+            initDebug();
+        }).catch(e => {
+            document.getElementById('global-config-status').innerHTML = `<span class="error">❌ Failed to load global-config.js: ${e.message}</span>`;
+        });
+
+        function initDebug() {
+            // 1. Global Config Status
+            const apiBase = window.globalConfig?.get('api_base_url') || 'N/A';
+            const dataSource = window.globalConfig?.get('data_source') || 'N/A';
+            document.getElementById('global-config-status').innerHTML = `
+                <div class="success">✅ Global config loaded</div>
+                <div>API Base URL: ${apiBase}</div>
+                <div>Current config loaded: ${window.globalConfig ? 'Yes' : 'No'}</div>
+            `;
+
+            // 2. Data Source
+            document.getElementById('data-source-status').innerHTML = `
+                <div>Data Source: <strong>${dataSource}</strong></div>
+                <div>Using stubs: ${dataSource.startsWith('stub_') ? 'Yes' : 'No'}</div>
+            `;
+
+            // 6. LocalStorage check
+            const onchainScore = localStorage.getItem('risk_score_onchain');
+            const timestamp = localStorage.getItem('risk_score_timestamp');
+            const cache = localStorage.getItem('risk_scores_cache');
+
+            document.getElementById('localstorage-status').innerHTML = `
+                <div>On-Chain Score: ${onchainScore || 'null'}</div>
+                <div>Timestamp: ${timestamp || 'null'}</div>
+                <div>Cache exists: ${cache ? 'Yes' : 'No'}</div>
+                <div>Dynamic weighting: ${localStorage.getItem('enable_dynamic_weighting') || 'false'}</div>
+            `;
+        }
+
+        window.testApiConnectivity = async function() {
+            const resultsDiv = document.getElementById('api-test-results');
+            resultsDiv.innerHTML = '<div>Testing API endpoints...</div>';
+
+            const tests = [
+                { name: 'Crypto-Toolbox Proxy', url: '/api/crypto-toolbox' },
+                { name: 'Fear & Greed', url: '/api/ml/sentiment/fear-greed' },
+                { name: 'Risk Metrics', url: '/api/risk/advanced/metrics' }
+            ];
+
+            const results = [];
+            for (const test of tests) {
+                try {
+                    const response = await fetch(window.location.origin + test.url);
+                    const isOk = response.ok;
+                    results.push(`<div class="${isOk ? 'success' : 'error'}">${isOk ? '✅' : '❌'} ${test.name}: ${response.status}</div>`);
+                } catch (e) {
+                    results.push(`<div class="error">❌ ${test.name}: ${e.message}</div>`);
+                }
+            }
+
+            resultsDiv.innerHTML = results.join('');
+        };
+
+        window.testOnChainIndicators = async function() {
+            const resultsDiv = document.getElementById('onchain-test-results');
+            resultsDiv.innerHTML = '<div>Loading on-chain indicators...</div>';
+
+            try {
+                // Force reload the module with cache-busting timestamp
+                const timestamp = Date.now();
+                const onchain = await import(`./modules/onchain-indicators.js?v=${timestamp}`);
+                console.log('📦 On-chain module loaded:', onchain);
+
+                const indicators = await onchain.fetchAllIndicators();
+                console.log('📊 Indicators fetched:', indicators);
+
+                const count = Object.keys(indicators).filter(k => !k.startsWith('_')).length;
+                const hasValidData = Object.values(indicators).some(ind => ind && typeof ind.value_numeric === 'number');
+
+                resultsDiv.innerHTML = `
+                    <div class="success">✅ On-chain module loaded successfully</div>
+                    <div>Total indicators: ${count}</div>
+                    <div>Has valid data: ${hasValidData ? 'Yes' : 'No'}</div>
+                    <pre>${JSON.stringify(indicators, null, 2)}</pre>
+                `;
+            } catch (e) {
+                resultsDiv.innerHTML = `<div class="error">❌ Failed to load on-chain indicators: ${e.message}</div><pre>${e.stack}</pre>`;
+            }
+        };
+
+        window.testCompositeScore = async function() {
+            const resultsDiv = document.getElementById('composite-test-results');
+            resultsDiv.innerHTML = '<div>Testing composite score calculation...</div>';
+
+            try {
+                const timestamp = Date.now();
+                const onchain = await import(`./modules/onchain-indicators.js?v=${timestamp}`);
+                const v2 = await import(`./modules/composite-score-v2.js?v=${timestamp}`);
+
+                const indicators = await onchain.fetchAllIndicators();
+                const dyn = localStorage.getItem('enable_dynamic_weighting') === 'true';
+                const composite = v2.calculateCompositeScoreV2(indicators, dyn);
+
+                resultsDiv.innerHTML = `
+                    <div class="success">✅ Composite score calculated</div>
+                    <div>Score: ${composite.score}</div>
+                    <div>Confidence: ${composite.confidence}</div>
+                    <div>Critical Zone Count: ${composite.criticalZoneCount}</div>
+                    <pre>${JSON.stringify(composite, null, 2)}</pre>
+                `;
+            } catch (e) {
+                resultsDiv.innerHTML = `<div class="error">❌ Failed to calculate composite score: ${e.message}</div><pre>${e.stack}</pre>`;
+            }
+        };
+    </script>
+</body>
+</html>

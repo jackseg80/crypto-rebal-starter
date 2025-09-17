@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Allocation Console</title>
+    <style>
+        body { font-family: system-ui; margin: 20px; background: #1a1a1a; color: #fff; }
+        .log { margin: 5px 0; padding: 8px; border-radius: 4px; font-family: monospace; font-size: 12px; }
+        .debug { background: #2a2a2a; border-left: 4px solid #2196f3; }
+        .error { background: #5d1a1a; border-left: 4px solid #f44336; }
+        .warn { background: #5d4a1a; border-left: 4px solid #ff9800; }
+        .info { background: #1a3d2a; border-left: 4px solid #4caf50; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Debug Console Logs</h1>
+    <div id="logs"></div>
+    <button onclick="clearLogs()">Clear Logs</button>
+    <button onclick="testAllocation()">Test Allocation</button>
+
+    <script type="module">
+        import { getUnifiedState } from './core/unified-insights-v2.js';
+        import { renderUnifiedInsights } from './components/UnifiedInsights.js';
+
+        const logsContainer = document.getElementById('logs');
+
+        // Capture console logs
+        const originalLog = console.log;
+        const originalDebug = console.debug;
+        const originalWarn = console.warn;
+        const originalError = console.error;
+
+        function addLog(type, ...args) {
+            const div = document.createElement('div');
+            div.className = `log ${type}`;
+            div.textContent = args.join(' ');
+            logsContainer.appendChild(div);
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+
+        console.log = (...args) => { originalLog(...args); addLog('info', ...args); };
+        console.debug = (...args) => { originalDebug(...args); addLog('debug', ...args); };
+        console.warn = (...args) => { originalWarn(...args); addLog('warn', ...args); };
+        console.error = (...args) => { originalError(...args); addLog('error', ...args); };
+
+        window.clearLogs = () => {
+            logsContainer.innerHTML = '';
+        };
+
+        window.testAllocation = async () => {
+            addLog('info', '=== STARTING ALLOCATION TEST ===');
+            try {
+                const state = await getUnifiedState();
+                addLog('info', `Unified State: cycle=${state.cycle?.score}, decision=${state.decision?.score}`);
+
+                if (state.intelligence?.allocation) {
+                    addLog('info', 'Found allocation in state.intelligence:', JSON.stringify(state.intelligence.allocation));
+                } else {
+                    addLog('warn', 'No allocation in state.intelligence');
+                }
+
+                if (state.strategy?.targets) {
+                    addLog('info', 'Found targets in state.strategy:', JSON.stringify(state.strategy.targets));
+                } else {
+                    addLog('warn', 'No targets in state.strategy');
+                }
+
+                addLog('info', '=== TEST COMPLETE ===');
+            } catch (e) {
+                addLog('error', 'Test failed:', e.message);
+            }
+        };
+
+        // Auto-test on load
+        setTimeout(testAllocation, 1000);
+    </script>
+</body>
+</html>

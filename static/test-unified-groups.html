@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Unified Groups</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .group { margin: 10px 0; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        .symbol { display: inline-block; margin: 2px; padding: 2px 6px; background: #f0f0f0; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test du système unifié de groupes</h1>
+    <div id="results"></div>
+
+    <script type="module">
+        import {
+            getUnifiedAssetGroups,
+            getAllGroups,
+            getAssetGroup,
+            groupAssetsByClassification,
+            debugClassification
+        } from './shared-asset-groups.js';
+
+        async function runTests() {
+            // Test des symbols problématiques
+            const testSymbols = ['EUR', 'SOL', 'SOL2', 'USDC', 'BTC', 'ETH', 'DOGE', 'UNKNOWN_COIN'];
+            const testItems = testSymbols.map(symbol => ({
+                symbol,
+                value_usd: 100
+            }));
+
+            console.log('🧪 Testing unified groups system...');
+
+            const results = document.getElementById('results');
+
+            // Test classification individuelle
+            results.innerHTML += '<h2>Classification individuelle</h2>';
+            for (const symbol of testSymbols) {
+                const group = await getAssetGroup(symbol);
+                results.innerHTML += `<div><strong>${symbol}</strong> → <em>${group}</em></div>`;
+                console.log(`${symbol} → ${group}`);
+            }
+
+            // Test groupement
+            results.innerHTML += '<h2>Groupement par classification</h2>';
+            const grouped = await groupAssetsByClassification(testItems);
+            grouped.forEach(group => {
+                results.innerHTML += `<div class="group">
+                    <strong>${group.label}</strong>: ${group.value} USD
+                    ${group.assets ? `<br>Assets: ${group.assets.join(', ')}` : ''}
+                </div>`;
+            });
+
+            // Affichage de la structure complète
+            results.innerHTML += '<h2>Structure des groupes</h2>';
+            const unifiedGroups = await getUnifiedAssetGroups();
+            const groupOrder = await getAllGroups();
+
+            groupOrder.forEach(groupName => {
+                const symbols = unifiedGroups[groupName] || [];
+                results.innerHTML += `<div class="group">
+                    <strong>${groupName}</strong> (${symbols.length} symbols)<br>
+                    ${symbols.map(s => `<span class="symbol">${s}</span>`).join('')}
+                </div>`;
+            });
+
+            await debugClassification();
+        }
+
+        // Run tests after DOM is loaded
+        runTests().catch(console.error);
+    </script>
+</body>
+</html>

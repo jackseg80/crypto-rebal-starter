@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Allocation Analytics</title>
+    <script src="global-config.js"></script>
+</head>
+<body>
+    <h1>🔍 Diagnostic Allocation Suggérée</h1>
+    <pre id="output"></pre>
+
+    <script type="module">
+        import { getUnifiedState } from './core/unified-insights-v2.js';
+        import { renderUnifiedInsights } from './components/UnifiedInsights.js';
+
+        const output = document.getElementById('output');
+
+        function log(message) {
+            output.textContent += message + '\n';
+            console.log(message);
+        }
+
+        async function diagnoseProblem() {
+            log('🔍 Démarrage du diagnostic...\n');
+
+            try {
+                // 1. Tester getUnifiedState
+                log('1️⃣ Test getUnifiedState...');
+                const unifiedState = await getUnifiedState();
+
+                log(`✅ getUnifiedState réussi`);
+                log(`   - Decision score: ${unifiedState.decision?.score || 'undefined'}`);
+                log(`   - Decision source: ${unifiedState.decision?.source || 'undefined'}`);
+                log(`   - Strategy targets: ${unifiedState.strategy?.targets?.length || 0} items`);
+                log(`   - Intelligence allocation: ${unifiedState.intelligence?.allocation ? Object.keys(unifiedState.intelligence.allocation).length : 0} keys`);
+
+                // 2. Vérifier les targets
+                if (unifiedState.strategy?.targets && unifiedState.strategy.targets.length > 0) {
+                    log('\n2️⃣ Strategy Targets trouvés:');
+                    unifiedState.strategy.targets.forEach(target => {
+                        log(`   - ${target.symbol}: ${(target.weight * 100).toFixed(1)}%`);
+                    });
+                } else {
+                    log('\n❌ Aucun strategy targets trouvé');
+                }
+
+                // 3. Vérifier intelligence allocation
+                if (unifiedState.intelligence?.allocation) {
+                    log('\n3️⃣ Intelligence Allocation trouvé:');
+                    Object.entries(unifiedState.intelligence.allocation).forEach(([key, value]) => {
+                        log(`   - ${key}: ${value.toFixed(1)}%`);
+                    });
+                } else {
+                    log('\n❌ Aucune intelligence allocation trouvée');
+                }
+
+                // 4. Tester le rendu UnifiedInsights
+                log('\n4️⃣ Test du composant UnifiedInsights...');
+
+                // Créer un conteneur pour le test
+                const testContainer = document.createElement('div');
+                testContainer.id = 'test-container';
+                document.body.appendChild(testContainer);
+
+                await renderUnifiedInsights('test-container');
+                log('✅ Composant UnifiedInsights rendu avec succès');
+
+                // 5. Vérifier localStorage
+                log('\n5️⃣ Test localStorage allocation...');
+                const storedAllocation = localStorage.getItem('unified_suggested_allocation');
+                if (storedAllocation) {
+                    const parsed = JSON.parse(storedAllocation);
+                    log(`✅ Allocation dans localStorage:`);
+                    log(`   - Strategy: ${parsed.strategy}`);
+                    log(`   - Timestamp: ${parsed.timestamp}`);
+                    log(`   - Source: ${parsed.source}`);
+                    if (parsed.targets) {
+                        Object.entries(parsed.targets).forEach(([key, value]) => {
+                            log(`   - ${key}: ${value}%`);
+                        });
+                    }
+                } else {
+                    log('❌ Aucune allocation dans localStorage');
+                }
+
+                // 6. Diagnostic final
+                log('\n🎯 DIAGNOSTIC FINAL:');
+                const hasTargets = (unifiedState.strategy?.targets?.length || 0) > 0;
+                const hasIntelligence = !!unifiedState.intelligence?.allocation;
+                const hasLocalStorage = !!storedAllocation;
+
+                if (!hasTargets && !hasIntelligence) {
+                    log('❌ PROBLÈME: Aucune donnée d\'allocation générée');
+                    log('   Le moteur d\'allocation V2 ne produit pas de données');
+                    log('   Vérifiez calculateIntelligentDecisionIndexAPI');
+                } else if (hasTargets || hasIntelligence) {
+                    log('✅ Données d\'allocation présentes');
+                    log('   L\'allocation suggérée devrait s\'afficher');
+                }
+
+            } catch (error) {
+                log(`❌ ERREUR: ${error.message}`);
+                log(`Stack: ${error.stack}`);
+            }
+        }
+
+        // Lancer le diagnostic au chargement
+        diagnoseProblem();
+    </script>
+</body>
+</html>
