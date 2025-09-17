@@ -20,15 +20,13 @@ export function pushSample(key, value, maxSize = 60) {
   }
 
   const arr = timeSeriesBuffers.get(key) ?? [];
-  const t = Date.now();
+  let t = Date.now();
 
-  // Avoid duplicate timestamps (only for identical timestamps in same call stack)
+  // Ensure unique timestamps by incrementing if collision detected
   const lastSample = arr[arr.length - 1];
-  if (lastSample && t === lastSample.t) {
-    // Update existing sample only if exact same timestamp (same millisecond)
-    lastSample.v = value;
-    console.debug(`🔄 PhaseBuffers: Updated ${key} sample:`, value);
-    return arr;
+  if (lastSample && t <= lastSample.t) {
+    t = lastSample.t + 1; // Increment to ensure uniqueness
+    console.debug(`⏰ PhaseBuffers: Adjusted timestamp for ${key} to avoid collision`);
   }
 
   arr.push({ t, v: value });

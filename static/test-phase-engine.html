@@ -203,19 +203,32 @@
 
             // Test 2: ETH expansion detection
             runTest('ETH expansion detection', () => {
+                // Clear any forced phase from localStorage
+                if (typeof localStorage !== 'undefined') {
+                    localStorage.removeItem('PHASE_ENGINE_DEBUG_FORCE');
+                }
+
                 // Setup trending data for ETH expansion
                 clearAllBuffers();
                 resetPhaseMemory(); // Clear phase history from previous test
-                // BTC dominance declining
+
+                // Setup buffer data that shows the right trends
+                // BTC dominance declining (slope < 0)
                 pushSample('btc_dom', 0.65);
                 pushSample('btc_dom', 0.63);
                 pushSample('btc_dom', 0.61);
 
+                // ETH/BTC rising strongly (slope > 2%)
+                const ethBtcTrend = [0.060, 0.061, 0.063, 0.065]; // +8.3% over window
+
+                // Alts/BTC rising modestly (slope lower than ETH)
+                const altsBtcTrend = [0.150, 0.151, 0.152, 0.153]; // +2% over window
+
                 const inputs = {
-                    DI: 75, // Bull context
-                    btc_dom: 0.61,
-                    eth_btc: [0.06, 0.061, 0.063, 0.065], // ETH outperforming
-                    alts_btc: [0.15, 0.151, 0.152, 0.153], // Alts modest
+                    DI: 75, // Bull context (>= 60)
+                    btc_dom: getSeries('btc_dom'), // Use buffer data
+                    eth_btc: ethBtcTrend, // ETH outperforming
+                    alts_btc: altsBtcTrend, // Alts modest
                     breadth_alts: 0.6,
                     dispersion: 0.5,
                     corr_alts_btc: 0.6,
@@ -230,6 +243,11 @@
 
             // Test 3: Full altseason detection
             runTest('Full altseason detection', () => {
+                // Clear any forced phase from localStorage
+                if (typeof localStorage !== 'undefined') {
+                    localStorage.removeItem('PHASE_ENGINE_DEBUG_FORCE');
+                }
+
                 resetPhaseMemory(); // Clear phase history from previous test
                 const inputs = {
                     DI: 85, // Strong bull
@@ -250,6 +268,11 @@
 
             // Test 4: Neutral with insufficient data
             runTest('Neutral with partial data', () => {
+                // Clear any forced phase from localStorage
+                if (typeof localStorage !== 'undefined') {
+                    localStorage.removeItem('PHASE_ENGINE_DEBUG_FORCE');
+                }
+
                 const inputs = {
                     DI: 60,
                     partial: true,
