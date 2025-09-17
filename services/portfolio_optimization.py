@@ -6,7 +6,7 @@ Implements Markowitz optimization with crypto-specific constraints
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Any
 import logging
 from dataclasses import dataclass
 from enum import Enum

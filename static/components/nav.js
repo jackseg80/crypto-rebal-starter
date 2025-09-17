@@ -66,7 +66,7 @@ const switchUser = (newUserId) => {
     console.log(`Switching from user '${oldUser}' to '${newUserId}'`);
 
     // Émettre un événement pour informer les autres composants
-    const event = new CustomEvent('active-user-changed', {
+    const event = new CustomEvent('activeUserChanged', {
       detail: { oldUser, newUser: newUserId }
     });
     window.dispatchEvent(event);
@@ -242,7 +242,10 @@ const initUnifiedNav = () => {
             <a href="analytics-unified.html#ml">Model Registry/Jobs</a>
             <div class="menu-separator"></div>
             <a href="settings.html#integrations">Imports & Connecteurs</a>
+            <a href="alias-manager.html">Asset Groups Manager</a>
             <a href="debug-menu.html">Tools & Debug</a>
+            <div class="menu-separator"></div>
+            <a href="#" onclick="toggleCleanupMenu(event)" style="color: var(--brand-warning);">🧹 Pages à nettoyer</a>
             <div class="menu-separator"></div>
             <a href="static/archive/index.html">Archive</a>
           </div>
@@ -419,6 +422,113 @@ const initUnifiedNav = () => {
         // Redirect to intelligence dashboard
         window.location.href = 'intelligence-dashboard.html#decisions';
       }
+    };
+
+    // Global function for cleanup menu toggle
+    window.toggleCleanupMenu = function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      // Check if cleanup menu already exists
+      let cleanupMenu = document.getElementById('cleanup-menu');
+
+      if (cleanupMenu) {
+        // Toggle visibility
+        cleanupMenu.style.display = cleanupMenu.style.display === 'none' ? 'block' : 'none';
+        return;
+      }
+
+      // Create cleanup menu
+      cleanupMenu = document.createElement('div');
+      cleanupMenu.id = 'cleanup-menu';
+      cleanupMenu.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: var(--theme-surface);
+        border: 1px solid var(--theme-border);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-lg);
+        max-width: 800px;
+        max-height: 80vh;
+        overflow-y: auto;
+        z-index: 9999;
+        padding: 1rem;
+      `;
+
+      cleanupMenu.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px solid var(--theme-border); padding-bottom: 0.5rem;">
+          <h3 style="margin: 0; color: var(--brand-warning);">🧹 Pages à nettoyer</h3>
+          <button onclick="document.getElementById('cleanup-menu').style.display='none'" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--theme-text-muted);">×</button>
+        </div>
+
+        <div style="margin-bottom: 1rem;">
+          <h4 style="color: var(--brand-primary); margin-bottom: 0.5rem;">📊 Pages principales non référencées</h4>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0.5rem; margin-bottom: 1rem;">
+            <a href="portfolio-optimization-advanced.html" style="display: block; padding: 0.5rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text); border-left: 3px solid var(--brand-success);">⚡ Portfolio Optimization Advanced</a>
+            <a href="ai-dashboard.html" style="display: block; padding: 0.5rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text); border-left: 3px solid var(--brand-success);">🤖 AI Dashboard</a>
+            <a href="monitoring.html" style="display: block; padding: 0.5rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text); border-left: 3px solid var(--brand-warning);">📊 Monitoring Basique</a>
+            <a href="performance-monitor.html" style="display: block; padding: 0.5rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text); border-left: 3px solid var(--brand-primary);">🚀 Performance Monitor</a>
+            <a href="backtesting.html" style="display: block; padding: 0.5rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text); border-left: 3px solid var(--brand-primary);">⏮️ Backtesting</a>
+            <a href="cycle-analysis.html" style="display: block; padding: 0.5rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text); border-left: 3px solid var(--brand-primary);">🔄 Cycle Analysis</a>
+            <a href="execution_history.html" style="display: block; padding: 0.5rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text); border-left: 3px solid var(--brand-primary);">📋 Execution History</a>
+            <a href="saxo-upload.html" style="display: block; padding: 0.5rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text); border-left: 3px solid var(--brand-primary);">📤 Saxo Upload</a>
+          </div>
+          <div style="background: var(--theme-bg); padding: 0.5rem; border-radius: var(--radius-sm); border-left: 3px solid var(--brand-info); font-size: 0.85em; color: var(--theme-text-muted);">
+            ✅ <strong>Nettoyé :</strong> Pages de redirection supprimées (intelligence-dashboard.html → analytics-unified.html#tab-intelligence-ml, monitoring-unified.html → settings.html#monitoring, portfolio-optimization.html → version avancée)
+          </div>
+        </div>
+
+        <details style="margin-bottom: 1rem;">
+          <summary style="cursor: pointer; font-weight: 600; color: var(--brand-warning); margin-bottom: 0.5rem;">🧪 Pages de test/debug (${document.querySelectorAll('a[href*="test-"], a[href*="debug-"], a[href*="clear-"], a[href*="fix_"]').length || '23'} pages)</summary>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 0.3rem; margin-top: 0.5rem; max-height: 200px; overflow-y: auto;">
+            <a href="debug-badges.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">debug-badges.html</a>
+            <a href="debug-badges-integration.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">debug-badges-integration.html</a>
+            <a href="debug-real-data.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">debug-real-data.html</a>
+            <a href="debug-menu.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">debug-menu.html</a>
+            <a href="test-badges-direct.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">test-badges-direct.html</a>
+            <a href="test-analytics-simple.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">test-analytics-simple.html</a>
+            <a href="test-wealth-context-persistence.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">test-wealth-context-persistence.html</a>
+            <a href="test-global-badge.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">test-global-badge.html</a>
+            <a href="test-badges-simple.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">test-badges-simple.html</a>
+            <a href="test-badges-qa.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">test-badges-qa.html</a>
+            <a href="debug_frontend_data.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">debug_frontend_data.html</a>
+            <a href="fix_user_demo.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">fix_user_demo.html</a>
+            <a href="debug_sources_direct.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">debug_sources_direct.html</a>
+            <a href="clear_everything.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">clear_everything.html</a>
+            <a href="test-cache-invalidation.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">test-cache-invalidation.html</a>
+            <a href="test-risk-v2-activation.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">test-risk-v2-activation.html</a>
+            <a href="test-unified-groups.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">test-unified-groups.html</a>
+            <a href="debug-grouping-detailed.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">debug-grouping-detailed.html</a>
+            <a href="clear-cache.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">clear-cache.html</a>
+            <a href="test-allocation-engine-v2.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">test-allocation-engine-v2.html</a>
+            <a href="debug-allocation-v2.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">debug-allocation-v2.html</a>
+            <a href="test-allocation-display.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">test-allocation-display.html</a>
+            <a href="test-allocation-analytics.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">test-allocation-analytics.html</a>
+            <a href="force-allocation-display.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">force-allocation-display.html</a>
+            <a href="debug-allocation-direct.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">debug-allocation-direct.html</a>
+            <a href="test-allocation-fix.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">test-allocation-fix.html</a>
+            <a href="debug-allocation-console.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">debug-allocation-console.html</a>
+            <a href="debug-onchain-loading.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">debug-onchain-loading.html</a>
+            <a href="test-onchain-simple.html" style="display: block; padding: 0.3rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text-muted); font-size: 0.85em;">test-onchain-simple.html</a>
+          </div>
+        </details>
+
+        <div style="background: var(--theme-bg); padding: 0.75rem; border-radius: var(--radius-sm); border-left: 3px solid var(--brand-info); font-size: 0.9em; color: var(--theme-text-muted);">
+          💡 <strong>Comment utiliser:</strong> Testez les pages principales pour voir si elles sont utiles. Les pages avec bordure verte sont probablement à conserver, celles avec bordure orange peuvent être supprimées.
+        </div>
+      `;
+
+      document.body.appendChild(cleanupMenu);
+
+      // Close on click outside
+      document.addEventListener('click', function closeOnOutside(e) {
+        if (!cleanupMenu.contains(e.target) && !e.target.closest('#admin-dropdown')) {
+          cleanupMenu.style.display = 'none';
+          document.removeEventListener('click', closeOnOutside);
+        }
+      });
     };
 
     // Initialize badge system - try WebSocket first, fall back to polling
