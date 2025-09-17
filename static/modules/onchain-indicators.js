@@ -657,7 +657,7 @@ export async function fetchCryptoToolboxIndicators() {
     }
     
   // Appel via le proxy FastAPI (8000) qui relaie vers Flask (8001)
-  const apiBase = globalConfig?.get('api_base_url') || window.location.origin || 'http://127.0.0.1:8000';
+  const apiBase = window.globalConfig?.get('api_base_url') || window.location.origin || 'http://127.0.0.1:8000';
   const proxyUrl = `${apiBase.replace(/\/$/, '')}/api/crypto-toolbox`;
   let response;
   try {
@@ -666,7 +666,11 @@ export async function fetchCryptoToolboxIndicators() {
     console.warn(`🌐 Proxy ${proxyUrl} failed (${err?.message || err}). Trying direct fallback...`);
     // Tentatives fallback direct vers le scraper Flask (peut nécessiter CORS côté Flask)
     const fallbacks = [
+      'http://127.0.0.1:8801/api/crypto-toolbox',
+      'http://127.0.0.1:8888/api/crypto-toolbox',
       'http://127.0.0.1:8001/api/crypto-toolbox',
+      'http://localhost:8801/api/crypto-toolbox',
+      'http://localhost:8888/api/crypto-toolbox',
       'http://localhost:8001/api/crypto-toolbox'
     ];
     let lastError = err;
@@ -1122,7 +1126,7 @@ export async function fetchAllIndicators() {
   const errors = [];
   
   // Check current data source configuration
-  const dataSource = globalConfig?.get('data_source') || 'stub_balanced';
+  const dataSource = window.globalConfig?.get('data_source') || 'stub_balanced';
   console.debug(`🎯 Current data source: ${dataSource}`);
   
   // For stub sources, use simulated data instead of external APIs

@@ -4,6 +4,7 @@
 
 import { store } from './risk-dashboard-store.js';
 import { calculateHierarchicalAllocation } from './allocation-engine.js';
+import { GROUP_ORDER, getAssetGroup } from '../shared-asset-groups.js';
 
 // Configuration de migration avec feature flags
 const MIGRATION_CONFIG = {
@@ -227,7 +228,7 @@ export async function calculateIntelligentDecisionIndexAPI(context) {
           adaptiveWeights: context.adaptiveWeights,
           risk_budget: extractRiskBudgetFromContext(context),
           contradiction: context.contradiction ?? 0,
-          execution: { cap_pct_per_iter: 7 }
+          execution: { cap_pct_per_iter: (context?.execution?.cap_pct_per_iter ?? context?.governance_cap ?? 7) }
         },
         currentPositions,
         { enableV2: true }
@@ -237,11 +238,21 @@ export async function calculateIntelligentDecisionIndexAPI(context) {
         // Succès V2 - convertir au format legacy
         finalResult = convertV2AllocationToLegacyFormat(v2Allocation, context);
         debugLog('✅ V2 allocation successful, converted to legacy format');
+        debugLog('🔍 V2 allocation details:', v2Allocation);
+        debugLog('🔍 Final result targets count:', finalResult.targets?.length || 0);
       } else {
         // Fallback API Strategy classique
         debugLog('⚠️ V2 allocation failed, fallback to API Strategy');
-        const strategyResult = await getStrategyFromAPI(templateId);
-        finalResult = convertStrategyResultToLegacyFormat(strategyResult, context);
+        console.warn('❌ V2 Allocation Engine returned null - checking reasons...');
+
+        try {
+          const strategyResult = await getStrategyFromAPI(templateId);
+          finalResult = convertStrategyResultToLegacyFormat(strategyResult, context);
+        } catch (apiError) {
+          console.warn('⚠️ API Strategy also failed, using hardcoded fallback');
+          // Fallback ultime: allocation hardcodée basée sur le cycle
+          finalResult = createFallbackAllocation(context);
+        }
       }
     } else {
       // V1 classique - API Strategy
@@ -398,8 +409,23 @@ async function getCurrentPositions() {
  * Extrait le budget de risque depuis le contexte
  */
 function extractRiskBudgetFromContext(context) {
+  // SOURCE UNIQUE STABLES: priorité absolue à regimeData.risk_budget
+  const targetStablesPct =
+    context.regimeData?.risk_budget?.target_stables_pct ??
+    context.regimeData?.risk_budget?.percentages?.stables ??
+    (context.regimeData?.risk_budget?.stables_allocation != null
+      ? Math.round(context.regimeData.risk_budget.stables_allocation * 100)
+      : null
+    );
+
+  if (targetStablesPct == null) {
+    console.debug('[adapter] missing target_stables_pct - check market-regimes pipeline');
+  } else {
+    console.debug('🎯 Single source stables target:', targetStablesPct + '%');
+  }
+
   return {
-    target_stables_pct: context.regimeData?.risk_budget?.stables_target_pct ?? 40,
+    target_stables_pct: targetStablesPct,
     methodology: 'regime_based'
   };
 }
@@ -447,6 +473,121 @@ function convertV2AllocationToLegacyFormat(v2Allocation, context) {
       convergence_time: v2Allocation.execution.convergence_time_estimate
     }
   };
+}
+
+/**
+ * Fallback ultime: créer une allocation basique quand tout échoue
+ */
+function createFallbackAllocation(context) {
+  const cycleScore = context.cycleData?.score ?? 50;
+
+  // Allocation basique selon le cycle
+  let allocation;
+  if (cycleScore >= 80) {
+    // Bull market
+    allocation = {
+      'BTC': 30,
+      'ETH': 25,
+      'Stablecoins': 15,
+      'SOL': 10,
+      'L1/L0 majors': 10,
+      'DeFi': 6,
+      'L2/Scaling': 4
+    };
+  } else if (cycleScore >= 60) {
+    // Modéré
+    allocation = {
+      'BTC': 35,
+      'ETH': 25,
+      'Stablecoins': 20,
+      'SOL': 8,
+      'L1/L0 majors': 7,
+      'DeFi': 3,
+      'L2/Scaling': 2
+    };
+  } else {
+    // Bear/prudent
+    allocation = {
+      'BTC': 40,
+      'ETH': 20,
+      'Stablecoins': 30,
+      'SOL': 4,
+      'L1/L0 majors': 4,
+      'DeFi': 1,
+      'L2/Scaling': 1
+    };
+  }
+
+  // Convertir en format targets
+  const targets = Object.entries(allocation).map(([symbol, weight]) => ({
+    symbol,
+    weight: weight / 100,
+    weight_pct: weight,
+    rationale: `Fallback allocation (Cycle=${cycleScore})`
+  }));
+
+  return {
+    score: Math.max(40, Math.min(80, cycleScore * 0.8)), // Score raisonnable
+    confidence: 0.6, // Confiance modérée pour fallback
+    reasoning: `Fallback allocation based on cycle score ${cycleScore}`,
+    targets,
+    source: 'fallback_hardcoded',
+    template_used: 'fallback',
+    generated_at: new Date().toISOString()
+  };
+}
+
+/**
+ * SOURCE UNIQUE - Construit les objectifs théoriques avec stables préservées
+ * @param {object} u - État unifié (unifiedState)
+ * @returns {object} Map { groupTopLevel -> % } de 11 entrées, somme ≈ 100
+ */
+export function buildTheoreticalTargets(u) {
+  console.warn('🚨 buildTheoreticalTargets FONCTION OVERRIDE APPELÉE !', new Date().toISOString());
+
+  // VERROUILLAGE STABLES: Utiliser source canonique pour cohérence parfaite
+  if (u?.targets_by_group) {
+    console.log('✅ STABLES VERROUILLÉES: Utilisation source canonique u.targets_by_group');
+    console.debug('🔒 buildTheoreticalTargets source: CANONICAL_TARGETS_BY_GROUP', u.targets_by_group);
+    return u.targets_by_group;
+  }
+
+  // FALLBACK: Logique artificielle si pas de source canonique (cas edge)
+  const blendedScore = u?.scores?.blended || u?.decision?.score || 50;
+  console.warn('⚠️ FALLBACK vers logique artificielle - targets_by_group manquant', { blendedScore });
+
+  let stablesTarget, btcTarget, ethTarget, altsTarget;
+
+  if (blendedScore >= 70) {
+    // Euphorie: moins de stables, plus d'alts
+    stablesTarget = 20; btcTarget = 35; ethTarget = 25; altsTarget = 20;
+  } else if (blendedScore >= 50) {
+    // Expansion: équilibré
+    stablesTarget = 30; btcTarget = 40; ethTarget = 20; altsTarget = 10;
+  } else {
+    // Accumulation: beaucoup de stables, BTC dominante
+    stablesTarget = 50; btcTarget = 30; ethTarget = 15; altsTarget = 5;
+  }
+
+  // Créer allocation théorique cohérente
+  const artificialTargets = {
+    'Stablecoins': stablesTarget,
+    'BTC': btcTarget,
+    'ETH': ethTarget,
+    'SOL': altsTarget * 0.3,
+    'L1/L0 majors': altsTarget * 0.4,
+    'L2/Scaling': altsTarget * 0.2,
+    'DeFi': altsTarget * 0.1,
+    'AI/Data': 0,
+    'Gaming/NFT': 0,
+    'Memecoins': 0,
+    'Others': 0
+  };
+
+  console.log('🎯 FALLBACK TARGETS (buildTheoreticalTargets):', artificialTargets);
+  console.debug('📊 buildTheoreticalTargets source: FALLBACK_REGIME_LOGIC', { blendedScore, regime: blendedScore >= 70 ? 'Euphoria' : blendedScore >= 50 ? 'Expansion' : 'Accumulation' });
+
+  return artificialTargets;
 }
 
 // Export pour compatibilité ascendante

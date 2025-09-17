@@ -96,11 +96,16 @@ const initDeepLinks = (sectionAnchors = {}) => {
       Object.entries(sectionAnchors).forEach(([anchorId, title]) => {
         let section = document.getElementById(anchorId);
         if (!section) {
-          // Chercher par titre ou créer une section placeholder
-          const existingElement = document.querySelector(`h1:contains("${title}"), h2:contains("${title}"), h3:contains("${title}")`);
+          // Chercher par titre via filtrage JS (pas de :contains CSS)
+          const headings = document.querySelectorAll('h1, h2, h3');
+          const existingElement = Array.from(headings).find(el =>
+            el.textContent.includes(title)
+          );
+
           if (existingElement) {
             section = existingElement.closest('section, div, main') || existingElement;
             section.id = anchorId;
+            console.debug(`🔗 Deep link anchor created: ${anchorId} → ${title}`);
           } else {
             // Créer une section placeholder en fin de body
             section = document.createElement('section');

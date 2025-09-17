@@ -1,7 +1,7 @@
 // Allocation Engine V2 - Descente hiérarchique avec Feature Flag
 // Macro → Secteurs → Coins avec floors contextuels et incumbency protection
 
-import { getAssetGroup, UNIFIED_ASSET_GROUPS, GROUP_ORDER } from '../shared-asset-groups.js';
+import { getAssetGroup, UNIFIED_ASSET_GROUPS, GROUP_ORDER, loadTaxonomyDataSync } from '../shared-asset-groups.js';
 
 // Feature flag pour activation
 const ALLOCATION_ENGINE_V2 = true; // Will be controlled by config later
@@ -55,6 +55,14 @@ export async function calculateHierarchicalAllocation(context, currentPositions 
   }
 
   try {
+    // Ensure taxonomy data is loaded before proceeding
+    try {
+      loadTaxonomyDataSync(); // Fonction synchrone, pas d'await
+      console.debug('✅ Taxonomy data loaded for allocation engine');
+    } catch (taxonomyError) {
+      console.warn('⚠️ Taxonomy loading failed, continuing with fallback:', taxonomyError.message);
+      // Continue quand même, getAssetGroup aura ses fallbacks
+    }
     // 1. EXTRACTION DU CONTEXTE
     const {
       cycleScore = 50,
@@ -87,7 +95,48 @@ export async function calculateHierarchicalAllocation(context, currentPositions 
     // 6. CALCUL ITERATIONS ESTIMÉES
     const executionPlan = calculateExecutionPlan(coinAllocation, currentPositions, context.execution);
 
-    // 7. LOGS POUR DEBUG
+    // 7. VALIDATION FINALE + CHECKSUM + CONTRÔLES
+    const totalCheck = validateTotalAllocation(coinAllocation);
+    const allocationEntries = Object.entries(coinAllocation);
+
+    // CONTRÔLES HIÉRARCHIQUES
+    const hierarchyCheck = validateHierarchy(coinAllocation, currentPositions);
+    console.debug('🔍 Hierarchy validation:', hierarchyCheck);
+
+    // GUARD: target_sum_mismatch
+    const targetSum = Object.values(coinAllocation).reduce((sum, val) =>
+      sum + (typeof val === 'number' && !isNaN(val) ? val : 0), 0
+    );
+    if (Math.abs(targetSum - 1.0) > 0.01) {
+      console.warn(`⚠️ target_sum_mismatch: somme secteurs = ${(targetSum * 100).toFixed(1)}% (≠ 100%)`);
+    }
+
+    // CHECKSUM DÉTAILLÉ
+    console.debug('💯 CHECKSUM:', {
+      total_allocation: totalCheck.total,
+      entries_count: allocationEntries.length,
+      valid_entries: allocationEntries.filter(([k, v]) => v > 0.001).length,
+      is_normalized: totalCheck.isValid,
+      hierarchy_ok: hierarchyCheck.valid,
+      target_sum_ok: Math.abs(targetSum - 1.0) <= 0.01,
+      allocation_breakdown: Object.fromEntries(
+        allocationEntries
+          .filter(([k, v]) => v > 0.001)
+          .map(([k, v]) => [k, `${(v * 100).toFixed(1)}%`])
+      )
+    });
+
+    if (!totalCheck.isValid) {
+      console.error('❌ Invalid allocation total:', totalCheck.total);
+      // Normaliser l'allocation si nécessaire
+      const scale = 1 / totalCheck.total;
+      Object.keys(coinAllocation).forEach(key => {
+        coinAllocation[key] *= scale;
+      });
+      console.warn('⚠️ Allocation normalized to sum to 1.0');
+    }
+
+    // 8. LOGS POUR DEBUG
     logAllocationDecisions({
       context,
       macro: macroAllocation,
@@ -96,7 +145,7 @@ export async function calculateHierarchicalAllocation(context, currentPositions 
       execution: executionPlan
     });
 
-    return {
+    const result = {
       version: 'v2',
       allocation: coinAllocation,
       execution: executionPlan,
@@ -107,6 +156,9 @@ export async function calculateHierarchicalAllocation(context, currentPositions 
         total_check: validateTotalAllocation(coinAllocation)
       }
     };
+
+    console.debug('🎯 Final V2 allocation result:', result);
+    return result;
 
   } catch (error) {
     console.error('❌ Allocation Engine V2 failed:', error);
@@ -120,45 +172,66 @@ export async function calculateHierarchicalAllocation(context, currentPositions 
 function calculateMacroAllocation(context, floors) {
   const { cycleScore = 50, adaptiveWeights = {}, risk_budget = {} } = context;
 
-  // Base allocation selon cycle
-  let btcTarget, ethTarget, stablesTarget, altsTarget;
+  // SOURCE UNIQUE: risk_budget.target_stables_pct avec fallback regime_based
+  const stablesTarget = risk_budget.target_stables_pct ?
+    risk_budget.target_stables_pct / 100 :
+    (cycleScore >= 90 ? 0.15 : cycleScore >= 70 ? 0.20 : 0.30);
 
+  // RENORMALISATION PROPORTIONNELLE des non-stables
+  const nonStablesSpace = 1 - stablesTarget;
+
+  // Ratios de base selon cycle (avant renormalisation)
+  let baseBtcRatio, baseEthRatio, baseAltsRatio;
   if (cycleScore >= 90) {
     // Bull market: plus d'alts
-    btcTarget = 0.25;
-    ethTarget = 0.20;
-    stablesTarget = risk_budget.target_stables_pct ? risk_budget.target_stables_pct / 100 : 0.15;
-    altsTarget = 1 - btcTarget - ethTarget - stablesTarget;
+    baseBtcRatio = 0.25;
+    baseEthRatio = 0.20;
+    baseAltsRatio = 0.55; // Le reste
   } else if (cycleScore >= 70) {
     // Modéré: équilibré
-    btcTarget = 0.30;
-    ethTarget = 0.22;
-    stablesTarget = risk_budget.target_stables_pct ? risk_budget.target_stables_pct / 100 : 0.20;
-    altsTarget = 1 - btcTarget - ethTarget - stablesTarget;
+    baseBtcRatio = 0.30;
+    baseEthRatio = 0.22;
+    baseAltsRatio = 0.48;
   } else {
     // Bearish: défensif
-    btcTarget = 0.35;
-    ethTarget = 0.25;
-    stablesTarget = risk_budget.target_stables_pct ? risk_budget.target_stables_pct / 100 : 0.30;
-    altsTarget = 1 - btcTarget - ethTarget - stablesTarget;
+    baseBtcRatio = 0.35;
+    baseEthRatio = 0.25;
+    baseAltsRatio = 0.40;
   }
 
-  // Appliquer floors
+  // Renormalisation proportionnelle pour respecter l'espace non-stables
+  const baseTotal = baseBtcRatio + baseEthRatio + baseAltsRatio;
+  let btcTarget = (baseBtcRatio / baseTotal) * nonStablesSpace;
+  let ethTarget = (baseEthRatio / baseTotal) * nonStablesSpace;
+  let altsTarget = (baseAltsRatio / baseTotal) * nonStablesSpace;
+
+  // Appliquer floors (après renormalisation)
   btcTarget = Math.max(btcTarget, floors.BTC || 0);
   ethTarget = Math.max(ethTarget, floors.ETH || 0);
-  stablesTarget = Math.max(stablesTarget, floors.Stablecoins || 0);
+  const finalStablesTarget = Math.max(stablesTarget, floors.Stablecoins || 0);
 
-  // Normaliser
-  const total = btcTarget + ethTarget + stablesTarget + altsTarget;
-  if (total > 1) {
-    const excess = total - 1;
-    altsTarget = Math.max(0.05, altsTarget - excess); // Réduire alts si dépassement
+  // Renormalisation finale si floors causent dépassement
+  const preNormTotal = btcTarget + ethTarget + finalStablesTarget + altsTarget;
+  if (preNormTotal > 1) {
+    const excess = preNormTotal - 1;
+    // Réduire alts en priorité, puis BTC/ETH proportionnellement
+    if (altsTarget >= excess) {
+      altsTarget = Math.max(0.05, altsTarget - excess);
+    } else {
+      altsTarget = 0.05;
+      const remainingExcess = excess - (altsTarget - 0.05);
+      const btcEthTotal = btcTarget + ethTarget;
+      if (btcEthTotal > 0) {
+        btcTarget *= (1 - remainingExcess / btcEthTotal);
+        ethTarget *= (1 - remainingExcess / btcEthTotal);
+      }
+    }
   }
 
   return {
     BTC: btcTarget,
     ETH: ethTarget,
-    Stablecoins: stablesTarget,
+    Stablecoins: finalStablesTarget,
     Alts: altsTarget
   };
 }
@@ -169,6 +242,10 @@ function calculateMacroAllocation(context, floors) {
 function calculateSectorAllocation(macroAllocation, floors, isBullishPhase) {
   const altsTotal = macroAllocation.Alts;
 
+  // Debug: log the floors being used
+  console.debug('🏗️ Sector allocation floors:', floors);
+  console.debug('📊 Bullish phase:', isBullishPhase, 'Alts total:', altsTotal);
+
   // Secteurs alts à distribuer
   const altSectors = ['SOL', 'L1/L0 majors', 'L2/Scaling', 'DeFi', 'Memecoins', 'Gaming/NFT', 'AI/Data', 'Others'];
 
@@ -178,33 +255,54 @@ function calculateSectorAllocation(macroAllocation, floors, isBullishPhase) {
     Stablecoins: macroAllocation.Stablecoins
   };
 
-  if (isBullishPhase) {
-    // Distribution bullish (plus d'exposition alts)
-    allocation.SOL = Math.max(floors.SOL || 0, altsTotal * 0.25);
-    allocation['L1/L0 majors'] = Math.max(floors['L1/L0 majors'] || 0, altsTotal * 0.30);
-    allocation['L2/Scaling'] = Math.max(floors['L2/Scaling'] || 0, altsTotal * 0.15);
-    allocation.DeFi = Math.max(floors.DeFi || 0, altsTotal * 0.20);
-    allocation.Memecoins = Math.max(floors.Memecoins || 0, altsTotal * 0.05);
-    allocation['Gaming/NFT'] = Math.max(floors['Gaming/NFT'] || 0, altsTotal * 0.03);
-    allocation['AI/Data'] = Math.max(floors['AI/Data'] || 0, altsTotal * 0.02);
-  } else {
-    // Distribution modérée/bearish
-    allocation.SOL = Math.max(floors.SOL || 0, altsTotal * 0.20);
-    allocation['L1/L0 majors'] = Math.max(floors['L1/L0 majors'] || 0, altsTotal * 0.40);
-    allocation['L2/Scaling'] = Math.max(floors['L2/Scaling'] || 0, altsTotal * 0.10);
-    allocation.DeFi = Math.max(floors.DeFi || 0, altsTotal * 0.15);
-    allocation.Memecoins = Math.max(floors.Memecoins || 0, altsTotal * 0.02);
-    allocation['Gaming/NFT'] = Math.max(floors['Gaming/NFT'] || 0, altsTotal * 0.01);
-    allocation['AI/Data'] = Math.max(floors['AI/Data'] || 0, altsTotal * 0.01);
+  // Ratios souhaités par secteur alts
+  const sectorRatios = isBullishPhase ? {
+    'SOL': 0.25,
+    'L1/L0 majors': 0.30,
+    'L2/Scaling': 0.15,
+    'DeFi': 0.20,
+    'Memecoins': 0.05,
+    'Gaming/NFT': 0.03,
+    'AI/Data': 0.02
+  } : {
+    'SOL': 0.20,
+    'L1/L0 majors': 0.40,
+    'L2/Scaling': 0.10,
+    'DeFi': 0.15,
+    'Memecoins': 0.02,
+    'Gaming/NFT': 0.01,
+    'AI/Data': 0.01
+  };
+
+  // Calcul initial avec floors
+  let sectorWeights = {};
+  Object.entries(sectorRatios).forEach(([sector, ratio]) => {
+    const desiredWeight = altsTotal * ratio;
+    const floorWeight = floors[sector] || 0;
+    sectorWeights[sector] = Math.max(floorWeight, desiredWeight);
+  });
+
+  // NORMALISATION: si la somme des floors > budget alts, réduire proportionnellement
+  const totalSectorWeights = Object.values(sectorWeights).reduce((sum, w) => sum + w, 0);
+  const othersFloor = floors.Others || 0.01;
+  const availableForSectors = Math.max(0, altsTotal - othersFloor);
+
+  if (totalSectorWeights > availableForSectors) {
+    const scale = availableForSectors / totalSectorWeights;
+    console.debug(`🔧 Sector floors exceed budget alts (${(totalSectorWeights * 100).toFixed(1)}% > ${(availableForSectors * 100).toFixed(1)}%), scaling by ${scale.toFixed(3)}`);
+    Object.keys(sectorWeights).forEach(sector => {
+      sectorWeights[sector] *= scale;
+    });
   }
 
-  // Others = reste
-  const allocatedAlts = Object.entries(allocation)
-    .filter(([key]) => altSectors.includes(key))
-    .reduce((sum, [, value]) => sum + (isNaN(value) ? 0 : value), 0);
+  // Appliquer les poids normalisés
+  Object.entries(sectorWeights).forEach(([sector, weight]) => {
+    allocation[sector] = weight;
+  });
 
-  const othersWeight = Math.max(floors.Others || 0, altsTotal - allocatedAlts);
-  allocation.Others = isNaN(othersWeight) ? floors.Others || 0.01 : othersWeight;
+  // Others = reste disponible
+  const finalAllocated = Object.values(sectorWeights).reduce((sum, w) => sum + w, 0);
+  allocation.Others = Math.max(othersFloor, altsTotal - finalAllocated);
 
   return allocation;
 }
@@ -218,11 +316,24 @@ function calculateCoinAllocation(sectorAllocation, currentPositions, floors) {
 
   console.debug('🔒 Incumbency protection for held assets:', Array.from(heldAssets));
 
+  // Debug: check how assets are classified
+  currentPositions.forEach(pos => {
+    const symbol = pos.symbol?.toUpperCase();
+    const group = getAssetGroup(symbol);
+    console.debug(`🏷️ Asset ${symbol} → Group: ${group}`);
+  });
+
+  // Debug: show UNIFIED_ASSET_GROUPS structure
+  console.debug('🏗️ UNIFIED_ASSET_GROUPS:', UNIFIED_ASSET_GROUPS);
+
   // Pour chaque secteur, distribuer vers les coins
   Object.entries(sectorAllocation).forEach(([sector, sectorWeight]) => {
+    // Ensure sectorWeight is a valid number
+    const validSectorWeight = isNaN(sectorWeight) || sectorWeight == null ? 0 : sectorWeight;
+
     if (['BTC', 'ETH', 'Stablecoins'].includes(sector)) {
       // Pas de subdivision pour ces secteurs majeurs
-      coinAllocation[sector] = sectorWeight;
+      coinAllocation[sector] = validSectorWeight;
     } else {
       // Secteurs avec subdivision possible
       const sectorAssets = UNIFIED_ASSET_GROUPS[sector] || [];
@@ -230,21 +341,40 @@ function calculateCoinAllocation(sectorAllocation, currentPositions, floors) {
 
       if (heldInSector.length === 0) {
         // Pas d'assets détenus dans ce secteur
-        coinAllocation[sector] = sectorWeight;
+        coinAllocation[sector] = validSectorWeight;
       } else {
-        // Redistribuer vers assets détenus avec incumbency protection
-        const incumbencyTotal = heldInSector.length * floors.incumbency;
-        const remainingWeight = Math.max(0, sectorWeight - incumbencyTotal);
+        // INCUMBENCY BORNÉ: si n*3% > secteur, répartir secteur/n, reste = 0
+        const desiredIncumbencyFloor = floors.incumbency || 0.03;
+        const desiredIncumbencyTotal = heldInSector.length * desiredIncumbencyFloor;
 
-        // Distribution égale + incumbency
-        heldInSector.forEach(asset => {
-          const assetWeight = floors.incumbency + (remainingWeight / heldInSector.length);
-          coinAllocation[asset] = isNaN(assetWeight) ? floors.incumbency : assetWeight;
-        });
+        let actualIncumbencyFloor, remainingWeight;
+        if (desiredIncumbencyTotal > validSectorWeight) {
+          // Cas: incumbency dépasserait le secteur → répartir équitablement
+          actualIncumbencyFloor = validSectorWeight / heldInSector.length;
+          remainingWeight = 0;
+          console.debug(`⚠️ Incumbency capped for ${sector}: ${heldInSector.length} × ${desiredIncumbencyFloor.toFixed(3)} → ${actualIncumbencyFloor.toFixed(3)} each`);
+        } else {
+          // Cas normal: incumbency + reste
+          actualIncumbencyFloor = desiredIncumbencyFloor;
+          remainingWeight = validSectorWeight - desiredIncumbencyTotal;
+        }
 
-        // Le reste va au secteur global (pour nouveaux achats potentiels)
-        if (remainingWeight > 0) {
-          coinAllocation[sector] = Math.max(0, sectorWeight * 0.1); // 10% pour flexibilité
+        // HIERARCHIE STRICTE: soit secteur global, soit coins individuels, jamais les deux
+        if (heldInSector.length === 1 && validSectorWeight > 0.05) {
+          // Un seul coin détenu avec allocation significative → l'exposer directement
+          const assetWeight = validSectorWeight;
+          coinAllocation[heldInSector[0]] = assetWeight;
+          // NE PAS ajouter le secteur global pour éviter double-comptage
+        } else if (heldInSector.length > 1) {
+          // Plusieurs coins détenus → distribution avec incumbency borné
+          heldInSector.forEach(asset => {
+            const assetWeight = actualIncumbencyFloor + (remainingWeight / heldInSector.length);
+            coinAllocation[asset] = isNaN(assetWeight) ? actualIncumbencyFloor : assetWeight;
+          });
+          // NE PAS ajouter le secteur global
+        } else {
+          // Aucun coin détenu → allocation au secteur global uniquement
+          coinAllocation[sector] = validSectorWeight;
         }
       }
     }
@@ -257,25 +387,42 @@ function calculateCoinAllocation(sectorAllocation, currentPositions, floors) {
  * Calcul du plan d'exécution (iterations estimées)
  */
 function calculateExecutionPlan(targetAllocation, currentPositions, executionContext = {}) {
-  const capPerIter = executionContext.cap_pct_per_iter || 7;
+  const capPerIterPct = executionContext.cap_pct_per_iter ?? 7; // ex: 7 (%)
+  const capPerIter = capPerIterPct / 100;                       // 0.07 (fraction)
 
   // Calculer les écarts max
   const currentAlloc = calculateCurrentAllocation(currentPositions);
   let maxDelta = 0;
+  let maxDeltaGroup = '';
 
+  const deltas = [];
   Object.entries(targetAllocation).forEach(([asset, target]) => {
     const current = currentAlloc[asset] || 0;
     const delta = Math.abs(target - current);
-    maxDelta = Math.max(maxDelta, delta);
+    deltas.push({ asset, current: current * 100, target: target * 100, delta: delta * 100 });
+
+    if (delta > maxDelta) {
+      maxDelta = delta;
+      maxDeltaGroup = asset;
+    }
   });
 
-  // Estimer les iterations nécessaires
-  const estimatedIters = Math.ceil(maxDelta / (capPerIter / 100));
+  // Estimer les iterations nécessaires (maxDelta et capPerIter sont tous deux en fraction 0-1)
+  const estimatedIters = Math.ceil(maxDelta / capPerIter);
+
+  console.debug('🔄 Convergence calculation:', {
+    maxDeltaPct: (maxDelta * 100).toFixed(1),
+    maxDeltaGroup,
+    capPerIter,
+    estimatedIters,
+    formula: `ceil(${(maxDelta * 100).toFixed(1)}% / ${capPerIter}%) = ${estimatedIters}`,
+    allDeltas: deltas.filter(d => d.delta > 0.1).map(d => `${d.asset}: ${d.current.toFixed(1)}% → ${d.target.toFixed(1)}% (Δ${d.delta.toFixed(1)}%)`)
+  });
 
   return {
     estimated_iters_to_target: estimatedIters,
     max_delta_pct: maxDelta * 100,
-    cap_per_iter: capPerIter,
+    cap_per_iter: capPerIterPct, // exposé en % pour l'affichage
     convergence_time_estimate: `${estimatedIters} rebalances`
   };
 }
@@ -297,14 +444,81 @@ function calculateCurrentAllocation(positions) {
 }
 
 function validateTotalAllocation(allocation) {
-  const total = Object.values(allocation).reduce((sum, val) => sum + val, 0);
+  // Filter out null, undefined, and NaN values before summing
+  const validValues = Object.values(allocation).filter(val =>
+    val !== null && val !== undefined && !isNaN(val) && typeof val === 'number'
+  );
+  const total = validValues.reduce((sum, val) => sum + val, 0);
   const isValid = Math.abs(total - 1) < 0.001; // Tolérance 0.1%
 
   if (!isValid) {
-    console.warn('⚠️ Total allocation mismatch:', total);
+    console.warn('⚠️ Total allocation mismatch:', total, 'from values:', validValues);
   }
 
   return { total, isValid };
+}
+
+/**
+ * Validation hiérarchique - détecte double-comptage et incohérences
+ */
+function validateHierarchy(allocation, currentPositions) {
+  const issues = [];
+  const allocationKeys = Object.keys(allocation);
+
+  // Vérifier double-comptage: un coin ne doit pas coexister avec son groupe parent
+  currentPositions.forEach(pos => {
+    const symbol = pos.symbol?.toUpperCase();
+    const group = getAssetGroup(symbol);
+
+    if (allocation[symbol] && allocation[group] && symbol !== group) {
+      issues.push(`Double-comptage: ${symbol} (${allocation[symbol].toFixed(3)}) + ${group} (${allocation[group].toFixed(3)})`);
+    }
+  });
+
+  // Vérifier cohérence des groupes vs sous-éléments avec GROUP_ORDER (synchrone)
+  const topLevelGroups = ['BTC', 'ETH', 'Stablecoins', 'SOL', 'L1/L0 majors', 'L2/Scaling', 'DeFi', 'AI/Data', 'Gaming/NFT', 'Memecoins', 'Others'];
+
+  topLevelGroups.forEach(group => {
+    const groupWeight = allocation[group] || 0;
+    const groupAssets = UNIFIED_ASSET_GROUPS[group] || [];
+    const childrenWeights = groupAssets
+      .filter(asset => allocation[asset])
+      .reduce((sum, asset) => sum + (allocation[asset] || 0), 0);
+
+    if (groupWeight > 0 && childrenWeights > 0) {
+      issues.push(`Groupe ${group} (${groupWeight.toFixed(3)}) coexiste avec enfants (${childrenWeights.toFixed(3)})`);
+    }
+
+    // GUARD: group_without_descent - affiné selon la demande
+    const isTerminal = ['BTC', 'ETH', 'Stablecoins', 'Others'].includes(group);
+    if (groupWeight > 0.001 && childrenWeights === 0 && groupAssets.length > 0) {
+      if (isTerminal) {
+        console.debug(`🔍 group_without_descent (terminal): ${group} (${groupWeight.toFixed(3)}) - OK pour terminal`);
+      } else {
+        console.debug(`🔍 group_without_descent (secteur): ${group} (${groupWeight.toFixed(3)}) - drill-down vide autorisé`);
+      }
+    }
+  });
+
+  // GUARD: child_at_top_level - WARN seulement si parent a poids > 0 (vrai double-comptage)
+  allocationKeys.forEach(key => {
+    if (!topLevelGroups.includes(key) && allocation[key] > 0.001) {
+      const parentGroup = getAssetGroup(key);
+      const parentWeight = allocation[parentGroup] || 0;
+
+      if (parentGroup !== key && parentGroup !== 'Others' && parentWeight > 0.001) {
+        console.warn(`⚠️ child_at_top_level: ${key} (${allocation[key].toFixed(3)}) + parent ${parentGroup} (${parentWeight.toFixed(3)}) = vrai double-comptage`);
+        issues.push(`child_at_top_level: ${key} → ${parentGroup}`);
+      } else if (parentGroup !== key) {
+        console.debug(`🔍 child_at_top_level: ${key} (${allocation[key].toFixed(3)}) mais parent ${parentGroup} = 0 - OK`);
+      }
+    }
+  });
+
+  return {
+    valid: issues.length === 0,
+    issues: issues
+  };
 }
 
 function logAllocationDecisions(data) {

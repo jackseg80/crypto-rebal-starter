@@ -211,16 +211,32 @@ export function calculateRiskBudget(blendedScore, riskScore) {
   
   // Stables = 1 - Risky
   const stablesAllocation = 1 - riskyAllocation;
-  
+
+  // Arrondi unique pour éviter 101%
+  const riskyPct = Math.round(riskyAllocation * 100);
+  const stablesPct = 100 - riskyPct;
+
+  // DEBUG - Vérifier l'arrondi
+  console.debug('🔍 ARRONDI DEBUG:', {
+    riskyAllocation,
+    stablesAllocation,
+    riskyRaw: riskyAllocation * 100,
+    stablesRaw: stablesAllocation * 100,
+    riskyPct,
+    stablesPct,
+    sum: riskyPct + stablesPct,
+    shouldBe100: (riskyPct + stablesPct) === 100
+  });
+
   const result = {
     risk_cap: riskCap,
     base_risky: baseRisky,
     risky_allocation: riskyAllocation,
     stables_allocation: stablesAllocation,
-    percentages: {
-      risky: Math.round(riskyAllocation * 100),
-      stables: Math.round(stablesAllocation * 100)
-    }
+    percentages: { risky: riskyPct, stables: stablesPct },
+    // Champ canonique pour source unique
+    target_stables_pct: stablesPct,
+    generated_at: new Date().toISOString()
   };
   
   console.log('💰 Risk Budget calculated:', result);
