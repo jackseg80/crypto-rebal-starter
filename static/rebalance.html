@@ -405,6 +405,113 @@
     .notification.error {
       border-left: 4px solid var(--danger);
     }
+
+    /* Toggle Switch pour le mode priority */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: var(--theme-border);
+      transition: .3s;
+      border-radius: 24px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: var(--brand-primary);
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(20px);
+    }
+
+    /* Priority groups pills */
+    .priority-group-pill {
+      display: inline-block;
+      padding: 2px 6px;
+      margin: 2px;
+      background: var(--brand-primary-subtle);
+      border: 1px solid var(--brand-primary);
+      border-radius: 4px;
+      font-size: 10px;
+      color: var(--brand-primary);
+    }
+
+    .priority-group-pill.fallback {
+      background: var(--warning-subtle);
+      border-color: var(--warning);
+      color: var(--warning);
+    }
+
+    /* Tri des colonnes dans le tableau Actions */
+    .sortable {
+      cursor: pointer;
+      user-select: none;
+      position: relative;
+      padding-right: 20px;
+    }
+
+    .sortable:hover {
+      background-color: var(--theme-surface-elevated);
+    }
+
+    .sort-arrow {
+      position: absolute;
+      right: 4px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 12px;
+      color: var(--theme-text-muted);
+      transition: color 0.2s;
+    }
+
+    .sortable.sort-asc .sort-arrow {
+      color: var(--brand-primary);
+    }
+
+    .sortable.sort-asc .sort-arrow::before {
+      content: '↑';
+    }
+
+    .sortable.sort-desc .sort-arrow {
+      color: var(--brand-primary);
+    }
+
+    .sortable.sort-desc .sort-arrow::before {
+      content: '↓';
+    }
+
+    .sortable.sort-asc .sort-arrow,
+    .sortable.sort-desc .sort-arrow {
+      font-weight: bold;
+    }
   </style>
 
   <script type="module" src="components/tooltips.js"></script>
@@ -473,6 +580,37 @@
   </div>
 
   <main class="wrap tab-panel active" id="rebalance-tab">
+    <!-- Paramètres d'allocation intra-groupe -->
+    <section class="card" style="margin-bottom: 16px;">
+      <h3 style="margin-bottom: 12px;">⚙️ Paramètres d'Allocation</h3>
+      <div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <label for="sub-allocation-toggle" style="font-size: 14px; cursor: pointer;">
+            Mode intra-groupe :
+          </label>
+          <label class="switch">
+            <input type="checkbox" id="sub-allocation-toggle">
+            <span class="slider"></span>
+          </label>
+          <span id="sub-allocation-label" style="font-weight: 600; color: var(--brand-primary);">
+            Proportionnel
+          </span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <label for="min-trade-input" style="font-size: 14px;">Trade minimum :</label>
+          <input type="number" id="min-trade-input" value="25" min="1" max="1000" step="1"
+                 style="width: 80px; padding: 4px 8px; border: 1px solid var(--theme-border); border-radius: 4px;">
+          <span style="font-size: 14px; color: var(--theme-text-muted);">USD</span>
+        </div>
+        <div id="priority-status" style="display: none; flex: 1; min-width: 200px;">
+          <div style="font-size: 12px; color: var(--theme-text-muted); margin-bottom: 4px;">
+            <span id="universe-source"></span> • <span id="universe-timestamp"></span>
+          </div>
+          <div id="priority-groups-info" style="font-size: 11px; color: var(--brand-primary);"></div>
+        </div>
+      </div>
+    </section>
+
     <!-- Donuts -->
     <section class="card">
       <h3>Répartition</h3>
@@ -505,14 +643,14 @@
         <table id="tblActions">
           <thead>
             <tr>
-              <th>group</th>
-              <th>alias</th>
-              <th>symbol</th>
-              <th>action</th>
-              <th class="right">usd</th>
-              <th class="right">est_quantity</th>
-              <th class="right">price_used</th>
-              <th>location</th>
+              <th class="sortable" data-sort="group">group <span class="sort-arrow">⇅</span></th>
+              <th class="sortable" data-sort="alias">alias <span class="sort-arrow">⇅</span></th>
+              <th class="sortable" data-sort="symbol">symbol <span class="sort-arrow">⇅</span></th>
+              <th class="sortable" data-sort="action">action <span class="sort-arrow">⇅</span></th>
+              <th class="sortable right" data-sort="usd">usd <span class="sort-arrow">⇅</span></th>
+              <th class="sortable right" data-sort="est_quantity">est_quantity <span class="sort-arrow">⇅</span></th>
+              <th class="sortable right" data-sort="price_used">price_used <span class="sort-arrow">⇅</span></th>
+              <th class="sortable" data-sort="location">location <span class="sort-arrow">⇅</span></th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -1291,6 +1429,68 @@
 
     const fmt = n => (n == null || isNaN(n)) ? "" : Number(n).toLocaleString(undefined, { maximumFractionDigits: 8 });
     const fmt2 = n => (n == null || isNaN(n)) ? "—" : Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
+
+    function renderPriorityMeta(plan) {
+      console.log('🔍 renderPriorityMeta called with plan:', plan);
+
+      const priorityMeta = plan?.priority_meta;
+      console.log('🔍 priorityMeta found:', priorityMeta);
+
+      const priorityStatus = document.getElementById('priority-status');
+      const universeSource = document.getElementById('universe-source');
+      const universeTimestamp = document.getElementById('universe-timestamp');
+      const priorityGroupsInfo = document.getElementById('priority-groups-info');
+
+      console.log('🔍 DOM elements found:', {
+        priorityStatus: !!priorityStatus,
+        universeSource: !!universeSource,
+        universeTimestamp: !!universeTimestamp,
+        priorityGroupsInfo: !!priorityGroupsInfo
+      });
+
+      if (!priorityStatus || !priorityMeta) {
+        console.log('🔍 No priority status or meta, hiding');
+        if (priorityStatus) priorityStatus.style.display = 'none';
+        return;
+      }
+
+      if (priorityMeta.mode === 'priority') {
+        priorityStatus.style.display = 'block';
+
+        // Source et timestamp
+        if (universeSource) {
+          const source = priorityMeta.universe_available ? 'Univers chargé' : 'Univers indisponible';
+          universeSource.textContent = source;
+          universeSource.style.color = priorityMeta.universe_available ? 'var(--success)' : 'var(--danger)';
+        }
+
+        if (universeTimestamp) {
+          universeTimestamp.textContent = new Date().toLocaleTimeString();
+        }
+
+        // Infos par groupe
+        if (priorityGroupsInfo && priorityMeta.groups_details) {
+          const groupPills = [];
+          const totalGroups = priorityMeta.universe_groups?.length || 0;
+          const fallbackGroups = priorityMeta.groups_with_fallback?.length || 0;
+
+          for (const [group, details] of Object.entries(priorityMeta.groups_details)) {
+            const isFallback = details.fallback_used;
+            const pillClass = isFallback ? 'priority-group-pill fallback' : 'priority-group-pill';
+            const tooltip = isFallback
+              ? `${group}: Fallback proportionnel (${details.total_coins} coins analysés)`
+              : `${group}: ${details.total_coins} coins, Top: ${details.top_suggestions.map(s => s.alias).join(', ')}`;
+
+            groupPills.push(`<span class="${pillClass}" title="${tooltip}">${group}${isFallback ? ' ⚠️' : ''}</span>`);
+          }
+
+          priorityGroupsInfo.innerHTML = groupPills.join('') +
+            ` <span style="margin-left: 8px; color: var(--theme-text-muted);">(${totalGroups - fallbackGroups}/${totalGroups} priority)</span>`;
+        }
+      } else {
+        priorityStatus.style.display = 'none';
+      }
+    }
     const formatMoney = (usd) => {
       const cur = (window.globalConfig && window.globalConfig.get('display_currency')) || 'USD';
       const rate = (window.currencyManager && window.currencyManager.getRateSync(cur)) || 1;
@@ -2097,6 +2297,12 @@
     }
 
     function buildPayload() {
+      // Lire les paramètres UI
+      const isPriorityMode = document.getElementById('sub-allocation-toggle')?.checked || false;
+      const minTradeUsd = parseFloat(document.getElementById('min-trade-input')?.value || 25);
+
+      console.log('🔍 buildPayload - Priority mode:', isPriorityMode, 'Min trade USD:', minTradeUsd);
+
       // Base payload
       const payload = {
         primary_symbols: {
@@ -2104,9 +2310,11 @@
           ETH: ["ETH", "WSTETH", "STETH", "RETH", "WETH"],
           SOL: ["SOL", "JUPSOL", "JITOSOL"]
         },
-        sub_allocation: "proportional",
-        min_trade_usd: 25
+        sub_allocation: isPriorityMode ? "priority" : "proportional",
+        min_trade_usd: minTradeUsd
       };
+
+      console.log('🔍 buildPayload - Final payload sub_allocation:', payload.sub_allocation);
 
       // Use dynamic targets if available, otherwise default manual targets
       if (useDynamicTargets && dynamicTargets) {
@@ -2176,7 +2384,16 @@
     }
 
     /* ---------- Résumé & Actions ---------- */
+    let currentActionsData = [];
+    let currentSortColumn = null;
+    let currentSortDirection = 'asc';
+
     function renderActions(actions) {
+      currentActionsData = actions || [];
+      renderActionsTable(currentActionsData);
+    }
+
+    function renderActionsTable(actions) {
       const tb = $("#tblActions tbody");
       tb.innerHTML = (actions || []).map(a => `
     <tr>
@@ -2190,6 +2407,48 @@
       <td>${a.exec_hint || a.location || ""}</td>
     </tr>
   `).join("");
+    }
+
+    function sortActions(column) {
+      if (currentSortColumn === column) {
+        currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+      } else {
+        currentSortColumn = column;
+        currentSortDirection = 'asc';
+      }
+
+      const sortedActions = [...currentActionsData].sort((a, b) => {
+        let aVal = a[column];
+        let bVal = b[column];
+
+        // Traitement spécial pour les valeurs numériques
+        if (column === 'usd' || column === 'est_quantity' || column === 'price_used') {
+          aVal = parseFloat(aVal) || 0;
+          bVal = parseFloat(bVal) || 0;
+        } else {
+          // Pour les textes, normaliser
+          aVal = String(aVal || '').toLowerCase();
+          bVal = String(bVal || '').toLowerCase();
+        }
+
+        let result = 0;
+        if (aVal < bVal) result = -1;
+        else if (aVal > bVal) result = 1;
+
+        return currentSortDirection === 'desc' ? -result : result;
+      });
+
+      // Mettre à jour les flèches de tri
+      document.querySelectorAll('#tblActions th.sortable').forEach(th => {
+        th.classList.remove('sort-asc', 'sort-desc');
+      });
+
+      const currentTh = document.querySelector(`#tblActions th[data-sort="${column}"]`);
+      if (currentTh) {
+        currentTh.classList.add(`sort-${currentSortDirection}`);
+      }
+
+      renderActionsTable(sortedActions);
     }
 
     function updatePricingBadge(actions, plan) {
@@ -2400,31 +2659,28 @@
 
         let plan;
 
-        // Use real data only from configured source
-        console.log('🔄 Using real data for rebalancing plan from configured source');
-        plan = await generateRealPlan(); // Use real configured data only
+        // Vérifier si le mode priority est activé
+        const isPriorityMode = document.getElementById('sub-allocation-toggle')?.checked || false;
 
-        /* Commented out API call - forcing CSV data for consistency
-        try {
-          plan = await postJson(url, buildPayload());
-          console.log('🔍 Server returned plan with target_weights_pct:', plan.target_weights_pct);
-          console.log('🔍 Server plan total_usd:', plan.total_usd);
-          console.log('🔍 Server plan source:', plan.meta?.source_used);
-          
-          // Force use of real CSV data if server data looks mock or incomplete
-          if (!plan.current_weights_pct || plan.total_usd < 100000 || 
-              plan.meta?.source_used === 'mock_data' || 
-              Object.keys(plan.current_weights_pct || {}).length < 5) {
-            console.warn('⚠️ Server returned insufficient/mock data, using real CSV data instead');
-            plan = await generateMockPlan(); // Use real CSV data
+        if (isPriorityMode) {
+          console.log('🔄 Priority mode activated - using API call with buildPayload');
+          try {
+            plan = await postJson(url, buildPayload());
+            console.log('🔍 Server returned plan with priority_meta:', plan.priority_meta);
+            console.log('🔍 Server plan total_usd:', plan.total_usd);
+            console.log('🔍 Server plan source:', plan.meta?.source_used);
+          } catch (apiError) {
+            console.warn('❌ API call failed for priority mode, falling back to local data:', apiError);
+            plan = await generateRealPlan(); // Fallback to local data
           }
-        } catch (apiError) {
-          console.warn('API unavailable, using mock data:', apiError);
-          plan = await generateMockPlan(); // Now async
+        } else {
+          // Mode proportionnel - utiliser les données locales comme avant
+          console.log('🔄 Using real data for rebalancing plan from configured source (proportional mode)');
+          plan = await generateRealPlan(); // Use real configured data only
         }
-        */
         renderDonuts(plan);
         renderSummary(plan);
+        renderPriorityMeta(plan);
         renderActions(plan.actions || []);
         updatePricingBadge(plan.actions || [], plan);
         renderUnknownAliases(plan.unknown_aliases || []);
@@ -2843,6 +3099,59 @@
       el("btnJson").addEventListener("click", exportJsonForExecution);
       el("btnCopyJson").addEventListener("click", copyJsonToClipboard);
       el("btnBulkAdd").addEventListener("click", bulkAddUnknown);
+
+      // Event listeners pour les paramètres d'allocation
+      const subAllocationToggle = document.getElementById('sub-allocation-toggle');
+      const subAllocationLabel = document.getElementById('sub-allocation-label');
+      const priorityStatus = document.getElementById('priority-status');
+
+      if (subAllocationToggle && subAllocationLabel) {
+        console.log('🔍 Setting up sub-allocation toggle listeners');
+        subAllocationToggle.addEventListener('change', function() {
+          const isPriority = this.checked;
+          console.log('🔍 Toggle changed to:', isPriority ? 'priority' : 'proportional');
+
+          subAllocationLabel.textContent = isPriority ? 'Priorité' : 'Proportionnel';
+          subAllocationLabel.style.color = isPriority ? 'var(--warning)' : 'var(--brand-primary)';
+
+          if (priorityStatus) {
+            priorityStatus.style.display = isPriority ? 'block' : 'none';
+          }
+
+          // Auto-régénérer le plan si on a déjà des données
+          if (window.lastPlanData) {
+            console.log('🔍 Auto-regenerating plan with new mode');
+            setTimeout(() => runPlan(), 300);
+          }
+        });
+      } else {
+        console.log('❌ Could not find sub-allocation toggle elements:', {
+          subAllocationToggle: !!subAllocationToggle,
+          subAllocationLabel: !!subAllocationLabel
+        });
+      }
+
+      // Event listener pour min_trade_usd
+      const minTradeInput = document.getElementById('min-trade-input');
+      if (minTradeInput) {
+        minTradeInput.addEventListener('change', function() {
+          if (window.lastPlanData) {
+            setTimeout(() => runPlan(), 300);
+          }
+        });
+      }
+
+      // Event listeners pour le tri des colonnes Actions
+      document.addEventListener('click', function(e) {
+        if (e.target.closest('#tblActions th.sortable')) {
+          const th = e.target.closest('th.sortable');
+          const column = th.getAttribute('data-sort');
+          if (column) {
+            console.log('🔍 Sorting actions by column:', column);
+            sortActions(column);
+          }
+        }
+      });
 
 
       // Ajouter une fonction pour rafraîchir la stratégie dynamique

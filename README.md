@@ -107,6 +107,12 @@ function computeMacroTargetsDynamic(ctx, rb, walletStats) {
 - **Transparence** : Une seule source de données entre toutes les pages
 - **Performance** : Allocations optimisées selon concentration du wallet
 
+### Mode Priority Rebalancing
+- **Allocation intelligente** : Choix automatique des meilleurs assets dans chaque groupe
+- **Support univers limité** : Fallback gracieux vers mode proportionnel si données limitées
+- **Gestion des locations** : Attribution automatique des vraies exchanges (Kraken, Binance, etc.) depuis les données CSV
+- **Interface unifiée** : Toggle simple dans l'interface de rebalancing pour basculer entre modes proportionnel et priority
+
 ## Documentation
 - Guide agent: `CLAUDE.md`
 - Index docs: `docs/index.md`

@@ -980,6 +980,11 @@ def _assign_locations_to_actions(plan: dict, rows: list[dict], min_trade_usd: fl
     Ajoute la location aux actions. Pour les SELL, répartit par exchange
     au prorata des avoirs réels (value_usd) sur chaque exchange.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"🔧 _assign_locations_to_actions CALLED with {len(rows)} rows, {len(plan.get('actions', []))} actions")
+    print(f"🔧 DEBUG _assign_locations_to_actions CALLED with {len(rows)} rows, {len(plan.get('actions', []))} actions")
+
     # holdings[symbol][location] -> total value_usd
     holdings: dict[str, dict[str, float]] = {}
     locations_seen = set()
@@ -991,6 +996,9 @@ def _assign_locations_to_actions(plan: dict, rows: list[dict], min_trade_usd: fl
         if sym and val > 0:
             holdings.setdefault(sym, {}).setdefault(loc, 0.0)
             holdings[sym][loc] += val
+
+    logger.info(f"📍 _assign_locations_to_actions: {len(locations_seen)} locations found: {sorted(locations_seen)}")
+    logger.info(f"📍 Sample holdings: {dict(list(holdings.items())[:3])}")
     
 
     actions = plan.get("actions") or []
@@ -1001,8 +1009,8 @@ def _assign_locations_to_actions(plan: dict, rows: list[dict], min_trade_usd: fl
         usd = float(a.get("usd") or 0.0)
         loc = a.get("location")
 
-        # Si la location est déjà définie (ex. imposée par UI), on garde.
-        if loc and loc != "Unknown":
+        # Si la location est déjà définie ET ce n'est pas CoinTracking générique, on garde.
+        if loc and loc not in ["Unknown", "CoinTracking", "Cointracking"]:
             out_actions.append(a)
             continue
 
@@ -1184,7 +1192,9 @@ async def rebalance_plan(
         min_trade_usd=float(payload.get("min_trade_usd", 25.0)),
     )
 
+    print(f"🔧 BEFORE _assign_locations_to_actions: plan has {len(plan.get('actions', []))} actions")
     plan = _assign_locations_to_actions(plan, rows, min_trade_usd=float(payload.get("min_trade_usd", 25.0)))
+    print(f"🔧 AFTER _assign_locations_to_actions: plan has {len(plan.get('actions', []))} actions")
 
     # enrichissement prix (selon "pricing")
     source_used = unified_data.get("source_used", source)
