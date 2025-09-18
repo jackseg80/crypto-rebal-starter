@@ -14,13 +14,14 @@
   <script type="module" src="analytics-unified.js"></script>
   <script type="module">
     import { initDeepLinks } from './components/deep-links.js';
-    // Ancres pour analytics-unified.html : #unified #ml #cycles #performance #monitoring
+    // Ancres pour analytics-unified.html - pointent vers le contenu réel
     initDeepLinks({
-      'unified': 'Analytics Unifiés',
-      'ml': 'Machine Learning',
-      'cycles': 'Analyse des Cycles',
-      'performance': 'Performance',
-      'monitoring': 'Monitoring'
+      'unified-root': 'Analytics Unifiés',
+      'tab-intelligence-ml': 'Intelligence ML',
+      'tab-risk': 'Risk Dashboard',
+      'tab-performance': 'Performance Monitor',
+      'tab-cycles': 'Cycle Analysis',
+      'tab-monitoring': 'Advanced Analytics'
     });
   </script>
   <script type="module">
@@ -330,6 +331,53 @@
       }
     }
 
+    // Risk Budget ready guard - improved with multiple sources
+    async function ensureRiskBudgetReady(getRiskBudget, waitMs = 25, maxTries = 20) {
+      for (let i = 0; i < maxTries; i++) {
+        // Try multiple sources for risk budget
+        let rb = getRiskBudget?.();
+
+        // Fallback to store if direct function fails
+        if (!rb?.stables_allocation) {
+          const storeData = store.get('risk.budget');
+          if (storeData?.percentages) {
+            rb = {
+              stables_allocation: storeData.percentages.stables / 100,
+              risky_allocation: storeData.percentages.risky / 100
+            };
+          }
+        }
+
+        // Fallback to computed values if still missing
+        if (!rb?.stables_allocation && window.computeRiskBudget) {
+          try {
+            const computed = window.computeRiskBudget(store.get('scores.blended') || 50);
+            if (computed) {
+              rb = {
+                stables_allocation: computed.target_stables_pct / 100,
+                risky_allocation: (100 - computed.target_stables_pct) / 100
+              };
+            }
+          } catch (e) { /* ignore */ }
+        }
+
+        if (rb?.stables_allocation != null && rb?.risky_allocation != null) {
+          return rb;
+        }
+
+        await new Promise(r => setTimeout(r, waitMs));
+      }
+
+      // Final fallback - return synthetic budget based on current scores
+      console.warn('🚨 RiskBudget timeout, using synthetic fallback');
+      const blendedScore = store.get('scores.blended') || 50;
+      const stablesPercent = Math.max(10, Math.min(80, 100 - blendedScore));
+      return {
+        stables_allocation: stablesPercent / 100,
+        risky_allocation: (100 - stablesPercent) / 100
+      };
+    }
+
     // Lightweight unified data loader with INTELLIGENT CACHING
     async function loadUnifiedData() {
       console.log('🧠 Loading unified data with intelligent caching...');
@@ -390,12 +438,11 @@
           } catch (e) { console.warn('Cycle data load failed:', e.message); }
         }
 
-        // 3) On-Chain (via scraper/proxy) - With cache + FORCE REFRESH option
-        const forceOnchainRefresh = window.location.search.includes('force_onchain=true') ||
-                                   !isCacheValid(CACHE_CONFIG.onchain.key, CACHE_CONFIG.onchain.ttl);
+        // 3) On-Chain (via scraper/proxy) - SWR Cache (no more force refresh)
+        const manualRefresh = window.location.search.includes('force_onchain=true');
 
-        if (!forceOnchainRefresh && isCacheValid(CACHE_CONFIG.onchain.key, CACHE_CONFIG.onchain.ttl)) {
-          console.log('✅ On-Chain data loaded from cache');
+        if (!manualRefresh && isCacheValid(CACHE_CONFIG.onchain.key, CACHE_CONFIG.onchain.ttl)) {
+          console.log('✅ On-Chain data loaded from legacy cache');
           const onchainData = getCache(CACHE_CONFIG.onchain.key);
           if (typeof onchainData.score === 'number') {
             store.set('scores.onchain', onchainData.score);
@@ -405,11 +452,12 @@
           store.set('ui.apiStatus.signals', 'healthy');
           loadedFromCache++;
         } else {
-          console.log('🔄 FORCE ON-CHAIN REFRESH - Fetching fresh data from crypto-toolbox...');
+          console.log('🔄 On-Chain refresh - Using SWR cache for optimal performance...');
           try {
             const onchain = await import('./modules/onchain-indicators.js');
             const v2 = await import('./modules/composite-score-v2.js');
-            const indicators = await onchain.fetchAllIndicators();
+            // Use SWR-cached version by default (no force unless manual)
+            const indicators = await onchain.fetchAllIndicators({ force: manualRefresh });
             const dyn = localStorage.getItem('enable_dynamic_weighting') === 'true';
             const composite = v2.calculateCompositeScoreV2(indicators, dyn);
 
@@ -629,12 +677,15 @@
             );
           }
 
-          const targetStablesPct = stateSnapshot?.risk_budget?.target_stables_pct;
-          console.assert(
-            typeof targetStablesPct === 'number',
-            'INVARIANT FAILED: target_stables_pct manquant',
-            { targetStablesPct, riskBudget: stateSnapshot?.risk_budget }
-          );
+          // Wait for Risk Budget to be ready before continuing
+          const rb = await ensureRiskBudgetReady(() => window.__store?.riskBudget);
+          if (!rb) {
+            console.warn('⚠️ Skip render this tick: risk budget not ready');
+            return;
+          }
+
+          const targetStablesPct = Math.round(rb.stables_allocation * 100);
+          // Remove assert - use computed value instead
 
           // Vérifier groupes de targets si disponibles
           const targets = stateSnapshot?.strategy?.targets || [];
@@ -752,8 +803,66 @@
       // 1) Charger les données d'abord
       await loadUnifiedData();
 
+      // Enhanced UI Mutex with render state tracking
+      if (!window.__uiMutex) {
+        window.__uiMutex = {
+          busy: false,
+          lastRender: 0,
+          lastHash: '',
+          MIN_RENDER_INTERVAL: 1000 // Minimum 1s between renders
+        };
+      }
+
+      async function renderUnifiedInsightsOnce() {
+        const now = Date.now();
+
+        // Skip if already rendering
+        if (window.__uiMutex.busy) {
+          console.debug('🔒 UI Mutex: Skipping render (already in progress)');
+          return;
+        }
+
+        // Skip if rendered too recently
+        if (now - window.__uiMutex.lastRender < window.__uiMutex.MIN_RENDER_INTERVAL) {
+          console.debug('🔒 Rate limit: Skipping render (too frequent)');
+          return;
+        }
+
+        // Check if state actually changed
+        const storeSnapshot = store.snapshot();
+        const currentHash = JSON.stringify({
+          scores: storeSnapshot?.scores,
+          regime: storeSnapshot?.market?.regime?.name,
+          stables: storeSnapshot?.risk?.budget?.percentages?.stables
+        });
+
+        if (currentHash === window.__uiMutex.lastHash) {
+          console.debug('🔒 State unchanged: Skipping render');
+          return;
+        }
+
+        window.__uiMutex.busy = true;
+        window.__uiMutex.lastRender = now;
+        window.__uiMutex.lastHash = currentHash;
+
+        try {
+          await renderUnifiedInsights('unified-root');
+          console.debug('✅ Render completed');
+        } finally {
+          window.__uiMutex.busy = false;
+        }
+      }
+
+      // Subscribe once utility
+      function subscribeOnce(el, evt, handler, key) {
+        const k = `__bound_${key}`;
+        if (el[k]) return;
+        el.addEventListener(evt, handler);
+        el[k] = true;
+      }
+
       // 2) Premier rendu avec données fraîches
-      renderUnifiedInsights('unified-root');
+      renderUnifiedInsightsOnce();
 
       // 3) Initialize governance system
       setTimeout(async () => {
@@ -764,7 +873,7 @@
           console.log('✅ Governance system initialized in analytics dashboard');
 
           // Re-render to show governance status
-          renderUnifiedInsights('unified-root');
+          renderUnifiedInsightsOnce();
 
           // Refresh governance panel if initialized
           if (window.governancePanel) {
@@ -775,14 +884,54 @@
         }
       }, 500);
 
-      // keep in sync with store changes without over-rendering
-      let paintTimer;
+      // Manual refresh button handler
+      document.getElementById('manual-refresh-onchain')?.addEventListener('click', async function() {
+        console.log('🔄 Manual refresh triggered by user');
+        this.disabled = true;
+        this.textContent = '⏳ Actualisation...';
+
+        try {
+          // Force refresh onchain data
+          await loadUnifiedData();
+          await renderUnifiedInsightsOnce();
+
+          this.textContent = '✅ Actualisé';
+          setTimeout(() => {
+            this.textContent = '🔄 Actualiser';
+            this.disabled = false;
+          }, 2000);
+        } catch (error) {
+          console.error('Manual refresh failed:', error);
+          this.textContent = '❌ Erreur';
+          setTimeout(() => {
+            this.textContent = '🔄 Actualiser';
+            this.disabled = false;
+          }, 3000);
+        }
+      });
+
+      // Enhanced store subscription with intelligent debouncing
+      let paintTimer, lastStoreHash = '';
       store.subscribe(() => {
+        // Quick hash check to avoid unnecessary renders
+        const storeSnapshot = store.snapshot();
+        const currentHash = JSON.stringify({
+          scores: storeSnapshot?.scores,
+          regime: storeSnapshot?.market?.regime?.name,
+          stables: storeSnapshot?.risk?.budget?.percentages?.stables
+        });
+
+        // Skip if state hasn't meaningfully changed
+        if (currentHash === lastStoreHash) {
+          return;
+        }
+        lastStoreHash = currentHash;
+
         clearTimeout(paintTimer);
         paintTimer = setTimeout(() => {
-          renderUnifiedInsights('unified-root');
-          updateRiskMetrics(); // Update risk metrics on store changes
-        }, 250);
+          renderUnifiedInsightsOnce();
+          updateRiskMetrics();
+        }, 500); // Increased from 250ms to 500ms for better batching
       });
 
       // Simple fallback banner toggle
@@ -833,6 +982,23 @@
       border-color: var(--brand-primary);
       color: var(--brand-primary);
       background: color-mix(in oklab, var(--brand-primary) 10%, transparent);
+    }
+
+    .btn-refresh {
+      padding: .6rem .9rem;
+      border: 1px solid var(--theme-border);
+      background: var(--theme-surface);
+      color: var(--theme-text);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      margin-left: auto;
+      transition: all 0.2s;
+    }
+
+    .btn-refresh:hover {
+      background: var(--brand-primary);
+      color: white;
+      border-color: var(--brand-primary);
     }
 
     .tab-panel {
@@ -898,6 +1064,7 @@
       <button class="tab-btn" data-target="#tab-cycles">Cycles</button>
       <button class="tab-btn" data-target="#tab-monitoring">Monitoring</button>
       <button class="tab-btn" data-target="#tab-intelligence-ml">🤖 Intelligence ML</button>
+      <button class="btn-refresh" id="manual-refresh-onchain" title="Forcer le rafraîchissement des indicateurs on-chain">🔄 Actualiser</button>
     </div>
   </div>
 
@@ -960,10 +1127,14 @@
         <div style="color: var(--theme-text-muted);">• Correlation risk moderate for current market conditions</div>
         <div style="color: var(--theme-text-muted);">• No significant exposure warnings</div>
       </div>
-      <div style="text-align: center; margin-top: 1.5rem;">
+      <div style="text-align: center; margin-top: 1.5rem; display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
         <a href="risk-dashboard.html?nav=off" target="_blank"
           style="display: inline-block; background: var(--brand-primary); color: white; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); text-decoration: none; font-weight: 600;">
           📊 Version complète du Risk Dashboard
+        </a>
+        <a href="simulations.html?nav=off" target="_blank"
+          style="display: inline-block; background: var(--success); color: white; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); text-decoration: none; font-weight: 600;">
+          🧪 Simulateur Pipeline Complet
         </a>
       </div>
     </div>

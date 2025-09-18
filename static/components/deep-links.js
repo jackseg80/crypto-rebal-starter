@@ -107,12 +107,8 @@ const initDeepLinks = (sectionAnchors = {}) => {
             section.id = anchorId;
             console.debug(`🔗 Deep link anchor created: ${anchorId} → ${title}`);
           } else {
-            // Créer une section placeholder en fin de body
-            section = document.createElement('section');
-            section.id = anchorId;
-            section.className = 'anchor-section';
-            section.innerHTML = `<h2>${title}</h2><p>Section ${title} - Contenu à venir</p>`;
-            document.body.appendChild(section);
+            // Ne pas créer de section placeholder - just skip
+            console.debug(`🔗 Deep link anchor skipped (no content): ${anchorId} → ${title}`);
           }
         }
       });

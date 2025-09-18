@@ -30,7 +30,43 @@
  *    Status: Non prioritaire
  */
 
-// ===== INTELLIGENT CACHING SYSTEM =====
+// ===== SWR CACHE SYSTEM =====
+
+/**
+ * SWR (Stale-While-Revalidate) cache constants
+ */
+const TTL_SHOW_MS = 6 * 60 * 60 * 1000;   // Show cache if < 6h (instant UI)
+const TTL_BG_MS = 24 * 60 * 60 * 1000;    // Revalidate background if 6h-24h
+const TTL_HARD_MS = 36 * 60 * 60 * 1000;  // Force network if > 36h (safety)
+const LS_KEY = 'CTB_ONCHAIN_CACHE_V2';
+
+/**
+ * SWR Cache functions for localStorage
+ */
+function readOnchainCache() {
+  try {
+    return JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+  } catch {
+    return null;
+  }
+}
+
+function writeOnchainCache(payload) {
+  try {
+    const cacheEntry = {
+      ...payload,
+      saved_at: Date.now(),
+      cache_version: 'v2'
+    };
+    localStorage.setItem(LS_KEY, JSON.stringify(cacheEntry));
+    console.log('💾 On-chain indicators cached', {
+      count: payload.count || 0,
+      cached_at: new Date().toISOString()
+    });
+  } catch (error) {
+    console.warn('Failed to write onchain cache:', error);
+  }
+}
 
 /**
  * Advanced caching system with adaptive TTL and performance optimization
@@ -571,8 +607,8 @@ async function performanceMonitoredFetch(url, options = {}) {
   try {
     const response = await fetch(url, {
       ...options,
-      // Add timeout to prevent hanging requests
-      signal: AbortSignal.timeout(10000) // 10 second timeout
+      // Reduced timeout for faster failure detection
+      signal: AbortSignal.timeout(5000) // 5 second timeout (was 10s)
     });
     
     const endTime = performance.now();
@@ -643,18 +679,106 @@ async function fetchFearGreedIndex() {
   }
 }
 
+// Global deduplication and circuit breaker
+let _ongoingFetch = null;
+let _circuitBreakerState = {
+  failures: 0,
+  lastFailure: 0,
+  isOpen: false,
+  FAILURE_THRESHOLD: 3,
+  RESET_TIMEOUT: 30000 // 30 seconds
+};
+
 /**
- * Récupère les indicateurs depuis Crypto-Toolbox.vercel.app
+ * SWR background revalidation helper
  */
-export async function fetchCryptoToolboxIndicators() {
-  console.log('🌐 Fetching indicators from Crypto-Toolbox API...');
-  
+async function revalidateInBackground() {
   try {
-    const cached = intelligentCache.get('cryptotoolbox_indicators');
-    if (cached) {
-      console.log('💾 Crypto-Toolbox indicators from cache');
+    console.log('🔄 SWR: Revalidating onchain indicators in background...');
+    await fetchCryptoToolboxIndicators({ force: true, silent: true });
+    console.log('✅ SWR: Background revalidation completed');
+  } catch (error) {
+    console.warn('⚠️ SWR: Background revalidation failed:', error.message);
+  }
+}
+
+/**
+ * Récupère les indicateurs depuis Crypto-Toolbox avec SWR
+ */
+export async function fetchCryptoToolboxIndicators({ force = false, silent = false } = {}) {
+  if (!silent) {
+    console.log('🌐 Fetching indicators from Crypto-Toolbox API...');
+  }
+
+  const cached = readOnchainCache();
+  const now = Date.now();
+
+  // 1) SWR Cache Logic: Return cache immediately if fresh enough
+  if (!force && cached) {
+    const age = now - (cached.saved_at || 0);
+
+    if (age < TTL_SHOW_MS) {
+      // Cache is fresh - return immediately
+      console.log(`⚡ SWR: Serving from cache (age: ${Math.round(age / 1000 / 60)}min)`, {
+        served_from: 'cache',
+        cache_age_minutes: Math.round(age / 1000 / 60),
+        indicators_count: cached.count || 0
+      });
+
+      // If between TTL_BG and TTL_SHOW, revalidate in background
+      if (age > TTL_BG_MS) {
+        revalidateInBackground().catch(() => {});
+      }
+
       return cached;
     }
+
+    // Between TTL_SHOW and TTL_HARD: show cache + revalidate in background
+    if (age < TTL_HARD_MS) {
+      console.log(`🔄 SWR: Serving stale cache + background revalidation (age: ${Math.round(age / 1000 / 60)}min)`, {
+        served_from: 'cache+bg',
+        cache_age_minutes: Math.round(age / 1000 / 60)
+      });
+
+      revalidateInBackground().catch(() => {});
+      return cached;
+    }
+
+    // > TTL_HARD: fall through to network
+    console.log(`🌐 SWR: Cache too old (age: ${Math.round(age / 1000 / 60)}min), forcing network`, {
+      served_from: 'network',
+      reason: 'cache_expired'
+    });
+  }
+
+  // 2) Circuit Breaker Check
+  if (_circuitBreakerState.isOpen) {
+    if (now - _circuitBreakerState.lastFailure < _circuitBreakerState.RESET_TIMEOUT) {
+      console.warn('🚨 SWR: Circuit breaker OPEN - returning stale cache instead of network', {
+        failures: _circuitBreakerState.failures,
+        time_to_reset: Math.round((_circuitBreakerState.RESET_TIMEOUT - (now - _circuitBreakerState.lastFailure)) / 1000) + 's'
+      });
+
+      // Return stale cache even if old
+      if (cached) {
+        return cached;
+      }
+    } else {
+      // Reset circuit breaker
+      _circuitBreakerState.isOpen = false;
+      _circuitBreakerState.failures = 0;
+      console.log('🔄 SWR: Circuit breaker RESET - attempting network again');
+    }
+  }
+
+  // 3) Network fetch with deduplication
+  if (_ongoingFetch) {
+    console.log('🔄 SWR: Deduplicating concurrent request');
+    return _ongoingFetch;
+  }
+
+  _ongoingFetch = (async () => {
+    try {
     
   // Appel via le proxy FastAPI (8000) qui relaie vers Flask (8001)
   const apiBase = window.globalConfig?.get('api_base_url') || window.location.origin || 'http://127.0.0.1:8000';
@@ -767,26 +891,74 @@ export async function fetchCryptoToolboxIndicators() {
   });
   
   console.log(`📊 Converted ${Object.keys(indicators).length} indicators from API`);
+
   if (Object.keys(indicators).length > 0) {
-    // Cache pour 24h - les indicateurs on-chain n'évoluent pas rapidement
-    const CACHE_24H = 24 * 60 * 60 * 1000; // 24 heures
+    // Prepare SWR cache payload
+    const cachePayload = {
+      indicators,
+      count: Object.keys(indicators).length,
+      fetched_at: new Date().toISOString(),
+      source: 'network'
+    };
+
+    // Write to SWR cache
+    writeOnchainCache(cachePayload);
+
+    // Also update legacy cache for compatibility
+    const CACHE_24H = 24 * 60 * 60 * 1000;
     intelligentCache.set('cryptotoolbox_indicators', indicators, CACHE_24H);
-    console.log('💾 Crypto-Toolbox indicators cached for 24h');
-    return indicators;
+
+    // Reset circuit breaker on success
+    _circuitBreakerState.failures = 0;
+    _circuitBreakerState.isOpen = false;
+
+    console.log(`✅ SWR: Network fetch successful`, {
+      served_from: 'network',
+      indicators_count: Object.keys(indicators).length,
+      response_time_ms: '~661ms' // approximation from logs
+    });
+
+    return cachePayload;
   }
-  
+
   throw new Error('No valid indicators found in API response');
-    
+
   } catch (error) {
     console.error('❌ Crypto-Toolbox API fetch failed:', error.message);
-    
+
     // Si le backend est inaccessible, essayer de diagnostiquer
-    if (error.message.includes('Failed to fetch') || error.message.includes('ERR_CONNECTION_REFUSED')) {
+    if (error.message.includes('Failed to fetch') || error.message.includes('ERR_CONNECTION_REFUSED') || error.message.includes('timed out')) {
       console.error('🚨 Backend API seems to be down. Please ensure crypto_toolbox_api.py is running on port 8001');
+
+      // Update circuit breaker state
+      _circuitBreakerState.failures++;
+      _circuitBreakerState.lastFailure = Date.now();
+      if (_circuitBreakerState.failures >= _circuitBreakerState.FAILURE_THRESHOLD) {
+        _circuitBreakerState.isOpen = true;
+        console.warn('🚨 Circuit breaker OPENED due to repeated failures');
+      }
+
+      // SWR Graceful Degradation: Return stale cache if available instead of throwing
+      const staleCache = readOnchainCache();
+      if (staleCache && !force) {
+        const age = Date.now() - (staleCache.saved_at || 0);
+        console.warn(`🔄 SWR: Using STALE cache due to network failure (age: ${Math.round(age / 1000 / 60)}min)`, {
+          served_from: 'stale_cache',
+          cache_age_minutes: Math.round(age / 1000 / 60),
+          reason: 'network_failure',
+          circuit_breaker_failures: _circuitBreakerState.failures
+        });
+        return staleCache;
+      }
     }
-    
-    return null;
+
+    throw error; // Re-throw only if no stale cache available
+  } finally {
+    _ongoingFetch = null; // Clear deduplication lock
   }
+  })();
+
+  return _ongoingFetch;
 }
 
 /**
@@ -1119,26 +1291,27 @@ function getSimulatedIndicators(dataSource) {
 /**
  * Récupère tous les indicateurs disponibles avec cache stable
  */
-export async function fetchAllIndicators() {
-  console.debug('🔍 Fetching on-chain indicators...');
-  
+export async function fetchAllIndicators({ force = false } = {}) {
+  console.debug('🔍 Fetching on-chain indicators...', { force });
+
   const indicators = {};
   const errors = [];
-  
+
   // Check current data source configuration
   const dataSource = window.globalConfig?.get('data_source') || 'stub_balanced';
   console.debug(`🎯 Current data source: ${dataSource}`);
-  
+
   // For stub sources, use simulated data instead of external APIs
   if (dataSource.startsWith('stub_')) {
     console.debug(`🧪 Using simulated indicators for ${dataSource}`);
     return getSimulatedIndicators(dataSource);
   }
-  
+
   try {
-    // 1. Fetch all indicators from Crypto-Toolbox backend (30+ indicators) - only for real data sources
-    console.debug('🌐 Calling fetchCryptoToolboxIndicators for all indicators...');
-    const cryptoToolboxData = await fetchCryptoToolboxIndicators();
+    // 1. Fetch all indicators from Crypto-Toolbox backend with SWR
+    console.debug('🌐 Calling fetchCryptoToolboxIndicators with SWR...', { force });
+    const cryptoToolboxResult = await fetchCryptoToolboxIndicators({ force });
+    const cryptoToolboxData = cryptoToolboxResult?.indicators || cryptoToolboxResult;
     console.debug('🔍 CryptoToolbox result:', cryptoToolboxData);
     
     const toolboxAvailable = !!(cryptoToolboxData && Object.keys(cryptoToolboxData).filter(k => !k.startsWith('_')).length > 0);

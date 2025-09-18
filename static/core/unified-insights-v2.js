@@ -625,13 +625,17 @@ export async function getUnifiedState() {
                 console.warn('⚠️ PhaseEngine: No targets returned, keeping original');
               }
 
+              // Calculate sums properly for logging
+              const originalSum = Object.values(phaseResult.original || {}).reduce((a, b) => a + (Number(b) || 0), 0);
+              const newSum = Object.values(dynamicTargets || {}).reduce((a, b) => a + (Number(b) || 0), 0);
+
               console.log('✅ PhaseEngine Apply Mode - TARGETS MODIFIED:', {
                 phase,
                 tiltsApplied: phaseResult.metadata?.tiltsApplied ?? 'unknown',
                 capsTriggered: phaseResult.metadata?.capsTriggered ?? 'unknown',
                 stablesFloorHit: phaseResult.metadata?.stablesFloorHit ?? 'unknown',
-                originalSum: Object.values(phaseResult.original || {}).reduce((a, b) => a + b, 0).toFixed(1) + '%',
-                newSum: Object.values(dynamicTargets || {}).reduce((a, b) => a + b, 0).toFixed(1) + '%',
+                originalSum: originalSum.toFixed(1) + '%',
+                newSum: newSum.toFixed(1) + '%',
                 note: 'Phase tilts REALLY applied to targets'
               });
 
@@ -871,3 +875,6 @@ export function deriveRecommendations(u) {
 // Exports pour compatibilité
 export { calculateIntelligentDecisionIndexAPI as calculateIntelligentDecisionIndex };
 export { clamp01, pct, colorForScore };  // Utilitaires conservés
+
+// Export de la fonction critique pour simulation-engine.js
+export { computeMacroTargetsDynamic };

@@ -4,10 +4,12 @@ Plateforme de gestion de patrimoine cross‑asset (Crypto, Bourse, Banque, Diver
 
 ## Fonctionnalités Principales
 - **Rebalancing intelligent** avec allocations dynamiques basées sur le contexte réel (cycle, régime, concentration wallet)
+- **Simulateur Pipeline Complet** (static/simulations.html) : test en temps réel du pipeline complet Decision Inputs → Risk Budget → Targets → Phase Tilts → Governance → Execution avec 10 presets de scénarios
 - **Decision Engine** avec gouvernance (approbations AI/manuelles)
+- **Phase Engine** : détection proactive de phases market avec tilts automatiques (ETH expansion, altseason, risk-off)
 - **ML avancé** (LSTM, Transformers), signaux temps réel
 - **Analytics**: Sharpe/Calmar, drawdown, VaR/CVaR
-- **Risk management v2**: corrélations, stress testing, alertes, GRI (Group Risk Index)
+- **Risk management v2**: corrélations, stress testing, alertes, circuit breakers, GRI (Group Risk Index)
 - **Strategy API v3**: calculs dynamiques remplaçant les presets hardcodés
 - **Classification unifiée** des assets via taxonomy_aliases.json (source unique de vérité)
 - **Synchronisation parfaite** Analytics ↔ Rebalance via u.targets_by_group
@@ -39,11 +41,13 @@ Dans Settings:
 - (Optionnel) Configurer les clés API par utilisateur (CoinGecko, CoinTracking, FRED)
 - Tester: « 🧪 Tester les APIs » et « 🧪 Tester la Source »
 
-Dashboards:
+Dashboards principaux:
 ```
-http://localhost:8000/static/dashboard.html
-http://localhost:8000/static/risk-dashboard.html
-http://localhost:8000/static/rebalance.html
+http://localhost:8000/static/dashboard.html        # Portfolio overview
+http://localhost:8000/static/analytics-unified.html # Analytics unifiés + lien vers simulateur
+http://localhost:8000/static/risk-dashboard.html   # Risk management
+http://localhost:8000/static/rebalance.html        # Rebalancing
+http://localhost:8000/static/simulations.html      # Simulateur Pipeline (NOUVEAU)
 ```
 
 Docs API: `http://localhost:8000/docs` • OpenAPI: `/openapi.json`
@@ -126,6 +130,31 @@ GET  /debug/ctapi                                # Sonde CoinTracking API
 ```
 
 Changelog: `CHANGELOG.md`
+
+## Simulateur Pipeline Complet
+
+**URL**: `http://localhost:8000/static/simulations.html`
+
+Le simulateur permet de tester en temps réel le pipeline complet sans impact sur les données :
+```
+Decision Inputs → Risk Budget → Targets → Phase Tilts → Governance → Execution
+```
+
+**Fonctionnalités** :
+- **10 presets** : Fin Bull Run, Capitulation, ETH Expansion, Altseason, etc.
+- **Contrôles temps réel** : scores, confidences, hystérésis, circuit breakers, caps
+- **Position réelle** : utilise le portefeuille source réel pour calculer les deltas
+- **Phase Engine unifié** : tilts identiques à la production
+- **Market overlays** : volatilité Z-score, drawdown 90j, breadth pour circuit breakers
+- **Reproductibilité** : état déterministe, plus de hasard
+- **URL hash** : état partageable via URL
+- **Mode Live/Simulation** : comparaison avec données réelles
+
+**Architecture technique** :
+- Engine principal : `static/modules/simulation-engine.js`
+- Contrôles UI : `static/components/SimControls.js`
+- Inspecteur : `static/components/SimInspector.js`
+- Presets : `static/presets/sim_presets.json`
 
 ## Notes
 - Les documents détaillés et historiques sont archivés sous `docs/_legacy/`.

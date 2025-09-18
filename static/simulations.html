@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simulateur de Rebalancing - Crypto Rebalancer</title>
+  <link rel="stylesheet" href="shared-theme.css">
+  <link rel="stylesheet" href="theme-compat.css">
+  <script src="global-config.js"></script>
+  <script src="appearance.js"></script>
+  <script type="module" src="components/nav.js"></script>
+  <script type="module">
+    import { initDeepLinks } from './components/deep-links.js';
+    // Ancres pour simulations.html : #controls #results #inspector
+    initDeepLinks({
+      'controls': 'Contrôles',
+      'results': 'Résultats',
+      'inspector': 'Inspecteur'
+    });
+  </script>
+  <style>
+    .wrap {
+      max-width: 95vw;
+      margin: 0 auto;
+      padding: var(--space-lg);
+    }
+
+    .sim-layout {
+      display: grid;
+      grid-template-columns: 350px 1fr 400px;
+      gap: var(--space-lg);
+      min-height: calc(100vh - 200px);
+    }
+
+    .sim-panel {
+      background: var(--theme-surface);
+      border: 1px solid var(--theme-border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sim-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--space-lg) var(--space-lg) var(--space-md) var(--space-lg);
+      border-bottom: 1px solid var(--theme-border);
+      background: var(--theme-bg);
+    }
+
+    .source-controls {
+      display: flex;
+      gap: var(--space-sm);
+      align-items: center;
+    }
+
+    .mode-toggle {
+      display: flex;
+      background: var(--theme-bg);
+      border: 1px solid var(--theme-border);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+    }
+
+    .mode-toggle button {
+      padding: 0.5rem 1rem;
+      border: none;
+      background: transparent;
+      color: var(--theme-text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .mode-toggle button.active {
+      background: var(--brand-primary);
+      color: white;
+    }
+
+    .mode-toggle button:hover:not(.active) {
+      background: var(--theme-surface);
+      color: var(--theme-text);
+    }
+
+    .results-content {
+      padding: var(--space-lg);
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .results-grid {
+      display: grid;
+      gap: var(--space-lg);
+    }
+
+    .result-card {
+      background: var(--theme-bg);
+      border: 1px solid var(--theme-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-md);
+    }
+
+    .result-card h4 {
+      margin: 0 0 var(--space-sm) 0;
+      color: var(--theme-text);
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    .di-gauge {
+      text-align: center;
+      padding: var(--space-lg);
+    }
+
+    .di-value {
+      font-size: 3rem;
+      font-weight: 800;
+      color: var(--brand-primary);
+      margin: var(--space-sm) 0;
+    }
+
+    .di-source {
+      display: inline-block;
+      padding: 0.3rem 0.6rem;
+      background: var(--theme-surface);
+      border: 1px solid var(--theme-border);
+      border-radius: var(--radius-sm);
+      font-size: 0.8rem;
+      color: var(--theme-text-muted);
+      font-weight: 500;
+    }
+
+    .budget-bars {
+      display: flex;
+      gap: var(--space-md);
+      margin: var(--space-md) 0;
+    }
+
+    .budget-bar {
+      flex: 1;
+      text-align: center;
+    }
+
+    .budget-bar-fill {
+      height: 80px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 600;
+      margin-bottom: var(--space-xs);
+    }
+
+    .stables-bar {
+      background: linear-gradient(135deg, #10b981, #059669);
+    }
+
+    .risky-bar {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+    }
+
+    .allocation-chart {
+      min-height: 200px;
+      background: var(--theme-surface);
+      border-radius: var(--radius-sm);
+      padding: var(--space-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--theme-text-muted);
+    }
+
+    .orders-list {
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .order-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--space-sm);
+      border-bottom: 1px solid var(--theme-border);
+    }
+
+    .order-item:last-child {
+      border-bottom: none;
+    }
+
+    .order-action {
+      font-weight: 600;
+    }
+
+    .order-action.buy {
+      color: var(--success);
+    }
+
+    .order-action.sell {
+      color: var(--danger);
+    }
+
+    .loading-spinner {
+      display: none;
+      text-align: center;
+      padding: var(--space-xl);
+      color: var(--theme-text-muted);
+    }
+
+    .loading-spinner.active {
+      display: block;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 2rem;
+      height: 2rem;
+      border: 3px solid var(--theme-border);
+      border-radius: 50%;
+      border-top-color: var(--brand-primary);
+      animation: spin 1s ease-in-out infinite;
+      margin-bottom: var(--space-sm);
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .error-state {
+      display: none;
+      text-align: center;
+      padding: var(--space-xl);
+      color: var(--danger);
+    }
+
+    .error-state.active {
+      display: block;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: var(--space-xl) var(--space-md);
+      color: var(--theme-text-muted);
+    }
+
+    .empty-icon {
+      font-size: 3rem;
+      margin-bottom: var(--space-md);
+    }
+
+    /* Responsive */
+    @media (max-width: 1200px) {
+      .sim-layout {
+        grid-template-columns: 300px 1fr 350px;
+      }
+    }
+
+    @media (max-width: 968px) {
+      .sim-layout {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto auto;
+      }
+
+      .wrap {
+        padding: var(--space-md);
+      }
+    }
+
+    @media (max-width: 640px) {
+      .sim-header {
+        flex-direction: column;
+        gap: var(--space-md);
+        align-items: stretch;
+      }
+
+      .source-controls {
+        flex-direction: column;
+        gap: var(--space-sm);
+      }
+
+      .budget-bars {
+        flex-direction: column;
+      }
+    }
+
+    /* Styles pour les barres de progression */
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: var(--theme-border);
+      border-radius: 4px;
+      overflow: hidden;
+      margin: var(--space-xs) 0;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--brand-primary);
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+
+    /* Animation d'entrée */
+    .result-card {
+      animation: slideInUp 0.3s ease-out;
+    }
+
+    @keyframes slideInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Statut badges */
+    .status-badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status-badge.success {
+      background: color-mix(in oklab, var(--success) 20%, transparent);
+      color: var(--success);
+      border: 1px solid var(--success);
+    }
+
+    .status-badge.warning {
+      background: color-mix(in oklab, var(--warning) 20%, transparent);
+      color: var(--warning);
+      border: 1px solid var(--warning);
+    }
+
+    .status-badge.danger {
+      background: color-mix(in oklab, var(--danger) 20%, transparent);
+      color: var(--danger);
+      border: 1px solid var(--danger);
+    }
+
+    .status-badge.info {
+      background: color-mix(in oklab, var(--brand-primary) 20%, transparent);
+      color: var(--brand-primary);
+      border: 1px solid var(--brand-primary);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <!-- En-tête principal -->
+    <div class="sim-header">
+      <div>
+        <h1>🎭 Simulateur de Rebalancing</h1>
+        <p style="color: var(--theme-text-muted); margin: 0;">
+          Testez le pipeline complet en temps réel sans écriture backend
+        </p>
+      </div>
+
+      <div class="source-controls">
+        <div>
+          <label for="sim-source-select" style="color: var(--theme-text-muted); font-size: 0.9rem;">Source:</label>
+          <select id="sim-source-select" style="padding: 0.5rem; border: 1px solid var(--theme-border); border-radius: var(--radius-sm); background: var(--theme-bg); color: var(--theme-text); margin-left: 0.5rem;">
+            <option value="cointracking">CoinTracking</option>
+            <option value="stub">Données de test</option>
+          </select>
+        </div>
+
+        <div class="mode-toggle">
+          <button id="mode-live" class="active">📊 Live</button>
+          <button id="mode-simulation">🎭 Simulation</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Layout principal à 3 colonnes -->
+    <div class="sim-layout">
+      <!-- Colonne 1: Contrôles -->
+      <div class="sim-panel">
+        <div class="sim-header">
+          <h3>🎛️ Contrôles</h3>
+        </div>
+        <div id="sim-controls" class="results-content">
+          <!-- Contrôles générés par SimControls.js -->
+        </div>
+      </div>
+
+      <!-- Colonne 2: Résultats -->
+      <div class="sim-panel">
+        <div class="sim-header">
+          <h3>📊 Résultats de Simulation</h3>
+          <div id="simulation-status">
+            <span class="status-badge info">Prêt</span>
+          </div>
+        </div>
+        <div class="results-content">
+          <!-- États -->
+          <div id="loading-state" class="loading-spinner">
+            <div class="spinner"></div>
+            <p>Simulation en cours...</p>
+          </div>
+
+          <div id="error-state" class="error-state">
+            <div style="font-size: 2rem;">⚠️</div>
+            <h4>Erreur de Simulation</h4>
+            <p id="error-message">Une erreur s'est produite</p>
+            <button id="retry-btn" class="btn secondary">🔄 Réessayer</button>
+          </div>
+
+          <div id="empty-state" class="empty-state">
+            <div class="empty-icon">🎭</div>
+            <h4>Simulateur Prêt</h4>
+            <p>Ajustez les contrôles pour lancer la simulation</p>
+          </div>
+
+          <!-- Résultats -->
+          <div id="results-grid" class="results-grid" style="display: none;">
+            <!-- Decision Index -->
+            <div class="result-card">
+              <h4>🎯 Decision Index</h4>
+              <div class="di-gauge">
+                <div id="sim-di-gauge" class="di-value">--</div>
+                <div id="sim-di-source-badge" class="di-source">Source: --</div>
+                <div style="margin-top: var(--space-sm); font-size: 0.9rem; color: var(--theme-text-muted);">
+                  Confiance: <span id="sim-di-confidence">--</span>%
+                </div>
+              </div>
+            </div>
+
+            <!-- Risk Budget -->
+            <div class="result-card">
+              <h4>💰 Risk Budget</h4>
+              <div class="budget-bars">
+                <div class="budget-bar">
+                  <div id="sim-stables-bar" class="budget-bar-fill stables-bar">
+                    <span id="sim-stables-pct">--%</span>
+                  </div>
+                  <div style="font-size: 0.9rem; color: var(--theme-text-muted);">Stables</div>
+                </div>
+                <div class="budget-bar">
+                  <div id="sim-risky-bar" class="budget-bar-fill risky-bar">
+                    <span id="sim-risky-pct">--%</span>
+                  </div>
+                  <div style="font-size: 0.9rem; color: var(--theme-text-muted);">Risky</div>
+                </div>
+              </div>
+              <div style="text-align: center; font-size: 0.8rem; color: var(--theme-text-muted);">
+                Courbe: <span id="sim-risk-curve">--</span> |
+                Clamps: <span id="sim-risk-clamps">--</span>
+              </div>
+            </div>
+
+            <!-- Allocation Targets -->
+            <div class="result-card">
+              <h4>🎯 Allocation par Groupes</h4>
+              <div id="sim-allocation-chart" class="allocation-chart">
+                Chargement de l'allocation...
+              </div>
+            </div>
+
+            <!-- Plan d'Exécution -->
+            <div class="result-card">
+              <h4>⚡ Plan d'Exécution</h4>
+              <div style="margin-bottom: var(--space-md);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm);">
+                  <span>Delta Total:</span>
+                  <span id="sim-total-delta" style="font-family: monospace; font-weight: 600;">--%</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm);">
+                  <span>Seuil:</span>
+                  <span id="sim-exec-threshold" style="font-family: monospace;">--%</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span>Statut:</span>
+                  <span id="sim-exec-status" class="status-badge">--</span>
+                </div>
+              </div>
+              <div id="sim-orders-list" class="orders-list">
+                <!-- Ordres générés dynamiquement -->
+              </div>
+            </div>
+
+            <!-- Résumé NL -->
+            <div class="result-card">
+              <h4>📝 Résumé</h4>
+              <div id="sim-summary-nl" style="line-height: 1.6; color: var(--theme-text);">
+                Résumé en langage naturel...
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Colonne 3: Inspecteur -->
+      <div class="sim-panel">
+        <div class="sim-header">
+          <h3>🔍 Inspecteur</h3>
+        </div>
+        <div id="sim-inspector" class="results-content">
+          <!-- Inspecteur généré par SimInspector.js -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script type="module">
+    import { SimControls } from './components/SimControls.js';
+    import { SimInspector } from './components/SimInspector.js';
+    import * as SimEngine from './modules/simulation-engine.js';
+
+    // État global de l'application
+    let appState = {
+      mode: 'live', // 'live' ou 'simulation'
+      sourceId: 'cointracking',
+      controls: null,
+      inspector: null,
+      lastSimulation: null,
+      isRunning: false
+    };
+
+    // Initialisation
+    document.addEventListener('DOMContentLoaded', async () => {
+      console.log('🎭 SIM: Simulator page initialized');
+
+      try {
+        await initializeSimulator();
+        attachEventListeners();
+        setInitialState();
+      } catch (error) {
+        console.error('🎭 SIM: Initialization failed:', error);
+        showError('Échec de l\'initialisation du simulateur: ' + error.message);
+      }
+    });
+
+    async function initializeSimulator() {
+      // Initialiser les composants
+      appState.controls = new SimControls('sim-controls', onControlsUpdate);
+      appState.inspector = new SimInspector('sim-inspector');
+
+      // Initialiser le moteur de simulation
+      const initResult = await SimEngine.initSimulation({ sourceId: appState.sourceId });
+      if (!initResult.success) {
+        throw new Error(initResult.error);
+      }
+
+      console.log('🎭 SIM: Simulator components initialized');
+    }
+
+    function attachEventListeners() {
+      // Mode toggle
+      document.getElementById('mode-live')?.addEventListener('click', () => {
+        switchMode('live');
+      });
+
+      document.getElementById('mode-simulation')?.addEventListener('click', () => {
+        switchMode('simulation');
+      });
+
+      // Source select
+      document.getElementById('sim-source-select')?.addEventListener('change', async (e) => {
+        appState.sourceId = e.target.value;
+        await reinitializeWithNewSource();
+      });
+
+      // Retry button
+      document.getElementById('retry-btn')?.addEventListener('click', () => {
+        if (appState.lastSimulation) {
+          runSimulation(appState.lastSimulation);
+        }
+      });
+
+      // URL hash pour restaurer état
+      window.addEventListener('hashchange', () => {
+        restoreStateFromHash();
+      });
+    }
+
+    function setInitialState() {
+      // Vérifier URL hash
+      const hashState = SimEngine.stateFromUrlHash();
+      if (hashState) {
+        appState.controls.setState(hashState);
+        switchMode('simulation');
+      }
+
+      // État initial empty
+      showEmptyState();
+    }
+
+    function switchMode(mode) {
+      appState.mode = mode;
+
+      // UI updates
+      document.getElementById('mode-live')?.classList.toggle('active', mode === 'live');
+      document.getElementById('mode-simulation')?.classList.toggle('active', mode === 'simulation');
+
+      // Mettre à jour le statut
+      const statusEl = document.getElementById('simulation-status');
+      if (statusEl) {
+        const badge = statusEl.querySelector('.status-badge');
+        if (mode === 'live') {
+          badge.textContent = 'Mode Live';
+          badge.className = 'status-badge success';
+        } else {
+          badge.textContent = 'Mode Simulation';
+          badge.className = 'status-badge info';
+        }
+      }
+
+      console.log('🎭 SIM: Mode switched to:', mode);
+
+      // Si on passe en mode simulation et qu'on a des contrôles, lancer simulation
+      if (mode === 'simulation' && appState.controls) {
+        const state = appState.controls.getState();
+        onControlsUpdate(state);
+      }
+    }
+
+    async function onControlsUpdate(controlsState) {
+      if (appState.mode !== 'simulation' || appState.isRunning) {
+        return;
+      }
+
+      console.log('🎭 SIM: Controls updated, running simulation');
+      appState.lastSimulation = controlsState;
+
+      // Mettre à jour URL hash
+      const hash = SimEngine.stateToUrlHash(controlsState);
+      if (hash !== window.location.hash) {
+        history.replaceState(null, null, hash);
+      }
+
+      await runSimulation(controlsState);
+    }
+
+    async function runSimulation(controlsState) {
+      if (appState.isRunning) return;
+
+      appState.isRunning = true;
+      showLoadingState();
+
+      try {
+        // Lancer la simulation complète
+        const result = await SimEngine.simulateFullPipeline(controlsState);
+        console.log('🎭 SIM: Simulation completed:', result);
+
+        // Afficher les résultats
+        displayResults(result);
+        appState.inspector.updateInspector(result);
+
+        showResultsState();
+
+      } catch (error) {
+        console.error('🎭 SIM: Simulation failed:', error);
+        showError('Erreur de simulation: ' + error.message);
+      } finally {
+        appState.isRunning = false;
+      }
+    }
+
+    function displayResults(result) {
+      const { di, riskBudget, cappedTargets, orders, explanation } = result;
+
+      // Decision Index
+      document.getElementById('sim-di-gauge').textContent = di.di;
+      document.getElementById('sim-di-source-badge').textContent = `Source: ${di.source}`;
+      document.getElementById('sim-di-confidence').textContent = Math.round(di.confidence * 100);
+
+      // Risk Budget
+      const stablesPct = Math.round(riskBudget.target_stables_pct);
+      const riskyPct = 100 - stablesPct;
+
+      document.getElementById('sim-stables-pct').textContent = `${stablesPct}%`;
+      document.getElementById('sim-risky-pct').textContent = `${riskyPct}%`;
+      document.getElementById('sim-risk-curve').textContent = riskBudget.curve;
+      document.getElementById('sim-risk-clamps').textContent =
+        `${riskBudget.clamps.min_stables}-${riskBudget.clamps.max_stables}%`;
+
+      // Ajuster la largeur des barres
+      document.getElementById('sim-stables-bar').style.width = `${stablesPct}%`;
+      document.getElementById('sim-risky-bar').style.width = `${riskyPct}%`;
+
+      // Allocation chart (simplifiée)
+      displayAllocationChart(cappedTargets);
+
+      // Execution plan
+      document.getElementById('sim-total-delta').textContent = `${orders.summary.totalDelta}%`;
+      document.getElementById('sim-exec-threshold').textContent = `${orders.summary.globalThreshold}%`;
+
+      const statusEl = document.getElementById('sim-exec-status');
+      if (orders.summary.shouldExecute) {
+        statusEl.textContent = 'Exécuter';
+        statusEl.className = 'status-badge success';
+      } else {
+        statusEl.textContent = 'Attendre';
+        statusEl.className = 'status-badge warning';
+      }
+
+      // Orders list
+      displayOrdersList(orders.orders);
+
+      // Résumé NL
+      document.getElementById('sim-summary-nl').textContent = explanation.summaryNL;
+    }
+
+    function displayAllocationChart(targets) {
+      const chartEl = document.getElementById('sim-allocation-chart');
+      if (!chartEl || !targets) return;
+
+      // Créer un chart simple avec des barres
+      const sortedTargets = Object.entries(targets)
+        .sort(([,a], [,b]) => b - a)
+        .filter(([, value]) => value >= 0.1); // Filtrer les très petites valeurs
+
+      let html = '<div style="display: flex; flex-direction: column; gap: 0.5rem;">';
+
+      for (const [group, pct] of sortedTargets) {
+        const width = Math.max(2, (pct / Math.max(...Object.values(targets))) * 100);
+        const color = getGroupColor(group);
+
+        html += `
+          <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem;">
+            <div style="width: 80px; text-align: right; color: var(--theme-text-muted);">${group}:</div>
+            <div style="flex: 1; background: var(--theme-border); height: 20px; border-radius: 10px; overflow: hidden;">
+              <div style="width: ${width}%; height: 100%; background: ${color}; transition: width 0.3s ease;"></div>
+            </div>
+            <div style="width: 40px; text-align: right; font-family: monospace; font-weight: 600;">${pct.toFixed(1)}%</div>
+          </div>
+        `;
+      }
+
+      html += '</div>';
+      chartEl.innerHTML = html;
+    }
+
+    function getGroupColor(group) {
+      const colors = {
+        'Stablecoins': '#10b981',
+        'BTC': '#f59e0b',
+        'ETH': '#3b82f6',
+        'SOL': '#8b5cf6',
+        'L1/L0 majors': '#06b6d4',
+        'L2/Scaling': '#84cc16',
+        'DeFi': '#ec4899',
+        'AI/Data': '#f97316',
+        'Gaming/NFT': '#ef4444',
+        'Memecoins': '#6366f1',
+        'Others': '#6b7280'
+      };
+      return colors[group] || '#9ca3af';
+    }
+
+    function displayOrdersList(orders) {
+      const listEl = document.getElementById('sim-orders-list');
+      if (!listEl) return;
+
+      if (!orders || orders.length === 0) {
+        listEl.innerHTML = '<div style="text-align: center; color: var(--theme-text-muted); padding: var(--space-md);">Aucun ordre généré</div>';
+        return;
+      }
+
+      let html = '';
+      orders.forEach(order => {
+        const actionClass = order.action.toLowerCase();
+        const priorityIcon = order.priority === 'HIGH' ? '🔥' : '📋';
+
+        html += `
+          <div class="order-item">
+            <div>
+              <span class="order-action ${actionClass}">${order.action}</span>
+              <span style="margin-left: 0.5rem;">${order.group}</span>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-family: monospace; font-weight: 600;">${order.deltaPct > 0 ? '+' : ''}${order.deltaPct}%</div>
+              <div style="font-size: 0.8rem; color: var(--theme-text-muted);">${priorityIcon} ${order.estimatedLot}€</div>
+            </div>
+          </div>
+        `;
+      });
+
+      listEl.innerHTML = html;
+    }
+
+    async function reinitializeWithNewSource() {
+      console.log('🎭 SIM: Reinitializing with new source:', appState.sourceId);
+
+      showLoadingState();
+
+      try {
+        const initResult = await SimEngine.initSimulation({ sourceId: appState.sourceId });
+        if (!initResult.success) {
+          throw new Error(initResult.error);
+        }
+
+        // Relancer simulation si en mode simulation
+        if (appState.mode === 'simulation' && appState.controls) {
+          const state = appState.controls.getState();
+          await runSimulation(state);
+        } else {
+          showEmptyState();
+        }
+
+      } catch (error) {
+        console.error('🎭 SIM: Reinitialization failed:', error);
+        showError('Échec du changement de source: ' + error.message);
+      }
+    }
+
+    function restoreStateFromHash() {
+      const hashState = SimEngine.stateFromUrlHash();
+      if (hashState && appState.controls) {
+        appState.controls.setState(hashState);
+        switchMode('simulation');
+      }
+    }
+
+    // États d'affichage
+    function showLoadingState() {
+      document.getElementById('loading-state')?.classList.add('active');
+      document.getElementById('error-state')?.classList.remove('active');
+      document.getElementById('empty-state')?.style.setProperty('display', 'none');
+      document.getElementById('results-grid')?.style.setProperty('display', 'none');
+    }
+
+    function showResultsState() {
+      document.getElementById('loading-state')?.classList.remove('active');
+      document.getElementById('error-state')?.classList.remove('active');
+      document.getElementById('empty-state')?.style.setProperty('display', 'none');
+      document.getElementById('results-grid')?.style.setProperty('display', 'grid');
+    }
+
+    function showEmptyState() {
+      document.getElementById('loading-state')?.classList.remove('active');
+      document.getElementById('error-state')?.classList.remove('active');
+      document.getElementById('empty-state')?.style.setProperty('display', 'block');
+      document.getElementById('results-grid')?.style.setProperty('display', 'none');
+    }
+
+    function showError(message) {
+      document.getElementById('loading-state')?.classList.remove('active');
+      document.getElementById('error-state')?.classList.add('active');
+      document.getElementById('error-message').textContent = message;
+      document.getElementById('empty-state')?.style.setProperty('display', 'none');
+      document.getElementById('results-grid')?.style.setProperty('display', 'none');
+    }
+
+    // Export global pour debug
+    window.simApp = {
+      state: appState,
+      engine: SimEngine,
+      runSimulation,
+      switchMode
+    };
+  </script>
+</body>
+
+</html>

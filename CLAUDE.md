@@ -44,7 +44,8 @@ Note endpoints de test/dev:
 - Services: `services/*` (risk mgmt, execution, analytics, ML…).
 - Governance: `services/execution/governance.py` (Decision Engine single-writer) + auto-init ML dans `api/main.py` 
 - Connecteurs: `connectors/cointracking*.py`, autres.
-- Front: `static/*` (dashboards, `components/nav.js`, `global-config.js`, `lazy-loader.js`, modules `static/modules/*.js`, store `static/core/risk-dashboard-store.js`).
+- Front: `static/*` (dashboards, `components/nav.js`, `global-config.js`, `lazy-loader.js`, modules `static/modules/*.js`, store `static/core/risk-dashboard-store.js`)
+- Simulateur: `static/simulations.html` + `modules/simulation-engine.js` + `components/SimControls.js` + `presets/sim_presets.json`
 - Config: `config/settings.py` (Pydantic settings)
 - Constantes: `constants/*`
 - Tests: `tests/unit`, `tests/integration`, `tests/e2e` (pytest)
@@ -70,7 +71,12 @@ static/intelligence-dashboard.html (signaux ML temps réel)
 static/analytics-unified.html
 static/risk-dashboard.html (avec GovernancePanel intégré)
 static/portfolio-optimization.html
+static/simulations.html (simulateur pipeline complet)
 static/modules/*.js
+static/modules/simulation-engine.js (engine simulation avec fixes deterministes)
+static/components/SimControls.js (controles UI)
+static/components/SimInspector.js (arbre explication)
+static/presets/sim_presets.json (10 scenarios predefinis)
 static/core/risk-dashboard-store.js (sync governance)
 static/core/phase-engine.js (détection de phases market)
 static/core/phase-buffers.js (ring buffers pour time series)
