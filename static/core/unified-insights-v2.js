@@ -110,10 +110,13 @@ function computeMacroTargetsDynamic(ctx, rb, walletStats) {
   };
 
   // 2) Modulateurs simples par régime/sentiment
-  const bull = (ctx?.regime === 'bull') || (ctx?.cycle_score >= 70);
-  const bear = (ctx?.regime === 'bear') || (ctx?.cycle_score <= 30);
-  const hedge = (ctx?.governance_mode === 'Hedge');
-  const fear = (ctx?.sentiment === 'extreme_fear');
+  // IMPORTANT: Désactiver ces modulateurs quand Phase Engine est en mode apply
+  // car le Phase Engine gère déjà les tilts de marché de façon plus sophistiquée
+  const phaseEngineActive = ctx?.flags?.phase_engine === 'apply';
+  const bull = !phaseEngineActive && ((ctx?.regime === 'bull') || (ctx?.cycle_score >= 70));
+  const bear = !phaseEngineActive && ((ctx?.regime === 'bear') || (ctx?.cycle_score <= 30));
+  const hedge = !phaseEngineActive && (ctx?.governance_mode === 'Hedge');
+  const fear = !phaseEngineActive && (ctx?.sentiment === 'extreme_fear');
 
   console.debug('🔍 Market conditions:', { bull, bear, hedge, fear, cycle_score: ctx?.cycle_score });
 
@@ -162,6 +165,11 @@ function computeMacroTargetsDynamic(ctx, rb, walletStats) {
     targets[heavy] = +(targets[heavy] + diff).toFixed(1);
     console.debug('🔧 Sum adjustment applied:', { diff, heavy });
   }
+
+  console.error('🔍 SIMPLE DEBUG - Final targets:', targets);
+  console.error('🔍 SIMPLE DEBUG - Base weights:', base);
+  console.error('🔍 SIMPLE DEBUG - Market conditions:', { bull, bear, hedge, fear });
+  console.error('🔍 SIMPLE DEBUG - Stables/Risky:', { stables, riskyPool });
 
   console.log('🎯 Dynamic targets computed:', targets);
   console.debug('📊 Target breakdown: stables=' + stables + '%, risky=' + riskyPool + '%');
@@ -472,7 +480,7 @@ export async function getUnifiedState() {
     },
 
     // SOURCE CANONIQUE UNIQUE - Cibles dynamiques calculées selon contexte réel
-    targets_by_group: (() => {
+    targets_by_group: await (async () => {
       // Construire le contexte pour calcul dynamique
       const ctx = {
         regime: regimeData.regime?.name?.toLowerCase(),
@@ -513,8 +521,8 @@ export async function getUnifiedState() {
           };
         }
 
-        // Use dynamic import and update targets synchronously when ready
-        (async () => {
+        // CRITICAL FIX: Make Phase Engine awaitable instead of fire-and-forget
+        const phaseEnginePromise = (async () => {
           try {
             console.debug('🔄 PhaseEngine: Starting dynamic import...');
 
@@ -654,25 +662,18 @@ export async function getUnifiedState() {
               };
             }
           }
+
+          // Return the final targets after phase processing
+          return dynamicTargets;
         })();
 
+        // CRITICAL: Wait for Phase Engine to complete before continuing
+        dynamicTargets = await phaseEnginePromise;
+        console.debug('🔥 Phase Engine completed, final targets applied:', dynamicTargets);
+
       }
 
-      // Check if Phase Engine has already computed targets (sync cache)
-      if (ctx.flags.phase_engine === 'apply' && typeof window !== 'undefined' && window._phaseEngineCurrentTargets) {
-        const cachedTargets = window._phaseEngineCurrentTargets;
-        const cacheAge = Date.now() - (window._phaseEngineAppliedResult?.timestamp ? new Date(window._phaseEngineAppliedResult.timestamp).getTime() : 0);
-
-        // Use cached targets if fresh (< 5 seconds old)
-        if (cacheAge < 5000) {
-          console.log('🚀 PhaseEngine: Using cached phase-tilted targets (sync):', {
-            cache_age_ms: cacheAge,
-            phase: window._phaseEngineAppliedResult?.phase,
-            targets: cachedTargets
-          });
-          dynamicTargets = { ...cachedTargets };
-        }
-      }
+      // Sync cache no longer needed since Phase Engine is now awaitable
 
       console.log('🎯 DYNAMIC TARGETS' + (ctx.flags.phase_engine !== 'off' ? ' + PHASE ENGINE' : '') + ':', {
         old_method: 'preset_from_api',

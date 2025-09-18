@@ -73,17 +73,36 @@
 
     // Force a specific phase
     window.forcePhase = function(phase) {
-      localStorage.setItem('forced_phase', phase);
+      // Use the correct localStorage keys for Phase Engine
+      localStorage.setItem('PHASE_ENGINE_DEBUG_FORCE', phase);
+      localStorage.setItem('PHASE_ENGINE_ENABLED', 'apply'); // Enable Phase Engine
       localStorage.removeItem('detected_phase_cache'); // Clear cache
+
+      // CRITICAL: Invalidate Phase Engine cache
+      if (typeof window !== 'undefined') {
+        delete window._phaseEngineCurrentTargets;
+        delete window._phaseEngineAppliedResult;
+        console.log('🧹 Phase Engine cache invalidated for phase change');
+      }
+
       document.getElementById('current-phase').textContent = phase + ' (forcé)';
       document.getElementById('phase-status').className = 'alert alert-warning';
-      console.log('🎭 Phase forcée:', phase);
+      console.log('🎭 Phase forcée avec Phase Engine activé:', phase);
     };
 
     // Clear forced phase
     window.clearForcedPhase = function() {
-      localStorage.removeItem('forced_phase');
+      localStorage.removeItem('PHASE_ENGINE_DEBUG_FORCE');
+      localStorage.setItem('PHASE_ENGINE_ENABLED', 'shadow'); // Keep enabled but shadow mode
       localStorage.removeItem('detected_phase_cache');
+
+      // CRITICAL: Invalidate Phase Engine cache
+      if (typeof window !== 'undefined') {
+        delete window._phaseEngineCurrentTargets;
+        delete window._phaseEngineAppliedResult;
+        console.log('🧹 Phase Engine cache cleared for auto-detection');
+      }
+
       document.getElementById('current-phase').textContent = 'Auto-détection';
       document.getElementById('phase-status').className = 'alert alert-info';
       console.log('🔄 Auto-détection des phases réactivée');
@@ -142,7 +161,7 @@
 
         // Update current phase display
         const currentPhase = unifiedState.cycle?.phase?.phase || 'unknown';
-        const forcedPhase = localStorage.getItem('forced_phase');
+        const forcedPhase = localStorage.getItem('PHASE_ENGINE_DEBUG_FORCE');
 
         if (forcedPhase) {
           document.getElementById('current-phase').textContent = `${forcedPhase} (forcé) → Détecté: ${currentPhase}`;
@@ -193,20 +212,28 @@
         const results = {};
 
         for (const phase of phases) {
-          // Force the phase
-          localStorage.setItem('forced_phase', phase);
+          // Force the phase using correct Phase Engine keys
+          localStorage.setItem('PHASE_ENGINE_DEBUG_FORCE', phase);
+          localStorage.setItem('PHASE_ENGINE_ENABLED', 'apply');
           localStorage.removeItem('detected_phase_cache');
+
+          // CRITICAL: Invalidate Phase Engine cache for each iteration
+          if (typeof window !== 'undefined') {
+            delete window._phaseEngineCurrentTargets;
+            delete window._phaseEngineAppliedResult;
+          }
 
           // Get state with forced phase
           const state = await getUnifiedState();
           results[phase] = state.targets_by_group;
 
           // Small delay to ensure phase change is processed
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise(resolve => setTimeout(resolve, 200));
         }
 
         // Clear forced phase
-        localStorage.removeItem('forced_phase');
+        localStorage.removeItem('PHASE_ENGINE_DEBUG_FORCE');
+        localStorage.setItem('PHASE_ENGINE_ENABLED', 'shadow');
         localStorage.removeItem('detected_phase_cache');
 
         // Display comparison
@@ -265,8 +292,15 @@
         let baseStables = null;
 
         for (const phase of phases) {
-          localStorage.setItem('forced_phase', phase);
+          localStorage.setItem('PHASE_ENGINE_DEBUG_FORCE', phase);
+          localStorage.setItem('PHASE_ENGINE_ENABLED', 'apply');
           localStorage.removeItem('detected_phase_cache');
+
+          // CRITICAL: Invalidate Phase Engine cache for each iteration
+          if (typeof window !== 'undefined') {
+            delete window._phaseEngineCurrentTargets;
+            delete window._phaseEngineAppliedResult;
+          }
 
           const state = await getUnifiedState();
           const stables = state.targets_by_group?.['Stablecoins'] || 0;
@@ -287,8 +321,16 @@
         });
 
         // Test 2: Sum to 100%
-        localStorage.setItem('forced_phase', 'full_altseason');
+        localStorage.setItem('PHASE_ENGINE_DEBUG_FORCE', 'full_altseason');
+        localStorage.setItem('PHASE_ENGINE_ENABLED', 'apply');
         localStorage.removeItem('detected_phase_cache');
+
+        // CRITICAL: Invalidate Phase Engine cache
+        if (typeof window !== 'undefined') {
+          delete window._phaseEngineCurrentTargets;
+          delete window._phaseEngineAppliedResult;
+        }
+
         const testState = await getUnifiedState();
         const total = Object.values(testState.targets_by_group || {}).reduce((sum, val) => sum + (val || 0), 0);
         const sumValid = Math.abs(total - 100) < 0.1;
@@ -300,12 +342,28 @@
         });
 
         // Test 3: Phase-specific tilts
-        localStorage.setItem('forced_phase', 'eth_expansion');
+        localStorage.setItem('PHASE_ENGINE_DEBUG_FORCE', 'eth_expansion');
+        localStorage.setItem('PHASE_ENGINE_ENABLED', 'apply');
         localStorage.removeItem('detected_phase_cache');
+
+        // CRITICAL: Invalidate Phase Engine cache
+        if (typeof window !== 'undefined') {
+          delete window._phaseEngineCurrentTargets;
+          delete window._phaseEngineAppliedResult;
+        }
+
         const ethState = await getUnifiedState();
 
-        localStorage.setItem('forced_phase', 'neutral');
+        localStorage.setItem('PHASE_ENGINE_DEBUG_FORCE', 'neutral');
+        localStorage.setItem('PHASE_ENGINE_ENABLED', 'apply');
         localStorage.removeItem('detected_phase_cache');
+
+        // CRITICAL: Invalidate Phase Engine cache again
+        if (typeof window !== 'undefined') {
+          delete window._phaseEngineCurrentTargets;
+          delete window._phaseEngineAppliedResult;
+        }
+
         const neutralState = await getUnifiedState();
 
         const ethTilt = (ethState.targets_by_group?.['ETH'] || 0) > (neutralState.targets_by_group?.['ETH'] || 0);
@@ -317,7 +375,8 @@
         });
 
         // Clear forced phase
-        localStorage.removeItem('forced_phase');
+        localStorage.removeItem('PHASE_ENGINE_DEBUG_FORCE');
+        localStorage.setItem('PHASE_ENGINE_ENABLED', 'shadow');
         localStorage.removeItem('detected_phase_cache');
 
         // Display results
@@ -354,8 +413,19 @@
       }
     });
 
-    // Auto-refresh on page load
+    // Initialize Phase Engine and auto-refresh on page load
     document.addEventListener('DOMContentLoaded', () => {
+      // Ensure Phase Engine is enabled
+      if (!localStorage.getItem('PHASE_ENGINE_ENABLED')) {
+        localStorage.setItem('PHASE_ENGINE_ENABLED', 'apply');
+        console.log('🔧 Phase Engine activé par défaut');
+      }
+
+      console.log('🔧 Phase Engine status:', {
+        mode: localStorage.getItem('PHASE_ENGINE_ENABLED'),
+        forced: localStorage.getItem('PHASE_ENGINE_DEBUG_FORCE')
+      });
+
       document.getElementById('refresh-targets').click();
     });
 
