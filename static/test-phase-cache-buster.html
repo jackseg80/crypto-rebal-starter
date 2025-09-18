@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🔄 Test Phase Engine - Cache Buster</title>
+  <link rel="stylesheet" href="shared-theme.css">
+  <link rel="stylesheet" href="theme-compat.css">
+  <script src="global-config.js"></script>
+  <script src="appearance.js"></script>
+</head>
+
+<body>
+  <header class="header">
+    <div class="container">
+      <h1>🔄 Test Phase Engine - Cache Buster</h1>
+      <p>Test avec cache-busting pour charger les modules mis à jour</p>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <div class="card">
+      <h2>⚙️ Configuration</h2>
+      <div style="display: flex; gap: 1rem; margin: 1rem 0; flex-wrap: wrap;">
+        <button id="enable-apply" class="btn btn-success">✅ Mode APPLY</button>
+        <button id="force-eth-expansion" class="btn btn-primary">🟢 ETH Expansion</button>
+        <button id="force-full-altseason" class="btn btn-primary">🟣 Full Altseason</button>
+        <button id="clear-phase" class="btn btn-secondary">🔄 Auto</button>
+      </div>
+      <div id="config-status" class="alert alert-info">
+        <strong>Mode:</strong> <span id="current-mode">shadow</span><br>
+        <strong>Phase:</strong> <span id="current-phase">auto</span><br>
+        <strong>Version:</strong> <span id="cache-version">loading...</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>🧪 Test Phase Engine avec Cache-Busting</h2>
+      <button id="test-phases" class="btn btn-warning">🔄 Test Phases (Force Reload)</button>
+      <div id="test-results" style="margin-top: 1rem;"></div>
+    </div>
+
+    <div class="card">
+      <h2>📊 Comparaison Détaillée</h2>
+      <div id="comparison-table" style="margin-top: 1rem;"></div>
+    </div>
+
+    <div class="card">
+      <h2>🔍 Debug Logs</h2>
+      <div id="debug-logs" style="background: var(--theme-surface); padding: 1rem; border-radius: 6px; max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 0.85em; white-space: pre-wrap;"></div>
+    </div>
+
+  </main>
+
+  <script type="module">
+
+    // Cache-busting version
+    const cacheVersion = Date.now();
+    document.getElementById('cache-version').textContent = cacheVersion;
+
+    // Capture logs
+    const logContainer = document.getElementById('debug-logs');
+    const originalLog = console.log;
+    const originalDebug = console.debug;
+    const originalWarn = console.warn;
+
+    function addLog(level, ...args) {
+      const timestamp = new Date().toLocaleTimeString();
+      const message = args.map(arg =>
+        typeof arg === 'object' ? JSON.stringify(arg, null, 1) : String(arg)
+      ).join(' ');
+
+      logContainer.textContent += `[${timestamp}] ${level}: ${message}\n`;
+      logContainer.scrollTop = logContainer.scrollHeight;
+
+      // Call original
+      if (level === 'LOG') originalLog(...args);
+      else if (level === 'DEBUG') originalDebug(...args);
+      else if (level === 'WARN') originalWarn(...args);
+    }
+
+    console.log = (...args) => addLog('LOG', ...args);
+    console.debug = (...args) => addLog('DEBUG', ...args);
+    console.warn = (...args) => addLog('WARN', ...args);
+
+    function updateConfigStatus() {
+      const mode = localStorage.getItem('PHASE_ENGINE_ENABLED') || 'shadow';
+      const phase = localStorage.getItem('forced_phase') || 'auto';
+
+      document.getElementById('current-mode').textContent = mode;
+      document.getElementById('current-phase').textContent = phase;
+
+      const statusEl = document.getElementById('config-status');
+      statusEl.className = 'alert ' + (mode === 'apply' ? 'alert-success' : 'alert-warning');
+    }
+
+    // Configuration buttons
+    document.getElementById('enable-apply').addEventListener('click', () => {
+      localStorage.setItem('PHASE_ENGINE_ENABLED', 'apply');
+      console.log('✅ Mode APPLY activé');
+      updateConfigStatus();
+    });
+
+    document.getElementById('force-eth-expansion').addEventListener('click', () => {
+      localStorage.setItem('forced_phase', 'eth_expansion');
+      localStorage.removeItem('detected_phase_cache');
+      console.log('🟢 Phase ETH Expansion forcée');
+      updateConfigStatus();
+    });
+
+    document.getElementById('force-full-altseason').addEventListener('click', () => {
+      localStorage.setItem('forced_phase', 'full_altseason');
+      localStorage.removeItem('detected_phase_cache');
+      console.log('🟣 Phase Full Altseason forcée');
+      updateConfigStatus();
+    });
+
+    document.getElementById('clear-phase').addEventListener('click', () => {
+      localStorage.removeItem('forced_phase');
+      localStorage.removeItem('detected_phase_cache');
+      console.log('🔄 Auto-détection activée');
+      updateConfigStatus();
+    });
+
+    // Main test with cache-busting
+    document.getElementById('test-phases').addEventListener('click', async () => {
+      const results = document.getElementById('test-results');
+      const table = document.getElementById('comparison-table');
+
+      results.innerHTML = '<div class="loading">🔄 Test avec cache-busting en cours...</div>';
+      table.innerHTML = '';
+
+      try {
+        console.log('🚀 STARTING CACHE-BUSTED PHASE ENGINE TEST');
+        console.log(`🔄 Cache version: ${cacheVersion}`);
+
+        // Force import with cache-busting
+        const phaseEngineUrl = `./core/phase-engine.js?v=${cacheVersion}`;
+        const allocationEngineUrl = `./core/allocation-engine.js?v=${cacheVersion}`;
+
+        console.log(`📦 Importing phase engine from: ${phaseEngineUrl}`);
+        const { applyPhaseTilts } = await import(phaseEngineUrl);
+
+        console.log(`📦 Importing allocation engine from: ${allocationEngineUrl}`);
+        const { calculateHierarchicalAllocation } = await import(allocationEngineUrl);
+
+        // Get base targets from Allocation Engine V2
+        const baseContext = {
+          cycleScore: 75,
+          regimeData: { name: 'expansion', confidence: 0.8 },
+          adaptiveWeights: { btc: 0.30, eth: 0.25, stables: 0.25 },
+          execution: { cap_pct_per_iter: 7, target_stables_pct: 25 }
+        };
+
+        console.log('🏗️ Calculating base allocation with V2 engine...');
+        const baseAllocation = await calculateHierarchicalAllocation(baseContext, [], { enableV2: true });
+
+        if (!baseAllocation || !baseAllocation.allocation) {
+          throw new Error('Failed to get base allocation from V2 engine');
+        }
+
+        // Convert to percentage targets
+        const baseTargets = {};
+        for (const [asset, fraction] of Object.entries(baseAllocation.allocation)) {
+          baseTargets[asset] = fraction * 100;
+        }
+
+        console.log('📊 Base targets from V2 engine:', baseTargets);
+
+        // Test phases
+        const phases = ['neutral', 'eth_expansion', 'full_altseason'];
+        const results_by_phase = {};
+
+        for (const phase of phases) {
+          console.log(`\n🎭 Testing phase: ${phase}`);
+
+          const context = {
+            DI: phase === 'full_altseason' ? 85 : 70,
+            breadth_alts: phase === 'full_altseason' ? 0.85 : 0.6
+          };
+
+          console.log(`📋 Context for ${phase}:`, context);
+
+          const result = await applyPhaseTilts({ ...baseTargets }, phase, context);
+
+          console.log(`📊 Result for ${phase}:`, {
+            tiltsApplied: result.metadata?.tiltsApplied,
+            reason: result.metadata?.reason,
+            stablesPreserved: result.metadata?.stablesPreserved,
+            significantChanges: result.metadata?.significantChanges
+          });
+
+          results_by_phase[phase] = result;
+        }
+
+        // Display results
+        let html = '<h3>✅ Test Phases avec Cache-Busting Réussi</h3>';
+
+        // Summary of tilts
+        html += '<div style="margin: 1rem 0;"><h4>📋 Résumé des Tilts</h4>';
+        phases.forEach(phase => {
+          const result = results_by_phase[phase];
+          const tiltsApplied = result.metadata?.tiltsApplied;
+          const changes = result.metadata?.significantChanges || [];
+
+          html += `
+            <div style="margin: 0.5rem 0; padding: 0.75rem; background: var(--theme-surface); border-radius: 4px; border-left: 3px solid ${tiltsApplied ? 'var(--success)' : 'var(--warning)'};">
+              <strong>${phase}:</strong>
+              <span style="color: ${tiltsApplied ? 'var(--success)' : 'var(--warning)'};margin-left: 0.5rem;">
+                ${tiltsApplied ? '✅ Tilts appliqués' : '❌ Pas de tilts'}
+              </span>
+              ${changes.length > 0 ? `<br><small>Changements: ${changes.join(', ')}</small>` : ''}
+            </div>
+          `;
+        });
+        html += '</div>';
+
+        // Key differences
+        const neutralTargets = results_by_phase['neutral'].targets;
+        const ethTargets = results_by_phase['eth_expansion'].targets;
+        const fullTargets = results_by_phase['full_altseason'].targets;
+
+        html += '<div style="margin: 1rem 0;"><h4>🔍 Différences Clés Détectées</h4>';
+
+        const ethETH_delta = (ethTargets?.ETH || 0) - (neutralTargets?.ETH || 0);
+        const ethL2_delta = (ethTargets?.['L2/Scaling'] || 0) - (neutralTargets?.['L2/Scaling'] || 0);
+        const fullL2_delta = (fullTargets?.['L2/Scaling'] || 0) - (neutralTargets?.['L2/Scaling'] || 0);
+        const fullDeFi_delta = (fullTargets?.['DeFi'] || 0) - (neutralTargets?.['DeFi'] || 0);
+
+        const deltaStyle = (delta) => `color: ${Math.abs(delta) > 0.1 ? (delta > 0 ? 'var(--success)' : 'var(--danger)') : 'var(--warning)'};`;
+
+        html += `
+          <ul>
+            <li><strong>ETH Expansion → ETH:</strong> <span style="${deltaStyle(ethETH_delta)}">${ethETH_delta > 0 ? '+' : ''}${ethETH_delta.toFixed(2)}%</span> (attendu: +5%)</li>
+            <li><strong>ETH Expansion → L2/Scaling:</strong> <span style="${deltaStyle(ethL2_delta)}">${ethL2_delta > 0 ? '+' : ''}${ethL2_delta.toFixed(2)}%</span> (attendu: +3%)</li>
+            <li><strong>Full Altseason → L2/Scaling:</strong> <span style="${deltaStyle(fullL2_delta)}">${fullL2_delta > 0 ? '+' : ''}${fullL2_delta.toFixed(2)}%</span> (attendu: +8%)</li>
+            <li><strong>Full Altseason → DeFi:</strong> <span style="${deltaStyle(fullDeFi_delta)}">${fullDeFi_delta > 0 ? '+' : ''}${fullDeFi_delta.toFixed(2)}%</span> (attendu: +6%)</li>
+          </ul>
+        `;
+        html += '</div>';
+
+        results.innerHTML = html;
+
+        // Build comparison table
+        let tableHtml = '<h3>📊 Table de Comparaison Détaillée</h3>';
+        tableHtml += '<div style="overflow-x: auto; margin: 1rem 0;">';
+        tableHtml += '<table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">';
+        tableHtml += '<thead><tr style="background: var(--theme-surface);">';
+        tableHtml += '<th style="padding: 0.5rem; border: 1px solid var(--theme-border);">Asset</th>';
+
+        phases.forEach(phase => {
+          tableHtml += `<th style="padding: 0.5rem; border: 1px solid var(--theme-border);">${phase}</th>`;
+        });
+
+        tableHtml += '</tr></thead><tbody>';
+
+        // Row for each asset
+        const allAssets = Object.keys(baseTargets);
+        allAssets.forEach(asset => {
+          tableHtml += '<tr>';
+          tableHtml += `<td style="padding: 0.5rem; border: 1px solid var(--theme-border); font-weight: 600;">${asset}</td>`;
+
+          phases.forEach(phase => {
+            const value = results_by_phase[phase]?.targets?.[asset] || 0;
+            const baseValue = baseTargets[asset];
+            const delta = value - baseValue;
+            const deltaStr = Math.abs(delta) > 0.01 ? ` (${delta > 0 ? '+' : ''}${delta.toFixed(2)})` : '';
+
+            let cellStyle = 'padding: 0.5rem; border: 1px solid var(--theme-border);';
+            if (Math.abs(delta) > 0.1) {
+              cellStyle += delta > 0 ? ' background: var(--success-bg); color: var(--success);' : ' background: var(--danger-bg); color: var(--danger);';
+            }
+
+            tableHtml += `<td style="${cellStyle}">${value.toFixed(2)}%${deltaStr}</td>`;
+          });
+
+          tableHtml += '</tr>';
+        });
+
+        tableHtml += '</tbody></table></div>';
+        table.innerHTML = tableHtml;
+
+      } catch (error) {
+        console.error('❌ Cache-busted test failed:', error);
+        results.innerHTML = `<div class="error">❌ Test échoué: ${error.message}</div>`;
+      }
+    });
+
+    // Initialize
+    updateConfigStatus();
+    console.log(`🔄 Phase Engine cache-buster test page loaded (v${cacheVersion})`);
+
+  </script>
+
+</body>
+</html>

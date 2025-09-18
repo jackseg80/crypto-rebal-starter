@@ -178,7 +178,8 @@
       "Bash(run_smoke_tests.bat)",
       "Bash(netstat:*)",
       "Bash(git tag:*)",
-      "Bash(set:*)"
+      "Bash(set:*)",
+      "Bash(copy:*)"
     ],
     "deny": [],
     "ask": [],

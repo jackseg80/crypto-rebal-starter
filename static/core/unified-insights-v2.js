@@ -557,10 +557,19 @@ export async function getUnifiedState() {
               breadth_alts: phaseInputs.breadth_alts
             });
 
+            console.debug('🔍 PhaseEngine RESULT DEBUG:', {
+              phaseResult,
+              hasTargets: !!phaseResult?.targets,
+              targetsKeys: phaseResult?.targets ? Object.keys(phaseResult.targets) : [],
+              hasMetadata: !!phaseResult?.metadata,
+              type: typeof phaseResult
+            });
+
             console.debug('⚡ PhaseEngine: Tilts calculated:', {
               phase,
-              tiltsApplied: phaseResult.metadata.tiltsApplied,
-              capsTriggered: phaseResult.metadata.capsTriggered
+              tiltsApplied: phaseResult.metadata?.tiltsApplied ?? 'unknown',
+              capsTriggered: phaseResult.metadata?.capsTriggered ?? 'unknown',
+              hasMetadata: !!phaseResult.metadata
             });
 
             if (ctx.flags.phase_engine === 'shadow') {
@@ -572,20 +581,20 @@ export async function getUnifiedState() {
                   acc[k] = (dynamicTargets[k] || 0).toFixed(1) + '%';
                   return acc;
                 }, {}),
-                phaseTiltedTargets: Object.keys(phaseResult.targets).reduce((acc, k) => {
-                  acc[k] = (phaseResult.targets[k] || 0).toFixed(1) + '%';
+                phaseTiltedTargets: Object.keys(phaseResult.targets || {}).reduce((acc, k) => {
+                  acc[k] = ((phaseResult.targets || {})[k] || 0).toFixed(1) + '%';
                   return acc;
                 }, {}),
                 deltas: Object.keys(dynamicTargets).reduce((acc, k) => {
                   const original = dynamicTargets[k] || 0;
-                  const tilted = phaseResult.targets[k] || 0;
+                  const tilted = ((phaseResult.targets || {})[k]) || 0;
                   const delta = tilted - original;
                   if (Math.abs(delta) > 0.1) {
                     acc[k] = (delta > 0 ? '+' : '') + delta.toFixed(2) + '%';
                   }
                   return acc;
                 }, {}),
-                metadata: phaseResult.metadata
+                metadata: phaseResult.metadata || {}
               });
 
               // Store shadow result for UI consumption
@@ -594,23 +603,27 @@ export async function getUnifiedState() {
                   phase,
                   inputs: phaseInputs,
                   original: dynamicTargets,
-                  tilted: phaseResult.targets,
-                  metadata: phaseResult.metadata,
+                  tilted: phaseResult.targets || {},
+                  metadata: phaseResult.metadata || {},
                   timestamp: new Date().toISOString()
                 };
               }
 
             } else if (ctx.flags.phase_engine === 'apply') {
               // Apply mode: Actually use the phase-tilted targets
-              dynamicTargets = phaseResult.targets;
+              if (phaseResult.targets) {
+                dynamicTargets = phaseResult.targets;
+              } else {
+                console.warn('⚠️ PhaseEngine: No targets returned, keeping original');
+              }
 
               console.log('✅ PhaseEngine Apply Mode - TARGETS MODIFIED:', {
                 phase,
-                tiltsApplied: phaseResult.metadata.tiltsApplied,
-                capsTriggered: phaseResult.metadata.capsTriggered,
-                stablesFloorHit: phaseResult.metadata.stablesFloorHit,
+                tiltsApplied: phaseResult.metadata?.tiltsApplied ?? 'unknown',
+                capsTriggered: phaseResult.metadata?.capsTriggered ?? 'unknown',
+                stablesFloorHit: phaseResult.metadata?.stablesFloorHit ?? 'unknown',
                 originalSum: Object.values(phaseResult.original || {}).reduce((a, b) => a + b, 0).toFixed(1) + '%',
-                newSum: Object.values(dynamicTargets).reduce((a, b) => a + b, 0).toFixed(1) + '%',
+                newSum: Object.values(dynamicTargets || {}).reduce((a, b) => a + b, 0).toFixed(1) + '%',
                 note: 'Phase tilts REALLY applied to targets'
               });
 
@@ -620,7 +633,7 @@ export async function getUnifiedState() {
                   phase,
                   original: phaseResult.original || {},
                   modified: dynamicTargets,
-                  metadata: phaseResult.metadata,
+                  metadata: phaseResult.metadata || {},
                   timestamp: new Date().toISOString()
                 };
 

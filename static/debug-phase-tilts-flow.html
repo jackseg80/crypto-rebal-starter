@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🔍 Debug Phase Tilts Flow</title>
+  <link rel="stylesheet" href="shared-theme.css">
+  <link rel="stylesheet" href="theme-compat.css">
+  <script src="global-config.js"></script>
+  <script src="appearance.js"></script>
+</head>
+
+<body>
+  <header class="header">
+    <div class="container">
+      <h1>🔍 Debug Phase Tilts Flow</h1>
+      <p>Traçage complet du flux d'exécution du Phase Engine</p>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <div class="card">
+      <h2>🎭 Test Phase Specific</h2>
+      <button id="test-eth-expansion" class="btn btn-primary">Test ETH Expansion</button>
+      <button id="test-full-altseason" class="btn btn-primary">Test Full Altseason</button>
+      <button id="clear-logs" class="btn btn-secondary">Clear Logs</button>
+
+      <div id="test-results" style="margin-top: 1rem;"></div>
+    </div>
+
+    <div class="card">
+      <h2>📝 Debug Logs</h2>
+      <div id="debug-logs" style="background: var(--theme-surface); padding: 1rem; border-radius: 6px; max-height: 500px; overflow-y: auto; font-family: monospace; font-size: 0.9em; white-space: pre-wrap;"></div>
+    </div>
+
+    <div class="card">
+      <h2>🔍 Phase Engine Direct Test</h2>
+      <button id="test-phase-engine-direct" class="btn btn-warning">Test Phase Engine Directly</button>
+      <div id="direct-test-results" style="margin-top: 1rem;"></div>
+    </div>
+
+  </main>
+
+  <script type="module">
+
+    // Hijack console.log to capture logs
+    const originalLog = console.log;
+    const originalDebug = console.debug;
+    const originalWarn = console.warn;
+    const originalError = console.error;
+
+    const logContainer = document.getElementById('debug-logs');
+    let logBuffer = [];
+
+    function captureLog(level, ...args) {
+      const timestamp = new Date().toLocaleTimeString();
+      const message = args.map(arg =>
+        typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+      ).join(' ');
+
+      logBuffer.push(`[${timestamp}] ${level.toUpperCase()}: ${message}`);
+
+      // Keep only last 100 logs
+      if (logBuffer.length > 100) {
+        logBuffer = logBuffer.slice(-100);
+      }
+
+      logContainer.textContent = logBuffer.join('\n');
+      logContainer.scrollTop = logContainer.scrollHeight;
+
+      // Call original
+      if (level === 'log') originalLog(...args);
+      else if (level === 'debug') originalDebug(...args);
+      else if (level === 'warn') originalWarn(...args);
+      else if (level === 'error') originalError(...args);
+    }
+
+    console.log = (...args) => captureLog('log', ...args);
+    console.debug = (...args) => captureLog('debug', ...args);
+    console.warn = (...args) => captureLog('warn', ...args);
+    console.error = (...args) => captureLog('error', ...args);
+
+    // Clear logs
+    document.getElementById('clear-logs').addEventListener('click', () => {
+      logBuffer = [];
+      logContainer.textContent = '';
+    });
+
+    // Test ETH Expansion
+    document.getElementById('test-eth-expansion').addEventListener('click', async () => {
+      const results = document.getElementById('test-results');
+      results.innerHTML = '<div class="loading">Testing ETH Expansion...</div>';
+
+      try {
+        console.log('🚀 STARTING ETH EXPANSION TEST');
+
+        // Force phase
+        localStorage.setItem('forced_phase', 'eth_expansion');
+        localStorage.removeItem('detected_phase_cache');
+        console.log('🎭 Phase forced to: eth_expansion');
+
+        // Get unified state
+        console.log('📊 Loading unified state...');
+        const { getUnifiedState } = await import('./core/unified-insights-v2.js');
+        const unifiedState = await getUnifiedState();
+
+        console.log('📈 Unified state loaded:', {
+          phase: unifiedState.cycle?.phase?.phase,
+          forced_phase: localStorage.getItem('forced_phase'),
+          targets_keys: Object.keys(unifiedState.targets_by_group || {}),
+          phase_data: unifiedState.phase
+        });
+
+        // Check if phase tilts were applied
+        const phaseApplied = unifiedState.phase?.tiltsApplied;
+        const stablesPreserved = unifiedState.phase?.stablesPreserved;
+
+        results.innerHTML = `
+          <div class="success">✅ Test ETH Expansion completed</div>
+          <h3>Résultats:</h3>
+          <ul>
+            <li><strong>Phase détectée:</strong> ${unifiedState.cycle?.phase?.phase || 'unknown'}</li>
+            <li><strong>Phase forcée:</strong> ${localStorage.getItem('forced_phase') || 'none'}</li>
+            <li><strong>Tilts appliqués:</strong> ${phaseApplied ? '✅ Oui' : '❌ Non'}</li>
+            <li><strong>Stables préservées:</strong> ${stablesPreserved ? '✅ Oui' : '❌ Non'}</li>
+            <li><strong>ETH %:</strong> ${(unifiedState.targets_by_group?.['ETH'] || 0).toFixed(1)}%</li>
+            <li><strong>L2/Scaling %:</strong> ${(unifiedState.targets_by_group?.['L2/Scaling'] || 0).toFixed(1)}%</li>
+            <li><strong>BTC %:</strong> ${(unifiedState.targets_by_group?.['BTC'] || 0).toFixed(1)}%</li>
+          </ul>
+        `;
+
+      } catch (error) {
+        console.error('❌ ETH Expansion test failed:', error);
+        results.innerHTML = `<div class="error">❌ Test failed: ${error.message}</div>`;
+      }
+    });
+
+    // Test Full Altseason
+    document.getElementById('test-full-altseason').addEventListener('click', async () => {
+      const results = document.getElementById('test-results');
+      results.innerHTML = '<div class="loading">Testing Full Altseason...</div>';
+
+      try {
+        console.log('🚀 STARTING FULL ALTSEASON TEST');
+
+        // Force phase
+        localStorage.setItem('forced_phase', 'full_altseason');
+        localStorage.removeItem('detected_phase_cache');
+        console.log('🎭 Phase forced to: full_altseason');
+
+        // Get unified state
+        const { getUnifiedState } = await import('./core/unified-insights-v2.js');
+        const unifiedState = await getUnifiedState();
+
+        console.log('📈 Full altseason state:', {
+          phase: unifiedState.cycle?.phase?.phase,
+          targets: unifiedState.targets_by_group,
+          phase_metadata: unifiedState.phase
+        });
+
+        results.innerHTML = `
+          <div class="success">✅ Test Full Altseason completed</div>
+          <h3>Résultats:</h3>
+          <pre style="background: var(--theme-surface); padding: 1rem; border-radius: 6px; overflow-x: auto;">
+Phase: ${unifiedState.cycle?.phase?.phase}
+Tilts appliqués: ${unifiedState.phase?.tiltsApplied ? 'Oui' : 'Non'}
+
+Allocations:
+${Object.entries(unifiedState.targets_by_group || {})
+  .map(([asset, pct]) => `${asset}: ${(pct || 0).toFixed(1)}%`)
+  .join('\n')}
+          </pre>
+        `;
+
+      } catch (error) {
+        console.error('❌ Full Altseason test failed:', error);
+        results.innerHTML = `<div class="error">❌ Test failed: ${error.message}</div>`;
+      }
+    });
+
+    // Test Phase Engine directly
+    document.getElementById('test-phase-engine-direct').addEventListener('click', async () => {
+      const results = document.getElementById('direct-test-results');
+      results.innerHTML = '<div class="loading">Testing Phase Engine directly...</div>';
+
+      try {
+        console.log('🚀 TESTING PHASE ENGINE DIRECTLY');
+
+        // Import phase engine
+        const { applyPhaseTilts } = await import('./core/phase-engine.js');
+        console.log('✅ Phase engine imported successfully');
+
+        // Create test targets
+        const testTargets = {
+          'BTC': 30,
+          'ETH': 25,
+          'Stablecoins': 20,
+          'SOL': 8,
+          'L2/Scaling': 7,
+          'L1/L0 majors': 5,
+          'DeFi': 3,
+          'AI/Data': 1.5,
+          'Gaming/NFT': 0.5
+        };
+
+        console.log('🎯 Original test targets:', testTargets);
+
+        // Test eth_expansion
+        console.log('🟢 Testing ETH Expansion directly...');
+        const ethResult = await applyPhaseTilts(testTargets, 'eth_expansion', {
+          DI: 70,
+          breadth_alts: 0.6
+        });
+
+        console.log('📊 ETH Expansion result:', ethResult);
+
+        // Test full_altseason
+        console.log('🟣 Testing Full Altseason directly...');
+        const altResult = await applyPhaseTilts(testTargets, 'full_altseason', {
+          DI: 85,
+          breadth_alts: 0.85
+        });
+
+        console.log('📊 Full Altseason result:', altResult);
+
+        results.innerHTML = `
+          <div class="success">✅ Direct Phase Engine tests completed</div>
+
+          <h3>ETH Expansion Direct Test:</h3>
+          <pre style="background: var(--theme-surface); padding: 1rem; border-radius: 6px; overflow-x: auto;">
+Tilts Applied: ${ethResult.metadata?.tiltsApplied ? 'Yes' : 'No'}
+Reason: ${ethResult.metadata?.reason || 'N/A'}
+
+Original ETH: ${testTargets.ETH}%
+Final ETH: ${(ethResult.targets?.ETH || 0).toFixed(1)}%
+Change: ${ethResult.metadata?.deltas?.ETH ? (ethResult.metadata.deltas.ETH > 0 ? '+' : '') + ethResult.metadata.deltas.ETH.toFixed(1) + '%' : 'N/A'}
+
+Original L2/Scaling: ${testTargets['L2/Scaling']}%
+Final L2/Scaling: ${(ethResult.targets?.['L2/Scaling'] || 0).toFixed(1)}%
+Change: ${ethResult.metadata?.deltas?.['L2/Scaling'] ? (ethResult.metadata.deltas['L2/Scaling'] > 0 ? '+' : '') + ethResult.metadata.deltas['L2/Scaling'].toFixed(1) + '%' : 'N/A'}
+
+Stables Original: ${testTargets.Stablecoins}%
+Stables Final: ${(ethResult.targets?.Stablecoins || 0).toFixed(1)}%
+Stables Preserved: ${ethResult.metadata?.stablesPreserved ? 'Yes' : 'No'}
+          </pre>
+
+          <h3>Full Altseason Direct Test:</h3>
+          <pre style="background: var(--theme-surface); padding: 1rem; border-radius: 6px; overflow-x: auto;">
+Tilts Applied: ${altResult.metadata?.tiltsApplied ? 'Yes' : 'No'}
+Reason: ${altResult.metadata?.reason || 'N/A'}
+
+Key Changes:
+${Object.entries(altResult.metadata?.deltas || {})
+  .filter(([_, delta]) => Math.abs(delta) > 0.1)
+  .map(([asset, delta]) => `${asset}: ${delta > 0 ? '+' : ''}${delta.toFixed(1)}%`)
+  .join('\n') || 'No significant changes'}
+
+Validation: ${altResult.metadata?.validation?.valid ? 'Passed' : 'Failed'}
+          </pre>
+        `;
+
+      } catch (error) {
+        console.error('❌ Direct Phase Engine test failed:', error);
+        results.innerHTML = `<div class="error">❌ Direct test failed: ${error.message}</div>`;
+      }
+    });
+
+    // Initial log
+    console.log('🔍 Debug page loaded - ready for phase testing');
+
+  </script>
+
+</body>
+</html>

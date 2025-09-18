@@ -150,8 +150,8 @@ export async function applyPhaseTilts(targets, phase, ctx = {}) {
       };
     }
 
-    // Apply min-effect filter
-    const filteredTargets = applyMinEffectFilter(cappedTargets, originalTargets, 0.5);
+    // Apply min-effect filter (reduced threshold for more sensitive tilts)
+    const filteredTargets = applyMinEffectFilter(cappedTargets, originalTargets, 0.03);
 
     // Validate integrity
     const validation = validateTargetsIntegrity(filteredTargets, originalTargets);
@@ -177,7 +177,7 @@ export async function applyPhaseTilts(targets, phase, ctx = {}) {
       context: ctx,
       stablesPreserved: Math.abs((filteredTargets['Stablecoins'] || 0) - (originalTargets['Stablecoins'] || 0)) < 0.01,
       significantChanges: Object.entries(deltas)
-        .filter(([_, delta]) => Math.abs(delta) > 0.5)
+        .filter(([_, delta]) => Math.abs(delta) > 0.03)
         .map(([asset, delta]) => `${asset}: ${delta > 0 ? '+' : ''}${delta.toFixed(2)}%`)
     };
 

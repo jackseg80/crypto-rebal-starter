@@ -333,14 +333,16 @@ function finalizeCapsAndNormalize(targets, options = {}) {
 }
 
 /**
- * Main function: Apply phase-based tilts to target allocations
+ * LEGACY - Main function: Apply phase-based tilts to target allocations
+ * This function is being phased out in favor of the risky-only implementation
+ * @deprecated Use applyPhaseTiltsNew for risky-only tilts
  * @param {Object} targets - Original target allocations (normalized to 100%)
  * @param {string} phase - Detected phase
  * @param {Object} ctx - Context {DI, breadth_alts}
  * @returns {Object} Adjusted targets with metadata
  */
-export function applyPhaseTilts(targets, phase, ctx = {}) {
-  console.debug('🎯 PhaseEngine: Applying phase tilts:', { phase, targets: Object.keys(targets) });
+function applyPhaseTiltsLegacy(targets, phase, ctx = {}) {
+  console.error('❌ LEGACY FUNCTION CALLED - SHOULD NOT HAPPEN!:', { phase, targets: Object.keys(targets) });
 
   if (!targets || Object.keys(targets).length === 0) {
     console.warn('⚠️ PhaseEngine: No targets provided');
@@ -544,14 +546,19 @@ export function getCurrentForce() {
 }
 
 /**
- * NEW RISKY-ONLY IMPLEMENTATION
+ * RISKY-ONLY IMPLEMENTATION
  * Apply phase-specific tilts using risky-only, zero-sum architecture
+ * @param {Object} targets - Original target allocations (normalized to 100%)
+ * @param {string} phase - Detected phase
+ * @param {Object} ctx - Context {DI, breadth_alts}
+ * @returns {Promise<Object>} Adjusted targets with metadata
  */
-async function applyPhaseTiltsNew(targets, phase, ctx = {}) {
-  console.debug('🎯 PhaseEngine: Applying risky-only phase tilts:', {
+export async function applyPhaseTilts(targets, phase, ctx = {}) {
+  console.error('🚀🚀🚀 NEW RISKY-ONLY FUNCTION CALLED - CACHE_BUST_TIMESTAMP_2025-09-17T18:26:00Z:', {
     phase,
     targetsCount: Object.keys(targets).length,
-    stablesPreserved: (targets['Stablecoins'] || 0).toFixed(2) + '%'
+    stablesPreserved: (targets['Stablecoins'] || 0).toFixed(2) + '%',
+    timestamp: new Date().toISOString()
   });
 
   if (!targets || Object.keys(targets).length === 0) {
@@ -573,6 +580,23 @@ async function applyPhaseTiltsNew(targets, phase, ctx = {}) {
     };
   }
 
+  // Early stables floor check (risky-only policy)
+  const STABLES_FLOOR_LOCAL = 5;
+  const currentStables = targets['Stablecoins'] || 0;
+  if (currentStables < STABLES_FLOOR_LOCAL) {
+    console.warn(`🚨 PhaseEngine: Early stables floor breach detected: ${currentStables.toFixed(2)}% < ${STABLES_FLOOR_LOCAL}% - aborting tilts`);
+    return {
+      targets: { ...targets },
+      metadata: {
+        phase,
+        tiltsApplied: false,
+        reason: 'early stables floor breach',
+        error: 'floor_breach',
+        stablesPreserved: true
+      }
+    };
+  }
+
   const { tiltRiskyZeroSum, applyCapsAndNormalize, applyMinEffectFilter, validateTargetsIntegrity } = await getTiltHelpers();
 
   let T = { ...targets }; // Working copy
@@ -587,18 +611,26 @@ async function applyPhaseTiltsNew(targets, phase, ctx = {}) {
     'Others': 2
   };
 
-  const STABLES_FLOOR_LOCAL = 5;
-
   console.debug('🎯 PhaseEngine: Applying phase-specific tilts for:', phase);
 
   try {
     // Apply phase-specific tilts with zero-sum compensation
+    console.error('🔧 BEFORE TILTS - Stables check:', {
+      originalStables: (targets['Stablecoins'] || 0).toFixed(4) + '%',
+      workingStables: (T['Stablecoins'] || 0).toFixed(4) + '%'
+    });
+
     switch (phase) {
       case 'eth_expansion':
+        console.error('🎯 Applying ETH expansion tilts...');
         T = tiltRiskyZeroSum(T, {
           'ETH': 1.05,        // +5%
           'L2/Scaling': 1.03  // +3%
         }, ['BTC']); // Compensate from BTC only
+
+        console.error('🔧 AFTER ETH_EXPANSION TILTS - Stables check:', {
+          stablesAfterTilts: (T['Stablecoins'] || 0).toFixed(4) + '%'
+        });
         break;
 
       case 'largecap_altseason':
@@ -684,13 +716,13 @@ async function applyPhaseTiltsNew(targets, phase, ctx = {}) {
       };
     }
 
-    // Apply min-effect filter
-    const filteredTargets = applyMinEffectFilter(cappedTargets, originalTargets, 0.5);
+    // Apply min-effect filter (ultra-low threshold for testing)
+    const filteredTargets = applyMinEffectFilter(cappedTargets, originalTargets, 0.01);
 
     // Validate integrity
     const validation = validateTargetsIntegrity(filteredTargets, originalTargets);
     if (!validation.valid) {
-      console.warn('🚨 PhaseEngine: Validation failed:', validation.warnings);
+      console.error('🚨 PhaseEngine: Validation failed:', validation.warnings, 'Metrics:', validation.metrics);
     }
 
     // Calculate deltas
@@ -711,7 +743,7 @@ async function applyPhaseTiltsNew(targets, phase, ctx = {}) {
       context: ctx,
       stablesPreserved: Math.abs((filteredTargets['Stablecoins'] || 0) - (originalTargets['Stablecoins'] || 0)) < 0.01,
       significantChanges: Object.entries(deltas)
-        .filter(([_, delta]) => Math.abs(delta) > 0.5)
+        .filter(([_, delta]) => Math.abs(delta) > 0.03)
         .map(([asset, delta]) => `${asset}: ${delta > 0 ? '+' : ''}${delta.toFixed(2)}%`)
     };
 
@@ -746,17 +778,16 @@ async function applyPhaseTiltsNew(targets, phase, ctx = {}) {
 if (typeof window !== 'undefined' && window.location?.hostname === 'localhost') {
   window.debugPhaseEngine = {
     inferPhase,
-    applyPhaseTilts: applyPhaseTiltsNew, // Use new risky-only implementation
+    applyPhaseTilts, // Use risky-only implementation
     getMemoryState: getPhaseMemoryState,
     resetMemory: resetPhaseMemory,
-    testTilts: (targets, phase) => applyPhaseTiltsNew(targets, phase, { DI: 75, breadth_alts: 0.7 }),
+    testTilts: (targets, phase) => applyPhaseTilts(targets, phase, { DI: 75, breadth_alts: 0.7 }),
     forcePhase,
     clearForcePhase,
-    getCurrentForce: () => debugForcePhase
+    getCurrentForce
   };
 
-  console.debug('🔧 Debug: window.debugPhaseEngine available for testing (NEW RISKY-ONLY)');
+  console.debug('🔧 Debug: window.debugPhaseEngine available for testing (RISKY-ONLY)');
 }
 
-// Export the new implementation as the main function
-export { applyPhaseTiltsNew as applyPhaseTilts };
+// Remove duplicate export - applyPhaseTilts is exported via the window.debugPhaseEngine override

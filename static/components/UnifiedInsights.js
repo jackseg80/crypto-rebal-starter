@@ -312,6 +312,12 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
     data_keys: Object.keys(u || {})
   });
   const recos = deriveRecommendations(u);
+  console.debug('🔍 RECOMMENDATIONS DEBUG:', {
+    recosCount: recos?.length || 0,
+    recos: recos,
+    firstReco: recos?.[0],
+    allPriorities: recos?.map(r => r.priority) || []
+  });
 
   const header = card(`
     <div style="display:flex; align-items:center; justify-content: space-between; gap:.75rem;">

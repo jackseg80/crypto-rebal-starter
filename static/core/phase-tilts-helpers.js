@@ -1,6 +1,7 @@
 /**
  * Phase Tilts Helpers - Risky-only, zero-sum allocation adjustments
  * Architecture: Never touch Stablecoins allocation, operate only within risky pool
+ * CACHE_BUST: 2025-09-17T18:26:30Z
  */
 
 /**
@@ -112,9 +113,17 @@ export function tiltRiskyZeroSum(T, ups = {}, downsKeys = []) {
   // 4) Restore stables unchanged
   T['Stablecoins'] = stables;
 
-  console.debug('✅ TiltHelpers: Zero-sum tilts applied, stables preserved:', {
-    finalStables: T['Stablecoins'].toFixed(2) + '%',
-    finalRiskySum: riskyKeys.reduce((sum, k) => sum + (T[k] || 0), 0).toFixed(2) + '%'
+  const finalStables = T['Stablecoins'];
+  const finalRiskySum = riskyKeys.reduce((sum, k) => sum + (T[k] || 0), 0);
+  const finalTotalSum = Object.values(T).reduce((sum, val) => sum + val, 0);
+
+  console.error('✅ TiltHelpers: Zero-sum tilts applied - DETAILED DEBUG:', {
+    originalStables: stables.toFixed(4) + '%',
+    finalStables: finalStables.toFixed(4) + '%',
+    stablesPreserved: Math.abs(finalStables - stables) < 0.01,
+    finalRiskySum: finalRiskySum.toFixed(4) + '%',
+    finalTotalSum: finalTotalSum.toFixed(4) + '%',
+    sumEquals100: Math.abs(finalTotalSum - 100) < 0.01
   });
 
   return T;
@@ -141,21 +150,97 @@ export function applyCapsAndNormalize(T, caps = {}, stablesFloor = 5) {
   const result = { ...T }; // Clone to avoid mutation
   let capsTriggered = [];
 
-  // 1) Apply per-bucket caps
+  // 1) Apply per-bucket caps and redistribute excess
+  let totalExcess = 0;
+  const uncappedRiskyAssets = [];
+  const CAP_TOLERANCE = 1e-6; // Tolerance for floating point precision
+
   for (const [asset, cap] of Object.entries(caps)) {
-    if (result[asset] && result[asset] > cap) {
+    if (result[asset] && result[asset] > cap + CAP_TOLERANCE) {
       const before = result[asset];
+      const excess = before - cap;
+      totalExcess += excess;
       result[asset] = cap;
+
       capsTriggered.push({
         asset,
         before: before.toFixed(2) + '%',
-        capped: cap.toFixed(2) + '%'
+        capped: cap.toFixed(2) + '%',
+        excess: excess.toFixed(2) + '%'
       });
     }
 
     // Ensure no negative values
     if (result[asset] && result[asset] < 0) {
       result[asset] = 0;
+    }
+  }
+
+  // Collect uncapped risky assets for redistribution
+  for (const asset of Object.keys(result)) {
+    if (asset !== 'Stablecoins' && !caps[asset] && (result[asset] || 0) > 0) {
+      uncappedRiskyAssets.push(asset);
+    }
+  }
+
+  // If no uncapped assets, redistribute to capped assets that have room below their cap
+  if (uncappedRiskyAssets.length === 0 && totalExcess > 0) {
+    for (const asset of Object.keys(result)) {
+      if (asset !== 'Stablecoins' && caps[asset] && (result[asset] || 0) > 0) {
+        const remainingRoom = caps[asset] - (result[asset] || 0);
+        if (remainingRoom > CAP_TOLERANCE) {
+          uncappedRiskyAssets.push(asset);
+        }
+      }
+    }
+    console.debug('💡 TiltHelpers: No uncapped assets, redistributing to capped assets with room:', uncappedRiskyAssets);
+  }
+
+  // Redistribute excess to uncapped risky assets
+  if (totalExcess > 0 && uncappedRiskyAssets.length > 0) {
+    const redistributionSum = uncappedRiskyAssets.reduce((sum, asset) => sum + (result[asset] || 0), 0);
+
+    if (redistributionSum > 0) {
+      console.debug('💰 TiltHelpers: Redistributing capped excess:', {
+        totalExcess: totalExcess.toFixed(2) + '%',
+        toAssets: uncappedRiskyAssets,
+        redistributionSum: redistributionSum.toFixed(2) + '%'
+      });
+
+      uncappedRiskyAssets.forEach(asset => {
+        if (result[asset]) {
+          const weight = result[asset] / redistributionSum;
+          const allocation = totalExcess * weight;
+
+          // Respect caps even during redistribution
+          let finalAllocation = allocation;
+          if (caps[asset]) {
+            const maxAllowable = caps[asset] - result[asset];
+            finalAllocation = Math.min(allocation, Math.max(0, maxAllowable));
+          }
+
+          result[asset] += finalAllocation;
+
+          console.debug(`📈 TiltHelpers: Redistributed to ${asset}:`, {
+            weight: (weight * 100).toFixed(1) + '%',
+            requestedAllocation: allocation.toFixed(4) + '%',
+            finalAllocation: finalAllocation.toFixed(4) + '%',
+            newTotal: result[asset].toFixed(4) + '%',
+            cappedBy: caps[asset] ? `${caps[asset]}%` : 'none'
+          });
+        }
+      });
+    } else {
+      // Fallback: distribute equally among uncapped assets
+      const perAsset = totalExcess / uncappedRiskyAssets.length;
+      uncappedRiskyAssets.forEach(asset => {
+        result[asset] = (result[asset] || 0) + perAsset;
+      });
+
+      console.debug('📊 TiltHelpers: Equal redistribution fallback:', {
+        perAsset: perAsset.toFixed(2) + '%',
+        toAssets: uncappedRiskyAssets
+      });
     }
   }
 
@@ -182,16 +267,35 @@ export function applyCapsAndNormalize(T, caps = {}, stablesFloor = 5) {
   }
 
   if (Math.abs(totalSum - 100) > 1e-6) {
-    console.debug('🎯 TiltHelpers: Normalizing to 100%:', {
+    const stables = result['Stablecoins'] || 0;
+    const riskyKeys = Object.keys(result).filter(k => k !== 'Stablecoins');
+
+    console.debug('🎯 TiltHelpers: Normalizing to 100% (RISKY-ONLY):', {
       beforeSum: totalSum.toFixed(4) + '%',
-      normalizationFactor: (100 / totalSum).toFixed(6)
+      stablesPreserved: stables.toFixed(2) + '%'
     });
 
-    for (const asset of Object.keys(result)) {
-      if (result[asset]) {
-        result[asset] = (result[asset] * 100) / totalSum;
+    // RISKY-ONLY normalization: scale only risky assets to fit (100 - stables)
+    const riskyTarget = 100 - stables;
+    const currentRiskySum = riskyKeys.reduce((sum, k) => sum + (result[k] || 0), 0);
+
+    if (currentRiskySum > 0) {
+      const riskyNormFactor = riskyTarget / currentRiskySum;
+
+      for (const asset of riskyKeys) {
+        if (result[asset]) {
+          result[asset] = result[asset] * riskyNormFactor;
+        }
       }
+
+      console.debug('🎯 TiltHelpers: Risky normalization applied:', {
+        riskyTarget: riskyTarget.toFixed(2) + '%',
+        normFactor: riskyNormFactor.toFixed(6)
+      });
     }
+
+    // Restore stables unchanged
+    result['Stablecoins'] = stables;
   }
 
   const finalSum = Object.values(result).reduce((sum, val) => sum + (val || 0), 0);
@@ -243,18 +347,33 @@ export function applyMinEffectFilter(tiltedTargets, originalTargets, threshold =
     console.debug('🎛️ TiltHelpers: Min-effect filter applied:', filtered);
   }
 
-  // Re-normalize after filtering
+  // Re-normalize after filtering (RISKY-ONLY)
   const sum = Object.values(result).reduce((total, val) => total + (val || 0), 0);
   if (Math.abs(sum - 100) > 1e-6) {
-    console.debug('🎯 TiltHelpers: Re-normalizing after filter:', {
-      sum: sum.toFixed(4) + '%'
+    const stables = result['Stablecoins'] || 0;
+    const riskyKeys = Object.keys(result).filter(k => k !== 'Stablecoins');
+
+    console.debug('🎯 TiltHelpers: Re-normalizing after filter (RISKY-ONLY):', {
+      sum: sum.toFixed(4) + '%',
+      stablesPreserved: stables.toFixed(2) + '%'
     });
 
-    for (const asset of Object.keys(result)) {
-      if (result[asset]) {
-        result[asset] = (result[asset] * 100) / sum;
+    // Scale only risky assets to fit remaining space
+    const riskyTarget = 100 - stables;
+    const currentRiskySum = riskyKeys.reduce((total, k) => total + (result[k] || 0), 0);
+
+    if (currentRiskySum > 0) {
+      const riskyNormFactor = riskyTarget / currentRiskySum;
+
+      for (const asset of riskyKeys) {
+        if (result[asset]) {
+          result[asset] = result[asset] * riskyNormFactor;
+        }
       }
     }
+
+    // Restore stables unchanged
+    result['Stablecoins'] = stables;
   }
 
   return result;

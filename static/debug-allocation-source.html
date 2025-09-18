@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🔍 Debug Source des Allocations</title>
+  <link rel="stylesheet" href="shared-theme.css">
+  <link rel="stylesheet" href="theme-compat.css">
+  <script src="global-config.js"></script>
+  <script src="appearance.js"></script>
+</head>
+
+<body>
+  <header class="header">
+    <div class="container">
+      <h1>🔍 Debug Source des Allocations</h1>
+      <p>Traçage de l'origine des valeurs hardcodées</p>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <div class="card">
+      <h2>🎯 Allocations Problématiques</h2>
+      <div class="allocations-hardcoded" style="background: var(--theme-surface); padding: 1rem; border-radius: 6px; margin: 1rem 0;">
+        <h4>Valeurs hardcodées détectées :</h4>
+        <ul>
+          <li>BTC: 29.4%</li>
+          <li>Stablecoins: 25.0%</li>
+          <li>ETH: 22.3%</li>
+          <li>L2/Scaling: 5.1%</li>
+          <li>SOL: 4.9%</li>
+          <li>L1/L0 majors: 4.4%</li>
+          <li>DeFi: 3.7%</li>
+          <li>AI/Data: 3.0%</li>
+          <li>Gaming/NFT: 1.5%</li>
+          <li>Memecoins: 0.7%</li>
+        </ul>
+      </div>
+      <button id="trace-source" class="btn btn-primary">🔍 Tracer la Source</button>
+    </div>
+
+    <div class="card">
+      <h2>📊 Unified State Analysis</h2>
+      <button id="analyze-unified-state" class="btn btn-secondary">📊 Analyser Unified State</button>
+      <div id="unified-analysis" style="margin-top: 1rem;"></div>
+    </div>
+
+    <div class="card">
+      <h2>🏗️ Strategy API Analysis</h2>
+      <button id="analyze-strategy-api" class="btn btn-warning">🚀 Analyser Strategy API</button>
+      <div id="strategy-analysis" style="margin-top: 1rem;"></div>
+    </div>
+
+    <div class="card">
+      <h2>🧮 Allocation Engine Analysis</h2>
+      <button id="analyze-allocation-engine" class="btn btn-info">🏗️ Analyser Allocation Engine</button>
+      <div id="allocation-analysis" style="margin-top: 1rem;"></div>
+    </div>
+
+    <div class="card">
+      <h2>💾 Cache/Storage Analysis</h2>
+      <button id="analyze-storage" class="btn btn-success">💾 Analyser Cache et Storage</button>
+      <div id="storage-analysis" style="margin-top: 1rem;"></div>
+    </div>
+
+    <div class="card">
+      <h2>📝 Debug Logs</h2>
+      <button id="clear-logs" class="btn btn-secondary">🗑️ Clear Logs</button>
+      <div id="debug-logs" style="background: var(--theme-surface); padding: 1rem; border-radius: 6px; max-height: 400px; overflow-y: auto; font-family: monospace; font-size: 0.9em; white-space: pre-wrap; margin-top: 1rem;"></div>
+    </div>
+
+  </main>
+
+  <script type="module">
+
+    // Capture console logs
+    const originalLog = console.log;
+    const originalDebug = console.debug;
+    const originalWarn = console.warn;
+    const originalError = console.error;
+
+    const logContainer = document.getElementById('debug-logs');
+    let logBuffer = [];
+
+    function captureLog(level, ...args) {
+      const timestamp = new Date().toLocaleTimeString();
+      const message = args.map(arg =>
+        typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+      ).join(' ');
+
+      logBuffer.push(`[${timestamp}] ${level.toUpperCase()}: ${message}`);
+
+      if (logBuffer.length > 50) {
+        logBuffer = logBuffer.slice(-50);
+      }
+
+      logContainer.textContent = logBuffer.join('\n');
+      logContainer.scrollTop = logContainer.scrollHeight;
+
+      // Call original
+      if (level === 'log') originalLog(...args);
+      else if (level === 'debug') originalDebug(...args);
+      else if (level === 'warn') originalWarn(...args);
+      else if (level === 'error') originalError(...args);
+    }
+
+    console.log = (...args) => captureLog('log', ...args);
+    console.debug = (...args) => captureLog('debug', ...args);
+    console.warn = (...args) => captureLog('warn', ...args);
+    console.error = (...args) => captureLog('error', ...args);
+
+    document.getElementById('clear-logs').addEventListener('click', () => {
+      logBuffer = [];
+      logContainer.textContent = '';
+    });
+
+    // Trace source of allocations
+    document.getElementById('trace-source').addEventListener('click', async () => {
+      console.log('🔍 STARTING SOURCE TRACE');
+
+      try {
+        // Check unified state flow step by step
+        console.log('📊 Loading unified-insights-v2.js...');
+        const { getUnifiedState } = await import('./core/unified-insights-v2.js');
+
+        console.log('🚀 Calling getUnifiedState()...');
+        const unifiedState = await getUnifiedState();
+
+        console.log('📋 UNIFIED STATE LOADED:', {
+          keys: Object.keys(unifiedState),
+          targets_by_group: unifiedState.targets_by_group,
+          decision: unifiedState.decision,
+          strategy: unifiedState.strategy
+        });
+
+        // Check specific sources
+        console.log('🎯 TARGETS_BY_GROUP ANALYSIS:');
+        if (unifiedState.targets_by_group) {
+          Object.entries(unifiedState.targets_by_group).forEach(([asset, pct]) => {
+            console.log(`  ${asset}: ${pct}%`);
+          });
+        }
+
+        // Check if values match our problematic ones
+        const problematicValues = {
+          'BTC': 29.4,
+          'Stablecoins': 25.0,
+          'ETH': 22.3,
+          'L2/Scaling': 5.1,
+          'SOL': 4.9
+        };
+
+        console.log('🚨 MATCHING PROBLEMATIC VALUES:');
+        let foundMatches = [];
+        for (const [asset, expectedPct] of Object.entries(problematicValues)) {
+          const actualPct = unifiedState.targets_by_group?.[asset];
+          const diff = Math.abs((actualPct || 0) - expectedPct);
+          if (diff < 0.1) {
+            foundMatches.push(`${asset}: ${actualPct}% ≈ ${expectedPct}% (MATCH!)`);
+          } else {
+            console.log(`  ${asset}: ${actualPct}% vs ${expectedPct}% (diff: ${diff.toFixed(1)}%)`);
+          }
+        }
+
+        if (foundMatches.length > 0) {
+          console.log('🎯 FOUND MATCHING VALUES:');
+          foundMatches.forEach(match => console.log(`  ✅ ${match}`));
+        }
+
+      } catch (error) {
+        console.error('❌ Source trace failed:', error);
+      }
+    });
+
+    // Analyze unified state
+    document.getElementById('analyze-unified-state').addEventListener('click', async () => {
+      const results = document.getElementById('unified-analysis');
+      results.innerHTML = '<div class="loading">Analyzing unified state...</div>';
+
+      try {
+        console.log('📊 UNIFIED STATE DETAILED ANALYSIS');
+
+        const { getUnifiedState } = await import('./core/unified-insights-v2.js');
+        const unifiedState = await getUnifiedState();
+
+        console.log('🔍 Full unified state structure:', unifiedState);
+
+        results.innerHTML = `
+          <h3>📊 Unified State Structure</h3>
+          <pre style="background: var(--theme-surface); padding: 1rem; border-radius: 6px; overflow-x: auto; max-height: 400px;">
+${JSON.stringify(unifiedState, null, 2)}
+          </pre>
+        `;
+
+      } catch (error) {
+        console.error('❌ Unified state analysis failed:', error);
+        results.innerHTML = `<div class="error">❌ Failed: ${error.message}</div>`;
+      }
+    });
+
+    // Analyze strategy API
+    document.getElementById('analyze-strategy-api').addEventListener('click', async () => {
+      const results = document.getElementById('strategy-analysis');
+      results.innerHTML = '<div class="loading">Analyzing strategy API...</div>';
+
+      try {
+        console.log('🚀 STRATEGY API ANALYSIS');
+
+        const { calculateIntelligentDecisionIndexAPI } = await import('./core/strategy-api-adapter.js');
+
+        // Create test context
+        const testContext = {
+          cycleData: { score: 70 },
+          regimeData: { name: 'expansion' },
+          blendedScore: 65
+        };
+
+        console.log('🧪 Testing strategy API with context:', testContext);
+        const decision = await calculateIntelligentDecisionIndexAPI(testContext);
+
+        console.log('📋 Strategy API result:', decision);
+
+        results.innerHTML = `
+          <h3>🚀 Strategy API Result</h3>
+          <div style="display: grid; gap: 1rem;">
+            <div style="background: var(--theme-surface); padding: 1rem; border-radius: 6px;">
+              <h4>Decision Object</h4>
+              <ul>
+                <li><strong>Score:</strong> ${decision.score}</li>
+                <li><strong>Source:</strong> ${decision.source}</li>
+                <li><strong>API Version:</strong> ${decision.api_version}</li>
+                <li><strong>Template:</strong> ${decision.template_used}</li>
+                <li><strong>Targets Count:</strong> ${decision.targets?.length || 0}</li>
+              </ul>
+            </div>
+
+            ${decision.targets ? `
+            <div style="background: var(--theme-surface); padding: 1rem; border-radius: 6px;">
+              <h4>Strategy Targets</h4>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.5rem;">
+                ${decision.targets.map(target => `
+                  <div style="background: var(--theme-bg); padding: 0.5rem; border-radius: 4px;">
+                    <div style="font-weight: 600;">${target.symbol}</div>
+                    <div>${(target.weight * 100).toFixed(1)}%</div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+            ` : ''}
+
+            <div style="background: var(--theme-surface); padding: 1rem; border-radius: 6px;">
+              <h4>Full Object</h4>
+              <pre style="max-height: 300px; overflow-y: auto; font-size: 0.8em;">
+${JSON.stringify(decision, null, 2)}
+              </pre>
+            </div>
+          </div>
+        `;
+
+      } catch (error) {
+        console.error('❌ Strategy API analysis failed:', error);
+        results.innerHTML = `<div class="error">❌ Failed: ${error.message}</div>`;
+      }
+    });
+
+    // Analyze allocation engine
+    document.getElementById('analyze-allocation-engine').addEventListener('click', async () => {
+      const results = document.getElementById('allocation-analysis');
+      results.innerHTML = '<div class="loading">Analyzing allocation engine...</div>';
+
+      try {
+        console.log('🏗️ ALLOCATION ENGINE ANALYSIS');
+
+        const { calculateHierarchicalAllocation } = await import('./core/allocation-engine.js');
+
+        // Create test context
+        const testContext = {
+          cycleScore: 70,
+          adaptiveWeights: { btc: 0.35, eth: 0.25, stables: 0.20 },
+          execution: { cap_pct_per_iter: 7 }
+        };
+
+        console.log('🧪 Testing allocation engine with context:', testContext);
+        const allocation = await calculateHierarchicalAllocation(testContext, [], { enableV2: true });
+
+        console.log('📋 Allocation engine result:', allocation);
+
+        if (allocation) {
+          results.innerHTML = `
+            <h3>🏗️ Allocation Engine Result</h3>
+            <div style="display: grid; gap: 1rem;">
+              <div style="background: var(--theme-surface); padding: 1rem; border-radius: 6px;">
+                <h4>Allocation Results</h4>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.5rem;">
+                  ${Object.entries(allocation.allocation || {}).map(([asset, pct]) => `
+                    <div style="background: var(--theme-bg); padding: 0.5rem; border-radius: 4px;">
+                      <div style="font-weight: 600;">${asset}</div>
+                      <div>${(pct * 100).toFixed(1)}%</div>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+
+              <div style="background: var(--theme-surface); padding: 1rem; border-radius: 6px;">
+                <h4>Execution Plan</h4>
+                <pre style="font-size: 0.9em;">
+${JSON.stringify(allocation.execution, null, 2)}
+                </pre>
+              </div>
+
+              <div style="background: var(--theme-surface); padding: 1rem; border-radius: 6px;">
+                <h4>Full Result</h4>
+                <pre style="max-height: 300px; overflow-y: auto; font-size: 0.8em;">
+${JSON.stringify(allocation, null, 2)}
+                </pre>
+              </div>
+            </div>
+          `;
+        } else {
+          results.innerHTML = '<div class="error">❌ Allocation engine returned null</div>';
+        }
+
+      } catch (error) {
+        console.error('❌ Allocation engine analysis failed:', error);
+        results.innerHTML = `<div class="error">❌ Failed: ${error.message}</div>`;
+      }
+    });
+
+    // Analyze storage
+    document.getElementById('analyze-storage').addEventListener('click', () => {
+      const results = document.getElementById('storage-analysis');
+
+      console.log('💾 STORAGE ANALYSIS');
+
+      // Check localStorage for relevant keys
+      const relevantKeys = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (
+          key.includes('allocation') ||
+          key.includes('targets') ||
+          key.includes('strategy') ||
+          key.includes('phase') ||
+          key.includes('unified')
+        )) {
+          relevantKeys.push(key);
+        }
+      }
+
+      console.log('🔍 Relevant localStorage keys:', relevantKeys);
+
+      let storageHtml = '<h3>💾 Storage Analysis</h3>';
+
+      if (relevantKeys.length > 0) {
+        storageHtml += '<div style="display: grid; gap: 1rem;">';
+
+        relevantKeys.forEach(key => {
+          const value = localStorage.getItem(key);
+          let parsedValue;
+          try {
+            parsedValue = JSON.parse(value);
+          } catch {
+            parsedValue = value;
+          }
+
+          console.log(`📋 localStorage[${key}]:`, parsedValue);
+
+          storageHtml += `
+            <div style="background: var(--theme-surface); padding: 1rem; border-radius: 6px;">
+              <h4>${key}</h4>
+              <pre style="max-height: 200px; overflow-y: auto; font-size: 0.8em;">
+${typeof parsedValue === 'object' ? JSON.stringify(parsedValue, null, 2) : parsedValue}
+              </pre>
+            </div>
+          `;
+        });
+
+        storageHtml += '</div>';
+      } else {
+        storageHtml += '<div class="alert alert-info">No relevant storage keys found</div>';
+      }
+
+      results.innerHTML = storageHtml;
+    });
+
+    // Initialize
+    console.log('🔍 Debug allocation source page loaded');
+
+  </script>
+
+</body>
+</html>

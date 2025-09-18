@@ -167,10 +167,10 @@
             }
         }
 
-        function runTest(testName, testFn) {
+        async function runTest(testName, testFn) {
             log(`Running test: ${testName}`);
             try {
-                testFn();
+                await testFn();
                 testResults.push({ name: testName, status: 'passed', error: null });
                 log(`✅ PASSED: ${testName}`, 'success');
                 return true;
@@ -182,11 +182,11 @@
         }
 
         // Test suite definitions
-        function testPhaseDetection() {
+        async function testPhaseDetection() {
             log('=== PHASE DETECTION TESTS ===');
 
             // Test 1: Risk-off detection
-            runTest('Risk-off detection (DI < 35)', () => {
+            await runTest('Risk-off detection (DI < 35)', () => {
                 const inputs = {
                     DI: 30,
                     btc_dom: 0.6,
@@ -202,7 +202,7 @@
             });
 
             // Test 2: ETH expansion detection
-            runTest('ETH expansion detection', () => {
+            await runTest('ETH expansion detection', () => {
                 // Clear any forced phase from localStorage
                 if (typeof localStorage !== 'undefined') {
                     localStorage.removeItem('PHASE_ENGINE_DEBUG_FORCE');
@@ -242,7 +242,7 @@
             });
 
             // Test 3: Full altseason detection
-            runTest('Full altseason detection', () => {
+            await runTest('Full altseason detection', () => {
                 // Clear any forced phase from localStorage
                 if (typeof localStorage !== 'undefined') {
                     localStorage.removeItem('PHASE_ENGINE_DEBUG_FORCE');
@@ -267,7 +267,7 @@
             });
 
             // Test 4: Neutral with insufficient data
-            runTest('Neutral with partial data', () => {
+            await runTest('Neutral with partial data', () => {
                 // Clear any forced phase from localStorage
                 if (typeof localStorage !== 'undefined') {
                     localStorage.removeItem('PHASE_ENGINE_DEBUG_FORCE');
@@ -284,7 +284,7 @@
             });
         }
 
-        function testTiltLogic() {
+        async function testTiltLogic() {
             log('=== TILT LOGIC TESTS ===');
 
             const baseTargets = {
@@ -302,8 +302,8 @@
             };
 
             // Test 1: No-regression (neutral phase)
-            runTest('No-regression test (neutral phase)', () => {
-                const result = applyPhaseTilts(baseTargets, 'neutral', { DI: 50, breadth_alts: 0.5 });
+            await runTest('No-regression test (neutral phase)', async () => {
+                const result = await applyPhaseTilts(baseTargets, 'neutral', { DI: 50, breadth_alts: 0.5 });
 
                 // Should return unchanged targets
                 Object.keys(baseTargets).forEach(asset => {
@@ -314,15 +314,15 @@
             });
 
             // Test 2: Idempotence (sum = 100%)
-            runTest('Idempotence test (sum = 100%)', () => {
-                const result = applyPhaseTilts(baseTargets, 'eth_expansion', { DI: 75, breadth_alts: 0.7 });
+            await runTest('Idempotence test (sum = 100%)', async () => {
+                const result = await applyPhaseTilts(baseTargets, 'eth_expansion', { DI: 75, breadth_alts: 0.7 });
 
                 const sum = Object.values(result.targets).reduce((a, b) => a + b, 0);
                 assertApproxEqual(sum, 100, 0.1, 'Sum should equal 100%');
             });
 
             // Test 3: Caps respected
-            runTest('Caps respected test', () => {
+            await runTest('Caps respected test', async () => {
                 // Create targets that would exceed caps
                 const highTargets = {
                     ...baseTargets,
@@ -331,19 +331,19 @@
                     'Gaming/NFT': 8.0   // Would exceed 5% cap
                 };
 
-                const result = applyPhaseTilts(highTargets, 'full_altseason', { DI: 85, breadth_alts: 0.8 });
+                const result = await applyPhaseTilts(highTargets, 'full_altseason', { DI: 85, breadth_alts: 0.8 });
 
                 assert(result.targets['L2/Scaling'] <= 8.0, 'L2/Scaling should be capped at 8%');
                 assert(result.targets['DeFi'] <= 8.0, 'DeFi should be capped at 8%');
                 assert(result.targets['Gaming/NFT'] <= 5.0, 'Gaming/NFT should be capped at 5%');
                 assert(result.targets['Memecoins'] <= 2.0, 'Memecoins should be capped at 2%');
 
-                log(`Caps applied: ${result.metadata.capsTriggered.join(', ') || 'none'}`);
+                log(`Caps applied: ${(result.metadata.capsTriggered && result.metadata.capsTriggered.length) ? result.metadata.capsTriggered.join(', ') : 'none'}`);
             });
 
-            // Test 4: Stables floor never violated
-            runTest('Stables floor test', () => {
-                // Start with very low stables
+            // Test 4: Stables floor protection (risky-only = abort tilts)
+            await runTest('Stables floor protection test', async () => {
+                // Start with very low stables (should abort tilts in risky-only)
                 const lowStablesTargets = {
                     ...baseTargets,
                     'Stablecoins': 2.0, // Below 5% floor
@@ -351,21 +351,26 @@
                     'ETH': 35.0
                 };
 
-                const result = applyPhaseTilts(lowStablesTargets, 'eth_expansion', { DI: 70, breadth_alts: 0.6 });
+                const result = await applyPhaseTilts(lowStablesTargets, 'eth_expansion', { DI: 70, breadth_alts: 0.6 });
 
-                assert(result.targets['Stablecoins'] >= 5.0, 'Stablecoins should never go below 5% floor');
-                assert(result.metadata.stablesFloorHit, 'stablesFloorHit should be true');
+                // In risky-only architecture: if stables < floor, abort tilts and return unchanged
+                assert(!result.metadata.tiltsApplied || result.metadata.error === 'floor_breach',
+                       'Tilts should be aborted when stables floor breached');
 
-                log(`Stables floor enforced: ${result.targets['Stablecoins'].toFixed(1)}%`);
+                // Stables should remain exactly unchanged (risky-only policy)
+                assert(Math.abs(result.targets['Stablecoins'] - 2.0) < 0.01,
+                       'Stablecoins should remain unchanged in risky-only architecture');
+
+                log(`Stables floor protection: ${result.targets['Stablecoins'].toFixed(1)}% (tilts aborted: ${!result.metadata.tiltsApplied})`);
             });
 
             // Test 5: Zero-sum risky pool
-            runTest('Zero-sum risky pool test', () => {
+            await runTest('Zero-sum risky pool test', async () => {
                 const originalRiskySum = Object.keys(baseTargets)
                     .filter(k => k !== 'Stablecoins')
                     .reduce((sum, k) => sum + baseTargets[k], 0);
 
-                const result = applyPhaseTilts(baseTargets, 'largecap_altseason', { DI: 78, breadth_alts: 0.7 });
+                const result = await applyPhaseTilts(baseTargets, 'largecap_altseason', { DI: 78, breadth_alts: 0.7 });
 
                 const newRiskySum = Object.keys(result.targets)
                     .filter(k => k !== 'Stablecoins')
@@ -378,10 +383,10 @@
             });
 
             // Test 6: Memecoins special handling
-            runTest('Memecoins special handling test', () => {
+            await runTest('Memecoins special handling test', async () => {
                 const ctx = { DI: 85, breadth_alts: 0.85 }; // Meets memecoins criteria
 
-                const result = applyPhaseTilts(baseTargets, 'full_altseason', ctx);
+                const result = await applyPhaseTilts(baseTargets, 'full_altseason', ctx);
 
                 // Should get memecoins boost
                 assert(result.targets['Memecoins'] > baseTargets['Memecoins'], 'Memecoins should be boosted in full altseason with high DI & breadth');
@@ -391,11 +396,11 @@
             });
         }
 
-        function testEdgeCases() {
+        async function testEdgeCases() {
             log('=== EDGE CASES TESTS ===');
 
             // Test 1: Missing signals handling
-            runTest('Missing signals graceful handling', () => {
+            await runTest('Missing signals graceful handling', () => {
                 const inputs = extractPhaseInputs(mockStore);
 
                 // Should not crash with missing data
@@ -408,7 +413,7 @@
             });
 
             // Test 2: Extreme values handling
-            runTest('Extreme values handling', () => {
+            await runTest('Extreme values handling', () => {
                 const extremeInputs = {
                     DI: 150, // Out of range
                     btc_dom: 1.5, // > 1
@@ -428,15 +433,15 @@
             });
 
             // Test 3: Empty targets handling
-            runTest('Empty targets handling', () => {
-                const result = applyPhaseTilts({}, 'eth_expansion', { DI: 75, breadth_alts: 0.7 });
+            await runTest('Empty targets handling', async () => {
+                const result = await applyPhaseTilts({}, 'eth_expansion', { DI: 75, breadth_alts: 0.7 });
 
                 assert(result.metadata.error, 'Should return error metadata for empty targets');
                 assert(Object.keys(result.targets).length === 0, 'Should return empty targets object');
             });
 
             // Test 4: Memory and hysteresis
-            runTest('Hysteresis memory test', () => {
+            await runTest('Hysteresis memory test', () => {
                 resetPhaseMemory(); // Clean slate
 
                 // First detection should be neutral (no history)
@@ -476,11 +481,11 @@
             });
         }
 
-        function testBufferOperations() {
+        async function testBufferOperations() {
             log('=== BUFFER OPERATIONS TESTS ===');
 
             // Test 1: Ring buffer basic operations
-            runTest('Ring buffer basic operations', () => {
+            await runTest('Ring buffer basic operations', () => {
                 clearAllBuffers();
 
                 // Push samples
@@ -496,7 +501,7 @@
             });
 
             // Test 2: Slope calculation
-            runTest('Slope calculation test', () => {
+            await runTest('Slope calculation test', () => {
                 const upSeries = [1.0, 1.1, 1.2, 1.3]; // 30% increase
                 const flatSeries = [1.0, 1.0, 1.0, 1.0]; // No change
                 const downSeries = [1.3, 1.2, 1.1, 1.0]; // ~23% decrease
@@ -513,7 +518,7 @@
             });
 
             // Test 3: Buffer overflow handling
-            runTest('Buffer overflow handling', () => {
+            await runTest('Buffer overflow handling', () => {
                 clearAllBuffers();
 
                 // Push more than default buffer size
@@ -530,17 +535,17 @@
         }
 
         // Main test runners
-        function runPhaseTests() {
+        async function runPhaseTests() {
             testResults = [];
             log('🚀 Starting Phase Detection Tests');
-            testPhaseDetection();
+            await testPhaseDetection();
             updateResults();
         }
 
-        function runTiltTests() {
+        async function runTiltTests() {
             testResults = [];
             log('🚀 Starting Tilt Logic Tests');
-            testTiltLogic();
+            await testTiltLogic();
             updateResults();
         }
 
@@ -563,11 +568,11 @@
             };
 
             // Test 1: Flag OFF = no-regression
-            runTest('No-regression test (phase engine off)', async () => {
-                const { applyPhaseTiltsNew } = await import('./core/phase-engine.js');
+            await runTest('No-regression test (phase engine off)', async () => {
+                const { applyPhaseTilts } = await import('./core/phase-engine.js');
 
                 // Simulate phase engine OFF by using neutral
-                const result = await applyPhaseTiltsNew(mockTargets, 'neutral', {});
+                const result = await applyPhaseTilts(mockTargets, 'neutral', {});
 
                 // Should return targets unchanged
                 for (const [asset, value] of Object.entries(mockTargets)) {
@@ -579,20 +584,20 @@
             });
 
             // Test 2: Sum = 100%
-            runTest('Sum equals 100% validation', async () => {
-                const { applyPhaseTiltsNew } = await import('./core/phase-engine.js');
+            await runTest('Sum equals 100% validation', async () => {
+                const { applyPhaseTilts } = await import('./core/phase-engine.js');
 
-                const result = await applyPhaseTiltsNew(mockTargets, 'eth_expansion', { DI: 75, breadth_alts: 0.7 });
+                const result = await applyPhaseTilts(mockTargets, 'eth_expansion', { DI: 75, breadth_alts: 0.7 });
 
                 const sum = Object.values(result.targets).reduce((total, val) => total + val, 0);
                 assert(Math.abs(sum - 100) < 0.01, `Sum should be 100%, got ${sum.toFixed(4)}%`);
             });
 
             // Test 3: Stables unchanged (risky-only policy)
-            runTest('Stables preservation test', async () => {
-                const { applyPhaseTiltsNew } = await import('./core/phase-engine.js');
+            await runTest('Stables preservation test', async () => {
+                const { applyPhaseTilts } = await import('./core/phase-engine.js');
 
-                const result = await applyPhaseTiltsNew(mockTargets, 'eth_expansion', { DI: 75, breadth_alts: 0.7 });
+                const result = await applyPhaseTilts(mockTargets, 'eth_expansion', { DI: 75, breadth_alts: 0.7 });
 
                 const originalStables = mockTargets['Stablecoins'];
                 const finalStables = result.targets['Stablecoins'];
@@ -603,10 +608,10 @@
             });
 
             // Test 4: Zero-sum risky pool
-            runTest('Zero-sum risky pool test', async () => {
-                const { applyPhaseTiltsNew } = await import('./core/phase-engine.js');
+            await runTest('Zero-sum risky pool test', async () => {
+                const { applyPhaseTilts } = await import('./core/phase-engine.js');
 
-                const result = await applyPhaseTiltsNew(mockTargets, 'largecap_altseason', { DI: 75, breadth_alts: 0.7 });
+                const result = await applyPhaseTilts(mockTargets, 'largecap_altseason', { DI: 75, breadth_alts: 0.7 });
 
                 const originalRisky = Object.keys(mockTargets)
                     .filter(k => k !== 'Stablecoins')
@@ -621,10 +626,10 @@
             });
 
             // Test 5: Caps respected
-            runTest('Asset caps enforcement test', async () => {
-                const { applyPhaseTiltsNew } = await import('./core/phase-engine.js');
+            await runTest('Asset caps enforcement test', async () => {
+                const { applyPhaseTilts } = await import('./core/phase-engine.js');
 
-                const result = await applyPhaseTiltsNew(mockTargets, 'full_altseason', { DI: 85, breadth_alts: 0.85 });
+                const result = await applyPhaseTilts(mockTargets, 'full_altseason', { DI: 85, breadth_alts: 0.85 });
 
                 const caps = {
                     'L2/Scaling': 8,
@@ -643,14 +648,14 @@
             });
 
             // Test 6: Min-effect filter
-            runTest('Min-effect filter test', async () => {
-                const { applyPhaseTiltsNew } = await import('./core/phase-engine.js');
+            await runTest('Min-effect filter test', async () => {
+                const { applyPhaseTilts } = await import('./core/phase-engine.js');
 
                 // Use targets that would create small deltas
                 const smallTargets = { ...mockTargets };
                 smallTargets['ETH'] = 20.1; // Very small base
 
-                const result = await applyPhaseTiltsNew(smallTargets, 'eth_expansion', { DI: 75, breadth_alts: 0.7 });
+                const result = await applyPhaseTilts(smallTargets, 'eth_expansion', { DI: 75, breadth_alts: 0.7 });
 
                 // Check if tiny changes were filtered out
                 let filteredCount = 0;
@@ -665,13 +670,13 @@
             });
 
             // Test 7: Phase validation for critical phases
-            runTest('Phase scenarios validation', async () => {
-                const { applyPhaseTiltsNew } = await import('./core/phase-engine.js');
+            await runTest('Phase scenarios validation', async () => {
+                const { applyPhaseTilts } = await import('./core/phase-engine.js');
 
                 const phases = ['neutral', 'risk_off', 'eth_expansion', 'largecap_altseason', 'full_altseason'];
 
                 for (const phase of phases) {
-                    const result = await applyPhaseTiltsNew(mockTargets, phase, { DI: 75, breadth_alts: 0.7 });
+                    const result = await applyPhaseTilts(mockTargets, phase, { DI: 75, breadth_alts: 0.7 });
 
                     // Basic validation for each phase
                     assert(result.targets, `Phase ${phase} should return targets`);
@@ -686,15 +691,15 @@
             });
         }
 
-        function runAllTests() {
+        async function runAllTests() {
             testResults = [];
             logMessages = [];
             log('🚀 Starting Complete Test Suite');
 
-            testBufferOperations();
-            testPhaseDetection();
-            testTiltLogic();
-            testEdgeCases();
+            await testBufferOperations();
+            await testPhaseDetection();
+            await testTiltLogic();
+            await testEdgeCases();
 
             updateResults();
 
