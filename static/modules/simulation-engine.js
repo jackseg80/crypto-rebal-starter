@@ -5,6 +5,44 @@
 
 console.debug('🎭 SIM: Simulation Engine loaded');
 
+// Imports pour système de contradiction unifié
+let contradictionModules = null;
+
+async function loadContradictionModules() {
+  if (!contradictionModules) {
+    try {
+      const [
+        smoothModule,
+        effectiveModule,
+        adaptiveWeightsModule,
+        capsModule
+      ] = await Promise.all([
+        import('../governance/contradiction-smoothing.js'),
+        import('../governance/effective-contradiction.js'),
+        import('../risk/adaptive-weights.js'),
+        import('../simulations/contradiction-caps.js')
+      ]);
+
+      contradictionModules = {
+        smoothContradiction: smoothModule.smoothContradiction,
+        getEffectiveContradiction01: effectiveModule.getEffectiveContradiction01,
+        calculateAdaptiveWeights: adaptiveWeightsModule.calculateAdaptiveWeights,
+        applyContradictionCaps: capsModule.applyContradictionCaps
+      };
+
+      console.debug('✅ SIM: Contradiction modules loaded');
+    } catch (error) {
+      console.warn('⚠️ SIM: Failed to load contradiction modules, using fallbacks:', error.message);
+      contradictionModules = {
+        smoothContradiction: (value) => ({ value01: value, level: 'medium', persistCount: 0 }),
+        getEffectiveContradiction01: (opts) => ({ value01: opts.state?.governance?.contradiction_index ?? 0.5, stale: false, useBaseWeights: false }),
+        calculateAdaptiveWeights: (base) => base,
+        applyContradictionCaps: (policy) => policy
+      };
+    }
+  }
+}
+
 // Fallbacks simples pour les modules
 const store = {
   get: (path) => {
@@ -46,6 +84,9 @@ async function loadRealComputeFunction() {
       console.warn('⚠️ SIM: Failed to load real computeMacroTargetsDynamic, using fallback:', error.message);
     }
   }
+
+  // Charger aussi les modules de contradiction
+  await loadContradictionModules();
 
   // Charger les groupes d'assets pour position réelle
   if (!assetGroupsModule) {
@@ -209,6 +250,12 @@ let simulationState = {
     volStressCounter: 0,  // Pour circuit breaker vol
     ddStressCounter: 0,   // Pour circuit breaker drawdown
     contradictionLevel: 0  // Niveau de contradictions simulé
+  },
+  // État de smoothing/hystérésis pour contradiction
+  smoothState: {
+    prevLevel: undefined,
+    prevValue: undefined,
+    persistCount: 0
   }
 };
 
@@ -965,35 +1012,80 @@ export async function simulateFullPipeline(uiOverrides = {}) {
   console.debug('🎭 SIM: simulateFullPipeline called with overrides:', uiOverrides);
 
   try {
-    // 1. Contexte
-    const context = buildSimulationContext(simulationState.sourceData, uiOverrides);
+    // 1. Contexte de base
+    const baseContext = buildSimulationContext(simulationState.sourceData, uiOverrides);
 
-    // 2. Decision Index
-    const di = computeDecisionIndex(context);
+    // 2. Système de Contradiction Unifié
+    const BASE_WEIGHTS = { cycle: 0.4, onchain: 0.35, risk: 0.25 };
+    const SMOOTHING_CFG = { ema_alpha: 0.25, deadband: 2, persistence: 3 };
 
-    // 3. Risk Budget
+    // Construire snapshot d'état pour contradiction unifié
+    const snapshot = {
+      governance: {
+        contradiction_index: uiOverrides.contradictionIndex ?? 0.5,
+        updated_at: uiOverrides.forceStale ? new Date(Date.now() - 45 * 60 * 1000).toISOString() : new Date().toISOString(),
+        overrides_count: Object.keys(uiOverrides).length
+      },
+      scores: baseContext.scores
+    };
+
+    // Effective contradiction avec staleness gating
+    const eff = contradictionModules.getEffectiveContradiction01({
+      state: snapshot,
+      baseWeights: BASE_WEIGHTS,
+      ttlMin: 30
+    });
+
+    // Smoothing/hystérésis
+    const sm = contradictionModules.smoothContradiction(eff.value01, simulationState.smoothState.prevValue, SMOOTHING_CFG, simulationState.smoothState);
+    simulationState.smoothState.prevLevel = sm.level;
+    simulationState.smoothState.prevValue = sm.value01;
+    simulationState.smoothState.persistCount = sm.persistCount;
+
+    // Construire état unifié pour engine
+    const stateForEngine = {
+      ...snapshot,
+      governance: {
+        ...snapshot.governance,
+        contradiction_index: sm.value01,
+        last_fresh_contrad01: eff.stale ? (snapshot?.governance?.last_fresh_contrad01 ?? sm.value01) : sm.value01
+      }
+    };
+
+    // Poids adaptatifs
+    const weights = eff.useBaseWeights
+      ? BASE_WEIGHTS
+      : contradictionModules.calculateAdaptiveWeights(BASE_WEIGHTS, stateForEngine);
+
+    // 3. Decision Index avec poids adaptatifs
+    const di = computeDecisionIndex({ ...baseContext, weights });
+
+    // 4. Risk Budget
     const riskBudget = computeRiskBudget(di.di, uiOverrides.riskBudget, uiOverrides.marketOverlays);
 
-    // 4. Targets de base
-    const targets = computeTargets(riskBudget, context);
+    // 5. Targets de base
+    const targets = computeTargets(riskBudget, { ...baseContext, weights });
 
-    // 5. Phase tilts
+    // 6. Phase tilts
     const finalTargets = applyPhaseEngineTilts(targets, uiOverrides.phaseEngine);
 
-    // 6. Governance caps
-    const cappedResult = applyGovernanceCaps(finalTargets, uiOverrides.governance);
+    // 7. Caps de contradiction
+    const contradictionCaps = contradictionModules.applyContradictionCaps(finalTargets, stateForEngine);
 
-    // 7. Plan d'exécution - position réelle calculée depuis wallet
-    const currentAllocation = await computeCurrentAllocation(context.wallet);
+    // 8. Governance caps
+    const cappedResult = applyGovernanceCaps(contradictionCaps, uiOverrides.governance);
+
+    // 9. Plan d'exécution - position réelle calculée depuis wallet
+    const currentAllocation = await computeCurrentAllocation(baseContext.wallet);
     const orders = planOrdersSimulated(currentAllocation, cappedResult.targets, uiOverrides.execution);
 
-    // 8. Explication
-    const explanation = explainPipeline(context, {
+    // 10. Explication
+    const explanation = explainPipeline(baseContext, {
       di, riskBudget, targets, finalTargets, cappedResult, orders
     });
 
     const fullResult = {
-      context,
+      context: baseContext,
       di,
       riskBudget,
       targets,
@@ -1002,7 +1094,15 @@ export async function simulateFullPipeline(uiOverrides = {}) {
       capsTriggered: cappedResult.capsTriggered,
       orders,
       explanation,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      // Infos UI pour badges
+      ui: {
+        stateForEngine,
+        contradictionPct: Math.round((stateForEngine.governance.contradiction_index ?? 0) * 100),
+        capPct01: riskBudget?.cap01 ?? undefined,
+        stale: eff.stale === true,
+        mode: eff.useBaseWeights ? 'FROZEN' : 'ACTIVE'
+      }
     };
 
     console.log('🎭 SIM: Full pipeline completed successfully');

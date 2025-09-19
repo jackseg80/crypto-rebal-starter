@@ -557,8 +557,11 @@
       <div id="results" class="sim-panel">
         <div class="sim-header">
           <h3>📊 Résultats de Simulation</h3>
-          <div id="simulation-status">
-            <span class="status-badge info">Prêt</span>
+          <div style="display: flex; align-items: center; gap: var(--space-md);">
+            <div id="simulation-status">
+              <span class="status-badge info">Prêt</span>
+            </div>
+            <div id="badges-sim"></div>
           </div>
         </div>
         <div class="results-content">
@@ -678,6 +681,26 @@
     import { SimInspector } from './components/SimInspector.js';
     import * as SimEngine from './modules/simulation-engine.js';
 
+    // Sélecteurs & policy
+    import { selectContradictionPct, selectContradiction01 } from './selectors/governance.js';
+    import { classifyContradiction } from './governance/contradiction-policy.js';
+
+    // Smoothing + staleness
+    import { smoothContradiction } from './governance/contradiction-smoothing.js';
+    import { getEffectiveContradiction01 } from './governance/effective-contradiction.js';
+
+    // Poids & caps (utiles si on doit afficher des métriques supplémentaires)
+    import { calculateAdaptiveWeights } from './risk/adaptive-weights.js';
+    import { applyContradictionCaps } from './simulations/contradiction-caps.js';
+
+    // Badges UI
+    import { renderBadges } from './components/Badges.js';
+
+    // État local de smoothing (persistance) + config par défaut
+    let smoothState = { prevLevel: undefined, prevValue: undefined, persistCount: 0 };
+    const SMOOTHING_CFG = { ema_alpha: 0.25, deadband: 2, persistence: 3 }; // deadband en %
+    const STALE_TTL_MIN = 30;
+
     // État global de l'application
     let appState = {
       mode: 'live', // 'live' ou 'simulation'
@@ -687,6 +710,9 @@
       lastSimulation: null,
       isRunning: false
     };
+
+    // Debounce pour éviter d'inonder le moteur
+    let controlsUpdateTimeout = null;
 
     // Initialisation
     document.addEventListener('DOMContentLoaded', async () => {
@@ -822,16 +848,23 @@
         return;
       }
 
-      console.log('🎭 SIM: Controls updated, running simulation');
-      appState.lastSimulation = controlsState;
-
-      // Mettre à jour URL hash
-      const hash = SimEngine.stateToUrlHash(controlsState);
-      if (hash !== window.location.hash) {
-        history.replaceState(null, null, hash);
+      // Debounce pour éviter d'inonder le moteur quand l'utilisateur bouge un slider rapidement
+      if (controlsUpdateTimeout) {
+        clearTimeout(controlsUpdateTimeout);
       }
 
-      await runSimulation(controlsState);
+      controlsUpdateTimeout = setTimeout(async () => {
+        console.log('🎭 SIM: Controls updated, running simulation');
+        appState.lastSimulation = controlsState;
+
+        // Mettre à jour URL hash
+        const hash = SimEngine.stateToUrlHash(controlsState);
+        if (hash !== window.location.hash) {
+          history.replaceState(null, null, hash);
+        }
+
+        await runSimulation(controlsState);
+      }, 250); // 250ms debounce
     }
 
     async function runSimulation(controlsState) {
@@ -861,6 +894,19 @@
 
     function displayResults(result) {
       const { di, riskBudget, cappedTargets, orders, explanation } = result;
+
+      // Affichage badges dans le header des résultats
+      const stateForEngine = result?.ui?.stateForEngine ?? null;
+      const capPctRaw = result?.ui?.capPct01 ?? (result?.riskBudget?.cap01 ?? null); // fallback gentil si exposé
+      try {
+        renderBadges(document.querySelector('#badges-sim'), {
+          state: stateForEngine || {},
+          risk_metrics: { cap: capPctRaw ?? 0 },
+          overrides_count: stateForEngine?.governance?.overrides_count ?? 0
+        });
+      } catch (e) {
+        console.warn('Badges render skipped:', e?.message);
+      }
 
       // Decision Index
       document.getElementById('sim-di-gauge').textContent = di.di;
