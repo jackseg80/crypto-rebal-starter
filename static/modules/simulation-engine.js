@@ -1026,7 +1026,15 @@ export async function simulateFullPipeline(uiOverrides = {}) {
       ttlMin: 30
     });
 
-    // Smoothing/hystérésis
+    // Smoothing/hystérésis - ensure smoothState is initialized
+    if (!simulationState.smoothState) {
+      simulationState.smoothState = {
+        prevLevel: undefined,
+        prevValue: undefined,
+        persistCount: 0
+      };
+    }
+
     const sm = contradictionModules.smoothContradiction(eff.value01, simulationState.smoothState.prevValue, SMOOTHING_CFG, simulationState.smoothState);
     simulationState.smoothState.prevLevel = sm.level;
     simulationState.smoothState.prevValue = sm.value01;
