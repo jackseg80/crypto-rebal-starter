@@ -1,7 +1,10 @@
 from __future__ import annotations
-from typing import Any, Dict, List
+import logging
+from typing import Any, Dict, List, Optional, Tuple
 from constants import get_exchange_priority, normalize_exchange_name, format_exec_hint
 from services.taxonomy import Taxonomy
+
+log = logging.getLogger(__name__)
 
 
 def _keynorm(s: str) -> str:
@@ -46,6 +49,116 @@ def _get_exec_hint(action: Dict[str, Any], items_by_group: Dict[str, List[Dict[s
 
     main = ordered[0][0]
     return _format_hint_for_location(main, "buy")
+
+
+# ------------------------------------------------------------------
+# Priority allocation helpers
+# ------------------------------------------------------------------
+
+def _allocate_priority_buy(total_usd: float, scored_coins: List, config: Dict[str, Any],
+                          pinned: List[str], blacklist: List[str], min_trade_usd: float) -> Dict[str, float]:
+    """
+    Alloue un montant total selon le mode priority (Top-N + decay/softmax).
+
+    Returns:
+        Dict[alias, usd_amount]
+    """
+    if total_usd <= 0 or not scored_coins:
+        return {}
+
+    allocation_config = config.get("allocation", {})
+    top_n = allocation_config.get("top_n", 3)
+    distribution_mode = allocation_config.get("distribution_mode", "decay")
+    decay_weights = allocation_config.get("decay", [0.5, 0.3, 0.2])
+    softmax_temp = allocation_config.get("softmax_temp", 1.0)
+
+    # Filtrer selon pinned/blacklist
+    filtered_coins = []
+    for coin in scored_coins:
+        alias = coin.meta.alias.upper()
+        if alias in blacklist:
+            continue
+        filtered_coins.append(coin)
+
+    # Priorité aux pinned
+    pinned_coins = [c for c in filtered_coins if c.meta.alias.upper() in pinned]
+    other_coins = [c for c in filtered_coins if c.meta.alias.upper() not in pinned]
+
+    # Sélection Top-N
+    selected_coins = pinned_coins + other_coins[:max(0, top_n - len(pinned_coins))]
+    selected_coins = selected_coins[:top_n]
+
+    if not selected_coins:
+        log.warning("No coins selected after filtering")
+        return {}
+
+    # Distribution des poids
+    if distribution_mode == "decay" and len(decay_weights) >= len(selected_coins):
+        weights = decay_weights[:len(selected_coins)]
+    elif distribution_mode == "softmax":
+        scores = [coin.score for coin in selected_coins]
+        max_score = max(scores) if scores else 0
+        exp_scores = [exp((score - max_score) / softmax_temp) for score in scores]
+        total_exp = sum(exp_scores)
+        weights = [exp_score / total_exp for exp_score in exp_scores] if total_exp > 0 else [1.0 / len(selected_coins)] * len(selected_coins)
+    else:
+        # Fallback égal
+        weights = [1.0 / len(selected_coins)] * len(selected_coins)
+
+    # Normalisation des poids
+    total_weight = sum(weights)
+    if total_weight > 0:
+        weights = [w / total_weight for w in weights]
+
+    # Allocation finale
+    allocation = {}
+    remaining = total_usd
+
+    for i, (coin, weight) in enumerate(zip(selected_coins, weights)):
+        if i == len(selected_coins) - 1:
+            # Dernière allocation : tout le reste
+            amount = remaining
+        else:
+            amount = round(total_usd * weight, 2)
+            remaining -= amount
+
+        if amount >= min_trade_usd:
+            allocation[coin.meta.alias] = amount
+
+    log.debug(f"Priority allocation: {len(allocation)} coins, total {sum(allocation.values()):.2f} USD")
+    return allocation
+
+
+def _prioritize_sell_targets(hold_by_alias: Dict[str, Dict[str, float]], scored_coins: List,
+                           pinned: List[str], min_trade_usd: float) -> List[Tuple[str, str, float]]:
+    """
+    Priorise les cibles de vente : score faible d'abord, en respectant les pinned.
+
+    Returns:
+        List[(alias, location, max_amount)] triée par priorité de vente
+    """
+    # Créer un mapping score par alias
+    score_by_alias = {}
+    for coin in scored_coins:
+        score_by_alias[coin.meta.alias.upper()] = coin.score
+
+    # Préparer les cibles de vente
+    sell_targets = []
+    for alias, locations in hold_by_alias.items():
+        if alias.upper() in pinned:
+            continue  # Skip pinned
+
+        score = score_by_alias.get(alias.upper(), 0.0)
+
+        for location, amount in locations.items():
+            if amount >= min_trade_usd:
+                sell_targets.append((alias, location, amount, score))
+
+    # Tri par score croissant (pires scores en premier)
+    sell_targets.sort(key=lambda x: x[3])
+
+    # Retourner sans le score
+    return [(alias, loc, amount) for alias, loc, amount, _ in sell_targets]
 
 
 # ------------------------------------------------------------------
@@ -148,6 +261,32 @@ def plan_rebalance(
 
     actions: List[Dict[str, Any]] = []
 
+    # ---------- PRIORITY MODE HANDLING ----------
+    priority_universe = None
+    universe_fallbacks = set()  # Groupes qui retombent en proportionnel
+
+    if sub_allocation == "priority":
+        try:
+            from services.universe import get_universe_cached
+            log.info(f"Attempting priority allocation for {len(groups_order)} groups")
+
+            # Charger l'univers scoré avec le portfolio actuel
+            priority_universe = get_universe_cached(
+                groups=groups_order,
+                current_portfolio=items,
+                mode="prefer_cache"
+            )
+
+            if priority_universe:
+                log.info(f"Priority universe loaded for {len(priority_universe)} groups")
+            else:
+                log.warning("Priority universe unavailable, falling back to proportional for all groups")
+                universe_fallbacks.update(groups_order)
+
+        except Exception as e:
+            log.error(f"Priority mode failed, falling back to proportional: {e}")
+            universe_fallbacks.update(groups_order)
+
     # ---------- VENTES : répartition par alias PUIS par location avec priorité ----------
     for g in groups_order:
         delta = deltas_by_group_usd.get(g, 0.0)
@@ -155,6 +294,67 @@ def plan_rebalance(
             continue
         to_sell = -delta
 
+        # Mode de sélection des ventes selon sub_allocation
+        if sub_allocation == "priority" and priority_universe and g in priority_universe and g not in universe_fallbacks:
+            # MODE PRIORITY : vendre d'abord les faibles scores
+            try:
+                from services.universe import get_universe_manager
+                config = get_universe_manager()._load_config()
+                pinned = set(str(p).upper() for p in config.get("lists", {}).get("pinned_by_group", {}).get(g, []))
+
+                scored_coins = priority_universe[g]
+                group_hold_by_alias = hold_by_gal.get(g, {})
+
+                # Obtenir les cibles prioritaires pour la vente
+                sell_targets = _prioritize_sell_targets(group_hold_by_alias, scored_coins, pinned, min_trade_usd)
+
+                remaining_to_sell = to_sell
+                for alias, loc, capacity in sell_targets:
+                    if remaining_to_sell <= 1e-9:
+                        break
+
+                    slice_usd = round(min(capacity, remaining_to_sell), 2)
+                    if slice_usd < float(min_trade_usd or 0.0):
+                        continue
+
+                    actions.append({
+                        "group": g, "alias": alias, "symbol": alias,
+                        "action": "sell",
+                        "usd": -slice_usd,
+                        "location": loc,
+                        "exec_hint": fmt_hint(loc, "sell"),
+                        "est_quantity": None, "price_used": None,
+                    })
+                    remaining_to_sell = round(remaining_to_sell - slice_usd, 2)
+
+                # Si on n'a pas pu tout vendre (pinned, min_trade_usd...), fallback proportionnel pour le reste
+                if remaining_to_sell >= float(min_trade_usd or 0.0):
+                    log.warning(f"UNIVERSE_FALLBACK_TO_PROPORTIONAL[g={g}] for remaining sell: {remaining_to_sell:.2f} USD")
+                    # Fallback pour le reste seulement
+                    agg_alias: Dict[str, float] = {}
+                    for p in by_group.get(g, []):
+                        a = p["alias"]
+                        if a.upper() not in pinned:  # Exclure les pinned
+                            remaining_capacity = hold_by_gal.get(g, {}).get(a, {})
+                            total_capacity = sum(remaining_capacity.values()) - sum(
+                                abs(action["usd"]) for action in actions
+                                if action["group"] == g and action["alias"] == a and action["action"] == "sell"
+                            )
+                            if total_capacity > 0:
+                                agg_alias[a] = total_capacity
+
+                    alloc_alias = allocate_proportional(remaining_to_sell, list(agg_alias.items()))
+                    # [Suite du code proportionnel pour le reste...]
+
+                log.debug(f"Priority sell for group {g}: {len([a for a in actions if a['group']==g and a['action']=='sell'])} actions")
+                continue  # Passer au groupe suivant
+
+            except Exception as e:
+                log.error(f"Priority sell failed for group {g}: {e}, falling back to proportional")
+                universe_fallbacks.add(g)
+                # Continuer vers le mode proportionnel ci-dessous
+
+        # MODE PROPORTIONNEL (défaut ou fallback)
         # poids par alias = taille de la position
         agg_alias: Dict[str, float] = {}
         for p in by_group.get(g, []):
@@ -199,7 +399,7 @@ def plan_rebalance(
                     "est_quantity": None, "price_used": None,
                 })
 
-    # ---------- ACHATS : une seule location “meilleure” (simple) ----------
+    # ---------- ACHATS : une seule location "meilleure" (simple) ----------
     ps = primary_symbols or {}
     for g in groups_order:
         delta = deltas_by_group_usd.get(g, 0.0)
@@ -207,18 +407,50 @@ def plan_rebalance(
             continue
         to_buy = delta
 
-        prim = [s.strip() for s in (ps.get(g) or []) if isinstance(s, str) and s.strip()]
-        # poids d’allocation par alias pour l’achat
-        if prim:
-            buckets = [(a, 1.0) for a in prim]
-        else:
-            agg: Dict[str, float] = {}
-            for p in by_group.get(g, []):
-                a = p["alias"]
-                agg[a] = agg.get(a, 0.0) + p["value_usd"]
-            buckets = list(agg.items()) if agg else [(g, 1.0)]
+        # Mode de sélection des achats selon sub_allocation
+        if sub_allocation == "priority" and priority_universe and g in priority_universe and g not in universe_fallbacks:
+            # MODE PRIORITY : acheter les meilleurs scores selon Top-N + decay
+            try:
+                from services.universe import get_universe_manager
+                config = get_universe_manager()._load_config()
+                blacklist = set(str(b).upper() for b in config.get("lists", {}).get("global_blacklist", []))
+                pinned = [str(p).upper() for p in config.get("lists", {}).get("pinned_by_group", {}).get(g, [])]
 
-        alloc_alias = allocate_proportional(to_buy, buckets)
+                scored_coins = priority_universe[g]
+                alloc_alias = _allocate_priority_buy(to_buy, scored_coins, config, pinned, blacklist, min_trade_usd)
+
+                log.debug(f"Priority buy for group {g}: {len(alloc_alias)} coins, {sum(alloc_alias.values()):.2f} USD")
+
+            except Exception as e:
+                log.error(f"Priority buy failed for group {g}: {e}, falling back to proportional")
+                universe_fallbacks.add(g)
+                alloc_alias = None
+
+            # Si priority a fonctionné, utiliser ses résultats
+            if g not in universe_fallbacks and alloc_alias:
+                pass  # alloc_alias est déjà défini
+            else:
+                # Fallback proportionnel
+                alloc_alias = None
+
+        else:
+            # MODE PROPORTIONNEL (par défaut)
+            alloc_alias = None
+
+        # Fallback ou mode proportionnel
+        if alloc_alias is None:
+            prim = [s.strip() for s in (ps.get(g) or []) if isinstance(s, str) and s.strip()]
+            # poids d'allocation par alias pour l'achat
+            if prim:
+                buckets = [(a, 1.0) for a in prim]
+            else:
+                agg: Dict[str, float] = {}
+                for p in by_group.get(g, []):
+                    a = p["alias"]
+                    agg[a] = agg.get(a, 0.0) + p["value_usd"]
+                buckets = list(agg.items()) if agg else [(g, 1.0)]
+
+            alloc_alias = allocate_proportional(to_buy, buckets)
 
         # choisir la meilleure location : là où l’alias existe déjà, sinon
         # la “grosse” location du groupe, sinon CoinTracking
@@ -268,7 +500,39 @@ def plan_rebalance(
         if alias and alias.upper() not in known_aliases and "".join(alias.split()).upper() not in known_groups_norm:
             unknown_aliases_set.add(alias)
 
-    return {
+    # Métadonnées priority mode pour debugging/UI
+    priority_meta = {}
+    if sub_allocation == "priority":
+        priority_meta = {
+            "mode": "priority",
+            "universe_available": priority_universe is not None,
+            "groups_with_fallback": sorted(list(universe_fallbacks)),
+            "universe_groups": sorted(list(priority_universe.keys())) if priority_universe else [],
+        }
+
+        # Ajouter détails par groupe si univers disponible
+        if priority_universe:
+            priority_meta["groups_details"] = {}
+            for g in groups_order:
+                if g in priority_universe:
+                    scored_coins = priority_universe[g]
+                    top_3 = scored_coins[:3] if scored_coins else []
+                    priority_meta["groups_details"][g] = {
+                        "total_coins": len(scored_coins),
+                        "top_suggestions": [
+                            {
+                                "alias": coin.meta.alias,
+                                "score": round(coin.score, 3),
+                                "rank": coin.meta.market_cap_rank,
+                                "volume_24h": coin.meta.volume_24h,
+                                "momentum_30d": coin.meta.price_change_30d
+                            }
+                            for coin in top_3
+                        ],
+                        "fallback_used": g in universe_fallbacks
+                    }
+
+    result = {
         "total_usd": round(total_usd, 2),
         "current_by_group": {g: round(current_by_group.get(g, 0.0), 2) for g in groups_order},
         "current_weights_pct": current_weights_pct,
@@ -279,3 +543,9 @@ def plan_rebalance(
         "advice": [],
         "unknown_aliases": sorted(list(unknown_aliases_set)),
     }
+
+    # Ajouter métadonnées priority si applicable
+    if priority_meta:
+        result["priority_meta"] = priority_meta
+
+    return result

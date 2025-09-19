@@ -56,7 +56,7 @@ class SecurityConfig(BaseSettings):
     cors_origins: List[str] = Field(default=["http://localhost:3000"], description="Origins CORS")
     trusted_hosts: List[str] = Field(default=["localhost", "127.0.0.1"], description="Hôtes de confiance")
     max_request_size: int = Field(default=10*1024*1024, description="Taille max requête")
-    rate_limit_requests: int = Field(default=1000, description="Limite taux par heure")
+    rate_limit_requests: int = Field(default=0, description="Limite taux par heure (0=disabled)")
     rate_limit_window_sec: int = Field(default=3600, description="Fenêtre de rate limiting (sec)")
 
     # Content-Security-Policy (CSP) centralisée

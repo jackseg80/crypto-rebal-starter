@@ -1,4 +1,4 @@
-"""
+﻿"""
 Governance Engine pour Decision Engine Unifié
 
 Ce module centralise la gouvernance des décisions d'allocation :
@@ -521,7 +521,12 @@ class GovernanceEngine:
 
             # Intégrer hystérésis avancée pour éviter oscillations yo-yo
             try:
-                signals_age = (datetime.now() - signals.as_of).total_seconds()
+                as_of = getattr(signals, "as_of", None)
+                if isinstance(as_of, datetime):
+                    signals_age = (datetime.now() - as_of).total_seconds()
+                else:
+                    signals_age = 0.0
+
                 var_state, stale_state = self._update_hysteresis_state(signals, signals_age)
 
                 # Appliquer caps basées sur états d'hystérésis (plus stables)
@@ -688,7 +693,22 @@ class GovernanceEngine:
         """
         try:
             # 1. VaR Hysteresis - utilise blended_score comme proxy VaR
-            var_proxy = getattr(signals, 'blended_score', 70)  # Default safe value
+            var_proxy_raw = getattr(signals, 'blended_score', None)
+            if var_proxy_raw is None:
+                var_proxy = 70.0
+            else:
+                try:
+                    var_proxy = float(var_proxy_raw)
+                except (TypeError, ValueError):
+                    logger.warning(f"Invalid blended_score {var_proxy_raw!r}; falling back to 70.0")
+                    var_proxy = 70.0
+
+            try:
+                signals_age = float(signals_age)
+            except (TypeError, ValueError):
+                logger.warning(f"Invalid signals_age {signals_age!r}; defaulting to 0.0")
+                signals_age = 0.0
+
             self._var_hysteresis_history.append(var_proxy)
 
             # Maintenir fenêtre historique

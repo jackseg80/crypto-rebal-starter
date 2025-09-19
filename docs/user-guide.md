@@ -43,7 +43,7 @@ Métriques incluses: VaR/CVaR, Sharpe, Sortino, Max Drawdown, Ulcer Index, skew/
 ## 6. Monitoring
 - Base: `/monitoring/alerts`
 - Avancé: `/api/monitoring/health`, `/api/monitoring/alerts`
-- UI: `static/monitoring-unified.html`
+- UI: `static/monitoring.html`
 
 Différence Base vs Avancé:
 - Base (`/monitoring`): alertes métier pipeline (règles, notifications).

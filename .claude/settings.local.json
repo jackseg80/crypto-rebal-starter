@@ -179,7 +179,8 @@
       "Bash(netstat:*)",
       "Bash(git tag:*)",
       "Bash(set:*)",
-      "Bash(copy:*)"
+      "Bash(copy:*)",
+      "Bash(Remove-Item \"D:\\Python\\crypto-rebal-starter\\api\\smart_taxonomy_endpoints_safe.py\")"
     ],
     "deny": [],
     "ask": [],

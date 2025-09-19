@@ -5,6 +5,11 @@
 
 export class RiskDashboardStore {
   constructor() {
+    // Debouncing timers
+    this._syncGovernanceTimer = null;
+    this._syncMLSignalsTimer = null;
+    this._syncDebounceMs = 500; // 500ms debouncing
+
     this.state = {
       // Risk metrics (existing)
       riskMetrics: null,
@@ -158,7 +163,29 @@ export class RiskDashboardStore {
       console.warn('Failed to hydrate state:', error);
     }
   }
-  
+
+  // Debounced version of syncGovernanceState
+  debouncedSyncGovernanceState() {
+    if (this._syncGovernanceTimer) {
+      clearTimeout(this._syncGovernanceTimer);
+    }
+    this._syncGovernanceTimer = setTimeout(() => {
+      this.syncGovernanceState();
+      this._syncGovernanceTimer = null;
+    }, this._syncDebounceMs);
+  }
+
+  // Debounced version of syncMLSignals
+  debouncedSyncMLSignals() {
+    if (this._syncMLSignalsTimer) {
+      clearTimeout(this._syncMLSignalsTimer);
+    }
+    this._syncMLSignalsTimer = setTimeout(() => {
+      this.syncMLSignals();
+      this._syncMLSignalsTimer = null;
+    }, this._syncDebounceMs);
+  }
+
   // Governance-specific methods
   async syncGovernanceState() {
     try {
@@ -226,7 +253,7 @@ export class RiskDashboardStore {
       if (response.ok) {
         const data = await response.json();
         // Optionally refresh governance state to reflect changes
-        try { await this.syncGovernanceState(); } catch {}
+        try { this.debouncedSyncGovernanceState(); } catch {}
         console.debug('Blended score sent to governance:', data?.updated?.blended_score);
         return true;
       }
@@ -267,7 +294,7 @@ export class RiskDashboardStore {
       });
       if (response.ok) {
         const data = await response.json();
-        try { await this.syncGovernanceState(); } catch {}
+        try { this.debouncedSyncGovernanceState(); } catch {}
         console.debug('Blended score recomputed server-side:', data?.blended_score);
         return true;
       }
@@ -307,7 +334,7 @@ export class RiskDashboardStore {
         console.log('Decision approval result:', result);
         
         // Refresh governance state after approval
-        await this.syncGovernanceState();
+        this.debouncedSyncGovernanceState();
         return true;
       }
     } catch (error) {
@@ -344,7 +371,7 @@ export class RiskDashboardStore {
         console.log('System freeze result:', result);
         
         // Refresh governance state after freeze
-        await this.syncGovernanceState();
+        this.debouncedSyncGovernanceState();
         return result;
       } else if (response.status === 409) {
         // Idempotent request - already processed
@@ -385,7 +412,7 @@ export class RiskDashboardStore {
         console.log('System unfreeze result:', result);
         
         // Refresh governance state after unfreeze
-        await this.syncGovernanceState();
+        this.debouncedSyncGovernanceState();
         return result;
       } else if (response.status === 409) {
         // Idempotent request - already processed
@@ -419,7 +446,7 @@ export class RiskDashboardStore {
         console.log('Governance mode change result:', result);
         
         // Refresh governance state after mode change
-        await this.syncGovernanceState();
+        this.debouncedSyncGovernanceState();
         return true;
       }
     } catch (error) {
@@ -451,7 +478,7 @@ export class RiskDashboardStore {
         console.log('Decision proposal result:', result);
         
         // Refresh governance state after proposal
-        await this.syncGovernanceState();
+        this.debouncedSyncGovernanceState();
         return result;
       }
     } catch (error) {
@@ -483,9 +510,14 @@ export const store = new RiskDashboardStore();
 // Also make it available globally for non-module scripts
 window.riskStore = store;
 
+// Legacy aliases for existing dashboards
+window.store = window.store || store;
+window.__store = window.__store || store;
+
 // Auto-persist on changes (debounced)
 let persistTimeout;
 store.subscribe(() => {
   clearTimeout(persistTimeout);
   persistTimeout = setTimeout(() => store.persist(), 1000);
 });
+

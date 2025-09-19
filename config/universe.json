@@ -1,0 +1,100 @@
+{
+  "comment": "Configuration pour l'allocation intra-groupe priority mode",
+  "version": "1.0",
+
+  "features": {
+    "priority_allocation": true,
+    "expand_universe": false,
+    "dynamic_scoring": true
+  },
+
+  "scoring": {
+    "comment": "Poids pour le calcul du score composite",
+    "weights": {
+      "w_cap_rank_inv": 0.30,
+      "w_liquidity": 0.25,
+      "w_momentum": 0.20,
+      "w_internal": 0.10,
+      "w_risk": 0.15
+    },
+    "normalization": {
+      "momentum_range": [-50, 100],
+      "liquidity_target": 0.1,
+      "rank_log_base": 3.0
+    }
+  },
+
+  "allocation": {
+    "comment": "Règles d'allocation intra-groupe",
+    "top_n": 3,
+    "distribution_mode": "decay",
+    "decay": [0.50, 0.30, 0.20],
+    "softmax_temp": 1.0,
+    "min_coins_per_group": 1,
+    "fallback_to_proportional": true
+  },
+
+  "guardrails": {
+    "comment": "Garde-fous pour éviter les allocations risquées",
+    "min_liquidity_usd": 50000,
+    "max_weight_per_coin": 0.40,
+    "min_trade_usd_default": 25.0,
+    "max_small_cap_weight": 0.15,
+    "require_minimum_data": true
+  },
+
+  "lists": {
+    "comment": "Listes de contrôle par symbol/alias (uppercase)",
+    "global_blacklist": [
+      "LUNA",
+      "UST",
+      "FTT"
+    ],
+    "global_whitelist": [],
+    "pinned_by_group": {
+      "BTC": ["BTC"],
+      "ETH": ["ETH"],
+      "SOL": ["SOL"],
+      "Stablecoins": ["USDC", "USDT"]
+    },
+    "priority_boosts": {
+      "comment": "Bonus de score pour certains assets",
+      "BTC": 0.1,
+      "ETH": 0.1,
+      "SOL": 0.05
+    }
+  },
+
+  "cache": {
+    "comment": "Configuration du cache disque",
+    "ttl_seconds": 3600,
+    "mode": "prefer_cache",
+    "max_age_fallback": 7200,
+    "cleanup_on_startup": false
+  },
+
+  "api": {
+    "comment": "Configuration des connecteurs externes",
+    "coingecko": {
+      "rate_limit_delay": 1.1,
+      "timeout": 10.0,
+      "retry_count": 2,
+      "batch_size": 100
+    }
+  },
+
+  "logging": {
+    "comment": "Contrôle des logs pour debugging",
+    "log_score_details": true,
+    "log_fallbacks": true,
+    "log_cache_hits": false,
+    "log_api_calls": true
+  },
+
+  "experimental": {
+    "comment": "Features expérimentales - utiliser avec précaution",
+    "use_categories_expansion": false,
+    "sentiment_scoring": false,
+    "ml_ranking": false
+  }
+}

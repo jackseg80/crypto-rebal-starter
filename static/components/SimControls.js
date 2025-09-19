@@ -279,7 +279,16 @@ export class SimControls {
     // Sliders avec debounce
     this.container.querySelectorAll('.sim-slider').forEach(slider => {
       slider.addEventListener('input', (e) => {
+        this.updateState(e.target);
         this.updateValueDisplay(e.target);
+        this.debouncedUpdate();
+      });
+    });
+
+    // Inputs numériques (ex: overrides, thresholds)
+    this.container.querySelectorAll('input[type="number"]').forEach(input => {
+      input.addEventListener('input', (e) => {
+        this.updateState(e.target);
         this.debouncedUpdate();
       });
     });
@@ -642,18 +651,21 @@ export class SimControls {
 // CSS pour les contrôles (injecté dynamiquement)
 const controlsCSS = `
   .sim-controls-wrapper {
-    background: var(--theme-surface);
-    border: 1px solid var(--theme-border);
-    border-radius: var(--radius-lg);
-    padding: var(--space-lg);
-    max-height: 80vh;
-    overflow-y: auto;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    max-height: none;
+    overflow: visible;
+    width: 100%;
   }
 
   .controls-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
     margin-bottom: var(--space-md);
     padding-bottom: var(--space-sm);
     border-bottom: 1px solid var(--theme-border);

@@ -22,16 +22,26 @@ import {
 } from './dynamic-weighting.js';
 
 /**
+ * Clamp function to ensure values stay within bounds
+ */
+function clamp01(x) {
+  return Math.max(0, Math.min(1, x));
+}
+
+/**
  * Normalise et inverse un score d'indicateur selon sa configuration V2
+ * with strict [0,100] clamping
  */
 function normalizeAndInvertScoreV2(rawValue, classification) {
-  let normalizedScore = Math.max(0, Math.min(100, rawValue));
-  
+  // Ensure rawValue is a valid number and clamp to [0,100]
+  let normalizedScore = Math.max(0, Math.min(100, Number(rawValue) || 0));
+
   if (classification.invert) {
     normalizedScore = 100 - normalizedScore;
   }
-  
-  return normalizedScore;
+
+  // Final clamp to ensure result is always [0,100]
+  return Math.max(0, Math.min(100, normalizedScore));
 }
 
 /**
@@ -147,7 +157,16 @@ export function calculateCompositeScoreV2(indicators, useDynamicWeighting = fals
       console.warn(`⚠️ Invalid numeric value for ${indicatorName}: ${rawValue}`);
       return;
     }
-    
+
+    // Special handling for problematic indicators with extreme values
+    if (indicatorName.includes('Coin Days Destroyed')) {
+      // CDD on 90d → score 0..100 by percentile (approximate normalization)
+      rawValue = Math.min(100, Math.max(0, (rawValue / 20000000) * 100)); // Rough scaling
+    } else if (indicatorName.includes('Jours depuis halving')) {
+      // Days since halving → 0..100 on [0..1460] (≈ 4 years)
+      rawValue = Math.min(100, Math.max(0, (rawValue / 1460) * 100));
+    }
+
     const normalizedScore = normalizeAndInvertScoreV2(rawValue, classification);
     const indicatorWeight = classification.weight * classification.categoryWeight;
     

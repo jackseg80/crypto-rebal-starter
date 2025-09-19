@@ -16,6 +16,20 @@ Plateforme de gestion de patrimoine cross‑asset (Crypto, Bourse, Banque, Diver
 - **35+ dashboards**, navigation unifiée, deep links
 - **Multi‑sources**: CoinTracking CSV/API, données temps réel
 - **Système multi-utilisateurs** avec isolation complète des données
+- **🔄 Système de Contradiction Unifié**: Source unique, poids adaptatifs, caps risque, classification auto (Low/Medium/High)
+
+## 🔄 Système de Contradiction Unifié
+
+Le système centralise la gestion des signaux contradictoires avec:
+
+- **Source unique**: `governance.contradiction_index` (0-1 normalisé)
+- **Poids adaptatifs**: Renormalisation automatique (-35%/-15%/+50% baseline)
+- **Caps de risque**: Réduction memecoins (15%→5%) et small_caps (25%→12%)
+- **Classification**: Low/Medium/High avec recommandations contextuelles
+- **Page test**: `/static/test-contradiction-unified.html`
+- **Documentation**: `docs/contradiction-system.md`
+
+**Architecture**: Sélecteurs centralisés, politique unifiée, validation automatique, intégration badges/simulateur.
 
 ## Démarrage rapide
 Prérequis: Python 3.10+, pip, virtualenv

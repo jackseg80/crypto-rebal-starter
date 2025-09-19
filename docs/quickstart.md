@@ -22,7 +22,7 @@ uvicorn api.main:app --reload --port 8000
 - Risk Dashboard: `static/risk-dashboard.html`
 - Execution: `static/execution.html`
 - Alias Manager: `static/alias-manager.html`
-- Monitoring: `static/monitoring-unified.html`
+- Monitoring: `static/monitoring.html`
 
 Astuce: la barre de navigation unifiée est chargée automatiquement sur la plupart des pages (désactivable avec `?nav=off`).
 

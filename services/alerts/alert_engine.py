@@ -1,4 +1,4 @@
-"""
+﻿"""
 Moteur d'alertes prédictives principal
 
 Orchestre l'évaluation des alertes, l'escalade automatique, et la coordination
@@ -605,7 +605,7 @@ class AlertEngine:
     
     async def _evaluate_alerts(self):
         """
-        Évaluation principale des alertes
+        Ã‰valuation principale des alertes
         
         Consomme les signaux ML depuis governance_engine (cache Phase 0)
         """
@@ -617,7 +617,7 @@ class AlertEngine:
                 logger.warning("No governance engine available for alert evaluation")
                 return
             
-            # Récupérer signaux ML depuis cache Phase 0 (pas de re-inference)
+            # RÃ©cupÃ©rer signaux ML depuis cache Phase 0 (pas de re-inference)
             current_state = await self.governance_engine.get_current_state()
             if not current_state or not current_state.signals:
                 logger.warning("No ML signals available for alert evaluation")
@@ -634,7 +634,7 @@ class AlertEngine:
                 "execution_cost_bps": current_state.execution_policy.execution_cost_bps if current_state.execution_policy else 15
             }
             
-            # Mettre à jour la phase laggée si phase-aware activé
+            # Mettre Ã  jour la phase laggÃ©e si phase-aware activÃ©
             if self.phase_aware_enabled and self.phase_engine and self.phase_context:
                 try:
                     # Obtenir la phase actuelle
@@ -644,18 +644,18 @@ class AlertEngine:
                         lagged_phase = self.phase_context.update_phase(current_phase_state, contradiction_index)
                         
                         if lagged_phase:
-                            logger.debug(f"Phase laggée active: {lagged_phase.phase.value} "
+                            logger.debug(f"Phase laggÃ©e active: {lagged_phase.phase.value} "
                                        f"(persistance: {lagged_phase.persistence_count}, "
                                        f"contradiction: {lagged_phase.contradiction_index:.2f})")
                         else:
-                            logger.debug("Aucune phase laggée stable disponible")
+                            logger.debug("Aucune phase laggÃ©e stable disponible")
                 except Exception as e:
-                    logger.warning(f"Erreur mise à jour phase laggée: {e}")
+                    logger.warning(f"Erreur mise Ã  jour phase laggÃ©e: {e}")
             
             logger.debug(f"Evaluating alerts with signals: contradiction={signals_dict.get('contradiction_index', 0):.3f}, "
                         f"confidence={signals_dict.get('confidence', 0):.3f}")
             
-            # Évaluer chaque type d'alerte
+            # Ã‰valuer chaque type d'alerte
             for alert_type in AlertType:
                 await self._evaluate_alert_type(alert_type, signals_dict)
             
@@ -842,14 +842,14 @@ class AlertEngine:
                                 "model_version": matching_prediction.model_version,
                                 "features": matching_prediction.features
                             }
-                            
+
                             ml_prediction_metadata = {
                                 "prediction_probability": matching_prediction.probability,
                                 "model_confidence": matching_prediction.confidence,
                                 "prediction_horizon": matching_prediction.horizon.value,
                                 "assets_affected": matching_prediction.assets
                             }
-                            
+
                             logger.info(f"ML prediction for {alert_type.value}: "
                                       f"prob={matching_prediction.probability:.0%}, "
                                       f"confidence={matching_prediction.confidence:.0%}, "
@@ -858,7 +858,7 @@ class AlertEngine:
                             # Pas de prédiction pour ce type - suppresion
                             logger.debug(f"No ML prediction for {alert_type.value}, suppressing predictive alert")
                             return
-                            
+
                     except Exception as e:
                         logger.error(f"ML prediction error for {alert_type.value}: {e}")
                         return
@@ -878,127 +878,141 @@ class AlertEngine:
                     try:
                         # Obtenir portfolio actuel depuis governance
                         current_state = await self.governance_engine.get_current_state()
-                        if current_state and current_state.execution_policy:
-                            portfolio_weights = current_state.execution_policy.target_allocation
-                            portfolio_value = 100000  # TODO: Récupérer valeur réelle
-                            
-                            if alert_type == AlertType.VAR_BREACH:
-                                # Calculer VaR et vérifier limites
-                                from services.risk.advanced_risk_engine import VaRMethod
-                                var_result = self.risk_engine.calculate_var(
-                                    portfolio_weights, portfolio_value, 
-                                    method=VaRMethod.PARAMETRIC, confidence_level=0.95
-                                )
-                                
-                                # Limites VaR (configurables)
-                                var_limits = self.config.get("alerting_config", {}).get("advanced_risk", {}).get("var_limits", {
-                                    "daily_95": 0.05,  # 5% du portfolio
-                                    "daily_99": 0.08   # 8% du portfolio
-                                })
-                                
-                                var_limit_95 = portfolio_value * var_limits["daily_95"]
-                                var_breach = var_result.var_absolute > var_limit_95
-                                
-                                if var_breach:
-                                    signals["var_breach"] = {
-                                        "var_current": var_result.var_absolute,
-                                        "var_limit": var_limit_95,
-                                        "var_method": var_result.method.value,
-                                        "confidence_level": var_result.confidence_level,
-                                        "var_ratio": var_result.var_absolute / var_limit_95,
-                                        "horizon": var_result.horizon.value
-                                    }
-                                    
-                                    risk_analysis_metadata = {
-                                        "var_breach_severity": "critical" if var_result.var_absolute > var_limit_95 * 2 else "major",
-                                        "var_excess": var_result.var_absolute - var_limit_95
-                                    }
-                                else:
-                                    logger.debug("VaR within limits, suppressing VAR_BREACH alert")
-                                    return
-                            
-                            elif alert_type == AlertType.STRESS_TEST_FAILED:
-                                # Run stress tests
-                                stress_results = self.risk_engine.run_stress_test(
-                                    portfolio_weights, portfolio_value
-                                )
-                                
-                                # Trouver le pire scénario
-                                worst_scenario = min(stress_results, key=lambda x: x.portfolio_pnl_pct)
-                                stress_threshold = -0.15  # -15% max acceptable loss
-                                
-                                if worst_scenario.portfolio_pnl_pct < stress_threshold:
-                                    signals["stress_test_failed"] = {
-                                        "stress_scenario": worst_scenario.scenario,
-                                        "stress_loss": abs(worst_scenario.portfolio_pnl),
-                                        "stress_loss_pct": abs(worst_scenario.portfolio_pnl_pct),
-                                        "worst_asset": worst_scenario.worst_asset,
-                                        "recovery_days": worst_scenario.recovery_time_days
-                                    }
-                                    
-                                    risk_analysis_metadata = {
-                                        "failed_scenarios": len([r for r in stress_results if r.portfolio_pnl_pct < stress_threshold]),
-                                        "worst_loss_pct": abs(worst_scenario.portfolio_pnl_pct)
-                                    }
-                                else:
-                                    logger.debug("All stress tests passed, suppressing STRESS_TEST_FAILED alert")
-                                    return
-                            
-                            elif alert_type == AlertType.MONTE_CARLO_EXTREME:
-                                # Monte Carlo simulation
-                                mc_result = self.risk_engine.run_monte_carlo_simulation(
-                                    portfolio_weights, portfolio_value, horizon_days=30
-                                )
-                                
-                                # Seuil extrême (P5 outcome)
-                                extreme_threshold = -0.25  # -25% loss
-                                extreme_prob = (mc_result.confidence_intervals["P5"] < extreme_threshold)
-                                
-                                if extreme_prob or mc_result.confidence_intervals["P1"] < -0.40:
-                                    signals["monte_carlo_extreme"] = {
-                                        "mc_extreme_prob": abs(mc_result.confidence_intervals["P5"]),
-                                        "mc_threshold": portfolio_value * 0.25,  # 25% threshold
-                                        "max_dd_p99": mc_result.max_drawdown_p99,
-                                        "horizon": mc_result.horizon_days
-                                    }
-                                    
-                                    risk_analysis_metadata = {
-                                        "simulation_count": mc_result.simulations_count,
-                                        "worst_p1": mc_result.confidence_intervals["P1"]
-                                    }
-                                else:
-                                    logger.debug("Monte Carlo within acceptable range, suppressing alert")
-                                    return
-                            
-                            elif alert_type == AlertType.RISK_CONCENTRATION:
-                                # Risk attribution analysis
-                                var_result = self.risk_engine.calculate_var(portfolio_weights, portfolio_value)
-                                attribution = self.risk_engine.get_risk_attribution(portfolio_weights, var_result)
-                                
-                                # Trouver asset le plus concentré
-                                risk_contributions = attribution["risk_contribution"]
-                                max_contributor = max(risk_contributions.keys(), key=lambda k: risk_contributions[k])
-                                max_contribution = risk_contributions[max_contributor]
-                                
-                                concentration_threshold = 0.6  # 60% max concentration
-                                if max_contribution > concentration_threshold:
-                                    signals["risk_concentration"] = {
-                                        "concentrated_asset": max_contributor,
-                                        "concentration_pct": max_contribution,
-                                        "marginal_var": attribution["marginal_var"][max_contributor]
-                                    }
-                                    
-                                    risk_analysis_metadata = {
-                                        "concentration_level": "extreme" if max_contribution > 0.8 else "high",
-                                        "diversification_ratio": 1 - max_contribution
-                                    }
-                                else:
-                                    logger.debug("Risk concentration within limits, suppressing alert")
-                                    return
-                        else:
-                            logger.warning("No portfolio state available for risk analysis")
+                        portfolio_weights: Dict[str, float] = {}
+                        if current_state:
+                            plan = getattr(current_state, "current_plan", None) or getattr(current_state, "proposed_plan", None)
+                            if plan and getattr(plan, "targets", None):
+                                cleaned_weights: Dict[str, float] = {}
+                                for target in plan.targets:
+                                    symbol = getattr(target, "symbol", None)
+                                    raw_weight = getattr(target, "weight", None)
+                                    if not symbol or raw_weight is None:
+                                        continue
+                                    try:
+                                        cleaned_weights[symbol] = float(raw_weight)
+                                    except (TypeError, ValueError):
+                                        logger.debug(f"Skipping target {symbol} with invalid weight {raw_weight!r}")
+                                if cleaned_weights:
+                                    portfolio_weights = cleaned_weights
+                        if not portfolio_weights and current_state and hasattr(current_state.execution_policy, "target_allocation"):
+                            maybe_targets = getattr(current_state.execution_policy, "target_allocation", {})
+                            if isinstance(maybe_targets, dict):
+                                try:
+                                    portfolio_weights = {k: float(v) for k, v in maybe_targets.items() if v is not None}
+                                except (TypeError, ValueError):
+                                    portfolio_weights = {}
+                        if not portfolio_weights:
+                            logger.debug("Advanced risk analysis skipped: no portfolio targets available")
                             return
-                            
+                        portfolio_value = 100000  # TODO: Récupérer valeur réelle
+
+                        if alert_type == AlertType.VAR_BREACH:
+                            # Calculer VaR et vérifier limites
+                            from services.risk.advanced_risk_engine import VaRMethod
+                            var_result = self.risk_engine.calculate_var(
+                                portfolio_weights, portfolio_value,
+                                method=VaRMethod.PARAMETRIC, confidence_level=0.95
+                            )
+
+                            # Limites VaR (configurables)
+                            var_limits = self.config.get("alerting_config", {}).get("advanced_risk", {}).get("var_limits", {
+                                "daily_95": 0.05,  # 5% du portfolio
+                                "daily_99": 0.08   # 8% du portfolio
+                            })
+
+                            var_limit_95 = portfolio_value * var_limits["daily_95"]
+                            var_breach = var_result.var_absolute > var_limit_95
+
+                            if var_breach:
+                                signals["var_breach"] = {
+                                    "var_current": var_result.var_absolute,
+                                    "var_limit": var_limit_95,
+                                    "var_method": var_result.method.value,
+                                    "confidence_level": var_result.confidence_level,
+                                    "var_ratio": var_result.var_absolute / var_limit_95,
+                                    "horizon": var_result.horizon.value
+                                }
+
+                                risk_analysis_metadata = {
+                                    "var_breach_severity": "critical" if var_result.var_absolute > var_limit_95 * 2 else "major",
+                                    "var_excess": var_result.var_absolute - var_limit_95
+                                }
+                            else:
+                                logger.debug("VaR within limits, suppressing VAR_BREACH alert")
+                                return
+
+                        elif alert_type == AlertType.STRESS_TEST_FAILED:
+                            # Run stress tests
+                            stress_results = self.risk_engine.run_stress_test(
+                                portfolio_weights, portfolio_value
+                            )
+
+                            # Trouver le pire scénario
+                            worst_scenario = min(stress_results, key=lambda x: x.portfolio_pnl_pct)
+                            stress_threshold = -0.15  # -15% max acceptable loss
+
+                            if worst_scenario.portfolio_pnl_pct < stress_threshold:
+                                signals["stress_test_failed"] = {
+                                    "stress_scenario": worst_scenario.scenario,
+                                    "stress_loss": abs(worst_scenario.portfolio_pnl),
+                                    "stress_loss_pct": abs(worst_scenario.portfolio_pnl_pct),
+                                    "worst_asset": worst_scenario.worst_asset,
+                                    "recovery_days": worst_scenario.recovery_time_days
+                                }
+
+                                risk_analysis_metadata = {
+                                    "failed_scenarios": len([r for r in stress_results if r.portfolio_pnl_pct < stress_threshold]),
+                                    "worst_loss_pct": abs(worst_scenario.portfolio_pnl_pct)
+                                }
+                            else:
+                                logger.debug("All stress tests passed, suppressing STRESS_TEST_FAILED alert")
+                                return
+
+                        elif alert_type == AlertType.MONTE_CARLO_EXTREME:
+                            # Monte Carlo simulation
+                            mc_result = self.risk_engine.run_monte_carlo_simulation(
+                                portfolio_weights, portfolio_value, horizon_days=30
+                            )
+
+                            # Seuil extrême (P5 outcome)
+                            extreme_threshold = -0.25  # -25% loss
+                            extreme_prob = mc_result.confidence_intervals["P5"] < extreme_threshold
+
+                            if extreme_prob or mc_result.confidence_intervals["P1"] < -0.40:
+                                signals["monte_carlo_extreme"] = {
+                                    "mc_extreme_prob": abs(mc_result.confidence_intervals["P5"]),
+                                    "mc_threshold": portfolio_value * 0.25,  # 25% threshold
+                                    "max_dd_p99": mc_result.max_drawdown_p99,
+                                    "horizon": mc_result.horizon_days
+                                }
+
+                                risk_analysis_metadata = {
+                                    "simulation_count": mc_result.simulations_count,
+                                    "worst_p1": mc_result.confidence_intervals["P1"]
+                                }
+                            else:
+                                logger.debug("Monte Carlo within acceptable range, suppressing alert")
+                                return
+
+                        elif alert_type == AlertType.RISK_CONCENTRATION:
+                            concentration = signals.get("concentration", 0.0)
+                            top_assets = signals.get("top_contributors", [])
+                            if concentration > 0.25:
+                                signals["risk_concentration"] = {
+                                    "concentration_ratio": concentration,
+                                    "top_assets": top_assets[:5]
+                                }
+                                risk_analysis_metadata = {
+                                    "concentration_ratio": concentration,
+                                    "top_assets": top_assets[:3]
+                                }
+                            else:
+                                logger.debug("Risk concentration within tolerance, suppressing alert")
+                                return
+
+                        else:
+                            logger.debug(f"Unsupported advanced risk alert type: {alert_type}")
+                            return
                     except Exception as e:
                         logger.error(f"Advanced risk analysis error for {alert_type.value}: {e}")
                         return
@@ -1119,12 +1133,12 @@ class AlertEngine:
 
             # Condition 1: VaR95 > 4%
             var_95 = alert_data.get("current_value")
-            if alert.alert_type in [AlertType.VAR95_BREACH] and isinstance(var_95, (int, float)) and var_95 > 0.04:
+            if alert.alert_type in [AlertType.VAR_BREACH] and isinstance(var_95, (int, float)) and var_95 > 0.04:
                 systemic_conditions.append(f"VaR95>{var_95:.1%}")
 
             # Condition 2: Contradiction > 55%
             contradiction = alert_data.get("contradiction_index", alert_data.get("current_value"))
-            if alert.alert_type in [AlertType.CONTRADICTION_HIGH] and isinstance(contradiction, (int, float)) and contradiction > 0.55:
+            if alert.alert_type in [AlertType.CONTRADICTION_SPIKE] and isinstance(contradiction, (int, float)) and contradiction > 0.55:
                 systemic_conditions.append(f"Contradiction>{contradiction:.1%}")
 
             # Condition 3: Backend stale > 60min (simulé avec execution cost spike pour l'instant)
@@ -1417,7 +1431,7 @@ class AlertEngine:
                 # Create stream event for the alert
                 event_data = {
                     "alert_id": alert.id,
-                    "type": alert.type.value,
+                    "type": alert.alert_type.value,
                     "severity": alert.severity.value,
                     "message": alert.message,
                     "context": alert.context,

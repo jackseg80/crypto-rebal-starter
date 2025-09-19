@@ -5,6 +5,7 @@
  */
 
 import { formatZurich, isStale } from '../utils/time.js';
+import { selectContradictionPct, selectEffectiveCap, selectOverridesCount, selectGovernanceTimestamp, selectDecisionSource } from '../selectors/governance.js';
 
 // Constants
 const TTL_STALE_MINUTES = 30;
@@ -13,59 +14,13 @@ const TTL_STALE_MINUTES = 30;
  * Store selectors - helpers robustes qui ne plantent jamais
  */
 
-/**
- * Get decision source from governance state
- * @param {Object} state - Unified state
- * @returns {string} - 'backend'|'blended'|'fallback'|'-'
- */
-function getDecisionSource(state) {
-  try {
-    return state?.governance?.ml_signals?.decision_source ||
-           state?.governance?.decision_source ||
-           'backend';
-  } catch (error) {
-    return '-';
-  }
-}
+// Note: getDecisionSource remplacé par selectDecisionSource du module centralisé
 
-/**
- * Get updated timestamp from governance or blended signals
- * @param {Object} state - Unified state
- * @returns {string|null} - ISO timestamp or null
- */
-function getUpdatedTs(state) {
-  try {
-    // Priority order: governance signals > blended > fallback
-    return state?.governance?.ml_signals?.updated ||
-           state?.governance?.updated ||
-           state?.scores?.updated ||
-           state?.ui?.lastUpdate ||
-           null;
-  } catch (error) {
-    return null;
-  }
-}
+// Note: getUpdatedTs remplacé par selectGovernanceTimestamp du module centralisé
 
-/**
- * Get contradiction percentage (0-1 converted to 0-100)
- * @param {Object} state - Unified state
- * @returns {number|null} - Percentage or null
- */
-function getContradiction(state) {
-  try {
-    const rawContrad = state?.governance?.status?.contradiction ||
-                      state?.governance?.contradiction ||
-                      null;
+// Note: getContradiction remplacé par selectContradictionPct du module centralisé
 
-    if (rawContrad === null || rawContrad === undefined) return null;
 
-    // Convert 0-1 range to 0-100 percentage
-    const percentage = typeof rawContrad === 'number' ? rawContrad * 100 : parseFloat(rawContrad) * 100;
-    return Math.round(percentage);
-  } catch (error) {
-    return null;
-  }
-}
 
 /**
  * Compute effective cap based on priority order
@@ -76,7 +31,7 @@ function getContradiction(state) {
 function computeEffectiveCap(state) {
   try {
     const backendStatus = getBackendStatus(state);
-    const updated = getUpdatedTs(state);
+    const updated = selectGovernanceTimestamp(state);
 
     // Priority 1: Error state = 5%
     if (backendStatus === 'error') {
@@ -118,47 +73,9 @@ function computeEffectiveCap(state) {
   }
 }
 
-/**
- * Get effective cap percentage (alias for computeEffectiveCap)
- * @param {Object} state - Unified state
- * @returns {number|null} - Effective cap percentage or null
- */
-function getEffectiveCap(state) {
-  return computeEffectiveCap(state);
-}
+// Note: getEffectiveCap remplacé par selectEffectiveCap du module centralisé
 
-/**
- * Get count of active overrides
- * @param {Object} state - Unified state
- * @returns {number} - Count of overrides (0 if none)
- */
-function getOverridesCount(state) {
-  try {
-    // Check different possible locations for overrides
-    const overrides = state?.governance?.overrides ||
-                     state?.governance?.active_overrides ||
-                     state?.overrides ||
-                     [];
-
-    if (Array.isArray(overrides)) {
-      return overrides.length;
-    }
-
-    if (typeof overrides === 'object' && overrides !== null) {
-      return Object.keys(overrides).filter(key => overrides[key]).length;
-    }
-
-    // Check specific override flags
-    let count = 0;
-    if (state?.governance?.flags?.euphoria_override) count++;
-    if (state?.governance?.flags?.divergence_override) count++;
-    if (state?.governance?.flags?.risk_low_override) count++;
-
-    return count;
-  } catch (error) {
-    return 0;
-  }
-}
+// Note: getOverridesCount remplacé par selectOverridesCount du module centralisé
 
 /**
  * Get backend status
@@ -178,7 +95,7 @@ function getBackendStatus(state) {
     }
 
     // Check if data is stale based on timestamp
-    const updated = getUpdatedTs(state);
+    const updated = selectGovernanceTimestamp(state);
     if (isStale(updated, TTL_STALE_MINUTES)) {
       return 'stale';
     }
@@ -187,6 +104,97 @@ function getBackendStatus(state) {
   } catch (error) {
     return 'error';
   }
+}
+
+
+function computeOverrideFlags(props = {}) {
+  return {
+    source: Object.prototype.hasOwnProperty.call(props, 'source'),
+    updated: Object.prototype.hasOwnProperty.call(props, 'updated'),
+    contradiction: Object.prototype.hasOwnProperty.call(props, 'contradiction'),
+    cap: Object.prototype.hasOwnProperty.call(props, 'cap'),
+    overrides: Object.prototype.hasOwnProperty.call(props, 'overrides'),
+    status: Object.prototype.hasOwnProperty.call(props, 'status')
+  };
+}
+
+function collectBadgeData(state = {}, props = {}, overrideFlags = computeOverrideFlags({})) {
+  return {
+    source: overrideFlags.source ? props.source : selectDecisionSource(state),
+    updated: overrideFlags.updated ? props.updated : selectGovernanceTimestamp(state),
+    contradiction: overrideFlags.contradiction ? props.contradiction : selectContradictionPct(state),
+    cap: overrideFlags.cap ? props.cap : selectEffectiveCap(state),
+    overrides: overrideFlags.overrides ? props.overrides : selectOverridesCount(state),
+    status: overrideFlags.status ? props.status : getBackendStatus(state)
+  };
+}
+
+function getFallbackState(primaryState) {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const candidates = [
+    window.realDataStore,
+    window.globalStore,
+    window.state
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate && candidate !== primaryState) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+function mergeBadgeDataWithFallback(primary, fallback, overrideFlags = computeOverrideFlags({})) {
+  if (!fallback) {
+    return primary;
+  }
+
+  const result = { ...primary };
+  const fallbackStatus = fallback.status;
+  const fallbackStatusActionable = fallbackStatus && !['error', 'failed'].includes(fallbackStatus);
+  const primaryStatusProblem = !result.status || ['error', 'failed', 'unknown'].includes(result.status);
+
+  let usedFallback = false;
+  if (!overrideFlags.status && fallbackStatusActionable && primaryStatusProblem) {
+    result.status = fallbackStatus;
+    usedFallback = true;
+  }
+
+  if (!overrideFlags.source && (!result.source || result.source === '-') && fallback.source) {
+    result.source = fallback.source;
+  }
+
+  if (!overrideFlags.updated && (!result.updated || usedFallback) && fallback.updated) {
+    result.updated = fallback.updated;
+  }
+
+  if (!overrideFlags.contradiction) {
+    const needsContradiction = usedFallback || !Number.isFinite(result.contradiction);
+    if (needsContradiction && Number.isFinite(fallback.contradiction)) {
+      result.contradiction = fallback.contradiction;
+    }
+  }
+
+  if (!overrideFlags.cap) {
+    const needsCap = usedFallback || !Number.isFinite(result.cap);
+    if (needsCap && Number.isFinite(fallback.cap)) {
+      result.cap = fallback.cap;
+    }
+  }
+
+  if (!overrideFlags.overrides) {
+    const needsOverrides = usedFallback || result.overrides == null;
+    if (needsOverrides && Number.isFinite(fallback.overrides)) {
+      result.overrides = fallback.overrides;
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -205,23 +213,22 @@ function renderBadges(containerEl, props = {}) {
 
   // Get state from window.store or use fallback
   const state = getUnifiedState();
+  const overrideFlags = computeOverrideFlags(props);
+  let badgeData = collectBadgeData(state, props, overrideFlags);
 
-  // Extract badge data (props override store data)
-  const badgeData = {
-    source: props.source || getDecisionSource(state),
-    updated: props.updated || getUpdatedTs(state),
-    contradiction: props.contradiction !== undefined ? props.contradiction : getContradiction(state),
-    cap: props.cap !== undefined ? props.cap : getEffectiveCap(state),
-    overrides: props.overrides !== undefined ? props.overrides : getOverridesCount(state),
-    status: props.status || getBackendStatus(state)
-  };
+  const fallbackState = getFallbackState(state);
+  if (fallbackState) {
+    const fallbackData = collectBadgeData(fallbackState, props, overrideFlags);
+    badgeData = mergeBadgeDataWithFallback(badgeData, fallbackData, overrideFlags);
+  }
 
   // Build badge HTML
   const badgeHtml = buildBadgeHtml(badgeData);
 
   // Set container content with accessibility
   containerEl.innerHTML = badgeHtml;
-  containerEl.setAttribute('aria-label', `Status: ${badgeData.source}, Updated: ${formatZurich(badgeData.updated)}`);
+  const sourceLabel = badgeData.source || 'unknown';
+  containerEl.setAttribute('aria-label', `Status: ${sourceLabel}, Updated: ${formatZurich(badgeData.updated)}`);
 }
 
 /**
@@ -366,16 +373,20 @@ function injectBadgeCSS() {
   document.head.appendChild(style);
 }
 
-// Export all functions
+// Export functions (keeping legacy computeEffectiveCap and getBackendStatus)
 export {
   renderBadges,
   formatZurich,
   isStale,
   computeEffectiveCap,
-  getDecisionSource,
-  getUpdatedTs,
-  getContradiction,
-  getEffectiveCap,
-  getOverridesCount,
   getBackendStatus
 };
+
+// Re-export centralized selectors for backward compatibility
+export {
+  selectContradictionPct as getContradiction,
+  selectEffectiveCap as getEffectiveCap,
+  selectOverridesCount as getOverridesCount,
+  selectDecisionSource as getDecisionSource,
+  selectGovernanceTimestamp as getUpdatedTs
+} from '../selectors/governance.js';

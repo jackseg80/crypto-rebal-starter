@@ -26,8 +26,43 @@
 - **Reset** : Manuel uniquement
 
 ### 2. Stale Cap (8%)
-- **Déclenchement** : Données obsolètes >60min
+- **Déclenchement** : Données obsolètes >30min
 - **Action** : Mode dégradé conservateur
+
+---
+
+## Système de Contradiction Unifié
+
+**Source unique**: `governance.contradiction_index` (0-1 normalisé)
+
+### Classification Automatique
+
+| Niveau | Seuil | Action |
+|--------|-------|--------|
+| **Low** | < 40% | Mode normal, stratégies actives |
+| **Medium** | 40-70% | Vigilance, allocation équilibrée |
+| **High** | ≥ 70% | Mode défensif, réduction risques |
+
+### Poids Adaptatifs (Baseline Backtesting)
+
+**Formule**: contradiction ↑ → risk ↑, cycle/onchain ↓
+
+- **Cycle reduction**: jusqu'à -35%
+- **OnChain reduction**: jusqu'à -15%
+- **Risk increase**: jusqu'à +50%
+- **Bornes**: [12%-65%] avec renormalisation stricte
+
+### Caps de Risque Adaptatifs
+
+**Segments ciblés**:
+- **Memecoins**: 15% → 5% (réduction -67%)
+- **Small Caps**: 25% → 12% (réduction -52%)
+
+**Intégration**: Simulateur + validation allocations automatique
+
+### Documentation Complète
+
+Voir: `docs/contradiction-system.md` pour architecture détaillée
 - **Reset** : Automatique dès données fraîches
 
 ### 3. Alert Cap (Variable)
@@ -123,7 +158,7 @@
 - Jobs training
 
 ### Endpoints protégés
-- `/api/governance/approve/{resource_id}` : governance_admin
+- `/execution/governance/approve/{resource_id}` : governance_admin
 - `/api/ml/debug/*` : Header `X-Admin-Key` requis
 - `/api/alerts/acknowledge` : Tous rôles admin
 

@@ -281,7 +281,7 @@ docker run -p 8000:8000 --env-file .env crypto-rebal
   "readme": true,
   "include": [
     "CLAUDE.md",
-    "CONFIGURATION.md",
+    "docs/configuration.md",
     "README.md",
     "docs/**/*.md",
     "api/**",
@@ -305,7 +305,7 @@ docker run -p 8000:8000 --env-file .env crypto-rebal
 - `/api/ml/*` - Toutes fonctions ML (remplace /api/ml-predictions, /api/ai)
 - `/api/risk/*` - Risk management unifié (/api/risk/advanced/* pour fonctions avancées)
 - `/api/alerts/*` - Alertes centralisées (acknowledge, resolve)
-- `/api/governance/approve/{resource_id}` - Approbations unifiées (decisions + plans)
+- `/execution/governance/approve/{resource_id}` - Approbations unifiées (decisions + plans)
 
 **Endpoints supprimés** (ne pas recréer) :
 - `/api/test/*` et `/api/alerts/test/*` - Endpoints de test supprimés

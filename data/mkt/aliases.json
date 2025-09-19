@@ -1,0 +1,84 @@
+{
+  "comment": "Mapping symbol/alias -> coingecko_id pour résolution API",
+  "version": "1.0",
+  "last_updated": "2025-09-18",
+  "mappings": {
+    "BTC": "bitcoin",
+    "BITCOIN": "bitcoin",
+    "TBTC": "tbtc",
+    "WBTC": "wrapped-bitcoin",
+
+    "ETH": "ethereum",
+    "ETHEREUM": "ethereum",
+    "WETH": "weth",
+    "STETH": "staked-ether",
+    "WSTETH": "wrapped-steth",
+    "RETH": "rocket-pool-eth",
+
+    "SOL": "solana",
+    "SOLANA": "solana",
+    "JUPSOL": "jupsol",
+    "JITOSOL": "jito-staked-sol",
+
+    "USDT": "tether",
+    "USDC": "usd-coin",
+    "DAI": "dai",
+    "BUSD": "binance-usd",
+    "TUSD": "true-usd",
+    "USDP": "paxos-standard",
+
+    "ADA": "cardano",
+    "DOT": "polkadot",
+    "AVAX": "avalanche-2",
+    "MATIC": "matic-network",
+    "POLYGON": "matic-network",
+    "LINK": "chainlink",
+    "UNI": "uniswap",
+    "AAVE": "aave",
+    "MKR": "maker",
+    "CRV": "curve-dao-token",
+    "COMP": "compound-governance-token",
+
+    "DOGE": "dogecoin",
+    "SHIB": "shiba-inu",
+    "PEPE": "pepe",
+    "WIF": "dogwifcoin",
+
+    "AR": "arweave",
+    "FIL": "filecoin",
+    "STORJ": "storj",
+
+    "SAND": "the-sandbox",
+    "MANA": "decentraland",
+    "AXS": "axie-infinity",
+    "ENJ": "enjincoin",
+
+    "OP": "optimism",
+    "ARB": "arbitrum",
+    "LRC": "loopring",
+    "IMX": "immutable-x",
+
+    "NEAR": "near",
+    "ATOM": "cosmos",
+    "ALGO": "algorand",
+    "TEZOS": "tezos",
+    "XTZ": "tezos",
+    "ICP": "internet-computer",
+    "FLOW": "flow",
+
+    "FET": "fetch-ai",
+    "AGIX": "singularitynet",
+    "OCEAN": "ocean-protocol",
+    "GRT": "the-graph",
+    "RNDR": "render-token"
+  },
+  "categories": {
+    "layer-1": ["bitcoin", "ethereum", "solana", "cardano", "polkadot", "avalanche-2", "near", "cosmos", "algorand", "tezos", "internet-computer", "flow"],
+    "layer-2": ["optimism", "arbitrum", "matic-network", "loopring", "immutable-x"],
+    "defi": ["uniswap", "aave", "maker", "curve-dao-token", "compound-governance-token", "chainlink"],
+    "memecoins": ["dogecoin", "shiba-inu", "pepe", "dogwifcoin"],
+    "ai-data": ["fetch-ai", "singularitynet", "ocean-protocol", "the-graph", "render-token"],
+    "gaming-nft": ["the-sandbox", "decentraland", "axie-infinity", "enjincoin"],
+    "storage": ["arweave", "filecoin", "storj"]
+  }
+}

@@ -60,18 +60,22 @@ class CoinGeckoService:
 
     async def _make_request(self, endpoint: str, params: Optional[Dict] = None) -> Optional[Dict]:
         """Effectue une requête HTTP avec gestion du rate limiting"""
-        
+
         # Vérifier le rate limiting
         await self._check_rate_limit()
-        
+
         # Préparer les headers
         headers = {
             'accept': 'application/json',
             'User-Agent': 'crypto-rebal-starter/1.0'
         }
+
+        # Préparer les paramètres avec la clé API
+        if params is None:
+            params = {}
         if self.api_key:
-            headers['x-cg-demo-api-key'] = self.api_key
-        
+            params['x_cg_demo_api_key'] = self.api_key
+
         url = f"{self.base_url}{endpoint}"
         
         try:

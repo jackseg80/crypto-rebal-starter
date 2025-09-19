@@ -476,7 +476,7 @@ const initUnifiedNav = () => {
             <a href="saxo-upload.html" style="display: block; padding: 0.5rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text); border-left: 3px solid var(--brand-primary);">📤 Saxo Upload</a>
           </div>
           <div style="background: var(--theme-bg); padding: 0.5rem; border-radius: var(--radius-sm); border-left: 3px solid var(--brand-info); font-size: 0.85em; color: var(--theme-text-muted);">
-            ✅ <strong>Nettoyé :</strong> Pages de redirection supprimées (intelligence-dashboard.html → analytics-unified.html#tab-intelligence-ml, monitoring-unified.html → settings.html#monitoring, portfolio-optimization.html → version avancée)
+            ✅ <strong>Nettoyé :</strong> Pages de redirection supprimées (intelligence-dashboard.html → analytics-unified.html#tab-intelligence-ml, monitoring-unified.html → monitoring.html, portfolio-optimization.html → version avancée)
           </div>
         </div>
 

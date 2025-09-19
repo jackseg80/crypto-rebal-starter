@@ -58,7 +58,7 @@ Sélecteur devises dans `settings.html`. Conversion affichage via `window.curren
 
 ## Architecture API Post-Refactoring (v2)
 
-Namespaces principaux: `/api/ml/*`, `/api/risk/*` (incl. `/api/risk/advanced/*`), `/api/alerts/*`, `/api/governance/*`, `/api/realtime/*`.
+Namespaces principaux: `/api/ml/*`, `/api/risk/*` (incl. `/api/risk/advanced/*`), `/api/alerts/*`, `/execution/governance/*`, `/api/realtime/*`.
 
 Guide de migration: `docs/refactoring.md`.
 

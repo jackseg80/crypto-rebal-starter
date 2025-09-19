@@ -68,13 +68,11 @@ except Exception as e:
     PORTFOLIO_AVAILABLE = False
 from api.taxonomy_endpoints import router as taxonomy_router
 from api.execution_endpoints import router as execution_router
-# REMOVED: ml_predictions_endpoints (namespace collision resolved - functionality merged to unified_ml_endpoints)
 from api.analytics_endpoints import router as analytics_router
 from api.kraken_endpoints import router as kraken_router
 from api.smart_taxonomy_endpoints import router as smart_taxonomy_router  # FIXED - aiohttp mocké
 from api.advanced_rebalancing_endpoints import router as advanced_rebalancing_router
 from api.risk_endpoints import router as risk_router
-# REMOVED: test_risk_endpoints (production cleanup)
 from api.risk_dashboard_endpoints import router as risk_dashboard_router
 from api.execution_history import router as execution_history_router
 from api.monitoring_advanced import router as monitoring_advanced_router
@@ -93,7 +91,8 @@ from api.advanced_risk_endpoints import router as advanced_risk_router
 from api.realtime_endpoints import router as realtime_router
 from api.intelligence_endpoints import router as intelligence_router
 from api.user_settings_endpoints import router as user_settings_router
-# from api.market_endpoints import router as market_router  # Temporarily commented out
+## NOTE: market_endpoints est désactivé tant que le client prix n'est pas réimplémenté
+# from api.market_endpoints import router as market_router
 from api.exceptions import (
     CryptoRebalancerException, APIException, ValidationException,
     ConfigurationException, TradingException, DataException, ErrorCodes
@@ -1735,14 +1734,12 @@ async def update_api_keys(payload: APIKeysRequest, debug_token: str = None):
 # inclure les routes taxonomie, execution, monitoring et analytics
 app.include_router(taxonomy_router)
 app.include_router(execution_router)
-# REMOVED: ml_predictions_router (namespace collision resolved)
 app.include_router(analytics_router)
-# app.include_router(market_router)  # Temporarily commented out
+# app.include_router(market_router)
 app.include_router(kraken_router)
 app.include_router(smart_taxonomy_router)
 app.include_router(advanced_rebalancing_router)
 app.include_router(risk_router)
-# REMOVED: test_risk_router (production cleanup)
 app.include_router(risk_dashboard_router)
 app.include_router(execution_history_router)
 app.include_router(monitoring_advanced_router)

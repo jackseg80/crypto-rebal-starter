@@ -139,7 +139,7 @@ export function tiltRiskyZeroSum(T, ups = {}, downsKeys = []) {
 export function applyCapsAndNormalize(T, caps = {}, stablesFloor = 5) {
   if (!T || typeof T !== 'object') {
     console.warn('⚠️ TiltHelpers: Invalid targets for caps');
-    return null;
+    return { T: null, capsTriggered: [], stablesFloorHit: false };
   }
 
   console.debug('🧢 TiltHelpers: Applying caps and normalization:', {
@@ -149,6 +149,7 @@ export function applyCapsAndNormalize(T, caps = {}, stablesFloor = 5) {
 
   const result = { ...T }; // Clone to avoid mutation
   let capsTriggered = [];
+  let stablesFloorHit = false;
 
   // 1) Apply per-bucket caps and redistribute excess
   let totalExcess = 0;
@@ -255,7 +256,8 @@ export function applyCapsAndNormalize(T, caps = {}, stablesFloor = 5) {
       current: currentStables.toFixed(2) + '%',
       floor: stablesFloor + '%'
     });
-    return null; // Signal to abort tilts
+    stablesFloorHit = true;
+    return { T: null, capsTriggered, stablesFloorHit }; // Signal to abort tilts
   }
 
   // 3) Final normalization to 100%
@@ -263,7 +265,7 @@ export function applyCapsAndNormalize(T, caps = {}, stablesFloor = 5) {
 
   if (totalSum <= 0) {
     console.error('🚨 TiltHelpers: Total sum is zero after caps');
-    return null;
+    return { T: null, capsTriggered, stablesFloorHit };
   }
 
   if (Math.abs(totalSum - 100) > 1e-6) {
@@ -305,7 +307,7 @@ export function applyCapsAndNormalize(T, caps = {}, stablesFloor = 5) {
     stablesPreserved: (result['Stablecoins'] || 0).toFixed(2) + '%'
   });
 
-  return result;
+  return { T: result, capsTriggered, stablesFloorHit };
 }
 
 /**

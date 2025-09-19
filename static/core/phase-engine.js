@@ -702,7 +702,7 @@ export async function applyPhaseTilts(targets, phase, ctx = {}) {
     }
 
     // Apply caps and normalize
-    const cappedTargets = applyCapsAndNormalize(T, riskyCaps, STABLES_FLOOR_LOCAL);
+    const { T: cappedTargets, capsTriggered, stablesFloorHit } = applyCapsAndNormalize(T, riskyCaps, STABLES_FLOOR_LOCAL);
     if (!cappedTargets) {
       console.warn('🚨 PhaseEngine: Stables floor breached - aborting tilts');
       return {
@@ -711,7 +711,9 @@ export async function applyPhaseTilts(targets, phase, ctx = {}) {
           phase,
           tiltsApplied: false,
           reason: 'stables floor breached',
-          error: 'floor_breach'
+          error: 'floor_breach',
+          capsTriggered,
+          stablesFloorHit
         }
       };
     }
@@ -741,6 +743,8 @@ export async function applyPhaseTilts(targets, phase, ctx = {}) {
       deltas,
       validation,
       context: ctx,
+      capsTriggered,
+      stablesFloorHit,
       stablesPreserved: Math.abs((filteredTargets['Stablecoins'] || 0) - (originalTargets['Stablecoins'] || 0)) < 0.01,
       significantChanges: Object.entries(deltas)
         .filter(([_, delta]) => Math.abs(delta) > 0.03)

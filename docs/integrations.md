@@ -28,7 +28,7 @@ Position ID,Instrument,Quantity,Market Value,Currency,Asset Class
 - **Classes d'actifs** : Equity/Bond/ETF/Option → Catégorisation
 
 ### Endpoint
-- `POST /saxo/import` : Upload CSV/XLSX avec validation
+- `POST /api/saxo/import` : Upload CSV/XLSX avec validation
 
 ## Kraken
 - Endpoints clés: `/kraken/status`, `/kraken/prices`, `/kraken/balance`, `/kraken/validate-order`, `/kraken/orders`.

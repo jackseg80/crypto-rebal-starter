@@ -332,12 +332,12 @@
     }
 
     // Risk Budget ready guard - improved with multiple sources
-    async function ensureRiskBudgetReady(getRiskBudget, waitMs = 25, maxTries = 20) {
-      for (let i = 0; i < maxTries; i++) {
-        // Try multiple sources for risk budget
-        let rb = getRiskBudget?.();
+    async function ensureRiskBudgetReady(getRiskBudget, options = {}) {
+      const { waitMs = 100, timeoutMs = 3500 } = options || {};
 
-        // Fallback to store if direct function fails
+      const resolveCandidate = () => {
+        let rb = typeof getRiskBudget === 'function' ? getRiskBudget() : null;
+
         if (!rb?.stables_allocation) {
           const storeData = store.get('risk.budget');
           if (storeData?.percentages) {
@@ -348,11 +348,21 @@
           }
         }
 
-        // Fallback to computed values if still missing
-        if (!rb?.stables_allocation && window.computeRiskBudget) {
+        if (!rb?.stables_allocation && typeof store?.snapshot === 'function') {
+          const snapshot = store.snapshot();
+          const snapBudget = snapshot?.risk?.budget?.percentages;
+          if (snapBudget?.stables != null && snapBudget?.risky != null) {
+            rb = {
+              stables_allocation: snapBudget.stables / 100,
+              risky_allocation: snapBudget.risky / 100
+            };
+          }
+        }
+
+        if (!rb?.stables_allocation && typeof window.computeRiskBudget === 'function') {
           try {
             const computed = window.computeRiskBudget(store.get('scores.blended') || 50);
-            if (computed) {
+            if (computed?.target_stables_pct != null) {
               rb = {
                 stables_allocation: computed.target_stables_pct / 100,
                 risky_allocation: (100 - computed.target_stables_pct) / 100
@@ -361,21 +371,62 @@
           } catch (e) { /* ignore */ }
         }
 
-        if (rb?.stables_allocation != null && rb?.risky_allocation != null) {
-          return rb;
-        }
+        return rb?.stables_allocation != null && rb?.risky_allocation != null ? rb : null;
+      };
 
-        await new Promise(r => setTimeout(r, waitMs));
+      const immediate = resolveCandidate();
+      if (immediate) {
+        return immediate;
       }
 
-      // Final fallback - return synthetic budget based on current scores
-      console.warn('🚨 RiskBudget timeout, using synthetic fallback');
-      const blendedScore = store.get('scores.blended') || 50;
-      const stablesPercent = Math.max(10, Math.min(80, 100 - blendedScore));
-      return {
-        stables_allocation: stablesPercent / 100,
-        risky_allocation: (100 - stablesPercent) / 100
-      };
+      return new Promise(resolve => {
+        let settled = false;
+        let pollId = null;
+        let timeoutId = null;
+        let unsubscribe = null;
+
+        const cleanup = () => {
+          if (pollId) clearInterval(pollId);
+          if (timeoutId) clearTimeout(timeoutId);
+          if (typeof unsubscribe === 'function') unsubscribe();
+        };
+
+        const finalize = (value, fallback = false) => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+
+          if (fallback) {
+            console.warn('🚨 RiskBudget timeout, using synthetic fallback');
+            const blendedScore = store.get('scores.blended') || 50;
+            const stablesPercent = Math.max(10, Math.min(80, 100 - blendedScore));
+            resolve({
+              stables_allocation: stablesPercent / 100,
+              risky_allocation: (100 - stablesPercent) / 100
+            });
+            return;
+          }
+
+          resolve(value);
+        };
+
+        const attemptResolve = () => {
+          const candidate = resolveCandidate();
+          if (candidate) {
+            finalize(candidate);
+          }
+        };
+
+        pollId = setInterval(attemptResolve, waitMs);
+        timeoutId = setTimeout(() => finalize(null, true), timeoutMs);
+
+        if (store && typeof store.subscribe === 'function') {
+          unsubscribe = store.subscribe(attemptResolve);
+        }
+
+        // Immediate attempt in case data arrives synchronously
+        attemptResolve();
+      });
     }
 
     // Lightweight unified data loader with INTELLIGENT CACHING
@@ -861,10 +912,7 @@
         el[k] = true;
       }
 
-      // 2) Premier rendu avec données fraîches
-      renderUnifiedInsightsOnce();
-
-      // 3) Initialize governance system
+      // 2) Initialize governance system BEFORE first render
       setTimeout(async () => {
         try {
           console.log('🏛️ Initializing governance system in analytics dashboard...');
@@ -872,7 +920,7 @@
           await store.syncMLSignals();
           console.log('✅ Governance system initialized in analytics dashboard');
 
-          // Re-render to show governance status
+          // 3) Premier rendu avec données fraîches ET governance synchronisée
           renderUnifiedInsightsOnce();
 
           // Refresh governance panel if initialized

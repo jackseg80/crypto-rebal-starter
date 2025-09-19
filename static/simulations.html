@@ -21,16 +21,15 @@
   </script>
   <style>
     .wrap {
-      max-width: 95vw;
+      max-width: min(1400px, 96vw);
       margin: 0 auto;
       padding: var(--space-lg);
     }
-
     .sim-layout {
       display: grid;
-      grid-template-columns: 350px 1fr 400px;
+      grid-template-columns: minmax(0, 2fr) minmax(0, 1.1fr);
       gap: var(--space-lg);
-      min-height: calc(100vh - 200px);
+      align-items: start;
     }
 
     .sim-panel {
@@ -40,6 +39,126 @@
       overflow: hidden;
       display: flex;
       flex-direction: column;
+    }
+
+    .controls-flyout {
+      position: fixed;
+      top: 120px;
+      left: 0;
+      width: min(400px, 92vw);
+      max-height: calc(100vh - 140px);
+      padding: var(--space-lg);
+      background: color-mix(in srgb, var(--theme-surface) 88%, transparent 12%);
+      border: 1px solid color-mix(in srgb, var(--theme-border) 45%, transparent);
+      border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+      backdrop-filter: blur(10px);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+      transform: translateX(calc(-100% + 48px));
+      transition: transform 0.25s ease, opacity 0.25s ease;
+      opacity: 0.5;
+      z-index: 25;
+    }
+
+    .controls-flyout:hover,
+    .controls-flyout:focus-within,
+    .controls-flyout.is-pinned {
+      transform: translateX(0);
+      opacity: 1;
+    }
+
+    .controls-flyout:is(:hover, :focus-within) .flyout-handle,
+    .controls-flyout.is-pinned .flyout-handle {
+      opacity: 0;
+    }
+
+    .controls-flyout .flyout-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: var(--space-md);
+    }
+
+    .controls-flyout h2 {
+      margin: 0;
+      font-size: 1.1rem;
+    }
+
+    .controls-flyout .flyout-actions {
+      display: flex;
+      gap: var(--space-xs);
+    }
+
+    .controls-flyout .pin-btn {
+      font-size: 0.85rem;
+      padding: 0.35rem 0.75rem;
+      transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    }
+
+    .controls-flyout .pin-btn[aria-pressed="true"] {
+      background: var(--brand-primary);
+      color: white;
+      border-color: var(--brand-primary);
+    }
+
+    .controls-flyout .flyout-content {
+      overflow-y: auto;
+      padding-right: var(--space-sm);
+      margin-right: calc(-1 * var(--space-sm));
+      max-height: calc(100% - 2.5rem);
+    }
+
+    .controls-flyout .flyout-content::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .controls-flyout .flyout-content::-webkit-scrollbar-thumb {
+      background: color-mix(in srgb, var(--brand-primary) 55%, transparent);
+      border-radius: 999px;
+    }
+
+    .flyout-handle {
+      position: absolute;
+      right: -48px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: var(--brand-primary);
+      color: white;
+      padding: var(--space-sm) var(--space-xs);
+      border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+      pointer-events: none;
+      opacity: 0.85;
+      transition: opacity 0.2s ease;
+    }
+
+    .controls-flyout:hover .flyout-handle,
+    .controls-flyout:focus-within .flyout-handle {
+      opacity: 0;
+    }
+
+    .sim-panel-inspector .results-content {
+      max-height: none;
+      overflow-y: auto;
+    }
+
+    .sim-panel-inspector {
+      min-height: 100%;
+    }
+    .sim-panel-inspector .results-content {
+      max-height: none;
+      overflow-y: auto;
+    }
+
+    .sim-panel-inspector {
+      min-height: 100%;
     }
 
     .sim-header {
@@ -255,14 +374,43 @@
     /* Responsive */
     @media (max-width: 1200px) {
       .sim-layout {
-        grid-template-columns: 300px 1fr 350px;
+        grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+        gap: var(--space-md);
+      }
+
+      .controls-flyout {
+        width: min(360px, 85vw);
+      }
+    }
+
+    @media (max-width: 1024px) {
+      .controls-flyout {
+        position: static;
+        transform: none;
+        opacity: 1;
+        width: 100%;
+        max-height: none;
+        border-radius: var(--radius-lg);
+        box-shadow: none;
+        backdrop-filter: none;
+        margin-bottom: var(--space-lg);
+      }
+
+      .controls-flyout .flyout-handle {
+        display: none;
+      }
+
+      .controls-flyout .flyout-content {
+        margin-right: 0;
+        padding-right: 0;
       }
     }
 
     @media (max-width: 968px) {
       .sim-layout {
         grid-template-columns: 1fr;
-        grid-template-rows: auto auto auto;
+        grid-template-rows: auto auto;
+        gap: var(--space-lg);
       }
 
       .wrap {
@@ -385,20 +533,28 @@
       </div>
     </div>
 
-    <!-- Layout principal à 3 colonnes -->
-    <div class="sim-layout">
-      <!-- Colonne 1: Contrôles -->
-      <div class="sim-panel">
-        <div class="sim-header">
-          <h3>🎛️ Contrôles</h3>
+    <!-- Contrôles flottants -->
+    <div id="controls" class="controls-flyout" role="complementary" aria-label="Contrôles de simulation" tabindex="-1">
+      <div class="flyout-handle">🎛️ Contrôles</div>
+      <div class="flyout-header">
+        <h2>🎛️ Contrôles</h2>
+        <div class="flyout-actions">
+          <button id="controls-pin-btn" class="btn secondary pin-btn" type="button" aria-pressed="false" title="Épingler le panneau">
+            📌 Épingler
+          </button>
         </div>
-        <div id="sim-controls" class="results-content">
+      </div>
+      <div class="flyout-content">
+        <div id="sim-controls" class="controls-content">
           <!-- Contrôles générés par SimControls.js -->
         </div>
       </div>
+    </div>
 
-      <!-- Colonne 2: Résultats -->
-      <div class="sim-panel">
+    <!-- Disposition principale -->
+    <div class="sim-layout">
+      <!-- Résultats -->
+      <div id="results" class="sim-panel">
         <div class="sim-header">
           <h3>📊 Résultats de Simulation</h3>
           <div id="simulation-status">
@@ -503,8 +659,8 @@
         </div>
       </div>
 
-      <!-- Colonne 3: Inspecteur -->
-      <div class="sim-panel">
+      <!-- Inspecteur -->
+      <div id="inspector" class="sim-panel sim-panel-inspector">
         <div class="sim-header">
           <h3>🔍 Inspecteur</h3>
         </div>
@@ -513,6 +669,7 @@
         </div>
       </div>
     </div>
+
   </div>
 
   <!-- Scripts -->
@@ -559,7 +716,23 @@
       console.log('🎭 SIM: Simulator components initialized');
     }
 
+    function setControlsPinned(pinned) {
+      const controlsPanel = document.getElementById('controls');
+      const pinButton = document.getElementById('controls-pin-btn');
+
+      if (!controlsPanel || !pinButton) {
+        return;
+      }
+
+      controlsPanel.classList.toggle('is-pinned', pinned);
+      pinButton.setAttribute('aria-pressed', String(pinned));
+      pinButton.textContent = pinned ? '📌 Épinglé' : '📌 Épingler';
+    }
+
     function attachEventListeners() {
+      const pinButton = document.getElementById('controls-pin-btn');
+      setControlsPinned(false);
+
       // Mode toggle
       document.getElementById('mode-live')?.addEventListener('click', () => {
         switchMode('live');
@@ -575,6 +748,12 @@
         await reinitializeWithNewSource();
       });
 
+      pinButton?.addEventListener('click', () => {
+        const controlsPanel = document.getElementById('controls');
+        const isPinned = controlsPanel?.classList.contains('is-pinned');
+        setControlsPinned(!isPinned);
+      });
+
       // Retry button
       document.getElementById('retry-btn')?.addEventListener('click', () => {
         if (appState.lastSimulation) {
@@ -585,6 +764,10 @@
       // URL hash pour restaurer état
       window.addEventListener('hashchange', () => {
         restoreStateFromHash();
+        if (window.location.hash === '#controls') {
+          setControlsPinned(true);
+          document.getElementById('controls')?.focus({ preventScroll: true });
+        }
       });
     }
 
@@ -598,6 +781,11 @@
 
       // État initial empty
       showEmptyState();
+
+      if (window.location.hash === '#controls') {
+        setControlsPinned(true);
+        document.getElementById('controls')?.focus({ preventScroll: true });
+      }
     }
 
     function switchMode(mode) {

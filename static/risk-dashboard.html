@@ -6397,7 +6397,13 @@
       `;
 
       // Update badges with current data
-      updateRiskDashboardBadges(data);
+      const badgePayload = {
+        risk_metrics: updatedState.riskMetrics ?? null,
+        portfolio_summary: updatedState.portfolioSummary ?? null,
+        correlation_metrics: updatedState.correlationMetrics ?? null,
+        overrides_count: updatedState.governance?.overrides_count ?? 0
+      };
+      updateRiskDashboardBadges(badgePayload);
     }
 
     function renderTargetsTable(targets, strategy) {

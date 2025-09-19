@@ -7,7 +7,7 @@
   "csv_selected_file": "CoinTracking - Current Balance.csv",
   "cointracking_api_key": "8a30af6b5980abc197b5c3b93ca888da",
   "cointracking_api_secret": "b752995d0a260a9cf25d7e3a75892c923f36dab860fdbde0",
-  "coingecko_api_key": "",
+  "coingecko_api_key": "CG-ZcsKJgLUH5DeU2xeSu7R2a6v",
   "fred_api_key": "",
   "pricing": "local",
   "refresh_interval": 5,

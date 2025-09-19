@@ -10,8 +10,7 @@ const legacyRedirects = {
 
   // Performance & Monitoring → analytics-unified.html
   'performance-monitor.html': 'analytics-unified.html#performance',
-  'monitoring.html': 'analytics-unified.html#monitoring',
-  'monitoring-unified.html': 'analytics-unified.html#monitoring',
+  'monitoring-unified.html': 'monitoring.html',
   'unified-scores.html': 'analytics-unified.html#unified',
 
   // Cycle analysis → analytics-unified.html#cycles

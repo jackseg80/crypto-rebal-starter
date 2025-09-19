@@ -366,3 +366,64 @@ async def enrich_from_coingecko(payload: Dict[str, Any] = Body({})):
         
     except Exception as e:
         return {"ok": False, "error": str(e), "message": "Erreur lors de l'enrichissement CoinGecko"}
+
+@router.get("/test-coingecko-api")
+async def test_coingecko_api(api_key: str = None):
+    """
+    Test direct de l'API CoinGecko avec une clé fournie.
+    Usage: GET /taxonomy/test-coingecko-api?api_key=YOUR_KEY
+    """
+    if not api_key:
+        return {"ok": False, "error": "API key required as query parameter"}
+
+    import aiohttp
+    import asyncio
+
+    # Test direct de l'API CoinGecko
+    url = "https://api.coingecko.com/api/v3/ping"
+    headers = {
+        'accept': 'application/json',
+        'User-Agent': 'crypto-rebal-starter/1.0'
+    }
+    params = {'x_cg_demo_api_key': api_key}
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers, params=params, timeout=10) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return {
+                        "ok": True,
+                        "status": response.status,
+                        "response": data,
+                        "message": "API CoinGecko accessible avec cette clé"
+                    }
+                elif response.status == 401:
+                    return {
+                        "ok": False,
+                        "status": response.status,
+                        "error": "Unauthorized - clé API invalide",
+                        "message": "La clé API CoinGecko est invalide ou expirée"
+                    }
+                elif response.status == 429:
+                    return {
+                        "ok": False,
+                        "status": response.status,
+                        "error": "Rate limited",
+                        "message": "Limite de taux API atteinte - essayez plus tard"
+                    }
+                else:
+                    error_text = await response.text()
+                    return {
+                        "ok": False,
+                        "status": response.status,
+                        "error": error_text,
+                        "message": f"Erreur API CoinGecko: {response.status}"
+                    }
+
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": str(e),
+            "message": "Erreur de connexion à l'API CoinGecko"
+        }

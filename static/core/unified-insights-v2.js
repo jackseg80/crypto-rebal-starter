@@ -9,6 +9,7 @@ import { estimateCyclePosition, getCyclePhase } from '../modules/cycle-navigator
 import { interpretCCS } from '../modules/signals-engine.js';
 import { analyzeContradictorySignals } from '../modules/composite-score-v2.js';
 import { calculateIntelligentDecisionIndexAPI, StrategyConfig } from './strategy-api-adapter.js';
+import { calculateAdaptiveWeights as calculateAdaptiveWeightsV2 } from '../governance/contradiction-policy.js';
 
 // Import de fallback vers l'ancienne version si nécessaire
 import { calculateIntelligentDecisionIndex as legacyCalculation } from './unified-insights.js';
@@ -25,9 +26,12 @@ const ENABLE_COMPARISON_LOGGING = false;
  * Calcule les pondérations adaptatives selon le contexte de marché
  * Cycle ≥ 90 → augmente wCycle, plafonne pénalité On-Chain
  */
-function calculateAdaptiveWeights(cycleData, onchainScore, contradictions) {
+function calculateAdaptiveWeights(cycleData, onchainScore, contradictions, governanceContradiction = 0) {
   const cycleScore = cycleData?.score ?? 50;
-  const contradictionLevel = contradictions?.length ?? 0;
+  // Utiliser governance.contradiction_index comme source primaire, fallback sur on-chain
+  const contradictionLevel = governanceContradiction > 0 ?
+    Math.round(governanceContradiction * 100) :
+    (contradictions?.length ?? 0);
 
   // Pondérations de base
   let wCycle = 0.5;
@@ -312,8 +316,9 @@ export async function getUnifiedState() {
   // 4. NOUVELLE LOGIQUE - DECISION INDEX VIA STRATEGY API (moved after contradictions)
   let decision;
   try {
-    // BLENDING ADAPTATIF - Pondérations contextuelles
-    const adaptiveWeights = calculateAdaptiveWeights(cycleData, onchainScore, contradictions);
+    // BLENDING ADAPTATIF - Pondérations contextuelles avec governance unifiée
+    const governanceContradiction = state.governance?.contradiction_index || 0;
+    const adaptiveWeights = calculateAdaptiveWeights(cycleData, onchainScore, contradictions, governanceContradiction);
 
     // Préparer le contexte pour l'API Strategy
     const context = {
@@ -846,14 +851,29 @@ export function deriveRecommendations(u) {
     }
   }
 
-  // 5. CONTRADICTION ALERTS (conservé)
-  if (u.contradictions?.length > 0) {
+  // 5. CONTRADICTION ALERTS (conservé + governance unifiée)
+  const governanceContradiction = u.governance?.contradiction_index || 0;
+  const onchainContradictions = u.contradictions?.length || 0;
+
+  // Utiliser governance.contradiction_index comme source primaire (plus fiable)
+  if (governanceContradiction > 0.3) {
+    recos.push({
+      priority: governanceContradiction > 0.7 ? 'high' : 'medium',
+      title: `Signaux contradictoires: ${Math.round(governanceContradiction * 100)}%`,
+      reason: governanceContradiction > 0.7 ?
+        'Forte contradiction détectée - approche prudente recommandée' :
+        'Contradiction modérée détectée entre sources',
+      icon: governanceContradiction > 0.7 ? '🚨' : '⚡',
+      source: 'governance-contradiction'
+    });
+  } else if (onchainContradictions > 0) {
+    // Fallback vers contradictions on-chain si governance faible
     recos.push({
       priority: 'medium',
-      title: 'Signaux contradictoires détectés',
-      reason: `${u.contradictions.length} divergence(s) entre modules`,
+      title: 'Signaux on-chain contradictoires détectés',
+      reason: `${onchainContradictions} divergence(s) entre indicateurs`,
       icon: '⚡',
-      source: 'contradiction-analysis'
+      source: 'onchain-contradiction'
     });
   }
 

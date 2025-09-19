@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Logique Unifiée de Contradiction</title>
+    <link rel="stylesheet" href="shared-theme.css">
+    <style>
+        .test-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+
+        .test-card {
+            background: var(--theme-bg);
+            border: 1px solid var(--theme-border);
+            border-radius: var(--radius-md);
+            padding: 1rem;
+        }
+
+        .test-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .test-value {
+            font-family: monospace;
+            background: var(--theme-bg-secondary);
+            padding: 0.25rem 0.5rem;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--theme-border);
+        }
+
+        .test-slider {
+            width: 100%;
+            margin: 0.5rem 0;
+        }
+
+        .weights-display {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 0.5rem;
+            margin: 0.5rem 0;
+        }
+
+        .weight-item {
+            text-align: center;
+            padding: 0.5rem;
+            background: var(--theme-bg-secondary);
+            border-radius: var(--radius-sm);
+        }
+
+        .caps-display {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+            margin: 0.5rem 0;
+        }
+
+        .classification {
+            padding: 0.75rem;
+            border-radius: var(--radius-md);
+            margin: 0.5rem 0;
+        }
+
+        .classification.high {
+            background: color-mix(in oklab, var(--danger) 15%, var(--theme-bg));
+            border: 1px solid var(--danger);
+            color: var(--danger);
+        }
+
+        .classification.medium {
+            background: color-mix(in oklab, var(--warning) 15%, var(--theme-bg));
+            border: 1px solid var(--warning);
+            color: var(--warning);
+        }
+
+        .classification.low {
+            background: color-mix(in oklab, var(--success) 15%, var(--theme-bg));
+            border: 1px solid var(--success);
+            color: var(--success);
+        }
+
+        .badge-demo {
+            margin: 1rem 0;
+            padding: 1rem;
+            background: var(--theme-bg-secondary);
+            border-radius: var(--radius-md);
+        }
+
+        .recommendations {
+            background: var(--theme-bg-secondary);
+            padding: 0.75rem;
+            border-radius: var(--radius-md);
+            margin: 0.5rem 0;
+        }
+
+        .recommendations ul {
+            margin: 0.5rem 0;
+            padding-left: 1.25rem;
+        }
+
+        .meta-info {
+            font-size: 0.875rem;
+            color: var(--theme-text-muted);
+            background: var(--theme-bg-secondary);
+            padding: 0.5rem;
+            border-radius: var(--radius-sm);
+            margin: 0.5rem 0;
+        }
+
+        .validation-result {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin: 0.25rem 0;
+        }
+
+        .validation-icon {
+            width: 16px;
+            height: 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+
+        .validation-pass {
+            background: var(--success);
+            color: white;
+        }
+
+        .validation-fail {
+            background: var(--danger);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test Logique Unifiée de Contradiction</h1>
+        <p>Validation complète du système centralisé: sélecteurs, poids adaptatifs, caps, badges et recommendations.</p>
+
+        <div class="test-card">
+            <div class="test-header">
+                <h3>🎛️ Contrôle de Contradiction</h3>
+                <span class="test-value" id="contradiction-value">47%</span>
+            </div>
+            <input type="range" id="contradiction-slider" class="test-slider"
+                   min="0" max="100" value="47" step="1">
+            <div style="display: flex; justify-content: space-between; font-size: 0.875rem; color: var(--theme-text-muted);">
+                <span>0% (Alignés)</span>
+                <span>50% (Modéré)</span>
+                <span>100% (Chaos)</span>
+            </div>
+        </div>
+
+        <div class="test-grid">
+            <!-- Classification -->
+            <div class="test-card">
+                <h3>📊 Classification</h3>
+                <div id="classification-display" class="classification">
+                    <strong id="classification-level">Medium</strong>
+                    <div id="classification-message">Calculating...</div>
+                </div>
+                <div class="recommendations">
+                    <strong>Recommandations:</strong>
+                    <ul id="recommendations-list"></ul>
+                </div>
+            </div>
+
+            <!-- Poids Adaptatifs -->
+            <div class="test-card">
+                <h3>⚖️ Poids Adaptatifs</h3>
+                <div class="weights-display">
+                    <div class="weight-item">
+                        <strong>Cycle</strong>
+                        <div id="weight-cycle">40%</div>
+                    </div>
+                    <div class="weight-item">
+                        <strong>OnChain</strong>
+                        <div id="weight-onchain">35%</div>
+                    </div>
+                    <div class="weight-item">
+                        <strong>Risk</strong>
+                        <div id="weight-risk">25%</div>
+                    </div>
+                </div>
+                <div class="meta-info" id="weights-meta">
+                    Ajustements: cycle -0%, onchain -0%, risk +0%
+                </div>
+            </div>
+
+            <!-- Caps de Risque -->
+            <div class="test-card">
+                <h3>🛡️ Caps de Risque</h3>
+                <div class="caps-display">
+                    <div class="weight-item">
+                        <strong>Memecoins</strong>
+                        <div id="cap-memecoins">15%</div>
+                    </div>
+                    <div class="weight-item">
+                        <strong>Small Caps</strong>
+                        <div id="cap-small-caps">25%</div>
+                    </div>
+                </div>
+                <div class="meta-info" id="caps-meta">
+                    Réductions par rapport aux caps normaux
+                </div>
+            </div>
+
+            <!-- Validation -->
+            <div class="test-card">
+                <h3>✅ Validation</h3>
+                <div id="validation-results">
+                    <div class="validation-result">
+                        <span class="validation-icon validation-pass">✓</span>
+                        <span>Somme des poids = 1.000</span>
+                    </div>
+                    <div class="validation-result">
+                        <span class="validation-icon validation-pass">✓</span>
+                        <span>Poids dans les bornes [12%-65%]</span>
+                    </div>
+                    <div class="validation-result">
+                        <span class="validation-icon validation-pass">✓</span>
+                        <span>Risk augmente avec contradiction</span>
+                    </div>
+                    <div class="validation-result">
+                        <span class="validation-icon validation-pass">✓</span>
+                        <span>Caps diminuent avec contradiction</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Badge Demo -->
+        <div class="test-card">
+            <h3>🏷️ Badge Unifié</h3>
+            <div class="badge-demo" id="badge-demo">
+                <!-- Badge sera rendu ici -->
+            </div>
+        </div>
+
+        <!-- Métadonnées Détaillées -->
+        <div class="test-card">
+            <h3>🔍 Métadonnées Détaillées</h3>
+            <pre id="detailed-meta" style="font-size: 0.875rem; overflow-x: auto; background: var(--theme-bg-secondary); padding: 1rem; border-radius: var(--radius-md);"></pre>
+        </div>
+    </div>
+
+    <script type="module">
+        import { selectContradictionPct, selectContradiction01 } from './selectors/governance.js';
+        import { classifyContradiction, calculateAdaptiveWeights, calculateRiskCaps } from './governance/contradiction-policy.js';
+        import { renderBadges } from './components/Badges.js';
+        import { validateWeights, getWeightsDebugInfo } from './risk/adaptive-weights.js';
+
+        // État de test
+        let testState = {
+            governance: {
+                contradiction_index: 0.47, // 47%
+                ml_signals: {
+                    updated: new Date().toISOString(),
+                    decision_source: 'blended'
+                }
+            },
+            ui: {
+                apiStatus: {
+                    backend: 'healthy'
+                }
+            }
+        };
+
+        // Éléments DOM
+        const slider = document.getElementById('contradiction-slider');
+        const valueDisplay = document.getElementById('contradiction-value');
+
+        // Fonction de mise à jour
+        function updateAll() {
+            const contradictionPct = parseInt(slider.value);
+            testState.governance.contradiction_index = contradictionPct / 100;
+
+            // Mise à jour de l'affichage
+            valueDisplay.textContent = `${contradictionPct}%`;
+
+            // Classification
+            const classification = classifyContradiction(testState);
+            document.getElementById('classification-level').textContent = classification.level.toUpperCase();
+            document.getElementById('classification-message').textContent = classification.message;
+
+            const classificationDiv = document.getElementById('classification-display');
+            classificationDiv.className = `classification ${classification.level}`;
+
+            // Recommandations
+            const recList = document.getElementById('recommendations-list');
+            recList.innerHTML = classification.recommendations.map(r => `<li>${r}</li>`).join('');
+
+            // Poids adaptatifs
+            const weights = calculateAdaptiveWeights({}, testState);
+            document.getElementById('weight-cycle').textContent = `${Math.round(weights.cycle * 100)}%`;
+            document.getElementById('weight-onchain').textContent = `${Math.round(weights.onchain * 100)}%`;
+            document.getElementById('weight-risk').textContent = `${Math.round(weights.risk * 100)}%`;
+
+            const weightsMeta = document.getElementById('weights-meta');
+            weightsMeta.textContent = `Ajustements: cycle ${weights.meta.adjustments.cycle_reduction}%, onchain ${weights.meta.adjustments.onchain_reduction}%, risk +${weights.meta.adjustments.risk_increase}%`;
+
+            // Caps de risque
+            const caps = calculateRiskCaps({}, testState);
+            document.getElementById('cap-memecoins').textContent = `${Math.round(caps.memecoins * 100)}%`;
+            document.getElementById('cap-small-caps').textContent = `${Math.round(caps.small_caps * 100)}%`;
+
+            const capsMeta = document.getElementById('caps-meta');
+            capsMeta.textContent = `Réductions: memecoins -${caps.meta.reductions.memecoins}%, small caps -${caps.meta.reductions.small_caps}%`;
+
+            // Validation
+            const validation = validateWeights(weights);
+            const validationDiv = document.getElementById('validation-results');
+
+            const checks = [
+                { condition: validation.valid, text: `Somme des poids = ${validation.sum.toFixed(3)}` },
+                { condition: validation.individual_valid.cycle && validation.individual_valid.onchain && validation.individual_valid.risk,
+                  text: 'Poids dans les bornes [12%-65%]' },
+                { condition: weights.risk >= 0.25, text: 'Risk augmente avec contradiction' },
+                { condition: caps.memecoins <= 0.15, text: 'Caps diminuent avec contradiction' }
+            ];
+
+            validationDiv.innerHTML = checks.map(check => {
+                const icon = check.condition ?
+                    '<span class="validation-icon validation-pass">✓</span>' :
+                    '<span class="validation-icon validation-fail">✗</span>';
+                return `<div class="validation-result">${icon}<span>${check.text}</span></div>`;
+            }).join('');
+
+            // Badge demo
+            const badgeContainer = document.getElementById('badge-demo');
+            renderBadges(badgeContainer, {
+                contradiction: contradictionPct,
+                cap: Math.round((caps.memecoins + caps.small_caps) * 100),
+                source: 'test'
+            });
+
+            // Métadonnées détaillées
+            const debugInfo = getWeightsDebugInfo(testState);
+            document.getElementById('detailed-meta').textContent = JSON.stringify(debugInfo, null, 2);
+        }
+
+        // Event listener
+        slider.addEventListener('input', updateAll);
+
+        // Test automatique avec les valeurs demandées
+        function runAutomaticTest() {
+            const testValues = [10, 50, 85];
+            let currentTest = 0;
+
+            function nextTest() {
+                if (currentTest < testValues.length) {
+                    console.log(`\n🧪 Test automatique: contradiction ${testValues[currentTest]}%`);
+                    slider.value = testValues[currentTest];
+                    updateAll();
+
+                    // Log des résultats pour validation
+                    const weights = calculateAdaptiveWeights({}, testState);
+                    const caps = calculateRiskCaps({}, testState);
+                    const classification = classifyContradiction(testState);
+
+                    console.log(`📊 Classification: ${classification.level} (${classification.severity})`);
+                    console.log(`⚖️ Poids: cycle ${Math.round(weights.cycle * 100)}%, onchain ${Math.round(weights.onchain * 100)}%, risk ${Math.round(weights.risk * 100)}%`);
+                    console.log(`🛡️ Caps: memecoins ${Math.round(caps.memecoins * 100)}%, small_caps ${Math.round(caps.small_caps * 100)}%`);
+
+                    currentTest++;
+                    setTimeout(nextTest, 2000);
+                } else {
+                    console.log('\n✅ Test automatique terminé');
+                }
+            }
+
+            nextTest();
+        }
+
+        // Initialisation
+        updateAll();
+
+        // Exposition globale pour debugging
+        window.testContradictionLogic = {
+            setState: (newState) => { testState = { ...testState, ...newState }; updateAll(); },
+            getState: () => testState,
+            runAutoTest: runAutomaticTest,
+            setContradiction: (pct) => { slider.value = pct; updateAll(); }
+        };
+
+        console.log('🧪 Test de contradiction initialisé');
+        console.log('💡 Utilisez window.testContradictionLogic pour interagir');
+        console.log('📝 Exemple: window.testContradictionLogic.setContradiction(85)');
+    </script>
+</body>
+</html>

@@ -20,7 +20,7 @@ Successfully completed a comprehensive refactoring of API endpoints to improve s
 - Alerts under `/api/alerts/*`
 
 ### 3. Endpoint Unification
-- Unified governance approval: `/api/governance/approve/{resource_id}`
+- Unified governance approval: `/execution/governance/approve/{resource_id}`
 
 ### 4. Consumer Fixes & Tools
 - Updated frontend/test consumers

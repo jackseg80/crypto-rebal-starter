@@ -330,6 +330,8 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
             const hh = ts ? ts.toLocaleTimeString() : null;
             const ci = ml?.contradiction_index != null ? Math.round(ml.contradiction_index * 100) : null;
             const policy = store.get('governance.active_policy');
+            // Utiliser la même logique de cap que les badges (avec sécurité stale)
+            // Note: Import dynamique ne peut pas être await ici, fallback sur policy direct
             const cap = policy && typeof policy.cap_daily === 'number' ? Math.round(policy.cap_daily * 100) : null;
             const source = u.decision_source || 'SMART';
             const backendStatus = store.get('ui.apiStatus.backend');
@@ -661,8 +663,8 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
       if (governanceStatus.state === 'FROZEN') {
         mode = { name: 'Frozen', cap: 0 };
       } else if (activePolicy && activePolicy.cap_daily) {
-        // Use governance-derived policy
-        const cap = Math.round(activePolicy.cap_daily * 100); // Convert to percentage
+        // Use governance-derived policy (fallback sur policy direct)
+        const cap = Math.round(activePolicy.cap_daily * 100);
         const policyMode = activePolicy.mode || 'Normal';
         mode = { 
           name: `${policyMode} (Gov)`, 
@@ -925,17 +927,24 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
 
     ${(() => {
       // PHASE ENGINE DIAGNOSTICS PANEL
-      const phaseMode = localStorage.getItem('PHASE_ENGINE_ENABLED') || 'shadow';
-      if (phaseMode === 'off') return '';
-
+      const rawPhaseMode = localStorage.getItem('PHASE_ENGINE_ENABLED') || 'shadow';
+      const phaseMode = rawPhaseMode.toLowerCase();
+      const isDisabled = phaseMode === 'off' || phaseMode === 'disabled' || phaseMode === 'disable';
+      const phaseModeBadge = isDisabled ? 'DISABLED' : rawPhaseMode.toUpperCase();
       const shadowResult = typeof window !== 'undefined' ? window._phaseEngineShadowResult : null;
       const phaseConfig = typeof window !== 'undefined' ? window._phaseEngineConfig : null;
 
       return card(`
         <div style="font-weight:700; margin-bottom:.5rem; display: flex; align-items: center; gap: .5rem;">
           🧪 Phase Engine Diagnostics
-          <span style="background: var(--info); color: white; padding: 1px 6px; border-radius: 3px; font-size: .7rem; font-weight: 700;">${phaseMode.toUpperCase()}</span>
+          <span style="background: var(--info); color: white; padding: 1px 6px; border-radius: 3px; font-size: .7rem; font-weight: 700;">${phaseModeBadge}</span>
         </div>
+
+        ${isDisabled ? `
+          <div style="margin-bottom: .75rem; font-size: .8rem; color: var(--theme-text-muted);">
+            Phase engine disabled. Use the controls below to re-enable diagnostics.
+          </div>
+        ` : ''}
 
         ${shadowResult ? `
           <div style="margin-bottom: .75rem;">
@@ -1014,7 +1023,7 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
             Apply Mode
           </button>
           <button onclick="localStorage.setItem('PHASE_ENGINE_ENABLED', 'off'); location.reload();"
-                  style="padding: .3rem .6rem; border: 1px solid var(--theme-text-muted); background: ${phaseMode === 'off' ? 'var(--theme-text-muted)' : 'transparent'}; color: ${phaseMode === 'off' ? 'white' : 'var(--theme-text-muted)'}; border-radius: var(--radius-sm); font-size: .75rem; cursor: pointer;">
+                  style="padding: .3rem .6rem; border: 1px solid var(--theme-text-muted); background: ${isDisabled ? 'var(--theme-text-muted)' : 'transparent'}; color: ${isDisabled ? 'white' : 'var(--theme-text-muted)'}; border-radius: var(--radius-sm); font-size: .75rem; cursor: pointer;">
             Disabled
           </button>
         </div>

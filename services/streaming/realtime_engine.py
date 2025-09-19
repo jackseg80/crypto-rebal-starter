@@ -1,4 +1,4 @@
-"""
+﻿"""
 Phase 3B - Real-time Streaming Engine
 Provides WebSocket connections, Redis Streams event processing, and live data feeds
 """
@@ -376,6 +376,8 @@ class RealtimeEngine:
         self.heartbeat_task: Optional[asyncio.Task] = None
         
         # Métriques de performance
+        self._initialized = False
+        self.redis_enabled = False
         self.metrics = {
             "events_processed": 0,
             "websocket_messages_sent": 0,
@@ -386,29 +388,34 @@ class RealtimeEngine:
     
     async def initialize(self):
         """Initialiser le moteur de streaming"""
+        if self._initialized:
+            return self.redis_enabled
+
         log.info("Initializing RealtimeEngine...")
-        
+
         # Initialiser Redis Streams (optionnel)
         redis_initialized = await self.redis_manager.initialize()
+        self.redis_enabled = bool(redis_initialized)
         if not redis_initialized:
             log.warning("Redis Streams not available - running in WebSocket-only mode")
         else:
-            # Enregistrer les consumers par défaut seulement si Redis est disponible
+            # Enregistrer les consumers par d�faut seulement si Redis est disponible
             self.redis_manager.register_consumer("risk_events", self._handle_risk_event)
             self.redis_manager.register_consumer("alerts", self._handle_alert_event)
             self.redis_manager.register_consumer("market_data", self._handle_market_data)
             self.redis_manager.register_consumer("portfolio_updates", self._handle_portfolio_update)
-        
+
         self.metrics["start_time"] = datetime.now()
+        self._initialized = True
         log.info("RealtimeEngine initialized successfully")
-    
+        return self.redis_enabled
     async def start(self):
-        """Démarrer le moteur de streaming"""
+        """D�marrer le moteur de streaming"""
         if self.running:
             return
-        
+
         self.running = True
-        
+
         # Démarrer les consumers Redis
         await self.redis_manager.start_consumers()
         

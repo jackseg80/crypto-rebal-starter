@@ -15,10 +15,27 @@ class GovernancePanel {
     this.container = container;
     this.isVisible = false;
     this.refreshInterval = null;
-    
+    this.unsubscribeStore = null;
+
     this.init();
+
+    if (store && typeof store.subscribe === 'function') {
+      let rafId = null;
+      const scheduleUpdate = () => {
+        if (rafId) return;
+        rafId = requestAnimationFrame(() => {
+          rafId = null;
+          try {
+            this.updateDisplay();
+          } catch (error) {
+            console.debug('GovernancePanel auto-update skipped:', error?.message || error);
+          }
+        });
+      };
+      this.unsubscribeStore = store.subscribe(scheduleUpdate);
+    }
   }
-  
+
   init() {
     this.render();
     this.bindEvents();
@@ -1054,6 +1071,10 @@ class GovernancePanel {
   destroy() {
     if (this.refreshInterval) {
       clearInterval(this.refreshInterval);
+    }
+    if (typeof this.unsubscribeStore === 'function') {
+      this.unsubscribeStore();
+      this.unsubscribeStore = null;
     }
   }
   

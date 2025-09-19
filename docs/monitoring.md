@@ -1,7 +1,7 @@
 # Monitoring (Niveau intermédiaire)
 
 ## UI
-- Page: `static/monitoring-unified.html`
+- Page: `static/monitoring.html`
 - Vue consolidée: connexions exchanges, alertes, santé système.
 
 ## Endpoints Base (`/monitoring`)

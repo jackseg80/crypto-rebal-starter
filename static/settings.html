@@ -817,7 +817,6 @@
 
   </div>
 
-  <script src="/static/global-config.js"></script>
   <script>
     // Tabs logic
     (function(){
@@ -1732,14 +1731,19 @@
       testDiv.innerHTML = '<div class="test-result">🧪 Test des APIs...</div>';
 
       let results = [];
-      const globalSettings = globalConfig.getAll();
+      const globalSettings = window.userSettings || getDefaultSettings();
 
       // Test CoinGecko
       if (globalSettings.coingecko_api_key) {
         try {
-          const response = await fetch(`${globalSettings.api_base_url}/taxonomy/coingecko-stats`, { headers: { 'X-User': getActiveUser() } });
+          const response = await fetch(`${globalSettings.api_base_url}/taxonomy/test-coingecko-api?api_key=${encodeURIComponent(globalSettings.coingecko_api_key)}`, {
+            headers: { 'X-User': getActiveUser() }
+          });
           const data = await response.json();
           results.push(`🥷 CoinGecko: ${data.ok ? '✅ OK' : '❌ Erreur'}`);
+          if (!data.ok && data.message) {
+            results.push(`   └─ ${data.message}`);
+          }
         } catch (e) {
           results.push(`🥷 CoinGecko: ❌ ${e.message}`);
         }
@@ -1747,13 +1751,14 @@
         results.push(`🥷 CoinGecko: ⚪ Pas de clé configurée`);
       }
 
-      // Test FRED
+      // Test FRED via backend (plus sûr que CORS direct)
       if (globalSettings.fred_api_key) {
         try {
-          const testUrl = `https://api.stlouisfed.org/fred/series/observations?series_id=CBBTCUSD&api_key=${globalSettings.fred_api_key}&file_type=json&limit=1`;
-          const response = await fetch(testUrl, { mode: 'cors' });
+          const response = await fetch(`${globalSettings.api_base_url}/api/ml/market-data/bitcoin-historical?days=1`, {
+            headers: { 'X-User': getActiveUser() }
+          });
           const data = await response.json();
-          results.push(`🏛️ FRED: ${response.ok && data.observations ? '✅ OK' : '❌ Erreur'}`);
+          results.push(`🏛️ FRED: ${response.ok && data.prices ? '✅ OK' : '❌ Erreur'}`);
         } catch (e) {
           results.push(`🏛️ FRED: ❌ ${e.message}`);
         }
@@ -1762,16 +1767,28 @@
       }
 
       // Test CoinTracking API
-      if (globalSettings.cointracking_api_key && globalSettings.cointracking_api_secret && globalSettings.data_source === 'cointracking_api') {
+      if (globalSettings.cointracking_api_key && globalSettings.cointracking_api_secret) {
         try {
-          const response = await fetch(`${globalSettings.api_base_url}/debug/ctapi`, { headers: { 'X-User': getActiveUser() } });
+          const response = await fetch(`${globalSettings.api_base_url}/balances/current?source=cointracking_api&limit=1`, {
+            headers: { 'X-User': getActiveUser() }
+          });
           const data = await response.json();
-          results.push(`📊 CoinTracking API: ${response.ok ? '✅ OK' : '❌ Erreur'}`);
+          results.push(`📊 CoinTracking API: ${response.ok && data.items ? '✅ OK' : '❌ Erreur'}`);
         } catch (e) {
           results.push(`📊 CoinTracking API: ❌ ${e.message}`);
         }
       } else {
-        results.push(`📊 CoinTracking API: ⚪ Pas activé`);
+        results.push(`📊 CoinTracking API: ⚪ Clés manquantes`);
+      }
+
+      // Test Backend disponibilité
+      try {
+        const response = await fetch(`${globalSettings.api_base_url}/health`, {
+          headers: { 'X-User': getActiveUser() }
+        });
+        results.push(`🏥 Backend: ${response.ok ? '✅ OK' : '❌ Indisponible'}`);
+      } catch (e) {
+        results.push(`🏥 Backend: ❌ ${e.message}`);
       }
 
       testDiv.innerHTML = `
@@ -1788,7 +1805,7 @@
       testDiv.innerHTML = '<div class="test-result">🚀 Test complet en cours...</div>';
 
       let results = [];
-      const globalSettings = globalConfig.getAll();
+      const globalSettings = window.userSettings || getDefaultSettings();
 
       // Test backend
       try {

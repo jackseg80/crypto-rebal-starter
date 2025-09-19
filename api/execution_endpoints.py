@@ -764,7 +764,7 @@ async def get_governance_state():
             mode=state.governance_mode.value if hasattr(state.governance_mode, 'value') else state.governance_mode,
             last_decision_id=state.current_plan.plan_id if state.current_plan else None,
             contradiction_index=state.signals.contradiction_index if state.signals else 0.0,
-            ml_signals_timestamp=state.signals.timestamp.isoformat() if state.signals and hasattr(state.signals, 'timestamp') and state.signals.timestamp else None,
+            ml_signals_timestamp=state.signals.timestamp.isoformat() if state.signals and hasattr(state.signals, 'timestamp') and state.signals.timestamp else (state.last_update.isoformat() if state.last_update else datetime.now().isoformat()),
             active_policy=state.execution_policy.dict() if state.execution_policy else None,
             pending_approvals=0,  # TODO: Implement decision tracking
             next_update_time=state.last_update.isoformat() if state.last_update else None,

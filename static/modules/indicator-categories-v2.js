@@ -102,6 +102,7 @@ export const INDICATOR_CATEGORIES_V2 = {
       'fear_greed_7d': { weight: 0.10, invert: true },
       'google_crypto': { weight: 0.15, invert: false },
       'google_bitcoin': { weight: 0.15, invert: false },
+      'google_ethereum': { weight: 0.10, invert: false },
       'google_buy_crypto': { weight: 0.10, invert: false },
       'dominance_btc': { weight: 0.10, invert: false }
     }
@@ -158,8 +159,8 @@ export const INDICATOR_MAPPINGS_V2 = {
   'fear & greed (moyenne 7 jours)': { category: 'sentiment_social', key: 'fear_greed_7d' },
   'google trend "crypto"': { category: 'sentiment_social', key: 'google_crypto' },
   'google trend "bitcoin"': { category: 'sentiment_social', key: 'google_bitcoin' },
-  'google trend "buy crypto"': { category: 'sentiment_social', key: 'google_buy_crypto' },
   'google trend "ethereum"': { category: 'sentiment_social', key: 'google_ethereum' },
+  'google trend "buy crypto"': { category: 'sentiment_social', key: 'google_buy_crypto' },
   'dominance btc': { category: 'sentiment_social', key: 'dominance_btc' },
   
   // Market Context
@@ -185,15 +186,29 @@ export const INDICATOR_MAPPINGS_V2 = {
  * Fonction de classification améliorée avec gestion des corrélations
  */
 export function classifyIndicatorV2(indicatorName) {
+  if (!indicatorName || typeof indicatorName !== 'string') {
+    return {
+      category: 'market_context',
+      key: 'unknown',
+      weight: 0.05,
+      invert: false,
+      categoryWeight: 0.10,
+      dominant: false
+    };
+  }
+
   const name = indicatorName.toLowerCase().trim();
-  
-  // Recherche exacte d'abord
+  const normalizedName = name.replace(/["'`’“”]/g, '').replace(/\s+/g, ' ');
+
   for (const [pattern, mapping] of Object.entries(INDICATOR_MAPPINGS_V2)) {
-    if (name.includes(pattern.toLowerCase())) {
+    const patternLower = pattern.toLowerCase();
+    const normalizedPattern = patternLower.replace(/["'`’“”]/g, '').replace(/\s+/g, ' ');
+
+    if (name.includes(patternLower) || normalizedName.includes(normalizedPattern)) {
       const category = INDICATOR_CATEGORIES_V2[mapping.category];
-      const config = category.indicators[mapping.key];
-      
-      if (config) {
+      const config = category?.indicators?.[mapping.key];
+
+      if (category && config) {
         return {
           category: mapping.category,
           key: mapping.key,
@@ -206,8 +221,7 @@ export function classifyIndicatorV2(indicatorName) {
       }
     }
   }
-  
-  // Classification par défaut pour indicateurs inconnus
+
   console.warn(`⚠️ Unknown indicator for V2 classification: ${indicatorName}`);
   return {
     category: 'market_context',
@@ -218,6 +232,8 @@ export function classifyIndicatorV2(indicatorName) {
     dominant: false
   };
 }
+
+
 
 /**
  * Système de consensus voting pour éviter les signaux isolés

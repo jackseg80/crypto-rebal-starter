@@ -336,19 +336,20 @@ export class SimInspector {
   }
 
   expandAll() {
-    // Trouver tous les nœuds avec enfants et les étendre
-    const allNodes = document.querySelectorAll('.tree-node[data-node-id]');
-    allNodes.forEach(node => {
-      const nodeId = node.dataset.nodeId;
-      const hasChildren = node.querySelector('.tree-children') ||
-                         node.querySelector('.tree-toggle');
-      if (hasChildren) {
-        this.expanded.add(nodeId);
-      }
+    const explainTree = this.currentData?.explanation?.explainTree;
+    if (explainTree?.root) {
+      this.expanded = this.collectAllNodeIds(explainTree.root, 'root', new Set());
+      this.renderPipelineTree(explainTree);
+      return;
+    }
+
+    // Fallback: étendre ce qui est déjà présent dans le DOM
+    document.querySelectorAll('.tree-node[data-node-id]').forEach(node => {
+      this.expanded.add(node.dataset.nodeId);
     });
 
-    if (this.currentData) {
-      this.renderPipelineTree(this.currentData.explanation.explainTree);
+    if (explainTree) {
+      this.renderPipelineTree(explainTree);
     }
   }
 
@@ -359,6 +360,28 @@ export class SimInspector {
     if (this.currentData) {
       this.renderPipelineTree(this.currentData.explanation.explainTree);
     }
+  }
+
+  collectAllNodeIds(node, nodeId, acc) {
+    if (!acc) {
+      acc = new Set();
+    }
+
+    if (!node) {
+      return acc;
+    }
+
+    acc.add(nodeId);
+
+    if (node.children && typeof node.children === 'object') {
+      for (const [childId, child] of Object.entries(node.children)) {
+        if (child) {
+          this.collectAllNodeIds(child, childId, acc);
+        }
+      }
+    }
+
+    return acc;
   }
 
   exportLog() {

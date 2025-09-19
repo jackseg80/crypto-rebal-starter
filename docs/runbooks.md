@@ -64,7 +64,7 @@
 
 **Actions :**
 1. Attendre 5min (timeout automatique)
-2. Si persistant : `POST /api/risk/force-unlock`
+2. Si persistant : supprimer le fichier de verrou (data/scheduler.lock) puis relancer le job de calcul du risque
 3. Vérifier processes : `ps aux | grep python`
 4. Kill si nécessaire avec `pkill -f risk_management`
 
@@ -83,7 +83,7 @@
 1. Identifier cause : `/api/alerts/active`
 2. Résoudre alertes S3 ou contradictions >70%
 3. Validation manuelle governance_admin
-4. `POST /api/governance/unfreeze` avec justification
+4. `POST /execution/governance/unfreeze` avec justification
 
 **Autorisation :** governance_admin uniquement
 
@@ -140,9 +140,7 @@ echo "EMERGENCY_MODE=true" >> .env
 # Restore dernière config valide
 cp data/config.backup.latest.json data/config.json
 
-# Reset état gouvernance
-curl -X POST localhost:8000/api/governance/reset \
-  -H "X-Admin-Key: $ADMIN_KEY"
+# Reset état gouvernance : le redémarrage recharge automatiquement l'état actif
 
 # Restart services
 systemctl restart crypto-rebal
