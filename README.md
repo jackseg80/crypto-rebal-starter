@@ -35,11 +35,21 @@ Le système centralise la gestion des signaux contradictoires avec:
 Prérequis: Python 3.10+, pip, virtualenv
 
 1) Installer dépendances
+
+Linux/macOS:
 ```
 python -m venv .venv
-. .venv/bin/activate  # Windows: .\.venv\Scripts\activate
+source .venv/bin/activate
 pip install -r requirements.txt
 cp env.example .env
+```
+
+Windows (PowerShell):
+```
+py -m venv .venv
+.\.venv\Scripts\Activate
+pip install -r requirements.txt
+copy env.example .env
 ```
 2) Lancer l’API
 ```
@@ -93,6 +103,12 @@ PUT  /api/users/settings    # Sauvegarde configuration utilisateur
 ```
 
 ## 🚀 Nouvelles Fonctionnalités (v3.0)
+
+### 🔧 Production Stabilization (NOUVEAU)
+- **Hystérésis & EMA Anti-Flickering** : Deadband ±2%, persistence 3 ticks pour prévenir les oscillations
+- **Staleness Gating** : Freeze des poids adaptatifs mais préservation des caps défensifs (>30min)
+- **Token Bucket Rate Limiting** : 6 req/s avec burst 12, TTL adaptatif (10s-300s)
+- **Suite Tests Complète** : 16 scénarios de validation avec tests temps réel
 
 ### Système d'Allocation Dynamique
 - **Élimination des presets hardcodés** : Plus de templates figés (BTC 40%, ETH 30%, etc.)

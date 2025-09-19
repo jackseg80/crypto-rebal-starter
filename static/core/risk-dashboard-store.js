@@ -1,6 +1,7 @@
 /**
  * Store ultra-simple pour Risk Dashboard CCS
  * Objet observable basique avec pub/sub minimal
+ * Intégré avec Stability Engine pour anti-flickering
  */
 
 export class RiskDashboardStore {
@@ -9,6 +10,10 @@ export class RiskDashboardStore {
     this._syncGovernanceTimer = null;
     this._syncMLSignalsTimer = null;
     this._syncDebounceMs = 500; // 500ms debouncing
+
+    // Stability Engine pour hystérésis
+    this._stabilityEngine = null;
+    this._initStabilityEngine();
 
     this.state = {
       // Risk metrics (existing)
@@ -501,6 +506,75 @@ export class RiskDashboardStore {
       needsAttention: gov.pending_approvals > 0 || gov.contradiction_index > 0.7,
       lastSync: gov.last_sync ? new Date(gov.last_sync) : null
     };
+  }
+
+  // === Stability Engine Integration ===
+
+  async _initStabilityEngine() {
+    try {
+      // Dynamic import pour éviter les problèmes de chargement
+      const { getStableContradiction, resetStabilityState, getStabilityDebugInfo } =
+        await import('../governance/stability-engine.js');
+
+      this._stabilityEngine = {
+        getStableContradiction,
+        resetStabilityState,
+        getStabilityDebugInfo
+      };
+
+      console.log('🎯 Stability Engine intégré au store');
+    } catch (error) {
+      console.warn('⚠️ Stability Engine non disponible:', error.message);
+      // Fallback simple sans hystérésis
+      this._stabilityEngine = {
+        getStableContradiction: (state) => state?.governance?.contradiction_index ?? 0,
+        resetStabilityState: () => {},
+        getStabilityDebugInfo: () => ({ disabled: true })
+      };
+    }
+  }
+
+  /**
+   * Get stabilized contradiction with hystérésis protection
+   * @returns {number} - Stabilized contradiction (0-1)
+   */
+  getStableContradiction() {
+    if (!this._stabilityEngine) {
+      return this.get('governance.contradiction_index') ?? 0;
+    }
+
+    return this._stabilityEngine.getStableContradiction(this.state);
+  }
+
+  /**
+   * Get stabilized contradiction as percentage for UI
+   * @returns {number} - Stabilized contradiction (0-100%)
+   */
+  getStableContradictionPct() {
+    const stable = this.getStableContradiction();
+    return Math.round(stable * 100);
+  }
+
+  /**
+   * Reset stability engine state (pour tests et debug)
+   */
+  resetStability() {
+    if (this._stabilityEngine) {
+      this._stabilityEngine.resetStabilityState();
+      console.log('🔄 Stability Engine reset');
+    }
+  }
+
+  /**
+   * Get stability debug info for monitoring
+   * @returns {Object} - Debug information
+   */
+  getStabilityDebugInfo() {
+    if (!this._stabilityEngine) {
+      return { disabled: true };
+    }
+
+    return this._stabilityEngine.getStabilityDebugInfo();
   }
 }
 

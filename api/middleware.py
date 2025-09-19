@@ -227,29 +227,29 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    """Rate limiting simple en mémoire par IP.
+    """Advanced Token Bucket Rate Limiting with adaptive caching.
 
-    Utilise un compteur glissant par fenêtre (par défaut 1h) défini par:
-      - settings.security.rate_limit_requests
-      - settings.security.rate_limit_window_sec
+    Utilise le système token bucket sophistiqué avec:
+      - Token bucket per IP avec burst capacity
+      - Refill rate configurable (req/sec)
+      - Adaptive cache TTL selon hit ratio
+      - Cleanup automatique des buckets stale
 
-    Ajoute les headers: X-RateLimit-Limit, X-RateLimit-Remaining, Retry-After (si bloqué)
+    Configuration:
+      - settings.security.rate_limit_refill_rate (tokens/sec)
+      - settings.security.rate_limit_burst_size (burst capacity)
     """
 
     def __init__(self, app):
         super().__init__(app)
-        from config import get_settings
-        s = get_settings().security
-        self.limit = max(int(s.rate_limit_requests or 0), 0)
-        self.window = max(int(s.rate_limit_window_sec or 3600), 1)
-        # store: ip -> {"start": ts, "count": n}
-        self._buckets = defaultdict(lambda: {"start": 0, "count": 0})
+        from services.rate_limiter import get_rate_limiter
+        self.rate_limiter = get_rate_limiter()
         # Paths exclus (statique/santé)
         self._exempt_prefixes = ("/static/", "/data/", "/health", "/healthz")
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        # Pas de rate limit si disabled
-        if self.limit <= 0:
+        # Check if rate limiter is disabled
+        if hasattr(self.rate_limiter, 'get_status') and self.rate_limiter.get_status().get('disabled'):
             return await call_next(request)
 
         path = request.url.path or ""
@@ -257,33 +257,35 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         ip = request.client.host if request.client else "unknown"
-        now = int(time.time())
-        bucket = self._buckets[ip]
+        endpoint = f"{request.method}:{path}"
 
-        # Nouvelle fenêtre
-        if bucket["start"] == 0 or now - bucket["start"] >= self.window:
-            bucket["start"] = now
-            bucket["count"] = 0
+        # Check rate limit with token bucket
+        allowed, metadata = await self.rate_limiter.check_rate_limit(ip, endpoint)
 
-        bucket["count"] += 1
-        remaining = max(self.limit - bucket["count"], 0)
-
-        if bucket["count"] > self.limit:
-            retry_after = self.window - (now - bucket["start"]) if bucket["start"] else self.window
+        if not allowed:
+            retry_after = metadata.get('time_until_available', 60)
             return JSONResponse(
                 status_code=429,
                 content={
                     "error": True,
-                    "message": "Too Many Requests",
+                    "message": "Too Many Requests - Token bucket exhausted",
+                    "retry_after": retry_after,
+                    "cache_ttl": self.rate_limiter.get_adaptive_cache_ttl(ip, endpoint)
                 },
                 headers={
-                    "Retry-After": str(retry_after),
-                    "X-RateLimit-Limit": str(self.limit),
-                    "X-RateLimit-Remaining": "0",
+                    "Retry-After": str(int(retry_after)),
+                    "X-RateLimit-Type": "token-bucket",
+                    "X-RateLimit-Available": str(metadata.get('available_tokens', 0)),
+                    "X-Cache-TTL": str(self.rate_limiter.get_adaptive_cache_ttl(ip, endpoint)),
                 },
             )
 
         response = await call_next(request)
-        response.headers["X-RateLimit-Limit"] = str(self.limit)
-        response.headers["X-RateLimit-Remaining"] = str(remaining)
+
+        # Add rate limit headers
+        response.headers["X-RateLimit-Type"] = "token-bucket"
+        response.headers["X-RateLimit-Available"] = str(metadata.get('available_tokens', 0))
+        response.headers["X-Cache-Hit-Ratio"] = f"{metadata.get('cache_hit_ratio', 0):.2f}"
+        response.headers["X-Cache-TTL"] = str(self.rate_limiter.get_adaptive_cache_ttl(ip, endpoint))
+
         return response

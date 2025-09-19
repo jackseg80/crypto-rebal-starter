@@ -56,8 +56,11 @@ class SecurityConfig(BaseSettings):
     cors_origins: List[str] = Field(default=["http://localhost:3000"], description="Origins CORS")
     trusted_hosts: List[str] = Field(default=["localhost", "127.0.0.1"], description="Hôtes de confiance")
     max_request_size: int = Field(default=10*1024*1024, description="Taille max requête")
-    rate_limit_requests: int = Field(default=0, description="Limite taux par heure (0=disabled)")
+    # Token bucket rate limiting (6 req/s = 21600 req/h)
+    rate_limit_requests: int = Field(default=21600, description="Limite taux par heure")
     rate_limit_window_sec: int = Field(default=3600, description="Fenêtre de rate limiting (sec)")
+    rate_limit_burst_size: int = Field(default=12, description="Taille burst token bucket")
+    rate_limit_refill_rate: float = Field(default=6.0, description="Taux remplissage tokens/sec")
 
     # Content-Security-Policy (CSP) centralisée
     csp_script_src: List[str] = Field(default=["'self'", "https://cdn.jsdelivr.net"], description="Sources autorisées pour scripts")

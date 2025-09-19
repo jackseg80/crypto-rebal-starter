@@ -41,13 +41,13 @@ Métriques incluses: VaR/CVaR, Sharpe, Sortino, Max Drawdown, Ulcer Index, skew/
 - UI: `static/alias-manager.html`
 
 ## 6. Monitoring
-- Base: `/monitoring/alerts`
-- Avancé: `/api/monitoring/health`, `/api/monitoring/alerts`
-- UI: `static/monitoring.html`
+- Portefeuille (métier): `/api/portfolio/metrics`, `/api/portfolio/alerts`
+- Système (avancé): `/api/monitoring/health`, `/api/monitoring/alerts`
+- UI: `static/monitoring.html` (métier), `static/monitoring_advanced.html` (technique)
 
-Différence Base vs Avancé:
-- Base (`/monitoring`): alertes métier pipeline (règles, notifications).
-- Avancé (`/api/monitoring`): santé système/composants (latences, connexions, historiques).
+Différence Métier vs Technique:
+- Métier (portfolio): alertes pipeline et déviations d’allocation.
+- Technique (monitoring): santé système/composants (latences, connexions, historiques).
 
 ## 7. CSV CoinTracking
 - Export automatique: `POST /csv/download` (current_balance, balance_by_exchange, coins_by_exchange)

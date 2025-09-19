@@ -54,8 +54,8 @@ Exemple `POST /rebalance/plan` (extrait):
 - `GET /api/risk/dashboard` (vue consolidée)
 
 ## Monitoring
-- Base: `GET /monitoring/alerts` (règles, notifications)
-- Avancé: `GET /api/monitoring/health`, `GET /api/monitoring/alerts`
+- Portefeuille (métier): `GET /api/portfolio/metrics`, `GET /api/portfolio/alerts`
+- Système (avancé): `GET /api/monitoring/health`, `GET /api/monitoring/alerts`
 
 ## CSV utilitaires
 - `POST /csv/download` body:

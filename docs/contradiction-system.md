@@ -245,7 +245,13 @@ const report = generateCapsReport(state);
 - Calibrage coefficients basé sur Sharpe/Sortino
 - Intégration Phase Engine
 
-### Phase 3 (Évolution)
+### Phase 3 ✅ (Production Stabilization)
+- Hystérésis & EMA anti-flickering (deadband ±2%, persistence 3 ticks)
+- Staleness gating pour robustesse (freeze weights, preserve caps)
+- Rate limiting token bucket (6 req/s, burst 12, TTL adaptatif)
+- Suite tests complète avec 16 scénarios de validation
+
+### Phase 4 (Évolution Future)
 - Machine learning des seuils
 - Contradiction multi-timeframe
 - Caps dynamiques selon volatilité
@@ -253,4 +259,91 @@ const report = generateCapsReport(state);
 
 ---
 
-*Dernière mise à jour: Version unifiée complète avec validation QA*
+## Production Stabilization (Phase 3)
+
+### Hystérésis & EMA Anti-Flickering
+
+**Objectif**: Prévenir les oscillations rapides des poids adaptatifs
+
+**Architecture**:
+- `static/governance/stability-engine.js` - Engine principal avec deadband ±2%
+- Persistence 3 ticks avant validation de changement
+- EMA coefficient α=0.3 pour lissage
+- Global state tracking pour continuité
+
+**Fonctionnalités**:
+```javascript
+// Application automatique dans contradiction-policy.js
+const c = getStableContradiction(state); // Au lieu de selectContradiction01
+```
+
+**Debug interface**:
+```javascript
+window.stabilityEngine.getDebugInfo()  // État détaillé
+window.stabilityEngine.reset()         // Reset pour tests
+window.stabilityEngine.forceStale(true) // Force staleness
+```
+
+### Staleness Gating
+
+**Principe**: Gestion dégradée lors de données obsolètes (>30min)
+
+**Comportement**:
+- **Freeze adaptatif**: Poids figés sur dernière valeur stable
+- **Caps préservés**: Limites défensives maintenues
+- **Auto-resume**: Reprise automatique sur données fraîches
+
+**Logs de monitoring**:
+```
+🔒 Staleness gating: freezing adaptive weights at last stable value
+🔓 Staleness gating: resuming adaptive weights
+```
+
+### Rate Limiting Token Bucket
+
+**Configuration**: `config/settings.py`
+```python
+rate_limit_refill_rate: 6.0    # 6 req/s (21600/h)
+rate_limit_burst_size: 12      # Burst capacity
+```
+
+**Fonctionnalités avancées**:
+- **TTL adaptatif**: 30s base, ajusté selon hit ratio (10s-300s)
+- **Cleanup automatique**: Buckets stale supprimés après 1h
+- **Métriques**: Cache hit ratio, tokens disponibles, temps d'attente
+
+**Service**: `services/rate_limiter.py`
+```python
+limiter = get_rate_limiter()
+allowed, metadata = await limiter.check_rate_limit(client_id, endpoint)
+ttl = limiter.get_adaptive_cache_ttl(client_id, endpoint)
+```
+
+### Tests Complets
+
+**Suite complète**: `/static/test-stability-comprehensive.html`
+
+**Couverture**:
+- ✅ 4 tests hystérésis (deadband, persistence, EMA, anti-oscillation)
+- ✅ 4 tests staleness (freeze, resume, caps, degradation)
+- ✅ 4 tests rate limiting (bucket, burst, TTL, graceful)
+- ✅ 4 tests intégration (pipeline, cohérence, edge cases, performance)
+
+**Tests unitaires**: `tests/unit/test_stability_engine.py`
+- Token bucket mechanics avec pytest
+- Performance sous charge (1000 req < 1s)
+- Gestion erreurs et cas limites
+- Thread safety validation
+
+**Monitoring en continu**:
+```javascript
+// Auto-update status chaque seconde
+setInterval(updateRateLimitStatus, 1000);
+
+// Métriques temps réel
+window.stabilityTests.runFullSuite() // Suite complète
+```
+
+---
+
+*Dernière mise à jour: Production Stabilization complète avec tests exhaustifs*

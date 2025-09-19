@@ -4,6 +4,7 @@
  */
 
 import { selectContradictionPct, selectContradiction01 } from '../selectors/governance.js';
+import { getStableContradiction } from './stability-engine.js';
 
 /**
  * Classification des niveaux de contradiction
@@ -72,7 +73,7 @@ export function classifyContradiction(state) {
  */
 export function calculateAdaptiveWeights(baseWeights, state) {
   const base = { cycle: 0.4, onchain: 0.35, risk: 0.25, ...baseWeights };
-  const c = selectContradiction01(state); // 0-1
+  const c = getStableContradiction(state); // Use stabilized contradiction (0-1)
 
   // Coefficients d'ajustement (baseline pour backtesting)
   const cycleReduction = 0.35;    // jusqu'à -35%
@@ -133,7 +134,7 @@ export function calculateRiskCaps(baseCaps, state) {
     ...baseCaps
   };
 
-  const c = selectContradiction01(state); // 0-1
+  const c = getStableContradiction(state); // Use stabilized contradiction (0-1)
 
   // Réduction progressive des caps selon contradiction
   const caps = {

@@ -67,7 +67,7 @@ services/ml/.py
 static/components/nav.js
 static/components/GovernancePanel.js (intégré dans risk-dashboard)
 static/global-config.js
-static/intelligence-dashboard.html (signaux ML temps réel)
+static/analytics-unified.html (section ML temps réel)
 static/analytics-unified.html
 static/risk-dashboard.html (avec GovernancePanel intégré)
 static/portfolio-optimization.html

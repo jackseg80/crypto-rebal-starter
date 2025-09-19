@@ -1,20 +1,21 @@
 # Monitoring (Niveau intermédiaire)
 
 ## UI
-- Page: `static/monitoring.html`
-- Vue consolidée: connexions exchanges, alertes, santé système.
+- Monitoring (métier): `static/monitoring.html`
+- Monitoring avancé (technique): `static/monitoring_advanced.html`
+- Vues: connexions exchanges, alertes, santé système.
 
-## Endpoints Base (`/monitoring`)
-- `GET /monitoring/alerts` (filtrable par `level`, `alert_type`, `unresolved_only`, `limit`)
-- Actions d’alertes (ack/resolution) si exposées
-
-## Endpoints Avancés (`/api/monitoring`)
-- `GET /api/monitoring/health` (santé système et latences)
-- `GET /api/monitoring/alerts`
+## Endpoints API
+- Système (avancé):
+  - `GET /api/monitoring/health` (santé système et latences)
+  - `GET /api/monitoring/alerts`
+- Portefeuille (métier):
+  - `GET /api/portfolio/metrics`
+  - `GET /api/portfolio/alerts`
 
 ## Différences et usages
-- Base: pilotage “métier” du pipeline de rebalancing (alertes sur déviations, erreurs d’exécution).
-- Avancé: diagnostic “technique” (connectivité, métriques système, tests de connexion).
+- Métier (portfolio): pilotage du pipeline (déviations, erreurs d’exécution).
+- Technique (monitoring): diagnostic système (connectivité, métriques, tests de connexion).
 
 ## Conseils
 - Utiliser `GET /healthz` et `GET /debug/paths` pour diagnostics rapides.
