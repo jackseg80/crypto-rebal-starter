@@ -685,16 +685,29 @@
     import { selectContradictionPct, selectContradiction01 } from './selectors/governance.js';
     import { classifyContradiction } from './governance/contradiction-policy.js';
 
-    // Smoothing + staleness
-    import { smoothContradiction } from './governance/contradiction-smoothing.js';
-    import { getEffectiveContradiction01 } from './governance/effective-contradiction.js';
-
-    // Poids & caps (utiles si on doit afficher des métriques supplémentaires)
-    import { calculateAdaptiveWeights } from './risk/adaptive-weights.js';
-    import { applyContradictionCaps } from './simulations/contradiction-caps.js';
-
     // Badges UI
     import { renderBadges } from './components/Badges.js';
+
+    // Fallback functions for missing modules
+    function smoothContradiction(value, prevValue, config, state) {
+      return { value01: value, level: 'medium', persistCount: 0 };
+    }
+
+    function getEffectiveContradiction01(opts) {
+      return {
+        value01: opts.state?.governance?.contradiction_index ?? 0.5,
+        stale: false,
+        useBaseWeights: false
+      };
+    }
+
+    function calculateAdaptiveWeights(base, state) {
+      return base;
+    }
+
+    function applyContradictionCaps(policy, state) {
+      return policy;
+    }
 
     // État local de smoothing (persistance) + config par défaut
     let smoothState = { prevLevel: undefined, prevValue: undefined, persistCount: 0 };

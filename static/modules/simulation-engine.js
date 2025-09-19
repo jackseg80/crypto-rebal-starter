@@ -10,36 +10,26 @@ let contradictionModules = null;
 
 async function loadContradictionModules() {
   if (!contradictionModules) {
-    try {
-      const [
-        smoothModule,
-        effectiveModule,
-        adaptiveWeightsModule,
-        capsModule
-      ] = await Promise.all([
-        import('../governance/contradiction-smoothing.js'),
-        import('../governance/effective-contradiction.js'),
-        import('../risk/adaptive-weights.js'),
-        import('../simulations/contradiction-caps.js')
-      ]);
-
-      contradictionModules = {
-        smoothContradiction: smoothModule.smoothContradiction,
-        getEffectiveContradiction01: effectiveModule.getEffectiveContradiction01,
-        calculateAdaptiveWeights: adaptiveWeightsModule.calculateAdaptiveWeights,
-        applyContradictionCaps: capsModule.applyContradictionCaps
-      };
-
-      console.debug('✅ SIM: Contradiction modules loaded');
-    } catch (error) {
-      console.warn('⚠️ SIM: Failed to load contradiction modules, using fallbacks:', error.message);
-      contradictionModules = {
-        smoothContradiction: (value) => ({ value01: value, level: 'medium', persistCount: 0 }),
-        getEffectiveContradiction01: (opts) => ({ value01: opts.state?.governance?.contradiction_index ?? 0.5, stale: false, useBaseWeights: false }),
-        calculateAdaptiveWeights: (base) => base,
-        applyContradictionCaps: (policy) => policy
-      };
-    }
+    // Use fallbacks directly since modules don't exist yet
+    console.debug('⚠️ SIM: Using fallback contradiction modules (modules not implemented yet)');
+    contradictionModules = {
+      smoothContradiction: (value, prevValue, config, state) => {
+        // Simple fallback - just apply basic smoothing
+        if (prevValue !== undefined && prevValue !== null) {
+          const alpha = config?.ema_alpha ?? 0.25;
+          const smoothed = alpha * value + (1 - alpha) * prevValue;
+          return { value01: smoothed, level: 'medium', persistCount: 0 };
+        }
+        return { value01: value, level: 'medium', persistCount: 0 };
+      },
+      getEffectiveContradiction01: (opts) => ({
+        value01: opts.state?.governance?.contradiction_index ?? 0.5,
+        stale: false,
+        useBaseWeights: false
+      }),
+      calculateAdaptiveWeights: (base, state) => base,
+      applyContradictionCaps: (policy, state) => policy
+    };
   }
 }
 
