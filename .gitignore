@@ -64,3 +64,8 @@ tests/fixtures/diagnostic_*.html
 debug_output/
 *.debug
 nul
+
+# Generated price history: never commit
+# Keep the folder (via .gitkeep), ignore contents
+!data/price_history/.gitkeep
+data/price_history/
