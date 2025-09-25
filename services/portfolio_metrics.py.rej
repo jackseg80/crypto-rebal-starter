@@ -1,0 +1,73 @@
+diff a/services/portfolio_metrics.py b/services/portfolio_metrics.py	(rejected hunks)
+@@ -179,34 +179,50 @@ class PortfolioMetricsService:
+         price_data: pd.DataFrame, 
+         balances: List[Dict[str, Any]]
+     ) -> pd.Series:
+-        """Calcule les rendements pondérés du portfolio"""
+-        
+-        # Créer un dictionnaire des poids par symbol
+-        total_value = sum(float(b.get('value_usd', 0)) for b in balances)
+-        weights = {}
++        """Calcule les rendements ponderes du portfolio"""
+         
++        weights: Dict[str, float] = {}
+         for balance in balances:
+-            symbol = balance.get('symbol', '').upper()
++            symbol = (balance.get('symbol') or '').upper()
+             value_usd = float(balance.get('value_usd', 0))
+-            if total_value > 0 and symbol in price_data.columns:
+-                weights[symbol] = value_usd / total_value
++            if symbol in price_data.columns and value_usd > 0:
++                weights[symbol] = weights.get(symbol, 0.0) + value_usd
+         
+-        if not weights:
++        total_value = sum(weights.values())
++        if total_value <= 0:
+             raise ValueError("No matching symbols found between balances and price data")
+         
+-        logger.info(f"Portfolio weights: {len(weights)} assets, total weight: {sum(weights.values()):.3f}")
+-        
+-        # Calculer les rendements pour chaque asset
+-        returns_data = price_data.pct_change().dropna()
+-        
+-        # Calculer les rendements pondérés du portfolio
+-        portfolio_returns = pd.Series(0.0, index=returns_data.index)
+-        
+-        for symbol, weight in weights.items():
+-            if symbol in returns_data.columns:
+-                portfolio_returns += returns_data[symbol] * weight
++        weights = {symbol: value / total_value for symbol, value in weights.items()}
++        logger.info(
++            "Portfolio weights: %s assets, total weight after normalization: %.3f",
++            len(weights),
++            sum(weights.values()),
++        )
+         
+-        return portfolio_returns.dropna()
++        returns_data = price_data.sort_index().pct_change(fill_method=None)
++        weight_series = pd.Series(weights, dtype=float)
++        weighted_points = []
++        
++        for timestamp, row in returns_data.iterrows():
++            valid_returns = row.dropna()
++            if valid_returns.empty:
++                continue
++            available_weights = weight_series.reindex(valid_returns.index).dropna()
++            weight_sum = available_weights.sum()
++            if available_weights.empty or weight_sum <= 0:
++                continue
++            normalized_weights = available_weights / weight_sum
++            weighted_return = float((valid_returns.reindex(normalized_weights.index) * normalized_weights).sum())
++            weighted_points.append((timestamp, weighted_return))
++        
++        if not weighted_points:
++            logger.warning("Portfolio returns calculation produced no valid points; price coverage too sparse")
++            return pd.Series(dtype=float)
++        
++        return pd.Series(
++            data=[value for _, value in weighted_points],
++            index=[ts for ts, _ in weighted_points],
++        )
+     
+     def _calculate_total_return(self, returns: pd.Series) -> float:
+         """Calcule le rendement total"""

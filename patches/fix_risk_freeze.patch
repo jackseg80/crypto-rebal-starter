@@ -1,0 +1,403 @@
+diff --git a/api/risk_dashboard_endpoints.py b/api/risk_dashboard_endpoints.py
+index b1b49c0..670facd 100644
+--- a/api/risk_dashboard_endpoints.py
++++ b/api/risk_dashboard_endpoints.py
+@@ -2,8 +2,8 @@
+ Endpoint principal pour le risk dashboard avec données réelles
+ """
+ 
+-from fastapi import APIRouter, Query, Depends
+-from api.deps import get_active_user
++from fastapi import APIRouter, Query, Depends
++from api.deps import get_active_user
+ from datetime import datetime
+ import logging
+ 
+@@ -11,16 +11,20 @@ from services.risk_management import risk_manager
+ 
+ logger = logging.getLogger(__name__)
+ 
++MIN_HISTORY_DAYS = 60
++COVERAGE_THRESHOLD = 0.70
++MIN_POINTS_FOR_METRICS = 30
++
+ router = APIRouter(prefix="/api/risk", tags=["risk-management"])
+ 
+-@router.get("/dashboard")
+-async def real_risk_dashboard(
+-    source: str = Query("cointracking", description="Source des données (stub|cointracking|cointracking_api)"),
+-    min_usd: float = Query(1.0, description="Seuil minimal en USD par asset"),
+-    price_history_days: int = Query(365, description="Nombre de jours d'historique prix"),
+-    lookback_days: int = Query(90, description="Fenêtre de lookback pour corrélations"),
+-    user: str = Depends(get_active_user)
+-):
++@router.get("/dashboard")
++async def real_risk_dashboard(
++    source: str = Query("cointracking", description="Source des données (stub|cointracking|cointracking_api)"),
++    min_usd: float = Query(1.0, description="Seuil minimal en USD par asset"),
++    price_history_days: int = Query(365, description="Nombre de jours d'historique prix"),
++    lookback_days: int = Query(90, description="Fenêtre de lookback pour corrélations"),
++    user: str = Depends(get_active_user)
++):
+     """
+     Endpoint principal utilisant le vrai portfolio depuis les CSV avec le système de risque réel
+     """
+@@ -31,7 +35,7 @@ async def real_risk_dashboard(
+         from api.main import resolve_current_balances, _to_rows
+         
+         # Récupérer les données de portfolio selon la source demandée (stub/CSV/CT-API)
+-        res = await resolve_current_balances(source=source, user_id=user)
++        res = await resolve_current_balances(source=source, user_id=user)
+         logger.info(f"🔍 resolve_current_balances result: {len(res.get('items', []))} items")
+         rows = _to_rows(res.get("items", []))
+         logger.info(f"🔍 _to_rows result: {len(rows)} rows")
+@@ -54,7 +58,7 @@ async def real_risk_dashboard(
+             value_usd = float(item.get("value_usd", 0))
+             balance = float(item.get("amount", 0))
+             
+-            if value_usd > 0:  # Filtrer les holdings avec valeur positive
++            if value_usd > 0:
+                 real_holdings.append({
+                     "symbol": symbol,
+                     "balance": balance,
+@@ -68,14 +72,16 @@ async def real_risk_dashboard(
+                 "message": "Aucun holding avec valeur positive trouvé"
+             }
+         
+-        logger.info(f"📊 Calcul risque avec VRAI portfolio: {len(real_holdings)} assets, ${sum(h['value_usd'] for h in real_holdings):,.0f}")
++        logger.info(
++            "📊 Calcul risque avec VRAI portfolio: %s assets, $%s",
++            len(real_holdings),
++            f"{sum(h['value_usd'] for h in real_holdings):,.0f}"
++        )
+         
+-        # Utiliser le service centralisé pour garantir la cohérence des calculs
+         from services.portfolio_metrics import portfolio_metrics_service
+         from services.price_history import get_cached_history
+         import pandas as pd
+ 
+-        # Construire le DataFrame de prix à partir du cache (mêmes règles que l'Advanced Analytics)
+         price_data = {}
+         for h in real_holdings:
+             symbol = (h.get("symbol") or "").upper()
+@@ -90,10 +96,9 @@ async def real_risk_dashboard(
+             except Exception:
+                 continue
+ 
+-        if len(price_data) < 2:
+-            logger.warning("❌ Données de prix insuffisantes pour le calcul centralisé")
+-            # Fallback vers l'ancien gestionnaire si nécessaire
++        async def build_low_quality_dashboard(reason: str, data_quality: Dict[str, Any]):
+             import asyncio
++
+             risk_metrics_task = risk_manager.calculate_portfolio_risk_metrics(
+                 holdings=real_holdings,
+                 price_history_days=min(price_history_days, 90)
+@@ -107,7 +112,6 @@ async def real_risk_dashboard(
+                 correlation_task
+             )
+ 
+-            # Construction de la réponse dashboard (fallback)
+             dashboard_data = {
+                 "success": True,
+                 "timestamp": datetime.now().isoformat(),
+@@ -149,24 +153,98 @@ async def real_risk_dashboard(
+             end_time = datetime.now()
+             calculation_time = f"{(end_time - start_time).total_seconds():.2f}s"
+             dashboard_data["calculation_time"] = calculation_time
+-            logger.info(f"✅ Dashboard (fallback risk_manager) calculé en {calculation_time}")
++            dashboard_data["quality"] = "low"
++            dashboard_data["warning"] = reason
++            dashboard_data["data_quality"] = data_quality
++            logger.info(
++                "✅ Dashboard (fallback risk_manager) calculé en %s — %s",
++                calculation_time,
++                reason
++            )
+             return dashboard_data
+ 
+-        price_df = pd.DataFrame(price_data).fillna(method='ffill').dropna()
++        data_quality: Dict[str, Any] = {
++            "coverage": {},
++            "raw_symbol_count": len(price_data)
++        }
++
++        if not price_data:
++            data_quality["reason"] = "no_price_data"
++            return await build_low_quality_dashboard(
++                "No price history available for holdings",
++                data_quality
++            )
++
++        price_df = pd.DataFrame(price_data).sort_index().ffill()
++        price_df = price_df.dropna(how="all")
++
++        coverage_details: Dict[str, Dict[str, Any]] = {}
++        filtered_symbols: List[str] = []
++
++        for symbol in price_df.columns:
++            series = price_df[symbol]
++            total_rows = len(series)
++            valid_rows = int(series.notna().sum())
++            coverage_ratio = (valid_rows / total_rows) if total_rows else 0.0
++            cleaned = series.dropna()
++            history_days = int((cleaned.index[-1] - cleaned.index[0]).days) if len(cleaned) > 1 else 0
++
++            coverage_details[symbol] = {
++                "coverage_ratio": round(coverage_ratio, 4),
++                "history_days": history_days,
++                "data_points": valid_rows
++            }
++
++            if history_days >= MIN_HISTORY_DAYS and coverage_ratio >= COVERAGE_THRESHOLD:
++                filtered_symbols.append(symbol)
++
++        data_quality["coverage"] = coverage_details
++        data_quality["filtered_symbols"] = filtered_symbols
++
++        filtered_holdings = [
++            h for h in real_holdings if (h.get("symbol") or "").upper() in filtered_symbols
++        ]
++
++        if filtered_symbols:
++            filtered_df = price_df[filtered_symbols].dropna()
++        else:
++            filtered_df = pd.DataFrame()
++
++        effective_points = int(filtered_df.shape[0]) if not filtered_df.empty else 0
++        data_quality["effective_points"] = effective_points
++
++        if not filtered_symbols:
++            data_quality["reason"] = "no_symbol_meets_threshold"
++            return await build_low_quality_dashboard(
++                "Insufficient price coverage after filtering",
++                data_quality
++            )
++
++        if not filtered_holdings:
++            data_quality["reason"] = "no_holdings_after_filter"
++            return await build_low_quality_dashboard(
++                "No holdings remain after aligning price data",
++                data_quality
++            )
++
++        if effective_points < MIN_POINTS_FOR_METRICS:
++            data_quality["reason"] = "not_enough_points"
++            return await build_low_quality_dashboard(
++                "Time series too short for robust metrics",
++                data_quality
++            )
+ 
+-        # Calculs centralisés
+         centralized_metrics = portfolio_metrics_service.calculate_portfolio_metrics(
+-            price_data=price_df,
+-            balances=real_holdings,
++            price_data=filtered_df,
++            balances=filtered_holdings,
+             confidence_level=0.95
+         )
+-        corr_metrics = portfolio_metrics_service.calculate_correlation_metrics(price_df)
++        corr_metrics = portfolio_metrics_service.calculate_correlation_metrics(filtered_df)
+ 
+-        # Construction de la réponse dashboard alignée avec le service centralisé
+         dashboard_data = {
+             "success": True,
+             "timestamp": datetime.now().isoformat(),
+-            "real_data": True,  # Vraies données
++            "real_data": True,
+             "portfolio_summary": {
+                 "total_value": sum(h["value_usd"] for h in real_holdings),
+                 "num_assets": len(real_holdings),
+@@ -187,7 +265,7 @@ async def real_risk_dashboard(
+                 "ulcer_index": centralized_metrics.ulcer_index,
+                 "skewness": centralized_metrics.skewness,
+                 "kurtosis": centralized_metrics.kurtosis,
+-                "overall_risk_level": "medium",  # Non évalué par le service centralisé
++                "overall_risk_level": "medium",
+                 "risk_score": 0.0,
+                 "calculation_date": centralized_metrics.calculation_date.isoformat(),
+                 "data_points": centralized_metrics.data_points,
+@@ -198,12 +276,14 @@ async def real_risk_dashboard(
+                 "effective_assets": corr_metrics.effective_assets,
+                 "top_correlations": corr_metrics.top_correlations
+             },
+-            "real_holdings": real_holdings  # Inclure pour debug
++            "real_holdings": real_holdings
+         }
+         
+         end_time = datetime.now()
+         calculation_time = f"{(end_time - start_time).total_seconds():.2f}s"
+         dashboard_data["calculation_time"] = calculation_time
++        dashboard_data["quality"] = "ok"
++        dashboard_data["data_quality"] = data_quality
+         
+         logger.info(f"✅ VRAI dashboard (centralisé) calculé en {calculation_time}")
+         
+diff --git a/services/execution/governance.py b/services/execution/governance.py
+index 65ba2dc..62fe091 100644
+--- a/services/execution/governance.py
++++ b/services/execution/governance.py
+@@ -618,7 +618,40 @@ class GovernanceEngine:
+             
+         except Exception as e:
+             logger.error(f"Error deriving execution policy: {e}")
+-            return Policy(mode="Freeze", cap_daily=0.01, notes="Error fallback")
++
++            health_state = getattr(self.current_state, "system_status", "unknown")
++            normalized_health = "healthy" if health_state == "operational" else health_state
++
++            signals_obj = getattr(self.current_state, "signals", None)
++            signals_age = None
++            if signals_obj is not None:
++                as_of = getattr(signals_obj, "as_of", None)
++                if isinstance(as_of, datetime):
++                    signals_age = (datetime.now() - as_of).total_seconds()
++
++            current_policy = getattr(self.current_state, "execution_policy", Policy())
++            ttl_seconds = getattr(current_policy, "signals_ttl_seconds", self._signals_ttl_seconds)
++
++            logger.warning(
++                "Execution policy fallback triggered (health=%s, signals_age=%s, ttl=%s)",
++                normalized_health,
++                f"{signals_age:.0f}s" if signals_age is not None else "unknown",
++                ttl_seconds,
++            )
++
++            if normalized_health == "healthy" and signals_age is not None and signals_age < ttl_seconds:
++                degraded_policy = current_policy.dict()
++                degraded_policy.update({
++                    "mode": "Slow",
++                    "cap_daily": 0.05,
++                    "notes": f"Degraded fallback: {e}"
++                })
++                logger.info(
++                    "Applying degraded Slow fallback after error (cap_daily=5%%)"
++                )
++                return Policy(**degraded_policy)
++
++            return Policy(mode="Freeze", cap_daily=0.01, notes=f"Error fallback: {e}")
+ 
+     def apply_alert_cap_reduction(self, reduction_percentage: float, alert_id: str, reason: str) -> bool:
+         """
+diff --git a/services/portfolio_metrics.py b/services/portfolio_metrics.py
+index c6c8dca..0ed40d3 100644
+--- a/services/portfolio_metrics.py
++++ b/services/portfolio_metrics.py
+@@ -179,34 +179,50 @@ class PortfolioMetricsService:
+         price_data: pd.DataFrame, 
+         balances: List[Dict[str, Any]]
+     ) -> pd.Series:
+-        """Calcule les rendements pondérés du portfolio"""
+-        
+-        # Créer un dictionnaire des poids par symbol
+-        total_value = sum(float(b.get('value_usd', 0)) for b in balances)
+-        weights = {}
++        """Calcule les rendements ponderes du portfolio"""
+         
++        weights: Dict[str, float] = {}
+         for balance in balances:
+-            symbol = balance.get('symbol', '').upper()
++            symbol = (balance.get('symbol') or '').upper()
+             value_usd = float(balance.get('value_usd', 0))
+-            if total_value > 0 and symbol in price_data.columns:
+-                weights[symbol] = value_usd / total_value
++            if symbol in price_data.columns and value_usd > 0:
++                weights[symbol] = weights.get(symbol, 0.0) + value_usd
+         
+-        if not weights:
++        total_value = sum(weights.values())
++        if total_value <= 0:
+             raise ValueError("No matching symbols found between balances and price data")
+         
+-        logger.info(f"Portfolio weights: {len(weights)} assets, total weight: {sum(weights.values()):.3f}")
+-        
+-        # Calculer les rendements pour chaque asset
+-        returns_data = price_data.pct_change().dropna()
+-        
+-        # Calculer les rendements pondérés du portfolio
+-        portfolio_returns = pd.Series(0.0, index=returns_data.index)
+-        
+-        for symbol, weight in weights.items():
+-            if symbol in returns_data.columns:
+-                portfolio_returns += returns_data[symbol] * weight
++        weights = {symbol: value / total_value for symbol, value in weights.items()}
++        logger.info(
++            "Portfolio weights: %s assets, total weight after normalization: %.3f",
++            len(weights),
++            sum(weights.values()),
++        )
+         
+-        return portfolio_returns.dropna()
++        returns_data = price_data.sort_index().pct_change(fill_method=None)
++        weight_series = pd.Series(weights, dtype=float)
++        weighted_points = []
++        
++        for timestamp, row in returns_data.iterrows():
++            valid_returns = row.dropna()
++            if valid_returns.empty:
++                continue
++            available_weights = weight_series.reindex(valid_returns.index).dropna()
++            weight_sum = available_weights.sum()
++            if available_weights.empty or weight_sum <= 0:
++                continue
++            normalized_weights = available_weights / weight_sum
++            weighted_return = float((valid_returns.reindex(normalized_weights.index) * normalized_weights).sum())
++            weighted_points.append((timestamp, weighted_return))
++        
++        if not weighted_points:
++            logger.warning("Portfolio returns calculation produced no valid points; price coverage too sparse")
++            return pd.Series(dtype=float)
++        
++        return pd.Series(
++            data=[value for _, value in weighted_points],
++            index=[ts for ts, _ in weighted_points],
++        )
+     
+     def _calculate_total_return(self, returns: pd.Series) -> float:
+         """Calcule le rendement total"""
+diff --git a/static/components/UnifiedInsights.js b/static/components/UnifiedInsights.js
+index abc0c36..064af53 100644
+--- a/static/components/UnifiedInsights.js
++++ b/static/components/UnifiedInsights.js
+@@ -333,6 +333,8 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
+             // Utiliser la même logique de cap que les badges (avec sécurité stale)
+             // Note: Import dynamique ne peut pas être await ici, fallback sur policy direct
+             const cap = policy && typeof policy.cap_daily === 'number' ? Math.round(policy.cap_daily * 100) : null;
++            const capDailyPct = policy && typeof policy.cap_daily === 'number' ? policy.cap_daily * 100 : null;
++            const isTightCap = policy && (policy.mode === 'Freeze' || (typeof policy.cap_daily === 'number' && policy.cap_daily <= 0.02));
+             const source = u.decision_source || 'SMART';
+             const backendStatus = store.get('ui.apiStatus.backend');
+ 
+@@ -342,6 +344,10 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
+             if (hh) badges.push(`Updated ${hh}`);
+             if (ci != null) badges.push(`Contrad ${ci}%`);
+             if (cap != null) badges.push(`Cap ${cap}%`);
++            if (isTightCap) {
++              const tightLabel = capDailyPct != null ? ` (±${Math.round(capDailyPct)}%)` : '';
++              badges.push(`🧊 Freeze/Cap serré${tightLabel}`);
++            }
+ 
+             // NOUVEAU: Phase Engine status
+             const phaseEngineMode = localStorage.getItem('PHASE_ENGINE_ENABLED') || 'shadow';
+@@ -808,7 +814,20 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
+       const riskBudget = u.risk_budget || {};
+       const execution = u.execution || {};
+       const stablesTheorique = riskBudget.target_stables_pct || null;
+-      const estimatedIters = execution.estimated_iters_to_target || 'N/A';
++      let estimatedIters = execution.estimated_iters_to_target || 'N/A';
++      if (visible.length > 0 && typeof mode.cap === 'number') {
++        if (mode.cap <= 0) {
++          estimatedIters = '∞';
++        } else {
++          const maxDelta = visible.reduce((max, entry) => {
++            const current = typeof entry.cur === 'number' ? entry.cur : 0;
++            const target = typeof entry.tgt === 'number' ? entry.tgt : 0;
++            const diff = Math.abs(target - current);
++            return diff > max ? diff : max;
++          }, 0);
++          estimatedIters = maxDelta > 0 ? Math.max(1, Math.ceil(maxDelta / mode.cap)) : 0;
++        }
++      }
+ 
+       // TÂCHE 4 - Verrous anti-régression (dev uniquement) avant rendu
+       if (typeof window !== 'undefined' && window.location?.hostname === 'localhost') {

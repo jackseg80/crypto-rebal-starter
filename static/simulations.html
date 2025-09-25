@@ -20,6 +20,10 @@
     });
   </script>
   <style>
+    :root {
+      --sim-controls-width: 400px;
+    }
+
     .wrap {
       max-width: min(1400px, 96vw);
       margin: 0 auto;
@@ -27,7 +31,7 @@
     }
     .sim-layout {
       display: grid;
-      grid-template-columns: minmax(0, 2fr) minmax(0, 1.1fr);
+      grid-template-columns: minmax(0, 1.65fr) minmax(0, 1.35fr);
       gap: var(--space-lg);
       align-items: start;
     }
@@ -45,7 +49,7 @@
       position: fixed;
       top: 120px;
       left: 0;
-      width: min(400px, 92vw);
+      width: min(var(--sim-controls-width, 400px), 92vw);
       max-height: calc(100vh - 140px);
       padding: var(--space-lg);
       background: color-mix(in srgb, var(--theme-surface) 88%, transparent 12%);
@@ -251,6 +255,12 @@
       font-weight: 500;
     }
 
+    .di-preset {
+      margin-top: var(--space-sm);
+      font-size: 0.85rem;
+      color: var(--theme-text-muted);
+    }
+
     .budget-bars {
       display: flex;
       gap: var(--space-md);
@@ -374,7 +384,7 @@
     /* Responsive */
     @media (max-width: 1200px) {
       .sim-layout {
-        grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.1fr);
         gap: var(--space-md);
       }
 
@@ -595,6 +605,7 @@
                 <div style="margin-top: var(--space-sm); font-size: 0.9rem; color: var(--theme-text-muted);">
                   Confiance: <span id="sim-di-confidence">--</span>%
                 </div>
+                <div id="sim-selected-preset" class="di-preset">Preset: Custom</div>
               </div>
             </div>
 
@@ -682,7 +693,7 @@
     import * as SimEngine from './modules/simulation-engine.js';
 
     // Sélecteurs & policy
-    import { selectContradictionPct, selectContradiction01 } from './selectors/governance.js';
+    import { selectContradictionPct, selectContradiction01, selectCapPercent } from './selectors/governance.js';
     import { classifyContradiction } from './governance/contradiction-policy.js';
 
     // Badges UI
@@ -910,12 +921,15 @@
 
       // Affichage badges dans le header des résultats
       const stateForEngine = result?.ui?.stateForEngine ?? null;
-      const capPctRaw = result?.ui?.capPct01 ?? (result?.riskBudget?.cap01 ?? null); // fallback gentil si exposé
+      const capPercent = stateForEngine ? selectCapPercent(stateForEngine) : null;
       try {
+        const badgeProps = {};
+        if (capPercent != null) {
+          badgeProps.cap = capPercent;
+        }
         renderBadges(document.querySelector('#badges-sim'), {
           state: stateForEngine || {},
-          risk_metrics: { cap: capPctRaw ?? 0 },
-          overrides_count: stateForEngine?.governance?.overrides_count ?? 0
+          ...badgeProps
         });
       } catch (e) {
         console.warn('Badges render skipped:', e?.message);
@@ -925,6 +939,17 @@
       document.getElementById('sim-di-gauge').textContent = di.di;
       document.getElementById('sim-di-source-badge').textContent = `Source: ${di.source}`;
       document.getElementById('sim-di-confidence').textContent = Math.round(di.confidence * 100);
+      const presetName = result?.presetInfo?.name || result?.context?.presetInfo?.name || 'Custom';
+      const presetDesc = result?.presetInfo?.desc || result?.context?.presetInfo?.desc || '';
+      const presetEl = document.getElementById('sim-selected-preset');
+      if (presetEl) {
+        presetEl.textContent = `Preset: ${presetName}`;
+        if (presetDesc) {
+          presetEl.setAttribute('title', presetDesc);
+        } else {
+          presetEl.removeAttribute('title');
+        }
+      }
 
       // Risk Budget
       const stablesPct = Math.round(riskBudget.target_stables_pct);

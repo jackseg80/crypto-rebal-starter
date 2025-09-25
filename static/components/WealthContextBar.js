@@ -394,7 +394,7 @@ class WealthContextBar {
           },
           caps: {
             engine_cap: engineCap,
-            active_policy: { cap_daily: 20 }
+            active_policy: { cap_daily: 0.20 }
           },
           overrides: overrides
         },

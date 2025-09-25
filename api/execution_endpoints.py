@@ -13,7 +13,7 @@ from datetime import datetime
 
 from services.execution.execution_engine import execution_engine
 from services.execution.exchange_adapter import exchange_registry
-from services.execution.governance import governance_engine
+from services.execution.governance import Policy, governance_engine
 from services.execution.score_registry import get_score_registry
 from services.execution.phase_engine import get_phase_engine
 
@@ -191,13 +191,20 @@ class FreezeRequest(BaseModel):
     source_alert_id: Optional[str] = Field(None, description="ID alerte source si applicable")
 
 class ApplyPolicyRequest(BaseModel):
-    """Requête d'application de policy depuis alerte - NOUVEAU"""
-    mode: str = Field(..., description="Mode de policy") 
-    cap_daily: float = Field(..., ge=0.0, le=0.2, description="Cap quotidien [0-20%]")
+    """Requete d'application de policy depuis alerte - NOUVEAU"""
+    mode: str = Field(..., description="Mode de policy")
+    cap_daily: float = Field(..., ge=-1.0, le=1.0, description="Cap quotidien brut (sera clampe +/-20%)")
     ramp_hours: int = Field(..., ge=1, le=72, description="Ramping [1-72h]")
     reason: str = Field(..., max_length=140, description="Raison du changement")
     source_alert_id: Optional[str] = Field(None, description="ID de l'alerte source")
-    
+    min_trade: float = Field(default=100.0, ge=10.0, description="Trade minimum en USD")
+    slippage_limit_bps: int = Field(default=50, ge=1, le=500, description="Limite slippage [1-500 bps]")
+    signals_ttl_seconds: int = Field(default=1800, ge=60, le=7200, description="TTL signaux [60-7200s]")
+    plan_cooldown_hours: int = Field(default=24, ge=1, le=168, description="Cooldown plans [1-168h]")
+    no_trade_threshold_pct: float = Field(default=0.02, description="No-trade zone brute (sera clampee)")
+    execution_cost_bps: int = Field(default=15, ge=-1000, le=1000, description="Cout brut en bps (sera clampe [0-100])")
+    notes: Optional[str] = Field(default=None, max_length=280, description="Notes additionnelles")
+
     @validator('mode')
     def validate_mode(cls, v):
         allowed_modes = ["Slow", "Normal", "Aggressive"]
@@ -905,12 +912,19 @@ async def list_decisions(
     """
     try:
         decisions_data = []
+        decisions_store = getattr(governance_engine, 'decisions', {}) or {}
+        if not isinstance(decisions_store, dict):
+            decisions_store = {}
+
         
         # Filtrer et paginer les décisions
-        all_decisions = list(governance_engine.decisions.values())
+        all_decisions = list(decisions_store.values())
         
         if state_filter:
-            all_decisions = [d for d in all_decisions if d.state.state.value == state_filter.upper()]
+            all_decisions = [
+                d for d in all_decisions
+                if getattr(getattr(getattr(d, 'state', None), 'state', None), 'value', '') == state_filter.upper()
+            ]
         
         paginated_decisions = all_decisions[offset:offset + limit]
         
@@ -1005,10 +1019,13 @@ async def propose_decision(request: dict):
         success, message = await governance_engine.create_proposed_plan(targets, reason, force_override)
         
         if success:
+            plan_obj = getattr(governance_engine.current_state, 'proposed_plan', None)
+            plan_id = getattr(plan_obj, 'plan_id', None)
             return {
                 "success": True,
                 "message": message,
                 "state": "DRAFT",
+                "plan_id": plan_id,
                 "targets": targets,
                 "reason": reason,
                 "force_override_used": force_override,
@@ -1249,75 +1266,105 @@ async def get_cooldown_status():
         logger.error(f"Error getting cooldown status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/governance/apply_policy") 
+@router.post("/governance/apply_policy")
 async def apply_policy_from_alert(
     request: ApplyPolicyRequest,
-    idempotency_key: str = Header(..., alias="Idempotency-Key", description="Clé idempotency UUID"),
+    idempotency_key: str = Header(..., alias="Idempotency-Key", description="Cle idempotency UUID"),
     current_user: User = Depends(require_role("approver"))
 ):
     """
-    Applique une policy sans créer de plan (respecte cooldown) - NOUVEAU
-    
-    Endpoint dédié pour actions suggérées par alertes.
-    Nécessite rôle 'approver' et clé d'idempotency.
+    Applique une policy sans creer de plan (respecte cooldown) - NOUVEAU
+
+    Endpoint dedie pour actions suggerees par alertes.
+    Necessite role 'approver' et cle d'idempotency.
     """
     from services.alerts.idempotency import get_idempotency_manager
-    
+
+    def _clamp_float(value, lower, upper, default):
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            numeric = default
+        return max(lower, min(upper, numeric))
+
+    def _clamp_int(value, lower, upper, default):
+        try:
+            numeric = int(value)
+        except (TypeError, ValueError):
+            numeric = default
+        return max(lower, min(upper, numeric))
+
     try:
-        # Vérifier cooldown policy (15 min par défaut)
         state = await governance_engine.get_current_state()
         if state and state.execution_policy:
-            # Calculer temps depuis dernier changement policy
-            # (Simplification - dans vraie implémentation, tracker dernière modification)
             logger.debug("Policy cooldown check - implementation simplified")
-        
-        # Préparer réponse pour idempotency
+
+        cap_daily = _clamp_float(request.cap_daily, 0.01, 0.20, 0.08)
+        no_trade_threshold = _clamp_float(request.no_trade_threshold_pct, 0.0, 0.10, 0.02)
+        execution_cost_bps = _clamp_int(request.execution_cost_bps, 0, 100, 15)
+
+        policy_notes = request.notes or f"Manual apply: {request.reason} (by {current_user.username})"
+        policy_payload = {
+            "mode": request.mode,
+            "cap_daily": cap_daily,
+            "ramp_hours": request.ramp_hours,
+            "min_trade": request.min_trade,
+            "slippage_limit_bps": request.slippage_limit_bps,
+            "signals_ttl_seconds": request.signals_ttl_seconds,
+            "plan_cooldown_hours": request.plan_cooldown_hours,
+            "no_trade_threshold_pct": no_trade_threshold,
+            "execution_cost_bps": execution_cost_bps,
+            "notes": policy_notes,
+        }
+        policy = Policy(**policy_payload)
+        policy_dict = policy.dict()
+
         response_data = {
             "success": True,
-            "message": f"Policy applied: {request.mode}",
-            "policy": {
-                "mode": request.mode,
-                "cap_daily": request.cap_daily,
-                "ramp_hours": request.ramp_hours
-            },
+            "message": f"Policy applied & activated: {policy.mode}",
+            "policy": policy_dict,
             "applied_by": current_user.username,
             "source_alert_id": request.source_alert_id,
-            "timestamp": datetime.now().isoformat()
+            "reason": request.reason,
+            "timestamp": datetime.now().isoformat(),
         }
-        
-        # Vérifier idempotency
+
         idem_manager = get_idempotency_manager()
         existing_response = idem_manager.check_and_store(idempotency_key, response_data)
-        
         if existing_response:
-            logger.info(f"Idempotent request detected for policy change: {idempotency_key}")
+            logger.info("Idempotent request detected for policy change: %s", idempotency_key)
             return existing_response
-        
-        # Appliquer la nouvelle policy via governance engine
-        # (Ici on ferait l'intégration réelle - pour l'instant simulation)
-        logger.info(f"Applying policy: {request.mode} (cap: {request.cap_daily:.1%}, "
-                   f"ramp: {request.ramp_hours}h) by {current_user.username}")
-        
-        # Traçabilité dans les notes
-        policy_notes = f"Applied from alert {request.source_alert_id}: {request.reason}"
-        
-        # Marquer l'alerte comme appliquée si ID fourni
+
+        applied_at = datetime.now()
+        governance_engine.current_state.execution_policy = policy
+        governance_engine.current_state.last_applied_policy = policy.model_copy(deep=True)
+        governance_engine.current_state.last_manual_policy_update = applied_at
+        governance_engine.current_state.last_update = applied_at
+        governance_engine._last_cap = policy.cap_daily
+
+        logger.info(
+            "Policy applied & activated by %s (reason=%s): mode=%s, cap=%.2f%%",
+            current_user.username,
+            request.reason,
+            policy.mode,
+            policy.cap_daily * 100,
+        )
+
         if request.source_alert_id:
             try:
                 from api.alerts_endpoints import alert_engine
                 if alert_engine:
                     await alert_engine.mark_alert_applied(request.source_alert_id, current_user.username)
-            except Exception as e:
-                logger.warning(f"Could not mark alert as applied: {e}")
-        
+            except Exception as alert_error:
+                logger.warning("Could not mark alert as applied: %s", alert_error)
+
         return response_data
-        
+
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Error applying policy from alert: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
+    except Exception as exc:
+        logger.error(f"Error applying policy from alert: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
 @router.post("/governance/freeze")
 async def freeze_system_with_ttl(
     request: FreezeRequest,

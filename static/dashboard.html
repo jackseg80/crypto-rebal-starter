@@ -32,6 +32,7 @@
         import { getUnifiedState, deriveRecommendations } from './core/unified-insights-v2.js';
         import { store } from './core/risk-dashboard-store.js';
         import { UNIFIED_ASSET_GROUPS, getAssetGroup, groupAssetsByClassification } from './shared-asset-groups.js';
+        import { selectCapPercent, selectPolicyCapPercent, selectEngineCapPercent } from './selectors/governance.js';
         
         const colorForScore = (s) => s>70?'var(--danger)':s>=40?'var(--warning)':'var(--success)';
         
@@ -257,18 +258,35 @@
             }
         }
         
-        function waitForStoreReady() {
+        async function waitForStoreReady() {
             const state = store.snapshot();
-            const hasValidData = state.scores?.blended != null || 
-                                (state.cycle?.score != null && state.scores?.onchain != null && state.scores?.risk != null);
-            
-            if (hasValidData) {
-                console.log('🎯 Store ready with data, refreshing Global Insight');
+            const hasBlended = typeof state.scores?.blended === 'number';
+            const hasPartialScores = state.cycle?.score != null && state.scores?.onchain != null && state.scores?.risk != null;
+
+            if (hasBlended) {
+                console.log('🎯 Store ready with blended data, refreshing Global Insight');
+                if (typeof state.risk?.risk_budget?.target_stables_pct !== 'number') {
+                    try {
+                        const { calculateRiskBudget } = await import('./modules/market-regimes.js');
+                        const riskBudget = calculateRiskBudget(state.scores.blended, state.scores.risk ?? null);
+                        store.set('risk.risk_budget', riskBudget);
+                        console.debug('✅ Synthesized risk budget fallback:', { target_stables_pct: riskBudget.target_stables_pct });
+                    } catch (fallbackError) {
+                        console.warn('⚠️ Unable to synthesize risk budget fallback:', fallbackError);
+                    }
+                }
                 refreshGI();
-            } else {
-                console.log('⏳ No store data, loading directly for dashboard...');
-                loadUnifiedDataForDashboard();
+                return;
             }
+
+            if (hasPartialScores) {
+                console.log('🔁 Partial store data, running unified loader to compute blended score...');
+                await loadUnifiedDataForDashboard();
+                return;
+            }
+
+            console.log('⏳ No store data, loading directly for dashboard...');
+            await loadUnifiedDataForDashboard();
         }
 
         // Update Global Insight meta badge with governance data
@@ -279,7 +297,7 @@
 
                 // Get data from store
                 const ml = store.get('governance.ml_signals');
-                const policy = store.get('governance.active_policy');
+                const state = (typeof store.snapshot === 'function' ? store.snapshot() : store.getState?.()) || window.realDataStore || {};
 
                 // Format timestamp
                 const ts = ml?.timestamp ? new Date(ml.timestamp) : null;
@@ -288,20 +306,32 @@
                 // Get contradiction index (0-1 scale, convert to percentage)
                 const contradiction = ml?.contradiction_index != null ? Math.round(ml.contradiction_index * 100) : null;
 
-                // Get cap from policy (0-1 scale, convert to percentage)
-                const cap = policy?.cap_daily != null ? Math.round(policy.cap_daily * 100) : null;
+                const policyCap = selectPolicyCapPercent(state);
+                const engineCap = selectEngineCapPercent(state);
+                const effectiveCap = selectCapPercent(state);
 
-                // Build badge text
                 const badges = [`Updated: ${timeStr}`];
                 if (contradiction !== null) badges.push(`Contrad: ${contradiction}%`);
-                if (cap !== null) badges.push(`Cap: ${cap}%`);
+                if (policyCap != null) {
+                    let capLabel = `Cap: ${policyCap}%`;
+                    if (engineCap != null && engineCap !== policyCap) {
+                        capLabel += ` • SMART ${engineCap}%`;
+                    }
+                    badges.push(capLabel);
+                } else if (effectiveCap != null) {
+                    badges.push(`Cap: ${effectiveCap}%`);
+                } else {
+                    badges.push('Cap: —');
+                }
 
                 metaEl.textContent = badges.join(' • ');
 
                 console.debug('🏷️ Global Insight meta updated:', {
                     timestamp: timeStr,
                     contradiction,
-                    cap,
+                    policyCap,
+                    engineCap,
+                    effectiveCap,
                     text: metaEl.textContent
                 });
 
@@ -1631,13 +1661,24 @@
             // Utiliser la fonction unifiée de groupement (synchrone)
             try {
                 console.log('🔄 Trying unified groupAssetsByClassification with', items.length, 'items');
-                const result = groupAssetsByClassification(items);
+                const classify = (typeof window !== 'undefined' && typeof window.groupAssetsByClassification === 'function')
+                    ? window.groupAssetsByClassification
+                    : null;
+
+                if (!classify) {
+                    throw new ReferenceError('groupAssetsByClassification helper unavailable on window');
+                }
+
+                const result = classify(items);
                 console.log('✅ Unified grouping succeeded, found', result.length, 'groups');
                 return result;
             } catch (error) {
                 console.warn('⚠️ Unified grouping failed, using fallback with manual grouping:', error);
                 // Fallback qui utilise aussi le groupement par classification
                 const groups = new Map();
+                const resolveGroup = (typeof window !== 'undefined' && typeof window.getAssetGroup === 'function')
+                    ? window.getAssetGroup
+                    : null;
 
                 items.forEach(item => {
                     const symbol = (item.symbol || '').toUpperCase();
@@ -1646,13 +1687,16 @@
                     // Essayer d'abord l'API taxonomy directement
                     group = getGroupFromTaxonomyAPI(symbol);
 
-                    if (!group) {
+                    if (!group && resolveGroup) {
                         try {
-                            group = getAssetGroup(symbol);
+                            group = resolveGroup(symbol);
                         } catch (e) {
-                            // Si même getAssetGroup échoue, utiliser classification basique
                             group = autoClassifySymbol(symbol);
                         }
+                    }
+
+                    if (!group) {
+                        group = autoClassifySymbol(symbol);
                     }
 
                     // Debug temporaire pour voir les classifications

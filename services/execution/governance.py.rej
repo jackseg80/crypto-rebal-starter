@@ -1,0 +1,43 @@
+diff a/services/execution/governance.py b/services/execution/governance.py	(rejected hunks)
+@@ -618,7 +618,40 @@ class GovernanceEngine:
+             
+         except Exception as e:
+             logger.error(f"Error deriving execution policy: {e}")
+-            return Policy(mode="Freeze", cap_daily=0.01, notes="Error fallback")
++
++            health_state = getattr(self.current_state, "system_status", "unknown")
++            normalized_health = "healthy" if health_state == "operational" else health_state
++
++            signals_obj = getattr(self.current_state, "signals", None)
++            signals_age = None
++            if signals_obj is not None:
++                as_of = getattr(signals_obj, "as_of", None)
++                if isinstance(as_of, datetime):
++                    signals_age = (datetime.now() - as_of).total_seconds()
++
++            current_policy = getattr(self.current_state, "execution_policy", Policy())
++            ttl_seconds = getattr(current_policy, "signals_ttl_seconds", self._signals_ttl_seconds)
++
++            logger.warning(
++                "Execution policy fallback triggered (health=%s, signals_age=%s, ttl=%s)",
++                normalized_health,
++                f"{signals_age:.0f}s" if signals_age is not None else "unknown",
++                ttl_seconds,
++            )
++
++            if normalized_health == "healthy" and signals_age is not None and signals_age < ttl_seconds:
++                degraded_policy = current_policy.dict()
++                degraded_policy.update({
++                    "mode": "Slow",
++                    "cap_daily": 0.05,
++                    "notes": f"Degraded fallback: {e}"
++                })
++                logger.info(
++                    "Applying degraded Slow fallback after error (cap_daily=5%%)"
++                )
++                return Policy(**degraded_policy)
++
++            return Policy(mode="Freeze", cap_daily=0.01, notes=f"Error fallback: {e}")
+ 
+     def apply_alert_cap_reduction(self, reduction_percentage: float, alert_id: str, reason: str) -> bool:
+         """

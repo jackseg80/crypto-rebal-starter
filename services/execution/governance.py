@@ -1,4 +1,4 @@
-﻿"""
+"""
 Governance Engine pour Decision Engine Unifié
 
 Ce module centralise la gouvernance des décisions d'allocation :
@@ -136,8 +136,8 @@ class Policy(BaseModel):
     plan_cooldown_hours: int = Field(default=24, ge=1, le=168, description="Cooldown publication plans [1-168h]")
     
     # No-trade zone et coûts
-    no_trade_threshold_pct: float = Field(default=0.02, ge=0.001, le=0.10, description="Zone no-trade [0.1-10%]")
-    execution_cost_bps: int = Field(default=15, ge=1, le=100, description="Coût d'execution estimé [1-100 bps]")
+    no_trade_threshold_pct: float = Field(default=0.02, ge=0.0, le=0.10, description="Zone no-trade [0-10%]")
+    execution_cost_bps: int = Field(default=15, ge=0, le=100, description="Cout d'execution estime [0-100 bps]")
     
     notes: Optional[str] = Field(default=None, description="Notes explicatives")
 
@@ -202,6 +202,9 @@ class DecisionState(BaseModel):
     # Governance
     governance_mode: GovernanceMode = Field(default="manual", description="Mode de gouvernance global")
     execution_policy: Policy = Field(default_factory=Policy, description="Politique d'exécution")
+    last_applied_policy: Optional[Policy] = Field(default=None, description="Derniere policy appliquee manuellement")
+    last_manual_policy_update: Optional[datetime] = Field(default=None, description="Timestamp derniere activation manuelle")
+
     
     # Signaux ML
     signals: MLSignals = Field(default_factory=MLSignals, description="Signaux ML actuels")
@@ -277,6 +280,34 @@ class GovernanceEngine:
             self.hybrid_orchestrator = None
         
         logger.info(f"GovernanceEngine initialized with TTL/cooldown separation, Hybrid Intelligence: {self.hybrid_intelligence_enabled}")
+
+    def _enforce_policy_bounds(self, policy: Policy) -> Policy:
+        """Clamp defensif des champs critiques de policy."""
+        data = policy.dict()
+
+        def _as_float(value, default):
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return default
+
+        def _as_int(value, default):
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return default
+
+        cap_value = _as_float(data.get("cap_daily", 0.08), 0.08)
+        data["cap_daily"] = max(0.01, min(0.20, cap_value))
+
+        no_trade_value = _as_float(data.get("no_trade_threshold_pct", 0.02), 0.02)
+        data["no_trade_threshold_pct"] = max(0.0, min(0.10, no_trade_value))
+
+        cost_value = _as_int(data.get("execution_cost_bps", 15), 15)
+        data["execution_cost_bps"] = max(0, min(100, cost_value))
+
+        return Policy(**data)
+
     
     async def get_current_state(self) -> DecisionState:
         """
@@ -451,6 +482,15 @@ class GovernanceEngine:
             contradiction = signals.contradiction_index
             confidence = signals.confidence
 
+            manual_policy = getattr(self.current_state, "last_applied_policy", None)
+            control_mode = getattr(self.current_state, "governance_mode", "manual")
+            if control_mode == "manual" and manual_policy is not None:
+                enforced_policy = self._enforce_policy_bounds(manual_policy)
+                self._last_cap = enforced_policy.cap_daily
+                logger.info("[governance] manual policy override in effect (mode=%s, cap=%.2f%%)", enforced_policy.mode, enforced_policy.cap_daily * 100)
+                return enforced_policy
+
+
             # Phase 1A: Hystérésis pour éviter flip-flop mode prudent/normal
             # Prudent si contradiction ≥ 0.45, Normal si contradiction ≤ 0.40
             if contradiction >= 0.45:
@@ -556,10 +596,6 @@ class GovernanceEngine:
             elif self._alert_cap_reduction > 0:
                 cap = cap_alert
 
-            # Mettre à jour _last_cap pour le prochain smoothing (mais seulement si pas stale/error)
-            if cap_error is None and cap_stale is None:
-                self._last_cap = cap
-            # Sinon, garder _last_cap pour revenir au smoothing quand stale/error disparaît
 
             # Ajuster no-trade zone et coûts selon la volatilité
             vol_signals = signals.volatility
@@ -596,6 +632,16 @@ class GovernanceEngine:
 
             cap_info = f" [{', '.join(cap_notes)}]" if cap_notes else ""
 
+            cap = max(0.01, min(0.20, cap))
+            no_trade_threshold = max(0.0, min(0.10, no_trade_threshold))
+            execution_cost_bps = int(max(0, min(100, round(execution_cost))))
+
+            # Mettre a jour _last_cap pour le prochain smoothing (mais seulement si pas stale/error)
+            if cap_error is None and cap_stale is None:
+                self._last_cap = cap
+            # Sinon, garder _last_cap pour revenir au smoothing quand stale/error disparait
+
+
             policy = Policy(
                 mode=mode,
                 cap_daily=cap,
@@ -605,7 +651,7 @@ class GovernanceEngine:
                 signals_ttl_seconds=self._signals_ttl_seconds,
                 plan_cooldown_hours=self._plan_cooldown_hours,
                 no_trade_threshold_pct=no_trade_threshold,
-                execution_cost_bps=min(100, int(execution_cost)),  # Cap à 100 bps
+                execution_cost_bps=execution_cost_bps,  # Cap à 100 bps
                 notes=f"ML: contradiction={contradiction:.2f}, confidence={confidence:.2f}, vol={avg_volatility:.3f}{cap_info}"
             )
 
@@ -618,7 +664,40 @@ class GovernanceEngine:
             
         except Exception as e:
             logger.error(f"Error deriving execution policy: {e}")
-            return Policy(mode="Freeze", cap_daily=0.01, notes="Error fallback")
+
+            health_state = getattr(self.current_state, "system_status", "unknown")
+            normalized_health = "healthy" if health_state == "operational" else health_state
+
+            signals_obj = getattr(self.current_state, "signals", None)
+            signals_age = None
+            if signals_obj is not None:
+                as_of = getattr(signals_obj, "as_of", None)
+                if isinstance(as_of, datetime):
+                    signals_age = (datetime.now() - as_of).total_seconds()
+
+            current_policy = getattr(self.current_state, "execution_policy", Policy())
+            ttl_seconds = getattr(current_policy, "signals_ttl_seconds", self._signals_ttl_seconds)
+
+            logger.warning(
+                "Execution policy fallback triggered (health=%s, signals_age=%s, ttl=%s)",
+                normalized_health,
+                f"{signals_age:.0f}s" if signals_age is not None else "unknown",
+                ttl_seconds,
+            )
+
+            if normalized_health == "healthy" and signals_age is not None and signals_age < ttl_seconds:
+                degraded_policy = current_policy.dict()
+                degraded_policy.update({
+                    "mode": "Slow",
+                    "cap_daily": 0.05,
+                    "notes": f"Degraded fallback: {e}"
+                })
+                logger.info(
+                    "Applying degraded Slow fallback after error (cap_daily=5%%)"
+                )
+                return self._enforce_policy_bounds(Policy(**degraded_policy))
+
+            return self._enforce_policy_bounds(Policy(mode="Freeze", cap_daily=0.01, notes=f"Error fallback: {e}"))
 
     def apply_alert_cap_reduction(self, reduction_percentage: float, alert_id: str, reason: str) -> bool:
         """

@@ -63,49 +63,96 @@ export function selectDecisionSource(state) {
          'backend';
 }
 
+function normalizeCapToPercent(raw) {
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) {
+    return null;
+  }
+  const absolute = Math.abs(raw);
+  const percent = absolute <= 1 ? absolute * 100 : absolute;
+  const rounded = Math.round(percent);
+  return Number.isFinite(rounded) ? rounded : null;
+}
+
+export function selectPolicyCapPercent(state) {
+  try {
+    const raw = state?.governance?.active_policy?.cap_daily ??
+                state?.governance?.policy?.cap_daily;
+    return normalizeCapToPercent(raw);
+  } catch (error) {
+    console.debug('selectPolicyCapPercent failed', error);
+    return null;
+  }
+}
+
+export function selectEngineCapPercent(state) {
+  try {
+    const raw = state?.governance?.engine_cap_daily ??
+                state?.governance?.caps?.engine_cap ??
+                state?.governance?.computed_cap;
+    return normalizeCapToPercent(raw);
+  } catch (error) {
+    console.debug('selectEngineCapPercent failed', error);
+    return null;
+  }
+}
+
+export function selectCapPercent(state) {
+  try {
+    const policyCap = selectPolicyCapPercent(state);
+    if (policyCap != null) {
+      return policyCap;
+    }
+
+    const engineCap = selectEngineCapPercent(state);
+    if (engineCap != null) {
+      return engineCap;
+    }
+  } catch (error) {
+    console.debug('selectCapPercent failed', error);
+  }
+  return null;
+}
+
 /**
  * Sélecteur pour le cap effectif (priorité: error > stale > alert > engine > policy)
  * @param {Object} state - État unifié
  * @returns {number|null} - Cap effectif en pourcentage
  */
 export function selectEffectiveCap(state) {
-  // Priority 1: Error state = 5%
-  const backendStatus = state?.ui?.apiStatus?.backend;
-  if (backendStatus === 'error' || backendStatus === 'failed') {
-    return 5;
-  }
+  try {
+    const backendStatus = state?.ui?.apiStatus?.backend;
+    if (backendStatus === 'error' || backendStatus === 'failed') {
+      return 5;
+    }
 
-  // Priority 2: Stale state = 8%
-  const updated = selectGovernanceTimestamp(state);
-  const isStale = updated ? (Date.now() - new Date(updated).getTime()) > (30 * 60 * 1000) : true;
-  if (backendStatus === 'stale' || isStale) {
-    return 8;
-  }
+    const updated = selectGovernanceTimestamp(state);
+    const stale = (() => {
+      if (!updated) return true;
+      const ts = new Date(updated);
+      if (Number.isNaN(ts.getTime())) return true;
+      return Date.now() - ts.getTime() > 30 * 60 * 1000;
+    })();
+    if (backendStatus === 'stale' || stale) {
+      return 8;
+    }
 
-  // Priority 3: Alert cap
-  const alertCap = state?.governance?.caps?.alert_cap ||
-                   state?.alerts?.active_cap ||
-                   null;
-  if (alertCap !== null && typeof alertCap === 'number') {
-    return Math.round(alertCap);
-  }
+    const alertCap = normalizeCapToPercent(state?.governance?.caps?.alert_cap ?? state?.alerts?.active_cap);
+    if (alertCap != null) {
+      return alertCap;
+    }
 
-  // Priority 4: Engine cap (contradiction-adjusted)
-  const engineCap = state?.governance?.caps?.engine_cap ||
-                    state?.governance?.computed_cap ||
-                    null;
-  if (engineCap !== null && typeof engineCap === 'number') {
-    return Math.round(engineCap);
-  }
+    const policyCap = selectCapPercent(state);
+    if (policyCap != null) {
+      return policyCap;
+    }
 
-  // Priority 5: Policy cap (baseline)
-  const policyCap = state?.governance?.active_policy?.cap_daily ||
-                    state?.governance?.policy?.cap_daily ||
-                    null;
-  if (policyCap !== null && typeof policyCap === 'number') {
-    return Math.round(policyCap);
+    const engineCap = selectEngineCapPercent(state);
+    if (engineCap != null) {
+      return engineCap;
+    }
+  } catch (error) {
+    console.debug('selectEffectiveCap failed', error);
   }
-
   return null;
 }
 

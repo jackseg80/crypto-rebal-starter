@@ -1,294 +1,112 @@
-"""
-Saxo Bank API Endpoints
-Handles Saxo Bank data import and portfolio management
-"""
+"""Legacy Saxo endpoints delegating to Wealth namespace for compatibility."""
+from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Query
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
-from typing import Dict, List, Optional, Any
 import logging
 import tempfile
-import os
 from pathlib import Path
-import json
-from datetime import datetime
+from typing import List, Optional
 
-from connectors.saxo_import import SaxoImportConnector
+from fastapi import APIRouter, Body, File, Form, HTTPException, Query, UploadFile
+
+from adapters.saxo_adapter import ingest_file
+from api.wealth_endpoints import (
+    get_accounts as wealth_get_accounts,
+    get_instruments as wealth_get_instruments,
+    get_positions as wealth_get_positions,
+    get_transactions as wealth_get_transactions,
+    get_prices as wealth_get_prices,
+    preview_rebalance as wealth_preview_rebalance,
+)
+from models.wealth import AccountModel, InstrumentModel, PositionModel, PricePoint, ProposedTrade, TransactionModel
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/saxo", tags=["Saxo Bank"])
 
-# Initialize connector
-saxo_connector = SaxoImportConnector()
-
-# Data storage (in production, use proper database)
-_saxo_portfolios = {}
+_MODULE = "saxo"
 
 
-class SaxoPosition(BaseModel):
-    position_id: str
-    symbol: str
-    instrument: str
-    quantity: float
-    market_value: float
-    market_value_usd: float
-    currency: str
-    asset_class: str
-    source: str = "saxo_bank"
-    import_timestamp: str
-
-
-class SaxoPortfolio(BaseModel):
-    portfolio_id: str
-    name: str
-    positions: List[SaxoPosition]
-    total_market_value_usd: float
-    asset_allocation: Dict[str, float]
-    currency_exposure: Dict[str, float]
-    created_at: str
-    updated_at: str
+def _legacy_log(path: str) -> None:
+    logger.info("[legacy-compat] %s -> /api/wealth/%s%s", path, _MODULE, path)
 
 
 @router.post("/import")
-async def import_saxo_file(
-    file: UploadFile = File(...),
-    portfolio_name: str = Form(default="")
-):
-    """
-    Import Saxo Bank CSV/XLSX file
+async def import_portfolio(
+    file: UploadFile = File(..., description="Saxo export file"),
+    portfolio_name: str = Form("Saxo Portfolio"),
+) -> dict:
+    """Import Saxo CSV/XLSX and persist through the wealth adapter."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="missing_file")
 
-    Returns processed portfolio data
-    """
+    suffix = Path(file.filename).suffix or ".csv"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        tmp_path = Path(tmp.name)
+        content = await file.read()
+        tmp.write(content)
     try:
-        # Validate file type
-        if not file.filename:
-            raise HTTPException(status_code=400, detail="No file provided")
+        portfolio = ingest_file(str(tmp_path), portfolio_name=portfolio_name)
+    finally:
+        tmp_path.unlink(missing_ok=True)
 
-        file_ext = Path(file.filename).suffix.lower()
-        if file_ext not in saxo_connector.supported_formats:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unsupported file format. Supported: {', '.join(saxo_connector.supported_formats)}"
-            )
+    if not portfolio:
+        raise HTTPException(status_code=422, detail="import_failed")
 
-        # Save uploaded file temporarily
-        with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp_file:
-            content = await file.read()
-            tmp_file.write(content)
-            tmp_file_path = tmp_file.name
-
-        try:
-            # Validate file structure
-            validation = saxo_connector.validate_file(tmp_file_path)
-            if not validation["valid"]:
-                raise HTTPException(status_code=400, detail=validation["error"])
-
-            # Process file
-            result = saxo_connector.process_saxo_file(tmp_file_path)
-
-            if not result["positions"]:
-                raise HTTPException(status_code=400, detail="No valid positions found in file")
-
-            # Generate portfolio summary
-            summary = saxo_connector.get_portfolio_summary(result["positions"])
-
-            # Create portfolio record
-            portfolio_id = f"saxo_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            portfolio_name = portfolio_name or f"Saxo Portfolio {datetime.now().strftime('%Y-%m-%d %H:%M')}"
-
-            portfolio_data = {
-                "portfolio_id": portfolio_id,
-                "name": portfolio_name,
-                "positions": result["positions"],
-                "summary": summary,
-                "errors": result.get("errors", []),
-                "created_at": datetime.now().isoformat(),
-                "updated_at": datetime.now().isoformat(),
-                "source_file": file.filename
-            }
-
-            # Store portfolio (in memory for now)
-            _saxo_portfolios[portfolio_id] = portfolio_data
-
-            logger.info(f"Successfully imported Saxo portfolio: {len(result['positions'])} positions, ${summary['total_value_usd']:,.2f} total value")
-
-            return {
-                "success": True,
-                "portfolio_id": portfolio_id,
-                "portfolio_name": portfolio_name,
-                "positions_count": len(result["positions"]),
-                "total_value_usd": summary["total_value_usd"],
-                "asset_allocation": summary["asset_allocation"],
-                "currency_exposure": summary["currency_exposure"],
-                "top_holdings": summary["top_holdings"][:5],  # Return top 5
-                "errors": result.get("errors", []),
-                "created_at": portfolio_data["created_at"]
-            }
-
-        finally:
-            # Clean up temporary file
-            os.unlink(tmp_file_path)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error importing Saxo file: {e}")
-        raise HTTPException(status_code=500, detail=f"Import failed: {str(e)}")
+    _legacy_log("/import")
+    return {"portfolio": portfolio, "delegated": True}
 
 
-@router.get("/portfolios")
-async def list_saxo_portfolios():
-    """List all imported Saxo portfolios"""
-    portfolios = []
+@router.get("/accounts", response_model=List[AccountModel])
+async def list_accounts() -> List[AccountModel]:
+    _legacy_log("/accounts")
+    return await wealth_get_accounts(module=_MODULE)
 
-    for portfolio_id, data in _saxo_portfolios.items():
-        portfolios.append({
-            "portfolio_id": portfolio_id,
-            "name": data["name"],
-            "positions_count": len(data["positions"]),
-            "total_value_usd": data["summary"]["total_value_usd"],
-            "created_at": data["created_at"],
-            "updated_at": data["updated_at"],
-            "source_file": data.get("source_file")
-        })
 
+@router.get("/instruments", response_model=List[InstrumentModel])
+async def list_instruments() -> List[InstrumentModel]:
+    _legacy_log("/instruments")
+    return await wealth_get_instruments(module=_MODULE)
+
+
+@router.get("/positions")
+async def list_positions(
+    limit: int = Query(200, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+) -> dict:
+    _legacy_log("/positions")
+    wealth_positions = await wealth_get_positions(module=_MODULE)
+    # wealth endpoint returns pydantic models; convert to plain dicts
+    normalized = [p.model_dump() if isinstance(p, PositionModel) else p for p in wealth_positions]
+    total = len(normalized)
+    window = normalized[offset : offset + limit]
     return {
-        "portfolios": sorted(portfolios, key=lambda x: x["created_at"], reverse=True),
-        "total_portfolios": len(portfolios)
-    }
-
-
-@router.get("/portfolios/{portfolio_id}")
-async def get_saxo_portfolio(portfolio_id: str):
-    """Get detailed Saxo portfolio data"""
-    if portfolio_id not in _saxo_portfolios:
-        raise HTTPException(status_code=404, detail="Portfolio not found")
-
-    portfolio = _saxo_portfolios[portfolio_id]
-
-    return {
-        "portfolio_id": portfolio_id,
-        "name": portfolio["name"],
-        "positions": portfolio["positions"],
-        "summary": portfolio["summary"],
-        "errors": portfolio.get("errors", []),
-        "created_at": portfolio["created_at"],
-        "updated_at": portfolio["updated_at"],
-        "source_file": portfolio.get("source_file")
-    }
-
-
-@router.delete("/portfolios/{portfolio_id}")
-async def delete_saxo_portfolio(portfolio_id: str):
-    """Delete a Saxo portfolio"""
-    if portfolio_id not in _saxo_portfolios:
-        raise HTTPException(status_code=404, detail="Portfolio not found")
-
-    portfolio_name = _saxo_portfolios[portfolio_id]["name"]
-    del _saxo_portfolios[portfolio_id]
-
-    return {
-        "success": True,
-        "message": f"Portfolio '{portfolio_name}' deleted successfully"
-    }
-
-
-@router.get("/positions/{portfolio_id}")
-async def get_saxo_positions(
-    portfolio_id: str,
-    limit: int = Query(default=50, ge=1, le=200),
-    offset: int = Query(default=0, ge=0)
-):
-    """Get positions for a specific portfolio with pagination"""
-    if portfolio_id not in _saxo_portfolios:
-        raise HTTPException(status_code=404, detail="Portfolio not found")
-
-    positions = _saxo_portfolios[portfolio_id]["positions"]
-
-    # Apply pagination
-    total = len(positions)
-    paginated_positions = positions[offset:offset + limit]
-
-    return {
-        "positions": paginated_positions,
+        "positions": window,
         "pagination": {
             "total": total,
             "limit": limit,
             "offset": offset,
-            "has_more": offset + limit < total
-        }
+            "has_more": offset + limit < total,
+        },
     }
 
 
-@router.get("/summary/{portfolio_id}")
-async def get_portfolio_summary(portfolio_id: str):
-    """Get portfolio summary and analytics"""
-    if portfolio_id not in _saxo_portfolios:
-        raise HTTPException(status_code=404, detail="Portfolio not found")
-
-    portfolio = _saxo_portfolios[portfolio_id]
-    summary = portfolio["summary"]
-
-    # Add additional analytics
-    positions = portfolio["positions"]
-
-    # Asset class breakdown
-    asset_classes = {}
-    for pos in positions:
-        asset_class = pos["asset_class"]
-        if asset_class not in asset_classes:
-            asset_classes[asset_class] = {"count": 0, "value": 0, "positions": []}
-
-        asset_classes[asset_class]["count"] += 1
-        asset_classes[asset_class]["value"] += pos["market_value_usd"]
-        asset_classes[asset_class]["positions"].append({
-            "symbol": pos["symbol"],
-            "value": pos["market_value_usd"],
-            "percentage": (pos["market_value_usd"] / summary["total_value_usd"]) * 100
-        })
-
-    return {
-        "portfolio_id": portfolio_id,
-        "total_value_usd": summary["total_value_usd"],
-        "total_positions": summary["total_positions"],
-        "asset_allocation": summary["asset_allocation"],
-        "currency_exposure": summary["currency_exposure"],
-        "asset_classes": asset_classes,
-        "top_holdings": summary["top_holdings"],
-        "updated_at": portfolio["updated_at"]
-    }
+@router.get("/transactions", response_model=List[TransactionModel])
+async def list_transactions(
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+) -> List[TransactionModel]:
+    _legacy_log("/transactions")
+    return await wealth_get_transactions(module=_MODULE, start=start, end=end)
 
 
-@router.post("/validate")
-async def validate_saxo_file(file: UploadFile = File(...)):
-    """Validate Saxo file without importing"""
-    try:
-        if not file.filename:
-            raise HTTPException(status_code=400, detail="No file provided")
+@router.get("/prices", response_model=List[PricePoint])
+async def list_prices(ids: List[str], granularity: str = "daily") -> List[PricePoint]:
+    if not ids:
+        raise HTTPException(status_code=400, detail="missing_ids")
+    _legacy_log("/prices")
+    return await wealth_get_prices(module=_MODULE, ids=ids, granularity=granularity)
 
-        file_ext = Path(file.filename).suffix.lower()
-        if file_ext not in saxo_connector.supported_formats:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unsupported file format. Supported: {', '.join(saxo_connector.supported_formats)}"
-            )
 
-        # Save file temporarily
-        with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp_file:
-            content = await file.read()
-            tmp_file.write(content)
-            tmp_file_path = tmp_file.name
-
-        try:
-            validation = saxo_connector.validate_file(tmp_file_path)
-            return validation
-
-        finally:
-            os.unlink(tmp_file_path)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error validating Saxo file: {e}")
-        raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
+@router.post("/rebalance/preview", response_model=List[ProposedTrade])
+async def preview_rebalance(payload: Optional[dict] = Body(default=None)) -> List[ProposedTrade]:
+    _legacy_log("/rebalance/preview")
+    return await wealth_preview_rebalance(module=_MODULE, payload=payload)

@@ -316,10 +316,12 @@
                 // EMA smoothing (optimized with pre-calculated coefficients)
                 const emaValue = this.EMA_ALPHA * newValue + this.EMA_BETA * this.state.smooth_contradiction;
 
-                // Calculate direction relative to last stable value (fast path)
-                const delta = emaValue - this.state.last_stable_value;
-                const absDelta = delta < 0 ? -delta : delta; // Avoid Math.abs
-                const direction = absDelta > this.DB ? (delta > 0 ? 1 : -1) : 0;
+                const previousStable = this.state.last_stable_value;
+
+                // Calculate direction using raw delta to avoid EMA under-shoot
+                const rawDelta = newValue - previousStable;
+                const absRawDelta = rawDelta < 0 ? -rawDelta : rawDelta; // Avoid Math.abs
+                const direction = absRawDelta > this.DB ? (rawDelta > 0 ? 1 : -1) : 0;
 
                 // Update direction buffer (reuse array to avoid allocation)
                 const buf = this.state.direction_buffer;
@@ -340,16 +342,21 @@
                     }
                 }
 
-                let finalValue = this.state.last_stable_value;
+                let finalValue = previousStable;
 
                 if (consistent) {
-                    finalValue = emaValue;
+                    let clampedValue = newValue;
+                    if (clampedValue < 0) clampedValue = 0;
+                    else if (clampedValue > 1) clampedValue = 1;
+                    finalValue = clampedValue;
                     this.state.last_stable_value = finalValue;
                     buf.length = 0; // Clear buffer efficiently
 
                     // Conditional logging (avoid in hot path)
                     if (typeof log === 'function') {
-                        log(`🎯 Hysteresis: stable change (${(delta*100).toFixed(1)}% → ${(finalValue*100).toFixed(1)}%)`, 'success');
+                        const prevPct = (previousStable * 100).toFixed(1);
+                        const nextPct = (finalValue * 100).toFixed(1);
+                        log(`🎯 Hysteresis: stable change (${prevPct}% → ${nextPct}%)`, 'success');
                     }
                 }
 

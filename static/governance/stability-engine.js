@@ -61,9 +61,11 @@ export function applyHysteresis(newValue, state) {
   const emaValue = HYSTERESIS_CONFIG.ema_alpha * newValue +
                    (1 - HYSTERESIS_CONFIG.ema_alpha) * stabilityState.smooth_contradiction;
 
-  // Calculate direction relative to last stable value
-  const delta = emaValue - stabilityState.last_stable_value;
-  const direction = Math.abs(delta) > HYSTERESIS_CONFIG.deadband ? Math.sign(delta) : 0;
+  const previousStable = stabilityState.last_stable_value;
+
+  // Calculate direction using raw delta to avoid EMA under-shoot
+  const rawDelta = newValue - previousStable;
+  const direction = Math.abs(rawDelta) > HYSTERESIS_CONFIG.deadband ? Math.sign(rawDelta) : 0;
 
   // Update direction buffer
   stabilityState.direction_buffer.push(direction);
@@ -75,15 +77,15 @@ export function applyHysteresis(newValue, state) {
   const consistent = stabilityState.direction_buffer.length === HYSTERESIS_CONFIG.persistence &&
                      stabilityState.direction_buffer.every(d => d === direction && d !== 0);
 
-  let finalValue = stabilityState.last_stable_value;
+  let finalValue = previousStable;
 
   if (consistent) {
     // Apply the change if persistence is met
-    finalValue = emaValue;
+    finalValue = Math.min(1, Math.max(0, newValue));
     stabilityState.last_stable_value = finalValue;
     stabilityState.direction_buffer = []; // Reset buffer after change
 
-    console.debug(`🎯 Hysteresis: stable change detected (${(delta*100).toFixed(1)}% → ${(finalValue*100).toFixed(1)}%)`);
+    console.debug(`🎯 Hysteresis: stable change detected (${(previousStable*100).toFixed(1)}% → ${(finalValue*100).toFixed(1)}%)`);
   }
 
   // Update internal state

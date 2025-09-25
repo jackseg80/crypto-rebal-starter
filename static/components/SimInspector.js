@@ -24,8 +24,6 @@ export class SimInspector {
         <div class="inspector-header">
           <h3>🔍 Pipeline Inspector</h3>
           <div class="inspector-controls">
-            <button id="expand-all" class="btn secondary">📂 Tout étendre</button>
-            <button id="collapse-all" class="btn secondary">📁 Tout réduire</button>
             <button id="export-log" class="btn secondary">📋 Export Log</button>
           </div>
         </div>
@@ -47,7 +45,7 @@ export class SimInspector {
           </div>
 
           <div id="delta-comparison" class="delta-comparison">
-            <h4>🔄 Comparaison Avant/Après</h4>
+            <h4>🔄 Alignement & Comparaison</h4>
             <div class="delta-content">
               <!-- Sera rempli dynamiquement -->
             </div>
@@ -60,15 +58,6 @@ export class SimInspector {
   }
 
   attachEventListeners() {
-    // Expand/Collapse controls
-    document.getElementById('expand-all')?.addEventListener('click', () => {
-      this.expandAll();
-    });
-
-    document.getElementById('collapse-all')?.addEventListener('click', () => {
-      this.collapseAll();
-    });
-
     document.getElementById('export-log')?.addEventListener('click', () => {
       this.exportLog();
     });
@@ -96,22 +85,24 @@ export class SimInspector {
     const treeContainer = document.getElementById('pipeline-tree');
     if (!treeContainer || !explainTree) return;
 
-    const treeHTML = this.renderTreeNode(explainTree.root, 'root', 0);
+    const treeHTML = this.renderTreeNode(explainTree.root, 'root', 0, 'root');
     treeContainer.innerHTML = treeHTML;
   }
 
-  renderTreeNode(node, nodeId, depth) {
+  renderTreeNode(node, nodeId, depth, path) {
     if (!node) return '';
 
-    const isExpanded = this.expanded.has(nodeId);
+    const currentPath = path || nodeId;
+    const isExpanded = this.expanded.has(currentPath);
     const hasChildren = node.children && Object.keys(node.children).length > 0;
+    const isLeaf = !hasChildren;
 
     const statusIcon = this.getStatusIcon(node.status);
     const indentClass = `depth-${Math.min(depth, 3)}`;
 
     let html = `
-      <div class="tree-node ${indentClass}" data-node-id="${nodeId}">
-        <div class="tree-node-header" data-node-id="${nodeId}">
+      <div class="tree-node ${indentClass}" data-node-id="${currentPath}">
+        <div class="tree-node-header" data-node-id="${currentPath}">
           ${hasChildren ?
             `<span class="tree-toggle">${isExpanded ? '📂' : '📁'}</span>` :
             '<span class="tree-leaf">📄</span>'
@@ -122,7 +113,7 @@ export class SimInspector {
     `;
 
     // Data section si présente
-    if (node.data) {
+    if (node.data && (isExpanded || isLeaf)) {
       html += `<div class="tree-data">${this.renderNodeData(node.data, node.status)}</div>`;
     }
 
@@ -131,7 +122,8 @@ export class SimInspector {
       html += '<div class="tree-children">';
       for (const [childId, child] of Object.entries(node.children)) {
         if (child) { // Skip null children
-          html += this.renderTreeNode(child, childId, depth + 1);
+          const childPath = `${currentPath}.${childId}`;
+          html += this.renderTreeNode(child, childId, depth + 1, childPath);
         }
       }
       html += '</div>';
@@ -214,61 +206,120 @@ export class SimInspector {
     const container = document.querySelector('.delta-content');
     if (!container || !simulationResult) return;
 
-    const { targets, finalTargets, cappedTargets, orders } = simulationResult;
+    const { targets, finalTargets, cappedTargets, orders, currentAllocation } = simulationResult;
 
-    // Comparaison des targets
-    const targetComparison = this.createTargetComparison(targets, cappedTargets);
+    const sections = [];
 
-    // Ordres d'exécution
-    const ordersSummary = this.createOrdersSummary(orders);
+    const alignmentHtml = this.createTargetComparison(currentAllocation, cappedTargets, {
+      baseLabel: 'Actuel',
+      targetLabel: 'Cible',
+      emptyMessage: '<p class="no-data">Allocation actuelle indisponible</p>'
+    });
 
-    container.innerHTML = `
-      <div class="comparison-sections">
+    if (alignmentHtml) {
+      sections.push(`
         <div class="comparison-section">
-          <h5>🎯 Évolution des Targets</h5>
-          ${targetComparison}
+          <h5>🎯 Alignement Actuel → Cible</h5>
+          ${alignmentHtml}
         </div>
-
-        <div class="comparison-section">
-          <h5>⚡ Plan d'Exécution</h5>
-          ${ordersSummary}
-        </div>
-      </div>
-    `;
-  }
-
-  createTargetComparison(initialTargets, finalTargets) {
-    if (!initialTargets || !finalTargets) {
-      return '<p class="no-data">Données de comparaison non disponibles</p>';
+      `);
     }
 
-    let html = '<div class="targets-comparison">';
+    const pipelineHtml = this.createTargetComparison(targets, finalTargets, {
+      baseLabel: 'Base',
+      targetLabel: 'Post-tilts',
+      skipIfZero: true,
+      onZero: '<p class="no-data">Aucun ajustement sur les targets de base</p>'
+    });
 
-    // Combiner toutes les clés
-    const allGroups = new Set([...Object.keys(initialTargets), ...Object.keys(finalTargets)]);
+    if (pipelineHtml) {
+      sections.push(`
+        <div class="comparison-section">
+          <h5>🧮 Pipeline Targets</h5>
+          ${pipelineHtml}
+        </div>
+      `);
+    }
+
+    const ordersSummary = this.createOrdersSummary(orders);
+    sections.push(`
+      <div class="comparison-section">
+        <h5>⚡ Plan d'Exécution</h5>
+        ${ordersSummary}
+      </div>
+    `);
+
+    container.innerHTML = `<div class="comparison-sections">${sections.join('')}</div>`;
+  }
+
+  createTargetComparison(baseTargets, comparisonTargets, options = {}) {
+    const {
+      baseLabel = 'Initial',
+      targetLabel = 'Final',
+      emptyMessage = '<p class="no-data">Données de comparaison non disponibles</p>',
+      skipIfZero = false,
+      onZero = '',
+      deltaThreshold = 0.1
+    } = options;
+
+    if (!baseTargets || !comparisonTargets) {
+      return emptyMessage;
+    }
+
+    const allGroups = new Set([...Object.keys(baseTargets), ...Object.keys(comparisonTargets)]);
+    let htmlRows = '';
+    let hasRows = false;
+    let hasDelta = false;
 
     for (const group of allGroups) {
-      const initial = initialTargets[group] || 0;
-      const final = finalTargets[group] || 0;
-      const delta = final - initial;
-      const deltaClass = delta > 0.1 ? 'positive' : delta < -0.1 ? 'negative' : 'neutral';
-      const deltaIcon = delta > 0.1 ? '📈' : delta < -0.1 ? '📉' : '➖';
+      if (group === 'totalValue') continue;
 
-      html += `
+      const baseValue = Number(baseTargets[group]);
+      const targetValue = Number(comparisonTargets[group]);
+      const base = Number.isFinite(baseValue) ? baseValue : 0;
+      const target = Number.isFinite(targetValue) ? targetValue : 0;
+
+      if (!Number.isFinite(baseValue) && !Number.isFinite(targetValue)) {
+        continue;
+      }
+
+      const delta = target - base;
+      const deltaClass = delta > deltaThreshold ? 'positive' : delta < -deltaThreshold ? 'negative' : 'neutral';
+      const deltaIcon = delta > deltaThreshold ? '📈' : delta < -deltaThreshold ? '📉' : '➖';
+
+      if (Math.abs(delta) > deltaThreshold) {
+        hasDelta = true;
+      }
+
+      htmlRows += `
         <div class="target-comparison-row">
           <span class="group-name">${group}</span>
-          <span class="initial-value">${initial.toFixed(1)}%</span>
+          <span class="initial-value">${base.toFixed(1)}%</span>
           <span class="arrow">→</span>
-          <span class="final-value">${final.toFixed(1)}%</span>
+          <span class="final-value">${target.toFixed(1)}%</span>
           <span class="delta ${deltaClass}">
             ${deltaIcon} ${delta >= 0 ? '+' : ''}${delta.toFixed(1)}%
           </span>
         </div>
       `;
+
+      hasRows = true;
     }
 
-    html += '</div>';
-    return html;
+    if (!hasRows) {
+      return emptyMessage;
+    }
+
+    if (skipIfZero && !hasDelta) {
+      return onZero;
+    }
+
+    return `
+      <div class="targets-comparison">
+        <div class="comparison-legend">${baseLabel} → ${targetLabel}</div>
+        ${htmlRows}
+      </div>
+    `;
   }
 
   createOrdersSummary(orders) {
@@ -335,55 +386,6 @@ export class SimInspector {
     }
   }
 
-  expandAll() {
-    const explainTree = this.currentData?.explanation?.explainTree;
-    if (explainTree?.root) {
-      this.expanded = this.collectAllNodeIds(explainTree.root, 'root', new Set());
-      this.renderPipelineTree(explainTree);
-      return;
-    }
-
-    // Fallback: étendre ce qui est déjà présent dans le DOM
-    document.querySelectorAll('.tree-node[data-node-id]').forEach(node => {
-      this.expanded.add(node.dataset.nodeId);
-    });
-
-    if (explainTree) {
-      this.renderPipelineTree(explainTree);
-    }
-  }
-
-  collapseAll() {
-    this.expanded.clear();
-    this.expanded.add('root'); // Garder la racine
-
-    if (this.currentData) {
-      this.renderPipelineTree(this.currentData.explanation.explainTree);
-    }
-  }
-
-  collectAllNodeIds(node, nodeId, acc) {
-    if (!acc) {
-      acc = new Set();
-    }
-
-    if (!node) {
-      return acc;
-    }
-
-    acc.add(nodeId);
-
-    if (node.children && typeof node.children === 'object') {
-      for (const [childId, child] of Object.entries(node.children)) {
-        if (child) {
-          this.collectAllNodeIds(child, childId, acc);
-        }
-      }
-    }
-
-    return acc;
-  }
-
   exportLog() {
     if (!this.currentData) {
       alert('Aucune donnée de simulation à exporter');
@@ -445,8 +447,6 @@ const inspectorCSS = `
     border: 1px solid var(--theme-border);
     border-radius: var(--radius-lg);
     padding: var(--space-lg);
-    max-height: 80vh;
-    overflow-y: auto;
   }
 
   .inspector-header {
@@ -620,8 +620,15 @@ const inspectorCSS = `
 
   .comparison-sections {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-lg);
+    gap: var(--space-md);
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+
+  .comparison-section {
+    background: var(--theme-surface);
+    border: 1px solid var(--theme-border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-sm);
   }
 
   .comparison-section h5 {
@@ -634,6 +641,14 @@ const inspectorCSS = `
     display: flex;
     flex-direction: column;
     gap: var(--space-xs);
+  }
+
+  .comparison-legend {
+    font-size: 0.75rem;
+    color: var(--theme-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: var(--space-xs);
   }
 
   .target-comparison-row {

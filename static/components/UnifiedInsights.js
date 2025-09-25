@@ -2,7 +2,59 @@
 // Displays sophisticated analysis from all modules - MIGRATED TO V2
 import { getUnifiedState, deriveRecommendations } from '../core/unified-insights-v2.js';
 import { store } from '../core/risk-dashboard-store.js';
+import * as governanceSelectors from '../selectors/governance.js';
 import { KNOWN_ASSET_MAPPING, getAssetGroup, GROUP_ORDER, getAllGroups, getAliasMapping } from '../shared-asset-groups.js';
+
+// Governance selectors can desync across deployments; use resilient fallbacks.
+const {
+  selectCapPercent: rawSelectCapPercent,
+  selectPolicyCapPercent: rawSelectPolicyCapPercent,
+  selectEngineCapPercent: rawSelectEngineCapPercent,
+} = governanceSelectors;
+
+function resolveCapPercent(state) {
+  try {
+    if (typeof rawSelectCapPercent === "function") {
+      const cap = rawSelectCapPercent(state);
+      if (cap != null) return cap;
+    }
+    if (typeof rawSelectPolicyCapPercent === "function") {
+      const policy = rawSelectPolicyCapPercent(state);
+      if (policy != null) return policy;
+    }
+    if (typeof rawSelectEngineCapPercent === "function") {
+      return rawSelectEngineCapPercent(state);
+    }
+  } catch (error) {
+    console.debug('resolveCapPercent fallback failed', error);
+  }
+  return null;
+}
+
+function resolvePolicyCapPercent(state) {
+  try {
+    if (typeof rawSelectPolicyCapPercent === "function") {
+      const policy = rawSelectPolicyCapPercent(state);
+      if (policy != null) return policy;
+    }
+  } catch (error) {
+    console.debug('resolvePolicyCapPercent primary failed', error);
+  }
+  return resolveCapPercent(state);
+}
+
+function resolveEngineCapPercent(state) {
+  try {
+    if (typeof rawSelectEngineCapPercent === "function") {
+      const engine = rawSelectEngineCapPercent(state);
+      if (engine != null) return engine;
+    }
+  } catch (error) {
+    console.debug('resolveEngineCapPercent primary failed', error);
+  }
+  return resolveCapPercent(state);
+}
+
 // buildTheoreticalTargets removed - using u.targets_by_group (dynamic computation)
 
 /**
@@ -325,23 +377,38 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
         <div style="font-size: .9rem; color: var(--theme-text-muted); font-weight:600;">Decision Index ${u.decision.confidence ? `(${Math.round(u.decision.confidence * 100)}%)` : ''}
           <div style="margin-top: .2rem;">
           ${(() => { try {
-            const ml = store.get('governance.ml_signals');
+            const unifiedState = (typeof store.snapshot === 'function' ? store.snapshot() : null) || window.realDataStore || {};
+            const ml = unifiedState?.governance?.ml_signals || store.get('governance.ml_signals');
             const ts = ml?.timestamp ? new Date(ml.timestamp) : null;
             const hh = ts ? ts.toLocaleTimeString() : null;
             const ci = ml?.contradiction_index != null ? Math.round(ml.contradiction_index * 100) : null;
-            const policy = store.get('governance.active_policy');
-            // Utiliser la même logique de cap que les badges (avec sécurité stale)
-            // Note: Import dynamique ne peut pas être await ici, fallback sur policy direct
-            const cap = policy && typeof policy.cap_daily === 'number' ? Math.round(policy.cap_daily * 100) : null;
+            const policy = unifiedState?.governance?.active_policy || store.get('governance.active_policy');
+            const policyCapPercent = resolvePolicyCapPercent(unifiedState);
+            const engineCapPercent = resolveEngineCapPercent(unifiedState);
+            const capPercent = resolveCapPercent(unifiedState);
+            const isTightCap = policy?.mode === 'Freeze' || (policyCapPercent != null && policyCapPercent <= 2);
             const source = u.decision_source || 'SMART';
             const backendStatus = store.get('ui.apiStatus.backend');
 
-            // Phase 1D: Badges parité Analytics/Risk - Format identique
             const badges = [];
             badges.push(source);
             if (hh) badges.push(`Updated ${hh}`);
             if (ci != null) badges.push(`Contrad ${ci}%`);
-            if (cap != null) badges.push(`Cap ${cap}%`);
+            if (policyCapPercent != null) {
+              let capLabel = `Cap ${policyCapPercent}%`;
+              if (engineCapPercent != null && engineCapPercent !== policyCapPercent) {
+                capLabel += ` • SMART ${engineCapPercent}%`;
+              }
+              badges.push(capLabel);
+            } else if (capPercent != null) {
+              badges.push(`Cap ${capPercent}%`);
+            } else {
+              badges.push('Cap —');
+            }
+            if (isTightCap) {
+              const tightLabel = policyCapPercent != null ? ` (±${policyCapPercent}%)` : '';
+              badges.push(`🧊 Freeze/Cap serré${tightLabel}`);
+            }
 
             // NOUVEAU: Phase Engine status
             const phaseEngineMode = localStorage.getItem('PHASE_ENGINE_ENABLED') || 'shadow';
@@ -652,29 +719,38 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
       const conf = u.decision.confidence || 0;
       const contra = (u.contradictions?.length) || 0;
       const governanceStatus = store.getGovernanceStatus();
-      
-      // Get governance-derived policy
-      const governanceState = store.get('governance');
+
+      const unifiedStateForCap = (typeof store.snapshot === 'function' ? store.snapshot() : null) || window.realDataStore || {};
+      const governanceState = unifiedStateForCap?.governance || store.get('governance');
       const activePolicy = governanceState?.active_policy;
-      
-      // Derive mode and cap from governance or fallback to standard logic
-      let mode = { name: 'Observe', cap: 0 };
-      
+
+      const policyCapPercent = resolvePolicyCapPercent(unifiedStateForCap);
+      const engineCapPercent = resolveEngineCapPercent(unifiedStateForCap);
+      const capPercent = resolveCapPercent(unifiedStateForCap);
+
+      let mode = { name: 'Observe', cap: capPercent != null ? capPercent : 0 };
+
       if (governanceStatus.state === 'FROZEN') {
         mode = { name: 'Frozen', cap: 0 };
-      } else if (activePolicy && activePolicy.cap_daily) {
-        // Use governance-derived policy (fallback sur policy direct)
-        const cap = Math.round(activePolicy.cap_daily * 100);
-        const policyMode = activePolicy.mode || 'Normal';
-        mode = { 
-          name: `${policyMode} (Gov)`, 
-          cap: cap
+      } else if (policyCapPercent != null) {
+        const policyMode = activePolicy?.mode || 'Normal';
+        mode = {
+          name: `${policyMode} (Gov)`,
+          cap: policyCapPercent
         };
+        if (engineCapPercent != null && engineCapPercent !== policyCapPercent) {
+          mode.smartCap = engineCapPercent;
+        }
       } else {
-        // Fallback to standard logic avec caps légèrement augmentés pour meilleure couverture
         mode = conf > 0.8 && contra === 0 ? { name: 'Deploy', cap: 15 } :
                conf > 0.65 && contra <= 1 ? { name: 'Rotate', cap: 10 } :
                conf > 0.55 ? { name: 'Hedge', cap: 5 } : { name: 'Observe', cap: 0 };
+        if (capPercent != null) {
+          mode.cap = capPercent;
+        }
+        if (engineCapPercent != null && mode.cap !== engineCapPercent) {
+          mode.smartCap = engineCapPercent;
+        }
       }
 
       const current = await getCurrentAllocationByGroup(5.0);
@@ -808,7 +884,23 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
       const riskBudget = u.risk_budget || {};
       const execution = u.execution || {};
       const stablesTheorique = riskBudget.target_stables_pct || null;
-      const estimatedIters = execution.estimated_iters_to_target || 'N/A';
+      let estimatedIters = execution.estimated_iters_to_target ?? 'N/A';
+      if (visible.length > 0) {
+        const capPctForIterations = capPercent != null ? capPercent : (typeof mode.cap === 'number' ? mode.cap : null);
+        const capFraction = capPctForIterations != null ? capPctForIterations / 100 : 0;
+        if (capFraction <= 0) {
+          estimatedIters = '∞';
+        } else {
+          const maxDeltaPct = visible.reduce((max, entry) => {
+            const current = typeof entry.cur === 'number' ? entry.cur : 0;
+            const target = typeof entry.tgt === 'number' ? entry.tgt : 0;
+            const diff = Math.abs(target - current);
+            return diff > max ? diff : max;
+          }, 0);
+          const maxDeltaFraction = maxDeltaPct / 100;
+          estimatedIters = maxDeltaFraction > 0 ? Math.max(1, Math.ceil(maxDeltaFraction / capFraction)) : 0;
+        }
+      }
 
       // TÂCHE 4 - Verrous anti-régression (dev uniquement) avant rendu
       if (typeof window !== 'undefined' && window.location?.hostname === 'localhost') {

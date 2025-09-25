@@ -1,4 +1,3 @@
-# --- imports (en haut du fichier) ---
 from __future__ import annotations
 from typing import Any, Dict, List
 from time import monotonic
@@ -91,6 +90,7 @@ from api.advanced_risk_endpoints import router as advanced_risk_router
 from api.realtime_endpoints import router as realtime_router
 from api.intelligence_endpoints import router as intelligence_router
 from api.user_settings_endpoints import router as user_settings_router
+from api.wealth_endpoints import router as wealth_router
 ## NOTE: market_endpoints est désactivé tant que le client prix n'est pas réimplémenté
 # from api.market_endpoints import router as market_router
 from api.exceptions import (
@@ -1795,9 +1795,11 @@ app.include_router(advanced_risk_router)
 app.include_router(realtime_router)
 app.include_router(intelligence_router)
 app.include_router(user_settings_router)
+app.include_router(wealth_router)
 
 # Phase 3 Unified Orchestration
 from api.unified_phase3_endpoints import router as unified_phase3_router
+from api.wealth_endpoints import router as wealth_router
 app.include_router(unified_phase3_router)
 
 # ---------- Portfolio Analytics ----------
@@ -2184,3 +2186,8 @@ async def get_configured_data_source():
 # Force reload
 # Force reload 2
 # Force reload
+
+
+
+
+

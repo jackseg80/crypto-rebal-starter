@@ -1,3 +1,5 @@
+import { selectCapPercent } from '../selectors/governance.js';
+
 /**
  * Simulation Engine - Pipeline exact d'Analytics Unified en mode simulation
  * Version simplifiée avec fallbacks pour éviter les blocages d'imports
@@ -397,6 +399,7 @@ export function buildSimulationContext(liveContext, uiOverrides = {}) {
     },
 
     // Métadonnées
+    presetInfo: uiOverrides.presetInfo ?? { name: 'Custom', desc: '' },
     timestamp: new Date().toISOString(),
     source: 'simulation'
   };
@@ -552,8 +555,8 @@ export function computeRiskBudget(di, options = {}, marketOverlays = {}) {
   let cbVolTriggered = false;
   let cbDdTriggered = false;
 
-  // CB Volatilité: utiliser market overlay ou fallback sur score de risk
-  const volZ = marketOverlays.vol_z !== undefined ? marketOverlays.vol_z : (scores.risk - 50) / 20;
+  // CB Volatilité: utiliser market overlay ou fallback neutre (0) si absent
+  const volZ = (marketOverlays && typeof marketOverlays.vol_z === 'number') ? marketOverlays.vol_z : 0;
   if (volZ >= circuit_breakers.vol_z_gt) {
     cbVolTriggered = true;
     target_stables_pct = Math.max(target_stables_pct, circuit_breakers.floor_stables_if_trigger);
@@ -623,7 +626,7 @@ export function computeTargets(riskBudget, context) {
 /**
  * 6. APPLICATION PHASE ENGINE TILTS
  */
-export function applyPhaseEngineTilts(targets, phaseConfig) {
+export async function applyPhaseEngineTilts(targets, phaseConfig) {
   console.debug('🎭 SIM: applyPhaseEngineTilts called:', phaseConfig);
 
   if (!phaseConfig?.enabled) {
@@ -636,14 +639,16 @@ export function applyPhaseEngineTilts(targets, phaseConfig) {
     try {
       const { applyPhaseTilts } = phaseEngineModule;
 
-      const result = applyPhaseTilts(targets, phaseConfig);
+      // Appeler avec une phase string et déballer le retour {targets, metadata}
+      const result = await applyPhaseTilts(targets, (phaseConfig.forcedPhase || 'neutral'));
+      const unwrapped = (result && result.targets) ? result.targets : result;
       console.debug('✅ SIM: Real Phase Engine tilts applied:', {
         phase: phaseConfig.forcedPhase || 'auto',
-        originalStables: targets.Stablecoins,
-        tiltedStables: result.Stablecoins
+        originalStables: targets?.Stablecoins,
+        tiltedStables: unwrapped?.Stablecoins
       });
 
-      return result;
+      return unwrapped;
     } catch (error) {
       console.warn('⚠️ SIM: Real Phase Engine failed, using fallback:', error.message);
     }
@@ -1004,6 +1009,7 @@ export async function simulateFullPipeline(uiOverrides = {}) {
   try {
     // 1. Contexte de base
     const baseContext = buildSimulationContext(simulationState.sourceData, uiOverrides);
+    const presetInfo = uiOverrides?.presetInfo ?? baseContext?.presetInfo ?? null;
 
     // 2. Système de Contradiction Unifié
     const BASE_WEIGHTS = { cycle: 0.4, onchain: 0.35, risk: 0.25 };
@@ -1065,7 +1071,7 @@ export async function simulateFullPipeline(uiOverrides = {}) {
     const targets = computeTargets(riskBudget, { ...baseContext, weights });
 
     // 6. Phase tilts
-    const finalTargets = applyPhaseEngineTilts(targets, uiOverrides.phaseEngine);
+    const finalTargets = await applyPhaseEngineTilts(targets, uiOverrides.phaseEngine);
 
     // 7. Caps de contradiction
     const contradictionCaps = contradictionModules.applyContradictionCaps(finalTargets, stateForEngine);
@@ -1082,6 +1088,8 @@ export async function simulateFullPipeline(uiOverrides = {}) {
       di, riskBudget, targets, finalTargets, cappedResult, orders
     });
 
+    const capPercentForUi = selectCapPercent(stateForEngine);
+
     const fullResult = {
       context: baseContext,
       di,
@@ -1090,14 +1098,17 @@ export async function simulateFullPipeline(uiOverrides = {}) {
       finalTargets,
       cappedTargets: cappedResult.targets,
       capsTriggered: cappedResult.capsTriggered,
+      currentAllocation,
       orders,
       explanation,
       timestamp: new Date().toISOString(),
+      presetInfo,
       // Infos UI pour badges
       ui: {
         stateForEngine,
         contradictionPct: Math.round((stateForEngine.governance.contradiction_index ?? 0) * 100),
-        capPct01: riskBudget?.cap01 ?? undefined,
+        capPercent: capPercentForUi ?? null,
+        capPct01: capPercentForUi != null ? capPercentForUi / 100 : undefined,
         stale: eff.stale === true,
         mode: eff.useBaseWeights ? 'FROZEN' : 'ACTIVE'
       }

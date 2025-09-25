@@ -11,6 +11,10 @@ from services.risk_management import risk_manager
 
 logger = logging.getLogger(__name__)
 
+MIN_HISTORY_DAYS = 60
+COVERAGE_THRESHOLD = 0.70
+MIN_POINTS_FOR_METRICS = 30
+
 router = APIRouter(prefix="/api/risk", tags=["risk-management"])
 
 @router.get("/dashboard")
@@ -54,7 +58,7 @@ async def real_risk_dashboard(
             value_usd = float(item.get("value_usd", 0))
             balance = float(item.get("amount", 0))
             
-            if value_usd > 0:  # Filtrer les holdings avec valeur positive
+            if value_usd > 0:
                 real_holdings.append({
                     "symbol": symbol,
                     "balance": balance,
@@ -68,14 +72,16 @@ async def real_risk_dashboard(
                 "message": "Aucun holding avec valeur positive trouvé"
             }
         
-        logger.info(f"📊 Calcul risque avec VRAI portfolio: {len(real_holdings)} assets, ${sum(h['value_usd'] for h in real_holdings):,.0f}")
+        logger.info(
+            "📊 Calcul risque avec VRAI portfolio: %s assets, $%s",
+            len(real_holdings),
+            f"{sum(h['value_usd'] for h in real_holdings):,.0f}"
+        )
         
-        # Utiliser le service centralisé pour garantir la cohérence des calculs
         from services.portfolio_metrics import portfolio_metrics_service
         from services.price_history import get_cached_history
         import pandas as pd
 
-        # Construire le DataFrame de prix à partir du cache (mêmes règles que l'Advanced Analytics)
         price_data = {}
         for h in real_holdings:
             symbol = (h.get("symbol") or "").upper()
@@ -90,10 +96,9 @@ async def real_risk_dashboard(
             except Exception:
                 continue
 
-        if len(price_data) < 2:
-            logger.warning("❌ Données de prix insuffisantes pour le calcul centralisé")
-            # Fallback vers l'ancien gestionnaire si nécessaire
+        async def build_low_quality_dashboard(reason: str, data_quality: Dict[str, Any]):
             import asyncio
+
             risk_metrics_task = risk_manager.calculate_portfolio_risk_metrics(
                 holdings=real_holdings,
                 price_history_days=min(price_history_days, 90)
@@ -107,7 +112,6 @@ async def real_risk_dashboard(
                 correlation_task
             )
 
-            # Construction de la réponse dashboard (fallback)
             dashboard_data = {
                 "success": True,
                 "timestamp": datetime.now().isoformat(),
@@ -149,24 +153,98 @@ async def real_risk_dashboard(
             end_time = datetime.now()
             calculation_time = f"{(end_time - start_time).total_seconds():.2f}s"
             dashboard_data["calculation_time"] = calculation_time
-            logger.info(f"✅ Dashboard (fallback risk_manager) calculé en {calculation_time}")
+            dashboard_data["quality"] = "low"
+            dashboard_data["warning"] = reason
+            dashboard_data["data_quality"] = data_quality
+            logger.info(
+                "✅ Dashboard (fallback risk_manager) calculé en %s — %s",
+                calculation_time,
+                reason
+            )
             return dashboard_data
 
-        price_df = pd.DataFrame(price_data).fillna(method='ffill').dropna()
+        data_quality: Dict[str, Any] = {
+            "coverage": {},
+            "raw_symbol_count": len(price_data)
+        }
 
-        # Calculs centralisés
+        if not price_data:
+            data_quality["reason"] = "no_price_data"
+            return await build_low_quality_dashboard(
+                "No price history available for holdings",
+                data_quality
+            )
+
+        price_df = pd.DataFrame(price_data).sort_index().ffill()
+        price_df = price_df.dropna(how="all")
+
+        coverage_details: Dict[str, Dict[str, Any]] = {}
+        filtered_symbols: List[str] = []
+
+        for symbol in price_df.columns:
+            series = price_df[symbol]
+            total_rows = len(series)
+            valid_rows = int(series.notna().sum())
+            coverage_ratio = (valid_rows / total_rows) if total_rows else 0.0
+            cleaned = series.dropna()
+            history_days = int((cleaned.index[-1] - cleaned.index[0]).days) if len(cleaned) > 1 else 0
+
+            coverage_details[symbol] = {
+                "coverage_ratio": round(coverage_ratio, 4),
+                "history_days": history_days,
+                "data_points": valid_rows
+            }
+
+            if history_days >= MIN_HISTORY_DAYS and coverage_ratio >= COVERAGE_THRESHOLD:
+                filtered_symbols.append(symbol)
+
+        data_quality["coverage"] = coverage_details
+        data_quality["filtered_symbols"] = filtered_symbols
+
+        filtered_holdings = [
+            h for h in real_holdings if (h.get("symbol") or "").upper() in filtered_symbols
+        ]
+
+        if filtered_symbols:
+            filtered_df = price_df[filtered_symbols].dropna()
+        else:
+            filtered_df = pd.DataFrame()
+
+        effective_points = int(filtered_df.shape[0]) if not filtered_df.empty else 0
+        data_quality["effective_points"] = effective_points
+
+        if not filtered_symbols:
+            data_quality["reason"] = "no_symbol_meets_threshold"
+            return await build_low_quality_dashboard(
+                "Insufficient price coverage after filtering",
+                data_quality
+            )
+
+        if not filtered_holdings:
+            data_quality["reason"] = "no_holdings_after_filter"
+            return await build_low_quality_dashboard(
+                "No holdings remain after aligning price data",
+                data_quality
+            )
+
+        if effective_points < MIN_POINTS_FOR_METRICS:
+            data_quality["reason"] = "not_enough_points"
+            return await build_low_quality_dashboard(
+                "Time series too short for robust metrics",
+                data_quality
+            )
+
         centralized_metrics = portfolio_metrics_service.calculate_portfolio_metrics(
-            price_data=price_df,
-            balances=real_holdings,
+            price_data=filtered_df,
+            balances=filtered_holdings,
             confidence_level=0.95
         )
-        corr_metrics = portfolio_metrics_service.calculate_correlation_metrics(price_df)
+        corr_metrics = portfolio_metrics_service.calculate_correlation_metrics(filtered_df)
 
-        # Construction de la réponse dashboard alignée avec le service centralisé
         dashboard_data = {
             "success": True,
             "timestamp": datetime.now().isoformat(),
-            "real_data": True,  # Vraies données
+            "real_data": True,
             "portfolio_summary": {
                 "total_value": sum(h["value_usd"] for h in real_holdings),
                 "num_assets": len(real_holdings),
@@ -187,7 +265,7 @@ async def real_risk_dashboard(
                 "ulcer_index": centralized_metrics.ulcer_index,
                 "skewness": centralized_metrics.skewness,
                 "kurtosis": centralized_metrics.kurtosis,
-                "overall_risk_level": "medium",  # Non évalué par le service centralisé
+                "overall_risk_level": "medium",
                 "risk_score": 0.0,
                 "calculation_date": centralized_metrics.calculation_date.isoformat(),
                 "data_points": centralized_metrics.data_points,
@@ -198,12 +276,14 @@ async def real_risk_dashboard(
                 "effective_assets": corr_metrics.effective_assets,
                 "top_correlations": corr_metrics.top_correlations
             },
-            "real_holdings": real_holdings  # Inclure pour debug
+            "real_holdings": real_holdings
         }
         
         end_time = datetime.now()
         calculation_time = f"{(end_time - start_time).total_seconds():.2f}s"
         dashboard_data["calculation_time"] = calculation_time
+        dashboard_data["quality"] = "ok"
+        dashboard_data["data_quality"] = data_quality
         
         logger.info(f"✅ VRAI dashboard (centralisé) calculé en {calculation_time}")
         

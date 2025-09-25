@@ -1,0 +1,649 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [3.0.0] - 2025-09-17
+
+### 🚀 Major Features - Système d'Allocation Dynamique
+
+#### Élimination des Presets Hardcodés
+- **BREAKING**: Suppression complète des presets figés (BTC 40%, ETH 30%, Stables 20/30/50%)
+- **NEW**: Calculs d'allocation contextuels basés sur cycle de marché, régime, et concentration wallet
+- **NEW**: Source canonique unique `u.targets_by_group` pour cohérence parfaite Analytics ↔ Rebalance
+- **NEW**: Fonction `computeMacroTargetsDynamic()` avec modulateurs intelligents
+
+#### Synchronisation Analytics ↔ Rebalance
+- **FIXED**: "Allocation Suggérée (Unified)" maintenant peuplée automatiquement dans rebalance.html
+- **NEW**: Sauvegarde automatique des données unified avec nouveau format v2
+- **CRITICAL**: Correction `targetsSource = data.targets` vs `data.execution_plan`
+- **NEW**: Support rétrocompatible ancien + nouveau format localStorage
+
+### 🔧 Technical Changes
+
+#### Core Engine (`static/core/unified-insights-v2.js`)
+- **ADD**: `computeMacroTargetsDynamic(ctx, rb, walletStats)` - remplace presets
+- **CHANGE**: Construction `targets_by_group` via calculs vs templates statiques
+- **ADD**: Modulateurs bull/bear/hedge + diversification selon concentration wallet
+- **ADD**: Garde-fous cohérence stables = risk_budget.target_stables_pct (source de vérité)
+
+#### UI Components (`static/components/UnifiedInsights.js`)
+- **REMOVE**: Logique preset hardcodée (elimination complète lignes 680-725)
+- **CHANGE**: Lecture directe `u.targets_by_group` vs `buildTheoreticalTargets()`
+- **REMOVE**: Import `buildTheoreticalTargets` (function deprecated)
+- **ADD**: Logs debug pour validation données dynamiques
+
+#### Pages HTML
+- **Analytics** (`static/analytics-unified.html`):
+  - **ADD**: `saveUnifiedDataForRebalance()` - sauvegarde automatique
+  - **ADD**: Format données v2 avec source `analytics_unified_v2`
+- **Rebalance** (`static/rebalance.html`):
+  - **FIXED**: `syncUnifiedSuggestedTargets()` support sources v2
+  - **ADD**: Protection taxonomie `forceReloadTaxonomy()`
+  - **ADD**: Logs debug détaillés structure données
+
+### 🐛 Critical Bug Fixes
+
+#### Allocation Display Issues
+- **FIXED**: "Others 31%" incohérent → allocations cohérentes via source unique
+- **FIXED**: Inconsistance Objectifs Théoriques vs Plan d'Exécution → même source
+- **FIXED**: rebalance.html "Allocation Suggérée (Unified)" vide → peuplée automatiquement
+- **FIXED**: Affichage `estimated_iters: 2.0%` au lieu allocations réelles
+
+#### Data Synchronization
+- **FIXED**: Analytics et Rebalance utilisaient sources différentes → u.targets_by_group unique
+- **FIXED**: Presets ignoraient risk_budget.target_stables_pct → intégration native
+- **FIXED**: Taxonomie non chargée causant "Others" gonflé → forceReloadTaxonomy()
+
+### 📚 Documentation
+- **NEW**: `docs/dynamic-allocation-system.md` - guide complet nouveau système
+- **UPDATE**: `README.md` - section "Nouvelles Fonctionnalités v3.0"
+- **NEW**: Commentaires détaillés code + logs explicites
+
+### 💔 Breaking Changes
+- **REMOVE**: Presets hardcodés dans tous les fichiers
+- **REMOVE**: `buildTheoreticalTargets()` calls (replaced by dynamic computation)
+- **CHANGE**: Allocations maintenant contextuelles vs statiques (amélioration UX)
+
+**Migration**: Rétrocompatibilité assurée, aucune action utilisateur requise.
+
+---
+
+## [2.2.0] - 2025-01-14
+
+### 🎯 Centralisation ML - Source Unique de Vérité
+
+### Added
+- **Source ML Centralisée** : `shared-ml-functions.js::getUnifiedMLStatus()` - single source of truth
+- **Logique Prioritaire Unifiée** : Governance Engine → ML Status API → Stable fallback (identique AI Dashboard)
+- **Cache Intelligent** : TTL 2 minutes pour performance avec invalidation automatique
+- **Validation Robuste** : Caps automatiques (4 modèles max, 100% confidence max) pour éviter valeurs aberrantes
+- **Documentation Complète** : `docs/ml-centralization.md` avec architecture détaillée
+
+### Fixed
+- **❌ Calculs ML Erronés** : Fini les "8/4 modèles = 200% confidence" - désormais capé à 4/4 = 100%
+- **❌ Badge Global Manquant** : Erreur syntaxe WealthContextBar.js (else if après else) corrigée
+- **❌ Intelligence ML Vide** : Analytics-unified affichait "--" au lieu des données réelles
+- **❌ Logique Dupliquée** : 3 implémentations différentes (badge, analytics, ai-dashboard) unifiées
+- **❌ Timezone Incorrect** : Badge utilise désormais Europe/Zurich via `formatZurich()`
+
+### Changed
+- **WealthContextBar** : Utilise source ML centralisée au lieu de logique dupliquée
+- **Analytics-unified** : Intelligence ML tab utilise `getUnifiedMLStatus()` avec fallback
+- **AI Dashboard** : Migration vers source centralisée tout en conservant même logique
+- **Configuration API Safe** : `globalConfig` access sécurisé pour éviter erreurs d'import
+
+### Technical
+- **Architecture** : Un seul module gère toute la logique ML pour 3 pages
+- **Performance** : Cache 2min TTL évite appels API répétés
+- **Maintenance** : Plus qu'un seul endroit à modifier pour la logique ML
+- **Cohérence** : Calculs identiques partout, fini les divergences
+
+## [2.1.0] - 2024-01-15
+
+### 🧭 Consolidation Navigation & WealthContextBar Cross-Asset
+
+### Added
+- **Navigation Canonique** : 6 pages principales - Portfolio, Analytics, Risk, Rebalance, Execution, Settings
+- **WealthContextBar Global** : Filtres household/account/module/currency persistants avec sync localStorage+querystring
+- **Deep Links System** : Ancres fonctionnelles avec scroll automatique et highlight temporaire (2s)
+- **RBAC Admin Dropdown** : Menu visible uniquement pour governance_admin/ml_admin avec ML Command Center, Tools & Debug, Archive
+- **Legacy Redirections** : Système de redirections douces vers ancres canoniques pour éviter 404s
+- **Badges Standards** : Format uniforme "Source • Updated HH:MM:SS • Contrad XX% • Cap YY% • Overrides N" (timezone Europe/Zurich)
+
+### Changed
+- **Menu Navigation** : Simplifié de 10+ entrées vers 6 pages canoniques avec sous-menus via ancres
+- **Archive System** : Pages legacy conservées mais accessibles via Admin > Archive uniquement
+- **Cross-Asset Filtering** : WealthContextBar applique filtrage sur pages Rebalance/Execution
+- **Documentation** : Restructuration complète avec 7 nouveaux docs (navigation, wealth-modules, governance, runbooks, etc.)
+
+### Technical
+- **Components** : `WealthContextBar.js`, `deep-links.js`, `Badges.js`, `legacy-redirects.js`
+- **Archive Index** : `static/archive/index.html` avec liens legacy → canonical
+- **RBAC Integration** : Vérification rôles localStorage/window.userRoles dans nav.js
+- **Event System** : Événement `wealth:change` pour synchronisation cross-composants
+
+### Documentation
+- **Navigation & Architecture** : `docs/navigation.md` - Structure menus et liens profonds
+- **Modules Patrimoniaux** : `docs/wealth-modules.md` - Crypto/Bourse/Banque/Divers
+- **Governance & Caps** : `docs/governance.md` - Hiérarchie SMART→Decision Engine
+- **Runbooks** : `docs/runbooks.md` - Procédures incidents (stale/error, VaR>4%, contradiction>55%)
+- **Télémétrie** : `docs/telemetry.md` - KPIs système et métriques Prometheus
+
+---
+
+## [2.0.1] - 2024-01-15
+
+### 🎯 Dashboard Global Insight Enhancement
+
+### Added
+- **Global Insight Badge**: Dashboard principal affiche maintenant "Updated: HH:MM:SS • Contrad: X% • Cap: Y%" en bas de la tuile
+- **Real-time Governance Data**: Badge se met à jour automatiquement avec les données du Decision Engine
+- **Cross-dashboard Consistency**: Format cohérent avec les autres dashboards (Analytics, Risk)
+- **Store Integration**: Synchronisation via `risk-dashboard-store.js` pour données temps réel
+
+### Changed
+- **Badge Position**: Déplacé de haut vers bas de la tuile Global Insight pour cohérence visuelle
+- **Data Flow**: Badge récupère timestamp des signaux ML et données policy du store governance
+- **Update Triggers**: Badge se rafraîchit lors des changements store et événements `configChanged`
+
+### Technical
+- **Function**: `updateGlobalInsightMeta()` pour gestion badge dans `dashboard.html`
+- **Store Sync**: Utilise `store.get('governance.ml_signals')` et `store.get('governance.active_policy')`
+- **Event Handling**: Écoute changements store via subscription et événements storage cross-tab
+
+### Fixed
+- Badge Global Insight maintenant visible et fonctionnel
+- Données gouvernance affichées en temps réel sur dashboard principal
+- Cohérence visuelle avec format badges des autres dashboards
+
+---
+
+## [2.0.0] - 2024-12-12
+
+### 🔄 Major API Refactoring & Security Improvements
+
+This release contains **BREAKING CHANGES** requiring consumer updates.
+
+### Added
+- **Unified Endpoints**: Single approval endpoint `/api/governance/approve/{resource_id}` for both decisions and plans
+- **Centralized Alerts**: All alert operations now under `/api/alerts/*` namespace
+- **Admin Protection**: ML debug endpoints now require `X-Admin-Key` header
+- **Validation Tools**: 
+  - `tests/smoke_test_refactored_endpoints.py` - Endpoint validation
+  - `find_broken_consumers.py` - Consumer reference scanner  
+  - `verify_openapi_changes.py` - Breaking changes analyzer
+- **Documentation**: `docs/refactoring.md` with complete migration guide
+
+### Changed
+- **ML Namespace**: `/api/ml-predictions/*` → `/api/ml/*` (unified)
+- **Risk Namespace**: `/api/advanced-risk/*` → `/api/risk/advanced/*` (consolidated)
+- **Governance API**: Unified approval endpoint with `resource_type` parameter
+- **Alert Resolution**: Centralized under `/api/alerts/resolve/{alert_id}`
+- **Alert Acknowledgment**: Centralized under `/api/alerts/acknowledge/{alert_id}`
+
+### Removed (Security & Production Readiness)
+- **Dangerous Endpoints**: 
+  - `/api/realtime/publish` - Could allow arbitrary event publishing
+  - `/api/realtime/broadcast` - Could spam all connected clients
+- **Test Endpoints**: 
+  - All `/api/test/*` endpoints - Removed from production
+  - All `/api/alerts/test/*` endpoints - Removed from production
+- **Duplicate Endpoints**:
+  - `/api/risk/alerts/{id}/resolve` - Now `/api/alerts/resolve/{id}`
+  - `/api/monitoring/alerts/{id}/resolve` - Now `/api/alerts/resolve/{id}`
+  - `/api/portfolio/alerts/{id}/resolve` - Now `/api/alerts/resolve/{id}`
+
+### Fixed
+- **Pydantic v2 Compatibility**: Fixed `regex=` → `pattern=` in Field definitions
+- **Consumer References**: Updated 13 files with broken endpoint references
+- **Test Suites**: Updated E2E tests to work with new architecture
+- **Documentation**: Synchronized all docs with new endpoint structure
+
+### Security
+- **Endpoint Protection**: ML debug endpoints require admin authentication
+- **Attack Surface Reduction**: Removed 5 potentially dangerous endpoints
+- **Test Isolation**: No test endpoints exposed in production
+
+### Migration
+**Required Actions for Consumers:**
+1. Replace `/api/ml-predictions/*` with `/api/ml/*`
+2. Remove all `/api/test/*` and `/api/alerts/test/*` calls
+3. Update `/api/advanced-risk/*` to `/api/risk/advanced/*`
+4. Update `/governance/approve` calls to include `resource_type` in body
+5. Centralize alert operations to `/api/alerts/*`
+
+**Tools Available:**
+- Run `python find_broken_consumers.py` to scan for broken references
+- Run `python tests/smoke_test_refactored_endpoints.py` to validate endpoints
+- See `docs/refactoring.md` for complete migration guide
+
+### Performance
+- **Namespace Consolidation**: Reduced API surface from 6 to 3 main namespaces
+- **Endpoint Efficiency**: Unified endpoints reduce client-side complexity
+
+---
+
+## [1.8.0] - 2024-12-10
+
+### Added
+- Phase 3C: Hybrid Intelligence integration
+- Advanced ML pipeline management
+- Cross-asset correlation monitoring
+- Enhanced governance workflows
+
+### Changed
+- Improved risk calculation performance
+- Enhanced dashboard responsiveness
+- Better error handling in ML components
+
+### Fixed
+- Memory leaks in ML pipeline
+- Cache invalidation issues
+- Dashboard synchronization bugs
+
+---
+
+## [1.7.0] - 2024-12-01
+
+### Added
+- Phase 2C: ML Alert Predictions
+- Predictive alerting system
+- Enhanced ML models integration
+- Real-time streaming improvements
+
+### Changed
+- Optimized risk calculations
+- Enhanced UI/UX across dashboards
+- Improved API response times
+
+---
+
+## [1.6.0] - 2024-11-15
+
+### Added
+- Phase 2B: Cross-asset correlation analysis
+- Advanced risk engine
+- Multi-exchange support
+- Enhanced monitoring
+
+---
+
+*Earlier versions documented in git history*
+
+# AGENTS.md — Guide de travail pour agents (Crypto Rebal Starter)
+
+Ce fichier est injecté automatiquement dans chaque prompt que Codex (ou autre agent code) reçoit.
+Il définit les conventions, règles et fichiers clés du projet pour que l’agent produise un travail cohérent, sécurisé et adapté à l’environnement Windows 11.
+
+---
+
+## 0) Règles d’or
+
+- Pas de secrets ni clés dans le code généré.
+- Pas d’URL en dur pour les APIs → utiliser `static/global-config.js`.
+- Pas de refactor massif : proposer uniquement des patchs/diffs minimaux, jamais des fichiers entiers.
+- Ne pas renommer de fichiers sans demande explicite.
+- Respect des perfs : batching, pagination, caches locaux.
+- Tests obligatoires si du code backend est modifié.
+- Sécurité : pas de nouveaux endpoints sensibles (`/realtime/publish`, `/broadcast`, etc.).
+
+---
+
+## 0bis) Environnement Windows (important)
+
+- OS cible : Windows 11
+- Shell : PowerShell (pas Bash)
+- Environnement Python :
+  ```powershell
+  .\.venv\Scripts\Activate.ps1
+  ```
+- Versions minimales : Python >= 3.11, FastAPI >= 0.110, Pydantic >= 2.5
+
+### Commandes utiles (PowerShell)
+
+```powershell
+# Lancer l’API
+uvicorn api.main:app --reload --port 8000
+
+# Accès front
+http://localhost:8000/static/analytics-unified.html
+http://localhost:8000/static/risk-dashboard.html
+
+# Lancer les tests rapides
+python -m pytest -q tests/unit
+python -m pytest -q tests/integration
+python tests\smoke_test_refactored_endpoints.py
+
+# Créer une archive du projet
+Compress-Archive -Path .\* -DestinationPath .\crypto-rebal-starter.zip -Force -Exclude .venv,**\__pycache__\,**\.ruff_cache\,**\*.tmp
+```
+
+### Wealth / Saxo
+- Module Saxo = WIP (non bloquant).
+- Ne pas lier à la navigation prod, limiter aux tests ciblés.
+
+---
+
+## 1) Stack technique
+
+- Backend : FastAPI + Pydantic v2, orchestrateur ML en Python.
+- Frontend : HTML statiques (`static/*.html`), JS ESM modules, Chart.js.
+- ML : PyTorch, modèles stockés dans `services/ml`.
+- Tests : Pytest, smoke tests PowerShell.
+- Infra : Docker, Postgres, Redis (caching).
+
+---
+
+## 2) Fichiers clés
+
+- `api/main.py` — routes FastAPI
+- `services/ml/*` — modèles ML, orchestrateur
+- `services/risk/*` — calculs risque
+- `static/analytics-unified.html` — dashboard principal
+- `static/risk-dashboard.html` — risk dashboard
+- `static/modules/*` — modules front (risk, cycle, phase, on-chain)
+- `static/global-config.js` — config endpoints
+- `tests/*` — tests unitaires/intégration
+- `tests\wealth_smoke.ps1` — smoke test Saxo/Wealth
+
+---
+
+## 3) Conventions & garde-fous
+
+- Backend : exceptions propres, logs cohérents, pas d’URL en dur.
+- Frontend : imports ESM (`type="module"`), imports dynamiques pour modules lourds.
+- Styles : respecter la charte (Chart.js, `shared-theme.css`, `performance-optimizer.js`).
+- CI : lint (ruff/black), mypy → tout doit passer en vert.
+
+### Style de sortie attendu de l’agent
+- Toujours produire des diffs unifiés (`git diff`) ou patchs minimaux.
+- Jamais de dump complet de fichiers.
+- Pas de commandes Bash, uniquement PowerShell.
+- Réutiliser les namespaces existants (`/api/ml/*`, `/api/risk/*`, `/api/alerts/*`, `/execution/governance/*`).
+- Interdiction d’ajouter `/realtime/publish` ou `/broadcast`.
+
+---
+
+## 4) Endpoints
+
+### Endpoints actifs
+- `/api/ml/*` — modèles ML (volatilité, décision, signaux, etc.)
+- `/api/risk/*` — calculs de risque
+- `/api/alerts/*` — alertes utilisateurs
+- `/execution/governance/*` — gouvernance
+
+### Endpoints supprimés (ne pas recréer)
+- `/api/test/*`
+
+### Endpoints de test (dev seulement, protégés)
+- `/api/alerts/test/*` — disponibles uniquement en dev/staging, désactivés par défaut, activables via `ENABLE_ALERTS_TEST_ENDPOINTS=true` (toujours off en prod).
+
+---
+
+## 5) Realtime (lecture seule)
+
+- Canaux supportés : SSE / WebSocket
+- Topics autorisés (read-only) :
+  - Risk scores (blended, CCS, on-chain)
+  - Decision index
+  - Phase engine state
+- Pas d’écriture côté client (publish/broadcast interdits).
+
+---
+
+## 6) Caches & cross-tab
+
+- Risk Dashboard publie des scores dans `localStorage`.
+- Les dashboards doivent :
+  - Lire les clés si récentes, sinon fallback `risk_scores_cache`.
+  - Écouter l’événement `storage` pour la synchro cross-tab.
+- TTL recommandé : 12h.
+- Éviter les re-fetch permanents si le TTL reste valide.
+
+---
+
+## 7) Modèles ML & Registry
+
+- Lazy-load avec LRU/TTL via `services/ml/orchestrator.py`.
+- Schéma de réponse attendu :
+  ```json
+  {
+    "predictions": {...},
+    "std": {...},
+    "horizon": "1d"
+  }
+  ```
+- Pas de poids dans le repo : chargement depuis un dossier local prévu.
+
+---
+
+## 8) Phase Engine (Détection proactive des phases de marché)
+
+- Phases possibles : Bull, Bear, Neutral, etc.
+- Tilts appliqués dynamiquement aux allocations.
+- Priorité & bornes :
+  - Tilts s’additionnent aux macro targets.
+  - Capés (Memecoins max 15%, Others max 20%).
+  - Les floors définis par la gouvernance priment toujours.
+  - Règle de priorité : `governance floors/caps > phase tilts > defaults`.
+
+---
+
+## 9) UI & Navigation
+
+- Navigation unifiée : ne pas créer de nouvelles pages hors `static/`.
+- Thèmes : respecter `shared-theme.css`.
+- Iframes : interdits sauf cas documenté.
+- Perf front : utiliser `performance-optimizer.js` (virtual scrolling, batching).
+
+---
+
+## 10) Tests
+
+- Unit tests : `tests/unit/*`
+- Integration : `tests/integration/*`
+- Smoke tests : PowerShell (`tests\wealth_smoke.ps1`)
+- Tout nouveau code backend doit être couvert par des tests.
+
+# Crypto Rebal Starter — Cockpit Patrimoine Modulaire
+
+Plateforme de gestion de patrimoine cross‑asset (Crypto, Bourse, Banque, Divers) avec IA et gestion unifiée des risques. Navigation simplifiée autour de 6 pages canoniques: Portfolio, Analytics, Risk, Rebalance, Execution, Settings.
+
+## Fonctionnalités Principales
+- **Rebalancing intelligent** avec allocations dynamiques basées sur le contexte réel (cycle, régime, concentration wallet)
+- **Simulateur Pipeline Complet** (static/simulations.html) : test en temps réel du pipeline complet Decision Inputs → Risk Budget → Targets → Phase Tilts → Governance → Execution avec 10 presets de scénarios
+- **Decision Engine** avec gouvernance (approbations AI/manuelles)
+- **Phase Engine** : détection proactive de phases market avec tilts automatiques (ETH expansion, altseason, risk-off)
+- **ML avancé** (LSTM, Transformers), signaux temps réel
+- **Analytics**: Sharpe/Calmar, drawdown, VaR/CVaR
+- **Risk management v2**: corrélations, stress testing, alertes, circuit breakers, GRI (Group Risk Index)
+- **Strategy API v3**: calculs dynamiques remplaçant les presets hardcodés
+- **Classification unifiée** des assets via taxonomy_aliases.json (source unique de vérité)
+- **Synchronisation parfaite** Analytics ↔ Rebalance via u.targets_by_group
+- **35+ dashboards**, navigation unifiée, deep links
+- **Multi‑sources**: CoinTracking CSV/API, données temps réel
+- **Système multi-utilisateurs** avec isolation complète des données
+- **🔄 Système de Contradiction Unifié**: Source unique, poids adaptatifs, caps risque, classification auto (Low/Medium/High)
+
+## 🔄 Système de Contradiction Unifié
+
+Le système centralise la gestion des signaux contradictoires avec:
+
+- **Source unique**: `governance.contradiction_index` (0-1 normalisé)
+- **Poids adaptatifs**: Renormalisation automatique (-35%/-15%/+50% baseline)
+- **Caps de risque**: Réduction memecoins (15%→5%) et small_caps (25%→12%)
+- **Classification**: Low/Medium/High avec recommandations contextuelles
+- **Page test**: `/static/test-contradiction-unified.html`
+- **Documentation**: `docs/contradiction-system.md`
+
+**Architecture**: Sélecteurs centralisés, politique unifiée, validation automatique, intégration badges/simulateur.
+
+## Démarrage rapide
+Prérequis: Python 3.10+, pip, virtualenv
+
+1) Installer dépendances
+
+Linux/macOS:
+```
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp env.example .env
+```
+
+Windows (PowerShell):
+```
+py -m venv .venv
+.\.venv\Scripts\Activate
+pip install -r requirements.txt
+copy env.example .env
+```
+2) Lancer l’API
+```
+uvicorn api.main:app --reload --port 8000
+```
+3) Ouvrir l’UI (servie par FastAPI)
+```
+http://localhost:8000/static/settings.html
+```
+Dans Settings:
+- **Sélectionner un utilisateur** (demo, jack, donato, elda, roberto, clea) dans la barre de navigation
+- Choisir la source de données (fichiers CSV de l'utilisateur, CoinTracking API si configuré)
+- (Optionnel) Configurer les clés API par utilisateur (CoinGecko, CoinTracking, FRED)
+- Tester: « 🧪 Tester les APIs » et « 🧪 Tester la Source »
+
+Dashboards principaux:
+```
+http://localhost:8000/static/dashboard.html        # Portfolio overview
+http://localhost:8000/static/analytics-unified.html # Analytics unifiés + lien vers simulateur
+http://localhost:8000/static/risk-dashboard.html   # Risk management
+http://localhost:8000/static/rebalance.html        # Rebalancing
+http://localhost:8000/static/simulations.html      # Simulateur Pipeline (NOUVEAU)
+```
+
+Docs API: `http://localhost:8000/docs` • OpenAPI: `/openapi.json`
+
+## Système Multi-Utilisateurs
+
+La plateforme supporte 6 utilisateurs avec isolation complète des données:
+
+### Utilisateurs Configurés
+- **demo** : Utilisateur de démonstration avec données d'exemple
+- **jack, donato, elda, roberto, clea** : Utilisateurs individuels avec configurations isolées
+
+### Fonctionnalités
+- **Sélecteur utilisateur** : dans la barre de navigation (indépendant du menu Admin)
+- **Isolation des données** : chaque utilisateur a ses propres :
+  - Fichiers CSV dans `data/users/{user}/csv/`
+  - Configuration dans `data/users/{user}/config.json`
+  - Clés API CoinTracking individuelles
+- **Sources dynamiques** : l'interface affiche automatiquement :
+  - Les fichiers CSV réels de l'utilisateur
+  - L'option API CoinTracking seulement si des clés sont configurées
+- **Settings par utilisateur** : sauvegardés côté serveur avec rechargement automatique
+
+### Endpoints Multi-Utilisateurs
+```
+GET  /api/users/sources     # Sources disponibles pour l'utilisateur
+GET  /api/users/settings    # Configuration utilisateur
+PUT  /api/users/settings    # Sauvegarde configuration utilisateur
+```
+
+## 🚀 Nouvelles Fonctionnalités (v3.0)
+
+### 🔧 Production Stabilization (NOUVEAU)
+- **Hystérésis & EMA Anti-Flickering** : Deadband ±2%, persistence 3 ticks pour prévenir les oscillations
+- **Staleness Gating** : Freeze des poids adaptatifs mais préservation des caps défensifs (>30min)
+- **Token Bucket Rate Limiting** : 6 req/s avec burst 12, TTL adaptatif (10s-300s)
+- **Suite Tests Complète** : 16 scénarios de validation avec tests temps réel
+
+### Système d'Allocation Dynamique
+- **Élimination des presets hardcodés** : Plus de templates figés (BTC 40%, ETH 30%, etc.)
+- **Calculs contextuels** : Allocations basées sur cycle de marché, régime, concentration wallet
+- **Source canonique unique** : `u.targets_by_group` remplace les presets dispersés
+- **Synchronisation parfaite** : Analytics ↔ Rebalance automatiquement cohérents
+
+### Implémentation Technique
+```javascript
+// Ancien système (éliminé)
+if (blended >= 70) {
+  stablesTarget = 20; btcTarget = 35; // Preset figé
+}
+
+// Nouveau système (dynamique)
+function computeMacroTargetsDynamic(ctx, rb, walletStats) {
+  const stables = rb.target_stables_pct;  // Source de vérité risk budget
+  const riskyPool = 100 - stables;
+  // Modulateurs intelligents selon contexte...
+}
+```
+
+### Bénéfices Utilisateur
+- **Cohérence garantie** : Plus jamais de "Others 31%" incohérent
+- **Adaptabilité** : Objectifs s'ajustent automatiquement au profil réel
+- **Transparence** : Une seule source de données entre toutes les pages
+- **Performance** : Allocations optimisées selon concentration du wallet
+
+### Mode Priority Rebalancing
+- **Allocation intelligente** : Choix automatique des meilleurs assets dans chaque groupe
+- **Support univers limité** : Fallback gracieux vers mode proportionnel si données limitées
+- **Gestion des locations** : Attribution automatique des vraies exchanges (Kraken, Binance, etc.) depuis les données CSV
+- **Interface unifiée** : Toggle simple dans l'interface de rebalancing pour basculer entre modes proportionnel et priority
+
+## Documentation
+- Guide agent: `CLAUDE.md`
+- Index docs: `docs/index.md`
+- Quickstart: `docs/quickstart.md`
+- Configuration: `docs/configuration.md`
+- Navigation: `docs/navigation.md`
+- Architecture: `docs/architecture.md`
+- Governance: `docs/governance.md`
+- Risk Dashboard: `docs/risk-dashboard.md`
+- Télémétrie: `docs/telemetry.md`
+- Runbooks: `docs/runbooks.md`
+- Intégrations: `docs/integrations.md`
+- Refactoring & migration: `docs/refactoring.md`
+
+Endpoints utiles:
+```
+GET  /healthz
+GET  /balances/current?source=cointracking       # CSV
+GET  /balances/current?source=cointracking_api   # API CT
+GET  /debug/ctapi                                # Sonde CoinTracking API
+```
+
+Changelog: `CHANGELOG.md`
+
+## Simulateur Pipeline Complet
+
+**URL**: `http://localhost:8000/static/simulations.html`
+
+Le simulateur permet de tester en temps réel le pipeline complet sans impact sur les données :
+```
+Decision Inputs → Risk Budget → Targets → Phase Tilts → Governance → Execution
+```
+
+**Fonctionnalités** :
+- **10 presets** : Fin Bull Run, Capitulation, ETH Expansion, Altseason, etc.
+- **Contrôles temps réel** : scores, confidences, hystérésis, circuit breakers, caps
+- **Position réelle** : utilise le portefeuille source réel pour calculer les deltas
+- **Phase Engine unifié** : tilts identiques à la production
+- **Market overlays** : volatilité Z-score, drawdown 90j, breadth pour circuit breakers
+- **Reproductibilité** : état déterministe, plus de hasard
+- **URL hash** : état partageable via URL
+- **Mode Live/Simulation** : comparaison avec données réelles
+
+**Architecture technique** :
+- Engine principal : `static/modules/simulation-engine.js`
+- Contrôles UI : `static/components/SimControls.js`
+- Inspecteur : `static/components/SimInspector.js`
+- Presets : `static/presets/sim_presets.json`
+
+## Notes
+- Les documents détaillés et historiques sont archivés sous `docs/_legacy/`.
+- Les endpoints ML/Risk/Alerts ont été consolidés; voir `docs/refactoring.md` pour la migration.
+- Classification des assets: `data/taxonomy_aliases.json` est la source unique de vérité pour tous les groupes d'assets. Les dashboards utilisent automatiquement cette classification via l'API `/taxonomy` et le module `static/shared-asset-groups.js`.
+

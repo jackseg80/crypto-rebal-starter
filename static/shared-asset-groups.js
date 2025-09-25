@@ -18,6 +18,15 @@ initializeTaxonomySync();
 if (typeof window !== 'undefined') {
   window.forceReloadTaxonomy = forceReloadTaxonomy;
   window.debugClassification = debugClassification;
+  window.groupAssetsByClassification = (...args) => groupAssetsByClassification(...args);
+  window.getAssetGroup = (symbol) => getAssetGroup(symbol);
+  const descriptor = Object.getOwnPropertyDescriptor(window, 'UNIFIED_ASSET_GROUPS');
+  if (!descriptor || descriptor.configurable) {
+    Object.defineProperty(window, 'UNIFIED_ASSET_GROUPS', {
+      get: () => UNIFIED_ASSET_GROUPS,
+      configurable: true
+    });
+  }
 }
 
 // Fallback pour classification automatique si API indisponible

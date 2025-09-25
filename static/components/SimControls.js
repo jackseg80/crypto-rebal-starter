@@ -10,7 +10,13 @@ export class SimControls {
     this.container = document.getElementById(containerId);
     this.onUpdate = onUpdateCallback;
     this.debounceTimer = null;
+    this.controlsWidth = 400;
+    this.activePresetIndex = '';
+    this.isLoadingPreset = false;
+    this.presets = [];
     this.state = this.getDefaultState();
+
+    document.documentElement.style.setProperty('--sim-controls-width', `${this.controlsWidth}px`);
 
     this.init();
   }
@@ -70,13 +76,16 @@ export class SimControls {
         bucket_delta_threshold_pct: 1,
         min_lot_eur: 10,
         slippage_bps: 20
-      }
+      },
+
+      presetInfo: { name: 'Custom', desc: '' }
     };
   }
 
   init() {
     this.render();
     this.attachEventListeners();
+    this.applyControlsWidth(this.controlsWidth);
   }
 
   render() {
@@ -90,6 +99,14 @@ export class SimControls {
             </select>
             <button id="sim-export-btn" class="btn secondary">📤 Export</button>
             <button id="sim-reset-btn" class="btn secondary">🔄 Reset</button>
+          </div>
+        </div>
+
+        <div class="controls-width">
+          <label for="sim-controls-width">Largeur panneau</label>
+          <div class="controls-width-input">
+            <input type="range" id="sim-controls-width" min="320" max="540" step="10" value="${this.controlsWidth}">
+            <span id="sim-controls-width-value">${this.controlsWidth}px</span>
           </div>
         </div>
 
@@ -295,6 +312,10 @@ export class SimControls {
 
     // Toggles et selects
     this.container.addEventListener('change', (e) => {
+      if (e.target.id === 'sim-preset-select') {
+        return;
+      }
+
       if (e.target.type === 'checkbox' || e.target.tagName === 'SELECT') {
         this.updateState(e.target);
         this.debouncedUpdate();
@@ -313,8 +334,12 @@ export class SimControls {
 
     // Preset select
     document.getElementById('sim-preset-select')?.addEventListener('change', (e) => {
-      if (e.target.value) {
-        this.loadPreset(e.target.value);
+      const value = e.target.value;
+      if (value) {
+        this.loadPreset(value);
+      } else {
+        this.markCustomPreset(true);
+        this.debouncedUpdate();
       }
     });
 
@@ -325,6 +350,14 @@ export class SimControls {
 
     document.getElementById('sim-reset-btn')?.addEventListener('click', () => {
       this.resetToDefault();
+    });
+
+    // Controls width slider
+    document.getElementById('sim-controls-width')?.addEventListener('input', (e) => {
+      const value = parseInt(e.target.value, 10);
+      if (!Number.isNaN(value)) {
+        this.applyControlsWidth(value);
+      }
     });
   }
 
@@ -346,6 +379,10 @@ export class SimControls {
 
     // Mapping spécifique selon l'ID
     this.mapValueToState(id, value, element);
+
+    if (!this.isLoadingPreset) {
+      this.markCustomPreset();
+    }
   }
 
   mapValueToState(id, value, element) {
@@ -565,18 +602,25 @@ export class SimControls {
     const preset = this.presets[presetIndex];
     if (!preset) return;
 
+    this.isLoadingPreset = true;
+    this.activePresetIndex = String(presetIndex);
+
+    const defaults = this.getDefaultState();
+
     // Importer les valeurs du preset
     this.state = {
-      ...this.getDefaultState(),
-      ...preset.inputs,
-      phaseEngine: { ...this.getDefaultState().phaseEngine, ...preset.regime_phase },
-      riskBudget: { ...this.getDefaultState().riskBudget, ...preset.risk_budget },
-      marketOverlays: { ...this.getDefaultState().marketOverlays, ...preset.market_overlays },
-      governance: { ...this.getDefaultState().governance, ...preset.governance },
-      execution: { ...this.getDefaultState().execution, ...preset.execution }
+      ...defaults,
+      ...(preset.inputs || {}),
+      phaseEngine: { ...defaults.phaseEngine, ...(preset.regime_phase || {}) },
+      riskBudget: { ...defaults.riskBudget, ...(preset.risk_budget || {}) },
+      marketOverlays: { ...defaults.marketOverlays, ...(preset.market_overlays || {}) },
+      governance: { ...defaults.governance, ...(preset.governance || {}) },
+      execution: { ...defaults.execution, ...(preset.execution || {}) },
+      presetInfo: { name: preset.name, desc: preset.desc || '' }
     };
 
     this.updateUI();
+    this.isLoadingPreset = false;
     this.debouncedUpdate();
 
     console.log('🎭 SIM: presetLoaded -', { name: preset.name, version: preset.version });
@@ -604,6 +648,13 @@ export class SimControls {
 
     const hysteresisEnabled = document.getElementById('hysteresis-enabled');
     if (hysteresisEnabled) hysteresisEnabled.checked = this.state.riskBudget.hysteresis.on;
+
+    const presetSelect = document.getElementById('sim-preset-select');
+    if (presetSelect) {
+      presetSelect.value = this.activePresetIndex || '';
+    }
+
+    this.applyControlsWidth(this.controlsWidth);
 
     this.updateBadges();
   }
@@ -633,6 +684,8 @@ export class SimControls {
   resetToDefault() {
     if (confirm('Remettre tous les contrôles par défaut ?')) {
       this.state = this.getDefaultState();
+      this.activePresetIndex = '';
+      this.markCustomPreset(true);
       this.updateUI();
       this.debouncedUpdate();
     }
@@ -644,7 +697,41 @@ export class SimControls {
 
   setState(newState) {
     this.state = { ...this.state, ...newState };
+    if (!this.state.presetInfo) {
+      this.state.presetInfo = { name: 'Custom', desc: '' };
+    }
+    this.activePresetIndex = '';
     this.updateUI();
+  }
+
+  applyControlsWidth(value) {
+    const clamped = Math.min(Math.max(value, 320), 540);
+    this.controlsWidth = clamped;
+    document.documentElement.style.setProperty('--sim-controls-width', `${clamped}px`);
+
+    const slider = document.getElementById('sim-controls-width');
+    if (slider && Number(slider.value) !== clamped) {
+      slider.value = clamped;
+    }
+
+    const label = document.getElementById('sim-controls-width-value');
+    if (label) {
+      label.textContent = `${clamped}px`;
+    }
+  }
+
+  markCustomPreset(force = false) {
+    if (this.isLoadingPreset && !force) {
+      return;
+    }
+
+    this.activePresetIndex = '';
+    this.state.presetInfo = { name: 'Custom', desc: '' };
+
+    const presetSelect = document.getElementById('sim-preset-select');
+    if (presetSelect && presetSelect.value !== '') {
+      presetSelect.value = '';
+    }
   }
 }
 
@@ -684,6 +771,40 @@ const controlsCSS = `
     background: var(--theme-bg);
     color: var(--theme-text);
     min-width: 200px;
+  }
+
+  .controls-width {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-md);
+    flex-wrap: wrap;
+    background: var(--theme-bg);
+    border: 1px solid var(--theme-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-sm) var(--space-md);
+    margin-bottom: var(--space-md);
+  }
+
+  .controls-width label {
+    font-size: 0.9rem;
+    color: var(--theme-text-muted);
+  }
+
+  .controls-width-input {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+
+  .controls-width-input input[type="range"] {
+    width: 160px;
+  }
+
+  .controls-width-input span {
+    font-family: monospace;
+    font-size: 0.85rem;
+    color: var(--theme-text);
   }
 
   .control-section {

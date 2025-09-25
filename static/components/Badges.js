@@ -5,10 +5,20 @@
  */
 
 import { formatZurich, isStale } from '../utils/time.js';
-import { selectContradictionPct, selectEffectiveCap, selectOverridesCount, selectGovernanceTimestamp, selectDecisionSource } from '../selectors/governance.js';
+import { selectContradictionPct, selectEffectiveCap, selectOverridesCount, selectGovernanceTimestamp, selectDecisionSource, selectCapPercent, selectPolicyCapPercent, selectEngineCapPercent } from '../selectors/governance.js';
 
 // Constants
 const TTL_STALE_MINUTES = 30;
+
+function normalizeCapDisplay(raw) {
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) {
+    return null;
+  }
+  const absolute = Math.abs(raw);
+  const percent = absolute <= 1 ? absolute * 100 : absolute;
+  const rounded = Math.round(percent);
+  return Number.isFinite(rounded) ? rounded : null;
+}
 
 /**
  * Store selectors - helpers robustes qui ne plantent jamais
@@ -24,47 +34,37 @@ const TTL_STALE_MINUTES = 30;
 
 /**
  * Compute effective cap based on priority order
- * Order: error 5% > stale 8% > alert_cap > engine_cap > active_policy.cap_daily
+ * Order: error 5% > stale 8% > alert_cap > active_policy.cap_daily > engine_cap
  * @param {Object} state - Unified state
  * @returns {number|null} - Effective cap percentage or null
  */
 function computeEffectiveCap(state) {
   try {
     const backendStatus = getBackendStatus(state);
-    const updated = selectGovernanceTimestamp(state);
 
-    // Priority 1: Error state = 5%
     if (backendStatus === 'error') {
       return 5;
     }
 
-    // Priority 2: Stale state = 8%
-    if (backendStatus === 'stale' || isStale(updated, TTL_STALE_MINUTES)) {
+    if (backendStatus === 'stale') {
       return 8;
     }
 
-    // Priority 3: Alert cap (if alerts are active)
-    const alertCap = state?.governance?.caps?.alert_cap ||
-                     state?.alerts?.active_cap ||
-                     null;
-    if (alertCap !== null && typeof alertCap === 'number') {
-      return Math.round(alertCap);
+    const alertCap = normalizeCapDisplay(state?.governance?.caps?.alert_cap ?? state?.alerts?.active_cap);
+    if (alertCap != null) {
+      return alertCap;
     }
 
-    // Priority 4: Engine cap (dynamically computed)
-    const engineCap = state?.governance?.caps?.engine_cap ||
-                      state?.governance?.computed_cap ||
-                      null;
-    if (engineCap !== null && typeof engineCap === 'number') {
-      return Math.round(engineCap);
+    const policyCap = selectCapPercent(state);
+    if (policyCap != null) {
+      return policyCap;
     }
 
-    // Priority 5: Active policy cap (configured baseline)
-    const policyCap = state?.governance?.active_policy?.cap_daily ||
-                      state?.governance?.policy?.cap_daily ||
-                      null;
-    if (policyCap !== null && typeof policyCap === 'number') {
-      return Math.round(policyCap);
+    const engineCap = normalizeCapDisplay(state?.governance?.caps?.engine_cap ??
+                      state?.governance?.computed_cap ??
+                      state?.governance?.engine_cap_daily);
+    if (engineCap != null) {
+      return engineCap;
     }
 
     return null;
@@ -124,6 +124,8 @@ function collectBadgeData(state = {}, props = {}, overrideFlags = computeOverrid
     updated: overrideFlags.updated ? props.updated : selectGovernanceTimestamp(state),
     contradiction: overrideFlags.contradiction ? props.contradiction : selectContradictionPct(state),
     cap: overrideFlags.cap ? props.cap : selectEffectiveCap(state),
+    capPolicy: selectPolicyCapPercent(state),
+    capEngine: selectEngineCapPercent(state),
     overrides: overrideFlags.overrides ? props.overrides : selectOverridesCount(state),
     status: overrideFlags.status ? props.status : getBackendStatus(state)
   };
@@ -185,6 +187,12 @@ function mergeBadgeDataWithFallback(primary, fallback, overrideFlags = computeOv
     if (needsCap && Number.isFinite(fallback.cap)) {
       result.cap = fallback.cap;
     }
+  }
+  if (result.capPolicy == null && Number.isFinite(fallback.capPolicy)) {
+    result.capPolicy = fallback.capPolicy;
+  }
+  if (result.capEngine == null && Number.isFinite(fallback.capEngine)) {
+    result.capEngine = fallback.capEngine;
   }
 
   if (!overrideFlags.overrides) {
@@ -257,9 +265,22 @@ function buildBadgeHtml(data) {
   }
 
   // Cap (effective)
-  if (data.cap !== null && data.cap !== undefined) {
+  if (data.capPolicy != null && Number.isFinite(data.capPolicy)) {
+    parts.push('<span class="badge-separator">•</span>');
+    const capChunks = [`Cap <span class=\"badge-value\">${data.capPolicy}%</span>`];
+    if (data.capEngine != null && Number.isFinite(data.capEngine) && data.capEngine !== data.capPolicy) {
+      capChunks.push(`SMART <span class=\"badge-value\">${data.capEngine}%</span>`);
+    }
+    parts.push(`<span>${capChunks.join(' • ')}</span>`);
+  } else if (data.cap != null && Number.isFinite(data.cap)) {
     parts.push('<span class="badge-separator">•</span>');
     parts.push(`<span>Cap <span class="badge-value">${data.cap}%</span></span>`);
+  } else if (data.cap != null) {
+    parts.push('<span class="badge-separator">•</span>');
+    parts.push('<span>Cap <span class="badge-value">—</span></span>');
+  } else {
+    parts.push('<span class="badge-separator">•</span>');
+    parts.push('<span>Cap <span class="badge-value">—</span></span>');
   }
 
   // Overrides

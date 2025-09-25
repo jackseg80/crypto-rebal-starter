@@ -2,6 +2,7 @@
 // Macro → Secteurs → Coins avec floors contextuels et incumbency protection
 
 import { getAssetGroup, UNIFIED_ASSET_GROUPS, GROUP_ORDER, loadTaxonomyDataSync } from '../shared-asset-groups.js';
+import { selectCapPercent } from '../selectors/governance.js';
 
 // Feature flag pour activation
 const ALLOCATION_ENGINE_V2 = true; // Will be controlled by config later
@@ -387,10 +388,35 @@ function calculateCoinAllocation(sectorAllocation, currentPositions, floors) {
  * Calcul du plan d'exécution (iterations estimées)
  */
 function calculateExecutionPlan(targetAllocation, currentPositions, executionContext = {}) {
-  const capPerIterPct = executionContext.cap_pct_per_iter ?? 7; // ex: 7 (%)
-  const capPerIter = capPerIterPct / 100;                       // 0.07 (fraction)
+  let capPct = executionContext.cap_pct_per_iter;
 
-  // Calculer les écarts max
+  if (capPct == null) {
+    const contextState = executionContext.state || executionContext.unified_state || null;
+    if (contextState) {
+      capPct = selectCapPercent(contextState);
+    }
+  }
+
+  if (capPct == null && typeof executionContext.cap_daily === 'number') {
+    const raw = executionContext.cap_daily;
+    capPct = raw <= 1 ? Math.round(raw * 100) : Math.round(raw);
+  }
+
+  if (capPct == null && typeof window !== 'undefined') {
+    try {
+      const fallbackState = (typeof window.store?.snapshot === 'function' ? window.store.snapshot() : null) || window.realDataStore || {};
+      capPct = selectCapPercent(fallbackState);
+    } catch (error) {
+      console.debug('calculateExecutionPlan cap fallback failed', error?.message || error);
+    }
+  }
+
+  if (capPct == null) {
+    capPct = 0;
+  }
+
+  const capPerIter = capPct / 100;
+
   const currentAlloc = calculateCurrentAllocation(currentPositions);
   let maxDelta = 0;
   let maxDeltaGroup = '';
@@ -407,23 +433,22 @@ function calculateExecutionPlan(targetAllocation, currentPositions, executionCon
     }
   });
 
-  // Estimer les iterations nécessaires (maxDelta et capPerIter sont tous deux en fraction 0-1)
-  const estimatedIters = Math.ceil(maxDelta / capPerIter);
+  const estimatedIters = capPerIter > 0 ? Math.ceil(maxDelta / capPerIter) : Infinity;
 
   console.debug('🔄 Convergence calculation:', {
     maxDeltaPct: (maxDelta * 100).toFixed(1),
     maxDeltaGroup,
-    capPerIter,
-    estimatedIters,
-    formula: `ceil(${(maxDelta * 100).toFixed(1)}% / ${capPerIter}%) = ${estimatedIters}`,
+    capPerIter: capPct,
+    estimatedIters: Number.isFinite(estimatedIters) ? estimatedIters : '∞',
+    formula: capPerIter > 0 ? `ceil(${(maxDelta * 100).toFixed(1)}% / ${capPct}%) = ${estimatedIters}` : 'cap=0 -> ∞',
     allDeltas: deltas.filter(d => d.delta > 0.1).map(d => `${d.asset}: ${d.current.toFixed(1)}% → ${d.target.toFixed(1)}% (Δ${d.delta.toFixed(1)}%)`)
   });
 
   return {
-    estimated_iters_to_target: estimatedIters,
+    estimated_iters_to_target: Number.isFinite(estimatedIters) ? estimatedIters : Infinity,
     max_delta_pct: maxDelta * 100,
-    cap_per_iter: capPerIterPct, // exposé en % pour l'affichage
-    convergence_time_estimate: `${estimatedIters} rebalances`
+    cap_per_iter: capPct,
+    convergence_time_estimate: capPerIter > 0 ? `${estimatedIters} rebalances` : 'Cap unavailable'
   };
 }
 

@@ -101,7 +101,7 @@ const checkAdminRole = () => {
   try {
     // MODE DEV : Forcer admin si localhost ou dev
     const isDev = location.hostname === 'localhost' || location.hostname === '127.0.0.1' ||
-                  location.hostname.includes('dev') || location.port === '8000';
+      location.hostname.includes('dev') || location.port === '8000';
 
     if (isDev) {
       console.debug('🔧 Dev mode detected - Admin role forced');
@@ -210,9 +210,9 @@ const initUnifiedNav = () => {
             <li><a href="dashboard.html" data-route="dashboard.html">Portfolio</a></li>
             <li><a href="analytics-unified.html" data-route="analytics-unified.html">Analytics</a></li>
             <li><a href="risk-dashboard.html" data-route="risk-dashboard.html">Risk</a></li>
-            <li><a href="saxo-dashboard.html" data-route="saxo-dashboard.html">Bourse</a></li>
             <li><a href="rebalance.html" data-route="rebalance.html">Rebalance</a></li>
             <li><a href="execution.html" data-route="execution.html">Execution</a></li>
+            <li><a href="saxo-dashboard.html" data-route="saxo-dashboard.html">Bourse</a></li>
             <li><a href="settings.html" data-route="settings.html">Settings</a></li>
           </ul>
         </nav>

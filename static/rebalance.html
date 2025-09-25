@@ -926,13 +926,15 @@
         if (data.source === 'analytics_unified_v2') {
           // Nouveau système avec calculs dynamiques
           const methodLabel = data.methodology === 'unified_v2' ? 'Calcul Dynamique' : data.strategy || 'Dynamic';
+          const capLabel = data.cap_percent != null ? `Cap ±${data.cap_percent}%` : 'Cap —';
           strategyName = data.execution_plan ?
-            `${methodLabel} (Plan Exécution - Cap ±${data.cap_percent || 7}%)` :
+            `${methodLabel} (Plan Exécution - ${capLabel})` :
             `${methodLabel} (Objectifs Théoriques)`;
         } else {
           // Ancien système (compatibilité)
+          const capLabel = data.cap_percent != null ? `Cap ±${data.cap_percent}%` : 'Cap —';
           strategyName = data.execution_plan ?
-            `${data.strategy} (Itération 1 - Cap ±${data.cap_percent || 7}%)` :
+            `${data.strategy} (Itération 1 - ${capLabel})` :
             data.strategy || 'Regime-Based Allocation';
         }
 
