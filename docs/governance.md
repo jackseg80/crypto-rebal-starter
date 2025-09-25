@@ -178,3 +178,13 @@ Voir: `docs/contradiction-system.md` pour architecture détaillée
 - **🟢 OK** : Système nominal (contrad <30%, cap >50%)
 - **🟡 STALE** : Données obsolètes ou caps réduits
 - **🔴 ERROR** : Freeze système ou erreur critique
+## Cap d’exécution (alignement UI)
+
+- Source de vérité: `GET /execution/governance/state.active_policy.cap_daily` (0–1). L’UI affiche en pourcentage.
+- Sélecteurs centralisés (frontend): `static/selectors/governance.js`
+  - `selectCapPercent(state)`: cap en % à utiliser partout côté UI
+  - `selectPolicyCapPercent(state)`: cap policy en %
+  - `selectEngineCapPercent(state)`: cap "SMART/engine" en % (affichage secondaire)
+- Priorité d’affichage: Policy > SMART. Ne jamais afficher SMART seul si la policy existe.
+- Badge serré: afficher “🧊 Freeze/Cap serré (±X%)” si mode Freeze ou cap ≤ 2%.
+- Convergence: `iterations = ceil(maxDelta / (capPct / 100))`.

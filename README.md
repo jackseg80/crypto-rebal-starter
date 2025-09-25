@@ -196,3 +196,12 @@ Decision Inputs → Risk Budget → Targets → Phase Tilts → Governance → E
 - Les documents détaillés et historiques sont archivés sous `docs/_legacy/`.
 - Les endpoints ML/Risk/Alerts ont été consolidés; voir `docs/refactoring.md` pour la migration.
 - Classification des assets: `data/taxonomy_aliases.json` est la source unique de vérité pour tous les groupes d'assets. Les dashboards utilisent automatiquement cette classification via l'API `/taxonomy` et le module `static/shared-asset-groups.js`.
+
+### Governance UI (Cap d’exécution)
+
+- Source de vérité frontend: `GET /execution/governance/state.active_policy.cap_daily`.
+- Utiliser `selectCapPercent(state)` du module `static/selectors/governance.js` pour tout affichage/calcul en %.
+- Si la policy est absente, fallback sur engine cap (affiché en second comme “SMART {x}%”).
+- Convergence: `ceil(maxDelta / (capPct/100))`. Exemple: maxΔ=23 pts, cap=1% → 23 itérations; cap=10% → 3.
+- Badge serré: afficher “🧊 Freeze/Cap serré (±X%)” pour Freeze ou cap ≤ 2%.
+

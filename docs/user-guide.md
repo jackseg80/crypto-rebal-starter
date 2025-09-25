@@ -59,3 +59,8 @@ Pour la liste complète, consultez `docs/api.md` ou l’OpenAPI (`/docs`).
 ### Paramètres UI globaux
 - `static/settings.html` — Réglages rapides: Source de données, Devise d’affichage, Seuil min USD, Thème, URL API.
 - Les sélecteurs rapide et détaillé (onglet Pricing) sont synchronisés; un changement re-formate automatiquement les montants sur les pages ouvertes.
+
+### Governance UI – cap et convergence
+
+- Le cap affiché provient de la policy active. En l’absence de policy, l’UI peut afficher le cap SMART comme information secondaire.
+- Le badge “🧊 Freeze/Cap serré (±X%)” apparaît pour Freeze ou cap ≤ 2%.

@@ -272,3 +272,21 @@ This release contains **BREAKING CHANGES** requiring consumer updates.
 ---
 
 *Earlier versions documented in git history*
+## 2025-09-25
+
+- UI Gouvernance: alignement du cap d’exécution
+  - Nouveau sélecteur static/selectors/governance.js: selectCapPercent() priorise state.governance.active_policy.cap_daily (source de vérité)
+  - Ajouts: selectPolicyCapPercent, selectEngineCapPercent et normalisation robuste (support valeurs 0–1 ou 0–100)
+  - Badges: affichage principal = Cap (policy) + option “SMART X%” en second quand différent
+  - UnifiedInsights + Dashboard: convergence et “Cap ±X%” utilisent désormais la policy effective
+  - Badge “🧊 Freeze/Cap serré” si mode Freeze ou cap ≤ 2%
+
+- Durcissement affichage
+  - Fallback propre quand aucune policy n’est disponible (montre — ou cap effectif)
+  - Normalisation défensive des caps d’alerte/engine côté UI
+
+- Docs
+  - AGENTS.md: ajouté les consignes pour utiliser exclusivement selectCapPercent() et les aides selectPolicyCapPercent/selectEngineCapPercent
+  - README.md: mise à jour de la section Governance UI et exemple de calcul de convergence (ceil(maxΔ / cap))
+
+Notes: aucune modification d’API publique; l’UI consomme l’état /execution/governance/state tel quel.

@@ -75,3 +75,11 @@ Note: “(1D)” indique l’horizon de perte (jour), pas le lookback utilisé p
 - Utiliser 30–60j pour évaluer VaR/CVaR et la réactivité tactical.
 - Corrélations 90j pour la diversification (60j si marché très nerveux, 120–180j si très stable).
 - Pour Calmar/MaxDD, garder 365j/180j pour une borne structurelle.
+
+## Convergence et caps (UI)
+
+- L’UI calcule la convergence avec le cap d’exécution effectif (policy):
+  - `const capPct = selectCapPercent(state)`
+  - `const iterations = Math.ceil(maxDelta / (capPct/100))`
+- Exemples: maxΔ=23pts → cap=1% ⇒ 23 itérations; cap=10% ⇒ 3.
+- Différence Policy vs SMART: afficher “Cap {policy}% • SMART {engine}%” si divergence.

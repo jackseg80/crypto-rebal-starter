@@ -77,3 +77,7 @@ Notes:
 - `source=cointracking_api` → API CT strict via `connectors/cointracking_api.py`
 - Pas de fallback silencieux entre les deux. En cas d’erreur API, la réponse inclut `source_used: "cointracking_api"` avec un champ `error`.
 - Debug: `GET /debug/ctapi` (présence clés, aperçu des données, erreurs format/HTTP)
+
+### Remarques frontend
+
+- Cap d’exécution consommé depuis `/execution/governance/state`: utiliser `active_policy.cap_daily` comme source de vérité côté UI.

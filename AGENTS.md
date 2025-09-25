@@ -1,313 +1,190 @@
-# CLAUDE.md — Guide de travail pour agents (Crypto Rebal Starter)
+# AGENTS.md — Guide de travail pour agents (Crypto Rebal Starter)
 
-> But: permettre à un agent (Claude/Code) d’intervenir vite et bien sans casser l’existant  
-> Périmètre: FastAPI `api/`, services Python `services/`, front HTML/JS `static/`, connecteurs `connectors/`, tests `tests/`.
+Ce fichier est injecté automatiquement dans chaque prompt que Codex (ou autre agent code) reçoit.
+Il définit les conventions, règles et fichiers clés du projet pour que l’agent produise un travail cohérent, sécurisé et adapté à l’environnement Windows 11.
 
 ---
 
-## 0) Règles d’or (strict)
+## 0) Règles d’or
 
-1. Secrets: ne jamais lire/committer `.env` ni publier des clés.
-2. Navigation/UI: conserver le menu unifié `static/components/nav.js` + thèmes `shared-theme.css`/`theme-compat.css`. Ne pas réintroduire `static/shared-header.js` (archivé).
-3. Config front: aucune URL API en dur. Toujours passer par `static/global-config.js` (détection `window.location.origin`).
-4. Modifs minimales: patchs ciblés, pas de refontes/renommages massifs sans demande explicite.
-5. Perf: favoriser endpoints batch, cache, lazy-loading.
-6. Terminologie: garder certains anglicismes (coin, wallet, airdrop…).
-7. Sécurité: valider Pydantic, limiter tailles/paginer, penser rate-limit sur endpoints sensibles.
-8. Tests: tests unitaires pour logique non triviale + smoke test d’API pour tout nouvel endpoint.
-9. **Realtime (sécurité)**: `api/realtime_endpoints.py` ne doit fournir que des flux **read-only** (SSE/WS).  
-   **Interdit** d’ajouter `/realtime/publish` et `/broadcast`.  
-   Toute écriture d’événements temps réel se fait côté serveur via la gouvernance.
-10. **GovernancePanel**: déjà intégré dans `static/risk-dashboard.html`. **Ne pas créer** de panneau standalone ni le dupliquer.
+- Pas de secrets ni clés dans le code généré.
+- Pas d’URL en dur pour les APIs → utiliser `static/global-config.js`.
+- Pas de refactor massif : proposer uniquement des patchs/diffs minimaux, jamais des fichiers entiers.
+- Ne pas renommer de fichiers sans demande explicite.
+- Respect des perfs : batching, pagination, caches locaux.
+- Tests obligatoires si du code backend est modifié.
+- Sécurité : pas de nouveaux endpoints sensibles (`/realtime/publish`, `/broadcast`, etc.).
 
-Note endpoints de test/dev:  
-- Les routes `/api/alerts/test/*` sont désactivées par défaut et toujours désactivées en production.  
-- Pour activer en dev: définir `ENABLE_ALERTS_TEST_ENDPOINTS=true` dans l’environnement (non-prod uniquement).
+---
 
 ## 0bis) Environnement Windows (important)
 
-- OS cible : **Windows 11**
-- Shell : **PowerShell** (pas Bash)
-- Environnement Python : `.\.venv\Scripts\activate` (et pas `. ./venv/bin/activate`)
-- Commandes à utiliser :
-  - Copier : `copy` (ou `cp` via PowerShell Core, mais préférer `copy`)
-  - Supprimer : `Remove-Item` (au lieu de `rm`)
-  - Lister fichiers : `dir` (au lieu de `ls`)
-- Chemins : utiliser `\` (ex. `D:\Python\crypto-rebal-starter`) et pas `/`.
-- Encodage : UTF-8 simple, éviter les caractères spéciaux non supportés dans les noms de fichiers Windows.
+- OS cible : Windows 11
+- Shell : PowerShell (pas Bash)
+- Environnement Python :
+  ```powershell
+  .\.venv\Scripts\Activate.ps1
+  ```
+- Versions minimales : Python >= 3.11, FastAPI >= 0.110, Pydantic >= 2.5
 
----
+### Commandes utiles (PowerShell)
 
-## 1) Architecture (résumé)
-
-- API: `api/main.py` (CORS/CSP/GZip/TrustedHost, montages `/static`, `/data`, `/tests`) + routers `api/*_endpoints.py`.
-- Services: `services/*` (risk mgmt, execution, analytics, ML…).
-- Governance: `services/execution/governance.py` (Decision Engine single-writer) + auto-init ML dans `api/main.py` 
-- Connecteurs: `connectors/cointracking*.py`, autres.
-- Front: `static/*` (dashboards, `components/nav.js`, `global-config.js`, `lazy-loader.js`, modules `static/modules/*.js`, store `static/core/risk-dashboard-store.js`)
-- Simulateur: `static/simulations.html` + `modules/simulation-engine.js` + `components/SimControls.js` + `presets/sim_presets.json`
-- Config: `config/settings.py` (Pydantic settings)
-- Constantes: `constants/*`
-- Tests: `tests/unit`, `tests/integration`, `tests/e2e` (pytest)
-
-Fichiers clés:
-
-```
-api/main.py (auto-init ML au startup)
-api/execution_endpoints.py (governance routes unifiées)
-api/risk_endpoints.py
-api/alerts_endpoints.py (alertes centralisées)
-api/unified_ml_endpoints.py (ML unifié)
-api/realtime_endpoints.py
-services/execution/governance.py (Decision Engine)
-services/ml/orchestrator.py (MLOrchestrator)
-services/risk_management.py
-services/analytics/.py
-services/ml/.py
-static/components/nav.js
-static/components/GovernancePanel.js (intégré dans risk-dashboard)
-static/global-config.js
-static/analytics-unified.html (section ML temps réel)
-static/analytics-unified.html
-static/risk-dashboard.html (avec GovernancePanel intégré)
-static/portfolio-optimization.html
-static/simulations.html (simulateur pipeline complet)
-static/modules/*.js
-static/modules/simulation-engine.js (engine simulation avec fixes deterministes)
-static/components/SimControls.js (controles UI)
-static/components/SimInspector.js (arbre explication)
-static/presets/sim_presets.json (10 scenarios predefinis)
-static/core/risk-dashboard-store.js (sync governance)
-static/core/phase-engine.js (détection de phases market)
-static/core/phase-buffers.js (ring buffers pour time series)
-static/core/phase-inputs-extractor.js (extraction données phases)
-static/core/unified-insights-v2.js (intégration Phase Engine)
-static/test-phase-engine.html (suite de tests complète)
-```
-
----
-
-## 2) Playbooks
-
-### A) Ajouter un endpoint FastAPI
-
-1) Créer `api/<module>_endpoints.py` avec schémas Pydantic, tailles limitées.  
-2) Inclure le router dans `api/main.py` si nécessaire.  
-3) Logguer latence et taille d’entrée si pertinent.  
-4) Ajouter un smoke test simple.
-
-Exemple:
-
-```python
-from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
-from typing import Dict, Any, List
-import logging
-
-router = APIRouter(prefix="/api/example", tags=["example"])
-log = logging.getLogger(__name__)
-
-class MyResponse(BaseModel):
-    results: Dict[str, Any]
-    meta: Dict[str, Any]
-
-@router.get("/compute", response_model=MyResponse)
-async def compute(assets: List[str] = Query(default=[], max_items=50)):
-    try:
-        return MyResponse(results={a: 1 for a in assets}, meta={"ok": True})
-    except Exception:
-        log.exception("compute failed")
-        raise HTTPException(500, "internal_error")
-```
-
-### B) Exposer une prédiction ML batch (volatilité)
-
-Objectif: endpoint batch, latence p95 < 100 ms (CPU), lazy‑loading + LRU des modèles.
-
-Service (ex.): `services/ml/orchestrator.py` (cache LRU, TTL d'inactivité). Endpoint dans `api/unified_ml_endpoints.py`:
-
-```python
-from fastapi import APIRouter, Query, HTTPException
-from pydantic import BaseModel
-from typing import List, Dict
-from services.ml.orchestrator import predict_vol_batch
-
-router = APIRouter(prefix="/api/ml", tags=["Machine Learning"])
-
-class VolResponse(BaseModel):
-    horizon: str
-    predictions: Dict[str, float]
-    std: Dict[str, float] = {}
-
-@router.get("/volatility/predict", response_model=VolResponse)
-async def vol_predict(assets: List[str] = Query(..., min_items=1, max_items=50), horizon: str = Query("1d")):
-    try:
-        preds, std = await predict_vol_batch(assets, horizon)
-        return VolResponse(horizon=horizon, predictions=preds, std=std)
-    except Exception:
-        raise HTTPException(500, "ml_inference_error")
-```
-
-### C) Étendre le Risk Dashboard
-
-- Utiliser le store `static/core/risk-dashboard-store.js`.
-- Ajouter/modifier KPI dans `static/risk-dashboard.html` + modules sous `static/modules/*.js`.
-- Respecter le système de cache persistant (voir “Caches & cross‑tab”).
-
-### D) Intégrations front (iframes/nav)
-
-- Pour embarquer une page dans une autre: utiliser une URL relative + `?nav=off` et lazy‑load l’iframe au clic d’onglet.
-- Ne jamais dur‑coder `localhost` dans un `src`; préférer relative ou `window.location.origin + '/static/...'`.
-- Le menu unifié ne s’injecte pas si `nav=off`.
-
-### E) Écrire des tests
-
-- Unit: logique pure (services).
-- Integration: TestClient FastAPI (pinger endpoint + vérifier schémas/contrats).
-- E2E: flux complet si nécessaire (utiliser tests/e2e existants ou tests/integration).
-- Smoke: `tests/smoke_test_refactored_endpoints.py` pour validation post-refactoring.
-
----
-
-## 3) Conventions & garde‑fous
-
-- Python: FastAPI + Pydantic v2; exceptions propres; logs cohérents.
-- JS: ESM (`type="module"`), imports dynamiques pour lourds; pas d’URL API en dur.
-- CSS: variables `shared-theme.css` + compat `theme-compat.css`.
-- API: `/api/...`, réponses typées; erreurs HTTP standard.
-- Perf: batching, pagination, virtual scrolling (`performance-optimizer.js`).
-- Sécurité headers: en dev autoriser `SAMEORIGIN` pour iframes; en prod garder une CSP stricte (frame‑ancestors).
-
----
-
-## 4) Caches & cross‑tab (important)
-
-- Le Risk Dashboard publie des scores dans localStorage:
-  - Clés simples: `risk_score_onchain`, `risk_score_risk`, `risk_score_blended`, `risk_score_ccs`, `risk_score_timestamp`.
-  - Cache persistant: entrée JSON `risk_scores_cache` (TTL 12h) via `CACHE_CONFIG`.
-- Dashboards consommateurs (ex. `static/dashboard.html`) doivent:
-  - Lire les clés simples si récentes; sinon tomber sur `risk_scores_cache`.
-  - Écouter l’événement `storage` pour se mettre à jour.
-
----
-
-## 5) Definition of Done (DoD)
-
-- Tests unitaires verts + smoke test d’API (si endpoint).
-- Lint OK; CI verte.
-- Pas de secrets ni d’URL API en dur.
-- UX/Thème inchangés (sauf demande).
-- Doc courte (4–8 lignes) ajoutée dans `README.md`/`docs/` si pertinent.
-
----
-
-## 6) Phase Engine (Détection Proactive de Phases Market)
-
-**Objectif :** Appliquer des tilts d'allocation proactifs selon les phases market détectées (ETH expansion, altseason, risk-off).
-
-### Architecture
-- **`static/core/phase-engine.js`** : Core détection & tilts logic
-- **`static/core/phase-buffers.js`** : Ring buffers time series (60 samples max)
-- **`static/core/phase-inputs-extractor.js`** : Extraction données normalized
-- **`static/test-phase-engine.html`** : Suite tests complète (16 test cases)
-
-### Modes
-- **Off** : Phase Engine désactivé
-- **Shadow** (défaut) : Détection + logs, objectifs inchangés
-- **Apply** : Détection + application réelle des tilts
-
-### Contrôles Debug (localhost uniquement)
-```javascript
-// Forcer une phase pour tests
-window.debugPhaseEngine.forcePhase('eth_expansion')
-window.debugPhaseEngine.forcePhase('full_altseason')
-window.debugPhaseEngine.forcePhase('risk_off')
-window.debugPhaseEngine.clearForcePhase() // Normal detection
-
-// État actuel
-window.debugPhaseEngine.getCurrentForce()
-window._phaseEngineAppliedResult // Résultats détaillés
-```
-
-### Phases & Tilts
-- **Risk-off** : Stables +15%, alts -15% à -50%
-- **ETH Expansion** : ETH +5%, L2/Scaling +3%, stables -2%
-- **Large-cap Altseason** : L1/majors +8%, SOL +6%, Others +20%
-- **Full Altseason** : Memecoins +150%, Others +100%, stables -15%
-- **Neutral** : Aucun tilt
-
-### Feature Flags
-```javascript
-// Changer le mode
-localStorage.setItem('PHASE_ENGINE_ENABLED', 'shadow') // ou 'apply', 'off'
-localStorage.setItem('PHASE_ENGINE_DEBUG_FORCE', 'eth_expansion') // Force phase
-```
-
----
-
-## 7) Aides‑mémoire
-
-Dev:
-
-```bash
+```powershell
+# Lancer l’API
 uvicorn api.main:app --reload --port 8000
-# http://localhost:8000/static/analytics-unified.html
-# http://localhost:8000/static/risk-dashboard.html
+
+# Accès front
+http://localhost:8000/static/analytics-unified.html
+http://localhost:8000/static/risk-dashboard.html
+
+# Lancer les tests rapides
+python -m pytest -q tests/unit
+python -m pytest -q tests/integration
+python tests\smoke_test_refactored_endpoints.py
+
+# Créer une archive du projet
+Compress-Archive -Path .\* -DestinationPath .\crypto-rebal-starter.zip -Force -Exclude .venv,**\__pycache__\,**\.ruff_cache\,**\*.tmp
 ```
 
-Tests:
-
-```bash
-pytest -q tests/unit
-pytest -q tests/integration
-python tests/smoke_test_refactored_endpoints.py
-```
-
-Docker:
-
-```bash
-docker build -t crypto-rebal .
-docker run -p 8000:8000 --env-file .env crypto-rebal
-```
+### Wealth / Saxo
+- Module Saxo = WIP (non bloquant).
+- Ne pas lier à la navigation prod, limiter aux tests ciblés.
 
 ---
 
-## 7) Paramétrage agent (optionnel)
+## 1) Stack technique
 
-`.claude/settings.local.json` (déjà présent) doit inclure au minimum:
-
-```json
-{
-  "readme": true,
-  "include": [
-    "CLAUDE.md",
-    "docs/configuration.md",
-    "README.md",
-    "docs/**/*.md",
-    "api/**",
-    "services/**",
-    "static/components/nav.js",
-    "static/global-config.js",
-    "static/analytics-unified.html",
-    "static/risk-dashboard.html",
-    "static/modules/**",
-    "tests/unit/**"
-  ],
-  "exclude": ["**/.env", "**/data/**", "**/.ruff_cache/**"]
-}
-```
+- Backend : FastAPI + Pydantic v2, orchestrateur ML en Python.
+- Frontend : HTML statiques (`static/*.html`), JS ESM modules, Chart.js.
+- ML : PyTorch, modèles stockés dans `services/ml`.
+- Tests : Pytest, smoke tests PowerShell.
+- Infra : Docker, Postgres, Redis (caching).
 
 ---
 
-## 8) Architecture endpoints post-refactoring (important)
+## 2) Fichiers clés
 
-**Namespaces consolidés** (ne pas créer de nouveaux) :
-- `/api/ml/*` - Toutes fonctions ML (remplace /api/ml-predictions, /api/ai)
-- `/api/risk/*` - Risk management unifié (/api/risk/advanced/* pour fonctions avancées)
-- `/api/alerts/*` - Alertes centralisées (acknowledge, resolve)
-- `/execution/governance/approve/{resource_id}` - Approbations unifiées (decisions + plans)
+- `api/main.py` — routes FastAPI
+- `services/ml/*` — modèles ML, orchestrateur
+- `services/risk/*` — calculs risque
+- `static/analytics-unified.html` — dashboard principal
+- `static/risk-dashboard.html` — risk dashboard
+- `static/modules/*` — modules front (risk, cycle, phase, on-chain)
+- `static/global-config.js` — config endpoints
+- `tests/*` — tests unitaires/intégration
+- `tests\wealth_smoke.ps1` — smoke test Saxo/Wealth
 
-**Endpoints supprimés** (ne pas recréer) :
-- `/api/test/*` et `/api/alerts/test/*` - Endpoints de test supprimés
-- `/api/realtime/publish` et `/broadcast` - Supprimés pour sécurité
+---
 
+## 3) Conventions & garde-fous
+
+- Backend : exceptions propres, logs cohérents, pas d’URL en dur.
+- Frontend : imports ESM (`type="module"`), imports dynamiques pour modules lourds.
+- Styles : respecter la charte (Chart.js, `shared-theme.css`, `performance-optimizer.js`).
+- CI : lint (ruff/black), mypy → tout doit passer en vert.
+
+### Style de sortie attendu de l’agent
+- Toujours produire des diffs unifiés (`git diff`) ou patchs minimaux.
+- Jamais de dump complet de fichiers.
+- Pas de commandes Bash, uniquement PowerShell.
+- Réutiliser les namespaces existants (`/api/ml/*`, `/api/risk/*`, `/api/alerts/*`, `/execution/governance/*`).
+- Interdiction d’ajouter `/realtime/publish` ou `/broadcast`.
+
+---
+
+## 4) Endpoints
+
+### Endpoints actifs
+- `/api/ml/*` — modèles ML (volatilité, décision, signaux, etc.)
+- `/api/risk/*` — calculs de risque
+- `/api/alerts/*` — alertes utilisateurs
+- `/execution/governance/*` — gouvernance
+
+### Endpoints supprimés (ne pas recréer)
+- `/api/test/*`
+
+### Endpoints de test (dev seulement, protégés)
+- `/api/alerts/test/*` — disponibles uniquement en dev/staging, désactivés par défaut, activables via `ENABLE_ALERTS_TEST_ENDPOINTS=true` (toujours off en prod).
+
+---
+
+## 5) Realtime (lecture seule)
+
+- Canaux supportés : SSE / WebSocket
+- Topics autorisés (read-only) :
+  - Risk scores (blended, CCS, on-chain)
+  - Decision index
+  - Phase engine state
+- Pas d’écriture côté client (publish/broadcast interdits).
+
+---
+
+## 6) Caches & cross-tab
+
+- Risk Dashboard publie des scores dans `localStorage`.
+- Les dashboards doivent :
+  - Lire les clés si récentes, sinon fallback `risk_scores_cache`.
+  - Écouter l’événement `storage` pour la synchro cross-tab.
+- TTL recommandé : 12h.
+- Éviter les re-fetch permanents si le TTL reste valide.
+
+---
+
+## 7) Modèles ML & Registry
+
+- Lazy-load avec LRU/TTL via `services/ml/orchestrator.py`.
+- Schéma de réponse attendu :
+  ```json
+  {
+    "predictions": {...},
+    "std": {...},
+    "horizon": "1d"
+  }
+  ```
+- Pas de poids dans le repo : chargement depuis un dossier local prévu.
+
+---
+
+## 8) Phase Engine (Détection proactive des phases de marché)
+
+- Phases possibles : Bull, Bear, Neutral, etc.
+- Tilts appliqués dynamiquement aux allocations.
+- Priorité & bornes :
+  - Tilts s’additionnent aux macro targets.
+  - Capés (Memecoins max 15%, Others max 20%).
+  - Les floors définis par la gouvernance priment toujours.
+  - Règle de priorité : `governance floors/caps > phase tilts > defaults`.
+
+---
+
+## 9) UI & Navigation
+
+- Navigation unifiée : ne pas créer de nouvelles pages hors `static/`.
+- Thèmes : respecter `shared-theme.css`.
+- Iframes : interdits sauf cas documenté.
+- Perf front : utiliser `performance-optimizer.js` (virtual scrolling, batching).
+
+---
+
+## 10) Tests
+
+- Unit tests : `tests/unit/*`
+- Integration : `tests/integration/*`
+- Smoke tests : PowerShell (`tests\wealth_smoke.ps1`)
+- Tout nouveau code backend doit être couvert par des tests.
+
+## Règles UI pour l’alignement du cap d’exécution
+
+- Toujours utiliser `selectCapPercent(state)` comme source unique pour l’UI (cap en %).
+  - Priorité: `state.governance.active_policy.cap_daily` (0–1) → affichage %.
+  - Fallback: `state.governance.engine_cap_daily`/`caps.engine_cap` si policy absente.
+- Aides disponibles: `selectPolicyCapPercent(state)`, `selectEngineCapPercent(state)`.
+- Badges: afficher “Cap {policy}% • SMART {engine}%” quand ils diffèrent; sinon “Cap {policy}%”.
+- Convergence: `iterations = ceil(maxDelta / (capPct/100))`.
+- Badge serré: montrer “🧊 Freeze/Cap serré (±X%)” si mode Freeze ou cap ≤ 2%.
+
+## Bonnes pratiques
+
+- Ne pas afficher “SMART” seul si la policy existe.
+- Normaliser toute valeur de cap potentiellement en fraction (0–1) en %.
+- En absence de policy et d’engine, afficher “—”.

@@ -23,3 +23,9 @@ Archive détaillée (ancienne doc): `docs/_legacy/`
 Notes:
 - La référence API officielle provient de l’OpenAPI de l’app: `/docs` et `/openapi.json`.
 - Les anciens fichiers détaillés restent disponibles pour historique mais sont dépréciés.
+
+### Cap d’exécution (UI)
+
+Pour l’affichage et les simulations:
+- `selectCapPercent(state)` fournit le cap en % (policy prioritaire).
+- Convergence: `ceil(maxDelta / (capPct/100))`.

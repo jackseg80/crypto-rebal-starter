@@ -83,3 +83,10 @@
 - Security: middleware gzip, CORS, trusted hosts; safety validator côté exécution.
 
 Pour plus de détails, l’archive `docs/_legacy/` contient les schémas exhaustifs.
+
+### Selectors centralisés (governance UI)
+
+Le front consolide l’accès au cap via `static/selectors/governance.js`:
+- `selectCapPercent(state)` – source unique pour cap en % (policy prioritaire).
+- `selectPolicyCapPercent(state)` et `selectEngineCapPercent(state)` – détails pour affichage/diagnostic.
+Ces helpers normalisent 0–1 et 0–100, et évitent les divergences multi-sources.
