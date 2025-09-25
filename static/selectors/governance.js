@@ -114,7 +114,7 @@ export function selectCapPercent(state) {
 }
 
 /**
- * Sélecteur pour le cap effectif (priorité: error > stale > alert > engine > policy)
+ * Sélecteur pour le cap effectif (garde-fous 5%/8%, alert override, puis policy>engine)
  * @param {Object} state - État unifié
  * @returns {number|null} - Cap effectif en pourcentage
  */

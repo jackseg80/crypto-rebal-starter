@@ -113,43 +113,137 @@ def _portfolio_id(name: str) -> str:
 def ingest_file(file_path: str, portfolio_name: Optional[str] = None) -> Dict[str, Any]:
     connector = SaxoImportConnector()
     parsed = connector.process_saxo_file(file_path)
-    positions = parsed.get("positions", []) if isinstance(parsed, dict) else []
+    positions = parsed.get('positions', []) if isinstance(parsed, dict) else []
+    errors = parsed.get('errors', []) if isinstance(parsed, dict) else []
     if not positions:
         logger.warning("[wealth][saxo] ingestion produced no positions for %s", file_path)
         return {}
 
     isin_map = _load_isin_mapping()
-    total_value = sum(float(pos.get("market_value") or 0) for pos in positions)
     normalized_positions: List[Dict[str, Any]] = []
 
     for pos in positions:
         symbol = _resolve_symbol(pos, isin_map)
+        currency = str(pos.get('currency') or 'USD').upper()
+        market_value = float(pos.get('market_value') or 0.0)
+        market_value_usd = float(pos.get('market_value_usd') or market_value)
+        name = str(pos.get('instrument') or symbol)
         normalized_positions.append({
-            "symbol": symbol,
-            "name": str(pos.get("instrument") or symbol),
-            "quantity": float(pos.get("quantity") or 0.0),
-            "currency": str(pos.get("currency") or "USD").upper(),
-            "market_value": float(pos.get("market_value") or 0.0),
-            "asset_class": _normalize_asset_class(pos.get("asset_class") or ""),
-            "position_id": str(pos.get("position_id") or symbol),
+            'symbol': symbol,
+            'instrument': name,
+            'name': name,
+            'quantity': float(pos.get('quantity') or 0.0),
+            'currency': currency,
+            'market_value': market_value,
+            'market_value_usd': market_value_usd,
+            'asset_class': _normalize_asset_class(pos.get('asset_class') or ''),
+            'position_id': str(pos.get('position_id') or symbol),
         })
 
-    portfolio_name = portfolio_name or parsed.get("metadata", {}).get("portfolio_name") or "Saxo Portfolio"
+    summary = connector.get_portfolio_summary(normalized_positions)
+    total_value_usd = summary.get('total_value_usd', 0.0)
+    total_positions = summary.get('total_positions', len(normalized_positions))
+
+    portfolio_name = portfolio_name or parsed.get('metadata', {}).get('portfolio_name') or 'Saxo Portfolio'
     portfolio = {
-        "portfolio_id": _portfolio_id(portfolio_name),
-        "name": portfolio_name,
-        "positions": normalized_positions,
-        "total_value_usd": total_value,
-        "updated_at": datetime.utcnow().isoformat(),
+        'portfolio_id': _portfolio_id(portfolio_name),
+        'name': portfolio_name,
+        'positions': normalized_positions,
+        'total_value_usd': total_value_usd,
+        'positions_count': total_positions,
+        'summary': summary,
+        'updated_at': datetime.utcnow().isoformat(),
     }
 
     snapshot = _load_snapshot()
-    snapshot["portfolios"] = [p for p in snapshot.get("portfolios", []) if p.get("portfolio_id") != portfolio["portfolio_id"]]
-    snapshot["portfolios"].append(portfolio)
+    snapshot['portfolios'] = [p for p in snapshot.get('portfolios', []) if p.get('portfolio_id') != portfolio['portfolio_id']]
+    snapshot['portfolios'].append(portfolio)
     _save_snapshot(snapshot)
 
     logger.info("[wealth][saxo] stored portfolio '%s' with %s positions", portfolio_name, len(normalized_positions))
-    return portfolio
+    return {
+        'portfolio': portfolio,
+        'summary': summary,
+        'errors': errors,
+    }
+
+def list_portfolios_overview() -> List[Dict[str, Any]]:
+    """Return lightweight metadata for stored Saxo portfolios."""
+    snapshot = _load_snapshot()
+    portfolios: List[Dict[str, Any]] = []
+    connector = None
+    mutated = False
+
+    for item in snapshot.get('portfolios', []):
+        summary = item.get('summary')
+        positions = item.get('positions', [])
+        if not summary:
+            if connector is None:
+                connector = SaxoImportConnector()
+            summary = connector.get_portfolio_summary(positions)
+            item['summary'] = summary
+            item['total_value_usd'] = summary.get('total_value_usd', item.get('total_value_usd', 0.0))
+            item['positions_count'] = summary.get('total_positions', len(positions))
+            mutated = True
+
+        total_value = summary.get('total_value_usd', item.get('total_value_usd', 0.0))
+        positions_count = summary.get('total_positions', item.get('positions_count') or len(positions))
+
+        portfolios.append({
+            'portfolio_id': item.get('portfolio_id'),
+            'name': item.get('name'),
+            'positions_count': positions_count,
+            'total_value_usd': total_value,
+            'updated_at': item.get('updated_at'),
+        })
+
+    if mutated:
+        _save_snapshot(snapshot)
+
+    portfolios.sort(key=lambda entry: entry.get('updated_at') or '', reverse=True)
+    return portfolios
+
+
+def get_portfolio_detail(portfolio_id: str) -> Dict[str, Any]:
+    """Return full detail for a stored Saxo portfolio."""
+    snapshot = _load_snapshot()
+    connector = None
+    mutated = False
+
+    for item in snapshot.get('portfolios', []):
+        if item.get('portfolio_id') != portfolio_id:
+            continue
+
+        summary = item.get('summary')
+        positions = item.get('positions', [])
+        if not summary:
+            if connector is None:
+                connector = SaxoImportConnector()
+            summary = connector.get_portfolio_summary(positions)
+            item['summary'] = summary
+            item['total_value_usd'] = summary.get('total_value_usd', item.get('total_value_usd', 0.0))
+            item['positions_count'] = summary.get('total_positions', len(positions))
+            mutated = True
+
+        result = {
+            'portfolio_id': item.get('portfolio_id'),
+            'name': item.get('name'),
+            'positions': positions,
+            'summary': summary,
+            'total_value_usd': summary.get('total_value_usd', item.get('total_value_usd', 0.0)),
+            'positions_count': summary.get('total_positions', item.get('positions_count') or len(positions)),
+            'updated_at': item.get('updated_at'),
+        }
+
+        if mutated:
+            _save_snapshot(snapshot)
+        return result
+
+    if mutated:
+        _save_snapshot(snapshot)
+    return {}
+
+
 
 
 def _iter_positions() -> Iterable[Dict[str, Any]]:

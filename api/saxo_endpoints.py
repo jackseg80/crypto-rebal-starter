@@ -8,7 +8,8 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Body, File, Form, HTTPException, Query, UploadFile
 
-from adapters.saxo_adapter import ingest_file
+from adapters.saxo_adapter import ingest_file, get_portfolio_detail, list_portfolios_overview
+from connectors.saxo_import import SaxoImportConnector
 from api.wealth_endpoints import (
     get_accounts as wealth_get_accounts,
     get_instruments as wealth_get_instruments,
@@ -29,6 +30,33 @@ def _legacy_log(path: str) -> None:
     logger.info("[legacy-compat] %s -> /api/wealth/%s%s", path, _MODULE, path)
 
 
+@router.post("/validate")
+async def validate_portfolio(file: UploadFile = File(..., description="Saxo export file")) -> dict:
+    """Validate Saxo payload before ingestion"""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="missing_file")
+
+    suffix = Path(file.filename).suffix or ".csv"
+    connector = SaxoImportConnector()
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        tmp_path = Path(tmp.name)
+        content = await file.read()
+        tmp.write(content)
+
+    try:
+        result = connector.validate_file(tmp_path)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+    return {
+        "valid": bool(result.get("valid")),
+        "error": result.get("error"),
+        "rows": result.get("rows"),
+        "columns": result.get("columns", []),
+        "required_columns": connector.required_columns,
+    }
+
+
 @router.post("/import")
 async def import_portfolio(
     file: UploadFile = File(..., description="Saxo export file"),
@@ -44,15 +72,75 @@ async def import_portfolio(
         content = await file.read()
         tmp.write(content)
     try:
-        portfolio = ingest_file(str(tmp_path), portfolio_name=portfolio_name)
+        ingestion = ingest_file(str(tmp_path), portfolio_name=portfolio_name)
     finally:
         tmp_path.unlink(missing_ok=True)
 
-    if not portfolio:
+    if not ingestion or not ingestion.get('portfolio'):
         raise HTTPException(status_code=422, detail="import_failed")
 
-    _legacy_log("/import")
-    return {"portfolio": portfolio, "delegated": True}
+    portfolio = ingestion['portfolio']
+    summary = ingestion.get('summary') or {}
+    errors = ingestion.get('errors') or []
+
+    asset_allocation = summary.get('asset_allocation') or {}
+    currency_exposure = summary.get('currency_exposure') or {}
+    top_holdings = summary.get('top_holdings') or portfolio.get('positions', [])
+
+    def _coerce_float(value: Optional[float]) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
+
+    top_payload = []
+    for pos in top_holdings:
+        instrument = pos.get('instrument') or pos.get('name') or pos.get('symbol')
+        top_payload.append({
+            'symbol': pos.get('symbol'),
+            'instrument': instrument,
+            'quantity': _coerce_float(pos.get('quantity')),
+            'market_value_usd': _coerce_float(pos.get('market_value_usd') or pos.get('market_value')),
+            'asset_class': pos.get('asset_class') or 'UNKNOWN',
+        })
+    top_payload = top_payload[:10]
+
+    response = {
+        'success': True,
+        'portfolio_id': portfolio.get('portfolio_id'),
+        'portfolio_name': portfolio.get('name'),
+        'positions_count': len(portfolio.get('positions', [])),
+        'total_value_usd': summary.get('total_value_usd', portfolio.get('total_value_usd', 0.0)),
+        'asset_allocation': asset_allocation,
+        'currency_exposure': currency_exposure,
+        'top_holdings': top_payload,
+        'errors': errors,
+        'portfolio': portfolio,
+        'summary': summary,
+        'delegated': True,
+    }
+
+    _legacy_log('/import')
+    return response
+
+
+@router.get("/portfolios")
+async def list_portfolios() -> dict:
+    """Return lightweight overview of stored Saxo portfolios."""
+    _legacy_log("/portfolios")
+    portfolios = list_portfolios_overview()
+    return {"portfolios": portfolios}
+
+
+@router.get("/portfolios/{portfolio_id}")
+async def get_portfolio(portfolio_id: str) -> dict:
+    """Return full detail for a given Saxo portfolio."""
+    _legacy_log(f"/portfolios/{portfolio_id}")
+    portfolio = get_portfolio_detail(portfolio_id)
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="portfolio_not_found")
+    return portfolio
+
 
 
 @router.get("/accounts", response_model=List[AccountModel])

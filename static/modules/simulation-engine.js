@@ -740,7 +740,8 @@ export function planOrdersSimulated(current, targets, execPolicy = {}) {
     global_delta_threshold_pct = 2,
     bucket_delta_threshold_pct = 1,
     min_lot_eur = 10,
-    slippage_bps = 20
+    slippage_bps = 20,
+    cap01 = null
   } = execPolicy;
 
   const orders = [];
@@ -749,13 +750,23 @@ export function planOrdersSimulated(current, targets, execPolicy = {}) {
   // Calculer les ordres nécessaires
   for (const [group, targetPct] of Object.entries(targets)) {
     const currentPct = current[group] || 0;
-    const delta = targetPct - currentPct;
+    let delta = targetPct - currentPct;
+
+    if (typeof cap01 === 'number' && Number.isFinite(cap01) && cap01 > 0) {
+      const capPP = cap01 * 100;
+      if (delta > capPP) {
+        delta = capPP;
+      } else if (delta < -capPP) {
+        delta = -capPP;
+      }
+    }
+
     const absDelta = Math.abs(delta);
 
-    totalDelta += absDelta;
 
     // Créer ordre si delta > seuil bucket
     if (absDelta >= bucket_delta_threshold_pct) {
+      totalDelta += absDelta;
       const estimatedLot = (absDelta / 100) * (current.totalValue || 10000); // Simulation
 
       if (estimatedLot >= min_lot_eur) {
@@ -1010,6 +1021,7 @@ export async function simulateFullPipeline(uiOverrides = {}) {
     // 1. Contexte de base
     const baseContext = buildSimulationContext(simulationState.sourceData, uiOverrides);
     const presetInfo = uiOverrides?.presetInfo ?? baseContext?.presetInfo ?? null;
+    const executionOverrides = uiOverrides?.execution ?? {};
 
     // 2. Système de Contradiction Unifié
     const BASE_WEIGHTS = { cycle: 0.4, onchain: 0.35, risk: 0.25 };
@@ -1046,15 +1058,59 @@ export async function simulateFullPipeline(uiOverrides = {}) {
     simulationState.smoothState.prevValue = sm.value01;
     simulationState.smoothState.persistCount = sm.persistCount;
 
-    // Construire état unifié pour engine
+    // Construire état unifié pour engine + données governance utiles
+    const governanceSource = simulationState.sourceData?.governance ?? {};
+
+    const takeNumber = (...values) => {
+      for (const value of values) {
+        if (typeof value === 'number' && Number.isFinite(value)) {
+          return value;
+        }
+      }
+      return null;
+    };
+
+    const policyCap01 = takeNumber(
+      executionOverrides.cap01,
+      governanceSource?.active_policy?.cap_daily,
+      governanceSource?.policy?.cap_daily,
+      store.get('governance.active_policy.cap_daily'),
+      store.get('governance.policy.cap_daily')
+    );
+
+    const engineCapDaily = takeNumber(
+      governanceSource?.caps?.engine_cap,
+      governanceSource?.engine_cap_daily,
+      store.get('governance.caps.engine_cap'),
+      store.get('governance.engine_cap_daily')
+    );
+
     const stateForEngine = {
       ...snapshot,
       governance: {
+        ...governanceSource,
         ...snapshot.governance,
         contradiction_index: sm.value01,
         last_fresh_contrad01: eff.stale ? (snapshot?.governance?.last_fresh_contrad01 ?? sm.value01) : sm.value01
       }
     };
+
+    if (policyCap01 != null) {
+      stateForEngine.governance.active_policy = {
+        ...(governanceSource.active_policy ?? {}),
+        ...stateForEngine.governance.active_policy,
+        cap_daily: policyCap01
+      };
+    }
+
+    if (engineCapDaily != null) {
+      stateForEngine.governance.caps = {
+        ...(governanceSource.caps ?? {}),
+        ...stateForEngine.governance.caps,
+        engine_cap: engineCapDaily
+      };
+    }
+
 
     // Poids adaptatifs
     const weights = eff.useBaseWeights
@@ -1079,16 +1135,35 @@ export async function simulateFullPipeline(uiOverrides = {}) {
     // 8. Governance caps
     const cappedResult = applyGovernanceCaps(contradictionCaps, uiOverrides.governance);
 
+    const effectiveCap01 = (typeof policyCap01 === 'number' && Number.isFinite(policyCap01) && policyCap01 > 0)
+      ? policyCap01
+      : null;
+
+    const executionPolicy = {
+      ...executionOverrides,
+      global_delta_threshold_pct: executionOverrides.global_delta_threshold_pct ?? 2,
+      bucket_delta_threshold_pct: executionOverrides.bucket_delta_threshold_pct ?? 1,
+      min_lot_eur: executionOverrides.min_lot_eur ?? 10,
+      slippage_bps: executionOverrides.slippage_bps ?? 20,
+      cap01: effectiveCap01
+    };
+
     // 9. Plan d'exécution - position réelle calculée depuis wallet
     const currentAllocation = await computeCurrentAllocation(baseContext.wallet);
-    const orders = planOrdersSimulated(currentAllocation, cappedResult.targets, uiOverrides.execution);
+    const orders = planOrdersSimulated(currentAllocation, cappedResult.targets, executionPolicy);
 
     // 10. Explication
     const explanation = explainPipeline(baseContext, {
       di, riskBudget, targets, finalTargets, cappedResult, orders
     });
 
-    const capPercentForUi = selectCapPercent(stateForEngine);
+    const capPercentFromState = selectCapPercent(stateForEngine);
+    const capPercentForUi = effectiveCap01 != null
+      ? Math.round(effectiveCap01 * 100)
+      : capPercentFromState;
+    const capPct01ForUi = effectiveCap01 != null
+      ? effectiveCap01
+      : (capPercentForUi != null ? capPercentForUi / 100 : undefined);
 
     const fullResult = {
       context: baseContext,
@@ -1108,7 +1183,7 @@ export async function simulateFullPipeline(uiOverrides = {}) {
         stateForEngine,
         contradictionPct: Math.round((stateForEngine.governance.contradiction_index ?? 0) * 100),
         capPercent: capPercentForUi ?? null,
-        capPct01: capPercentForUi != null ? capPercentForUi / 100 : undefined,
+        capPct01: capPct01ForUi,
         stale: eff.stale === true,
         mode: eff.useBaseWeights ? 'FROZEN' : 'ACTIVE'
       }

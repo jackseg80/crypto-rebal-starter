@@ -272,7 +272,10 @@ This release contains **BREAKING CHANGES** requiring consumer updates.
 ---
 
 *Earlier versions documented in git history*
-## 2025-09-25
+## 2025-09-25- Simulation
+  - simulateFullPipeline: propage ctive_policy.cap_daily en xecutionPolicy.cap01 (fraction).
+  - planOrdersSimulated: clamp ±cap (pp) avant seuils bucket/global et min lot; esult.ui.capPct01 exposé.
+  - Aligne l'affichage de simulations.html avec Analytics/Rebalance (Cap 1% → pas ≤1 pp).
 
 - UI Gouvernance: alignement du cap d’exécution
   - Nouveau sélecteur static/selectors/governance.js: selectCapPercent() priorise state.governance.active_policy.cap_daily (source de vérité)
@@ -290,3 +293,4 @@ This release contains **BREAKING CHANGES** requiring consumer updates.
   - README.md: mise à jour de la section Governance UI et exemple de calcul de convergence (ceil(maxΔ / cap))
 
 Notes: aucune modification d’API publique; l’UI consomme l’état /execution/governance/state tel quel.
+

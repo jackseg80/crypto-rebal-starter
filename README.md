@@ -187,6 +187,13 @@ Decision Inputs → Risk Budget → Targets → Phase Tilts → Governance → E
 - **Mode Live/Simulation** : comparaison avec données réelles
 
 **Architecture technique** :
+
+**Alignement Cap d'exécution** :
+- La policy active ctive_policy.cap_daily (fraction 0–1) est injectée dans le simulateur.
+- planOrdersSimulated() clampe chaque delta à ±cap (en points de %), puis applique les seuils bucket/global et le min trade.
+- L'UI expose esult.ui.capPercent et esult.ui.capPct01 pour l'affichage cohérent.
+
+
 - Engine principal : `static/modules/simulation-engine.js`
 - Contrôles UI : `static/components/SimControls.js`
 - Inspecteur : `static/components/SimInspector.js`
@@ -204,4 +211,5 @@ Decision Inputs → Risk Budget → Targets → Phase Tilts → Governance → E
 - Si la policy est absente, fallback sur engine cap (affiché en second comme “SMART {x}%”).
 - Convergence: `ceil(maxDelta / (capPct/100))`. Exemple: maxΔ=23 pts, cap=1% → 23 itérations; cap=10% → 3.
 - Badge serré: afficher “🧊 Freeze/Cap serré (±X%)” pour Freeze ou cap ≤ 2%.
+
 
