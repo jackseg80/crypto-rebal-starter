@@ -1,10 +1,10 @@
 from __future__ import annotations
 from typing import Any, Dict, List
 from time import monotonic
-import os, sys, inspect, hashlib, time
+import os, sys, inspect, hashlib, time, json
 from datetime import datetime
 import httpx
-from fastapi import FastAPI, Query, Body, Response, HTTPException, Request, APIRouter, Depends
+from fastapi import FastAPI, Query, Body, Response, HTTPException, Request, APIRouter, Depends, Header, Path
 import logging
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -105,8 +105,16 @@ from api.models import APIKeysRequest, PortfolioMetricsRequest
 # Logger already configured above
 
 app = FastAPI(docs_url="/docs", redoc_url="/redoc", openapi_url="/openapi.json")
-logger.info("FastAPI initialized: docs=%s redoc=%s openapi=%s", 
+logger.info("FastAPI initialized: docs=%s redoc=%s openapi=%s",
             "/docs", "/redoc", "/openapi.json")
+
+# /metrics Prometheus (activable en prod via variable d'environnement)
+if os.getenv("ENABLE_METRICS", "0") == "1":
+    try:
+        from prometheus_fastapi_instrumentator import Instrumentator
+        Instrumentator().instrument(app).expose(app, include_in_schema=False)
+    except Exception as e:
+        logging.getLogger(__name__).warning("Prometheus non activé: %s", e)
 
 # Chargement automatique des modèles ML au démarrage (mode lazy)
 @app.on_event("startup")
@@ -285,12 +293,21 @@ app.add_middleware(RateLimitMiddleware)
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
     
-    # Headers de sécurité
+    # Headers de sécurité essentiels
     response.headers["X-Content-Type-Options"] = "nosniff"
-    # Autoriser l'embed same-origin (nécessaire aux intégrations internes)
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    
+    # Headers de sécurité supplémentaires
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
+    
+    # Cache control pour les APIs
+    if request.url.path.startswith("/api"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
     
     # HSTS (HTTP Strict Transport Security) - production seulement
     if not DEBUG and request.url.scheme == "https":
@@ -307,6 +324,8 @@ async def add_security_headers(request: Request, call_next):
         style_src_list = list(sec.csp_style_src or [])
         img_src_list = list(sec.csp_img_src or [])
         connect_src_list = list(sec.csp_connect_src or [])
+        font_src_list = list(getattr(sec, 'csp_font_src', ["'self'"]))
+        media_src_list = list(getattr(sec, 'csp_media_src', ["'self'"]))
 
         # En dev, autoriser schémas http/https génériques pour faciliter tests locaux
         if DEBUG:
@@ -318,6 +337,8 @@ async def add_security_headers(request: Request, call_next):
         style_src = _join(style_src_list)
         img_src = _join(img_src_list)
         connect_src = _join(connect_src_list)
+        font_src = _join(font_src_list)
+        media_src = _join(media_src_list)
 
         # Dev: élargir pour docs/redoc et pages statiques si autorisé par config
         path = request.url.path
@@ -336,46 +357,64 @@ async def add_security_headers(request: Request, call_next):
             # production: interdire l'embed des non-statiques si non explicitement listé
             frame_ancestors = "'none'"
 
+        # CSP complète avec toutes les directives
         csp = (
             f"default-src {default_src}; "
             f"script-src {script_src}; "
             f"style-src {style_src}; "
             f"img-src {img_src}; "
             f"connect-src {connect_src}; "
-            f"frame-ancestors {frame_ancestors}"
+            f"font-src {font_src}; "
+            f"media-src {media_src}; "
+            f"frame-ancestors {frame_ancestors}; "
+            f"base-uri 'self'; "
+            f"form-action 'self'; "
+            f"object-src 'none'; "
+            f"frame-src 'self'; "
+            f"manifest-src 'self'"
         )
         response.headers["Content-Security-Policy"] = csp
     except Exception:
         # En cas d'erreur de config, ne pas bloquer la réponse
         pass
     
-    # Cache control pour les APIs
-    if request.url.path.startswith("/api"):
-        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-        response.headers["Pragma"] = "no-cache"
-        response.headers["Expires"] = "0"
+    # Headers d'information pour le debug
+    if DEBUG:
+        response.headers["X-Debug-Mode"] = "enabled"
+        response.headers["X-App-Version"] = "1.0.0"
     
     return response
 
-# Middleware de logging des requêtes avec timing
+# Middleware de logging structuré JSON avec timing
 @app.middleware("http")
 async def request_timing_middleware(request: Request, call_next):
     start_time = monotonic()
-    
-    # Log de la requête entrante
-    if APP_DEBUG:
-        logger.debug(f"→ {request.method} {request.url.path} from {request.client.host if request.client else 'unknown'}")
     
     response = await call_next(request)
     
     # Calcul du temps de traitement
     process_time = monotonic() - start_time
-    response.headers["X-Process-Time"] = str(f"{process_time:.3f}")
     
-    # Log de la réponse
+    # Log structuré JSON
+    log_record = {
+        "ts": time.time(),
+        "method": request.method,
+        "path": request.url.path,
+        "status": response.status_code,
+        "duration_ms": round(process_time * 1000, 2),
+        "client_ip": request.client.host if request.client else "unknown",
+        "user_agent": request.headers.get("user-agent", "")
+    }
+    
+    # Utiliser le logger approprié selon le niveau de détail
     if APP_DEBUG:
-        logger.debug(f"← {response.status_code} {request.method} {request.url.path} ({process_time:.3f}s)")
+        logger.info(json.dumps(log_record, ensure_ascii=False))
+    else:
+        # En production, logger seulement les requêtes importantes ou erreurs
+        if response.status_code >= 400 or process_time > 1.0:
+            logger.info(json.dumps(log_record, ensure_ascii=False))
     
+    response.headers["X-Process-Time"] = str(f"{process_time:.3f}")
     return response
 
 BASE_DIR = Path(__file__).resolve().parent.parent  # répertoire du repo (niveau au-dessus d'api/)
@@ -1912,8 +1951,12 @@ async def portfolio_breakdown_locations(
 
 
 # Stratégies de rebalancing prédéfinies
-REBALANCING_STRATEGIES = {
+from pydantic import BaseModel, Field
+from typing import Dict, List, Optional
+
+REBALANCING_STRATEGIES: Dict[str, dict] = {
     "conservative": {
+        "id": "conservative",
         "name": "Conservative",
         "description": "Stratégie prudente privilégiant la stabilité",
         "risk_level": "Faible",
@@ -1927,12 +1970,13 @@ REBALANCING_STRATEGIES = {
         },
         "characteristics": [
             "Forte allocation en Bitcoin et Ethereum",
-            "20% en stablecoins pour la stabilité", 
+            "20% en stablecoins pour la stabilité",
             "Exposition limitée aux altcoins"
         ]
     },
     "balanced": {
-        "name": "Balanced", 
+        "id": "balanced",
+        "name": "Balanced",
         "description": "Équilibre entre croissance et stabilité",
         "risk_level": "Moyen",
         "icon": "⚖️",
@@ -1951,8 +1995,9 @@ REBALANCING_STRATEGIES = {
         ]
     },
     "growth": {
+        "id": "growth",
         "name": "Growth",
-        "description": "Croissance agressive avec plus d'altcoins", 
+        "description": "Croissance agressive avec plus d'altcoins",
         "risk_level": "Élevé",
         "icon": "🚀",
         "allocations": {
@@ -1970,9 +2015,10 @@ REBALANCING_STRATEGIES = {
         ]
     },
     "defi_focus": {
+        "id": "defi_focus",
         "name": "DeFi Focus",
         "description": "Spécialisé dans l'écosystème DeFi",
-        "risk_level": "Élevé", 
+        "risk_level": "Élevé",
         "icon": "🔄",
         "allocations": {
             "ETH": 30,
@@ -1988,10 +2034,11 @@ REBALANCING_STRATEGIES = {
         ]
     },
     "accumulation": {
+        "id": "accumulation",
         "name": "Accumulation",
         "description": "Accumulation long terme des majors",
         "risk_level": "Faible-Moyen",
-        "icon": "📈", 
+        "icon": "📈",
         "allocations": {
             "BTC": 50,
             "ETH": 35,
@@ -2006,26 +2053,61 @@ REBALANCING_STRATEGIES = {
     }
 }
 
+class Strategy(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
+    risk_level: Optional[str] = None
+    icon: Optional[str] = None
+    allocations: Dict[str, float] = Field(default_factory=dict)
+    characteristics: List[str] = Field(default_factory=list)
+
+class StrategyListResponse(BaseModel):
+    ok: bool = True
+    strategies: List[Strategy]
+
+class StrategyDetailResponse(BaseModel):
+    ok: bool = True
+    strategy: Strategy
+
+def _strategies_payload() -> StrategyListResponse:
+    return StrategyListResponse(strategies=[Strategy(**v) for v in REBALANCING_STRATEGIES.values()])
+
+def _strategies_etag() -> str:
+    import hashlib
+    blob = json.dumps(REBALANCING_STRATEGIES, sort_keys=True).encode("utf-8")
+    return hashlib.md5(blob).hexdigest()
+
 @app.get("/strategies/list")
-async def get_rebalancing_strategies():
-    """Liste des stratégies de rebalancing prédéfinies"""
-    return {
-        "ok": True,
-        "strategies": REBALANCING_STRATEGIES
-    }
+async def get_rebalancing_strategies(if_none_match: str | None = Header(default=None)) -> JSONResponse:
+    """Liste des stratégies de rebalancing prédéfinies avec cache ETag"""
+    etag = _strategies_etag()
+    if if_none_match and etag == if_none_match:
+        return JSONResponse(status_code=304, content=None, headers={"ETag": etag})
+    payload = _strategies_payload().model_dump()
+    return JSONResponse(payload, headers={"Cache-Control": "public, max-age=120", "ETag": etag})
 
+@app.get("/api/strategies/list")
+async def get_rebalancing_strategies_api_alias(if_none_match: str | None = Header(default=None)) -> JSONResponse:
+    """Alias pour compatibilité front attendu (/api/strategies/list)."""
+    return await get_rebalancing_strategies(if_none_match)
 
+@app.get("/api/backtesting/strategies")
+async def get_backtesting_strategies(if_none_match: str | None = Header(default=None)) -> JSONResponse:
+    """Alias pour la page de backtesting (même payload que /strategies/list)."""
+    return await get_rebalancing_strategies(if_none_match)
 
 @app.get("/strategies/{strategy_id}")
-async def get_strategy_details(strategy_id: str):
+async def get_strategy_details(strategy_id: str) -> StrategyDetailResponse:
     """Détails d'une stratégie spécifique"""
     if strategy_id not in REBALANCING_STRATEGIES:
-        return {"ok": False, "error": "Stratégie non trouvée"}
-    
-    return {
-        "ok": True,
-        "strategy": REBALANCING_STRATEGIES[strategy_id]
-    }
+        raise HTTPException(status_code=404, detail="Stratégie non trouvée")
+    return StrategyDetailResponse(strategy=Strategy(**REBALANCING_STRATEGIES[strategy_id]))
+
+@app.get("/api/strategies/{strategy_id}")
+async def get_strategy_details_api_alias(strategy_id: str) -> StrategyDetailResponse:
+    """Alias pour compatibilité front attendu (/api/strategies/{id})."""
+    return await get_strategy_details(strategy_id)
 
 @app.get("/portfolio/alerts")
 async def get_portfolio_alerts(source: str = Query("cointracking"), drift_threshold: float = Query(10.0)):

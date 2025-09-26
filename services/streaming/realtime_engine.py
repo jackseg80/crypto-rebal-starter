@@ -1,4 +1,4 @@
-﻿"""
+"""
 Phase 3B - Real-time Streaming Engine
 Provides WebSocket connections, Redis Streams event processing, and live data feeds
 """

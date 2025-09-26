@@ -1,4 +1,4 @@
-﻿"""
+"""
 Moteur d'alertes prédictives principal
 
 Orchestre l'évaluation des alertes, l'escalade automatique, et la coordination

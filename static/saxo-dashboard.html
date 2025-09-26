@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,6 +11,7 @@
     <script type="module">
         import { initDeepLinks } from './components/deep-links.js';
         import { wealthContextBar } from './components/WealthContextBar.js';
+        import { safeFetch } from './modules/http.js';
 
         // Ancres pour saxo-dashboard.html
         initDeepLinks({
@@ -20,6 +22,7 @@
         });
 
         window.wealthContextBar = wealthContextBar;
+        window.safeFetch = safeFetch;
     </script>
     <script src="global-config.js"></script>
     <script src="appearance.js"></script>
@@ -317,7 +320,8 @@
         <div class="dashboard-header">
             <div>
                 <h1>📈 Dashboard Bourse (Saxo Bank)</h1>
-                <p style="color: var(--theme-text-muted); margin: 0;">Analyse en lecture seule de votre portefeuille actions</p>
+                <p style="color: var(--theme-text-muted); margin: 0;">Analyse en lecture seule de votre portefeuille
+                    actions</p>
             </div>
             <div class="portfolio-selector">
                 <label for="portfolioSelect" style="color: var(--theme-text-muted);">Portfolio:</label>
@@ -334,7 +338,8 @@
         <div id="mainContent">
             <div class="no-data">
                 <h3>No Portfolio Selected</h3>
-                <p>Please select a portfolio from the dropdown above or <a href="saxo-upload.html">import a new one</a>.</p>
+                <p>Please select a portfolio from the dropdown above or <a href="saxo-upload.html">import a new one</a>.
+                </p>
             </div>
         </div>
 
@@ -492,7 +497,7 @@
 
             // Load data for specific tab if needed
             if (currentPortfolioData) {
-                switch(tabName) {
+                switch (tabName) {
                     case 'positions':
                         loadAllPositions();
                         break;
@@ -509,23 +514,31 @@
         // Portfolio management
         async function refreshPortfolios() {
             try {
-                const response = await fetch(globalConfig.getApiUrl('/api/saxo/portfolios'));
-                const data = await response.json();
+                const { ok, data } = await safeFetch(globalConfig.getApiUrl('/api/saxo/portfolios'));
+                if (!ok) {
+                    console.warn('API Saxo indisponible ou erreur HTTP.');
+                }
 
                 const select = document.getElementById('portfolioSelect');
                 select.innerHTML = '<option value="">Select a portfolio...</option>';
 
-                data.portfolios.forEach(portfolio => {
+                const portfolios = Array.isArray(data?.portfolios) ? data.portfolios : [];
+                if (portfolios.length === 0) {
+                    console.warn('Aucun portfolio Saxo disponible (data.portfolios est vide ou non défini).');
+                }
+                portfolios.forEach(portfolio => {
                     const option = document.createElement('option');
                     option.value = portfolio.portfolio_id;
-                    option.textContent = `${portfolio.name} (${portfolio.positions_count} positions, $${portfolio.total_value_usd.toLocaleString()})`;
+                    const pos = portfolio?.positions_count ?? 0;
+                    const tv = Number(portfolio?.total_value_usd ?? 0);
+                    option.textContent = `${portfolio.name} (${pos} positions, $${tv.toLocaleString()})`;
                     select.appendChild(option);
                 });
 
                 // Auto-select if there's a portfolio in URL
                 const urlParams = new URLSearchParams(window.location.search);
                 const portfolioParam = urlParams.get('portfolio');
-                if (portfolioParam && data.portfolios.find(p => p.portfolio_id === portfolioParam)) {
+                if (portfolioParam && data?.portfolios?.find(p => p.portfolio_id === portfolioParam)) {
                     select.value = portfolioParam;
                     loadPortfolio();
                 }
@@ -554,12 +567,11 @@
                 // Show loading state
                 document.getElementById('mainContent').innerHTML = '<div class="loading">Loading portfolio data...</div>';
 
-                const response = await fetch(globalConfig.getApiUrl(`/api/saxo/portfolios/${portfolioId}`));
-                if (!response.ok) {
+                const { ok, data } = await safeFetch(globalConfig.getApiUrl(`/api/saxo/portfolios/${portfolioId}`));
+                if (!ok) {
                     throw new Error('Failed to load portfolio');
                 }
 
-                const data = await response.json();
                 currentPortfolioData = data;
 
                 // Hide main content and show dashboard
@@ -606,8 +618,8 @@
             const allocationHtml = `
                 <div class="allocation-grid">
                     ${Object.entries(data.summary.asset_allocation)
-                        .sort(([,a], [,b]) => b - a)
-                        .map(([assetClass, percentage]) => `
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([assetClass, percentage]) => `
                             <div class="allocation-item">
                                 <div class="allocation-percentage">${percentage.toFixed(1)}%</div>
                                 <div class="allocation-label">${assetClass}</div>
@@ -667,8 +679,8 @@
                         </thead>
                         <tbody>
                             ${currentPortfolioData.positions
-                                .sort((a, b) => b.market_value_usd - a.market_value_usd)
-                                .map(position => `
+                    .sort((a, b) => b.market_value_usd - a.market_value_usd)
+                    .map(position => `
                                 <tr>
                                     <td><strong>${position.symbol}</strong></td>
                                     <td>${position.instrument}</td>
@@ -699,8 +711,8 @@
             const assetClassHtml = `
                 <div class="allocation-grid">
                     ${Object.entries(currentPortfolioData.summary.asset_allocation)
-                        .sort(([,a], [,b]) => b - a)
-                        .map(([assetClass, percentage]) => `
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([assetClass, percentage]) => `
                             <div class="allocation-item">
                                 <div class="allocation-percentage">${percentage.toFixed(1)}%</div>
                                 <div class="allocation-label">${assetClass}</div>
@@ -741,8 +753,8 @@
             const currencyHtml = `
                 <div class="currency-grid">
                     ${Object.entries(currentPortfolioData.summary.currency_exposure)
-                        .sort(([,a], [,b]) => b - a)
-                        .map(([currency, percentage]) => `
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([currency, percentage]) => `
                             <div class="currency-item">
                                 <div class="currency-percentage">${percentage.toFixed(1)}%</div>
                                 <div class="currency-code">${currency}</div>
@@ -782,4 +794,5 @@
         });
     </script>
 </body>
+
 </html>

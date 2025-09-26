@@ -26,18 +26,87 @@ export const DEFAULT_MACRO_TARGETS = {
   model_version: 'macro-2'
 };
 
+// Ordre de rendu canonique (11 groupes)
+export const CANONICAL_GROUPS = [
+  'BTC', 'ETH', 'Stablecoins', 'SOL', 'L1/L0 majors', 'L2/Scaling',
+  'DeFi', 'AI/Data', 'Gaming/NFT', 'Memecoins', 'Others'
+];
+
+// Feature flags pour la gouvernance des tilts
+const FEATURE_FLAGS = {
+  ALTSEASON_TILT_ENABLED: true,
+  ALTSEASON_TILT_MAX: 5.0, // Maximum 5% de tilt
+  ALTSEASON_TILT_SOURCE: ['Stablecoins', 'BTC'], // Sources du tilt
+  ALTSEASON_TILT_DESTINATION: 'Memecoins', // Destination du tilt
+  ALTSEASON_TILT_AMOUNT: 2.0, // Montant du tilt en %
+  ALTSEASON_TILT_MIN_PHASE_CONFIDENCE: 0.7 // Confiance minimale requise
+};
+
+export function applyPhaseTilt(targets, phase, phaseConfidence = 1.0) {
+  const out = { ...targets };
+
+  // Vérifier le feature flag
+  if (!FEATURE_FLAGS.ALTSEASON_TILT_ENABLED) {
+    return out;
+  }
+
+  // Vérifier la confiance de phase
+  if (phaseConfidence < FEATURE_FLAGS.ALTSEASON_TILT_MIN_PHASE_CONFIDENCE) {
+    console.warn('[PhaseTilt] Phase confidence too low, skipping tilt');
+    return out;
+  }
+
+  if (!phase) return out;
+
+  // Exemple : en full altseason, on autorise +2% vers Memecoins, pris à 1% sur Stablecoins, 1% sur BTC
+  if (phase === 'full_altseason') {
+    const tilt = Math.min(FEATURE_FLAGS.ALTSEASON_TILT_AMOUNT, FEATURE_FLAGS.ALTSEASON_TILT_MAX);
+
+    // Appliquer le tilt
+    out[FEATURE_FLAGS.ALTSEASON_TILT_DESTINATION] =
+      (out[FEATURE_FLAGS.ALTSEASON_TILT_DESTINATION] ?? 0) + tilt;
+
+    // Répartir la réduction sur les sources
+    const sourceCount = FEATURE_FLAGS.ALTSEASON_TILT_SOURCE.length;
+    const reductionPerSource = tilt / sourceCount;
+
+    FEATURE_FLAGS.ALTSEASON_TILT_SOURCE.forEach(source => {
+      out[source] = Math.max(0, (out[source] ?? 0) - reductionPerSource);
+    });
+
+    console.log(`[PhaseTilt] Applied ${tilt}% tilt for ${phase} (confidence: ${phaseConfidence})`);
+  }
+
+  return out;
+}
+
+// Fonction pour vérifier l'état des feature flags
+export function getFeatureFlags() {
+  return { ...FEATURE_FLAGS };
+}
+
+// Fonction pour mettre à jour les feature flags (sécurisée)
+export function updateFeatureFlags(newFlags) {
+  Object.keys(newFlags).forEach(key => {
+    if (key in FEATURE_FLAGS) {
+      FEATURE_FLAGS[key] = newFlags[key];
+    }
+  });
+  console.log('[FeatureFlags] Updated:', FEATURE_FLAGS);
+}
+
 /**
  * Ensure all 11 asset groups are present in targets (with 0% if missing)
  */
 function ensureAllGroups(targets) {
   const result = { ...targets };
-  
+
   ALL_ASSET_GROUPS.forEach(group => {
     if (!(group in result)) {
       result[group] = 0.0;
     }
   });
-  
+
   return result;
 }
 
@@ -48,31 +117,31 @@ export function normalizeTargets(targets) {
   if (!targets || typeof targets !== 'object') {
     throw new Error('Invalid targets object');
   }
-  
+
   // Ensure all groups are present first
   const completeTargets = ensureAllGroups(targets);
-  
+
   // Separate model_version from numeric targets
   const { model_version, ...numericTargets } = completeTargets;
-  
+
   // Calculate total
   const total = Object.values(numericTargets).reduce((sum, val) => {
     return sum + (typeof val === 'number' ? val : 0);
   }, 0);
-  
+
   if (total <= 0) {
     throw new Error('Total allocation must be positive');
   }
-  
+
   // Normalize
   const normalized = {};
   Object.entries(numericTargets).forEach(([key, value]) => {
     normalized[key] = typeof value === 'number' ? (value / total) * 100 : 0;
   });
-  
+
   // Add model version back
   normalized.model_version = model_version || 'unknown';
-  
+
   return normalized;
 }
 
@@ -83,19 +152,19 @@ export function applyCycleMultipliers(macroTargets, multipliers) {
   if (!macroTargets || !multipliers) {
     return macroTargets;
   }
-  
+
   const { model_version, ...numericTargets } = macroTargets;
   const adjusted = {};
-  
+
   Object.entries(numericTargets).forEach(([asset, allocation]) => {
     const multiplier = multipliers[asset] || 1.0;
     adjusted[asset] = allocation * multiplier;
   });
-  
+
   // Normalize to 100%
   const normalized = normalizeTargets(adjusted);
   normalized.model_version = `${model_version}-cycle`;
-  
+
   return normalized;
 }
 
@@ -106,14 +175,14 @@ export function generateCCSTargets(ccsScore, mode = 'balanced') {
   if (typeof ccsScore !== 'number' || ccsScore < 0 || ccsScore > 100) {
     throw new Error('Invalid CCS score');
   }
-  
+
   const interpretation = interpretCCS(ccsScore);
   // Start with all groups at 0
   let targets = {};
   ALL_ASSET_GROUPS.forEach(group => {
     targets[group] = 0.0;
   });
-  
+
   // Adjust based on CCS score
   switch (interpretation.level) {
     case 'very_high': // 80-100: Very Bullish
@@ -129,7 +198,7 @@ export function generateCCSTargets(ccsScore, mode = 'balanced') {
       targets.Memecoins = 0;
       targets.Others = 0;
       break;
-      
+
     case 'high': // 65-79: Bullish
       targets.BTC = 38;
       targets.ETH = 28;
@@ -143,12 +212,12 @@ export function generateCCSTargets(ccsScore, mode = 'balanced') {
       targets.Memecoins = 0;
       targets.Others = 0;
       break;
-      
+
     case 'medium': // 50-64: Neutral+
       // Use defaults but ensure all groups present
       Object.assign(targets, DEFAULT_MACRO_TARGETS);
       break;
-      
+
     case 'low': // 35-49: Neutral-
       targets.BTC = 30;
       targets.ETH = 20;
@@ -162,7 +231,7 @@ export function generateCCSTargets(ccsScore, mode = 'balanced') {
       targets.Memecoins = 0;
       targets.Others = 0;
       break;
-      
+
     case 'very_low': // 0-34: Bearish
       targets.BTC = 25;
       targets.ETH = 15;
@@ -177,7 +246,7 @@ export function generateCCSTargets(ccsScore, mode = 'balanced') {
       targets.Others = 0;
       break;
   }
-  
+
   targets.model_version = `ccs-${interpretation.level}`;
   return normalizeTargets(targets);
 }
@@ -187,74 +256,74 @@ export function generateCCSTargets(ccsScore, mode = 'balanced') {
  */
 function applyOnChainIntelligence(baseRegime, onchainMetadata) {
   const { categoryBreakdown, criticalZoneCount, totalIndicators, activeCategories } = onchainMetadata;
-  
+
   let adjustedRegime = { ...baseRegime };
   let adjustments = [];
-  
+
   // Critical zone analysis - force defensive if too many critical indicators
   if (criticalZoneCount > 0) {
     const criticalRatio = criticalZoneCount / totalIndicators;
-    
+
     if (criticalRatio > 0.3) { // Plus de 30% en zone critique
       adjustments.push('🚨 Zone critique détectée');
-      
+
       // Force defensive allocation
       adjustedRegime.risk_tolerance = Math.min(adjustedRegime.risk_tolerance, 0.4);
       adjustedRegime.name += ' (Crit)';
       adjustedRegime.description += ` ${criticalZoneCount}/${totalIndicators} indicateurs en zone critique.`;
     }
   }
-  
+
   // Category-specific intelligence
   if (categoryBreakdown) {
     // On-chain fundamentals dominance
     if (categoryBreakdown.onchain_fundamentals) {
       const onchainScore = categoryBreakdown.onchain_fundamentals.score;
-      
+
       if (onchainScore < 30) { // Fondamentaux très bullish (scores inversés)
         adjustments.push('🔗 Fondamentaux bullish');
         adjustedRegime.confidence += 0.1;
-        
+
       } else if (onchainScore > 70) { // Fondamentaux très bearish
         adjustments.push('🔗 Fondamentaux bearish');
         adjustedRegime.risk_tolerance *= 0.8; // Réduire le risque
       }
     }
-    
+
     // Cycle/Technical signals
     if (categoryBreakdown.cycle_technical) {
       const cycleScore = categoryBreakdown.cycle_technical.score;
-      
+
       if (cycleScore > 75) { // Signaux de cycle bearish
         adjustments.push('📊 Signaux de top');
         adjustedRegime.risk_tolerance *= 0.7; // Très défensif
-        
+
       } else if (cycleScore < 25) { // Signaux de cycle bullish  
         adjustments.push('📊 Signaux de bottom');
         adjustedRegime.confidence += 0.15;
       }
     }
-    
+
     // Sentiment extremes
     if (categoryBreakdown.sentiment) {
       const sentimentScore = categoryBreakdown.sentiment.score;
-      
+
       if (sentimentScore > 80) { // Fear extreme = contrarian bullish
         adjustments.push('😨 Fear extrême');
         adjustedRegime.confidence += 0.05;
-        
+
       } else if (sentimentScore < 20) { // Greed extreme = bearish
         adjustments.push('🤑 Greed extrême');
         adjustedRegime.risk_tolerance *= 0.9;
       }
     }
   }
-  
+
   // Log des ajustements appliqués
   if (adjustments.length > 0) {
     console.debug('🧠 On-chain intelligence adjustments:', adjustments.join(', '));
   }
-  
+
   return adjustedRegime;
 }
 
@@ -269,14 +338,14 @@ export function generateSmartTargets() {
   const onchainMetadata = state.scores?.onchain_metadata;
   const backendSignals = state.governance?.ml_signals || null;
   const backendStatus = state.ui?.apiStatus?.backend || 'unknown';
-  
-  console.debug('🧠 Generating SMART targets with scores:', { 
-    blendedScore, 
-    onchainScore, 
+
+  console.debug('🧠 Generating SMART targets with scores:', {
+    blendedScore,
+    onchainScore,
     riskScore,
     criticalCount: onchainMetadata?.criticalZoneCount
   });
-  
+
   if (blendedScore == null) {
     console.warn('⚠️ Blended score not available for smart targets');
     return {
@@ -287,17 +356,17 @@ export function generateSmartTargets() {
       timestamp: new Date().toISOString()
     };
   }
-  
+
   try {
     // Get market regime
     const regime = getMarketRegime(blendedScore);
     let adjustedRegime = applyMarketOverrides(regime, onchainScore, riskScore);
-    
+
     // Apply enhanced on-chain intelligence if available
     if (onchainMetadata) {
       adjustedRegime = applyOnChainIntelligence(adjustedRegime, onchainMetadata);
     }
-    
+
     // Calculate risk budget (context)
     const riskBudget = calculateRiskBudget(blendedScore, riskScore);
 
@@ -319,7 +388,7 @@ export function generateSmartTargets() {
         exposureCap = cap; // percent of portfolio risky max
         exposureSource = 'backend';
       }
-    } catch {}
+    } catch { }
 
     // Final risky budget after cap and backend fallback
     const baseRisky = riskBudget.percentages.risky; // % risky suggested by regime/risk
@@ -334,16 +403,16 @@ export function generateSmartTargets() {
 
     // Allocate risky budget according to regime with finalRisky
     const smartAllocation = allocateRiskyBudget(finalRisky, adjustedRegime);
-    
+
     // Generate recommendations
     const recommendations = generateRegimeRecommendations(adjustedRegime, riskBudget);
-    
+
     console.debug('🧠 Smart allocation calculated:', smartAllocation);
     console.debug('📊 Risk budget:', riskBudget.percentages);
     console.debug('🎯 Regime:', adjustedRegime.name);
-    
+
     const strategy = `${adjustedRegime.emoji} ${adjustedRegime.name} (${Math.round(blendedScore)}) | ${Math.round(100 - finalRisky)}% Stables${exposureCap != null ? ` | Cap ${exposureCap}% (Decision Engine)` : ''}`;
-    
+
     return {
       targets: normalizeTargets(smartAllocation),
       strategy,
@@ -359,7 +428,7 @@ export function generateSmartTargets() {
       backend_status: backendStatus,
       timestamp: new Date().toISOString()
     };
-    
+
   } catch (error) {
     console.error('❌ Error generating smart targets:', error);
     return {
@@ -383,17 +452,17 @@ export function proposeTargets(mode = 'blend', options = {}) {
   const cycleWeight = state.cycle?.weight || 0.3;
   const blendedCCS = state.cycle?.ccsStar;
   const finalBlendedScore = state.scores?.blended;
-  
+
   let proposedTargets;
   let strategy;
-  
+
   try {
     switch (mode) {
       case 'macro':
         proposedTargets = { ...DEFAULT_MACRO_TARGETS };
         strategy = 'Fixed macro allocation';
         break;
-        
+
       case 'ccs':
         if (!ccsScore) {
           // Fallback : stratégie plus agressive (simule CCS élevé)
@@ -419,7 +488,7 @@ export function proposeTargets(mode = 'blend', options = {}) {
           strategy = `CCS-based (${Math.round(ccsScore)})`;
         }
         break;
-        
+
       case 'cycle':
         if (!cycleMultipliers) {
           // Fallback : stratégie cycle bear market (plus défensive)
@@ -445,19 +514,19 @@ export function proposeTargets(mode = 'blend', options = {}) {
           strategy = `Cycle-adjusted (${state.cycle?.phase?.phase || 'unknown'})`;
         }
         break;
-        
+
       case 'smart':
         // New intelligent allocation based on market regimes
         const smartResult = generateSmartTargets();
         proposedTargets = smartResult.targets;
         strategy = smartResult.strategy;
         break;
-        
+
       case 'blend':
       default:
         // Use final blended score if available, fallback to blendedCCS
         const effectiveScore = finalBlendedScore || blendedCCS;
-        
+
         // Deterministic priority logic
         if (!ccsScore || (!finalBlendedScore && !blendedCCS)) {
           // Fallback to balanced blend when no score data
@@ -500,16 +569,16 @@ export function proposeTargets(mode = 'blend', options = {}) {
         }
         break;
     }
-    
+
     // DEBUG: Log before normalization
     console.debug('🔍 DEBUG proposeTargets - before normalization BTC:', proposedTargets.BTC);
-    
+
     // Final normalization
     proposedTargets = normalizeTargets(proposedTargets);
-    
+
     // DEBUG: Log after normalization
     console.debug('🔍 DEBUG proposeTargets - after normalization BTC:', proposedTargets.BTC);
-    
+
     return {
       targets: proposedTargets,
       strategy,
@@ -517,10 +586,10 @@ export function proposeTargets(mode = 'blend', options = {}) {
       confidence: ccsScore && blendedCCS ? Math.min(1.0, blendedCCS / 100) : 0.5,
       timestamp: new Date().toISOString()
     };
-    
+
   } catch (error) {
     console.error('Failed to propose targets:', error);
-    
+
     // Safe fallback
     return {
       targets: normalizeTargets(DEFAULT_MACRO_TARGETS),
@@ -541,23 +610,23 @@ export function computePlan(currentAllocations, targetAllocations) {
   if (!currentAllocations || !targetAllocations) {
     throw new Error('Current and target allocations required');
   }
-  
+
   const actions = [];
   let totalToReallocate = 0;
-  
+
   // Calculate differences
   const allAssets = new Set([
     ...Object.keys(currentAllocations),
     ...Object.keys(targetAllocations)
   ]);
-  
+
   allAssets.forEach(asset => {
     if (asset === 'model_version') return;
-    
+
     const current = currentAllocations[asset] || 0;
     const target = targetAllocations[asset] || 0;
     const diff = target - current;
-    
+
     if (Math.abs(diff) > 0.1) { // Only significant changes
       const action = {
         asset,
@@ -567,15 +636,15 @@ export function computePlan(currentAllocations, targetAllocations) {
         action: diff > 0 ? 'buy' : 'sell',
         priority: Math.abs(diff) > 5 ? 'high' : 'medium'
       };
-      
+
       actions.push(action);
       totalToReallocate += Math.abs(diff);
     }
   });
-  
+
   // Sort by largest changes first
   actions.sort((a, b) => Math.abs(b.change_pct) - Math.abs(a.change_pct));
-  
+
   return {
     actions,
     total_reallocation: totalToReallocate,
@@ -591,18 +660,18 @@ export async function applyTargets(proposalResult) {
   if (!proposalResult || !proposalResult.targets) {
     throw new Error('Invalid proposal result');
   }
-  
+
   try {
     // DEBUG: Log what we're about to save
     console.debug('🔍 DEBUG applyTargets - proposalResult.targets:', proposalResult.targets);
     console.debug('🔍 DEBUG applyTargets - BTC allocation:', proposalResult.targets.BTC);
-    
+
     // Update store with new targets (normalized version for display)
     store.set('targets.proposed', proposalResult.targets);
     store.set('targets.strategy', proposalResult.strategy);
     store.set('targets.confidence', proposalResult.confidence);
     store.set('targets.model_version', proposalResult.targets.model_version);
-    
+
     // Log decision for audit trail
     const decisionEntry = {
       timestamp: new Date().toISOString(),
@@ -614,10 +683,10 @@ export async function applyTargets(proposalResult) {
       cycle_months: store.get('cycle.months'),
       blended_ccs: store.get('cycle.ccsStar')
     };
-    
+
     // Save to decision log (localStorage)
     appendToDecisionLog(decisionEntry);
-    
+
     // Save to last_targets for rebalance.html communication
     const dataToSave = {
       targets: proposalResult.targets,
@@ -625,18 +694,18 @@ export async function applyTargets(proposalResult) {
       strategy: proposalResult.strategy,
       source: 'risk-dashboard-ccs'
     };
-    
+
     console.debug('🔍 DEBUG applyTargets - Full proposal result:', proposalResult);
     console.debug('🔍 DEBUG applyTargets - Targets being saved:', proposalResult.targets);
     console.debug('🔍 DEBUG applyTargets - BTC before save:', dataToSave.targets.BTC);
     console.debug('🔍 DEBUG applyTargets - ETH before save:', dataToSave.targets.ETH);
     localStorage.setItem('last_targets', JSON.stringify(dataToSave));
-    
+
     // Verify what was actually saved
     const savedData = JSON.parse(localStorage.getItem('last_targets'));
     console.debug('🔍 DEBUG applyTargets - BTC after save:', savedData.targets.BTC);
     console.debug('🔍 DEBUG applyTargets - ETH after save:', savedData.targets.ETH);
-    
+
     // Dispatch event for external listeners (rebalance.html)
     window.dispatchEvent(new CustomEvent('targetsUpdated', {
       detail: {
@@ -645,10 +714,10 @@ export async function applyTargets(proposalResult) {
         source: 'ccs-integration'
       }
     }));
-    
+
     console.debug('Targets applied successfully:', proposalResult.strategy);
     return true;
-    
+
   } catch (error) {
     console.error('Failed to apply targets:', error);
     throw error;
@@ -661,20 +730,20 @@ export async function applyTargets(proposalResult) {
 function appendToDecisionLog(entry) {
   const logKey = 'ccs-decision-log';
   const maxEntries = 100;
-  
+
   try {
     const existingLog = localStorage.getItem(logKey);
     const entries = existingLog ? JSON.parse(existingLog) : [];
-    
+
     entries.push(entry);
-    
+
     // Keep only last maxEntries
     if (entries.length > maxEntries) {
       entries.splice(0, entries.length - maxEntries);
     }
-    
+
     localStorage.setItem(logKey, JSON.stringify(entries));
-    
+
   } catch (error) {
     console.warn('Failed to append to decision log:', error);
   }
@@ -731,7 +800,7 @@ export function validateRebalancing(currentTargets, proposedTargets, options = {
 
   // Calculate changes for each asset
   const allAssets = new Set([...Object.keys(currentAlloc), ...Object.keys(proposedAlloc)]);
-  
+
   allAssets.forEach(asset => {
     const current = currentAlloc[asset] || 0;
     const proposed = proposedAlloc[asset] || 0;
@@ -752,7 +821,7 @@ export function validateRebalancing(currentTargets, proposedTargets, options = {
   });
 
   // Rule 1: Minimum change threshold
-  const significantChanges = validation.changes.filter(change => 
+  const significantChanges = validation.changes.filter(change =>
     parseFloat(change.absolute_change) >= TRADING_RULES.min_change_threshold ||
     parseFloat(change.relative_change) >= TRADING_RULES.min_relative_change * 100
   );
@@ -815,13 +884,13 @@ export function validateRebalancing(currentTargets, proposedTargets, options = {
     });
   }
 
-  const totalTradingVolume = validation.changes.reduce((sum, change) => 
+  const totalTradingVolume = validation.changes.reduce((sum, change) =>
     sum + parseFloat(change.absolute_change), 0
   );
 
   if (totalTradingVolume > 20) {
     validation.recommendations.push({
-      type: 'volume_warning', 
+      type: 'volume_warning',
       message: `High trading volume: ${totalTradingVolume.toFixed(1)}% of portfolio`,
       suggestion: 'Consider splitting into multiple smaller rebalances'
     });
@@ -851,7 +920,7 @@ export function generateExecutionPlan(validationResult, options = {}) {
   };
 
   // Phase 1: High priority changes
-  const highPriorityChanges = validationResult.changes.filter(change => 
+  const highPriorityChanges = validationResult.changes.filter(change =>
     change.priority === 'high' && !change.skip_reason
   );
 
@@ -865,7 +934,7 @@ export function generateExecutionPlan(validationResult, options = {}) {
   }
 
   // Phase 2: Medium priority changes
-  const mediumPriorityChanges = validationResult.changes.filter(change => 
+  const mediumPriorityChanges = validationResult.changes.filter(change =>
     change.priority === 'medium' && !change.skip_reason
   );
 
@@ -899,21 +968,21 @@ export function validateTargets(targets) {
   if (!targets || typeof targets !== 'object') {
     return { valid: false, error: 'Invalid targets object' };
   }
-  
+
   const { model_version, ...numericTargets } = targets;
-  
+
   // Check all values are numbers
   for (const [key, value] of Object.entries(numericTargets)) {
     if (typeof value !== 'number' || value < 0 || value > 100) {
       return { valid: false, error: `Invalid allocation for ${key}: ${value}` };
     }
   }
-  
+
   // Check total is reasonable (should be close to 100 after normalization)
   const total = Object.values(numericTargets).reduce((sum, val) => sum + val, 0);
   if (total < 50 || total > 150) {
     return { valid: false, error: `Unreasonable total allocation: ${total}%` };
   }
-  
+
   return { valid: true };
 }
