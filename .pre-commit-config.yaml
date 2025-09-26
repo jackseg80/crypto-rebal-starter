@@ -1,0 +1,67 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: check-ast
+      - id: check-json
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.6
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+
+  - repo: https://github.com/psf/black
+    rev: 23.9.1
+    hooks:
+      - id: black
+        language_version: python3.11
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.5.1
+    hooks:
+      - id: mypy
+        additional_dependencies: [types-requests]
+        exclude: ^tests/
+
+  - repo: local
+    hooks:
+      - id: strip-bom
+        name: Strip UTF-8 BOM
+        entry: powershell
+        args: ["-File", "tools/strip_bom.ps1"]
+        language: system
+        files: \.(py|js|ts|json|html|css|md)$
+
+  - repo: local
+    hooks:
+      - id: check-bom
+        name: Check for UTF-8 BOM
+        entry: powershell
+        args: ["-Command", "Get-ChildItem -Recurse -Include *.py,*.js,*.ts,*.json,*.html,*.css,*.md | ForEach-Object { $bytes = [System.IO.File]::ReadAllBytes($_.FullName); if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) { Write-Error \"BOM found in $($_.FullName)\"; exit 1 } }"]
+        language: system
+        pass_filenames: false
+
+  - repo: local
+    hooks:
+      - id: pytest
+        name: Run fast unit tests
+        entry: python
+        args: ["-m", "pytest", "tests/unit", "-q"]
+        language: system
+        pass_filenames: false
+        stages: [push]
+
+  - repo: local
+    hooks:
+      - id: validate-openapi
+        name: Validate OpenAPI schema
+        entry: python
+        args: ["-c", "from api.main import app; import json; json.dumps(app.openapi())"]
+        language: system
+        pass_filenames: false
