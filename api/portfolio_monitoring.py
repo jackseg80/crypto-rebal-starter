@@ -13,6 +13,7 @@ Ce module fournit:
 from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
 from fastapi.responses import JSONResponse
 from typing import Dict, List, Any, Optional
+import os
 import logging
 from datetime import datetime, timezone, timedelta
 import json
@@ -23,6 +24,8 @@ logger = logging.getLogger(__name__)
 
 # Router pour les endpoints portfolio monitoring
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio-monitoring"])
+
+USE_MOCK_MONITORING = os.getenv("USE_MOCK_MONITORING", "true").lower() == "true"
 
 # Chemins de stockage des données
 DATA_DIR = Path("data/monitoring")
@@ -96,8 +99,12 @@ def get_mock_portfolio_data():
 async def get_portfolio_metrics():
     """Obtenir les métriques actuelles du portefeuille"""
     try:
-        # Pour le développement, utiliser des données simulées
-        mock_data = get_mock_portfolio_data()
+        if USE_MOCK_MONITORING:
+            # Pour le développement, utiliser des données simulées
+            mock_data = get_mock_portfolio_data()
+        else:
+            # TODO: Remettre ici la collecte réelle via les services (history_manager, data_router, etc.)
+            mock_data = get_mock_portfolio_data()  # fallback temporaire
         
         # Calculer les déviations maximales
         max_deviation = max([

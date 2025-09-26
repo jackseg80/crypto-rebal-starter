@@ -13,7 +13,8 @@ Ce module fournit les endpoints API pour le monitoring avancé:
 from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, Body
 from fastapi.responses import JSONResponse
 from typing import Dict, List, Any, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field 
+import os
 import logging
 from datetime import datetime, timezone, timedelta
 
@@ -28,6 +29,8 @@ logger = logging.getLogger(__name__)
 
 # Router pour les endpoints monitoring avancé
 router = APIRouter(prefix="/api/monitoring", tags=["monitoring"])
+
+USE_MOCK_MONITORING = os.getenv("USE_MOCK_MONITORING", "true").lower() == "true"
 
 # Modèles Pydantic pour notifications (migrés depuis monitoring_endpoints.py)
 class NotificationConfigRequest(BaseModel):
@@ -51,7 +54,7 @@ class TestAlertRequest(BaseModel):
 async def get_system_health():
     """Vue d'ensemble de la santé du système"""
     try:
-        # Données simulées pour le développement 
+        # Données simulées (DEV) ou vraie collecte (PROD)
         mock_current_status = {
             "binance": {"status": "healthy", "response_time_ms": 85},
             "kraken": {"status": "healthy", "response_time_ms": 120},
@@ -70,16 +73,21 @@ async def get_system_health():
         
         mock_active_alerts = []
         
-        current_status = mock_current_status
-        performance_summary = mock_performance_summary
-        active_alerts = mock_active_alerts
-        
-        # Code original commenté pour le développement
-        # if not connection_monitor.monitoring_active:
-        #     await connection_monitor.start_monitoring()
-        # current_status = connection_monitor.get_current_status()
-        # performance_summary = connection_monitor.get_performance_summary()
-        # active_alerts = connection_monitor.get_alerts(resolved=False)
+        if USE_MOCK_MONITORING:
+            current_status = mock_current_status
+            performance_summary = mock_performance_summary
+            active_alerts = mock_active_alerts
+        else:
+            # Réactiver le vrai code en PROD
+            # if not connection_monitor.monitoring_active:
+            #     await connection_monitor.start_monitoring()
+            # current_status = connection_monitor.get_current_status()
+            # performance_summary = connection_monitor.get_performance_summary()
+            # active_alerts = connection_monitor.get_alerts(resolved=False)
+            # NOTE: décommenter et vérifier les imports/services correspondants
+            current_status = mock_current_status  # fallback temporaire
+            performance_summary = mock_performance_summary
+            active_alerts = mock_active_alerts
         
         # Déterminer statut global
         if performance_summary.get("critical_exchanges", 0) > 0:

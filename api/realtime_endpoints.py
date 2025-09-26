@@ -5,6 +5,7 @@ Provides WebSocket connections for live data feeds, risk alerts, and system moni
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
+import os
 from typing import List, Dict, Any, Optional
 import asyncio
 import json
@@ -17,7 +18,10 @@ from services.streaming.realtime_engine import (
 )
 
 router = APIRouter(prefix="/api/realtime", tags=["realtime"])
+DEBUG_SIM = os.getenv("DEBUG_SIMULATION", "false").lower() == "true"
 log = logging.getLogger(__name__)
+
+
 
 # Response Models
 class RealtimeStatusResponse(BaseModel):
@@ -28,6 +32,9 @@ class RealtimeStatusResponse(BaseModel):
     events_per_second: float = Field(..., description="Taux de traitement d'événements")
     redis_status: str = Field(..., description="Status de Redis Streams")
     timestamp: datetime = Field(..., description="Timestamp de la réponse")
+
+class WsStatusResponse(BaseModel):
+    status: str = Field(..., description="Status message")
 
 class StreamStatsResponse(BaseModel):
     stream_name: str
@@ -227,6 +234,18 @@ async def get_stream_info(
 # not exposed via public API endpoints.
 
 @router.get("/demo")
+@router.post("/dev/simulate", response_model=WsStatusResponse)
+async def dev_simulate_event(kind: str = "risk_alert"):
+    """
+    Endpoint DEV-ONLY pour simuler un évènement. Protégé par DEBUG_SIM.
+    """
+    if not DEBUG_SIM:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Simulation disabled")
+    # TODO: brancher ici le vrai broadcaster si disponible
+    log.info(f"[DEV] Simulated event published: kind={kind}")
+    return WsStatusResponse(status=f"simulated:{kind}")
+
 async def get_demo_page():
     """Page de démonstration WebSocket pour tester le streaming"""
     html_content = """

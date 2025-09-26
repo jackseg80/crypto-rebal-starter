@@ -30,7 +30,8 @@ APP_DEBUG = DEBUG
 LOG_LEVEL = settings.logging.log_level
 CORS_ORIGINS = settings.get_cors_origins()
 ENVIRONMENT = settings.environment
-ALLOW_STUB_SOURCES = (os.getenv("ALLOW_STUB_SOURCES", "true").strip().lower() == "true")
+# Par défaut, on désactive les stubs pour éviter de masquer des erreurs de config.
+ALLOW_STUB_SOURCES = (os.getenv("ALLOW_STUB_SOURCES", "false").strip().lower() == "true")
 COMPUTE_ON_STUB_SOURCES = (os.getenv("COMPUTE_ON_STUB_SOURCES", "false").strip().lower() == "true")
 
 # Config logger (dev-friendly by default) — initialize early so it's available in imports below
@@ -99,7 +100,6 @@ from api.exceptions import (
 )
 from api.deps import get_active_user
 # Imports optionnels pour extensions futures (réservé)
-# from shared.exceptions import convert_standard_exception, PricingException
 from api.models import APIKeysRequest, PortfolioMetricsRequest
 
 # Logger already configured above
@@ -506,8 +506,8 @@ async def debug_paths():
 # Cache prix unifié utilisant le système centralisé
 _PRICE_CACHE: Dict[str, tuple] = {}  # symbol -> (ts, price)
 from api.utils.cache import cache_get as _cache_get, cache_set as _cache_set
-    
-    # >>> BEGIN: CT-API helpers (centralized constants) >>>
+ 
+# >>> BEGIN: CT-API helpers (centralized constants) >>>
 try:
     from connectors import cointracking_api as ct_api
 except ImportError as e:
@@ -517,7 +517,10 @@ except ImportError as e:
         logger.info("Using fallback import for cointracking_api")
     except ImportError as fallback_error:
         logger.error(f"Could not import cointracking_api at all: {fallback_error}")
-    ct_api = None
+        ct_api = None
+    else:
+        # Fallback OK: ne pas écraser ct_api
+        pass
 except Exception as e:
     logger.error(f"Unexpected error importing cointracking_api: {e}")
     ct_api = None
@@ -811,7 +814,7 @@ async def resolve_current_balances(source: str = Query("cointracking_api"), user
             except Exception as e:
                 logger.error(f"CSV mode failed for user {user_id}: {e}")
 
-    # --- LEGACY CODE FALLBACK --- (keep original behavior for compatibility)
+    # --- LEGACY CODE FALLBACK --- (gardé pour compatibilité, mais on n'utilise pas de stubs si non autorisés)
     
     # --- Sources stub: 3 profils de démo différents ---
     # Respect strict mode: if ALLOW_STUB_SOURCES is False, do not return mock data
@@ -823,7 +826,7 @@ async def resolve_current_balances(source: str = Query("cointracking_api"), user
                 {"symbol": "ETH", "alias": "ETH", "amount": 10.0, "value_usd": 30000.0, "location": "Ledger"},
                 {"symbol": "USDC", "alias": "USDC", "amount": 10000.0, "value_usd": 10000.0, "location": "Coinbase"}
             ]
-            return {"source_used": "stub_conservative", "items": demo_data}
+            return {"source_used": "stub_conservative", "items": demo_data, "warnings": ["Using demo stub dataset (conservative)."]}
         
         elif source == "stub_shitcoins":
             # Portfolio risqué: beaucoup de memecoins et altcoins
@@ -849,7 +852,7 @@ async def resolve_current_balances(source: str = Query("cointracking_api"), user
                 {"symbol": "MOONSHOT", "alias": "MOONSHOT", "amount": 5000000.0, "value_usd": 1000.0, "location": "DEX"},
                 {"symbol": "USDT", "alias": "USDT", "amount": 5000.0, "value_usd": 5000.0, "location": "Binance"}
             ]
-            return {"source_used": "stub_shitcoins", "items": demo_data}
+            return {"source_used": "stub_shitcoins", "items": demo_data, "warnings": ["Using demo stub dataset (high-risk)."]}
         
         else:  # stub ou stub_balanced (par défaut)
             # Portfolio équilibré: mix de BTC, ETH, alts sérieux
@@ -1795,11 +1798,8 @@ app.include_router(advanced_risk_router)
 app.include_router(realtime_router)
 app.include_router(intelligence_router)
 app.include_router(user_settings_router)
-app.include_router(wealth_router)
-
 # Phase 3 Unified Orchestration
 from api.unified_phase3_endpoints import router as unified_phase3_router
-from api.wealth_endpoints import router as wealth_router
 app.include_router(unified_phase3_router)
 
 # ---------- Portfolio Analytics ----------
@@ -2186,8 +2186,3 @@ async def get_configured_data_source():
 # Force reload
 # Force reload 2
 # Force reload
-
-
-
-
-
