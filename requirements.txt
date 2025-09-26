@@ -36,4 +36,4 @@ rq>=1.15.0
 # Monitoring & Logging (Development)
 # Note: These are optional for basic usage
 # structlog>=23.0.0  # Structured logging
-# prometheus-client>=0.16.0  # Metrics collection
+prometheus-fastapi-instrumentator>=6.1.0
