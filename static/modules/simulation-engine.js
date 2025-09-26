@@ -1202,3 +1202,4 @@ export async function simulateFullPipeline(uiOverrides = {}) {
 export function getSimulationState() {
   return { ...simulationState };
 }
+
