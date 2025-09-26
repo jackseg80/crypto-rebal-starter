@@ -33,13 +33,13 @@
         import { store } from './core/risk-dashboard-store.js';
         import { UNIFIED_ASSET_GROUPS, getAssetGroup, groupAssetsByClassification } from './shared-asset-groups.js';
         import { selectCapPercent, selectPolicyCapPercent, selectEngineCapPercent } from './selectors/governance.js';
-        
-        const colorForScore = (s) => s>70?'var(--danger)':s>=40?'var(--warning)':'var(--success)';
-        
-        async function refreshGI(){
+
+        const colorForScore = (s) => s > 70 ? 'var(--danger)' : s >= 40 ? 'var(--warning)' : 'var(--success)';
+
+        async function refreshGI() {
             try {
                 console.debug('🧠 Refreshing Global Insight with intelligent analysis...');
-                
+
                 // Use sophisticated unified intelligence
                 const unifiedState = await getUnifiedState();
                 console.debug('✅ Unified state loaded:', {
@@ -49,19 +49,19 @@
                     risk_score: unifiedState.risk?.score
                 });
                 const recommendations = deriveRecommendations(unifiedState);
-                
+
                 // Update Decision Index with confidence
                 const scoreEl = document.getElementById('gi-score');
                 if (scoreEl) {
                     scoreEl.textContent = unifiedState.decision.score;
                     scoreEl.style.color = colorForScore(unifiedState.decision.score);
-                    
+
                     // Add confidence tooltip if available
                     if (unifiedState.decision.confidence) {
                         scoreEl.title = `Confiance: ${Math.round(unifiedState.decision.confidence * 100)}% | ${unifiedState.decision.reasoning || 'Calcul intelligent'}`;
                     }
                 }
-                
+
                 // Update component scores with enhanced data
                 const cycleEl = document.getElementById('gi-cycle');
                 if (cycleEl) {
@@ -70,7 +70,7 @@
                     cycleEl.textContent = cycleScore;
                     cycleEl.title = cyclePhase ? `Phase: ${cyclePhase.replace('_', ' ')} | Confiance: ${Math.round((unifiedState.cycle?.confidence || 0) * 100)}%` : '';
                 }
-                
+
                 const onchainEl = document.getElementById('gi-onchain');
                 if (onchainEl) {
                     let onchainScore = unifiedState.onchain?.score;
@@ -85,7 +85,7 @@
                         onchainEl.style.fontWeight = '700';
                     }
                 }
-                
+
                 const riskEl = document.getElementById('gi-risk');
                 if (riskEl) {
                     let riskScore = unifiedState.risk?.score;
@@ -99,7 +99,7 @@
                         riskEl.title = `Budget recommandé - Stables: ${unifiedState.risk.budget.percentages.stables}%`;
                     }
                 }
-                
+
                 // INTELLIGENT RECOMMENDATIONS from sophisticated modules
                 const recoEl = document.getElementById('gi-reco');
                 if (recoEl) {
@@ -108,11 +108,11 @@
                         const urgencyIcon = topReco.priority === 'critical' ? '🚨' : topReco.priority === 'high' ? '⚠️' : topReco.priority === 'medium' ? '💡' : 'ℹ️';
                         recoEl.innerHTML = `${urgencyIcon} ${topReco.title}`;
                         recoEl.title = `${topReco.reason} | Source: ${topReco.source || 'Intelligence unifiée'}`;
-                        
+
                         // Color based on priority
                         const priorityColors = {
                             'critical': 'var(--danger)',
-                            'high': 'var(--danger)', 
+                            'high': 'var(--danger)',
                             'medium': 'var(--warning)',
                             'low': 'var(--info)'
                         };
@@ -123,7 +123,7 @@
                         recoEl.title = 'Tous les modules sont en accord - situation stable';
                     }
                 }
-                
+
                 console.debug('✅ Global Insight refreshed with:', {
                     decision_score: unifiedState.decision.score,
                     confidence: unifiedState.decision.confidence,
@@ -137,25 +137,25 @@
             } catch (error) {
                 console.warn('⚠️ Global Insight fallback to simple calculation:', error);
                 console.debug('Error details:', error.stack || error);
-                
+
                 // Fallback to simple calculation if intelligent system fails
                 const st = store.snapshot();
                 const blended = st.scores?.blended ?? null;
                 const cycle = Math.round(st.cycle?.ccsStar ?? st.cycle?.score ?? 0);
                 const onch = st.scores?.onchain ?? null;
                 const risk = st.scores?.risk ?? null;
-                const score = blended!=null ? Math.round(blended) : Math.round(((cycle||50)*0.5)+((onch??50)*0.3)+((100-(risk??50))*0.2));
-                
+                const score = blended != null ? Math.round(blended) : Math.round(((cycle || 50) * 0.5) + ((onch ?? 50) * 0.3) + ((100 - (risk ?? 50)) * 0.2));
+
                 const el = document.getElementById('gi-score');
-                if (el){ el.textContent = score; el.style.color = colorForScore(score); }
-                
-                const ec = document.getElementById('gi-cycle'); if (ec) ec.textContent = cycle||'--';
-                const eo = document.getElementById('gi-onchain'); if (eo) eo.textContent = onch!=null?Math.round(onch):'--';
-                const er = document.getElementById('gi-risk'); if (er) er.textContent = risk!=null?Math.round(risk):'--';
-                
+                if (el) { el.textContent = score; el.style.color = colorForScore(score); }
+
+                const ec = document.getElementById('gi-cycle'); if (ec) ec.textContent = cycle || '--';
+                const eo = document.getElementById('gi-onchain'); if (eo) eo.textContent = onch != null ? Math.round(onch) : '--';
+                const er = document.getElementById('gi-risk'); if (er) er.textContent = risk != null ? Math.round(risk) : '--';
+
                 const reco = document.getElementById('gi-reco');
-                if (reco){
-                    reco.textContent = score>=70 ? '⚠️ Alléger 10–20%' : score<=35 ? '🟢 DCA prudent' : '⏸️ Neutre / Attente';
+                if (reco) {
+                    reco.textContent = score >= 70 ? '⚠️ Alléger 10–20%' : score <= 35 ? '🟢 DCA prudent' : '⏸️ Neutre / Attente';
                     reco.title = 'Recommandation basique (système intelligent non disponible)';
                 }
 
@@ -163,15 +163,15 @@
                 updateGlobalInsightMeta();
             }
         }
-        
+
         // SMART LOADING - Load data directly if not available in store
         async function loadUnifiedDataForDashboard() {
             try {
                 console.log('🔄 Loading unified data for dashboard...');
-                
+
                 // Import and run the same cache-intelligent loader from analytics-unified
                 const { getCurrentCycleMonths, cycleScoreFromMonths, getCyclePhase } = await import('./modules/cycle-navigator.js');
-                
+
                 // 1. Cycle data (quick calculation)
                 const c = getCurrentCycleMonths();
                 const cycleScore = Math.round(cycleScoreFromMonths(c.months));
@@ -183,9 +183,9 @@
                 try {
                     await store.syncGovernanceState();
                     await store.syncMLSignals();
-                } catch {}
+                } catch { }
                 console.log('✅ Cycle data loaded for dashboard');
-                
+
                 // 2. Try to get cached scores from localStorage (from analytics-unified cache)
                 const getCachedScore = (key) => {
                     try {
@@ -200,10 +200,10 @@
                         if (age < 15 * 60 * 1000) {
                             return data.data;
                         }
-                    } catch {}
+                    } catch { }
                     return null;
                 };
-                
+
                 // Try cached on-chain data
                 const cachedOnchain = getCachedScore('analytics_unified_onchain');
                 if (cachedOnchain && typeof cachedOnchain.score === 'number') {
@@ -211,7 +211,7 @@
                     store.set('scores.onchain_metadata', cachedOnchain.metadata);
                     console.log('✅ On-chain data loaded from cache for dashboard');
                 }
-                
+
                 // Try cached risk data
                 const cachedRisk = getCachedScore('analytics_unified_risk');
                 if (cachedRisk && cachedRisk.risk_metrics?.risk_score) {
@@ -219,7 +219,7 @@
                     store.set('risk.risk_metrics', cachedRisk.risk_metrics); // Full risk metrics for sophisticated analysis
                     console.log('✅ Risk data loaded from cache for dashboard');
                 }
-                
+
                 // Try cached blended data
                 const cachedBlended = getCachedScore('analytics_unified_blended');
                 if (cachedBlended && typeof cachedBlended.score === 'number') {
@@ -236,7 +236,7 @@
                     store.set('scores.blended', blendedScore);
                     console.log('✅ Blended score calculated for dashboard');
                 }
-                
+
                 // Ensure basic CCS signals data is available for sophisticated modules
                 const state = store.snapshot();
                 if (!state.ccs?.signals) {
@@ -247,17 +247,17 @@
                     });
                     console.log('✅ Basic CCS signals data initialized for dashboard');
                 }
-                
+
                 console.log('🎯 Dashboard data loading completed');
                 refreshGI();
-                
+
             } catch (error) {
                 console.error('❌ Error loading dashboard data:', error);
                 // Fallback to basic calculation
                 refreshGI();
             }
         }
-        
+
         async function waitForStoreReady() {
             const state = store.snapshot();
             const hasBlended = typeof state.scores?.blended === 'number';
@@ -340,16 +340,16 @@
             }
         }
 
-        document.addEventListener('DOMContentLoaded', ()=>{
+        document.addEventListener('DOMContentLoaded', () => {
             // Subscribe to store changes for reactive updates
-            store.subscribe(()=> {
+            store.subscribe(() => {
                 clearTimeout(window.giRefreshTimer);
                 window.giRefreshTimer = setTimeout(() => {
                     refreshGI();
                     updateGlobalInsightMeta();
                 }, 300);
             });
-            
+
             // Smart initial load - wait for data to be ready
             setTimeout(waitForStoreReady, 800); // Give time for analytics-unified to start loading
         });
@@ -606,12 +606,14 @@
                 data-tooltip="Vue unifiée: décision, cycle, on-chain, risque, sentiment"
                 data-source="Scores unifiés du Risk Dashboard">
                 <div class="card-header">
-                    <div class="card-title"><span class="card-icon">🧭</span> Global Insight</div>
-                    <a href="analytics-unified.html" class="action-btn secondary" style="padding:4px 8px;font-size:12px;">Ouvrir</a>
+                    <a href="analytics-unified.html" class="card-title" style="text-decoration: none; color: inherit;">
+                        <span class="card-icon">🧭</span> Global Insight
+                    </a>
                 </div>
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
                     <div>
-                        <div style="font-size:.85rem; color: var(--theme-text-muted); font-weight:600;">Decision Index</div>
+                        <div style="font-size:.85rem; color: var(--theme-text-muted); font-weight:600;">Decision Index
+                        </div>
                         <div id="gi-score" style="font-size:2rem; font-weight:800;">--</div>
                     </div>
                     <div style="text-align:right; font-size:.85rem; color: var(--theme-text-muted);">
@@ -621,7 +623,9 @@
                     </div>
                 </div>
                 <div id="gi-reco" style="margin-top:.5rem; font-size:.9rem; color: var(--theme-text);"></div>
-                <div id="gi-meta" style="text-align:center; font-size:11px; color:var(--theme-text-muted); margin-top:8px; padding-top:8px; border-top:1px solid var(--theme-border);"></div>
+                <div id="gi-meta"
+                    style="text-align:center; font-size:11px; color:var(--theme-text-muted); margin-top:8px; padding-top:8px; border-top:1px solid var(--theme-border);">
+                </div>
             </div>
 
             <!-- Portfolio Overview - Disposition améliorée pour gagner de la place -->
@@ -631,7 +635,8 @@
                 <div class="card-header">
                     <div class="card-title">Portfolio Overview</div>
                     <div style="display:flex;gap:8px;align-items:center;">
-                        <span id="portfolio-source-display" style="font-size:11px;color:var(--theme-text-muted);padding:2px 6px;background:var(--theme-bg);border-radius:4px;border:1px solid var(--theme-border);">--</span>
+                        <span id="portfolio-source-display"
+                            style="font-size:11px;color:var(--theme-text-muted);padding:2px 6px;background:var(--theme-bg);border-radius:4px;border:1px solid var(--theme-border);">--</span>
                         <button class="action-btn secondary" style="padding:4px 8px;font-size:12px;"
                             onclick="forceRefreshData()">🔄</button>
                         <span class="status-badge status-active" id="portfolio-status">Loading</span>
@@ -654,28 +659,6 @@
                         <div class="metric">
                             <span class="metric-label">Assets Count</span>
                             <span class="metric-value" id="assets-count">--</span>
-                        </div>
-                        <div onclick="togglePortfolioDetails()"
-                            style="font-weight: 600; margin-top: var(--space-md); margin-bottom: var(--space-sm); color: var(--theme-text-muted); cursor: pointer; display: flex; align-items: center; gap: var(--space-xs);">
-                            <span id="details-arrow">▶️</span>
-                            <span>📋 Détails du portfolio</span>
-                        </div>
-
-                        <!-- Section portfolio détaillé (cachée par défaut) -->
-                        <div id="portfolio-details" style="display: none;">
-                            <table class="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>Coin</th>
-                                        <th>Quantité</th>
-                                        <th>Valeur (USD)</th>
-                                        <th>% du portefeuille</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="portfolio-details-body">
-                                    <!-- Les lignes sont injectées par ton JS -->
-                                </tbody>
-                            </table>
                         </div>
                     </div>
 
@@ -717,8 +700,8 @@
                 data-source="Tests de connectivité API en temps réel">
                 <div class="card-header">
                     <div class="card-title"><span class="card-icon">🔗</span>Exchange Status</div>
-                    <a href="monitoring.html" class="status-badge status-active"
-                        style="text-decoration:none;">View Details</a>
+                    <a href="monitoring.html" class="status-badge status-active" style="text-decoration:none;">View
+                        Details</a>
                 </div>
                 <div class="connections-grid" id="connections-grid">
                     <div class="loading">Loading connections...</div>
@@ -766,7 +749,9 @@
                 data-tooltip="Scores de performance et métriques calculés par les algorithmes ML pour évaluer le portefeuille."
                 data-source="API /analytics/scores + modèles ML">
                 <div class="card-header">
-                    <div class="card-title">Scores</div>
+                    <a href="risk-dashboard.html" class="card-title" style="text-decoration: none; color: inherit;">
+                        Scores
+                    </a>
                     <span class="status-badge" id="scores-status">Loading</span>
                 </div>
                 <div id="scores-content">
@@ -839,7 +824,7 @@
 
             await loadDashboardData();
             setInterval(loadDashboardData, 60000);
-            
+
             // Also check for data source changes more frequently (every 5 seconds)
             setInterval(() => {
                 const currentSource = globalConfig.get('data_source');
@@ -855,25 +840,25 @@
                 const expectedKey = (window.globalConfig?.getStorageKey && window.globalConfig.getStorageKey()) || 'crypto_rebal_settings_v1';
                 if (e.key === expectedKey) {
                     console.debug('Settings changed in another tab, checking for theme and data source changes...');
-                    
+
                     // Check if data source changed
                     const currentSource = globalConfig.get('data_source');
                     const previousSource = window.lastKnownDataSource;
-                    
+
                     if (currentSource && currentSource !== previousSource) {
                         console.debug(`🔄 Data source changed from ${previousSource} to ${currentSource}, reloading dashboard...`);
                         console.debug('🔄 Storage event triggered data source change - forcing portfolio refresh...');
                         window.lastKnownDataSource = currentSource;
-                        
+
                         // Clear portfolio chart cache on source change
                         if (window.portfolioChart) {
                             window.portfolioChart.destroy();
                             window.portfolioChart = null;
                         }
-                        
+
                         loadDashboardData();
                     }
-                    
+
                     // Apply theme changes
                     setTimeout(() => {
                         if (window.globalConfig && window.globalConfig.applyTheme) {
@@ -891,16 +876,16 @@
             window.addEventListener('dataSourceChanged', (event) => {
                 console.debug(`🔄 Source changée: ${event.detail.oldSource} → ${event.detail.newSource}`);
                 console.debug('🔄 Forcing complete portfolio refresh due to data source change...');
-                
+
                 // Clear portfolio cache when source changes
                 if (window.portfolioChart) {
                     window.portfolioChart.destroy();
                     window.portfolioChart = null;
                 }
-                
+
                 // Update the known source immediately
                 window.lastKnownDataSource = event.detail.newSource;
-                
+
                 // Force complete reload of dashboard data
                 loadDashboardData();
             });
@@ -913,20 +898,20 @@
                         console.debug('💱 Display currency changed, re-rendering amounts...');
                         const cur = (window.globalConfig && window.globalConfig.get('display_currency')) || 'USD';
                         const maybeRender = () => {
-                          if (dashboardData && dashboardData.portfolio) {
-                              updatePortfolioDisplay(dashboardData.portfolio);
-                          }
-                          if (dashboardData && dashboardData.recentActivity) {
-                              updateRecentActivity(dashboardData.recentActivity);
-                          }
-                          if (dashboardData && dashboardData.executionStats) {
-                              updateExecutionStatus(dashboardData.executionStats);
-                          }
+                            if (dashboardData && dashboardData.portfolio) {
+                                updatePortfolioDisplay(dashboardData.portfolio);
+                            }
+                            if (dashboardData && dashboardData.recentActivity) {
+                                updateRecentActivity(dashboardData.recentActivity);
+                            }
+                            if (dashboardData && dashboardData.executionStats) {
+                                updateExecutionStatus(dashboardData.executionStats);
+                            }
                         };
                         if (window.currencyManager && cur !== 'USD') {
-                          window.currencyManager.ensureRate(cur).then(maybeRender).catch(maybeRender);
+                            window.currencyManager.ensureRate(cur).then(maybeRender).catch(maybeRender);
                         } else {
-                          maybeRender();
+                            maybeRender();
                         }
                     }
                 } catch (e) {
@@ -951,7 +936,7 @@
                 // Clear any potential cached data
                 const currentTimestamp = Date.now();
                 console.debug(`🔄 loadDashboardData called at ${currentTimestamp} with source: ${globalConfig.get('data_source')}`);
-                
+
                 // Charger d'abord les groupes depuis alias-manager
                 await loadAssetGroups();
 
@@ -1114,7 +1099,8 @@
             if (balanceResult.csvText) {
                 // Source CSV locale
                 const csvText = balanceResult.csvText;
-                balances = parseCSVBalancesAuto(csvText, { thresholdUSD: (window.globalConfig?.get('min_usd_threshold')) ?? 1.0 });
+                const minThreshold = (window.globalConfig && window.globalConfig.get('min_usd_threshold')) || 1.0;
+                balances = parseCSVBalancesAuto(csvText, { thresholdUSD: minThreshold });
             } else if (balanceResult.data && Array.isArray(balanceResult.data.items)) {
                 // Source API
                 balances = balanceResult.data.items.map(item => ({
@@ -1272,7 +1258,7 @@
                 totalValue: data?.metrics?.total_value_usd,
                 assetCount: data?.metrics?.asset_count
             });
-            
+
             if (!data || !data.ok) {
                 console.debug('❌ Portfolio data invalid or missing, showing error');
                 document.getElementById('total-value').textContent = 'Erreur';
@@ -1291,7 +1277,7 @@
             pnlEl.style.color = dailyPnl >= 0 ? 'var(--success)' : 'var(--danger)';
 
             document.getElementById('assets-count').textContent = metrics.asset_count || 0;
-            
+
             console.debug('✅ Portfolio display updated:', {
                 totalValueDisplayed: document.getElementById('total-value').textContent,
                 assetsCountDisplayed: document.getElementById('assets-count').textContent,
@@ -1388,11 +1374,6 @@
                         <div style="font-size: 2rem; margin-bottom: var(--space-md);">📊</div>
                         <div style="margin-bottom: var(--space-md);">Aucun score de risque disponible</div>
                         <a href="risk-dashboard.html"
-                           style="display: inline-block; background: var(--brand-primary); color: white;
-                                  padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md);
-                                  text-decoration: none; font-weight: 600;">
-                            📈 Voir Risk Analytics
-                        </a>
                     </div>
                 `;
                 if (statusEl) {
@@ -1494,14 +1475,6 @@
                         Mis à jour: ${new Date(timestamp).toLocaleTimeString()}${isStale ? ` · <span class=\"status-badge status-warning\">Cache</span>` : ''}
                     </div>
                     ` : ''}
-
-                    <!-- Lien vers risk dashboard -->
-                    <div style="text-align: center; margin-top: 8px;">
-                        <a href="risk-dashboard.html"
-                           style="color: var(--brand-primary); text-decoration: none; font-size: 0.9em;">
-                            📊 Voir détails complets
-                        </a>
-                    </div>
                 </div>
             `;
 
@@ -1522,13 +1495,13 @@
             if (cur !== 'USD' && (!rate || rate <= 0)) return '—';
             const val = (v == null || isNaN(v)) ? 0 : (v * rate);
             try {
-              // BTC is not a standard ISO code; Intl may throw
-              const decimals = (cur === 'BTC') ? 8 : 2;
-              const out = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(val);
-              return (cur === 'USD') ? out.replace(/\s?US$/, '') : out;
+                // BTC is not a standard ISO code; Intl may throw
+                const decimals = (cur === 'BTC') ? 8 : 2;
+                const out = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(val);
+                return (cur === 'USD') ? out.replace(/\s?US$/, '') : out;
             } catch (_) {
-              const decimals = (cur === 'BTC') ? 8 : 2;
-              return `${val.toFixed(decimals)} ${cur}`;
+                const decimals = (cur === 'BTC') ? 8 : 2;
+                return `${val.toFixed(decimals)} ${cur}`;
             }
         }
         function formatTimeAgo(ts) {
@@ -1946,20 +1919,6 @@
             `;
         }
 
-        // Toggle pour afficher/cacher la table "Détails du portfolio"
-        function togglePortfolioDetails() {
-            const section = document.getElementById('portfolio-details');
-            const arrow = document.getElementById('details-arrow');
-            if (!section || !arrow) return;
-            if (section.style.display === 'none' || section.style.display === '') {
-                section.style.display = 'block';
-                arrow.textContent = '🔽';
-            } else {
-                section.style.display = 'none';
-                arrow.textContent = '▶️';
-            }
-        }
-
         // Forcer un refresh des données avec la source actuelle
         async function forceRefreshData() {
             console.debug('🔄 Force refresh demandé par utilisateur');
@@ -1982,14 +1941,14 @@
         }
 
         // Function for debugging - call from browser console
-        window.debugPortfolioData = async function() {
+        window.debugPortfolioData = async function () {
             console.group('🔍 Portfolio Data Debug');
-            
+
             const currentSource = globalConfig.get('data_source');
             console.log('Current configured source:', currentSource);
-            
+
             console.log('Testing direct API calls...');
-            
+
             // Test stub source
             try {
                 const stubResponse = await fetch(`${globalConfig.get('api_base_url')}/balances/current?source=stub&_t=${Date.now()}`);
@@ -2003,7 +1962,7 @@
             } catch (e) {
                 console.error('❌ Stub source failed:', e);
             }
-            
+
             // Test cointracking source
             try {
                 const csvResponse = await fetch(`${globalConfig.get('api_base_url')}/balances/current?source=cointracking&_t=${Date.now()}`);
@@ -2017,7 +1976,7 @@
             } catch (e) {
                 console.error('❌ CoinTracking source failed:', e);
             }
-            
+
             // Test current configured source
             console.log(`Testing current configured source: ${currentSource}`);
             try {
@@ -2029,7 +1988,7 @@
                     hasCsvText: !!currentResponse?.csvText,
                     dataItemsCount: currentResponse?.data?.items?.length || 0
                 });
-                
+
                 if (currentResponse?.data?.items) {
                     const total = currentResponse.data.items.reduce((sum, item) => sum + (item.value_usd || 0), 0);
                     console.log('Calculated total from current source:', total);
@@ -2037,7 +1996,7 @@
             } catch (e) {
                 console.error('❌ Current source failed:', e);
             }
-            
+
             console.groupEnd();
         };
 

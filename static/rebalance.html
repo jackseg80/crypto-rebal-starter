@@ -1750,7 +1750,8 @@
 
         if (balanceResult.csvText) {
           // Source CSV locale
-          balances = window.parseCSVBalances(balanceResult.csvText);
+          const minThreshold = (window.globalConfig && window.globalConfig.get('min_usd_threshold')) || 1.0;
+          balances = window.parseCSVBalances(balanceResult.csvText, { thresholdUSD: minThreshold });
         } else if (balanceResult.data && balanceResult.data.items) {
           // Source API (stub ou cointracking_api)
           balances = balanceResult.data.items.map(item => ({
@@ -1800,10 +1801,11 @@
     }
 
     // CSV parsing functions (same as dashboard.html)
-    function parseCSVBalances(csvText) {
+    function parseCSVBalances(csvText, { thresholdUSD = 1.0 } = {}) {
       const cleanedText = csvText.replace(/^\ufeff/, '');
       const lines = cleanedText.split('\n');
       const balances = [];
+      const minThreshold = (window.globalConfig && window.globalConfig.get('min_usd_threshold')) || thresholdUSD || 1.0;
 
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim();
@@ -1816,7 +1818,7 @@
             const amount = parseFloat(columns[3]);
             const valueUSD = parseFloat(columns[4]);
 
-            if (ticker && !isNaN(amount) && !isNaN(valueUSD) && valueUSD >= 1.0) {
+            if (ticker && !isNaN(amount) && !isNaN(valueUSD) && valueUSD >= minThreshold) {
               balances.push({
                 symbol: ticker.toUpperCase(),
                 balance: amount,

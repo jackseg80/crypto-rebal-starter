@@ -14,7 +14,7 @@
   <script src="input-validator.js"></script>
   <script src="performance-optimizer.js"></script>
   <script src="global-config.js"></script>
-<script src="appearance.js"></script>
+  <script src="appearance.js"></script>
   <style>
     * {
       box-sizing: border-box
@@ -91,11 +91,36 @@
     }
 
     /* Tabs */
-    .tabs { display:flex; gap:.5rem; border-bottom:1px solid var(--theme-border); margin-bottom: var(--space-md); flex-wrap: wrap; }
-    .tab-btn { padding:.6rem .9rem; border:1px solid var(--theme-border); background:var(--theme-surface); color:var(--theme-text); border-radius:8px 8px 0 0; cursor:pointer; }
-    .tab-btn.active { border-color: var(--brand-primary); color: var(--brand-primary); background: color-mix(in oklab, var(--brand-primary) 10%, transparent); }
-    .tab-panel { display:none; }
-    .tab-panel.active { display:block; }
+    .tabs {
+      display: flex;
+      gap: .5rem;
+      border-bottom: 1px solid var(--theme-border);
+      margin-bottom: var(--space-md);
+      flex-wrap: wrap;
+    }
+
+    .tab-btn {
+      padding: .6rem .9rem;
+      border: 1px solid var(--theme-border);
+      background: var(--theme-surface);
+      color: var(--theme-text);
+      border-radius: 8px 8px 0 0;
+      cursor: pointer;
+    }
+
+    .tab-btn.active {
+      border-color: var(--brand-primary);
+      color: var(--brand-primary);
+      background: color-mix(in oklab, var(--brand-primary) 10%, transparent);
+    }
+
+    .tab-panel {
+      display: none;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
 
     .card.success {
       border-color: var(--success);
@@ -291,19 +316,19 @@
     }
   </style>
 
-    <style>
-        /* Ajustement pour la navigation simple */
-        body.has-simple-nav {
-            margin-left: 80px;
-        }
-        
-        /* Responsive pour mobile */
-        @media (max-width: 768px) {
-            body.has-simple-nav {
-                margin-left: 0;
-            }
-        }
-    </style>
+  <style>
+    /* Ajustement pour la navigation simple */
+    body.has-simple-nav {
+      margin-left: 80px;
+    }
+
+    /* Responsive pour mobile */
+    @media (max-width: 768px) {
+      body.has-simple-nav {
+        margin-left: 0;
+      }
+    }
+  </style>
 </head>
 
 <body class="has-simple-nav">
@@ -326,19 +351,19 @@
 
     <!-- Overview Tab -->
     <section class="tab-panel active" id="tab-overview">
-      <div class="card" id="global-status" 
-         data-tooltip="Statut global du système avec indicateurs de santé des connexions API et services."
-         data-source="Tests de connectivité en temps réel">
-      <div style="display: flex; align-items: center; justify-content: space-between;">
-        <div>
-          <h3>📊 Statut Global</h3>
-          <div id="status-summary">Chargement de la configuration...</div>
+      <div class="card" id="global-status"
+        data-tooltip="Statut global du système avec indicateurs de santé des connexions API et services."
+        data-source="Tests de connectivité en temps réel">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div>
+            <h3>📊 Statut Global</h3>
+            <div id="status-summary">Chargement de la configuration...</div>
+          </div>
+          <div>
+            <button class="btn" onclick="saveAllSettings()">💾 Sauvegarder</button>
+            <button class="btn secondary small" onclick="resetToDefaults()">🔄 Défaut</button>
+          </div>
         </div>
-        <div>
-          <button class="btn" onclick="saveAllSettings()">💾 Sauvegarder</button>
-          <button class="btn secondary small" onclick="resetToDefaults()">🔄 Défaut</button>
-        </div>
-      </div>
       </div>
 
       <!-- Quick Settings: options les plus utilisées -->
@@ -396,304 +421,313 @@
 
     <!-- Data Source Tab -->
     <section class="tab-panel" id="tab-data">
-      <div class="card" data-tooltip="Configuration de la source principale pour les données de portfolio (CSV local, API CoinTracking ou échanges directs)."
-         data-source="Fichiers de configuration + APIs">
-      <h3>📡 Source de Données</h3>
-      <div class="form-group">
-        <label>Source principale des balances</label>
-        <div id="data_source_sections">
-          <h4 style="margin:8px 0 6px 0;">Sources de démo</h4>
-          <div class="radio-group" id="data_source_demo"></div>
-          <h4 style="margin:14px 0 6px 0;">Sources CoinTracking</h4>
-          <div class="radio-group" id="data_source_ct"></div>
+      <div class="card"
+        data-tooltip="Configuration de la source principale pour les données de portfolio (CSV local, API CoinTracking ou échanges directs)."
+        data-source="Fichiers de configuration + APIs">
+        <h3>📡 Source de Données</h3>
+        <div class="form-group">
+          <label>Source principale des balances</label>
+          <div id="data_source_sections">
+            <h4 style="margin:8px 0 6px 0;">Sources de démo</h4>
+            <div class="radio-group" id="data_source_demo"></div>
+            <h4 style="margin:14px 0 6px 0;">Sources CoinTracking</h4>
+            <div class="radio-group" id="data_source_ct"></div>
+          </div>
+          <div class="help">Cette source sera utilisée par défaut pour le Dashboard, Rebalancing et toutes les
+            analytics.
+          </div>
         </div>
-        <div class="help">Cette source sera utilisée par défaut pour le Dashboard, Rebalancing et toutes les analytics.
-        </div>
-      </div>
 
-      <div class="test-section">
-        <button class="btn secondary small" onclick="testDataSource()">🧪 Tester la Source</button>
-        <div id="data-source-test"></div>
-      </div>
+        <div class="test-section">
+          <button class="btn secondary small" onclick="testDataSource()">🧪 Tester la Source</button>
+          <div id="data-source-test"></div>
+        </div>
       </div>
     </section>
 
     <!-- Pricing Tab -->
     <section class="tab-panel" id="tab-pricing">
-      <div class="card" data-tooltip="Configuration des prix de référence et devises pour les calculs de valeur du portefeuille."
-         data-source="CoinGecko, CoinGlass, ou prix manuels">
-      <h3>💰 Pricing & Devises</h3>
-      <div class="form-group">
-        <label>Mode de pricing</label>
-        <div class="radio-group">
-          <div class="radio-option" onclick="selectPricing('local')">
-            <input type="radio" name="pricing" value="local" id="pricing_local">
-            <label for="pricing_local">🏠 <strong>Local</strong> - Prix depuis les données</label>
+      <div class="card"
+        data-tooltip="Configuration des prix de référence et devises pour les calculs de valeur du portefeuille."
+        data-source="CoinGecko, CoinGlass, ou prix manuels">
+        <h3>💰 Pricing & Devises</h3>
+        <div class="form-group">
+          <label>Mode de pricing</label>
+          <div class="radio-group">
+            <div class="radio-option" onclick="selectPricing('local')">
+              <input type="radio" name="pricing" value="local" id="pricing_local">
+              <label for="pricing_local">🏠 <strong>Local</strong> - Prix depuis les données</label>
+            </div>
+            <div class="radio-option" onclick="selectPricing('auto')">
+              <input type="radio" name="pricing" value="auto" id="pricing_auto">
+              <label for="pricing_auto">🚀 <strong>Auto</strong> - Prix automatiques</label>
+            </div>
           </div>
-          <div class="radio-option" onclick="selectPricing('auto')">
-            <input type="radio" name="pricing" value="auto" id="pricing_auto">
-            <label for="pricing_auto">🚀 <strong>Auto</strong> - Prix automatiques</label>
-          </div>
+          <div class="help">Local utilise les prix dans vos données, Auto récupère les prix actuels via API.</div>
         </div>
-        <div class="help">Local utilise les prix dans vos données, Auto récupère les prix actuels via API.</div>
-      </div>
 
-      <div class="form-row">
-        <div style="flex: 1;">
-          <label>Devise d'affichage</label>
-          <select id="display_currency">
-            <option value="USD">USD ($)</option>
-            <option value="EUR">EUR (€)</option>
-            <option value="BTC">BTC (₿)</option>
-          </select>
+        <div class="form-row">
+          <div style="flex: 1;">
+            <label>Devise d'affichage</label>
+            <select id="display_currency">
+              <option value="USD">USD ($)</option>
+              <option value="EUR">EUR (€)</option>
+              <option value="BTC">BTC (₿)</option>
+            </select>
+          </div>
+          <div style="flex: 1;">
+            <label>Seuil minimum (USD)</label>
+            <input type="number" id="min_usd_threshold" min="0" step="0.01" value="1.00">
+          </div>
         </div>
-        <div style="flex: 1;">
-          <label>Seuil minimum (USD)</label>
-          <input type="number" id="min_usd_threshold" min="0" step="0.01" value="1.00">
-        </div>
-      </div>
       </div>
     </section>
 
     <!-- API Keys Tab -->
     <section class="tab-panel" id="tab-api">
-      <div class="card" data-tooltip="Gestion sécurisée des clés API pour les exchanges et services de données (stockage local chiffré)."
-         data-source="Stockage local sécurisé + validation API">
-      <h3>🔑 Clés API</h3>
+      <div class="card"
+        data-tooltip="Gestion sécurisée des clés API pour les exchanges et services de données (stockage local chiffré)."
+        data-source="Stockage local sécurisé + validation API">
+        <h3>🔑 Clés API</h3>
 
-      <div class="form-group">
-        <label>CoinGecko API Key</label>
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <input type="password" id="coingecko_api_key" placeholder="Optionnel - pour plus de requêtes"
-            style="flex: 1;">
-          <button class="btn small secondary" onclick="toggleApiKeyVisibility('coingecko_api_key')"
-            style="min-width: 60px;">👁️</button>
-          <span id="coingecko_status" class="status-indicator status-warning" style="font-size: 10px;">Vide</span>
+        <div class="form-group">
+          <label>CoinGecko API Key</label>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="password" id="coingecko_api_key" placeholder="Optionnel - pour plus de requêtes"
+              style="flex: 1;">
+            <button class="btn small secondary" onclick="toggleApiKeyVisibility('coingecko_api_key')"
+              style="min-width: 60px;">👁️</button>
+            <span id="coingecko_status" class="status-indicator status-warning" style="font-size: 10px;">Vide</span>
+          </div>
+          <div class="help">Clé Demo API CoinGecko pour la classification automatique et données de marché.</div>
         </div>
-        <div class="help">Clé Demo API CoinGecko pour la classification automatique et données de marché.</div>
-      </div>
 
-      <div class="form-group">
-        <label>CoinTracking API Key</label>
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <input type="password" id="cointracking_api_key" placeholder="Obligatoire pour source API" style="flex: 1;">
-          <button class="btn small secondary" onclick="toggleApiKeyVisibility('cointracking_api_key')"
-            style="min-width: 60px;">👁️</button>
-          <span id="cointracking_key_status" class="status-indicator status-warning"
-            style="font-size: 10px;">Vide</span>
+        <div class="form-group">
+          <label>CoinTracking API Key</label>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="password" id="cointracking_api_key" placeholder="Obligatoire pour source API" style="flex: 1;">
+            <button class="btn small secondary" onclick="toggleApiKeyVisibility('cointracking_api_key')"
+              style="min-width: 60px;">👁️</button>
+            <span id="cointracking_key_status" class="status-indicator status-warning"
+              style="font-size: 10px;">Vide</span>
+          </div>
+          <div class="help">Clé API CoinTracking pour accès temps réel à vos balances.</div>
         </div>
-        <div class="help">Clé API CoinTracking pour accès temps réel à vos balances.</div>
-      </div>
 
-      <div class="form-group">
-        <label>CoinTracking API Secret</label>
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <input type="password" id="cointracking_api_secret" placeholder="Obligatoire pour source API"
-            style="flex: 1;">
-          <button class="btn small secondary" onclick="toggleApiKeyVisibility('cointracking_api_secret')"
-            style="min-width: 60px;">👁️</button>
-          <span id="cointracking_secret_status" class="status-indicator status-warning"
-            style="font-size: 10px;">Vide</span>
+        <div class="form-group">
+          <label>CoinTracking API Secret</label>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="password" id="cointracking_api_secret" placeholder="Obligatoire pour source API"
+              style="flex: 1;">
+            <button class="btn small secondary" onclick="toggleApiKeyVisibility('cointracking_api_secret')"
+              style="min-width: 60px;">👁️</button>
+            <span id="cointracking_secret_status" class="status-indicator status-warning"
+              style="font-size: 10px;">Vide</span>
+          </div>
+          <div class="help">Clé secrète CoinTracking (générée avec la clé API).</div>
         </div>
-        <div class="help">Clé secrète CoinTracking (générée avec la clé API).</div>
-      </div>
 
-      <div class="form-group">
-        <label>FRED API Key (Federal Reserve Economic Data)</label>
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <input type="password" id="fred_api_key" placeholder="Clé pour données Bitcoin historiques" style="flex: 1;">
-          <button class="btn small secondary" onclick="toggleApiKeyVisibility('fred_api_key')" style="min-width: 60px;">👁️</button>
-          <span id="fred_status" class="status-indicator status-warning" style="font-size: 10px;">Vide</span>
+        <div class="form-group">
+          <label>FRED API Key (Federal Reserve Economic Data)</label>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="password" id="fred_api_key" placeholder="Clé pour données Bitcoin historiques"
+              style="flex: 1;">
+            <button class="btn small secondary" onclick="toggleApiKeyVisibility('fred_api_key')"
+              style="min-width: 60px;">👁️</button>
+            <span id="fred_status" class="status-indicator status-warning" style="font-size: 10px;">Vide</span>
+          </div>
+          <div class="help">Clé API gratuite FRED pour historique Bitcoin complet depuis 2014 (vs 365j CoinGecko).</div>
         </div>
-        <div class="help">Clé API gratuite FRED pour historique Bitcoin complet depuis 2014 (vs 365j CoinGecko).</div>
-      </div>
 
-      <div class="form-group">
-        <label>Debug Token (requis pour sync .env)</label>
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <input type="password" id="debug_token" placeholder="Token sécurisé pour accès debug" style="flex: 1;">
-          <button class="btn small secondary" onclick="toggleApiKeyVisibility('debug_token')" style="min-width: 60px;">👁️</button>
+        <div class="form-group">
+          <label>Debug Token (requis pour sync .env)</label>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="password" id="debug_token" placeholder="Token sécurisé pour accès debug" style="flex: 1;">
+            <button class="btn small secondary" onclick="toggleApiKeyVisibility('debug_token')"
+              style="min-width: 60px;">👁️</button>
+          </div>
+          <div class="help">Token requis pour certains endpoints de debug</div>
         </div>
-        <div class="help">Token requis pour certains endpoints de debug</div>
-      </div>
 
-      <!-- Actions spécifiques Clés API -->
-      <div style="display:flex; gap:8px; margin: 8px 0 12px 0;">
-        <button class="btn" onclick="saveAllSettings()">💾 Sauvegarder</button>
-        <button class="btn secondary" onclick="updateStatusSummary()">Appliquer sans sauvegarder</button>
-      </div>
+        <!-- Actions spécifiques Clés API -->
+        <div style="display:flex; gap:8px; margin: 8px 0 12px 0;">
+          <button class="btn" onclick="saveAllSettings()">💾 Sauvegarder</button>
+          <button class="btn secondary" onclick="updateStatusSummary()">Appliquer sans sauvegarder</button>
+        </div>
 
 
-      <div class="test-section">
-        <button class="btn secondary small" onclick="testApiKeys()">🧪 Tester les APIs</button>
-        <div id="api-keys-test"></div>
-      </div>
+        <div class="test-section">
+          <button class="btn secondary small" onclick="testApiKeys()">🧪 Tester les APIs</button>
+          <div id="api-keys-test"></div>
+        </div>
       </div>
     </section>
 
     <!-- CSV Tab -->
     <section class="tab-panel" id="tab-csv">
-      <div class="card" data-tooltip="Automatisation du téléchargement des fichiers CSV depuis CoinTracking avec renommage intelligent."
-         data-source="API CoinTracking + gestion fichiers locale">
-      <h3>📥 Téléchargement Automatique CSV</h3>
-      <div class="help" style="margin-bottom: 16px;">
-        Télécharge automatiquement les derniers fichiers CSV depuis CoinTracking avec les noms corrects.
-      </div>
+      <div class="card"
+        data-tooltip="Automatisation du téléchargement des fichiers CSV depuis CoinTracking avec renommage intelligent."
+        data-source="API CoinTracking + gestion fichiers locale">
+        <h3>📥 Téléchargement Automatique CSV</h3>
+        <div class="help" style="margin-bottom: 16px;">
+          Télécharge automatiquement les derniers fichiers CSV depuis CoinTracking avec les noms corrects.
+        </div>
 
-      <div class="form-group">
-        <label>Fichiers à télécharger</label>
-        <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div class="form-group">
+          <label>Fichiers à télécharger</label>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
+              <input type="checkbox" id="download_current_balance" checked>
+              <span>📄 Current Balance - Balance actuelle totale</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
+              <input type="checkbox" id="download_balance_by_exchange" checked>
+              <span>🏦 Balance by Exchange - Balance par exchange</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
+              <input type="checkbox" id="download_coins_by_exchange">
+              <span>🪙 Coins by Exchange - Détail par exchange</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Dossier de destination</label>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="text" id="csv_download_path" value="csv/" placeholder="csv/" style="flex: 1;">
+            <button class="btn small secondary" onclick="browseDownloadFolder()">📁</button>
+          </div>
+          <div class="help">Dossier où sauvegarder les fichiers CSV téléchargés.</div>
+        </div>
+
+        <div class="form-group">
           <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
-            <input type="checkbox" id="download_current_balance" checked>
-            <span>📄 Current Balance - Balance actuelle totale</span>
+            <input type="checkbox" id="auto_download_enabled">
+            <span>🔄 Téléchargement automatique quotidien</span>
           </label>
-          <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
-            <input type="checkbox" id="download_balance_by_exchange" checked>
-            <span>🏦 Balance by Exchange - Balance par exchange</span>
-          </label>
-          <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
-            <input type="checkbox" id="download_coins_by_exchange">
-            <span>🪙 Coins by Exchange - Détail par exchange</span>
-          </label>
+          <div class="help">Télécharge automatiquement les nouveaux CSV chaque jour à 08h00.</div>
+        </div>
+
+        <div style="display: flex; gap: 8px; margin-top: 16px;">
+          <button class="btn primary" onclick="downloadCSVFiles()">
+            <span id="download-btn-text">📥 Télécharger Maintenant</span>
+          </button>
+          <button class="btn secondary" onclick="checkCSVStatus()">📊 Vérifier Fichiers</button>
+        </div>
+
+        <div id="csv-download-status" class="test-section">
+          <div class="help">Status des fichiers CSV locaux apparaîtra ici.</div>
         </div>
       </div>
-
-      <div class="form-group">
-        <label>Dossier de destination</label>
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <input type="text" id="csv_download_path" value="csv/" placeholder="csv/" style="flex: 1;">
-          <button class="btn small secondary" onclick="browseDownloadFolder()">📁</button>
-        </div>
-        <div class="help">Dossier où sauvegarder les fichiers CSV téléchargés.</div>
-      </div>
-
-      <div class="form-group">
-        <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
-          <input type="checkbox" id="auto_download_enabled">
-          <span>🔄 Téléchargement automatique quotidien</span>
-        </label>
-        <div class="help">Télécharge automatiquement les nouveaux CSV chaque jour à 08h00.</div>
-      </div>
-
-      <div style="display: flex; gap: 8px; margin-top: 16px;">
-        <button class="btn primary" onclick="downloadCSVFiles()">
-          <span id="download-btn-text">📥 Télécharger Maintenant</span>
-        </button>
-        <button class="btn secondary" onclick="checkCSVStatus()">📊 Vérifier Fichiers</button>
-      </div>
-
-      <div id="csv-download-status" class="test-section">
-        <div class="help">Status des fichiers CSV locaux apparaîtra ici.</div>
-      </div>
-    </div>
     </section>
 
     <!-- Interface Tab -->
     <section class="tab-panel" id="tab-interface">
 
-    <!-- Préférences Interface -->
-    <div class="card" data-tooltip="Personnalisation de l'interface utilisateur : thèmes, langue, format des nombres et raccourcis."
-         data-source="Préférences utilisateur locales">
-      <h3>🎨 Interface & Préférences</h3>
+      <!-- Préférences Interface -->
+      <div class="card"
+        data-tooltip="Personnalisation de l'interface utilisateur : thèmes, langue, format des nombres et raccourcis."
+        data-source="Préférences utilisateur locales">
+        <h3>🎨 Interface & Préférences</h3>
 
-      <div class="form-group">
-        <label>Thème de l'interface</label>
-        <div class="radio-group">
-          <div class="radio-option" onclick="selectTheme('auto')">
-            <input type="radio" name="theme" value="auto" id="theme_auto">
-            <label for="theme_auto">🌓 <strong>Automatique</strong> - Suit les préférences système</label>
-          </div>
-          <div class="radio-option" onclick="selectTheme('light')">
-            <input type="radio" name="theme" value="light" id="theme_light">
-            <label for="theme_light">☀️ <strong>Clair</strong> - Mode jour</label>
-          </div>
-          <div class="radio-option" onclick="selectTheme('dark')">
-            <input type="radio" name="theme" value="dark" id="theme_dark">
-            <label for="theme_dark">🌙 <strong>Sombre</strong> - Mode nuit</label>
-          </div>
-        </div>
-        <div class="help">Le thème s'applique automatiquement sur toutes les pages de l'application.</div>
-      </div>
-
-      <!-- ====== Apparence / Style UI ====== -->
-      <div class="card">
-        <h2>Apparence</h2>
         <div class="form-group">
-          <label>Style UI</label>
-          <div class="style-grid" style="display:flex;gap:12px;flex-wrap:wrap">
-            <label class="style-card"
-              style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:1px solid var(--theme-border);background:var(--theme-surface-elevated);cursor:pointer">
-              <input type="radio" name="ui-style" value="modern"> Modern
-            </label>
-            <label class="style-card"
-              style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:1px solid var(--theme-border);background:var(--theme-surface-elevated);cursor:pointer">
-              <input type="radio" name="ui-style" value="glass"> Glass
-            </label>
-            <label class="style-card"
-              style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:1px solid var(--theme-border);background:var(--theme-surface-elevated);cursor:pointer">
-              <input type="radio" name="ui-style" value="terminal"> Terminal
-            </label>
-            <label class="style-card"
-              style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:1px solid var(--theme-border);background:var(--theme-surface-elevated);cursor:pointer">
-              <input type="radio" name="ui-style" value="minimal"> Minimal
-            </label>
+          <label>Thème de l'interface</label>
+          <div class="radio-group">
+            <div class="radio-option" onclick="selectTheme('auto')">
+              <input type="radio" name="theme" value="auto" id="theme_auto">
+              <label for="theme_auto">🌓 <strong>Automatique</strong> - Suit les préférences système</label>
+            </div>
+            <div class="radio-option" onclick="selectTheme('light')">
+              <input type="radio" name="theme" value="light" id="theme_light">
+              <label for="theme_light">☀️ <strong>Clair</strong> - Mode jour</label>
+            </div>
+            <div class="radio-option" onclick="selectTheme('dark')">
+              <input type="radio" name="theme" value="dark" id="theme_dark">
+              <label for="theme_dark">🌙 <strong>Sombre</strong> - Mode nuit</label>
+            </div>
           </div>
-          <div class="help">Change uniquement l’habillage (coins/ombres/surfaces). Aucune incidence sur la logique.
+          <div class="help">Le thème s'applique automatiquement sur toutes les pages de l'application.</div>
+        </div>
+
+        <!-- ====== Apparence / Style UI ====== -->
+        <div class="card">
+          <h2>Apparence</h2>
+          <div class="form-group">
+            <label>Style UI</label>
+            <div class="style-grid" style="display:flex;gap:12px;flex-wrap:wrap">
+              <label class="style-card"
+                style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:1px solid var(--theme-border);background:var(--theme-surface-elevated);cursor:pointer">
+                <input type="radio" name="ui-style" value="modern"> Modern
+              </label>
+              <label class="style-card"
+                style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:1px solid var(--theme-border);background:var(--theme-surface-elevated);cursor:pointer">
+                <input type="radio" name="ui-style" value="glass"> Glass
+              </label>
+              <label class="style-card"
+                style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:1px solid var(--theme-border);background:var(--theme-surface-elevated);cursor:pointer">
+                <input type="radio" name="ui-style" value="terminal"> Terminal
+              </label>
+              <label class="style-card"
+                style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:1px solid var(--theme-border);background:var(--theme-surface-elevated);cursor:pointer">
+                <input type="radio" name="ui-style" value="minimal"> Minimal
+              </label>
+            </div>
+            <div class="help">Change uniquement l’habillage (coins/ombres/surfaces). Aucune incidence sur la logique.
+            </div>
           </div>
         </div>
-      </div>
 
-      <script>
-        document.addEventListener('DOMContentLoaded', () => {
-          const saved = window.globalConfig?.get?.('style') || 'modern';
-          document.querySelectorAll('input[name="ui-style"]').forEach(r => {
-            r.checked = (r.value === saved);
-            r.addEventListener('change', e => {
-              window.globalConfig?.set?.('style', e.target.value);
-              window.applyAppearance?.();
+        <script>
+          document.addEventListener('DOMContentLoaded', () => {
+            const saved = window.globalConfig?.get?.('style') || 'modern';
+            document.querySelectorAll('input[name="ui-style"]').forEach(r => {
+              r.checked = (r.value === saved);
+              r.addEventListener('change', e => {
+                window.globalConfig?.set?.('style', e.target.value);
+                window.applyAppearance?.();
+              });
             });
+            // s’assure que le style s’applique si on arrive direct
+            window.applyAppearance?.();
           });
-          // s’assure que le style s’applique si on arrive direct
-          window.applyAppearance?.();
-        });
-      </script>
+        </script>
 
-      <div class="form-row">
-        <div style="flex: 1;">
-          <label>URL API Backend</label>
-          <input type="text" id="api_base_url" value="http://127.0.0.1:8000">
-          <div class="help">URL du serveur FastAPI backend</div>
+        <div class="form-row">
+          <div style="flex: 1;">
+            <label>URL API Backend</label>
+            <input type="text" id="api_base_url" value="http://127.0.0.1:8000">
+            <div class="help">URL du serveur FastAPI backend</div>
+          </div>
+          <div style="flex: 1;">
+            <label>Fréquence auto-refresh (min)</label>
+            <input type="number" id="refresh_interval" min="1" max="60" value="5">
+          </div>
         </div>
-        <div style="flex: 1;">
-          <label>Fréquence auto-refresh (min)</label>
-          <input type="number" id="refresh_interval" min="1" max="60" value="5">
-        </div>
-      </div>
 
-      <div class="form-group">
-        <label>Fonctionnalités actives</label>
-        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
-          <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
-            <input type="checkbox" id="enable_coingecko_classification" checked>
-            Classification automatique CoinGecko
-          </label>
-          <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
-            <input type="checkbox" id="enable_portfolio_snapshots" checked>
-            Snapshots automatiques du portfolio
-          </label>
-          <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
-            <input type="checkbox" id="enable_performance_tracking" checked>
-            Suivi de performance historique
-          </label>
+        <div class="form-group">
+          <label>Fonctionnalités actives</label>
+          <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+            <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
+              <input type="checkbox" id="enable_coingecko_classification" checked>
+              Classification automatique CoinGecko
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
+              <input type="checkbox" id="enable_portfolio_snapshots" checked>
+              Snapshots automatiques du portfolio
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
+              <input type="checkbox" id="enable_performance_tracking" checked>
+              Suivi de performance historique
+            </label>
+          </div>
         </div>
-      </div>
       </div>
     </section>
 
     <!-- Integrations Tab -->
     <section class="tab-panel" id="tab-integrations">
       <div class="card" data-tooltip="Gérez vos intégrations cross-asset (Crypto, Bourse, Banque, Divers)."
-         data-source="Connecteurs et imports de données">
+        data-source="Connecteurs et imports de données">
         <h3>🔗 Intégrations Cross-Asset</h3>
         <p style="color: var(--theme-text-muted); margin-bottom: 1.5rem;">
           Importez et gérez vos portfolios de différentes sources pour une vue unifiée de votre patrimoine.
@@ -727,12 +761,15 @@
             </div>
             <div style="display: flex; gap: 0.5rem;">
               <button class="btn primary" onclick="window.location.href='saxo-upload.html'">📤 Import</button>
-              <button class="btn secondary" onclick="window.location.href='saxo-dashboard.html'" id="saxo-dashboard-btn" disabled>📊 Dashboard</button>
+              <button class="btn secondary" onclick="window.location.href='saxo-dashboard.html'" id="saxo-dashboard-btn"
+                disabled>📊 Dashboard</button>
             </div>
           </div>
-          <div style="margin-top: 1rem; padding: 1rem; background: var(--info-bg); border-radius: var(--radius-md); border: 1px solid var(--info);">
+          <div
+            style="margin-top: 1rem; padding: 1rem; background: var(--info-bg); border-radius: var(--radius-md); border: 1px solid var(--info);">
             <div style="font-size: 0.875rem; color: var(--info);">
-              <strong>Format supporté:</strong> Exportez vos positions depuis Saxo Bank au format CSV ou XLSX avec les colonnes: Position ID, Instrument, Quantity, Market Value, Currency
+              <strong>Format supporté:</strong> Exportez vos positions depuis Saxo Bank au format CSV ou XLSX avec les
+              colonnes: Position ID, Instrument, Quantity, Market Value, Currency
             </div>
           </div>
         </div>
@@ -758,7 +795,8 @@
           <h4>📊 Divers</h4>
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
-              <p style="margin: 0; color: var(--theme-text-muted);">Import autres actifs (immobilier, commodités, P2P)</p>
+              <p style="margin: 0; color: var(--theme-text-muted);">Import autres actifs (immobilier, commodités, P2P)
+              </p>
               <div style="font-size: 0.875rem; color: var(--theme-text-muted); margin-top: 0.25rem;">
                 <span>À venir - CSV générique</span>
               </div>
@@ -770,9 +808,11 @@
         </div>
 
         <!-- Integration Status Summary -->
-        <div style="margin-top: 2rem; padding: 1.5rem; background: var(--theme-bg); border-radius: var(--radius-md); border: 1px solid var(--theme-border);">
+        <div
+          style="margin-top: 2rem; padding: 1.5rem; background: var(--theme-bg); border-radius: var(--radius-md); border: 1px solid var(--theme-border);">
           <h4>📋 Résumé Intégrations</h4>
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1rem;">
+          <div
+            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1rem;">
             <div style="text-align: center;">
               <div style="font-size: 1.5rem; font-weight: 700; color: var(--success);" id="crypto-value">$0</div>
               <div style="font-size: 0.875rem; color: var(--theme-text-muted);">Crypto</div>
@@ -796,22 +836,23 @@
 
     <!-- Advanced Tab -->
     <section class="tab-panel" id="tab-advanced">
-      <div class="card" data-tooltip="Outils avancés pour maintenance, cache, et opérations système critiques (utiliser avec précaution)."
-         data-source="Fonctions système internes">
-      <h3>🔧 Actions Avancées</h3>
+      <div class="card"
+        data-tooltip="Outils avancés pour maintenance, cache, et opérations système critiques (utiliser avec précaution)."
+        data-source="Fonctions système internes">
+        <h3>🔧 Actions Avancées</h3>
 
-      <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-        <button class="btn secondary" onclick="exportSettings()">📤 Exporter Config</button>
-        <button class="btn secondary" onclick="importSettings()">📥 Importer Config</button>
-        <button class="btn secondary" onclick="clearCache()">🗑️ Vider Cache</button>
-        <button class="btn danger" onclick="resetAllData()">⚠️ Reset Complet</button>
-      </div>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+          <button class="btn secondary" onclick="exportSettings()">📤 Exporter Config</button>
+          <button class="btn secondary" onclick="importSettings()">📥 Importer Config</button>
+          <button class="btn secondary" onclick="clearCache()">🗑️ Vider Cache</button>
+          <button class="btn danger" onclick="resetAllData()">⚠️ Reset Complet</button>
+        </div>
 
-      <div class="test-section" style="margin-top: 16px;">
-        <h4>🧪 Test Complet du Système</h4>
-        <button class="btn" onclick="runFullSystemTest()">🚀 Lancer Test Complet</button>
-        <div id="full-system-test"></div>
-      </div>
+        <div class="test-section" style="margin-top: 16px;">
+          <h4>🧪 Test Complet du Système</h4>
+          <button class="btn" onclick="runFullSystemTest()">🚀 Lancer Test Complet</button>
+          <div id="full-system-test"></div>
+        </div>
       </div>
     </section>
 
@@ -819,16 +860,16 @@
 
   <script>
     // Tabs logic
-    (function(){
+    (function () {
       const btns = document.querySelectorAll('.tab-btn');
       const panels = document.querySelectorAll('.tab-panel');
-      function activate(target){
-        btns.forEach(b=>b.classList.toggle('active', b.getAttribute('data-target')===`#${target.id}`));
-        panels.forEach(p=>p.classList.toggle('active', p===target));
+      function activate(target) {
+        btns.forEach(b => b.classList.toggle('active', b.getAttribute('data-target') === `#${target.id}`));
+        panels.forEach(p => p.classList.toggle('active', p === target));
         history.replaceState(null, '', `#${target.id}`);
       }
-      btns.forEach(btn=>{
-        btn.addEventListener('click', ()=>{
+      btns.forEach(btn => {
+        btn.addEventListener('click', () => {
           const sel = btn.getAttribute('data-target');
           const target = document.querySelector(sel);
           if (target) activate(target);
@@ -912,7 +953,7 @@
               if (!window.userSettings) window.userSettings = getDefaultSettings();
               window.userSettings.csv_selected_file = fname || null;
               await selectDataSource(source.key);
-              try { await saveSettings(); } catch(_) {}
+              try { await saveSettings(); } catch (_) { }
             });
           } else {
             wrapper.addEventListener('click', async () => await selectDataSource(source.key));
@@ -931,7 +972,7 @@
           const label = document.createElement('label');
           label.setAttribute('for', `source_${source.key}`);
           label.innerHTML = source.label;
-          
+
           wrapper.appendChild(input);
           wrapper.appendChild(label);
           return wrapper;
@@ -986,7 +1027,7 @@
             const match = list.find(src => src.type === 'csv' && (src.file_path || '').split(/[/\\\\]/).pop() === s.csv_selected_file);
             if (match) quickEl.value = match.key;
           }
-        } catch(_){}
+        } catch (_) { }
       }
       document.getElementById('quick_pricing').value = s.pricing || 'auto';
       document.getElementById('quick_min_usd').value = (s.min_usd_threshold ?? 1);
@@ -996,12 +1037,12 @@
 
       // Synchroniser l'état initial des radios Source avec la valeur actuelle
       if (s.data_source) {
-        try { await selectDataSource(s.data_source); } catch(_) {}
+        try { await selectDataSource(s.data_source); } catch (_) { }
       }
 
       // Listeners: appliquent immédiatement dans globalConfig
       if (document.getElementById('quick_data_source')) {
-        document.getElementById('quick_data_source').addEventListener('change', async (e)=> {
+        document.getElementById('quick_data_source').addEventListener('change', async (e) => {
           const key = e.target.value;
           // Si l'utilisateur choisit un CSV spécifique via le select, enregistrer le fichier
           try {
@@ -1011,41 +1052,53 @@
               if (!window.userSettings) window.userSettings = getDefaultSettings();
               window.userSettings.csv_selected_file = fname || null;
               await selectDataSource(key);
-              try { await saveSettings(); } catch(_) {}
+              try { await saveSettings(); } catch (_) { }
               return;
             }
-          } catch(_) {}
+          } catch (_) { }
           await selectDataSource(key);
         });
       }
-      document.getElementById('quick_pricing').addEventListener('change', async (e)=> await selectPricing(e.target.value));
-      document.getElementById('quick_min_usd').addEventListener('change', (e)=> {
-        if (!window.userSettings) window.userSettings = getDefaultSettings();
-        window.userSettings.min_usd_threshold = parseFloat(e.target.value) || 0;
+      document.getElementById('quick_pricing').addEventListener('change', async (e) => {
+        await selectPricing(e.target.value);
+        if (window.globalConfig) window.globalConfig.set('pricing', e.target.value);
       });
-      document.getElementById('quick_currency').addEventListener('change', async (e)=> {
+      document.getElementById('quick_min_usd').addEventListener('change', (e) => {
+        if (!window.userSettings) window.userSettings = getDefaultSettings();
+        const val = parseFloat(e.target.value) || 0;
+        window.userSettings.min_usd_threshold = val; // Sauvegarde pour persistance
+        if (window.globalConfig) window.globalConfig.set('min_usd_threshold', val);
+        // Synchroniser l'autre champ
+        const mainInput = document.getElementById('min_usd_threshold');
+        if (mainInput) mainInput.value = val;
+      });
+      document.getElementById('quick_currency').addEventListener('change', async (e) => {
         const val = e.target.value;
         // Mettre à jour la config et synchroniser le select détaillé
         if (!window.userSettings) window.userSettings = getDefaultSettings();
         window.userSettings.display_currency = val;
+        if (window.globalConfig) window.globalConfig.set('display_currency', val);
         const mainSel = document.getElementById('display_currency');
         if (mainSel) mainSel.value = val;
-        try { if (window.currencyManager && val !== 'USD') await window.currencyManager.ensureRate(val); } catch(_){}
+        try { if (window.currencyManager && val !== 'USD') await window.currencyManager.ensureRate(val); } catch (_) { }
         updateStatusSummary();
       });
-      document.getElementById('quick_theme').addEventListener('change', async (e)=> await selectTheme(e.target.value));
-      document.getElementById('quick_api_base_url').addEventListener('change', (e)=> {
+      document.getElementById('quick_theme').addEventListener('change', async (e) => {
+        await selectTheme(e.target.value);
+        if (window.globalConfig) window.globalConfig.set('theme', e.target.value);
+      });
+      document.getElementById('quick_api_base_url').addEventListener('change', (e) => {
         if (!window.userSettings) window.userSettings = getDefaultSettings();
         window.userSettings.api_base_url = e.target.value;
       });
 
       // Actions
-      document.getElementById('quick_save_btn').addEventListener('click', async ()=> {
+      document.getElementById('quick_save_btn').addEventListener('click', async () => {
         // Rien de plus: tout est déjà écrit dans userSettings par les listeners
         await saveSettings();
         showNotification('✅ Réglages rapides sauvegardés', 'success');
       });
-      document.getElementById('quick_apply_btn').addEventListener('click', async ()=> {
+      document.getElementById('quick_apply_btn').addEventListener('click', async () => {
         await updateStatusSummary();
         showNotification('⚡ Réglages rapides appliqués', 'info');
       });
@@ -1191,10 +1244,11 @@
         mainCurrency.addEventListener('change', async (e) => {
           const val = e.target.value;
           if (!window.userSettings) window.userSettings = getDefaultSettings();
-        window.userSettings.display_currency = val;
+          window.userSettings.display_currency = val;
+          if (window.globalConfig) window.globalConfig.set('display_currency', val);
           const quick = document.getElementById('quick_currency');
           if (quick) quick.value = val;
-          try { if (window.currencyManager && val !== 'USD') await window.currencyManager.ensureRate(val); } catch(_){}
+          try { if (window.currencyManager && val !== 'USD') await window.currencyManager.ensureRate(val); } catch (_) { }
           await updateStatusSummary();
         });
       }
@@ -1312,7 +1366,7 @@
             const list = window.availableSources || [];
             const match = list.find(s => s.type === 'csv' && (s.file_path || '').split(/[/\\\\]/).pop() === window.userSettings.csv_selected_file);
             if (match) quickSelect.value = match.key; else quickSelect.value = window.userSettings.data_source;
-          } catch(_) { quickSelect.value = window.userSettings.data_source; }
+          } catch (_) { quickSelect.value = window.userSettings.data_source; }
         } else {
           quickSelect.value = window.userSettings.data_source;
         }
@@ -1340,7 +1394,7 @@
 
       // Persister la sélection si elle change réellement
       if (!oldSource || oldSource !== source) {
-        try { await saveSettings(); } catch (_) {}
+        try { await saveSettings(); } catch (_) { }
       }
     }
 
@@ -1349,6 +1403,7 @@
       document.querySelectorAll('.radio-option').forEach(el => el.classList.remove('selected'));
       if (!window.userSettings) window.userSettings = getDefaultSettings();
       window.userSettings.pricing = pricing;
+      if (window.globalConfig) window.globalConfig.set('pricing', pricing);
       document.getElementById(`pricing_${pricing}`).checked = true;
       document.querySelector(`.radio-option input[value="${pricing}"]`).parentElement.classList.add('selected');
       await updateStatusSummary();
@@ -1358,22 +1413,23 @@
     async function selectTheme(theme) {
       console.debug('Setting theme to:', theme);
       document.querySelectorAll('.radio-option').forEach(el => el.classList.remove('selected'));
-      
+
       if (!window.userSettings) window.userSettings = getDefaultSettings();
       window.userSettings.theme = theme;
+      if (window.globalConfig) window.globalConfig.set('theme', theme);
       // Appliquer le thème directement
       document.documentElement.setAttribute('data-theme', theme);
-      
+
       // Mettre à jour l'interface
       document.getElementById(`theme_${theme}`).checked = true;
       document.querySelector(`.radio-option input[value="${theme}"]`).parentElement.classList.add('selected');
       await updateStatusSummary();
-      
+
       // Appliquer immédiatement le thème
       if (window.applyAppearance) {
         window.applyAppearance();
       }
-      
+
       console.debug('Theme applied, current userSettings theme:', (window.userSettings || getDefaultSettings()).theme);
     }
 
@@ -1383,7 +1439,12 @@
       if (!window.userSettings) window.userSettings = getDefaultSettings();
 
       window.userSettings.display_currency = document.getElementById('display_currency').value;
+      if (window.globalConfig) window.globalConfig.set('display_currency', window.userSettings.display_currency);
       window.userSettings.min_usd_threshold = parseFloat(document.getElementById('min_usd_threshold').value);
+      // Synchroniser le champ rapide
+      const quickMinUsd = document.getElementById('quick_min_usd');
+      if (quickMinUsd) quickMinUsd.value = window.userSettings.min_usd_threshold;
+      if (window.globalConfig) window.globalConfig.set('min_usd_threshold', window.userSettings.min_usd_threshold);
 
       // Clés API: sauvegarder si champ visible OU si valeur différente du masque actuel
       function saveSecretIfProvided(fieldId, settingKey) {
@@ -1405,10 +1466,16 @@
       saveSecretIfProvided('debug_token', 'debug_token');
 
       window.userSettings.api_base_url = document.getElementById('api_base_url').value;
+      if (window.globalConfig) window.globalConfig.set('api_base_url', window.userSettings.api_base_url);
       window.userSettings.refresh_interval = parseInt(document.getElementById('refresh_interval').value);
+      if (window.globalConfig) window.globalConfig.set('refresh_interval', window.userSettings.refresh_interval);
+
       window.userSettings.enable_coingecko_classification = document.getElementById('enable_coingecko_classification').checked;
+      if (window.globalConfig) window.globalConfig.set('enable_coingecko_classification', window.userSettings.enable_coingecko_classification);
       window.userSettings.enable_portfolio_snapshots = document.getElementById('enable_portfolio_snapshots').checked;
+      if (window.globalConfig) window.globalConfig.set('enable_portfolio_snapshots', window.userSettings.enable_portfolio_snapshots);
       window.userSettings.enable_performance_tracking = document.getElementById('enable_performance_tracking').checked;
+      if (window.globalConfig) window.globalConfig.set('enable_performance_tracking', window.userSettings.enable_performance_tracking);
 
       // Mettre à jour les statuts
       updateApiKeyStatus('coingecko', !!window.userSettings.coingecko_api_key);
@@ -1429,7 +1496,7 @@
 
       try {
         const globalSettings = window.userSettings || getDefaultSettings();
-        const response = await fetch(`${globalSettings.api_base_url}/balances/current?source=${globalSettings.data_source}` , {
+        const response = await fetch(`${globalSettings.api_base_url}/balances/current?source=${globalSettings.data_source}`, {
           headers: { 'X-User': getActiveUser() }
         });
         const data = await response.json();
@@ -1469,7 +1536,7 @@
         'dev-token-2025',
         'debug-crypto-rebal'
       ];
-      
+
       for (const token of commonTokens) {
         try {
           const response = await fetch(`${(window.userSettings || getDefaultSettings()).api_base_url}/debug/api-keys?debug_token=${token}`, {
@@ -1487,7 +1554,7 @@
           // Continuer avec le token suivant
         }
       }
-      
+
       console.debug('DEBUG_TOKEN non trouvé automatiquement, saisie manuelle requise');
     }
 
@@ -1928,7 +1995,7 @@
     document.addEventListener('DOMContentLoaded', () => {
       // Appliquer le thème immédiatement
       applyThemeImmediately();
-      
+
       loadSettings().then(() => {
         // Tenter de récupérer le DEBUG_TOKEN depuis le serveur
         autoDetectDebugToken();
@@ -1948,12 +2015,12 @@
     async function downloadCSVFiles() {
       const downloadBtn = document.getElementById('download-btn-text');
       const statusDiv = document.getElementById('csv-download-status');
-      
+
       // Vérifier les clés API
       const userSettings = window.userSettings || getDefaultSettings();
       const apiKey = userSettings.cointracking_api_key;
       const apiSecret = userSettings.cointracking_api_secret;
-      
+
       if (!apiKey || !apiSecret) {
         statusDiv.innerHTML = '<div class="error">❌ Clés API CoinTracking requises pour le téléchargement automatique.</div>';
         return;
@@ -1965,9 +2032,9 @@
       try {
         const selectedFiles = getSelectedFiles();
         const downloadPath = document.getElementById('csv_download_path').value || 'data/raw/';
-        
+
         const results = [];
-        
+
         for (const fileType of selectedFiles) {
           try {
             const result = await downloadSingleCSV(fileType, downloadPath);
@@ -1980,9 +2047,9 @@
             });
           }
         }
-        
+
         displayDownloadResults(results);
-        
+
       } catch (error) {
         statusDiv.innerHTML = `<div class="error">❌ Erreur téléchargement: ${error.message}</div>`;
       } finally {
@@ -2031,21 +2098,21 @@
     function displayDownloadResults(results) {
       const statusDiv = document.getElementById('csv-download-status');
       let html = '<div style="margin-top: 16px;"><h4>Résultats du téléchargement:</h4><ul>';
-      
+
       results.forEach(result => {
         const icon = result.success ? '✅' : '❌';
         const fileLabel = getFileLabel(result.type);
-        
+
         if (result.success) {
           html += `<li>${icon} <strong>${fileLabel}</strong>: ${result.filename} (${formatFileSize(result.size)})</li>`;
         } else {
           html += `<li>${icon} <strong>${fileLabel}</strong>: ${result.error}</li>`;
         }
       });
-      
+
       html += '</ul></div>';
       statusDiv.innerHTML = html;
-      
+
       // Actualiser le status des fichiers après téléchargement
       setTimeout(checkCSVStatus, 1000);
     }
@@ -2053,7 +2120,7 @@
     function getFileLabel(type) {
       const labels = {
         'current_balance': 'Current Balance',
-        'balance_by_exchange': 'Balance by Exchange', 
+        'balance_by_exchange': 'Balance by Exchange',
         'coins_by_exchange': 'Coins by Exchange'
       };
       return labels[type] || type;
@@ -2069,10 +2136,10 @@
 
     async function checkCSVStatus() {
       const statusDiv = document.getElementById('csv-download-status');
-      
+
       try {
         const response = await globalConfig.apiRequest('/csv/status');
-        
+
         if (response.success) {
           displayCSVStatus(response.files);
         } else {
@@ -2085,25 +2152,25 @@
 
     function displayCSVStatus(files) {
       const statusDiv = document.getElementById('csv-download-status');
-      
+
       if (!files || files.length === 0) {
         statusDiv.innerHTML = '<div class="warning">⚠️ Aucun fichier CSV trouvé pour ce profil</div>';
         return;
       }
-      
+
       let html = '<div style="margin-top: 16px;"><h4>Fichiers CSV disponibles:</h4><ul>';
-      
+
       files.forEach(file => {
         const age = getFileAge(file.modified);
         const ageClass = age.days > 1 ? 'warning' : age.hours > 12 ? 'info' : 'success';
-        
+
         html += `<li>
           <span class="status-indicator status-${ageClass}">📄</span>
           <strong>${file.name}</strong> 
           (${formatFileSize(file.size)}, ${age.text})
         </li>`;
       });
-      
+
       html += '</ul></div>';
       statusDiv.innerHTML = html;
     }
@@ -2114,7 +2181,7 @@
       const diffMs = now - modified;
       const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
       const diffDays = Math.floor(diffHours / 24);
-      
+
       if (diffDays > 0) {
         return { days: diffDays, hours: diffHours, text: `${diffDays}j` };
       } else if (diffHours > 0) {
@@ -2137,7 +2204,7 @@
 
     // Charger le status des CSV au chargement de la page
     document.addEventListener('DOMContentLoaded', () => {
-      try { loadSettings().catch(console.error); } catch (_) {}
+      try { loadSettings().catch(console.error); } catch (_) { }
       setTimeout(checkCSVStatus, 1000); // Attendre que globalConfig soit prêt
       setTimeout(loadSaxoIntegrationStatus, 1500); // Load Saxo status
 
@@ -2202,12 +2269,12 @@
   </script>
 
 
-    <script>
-        // Initialisation automatique de la navigation simple
-        document.addEventListener('DOMContentLoaded', function() {
-            /* unified nav enabled via components/nav.js; legacy init removed */
-        });
-    </script>
+  <script>
+    // Initialisation automatique de la navigation simple
+    document.addEventListener('DOMContentLoaded', function () {
+      /* unified nav enabled via components/nav.js; legacy init removed */
+    });
+  </script>
 </body>
 
 </html>
