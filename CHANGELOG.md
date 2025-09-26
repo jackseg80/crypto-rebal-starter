@@ -270,27 +270,36 @@ This release contains **BREAKING CHANGES** requiring consumer updates.
 - Enhanced monitoring
 
 ---
-
 *Earlier versions documented in git history*
-## 2025-09-25- Simulation
-  - simulateFullPipeline: propage ctive_policy.cap_daily en xecutionPolicy.cap01 (fraction).
-  - planOrdersSimulated: clamp ±cap (pp) avant seuils bucket/global et min lot; esult.ui.capPct01 exposé.
-  - Aligne l'affichage de simulations.html avec Analytics/Rebalance (Cap 1% → pas ≤1 pp).
 
-- UI Gouvernance: alignement du cap d’exécution
-  - Nouveau sélecteur static/selectors/governance.js: selectCapPercent() priorise state.governance.active_policy.cap_daily (source de vérité)
-  - Ajouts: selectPolicyCapPercent, selectEngineCapPercent et normalisation robuste (support valeurs 0–1 ou 0–100)
-  - Badges: affichage principal = Cap (policy) + option “SMART X%” en second quand différent
-  - UnifiedInsights + Dashboard: convergence et “Cap ±X%” utilisent désormais la policy effective
-  - Badge “🧊 Freeze/Cap serré” si mode Freeze ou cap ≤ 2%
+## 2025-09-26 - Tri stable stratégies & équilibrage visuel
 
-- Durcissement affichage
-  - Fallback propre quand aucune policy n’est disponible (montre — ou cap effectif)
-  - Normalisation défensive des caps d’alerte/engine côté UI
+### 🎯 Tri stable des stratégies Rebalance
+- **Nouveau**: Système de priorité garantissant l'ordre Unified Analytics → CCS Dynamic → statiques
+- **Fonction `rank()`**: Attribution de scores (0=Unified live, 1=Unified placeholder, 2=CCS live, 3=CCS placeholder/error, 10=statiques)
+- **Tri stable**: Maintien de l'ordre même après rafraîchissement dynamique via `refreshDynamicStrategy()`
+- **Localisation**: Support français pour le tri alphabétique secondaire via `localeCompare('fr')`
 
-- Docs
-  - AGENTS.md: ajouté les consignes pour utiliser exclusivement selectCapPercent() et les aides selectPolicyCapPercent/selectEngineCapPercent
-  - README.md: mise à jour de la section Governance UI et exemple de calcul de convergence (ceil(maxΔ / cap))
+### 🎨 Équilibrage visuel (Solution C)
+- **Filler invisible**: Ajout automatique d'éléments invisibles quand 1 carte reste sur la dernière ligne
+- **Détection responsive**: Activation uniquement si grille ≥3 colonnes et `(cartes % colonnes) === 1`
+- **Accessibilité**: Filler marqué `aria-hidden="true"` pour lecteurs d'écran
+- **Performance**: Gestion d'erreur avec `try/catch` pour éviter les crashes
 
-Notes: aucune modification d’API publique; l’UI consomme l’état /execution/governance/state tel quel.
+### 📱 Adaptation responsive améliorée
+- **Breakpoint ajusté**: Passage à 4 colonnes dès 1280px (au lieu de 1440px)
+- **Évite lignes orphelines**: Réduction du risque de ligne avec 1 seule carte sur écrans larges
+- **Rétrocompatibilité**: Maintien du comportement 3 colonnes ≥1200px inchangé
+
+### 🔧 Technical Changes
+- **Fichier modifié**: `static/rebalance.html`
+- **Fonction `renderStrategiesUI()`**: Ajout tri stable avant `.map()` et équilibrage après `innerHTML`
+- **CSS responsive**: Modification breakpoint `@media (min-width: 1280px)`
+
+### ✅ Résultat
+- Interface cohérente avec Unified Analytics toujours en premier
+- CCS Dynamic systématiquement en deuxième position
+- Équilibrage visuel optimal sur toutes les tailles d'écran
+- Pas de ligne orpheline avec une seule carte
+
 

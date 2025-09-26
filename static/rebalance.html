@@ -26,6 +26,40 @@
     window.wealthContextBar = wealthContextBar;
   </script>
 
+  <script type="module">
+    import { CANONICAL_GROUPS } from './modules/targets-coordinator.js';
+
+    function materializeAllocations(rawAlloc) {
+      const base = Object.fromEntries(CANONICAL_GROUPS.map(g => [g, 0]));
+      if (rawAlloc && typeof rawAlloc === 'object') {
+        for (const [k, v] of Object.entries(rawAlloc)) {
+          if (k in base) base[k] = Number(v) || 0;
+        }
+      }
+      return base;
+    }
+
+    // 👇 Exposer les symboles nécessaires vers le global
+    window.CANONICAL_GROUPS = CANONICAL_GROUPS;
+    window.materializeAllocations = materializeAllocations;
+
+    function renderStrategyBadges(containerEl, strategy) {
+      // selon ton payload : allocations || targets || weights
+      const raw = strategy.allocations ?? strategy.targets ?? strategy.weights ?? {};
+      const alloc = materializeAllocations(raw);
+      containerEl.innerHTML = ''; // reset
+      for (const group of CANONICAL_GROUPS) {
+        const val = alloc[group];
+        const chip = document.createElement('span');
+        chip.className = 'badge badge--group' + (val === 0 ? ' badge--zero' : '');
+        chip.textContent = `${group}: ${val.toFixed(1)}%`;
+        containerEl.appendChild(chip);
+      }
+    }
+
+    // appelle renderStrategyBadges(card.querySelector('.badges'), strategy)
+  </script>
+
   <script src="debug-logger.js"></script>
   <script src="input-validator.js"></script>
   <script src="performance-optimizer.js"></script>
@@ -90,9 +124,10 @@
       padding: 0 var(--space-lg);
     }
 
-    @media (max-width: 768px) {
-      .wrap {
-        padding: 0 var(--space-md);
+
+    @media (min-width: 1280px) {
+      #strategies-container {
+        grid-template-columns: repeat(4, 1fr);
       }
     }
 
@@ -237,6 +272,47 @@
       cursor: pointer;
       transition: all var(--transition-normal);
       background: var(--theme-surface);
+    }
+
+    /* --- Mode Compact --- */
+    #strategies-content.compact .strategy-card {
+      padding: var(--space-md);
+    }
+
+    #strategies-content.compact .strategy-title {
+      font-size: 14px;
+    }
+
+    #strategies-content.compact .strategy-risk {
+      font-size: 10px;
+      padding: 1px 5px;
+    }
+
+    #strategies-content.compact .allocation-pill {
+      font-size: 10px;
+      padding: 1px 4px;
+    }
+
+    #strategies-content.compact .strategy-allocations {
+      gap: 4px;
+    }
+
+    /* ligne résumé des allocs en mode compact */
+    .strategy-alloc-summary {
+      font-size: 12px;
+      color: var(--theme-text-muted);
+      margin-top: 6px;
+    }
+
+    .alloc-more {
+      cursor: pointer;
+      text-decoration: underline;
+      font-weight: 600;
+    }
+
+    /* densifier la grille & les gaps en compact */
+    #strategies-content.compact #strategies-container {
+      gap: 8px !important;
     }
 
     .strategy-card:hover {
@@ -444,11 +520,11 @@
       border-radius: 50%;
     }
 
-    input:checked + .slider {
+    input:checked+.slider {
       background-color: var(--brand-primary);
     }
 
-    input:checked + .slider:before {
+    input:checked+.slider:before {
       transform: translateX(20px);
     }
 
@@ -522,10 +598,16 @@
   <div class="wrap" style="padding-top: var(--space-lg);">
     <!-- Stratégies de Rebalancing -->
     <div id="proposed-targets" class="card" style="margin-bottom: 16px;">
-      <h3 style="cursor: pointer; display: flex; align-items: center; justify-content: space-between;"
-        onclick="toggleStrategiesSection()">
-        <span>🎯 Stratégies Prédéfinies</span>
-        <span id="strategies-toggle" style="transition: transform 0.3s;">▼</span>
+      <h3 style="display:flex; align-items:center; justify-content:space-between;">
+        <span style="cursor:pointer" onclick="toggleStrategiesSection()">🎯 Stratégies Prédéfinies</span>
+        <span style="display:flex; align-items:center; gap:8px">
+          <span class="small muted">Vue :</span>
+          <button class="btn small secondary" id="btnViewDetailed">Détaillée</button>
+          <button class="btn small" id="btnViewCompact"
+            style="background: var(--theme-surface-elevated);">Compacte</button>
+          <span id="strategies-toggle" style="cursor:pointer; transition: transform .3s; margin-left:8px"
+            onclick="toggleStrategiesSection()">▼</span>
+        </span>
       </h3>
       <div id="strategies-content">
         <div id="strategies-container" style="display: grid; gap: 12px; margin-top: 12px;">
@@ -599,7 +681,7 @@
         <div style="display: flex; align-items: center; gap: 8px;">
           <label for="min-trade-input" style="font-size: 14px;">Trade minimum :</label>
           <input type="number" id="min-trade-input" value="25" min="1" max="1000" step="1"
-                 style="width: 80px; padding: 4px 8px; border: 1px solid var(--theme-border); border-radius: 4px;">
+            style="width: 80px; padding: 4px 8px; border: 1px solid var(--theme-border); border-radius: 4px;">
           <span style="font-size: 14px; color: var(--theme-text-muted);">USD</span>
         </div>
         <div id="priority-status" style="display: none; flex: 1; min-width: 200px;">
@@ -767,12 +849,32 @@
     const $ = sel => document.querySelector(sel);
     const el = id => document.getElementById(id);
 
+    /* ---------- Filet de sécurité pour materializeAllocations ---------- */
+    // Fallback si le module n'a pas encore exposé les helpers
+    if (typeof window.materializeAllocations !== 'function') {
+      window.CANONICAL_GROUPS = window.CANONICAL_GROUPS || [
+        'BTC', 'ETH', 'Stablecoins', 'SOL', 'L1/L0 majors', 'L2/Scaling',
+        'DeFi', 'AI/Data', 'Gaming/NFT', 'Memecoins', 'Others'
+      ];
+      window.materializeAllocations = function (rawAlloc) {
+        const base = Object.fromEntries(window.CANONICAL_GROUPS.map(g => [g, 0]));
+        if (rawAlloc && typeof rawAlloc === 'object') {
+          for (const [k, v] of Object.entries(rawAlloc)) {
+            if (k in base) base[k] = Number(v) || 0;
+          }
+        }
+        return base;
+      };
+    }
+
     /* ---------- Governance Store Access ---------- */
     // Le store est chargé comme module via script type="module" dans le header
 
     /* ---------- Variables globales pour stratégies ---------- */
     let availableStrategies = {};
     let selectedStrategyId = null;
+    let strategyViewMode = localStorage.getItem('strategyViewMode') || 'detailed'; // 'compact' | 'detailed'
+    const TOP_N = 5; // nombre de badges visibles en mode compact
 
     /* ---------- Fonction de toggle section stratégies ---------- */
     function toggleStrategiesSection() {
@@ -792,6 +894,24 @@
         localStorage.setItem('strategies_section_collapsed', 'true');
       }
     }
+
+    // Initialiser les boutons de vue
+    document.getElementById('btnViewDetailed')?.addEventListener('click', () => {
+      strategyViewMode = 'detailed';
+      localStorage.setItem('strategyViewMode', strategyViewMode);
+      document.getElementById('strategies-content')?.classList.remove('compact');
+      renderStrategiesUI();
+    });
+    document.getElementById('btnViewCompact')?.addEventListener('click', () => {
+      strategyViewMode = 'compact';
+      localStorage.setItem('strategyViewMode', strategyViewMode);
+      document.getElementById('strategies-content')?.classList.add('compact');
+      renderStrategiesUI();
+    });
+    // Appliquer le mode dès le chargement
+    document.addEventListener('DOMContentLoaded', () => {
+      if (strategyViewMode === 'compact') document.getElementById('strategies-content')?.classList.add('compact');
+    });
 
     /* ---------- SUPPRIMÉ: Mock CCS Data Generation ---------- */
     function generateMockCCSData_DISABLED() {
@@ -957,7 +1077,7 @@
           strategy: strategyName,
           targets_count: Object.keys(cleanTargets).length,
           stables_pct: cleanTargets.Stablecoins,
-          sum: Object.values(cleanTargets).reduce((a,b) => a+b, 0).toFixed(1),
+          sum: Object.values(cleanTargets).reduce((a, b) => a + b, 0).toFixed(1),
           source: data.source,
           has_plan: !!data.execution_plan
         });
@@ -1219,74 +1339,118 @@
       }
     }
 
+    function riskClass(level = '') {
+      const l = level.toLowerCase();
+      if (l.includes('très') && l.includes('faible') || l.includes('tres') && l.includes('faible')) return 'risk-trsfaible';
+      if (l.includes('très') && l.includes('élev') || l.includes('tres') && l.includes('elev')) return 'risk-trslev';
+      if (l.includes('faible-moyen') || (l.includes('faible') && l.includes('moyen'))) return 'risk-faible-moyen';
+      if (l.includes('faible')) return 'risk-faible';
+      if (l.includes('moyen')) return 'risk-moyen';
+      if (l.includes('élev') || l.includes('elev')) return 'risk-lev';
+      return '';
+    }
+
     function renderStrategiesUI() {
       const container = el('strategies-container');
       if (!container) return;
 
-      const strategiesHtml = Object.entries(availableStrategies).map(([id, strategy]) => {
-        const isDynamic = strategy._isDynamic;
-        const isUnified = strategy._isUnified;
-        const isPlaceholder = strategy._isPlaceholder;
-        const isError = strategy._isError;
+      const rank = (id, s) => {
+        if (s?._isUnified) return 0;                            // Unified (live)
+        if (id === 'unified-suggested-placeholder') return 1;   // Unified (placeholder)
+        if (s?._isDynamic) return 2;                            // CCS (live)
+        if (id.startsWith('ccs-dynamic')) return 3;             // CCS (placeholder|error)
+        return 10;                                              // statiques
+      };
+      const strategiesHtml = Object.entries(availableStrategies)
+        .sort(([idA, a], [idB, b]) => {
+          const r = rank(idA, a) - rank(idB, b);
+          return r !== 0 ? r : (a.name || idA).localeCompare(b.name || idB, 'fr');
+        })
+        .map(([id, strategy]) => {
+          const isDynamic = strategy._isDynamic;
+          const isUnified = strategy._isUnified;
+          const isPlaceholder = strategy._isPlaceholder;
+          const isError = strategy._isError;
 
-        let cardClass = 'strategy-card';
-        let borderStyle = '';
-        let clickable = true;
+          let cardClass = 'strategy-card';
+          let borderStyle = '';
+          let clickable = true;
 
-        if (isDynamic) {
-          cardClass += ' dynamic-strategy';
-          borderStyle = 'border: 2px solid var(--warning); background: linear-gradient(135deg, var(--theme-surface), var(--warning-bg));';
-        } else if (isUnified) {
-          // Style identique à la stratégie dynamique pour cohérence visuelle
-          cardClass += ' unified-strategy';
-          borderStyle = 'border: 2px solid var(--warning); background: linear-gradient(135deg, var(--theme-surface), var(--warning-bg));';
-        } else if (isPlaceholder) {
-          cardClass += ' placeholder-strategy';
-          borderStyle = 'border: 2px dashed var(--theme-border); opacity: 0.7;';
-          clickable = true; // Permettre la sélection pour montrer le message
-        } else if (isError) {
-          cardClass += ' error-strategy';
-          borderStyle = 'border: 2px solid var(--danger); background: linear-gradient(135deg, var(--theme-surface), var(--danger-bg));';
-          clickable = true; // Permettre la sélection pour montrer le message
-        }
+          if (isDynamic) {
+            cardClass += ' dynamic-strategy';
+            borderStyle = 'border: 2px solid var(--warning); background: linear-gradient(135deg, var(--theme-surface), var(--warning-bg));';
+          } else if (isUnified) {
+            // Style identique à la stratégie dynamique pour cohérence visuelle
+            cardClass += ' unified-strategy';
+            borderStyle = 'border: 2px solid var(--warning); background: linear-gradient(135deg, var(--theme-surface), var(--warning-bg));';
+          } else if (isPlaceholder) {
+            cardClass += ' placeholder-strategy';
+            borderStyle = 'border: 2px dashed var(--theme-border); opacity: 0.7;';
+            clickable = true; // Permettre la sélection pour montrer le message
+          } else if (isError) {
+            cardClass += ' error-strategy';
+            borderStyle = 'border: 2px solid var(--danger); background: linear-gradient(135deg, var(--theme-surface), var(--danger-bg));';
+            clickable = true; // Permettre la sélection pour montrer le message
+          }
 
-        const onclickAttr = clickable ? `onclick="selectStrategy('${id}')"` : '';
-        const cursorStyle = clickable ? '' : 'cursor: not-allowed;';
+          const onclickAttr = clickable ? `onclick="selectStrategy('${id}')"` : '';
+          const cursorStyle = clickable ? '' : 'cursor: not-allowed;';
 
-        return `
+          // 11 groupes canoniques + top-N en mode compact
+          const raw = strategy.allocations ?? strategy.targets ?? strategy.weights ?? {};
+          const alloc = materializeAllocations(raw);
+          const entries = Object.entries(alloc)
+            .filter(([group]) => group !== 'model_version')
+            .sort((a, b) => (Number(b[1]) || 0) - (Number(a[1]) || 0));
+
+          let badgesHtml = '';
+          if (strategyViewMode === 'compact') {
+            const top = entries.slice(0, TOP_N);
+            const rest = entries.slice(TOP_N);
+            badgesHtml = top.map(([g, p]) => `<span class="allocation-pill" title="${g} : ${(+p).toFixed(1)}%">${g}: ${(+p).toFixed(1)}%</span>`).join('');
+            if (rest.length > 0) {
+              const tip = rest.map(([g, p]) => `${g}: ${(+p).toFixed(1)}%`).join(' • ');
+              badgesHtml += ` <span class="allocation-pill" title="${tip}">+${rest.length}</span>`;
+            }
+          } else {
+            badgesHtml = entries
+              .map(([g, p]) => `<span class="allocation-pill" title="${g} : ${(+p).toFixed(1)}%">${g}: ${(+p).toFixed(1)}%</span>`)
+              .join('');
+          }
+
+          return `
     <div class="${cardClass}" data-strategy-id="${id}" ${onclickAttr} style="${borderStyle} ${cursorStyle}">
       <div class="strategy-header">
         <div class="strategy-title">${strategy.icon} ${strategy.name}</div>
-        <div class="strategy-risk risk-${strategy.risk_level.toLowerCase().replace(/[^a-z]/g, '')}">${strategy.risk_level}</div>
+        <div class="strategy-risk ${riskClass(strategy.risk_level)}">${strategy.risk_level}</div>
       </div>
-      <div style="font-size: 13px; color: var(--muted); margin-bottom: 8px;">
+      <div class="strategy-desc" style="font-size: 13px; color: var(--muted); margin-bottom: 8px;">
         ${strategy.description}
         ${isDynamic ? '<div style="font-size: 11px; color: var(--warning); font-weight: 600; margin-top: 4px;">⏰ Données récentes du Risk Dashboard</div>' : ''}
         ${isPlaceholder ? '<div style="font-size: 11px; color: var(--theme-text-muted); font-weight: 600; margin-top: 4px;">📭 En attente de synchronisation</div>' : ''}
         ${isError ? '<div style="font-size: 11px; color: var(--danger); font-weight: 600; margin-top: 4px;">⚠️ Synchronisation requise</div>' : ''}
       </div>
       <div class="strategy-allocations">
-        ${Object.keys(strategy.allocations).length > 0 ?
-            Object.entries(strategy.allocations)
-              .filter(([group, pct]) => group !== 'model_version')
-              .sort((a, b) => {
-                // Trier par pourcentage décroissant
-                const valueA = typeof a[1] === 'number' ? a[1] : parseFloat(a[1]) || 0;
-                const valueB = typeof b[1] === 'number' ? b[1] : parseFloat(b[1]) || 0;
-                return valueB - valueA;
-              })
-              .map(([group, pct]) => {
-                log.debug('renderStrategiesUI - Rendering allocation:', group, pct);
-                return `<span class="allocation-pill">${group}: ${typeof pct === 'number' ? pct.toFixed(1) : pct}%</span>`;
-              }).join('') :
-            '<span style="font-size: 11px; color: var(--theme-text-muted);">Aucune allocation disponible</span>'
-          }
+        ${entries.length ? badgesHtml : '<span style="font-size:11px;color:var(--theme-text-muted);">Aucune allocation disponible</span>'}
       </div>
     </div>
   `;
-      }).join('');
+        }).join('');
 
       container.innerHTML = strategiesHtml;
+
+      // Équilibrage visuel de la dernière ligne (si 1 carte orpheline)
+      try {
+        const cols = getComputedStyle(container).gridTemplateColumns.split(' ').length || 1;
+        const cards = container.querySelectorAll('.strategy-card').length;
+        if (cols >= 3 && (cards % cols) === 1) {
+          const filler = document.createElement('div');
+          filler.className = 'strategy-card filler';
+          filler.style.visibility = 'hidden';
+          filler.setAttribute('aria-hidden', 'true');
+          container.appendChild(filler);
+        }
+      } catch { }
     }
 
     function selectStrategy(strategyId) {
@@ -1573,7 +1737,7 @@
           currentSource: window.globalConfig?.get('data_source') || 'unknown'
         });
         console.log('[balances]', {
-          balanceData: balanceResult?.data?.items?.slice?.(0,5),
+          balanceData: balanceResult?.data?.items?.slice?.(0, 5),
           balanceTotal: balanceResult?.data?.total,
           source: balanceResult?.source
         });
@@ -3109,7 +3273,7 @@
 
       if (subAllocationToggle && subAllocationLabel) {
         console.log('🔍 Setting up sub-allocation toggle listeners');
-        subAllocationToggle.addEventListener('change', function() {
+        subAllocationToggle.addEventListener('change', function () {
           const isPriority = this.checked;
           console.log('🔍 Toggle changed to:', isPriority ? 'priority' : 'proportional');
 
@@ -3136,7 +3300,7 @@
       // Event listener pour min_trade_usd
       const minTradeInput = document.getElementById('min-trade-input');
       if (minTradeInput) {
-        minTradeInput.addEventListener('change', function() {
+        minTradeInput.addEventListener('change', function () {
           if (window.lastPlanData) {
             setTimeout(() => runPlan(), 300);
           }
@@ -3144,7 +3308,7 @@
       }
 
       // Event listeners pour le tri des colonnes Actions
-      document.addEventListener('click', function(e) {
+      document.addEventListener('click', function (e) {
         if (e.target.closest('#tblActions th.sortable')) {
           const th = e.target.closest('th.sortable');
           const column = th.getAttribute('data-sort');
@@ -3162,13 +3326,13 @@
           showNotification('🔄 Recherche des targets CCS depuis Risk Dashboard...', 'info', 1000);
 
           // Debug localStorage avant sync
-          log.debug('refreshDynamicStrategy - localStorage keys:', Object.keys(localStorage));
-          log.debug('refreshDynamicStrategy - last_targets raw:', localStorage.getItem('last_targets'));
+          console.debug('refreshDynamicStrategy - localStorage keys:', Object.keys(localStorage));
+          console.debug('refreshDynamicStrategy - last_targets raw:', localStorage.getItem('last_targets'));
 
           // Essayer de lire depuis localStorage (sauvegardé par Risk Dashboard)
           let ccsTargets = syncCCSTargets();
 
-          log.debug('refreshDynamicStrategy - Parsed CCS targets:', ccsTargets);
+          console.debug('refreshDynamicStrategy - Parsed CCS targets:', ccsTargets);
 
           // Si pas de données localStorage récentes
           if (!ccsTargets) {
@@ -3209,9 +3373,9 @@
           }
 
           if (ccsTargets) {
-            log.debug('refreshDynamicStrategy - Creating strategy with allocations:', ccsTargets.targets);
-            log.debug('refreshDynamicStrategy - BTC allocation:', ccsTargets.targets.BTC);
-            log.debug('refreshDynamicStrategy - ETH allocation:', ccsTargets.targets.ETH);
+            console.debug('refreshDynamicStrategy - Creating strategy with allocations:', ccsTargets.targets);
+            console.debug('refreshDynamicStrategy - BTC allocation:', ccsTargets.targets.BTC);
+            console.debug('refreshDynamicStrategy - ETH allocation:', ccsTargets.targets.ETH);
 
             // Mettre à jour ou ajouter la stratégie dynamique
             availableStrategies['ccs-dynamic'] = {
@@ -3224,7 +3388,7 @@
               _ccsData: ccsTargets
             };
 
-            log.debug('refreshDynamicStrategy - Final strategy object:', availableStrategies['ccs-dynamic']);
+            console.debug('refreshDynamicStrategy - Final strategy object:', availableStrategies['ccs-dynamic']);
 
             // Supprimer les anciennes versions placeholder/error s'il y en a
             delete availableStrategies['ccs-dynamic-placeholder'];
