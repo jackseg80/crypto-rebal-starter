@@ -1,42 +1,33 @@
 # CLAUDE.md — Guide de travail pour agents (Crypto Rebal Starter)
 
-> But: permettre à un agent (Claude/Code) d’intervenir vite et bien sans casser l’existant  
+> Objectif : permettre à un agent (Claude/Code) d’intervenir vite et bien **sur l’état ACTUEL** du repo.
 > Périmètre: FastAPI `api/`, services Python `services/`, front HTML/JS `static/`, connecteurs `connectors/`, tests `tests/`.
 
 ---
 
 ## 0) Règles d’or (strict)
-
-1. Secrets: ne jamais lire/committer `.env` ni publier des clés.
-2. Navigation/UI: conserver le menu unifié `static/components/nav.js` + thèmes `shared-theme.css`/`theme-compat.css`. Ne pas réintroduire `static/shared-header.js` (archivé).
-3. Config front: aucune URL API en dur. Toujours passer par `static/global-config.js` (détection `window.location.origin`).
+1. Secrets: ne jamais committer `.env`/clés.
+2. Navigation/UI: **ne pas inventer** de nouvelles pages; travailler avec **celles existantes**.
+3. Config front: aucune URL API en dur → `static/global-config.js`.
 4. Modifs minimales: patchs ciblés, pas de refontes/renommages massifs sans demande explicite.
-5. Perf: favoriser endpoints batch, cache, lazy-loading.
-6. Terminologie: garder certains anglicismes (coin, wallet, airdrop…).
-7. Sécurité: valider Pydantic, limiter tailles/paginer, penser rate-limit sur endpoints sensibles.
-8. Tests: tests unitaires pour logique non triviale + smoke test d’API pour tout nouvel endpoint.
-9. **Realtime (sécurité)**: `api/realtime_endpoints.py` ne doit fournir que des flux **read-only** (SSE/WS).  
-   **Interdit** d’ajouter `/realtime/publish` et `/broadcast`.  
-   Toute écriture d’événements temps réel se fait côté serveur via la gouvernance.
-10. **GovernancePanel**: déjà intégré dans `static/risk-dashboard.html`. **Ne pas créer** de panneau standalone ni le dupliquer.
+5. Perf: attention aux appels répétés; privilégier caches/ETag si dispo.
 
-Note endpoints de test/dev:  
-- Les routes `/api/alerts/test/*` sont désactivées par défaut et toujours désactivées en production.  
-- Pour activer en dev: définir `ENABLE_ALERTS_TEST_ENDPOINTS=true` dans l’environnement (non-prod uniquement).
+## 1) Aujourd'hui : quelles pages/endpoints utiliser ?
+- **Crypto** :
+  - UI : `dashboard.html`, `analytics-unified.html`, `risk-dashboard.html`, `rebalance.html`
+  - API : `/balances/current`, `/rebalance/plan`, `/portfolio/metrics`, …
+- **Bourse / Saxo** :
+  - UI : `saxo-upload.html` (import), `saxo-dashboard.html` (consultation)
+  - API : `/api/saxo/*` (upload/positions/accounts/instruments …)
 
-## 0bis) Environnement Windows (important)
+## 2) Wealth — statut
+- Namespace `/api/wealth/*` : **en cours**, ne pas basculer par défaut.
+- Ne pas créer `analytics-equities.html` / `risk-equities.html` / `rebalance-equities.html` sans instruction explicite.
+- Pour la cible à venir : lire `docs/TODO_WEALTH_MERGE.md`.
 
-- OS cible : **Windows 11**
-- Shell : **PowerShell** (pas Bash)
-- Environnement Python : `.\.venv\Scripts\activate` (et pas `. ./venv/bin/activate`)
-- Commandes à utiliser :
-  - Copier : `copy` (ou `cp` via PowerShell Core, mais préférer `copy`)
-  - Supprimer : `Remove-Item` (au lieu de `rm`)
-  - Lister fichiers : `dir` (au lieu de `ls`)
-- Chemins : utiliser `\` (ex. `D:\Python\crypto-rebal-starter`) et pas `/`.
-- Encodage : UTF-8 simple, éviter les caractères spéciaux non supportés dans les noms de fichiers Windows.
-
----
+## 2) Windows 11 — conventions pratiques
+- Utiliser les scripts `.ps1`/`.bat` fournis (éviter `bash` non portable).
+- Chemins : supporter Windows (éviter `touch`, préférer PowerShell).
 
 ## 1) Architecture (résumé)
 

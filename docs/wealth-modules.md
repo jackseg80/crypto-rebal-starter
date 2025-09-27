@@ -1,6 +1,16 @@
-# Modules Patrimoniaux
+# Modules Patrimoniaux — État ACTUEL + Roadmap
 
-Le cockpit patrimoine intègre **4 modules principaux** avec gestion unifiée des risques et allocation cross-asset.
+Le cockpit patrimoine vise à intégrer **plusieurs modules** (Crypto, Bourse, Banques) dans une logique unifiée.
+**Aujourd'hui** :
+- **Crypto** : pleinement intégré (analytics/risk/rebalance)
+- **Bourse (Saxo)** : présent via pages dédiées `saxo-dashboard.html` et `saxo-upload.html`
+- **Banques** : non intégré
+
+## UI (AUJOURD'HUI)
+- **Crypto** : `analytics-unified.html`, `risk-dashboard.html`, `rebalance.html`
+- **Bourse (Saxo)** : `saxo-dashboard.html` (dashboard), `saxo-upload.html` (import)
+- **Banques** : n/a
+- **Dashboard** : `dashboard.html` (majoritairement Crypto à ce stade)
 
 ## 1. Module Crypto
 
@@ -28,7 +38,15 @@ Le cockpit patrimoine intègre **4 modules principaux** avec gestion unifiée de
 
 ## 2. Module Bourse (Saxo)
 
-**Intégration Saxo Bank** via CSV/XLSX avec mapping automatique.
+**État actuel** : intégration **via CSV/XLSX** avec pages **dédiées**.
+- UI actuelle :
+  - `saxo-upload.html` : chargement de fichiers
+  - `saxo-dashboard.html` : consultation des positions Saxo
+- Endpoints actuels usuels : `/api/saxo/*`
+
+**Limites connues** :
+- Flux séparé de Crypto (UX pas encore unifiée)
+- P&L Today dépend des données de clôture (peut être 0 en fallback)
 
 ### Sources de données
 - **Saxo CSV/XLSX** : Positions, transactions, cash
@@ -96,84 +114,20 @@ Account,Type,Currency,Balance,LastUpdate
 
 ---
 
-## WealthContextBar - Filtrage Cross-Module
+## 4. Roadmap (résumé)
+**Objectif** : unifier Bourse/Banques sur le même schéma que Crypto (mêmes pages miroirs : analytics/risk/rebalance), via un namespace **Wealth**.
 
-### Filtres disponibles
+Étapes majeures :
+1. **Contrats communs** (côté backend) : AccountModel, InstrumentModel, PositionModel, PricePoint, ProposedTrade
+2. **Endpoints Wealth** :
+   - `GET /api/wealth/modules`
+   - `GET /api/wealth/{module}/accounts|instruments|positions|prices`
+   - `POST /api/wealth/{module}/rebalance/preview`
+3. **UI miroirs Bourse** :
+   - `analytics-equities.html`, `risk-equities.html`, `rebalance-equities.html`
+4. **Settings** :
+   - Intégrer l'upload Saxo dans `settings.html` (section "Sources")
+5. **Banques** :
+   - Adapter CASH/flux, page `analytics-banks.html` (plus tard)
 
-**Household**
-- `all` : Vue consolidée tous patrimoines
-- `main` : Patrimoine principal
-- `secondary` : Patrimoine conjoint/enfants
-
-**Compte**
-- `all` : Tous comptes confondus
-- `trading` : Comptes actifs (crypto + bourse)
-- `hold` : Investissements long-terme
-- `staking` : Revenus passifs
-
-**Module**
-- `all` : Vue cross-asset complète
-- `crypto` : Crypto uniquement
-- `bourse` : Actions/obligations Saxo
-- `banque` : Comptes bancaires/épargne
-- `divers` : Alternatifs/immobilier
-
-**Devise**
-- `USD` : Référence dollar (par défaut)
-- `EUR` : Référence euro
-- `CHF` : Référence franc suisse
-
-### Persistance & Synchronisation
-
-**localStorage** : Clé `wealthCtx`
-```json
-{
-  "household": "main",
-  "account": "trading",
-  "module": "crypto",
-  "currency": "EUR"
-}
-```
-
-**QueryString** : Paramètres URL synchronisés
-```
-?household=main&account=trading&module=crypto&ccy=EUR
-```
-
-**Événements** : `wealth:change` émis à chaque modification
-
-### Impact sur les Pages
-
-**Rebalance** (`rebalance.html`)
-- Filtre les propositions selon module sélectionné
-- Adapte les contraintes et limites
-- Conversion devise automatique
-
-**Execution** (`execution.html`)
-- Affiche ordres du module/compte sélectionné
-- Filtre historique par critères
-- Coûts dans la devise de référence
-
-**Analytics** (`analytics-unified.html`)
-- Métriques calculées sur périmètre filtré
-- Corrélations intra/inter-modules
-- Performance relative ajustée
-
----
-
-## Allocation Cross-Asset
-
-### Budget de Risque Global
-- **VaR total** : 4% seuil critique
-- **Répartition** : 50% crypto / 30% bourse / 15% banque / 5% divers
-- **Corrélations** : Matrices cross-asset temps réel
-- **Rebalance** : Déclenchement automatique si dérive >3%
-
-### Contraintes par Module
-- **Crypto** : Max 60% du patrimoine total
-- **Single asset** : Max 25% (BTC exception 35%)
-- **Illiquides** : Max 20% (immobilier + divers)
-- **Cash** : Min 10% liquidités (banque)
-
-### Signaux Unifiés
-**Decision Engine** agrège les signaux de tous les modules pour optimisation globale avec gouvernance centralisée.
+> Détails et cases à cocher : voir `docs/TODO_WEALTH_MERGE.md`.

@@ -1,56 +1,40 @@
 # AGENTS.md — Guide de travail pour agents (Crypto Rebal Starter)
 
-Ce fichier est injecté automatiquement dans chaque prompt que Codex (ou autre agent code) reçoit.
-Il définit les conventions, règles et fichiers clés du projet pour que l’agent produise un travail cohérent, sécurisé et adapté à l’environnement Windows 11.
+Ce fichier est injecté automatiquement (Codex/Claude/IA code).
+Il décrit l'**état ACTUEL** du projet et les **règles de contribution** (Windows 11).
 
 ---
 
-## 0) Règles d’or
-
-- Pas de secrets ni clés dans le code généré.
-- Pas d’URL en dur pour les APIs → utiliser `static/global-config.js`.
+## 0) Règles d'or
+- Pas d'URL en dur pour les APIs → utiliser `static/global-config.js`.
 - Pas de refactor massif : proposer uniquement des patchs/diffs minimaux, jamais des fichiers entiers.
 - Ne pas renommer de fichiers sans demande explicite.
 - Respect des perfs : batching, pagination, caches locaux.
 - Tests obligatoires si du code backend est modifié.
-- Sécurité : pas de nouveaux endpoints sensibles (`/realtime/publish`, `/broadcast`, etc.).
+- Sécurité : pas de nouveaux endpoints sensibles (`/realtime/...`) sans validation.
 
----
+### 0.1 Contexte Windows 11
+- Scripts PowerShell `.ps1`/`.bat` : préférer ces outils aux commandes Linux non-portables.
+- Chemins : éviter `touch/sed -i`; utiliser `New-Item`, `Out-File`, etc.
 
-## 0bis) Environnement Windows (important)
+### 0.2 Pages et endpoints **actuels**
+- **Crypto** :
+  - UI : `dashboard.html`, `analytics-unified.html`, `risk-dashboard.html`, `rebalance.html`
+  - API : `/balances/current`, `/rebalance/plan`, `/portfolio/metrics`, etc.
+- **Bourse / Saxo** :
+  - UI : `saxo-upload.html`, `saxo-dashboard.html`
+  - API : `/api/saxo/*` (upload/positions/accounts/instruments …)
 
-- OS cible : Windows 11
-- Shell : PowerShell (pas Bash)
-- Environnement Python :
-  ```powershell
-  .\.venv\Scripts\Activate.ps1
-  ```
-- Versions minimales : Python >= 3.11, FastAPI >= 0.110, Pydantic >= 2.5
+### 0.3 Wealth (roadmap — ne pas supposer existant)
+- Ne **pas** créer/utiliser de pages `analytics-equities.html`, `risk-equities.html`, `rebalance-equities.html` tant qu'elles ne sont pas demandées.
+- Ne **pas** imposer `/api/wealth/*` si l'existant `/api/saxo/*` couvre le besoin.
+- Les détails du futur Wealth sont dans `docs/TODO_WEALTH_MERGE.md` (référence, pas à implémenter sans consigne).
 
-### Commandes utiles (PowerShell)
-
-```powershell
-# Lancer l’API
-uvicorn api.main:app --reload --port 8000
-
-# Accès front
-http://localhost:8000/static/analytics-unified.html
-http://localhost:8000/static/risk-dashboard.html
-
-# Lancer les tests rapides
-python -m pytest -q tests/unit
-python -m pytest -q tests/integration
-python tests\smoke_test_refactored_endpoints.py
-
-# Créer une archive du projet
-Compress-Archive -Path .\* -DestinationPath .\crypto-rebal-starter.zip -Force -Exclude .venv,**\__pycache__\,**\.ruff_cache\,**\*.tmp
-```
-
-### Wealth / Saxo
-- Module Saxo = WIP (non bloquant).
-- Ne pas lier à la navigation prod, limiter aux tests ciblés.
-
----
+## 1) Où commencer (lecture rapide)
+- Architecture : `docs/architecture.md` (si présent), `docs/user-guide.md`
+- API : `docs/api.md` (sections Crypto + Saxo actuelles)
+- UI : `static/dashboard.html`, `static/saxo-dashboard.html`, `static/saxo-upload.html`
+- Settings : `static/settings.html`
 
 ## 1) Stack technique
 

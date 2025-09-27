@@ -1,11 +1,14 @@
-# API (Niveau intermédiaire)
+# API (état ACTUEL — référence intermédiaire)
 
-Référence synthétique, avec exemples clés. La source canonique reste l’OpenAPI:
+Référence synthétique, avec exemples clés.
+La source canonique reste l’OpenAPI:
 - Docs interactives: `http://127.0.0.1:8000/docs`
 - Schéma brut: `http://127.0.0.1:8000/openapi.json`
 
-## Core
-- `GET /healthz`
+> **Important**
+> Cette page décrit **l’état actuel** du code. Le namespace Wealth unifié est **en cours de conception** et n’est **pas encore** la voie par défaut.
+
+## Crypto (actuel)
 - `GET /balances/current?source=cointracking|cointracking_api&min_usd=1`
 - `GET /portfolio/metrics`
 - `POST /rebalance/plan` (targets manuels/dynamiques)
@@ -20,12 +23,51 @@ Exemple `POST /rebalance/plan` (extrait):
 }
 ```
 
+Exemple `POST /rebalance/plan` (extrait):
+```json
+{
+  "group_targets_pct": {"BTC": 40, "ETH": 30, "Stablecoins": 10, "Others": 20},
+  "primary_symbols": {"BTC": ["BTC","TBTC","WBTC"]},
+  "min_trade_usd": 25
+}
+```
+
+## Execution (plan/exécution)
+- `POST /execution/validate-plan`
+- `POST /execution/execute-plan?plan_id=...&dry_run=true`
+- `GET /execution/history/sessions?limit=50`
+
+## Bourse / Saxo (actuel)
+
+Flux actuel centré sur **pages dédiées** et import fichier :
+- **UI** : `static/saxo-dashboard.html` (dashboard bourse), `static/saxo-upload.html` (import CSV/XLSX)
+- **Endpoints typiques actuels** (selon version du repo) :
+  - `POST /api/saxo/upload` (import CSV/XLSX, met à jour un snapshot interne)
+  - `GET /api/saxo/positions`
+  - `GET /api/saxo/accounts`
+  - `GET /api/saxo/instruments`
+  - (Selon branches) `GET /api/saxo/prices` (si alimenté) / ou prix issus du snapshot
+
+**Notes** :
+- Le calcul **P&L Today** côté Bourse peut dépendre de données `prev_close`. Si indisponible, il peut être 0.
+- L’intégration Bourse n’est pas encore alignée sur le même modèle que Crypto (c’est la **roadmap**).
+
+## Wealth (expérimental / partiel aujourd’hui)
+
+> **Statut** : le namespace Wealth est amorcé dans le code (endpoints présents selon branches), mais la **source de vérité** côté Bourse reste aujourd’hui les endpoints `api/saxo/*` et les pages `saxo-*.html`.
+
+Objectif cible (non encore généralisé aujourd’hui) :
+- `GET /api/wealth/modules` → découverte modules disponibles
+- `GET /api/wealth/{module}/accounts|instruments|positions|prices`
+- `POST /api/wealth/{module}/rebalance/preview`
+
+**Attention** :
+- Le fichier `models/wealth.py` peut **manquer** dans ta copie actuelle, et certaines routes Wealth peuvent être **incomplètes**.
+- Merci de te référer à la **roadmap** `docs/TODO_WEALTH_MERGE.md` pour la cible à venir.
+
 ## Taxonomy
 - `GET /taxonomy`
 - `POST /taxonomy/aliases` (upsert bulk)
-- `DELETE /taxonomy/aliases/{alias}`
-- `POST /taxonomy/suggestions` (auto-suggest à partir d’échantillons ou du cache)
-- `POST /taxonomy/auto-classify` (applique les suggestions)
 
 ## Analytics
 - `GET /analytics/performance/summary?days_back=30`
