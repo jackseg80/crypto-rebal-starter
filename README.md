@@ -104,7 +104,14 @@ PUT  /api/users/settings    # Sauvegarde configuration utilisateur
 
 ## 🚀 Nouvelles Fonctionnalités (v3.0)
 
-### 🔧 Production Stabilization (NOUVEAU)
+### 🏦 Intégration Bourse (Saxo) - Phase 2 (NOUVEAU)
+- **Tuile Dashboard** : Vue d'ensemble Saxo dans le dashboard principal (valeur totale, positions, dernière MAJ)
+- **Upload Settings** : Import direct CSV/XLSX dans Settings avec progress et statut temps réel
+- **Store partagé** : `wealth-saxo-summary.js` évite la duplication entre Dashboard/Settings
+- **Lecture legacy** : utilise `/api/saxo/positions` (transition sécurisée vers wealth endpoints)
+- **Stabilisation** : corrections error handling saxo-dashboard.html, empty states, bandeau d'état
+
+### 🔧 Production Stabilization
 - **Hystérésis & EMA Anti-Flickering** : Deadband ±2%, persistence 3 ticks pour prévenir les oscillations
 - **Staleness Gating** : Freeze des poids adaptatifs mais préservation des caps défensifs (>30min)
 - **Token Bucket Rate Limiting** : 6 req/s avec burst 12, TTL adaptatif (10s-300s)
