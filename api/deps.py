@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import Optional
 from fastapi import Header, HTTPException, status
 import logging
+import os
 
 from api.config.users import (
     get_default_user,
@@ -39,7 +40,13 @@ def get_active_user(x_user: Optional[str] = Header(None)) -> str:
         # Validation et normalisation
         normalized_user = validate_user_id(x_user)
 
-        # Vérification autorisation
+        # Mode développement : bypass de l'autorisation si DEV_OPEN_API=1
+        dev_mode = os.getenv("DEV_OPEN_API", "0") == "1"
+        if dev_mode:
+            logger.info(f"DEV MODE: Bypassing authorization for user: {normalized_user}")
+            return normalized_user
+
+        # Vérification autorisation normale
         if not is_allowed_user(normalized_user):
             logger.warning(f"Unknown user attempted access: {x_user}")
             raise HTTPException(

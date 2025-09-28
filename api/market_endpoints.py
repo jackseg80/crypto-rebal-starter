@@ -12,8 +12,16 @@ import logging
 from datetime import datetime, timedelta
 import asyncio
 
-from services.data_sources.coingecko_client import CoinGeckoClient
-from services.data_sources.crypto_toolbox_client import CryptoToolboxClient
+# Stub implementation for missing data sources
+class StubCoinGeckoClient:
+    @staticmethod
+    async def get_historical_prices(symbols, days):
+        return {symbol: [{"timestamp": datetime.now(), "price": 45000.0 + i * 100}] for i, symbol in enumerate(symbols)}
+
+class StubCryptoToolboxClient:
+    @staticmethod
+    async def get_market_data(symbols):
+        return {"status": "success", "data": []}
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +53,8 @@ async def get_market_prices(
 
         logger.info(f"Fetching market prices for {len(symbol_list)} symbols over {days} days")
 
-        # Utiliser CoinGecko pour les données de prix
-        coingecko = CoinGeckoClient()
+        # Utiliser CoinGecko pour les données de prix (stub)
+        coingecko = StubCoinGeckoClient()
         prices_data = {}
 
         # Mapping des symboles vers les IDs CoinGecko

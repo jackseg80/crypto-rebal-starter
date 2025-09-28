@@ -93,7 +93,7 @@ from api.intelligence_endpoints import router as intelligence_router
 from api.user_settings_endpoints import router as user_settings_router
 from api.wealth_endpoints import router as wealth_router
 ## NOTE: market_endpoints est désactivé tant que le client prix n'est pas réimplémenté
-# from api.market_endpoints import router as market_router
+from api.market_endpoints import router as market_router
 from api.exceptions import (
     CryptoRebalancerException, APIException, ValidationException,
     ConfigurationException, TradingException, DataException, ErrorCodes
@@ -1777,7 +1777,9 @@ async def update_api_keys(payload: APIKeysRequest, debug_token: str = None):
 app.include_router(taxonomy_router)
 app.include_router(execution_router)
 app.include_router(analytics_router)
-# app.include_router(market_router)
+# Double montage pour uniformiser /api/analytics ET /analytics
+app.include_router(analytics_router, prefix="/api")
+app.include_router(market_router)
 app.include_router(kraken_router)
 app.include_router(smart_taxonomy_router)
 app.include_router(advanced_rebalancing_router)

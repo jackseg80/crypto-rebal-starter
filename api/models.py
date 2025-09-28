@@ -1,9 +1,24 @@
 """
 Modèles Pydantic pour la validation des entrées API
 """
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
 from pydantic import BaseModel, Field, field_validator, model_validator
 from datetime import datetime
+
+
+def safe_float_conversion(value: Any) -> float:
+    """Conversion robuste vers float avec gestion des cas edge"""
+    if isinstance(value, (dict, list)):
+        raise ValueError(f"Cannot convert {type(value).__name__} to float")
+    if isinstance(value, str):
+        try:
+            return float(value.strip())
+        except ValueError:
+            raise ValueError(f"Invalid float string: {value}")
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"Cannot convert {type(value).__name__} to float")
 
 
 class APIResponse(BaseModel):
@@ -51,7 +66,23 @@ class RebalanceRequest(BaseModel):
     max_deviation: float = Field(default=0.05, ge=0.01, le=0.5)  # 1-50%
     min_trade_amount_usd: float = Field(default=50.0, ge=10.0, le=10000.0)
     dry_run: bool = True
-    
+
+    @field_validator('max_deviation', 'min_trade_amount_usd', mode='before')
+    @classmethod
+    def validate_float_fields(cls, v):
+        return safe_float_conversion(v)
+
+    @field_validator('target_allocation', mode='before')
+    @classmethod
+    def validate_allocation_dict(cls, v):
+        if not isinstance(v, dict):
+            raise ValueError("target_allocation must be a dictionary")
+        # Convertir toutes les valeurs en float de manière robuste
+        cleaned = {}
+        for symbol, allocation in v.items():
+            cleaned[str(symbol)] = safe_float_conversion(allocation)
+        return cleaned
+
     @field_validator('target_allocation')
     @classmethod
     def validate_allocation_sum(cls, v):
@@ -59,7 +90,7 @@ class RebalanceRequest(BaseModel):
         if not (0.99 <= total <= 1.01):  # Tolérance de 1%
             raise ValueError("Target allocation must sum to approximately 1.0")
         return v
-    
+
     @field_validator('target_allocation')
     @classmethod
     def validate_allocation_values(cls, v):
@@ -75,6 +106,11 @@ class RiskAnalysisRequest(BaseModel):
     confidence_level: float = Field(default=0.95, ge=0.9, le=0.99)
     include_correlations: bool = True
     include_stress_testing: bool = False
+
+    @field_validator('confidence_level', mode='before')
+    @classmethod
+    def validate_confidence_level(cls, v):
+        return safe_float_conversion(v)
 
 
 class TradingPairRequest(BaseModel):
@@ -98,7 +134,14 @@ class OrderRequest(BaseModel):
     price: Optional[float] = Field(None, gt=0)
     exchange: str = Field(..., pattern="^(binance|kraken|coinbase)$")
     dry_run: bool = True
-    
+
+    @field_validator('quantity', 'price', mode='before')
+    @classmethod
+    def validate_numeric_fields(cls, v):
+        if v is None:
+            return v
+        return safe_float_conversion(v)
+
     @model_validator(mode='after')
     @classmethod
     def price_required_for_limit(cls, model):
