@@ -33,6 +33,7 @@
         import { store } from './core/risk-dashboard-store.js';
         import { UNIFIED_ASSET_GROUPS, getAssetGroup, groupAssetsByClassification } from './shared-asset-groups.js';
         import { selectCapPercent, selectPolicyCapPercent, selectEngineCapPercent } from './selectors/governance.js';
+        import { fetchSaxoSummary, formatCurrency, getMetricColor } from './modules/wealth-saxo-summary.js';
 
         const colorForScore = (s) => s > 70 ? 'var(--danger)' : s >= 40 ? 'var(--warning)' : 'var(--success)';
 
@@ -671,6 +672,53 @@
                 </div>
             </div>
 
+            <!-- Bourse (Saxo) - Lecture legacy -->
+            <div class="card" id="bourse" draggable="true"
+                data-tooltip="Vue d'ensemble de votre portefeuille d'actions et ETF via Saxo Bank en lecture seule."
+                data-source="API /api/saxo/positions (legacy)">
+                <div class="card-header">
+                    <div class="card-title"><span class="card-icon">🏦</span>Bourse (Saxo)</div>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <button class="action-btn secondary" style="padding:4px 8px;font-size:12px;"
+                            onclick="refreshSaxoTile()">🔄</button>
+                        <span class="status-badge" id="saxo-status">Loading</span>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg);">
+                    <!-- Colonne gauche : Métriques -->
+                    <div>
+                        <div class="metric">
+                            <span class="metric-label">Valeur Totale</span>
+                            <span class="metric-value" id="saxo-total-value">--</span>
+                        </div>
+
+                        <div class="metric">
+                            <span class="metric-label">Positions</span>
+                            <span class="metric-value" id="saxo-positions-count">--</span>
+                        </div>
+
+                        <div class="metric">
+                            <span class="metric-label">Dernier Import</span>
+                            <span class="metric-value" id="saxo-last-import" style="font-size:0.9rem;">--</span>
+                        </div>
+                    </div>
+
+                    <!-- Colonne droite : Actions -->
+                    <div style="display:flex;flex-direction:column;justify-content:center;gap:12px;">
+                        <a href="saxo-dashboard.html"
+                           class="action-btn primary"
+                           style="text-decoration:none;text-align:center;padding:12px;font-weight:600;">
+                            📊 Voir le détail
+                        </a>
+
+                        <div id="saxo-empty-state" style="display:none;text-align:center;color:var(--theme-text-muted);font-size:0.85rem;">
+                            Aucune position Saxo.<br>
+                            <a href="settings.html#sources" style="color:var(--theme-accent);">Importez un fichier dans Settings</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <!-- Execution Status -->
             <div class="card" id="card-execution" draggable="true"
@@ -824,6 +872,10 @@
 
             await loadDashboardData();
             setInterval(loadDashboardData, 60000);
+
+            // Initialize Saxo tile
+            await refreshSaxoTile();
+            setInterval(refreshSaxoTile, 120000); // Refresh every 2 minutes
 
             // Also check for data source changes more frequently (every 5 seconds)
             setInterval(() => {
@@ -2129,6 +2181,82 @@
                 root.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
             }
         })();
+
+        // === SAXO TILE FUNCTIONS ===
+        async function refreshSaxoTile() {
+            console.log('🏦 Refreshing Saxo tile...');
+
+            const statusEl = document.getElementById('saxo-status');
+            const totalValueEl = document.getElementById('saxo-total-value');
+            const positionsCountEl = document.getElementById('saxo-positions-count');
+            const lastImportEl = document.getElementById('saxo-last-import');
+            const emptyStateEl = document.getElementById('saxo-empty-state');
+
+            // Set loading state
+            if (statusEl) statusEl.textContent = 'Loading';
+            if (statusEl) statusEl.className = 'status-badge status-loading';
+
+            try {
+                const summary = await fetchSaxoSummary();
+
+                if (summary.isEmpty || summary.error) {
+                    // Empty state or error
+                    if (totalValueEl) totalValueEl.textContent = formatCurrency(0);
+                    if (positionsCountEl) positionsCountEl.textContent = '0';
+                    if (lastImportEl) lastImportEl.textContent = summary.asof || 'Aucune donnée';
+
+                    if (emptyStateEl) emptyStateEl.style.display = 'block';
+                    if (statusEl) {
+                        statusEl.textContent = summary.error ? 'Erreur' : 'Vide';
+                        statusEl.className = 'status-badge status-warning';
+                    }
+
+                    console.warn('[Saxo Tile] Empty state or error:', summary.error || 'No positions');
+                } else {
+                    // Success with data
+                    if (totalValueEl) {
+                        totalValueEl.textContent = formatCurrency(summary.total_value);
+                        totalValueEl.style.color = getMetricColor(summary.total_value);
+                    }
+                    if (positionsCountEl) positionsCountEl.textContent = summary.positions_count.toString();
+                    if (lastImportEl) lastImportEl.textContent = summary.asof;
+
+                    if (emptyStateEl) emptyStateEl.style.display = 'none';
+                    if (statusEl) {
+                        statusEl.textContent = 'OK';
+                        statusEl.className = 'status-badge status-active';
+                    }
+
+                    console.log('✅ Saxo tile updated:', {
+                        total_value: summary.total_value,
+                        positions_count: summary.positions_count,
+                        asof: summary.asof
+                    });
+                }
+
+                // Console assertion for sanity check
+                console.assert(
+                    summary.positions_count >= 0,
+                    '[Saxo Tile] Positions count should be >= 0, got:', summary.positions_count
+                );
+
+            } catch (error) {
+                console.error('[Saxo Tile] Error refreshing:', error);
+
+                if (totalValueEl) totalValueEl.textContent = '--';
+                if (positionsCountEl) positionsCountEl.textContent = '--';
+                if (lastImportEl) lastImportEl.textContent = 'Erreur';
+
+                if (emptyStateEl) emptyStateEl.style.display = 'block';
+                if (statusEl) {
+                    statusEl.textContent = 'Erreur';
+                    statusEl.className = 'status-badge status-error';
+                }
+            }
+        }
+
+        // Make function globally available for onclick
+        window.refreshSaxoTile = refreshSaxoTile;
 
     </script>
 

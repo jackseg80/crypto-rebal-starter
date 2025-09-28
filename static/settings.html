@@ -755,16 +755,29 @@
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
               <p style="margin: 0; color: var(--theme-text-muted);">Import CSV/XLSX de vos positions actions</p>
-              <div style="font-size: 0.875rem; color: var(--theme-text-muted); margin-top: 0.25rem;">
-                <span id="saxo-portfolios-count">Aucun portfolio importé</span>
+              <div style="font-size: 0.875rem; margin-top: 0.25rem;">
+                <span id="saxo-status-display">🔄 Vérification en cours...</span>
               </div>
             </div>
             <div style="display: flex; gap: 0.5rem;">
-              <button class="btn primary" onclick="window.location.href='saxo-upload.html'">📤 Import</button>
-              <button class="btn secondary" onclick="window.location.href='saxo-dashboard.html'" id="saxo-dashboard-btn"
-                disabled>📊 Dashboard</button>
+              <input type="file" id="saxo-file-input" accept=".csv,.xlsx" style="display: none;" onchange="handleSaxoUpload(event)">
+              <button class="btn primary" onclick="document.getElementById('saxo-file-input').click()">📤 Importer</button>
+              <button class="btn secondary" onclick="window.location.href='saxo-upload.html'" title="Page d'upload complète">📋 Upload Avancé</button>
+              <button class="btn secondary" onclick="window.location.href='saxo-dashboard.html'" id="saxo-dashboard-btn">📊 Dashboard</button>
             </div>
           </div>
+
+          <!-- Upload Progress -->
+          <div id="saxo-upload-progress" style="display: none; margin-top: 1rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <div class="spinner" style="width: 16px; height: 16px;"></div>
+              <span style="font-size: 0.875rem; color: var(--theme-text-muted);">Upload en cours...</span>
+            </div>
+          </div>
+
+          <!-- Success/Error Messages -->
+          <div id="saxo-upload-result" style="display: none; margin-top: 1rem;"></div>
+
           <div
             style="margin-top: 1rem; padding: 1rem; background: var(--info-bg); border-radius: var(--radius-md); border: 1px solid var(--info);">
             <div style="font-size: 0.875rem; color: var(--info);">
@@ -2265,6 +2278,131 @@
         dashboardBtn.style.opacity = '0.5';
       }
     }
+
+    // === SAXO UPLOAD FUNCTIONS ===
+    async function handleSaxoUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      console.log('🏦 Starting Saxo upload:', file.name);
+
+      const progressDiv = document.getElementById('saxo-upload-progress');
+      const resultDiv = document.getElementById('saxo-upload-result');
+
+      // Show progress
+      progressDiv.style.display = 'block';
+      resultDiv.style.display = 'none';
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch(globalSettings.api_base_url + '/api/saxo/upload', {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'X-User': getActiveUser()
+          }
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+          // Success
+          resultDiv.innerHTML = `
+            <div style="padding: 1rem; background: var(--success-bg); border: 1px solid var(--success); border-radius: var(--radius-md); color: var(--success);">
+              <strong>✅ Upload réussi!</strong><br>
+              ${result.portfolios_count || 1} portfolio(s) importé(s) • ${result.positions_count || 0} positions
+            </div>
+          `;
+
+          // Update status immediately
+          await refreshSaxoStatus();
+
+          // Show success toast (if available)
+          if (window.showToast) {
+            window.showToast('Portfolio Saxo importé avec succès!', 'success');
+          }
+
+          console.log('✅ Saxo upload success:', result);
+
+        } else {
+          throw new Error(result.error || result.detail || 'Upload failed');
+        }
+
+      } catch (error) {
+        console.error('❌ Saxo upload error:', error);
+
+        resultDiv.innerHTML = `
+          <div style="padding: 1rem; background: var(--danger-bg); border: 1px solid var(--danger); border-radius: var(--radius-md); color: var(--danger);">
+            <strong>❌ Erreur d'upload</strong><br>
+            ${error.message}
+          </div>
+        `;
+      } finally {
+        progressDiv.style.display = 'none';
+        resultDiv.style.display = 'block';
+
+        // Clear file input
+        event.target.value = '';
+
+        // Hide result after 10 seconds
+        setTimeout(() => {
+          resultDiv.style.display = 'none';
+        }, 10000);
+      }
+    }
+
+    async function refreshSaxoStatus() {
+      console.log('🏦 Refreshing Saxo status...');
+
+      const statusSpan = document.getElementById('saxo-status-display');
+      const dashboardBtn = document.getElementById('saxo-dashboard-btn');
+
+      if (statusSpan) statusSpan.textContent = '🔄 Vérification...';
+
+      try {
+        // Use the wealth store utility
+        const { fetchSaxoSummary, formatCurrency } = await import('./modules/wealth-saxo-summary.js');
+        const summary = await fetchSaxoSummary();
+
+        if (summary.isEmpty || summary.error) {
+          if (statusSpan) {
+            statusSpan.textContent = '📂 Aucun portfolio importé';
+            statusSpan.style.color = 'var(--theme-text-muted)';
+          }
+          if (dashboardBtn) {
+            dashboardBtn.disabled = true;
+            dashboardBtn.style.opacity = '0.5';
+          }
+        } else {
+          if (statusSpan) {
+            statusSpan.innerHTML = `✅ Dernier import : ${summary.asof} • ${summary.positions_count} positions • ${formatCurrency(summary.total_value)}`;
+            statusSpan.style.color = 'var(--success)';
+          }
+          if (dashboardBtn) {
+            dashboardBtn.disabled = false;
+            dashboardBtn.style.opacity = '1';
+          }
+        }
+
+      } catch (error) {
+        console.warn('[Settings Saxo] Error refreshing status:', error);
+        if (statusSpan) {
+          statusSpan.textContent = '❌ Erreur de vérification';
+          statusSpan.style.color = 'var(--danger)';
+        }
+      }
+    }
+
+    // Initialize Saxo status on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(refreshSaxoStatus, 1000); // Slight delay to ensure modules are loaded
+    });
+
+    // Make functions globally available
+    window.handleSaxoUpload = handleSaxoUpload;
+    window.refreshSaxoStatus = refreshSaxoStatus;
 
   </script>
 

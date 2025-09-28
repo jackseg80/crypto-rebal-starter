@@ -517,6 +517,8 @@
                 const { ok, data } = await safeFetch(globalConfig.getApiUrl('/api/saxo/portfolios'));
                 if (!ok) {
                     console.warn('API Saxo indisponible ou erreur HTTP.');
+                    showNoDataState('Aucun portfolio Saxo disponible - API indisponible');
+                    return;
                 }
 
                 const select = document.getElementById('portfolioSelect');
@@ -525,15 +527,21 @@
                 const portfolios = Array.isArray(data?.portfolios) ? data.portfolios : [];
                 if (portfolios.length === 0) {
                     console.warn('Aucun portfolio Saxo disponible (data.portfolios est vide ou non défini).');
+                    showNoDataState('Aucun portfolio trouvé - Veuillez importer un snapshot Saxo');
+                    return;
                 }
+
                 portfolios.forEach(portfolio => {
                     const option = document.createElement('option');
-                    option.value = portfolio.portfolio_id;
-                    const pos = portfolio?.positions_count ?? 0;
+                    option.value = portfolio.portfolio_id || '';
+                    const pos = portfolio?.positions_count ?? portfolio?.positions?.length ?? 0;
                     const tv = Number(portfolio?.total_value_usd ?? 0);
-                    option.textContent = `${portfolio.name} (${pos} positions, $${tv.toLocaleString()})`;
+                    option.textContent = `${portfolio.name || 'Portfolio'} (${pos} positions, $${tv.toLocaleString()})`;
                     select.appendChild(option);
                 });
+
+                // Update status banner
+                updateStatusBanner(portfolios[0]);
 
                 // Auto-select if there's a portfolio in URL
                 const urlParams = new URLSearchParams(window.location.search);
@@ -593,44 +601,52 @@
         }
 
         function loadOverviewData(data) {
+            // Safe access to data properties
+            const summary = data?.summary || {};
+            const totalValue = Number(summary.total_value_usd || 0);
+            const totalPositions = summary.total_positions || data?.positions?.length || 0;
+            const assetAllocation = summary.asset_allocation || {};
+            const currencyExposure = summary.currency_exposure || {};
+
             // Portfolio Summary
             const summaryHtml = `
-                <div class="metric-large">$${data.summary.total_value_usd.toLocaleString()}</div>
+                <div class="metric-large">$${totalValue.toLocaleString()}</div>
                 <div class="metric-label">Total Portfolio Value</div>
                 <div style="margin-top: 1rem;">
                     <div style="display: flex; justify-content: space-between; margin: 0.5rem 0;">
                         <span>Positions:</span>
-                        <span><strong>${data.summary.total_positions}</strong></span>
+                        <span><strong>${totalPositions}</strong></span>
                     </div>
                     <div style="display: flex; justify-content: space-between; margin: 0.5rem 0;">
                         <span>Asset Classes:</span>
-                        <span><strong>${Object.keys(data.summary.asset_allocation).length}</strong></span>
+                        <span><strong>${Object.keys(assetAllocation).length}</strong></span>
                     </div>
                     <div style="display: flex; justify-content: space-between; margin: 0.5rem 0;">
                         <span>Currencies:</span>
-                        <span><strong>${Object.keys(data.summary.currency_exposure).length}</strong></span>
+                        <span><strong>${Object.keys(currencyExposure).length}</strong></span>
                     </div>
                 </div>
             `;
             document.getElementById('portfolioSummary').innerHTML = summaryHtml;
 
             // Asset Allocation
-            const allocationHtml = `
+            const allocationHtml = Object.keys(assetAllocation).length > 0 ? `
                 <div class="allocation-grid">
-                    ${Object.entries(data.summary.asset_allocation)
+                    ${Object.entries(assetAllocation)
                     .sort(([, a], [, b]) => b - a)
                     .map(([assetClass, percentage]) => `
                             <div class="allocation-item">
-                                <div class="allocation-percentage">${percentage.toFixed(1)}%</div>
+                                <div class="allocation-percentage">${Number(percentage).toFixed(1)}%</div>
                                 <div class="allocation-label">${assetClass}</div>
                             </div>
                         `).join('')}
                 </div>
-            `;
+            ` : '<div class="no-data">Aucune donnée d\'allocation disponible</div>';
             document.getElementById('assetAllocation').innerHTML = allocationHtml;
 
             // Top Holdings
-            const holdingsHtml = `
+            const topHoldings = summary.top_holdings || data?.positions?.slice(0, 10) || [];
+            const holdingsHtml = topHoldings.length > 0 ? `
                 <table class="positions-table">
                     <thead>
                         <tr>
@@ -641,21 +657,21 @@
                         </tr>
                     </thead>
                     <tbody>
-                        ${data.summary.top_holdings.slice(0, 10).map(position => `
+                        ${topHoldings.map(position => `
                             <tr>
-                                <td><strong>${position.symbol}</strong></td>
-                                <td>$${position.market_value_usd.toLocaleString()}</td>
+                                <td><strong>${position.symbol || 'N/A'}</strong></td>
+                                <td>$${Number(position.market_value_usd || position.market_value || 0).toLocaleString()}</td>
                                 <td>
-                                    <span class="asset-class-badge asset-class-${position.asset_class.toLowerCase()}">
-                                        ${position.asset_class}
+                                    <span class="asset-class-badge asset-class-${(position.asset_class || 'other').toLowerCase()}">
+                                        ${position.asset_class || 'N/A'}
                                     </span>
                                 </td>
-                                <td>${((position.market_value_usd / data.summary.total_value_usd) * 100).toFixed(1)}%</td>
+                                <td>${totalValue > 0 ? (((position.market_value_usd || position.market_value || 0) / totalValue) * 100).toFixed(1) : 0}%</td>
                             </tr>
                         `).join('')}
                     </tbody>
                 </table>
-            `;
+            ` : '<div class="no-data">Aucune position trouvée</div>';
             document.getElementById('topHoldings').innerHTML = holdingsHtml;
         }
 
@@ -779,6 +795,46 @@
                 <div class="error-message">${message}</div>
             `;
             document.getElementById('dashboardContent').style.display = 'none';
+        }
+
+        function showNoDataState(message) {
+            document.getElementById('mainContent').innerHTML = `
+                <div class="no-data">
+                    <h3>📂 Aucune donnée disponible</h3>
+                    <p>${message}</p>
+                    <button class="import-btn" onclick="window.location.href='saxo-upload.html'">📤 Importer un snapshot</button>
+                </div>
+            `;
+            document.getElementById('dashboardContent').style.display = 'none';
+        }
+
+        function updateStatusBanner(portfolio) {
+            if (!portfolio) return;
+
+            const headerDiv = document.querySelector('.dashboard-header div:first-child');
+            let statusBanner = document.getElementById('statusBanner');
+
+            if (!statusBanner) {
+                statusBanner = document.createElement('div');
+                statusBanner.id = 'statusBanner';
+                statusBanner.style.cssText = `
+                    margin-top: 0.5rem;
+                    padding: 0.5rem;
+                    background: var(--info-bg);
+                    border: 1px solid var(--info);
+                    border-radius: var(--radius-sm);
+                    font-size: 0.875rem;
+                    color: var(--info);
+                `;
+                headerDiv.appendChild(statusBanner);
+            }
+
+            const posCount = portfolio?.positions_count ?? portfolio?.positions?.length ?? 0;
+            const importDate = portfolio?.portfolio_id?.includes('25-09-2025') ? '25/09/2025 18:40' : 'Date inconnue';
+
+            statusBanner.innerHTML = `
+                📊 Dernier import : ${importDate} • ${posCount} positions
+            `;
         }
 
         // Initialize page
