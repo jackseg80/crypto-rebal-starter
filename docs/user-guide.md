@@ -9,9 +9,10 @@ Ce guide décrit l’UI **actuelle** :
 - **Bourse / Saxo (actuel)** :
   - `static/saxo-dashboard.html` : dashboard bourse
   - `static/saxo-upload.html` : import CSV/XLSX Saxo
+  - `static/analytics-equities.html` : analytics détaillées bourse (beta, legacy)
 - `static/settings.html` : paramètres (selon versions : liens vers upload Saxo)
 
-> **Note roadmap** : à terme, l’UI bourse adoptera des pages dédiées mirroirs de Crypto (`analytics-equities.html`, etc.), mais **elles n’existent pas encore** dans l’état actuel.
+> **Note roadmap** : à terme, l'UI bourse adoptera des pages dédiées mirroirs de Crypto. `analytics-equities.html` (beta) existe maintenant mais en lecture legacy `/api/saxo/*`.
 
 ## 1. Chargement du portefeuille
 - **Crypto** : `GET /balances/current?source=cointracking|cointracking_api&min_usd=1`
@@ -39,7 +40,8 @@ curl -X POST "http://127.0.0.1:8000/rebalance/plan" \
   - `risk-dashboard.html` (VaR, caps, contradiction, etc.)
 - **Bourse**
   - **Actuel** : `saxo-dashboard.html` (positions, répartition, etc.)
-  - **À venir** : `analytics-equities.html`, `risk-equities.html` (voir roadmap)
+  - **Beta** : `analytics-equities.html` (analyse détaillée, lecture legacy)
+  - **À venir** : `risk-equities.html`, `rebalance-equities.html` (voir roadmap)
   - Banques : non intégré aujourd'hui (voir roadmap)
 
 ## 4. Monitoring

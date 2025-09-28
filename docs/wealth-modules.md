@@ -1,16 +1,21 @@
 # Modules Patrimoniaux — État ACTUEL + Roadmap
 
 Le cockpit patrimoine vise à intégrer **plusieurs modules** (Crypto, Bourse, Banques) dans une logique unifiée.
-**Aujourd'hui** :
+**Phase 2 terminée (Sept 2025)** :
 - **Crypto** : pleinement intégré (analytics/risk/rebalance)
-- **Bourse (Saxo)** : présent via pages dédiées `saxo-dashboard.html` et `saxo-upload.html`
+- **Bourse (Saxo)** : **🏦 Intégration avancée** - Dashboard unifié + Upload Settings + pages dédiées stables
 - **Banques** : non intégré
 
-## UI (AUJOURD'HUI)
+## UI (PHASE 2 COMPLÉTÉE)
 - **Crypto** : `analytics-unified.html`, `risk-dashboard.html`, `rebalance.html`
-- **Bourse (Saxo)** : `saxo-dashboard.html` (dashboard), `saxo-upload.html` (import)
+- **Bourse (Saxo)** :
+  - Tuile intégrée dans `dashboard.html` (valeur totale, positions, import)
+  - Upload direct dans `settings.html` (progress + statut temps réel)
+  - `saxo-dashboard.html` stabilisé (error handling, empty states)
+  - `saxo-upload.html` (maintenu en parallèle)
+  - `analytics-equities.html` (beta, lecture legacy)
 - **Banques** : n/a
-- **Dashboard** : `dashboard.html` (majoritairement Crypto à ce stade)
+- **Dashboard** : `dashboard.html` avec tuiles Crypto + Bourse unifiées
 
 ## 1. Module Crypto
 
@@ -36,17 +41,28 @@ Le cockpit patrimoine vise à intégrer **plusieurs modules** (Crypto, Bourse, B
 
 ---
 
-## 2. Module Bourse (Saxo)
+## 2. Module Bourse (Saxo) — Phase 2 ✅
 
-**État actuel** : intégration **via CSV/XLSX** avec pages **dédiées**.
-- UI actuelle :
-  - `saxo-upload.html` : chargement de fichiers
-  - `saxo-dashboard.html` : consultation des positions Saxo
-- Endpoints actuels usuels : `/api/saxo/*`
+**Intégration avancée** via CSV/XLSX avec interface unifiée.
 
-**Limites connues** :
-- Flux séparé de Crypto (UX pas encore unifiée)
-- P&L Today dépend des données de clôture (peut être 0 en fallback)
+### UI Phase 2 (complétée)
+- **Dashboard unifié** : tuile Bourse dans `dashboard.html` (valeur totale, positions, dernière MAJ)
+- **Upload Settings** : import direct dans `settings.html` (progress, statut temps réel)
+- **Pages dédiées stabilisées** :
+  - `saxo-dashboard.html` : error handling amélioré, empty states, bandeau d'état
+  - `saxo-upload.html` : maintenu en parallèle pendant transition
+  - `analytics-equities.html` : page beta analytics détaillées (lecture legacy)
+- **Store partagé** : `modules/wealth-saxo-summary.js` (évite duplication Dashboard/Settings)
+- **Utilitaires** : `modules/equities-utils.js` (manipulation données bourse)
+
+### Endpoints disponibles
+- **Legacy** : `/api/saxo/*` (utilisé actuellement)
+- **Wealth** : `/api/wealth/saxo/*` (prêt pour Phase 3)
+
+### Données en temps réel
+- **Cache intelligent** : TTL 30s avec invalidation post-upload
+- **Cross-tab sync** : mise à jour immédiate entre Dashboard et Settings
+- **Fallback gracieux** : P&L Today = 0 si données de clôture indisponibles
 
 ### Sources de données
 - **Saxo CSV/XLSX** : Positions, transactions, cash
