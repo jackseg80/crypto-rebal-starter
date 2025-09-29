@@ -124,13 +124,15 @@ PUT  /api/users/settings    # Sauvegarde configuration utilisateur
 - **Dynamic Cache Bust** : Import modules avec `?v=${timestamp}` pour forcer rechargement
 - **Logs Détaillés** : Debug complet du timing d'injection des données dans le store
 
-### 📂 Sources System v2 - Interface Unifiée
+### 📂 Sources System v2 - Interface Unifiée (FINALISÉ)
 - **sources_resolver.py** : SOT unique pour résolution snapshots → imports → legacy → API
 - **Upload Manager** : Interface drag & drop avec validation par module (CSV/JSON/XLSX)
 - **Active Selection** : Sélection dynamique de sources avec sauvegarde automatique
 - **Test Integration** : Validation temps réel des sources avec feedback détaillé
-- **Legacy Deprecation** : Ancien système marqué lecture seule, migration transparente
-- **API Endpoints** : `/sources/upload`, `/sources/scan`, `/sources/import`, `/sources/test`
+- **Legacy Migration** : Migration UI complète, ancien système supprimé
+- **Real-time Staleness** : Monitoring 60s avec indicateurs visuels (vert/jaune/rouge)
+- **Extended Legacy Support** : Détection automatique csv/CoinTracking*.csv, csv/saxo*.csv
+- **Production Ready** : Interface propre, navigation unifiée, zéro confusion utilisateur
 
 ### Système d'Allocation Dynamique
 - **Élimination des presets hardcodés** : Plus de templates figés (BTC 40%, ETH 30%, etc.)
@@ -226,7 +228,31 @@ Decision Inputs → Risk Budget → Targets → Phase Tilts → Governance → E
 - Les endpoints ML/Risk/Alerts ont été consolidés; voir `docs/refactoring.md` pour la migration.
 - Classification des assets: `data/taxonomy_aliases.json` est la source unique de vérité pour tous les groupes d'assets. Les dashboards utilisent automatiquement cette classification via l'API `/taxonomy` et le module `static/shared-asset-groups.js`.
 
-### Governance UI (Cap d’exécution)
+## 🏆 **Achievements Récents (Sep 2025)**
+
+### ✅ **Sources System v2 - Migration Complète**
+L'écosystème Sources est maintenant **100% unifié et production-ready** :
+
+**Architecture Finale** :
+- **Resolution Chain** : snapshots → imports → legacy → API → stub (priorité Sources First)
+- **Legacy Support** : Détection automatique des patterns historiques (`csv/CoinTracking*.csv`)
+- **Real-time Monitoring** : Staleness avec polling 60s et indicateurs visuels
+- **Interface Propre** : Un seul onglet Sources, ancien système complètement supprimé
+
+**Impact Utilisateur** :
+- **Zéro Confusion** : Plus de doublons d'interface (ancien "Source" vs nouveau "Sources")
+- **Feedback Immédiat** : Bandeaux temps réel sur fraîcheur des données
+- **Migration Transparente** : Fichiers existants automatiquement détectés
+- **Navigation Cohérente** : Tous les liens pointent vers `settings.html#tab-sources`
+
+**Validation Technique** :
+- ✅ API `/sources/list` expose `effective_read`/`effective_path`
+- ✅ Patterns legacy détectés avec `is_legacy=true`
+- ✅ Race condition $0 résolue (store fallback + retry pattern)
+- ✅ Cache invalidation pour données invalides (`grand = 0`)
+- ✅ Tests multi-utilisateurs passés
+
+### Governance UI (Cap d'exécution)
 
 - Source de vérité frontend: `GET /execution/governance/state.active_policy.cap_daily`.
 - Utiliser `selectCapPercent(state)` du module `static/selectors/governance.js` pour tout affichage/calcul en %.

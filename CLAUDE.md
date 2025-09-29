@@ -212,6 +212,26 @@ async def vol_predict(assets: List[str] = Query(..., min_items=1, max_items=50),
 - Scan et import automatisés par module
 - Interface dépréciée pour l'ancien système (lecture seule)
 
+### 4.3) Sources System - Finition UX & Legacy Cleanup
+
+**Migration UI complète** (Sep 2025) :
+- Suppression définitive des boutons import legacy (`saxo-upload.html`)
+- Bandeaux staleness temps réel avec polling 60s et indicateurs visuels
+- Ancien onglet "Source" complètement masqué (`display: none`)
+- Navigation unifiée vers `settings.html#tab-sources`
+
+**Détection legacy étendue** :
+- Patterns legacy automatiques : `csv/CoinTracking*.csv`, `csv/saxo*.csv`, `csv/positions*.csv`
+- Marquage `is_legacy=true` dans `/api/sources/list`
+- Priorité dans `effective_path` : legacy files → autres fichiers détectés
+- Compatibilité totale avec fichiers utilisateurs existants
+
+**Monitoring temps réel** :
+- `refreshSaxoStaleness()` : Fonction universelle avec gestion d'erreurs
+- Indicateurs couleur selon âge : vert (minutes), jaune (heures), rouge (jours/erreur)
+- Polling automatique 60s sur toutes les pages Bourse/Analytics
+- Fallback gracieux en cas d'échec API
+
 ---
 
 ## 5) Definition of Done (DoD)
