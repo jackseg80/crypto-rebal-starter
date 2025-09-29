@@ -260,20 +260,44 @@
             background: color-mix(in oklab, var(--brand-primary) 80%, black);
         }
 
-        .import-btn {
-            background: var(--success);
+        .sources-banner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--info-bg);
+            border: 1px solid var(--info);
+            border-radius: var(--radius-md);
+            padding: 0.5rem 0.75rem;
+            font-size: 0.875rem;
+            color: var(--info);
+            margin-left: 0.5rem;
+            min-width: 140px;
+        }
+
+        .sources-link {
+            color: var(--info);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.8rem;
+        }
+
+        .sources-link:hover {
+            text-decoration: underline;
+        }
+
+        .sources-btn {
+            display: inline-block;
+            background: var(--info);
             color: white;
-            border: none;
+            text-decoration: none;
             border-radius: var(--radius-md);
             padding: 0.5rem 1rem;
-            cursor: pointer;
             font-size: 0.875rem;
-            margin-left: 0.5rem;
             transition: all var(--transition-fast);
         }
 
-        .import-btn:hover {
-            background: color-mix(in oklab, var(--success) 80%, black);
+        .sources-btn:hover {
+            background: color-mix(in oklab, var(--info) 80%, black);
         }
 
         .tabs {
@@ -349,7 +373,10 @@
                     <option value="">Select a portfolio...</option>
                 </select>
                 <button class="refresh-btn" onclick="refreshPortfolios()">🔄</button>
-                <button class="import-btn" onclick="window.location.href='saxo-upload.html'">📤 Import</button>
+                <div class="sources-banner">
+                    <span>📊 Sources configurées</span>
+                    <a href="settings.html#tab-sources" class="sources-link">Gérer →</a>
+                </div>
             </div>
         </div>
 
@@ -358,7 +385,7 @@
         <div id="mainContent">
             <div class="no-data">
                 <h3>No Portfolio Selected</h3>
-                <p>Please select a portfolio from the dropdown above or <a href="saxo-upload.html">import a new one</a>.
+                <p>Please select a portfolio from the dropdown above or <a href="settings.html#tab-sources">configure your sources</a>.
                 </p>
             </div>
         </div>
@@ -822,7 +849,7 @@
                 <div class="no-data">
                     <h3>📂 Aucune donnée disponible</h3>
                     <p>${message}</p>
-                    <button class="import-btn" onclick="window.location.href='saxo-upload.html'">📤 Importer un snapshot</button>
+                    <a href="settings.html#tab-sources" class="sources-btn">📁 Configurer Sources</a>
                 </div>
             `;
             document.getElementById('dashboardContent').style.display = 'none';

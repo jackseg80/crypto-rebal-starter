@@ -38,6 +38,8 @@ class SourceModuleInfo(BaseModel):
     detected_files: List[DetectedFile]
     last_import_at: Optional[str] = None
     staleness: Dict[str, Any]
+    effective_read: str  # "snapshot" | "imports" | "legacy" | "api"
+    effective_path: Optional[str] = None  # Chemin réellement lu
     notes: Optional[str] = None
 
 class SourcesScanResult(BaseModel):
@@ -117,6 +119,7 @@ async def list_sources(
             detected_files = []
             import os
             from pathlib import Path
+            from api.services.config_migrator import resolve_secret_ref
 
             for pattern in module_config.get("patterns", []):
                 files = user_fs.glob_files(pattern)
@@ -152,14 +155,52 @@ async def list_sources(
                 module_config.get("warning_threshold_hours", 12)
             )
 
+            # Déterminer effective_read et effective_path
+            effective_read = "none"
+            effective_path = None
+
+            # 1. Vérifier snapshot récent
+            snapshot_path = f"{module_name}/snapshots/latest.csv"
+            if user_fs.exists(snapshot_path):
+                effective_read = "snapshot"
+                effective_path = snapshot_path
+            # 2. Vérifier imports
+            elif user_fs.glob_files(f"{module_name}/imports/*.csv"):
+                imports_files = user_fs.glob_files(f"{module_name}/imports/*.csv")
+                effective_read = "imports"
+                effective_path = str(Path(imports_files[0]).relative_to(user_fs.get_user_root())) if imports_files else None
+            # 3. Vérifier legacy
+            elif detected_files:
+                effective_read = "legacy"
+                effective_path = detected_files[0].relative_path
+
+            # Ajuster modes dynamiquement selon les credentials API
+            modes = list(module_config.get("modes", ["uploads"]))
+            if "api" in modes:
+                # Vérifier si les credentials API sont résolubles
+                api_config = module_config.get("api", {})
+                key_ref = api_config.get("key_ref")
+                secret_ref = api_config.get("secret_ref")
+
+                if key_ref and secret_ref:
+                    key_value = resolve_secret_ref(key_ref, user_fs)
+                    secret_value = resolve_secret_ref(secret_ref, user_fs)
+
+                    if not (key_value and secret_value):
+                        # Retirer "api" des modes si credentials non résolubles
+                        modes = [m for m in modes if m != "api"]
+                        logger.debug(f"API mode removed for {module_name} - credentials not resolvable")
+
             module_info = SourceModuleInfo(
                 name=module_name,
                 enabled=module_config.get("enabled", True),
-                modes=module_config.get("modes", ["uploads"]),
+                modes=modes,
                 files_detected=files_count,
                 detected_files=detected_files,
                 last_import_at=module_config.get("last_import_at"),
                 staleness=staleness,
+                effective_read=effective_read,
+                effective_path=effective_path,
                 notes=module_config.get("notes")
             )
 

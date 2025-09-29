@@ -683,6 +683,23 @@ function setupSourcesEventHandlers() {
       refreshSourcesStatus(); // Refresh immédiat en reprenant focus
     }
   });
+
+  // 🔥 PATCH 5: Écouter les changements d'utilisateur
+  // Écouter les changements du sélecteur d'utilisateur
+  const userSelector = document.getElementById('user-selector');
+  if (userSelector) {
+    userSelector.addEventListener('change', () => {
+      console.log('[Sources] User changed, refreshing sources data...');
+      // Rafraîchir immédiatement avec le nouvel utilisateur
+      refreshSourcesStatus();
+    });
+  }
+
+  // Écouter les événements custom de changement d'utilisateur (comme dans nav.js)
+  window.addEventListener('userChanged', (event) => {
+    console.log('[Sources] User changed via event:', event.detail);
+    refreshSourcesStatus();
+  });
 }
 
 // Export des fonctions principales pour l'usage dans settings.html

@@ -64,6 +64,7 @@ class UserDataRouter:
     def get_csv_files(self, file_type: str = "balance") -> List[str]:
         """
         Retourne les fichiers CSV pour un type donné.
+        Priorité : Sources snapshots → Sources imports → Legacy patterns
 
         Args:
             file_type: Type de fichier ('balance', 'coins', 'exchange')
@@ -71,10 +72,28 @@ class UserDataRouter:
         Returns:
             List[str]: Liste des fichiers CSV trouvés
         """
-        # Utiliser le pattern configuré par l'utilisateur
-        user_pattern = self.csv_glob
+        # 🔥 PATCH 4: Prioriser les snapshots Sources
+        # 1. Vérifier snapshot CoinTracking récent
+        if file_type == "balance":
+            snapshot_path = "cointracking/snapshots/latest.csv"
+            if self.user_fs.exists(snapshot_path):
+                full_path = self.user_fs.get_path(snapshot_path)
+                logger.debug(f"Using Sources snapshot for user {self.user_id}: {snapshot_path}")
+                return [full_path]
 
-        # Patterns de recherche selon le type avec le pattern utilisateur
+            # 2. Vérifier imports CoinTracking
+            import_files = self.user_fs.glob_files("cointracking/imports/*.csv")
+            if import_files:
+                # Trier par date de modification (plus récent en premier)
+                try:
+                    import_files.sort(key=lambda f: os.path.getmtime(f), reverse=True)
+                except OSError:
+                    pass
+                logger.debug(f"Using Sources imports for user {self.user_id}: {len(import_files)} files")
+                return import_files
+
+        # 3. Fallback sur les patterns legacy (pour compatibilité)
+        user_pattern = self.csv_glob
         patterns = {
             "balance": [
                 f"{user_pattern}/CoinTracking - Current Balance*.csv",
@@ -106,7 +125,7 @@ class UserDataRouter:
                     files.sort(key=lambda f: os.path.getmtime(f), reverse=True)
                 except OSError:
                     pass
-                logger.debug(f"Found {len(files)} {file_type} files for user {self.user_id}")
+                logger.warning(f"Using legacy CSV pattern for user {self.user_id}: {pattern} ({len(files)} files)")
                 return files
 
         logger.warning(f"No {file_type} CSV files found for user {self.user_id}")

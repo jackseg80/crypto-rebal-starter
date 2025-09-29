@@ -13,13 +13,20 @@ export async function safeFetch(url, options = {}) {
         const timeoutId = setTimeout(() => controller.abort(), timeout);
 
         try {
+            // Ajouter X-User depuis le sélecteur global (comme nav.js)
+            const currentUser = window.getCurrentUser ? window.getCurrentUser() : null;
+            if (!currentUser) {
+                console.warn('[http.js] No current user found, requests may use default user');
+            }
+
             const res = await fetch(url, {
                 cache: 'no-store',
                 signal: controller.signal,
                 ...options,
                 headers: {
                     ...(options.headers || {}),
-                    ...(__etagCache.has(url) ? { 'If-None-Match': __etagCache.get(url) } : {})
+                    ...(__etagCache.has(url) ? { 'If-None-Match': __etagCache.get(url) } : {}),
+                    ...(currentUser ? { 'X-User': currentUser } : {})
                 }
             });
 
