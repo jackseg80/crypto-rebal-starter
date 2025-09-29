@@ -803,7 +803,7 @@ async def resolve_current_balances(source: str = Query("cointracking_api"), user
     else:
         # --- Déterminer la source effective selon l'utilisateur ---
         effective_source = data_router.get_effective_source()
-        logger.debug(f"Effective source for user '{user_id}': {effective_source}")
+        logger.info(f"🎯 Effective source for user '{user_id}': {effective_source}")
 
         # --- API Mode ---
         if effective_source == "cointracking_api" and source in ("cointracking_api", "auto"):

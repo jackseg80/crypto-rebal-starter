@@ -124,6 +124,14 @@ PUT  /api/users/settings    # Sauvegarde configuration utilisateur
 - **Dynamic Cache Bust** : Import modules avec `?v=${timestamp}` pour forcer rechargement
 - **Logs Détaillés** : Debug complet du timing d'injection des données dans le store
 
+### 📂 Sources System v2 - Interface Unifiée
+- **sources_resolver.py** : SOT unique pour résolution snapshots → imports → legacy → API
+- **Upload Manager** : Interface drag & drop avec validation par module (CSV/JSON/XLSX)
+- **Active Selection** : Sélection dynamique de sources avec sauvegarde automatique
+- **Test Integration** : Validation temps réel des sources avec feedback détaillé
+- **Legacy Deprecation** : Ancien système marqué lecture seule, migration transparente
+- **API Endpoints** : `/sources/upload`, `/sources/scan`, `/sources/import`, `/sources/test`
+
 ### Système d'Allocation Dynamique
 - **Élimination des presets hardcodés** : Plus de templates figés (BTC 40%, ETH 30%, etc.)
 - **Calculs contextuels** : Allocations basées sur cycle de marché, régime, concentration wallet

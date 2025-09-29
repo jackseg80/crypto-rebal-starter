@@ -284,10 +284,16 @@ function createSourcesList(moduleName, module) {
       const dateStr = formatRelativeTime(new Date(file.modified_at));
       const legacyBadge = file.is_legacy ? '<small class="legacy">Legacy</small>' : '';
 
+      // 🔥 NOUVELLE LOGIQUE: Valeur basée sur le nom de fichier pour correspondre au système existant
+      const sourceValue = `csv_${index}`;
+      const isSelected = isSourceCurrentlySelected(moduleName, sourceValue);
+
       sources.push(`
         <label class="source-option">
-          <input type="radio" name="source-${moduleName}" value="file:${file.relative_path}"
-                 ${index === 0 ? 'checked' : ''}>
+          <input type="radio" name="source-select-${moduleName}" value="${sourceValue}"
+                 data-file="${file.name}" data-module="${moduleName}"
+                 onchange="selectActiveSource('${moduleName}', '${sourceValue}', '${file.name}')"
+                 ${isSelected ? 'checked' : ''}>
           <span class="source-details">
             📄 <strong>${file.name}</strong> <small>(${sizeStr} • ${dateStr}) ${legacyBadge}</small>
           </span>
@@ -298,9 +304,15 @@ function createSourcesList(moduleName, module) {
 
   // Ajouter l'option API si disponible
   if (module.modes.includes('api')) {
+    const apiValue = `${moduleName}_api`;
+    const isSelected = isSourceCurrentlySelected(moduleName, apiValue);
+
     sources.push(`
       <label class="source-option">
-        <input type="radio" name="source-${moduleName}" value="api">
+        <input type="radio" name="source-select-${moduleName}" value="${apiValue}"
+               data-module="${moduleName}"
+               onchange="selectActiveSource('${moduleName}', '${apiValue}', null)"
+               ${isSelected ? 'checked' : ''}>
         <span class="source-details">
           🌐 <strong>API</strong> <small>(données temps réel)</small>
         </span>
@@ -346,6 +358,25 @@ function createModuleActions(module) {
     actions.push(`
       <button class="btn primary btn-sm" onclick="importSelectedSource('${module.name}')">
         📥 Importer
+      </button>
+    `);
+  }
+
+  // Bouton Tester la source (si API disponible)
+  if (module.modes.includes('api')) {
+    actions.push(`
+      <button class="btn warning btn-sm" onclick="testActiveSource('${module.name}')">
+        🧪 Tester la source
+      </button>
+    `);
+  }
+
+  // Bouton Upload (pour modules supportant les fichiers)
+  const modulesWithUpload = ['cointracking', 'saxobank', 'banks'];
+  if (modulesWithUpload.includes(module.name)) {
+    actions.push(`
+      <button class="btn secondary btn-sm" onclick="showUploadDialog('${module.name}')">
+        📁 Uploader
       </button>
     `);
   }
@@ -702,6 +733,550 @@ function setupSourcesEventHandlers() {
   });
 }
 
+/**
+ * Vérifie si une source est actuellement sélectionnée pour un module
+ */
+function isSourceCurrentlySelected(moduleName, sourceValue) {
+  try {
+    const userConfig = JSON.parse(localStorage.getItem('userConfig') || '{}');
+    const currentUser = getCurrentUser();
+
+    if (!userConfig[currentUser]) return false;
+
+    const config = userConfig[currentUser];
+
+    // Pour l'API
+    if (sourceValue.includes('_api')) {
+      return config.data_source === `${moduleName}_api`;
+    }
+
+    // Pour les fichiers CSV - vérifier le fichier spécifique via csv_glob
+    if (sourceValue.startsWith('csv_')) {
+      if (config.data_source !== 'cointracking') return false;
+      // Récupérer le fichier correspondant à sourceValue dans les sources détectées
+      const detectedSources = window.sourcesData?.modules?.find(m => m.name === moduleName)?.detected_files || [];
+      const sourceIndex = parseInt(sourceValue.replace('csv_', ''));
+      const expectedFile = detectedSources[sourceIndex];
+      if (!expectedFile) return false;
+      // Vérifier si csv_glob correspond à ce fichier spécifique (en enlevant les wildcards)
+      if (!config.csv_glob) return false;
+      const cleanGlob = config.csv_glob.replace(/\*/g, '');
+      return expectedFile.name === cleanGlob || expectedFile.name.includes(cleanGlob) || cleanGlob.includes(expectedFile.name);
+    }
+
+    return false;
+  } catch (error) {
+    console.error('[Sources] Error checking selection:', error);
+    return false;
+  }
+}
+
+/**
+ * Sélectionne une source active pour un module
+ */
+async function selectActiveSource(moduleName, sourceValue, fileName) {
+  try {
+    console.log(`[Sources] Selecting source: ${moduleName} -> ${sourceValue} (${fileName})`);
+
+    const currentUser = getCurrentUser();
+    const updateData = {};
+
+    // Déterminer la configuration selon le type de source
+    if (sourceValue.includes('_api')) {
+      updateData.data_source = sourceValue;
+      updateData.csv_glob = '';
+    } else if (sourceValue.startsWith('csv_')) {
+      updateData.data_source = 'cointracking';
+      updateData.csv_glob = fileName ? `*${fileName}*` : '*.csv';
+    }
+
+    // ⚠️ CRITIQUE: Récupérer d'abord la config complète pour préserver les clés API
+    let completeSettings = {};
+    try {
+      const getResponse = await safeFetch(`${SOURCES_CONFIG.apiBase.replace('/sources', '')}/users/settings`, {
+        headers: { 'X-User': currentUser }
+      });
+      if (getResponse.ok) {
+        completeSettings = await getResponse.json();
+      }
+    } catch (e) {
+      console.warn('[Sources] Could not load existing settings, proceeding with partial update:', e);
+    }
+
+    // Fusionner les modifications dans la config complète
+    Object.assign(completeSettings, updateData);
+
+    // 🐛 DEBUG: Log avant sauvegarde
+    console.log('[Sources] About to save complete settings:', {
+      hasApiKey: !!completeSettings.cointracking_api_key,
+      hasApiSecret: !!completeSettings.cointracking_api_secret,
+      dataSource: completeSettings.data_source,
+      completeSettingsKeys: Object.keys(completeSettings)
+    });
+
+    // Appel API pour sauvegarder la config COMPLÈTE
+    const response = await safeFetch(`${SOURCES_CONFIG.apiBase.replace('/sources', '')}/users/settings`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User': currentUser
+      },
+      body: JSON.stringify(completeSettings)
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    // Mettre à jour le localStorage local
+    const userConfig = JSON.parse(localStorage.getItem('userConfig') || '{}');
+    if (!userConfig[currentUser]) userConfig[currentUser] = {};
+    Object.assign(userConfig[currentUser], updateData);
+    localStorage.setItem('userConfig', JSON.stringify(userConfig));
+
+    // ✅ Synchroniser globalConfig pour le dashboard
+    if (window.globalConfig) {
+      window.globalConfig.set('data_source', updateData.data_source);
+      if (updateData.csv_glob) {
+        window.globalConfig.set('csv_glob', updateData.csv_glob);
+      }
+    }
+
+    // Notifier les autres onglets
+    window.dispatchEvent(new CustomEvent('sourceChanged', {
+      detail: { user: currentUser, source: sourceValue, module: moduleName }
+    }));
+
+    // ✅ Notifier le dashboard pour rafraîchissement immédiat
+    window.dispatchEvent(new CustomEvent('dataSourceChanged', {
+      detail: {
+        oldSource: 'unknown',
+        newSource: updateData.data_source,
+        user: currentUser
+      }
+    }));
+
+    console.log(`[Sources] ✅ Source selected and saved: ${sourceValue}`);
+
+    // Afficher un feedback visuel temporaire
+    showTemporaryFeedback(`Source sélectionnée: ${fileName || sourceValue}`);
+
+  } catch (error) {
+    console.error('[Sources] Error selecting source:', error);
+    showTemporaryFeedback('❌ Erreur lors de la sélection', 'error');
+  }
+}
+
+/**
+ * Affiche un feedback temporaire à l'utilisateur
+ */
+function showTemporaryFeedback(message, type = 'success') {
+  const feedback = document.createElement('div');
+  feedback.className = `temporary-feedback ${type}`;
+  feedback.textContent = message;
+  feedback.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 10px 15px;
+    border-radius: 4px;
+    color: white;
+    font-weight: 500;
+    z-index: 10000;
+    transition: opacity 0.3s ease;
+    background: ${type === 'error' ? 'var(--danger)' : 'var(--success)'};
+  `;
+
+  document.body.appendChild(feedback);
+
+  setTimeout(() => {
+    feedback.style.opacity = '0';
+    setTimeout(() => feedback.remove(), 300);
+  }, 2000);
+}
+
+/**
+ * Teste la source active pour un module
+ */
+async function testActiveSource(moduleName) {
+  try {
+    console.log(`[Sources] Testing source for module: ${moduleName}`);
+
+    const currentUser = getCurrentUser();
+
+    // Changer temporairement l'utilisateur actif pour le test
+    const originalUser = localStorage.getItem('activeUser');
+    localStorage.setItem('activeUser', currentUser);
+
+    // Afficher feedback immédiat
+    showTemporaryFeedback('🧪 Test de la source en cours...', 'info');
+
+    // Utiliser la fonction testConnection existante de global-config.js
+    if (window.globalConfig && typeof window.globalConfig.testConnection === 'function') {
+      const results = await window.globalConfig.testConnection();
+
+      // Restaurer l'utilisateur original
+      if (originalUser) {
+        localStorage.setItem('activeUser', originalUser);
+      }
+
+      // Formater et afficher les résultats
+      const status = results.balances === 'Vide' ? 'error' : 'success';
+      const message = `📊 Test terminé:
+Backend: ${results.backend}
+Données: ${results.balances}
+Source: ${results.source}`;
+
+      showExtendedFeedback(message, status);
+      console.log('[Sources] Test results:', results);
+
+    } else {
+      throw new Error('testConnection() non disponible');
+    }
+
+  } catch (error) {
+    console.error(`[Sources] Error testing ${moduleName}:`, error);
+    showExtendedFeedback(`❌ Erreur lors du test: ${error.message}`, 'error');
+  }
+}
+
+/**
+ * Affiche un feedback étendu avec plus de détails
+ */
+function showExtendedFeedback(message, type = 'info') {
+  const feedback = document.createElement('div');
+  feedback.className = `extended-feedback ${type}`;
+  feedback.style.cssText = `
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    padding: 15px 20px;
+    border-radius: 6px;
+    color: white;
+    font-weight: 500;
+    z-index: 10001;
+    max-width: 350px;
+    white-space: pre-line;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    transition: opacity 0.3s ease;
+    background: ${type === 'error' ? 'var(--danger)' : type === 'success' ? 'var(--success)' : 'var(--info)'};
+    border-left: 4px solid rgba(255,255,255,0.3);
+  `;
+
+  feedback.textContent = message;
+  document.body.appendChild(feedback);
+
+  // Clic pour fermer
+  feedback.addEventListener('click', () => {
+    feedback.style.opacity = '0';
+    setTimeout(() => feedback.remove(), 300);
+  });
+
+  // Fermeture automatique après 8s
+  setTimeout(() => {
+    if (feedback.parentNode) {
+      feedback.style.opacity = '0';
+      setTimeout(() => feedback.remove(), 300);
+    }
+  }, 8000);
+}
+
+/**
+ * Récupère l'utilisateur actuel
+ */
+function getCurrentUser() {
+  const userSelector = document.getElementById('user-selector');
+  return userSelector ? userSelector.value : 'demo';
+}
+
+// Fonctions d'upload
+
+/**
+ * Afficher la boîte de dialogue d'upload
+ */
+function showUploadDialog(moduleName) {
+  console.log(`[Sources] Showing upload dialog for: ${moduleName}`);
+
+  const moduleDisplayName = getModuleName(moduleName);
+  const allowedExtensions = getModuleAllowedExtensions(moduleName);
+
+  // Créer la modal d'upload
+  const modalHTML = `
+    <div id="uploadModal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>📁 Upload de fichiers - ${moduleDisplayName}</h3>
+          <button class="close-btn" type="button">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p>Extensions autorisées : <strong>${allowedExtensions.join(', ')}</strong></p>
+          <p>Taille max : <strong>10MB par fichier, 50MB total</strong></p>
+
+          <div class="upload-area" id="uploadArea">
+            <div class="upload-placeholder">
+              📄 Cliquez ici ou glissez-déposez vos fichiers
+            </div>
+            <input type="file" id="fileInput" multiple accept="${allowedExtensions.join(',')}" style="display: none;">
+          </div>
+
+          <div id="fileList" class="file-list"></div>
+
+          <div class="upload-progress" id="uploadProgress" style="display: none;">
+            <div class="progress-bar">
+              <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text" id="progressText"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn secondary" type="button" id="cancelBtn">Annuler</button>
+          <button class="btn primary" type="button" id="uploadBtn" disabled>
+            📤 Uploader
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Ajouter la modal au DOM
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+  // Ajouter les event listeners après création de la modal
+  setupModalEvents(moduleName);
+
+  // Gérer le drag & drop
+  setupDragAndDrop();
+}
+
+/**
+ * Configurer les événements de la modal
+ */
+function setupModalEvents(moduleName) {
+  const modal = document.getElementById('uploadModal');
+  const closeBtn = modal.querySelector('.close-btn');
+  const cancelBtn = document.getElementById('cancelBtn');
+  const uploadBtn = document.getElementById('uploadBtn');
+  const uploadArea = document.getElementById('uploadArea');
+  const fileInput = document.getElementById('fileInput');
+
+  // Fermeture avec le bouton X
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => closeUploadDialog());
+  }
+
+  // Fermeture avec le bouton Annuler
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', () => closeUploadDialog());
+  }
+
+  // Upload avec le bouton principal
+  if (uploadBtn) {
+    uploadBtn.addEventListener('click', () => uploadFiles(moduleName));
+  }
+
+  // Clic sur la zone d'upload
+  if (uploadArea) {
+    uploadArea.addEventListener('click', () => {
+      if (fileInput) fileInput.click();
+    });
+  }
+
+  // Changement de fichier
+  if (fileInput) {
+    fileInput.addEventListener('change', handleFileSelection);
+  }
+
+  // Fermeture en cliquant sur l'overlay (mais pas sur le contenu)
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        closeUploadDialog();
+      }
+    });
+  }
+
+  // Fermeture avec la touche Escape
+  document.addEventListener('keydown', function escapeHandler(e) {
+    if (e.key === 'Escape') {
+      closeUploadDialog();
+      document.removeEventListener('keydown', escapeHandler);
+    }
+  });
+
+  console.log('[Sources] Modal events configured');
+}
+
+/**
+ * Fermer la boîte de dialogue d'upload
+ */
+function closeUploadDialog(event) {
+  // Si c'est un clic sur l'overlay, vérifier que c'est bien l'overlay et pas un enfant
+  if (event && event.target && !event.target.classList.contains('modal-overlay')) {
+    return;
+  }
+
+  console.log('[Sources] Closing upload dialog');
+
+  const modal = document.getElementById('uploadModal');
+  if (modal) {
+    // Ajouter une animation de fermeture
+    modal.style.opacity = '0';
+    setTimeout(() => {
+      if (modal.parentNode) {
+        modal.remove();
+      }
+    }, 200);
+  }
+}
+
+/**
+ * Forcer la fermeture de la modal (fallback)
+ */
+function forceCloseUploadDialog() {
+  console.log('[Sources] Force closing upload dialog');
+  const modal = document.getElementById('uploadModal');
+  if (modal) {
+    modal.remove();
+  }
+
+  // Nettoyer aussi d'éventuelles modals orphelines
+  const orphanModals = document.querySelectorAll('.modal-overlay');
+  orphanModals.forEach(m => m.remove());
+}
+
+/**
+ * Configurer le drag & drop
+ */
+function setupDragAndDrop() {
+  const uploadArea = document.getElementById('uploadArea');
+  if (!uploadArea) return;
+
+  uploadArea.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadArea.classList.add('drag-over');
+  });
+
+  uploadArea.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    uploadArea.classList.remove('drag-over');
+  });
+
+  uploadArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadArea.classList.remove('drag-over');
+
+    const files = Array.from(e.dataTransfer.files);
+    document.getElementById('fileInput').files = e.dataTransfer.files;
+    handleFileSelection();
+  });
+}
+
+/**
+ * Gérer la sélection de fichiers
+ */
+function handleFileSelection() {
+  const fileInput = document.getElementById('fileInput');
+  const fileList = document.getElementById('fileList');
+  const uploadBtn = document.getElementById('uploadBtn');
+
+  if (!fileInput || !fileList || !uploadBtn) return;
+
+  const files = Array.from(fileInput.files);
+
+  if (files.length === 0) {
+    fileList.innerHTML = '';
+    uploadBtn.disabled = true;
+    return;
+  }
+
+  // Afficher la liste des fichiers
+  fileList.innerHTML = files.map(file => `
+    <div class="file-item">
+      <span class="file-name">📄 ${file.name}</span>
+      <span class="file-size">${formatFileSize(file.size)}</span>
+    </div>
+  `).join('');
+
+  uploadBtn.disabled = false;
+}
+
+/**
+ * Uploader les fichiers
+ */
+async function uploadFiles(moduleName) {
+  const fileInput = document.getElementById('fileInput');
+  const uploadProgress = document.getElementById('uploadProgress');
+  const progressFill = document.getElementById('progressFill');
+  const progressText = document.getElementById('progressText');
+  const uploadBtn = document.getElementById('uploadBtn');
+
+  if (!fileInput || !fileInput.files.length) {
+    showNotification('Aucun fichier sélectionné', 'warning');
+    return;
+  }
+
+  try {
+    // Afficher la progression
+    uploadProgress.style.display = 'block';
+    uploadBtn.disabled = true;
+    progressFill.style.width = '0%';
+    progressText.textContent = 'Préparation...';
+
+    // Préparer les données
+    const formData = new FormData();
+    formData.append('module', moduleName);
+
+    Array.from(fileInput.files).forEach(file => {
+      formData.append('files', file);
+    });
+
+    const currentUser = getCurrentUser();
+
+    // Upload avec progression
+    const response = await fetch(`${SOURCES_CONFIG.apiBase}/upload`, {
+      method: 'POST',
+      headers: {
+        'X-User': currentUser
+      },
+      body: formData
+    });
+
+    progressFill.style.width = '100%';
+    progressText.textContent = 'Traitement...';
+
+    const result = await response.json();
+
+    if (result.success) {
+      showNotification(result.message, 'success');
+      closeUploadDialog();
+      // Rafraîchir les sources après upload
+      setTimeout(() => refreshSourcesStatus(), 1000);
+    } else {
+      showNotification(`Erreur d'upload: ${result.error || result.message}`, 'error');
+    }
+
+  } catch (error) {
+    console.error(`[Sources] Upload error:`, error);
+    showNotification('Erreur lors de l\'upload', 'error');
+  } finally {
+    uploadBtn.disabled = false;
+    uploadProgress.style.display = 'none';
+  }
+}
+
+/**
+ * Obtenir les extensions autorisées pour un module
+ */
+function getModuleAllowedExtensions(moduleName) {
+  const extensions = {
+    'cointracking': ['.csv'],
+    'saxobank': ['.csv', '.json'],
+    'banks': ['.csv', '.xlsx', '.json']
+  };
+  return extensions[moduleName] || ['.csv'];
+}
+
 // Export des fonctions principales pour l'usage dans settings.html
 window.initSourcesManager = initSourcesManager;
 window.refreshSourcesStatus = refreshSourcesStatus;
@@ -709,3 +1284,8 @@ window.scanAllSources = scanAllSources;
 window.scanModule = scanModule;
 window.importModule = importModule;
 window.refreshModuleApi = refreshModuleApi;
+window.selectActiveSource = selectActiveSource;
+window.isSourceCurrentlySelected = isSourceCurrentlySelected;
+window.testActiveSource = testActiveSource;
+window.showUploadDialog = showUploadDialog;
+window.forceCloseUploadDialog = forceCloseUploadDialog;

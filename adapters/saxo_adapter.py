@@ -415,12 +415,19 @@ async def list_positions() -> List[PositionModel]:
         market_value = float(position.get("market_value") or 0.0) or None
         weight = (market_value or 0.0) / total if total else None
         tags = [f"asset_class:{position.get('asset_class')}"]
+
+        # Fix: Validate currency field - exclude ISINs and other long codes
+        raw_currency = position.get("currency")
+        currency = "USD"  # Default
+        if raw_currency and len(raw_currency) <= 3 and raw_currency.isalpha():
+            currency = raw_currency.upper()
+
         positions.append(
             PositionModel(
                 instrument_id=symbol,
                 quantity=quantity,
                 avg_price=None,
-                currency=position.get("currency") or "USD",
+                currency=currency,
                 market_value=market_value,
                 pnl=None,
                 weight=weight,

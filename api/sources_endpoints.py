@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
 from pydantic import BaseModel, Field
 
 from api.deps import get_active_user
@@ -623,3 +623,117 @@ async def _refresh_cointracking_api(api_key: str, api_secret: str, user_fs: User
     except Exception as e:
         logger.error(f"Failed to refresh CoinTracking API: {e}")
         return None
+
+
+class UploadResponse(BaseModel):
+    """Réponse d'upload de fichier"""
+    success: bool
+    message: str
+    uploaded_files: List[str] = []
+    error: Optional[str] = None
+
+
+@router.post("/upload", response_model=UploadResponse)
+async def upload_files(
+    module: str = Form(...),
+    files: List[UploadFile] = File(...),
+    user: str = Depends(get_active_user),
+    user_fs: UserScopedFS = Depends(get_user_fs)
+) -> UploadResponse:
+    """
+    Upload de fichiers pour un module spécifique.
+    Les fichiers sont stockés dans {module}/uploads/ pour traitement ultérieur.
+    """
+    try:
+        logger.info(f"Uploading {len(files)} files for module '{module}' (user: {user})")
+
+        # Validation du module
+        valid_modules = ["cointracking", "saxobank", "banks"]
+        if module not in valid_modules:
+            return UploadResponse(
+                success=False,
+                message=f"Module '{module}' non supporté",
+                error="INVALID_MODULE"
+            )
+
+        # Créer le répertoire uploads
+        uploads_dir = user_fs.get_path(f"{module}/uploads")
+        Path(uploads_dir).mkdir(parents=True, exist_ok=True)
+
+        uploaded_files = []
+        total_size = 0
+
+        for file in files:
+            # Validation du fichier
+            if not file.filename:
+                continue
+
+            # Validation des extensions selon le module
+            allowed_extensions = []
+            if module == "cointracking":
+                allowed_extensions = [".csv"]
+            elif module == "saxobank":
+                allowed_extensions = [".csv", ".json"]
+            elif module == "banks":
+                allowed_extensions = [".csv", ".xlsx", ".json"]
+
+            file_extension = Path(file.filename).suffix.lower()
+            if file_extension not in allowed_extensions:
+                return UploadResponse(
+                    success=False,
+                    message=f"Extension '{file_extension}' non autorisée pour {module}. Extensions valides: {', '.join(allowed_extensions)}",
+                    error="INVALID_EXTENSION"
+                )
+
+            # Limitation de taille (10MB par fichier)
+            content = await file.read()
+            if len(content) > 10 * 1024 * 1024:  # 10MB
+                return UploadResponse(
+                    success=False,
+                    message=f"Fichier '{file.filename}' trop volumineux (max 10MB)",
+                    error="FILE_TOO_LARGE"
+                )
+
+            total_size += len(content)
+
+            # Générer un nom unique avec timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            safe_filename = "".join(c for c in file.filename if c.isalnum() or c in "._-")
+            unique_filename = f"{timestamp}_{safe_filename}"
+
+            # Sauvegarder le fichier
+            file_path = Path(uploads_dir) / unique_filename
+            with open(file_path, 'wb') as f:
+                f.write(content)
+
+            uploaded_files.append(unique_filename)
+            logger.info(f"Uploaded: {unique_filename} ({len(content)} bytes)")
+
+        # Limitation de taille totale (50MB par batch)
+        if total_size > 50 * 1024 * 1024:  # 50MB
+            return UploadResponse(
+                success=False,
+                message="Taille totale des fichiers trop importante (max 50MB par batch)",
+                error="BATCH_TOO_LARGE"
+            )
+
+        if not uploaded_files:
+            return UploadResponse(
+                success=False,
+                message="Aucun fichier valide uploadé",
+                error="NO_FILES"
+            )
+
+        return UploadResponse(
+            success=True,
+            message=f"{len(uploaded_files)} fichier(s) uploadé(s) avec succès",
+            uploaded_files=uploaded_files
+        )
+
+    except Exception as e:
+        logger.error(f"Upload failed for module '{module}': {e}")
+        return UploadResponse(
+            success=False,
+            message="Erreur lors de l'upload",
+            error="UPLOAD_ERROR"
+        )

@@ -421,10 +421,20 @@
 
     <!-- Data Source Tab -->
     <section class="tab-panel" id="tab-data">
-      <div class="card"
+      <!-- Bandeau de dépréciation -->
+      <div class="card" style="background: var(--warning-bg); border: 1px solid var(--warning); margin-bottom: 1rem;">
+        <h4 style="color: var(--warning); margin: 0 0 0.5rem 0;">⚠️ Section Dépréciée</h4>
+        <p style="margin: 0; color: var(--theme-text-muted); font-size: 0.9rem;">
+          Cette section "Source" est <strong>obsolète</strong>. Les sources se gèrent maintenant dans l'onglet
+          <strong><a href="#tab-sources" style="color: var(--info);">Sources</a></strong> (nouveau système unifié).
+          <br>Les sélections ci-dessous n'influencent plus les données affichées.
+        </p>
+      </div>
+
+      <div class="card" style="opacity: 0.6; pointer-events: none;"
         data-tooltip="Configuration de la source principale pour les données de portfolio (CSV local, API CoinTracking ou échanges directs)."
         data-source="Fichiers de configuration + APIs">
-        <h3>📡 Source de Données</h3>
+        <h3>📡 Source de Données (Legacy - Lecture Seule)</h3>
         <div class="form-group">
           <label>Source principale des balances</label>
           <div id="data_source_sections">
@@ -952,6 +962,163 @@
 .status-grid .value.success {
   color: #28a745;
 }
+
+/* CSS pour la modal d'upload */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  backdrop-filter: blur(4px);
+  transition: opacity 0.2s ease;
+}
+
+.modal-content {
+  background: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--theme-border);
+  background: var(--theme-surface-elevated);
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--theme-text-secondary);
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+  background: var(--theme-surface);
+  color: var(--theme-text);
+}
+
+.modal-body {
+  padding: 20px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--theme-border);
+  background: var(--theme-surface-elevated);
+}
+
+/* Zone d'upload */
+.upload-area {
+  border: 2px dashed var(--theme-border);
+  border-radius: 8px;
+  padding: 32px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: var(--theme-surface-elevated);
+  margin: 16px 0;
+}
+
+.upload-area:hover {
+  border-color: var(--theme-accent);
+  background: var(--theme-surface);
+}
+
+.upload-area.drag-over {
+  border-color: var(--theme-success);
+  background: rgba(40, 167, 69, 0.1);
+}
+
+.upload-placeholder {
+  color: var(--theme-text-secondary);
+  font-size: 16px;
+}
+
+/* Liste des fichiers */
+.file-list {
+  margin: 16px 0;
+}
+
+.file-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--theme-surface-elevated);
+  border: 1px solid var(--theme-border);
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.file-name {
+  font-weight: 500;
+}
+
+.file-size {
+  color: var(--theme-text-secondary);
+  font-size: 14px;
+}
+
+/* Barre de progression */
+.upload-progress {
+  margin: 16px 0;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--theme-surface-elevated);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--theme-accent);
+  transition: width 0.3s ease;
+  width: 0%;
+}
+
+.progress-text {
+  text-align: center;
+  font-size: 14px;
+  color: var(--theme-text-secondary);
+}
 </style>
 
 <!-- JavaScript d'initialisation -->
@@ -1336,6 +1503,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // Sauvegarder les settings via l'API utilisateur
     async function saveSettings() {
       try {
+        // 🐛 DEBUG: Log avant sauvegarde depuis settings.html
+        console.log('[Settings] saveSettings() called with:', {
+          hasApiKey: !!(window.userSettings || {}).cointracking_api_key,
+          hasApiSecret: !!(window.userSettings || {}).cointracking_api_secret,
+          userSettingsKeys: Object.keys(window.userSettings || {}),
+          stackTrace: new Error().stack.split('\n').slice(1, 4)
+        });
+
         const response = await fetch('/api/users/settings', {
           method: 'PUT',
           headers: {
@@ -1503,6 +1678,26 @@ document.addEventListener('DOMContentLoaded', function() {
         if (inp && inp.parentElement) inp.parentElement.classList.remove('selected');
       });
       if (!window.userSettings) window.userSettings = getDefaultSettings();
+
+      // ⚠️ CRITIQUE: Préserver les clés API avant modification
+      // Recharger depuis le serveur pour éviter la perte des clés API
+      try {
+        const response = await fetch('/api/users/settings', {
+          headers: { 'X-User': getActiveUser() }
+        });
+        if (response.ok) {
+          const currentSettings = await response.json();
+          // Fusionner TOUTES les clés API depuis le serveur (plus sûr)
+          const apiKeys = ['coingecko_api_key', 'cointracking_api_key', 'cointracking_api_secret', 'fred_api_key', 'debug_token'];
+          apiKeys.forEach(key => {
+            if (currentSettings[key]) {
+              window.userSettings[key] = currentSettings[key];
+            }
+          });
+        }
+      } catch (e) {
+        console.warn('Could not reload settings to preserve API keys:', e);
+      }
 
       // Vider tous les caches quand la source change
       const oldSource = window.userSettings.data_source;

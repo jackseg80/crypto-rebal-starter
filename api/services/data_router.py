@@ -64,7 +64,7 @@ class UserDataRouter:
     def get_csv_files(self, file_type: str = "balance") -> List[str]:
         """
         Retourne les fichiers CSV pour un type donné.
-        Priorité : Sources snapshots → Sources imports → Legacy patterns
+        🎯 SOURCES FIRST: Utilise effective_path si disponible
 
         Args:
             file_type: Type de fichier ('balance', 'coins', 'exchange')
@@ -72,63 +72,28 @@ class UserDataRouter:
         Returns:
             List[str]: Liste des fichiers CSV trouvés
         """
-        # 🔥 PATCH 4: Prioriser les snapshots Sources
-        # 1. Vérifier snapshot CoinTracking récent
-        if file_type == "balance":
-            snapshot_path = "cointracking/snapshots/latest.csv"
-            if self.user_fs.exists(snapshot_path):
-                full_path = self.user_fs.get_path(snapshot_path)
-                logger.debug(f"Using Sources snapshot for user {self.user_id}: {snapshot_path}")
-                return [full_path]
+        # Si get_effective_source() a déjà déterminé un path effectif, l'utiliser
+        if hasattr(self, '_effective_read') and hasattr(self, '_effective_path'):
+            if self._effective_read in ("snapshot", "imports", "legacy") and self._effective_path:
+                logger.debug(f"📂 Using pre-resolved effective path: {self._effective_path}")
+                return [self._effective_path]
 
-            # 2. Vérifier imports CoinTracking
-            import_files = self.user_fs.glob_files("cointracking/imports/*.csv")
-            if import_files:
-                # Trier par date de modification (plus récent en premier)
-                try:
-                    import_files.sort(key=lambda f: os.path.getmtime(f), reverse=True)
-                except OSError:
-                    pass
-                logger.debug(f"Using Sources imports for user {self.user_id}: {len(import_files)} files")
-                return import_files
+        # Sinon, résoudre dynamiquement (fallback pour compatibilité)
+        from api.services.sources_resolver import resolve_effective_path
 
-        # 3. Fallback sur les patterns legacy (pour compatibilité)
-        user_pattern = self.csv_glob
-        patterns = {
-            "balance": [
-                f"{user_pattern}/CoinTracking - Current Balance*.csv",
-                f"{user_pattern}/Current Balance*.csv",
-                f"{user_pattern}/balance*.csv",
-                user_pattern,  # Pattern utilisateur brut
-                "*.csv"  # Fallback
-            ],
-            "coins": [
-                f"{user_pattern}/CoinTracking - Coins by Exchange*.csv",
-                f"{user_pattern}/Coins by Exchange*.csv",
-                f"{user_pattern}/coins*.csv"
-            ],
-            "exchange": [
-                f"{user_pattern}/CoinTracking - Balance by Exchange*.csv",
-                f"{user_pattern}/Balance by Exchange*.csv",
-                f"{user_pattern}/exchange*.csv"
-            ]
+        module_mapping = {
+            "balance": "cointracking",
+            "coins": "cointracking",
+            "exchange": "cointracking"
         }
 
-        file_patterns = patterns.get(file_type, ["*.csv"])
+        module = module_mapping.get(file_type, "cointracking")
+        mode, effective_path = resolve_effective_path(self.user_fs, module)
 
-        # Rechercher le premier pattern qui donne des résultats
-        for pattern in file_patterns:
-            files = self.user_fs.glob_files(pattern)
-            if files:
-                # Trier par date de modification (plus récent en premier)
-                try:
-                    files.sort(key=lambda f: os.path.getmtime(f), reverse=True)
-                except OSError:
-                    pass
-                logger.warning(f"Using legacy CSV pattern for user {self.user_id}: {pattern} ({len(files)} files)")
-                return files
+        if mode != "empty" and effective_path:
+            return [effective_path]
 
-        logger.warning(f"No {file_type} CSV files found for user {self.user_id}")
+        logger.warning(f"🚫 Sources resolver: No data for user {self.user_id}, type {file_type}")
         return []
 
     def get_most_recent_csv(self, file_type: str = "balance") -> Optional[str]:
@@ -213,24 +178,61 @@ class UserDataRouter:
 
     def get_effective_source(self) -> str:
         """
+        🎯 SOURCES FIRST avec respect de la préférence utilisateur
         Retourne la source effective qui sera utilisée.
 
         Returns:
             str: 'cointracking', 'cointracking_api', ou 'stub'
         """
-        if self.should_use_api():
-            credentials = self.get_api_credentials()
-            if credentials.get("api_key") and credentials.get("api_secret"):
-                return "cointracking_api"
-            else:
-                logger.warning(f"API mode requested for user {self.user_id} but no credentials found")
-                return "stub"
+        from api.services.sources_resolver import resolve_effective_path
 
-        elif self.should_use_csv():
-            if self.get_csv_files("balance"):
-                return "cointracking"
-            else:
-                logger.warning(f"CSV mode requested for user {self.user_id} but no CSV files found")
-                return "stub"
+        # 🔥 PRIORITÉ UTILISATEUR: Si API explicitement configuré, respecter ce choix
+        if self.data_source == "cointracking_api" and self._cointracking_api_ready():
+            self._effective_read = "api"
+            self._effective_path = None
+            logger.info(f"👤 User preference: API explicitly configured for user {self.user_id}")
+            return "cointracking_api"
 
+        # --- Sources snapshots et imports (priorité haute) ---
+        mode, path = resolve_effective_path(self.user_fs, "cointracking")
+        logger.info(f"🔍 Sources resolver returned: mode={mode}, path={path} for user {self.user_id}")
+
+        if mode in ("snapshot", "imports"):
+            # Snapshots et imports ont priorité absolue sur tout
+            self._effective_read = mode
+            self._effective_path = path
+            logger.info(f"🎯 Sources First: Using {mode} for user {self.user_id} - {path}")
+            return "cointracking"
+
+        # --- Legacy seulement si pas de préférence API ---
+        if mode == "legacy" and self.data_source != "cointracking_api":
+            self._effective_read = mode
+            self._effective_path = path
+            logger.info(f"🔙 Sources First: Using legacy for user {self.user_id} - {path}")
+            return "cointracking"
+
+        # --- Fallback API si credentials valides ---
+        if self._cointracking_api_ready():
+            self._effective_read = "api"
+            self._effective_path = None
+            logger.info(f"📡 Sources First: Fallback to API for user {self.user_id}")
+            return "cointracking_api"
+
+        # --- Vide propre ---
+        self._effective_read = "empty"
+        self._effective_path = None
+        logger.warning(f"💔 Sources First: No data available for user {self.user_id}")
         return "stub"
+
+    def _cointracking_api_ready(self) -> bool:
+        """Vérifie si l'API CoinTracking est prête pour cet utilisateur"""
+        from api.services.config_migrator import resolve_secret_ref
+
+        try:
+            # Résout key_ref/secret_ref pour l'user courant
+            key = resolve_secret_ref("cointracking_api_key", self.user_fs)
+            secret = resolve_secret_ref("cointracking_api_secret", self.user_fs)
+            return bool(key and secret)
+        except Exception as e:
+            logger.debug(f"API credentials check failed for user {self.user_id}: {e}")
+            return False

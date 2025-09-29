@@ -195,6 +195,23 @@ async def vol_predict(assets: List[str] = Query(..., min_items=1, max_items=50),
 3. **API fallback** : `/balances/current` si store vide (peut 429)
 4. **loadBalanceData** : Cache legacy en dernier recours
 
+### 4.2) Sources System v2 - Architecture Unifiée
+
+**Composants principaux** :
+- `api/services/sources_resolver.py` : SOT unique pour résolution des chemins de données
+- `api/services/data_router.py` : Router avec priorité Sources First
+- `api/sources_endpoints.py` : Endpoints upload, scan, import, test
+- `static/sources-manager.js` : Interface utilisateur complète
+
+**Priorité de résolution** : snapshots → imports → legacy → API → stub
+
+**Fonctionnalités avancées** :
+- Upload de fichiers avec validation par module (CSV, JSON, XLSX)
+- Test de sources en temps réel avec feedback détaillé
+- Sélection active de sources avec sauvegarde automatique
+- Scan et import automatisés par module
+- Interface dépréciée pour l'ancien système (lecture seule)
+
 ---
 
 ## 5) Definition of Done (DoD)
