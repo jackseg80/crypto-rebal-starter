@@ -1543,6 +1543,15 @@
 
     // Auto-détecter le DEBUG_TOKEN depuis l'environnement
     async function autoDetectDebugToken() {
+      // Vérifier le rate limiting
+      const lastAttempt = localStorage.getItem('debug_token_detection_last');
+      const now = Date.now();
+      if (lastAttempt && (now - parseInt(lastAttempt)) < 60000) { // 1 minute
+        console.debug('🔍 DEBUG_TOKEN auto-détection rate-limitée, skip');
+        return;
+      }
+      localStorage.setItem('debug_token_detection_last', now.toString());
+
       // Pour l'instant, essayer une liste de tokens courants pour le dev
       const commonTokens = [
         'crypto-rebal-debug-2025-secure',
@@ -1550,7 +1559,8 @@
         'debug-crypto-rebal'
       ];
 
-      for (const token of commonTokens) {
+      for (let i = 0; i < commonTokens.length; i++) {
+        const token = commonTokens[i];
         try {
           const response = await fetch(`${(window.userSettings || getDefaultSettings()).api_base_url}/debug/api-keys?debug_token=${token}`, {
             headers: { 'X-User': getActiveUser() }
@@ -1563,8 +1573,19 @@
             showNotification('🔑 DEBUG_TOKEN auto-détecté', 'success');
             return;
           }
+          // Rate limit les tentatives
+          if (response.status === 429) {
+            console.debug(`🚦 Rate limite atteinte, attendre avant prochaine tentative`);
+            await new Promise(resolve => setTimeout(resolve, 2000)); // 2 secondes
+          }
         } catch (e) {
           // Continuer avec le token suivant
+          console.debug(`Token ${token} échoué:`, e.message);
+        }
+
+        // Délai entre les tentatives pour éviter rate limiting
+        if (i < commonTokens.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000)); // 1 seconde entre tentatives
         }
       }
 
@@ -2239,43 +2260,70 @@
 
     async function loadSaxoIntegrationStatus() {
       try {
-        const response = await fetch(`${(window.userSettings || getDefaultSettings()).api_base_url}/api/saxo/portfolios`);
+        const response = await fetch(`${(window.userSettings || getDefaultSettings()).api_base_url}/api/saxo/portfolios`, {
+          timeout: 5000,
+          headers: { 'X-User': getActiveUser() }
+        });
+
         if (!response.ok) {
-          throw new Error('Failed to load Saxo portfolios');
+          if (response.status === 500) {
+            console.debug('Saxo API endpoint non disponible (500), utilisation fallback');
+          } else if (response.status === 404) {
+            console.debug('Saxo endpoint non trouvé (404), fonctionnalité non activée');
+          } else {
+            console.debug(`Erreur Saxo API: ${response.status} ${response.statusText}`);
+          }
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
         const data = await response.json();
         updateSaxoStatus(data);
 
       } catch (error) {
-        console.debug('Saxo integration not available or error:', error);
-        updateSaxoStatus({ portfolios: [] });
+        console.debug('Saxo integration not available or error:', error.message);
+        // Fallback graceful avec état vide
+        updateSaxoStatus({
+          portfolios: [],
+          error: 'Service temporairement indisponible',
+          status: 'unavailable'
+        });
       }
     }
 
     function updateSaxoStatus(data) {
       const countSpan = document.getElementById('saxo-portfolios-count');
       const dashboardBtn = document.getElementById('saxo-dashboard-btn');
+      const stockValueSpan = document.getElementById('stock-value');
 
       if (data.portfolios && data.portfolios.length > 0) {
         const totalValue = data.portfolios.reduce((sum, p) => sum + p.total_value_usd, 0);
 
-        countSpan.textContent = `${data.portfolios.length} portfolio(s) - $${totalValue.toLocaleString()}`;
-        countSpan.style.color = 'var(--success)';
+        if (countSpan) {
+          countSpan.textContent = `${data.portfolios.length} portfolio(s) - $${totalValue.toLocaleString()}`;
+          countSpan.style.color = 'var(--success)';
+        }
 
-        dashboardBtn.disabled = false;
-        dashboardBtn.style.opacity = '1';
+        if (dashboardBtn) {
+          dashboardBtn.disabled = false;
+          dashboardBtn.style.opacity = '1';
+        }
 
         // Update stock value in summary
-        document.getElementById('stock-value').textContent = `$${totalValue.toLocaleString()}`;
-        document.getElementById('stock-value').style.color = 'var(--brand-primary)';
+        if (stockValueSpan) {
+          stockValueSpan.textContent = `$${totalValue.toLocaleString()}`;
+          stockValueSpan.style.color = 'var(--brand-primary)';
+        }
 
       } else {
-        countSpan.textContent = 'Aucun portfolio importé';
-        countSpan.style.color = 'var(--theme-text-muted)';
+        if (countSpan) {
+          countSpan.textContent = 'Aucun portfolio importé';
+          countSpan.style.color = 'var(--theme-text-muted)';
+        }
 
-        dashboardBtn.disabled = true;
-        dashboardBtn.style.opacity = '0.5';
+        if (dashboardBtn) {
+          dashboardBtn.disabled = true;
+          dashboardBtn.style.opacity = '0.5';
+        }
       }
     }
 
@@ -2387,10 +2435,19 @@
         }
 
       } catch (error) {
-        console.warn('[Settings Saxo] Error refreshing status:', error);
+        console.debug('[Settings Saxo] Error refreshing status:', error.message);
         if (statusSpan) {
-          statusSpan.textContent = '❌ Erreur de vérification';
-          statusSpan.style.color = 'var(--danger)';
+          if (error.message?.includes('Failed to import')) {
+            statusSpan.textContent = '⚠️ Module non disponible';
+            statusSpan.style.color = 'var(--theme-text-muted)';
+          } else {
+            statusSpan.textContent = '❌ Service temporairement indisponible';
+            statusSpan.style.color = 'var(--danger)';
+          }
+        }
+        if (dashboardBtn) {
+          dashboardBtn.disabled = true;
+          dashboardBtn.style.opacity = '0.5';
         }
       }
     }

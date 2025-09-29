@@ -74,5 +74,48 @@ app.include_router(analytics_router)
 app.include_router(analytics_router, prefix="/api")
 ```
 
+### Erreurs Console Settings.html (2025-09-29)
+
+**Problème** : TypeError "Cannot set properties of null" et rate limiting sur debug token auto-detection.
+
+**Symptômes** :
+- TypeError: Cannot set properties of null (setting 'textContent') ligne 2274
+- Rate limiting (429 errors) sur `/debug/api-keys?debug_token=*`
+- 500 errors répétés sur `/api/saxo/positions`
+
+**Solutions appliquées** :
+
+1. **Null checks DOM** dans `updateSaxoStatus()` :
+```javascript
+// Avant (cassé)
+countSpan.textContent = 'Aucun portfolio importé';
+
+// Après (corrigé)
+if (countSpan) {
+  countSpan.textContent = 'Aucun portfolio importé';
+}
+```
+
+2. **Rate limiting debug token** dans `autoDetectDebugToken()` :
+```javascript
+// Ajout rate limiting 1 minute
+const lastAttempt = localStorage.getItem('debug_token_detection_last');
+const now = Date.now();
+if (lastAttempt && (now - parseInt(lastAttempt)) < 60000) {
+  return; // Skip auto-detection
+}
+
+// Délais entre tentatives (1s) et gestion 429 (2s)
+```
+
+3. **Gestion erreurs Saxo API** dans `loadSaxoIntegrationStatus()` :
+```javascript
+// Gestion spécifique status codes
+if (response.status === 500) {
+  console.debug('Saxo API endpoint non disponible (500), utilisation fallback');
+}
+// Fallback graceful avec messages utilisateur appropriés
+```
+
 L'ancien TROUBLESHOOTING.md est déprécié au profit de cette page.
 
