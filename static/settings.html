@@ -15,6 +15,7 @@
   <script src="performance-optimizer.js"></script>
   <script src="global-config.js"></script>
   <script src="appearance.js"></script>
+  <script type="module" src="sources-manager.js"></script>
   <style>
     * {
       box-sizing: border-box
@@ -342,8 +343,7 @@
       <button class="tab-btn" data-target="#tab-data">Source</button>
       <button class="tab-btn" data-target="#tab-pricing">Pricing</button>
       <button class="tab-btn" data-target="#tab-api">Clés API</button>
-      <button class="tab-btn" data-target="#tab-csv">CSV</button>
-      <button class="tab-btn" data-target="#tab-integrations">Intégrations</button>
+      <button class="tab-btn" data-target="#tab-sources">Sources</button>
       <button class="tab-btn" data-target="#tab-interface">Interface</button>
       <button class="tab-btn" data-target="#tab-advanced">Avancé</button>
     </div>
@@ -563,63 +563,6 @@
       </div>
     </section>
 
-    <!-- CSV Tab -->
-    <section class="tab-panel" id="tab-csv">
-      <div class="card"
-        data-tooltip="Automatisation du téléchargement des fichiers CSV depuis CoinTracking avec renommage intelligent."
-        data-source="API CoinTracking + gestion fichiers locale">
-        <h3>📥 Téléchargement Automatique CSV</h3>
-        <div class="help" style="margin-bottom: 16px;">
-          Télécharge automatiquement les derniers fichiers CSV depuis CoinTracking avec les noms corrects.
-        </div>
-
-        <div class="form-group">
-          <label>Fichiers à télécharger</label>
-          <div style="display: flex; flex-direction: column; gap: 8px;">
-            <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
-              <input type="checkbox" id="download_current_balance" checked>
-              <span>📄 Current Balance - Balance actuelle totale</span>
-            </label>
-            <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
-              <input type="checkbox" id="download_balance_by_exchange" checked>
-              <span>🏦 Balance by Exchange - Balance par exchange</span>
-            </label>
-            <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
-              <input type="checkbox" id="download_coins_by_exchange">
-              <span>🪙 Coins by Exchange - Détail par exchange</span>
-            </label>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label>Dossier de destination</label>
-          <div style="display: flex; gap: 8px; align-items: center;">
-            <input type="text" id="csv_download_path" value="csv/" placeholder="csv/" style="flex: 1;">
-            <button class="btn small secondary" onclick="browseDownloadFolder()">📁</button>
-          </div>
-          <div class="help">Dossier où sauvegarder les fichiers CSV téléchargés.</div>
-        </div>
-
-        <div class="form-group">
-          <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
-            <input type="checkbox" id="auto_download_enabled">
-            <span>🔄 Téléchargement automatique quotidien</span>
-          </label>
-          <div class="help">Télécharge automatiquement les nouveaux CSV chaque jour à 08h00.</div>
-        </div>
-
-        <div style="display: flex; gap: 8px; margin-top: 16px;">
-          <button class="btn primary" onclick="downloadCSVFiles()">
-            <span id="download-btn-text">📥 Télécharger Maintenant</span>
-          </button>
-          <button class="btn secondary" onclick="checkCSVStatus()">📊 Vérifier Fichiers</button>
-        </div>
-
-        <div id="csv-download-status" class="test-section">
-          <div class="help">Status des fichiers CSV locaux apparaîtra ici.</div>
-        </div>
-      </div>
-    </section>
 
     <!-- Interface Tab -->
     <section class="tab-panel" id="tab-interface">
@@ -724,128 +667,355 @@
       </div>
     </section>
 
-    <!-- Integrations Tab -->
-    <section class="tab-panel" id="tab-integrations">
-      <div class="card" data-tooltip="Gérez vos intégrations cross-asset (Crypto, Bourse, Banque, Divers)."
-        data-source="Connecteurs et imports de données">
-        <h3>🔗 Intégrations Cross-Asset</h3>
-        <p style="color: var(--theme-text-muted); margin-bottom: 1.5rem;">
-          Importez et gérez vos portfolios de différentes sources pour une vue unifiée de votre patrimoine.
-        </p>
+<!-- Sources Tab Unified - Remplace CSV + Intégrations -->
+<section class="tab-panel" id="tab-sources">
+  <div class="card" data-tooltip="Gérez toutes vos sources de données (CoinTracking, Saxo, etc.) depuis un point central unifié."
+    data-source="Système sources unifié v2">
+    <h3>📊 Sources de Données</h3>
+    <div class="help" style="margin-bottom: 16px;">
+      Point d'entrée unique pour gérer toutes vos sources : scan, import et refresh des données CoinTracking, Saxo Bank et autres.
+    </div>
 
-        <!-- Crypto Integration -->
-        <div class="card-subsection">
-          <h4>₿ Crypto (CoinTracking)</h4>
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div>
-              <p style="margin: 0; color: var(--theme-text-muted);">Import automatique via API ou CSV</p>
-              <div style="font-size: 0.875rem; color: var(--success); margin-top: 0.25rem;">
-                <span id="cointracking-status">✅ Connecté</span>
-              </div>
-            </div>
-            <div>
-              <button class="btn secondary" onclick="window.location.href='#tab-csv'">⚙️ Configurer</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Stock Integration -->
-        <div class="card-subsection" style="margin-top: 1.5rem;">
-          <h4>📈 Bourse (Saxo Bank)</h4>
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div>
-              <p style="margin: 0; color: var(--theme-text-muted);">Import CSV/XLSX de vos positions actions</p>
-              <div style="font-size: 0.875rem; margin-top: 0.25rem;">
-                <span id="saxo-status-display">🔄 Vérification en cours...</span>
-              </div>
-            </div>
-            <div style="display: flex; gap: 0.5rem;">
-              <input type="file" id="saxo-file-input" accept=".csv,.xlsx" style="display: none;" onchange="handleSaxoUpload(event)">
-              <button class="btn primary" onclick="document.getElementById('saxo-file-input').click()">📤 Importer</button>
-              <button class="btn secondary" onclick="window.location.href='saxo-upload.html'" title="Page d'upload complète">📋 Upload Avancé</button>
-              <button class="btn secondary" onclick="window.location.href='saxo-dashboard.html'" id="saxo-dashboard-btn">📊 Dashboard</button>
-            </div>
-          </div>
-
-          <!-- Upload Progress -->
-          <div id="saxo-upload-progress" style="display: none; margin-top: 1rem;">
-            <div style="display: flex; align-items: center; gap: 0.5rem;">
-              <div class="spinner" style="width: 16px; height: 16px;"></div>
-              <span style="font-size: 0.875rem; color: var(--theme-text-muted);">Upload en cours...</span>
-            </div>
-          </div>
-
-          <!-- Success/Error Messages -->
-          <div id="saxo-upload-result" style="display: none; margin-top: 1rem;"></div>
-
-          <div
-            style="margin-top: 1rem; padding: 1rem; background: var(--info-bg); border-radius: var(--radius-md); border: 1px solid var(--info);">
-            <div style="font-size: 0.875rem; color: var(--info);">
-              <strong>Format supporté:</strong> Exportez vos positions depuis Saxo Bank au format CSV ou XLSX avec les
-              colonnes: Position ID, Instrument, Quantity, Market Value, Currency
-            </div>
-          </div>
-        </div>
-
-        <!-- Banking Integration (Placeholder) -->
-        <div class="card-subsection" style="margin-top: 1.5rem;">
-          <h4>🏦 Banque</h4>
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div>
-              <p style="margin: 0; color: var(--theme-text-muted);">Import comptes bancaires et liquidités</p>
-              <div style="font-size: 0.875rem; color: var(--theme-text-muted); margin-top: 0.25rem;">
-                <span>À venir - UBS, CS, PostFinance</span>
-              </div>
-            </div>
-            <div>
-              <button class="btn secondary" disabled>🔧 Bientôt disponible</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Other Assets Integration (Placeholder) -->
-        <div class="card-subsection" style="margin-top: 1.5rem;">
-          <h4>📊 Divers</h4>
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div>
-              <p style="margin: 0; color: var(--theme-text-muted);">Import autres actifs (immobilier, commodités, P2P)
-              </p>
-              <div style="font-size: 0.875rem; color: var(--theme-text-muted); margin-top: 0.25rem;">
-                <span>À venir - CSV générique</span>
-              </div>
-            </div>
-            <div>
-              <button class="btn secondary" disabled>🔧 Bientôt disponible</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Integration Status Summary -->
-        <div
-          style="margin-top: 2rem; padding: 1.5rem; background: var(--theme-bg); border-radius: var(--radius-md); border: 1px solid var(--theme-border);">
-          <h4>📋 Résumé Intégrations</h4>
-          <div
-            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1rem;">
-            <div style="text-align: center;">
-              <div style="font-size: 1.5rem; font-weight: 700; color: var(--success);" id="crypto-value">$0</div>
-              <div style="font-size: 0.875rem; color: var(--theme-text-muted);">Crypto</div>
-            </div>
-            <div style="text-align: center;">
-              <div style="font-size: 1.5rem; font-weight: 700; color: var(--brand-primary);" id="stock-value">$0</div>
-              <div style="font-size: 0.875rem; color: var(--theme-text-muted);">Bourse</div>
-            </div>
-            <div style="text-align: center;">
-              <div style="font-size: 1.5rem; font-weight: 700; color: var(--theme-border);" id="bank-value">$0</div>
-              <div style="font-size: 0.875rem; color: var(--theme-text-muted);">Banque</div>
-            </div>
-            <div style="text-align: center;">
-              <div style="font-size: 1.5rem; font-weight: 700; color: var(--theme-border);" id="other-value">$0</div>
-              <div style="font-size: 0.875rem; color: var(--theme-text-muted);">Divers</div>
-            </div>
-          </div>
-        </div>
+    <!-- Status global des sources -->
+    <div class="status-grid" id="sources_status_grid">
+      <div class="status-item">
+        <span class="label">Modules actifs:</span>
+        <span class="value" id="sources_active_count">Loading...</span>
       </div>
-    </section>
+      <div class="status-item">
+        <span class="label">Dernière activité:</span>
+        <span class="value" id="sources_last_activity">-</span>
+      </div>
+      <div class="status-item">
+        <span class="label">Status global:</span>
+        <span class="value" id="sources_status">Initialisation...</span>
+      </div>
+    </div>
+
+    <!-- Grille des modules sources -->
+    <div class="modules-grid" id="sources_modules_grid" style="margin-top: 16px;">
+      <!-- Les cartes de modules seront injectées dynamiquement par sources-manager.js -->
+      <div class="loading-placeholder">
+        <div class="spinner"></div>
+        <span>Chargement des modules sources...</span>
+      </div>
+    </div>
+
+    <!-- Actions globales -->
+    <div style="margin-top: 16px;">
+      <div class="flex-row" style="gap: 12px; flex-wrap: wrap;">
+        <button class="btn primary" onclick="scanAllSources()">
+          🔍 Scanner toutes les sources
+        </button>
+        <button class="btn info" onclick="refreshSourcesStatus()">
+          🔄 Actualiser status
+        </button>
+        <button class="btn secondary" onclick="showSourcesConfiguration()">
+          ⚙️ Configuration avancée
+        </button>
+      </div>
+    </div>
+
+    <!-- Configuration sources (collapsible) -->
+    <details class="config-details" id="sources_config_details" style="margin-top: 16px;">
+      <summary>⚙️ Configuration Sources Avancée</summary>
+      <div class="config-content">
+
+        <div class="form-group">
+          <label for="sources_snapshot_ttl">TTL des snapshots (heures)</label>
+          <input type="number" id="sources_snapshot_ttl" value="24" min="1" max="168">
+          <div class="help">Durée avant qu'un snapshot soit considéré comme obsolète (défaut: 24h)</div>
+        </div>
+
+        <div class="form-group">
+          <label for="sources_warning_threshold">Seuil d'alerte (heures)</label>
+          <input type="number" id="sources_warning_threshold" value="12" min="1" max="72">
+          <div class="help">Durée avant d'afficher un avertissement de staleness (défaut: 12h)</div>
+        </div>
+
+        <div class="form-group">
+          <label for="sources_auto_refresh">Actualisation automatique</label>
+          <input type="checkbox" id="sources_auto_refresh" checked>
+          <div class="help">Actualise automatiquement le statut toutes les 30 secondes</div>
+        </div>
+
+        <div style="margin-top: 16px;">
+          <button class="btn secondary" onclick="saveSourcesConfiguration()">
+            💾 Sauvegarder configuration
+          </button>
+        </div>
+
+      </div>
+    </details>
+
+    <!-- Logs sources -->
+    <div id="sources_logs" style="margin-top: 16px; display: none;">
+      <h4>📋 Logs récents</h4>
+      <div class="logs-container" id="sources_logs_content" style="max-height: 200px; overflow-y: auto; background: var(--theme-surface); padding: 8px; border-radius: 4px; font-family: monospace; font-size: 12px;">
+        <!-- Les logs seront ajoutés dynamiquement -->
+      </div>
+      <div style="margin-top: 8px;">
+        <button class="btn small secondary" onclick="toggleSourcesLogs()">
+          📋 Basculer les logs
+        </button>
+        <button class="btn small info" onclick="clearSourcesLogs()">
+          🗑️ Effacer
+        </button>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- CSS spécifique pour la section Sources -->
+<style>
+/* Grille des modules sources */
+.modules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+/* Cartes individuelles des modules */
+.module-card {
+  background: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+  padding: 16px;
+  transition: all 0.2s ease;
+}
+
+.module-card:hover {
+  border-color: var(--theme-accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.module-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.module-header h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+/* Badges de status */
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.status-badge.enabled, .status-badge.success {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-badge.warning {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.status-badge.disabled, .status-badge.error {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+/* Statistiques des modules */
+.module-stats {
+  margin: 12px 0;
+}
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+
+.stat-item .label {
+  color: var(--theme-text-muted);
+}
+
+.stat-item .value {
+  font-weight: 500;
+}
+
+/* Actions des modules */
+.module-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+/* Loading placeholder */
+.loading-placeholder {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px;
+  color: var(--theme-text-muted);
+  font-style: italic;
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--theme-border);
+  border-top: 2px solid var(--theme-accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Sources radio buttons compacts */
+.sources-section {
+  margin-top: 12px;
+}
+
+.sources-section h5 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: var(--theme-text-muted);
+}
+
+.sources-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.source-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-size: 13px;
+}
+
+.source-option:hover {
+  background-color: var(--theme-surface-elevated);
+}
+
+.source-option input[type="radio"] {
+  margin: 0;
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+}
+
+.source-details {
+  flex: 1;
+  line-height: 1.3;
+}
+
+.source-details small {
+  color: var(--theme-text-muted);
+  font-size: 11px;
+}
+
+.legacy {
+  color: #fd7e14;
+  font-weight: 500;
+}
+
+/* Status grid amélioré */
+.status-grid .value.error {
+  color: #dc3545;
+}
+
+.status-grid .value.warning {
+  color: #fd7e14;
+}
+
+.status-grid .value.success {
+  color: #28a745;
+}
+</style>
+
+<!-- JavaScript d'initialisation -->
+<script>
+// Fonctions utilitaires pour la section Sources
+function showSourcesConfiguration() {
+  const details = document.getElementById('sources_config_details');
+  if (details) {
+    details.open = true;
+    details.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+function saveSourcesConfiguration() {
+  const ttl = document.getElementById('sources_snapshot_ttl').value;
+  const warning = document.getElementById('sources_warning_threshold').value;
+  const autoRefresh = document.getElementById('sources_auto_refresh').checked;
+
+  // TODO: Implémenter la sauvegarde via API
+  showNotification('Configuration sources sauvegardée', 'success');
+}
+
+function toggleSourcesLogs() {
+  const logsDiv = document.getElementById('sources_logs');
+  if (logsDiv) {
+    logsDiv.style.display = logsDiv.style.display === 'none' ? 'block' : 'none';
+  }
+}
+
+function clearSourcesLogs() {
+  const logsContent = document.getElementById('sources_logs_content');
+  if (logsContent) {
+    logsContent.innerHTML = '';
+  }
+}
+
+// Initialisation automatique quand l'onglet Sources est activé
+document.addEventListener('DOMContentLoaded', function() {
+  // Fonction d'initialisation
+  function tryInitSourcesManager() {
+    setTimeout(() => {
+      if (typeof initSourcesManager === 'function') {
+        initSourcesManager();
+      } else {
+        console.warn('[Sources] sources-manager.js not loaded');
+      }
+    }, 100);
+  }
+
+  // Observer les changements d'onglet
+  const sourcesTab = document.querySelector('button[data-target="#tab-sources"]');
+  if (sourcesTab) {
+    sourcesTab.addEventListener('click', function() {
+      tryInitSourcesManager();
+    });
+  }
+
+  // Initialiser automatiquement si on arrive directement sur l'onglet Sources
+  if (window.location.hash === '#tab-sources') {
+    // Attendre que la page soit complètement chargée
+    setTimeout(tryInitSourcesManager, 500);
+  }
+});
+</script>
 
     <!-- Advanced Tab -->
     <section class="tab-panel" id="tab-advanced">

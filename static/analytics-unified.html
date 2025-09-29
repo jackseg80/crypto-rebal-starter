@@ -333,7 +333,7 @@
 
     // Risk Budget ready guard - improved with multiple sources
     async function ensureRiskBudgetReady(getRiskBudget, options = {}) {
-      const { waitMs = 100, timeoutMs = 3500 } = options || {};
+      const { waitMs = 50, timeoutMs = 8000 } = options || {}; // Increased timeout, reduced polling interval
 
       const resolveCandidate = () => {
         let rb = typeof getRiskBudget === 'function' ? getRiskBudget() : null;
@@ -371,6 +371,17 @@
           } catch (e) { /* ignore */ }
         }
 
+        // Additional fallback: check for cached market regimes calculation
+        if (!rb?.stables_allocation && window.store?.get) {
+          const marketRegime = window.store.get('market.regime');
+          if (marketRegime?.risk_budget) {
+            rb = {
+              stables_allocation: marketRegime.risk_budget.stables_allocation,
+              risky_allocation: marketRegime.risk_budget.risky_allocation
+            };
+          }
+        }
+
         return rb?.stables_allocation != null && rb?.risky_allocation != null ? rb : null;
       };
 
@@ -397,9 +408,10 @@
           cleanup();
 
           if (fallback) {
-            console.warn('🚨 RiskBudget timeout, using synthetic fallback');
+            console.debug('⏰ RiskBudget resolution timeout, computing synthetic allocation');
             const blendedScore = store.get('scores.blended') || 50;
             const stablesPercent = Math.max(10, Math.min(80, 100 - blendedScore));
+            console.debug(`💡 Synthetic allocation: ${stablesPercent}% stables based on blended score ${blendedScore}`);
             resolve({
               stables_allocation: stablesPercent / 100,
               risky_allocation: (100 - stablesPercent) / 100
@@ -729,13 +741,29 @@
           }
 
           // Wait for Risk Budget to be ready before continuing
-          const rb = await ensureRiskBudgetReady(() => window.__store?.riskBudget);
-          if (!rb) {
-            console.warn('⚠️ Skip render this tick: risk budget not ready');
-            return;
+          // First try immediate resolution
+          let rb = null;
+          try {
+            const immediate = store.get('risk.budget');
+            if (immediate?.percentages?.stables != null && immediate?.percentages?.risky != null) {
+              rb = {
+                stables_allocation: immediate.percentages.stables / 100,
+                risky_allocation: immediate.percentages.risky / 100
+              };
+            }
+          } catch (e) {
+            // Fall back to async resolution
           }
 
-          const targetStablesPct = Math.round(rb.stables_allocation * 100);
+          if (!rb) {
+            rb = await ensureRiskBudgetReady(() => window.__store?.riskBudget);
+            if (!rb) {
+              console.debug('⚠️ Skip invariant checks this tick: risk budget not ready');
+              // Don't return, continue with other operations
+            }
+          }
+
+          const targetStablesPct = rb ? Math.round(rb.stables_allocation * 100) : 34; // Default fallback
           // Remove assert - use computed value instead
 
           // Vérifier groupes de targets si disponibles
@@ -751,7 +779,8 @@
           console.debug('✅ Invariants Analytics validés:', {
             sumCheck: riskBudget?.percentages ? `${risky}+${stables}=${risky+stables}%` : 'N/A',
             targetStables: `${targetStablesPct}%`,
-            targetsCount: targets.length
+            targetsCount: targets.length,
+            riskBudgetSource: rb ? 'resolved' : 'fallback'
           });
 
         } catch (assertError) {
@@ -811,6 +840,15 @@
 
     // FORCE CACHE BUST: Ajouter timestamp pour forcer le rechargement
     console.log('🆘 CACHE BUST ANALYTICS UNIFIED:', new Date().toISOString());
+
+    // Suppress chrome extension errors
+    window.addEventListener('error', function(e) {
+      if (e.message && e.message.includes('Could not establish connection')) {
+        // Suppress Chrome extension connection errors
+        e.preventDefault();
+        return false;
+      }
+    });
 
     document.addEventListener('DOMContentLoaded', async () => {
       // Initialize governance panel

@@ -24,6 +24,95 @@ _MODULE = "saxo"
 _STORAGE_PATH = Path("data/wealth/saxo_snapshot.json")
 _ISIN_MAP = Path("data/mappings/isin_ticker.json")
 
+def _load_from_sources_fallback(user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """
+    Charge les données Saxo depuis le système sources avec fallback vers legacy.
+
+    Args:
+        user_id: ID utilisateur (None pour mode compatibilité)
+
+    Returns:
+        Optional[Dict]: Données normalisées ou None
+    """
+    if not user_id:
+        logger.debug("No user_id provided, using legacy storage")
+        return None
+
+    try:
+        from api.services.user_fs import UserScopedFS
+        from api.services.config_migrator import get_staleness_state
+        import os
+
+        project_root = str(Path(__file__).parent.parent)
+        user_fs = UserScopedFS(project_root, user_id)
+
+        # 1. Essayer snapshot récent
+        snapshot_path = user_fs.get_path("saxobank/snapshots/latest.csv")
+        if os.path.exists(snapshot_path):
+            staleness = get_staleness_state(
+                datetime.fromtimestamp(os.path.getmtime(snapshot_path)).isoformat(),
+                24, 12  # TTL par défaut
+            )
+
+            if not staleness["is_stale"]:
+                logger.debug(f"Using fresh Saxo snapshot for user {user_id}")
+                return _parse_saxo_csv(snapshot_path, "saxo_snapshot")
+
+        # 2. Essayer imports récents
+        imports_files = user_fs.glob_files("saxobank/imports/*.csv")
+        if imports_files:
+            latest_import = max(imports_files, key=lambda f: os.path.getmtime(f))
+            logger.debug(f"Using Saxo imports for user {user_id}")
+            return _parse_saxo_csv(latest_import, "saxo_imports")
+
+        # 3. Legacy fallback
+        legacy_patterns = ["csv/saxo*.csv", "csv/positions*.csv"]
+        for pattern in legacy_patterns:
+            legacy_files = user_fs.glob_files(pattern)
+            if legacy_files:
+                latest_legacy = max(legacy_files, key=lambda f: os.path.getmtime(f))
+                logger.warning(f"Using legacy Saxo CSV for user {user_id}")
+                return _parse_saxo_csv(latest_legacy, "saxo_legacy")
+
+        logger.debug(f"No Saxo sources data found for user {user_id}")
+        return None
+
+    except Exception as e:
+        logger.error(f"Error loading from sources for user {user_id}: {e}")
+        return None
+
+def _parse_saxo_csv(csv_path: str, source_type: str) -> Dict[str, Any]:
+    """Parse un fichier CSV Saxo vers le format portfolio normalisé"""
+    try:
+        connector = SaxoImportConnector()
+        # Utiliser la méthode existante
+        result = connector.process_csv_file(csv_path)
+
+        if not result or "positions" not in result:
+            return {"portfolios": []}
+
+        positions = result["positions"]
+        portfolio_id = f"saxo_{source_type}"
+
+        # Normaliser au format attendu
+        normalized_data = {
+            "portfolios": [{
+                "id": portfolio_id,
+                "name": f"Saxo Portfolio ({source_type})",
+                "positions": positions,
+                "summary": result.get("summary", {}),
+                "last_updated": datetime.now().isoformat(),
+                "source": source_type
+            }]
+        }
+
+        logger.info(f"Parsed Saxo CSV: {len(positions)} positions from {source_type}")
+        return normalized_data
+
+    except Exception as e:
+        logger.error(f"Failed to parse Saxo CSV {csv_path}: {e}")
+        return {"portfolios": []}
+
 
 def _ensure_storage() -> None:
     _STORAGE_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -31,7 +120,23 @@ def _ensure_storage() -> None:
         _STORAGE_PATH.write_text(json.dumps({"portfolios": []}), encoding="utf-8")
 
 
-def _load_snapshot() -> Dict[str, Any]:
+def _load_snapshot(user_id: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Charge le snapshot Saxo avec support du système sources unifié.
+
+    Args:
+        user_id: ID utilisateur (None pour mode legacy)
+
+    Returns:
+        Dict[str, Any]: Données de snapshot
+    """
+    # Essayer d'abord le nouveau système sources
+    if user_id:
+        sources_data = _load_from_sources_fallback(user_id)
+        if sources_data:
+            return sources_data
+
+    # Fallback vers l'ancien système
     _ensure_storage()
     try:
         with _STORAGE_PATH.open("r", encoding="utf-8") as handle:
@@ -41,7 +146,7 @@ def _load_snapshot() -> Dict[str, Any]:
             data.setdefault("portfolios", [])
             return data
     except Exception as exc:  # pragma: no cover - defensive
-        logger.warning("[wealth][saxo] failed to load snapshot: %s", exc)
+        logger.warning("[wealth][saxo] failed to load legacy snapshot: %s", exc)
         return {"portfolios": []}
 
 
@@ -246,8 +351,8 @@ def get_portfolio_detail(portfolio_id: str) -> Dict[str, Any]:
 
 
 
-def _iter_positions() -> Iterable[Dict[str, Any]]:
-    snapshot = _load_snapshot()
+def _iter_positions(user_id: Optional[str] = None) -> Iterable[Dict[str, Any]]:
+    snapshot = _load_snapshot(user_id)
     for portfolio in snapshot.get("portfolios", []):
         for position in portfolio.get("positions", []):
             yield position
@@ -342,5 +447,6 @@ async def preview_rebalance() -> List[ProposedTrade]:
     return []
 
 
-async def has_data() -> bool:
-    return any(True for _ in _iter_positions())
+async def has_data(user_id: Optional[str] = None) -> bool:
+    """Vérifie si des données Saxo sont disponibles pour l'utilisateur."""
+    return any(True for _ in _iter_positions(user_id))

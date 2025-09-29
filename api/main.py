@@ -92,6 +92,7 @@ from api.realtime_endpoints import router as realtime_router
 from api.intelligence_endpoints import router as intelligence_router
 from api.user_settings_endpoints import router as user_settings_router
 from api.wealth_endpoints import router as wealth_router
+from api.sources_endpoints import router as sources_router
 ## NOTE: market_endpoints est désactivé tant que le client prix n'est pas réimplémenté
 from api.market_endpoints import router as market_router
 from api.exceptions import (
@@ -1839,6 +1840,8 @@ app.include_router(advanced_risk_router)
 app.include_router(realtime_router)
 app.include_router(intelligence_router)
 app.include_router(user_settings_router)
+app.include_router(sources_router)
+app.include_router(wealth_router)
 # Phase 3 Unified Orchestration
 from api.unified_phase3_endpoints import router as unified_phase3_router
 app.include_router(unified_phase3_router)

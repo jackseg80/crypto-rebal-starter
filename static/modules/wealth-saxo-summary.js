@@ -27,7 +27,17 @@ export async function fetchSaxoSummary() {
         );
 
         if (!ok || !data) {
-            throw new Error('API Saxo indisponible');
+            console.warn('[Saxo Summary] API returned error, using empty state');
+            const emptySummary = {
+                total_value: 0,
+                positions_count: 0,
+                asof: 'API indisponible',
+                isEmpty: true,
+                error: 'API Saxo temporairement indisponible'
+            };
+            _cachedSummary = emptySummary;
+            _cacheTimestamp = now;
+            return emptySummary;
         }
 
         const positions = Array.isArray(data.positions) ? data.positions :

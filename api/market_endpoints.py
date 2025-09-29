@@ -15,8 +15,9 @@ import asyncio
 # Stub implementation for missing data sources
 class StubCoinGeckoClient:
     @staticmethod
-    async def get_historical_prices(symbols, days):
-        return {symbol: [{"timestamp": datetime.now(), "price": 45000.0 + i * 100}] for i, symbol in enumerate(symbols)}
+    async def get_historical_prices(coin_id, days):
+        # Retourne les données de prix pour un seul coin_id
+        return [{"timestamp": datetime.now(), "price": 45000.0 + hash(coin_id) % 1000}]
 
 class StubCryptoToolboxClient:
     @staticmethod

@@ -16,6 +16,73 @@ from api.services.user_fs import UserScopedFS
 
 router = APIRouter()
 
+# Legacy wrapper helpers
+def _log_legacy_usage(endpoint: str, user: str):
+    """Log l'usage des endpoints legacy pour monitoring de migration"""
+    logger.warning(f"[LEGACY] CSV endpoint {endpoint} used by user {user} - consider migrating to /api/sources")
+
+async def _delegate_to_sources(action: str, user: str, **kwargs):
+    """Délègue une action vers le nouveau système sources"""
+    try:
+        if action == "download":
+            # Déléguer vers /api/sources/refresh-api pour cointracking
+            from api.sources_endpoints import refresh_api, RefreshApiRequest
+            from api.services.user_fs import UserScopedFS
+            from api.services.config_migrator import ConfigMigrator
+
+            project_root = str(Path(__file__).parent.parent)
+            user_fs = UserScopedFS(project_root, user)
+            config_migrator = ConfigMigrator(user_fs)
+
+            request = RefreshApiRequest(module="cointracking")
+            response = await refresh_api(request, config_migrator, user_fs)
+
+            # Adapter le format de réponse
+            if response.success:
+                return CSVDownloadResponse(
+                    success=True,
+                    filename="cointracking_via_sources.csv",
+                    size=response.records_fetched or 0,
+                    path="cointracking/snapshots/latest.csv"
+                )
+            else:
+                return CSVDownloadResponse(
+                    success=False,
+                    error=response.error or response.message
+                )
+
+        elif action == "status":
+            # Déléguer vers /api/sources/list pour cointracking
+            from api.sources_endpoints import list_sources
+            from api.services.user_fs import UserScopedFS
+            from api.services.config_migrator import ConfigMigrator
+
+            project_root = str(Path(__file__).parent.parent)
+            user_fs = UserScopedFS(project_root, user)
+            config_migrator = ConfigMigrator(user_fs)
+
+            sources_response = await list_sources(config_migrator, user_fs)
+
+            # Adapter pour le format CSV legacy
+            files_info = []
+            for module in sources_response.modules:
+                if module.name == "cointracking" and module.files_detected > 0:
+                    files_info.append({
+                        'name': f"cointracking_sources_{module.files_detected}_files",
+                        'type': 'current_balance',
+                        'size': module.files_detected * 1000,  # Estimation
+                        'modified': module.last_import_at or sources_response.last_updated
+                    })
+
+            return CSVStatusResponse(
+                success=True,
+                files=files_info
+            )
+
+    except Exception as e:
+        logger.error(f"Error delegating {action} to sources: {e}")
+        return None
+
 class CSVDownloadRequest(BaseModel):
     file_type: str  # 'current_balance', 'balance_by_exchange', 'coins_by_exchange'
     download_path: str = "data/raw/"
@@ -101,7 +168,16 @@ def generate_csv_filename(file_type: str, auto_name: bool = True) -> str:
 
 @router.post("/csv/download")
 async def download_csv_file(request: CSVDownloadRequest, user: str = Depends(get_active_user)) -> CSVDownloadResponse:
-    """Télécharge un fichier CSV depuis CoinTracking avec nom automatique"""
+    """[LEGACY] Télécharge un fichier CSV depuis CoinTracking - délègue vers /api/sources"""
+    _log_legacy_usage("download", user)
+
+    # Essayer d'abord la délégation vers sources
+    sources_result = await _delegate_to_sources("download", user)
+    if sources_result:
+        return sources_result
+
+    # Fallback vers l'ancienne logique si nécessaire
+    logger.info(f"[LEGACY] Falling back to original CSV download logic for user {user}")
     try:
         api_key, api_secret = get_cointracking_credentials_for_user(user)
         
@@ -177,7 +253,16 @@ async def download_csv_file(request: CSVDownloadRequest, user: str = Depends(get
 
 @router.get("/csv/status")
 async def get_csv_files_status(user: str = Depends(get_active_user)) -> CSVStatusResponse:
-    """Retourne le status des fichiers CSV disponibles localement"""
+    """[LEGACY] Retourne le status des fichiers CSV - délègue vers /api/sources"""
+    _log_legacy_usage("status", user)
+
+    # Essayer d'abord la délégation vers sources
+    sources_result = await _delegate_to_sources("status", user)
+    if sources_result:
+        return sources_result
+
+    # Fallback vers l'ancienne logique
+    logger.info(f"[LEGACY] Falling back to original CSV status logic for user {user}")
     try:
         project_root = str(Path(__file__).parent.parent)
         user_fs = UserScopedFS(project_root, user)

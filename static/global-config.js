@@ -27,6 +27,27 @@ window.DATA_SOURCES = {
   cointracking_api:  { label: 'CoinTracking API',  icon: '🌐', kind: 'api' }
 };
 
+/**
+ * Récupère l'utilisateur actuel depuis le système de navigation
+ * @returns {string} ID de l'utilisateur actuel
+ */
+window.getCurrentUser = function() {
+  // Récupérer depuis localStorage (géré par nav.js)
+  const activeUser = localStorage.getItem('activeUser');
+  if (activeUser) {
+    return activeUser;
+  }
+
+  // Fallback: essayer de récupérer depuis le sélecteur d'utilisateur
+  const userSelector = document.getElementById('user-selector');
+  if (userSelector && userSelector.value) {
+    return userSelector.value;
+  }
+
+  // Fallback final: demo
+  return 'demo';
+};
+
 // Ordre d'affichage par défaut
 window.DATA_SOURCE_ORDER = [
   'stub_conservative',
@@ -802,8 +823,10 @@ window.currencyManager = (function(){
       const data = await res.json();
       const rate = data?.rates?.EUR;
       return (typeof rate === 'number' && rate > 0) ? rate : 0;
-    } catch (_) {
-      return 0;
+    } catch (error) {
+      // Silent failure for CORS or network errors - use fallback rate
+      console.debug('Currency rate fetch failed (expected in some environments):', error.name);
+      return 0; // Trigger fallback to default rate
     }
   }
 

@@ -33,11 +33,11 @@
 // ===== SWR CACHE SYSTEM =====
 
 /**
- * SWR (Stale-While-Revalidate) cache constants
+ * SWR (Stale-While-Revalidate) cache constants - optimized for onchain indicators
  */
-const TTL_SHOW_MS = 6 * 60 * 60 * 1000;   // Show cache if < 6h (instant UI)
-const TTL_BG_MS = 24 * 60 * 60 * 1000;    // Revalidate background if 6h-24h
-const TTL_HARD_MS = 36 * 60 * 60 * 1000;  // Force network if > 36h (safety)
+const TTL_SHOW_MS = 10 * 60 * 1000;       // Show cache if < 10min (faster updates)
+const TTL_BG_MS = 30 * 60 * 1000;         // Revalidate background if 10min-30min
+const TTL_HARD_MS = 2 * 60 * 60 * 1000;   // Force network if > 2h (more aggressive refresh)
 const LS_KEY = 'CTB_ONCHAIN_CACHE_V2';
 
 /**
@@ -279,15 +279,22 @@ export const INDICATOR_CATEGORIES = {
       // Évaluation de prix vs valeur intrinsèque
       'mvrv': { weight: 0.25, invert: true }, // High MVRV = overvalued = bearish
       'mvrv_z_score': { weight: 0.25, invert: true },
+      'mvrv_cointime': { weight: 0.20, invert: true }, // Cointime MVRV-Z Score
       'nupl': { weight: 0.20, invert: true }, // High NUPL = profit zone = bearish
       'rupl_nupl': { weight: 0.20, invert: true },
       'rupl': { weight: 0.20, invert: true },
-      
+
       // Métriques miniers et réseau
       'puell': { weight: 0.15, invert: false }, // Puell Multiple pattern varies
       'puell_multiple': { weight: 0.15, invert: false },
       'sopr': { weight: 0.10, invert: false }, // SOPR >1 = profits realized
-      'rhodl': { weight: 0.05, invert: true }
+      'rhodl': { weight: 0.05, invert: true },
+      'rhold': { weight: 0.05, invert: true }, // RHOLD ratio
+
+      // Autres métriques blockchain
+      'reserve_risk': { weight: 0.15, invert: true }, // Reserve Risk indicator
+      'cdd': { weight: 0.10, invert: false }, // Coin Days Destroyed
+      'bmo': { weight: 0.10, invert: false } // BMO indicator
     }
   },
   
@@ -301,18 +308,29 @@ export const INDICATOR_CATEGORIES = {
       'cbbi': { weight: 0.30, invert: true }, // Colin Bicknell Bitcoin Index
       'rainbow': { weight: 0.20, invert: true }, // Rainbow Chart position
       'rsi': { weight: 0.15, invert: true }, // RSI Bitcoin mensuel
-      'stock_to_flow': { weight: 0.0, invert: false } // Modèle controversé
+      'stock_to_flow': { weight: 0.0, invert: false }, // Modèle controversé
+      'ma_2y': { weight: 0.20, invert: true }, // 2 Year Moving Average
+      'trolololo': { weight: 0.15, invert: true }, // Trolololo Trend Line
+      'woobull': { weight: 0.15, invert: true }, // Woobull top indicator
+      'mayer_multiple': { weight: 0.15, invert: true }, // Mayer Multiple
+      'btc_dominance': { weight: 0.10, invert: false }, // BTC Dominance
+      'altseason': { weight: 0.10, invert: false }, // Altcoin Season Index
+      'ahr999': { weight: 0.15, invert: true } // Ahr999 index
     }
   },
   
   // Indicateurs de Sentiment (10% du score) - Psychologie de marché
   sentiment: {
     weight: 0.10,
-    description: "Sentiment et psychologie de marché", 
+    description: "Sentiment et psychologie de marché",
     indicators: {
       'fear_greed': { weight: 0.60, invert: true }, // High Fear & Greed = bearish
       'fear_greed_7d': { weight: 0.40, invert: true },
-      'fear': { weight: 0.60, invert: true }
+      'fear': { weight: 0.60, invert: true },
+      'google_trends': { weight: 0.20, invert: true }, // High search interest = bearish
+      'google_crypto': { weight: 0.15, invert: true },
+      'google_bitcoin': { weight: 0.15, invert: true },
+      'google_ethereum': { weight: 0.10, invert: true }
     }
   }
 };
@@ -339,7 +357,29 @@ export function classifyIndicator(indicatorName) {
     'rsi': { category: 'cycle_technical', key: 'rsi' },
     'fear & greed': { category: 'sentiment', key: 'fear_greed' },
     'fear and greed': { category: 'sentiment', key: 'fear_greed' },
-    'sopr': { category: 'onchain_fundamentals', key: 'sopr' }
+    'sopr': { category: 'onchain_fundamentals', key: 'sopr' },
+
+    // Additional missing indicators from console logs
+    '2y ma': { category: 'cycle_technical', key: 'ma_2y' },
+    '2 year ma': { category: 'cycle_technical', key: 'ma_2y' },
+    'trolololo trend line': { category: 'cycle_technical', key: 'trolololo' },
+    'reserve risk': { category: 'onchain_fundamentals', key: 'reserve_risk' },
+    'woobull': { category: 'cycle_technical', key: 'woobull' },
+    'cointime mvrv-z score': { category: 'onchain_fundamentals', key: 'mvrv_cointime' },
+    'cointime mvrv-z score (ema 14j)': { category: 'onchain_fundamentals', key: 'mvrv_cointime' },
+    'mayer multiple': { category: 'cycle_technical', key: 'mayer_multiple' },
+    'mayer mutiple': { category: 'cycle_technical', key: 'mayer_multiple' }, // typo in data source
+    'rhold': { category: 'onchain_fundamentals', key: 'rhold' },
+    'coin days destroyed': { category: 'onchain_fundamentals', key: 'cdd' },
+    'coin days destroyed (ma 90j)': { category: 'onchain_fundamentals', key: 'cdd' },
+    'bmo (par prof. chaîne)': { category: 'onchain_fundamentals', key: 'bmo' },
+    'bmo': { category: 'onchain_fundamentals', key: 'bmo' },
+    'dominance btc': { category: 'cycle_technical', key: 'btc_dominance' },
+    'altcoin season index': { category: 'cycle_technical', key: 'altseason' },
+    'google trend': { category: 'sentiment', key: 'google_trends' },
+    'google trends': { category: 'sentiment', key: 'google_trends' },
+    'ahr999': { category: 'cycle_technical', key: 'ahr999' },
+    'cbbi*': { category: 'cycle_technical', key: 'cbbi' }
   };
   
   // Recherche par correspondance exacte d'abord
@@ -377,7 +417,7 @@ export function classifyIndicator(indicatorName) {
   }
   
   // Par défaut, classer comme sentiment avec poids faible
-  console.warn(`⚠️ Unknown indicator classification: ${indicatorName}`);
+  console.debug(`⚠️ Unknown indicator classification: ${indicatorName}`);
   return {
     category: 'sentiment',
     key: 'unknown',
@@ -603,12 +643,12 @@ export function invalidateCache(key) {
  */
 async function performanceMonitoredFetch(url, options = {}) {
   const startTime = performance.now();
-  
+
   try {
     const response = await fetch(url, {
       ...options,
-      // Reduced timeout for faster failure detection
-      signal: AbortSignal.timeout(5000) // 5 second timeout (was 10s)
+      // Further reduced timeout for faster failure detection and better UX
+      signal: AbortSignal.timeout(3000) // 3 second timeout (was 5s)
     });
     
     const endTime = performance.now();
@@ -679,14 +719,28 @@ async function fetchFearGreedIndex() {
   }
 }
 
-// Global deduplication and circuit breaker
+// Global deduplication and circuit breaker - optimized for better recovery
 let _ongoingFetch = null;
 let _circuitBreakerState = {
   failures: 0,
   lastFailure: 0,
   isOpen: false,
-  FAILURE_THRESHOLD: 3,
-  RESET_TIMEOUT: 30000 // 30 seconds
+  FAILURE_THRESHOLD: 2,   // Reduced threshold for faster circuit breaking
+  RESET_TIMEOUT: 15000    // 15 seconds (was 30s) for faster recovery
+};
+
+// Rate-limited logging to reduce verbosity
+const _logLimiter = {
+  cache: new Map(),
+  limit: (key, intervalMs = 30000) => { // 30 second intervals by default
+    const now = Date.now();
+    const lastLog = _logLimiter.cache.get(key);
+    if (!lastLog || (now - lastLog) > intervalMs) {
+      _logLimiter.cache.set(key, now);
+      return true;
+    }
+    return false;
+  }
 };
 
 /**
@@ -754,10 +808,12 @@ export async function fetchCryptoToolboxIndicators({ force = false, silent = fal
   // 2) Circuit Breaker Check
   if (_circuitBreakerState.isOpen) {
     if (now - _circuitBreakerState.lastFailure < _circuitBreakerState.RESET_TIMEOUT) {
-      console.warn('🚨 SWR: Circuit breaker OPEN - returning stale cache instead of network', {
-        failures: _circuitBreakerState.failures,
-        time_to_reset: Math.round((_circuitBreakerState.RESET_TIMEOUT - (now - _circuitBreakerState.lastFailure)) / 1000) + 's'
-      });
+      if (_logLimiter.limit('circuit_breaker_active')) {
+        console.warn('🚨 SWR: Circuit breaker OPEN - returning stale cache instead of network', {
+          failures: _circuitBreakerState.failures,
+          time_to_reset: Math.round((_circuitBreakerState.RESET_TIMEOUT - (now - _circuitBreakerState.lastFailure)) / 1000) + 's'
+        });
+      }
 
       // Return stale cache even if old
       if (cached) {
@@ -926,33 +982,49 @@ export async function fetchCryptoToolboxIndicators({ force = false, silent = fal
   } catch (error) {
     console.error('❌ Crypto-Toolbox API fetch failed:', error.message);
 
-    // Si le backend est inaccessible, essayer de diagnostiquer
-    if (error.message.includes('Failed to fetch') || error.message.includes('ERR_CONNECTION_REFUSED') || error.message.includes('timed out')) {
-      console.error('🚨 Backend API seems to be down. Please ensure crypto_toolbox_api.py is running on port 8001');
+    // Enhanced graceful degradation for all types of API failures
+    if (_logLimiter.limit('api_failure')) {
+      console.warn('🌐 Crypto-Toolbox API failure:', error.message);
+    }
 
-      // Update circuit breaker state
+    // Update circuit breaker state for persistent failures
+    if (error.message.includes('Failed to fetch') || error.message.includes('ERR_CONNECTION_REFUSED') || error.message.includes('timed out')) {
       _circuitBreakerState.failures++;
       _circuitBreakerState.lastFailure = Date.now();
       if (_circuitBreakerState.failures >= _circuitBreakerState.FAILURE_THRESHOLD) {
         _circuitBreakerState.isOpen = true;
-        console.warn('🚨 Circuit breaker OPENED due to repeated failures');
-      }
-
-      // SWR Graceful Degradation: Return stale cache if available instead of throwing
-      const staleCache = readOnchainCache();
-      if (staleCache && !force) {
-        const age = Date.now() - (staleCache.saved_at || 0);
-        console.warn(`🔄 SWR: Using STALE cache due to network failure (age: ${Math.round(age / 1000 / 60)}min)`, {
-          served_from: 'stale_cache',
-          cache_age_minutes: Math.round(age / 1000 / 60),
-          reason: 'network_failure',
-          circuit_breaker_failures: _circuitBreakerState.failures
-        });
-        return staleCache;
+        if (_logLimiter.limit('circuit_breaker_open')) {
+          console.debug('🚨 Circuit breaker OPENED due to repeated failures');
+        }
       }
     }
 
-    throw error; // Re-throw only if no stale cache available
+    // SWR Graceful Degradation: Always try to return cache instead of failing completely
+    const staleCache = readOnchainCache();
+    if (staleCache && !force) {
+      const age = Date.now() - (staleCache.saved_at || 0);
+      console.info(`🔄 Using stale cache due to API failure (age: ${Math.round(age / 1000 / 60)}min)`, {
+        served_from: 'stale_cache_fallback',
+        cache_age_minutes: Math.round(age / 1000 / 60),
+        reason: 'api_failure',
+        error_type: error.name || 'unknown',
+        circuit_breaker_failures: _circuitBreakerState.failures
+      });
+      return staleCache;
+    }
+
+    // Last resort: return minimal empty state instead of throwing
+    if (_logLimiter.limit('empty_fallback')) {
+      console.warn('🔄 No cache available, returning empty state for graceful degradation');
+    }
+    return {
+      indicators: {},
+      count: 0,
+      fetched_at: new Date().toISOString(),
+      source: 'fallback_empty',
+      error: error.message,
+      graceful_degradation: true
+    };
   } finally {
     _ongoingFetch = null; // Clear deduplication lock
   }
@@ -1345,7 +1417,9 @@ export async function fetchAllIndicators({ force = false } = {}) {
       
     } else {
       errors.push('Crypto-Toolbox: Backend unavailable - no indicators loaded');
-      console.warn('⚠️ Crypto-Toolbox backend failed, no indicators loaded');
+      if (_logLimiter.limit('backend_unavailable')) {
+        console.warn('⚠️ Crypto-Toolbox backend failed, no indicators loaded');
+      }
     }
     
     // 2. Add Fear & Greed from Alternative.me only if toolbox data is present (no silent fallback)
@@ -1401,13 +1475,17 @@ export async function fetchAllIndicators({ force = false } = {}) {
     };
     
   } catch (error) {
-    console.error('❌ Error fetching real indicators:', error);
+    console.warn('❌ Error fetching real indicators, using graceful fallback:', error.message);
+
+    // Return minimal working state for graceful degradation
     return {
       _metadata: {
         available_count: 0,
         error: error.message,
-        message: 'Scraping Crypto-Toolbox indisponible',
-        last_updated: new Date().toISOString()
+        message: 'Indicators temporarily unavailable - running in degraded mode',
+        last_updated: new Date().toISOString(),
+        graceful_degradation: true,
+        fallback_reason: 'api_error'
       }
     };
   }

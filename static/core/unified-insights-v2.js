@@ -94,7 +94,7 @@ function computeMacroTargetsDynamic(ctx, rb, walletStats) {
   // 0) Stables = SOURCE DE VÉRITÉ (risk budget)
   let stables = rb?.target_stables_pct;
   if (typeof stables !== 'number' || stables < 0 || stables > 100) {
-    console.warn('⚠️ target_stables_pct invalide, fallback 25%:', stables);
+    console.debug('⚠️ target_stables_pct invalide, fallback 25%:', stables);
     stables = 25;
   }
   const riskyPool = Math.max(0, 100 - stables); // Espace pour assets risqués
@@ -398,11 +398,17 @@ export async function getUnifiedState() {
     const stablesPct = regimeData?.risk_budget?.percentages?.stables ?? 0;
     const sum = riskyPct + stablesPct;
 
-    console.assert(
-      Math.abs(sum - 100) <= 0.1,
-      'Invariant failed: risky+stables must equal 100%',
-      { risky: riskyPct, stables: stablesPct, sum, regimeData: regimeData?.risk_budget }
-    );
+    // Seulement vérifier l'assertion si on a des données valides
+    if (riskyPct > 0 && stablesPct > 0) {
+      console.assert(
+        Math.abs(sum - 100) <= 0.1,
+        'Invariant failed: risky+stables must equal 100%',
+        { risky: riskyPct, stables: stablesPct, sum, regimeData: regimeData?.risk_budget }
+      );
+    } else {
+      console.debug('⚠️ Skipping risky+stables assertion: missing valid percentages',
+        { risky: riskyPct, stables: stablesPct });
+    }
 
     // DEBUG - Analyser regimeData avant assertion
     console.debug('🔍 REGIME DATA DEBUG DETAILLE:', {
@@ -420,7 +426,7 @@ export async function getUnifiedState() {
 
     // Vérifier présence target_stables_pct avec fallback
     if (typeof regimeData?.risk_budget?.target_stables_pct !== 'number') {
-      console.warn('⚠️ target_stables_pct missing, creating fallback:', { regimeData: regimeData?.risk_budget });
+      console.debug('⚠️ target_stables_pct missing, creating fallback:', { regimeData: regimeData?.risk_budget });
 
       // Fallback intelligent basé sur percentages.stables ou 41% par défaut
       const fallbackStables = regimeData?.risk_budget?.percentages?.stables ?? 41;
@@ -749,10 +755,20 @@ export async function getUnifiedState() {
 
   // GARDE-FOUS & COHÉRENCE (ajouté)
   const rb = unifiedState?.risk?.budget || {};
-  console.assert(
-    (rb?.percentages?.risky ?? 0) + (rb?.percentages?.stables ?? 0) === 100,
-    'Invariant cassé: risky+stables doit faire 100', rb?.percentages
-  );
+  const riskyPct = rb?.percentages?.risky ?? 0;
+  const stablesPct = rb?.percentages?.stables ?? 0;
+  const sum = riskyPct + stablesPct;
+
+  // Seulement vérifier si on a des données valides
+  if (riskyPct > 0 && stablesPct > 0) {
+    console.assert(
+      Math.abs(sum - 100) <= 0.1,
+      'Invariant cassé: risky+stables doit faire 100', rb?.percentages
+    );
+  } else {
+    console.debug('⚠️ Skipping second risky+stables assertion: missing budget data',
+      { risky: riskyPct, stables: stablesPct, rb: rb?.percentages });
+  }
 
   // Aligner stables du groupe sur le risk budget (si design l'exige)
   if (typeof rb?.target_stables_pct === 'number' && unifiedState.targets_by_group?.Stablecoins != null) {

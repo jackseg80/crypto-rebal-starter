@@ -4,9 +4,10 @@ from __future__ import annotations
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Body, HTTPException, Query
+from fastapi import APIRouter, Body, HTTPException, Query, Depends
 
 from adapters import banks_adapter, crypto_adapter, saxo_adapter
+from api.deps import get_active_user
 from models.wealth import (
     AccountModel,
     InstrumentModel,
@@ -22,14 +23,15 @@ router = APIRouter(prefix="/api/wealth", tags=["Wealth"])
 _SUPPORTED_MODULES = {"crypto", "saxo", "banks"}
 
 
-async def _module_available(module: str) -> bool:
+async def _module_available(module: str, user_id: Optional[str] = None) -> bool:
+    """Vérifie si un module wealth a des données disponibles pour l'utilisateur."""
     try:
         if module == "crypto":
-            return await crypto_adapter.has_data()
+            return await crypto_adapter.has_data(user_id)
         if module == "saxo":
-            return await saxo_adapter.has_data()
+            return await saxo_adapter.has_data(user_id)
         if module == "banks":
-            return await banks_adapter.has_data()
+            return await banks_adapter.has_data(user_id)
     except Exception as exc:  # pragma: no cover - defensive
         logger.warning("[wealth] availability probe failed for %s: %s", module, exc)
         return False
@@ -42,31 +44,40 @@ def _ensure_module(module: str) -> None:
 
 
 @router.get("/modules", response_model=List[str])
-async def list_modules() -> List[str]:
+async def list_modules(user: str = Depends(get_active_user)) -> List[str]:
+    """Liste les modules wealth disponibles pour l'utilisateur."""
     discovered = []
     for module in _SUPPORTED_MODULES:
-        if await _module_available(module):
+        if await _module_available(module, user):
             discovered.append(module)
     if not discovered:
         discovered = sorted(_SUPPORTED_MODULES)
-    logger.info("[wealth] modules_available=%s", discovered)
+    logger.info("[wealth] modules_available=%s for user=%s", discovered, user)
     return discovered
 
 
 @router.get("/{module}/accounts", response_model=List[AccountModel])
 async def get_accounts(
     module: str,
-    user_id: str = Query("demo", description="User identifier for crypto sources"),
+    user: str = Depends(get_active_user),
     source: str = Query("auto", description="Crypto source resolver"),
 ) -> List[AccountModel]:
+    """Liste les comptes pour un module (lecture seule depuis sources)."""
     _ensure_module(module)
+
+    # Vérifier que l'utilisateur a des données pour ce module
+    if not await _module_available(module, user):
+        logger.warning("[wealth] no data available for module=%s user=%s", module, user)
+        return []
+
     if module == "crypto":
-        accounts = await crypto_adapter.list_accounts(user_id=user_id, source=source)
+        accounts = await crypto_adapter.list_accounts(user_id=user, source=source)
     elif module == "saxo":
-        accounts = await saxo_adapter.list_accounts()
+        accounts = await saxo_adapter.list_accounts(user_id=user)
     else:
-        accounts = await banks_adapter.list_accounts()
-    logger.info("[wealth] served %s accounts for module=%s", len(accounts), module)
+        accounts = await banks_adapter.list_accounts(user_id=user)
+
+    logger.info("[wealth] served %s accounts for module=%s user=%s", len(accounts), module, user)
     return accounts
 
 

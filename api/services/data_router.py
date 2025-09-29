@@ -10,6 +10,7 @@ import logging
 
 from api.services.user_fs import UserScopedFS
 from api.config.users import get_user_info
+from api.services.config_migrator import ConfigMigrator, get_staleness_state
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ class UserDataRouter:
         self.project_root = project_root
         self.user_id = user_id
         self.user_fs = UserScopedFS(project_root, user_id)
+        self.config_migrator = ConfigMigrator(self.user_fs)
 
         # Charger les settings utilisateur
         self._load_user_settings()
