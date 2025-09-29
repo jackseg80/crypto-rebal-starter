@@ -193,9 +193,16 @@ function calculateZeroSumCappedMoves(entries, cap) {
 // Enhanced in-memory cache for current allocation per user/source/taxonomy to avoid frequent API calls
 const _allocCache = { ts: 0, data: null, key: null };
 
+// CACHE BUST: getCurrentAllocationByGroup - 2025-09-29T21:32:30Z
 // Current allocation by group using taxonomy aliases
 async function getCurrentAllocationByGroup(minUsd = 1.0) {
   try {
+    console.log('🏦 ENTRY: getCurrentAllocationByGroup called - CACHE_BUST_2025-09-29T21:32:30Z', {
+      minUsd,
+      timestamp: new Date().toISOString(),
+      caller: 'UnifiedInsights.js',
+      version: 'store_fallback_with_retry'
+    });
     const now = Date.now();
     const user = (localStorage.getItem('activeUser') || 'demo');
     const source = (window.globalConfig && window.globalConfig.get?.('data_source')) || 'unknown';
@@ -209,33 +216,159 @@ async function getCurrentAllocationByGroup(minUsd = 1.0) {
 
     // Enhanced cache key with taxonomy hash and version
     const cacheKey = `${user}:${source}:${taxonomyHash}:v2`;
-    if (_allocCache.data && _allocCache.key === cacheKey && (now - _allocCache.ts) < 60000) { // 60s TTL
+    // IMPORTANT: Ne pas utiliser le cache si grand = 0 (données invalides)
+    if (_allocCache.data && _allocCache.key === cacheKey && (now - _allocCache.ts) < 60000 && _allocCache.data.grand > 0) { // 60s TTL + validation
+      console.log('✅ CACHE HIT: Using valid cached allocation data', {
+        grand: _allocCache.data.grand,
+        groups: Object.keys(_allocCache.data.totals).length,
+        age: Math.round((now - _allocCache.ts) / 1000) + 's'
+      });
       return _allocCache.data;
+    } else if (_allocCache.data && _allocCache.key === cacheKey && (now - _allocCache.ts) < 60000) {
+      console.warn('🚨 CACHE INVALID: Cached data has grand=0, forcing refresh', {
+        grand: _allocCache.data.grand,
+        age: Math.round((now - _allocCache.ts) / 1000) + 's'
+      });
     }
-    // Utiliser le seuil global configuré pour rester cohérent avec dashboard
-    const cfgMin = (window.globalConfig && window.globalConfig.get?.('min_usd_threshold')) || minUsd || 1.0;
-    // Fetch with X-User via globalConfig
-    const [taxo, balances] = await Promise.all([
-      window.globalConfig.apiRequest('/taxonomy').catch(() => null),
-      window.globalConfig.apiRequest('/balances/current', { params: { min_usd: cfgMin } })
-    ]);
-    // Utiliser le système unifié de classification (même logique que dashboard)
-    // Priorité: API taxonomy -> shared-asset-groups -> fallback
-    let groups = [];
-    if (taxo && taxo.groups && taxo.groups.length > 0) {
-      groups = taxo.groups;
-    } else {
-      // Utiliser la fonction async pour récupérer les groupes depuis shared-asset-groups
+    // PRIORITÉ: Utiliser les données du store d'abord (déjà injectées par les patches analytics-unified.html)
+    let items = null;
+    let grand = 0;
+    let useStoreData = false;
+
+    // DEBUG: Vérifier l'état du store
+    console.log('🔍 STORE DEBUG getCurrentAllocationByGroup:', {
+      storeExists: !!window.store,
+      storeGetFunction: !!(window.store && typeof window.store.get === 'function'),
+      storeBalances: window.store ? window.store.get('wallet.balances') : 'no store',
+      storeTotal: window.store ? window.store.get('wallet.total') : 'no store',
+      timestamp: new Date().toISOString()
+    });
+
+    // RETRY LOGIC: Attendre que les données soient injectées par analytics-unified.html
+    const waitForStoreData = async (maxRetries = 3, delayMs = 500) => {
+      for (let i = 0; i < maxRetries; i++) {
+        if (window.store && typeof window.store.get === 'function') {
+          const storeBalances = window.store.get('wallet.balances');
+          const storeTotal = window.store.get('wallet.total');
+
+          if (storeBalances && storeBalances.length > 0 && storeTotal > 0) {
+            console.log(`✅ STORE RETRY SUCCESS (attempt ${i + 1}/${maxRetries}):`, {
+              items: storeBalances.length,
+              total: storeTotal,
+              delay: i * delayMs + 'ms'
+            });
+            return { balances: storeBalances, total: storeTotal };
+          }
+        }
+
+        if (i < maxRetries - 1) {
+          console.log(`⏳ STORE RETRY ${i + 1}/${maxRetries}: Waiting ${delayMs}ms for data injection...`);
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+      }
+      return null;
+    };
+
+    try {
+      // Première tentative immédiate
+      if (window.store && typeof window.store.get === 'function') {
+        const storeBalances = window.store.get('wallet.balances');
+        const storeTotal = window.store.get('wallet.total');
+
+        console.log('🔍 STORE DATA CHECK (immediate):', {
+          balances: storeBalances ? `${storeBalances.length} items` : 'null/undefined',
+          total: storeTotal,
+          firstBalance: storeBalances ? storeBalances[0] : 'no data'
+        });
+
+        if (storeBalances && storeBalances.length > 0 && storeTotal > 0) {
+          items = storeBalances;
+          grand = storeTotal;
+          useStoreData = true;
+          console.log('✅ STORE IMMEDIATE: Using data from store', {
+            items: items.length,
+            total: grand,
+            source: 'store_immediate'
+          });
+        } else {
+          console.log('⏳ STORE INCOMPLETE: Trying retry logic...');
+          // Si pas de données, essayer le retry pattern
+          const retryResult = await waitForStoreData();
+          if (retryResult) {
+            items = retryResult.balances;
+            grand = retryResult.total;
+            useStoreData = true;
+          } else {
+            console.warn('🚨 STORE RETRY FAILED: No data after retries');
+          }
+        }
+      } else {
+        console.warn('🚨 STORE NOT AVAILABLE:', {
+          storeExists: !!window.store,
+          hasGetMethod: window.store ? typeof window.store.get === 'function' : false
+        });
+      }
+    } catch (e) {
+      console.warn('Store data access failed:', e.message);
+    }
+
+    // Si pas de données store, essayer l'API (peut échouer avec 429)
+    if (!useStoreData) {
       try {
-        groups = await getAllGroups();
-      } catch (error) {
-        console.warn('⚠️ Failed to get groups from shared-asset-groups, using fallback');
-        groups = ['BTC', 'ETH', 'Stablecoins', 'SOL', 'L1/L0 majors', 'L2/Scaling', 'DeFi', 'AI/Data', 'Gaming/NFT', 'Memecoins', 'Others'];
+        // Utiliser le seuil global configuré pour rester cohérent avec dashboard
+        const cfgMin = (window.globalConfig && window.globalConfig.get?.('min_usd_threshold')) || minUsd || 1.0;
+        // Fetch with X-User via globalConfig
+        const [taxo, balances] = await Promise.all([
+          window.globalConfig.apiRequest('/taxonomy').catch(() => null),
+          window.globalConfig.apiRequest('/balances/current', { params: { min_usd: cfgMin } })
+        ]);
+        items = (balances && balances.items) || [];
+        console.log('✅ API SUCCESS: Using fresh API data', {
+          items: items.length,
+          source: 'api_direct'
+        });
+      } catch (apiError) {
+        console.warn('🚨 API FAILED (probably 429):', apiError.message);
+
+        // Dernier recours: essayer d'utiliser loadBalanceData si disponible
+        if (typeof window.loadBalanceData === 'function') {
+          try {
+            const balanceResult = await window.loadBalanceData();
+            if (balanceResult.success && balanceResult.data?.items) {
+              items = balanceResult.data.items;
+              grand = items.reduce((sum, item) => sum + (parseFloat(item.value_usd) || 0), 0);
+              useStoreData = true;
+              console.log('✅ LOADBALANCEDATA FALLBACK: Using cached balance data', {
+                items: items.length,
+                total: grand,
+                source: 'loadBalanceData_cache'
+              });
+            }
+          } catch (e) {
+            console.warn('loadBalanceData fallback failed:', e.message);
+          }
+        }
+
+        if (!items) {
+          throw new Error('All data sources failed: API, store, and loadBalanceData');
+        }
       }
     }
-    const items = (balances && balances.items) || [];
+
+    // Utiliser le système unifié de classification (même logique que dashboard)
+    // Priorité: shared-asset-groups -> fallback
+    let groups = [];
+    try {
+      groups = await getAllGroups();
+    } catch (error) {
+      console.warn('⚠️ Failed to get groups from shared-asset-groups, using fallback');
+      groups = ['BTC', 'ETH', 'Stablecoins', 'SOL', 'L1/L0 majors', 'L2/Scaling', 'DeFi', 'AI/Data', 'Gaming/NFT', 'Memecoins', 'Others'];
+    }
+
     const totals = {};
-    let grand = 0;
+    if (!useStoreData) {
+      grand = 0; // Recalculer si pas depuis store
+    }
     for (const r of items) {
       // Utiliser uniquement le symbol pour la classification (plus simple et cohérent)
       const symbol = r.symbol;
@@ -243,7 +376,9 @@ async function getCurrentAllocationByGroup(minUsd = 1.0) {
       const v = Number(r.value_usd || 0);
       if (v <= 0) continue;
       totals[g] = (totals[g] || 0) + v;
-      grand += v;
+      if (!useStoreData) {
+        grand += v;
+      }
     }
     // Ensure all groups present for consistency
     groups.forEach(g => { if (!(g in totals)) totals[g] = 0; });
@@ -257,12 +392,13 @@ async function getCurrentAllocationByGroup(minUsd = 1.0) {
     _allocCache.key = cacheKey;
 
     // DEBUG: Log current allocation result
-    console.debug('🏦 CURRENT ALLOCATION RESULT:', {
+    console.debug('🏦 CURRENT ALLOCATION RESULT (with store fallback):', {
       pct_keys: Object.keys(pct),
       pct_values: pct,
       pct_total: Object.values(pct).reduce((a, b) => a + b, 0),
       grand_total_usd: grand,
-      groups_count: groups.length
+      groups_count: groups.length,
+      data_source: useStoreData ? 'store/cache' : 'api'
     });
 
     return result;

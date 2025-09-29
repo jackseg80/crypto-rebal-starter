@@ -177,7 +177,23 @@ async def vol_predict(assets: List[str] = Query(..., min_items=1, max_items=50),
   - Cache persistant: entrée JSON `risk_scores_cache` (TTL 12h) via `CACHE_CONFIG`.
 - Dashboards consommateurs (ex. `static/dashboard.html`) doivent:
   - Lire les clés simples si récentes; sinon tomber sur `risk_scores_cache`.
-  - Écouter l’événement `storage` pour se mettre à jour.
+  - Écouter l'événement `storage` pour se mettre à jour.
+
+### 4.1) Sources System - Store Injection & Fallback
+
+**Problème résolu (Sep 2025)** : Race condition entre injection store et getCurrentAllocationByGroup causant $0 dans "Objectifs Théoriques".
+
+**Solution implémentée** :
+- `analytics-unified.html` : Injection forcée des données dans `window.store` avec logs détaillés
+- `UnifiedInsights.js` : Fallback robuste Store → API → loadBalanceData avec retry pattern
+- Cache invalidation : Ne pas retourner `_allocCache.data` si `grand = 0`
+- Cache bust dynamique : Import avec `?v=${timestamp}` pour forcer rechargement modules
+
+**Architecture de fallback** :
+1. **Store immediate** : Lecture directe `store.get('wallet.balances')`
+2. **Store retry** : 3 tentatives × 500ms si données pas encore injectées
+3. **API fallback** : `/balances/current` si store vide (peut 429)
+4. **loadBalanceData** : Cache legacy en dernier recours
 
 ---
 

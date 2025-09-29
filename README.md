@@ -117,6 +117,13 @@ PUT  /api/users/settings    # Sauvegarde configuration utilisateur
 - **Token Bucket Rate Limiting** : 6 req/s avec burst 12, TTL adaptatif (10s-300s)
 - **Suite Tests Complète** : 16 scénarios de validation avec tests temps réel
 
+### 🛠️ Sources System Reliability (Sep 2025)
+- **Race Condition Fix** : Résolution du bug $0 dans "Objectifs Théoriques" après migration Sources
+- **Store Fallback Robuste** : Priorité Store → API → loadBalanceData avec retry pattern (3×500ms)
+- **Cache Invalidation** : Évite retour de données `grand = 0` depuis `_allocCache`
+- **Dynamic Cache Bust** : Import modules avec `?v=${timestamp}` pour forcer rechargement
+- **Logs Détaillés** : Debug complet du timing d'injection des données dans le store
+
 ### Système d'Allocation Dynamique
 - **Élimination des presets hardcodés** : Plus de templates figés (BTC 40%, ETH 30%, etc.)
 - **Calculs contextuels** : Allocations basées sur cycle de marché, régime, concentration wallet

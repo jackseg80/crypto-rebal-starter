@@ -102,47 +102,111 @@
       try {
         console.debug('🔥 LOCAL: Loading corrected UnifiedInsights logic...');
 
-        // Import des modules nécessaires
-        const { renderUnifiedInsights: originalRender } = await import('./components/UnifiedInsights.js');
+        // Import des modules nécessaires - CACHE BUST pour forcer rechargement
+        const cacheBust = new Date().toISOString();
+        const { renderUnifiedInsights: originalRender } = await import(`./components/UnifiedInsights.js?v=${cacheBust}`);
         const { getRegimeDisplayData, getMarketRegime } = await import('./modules/market-regimes.js');
 
         // OVERRIDE CRITIQUE: Modifier la fonction globale pour corriger le problème
         const originalFunction = window.buildTheoreticalTargets;
 
-        window.buildTheoreticalTargets = function(blendedScore, currentPortfolio, riskScore) {
-          console.log('🎯 TARGETS ARTIFICIELS (Unification Finale):', { blendedScore, riskScore });
+        window.buildTheoreticalTargets = async function(blendedScore, currentPortfolio, riskScore) {
+          console.log('🎯 TARGETS RÉELS (Fix Sources System):', { blendedScore, riskScore, hasCurrentPortfolio: !!currentPortfolio });
 
-          // Logique régime artificiel pour objectifs théoriques
-          let stablesTarget, btcTarget, ethTarget, altsTarget;
+          try {
+            // 1) Récupérer les vraies données de balance depuis le store ou recharger
+            let realBalances = store.get('wallet.balances');
+            let totalValue = store.get('wallet.total');
 
-          if (blendedScore >= 70) {
-            // Euphorie: moins de stables, plus d'alts
-            stablesTarget = 20; btcTarget = 35; ethTarget = 25; altsTarget = 20;
-          } else if (blendedScore >= 50) {
-            // Expansion: équilibré
-            stablesTarget = 30; btcTarget = 40; ethTarget = 20; altsTarget = 10;
-          } else {
-            // Accumulation: beaucoup de stables, BTC dominante
-            stablesTarget = 50; btcTarget = 30; ethTarget = 15; altsTarget = 5;
+            // Si pas de données dans le store, essayer de les recharger
+            if (!realBalances || !totalValue) {
+              console.log('🔄 No balance data in store, attempting to reload...');
+              if (typeof window.loadBalanceData === 'function') {
+                try {
+                  const balanceResult = await window.loadBalanceData();
+                  if (balanceResult.success) {
+                    realBalances = balanceResult.data?.items || [];
+                    totalValue = realBalances.reduce((sum, item) => sum + (parseFloat(item.value_usd) || 0), 0);
+
+                    // Mettre à jour le store
+                    store.set('wallet.balances', realBalances);
+                    store.set('wallet.total', totalValue);
+
+                    console.log('✅ Balance data reloaded successfully');
+                  }
+                } catch (e) {
+                  console.warn('Failed to reload balance data:', e.message);
+                }
+              }
+            }
+
+            // 2) Si on a des vraies données, les grouper
+            if (realBalances && realBalances.length > 0 && totalValue > 0) {
+              const { groupAssetsByClassification } = await import('./shared-asset-groups.js');
+              const groupedData = groupAssetsByClassification(realBalances);
+
+              // 3) Convertir les groupes en format attendu avec valeurs USD réelles
+              const realTargets = {};
+              groupedData.forEach(group => {
+                realTargets[group.label] = group.value; // Valeur USD réelle
+              });
+
+              console.log('🎯 REAL TARGETS (from grouped data):', {
+                targets: realTargets,
+                totalValue,
+                groupsCount: groupedData.length,
+                source: 'real_balance_data'
+              });
+
+              return realTargets;
+            }
+
+            // 4) Fallback: utiliser le currentPortfolio si fourni
+            if (currentPortfolio && typeof currentPortfolio === 'object') {
+              console.log('🎯 Using currentPortfolio as fallback');
+              return currentPortfolio;
+            }
+
+            // 5) Dernier fallback: logique artificielle mais basée sur un scoring réaliste
+            console.warn('⚠️ Falling back to artificial targets (no real data available)');
+
+            let stablesTarget, btcTarget, ethTarget, altsTarget;
+            if (blendedScore >= 70) {
+              stablesTarget = 20; btcTarget = 35; ethTarget = 25; altsTarget = 20;
+            } else if (blendedScore >= 50) {
+              stablesTarget = 30; btcTarget = 40; ethTarget = 20; altsTarget = 10;
+            } else {
+              stablesTarget = 50; btcTarget = 30; ethTarget = 15; altsTarget = 5;
+            }
+
+            const artificialTargets = {
+              'Stablecoins': stablesTarget,
+              'BTC': btcTarget,
+              'ETH': ethTarget,
+              'SOL': altsTarget * 0.3,
+              'L1/L0 majors': altsTarget * 0.4,
+              'L2/Scaling': altsTarget * 0.2,
+              'DeFi': altsTarget * 0.1,
+              'AI/Data': 0,
+              'Gaming/NFT': 0,
+              'Memecoins': 0,
+              'Others': 0
+            };
+
+            console.log('🎯 FALLBACK TARGETS:', artificialTargets);
+            return artificialTargets;
+
+          } catch (error) {
+            console.error('❌ Error in buildTheoreticalTargets:', error);
+
+            // Fallback d'urgence
+            return {
+              'Stablecoins': 40,
+              'BTC': 35,
+              'ETH': 15,
+              'Others': 10
+            };
           }
-
-          // Créer allocation théorique cohérente
-          const theoreticalTargets = {
-            'Stablecoins': stablesTarget,
-            'BTC': btcTarget,
-            'ETH': ethTarget,
-            'SOL': altsTarget * 0.3,
-            'L1/L0 majors': altsTarget * 0.4,
-            'L2/Scaling': altsTarget * 0.2,
-            'DeFi': altsTarget * 0.1,
-            'AI/Data': 0,
-            'Gaming/NFT': 0,
-            'Memecoins': 0,
-            'Others': 0
-          };
-
-          console.log('🎯 ARTIFICIAL TARGETS:', theoreticalTargets);
-          return theoreticalTargets;
         };
 
         // Appeler la fonction originale avec l'override en place
@@ -593,8 +657,26 @@
                   items: realBalances.length,
                   first5: realBalances.slice(0,5),
                   total: totalValue,
-                  source: balanceResult.source
+                  source: balanceResult.source,
+                  dataSource: window.globalConfig?.get('data_source'),
+                  timestamp: new Date().toISOString()
                 });
+
+                // DEBUG: Vérifier les groupes immédiatement après injection
+                try {
+                  const { groupAssetsByClassification } = await import('./shared-asset-groups.js');
+                  const groupedData = groupAssetsByClassification(realBalances);
+                  console.log('🔍 POST-INJECTION GROUPING (Analytics):', {
+                    groups: groupedData.map(g => ({
+                      label: g.label,
+                      value: g.value,
+                      percentage: ((g.value / totalValue) * 100).toFixed(1) + '%'
+                    })),
+                    totalGrouped: groupedData.reduce((sum, g) => sum + g.value, 0)
+                  });
+                } catch (e) {
+                  console.warn('Post-injection grouping test failed:', e.message);
+                }
               }
             } catch (e) {
               console.warn('🔧 PATCH failed, but continuing:', e.message);
