@@ -144,6 +144,37 @@ async def list_sources(
                         logger.warning(f"Could not get file details for {file_path}: {e}")
                         continue
 
+            # ✨ DÉTECTION ÉLARGIE: Ajouter patterns legacy pour compatibilité
+            legacy_patterns = []
+            if module_name == "cointracking":
+                legacy_patterns = ["csv/CoinTracking*.csv", "csv/Current Balance*.csv", "csv/balance*.csv"]
+            elif module_name == "saxobank":
+                legacy_patterns = ["csv/saxo*.csv", "csv/positions*.csv", "csv/Portfolio*.csv"]
+
+            for pattern in legacy_patterns:
+                files = user_fs.glob_files(pattern)
+                for file_path in files:
+                    try:
+                        file_stat = os.stat(file_path)
+                        path_obj = Path(file_path)
+                        relative_path = str(path_obj.relative_to(user_fs.get_user_root()))
+
+                        # Éviter doublons si déjà dans detected_files
+                        if any(df.relative_path == relative_path for df in detected_files):
+                            continue
+
+                        detected_file = DetectedFile(
+                            name=path_obj.name,
+                            relative_path=relative_path,
+                            size_bytes=file_stat.st_size,
+                            modified_at=datetime.fromtimestamp(file_stat.st_mtime).isoformat(),
+                            is_legacy=True  # Marquer explicitement comme legacy
+                        )
+                        detected_files.append(detected_file)
+                    except (OSError, ValueError) as e:
+                        logger.warning(f"Could not get legacy file details for {file_path}: {e}")
+                        continue
+
             # Trier par date de modification (plus récent en premier)
             detected_files.sort(key=lambda f: f.modified_at, reverse=True)
             files_count = len(detected_files)
@@ -169,10 +200,17 @@ async def list_sources(
                 imports_files = user_fs.glob_files(f"{module_name}/imports/*.csv")
                 effective_read = "imports"
                 effective_path = str(Path(imports_files[0]).relative_to(user_fs.get_user_root())) if imports_files else None
-            # 3. Vérifier legacy
+            # 3. Vérifier legacy - prioriser les vrais legacy puis les autres
             elif detected_files:
-                effective_read = "legacy"
-                effective_path = detected_files[0].relative_path
+                # Prioriser les fichiers explicitement legacy
+                legacy_files = [f for f in detected_files if f.is_legacy]
+                if legacy_files:
+                    effective_read = "legacy"
+                    effective_path = legacy_files[0].relative_path
+                else:
+                    # Fallback sur le premier fichier détecté
+                    effective_read = "legacy"
+                    effective_path = detected_files[0].relative_path
 
             # Ajuster modes dynamiquement selon les credentials API
             modes = list(module_config.get("modes", ["uploads"]))

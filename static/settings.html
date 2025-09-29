@@ -340,7 +340,7 @@
     <!-- Tab header -->
     <div class="tabs" id="settings-tabs">
       <button class="tab-btn active" data-target="#tab-overview">Résumé</button>
-      <button class="tab-btn" data-target="#tab-data">Source</button>
+      <!-- <button class="tab-btn" data-target="#tab-data">Source</button> Ancien onglet masqué - utiliser Sources -->
       <button class="tab-btn" data-target="#tab-pricing">Pricing</button>
       <button class="tab-btn" data-target="#tab-api">Clés API</button>
       <button class="tab-btn" data-target="#tab-sources">Sources</button>
@@ -419,8 +419,8 @@
       </div>
     </section>
 
-    <!-- Data Source Tab -->
-    <section class="tab-panel" id="tab-data">
+    <!-- Data Source Tab - DEPRECATED: Use Sources tab instead -->
+    <section class="tab-panel" id="tab-data" style="display: none;">
       <!-- Bandeau de dépréciation -->
       <div class="card" style="background: var(--warning-bg); border: 1px solid var(--warning); margin-bottom: 1rem;">
         <h4 style="color: var(--warning); margin: 0 0 0.5rem 0;">⚠️ Section Dépréciée</h4>

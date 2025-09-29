@@ -374,8 +374,10 @@
                 </select>
                 <button class="refresh-btn" onclick="refreshPortfolios()">🔄</button>
                 <div class="sources-banner">
-                    <span>📊 Sources configurées</span>
-                    <a href="settings.html#tab-sources" class="sources-link">Gérer →</a>
+                    <span>📊 Données Saxo — <span id="saxo-staleness-main">
+                        <span class="spinner" style="opacity: 0.7;">⏳</span> Chargement...
+                    </span></span>
+                    <a href="settings.html#tab-sources" class="sources-link">Gérer Sources →</a>
                 </div>
             </div>
         </div>
@@ -611,10 +613,19 @@
                 document.getElementById('mainContent').innerHTML = `
                     <div class="no-data">
                         <h3>No Portfolio Selected</h3>
-                        <p>Please select a portfolio from the dropdown above or <a href="saxo-upload.html">import a new one</a>.</p>
+                        <p>Please select a portfolio from the dropdown above.</p>
+                        <div class="info-banner" style="margin-top: 1rem; padding: 12px; background: var(--theme-surface-elevated); border: 1px solid var(--theme-border); border-radius: 6px;">
+                            📊 Données Saxo — <span id="saxo-staleness-nodata">
+                                <span class="spinner" style="opacity: 0.7;">⏳</span> Chargement...
+                            </span><br>
+                            <a href="settings.html#tab-sources" class="btn-link" style="font-size: 0.9rem; margin-top: 8px; display: inline-block;">Gérer les Sources</a>
+                        </div>
                     </div>
                 `;
                 document.getElementById('dashboardContent').style.display = 'none';
+
+                // Charger le staleness immédiatement pour la section no-data
+                refreshSaxoStaleness('saxo-staleness-nodata');
                 return;
             }
 
@@ -888,13 +899,53 @@
         document.addEventListener('DOMContentLoaded', async () => {
             console.log('Saxo Dashboard initialized');
 
-
             // Initialize wealth context integration
             initWealthContextIntegration();
 
             // Load available portfolios
             await refreshPortfolios();
+
+            // Initialize staleness monitoring
+            refreshSaxoStaleness('saxo-staleness-main');
+            setInterval(() => refreshSaxoStaleness('saxo-staleness-main'), 60000);
         });
+
+        // Function to refresh Saxo sources staleness
+        async function refreshSaxoStaleness(elementId) {
+            try {
+                const element = document.getElementById(elementId);
+                if (!element) return;
+
+                element.innerHTML = '<span class="spinner" style="opacity: 0.7;">⏳</span> Vérification...';
+
+                const response = await window.globalConfig.apiRequest('/sources/list');
+                const saxo = response.modules?.find(m => m.name === 'saxobank');
+
+                if (saxo) {
+                    const staleness = saxo.staleness || 'Inconnu';
+                    element.textContent = staleness;
+
+                    // Add visual indicator based on staleness
+                    if (staleness.includes('jour') || staleness.includes('heure')) {
+                        element.style.color = 'var(--warning)';
+                    } else if (staleness.includes('minute')) {
+                        element.style.color = 'var(--success)';
+                    } else {
+                        element.style.color = 'var(--theme-text-muted)';
+                    }
+                } else {
+                    element.textContent = 'Module non trouvé';
+                    element.style.color = 'var(--danger)';
+                }
+            } catch (e) {
+                const element = document.getElementById(elementId);
+                if (element) {
+                    element.textContent = 'Erreur de connexion';
+                    element.style.color = 'var(--danger)';
+                }
+                console.warn('Failed to refresh Saxo staleness:', e);
+            }
+        }
     </script>
 </body>
 
