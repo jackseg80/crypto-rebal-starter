@@ -1854,8 +1854,24 @@ app.include_router(unified_phase3_router)
 
 # ---------- Portfolio Analytics ----------
 @app.get("/portfolio/metrics")
-async def portfolio_metrics(source: str = Query("cointracking"), user_id: str = Query("demo")):
-    """Métriques calculées du portfolio"""
+async def portfolio_metrics(
+    source: str = Query("cointracking"),
+    user_id: str = Query("demo"),
+    anchor: str = Query("prev_snapshot"),  # "midnight", "prev_snapshot", "prev_close"
+    window: str = Query("24h")  # "24h", "7d", "30d", "ytd"
+):
+    """
+    Métriques calculées du portfolio avec P&L configurable.
+
+    Args:
+        source: Source de données (cointracking, cointracking_api, saxobank, etc.)
+        user_id: ID utilisateur (demo, jack, etc.)
+        anchor: Type d'ancre pour P&L ("midnight", "prev_snapshot", "prev_close")
+        window: Fenêtre temporelle ("24h", "7d", "30d", "ytd")
+
+    Returns:
+        Métriques portfolio + performance vs ancre choisie
+    """
     try:
         # Récupérer les données de balance actuelles
         res = await resolve_current_balances(source=source, user_id=user_id)
@@ -1864,11 +1880,17 @@ async def portfolio_metrics(source: str = Query("cointracking"), user_id: str = 
         # Do not compute on stub sources unless explicitly allowed
         if ((balances.get('source_used') or '').startswith('stub') or balances.get('source_used') == 'none') and not COMPUTE_ON_STUB_SOURCES:
             return {"ok": False, "message": "No real data: stub source in use"}
-        
+
         # Calculer les métriques
         metrics = portfolio_analytics.calculate_portfolio_metrics(balances)
-        performance = portfolio_analytics.calculate_performance_metrics(metrics, user_id=user_id, source=source)
-        
+        performance = portfolio_analytics.calculate_performance_metrics(
+            metrics,
+            user_id=user_id,
+            source=source,
+            anchor=anchor,
+            window=window
+        )
+
         return {
             "ok": True,
             "metrics": metrics,

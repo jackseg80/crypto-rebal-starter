@@ -2,29 +2,45 @@
 
 ## Vue d'ensemble
 
-Le système P&L Today fournit un calcul fiable du profit/perte journalier basé sur des **snapshots historiques**. Chaque combinaison (user_id, source) maintient son propre historique de snapshots pour un tracking P&L indépendant.
+Le système P&L Today fournit un calcul fiable du profit/perte journalier basé sur des **snapshots historiques** avec ancres temporelles flexibles. Chaque combinaison (user_id, source) maintient son propre historique de snapshots pour un tracking P&L indépendant.
 
-**Date de mise à jour:** Septembre 2025
+**Date de mise à jour:** Septembre 2025 (v2 - Ancres & Robustesse)
+
+### Nouvelles Fonctionnalités v2
+
+✅ **Ancres Temporelles** : Calcul P&L vs midnight, prev_snapshot, prev_close
+✅ **Fenêtres Flexibles** : 24h, 7d, 30d, YTD
+✅ **Écriture Atomique** : Protection anti-corruption (Windows-safe)
+✅ **Timezone Europe/Zurich** : Timestamps cohérents
+✅ **Déduplication Journalière** : Un snapshot max par jour/user/source
+✅ **Métadonnées Valorisation** : Traçabilité source prix et devise
+✅ **Détection Flux** : Alerte si +/-30% (dépôt/retrait probable)
+✅ **Suite Tests PyTest** : 19 tests unitaires
 
 ## Architecture
 
 ### Backend
 
 **Endpoints disponibles:**
-- `GET /portfolio/metrics?source={source}&user_id={user_id}` - Métriques + P&L Today
+- `GET /portfolio/metrics?source={source}&user_id={user_id}&anchor={anchor}&window={window}` - Métriques + P&L
 - `POST /portfolio/snapshot?source={source}&user_id={user_id}` - Créer un snapshot
 
 **Service principal:** `services/portfolio.py`
-- `calculate_performance_metrics()` - Calcul P&L par comparaison snapshots
-- `save_portfolio_snapshot()` - Sauvegarde snapshot avec user_id/source
+- `calculate_performance_metrics()` - Calcul P&L avec ancres flexibles
+- `save_portfolio_snapshot()` - Sauvegarde atomique avec métadonnées
 - `_load_historical_data()` - Charge snapshots filtrés par (user_id, source)
+- `_compute_anchor_ts()` - Calcul timestamp d'ancre (midnight, prev_snapshot, prev_close)
+- `_upsert_daily_snapshot()` - Déduplication snapshots journaliers
+- `_atomic_json_dump()` - Écriture atomique anti-corruption
 
 **Fonctionnalités:**
 - Snapshots multi-tenant isolés par (user_id, source)
-- Stockage centralisé dans `data/portfolio_history.json`
-- Calcul P&L: `current_value - latest_snapshot_value`
+- Stockage centralisé dans `data/portfolio_history.json` avec écriture atomique
+- Calcul P&L: `current_value - base_snapshot_value` (base selon ancre/fenêtre)
 - Limite: 365 snapshots par combinaison (user_id, source)
-- Groupage et tri automatique par (user_id, source)
+- Timezone: Europe/Zurich pour cohérence temporelle
+- Métadonnées: valuation_currency, price_source, pricing_timestamp
+- Alerte flux: suspected_flow si variation >30%
 
 **Structure de réponse `/portfolio/metrics`:**
 ```json
@@ -103,6 +119,28 @@ if (pnlResponse.ok) {
 
 ## Tests
 
+### Tests Unitaires PyTest
+
+**test_portfolio_pnl.py** - Suite complète de 19 tests unitaires
+
+```bash
+# Lancer tous les tests
+pytest tests/test_portfolio_pnl.py -v
+
+# Lancer une classe spécifique
+pytest tests/test_portfolio_pnl.py::TestAnchorComputation -v
+
+# Lancer un test spécifique
+pytest tests/test_portfolio_pnl.py::TestPnLCalculation::test_pnl_outlier_detection -v
+```
+
+**Couverture des tests:**
+- ✅ Écriture atomique JSON (3 tests)
+- ✅ Calcul ancres temporelles (5 tests)
+- ✅ Déduplication journalière (4 tests)
+- ✅ Calcul P&L avec ancres (4 tests)
+- ✅ Sauvegarde snapshots (3 tests)
+
 ### Scripts PowerShell
 
 **test_pnl_separation.ps1** - Validation isolation P&L par (user_id, source):
@@ -123,9 +161,24 @@ if (pnlResponse.ok) {
 curl -X POST "http://localhost:8000/portfolio/snapshot?source=cointracking&user_id=jack"
 ```
 
-**Consulter P&L:**
+**P&L vs dernier snapshot:**
 ```bash
 curl "http://localhost:8000/portfolio/metrics?source=cointracking&user_id=jack" | python -m json.tool
+```
+
+**P&L depuis minuit (jour civil):**
+```bash
+curl "http://localhost:8000/portfolio/metrics?source=cointracking&user_id=jack&anchor=midnight" | python -m json.tool
+```
+
+**P&L sur 7 jours:**
+```bash
+curl "http://localhost:8000/portfolio/metrics?source=cointracking&user_id=jack&window=7d" | python -m json.tool
+```
+
+**P&L YTD (Year-to-Date):**
+```bash
+curl "http://localhost:8000/portfolio/metrics?source=cointracking&user_id=jack&window=ytd" | python -m json.tool
 ```
 
 **Vérifier isolation des sources:**
