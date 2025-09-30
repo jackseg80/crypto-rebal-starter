@@ -1184,37 +1184,45 @@
 
         console.log('🎭 SIM: Theoretical targets from metrics:', theoreticalTargets);
 
-        // 4. ML Status (optionnel, pour scores détaillés)
-        let mlScores = { decision_index: 50, confidence: 0.8 };
+        // 4. Utiliser le SYSTÈME UNIFIÉ pour obtenir les VRAIES données (comme analytics-unified.html)
+        console.log('🎭 SIM: Loading unified state from Analytics system...');
+        let unifiedState = null;
         try {
-          const mlResponse = await fetch(`${apiBase}/api/ml/status`);
-          if (mlResponse.ok) {
-            const mlData = await mlResponse.json();
-            mlScores = mlData;
-          }
+          const { getUnifiedState } = await import('./core/unified-insights-v2.js');
+          unifiedState = await getUnifiedState();
+          console.log('🎭 SIM: Unified state loaded:', {
+            decisionScore: unifiedState?.decision?.score,
+            contradiction: unifiedState?.governance?.contradiction_index,
+            riskBudget: unifiedState?.risk?.budget?.target_stables_pct
+          });
         } catch (e) {
-          console.warn('🎭 SIM: ML status not available, using defaults');
+          console.warn('🎭 SIM: Failed to load unified state, using fallback:', e.message);
         }
 
-        // 5. Construire un résultat avec les VRAIES allocations actuelles et targets théoriques
+        // 5. Construire un résultat avec les données du système unifié (si disponible)
+        const decisionIndex = unifiedState?.decision?.score ?? 50;
+        const contradictionIndex = unifiedState?.governance?.contradiction_index ?? 0.5;
+        const confidence = unifiedState?.decision?.confidence ?? 0.8;
+        const targetStables = unifiedState?.risk?.budget?.target_stables_pct ?? (metricsData.performance?.risk_budget || 30);
+
         const liveResult = {
           di: {
-            di: Math.round(mlScores.decision_index || 50),
-            source: 'live_analytics',
-            confidence: mlScores.confidence || 0.8
+            di: Math.round(decisionIndex),
+            source: unifiedState ? 'unified_insights_v2' : 'live_analytics',
+            confidence: confidence
           },
           riskBudget: {
-            target_stables_pct: metricsData.performance?.risk_budget || 30,
-            curve: 'live-data',
+            target_stables_pct: targetStables,
+            curve: unifiedState?.risk?.budget?.methodology || 'live-data',
             clamps: {
-              min_stables: 10,
-              max_stables: 60
+              min_stables: unifiedState?.risk?.budget?.min_stables_pct || 10,
+              max_stables: unifiedState?.risk?.budget?.max_stables_pct || 60
             }
           },
           // ALLOCATIONS ACTUELLES RÉELLES (depuis wallet groupé)
           currentAllocations: currentAllocations,
-          // TARGETS THÉORIQUES (depuis analytics)
-          cappedTargets: theoreticalTargets,
+          // TARGETS THÉORIQUES (depuis unified state ou analytics)
+          cappedTargets: unifiedState?.targets_by_group || theoreticalTargets,
           orders: {
             orders: [],
             summary: {
@@ -1229,6 +1237,9 @@
                        `Portfolio: ${balancesData.items?.length || 0} assets\n` +
                        `Valeur totale: $${totalValue.toFixed(2)}\n` +
                        `Performance 24h: ${metricsData.performance?.percentage_change?.toFixed(2) || '0'}%\n\n` +
+                       `Decision Index: ${Math.round(decisionIndex)}/100 (${Math.round(confidence * 100)}%)\n` +
+                       `Contradiction: ${Math.round(contradictionIndex * 100)}%\n` +
+                       `Risk Budget: ${Math.round(targetStables)}% stables\n\n` +
                        `Allocations réelles:\n` +
                        Object.entries(currentAllocations)
                          .filter(([_, pct]) => pct > 0.5)
@@ -1237,20 +1248,25 @@
           },
           presetInfo: {
             name: 'Live Data',
-            desc: `Source: ${activeSource} | User: ${userId} | ${assetCount} assets`
+            desc: `Source: ${activeSource} | User: ${userId} | ${assetCount} assets | Unified: ${!!unifiedState}`
           },
           ui: {
             stateForEngine: {
               governance: {
-                contradiction_index: mlScores.contradiction_index || 0.5
-              }
+                contradiction_index: contradictionIndex,
+                contradiction_pct: Math.round(contradictionIndex * 100)
+              },
+              cycle: unifiedState?.cycle,
+              onchain: unifiedState?.onchain,
+              risk: unifiedState?.risk
             }
           },
-          // Ajouter les balances brutes pour debug
+          // Ajouter les données complètes pour debug
           _debug: {
             balances: balances,
             groupedData: groupedData,
-            totalValue: totalValue
+            totalValue: totalValue,
+            unifiedState: unifiedState
           }
         };
 
