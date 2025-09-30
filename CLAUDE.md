@@ -31,11 +31,118 @@
 - Phase 3 à venir : `risk-equities.html`, `rebalance-equities.html`
 - Roadmap complète : voir `docs/TODO_WEALTH_MERGE.md`
 
-## 3) Windows 11 — conventions pratiques
+## 3) Système Multi-Utilisateurs (CRITIQUE ⚠️)
+
+**LE PROJET EST MULTI-TENANT** — Ne JAMAIS coder comme s'il n'y avait qu'un seul utilisateur !
+
+### Architecture Complète
+
+**Frontend (localStorage)** :
+- `localStorage.getItem('activeUser')` → ID utilisateur actif (défaut: 'demo')
+- Sélecteur dans `static/components/nav.js` → dropdown en haut de chaque page
+- Liste users dans `config/users.json` : demo, jack, donato, elda, roberto, clea
+- Changement user → purge caches + reload page automatique
+
+**Backend (isolation filesystem)** :
+- `api/services/user_fs.py` → `UserScopedFS` classe de sécurité
+- Chaque user a son dossier : `data/users/{user_id}/`
+- Structure par user :
+  ```
+  data/users/{user_id}/
+    ├── cointracking/
+    │   ├── uploads/       # CSV uploadés
+    │   ├── imports/       # CSV validés/importés
+    │   └── snapshots/     # Snapshots actifs (latest.csv)
+    ├── saxobank/
+    │   ├── uploads/
+    │   ├── imports/
+    │   └── snapshots/
+    └── config.json        # Config user (data_source, api_keys, etc.)
+  ```
+
+**Clé primaire partout** : `(user_id, source)`
+- `source` = type de données : "cointracking" (CSV), "cointracking_api" (API externe), "saxobank", etc.
+- **Exemple** : jack a 2 portefeuilles complètement séparés :
+  - `jack + cointracking` (CSV local, 5 assets, 133k USD)
+  - `jack + cointracking_api` (API CoinTracking réelle, 190 assets, 423k USD)
+
+### Règles pour le Code
+
+**1. Endpoints API** : TOUJOURS accepter `user_id` comme paramètre Query
+```python
+@app.get("/portfolio/metrics")
+async def portfolio_metrics(
+    source: str = Query("cointracking"),
+    user_id: str = Query("demo")  # ← OBLIGATOIRE
+):
+    res = await resolve_current_balances(source=source, user_id=user_id)
+```
+
+**2. Services Python** : Passer `user_id` à toutes les fonctions de données
+```python
+def calculate_performance_metrics(
+    self,
+    current_data: Dict[str, Any],
+    user_id: str = "demo",  # ← OBLIGATOIRE
+    source: str = "cointracking"
+):
+    historical_data = self._load_historical_data(user_id=user_id, source=source)
+```
+
+**3. Frontend** : Lire `activeUser` depuis localStorage
+```javascript
+const activeUser = localStorage.getItem('activeUser') || 'demo';
+const url = `/api/endpoint?source=${source}&user_id=${activeUser}`;
+```
+
+**4. Fichiers partagés multi-tenant** : Filtrer par `user_id` et `source`
+```python
+# Exemple: data/portfolio_history.json contient tous les users
+def _load_historical_data(self, user_id: str, source: str):
+    all_data = json.load(open('data/portfolio_history.json'))
+    return [e for e in all_data
+            if e.get('user_id') == user_id
+            and e.get('source') == source]
+```
+
+### Pièges Fréquents (À ÉVITER !)
+
+❌ **Oublier user_id dans endpoint** → toujours user 'demo' par défaut
+❌ **Hardcoder user_id = 'demo'** dans le code
+❌ **Mélanger données de différents users** dans caches/fichiers
+❌ **Ne pas filtrer par (user_id, source)** lors de lecture données partagées
+
+### Tests Multi-User
+
+```bash
+# Tester avec différents users
+curl "http://localhost:8000/balances/current?source=cointracking&user_id=demo"
+curl "http://localhost:8000/balances/current?source=cointracking&user_id=jack"
+
+# Vérifier isolation
+curl "http://localhost:8000/portfolio/metrics?source=cointracking&user_id=jack"
+curl "http://localhost:8000/portfolio/metrics?source=cointracking_api&user_id=jack"
+# ↑ Doivent retourner données DIFFÉRENTES (portfolios distincts)
+```
+
+### Ajout Nouveau User
+
+1. Ajouter dans `config/users.json` :
+```json
+{"id": "nouveau_user", "label": "Nouveau User"}
+```
+
+2. Le dossier `data/users/nouveau_user/` sera créé automatiquement par `UserScopedFS`
+
+3. Uploader fichiers CSV via Sources Manager ou déposer dans `data/users/nouveau_user/cointracking/uploads/`
+
+---
+
+## 4) Windows 11 — conventions pratiques
 - Utiliser les scripts `.ps1`/`.bat` fournis (éviter `bash` non portable).
 - Chemins : supporter Windows (éviter `touch`, préférer PowerShell).
 
-## 4) Architecture (résumé)
+## 5) Architecture (résumé)
 
 - API: `api/main.py` (CORS/CSP/GZip/TrustedHost, montages `/static`, `/data`, `/tests`) + routers `api/*_endpoints.py`.
 - Services: `services/*` (risk mgmt, execution, analytics, ML…).
@@ -99,7 +206,7 @@ Note: versions *-backup, *-broken, *-clean sont des archives de développement
 
 ---
 
-## 5) Playbooks
+## 6) Playbooks
 
 ### A) Ajouter un endpoint FastAPI
 
@@ -181,7 +288,7 @@ async def vol_predict(assets: List[str] = Query(..., min_items=1, max_items=50),
 
 ---
 
-## 6) Conventions & garde‑fous
+## 7) Conventions & garde‑fous
 
 - Python: FastAPI + Pydantic v2; exceptions propres; logs cohérents.
 - JS: ESM (`type="module"`), imports dynamiques pour lourds; pas d’URL API en dur.
@@ -192,7 +299,7 @@ async def vol_predict(assets: List[str] = Query(..., min_items=1, max_items=50),
 
 ---
 
-## 7) Caches & cross‑tab (important)
+## 8) Caches & cross‑tab (important)
 
 - Le Risk Dashboard publie des scores dans localStorage:
   - Clés simples: `risk_score_onchain`, `risk_score_risk`, `risk_score_blended`, `risk_score_ccs`, `risk_score_timestamp`.
@@ -312,7 +419,7 @@ curl "http://localhost:8000/portfolio/metrics?source=cointracking&user_id=jack"
 
 ---
 
-## 8) Definition of Done (DoD)
+## 9) Definition of Done (DoD)
 
 - Tests unitaires verts + smoke test d’API (si endpoint).
 - Lint OK; CI verte.
@@ -322,7 +429,7 @@ curl "http://localhost:8000/portfolio/metrics?source=cointracking&user_id=jack"
 
 ---
 
-## 9) Phase Engine (Détection Proactive de Phases Market)
+## 10) Phase Engine (Détection Proactive de Phases Market)
 
 **Objectif :** Appliquer des tilts d'allocation proactifs selon les phases market détectées (ETH expansion, altseason, risk-off).
 
@@ -366,7 +473,7 @@ localStorage.setItem('PHASE_ENGINE_DEBUG_FORCE', 'eth_expansion') // Force phase
 
 ---
 
-## 10) Aides‑mémoire
+## 11) Aides‑mémoire
 
 Dev:
 
@@ -393,7 +500,7 @@ docker run -p 8000:8000 --env-file .env crypto-rebal
 
 ---
 
-## 11) Paramétrage agent (optionnel)
+## 12) Paramétrage agent (optionnel)
 
 `.claude/settings.local.json` (déjà présent) doit inclure au minimum:
 
@@ -420,7 +527,7 @@ docker run -p 8000:8000 --env-file .env crypto-rebal
 
 ---
 
-## 12) Architecture endpoints post-refactoring (important)
+## 13) Architecture endpoints post-refactoring (important)
 
 **Namespaces consolidés** (ne pas créer de nouveaux) :
 - `/api/ml/*` - Toutes fonctions ML (remplace /api/ml-predictions, /api/ai)
