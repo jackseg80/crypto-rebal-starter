@@ -2224,8 +2224,10 @@ document.addEventListener('DOMContentLoaded', function() {
             headers: { 'X-User': getActiveUser() }
           });
           const data = await response.json();
-          results.push(`🏛️ FRED: ${response.ok && data.prices ? '✅ OK' : '❌ Erreur'}`);
-          if (!response.ok && data.error) {
+          results.push(`🏛️ FRED: ${response.ok && data.success ? '✅ OK' : '❌ Erreur'}`);
+          if (!response.ok && data.detail) {
+            results.push(`   └─ ${data.detail}`);
+          } else if (!data.success && data.error) {
             results.push(`   └─ ${data.error}`);
           }
         } catch (e) {
