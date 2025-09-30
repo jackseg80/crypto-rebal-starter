@@ -131,103 +131,123 @@ function renderBadges(meta) {
 }
 
 /**
- * Génère Trend Chip (remplace sparkline)
- * Affiche: Δ7j, σ, état Stable/Agité
+ * Génère métriques Trend (texte compact)
  */
-function renderTrendChip(history = []) {
+function renderTrendMetrics(history = []) {
   const n = history.length;
 
-  // Collecte en cours (< 6 points)
-  if (n < 6) {
-    return `<div class="di-trend di-trend-collect" title="Collecte historique en cours">` +
-      `Trend: collecte (${n}/6)</div>`;
+  if (n < 3) {
+    return `<div class="di-trend-metrics">Trend: collecte (${n}/3)</div>`;
   }
 
   const last = history[n - 1];
   const idx7 = Math.max(0, n - 7);
-  const idx30 = Math.max(0, n - 30);
+  const prev7 = history[idx7];
+  const delta7 = last - prev7;
 
-  const d7 = history[idx7];
-  const d30 = history[idx30];
+  // Calcul σ sur fenêtre récente
+  const slice = history.slice(idx7);
+  const mean = slice.reduce((a, b) => a + b, 0) / slice.length;
+  const variance = slice.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / slice.length;
+  const sigma = Math.sqrt(variance);
 
-  const delta7 = last - d7;
-  const delta30 = last - d30;
+  // Flèche
+  const arrow = delta7 > 1 ? '↗︎' : delta7 < -1 ? '↘︎' : '→';
+  const state = sigma < 1 ? 'Stable' : 'Agité';
 
-  const recent = history.slice(idx7);
-  const sigma7 = stddev(recent);
-
-  // Symbole flèche
-  let arrow = '→';
-  let trendClass = 'flat';
-  if (delta7 > 1.0) {
-    arrow = '↗︎';
-    trendClass = 'up';
-  } else if (delta7 < -1.0) {
-    arrow = '↘︎';
-    trendClass = 'down';
-  }
-
-  // État volatilité
-  const state = sigma7 < 1.0 ? 'Stable' : 'Agité';
-
-  const tooltipText = `Δ7j: ${delta7.toFixed(1)} • Δ30j: ${delta30.toFixed(1)} • σ_7j: ${sigma7.toFixed(1)}`;
-
-  return `<div class="di-trend di-trend-${trendClass}" title="${tooltipText}">` +
-    `Trend: ${arrow} ${delta7 >= 0 ? '+' : ''}${delta7.toFixed(1)} pts (7j) • σ=${sigma7.toFixed(1)} • ${state}</div>`;
+  return `<div class="di-trend-metrics">` +
+    `Trend: ${arrow} ${delta7 >= 0 ? '+' : ''}${delta7.toFixed(1)} pts (7j) • σ=${sigma.toFixed(1)} • ${state}</div>`;
 }
 
 /**
- * Génère Regime Ribbon (7-14 cases colorées) - HTML string
+ * Génère Sparkbar (12-20 barres normalisées)
+ * Barres colorées selon pente locale: vert (↑), rouge (↓), gris (≈)
  */
-function renderRegimeRibbonHTML(regimeHistory = []) {
-  if (!regimeHistory || regimeHistory.length === 0) {
-    return '';  // Masquer si pas de données
+function renderSparkbar(history = []) {
+  if (!Array.isArray(history) || history.length < 3) {
+    return '';  // Pas assez de données
   }
 
-  const cells = regimeHistory.slice(-14).map((regime, idx) => {
-    const dayOffset = regimeHistory.length - 1 - idx;
-    const phase = regime.phase || regime.name || 'unknown';
-    const phaseClass = mapPhaseToClass(phase);
+  const N = Math.min(20, history.length);
+  const slice = history.slice(-N);
 
-    const capPct = regime.cap != null ? Math.round(regime.cap * 100) : '—';
-    const contraPct = regime.contradiction != null ? Math.round(regime.contradiction * 100) : '—';
+  // Normalisation min-max pour toujours remplir la hauteur
+  const min = Math.min(...slice);
+  const max = Math.max(...slice);
+  const span = Math.max(1e-6, max - min);  // Éviter division par zéro
 
-    const tooltipText = `J-${dayOffset} • Phase: ${phase} • cap: ${capPct}% • contradiction: ${contraPct}%`;
+  const bars = slice.map((v, i) => {
+    const h = ((v - min) / span) * 100;  // 0-100%
+    const hClamped = Math.max(6, h);      // Min 6% pour visibilité
 
-    return `<span class="di-ribbon-cell di-ribbon-${phaseClass}" title="${tooltipText}"></span>`;
+    // Pente locale
+    const prev = i > 0 ? slice[i - 1] : v;
+    const delta = v - prev;
+    const cls = Math.abs(delta) < 0.25 ? 'flat' : (delta > 0 ? 'up' : 'down');
+
+    const dayOffset = N - 1 - i;
+    const title = `J-${dayOffset} • DI: ${v.toFixed(1)}`;
+
+    return `<span class="sb-bar sb-bar-${cls}" style="--h: ${hClamped}%" title="${title}"></span>`;
   }).join('');
 
-  return cells;
+  return `<div class="di-sparkbar" aria-label="Decision Index recent trend">${bars}</div>`;
+}
+
+/**
+ * Génère Regime Ribbon (7-14 cases colorées)
+ */
+function renderRegimeRibbon(regimeHistory = []) {
+  const arr = Array.isArray(regimeHistory) ? regimeHistory.slice(-14) : [];
+
+  if (arr.length === 0) {
+    return '';  // Pas de ribbon si vide
+  }
+
+  const cells = arr.map((r, i) => {
+    const phase = (r.phase || 'neutral').toLowerCase();
+    const phaseClass = mapPhaseToClass(phase);
+    const k = arr.length - 1 - i;
+
+    // Tooltip détaillé
+    const label = r.label || phase;
+    const capStr = typeof r.cap === 'number' ? ` • cap ${r.cap}%` : '';
+    const contradStr = typeof r.contrad === 'number' ? ` • contradiction ${(r.contrad * 100).toFixed(0)}%` : '';
+    const title = `J-${k} • Phase: ${label}${capStr}${contradStr}`;
+
+    return `<span class="di-ribbon-cell di-ribbon-${phaseClass}" title="${title}"></span>`;
+  }).join('');
+
+  return `<div class="di-ribbon">${cells}</div>`;
 }
 
 /**
  * Génère Events (icônes conditionnelles)
  */
 function renderEvents(meta = {}) {
-  const parts = [];
-  const sep = '<span class="di-events-dot">•</span>';
+  const out = [];
 
   // Cap actif (> 0)
   if (typeof meta.cap === 'number' && meta.cap > 0) {
-    parts.push('⚡ cap actif');
+    out.push('⚡ cap actif');
   }
 
   // Contradiction haute (≥ 50%)
   if (typeof meta.contradiction === 'number' && meta.contradiction >= 0.5) {
-    parts.push('🛑 contradiction haute');
+    out.push('🛑 contradiction haute');
   }
 
   // Mode non-normal
   if (meta.mode && meta.mode.toLowerCase() !== 'normal' && meta.mode !== '—') {
-    parts.push(`🎛 mode ${meta.mode}`);
+    out.push(`🎛 mode ${meta.mode}`);
   }
 
   // Changement de phase (optionnel)
   if (meta.changedPhase) {
-    parts.push('🧭 changement de phase');
+    out.push('🧭 changement de phase');
   }
 
-  return parts.length ? parts.join(` ${sep} `) : '';
+  return out.length ? `<div class="di-events">${out.join('  •  ')}</div>` : '';
 }
 
 /**
@@ -556,10 +576,12 @@ function _renderDIPanelInternal(container, data, opts = {}) {
     console.log('🐛 DI Panel Contributions:', contribs);
   }
 
-  // Générer HTML structure (nouveau layout 2 colonnes)
-  const ribbonCells = renderRegimeRibbonHTML(data.regimeHistory);
-  const eventsHTML = renderEvents(data.meta);
-  const showRibbonRow = ribbonCells || eventsHTML;
+  // Générer HTML structure (Sparkbar + Ribbon + Events)
+  const trendMetrics = renderTrendMetrics(data.history);
+  const sparkbar = renderSparkbar(data.history);
+  const ribbon = renderRegimeRibbon(data.regimeHistory);
+  const events = renderEvents(data.meta);
+  const showRibbonRow = ribbon || events;
 
   container.innerHTML = `
     <div class="di-panel">
@@ -581,13 +603,14 @@ function _renderDIPanelInternal(container, data, opts = {}) {
       </div>
 
       <div class="di-trend-row">
-        ${renderTrendChip(data.history)}
+        ${trendMetrics}
+        ${sparkbar}
       </div>
 
       ${showRibbonRow ? `
         <div class="di-ribbon-row">
-          <div class="di-ribbon" aria-label="Regime ribbon">${ribbonCells}</div>
-          <div class="di-events">${eventsHTML}</div>
+          ${ribbon}
+          ${events}
         </div>
       ` : ''}
 
