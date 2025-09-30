@@ -105,12 +105,47 @@ def _load_historical_data(self, user_id: str, source: str):
             and e.get('source') == source]
 ```
 
+### Fonction Unifiée de Chargement (OBLIGATOIRE)
+
+**⚠️ CRITIQUE:** TOUJOURS utiliser `window.loadBalanceData()` pour charger les données de portfolio!
+
+**Pourquoi?**
+- ✅ Gère automatiquement le header `X-User` (isolation multi-tenant)
+- ✅ Cache intelligent par user (TTL 2 minutes)
+- ✅ Support transparent CSV + API
+- ✅ Fallback robuste en cas d'erreur
+
+**Exemple correct (dashboard.html, risk-dashboard.html, simulations.html):**
+```javascript
+const activeUser = localStorage.getItem('activeUser') || 'demo';
+const balanceResult = await window.loadBalanceData(true); // forceRefresh=true
+
+// Parse selon format
+let balances;
+if (balanceResult.csvText) {
+  // CSV source
+  balances = parseCSVBalancesAuto(balanceResult.csvText, { thresholdUSD: minThreshold });
+} else if (balanceResult.data?.items) {
+  // API source
+  balances = balanceResult.data.items;
+}
+```
+
+**❌ NE JAMAIS faire de fetch() direct:**
+```javascript
+// ❌ MAUVAIS - Ne passe pas X-User correctement
+const response = await fetch(`/balances/current?source=${source}&user_id=${userId}`);
+```
+
+**Détails techniques:** Voir [docs/SIMULATOR_USER_ISOLATION_FIX.md](docs/SIMULATOR_USER_ISOLATION_FIX.md)
+
 ### Pièges Fréquents (À ÉVITER !)
 
 ❌ **Oublier user_id dans endpoint** → toujours user 'demo' par défaut
 ❌ **Hardcoder user_id = 'demo'** dans le code
 ❌ **Mélanger données de différents users** dans caches/fichiers
 ❌ **Ne pas filtrer par (user_id, source)** lors de lecture données partagées
+❌ **Faire fetch() direct au lieu d'utiliser window.loadBalanceData()** (Sept 2025 fix)
 
 ### Tests Multi-User
 
