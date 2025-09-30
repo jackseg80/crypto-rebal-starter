@@ -1,14 +1,57 @@
 {
-  "version": "1.0",
-  "created_with": "simulator-v1",
-  "created_at": "2025-01-20T10:00:00Z",
-  "description": "10 scénarios de simulation pour le crypto rebalancer",
+  "version": "2.0",
+  "created_with": "simulator-v2",
+  "created_at": "2025-09-30T00:00:00Z",
+  "description": "Presets unifiés pour simulation complète et What-If Analysis",
   "presets": [
     {
-      "version": "1.0",
-      "created_with": "simulator-v1",
-      "name": "Fin de Bull Run",
-      "desc": "Transition euphorie → distribution, rotation défensive prudente",
+      "version": "2.0",
+      "created_with": "simulator-v2",
+      "name": "🐂 Bull Run - Début",
+      "desc": "Optimisme modéré, risque contrôlé",
+      "tooltip": "Début de bull market: rotation progressive vers alts quality, stables réduits prudemment",
+      "inputs": {
+        "cycleScore": 70,
+        "onChainScore": 55,
+        "riskScore": 45,
+        "cycleConf": 0.75,
+        "onchainConf": 0.7,
+        "regimeConf": 0.65,
+        "contradictionPenalty": 0.12,
+        "backendDecision": null
+      },
+      "regime_phase": {
+        "enabled": true,
+        "mode": "shadow",
+        "forcedPhase": null,
+        "offset": 0
+      },
+      "risk_budget": {
+        "curve": "sigmoid",
+        "min_stables": 15,
+        "max_stables": 55,
+        "hysteresis": { "on": true, "upDays": 4, "downDays": 6 },
+        "circuit_breakers": { "vol_z_gt": 2.8, "dd_90d_pct_lt": -30, "floor_stables_if_trigger": 50 }
+      },
+      "governance": {
+        "caps": { "L2": 14, "DeFi": 10, "Gaming": 4, "Memes": 6, "Others": 4 },
+        "max_btc": 45,
+        "max_eth": 32
+      },
+      "execution": {
+        "global_delta_threshold_pct": 1.8,
+        "bucket_delta_threshold_pct": 0.9,
+        "min_lot_eur": 12,
+        "slippage_bps": 20
+      }
+    },
+
+    {
+      "version": "2.0",
+      "created_with": "simulator-v2",
+      "name": "🚀 Bull Run - Euphorie",
+      "desc": "Pic du bull, euphorie maximale",
+      "tooltip": "Transition euphorie → distribution: rotation défensive prudente, premiers signaux de top",
       "inputs": {
         "cycleScore": 75,
         "onChainScore": 82,
@@ -51,10 +94,184 @@
     },
 
     {
-      "version": "1.0",
-      "created_with": "simulator-v1",
-      "name": "Early Bear",
-      "desc": "Début de bear market, réduction progressive des risques",
+      "version": "2.0",
+      "created_with": "simulator-v2",
+      "name": "🌊 ETH Expansion",
+      "desc": "L2 et écosystème Ethereum en feu",
+      "tooltip": "Phase d'expansion ETH: L2/Scaling surperforment, rotation vers écosystème Ethereum",
+      "inputs": {
+        "cycleScore": 68,
+        "onChainScore": 72,
+        "riskScore": 38,
+        "cycleConf": 0.8,
+        "onchainConf": 0.85,
+        "regimeConf": 0.75,
+        "contradictionPenalty": 0.08,
+        "backendDecision": null
+      },
+      "regime_phase": {
+        "enabled": true,
+        "mode": "apply",
+        "forcedPhase": "eth_expansion",
+        "offset": 0
+      },
+      "risk_budget": {
+        "curve": "sigmoid",
+        "min_stables": 8,
+        "max_stables": 45,
+        "hysteresis": { "on": true, "upDays": 3, "downDays": 7 },
+        "circuit_breakers": { "vol_z_gt": 3.0, "dd_90d_pct_lt": -35, "floor_stables_if_trigger": 40 }
+      },
+      "governance": {
+        "caps": { "L2": 20, "DeFi": 15, "Gaming": 5, "Memes": 6, "Others": 4 },
+        "max_btc": 40,
+        "max_eth": 40
+      },
+      "execution": {
+        "global_delta_threshold_pct": 1.2,
+        "bucket_delta_threshold_pct": 0.6,
+        "min_lot_eur": 10,
+        "slippage_bps": 18
+      }
+    },
+
+    {
+      "version": "2.0",
+      "created_with": "simulator-v2",
+      "name": "🎆 Altseason - Large Caps",
+      "desc": "L1 majors et top 50 en croissance",
+      "tooltip": "Altseason concentré sur L1 majors (SOL, AVAX) et top 50, BTC/ETH stagnent",
+      "inputs": {
+        "cycleScore": 78,
+        "onChainScore": 74,
+        "riskScore": 35,
+        "cycleConf": 0.85,
+        "onchainConf": 0.8,
+        "regimeConf": 0.8,
+        "contradictionPenalty": 0.06,
+        "backendDecision": null
+      },
+      "regime_phase": {
+        "enabled": true,
+        "mode": "apply",
+        "forcedPhase": "largecap_alt",
+        "offset": 0
+      },
+      "risk_budget": {
+        "curve": "sigmoid",
+        "min_stables": 6,
+        "max_stables": 40,
+        "hysteresis": { "on": true, "upDays": 2, "downDays": 8 },
+        "circuit_breakers": { "vol_z_gt": 3.2, "dd_90d_pct_lt": -40, "floor_stables_if_trigger": 35 }
+      },
+      "governance": {
+        "caps": { "L2": 18, "DeFi": 12, "Gaming": 6, "Memes": 8, "Others": 6 },
+        "max_btc": 35,
+        "max_eth": 35
+      },
+      "execution": {
+        "global_delta_threshold_pct": 1.0,
+        "bucket_delta_threshold_pct": 0.5,
+        "min_lot_eur": 8,
+        "slippage_bps": 15
+      }
+    },
+
+    {
+      "version": "2.0",
+      "created_with": "simulator-v2",
+      "name": "🔥 Altseason - Complet",
+      "desc": "Memecoins et micro-caps en feu",
+      "tooltip": "Altseason maximal: memecoins et Others explosent, euphorie irrationnelle, danger élevé",
+      "inputs": {
+        "cycleScore": 88,
+        "onChainScore": 85,
+        "riskScore": 25,
+        "cycleConf": 0.9,
+        "onchainConf": 0.85,
+        "regimeConf": 0.85,
+        "contradictionPenalty": 0.04,
+        "backendDecision": null
+      },
+      "regime_phase": {
+        "enabled": true,
+        "mode": "apply",
+        "forcedPhase": "full_altseason",
+        "offset": 0
+      },
+      "risk_budget": {
+        "curve": "sigmoid",
+        "min_stables": 5,
+        "max_stables": 35,
+        "hysteresis": { "on": false, "upDays": 1, "downDays": 10 },
+        "circuit_breakers": { "vol_z_gt": 3.5, "dd_90d_pct_lt": -45, "floor_stables_if_trigger": 30 }
+      },
+      "governance": {
+        "caps": { "L2": 25, "DeFi": 18, "Gaming": 10, "Memes": 15, "Others": 8 },
+        "max_btc": 30,
+        "max_eth": 30
+      },
+      "execution": {
+        "global_delta_threshold_pct": 0.8,
+        "bucket_delta_threshold_pct": 0.4,
+        "min_lot_eur": 5,
+        "slippage_bps": 12
+      }
+    },
+
+    {
+      "version": "2.0",
+      "created_with": "simulator-v2",
+      "name": "⚠️ Crash Imminent",
+      "desc": "Contradictions max, danger extrême",
+      "tooltip": "Signaux de top: cycle très haut mais contradictions explosent, sortie d'urgence recommandée",
+      "inputs": {
+        "cycleScore": 92,
+        "onChainScore": 88,
+        "riskScore": 90,
+        "cycleConf": 0.7,
+        "onchainConf": 0.65,
+        "regimeConf": 0.6,
+        "contradictionPenalty": 0.35,
+        "backendDecision": null
+      },
+      "market_overlays": {
+        "vol_z": 3.2,
+        "dd_90d_pct": -25,
+        "breadth": 0.15
+      },
+      "regime_phase": {
+        "enabled": true,
+        "mode": "apply",
+        "forcedPhase": "risk_off",
+        "offset": 0
+      },
+      "risk_budget": {
+        "curve": "linear",
+        "min_stables": 35,
+        "max_stables": 85,
+        "hysteresis": { "on": false, "upDays": 8, "downDays": 1 },
+        "circuit_breakers": { "vol_z_gt": 1.5, "dd_90d_pct_lt": -8, "floor_stables_if_trigger": 80 }
+      },
+      "governance": {
+        "caps": { "L2": 5, "DeFi": 3, "Gaming": 1, "Memes": 2, "Others": 1 },
+        "max_btc": 60,
+        "max_eth": 20
+      },
+      "execution": {
+        "global_delta_threshold_pct": 0.5,
+        "bucket_delta_threshold_pct": 0.3,
+        "min_lot_eur": 5,
+        "slippage_bps": 50
+      }
+    },
+
+    {
+      "version": "2.0",
+      "created_with": "simulator-v2",
+      "name": "🐻 Bear Market - Début",
+      "desc": "Correction, protection nécessaire",
+      "tooltip": "Début de bear market: réduction progressive des risques, rotation vers qualité et stables",
       "inputs": {
         "cycleScore": 35,
         "onChainScore": 28,
@@ -92,10 +309,11 @@
     },
 
     {
-      "version": "1.0",
-      "created_with": "simulator-v1",
-      "name": "Capitulation",
-      "desc": "Marché en capitulation, maximum stables et circuit-breakers actifs",
+      "version": "2.0",
+      "created_with": "simulator-v2",
+      "name": "💀 Capitulation",
+      "desc": "Peur maximale, mode survie",
+      "tooltip": "Marché en capitulation: maximum stables, circuit-breakers actifs, focus préservation capital",
       "inputs": {
         "cycleScore": 15,
         "onChainScore": 12,
@@ -138,10 +356,11 @@
     },
 
     {
-      "version": "1.0",
-      "created_with": "simulator-v1",
-      "name": "Dead Cat Bounce",
-      "desc": "Rebond temporaire dans un bear market, prudence maintenue",
+      "version": "2.0",
+      "created_with": "simulator-v2",
+      "name": "🎢 Dead Cat Bounce",
+      "desc": "Rebond temporaire en bear market",
+      "tooltip": "Rebond technique dans un bear: prudence maintenue, faible confiance, pas de FOMO",
       "inputs": {
         "cycleScore": 42,
         "onChainScore": 35,
@@ -179,10 +398,53 @@
     },
 
     {
-      "version": "1.0",
-      "created_with": "simulator-v1",
-      "name": "BTC Season",
-      "desc": "Dominance BTC forte, rotation depuis les alts vers BTC",
+      "version": "2.0",
+      "created_with": "simulator-v2",
+      "name": "🌱 Reprise Post-Bear",
+      "desc": "Premiers signaux de reprise",
+      "tooltip": "Sortie de bear market: accumulation progressive, onchain repart, allocation prudente",
+      "inputs": {
+        "cycleScore": 45,
+        "onChainScore": 55,
+        "riskScore": 48,
+        "cycleConf": 0.65,
+        "onchainConf": 0.7,
+        "regimeConf": 0.6,
+        "contradictionPenalty": 0.12,
+        "backendDecision": null
+      },
+      "regime_phase": {
+        "enabled": true,
+        "mode": "shadow",
+        "forcedPhase": null,
+        "offset": 0
+      },
+      "risk_budget": {
+        "curve": "sigmoid",
+        "min_stables": 18,
+        "max_stables": 60,
+        "hysteresis": { "on": true, "upDays": 5, "downDays": 4 },
+        "circuit_breakers": { "vol_z_gt": 2.3, "dd_90d_pct_lt": -20, "floor_stables_if_trigger": 55 }
+      },
+      "governance": {
+        "caps": { "L2": 14, "DeFi": 9, "Gaming": 3, "Memes": 4, "Others": 3 },
+        "max_btc": 50,
+        "max_eth": 32
+      },
+      "execution": {
+        "global_delta_threshold_pct": 2.0,
+        "bucket_delta_threshold_pct": 1.0,
+        "min_lot_eur": 15,
+        "slippage_bps": 22
+      }
+    },
+
+    {
+      "version": "2.0",
+      "created_with": "simulator-v2",
+      "name": "₿ BTC Season",
+      "desc": "Dominance BTC forte, rotation alts → BTC",
+      "tooltip": "BTC surperforme, alts stagnent: rotation défensive vers BTC en préparation altseason",
       "inputs": {
         "cycleScore": 65,
         "onChainScore": 58,
@@ -220,133 +482,11 @@
     },
 
     {
-      "version": "1.0",
-      "created_with": "simulator-v1",
-      "name": "ETH Expansion",
-      "desc": "Phase d'expansion ETH, L2 et écosystème Ethereum en croissance",
-      "inputs": {
-        "cycleScore": 68,
-        "onChainScore": 72,
-        "riskScore": 38,
-        "cycleConf": 0.8,
-        "onchainConf": 0.85,
-        "regimeConf": 0.75,
-        "contradictionPenalty": 0.08,
-        "backendDecision": null
-      },
-      "regime_phase": {
-        "enabled": true,
-        "mode": "apply",
-        "forcedPhase": "eth_expansion",
-        "offset": 0
-      },
-      "risk_budget": {
-        "curve": "sigmoid",
-        "min_stables": 8,
-        "max_stables": 45,
-        "hysteresis": { "on": true, "upDays": 3, "downDays": 7 },
-        "circuit_breakers": { "vol_z_gt": 3.0, "dd_90d_pct_lt": -35, "floor_stables_if_trigger": 40 }
-      },
-      "governance": {
-        "caps": { "L2": 20, "DeFi": 15, "Gaming": 5, "Memes": 6, "Others": 4 },
-        "max_btc": 40,
-        "max_eth": 40
-      },
-      "execution": {
-        "global_delta_threshold_pct": 1.2,
-        "bucket_delta_threshold_pct": 0.6,
-        "min_lot_eur": 10,
-        "slippage_bps": 18
-      }
-    },
-
-    {
-      "version": "1.0",
-      "created_with": "simulator-v1",
-      "name": "Large-Cap Altseason",
-      "desc": "Altseason concentré sur les L1 majors et top 50",
-      "inputs": {
-        "cycleScore": 78,
-        "onChainScore": 74,
-        "riskScore": 35,
-        "cycleConf": 0.85,
-        "onchainConf": 0.8,
-        "regimeConf": 0.8,
-        "contradictionPenalty": 0.06,
-        "backendDecision": null
-      },
-      "regime_phase": {
-        "enabled": true,
-        "mode": "apply",
-        "forcedPhase": "largecap_alt",
-        "offset": 0
-      },
-      "risk_budget": {
-        "curve": "sigmoid",
-        "min_stables": 6,
-        "max_stables": 40,
-        "hysteresis": { "on": true, "upDays": 2, "downDays": 8 },
-        "circuit_breakers": { "vol_z_gt": 3.2, "dd_90d_pct_lt": -40, "floor_stables_if_trigger": 35 }
-      },
-      "governance": {
-        "caps": { "L2": 18, "DeFi": 12, "Gaming": 6, "Memes": 8, "Others": 6 },
-        "max_btc": 35,
-        "max_eth": 35
-      },
-      "execution": {
-        "global_delta_threshold_pct": 1.0,
-        "bucket_delta_threshold_pct": 0.5,
-        "min_lot_eur": 8,
-        "slippage_bps": 15
-      }
-    },
-
-    {
-      "version": "1.0",
-      "created_with": "simulator-v1",
-      "name": "Full Altseason",
-      "desc": "Altseason complet, memecoins et micro-caps inclus, euphorie maximale",
-      "inputs": {
-        "cycleScore": 88,
-        "onChainScore": 85,
-        "riskScore": 25,
-        "cycleConf": 0.9,
-        "onchainConf": 0.85,
-        "regimeConf": 0.85,
-        "contradictionPenalty": 0.04,
-        "backendDecision": null
-      },
-      "regime_phase": {
-        "enabled": true,
-        "mode": "apply",
-        "forcedPhase": "full_altseason",
-        "offset": 0
-      },
-      "risk_budget": {
-        "curve": "sigmoid",
-        "min_stables": 5,
-        "max_stables": 35,
-        "hysteresis": { "on": false, "upDays": 1, "downDays": 10 },
-        "circuit_breakers": { "vol_z_gt": 3.5, "dd_90d_pct_lt": -45, "floor_stables_if_trigger": 30 }
-      },
-      "governance": {
-        "caps": { "L2": 25, "DeFi": 18, "Gaming": 10, "Memes": 15, "Others": 8 },
-        "max_btc": 30,
-        "max_eth": 30
-      },
-      "execution": {
-        "global_delta_threshold_pct": 0.8,
-        "bucket_delta_threshold_pct": 0.4,
-        "min_lot_eur": 5,
-        "slippage_bps": 12
-      }
-    },
-
-    {
-      "version": "1.0",
-      "created_with": "simulator-v1",
-      "name": "Range Neutre",
-      "desc": "Marché en range, consolidation, hystérésis active pour éviter over-trading",
+      "version": "2.0",
+      "created_with": "simulator-v2",
+      "name": "↔️ Marché Latéral",
+      "desc": "Range, consolidation",
+      "tooltip": "Marché en range: hystérésis active pour éviter over-trading, pas de tendance claire",
       "inputs": {
         "cycleScore": 52,
         "onChainScore": 48,
@@ -380,47 +520,6 @@
         "bucket_delta_threshold_pct": 2.0,
         "min_lot_eur": 20,
         "slippage_bps": 25
-      }
-    },
-
-    {
-      "version": "1.0",
-      "created_with": "simulator-v1",
-      "name": "Reprise post-washout",
-      "desc": "Sortie de bear market, premiers signaux de reprise, allocation progressive",
-      "inputs": {
-        "cycleScore": 45,
-        "onChainScore": 55,
-        "riskScore": 48,
-        "cycleConf": 0.65,
-        "onchainConf": 0.7,
-        "regimeConf": 0.6,
-        "contradictionPenalty": 0.12,
-        "backendDecision": null
-      },
-      "regime_phase": {
-        "enabled": true,
-        "mode": "shadow",
-        "forcedPhase": null,
-        "offset": 0
-      },
-      "risk_budget": {
-        "curve": "sigmoid",
-        "min_stables": 18,
-        "max_stables": 60,
-        "hysteresis": { "on": true, "upDays": 5, "downDays": 4 },
-        "circuit_breakers": { "vol_z_gt": 2.3, "dd_90d_pct_lt": -20, "floor_stables_if_trigger": 55 }
-      },
-      "governance": {
-        "caps": { "L2": 14, "DeFi": 9, "Gaming": 3, "Memes": 4, "Others": 3 },
-        "max_btc": 50,
-        "max_eth": 32
-      },
-      "execution": {
-        "global_delta_threshold_pct": 2.0,
-        "bucket_delta_threshold_pct": 1.0,
-        "min_lot_eur": 15,
-        "slippage_bps": 22
       }
     }
   ]

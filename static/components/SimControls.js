@@ -578,20 +578,26 @@ export class SimControls {
 
   async loadPresets() {
     try {
-      const response = await fetch('./presets/sim_presets.json');
-      const presets = await response.json();
+      // Cache bust pour forcer le rechargement des presets v2
+      const cacheBust = new Date().getTime();
+      const response = await fetch(`./presets/sim_presets.json?v=${cacheBust}`);
+      const data = await response.json();
 
       const select = document.getElementById('sim-preset-select');
-      if (select && presets.presets) {
-        presets.presets.forEach((preset, index) => {
+      if (select && data.presets) {
+        data.presets.forEach((preset, index) => {
           const option = document.createElement('option');
           option.value = index;
           option.textContent = `${preset.name} - ${preset.desc}`;
+          // Tooltip détaillé au survol
+          if (preset.tooltip) {
+            option.title = preset.tooltip;
+          }
           select.appendChild(option);
         });
       }
 
-      this.presets = presets.presets || [];
+      this.presets = data.presets || [];
     } catch (error) {
       (window.debugLogger?.warn || console.warn)('🎭 SIM: Failed to load presets:', error);
       this.presets = [];
@@ -616,7 +622,7 @@ export class SimControls {
       marketOverlays: { ...defaults.marketOverlays, ...(preset.market_overlays || {}) },
       governance: { ...defaults.governance, ...(preset.governance || {}) },
       execution: { ...defaults.execution, ...(preset.execution || {}) },
-      presetInfo: { name: preset.name, desc: preset.desc || '' }
+      presetInfo: { name: preset.name, desc: preset.desc || '', tooltip: preset.tooltip || '' }
     };
 
     this.updateUI();
