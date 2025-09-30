@@ -2299,7 +2299,11 @@ document.addEventListener('DOMContentLoaded', function() {
       try {
         const metricsResponse = await fetch(`${globalSettings.api_base_url}/portfolio/metrics?source=${globalSettings.data_source}`, { headers: { 'X-User': getActiveUser() } });
         const metricsData = await metricsResponse.json();
-        results.push(`📈 Analytics: ${metricsData.ok && metricsData.metrics?.total_value_usd > 0 ? '✅ OK' : '❌ Erreur'}`);
+        const hasMetrics = metricsData.ok && metricsData.metrics !== undefined;
+        results.push(`📈 Analytics: ${hasMetrics ? '✅ OK' : '❌ Erreur'}`);
+        if (!hasMetrics && metricsData.message) {
+          results.push(`   └─ ${metricsData.message}`);
+        }
       } catch (e) {
         results.push(`📈 Analytics: ❌ ${e.message}`);
       }
