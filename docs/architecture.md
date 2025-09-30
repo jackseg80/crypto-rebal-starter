@@ -88,6 +88,23 @@ Voir [CLAUDE.md Section 3](../CLAUDE.md) pour détails complets.
 - **Risk Attribution** : Contribution VaR par module/asset
 - **Decision Signals** : Score composite SMART multi-module
 
+#### Pilier Risk (Sémantique et Propagation)
+
+**⚠️ IMPORTANT — Sémantique Risk** :
+- **Risk** est un score **positif** (0..100), où **plus haut = mieux** (portfolio plus robuste, risque perçu plus faible)
+- **Ne jamais inverser** : Pas de `100 - scoreRisk` dans les calculs ou visualisations
+- **Formule Decision Index** : `DI = wCycle × scoreCycle + wOnchain × scoreOnchain + wRisk × scoreRisk`
+- **Poids post-adaptatifs** : Les poids (wCycle, wOnchain, wRisk) sont ajustés par la politique d'adaptation (boost cycle≥90, pénalités contradiction)
+- **Contributions UI** : Visualisation barre empilée = `(poids × score) / Σ(poids × score)` sans inversion Risk
+- **Badges (Confiance/Contradiction)** : Influencent les poids, pas les scores bruts
+
+**Modules concernés** :
+- `static/core/unified-insights-v2.js` - Production, calcul DI et poids adaptatifs
+- `static/modules/simulation-engine.js` - Réplique aligned avec unified-insights-v2
+- `static/components/decision-index-panel.js` - Visualisation contributions
+
+Voir aussi [docs/index.md](index.md#sémantique-de-risk-pilier-du-decision-index) pour la définition globale.
+
 ### 4. Gouvernance Unifiée
 - **Budget Risque Global** : Allocation VaR 4% across modules
 - **Caps Dynamiques** : Limitation automatique selon volatilité

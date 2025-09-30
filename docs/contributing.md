@@ -56,12 +56,35 @@ Exemples :
 ======================================================================
 A ne jamais casser :
 - Somme des actions en USD = 0 (achats = ventes).
-- Pas d’action avec |usd| < min_trade_usd.
+- Pas d'action avec |usd| < min_trade_usd.
 - Valeur des stablecoins forcée à 1.0.
 - Champs obligatoires à remplir :
   - price_used
   - est_quantity
   - meta.source_used
+
+======================================================================
+4.5. Normes & Conventions de Scoring
+======================================================================
+⚠️ RÈGLE CRITIQUE — Sémantique Risk :
+
+Risk est un score POSITIF (0..100) où plus haut = mieux.
+  - Convention : Plus Risk est élevé, plus le portfolio est robuste
+  - Formule DI : DI = wCycle × scoreCycle + wOnchain × scoreOnchain + wRisk × scoreRisk
+  - ❌ NE JAMAIS appliquer (100 - risk) dans les calculs ou visualisations
+  - ❌ NE JAMAIS inverser Risk lors du passage à l'UI
+
+Toute Pull Request inversant Risk doit être REFUSÉE.
+
+Modules concernés :
+  - static/core/unified-insights-v2.js (production)
+  - static/modules/simulation-engine.js (simulateur)
+  - static/components/decision-index-panel.js (visualisation)
+
+Voir aussi :
+  - docs/index.md — Sémantique de Risk
+  - docs/architecture.md — Pilier Risk
+  - docs/UNIFIED_INSIGHTS_V2.md — Architecture détaillée
 
 ======================================================================
 5. Tests locaux

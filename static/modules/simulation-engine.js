@@ -30,6 +30,10 @@ async function loadContradictionModules() {
         useBaseWeights: false
       }),
       // ⚠️ RÉPLIQUE unified-insights-v2.js lignes 42-94
+      // ⚠️ IMPORTANT — Sémantique Risk:
+      // Risk est un score POSITIF (0..100, plus haut = mieux).
+      // Ne jamais inverser (pas de 100 - risk).
+      // Contributions UI: (w * score) / Σ(w * score).
       calculateAdaptiveWeights: (base, state) => {
         const cycleScore = state?.cycle?.score ?? 50;
         const onchainScore = state?.scores?.onchain ?? 50;
@@ -449,6 +453,11 @@ export function buildSimulationContext(liveContext, uiOverrides = {}) {
 
 /**
  * 3. CALCUL DECISION INDEX (même logique qu'Analytics Unified)
+ *
+ * ⚠️ IMPORTANT — Sémantique Risk:
+ * Risk est un score POSITIF (0..100, plus haut = mieux).
+ * Ne jamais inverser (pas de 100 - risk).
+ * Contributions UI: (w * score) / Σ(w * score).
  */
 export function computeDecisionIndex(context) {
   console.debug('🎭 SIM: computeDecisionIndex called');

@@ -5,12 +5,13 @@
 
 ---
 
-## 0) Règles d’or (strict)
+## 0) Règles d'or (strict)
 1. Secrets: ne jamais committer `.env`/clés.
 2. Navigation/UI: **ne pas inventer** de nouvelles pages; travailler avec **celles existantes**.
 3. Config front: aucune URL API en dur → `static/global-config.js`.
 4. Modifs minimales: patchs ciblés, pas de refontes/renommages massifs sans demande explicite.
 5. Perf: attention aux appels répétés; privilégier caches/ETag si dispo.
+6. **Sémantique Risk** : Risk est un score **positif** (0..100, plus haut = mieux). **Ne jamais inverser** avec `100 - risk` dans les calculs ou visualisations.
 
 ## 1) Aujourd'hui : quelles pages/endpoints utiliser ?
 - **Crypto** (production ready):

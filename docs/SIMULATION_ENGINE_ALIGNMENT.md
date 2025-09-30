@@ -29,6 +29,9 @@
 
 **Impact** : Les poids adaptatifs sont calculés mais jamais utilisés
 
+**⚠️ IMPORTANT — Sémantique Risk** :
+Risk est un score **positif** (0..100, plus haut = mieux). **Ne jamais inverser** avec `100 - scoreRisk`. Le DI utilise directement `wRisk × scoreRisk`.
+
 ### 4. Contradiction Source Différente ❌
 **Problème** :
 - Analytics : Utilise `governance.contradiction_index` comme source primaire
@@ -248,6 +251,20 @@ La détection de contradiction par `scoreSpread` (lignes 446-454) est **conserv�
 
 ### 3. Risk Budget Fallback
 Si `regimeData` est absent, le calcul linéaire/sigmoïde reste actif. C'est voulu pour éviter les blocages.
+
+### 4. Check-list QA / Pièges Courants
+
+**⚠️ Erreur fréquente à éviter** :
+- ❌ **Ne JAMAIS appliquer** `100 - scoreRisk` dans les calculs ou visualisations
+- ❌ **Ne JAMAIS inverser** Risk lors du passage à l'UI (contributions relatives)
+- ✅ **TOUJOURS utiliser** `wRisk × scoreRisk` directement dans la formule DI
+- ✅ **TOUJOURS propager** les poids post-adaptatifs (wCycle, wOnchain, wRisk) à l'UI sans transformation
+
+**Validation avant déploiement** :
+1. Chercher `100 - risk` ou `100 - scoreRisk` dans le code → doit retourner 0 résultats
+2. Vérifier que `computeDecisionIndex` utilise bien `context.weights` (pas de réinitialisation hardcodée)
+3. Comparer DI Analytics vs Simulateur avec même preset → écart < 0.1
+4. Vérifier barre empilée contributions : formule = `(w × s) / Σ(w × s)` sans inversion
 
 ---
 

@@ -18,6 +18,25 @@ Bienvenue. Cette documentation est organisée par sujets avec des pages dédiée
 - Refactoring (migration): `docs/refactoring.md`
 - Changelog: `CHANGELOG.md`
 
+## Concepts clés
+
+### Sémantique de Risk (Pilier du Decision Index)
+
+**Risk** est un score de robustesse/qualité du risque, borné **[0..100]**.
+
+**Convention** : **Plus haut = mieux** (portefeuille plus robuste / risque perçu plus faible).
+
+**Conséquence** : Dans le calcul du Decision Index (DI), Risk est additionnel (pas de transformation `100 - risk`).
+
+**Formule DI** :
+```
+DI = wCycle × scoreCycle + wOnchain × scoreOnchain + wRisk × scoreRisk
+```
+
+**Visualisation** (barre empilée) : Contribution relative par pilier = `(poids × score) / Σ(poids × score)`.
+
+⚠️ **Ne jamais inverser Risk** (pas de `100 - scoreRisk`) : cela fausserait le DI et les visualisations de contributions.
+
 Archive détaillée (ancienne doc): `docs/_legacy/`
 
 Notes:

@@ -38,6 +38,11 @@ function simpleFallbackCalculation(context) {
 /**
  * Calcule les pondérations adaptatives selon le contexte de marché
  * Cycle ≥ 90 → augmente wCycle, plafonne pénalité On-Chain
+ *
+ * ⚠️ IMPORTANT — Sémantique Risk:
+ * Risk est un score POSITIF (0..100, plus haut = mieux).
+ * Ne jamais inverser (pas de 100 - risk).
+ * Contributions UI: (w * score) / Σ(w * score).
  */
 function calculateAdaptiveWeights(cycleData, onchainScore, contradictions, governanceContradiction = 0) {
   const cycleScore = cycleData?.score ?? 50;
