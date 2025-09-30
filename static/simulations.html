@@ -708,6 +708,68 @@
     // Badges UI
     import { renderBadges } from './components/Badges.js';
 
+    // CSV parsing functions (from dashboard.html)
+    function parseCSVBalancesAuto(csvText, { thresholdUSD = 1.0 } = {}) {
+      if (typeof window.parseCSVBalances === 'function') {
+        return window.parseCSVBalances(csvText);
+      }
+      return parseCSVBalancesLocal(csvText, { thresholdUSD });
+    }
+
+    function parseCSVBalancesLocal(csvText, { thresholdUSD = 1.0 } = {}) {
+      const cleanedText = csvText.replace(/^\ufeff/, '');
+      const lines = cleanedText.split(/\r?\n/);
+      const balances = [];
+      const minThreshold = (window.globalConfig && window.globalConfig.get('min_usd_threshold')) || thresholdUSD || 1.0;
+
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        try {
+          const columns = parseCSVLineLocal(line);
+          if (columns.length >= 5) {
+            const ticker = columns[0];
+            const norm = s => parseFloat(String(s).replace(/[,\u00A0]/g, ''));
+            const amount = norm(columns[3]);
+            const valueUSD = norm(columns[4]);
+
+            if (ticker && !isNaN(amount) && !isNaN(valueUSD) && valueUSD >= minThreshold) {
+              balances.push({
+                symbol: ticker.toUpperCase(),
+                balance: amount,
+                value_usd: valueUSD
+              });
+            }
+          }
+        } catch (error) {
+          console.warn('Erreur parsing ligne CSV:', error.message);
+        }
+      }
+
+      return balances;
+    }
+
+    function parseCSVLineLocal(line) {
+      const cols = [];
+      let current = '';
+      let inQuotes = false;
+
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          cols.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      cols.push(current.trim());
+      return cols;
+    }
+
     // Fallback functions for missing modules
     function smoothContradiction(value, prevValue, config, state) {
       return { value01: value, level: 'medium', persistCount: 0 };
@@ -791,37 +853,58 @@
     async function testSelectedSource() {
       const select = document.getElementById('sim-source-select');
       const source = select?.value || getActiveSource();
-      const userId = window.globalConfig?.get('user_id') || 'demo';
-      const apiBase = window.globalConfig?.get('api_base_url') || window.location.origin;
+      const userId = localStorage.getItem('activeUser') || 'demo';
+
+      console.log(`🧪 Testing source: ${source} for user: ${userId}`);
 
       try {
-        const response = await fetch(`${apiBase}/balances/current?source=${source}&user_id=${userId}`);
-        const data = await response.json();
+        // ✅ USE UNIFIED loadBalanceData() which handles user_id correctly via X-User header
+        // Temporarily set data_source to test the selected source
+        const originalSource = window.globalConfig.get('data_source');
+        window.globalConfig.set('data_source', source);
 
-        console.log('🎭 SIM: Test source response:', data);
+        const balanceResult = await window.loadBalanceData(true); // forceRefresh=true
 
-        // Gérer différents formats de réponse
-        const items = data.items || data.balances || [];
-        const sourceUsed = data.source_used || source;
+        // Restore original source
+        window.globalConfig.set('data_source', originalSource);
 
-        if (response.ok && items.length > 0) {
-          const totalValue = items.reduce((sum, item) => {
+        if (!balanceResult || !balanceResult.success) {
+          throw new Error('Failed to load balance data');
+        }
+
+        console.log('🧪 Balance result:', balanceResult);
+
+        // Parse balances (same logic as dashboard.html)
+        let balances;
+        if (balanceResult.csvText) {
+          // CSV source
+          const minThreshold = (window.globalConfig && window.globalConfig.get('min_usd_threshold')) || 1.0;
+          balances = parseCSVBalancesAuto(balanceResult.csvText, { thresholdUSD: minThreshold });
+        } else if (balanceResult.data && Array.isArray(balanceResult.data.items)) {
+          // API source
+          balances = balanceResult.data.items;
+        } else {
+          throw new Error('Invalid data format');
+        }
+
+        const sourceUsed = balanceResult.source || source;
+
+        if (balances.length > 0) {
+          const totalValue = balances.reduce((sum, item) => {
             return sum + (item.value_usd || item.valueUsd || item.total_usd || 0);
           }, 0);
 
           alert(`✅ Source "${sourceUsed}" OK\n\n` +
-                `${items.length} assets trouvés\n` +
+                `${balances.length} assets trouvés\n` +
                 `Valeur totale: $${totalValue.toFixed(2)}\n` +
                 `User: ${userId}`);
-        } else if (response.ok && items.length === 0) {
+        } else {
           alert(`⚠️ Source "${sourceUsed}" accessible mais vide\n\n` +
                 `Aucun asset trouvé.\n` +
-                `Vérifiez que la source contient des données.`);
-        } else {
-          alert(`❌ Source "${source}" erreur ${response.status}\n\n` +
-                `Réponse: ${JSON.stringify(data).substring(0, 200)}`);
+                `Vérifiez que la source contient des données pour l'utilisateur ${userId}.`);
         }
       } catch (error) {
+        console.error('🧪 Test source failed:', error);
         alert(`❌ Erreur test source "${source}":\n${error.message}`);
       }
     }
@@ -1034,8 +1117,50 @@
         console.log('🎭 SIM: Loading live data from Analytics...');
 
         const activeSource = getActiveSource();
-        const userId = window.globalConfig?.get('user_id') || 'demo';
+        const userId = localStorage.getItem('activeUser') || 'demo';
         console.log('🎭 SIM: Using data source:', activeSource, '| User:', userId);
+
+        // ✅ USE UNIFIED loadBalanceData() like dashboard.html (lines 1130-1148)
+        console.log('🎭 SIM: Calling window.loadBalanceData() with forceRefresh...');
+        const balanceResult = await window.loadBalanceData(true); // forceRefresh=true
+
+        if (!balanceResult || !balanceResult.success) {
+          throw new Error('Failed to load balance data via loadBalanceData()');
+        }
+
+        console.log('🎭 SIM: Balance result received:', {
+          hasData: !!balanceResult.data,
+          hasCsvText: !!balanceResult.csvText,
+          source: balanceResult.source
+        });
+
+        // Parse balances (same as dashboard.html lines 1150-1166)
+        let balances;
+        if (balanceResult.csvText) {
+          // CSV source
+          const minThreshold = (window.globalConfig && window.globalConfig.get('min_usd_threshold')) || 1.0;
+          balances = parseCSVBalancesAuto(balanceResult.csvText, { thresholdUSD: minThreshold });
+        } else if (balanceResult.data && Array.isArray(balanceResult.data.items)) {
+          // API source
+          balances = balanceResult.data.items.map(item => ({
+            symbol: item.symbol,
+            balance: item.balance,
+            value_usd: item.value_usd
+          }));
+        } else {
+          throw new Error('Invalid balance data format');
+        }
+
+        const totalValue = balances.reduce((sum, it) => sum + (parseFloat(it.value_usd) || 0), 0);
+        const assetCount = balances.length;
+        console.log(`🎭 SIM: Parsed ${assetCount} assets, total: $${totalValue.toFixed(2)}`);
+
+        // Create balancesData structure
+        const balancesData = {
+          items: balances,
+          source_used: balanceResult.source,
+          total_count: assetCount
+        };
 
         // 1. Portfolio metrics (contient DI, performance, etc.)
         const metricsResponse = await fetch(`${apiBase}/portfolio/metrics?source=${activeSource}&user_id=${userId}`);
@@ -1043,13 +1168,6 @@
           throw new Error(`Portfolio metrics failed: ${metricsResponse.status}`);
         }
         const metricsData = await metricsResponse.json();
-
-        // 2. Balances pour construire le portfolio
-        const balancesResponse = await fetch(`${apiBase}/balances/current?source=${activeSource}&user_id=${userId}`);
-        if (!balancesResponse.ok) {
-          throw new Error(`Balances failed: ${balancesResponse.status}`);
-        }
-        const balancesData = await balancesResponse.json();
 
         // 3. ML Status (optionnel, pour scores détaillés)
         let mlScores = { decision_index: 50, confidence: 0.8 };
