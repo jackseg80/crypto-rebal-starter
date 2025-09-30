@@ -1854,11 +1854,11 @@ app.include_router(unified_phase3_router)
 
 # ---------- Portfolio Analytics ----------
 @app.get("/portfolio/metrics")
-async def portfolio_metrics(source: str = Query("cointracking"), user: str = Depends(get_active_user)):
-    """Métriques calculées du portfolio (user-scoped)"""
+async def portfolio_metrics(source: str = Query("cointracking")):
+    """Métriques calculées du portfolio"""
     try:
         # Récupérer les données de balance actuelles
-        res = await resolve_current_balances(source=source, user_id=user)
+        res = await resolve_current_balances(source=source)
         rows = _to_rows(res.get("items", []))
         balances = {"source_used": res.get("source_used"), "items": rows}
         # Do not compute on stub sources unless explicitly allowed
