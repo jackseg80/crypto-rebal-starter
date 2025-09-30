@@ -74,8 +74,8 @@ async function loadContradictionModules() {
   }
 }
 
-// Fallbacks simples pour les modules
-const store = {
+// Use window.store if available, fallback to simple implementation
+const store = window.store || {
   get: (path) => {
     // Simuler des valeurs par défaut
     if (path === 'scores.onchain') return 50;

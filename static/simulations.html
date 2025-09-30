@@ -542,13 +542,6 @@
           <button id="test-source-btn" class="btn secondary" style="padding: 6px 12px; font-size: 0.85rem;">🧪 Test</button>
         </div>
 
-        <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
-          <label for="cycle-preset-select" style="font-size: 0.9rem; color: var(--theme-text-muted);">🎭 Scénario:</label>
-          <select id="cycle-preset-select" style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--theme-border); background: var(--theme-surface); color: var(--theme-text); font-size: 0.9rem; flex: 1;">
-            <option value="">Charger les presets...</option>
-          </select>
-          <button id="apply-preset-btn" class="btn primary" style="padding: 6px 12px; font-size: 0.85rem;">▶️ Appliquer</button>
-        </div>
       </div>
     </div>
 
@@ -909,75 +902,6 @@
       }
     }
 
-    // Charger les presets de phases de cycle
-    let cyclePresets = null;
-    async function loadCyclePresets() {
-      try {
-        const response = await fetch('/static/presets/cycle_phase_presets.json');
-        const data = await response.json();
-        cyclePresets = data;
-
-        const select = document.getElementById('cycle-preset-select');
-        if (!select) return;
-
-        // Vider et repeupler
-        select.innerHTML = '<option value="">💼 Données Actuelles (baseline)</option>';
-
-        data.presets.forEach(preset => {
-          if (preset.id !== 'current') { // Skip "current" car c'est le défaut
-            const option = document.createElement('option');
-            option.value = preset.id;
-            option.textContent = preset.name;
-            option.title = preset.description;
-            select.appendChild(option);
-          }
-        });
-
-        console.log(`🎭 SIM: Loaded ${data.presets.length} cycle presets`);
-      } catch (error) {
-        console.error('🎭 SIM: Failed to load cycle presets:', error);
-      }
-    }
-
-    // Appliquer un preset de phase
-    async function applyPreset() {
-      const select = document.getElementById('cycle-preset-select');
-      const presetId = select?.value;
-
-      if (!presetId) {
-        // Pas de preset sélectionné = mode Live normal
-        await loadLiveData();
-        return;
-      }
-
-      if (!cyclePresets) {
-        alert('❌ Les presets ne sont pas chargés');
-        return;
-      }
-
-      const preset = cyclePresets.presets.find(p => p.id === presetId);
-      if (!preset) {
-        alert(`❌ Preset "${presetId}" introuvable`);
-        return;
-      }
-
-      console.log(`🎭 SIM: Applying preset "${preset.name}"`, preset.overrides);
-
-      // TODO: Implémenter l'application du preset avec overrides
-      // Pour l'instant, afficher un aperçu
-      alert(`🎭 Preset "${preset.name}"\n\n` +
-            `${preset.description}\n\n` +
-            `Overrides:\n` +
-            `• Cycle Score: ${preset.overrides.cycle_score}\n` +
-            `• Onchain Score: ${preset.overrides.onchain_score}\n` +
-            `• Risk Score: ${preset.overrides.risk_score}\n` +
-            `• Contradiction: ${preset.overrides.contradiction_pct}%\n` +
-            `• Risk Appetite: ${preset.overrides.risk_appetite}\n\n` +
-            `Résultats attendus:\n` +
-            `• DI: ${preset.expected.di_range}\n` +
-            `• Stables: ${preset.expected.stables_target}\n\n` +
-            `⚠️ Implémentation complète à venir...`);
-    }
 
     // Initialisation
     document.addEventListener('DOMContentLoaded', async () => {
@@ -985,7 +909,6 @@
 
       try {
         await loadAvailableSources();
-        await loadCyclePresets(); // Charger les presets
         await initializeSimulator();
         attachEventListeners();
         setInitialState();
@@ -1051,9 +974,6 @@
 
       // Test source button
       document.getElementById('test-source-btn')?.addEventListener('click', testSelectedSource);
-
-      // Apply preset button
-      document.getElementById('apply-preset-btn')?.addEventListener('click', applyPreset);
 
       pinButton?.addEventListener('click', () => {
         const controlsPanel = document.getElementById('controls');
@@ -1261,25 +1181,23 @@
           groupsCount: groupedData.length
         });
 
-        // 3. Calculer les targets théoriques depuis les métriques
-        const theoreticalTargets = metricsData.targets || {};
-
-        console.log('🎭 SIM: Theoretical targets from metrics:', theoreticalTargets);
+        // 3. NOTE: Les targets théoriques viendront de unified-insights-v2.js, PAS de /portfolio/metrics
+        // Les métriques ne sont utilisées que pour des informations supplémentaires
+        console.log('🎭 SIM: Portfolio metrics loaded (for reference only):', {
+          hasTargets: !!metricsData.targets,
+          targetKeys: Object.keys(metricsData.targets || {})
+        });
 
         // 4. INITIALISER LE STORE avant d'appeler getUnifiedState() (CRITIQUE!)
         console.log('🎭 SIM: Initializing store with complete data...');
 
-        // Créer window.store s'il n'existe pas
+        // CRITICAL: Utiliser le VRAI store de risk-dashboard-store.js
+        // unified-insights-v2.js importe ce store, donc il FAUT utiliser le même !
         if (!window.store) {
-          window.store = {
-            data: {},
-            set(key, value) {
-              this.data[key] = value;
-            },
-            get(key) {
-              return this.data[key];
-            }
-          };
+          console.warn('🎭 SIM: window.store not found, importing risk-dashboard-store...');
+          const { store: riskStore } = await import('./core/risk-dashboard-store.js');
+          window.store = riskStore;
+          console.log('🎭 SIM: ✅ risk-dashboard-store imported and set as window.store');
         }
 
         // Injecter balances dans le store (requis par getUnifiedState)
@@ -1290,9 +1208,12 @@
           total: totalValue
         });
 
-        // Charger les scores dans le store (cycle, onchain, risk)
+        // CRITICAL: Charger les scores avec le MÊME système qu'Analytics Unified
+        // Utiliser la logique de cache identique + modules client-side
+        console.log('🎭 SIM: Loading scores with Analytics cache system (force=false)...');
+
         try {
-          // Cycle score
+          // 1) Cycle score (client-side)
           const { getCurrentCycleMonths, cycleScoreFromMonths, getCyclePhase } = await import('./modules/cycle-navigator.js');
           const c = getCurrentCycleMonths();
           const cycleScore = Math.round(cycleScoreFromMonths(c.months));
@@ -1300,47 +1221,277 @@
           window.store.set('cycle.months', c.months);
           window.store.set('cycle.score', cycleScore);
           window.store.set('cycle.phase', cyclePhase);
-          console.log('🎭 SIM: Cycle data loaded:', { score: cycleScore, phase: cyclePhase });
+          window.store.set('cycle.confidence', 0.46); // Static pour l'instant
+          console.log('🎭 SIM: ✅ Cycle score loaded:', { score: cycleScore, phase: cyclePhase });
 
-          // Onchain score (simplifié pour l'instant)
-          // TODO: Charger les vrais indicateurs onchain
-          window.store.set('scores.onchain', 72); // Valeur par défaut
-          console.log('🎭 SIM: Onchain score set to default: 72');
+          // 2) On-Chain score (modules client-side avec SWR cache - SAME AS ANALYTICS)
+          try {
+            console.log('🎭 SIM: Loading onchain from client-side modules (NOT API)...');
+            const onchain = await import('./modules/onchain-indicators.js');
+            const v2 = await import('./modules/composite-score-v2.js');
+            // Use SWR-cached version (force=false pour utiliser cache)
+            const indicators = await onchain.fetchAllIndicators({ force: false });
+            const dyn = localStorage.getItem('enable_dynamic_weighting') === 'true';
+            const composite = v2.calculateCompositeScoreV2(indicators, dyn);
 
-          // Risk score
-          window.store.set('scores.risk', 34); // Valeur par défaut
-          console.log('🎭 SIM: Risk score set to default: 34');
+            if (typeof composite.score === 'number') {
+              window.store.set('scores.onchain', composite.score);
+              // CRITICAL: unified-insights-v2 lit scores.onchain_metadata, PAS onchain.confidence !
+              window.store.set('scores.onchain_metadata', {
+                confidence: composite.confidence || 0.6,
+                criticalZoneCount: composite.criticalZoneCount || 0,
+                categoryBreakdown: composite.categoryBreakdown || {}
+              });
+              console.log('🎭 SIM: ✅ Onchain score from modules:', {
+                score: composite.score,
+                confidence: composite.confidence,
+                criticalZones: composite.criticalZoneCount
+              });
+            } else {
+              console.warn('🎭 SIM: Onchain composite score is null, using default');
+              window.store.set('scores.onchain', 50);
+              window.store.set('scores.onchain_metadata', { confidence: 0, criticalZoneCount: 0 });
+            }
+          } catch (e) {
+            console.error('🎭 SIM: Onchain modules error:', e.message);
+            window.store.set('scores.onchain', 50);
+            window.store.set('onchain.confidence', 0);
+          }
 
+          // 3) Risk score (API /risk/dashboard - SAME AS ANALYTICS using apiRequest)
+          try {
+            const minUsd = window.globalConfig?.get('min_usd_threshold') || 1;
+            const priceDays = 365, corrDays = 90;
+            console.log('🎭 SIM: Loading risk from /risk/dashboard using globalConfig.apiRequest...');
+            // Use apiRequest like Analytics does (handles headers automatically)
+            const riskData = await window.globalConfig.apiRequest('/api/risk/dashboard', {
+              params: { price_history_days: priceDays, lookback_days: corrDays, min_usd: minUsd }
+            });
+
+            console.log('🎭 SIM: Risk API response structure:', {
+              hasSuccess: !!riskData?.success,
+              hasRiskMetrics: !!riskData?.risk_metrics,
+              riskMetricsKeys: riskData?.risk_metrics ? Object.keys(riskData.risk_metrics) : [],
+              riskScore: riskData?.risk_metrics?.risk_score,
+              fullStructure: riskData ? Object.keys(riskData) : []
+            });
+
+            if (riskData && riskData.success) {
+              const riskScore = riskData?.risk_metrics?.risk_score;
+              if (typeof riskScore === 'number') {
+                window.store.set('scores.risk', riskScore);
+                // ALSO set in store.risk for compatibility with unified-insights-v2
+                window.store.set('risk', riskData);
+                console.log('🎭 SIM: ✅ Risk score from dashboard:', { score: riskScore });
+              } else {
+                console.warn('🎭 SIM: ⚠️ Risk score not found in response path risk_metrics.risk_score');
+                window.store.set('scores.risk', 50);
+              }
+            } else {
+              console.warn('🎭 SIM: Risk API did not return success=true');
+              window.store.set('scores.risk', 50);
+            }
+          } catch (e) {
+            console.error('🎭 SIM: Risk API error:', e.message);
+            window.store.set('scores.risk', 50);
+          }
         } catch (e) {
-          console.warn('🎭 SIM: Failed to load scores:', e.message);
+          console.error('🎭 SIM: Failed to load scores:', e.message);
         }
 
-        // 5. Utiliser le SYSTÈME UNIFIÉ pour obtenir les VRAIES données (comme analytics-unified.html)
+        // 5. VÉRIFIER que les scores sont bien dans le store AVANT d'appeler getUnifiedState
+        console.log('🎭 SIM: Verifying scores in store before calling getUnifiedState...');
+        const storeSnapshot = window.store.snapshot();
+        console.log('🎭 SIM: Store snapshot BEFORE getUnifiedState:', {
+          'scores.onchain': storeSnapshot.scores?.onchain,
+          'scores.risk': storeSnapshot.scores?.risk,
+          'cycle.score': storeSnapshot.cycle?.score,
+          'wallet.balances': storeSnapshot.wallet?.balances?.length,
+          'wallet.total': storeSnapshot.wallet?.total
+        });
+
+        // 6. Utiliser le SYSTÈME UNIFIÉ pour obtenir les VRAIES données (comme analytics-unified.html)
         console.log('🎭 SIM: Loading unified state from Analytics system...');
         let unifiedState = null;
         try {
+          // IMPORTANT: Utiliser le même système qu'Analytics Unified
           const { getUnifiedState } = await import('./core/unified-insights-v2.js');
           unifiedState = await getUnifiedState();
-          console.log('🎭 SIM: Unified state loaded:', {
-            decisionScore: unifiedState?.decision?.score,
-            contradiction: unifiedState?.governance?.contradiction_index,
-            riskBudget: unifiedState?.risk?.budget?.target_stables_pct,
-            hasTargets: !!unifiedState?.targets_by_group
+          console.log('🎭 SIM: ✅ Unified state loaded (SAME AS ANALYTICS):', {
+            '📊 SCORES': {
+              cycle: unifiedState?.cycle?.score,
+              onchain: unifiedState?.onchain?.composite_score,
+              risk: unifiedState?.risk?.score
+            },
+            '🎯 DECISION': unifiedState?.decision?.score,
+            '⚖️ CONTRADICTION': (unifiedState?.governance?.contradiction_index * 100).toFixed(1) + '%',
+            '💰 RISK_BUDGET': unifiedState?.risk?.budget?.target_stables_pct + '% stables',
+            '🎲 TARGETS': Object.keys(unifiedState?.targets_by_group || {}).length + ' groups',
+            '🔍 PREVIEW': Object.keys(unifiedState?.targets_by_group || {}).slice(0, 5)
           });
         } catch (e) {
-          console.warn('🎭 SIM: Failed to load unified state, using fallback:', e.message);
+          console.error('🎭 SIM: ❌ CRITICAL - Failed to load unified state:', e.message);
+          throw new Error(`Cannot load unified state: ${e.message}`);
         }
 
-        // 6. Construire un résultat avec les données du système unifié (si disponible)
+        if (!unifiedState) {
+          throw new Error('Unified state is null - cannot proceed with Live mode');
+        }
+
+        // 6. Construire un contexte complet pour le Pipeline Inspector (comme mode simulation)
         const decisionIndex = unifiedState?.decision?.score ?? 50;
         const contradictionIndex = unifiedState?.governance?.contradiction_index ?? 0.5;
         const confidence = unifiedState?.decision?.confidence ?? 0.8;
         const targetStables = unifiedState?.risk?.budget?.target_stables_pct ?? (metricsData.performance?.risk_budget || 30);
 
+        // Construire le contexte du pipeline (inputs + intermediate + outputs)
+        // IMPORTANT: Utiliser UNIQUEMENT les valeurs d'unifiedState (source unique de vérité)
+        const cycleScore = unifiedState.cycle?.score ?? 50;
+        const onchainScore = unifiedState.onchain?.score ?? 50;  // FIX: use .score, not .composite_score
+        const riskScore = unifiedState.risk?.score ?? 50;
+        const cycleConf = unifiedState.cycle?.confidence ?? 0.7;
+        const onchainConf = unifiedState.onchain?.confidence ?? 0.6;
+        const regimeConf = 0.5;
+
+        console.log('🎭 SIM: Using scores from unified-insights-v2 (SAME AS ANALYTICS):', {
+          cycle: cycleScore,
+          onchain: onchainScore,
+          risk: riskScore,
+          source: 'unified-insights-v2'
+        });
+
+        const pipelineContext = {
+          // INPUTS (structure attendue par explainPipeline)
+          inputs: {
+            cycleScore: cycleScore,
+            onChainScore: onchainScore,
+            riskScore: riskScore,
+            cycleConf: cycleConf,
+            onchainConf: onchainConf,
+            regimeConf: regimeConf,
+            contradictionPenalty: contradictionIndex,
+            backendDecision: null
+          },
+          // SCORES (requis par explainPipeline pour Decision Inputs)
+          scores: {
+            cycle: cycleScore,
+            onchain: onchainScore,
+            risk: riskScore
+          },
+          // CONFIDENCES (requis par explainPipeline pour Decision Inputs)
+          confidences: {
+            cycle: cycleConf,
+            onchain: onchainConf,
+            regime: regimeConf
+          },
+          // INTERMEDIATE
+          cycle: unifiedState?.cycle || { score: cycleScore, phase: window.store.get('cycle.phase') },
+          onchain: unifiedState?.onchain || { composite_score: onchainScore, confidence: onchainConf },
+          risk: unifiedState?.risk || { score: riskScore },
+          // COMPUTED
+          decision: {
+            score: decisionIndex,
+            confidence: confidence,
+            source: unifiedState ? 'unified_insights_v2' : 'live_analytics'
+          },
+          governance: {
+            contradiction_index: contradictionIndex,
+            contradiction_pct: Math.round(contradictionIndex * 100)
+          },
+          risk_budget: {
+            target_stables_pct: targetStables,
+            methodology: unifiedState.risk?.budget?.methodology || 'unified_insights_v2',
+            min_stables_pct: unifiedState.risk?.budget?.min_stables_pct || 10,
+            max_stables_pct: unifiedState.risk?.budget?.max_stables_pct || 60
+          },
+          // TOUJOURS utiliser unified-insights targets (source unique de vérité)
+          targets: unifiedState.targets_by_group,
+          current_allocations: currentAllocations,
+          balances: balances,
+          total_value: totalValue,
+          // Phase Engine info (pour l'affichage)
+          phaseEngine: {
+            enabled: false,
+            mode: 'shadow',
+            forcedPhase: null
+          }
+        };
+
+        // Générer l'explication du pipeline (comme en mode simulation)
+        // explainPipeline attend: (context, steps) où steps contient { di, riskBudget, targets, finalTargets, cappedResult, orders }
+        const pipelineSteps = {
+          di: {
+            di: decisionIndex,
+            confidence: confidence,
+            source: unifiedState ? 'unified_insights_v2' : 'live_analytics',
+            reasoning: 'Calculated from unified state'
+          },
+          riskBudget: {
+            target_stables_pct: targetStables,
+            curve: unifiedState?.risk?.budget?.methodology || 'live-data',
+            clamps: {
+              min_stables: unifiedState?.risk?.budget?.min_stables_pct || 10,
+              max_stables: unifiedState?.risk?.budget?.max_stables_pct || 60
+            },
+            flags: {
+              hysteresis: false,
+              cb_vol: false,
+              cb_dd: false
+            }
+          },
+          // Utiliser les targets unifiés (pas de fallback pour garantir cohérence)
+          targets: unifiedState.targets_by_group,
+          finalTargets: unifiedState.targets_by_group,
+          cappedResult: {
+            targets: unifiedState.targets_by_group,
+            caps_triggered: []
+          },
+          orders: {
+            orders: [],
+            summary: {
+              totalDelta: 0,
+              globalThreshold: 2,
+              shouldExecute: false
+            }
+          }
+        };
+
+        const pipelineExplanation = SimEngine.explainPipeline(pipelineContext, pipelineSteps);
+
+        // LOG DÉTAILLÉ : Ce que le moteur de décision utilise EXACTEMENT
+        console.log('🎯 PIPELINE LIVE - ÉTAT COMPLET DU MOTEUR (identique à Analytics Unified):', {
+          '⚠️ SOURCE': 'unified-insights-v2.js (SAME AS ANALYTICS)',
+          '1️⃣ INPUTS (scores)': {
+            cycle: cycleScore,
+            onchain: onchainScore,
+            risk: riskScore,
+            contradiction: Math.round(contradictionIndex * 100) + '%'
+          },
+          '2️⃣ DECISION INDEX': {
+            score: decisionIndex,
+            confidence: (confidence * 100).toFixed(1) + '%',
+            methodology: 'unified_insights_v2'
+          },
+          '3️⃣ RISK_BUDGET': {
+            stables: targetStables + '%',
+            risky: (100 - targetStables) + '%',
+            curve: unifiedState.risk?.budget?.methodology || 'unified'
+          },
+          '4️⃣ TARGETS (theoretical)': unifiedState.targets_by_group,
+          '5️⃣ CURRENT_ALLOCATIONS (real)': currentAllocations,
+          '6️⃣ DELTAS (target - current)': Object.keys(unifiedState.targets_by_group).map(group => ({
+            group,
+            target: unifiedState.targets_by_group[group].toFixed(1) + '%',
+            current: (currentAllocations[group] || 0).toFixed(1) + '%',
+            delta: (unifiedState.targets_by_group[group] - (currentAllocations[group] || 0)).toFixed(1) + '%'
+          })),
+          '✅ VÉRIFICATION': '👉 Comparer ces valeurs avec Analytics Unified pour confirmer parité'
+        });
+
         const liveResult = {
           di: {
             di: Math.round(decisionIndex),
-            source: unifiedState ? 'unified_insights_v2' : 'live_analytics',
+            source: 'unified_insights_v2',
             confidence: confidence
           },
           riskBudget: {
@@ -1353,8 +1504,8 @@
           },
           // ALLOCATIONS ACTUELLES RÉELLES (depuis wallet groupé)
           currentAllocations: currentAllocations,
-          // TARGETS THÉORIQUES (depuis unified state ou analytics)
-          cappedTargets: unifiedState?.targets_by_group || theoreticalTargets,
+          // TARGETS THÉORIQUES (depuis unified-insights-v2 UNIQUEMENT - source de vérité)
+          cappedTargets: unifiedState.targets_by_group,
           orders: {
             orders: [],
             summary: {
@@ -1364,20 +1515,8 @@
               message: `Mode Live - ${balancesData.items?.length || 0} assets réels`
             }
           },
-          explanation: {
-            summaryNL: `📊 Données réelles depuis ${activeSource}\n\n` +
-                       `Portfolio: ${balancesData.items?.length || 0} assets\n` +
-                       `Valeur totale: $${totalValue.toFixed(2)}\n` +
-                       `Performance 24h: ${metricsData.performance?.percentage_change?.toFixed(2) || '0'}%\n\n` +
-                       `Decision Index: ${Math.round(decisionIndex)}/100 (${Math.round(confidence * 100)}%)\n` +
-                       `Contradiction: ${Math.round(contradictionIndex * 100)}%\n` +
-                       `Risk Budget: ${Math.round(targetStables)}% stables\n\n` +
-                       `Allocations réelles:\n` +
-                       Object.entries(currentAllocations)
-                         .filter(([_, pct]) => pct > 0.5)
-                         .map(([group, pct]) => `  • ${group}: ${pct.toFixed(1)}%`)
-                         .join('\n')
-          },
+          // UTILISER l'explication générée par le pipeline
+          explanation: pipelineExplanation,
           presetInfo: {
             name: 'Live Data',
             desc: `Source: ${activeSource} | User: ${userId} | ${assetCount} assets | Unified: ${!!unifiedState}`
@@ -1393,12 +1532,13 @@
               risk: unifiedState?.risk
             }
           },
-          // Ajouter les données complètes pour debug
+          // Ajouter les données complètes pour debug et Inspector
           _debug: {
             balances: balances,
             groupedData: groupedData,
             totalValue: totalValue,
-            unifiedState: unifiedState
+            unifiedState: unifiedState,
+            pipelineContext: pipelineContext
           }
         };
 
