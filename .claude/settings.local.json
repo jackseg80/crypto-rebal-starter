@@ -185,7 +185,8 @@
       "Bash(detect-secrets scan:*)",
       "Bash(.venvScriptsactivate)",
       "Bash(.venv/Scripts/python:*)",
-      "Bash(git rebase:*)"
+      "Bash(git rebase:*)",
+      "Bash(git stash:*)"
     ],
     "deny": [],
     "ask": [],

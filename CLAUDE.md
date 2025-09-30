@@ -355,7 +355,7 @@ docker run -p 8000:8000 --env-file .env crypto-rebal
 
 ---
 
-## 8) Architecture endpoints post-refactoring (important)
+## 12) Architecture endpoints post-refactoring (important)
 
 **Namespaces consolidés** (ne pas créer de nouveaux) :
 - `/api/ml/*` - Toutes fonctions ML (remplace /api/ml-predictions, /api/ai)

@@ -18,17 +18,21 @@ Il décrit l'**état ACTUEL** du projet et les **règles de contribution** (Wind
 - Chemins : éviter `touch/sed -i`; utiliser `New-Item`, `Out-File`, etc.
 
 ### 0.2 Pages et endpoints **actuels**
-- **Crypto** :
-  - UI : `dashboard.html`, `analytics-unified.html`, `risk-dashboard.html`, `rebalance.html`
-  - API : `/balances/current`, `/rebalance/plan`, `/portfolio/metrics`, etc.
-- **Bourse / Saxo** :
-  - UI : `saxo-upload.html`, `saxo-dashboard.html`
-  - API : `/api/saxo/*` (upload/positions/accounts/instruments …)
+- **Crypto** (production ready):
+  - UI : `dashboard.html`, `analytics-unified.html`, `risk-dashboard.html`, `rebalance.html`, `execution.html`, `execution_history.html`
+  - API : `/balances/current`, `/rebalance/plan`, `/portfolio/metrics`, `/execution/*`, `/api/ml/*`, `/api/risk/*`
+- **Bourse / Saxo** (Phase 2 complétée):
+  - UI : `saxo-upload.html`, `saxo-dashboard.html`, `analytics-equities.html` (beta)
+  - API : `/api/saxo/*` (upload/positions/accounts/instruments), `/api/wealth/*` (lecture legacy active)
+  - Intégration : Tuile Saxo dans `dashboard.html` avec store partagé
+- **Simulateur** : `simulations.html` (pipeline complet avec 10 presets)
+- **Outils/Debug** : 60+ pages test/debug (préfixe `test-*`, `debug-*`, `clear-*`)
 
-### 0.3 Wealth (roadmap — ne pas supposer existant)
-- Ne **pas** créer/utiliser de pages `analytics-equities.html`, `risk-equities.html`, `rebalance-equities.html` tant qu'elles ne sont pas demandées.
-- Ne **pas** imposer `/api/wealth/*` si l'existant `/api/saxo/*` couvre le besoin.
-- Les détails du futur Wealth sont dans `docs/TODO_WEALTH_MERGE.md` (référence, pas à implémenter sans consigne).
+### 0.3 Wealth (Phase 2 complétée ✅)
+- Namespace `/api/wealth/*` : **opérationnel**, endpoints disponibles
+- Page existante : `analytics-equities.html` (beta)
+- Phase 3 à venir : `risk-equities.html`, `rebalance-equities.html`
+- Roadmap complète : voir `docs/TODO_WEALTH_MERGE.md`
 
 ## 1) Où commencer (lecture rapide)
 - Architecture : `docs/architecture.md` (si présent), `docs/user-guide.md`
