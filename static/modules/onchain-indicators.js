@@ -1373,12 +1373,8 @@ export async function fetchAllIndicators({ force = false } = {}) {
   const dataSource = window.globalConfig?.get('data_source') || 'stub_balanced';
   console.debug(`🎯 Current data source: ${dataSource}`);
 
-  // For stub sources, use simulated data instead of external APIs
-  if (dataSource.startsWith('stub_')) {
-    console.debug(`🧪 Using simulated indicators for ${dataSource}`);
-    return getSimulatedIndicators(dataSource);
-  }
-
+  // ALWAYS try to fetch real indicators from Crypto-Toolbox API first (even for stub sources)
+  // Only fallback to simulated if API fails
   try {
     // 1. Fetch all indicators from Crypto-Toolbox backend with SWR
     console.debug('🌐 Calling fetchCryptoToolboxIndicators with SWR...', { force });
@@ -1475,17 +1471,17 @@ export async function fetchAllIndicators({ force = false } = {}) {
     };
     
   } catch (error) {
-    (window.debugLogger?.warn || console.warn)('❌ Error fetching real indicators, using graceful fallback:', error.message);
+    (window.debugLogger?.warn || console.warn)('❌ Error fetching real indicators, fallback to simulated:', error.message);
 
-    // Return minimal working state for graceful degradation
+    // Fallback to simulated indicators if API fails
+    const simulatedData = await getSimulatedIndicators(dataSource);
     return {
+      ...simulatedData,
       _metadata: {
-        available_count: 0,
-        error: error.message,
-        message: 'Indicators temporarily unavailable - running in degraded mode',
-        last_updated: new Date().toISOString(),
-        graceful_degradation: true,
-        fallback_reason: 'api_error'
+        ...simulatedData._metadata,
+        fallback_reason: 'api_error',
+        api_error: error.message,
+        message: `Using simulated indicators (API unavailable: ${error.message})`
       }
     };
   }
