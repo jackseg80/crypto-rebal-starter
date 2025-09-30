@@ -4856,7 +4856,10 @@
       try {
         console.log('🏛️ Récupération historique Bitcoin depuis FRED via proxy...');
         const proxyUrl = '/proxy/fred/bitcoin?start_date=2014-01-01';
-        const r = await fetch(proxyUrl);
+        const activeUser = localStorage.getItem('activeUser') || 'demo';
+        const r = await fetch(proxyUrl, {
+          headers: { 'X-User': activeUser }
+        });
         if (!r.ok) throw new Error(`Proxy HTTP ${r.status}: ${r.statusText}`);
         const result = await r.json();
 
