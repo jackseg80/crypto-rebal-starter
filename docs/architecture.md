@@ -29,6 +29,40 @@
 - **Cost Optimization** : Slippage, fees, market impact
 - **Reconciliation** : Suivi exécution vs plan
 
+## Architecture Multi-Utilisateurs (Multi-Tenant)
+
+**Le système est multi-tenant** avec isolation complète des données par utilisateur.
+
+### Structure Filesystem
+Chaque utilisateur dispose d'un dossier isolé : `data/users/{user_id}/`
+```
+data/users/{user_id}/
+  ├── cointracking/
+  │   ├── uploads/       # CSV uploadés
+  │   ├── imports/       # CSV validés
+  │   └── snapshots/     # Snapshots actifs
+  ├── saxobank/
+  │   ├── uploads/
+  │   ├── imports/
+  │   └── snapshots/
+  └── config.json        # Config utilisateur
+```
+
+### Clé Primaire Globale
+**Toutes les données utilisent `(user_id, source)` comme clé primaire** :
+- `user_id` : Identifiant utilisateur (demo, jack, donato, elda, roberto, clea)
+- `source` : Type de données (cointracking, cointracking_api, saxobank, etc.)
+
+### Isolation Sécurisée
+- **Backend** : Classe `UserScopedFS` (`api/services/user_fs.py`) empêche path traversal
+- **Frontend** : `localStorage.getItem('activeUser')` + user selector dans navigation
+- **API** : Tous les endpoints acceptent paramètre `user_id`
+- **Fichiers partagés** : Filtrage dynamique par (user_id, source)
+
+Voir [CLAUDE.md Section 3](../CLAUDE.md) pour détails complets.
+
+---
+
 ## Flux de Données Cross-Asset
 
 **Schéma** : Sources → Normalisation → Signaux → Gouvernance → UI
