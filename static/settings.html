@@ -2217,14 +2217,17 @@ document.addEventListener('DOMContentLoaded', function() {
         results.push(`🥷 CoinGecko: ⚪ Pas de clé configurée`);
       }
 
-      // Test FRED via backend (plus sûr que CORS direct)
+      // Test FRED via backend proxy
       if (globalSettings.fred_api_key) {
         try {
-          const response = await fetch(`${globalSettings.api_base_url}/api/ml/market-data/bitcoin-historical?days=1`, {
+          const response = await fetch(`${globalSettings.api_base_url}/proxy/fred/bitcoin?limit=1`, {
             headers: { 'X-User': getActiveUser() }
           });
           const data = await response.json();
           results.push(`🏛️ FRED: ${response.ok && data.prices ? '✅ OK' : '❌ Erreur'}`);
+          if (!response.ok && data.error) {
+            results.push(`   └─ ${data.error}`);
+          }
         } catch (e) {
           results.push(`🏛️ FRED: ❌ ${e.message}`);
         }
