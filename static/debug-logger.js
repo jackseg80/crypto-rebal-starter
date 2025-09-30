@@ -20,7 +20,10 @@ class DebugLogger {
             DEBUG: 3    // Affiché si debug activé
         };
         
-        debugLogger.debug(`🔧 DebugLogger initialized - Debug mode: ${this.debugEnabled ? 'ON' : 'OFF'}`);
+        // Note: Can't use debugLogger.debug here since debugLogger isn't created yet
+        if (this.debugEnabled) {
+            console.log(`🔧 DebugLogger initialized - Debug mode: ${this.debugEnabled ? 'ON' : 'OFF'}`);
+        }
 
         // Synchroniser avec globalConfig si présent
         try {
@@ -90,24 +93,24 @@ class DebugLogger {
      * Log de niveau WARN (toujours affiché)
      */
     warn(message, ...args) {
-        debugLogger.warn(`⚠️ ${message}`, ...args);
+        console.warn(`⚠️ ${message}`, ...args);
     }
-    
+
     /**
      * Log de niveau INFO (affiché uniquement si debug activé)
      */
     info(message, ...args) {
-        if (this.debugEnabled) {
-            debugLogger.debug(`ℹ️ ${message}`, ...args);
+        if (this && this.debugEnabled) {
+            console.log(`ℹ️ ${message}`, ...args);
         }
     }
-    
+
     /**
      * Log de niveau DEBUG (affiché uniquement si debug activé)
      */
     debug(message, ...args) {
-        if (this.debugEnabled) {
-            debugLogger.debug(`🔍 DEBUG ${message}`, ...args);
+        if (this && this.debugEnabled) {
+            console.log(`🔍 DEBUG ${message}`, ...args);
         }
     }
     
