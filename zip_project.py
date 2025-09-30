@@ -7,7 +7,7 @@ source_dir = Path(r"D:\Python\crypto-rebal-starter")
 output_zip = Path(r"D:\Python\crypto-rebal-starter.zip")
 
 # Patterns/dossiers à exclure
-EXCLUDE_DIRS = {".git", ".venv", "__pycache__", ".mypy_cache", ".pytest_cache", ".vscode", "node_modules", "models", "cache"}
+EXCLUDE_DIRS = {".git", ".venv", "__pycache__", ".mypy_cache", ".pytest_cache", ".vscode", "node_modules", "models", "cache", "archive", "price_history"}
 EXCLUDE_FILES = {".DS_Store", "Thumbs.db"}
 
 def should_exclude(path: Path) -> bool:
