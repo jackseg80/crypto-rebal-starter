@@ -18,7 +18,7 @@ export async function applyPhaseTilts(targets, phase, ctx = {}) {
   });
 
   if (!targets || Object.keys(targets).length === 0) {
-    debugLogger.warn('⚠️ PhaseEngine: No targets provided');
+    (window.debugLogger?.warn || console.warn)('⚠️ PhaseEngine: No targets provided');
     return { targets: {}, metadata: { error: 'No targets provided' } };
   }
 
@@ -138,7 +138,7 @@ export async function applyPhaseTilts(targets, phase, ctx = {}) {
     // Apply caps and normalize
     const cappedTargets = applyCapsAndNormalize(T, riskyCaps, STABLES_FLOOR);
     if (!cappedTargets) {
-      debugLogger.warn('🚨 PhaseEngine: Stables floor breached - aborting tilts');
+      (window.debugLogger?.warn || console.warn)('🚨 PhaseEngine: Stables floor breached - aborting tilts');
       return {
         targets: { ...targets },
         metadata: {
@@ -156,7 +156,7 @@ export async function applyPhaseTilts(targets, phase, ctx = {}) {
     // Validate integrity
     const validation = validateTargetsIntegrity(filteredTargets, originalTargets);
     if (!validation.valid) {
-      debugLogger.warn('🚨 PhaseEngine: Validation failed:', validation.warnings);
+      (window.debugLogger?.warn || console.warn)('🚨 PhaseEngine: Validation failed:', validation.warnings);
     }
 
     // Calculate deltas

@@ -40,7 +40,7 @@ async function safeFetch(url, options = {}) {
 
 // Utilitaire pour les notifications
 function showNotification(message, type = 'info') {
-  debugLogger.debug(`[${type.toUpperCase()}] ${message}`);
+  (window.debugLogger?.debug || console.log)(`[${type.toUpperCase()}] ${message}`);
   // Fallback simple - chercher un element notification existant ou créer
   let notificationArea = document.querySelector('.notification-area');
   if (!notificationArea) {
@@ -95,7 +95,7 @@ let refreshTimer = null;
  * Initialise le gestionnaire de sources
  */
 async function initSourcesManager() {
-  debugLogger.debug('[Sources] Initializing sources manager...');
+  (window.debugLogger?.debug || console.log)('[Sources] Initializing sources manager...');
 
   // Charger les données initiales
   await refreshSourcesStatus();
@@ -106,7 +106,7 @@ async function initSourcesManager() {
   // Setup événements
   setupSourcesEventHandlers();
 
-  debugLogger.debug('[Sources] Sources manager initialized');
+  (window.debugLogger?.debug || console.log)('[Sources] Sources manager initialized');
 }
 
 /**
@@ -120,7 +120,7 @@ async function refreshSourcesStatus() {
     }
 
     sourcesData = await response.json();
-    debugLogger.debug('[Sources] Status refreshed:', sourcesData);
+    (window.debugLogger?.debug || console.log)('[Sources] Status refreshed:', sourcesData);
 
     // Mettre à jour l'UI
     updateSourcesUI(sourcesData);
@@ -451,7 +451,7 @@ function formatRelativeTime(date) {
  */
 async function scanModule(moduleName) {
   try {
-    debugLogger.debug(`[Sources] Scanning module: ${moduleName}`);
+    (window.debugLogger?.debug || console.log)(`[Sources] Scanning module: ${moduleName}`);
 
     const response = await safeFetch(`${SOURCES_CONFIG.apiBase}/scan`);
     if (!response.ok) {
@@ -485,7 +485,7 @@ async function importSelectedSource(moduleName) {
   }
 
   try {
-    debugLogger.debug(`[Sources] Importing selected source: ${selectedSource} from ${moduleName}`);
+    (window.debugLogger?.debug || console.log)(`[Sources] Importing selected source: ${selectedSource} from ${moduleName}`);
 
     let requestBody;
 
@@ -555,7 +555,7 @@ async function importSelectedSource(moduleName) {
  */
 async function importModule(moduleName, force = false) {
   try {
-    debugLogger.debug(`[Sources] Importing module: ${moduleName}`);
+    (window.debugLogger?.debug || console.log)(`[Sources] Importing module: ${moduleName}`);
 
     const response = await safeFetch(`${SOURCES_CONFIG.apiBase}/import`, {
       method: 'POST',
@@ -594,7 +594,7 @@ async function importModule(moduleName, force = false) {
  */
 async function refreshModuleApi(moduleName) {
   try {
-    debugLogger.debug(`[Sources] Refreshing API for module: ${moduleName}`);
+    (window.debugLogger?.debug || console.log)(`[Sources] Refreshing API for module: ${moduleName}`);
 
     const response = await safeFetch(`${SOURCES_CONFIG.apiBase}/refresh-api`, {
       method: 'POST',
@@ -633,7 +633,7 @@ async function refreshModuleApi(moduleName) {
  */
 async function scanAllSources() {
   try {
-    debugLogger.debug('[Sources] Scanning all sources...');
+    (window.debugLogger?.debug || console.log)('[Sources] Scanning all sources...');
 
     const response = await safeFetch(`${SOURCES_CONFIG.apiBase}/scan`);
     if (!response.ok) {
@@ -649,7 +649,7 @@ async function scanAllSources() {
     showNotification(`Scan terminé: ${totalFiles} fichiers détectés dans ${moduleCount} modules`, 'success');
 
     // Optionnel: afficher détails dans console
-    debugLogger.debug('[Sources] Scan results:', scanData);
+    (window.debugLogger?.debug || console.log)('[Sources] Scan results:', scanData);
 
   } catch (error) {
     console.error('[Sources] Error scanning all sources:', error);
@@ -673,7 +673,7 @@ function showScanResults(moduleName, moduleData) {
   showNotification(message, 'info');
 
   // Log détaillé dans console
-  debugLogger.debug(`[Sources] Scan results for ${moduleName}:`, moduleData);
+  (window.debugLogger?.debug || console.log)(`[Sources] Scan results for ${moduleName}:`, moduleData);
 }
 
 /**
@@ -720,7 +720,7 @@ function setupSourcesEventHandlers() {
   const userSelector = document.getElementById('user-selector');
   if (userSelector) {
     userSelector.addEventListener('change', () => {
-      debugLogger.debug('[Sources] User changed, refreshing sources data...');
+      (window.debugLogger?.debug || console.log)('[Sources] User changed, refreshing sources data...');
       // Rafraîchir immédiatement avec le nouvel utilisateur
       refreshSourcesStatus();
     });
@@ -728,7 +728,7 @@ function setupSourcesEventHandlers() {
 
   // Écouter les événements custom de changement d'utilisateur (comme dans nav.js)
   window.addEventListener('userChanged', (event) => {
-    debugLogger.debug('[Sources] User changed via event:', event.detail);
+    (window.debugLogger?.debug || console.log)('[Sources] User changed via event:', event.detail);
     refreshSourcesStatus();
   });
 }
@@ -776,7 +776,7 @@ function isSourceCurrentlySelected(moduleName, sourceValue) {
  */
 async function selectActiveSource(moduleName, sourceValue, fileName) {
   try {
-    debugLogger.debug(`[Sources] Selecting source: ${moduleName} -> ${sourceValue} (${fileName})`);
+    (window.debugLogger?.debug || console.log)(`[Sources] Selecting source: ${moduleName} -> ${sourceValue} (${fileName})`);
 
     const currentUser = getCurrentUser();
     const updateData = {};
@@ -800,14 +800,14 @@ async function selectActiveSource(moduleName, sourceValue, fileName) {
         completeSettings = await getResponse.json();
       }
     } catch (e) {
-      debugLogger.warn('[Sources] Could not load existing settings, proceeding with partial update:', e);
+      (window.debugLogger?.warn || console.warn)('[Sources] Could not load existing settings, proceeding with partial update:', e);
     }
 
     // Fusionner les modifications dans la config complète
     Object.assign(completeSettings, updateData);
 
     // 🐛 DEBUG: Log avant sauvegarde
-    debugLogger.debug('[Sources] About to save complete settings:', {
+    (window.debugLogger?.debug || console.log)('[Sources] About to save complete settings:', {
       hasApiKey: !!completeSettings.cointracking_api_key,
       hasApiSecret: !!completeSettings.cointracking_api_secret,
       dataSource: completeSettings.data_source,
@@ -856,7 +856,7 @@ async function selectActiveSource(moduleName, sourceValue, fileName) {
       }
     }));
 
-    debugLogger.debug(`[Sources] ✅ Source selected and saved: ${sourceValue}`);
+    (window.debugLogger?.debug || console.log)(`[Sources] ✅ Source selected and saved: ${sourceValue}`);
 
     // Afficher un feedback visuel temporaire
     showTemporaryFeedback(`Source sélectionnée: ${fileName || sourceValue}`);
@@ -900,7 +900,7 @@ function showTemporaryFeedback(message, type = 'success') {
  */
 async function testActiveSource(moduleName) {
   try {
-    debugLogger.debug(`[Sources] Testing source for module: ${moduleName}`);
+    (window.debugLogger?.debug || console.log)(`[Sources] Testing source for module: ${moduleName}`);
 
     const currentUser = getCurrentUser();
 
@@ -928,7 +928,7 @@ Données: ${results.balances}
 Source: ${results.source}`;
 
       showExtendedFeedback(message, status);
-      debugLogger.debug('[Sources] Test results:', results);
+      (window.debugLogger?.debug || console.log)('[Sources] Test results:', results);
 
     } else {
       throw new Error('testConnection() non disponible');
@@ -996,7 +996,7 @@ function getCurrentUser() {
  * Afficher la boîte de dialogue d'upload
  */
 function showUploadDialog(moduleName) {
-  debugLogger.debug(`[Sources] Showing upload dialog for: ${moduleName}`);
+  (window.debugLogger?.debug || console.log)(`[Sources] Showing upload dialog for: ${moduleName}`);
 
   const moduleDisplayName = getModuleName(moduleName);
   const allowedExtensions = getModuleAllowedExtensions(moduleName);
@@ -1104,7 +1104,7 @@ function setupModalEvents(moduleName) {
     }
   });
 
-  debugLogger.debug('[Sources] Modal events configured');
+  (window.debugLogger?.debug || console.log)('[Sources] Modal events configured');
 }
 
 /**
@@ -1116,7 +1116,7 @@ function closeUploadDialog(event) {
     return;
   }
 
-  debugLogger.debug('[Sources] Closing upload dialog');
+  (window.debugLogger?.debug || console.log)('[Sources] Closing upload dialog');
 
   const modal = document.getElementById('uploadModal');
   if (modal) {
@@ -1134,7 +1134,7 @@ function closeUploadDialog(event) {
  * Forcer la fermeture de la modal (fallback)
  */
 function forceCloseUploadDialog() {
-  debugLogger.debug('[Sources] Force closing upload dialog');
+  (window.debugLogger?.debug || console.log)('[Sources] Force closing upload dialog');
   const modal = document.getElementById('uploadModal');
   if (modal) {
     modal.remove();

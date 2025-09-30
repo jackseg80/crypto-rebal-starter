@@ -222,7 +222,7 @@ export function classifyIndicatorV2(indicatorName) {
     }
   }
 
-  debugLogger.warn(`⚠️ Unknown indicator for V2 classification: ${indicatorName}`);
+  (window.debugLogger?.warn || console.warn)(`⚠️ Unknown indicator for V2 classification: ${indicatorName}`);
   return {
     category: 'market_context',
     key: 'unknown',

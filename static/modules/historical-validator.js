@@ -151,7 +151,7 @@ export async function validatePeriod(period, scoringFunction, label = 'System') 
     throw new Error(`Unknown period: ${period}`);
   }
   
-  debugLogger.debug(`🧪 Validating ${label} for period: ${periodConfig.name}`);
+  (window.debugLogger?.debug || console.log)(`🧪 Validating ${label} for period: ${periodConfig.name}`);
   
   let correctSignals = 0;
   let totalSignals = 0;
@@ -185,7 +185,7 @@ export async function validatePeriod(period, scoringFunction, label = 'System') 
         }
       }
     } catch (error) {
-      debugLogger.warn(`⚠️ Error validating date ${date}:`, error.message);
+      (window.debugLogger?.warn || console.warn)(`⚠️ Error validating date ${date}:`, error.message);
     }
   }
   
@@ -209,7 +209,7 @@ export async function validatePeriod(period, scoringFunction, label = 'System') 
  * Compare les performances V1 vs V2 sur toutes les périodes
  */
 export async function runFullBacktest() {
-  debugLogger.debug('🚀 Starting full historical backtest...');
+  (window.debugLogger?.debug || console.log)('🚀 Starting full historical backtest...');
   
   const results = {
     v1: {},
@@ -218,7 +218,7 @@ export async function runFullBacktest() {
   };
   
   for (const period of Object.keys(HISTORICAL_PERIODS)) {
-    debugLogger.debug(`\n📊 Testing period: ${HISTORICAL_PERIODS[period].name}`);
+    (window.debugLogger?.debug || console.log)(`\n📊 Testing period: ${HISTORICAL_PERIODS[period].name}`);
     
     // Test V1 system
     const v1Results = await validatePeriod(period, calculateCompositeScore, 'V1');
@@ -235,9 +235,9 @@ export async function runFullBacktest() {
       contradictionReduction: v1Results.contradictionRate - v2Results.contradictionRate
     };
     
-    debugLogger.debug(`✅ ${HISTORICAL_PERIODS[period].name}:`);
-    debugLogger.debug(`   V1: ${v1Results.accuracy.toFixed(1)}% accuracy`);
-    debugLogger.debug(`   V2: ${v2Results.accuracy.toFixed(1)}% accuracy (+${results.comparison[period].accuracyImprovement.toFixed(1)}%)`);
+    (window.debugLogger?.debug || console.log)(`✅ ${HISTORICAL_PERIODS[period].name}:`);
+    (window.debugLogger?.debug || console.log)(`   V1: ${v1Results.accuracy.toFixed(1)}% accuracy`);
+    (window.debugLogger?.debug || console.log)(`   V2: ${v2Results.accuracy.toFixed(1)}% accuracy (+${results.comparison[period].accuracyImprovement.toFixed(1)}%)`);
   }
   
   // Calculate overall metrics
@@ -251,11 +251,11 @@ export async function runFullBacktest() {
     periodsImproved: Object.values(results.comparison).filter(c => c.accuracyImprovement > 0).length
   };
   
-  debugLogger.debug('\n🎯 Overall Results:');
-  debugLogger.debug(`V1 Average: ${overallV1Accuracy.toFixed(1)}%`);
-  debugLogger.debug(`V2 Average: ${overallV2Accuracy.toFixed(1)}%`);
-  debugLogger.debug(`Improvement: +${results.overall.overallImprovement.toFixed(1)}%`);
-  debugLogger.debug(`Periods improved: ${results.overall.periodsImproved}/${Object.keys(HISTORICAL_PERIODS).length}`);
+  (window.debugLogger?.debug || console.log)('\n🎯 Overall Results:');
+  (window.debugLogger?.debug || console.log)(`V1 Average: ${overallV1Accuracy.toFixed(1)}%`);
+  (window.debugLogger?.debug || console.log)(`V2 Average: ${overallV2Accuracy.toFixed(1)}%`);
+  (window.debugLogger?.debug || console.log)(`Improvement: +${results.overall.overallImprovement.toFixed(1)}%`);
+  (window.debugLogger?.debug || console.log)(`Periods improved: ${results.overall.periodsImproved}/${Object.keys(HISTORICAL_PERIODS).length}`);
   
   return results;
 }

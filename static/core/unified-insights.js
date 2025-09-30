@@ -32,7 +32,7 @@ export async function getUnifiedState() {
     cycleData = estimateCyclePosition();
     console.debug('✅ Cycle Intelligence loaded:', cycleData.phase?.phase, cycleData.score);
   } catch (error) {
-    debugLogger.warn('⚠️ Cycle Intelligence fallback:', error);
+    (window.debugLogger?.warn || console.warn)('⚠️ Cycle Intelligence fallback:', error);
     cycleData = {
       months: state.cycle?.months ?? null,
       score: Math.round(state.cycle?.ccsStar ?? state.cycle?.score ?? 50),
@@ -52,7 +52,7 @@ export async function getUnifiedState() {
       regimeData = { regime: getMarketRegime(50), recommendations: [], risk_budget: null };
     }
   } catch (error) {
-    debugLogger.warn('⚠️ Regime Intelligence fallback:', error);
+    (window.debugLogger?.warn || console.warn)('⚠️ Regime Intelligence fallback:', error);
     regimeData = { regime: { name: 'Unknown', emoji: '❓' }, recommendations: [], risk_budget: null };
   }
 
@@ -84,7 +84,7 @@ export async function getUnifiedState() {
       }
     }
   } catch (e) {
-    debugLogger.warn('⚠️ Multi-source sentiment fallback to store data');
+    (window.debugLogger?.warn || console.warn)('⚠️ Multi-source sentiment fallback to store data');
   }
   
   // Use CCS interpretation (numeric) and enrich with multi-source sentiment if available
@@ -106,7 +106,7 @@ export async function getUnifiedState() {
 
     console.debug('✅ Signals Intelligence loaded:', signalsData.interpretation);
   } catch (error) {
-    debugLogger.warn('⚠️ Signals Intelligence fallback:', error);
+    (window.debugLogger?.warn || console.warn)('⚠️ Signals Intelligence fallback:', error);
     signalsData = {
       interpretation: sentimentData?.interpretation || 'neutral',
       confidence: 0.5,
@@ -150,7 +150,7 @@ export async function getUnifiedState() {
     console.debug('✅ Contradictions Intelligence loaded:', contradictions.length);
   } catch (error) {
     contradictions = (state.scores?.contradictory_signals || []).slice(0, 2);
-    debugLogger.warn('⚠️ Contradictions fallback:', error);
+    (window.debugLogger?.warn || console.warn)('⚠️ Contradictions fallback:', error);
   }
 
   // ENHANCED HEALTH with intelligence status

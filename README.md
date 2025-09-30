@@ -31,29 +31,53 @@ Le système centralise la gestion des signaux contradictoires avec:
 
 **Architecture**: Sélecteurs centralisés, politique unifiée, validation automatique, intégration badges/simulateur.
 
+## 🔒 Sécurité
+
+Le projet implémente des mesures de sécurité robustes :
+
+- ✅ **Gestion des secrets** : `.env.example` template, `.env` ignoré, pre-commit hooks avec `detect-secrets` + `gitleaks`
+- ✅ **Frontend sécurisé** : 464 `console.log` migrés vers `debugLogger` conditionnel, ESLint avec `no-console` et `no-eval`
+- ✅ **Headers HTTP** : CSP, X-Content-Type-Options, X-Frame-Options, rate limiting
+- ✅ **Tests automatisés** : Tests de sécurité des headers, validation automatique
+- 📄 **Documentation** : Voir [SECURITY.md](SECURITY.md) pour les détails complets
+
+**Audit de sécurité** :
+```bash
+python tools/security-check.py  # Validation complète
+```
+
 ## Démarrage rapide
 Prérequis: Python 3.10+, pip, virtualenv
 
 1) Installer dépendances
 
 Linux/macOS:
-```
+```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp env.example .env
+cp .env.example .env  # Éditer avec vos clés API
 ```
 
 Windows (PowerShell):
-```
+```powershell
 py -m venv .venv
 .\.venv\Scripts\Activate
 pip install -r requirements.txt
 copy env.example .env
 ```
-2) Lancer l’API
-```
+2) Lancer l'API
+
+**Important** : Toujours utiliser le Python du virtualenv pour avoir toutes les dépendances :
+
+Linux/macOS:
+```bash
 uvicorn api.main:app --reload --port 8000
+```
+
+Windows (PowerShell):
+```powershell
+.venv\Scripts\python -m uvicorn api.main:app --reload --port 8000
 ```
 3) Ouvrir l’UI (servie par FastAPI)
 ```

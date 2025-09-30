@@ -43,7 +43,7 @@ function calculateEthBtcRatio(state) {
     return 0.06; // ~6% ratio as neutral
 
   } catch (e) {
-    debugLogger.warn('⚠️ PhaseInputs: ETH/BTC ratio calculation failed:', e.message);
+    (window.debugLogger?.warn || console.warn)('⚠️ PhaseInputs: ETH/BTC ratio calculation failed:', e.message);
     return 0.06;
   }
 }
@@ -76,7 +76,7 @@ function calculateAltsBtcProxy(state) {
     return clamp01(ratio * 0.2); // Scale to reasonable range
 
   } catch (e) {
-    debugLogger.warn('⚠️ PhaseInputs: Alts/BTC proxy calculation failed:', e.message);
+    (window.debugLogger?.warn || console.warn)('⚠️ PhaseInputs: Alts/BTC proxy calculation failed:', e.message);
     return 0.15;
   }
 }
@@ -110,7 +110,7 @@ function calculateBreadth(state) {
     return clamp01(breadth);
 
   } catch (e) {
-    debugLogger.warn('⚠️ PhaseInputs: Breadth calculation failed:', e.message);
+    (window.debugLogger?.warn || console.warn)('⚠️ PhaseInputs: Breadth calculation failed:', e.message);
     return 0.5;
   }
 }
@@ -150,7 +150,7 @@ function calculateDispersion(state) {
     return dispersion;
 
   } catch (e) {
-    debugLogger.warn('⚠️ PhaseInputs: Dispersion calculation failed:', e.message);
+    (window.debugLogger?.warn || console.warn)('⚠️ PhaseInputs: Dispersion calculation failed:', e.message);
     return 0.5;
   }
 }
@@ -173,7 +173,7 @@ function calculateCorrelationProxy(state) {
     return clamp01(correlation);
 
   } catch (e) {
-    debugLogger.warn('⚠️ PhaseInputs: Correlation proxy calculation failed:', e.message);
+    (window.debugLogger?.warn || console.warn)('⚠️ PhaseInputs: Correlation proxy calculation failed:', e.message);
     return 0.5; // Neutral correlation
   }
 }

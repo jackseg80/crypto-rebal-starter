@@ -15,7 +15,7 @@ const timeSeriesBuffers = new Map(); // key -> [{t, v}, ...]
  */
 export function pushSample(key, value, maxSize = 60) {
   if (typeof value !== 'number' || !isFinite(value)) {
-    debugLogger.warn(`⚠️ PhaseBuffers: Invalid value for ${key}:`, value);
+    (window.debugLogger?.warn || console.warn)(`⚠️ PhaseBuffers: Invalid value for ${key}:`, value);
     return getSeries(key, 1); // Return current buffer without pushing
   }
 
@@ -136,7 +136,7 @@ export function getBufferStatus() {
 export function clearAllBuffers() {
   const count = timeSeriesBuffers.size;
   timeSeriesBuffers.clear();
-  debugLogger.debug(`🗑️ PhaseBuffers: Cleared ${count} buffers`);
+  (window.debugLogger?.debug || console.log)(`🗑️ PhaseBuffers: Cleared ${count} buffers`);
 }
 
 /**
@@ -146,9 +146,9 @@ export function clearAllBuffers() {
 export function clearBuffer(key) {
   const existed = timeSeriesBuffers.delete(key);
   if (existed) {
-    debugLogger.debug(`🗑️ PhaseBuffers: Cleared buffer '${key}'`);
+    (window.debugLogger?.debug || console.log)(`🗑️ PhaseBuffers: Cleared buffer '${key}'`);
   } else {
-    debugLogger.warn(`⚠️ PhaseBuffers: Buffer '${key}' not found`);
+    (window.debugLogger?.warn || console.warn)(`⚠️ PhaseBuffers: Buffer '${key}' not found`);
   }
 }
 

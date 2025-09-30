@@ -27,7 +27,7 @@ export async function fetchSaxoSummary() {
         );
 
         if (!ok || !data) {
-            debugLogger.warn('[Saxo Summary] API returned error, using empty state');
+            (window.debugLogger?.warn || console.warn)('[Saxo Summary] API returned error, using empty state');
             const emptySummary = {
                 total_value: 0,
                 positions_count: 0,
@@ -99,7 +99,7 @@ export async function fetchSaxoSummary() {
         return summary;
 
     } catch (error) {
-        debugLogger.warn('[Saxo Summary] Erreur fetch:', error.message);
+        (window.debugLogger?.warn || console.warn)('[Saxo Summary] Erreur fetch:', error.message);
 
         const errorSummary = {
             total_value: 0,

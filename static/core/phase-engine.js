@@ -33,7 +33,7 @@ export function inferPhase(phaseInputs, histWindow = 14) {
   // Debug override for testing specific phases (persisted in localStorage)
   const forcedPhase = getDebugForcePhase();
   if (forcedPhase) {
-    debugLogger.warn('🔧 PhaseEngine: DEBUG - Using forced phase (persisted):', forcedPhase);
+    (window.debugLogger?.warn || console.warn)('🔧 PhaseEngine: DEBUG - Using forced phase (persisted):', forcedPhase);
     return forcedPhase;
   }
 
@@ -345,7 +345,7 @@ function applyPhaseTiltsLegacy(targets, phase, ctx = {}) {
   console.error('❌ LEGACY FUNCTION CALLED - SHOULD NOT HAPPEN!:', { phase, targets: Object.keys(targets) });
 
   if (!targets || Object.keys(targets).length === 0) {
-    debugLogger.warn('⚠️ PhaseEngine: No targets provided');
+    (window.debugLogger?.warn || console.warn)('⚠️ PhaseEngine: No targets provided');
     return { targets: {}, metadata: { error: 'No targets provided' } };
   }
 
@@ -521,9 +521,9 @@ function getDebugForcePhase() {
 export function forcePhase(phase) {
   if (typeof window !== 'undefined' && window.location?.hostname === 'localhost') {
     localStorage.setItem(DEBUG_FORCE_KEY, phase);
-    debugLogger.warn('🔧 PhaseEngine: DEBUG - Forcing phase (persisted):', phase);
+    (window.debugLogger?.warn || console.warn)('🔧 PhaseEngine: DEBUG - Forcing phase (persisted):', phase);
   } else {
-    debugLogger.warn('🔧 PhaseEngine: Force phase only available in localhost');
+    (window.debugLogger?.warn || console.warn)('🔧 PhaseEngine: Force phase only available in localhost');
   }
 }
 
@@ -562,7 +562,7 @@ export async function applyPhaseTilts(targets, phase, ctx = {}) {
   });
 
   if (!targets || Object.keys(targets).length === 0) {
-    debugLogger.warn('⚠️ PhaseEngine: No targets provided');
+    (window.debugLogger?.warn || console.warn)('⚠️ PhaseEngine: No targets provided');
     return { targets: {}, metadata: { error: 'No targets provided' } };
   }
 
@@ -584,7 +584,7 @@ export async function applyPhaseTilts(targets, phase, ctx = {}) {
   const STABLES_FLOOR_LOCAL = 5;
   const currentStables = targets['Stablecoins'] || 0;
   if (currentStables < STABLES_FLOOR_LOCAL) {
-    debugLogger.warn(`🚨 PhaseEngine: Early stables floor breach detected: ${currentStables.toFixed(2)}% < ${STABLES_FLOOR_LOCAL}% - aborting tilts`);
+    (window.debugLogger?.warn || console.warn)(`🚨 PhaseEngine: Early stables floor breach detected: ${currentStables.toFixed(2)}% < ${STABLES_FLOOR_LOCAL}% - aborting tilts`);
     return {
       targets: { ...targets },
       metadata: {
@@ -704,7 +704,7 @@ export async function applyPhaseTilts(targets, phase, ctx = {}) {
     // Apply caps and normalize
     const { T: cappedTargets, capsTriggered, stablesFloorHit } = applyCapsAndNormalize(T, riskyCaps, STABLES_FLOOR_LOCAL);
     if (!cappedTargets) {
-      debugLogger.warn('🚨 PhaseEngine: Stables floor breached - aborting tilts');
+      (window.debugLogger?.warn || console.warn)('🚨 PhaseEngine: Stables floor breached - aborting tilts');
       return {
         targets: { ...targets },
         metadata: {

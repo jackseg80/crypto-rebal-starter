@@ -163,7 +163,7 @@ function calculateZeroSumCappedMoves(entries, cap) {
       });
 
       if (adjustableEntries.length === 0) {
-        debugLogger.warn('🔄 Cannot achieve zero-sum without violating caps');
+        (window.debugLogger?.warn || console.warn)('🔄 Cannot achieve zero-sum without violating caps');
         break;
       }
 
@@ -197,7 +197,7 @@ const _allocCache = { ts: 0, data: null, key: null };
 // Current allocation by group using taxonomy aliases
 async function getCurrentAllocationByGroup(minUsd = 1.0) {
   try {
-    debugLogger.debug('🏦 ENTRY: getCurrentAllocationByGroup called - CACHE_BUST_2025-09-29T21:32:30Z', {
+    (window.debugLogger?.debug || console.log)('🏦 ENTRY: getCurrentAllocationByGroup called - CACHE_BUST_2025-09-29T21:32:30Z', {
       minUsd,
       timestamp: new Date().toISOString(),
       caller: 'UnifiedInsights.js',
@@ -218,14 +218,14 @@ async function getCurrentAllocationByGroup(minUsd = 1.0) {
     const cacheKey = `${user}:${source}:${taxonomyHash}:v2`;
     // IMPORTANT: Ne pas utiliser le cache si grand = 0 (données invalides)
     if (_allocCache.data && _allocCache.key === cacheKey && (now - _allocCache.ts) < 60000 && _allocCache.data.grand > 0) { // 60s TTL + validation
-      debugLogger.info('✅ CACHE HIT: Using valid cached allocation data', {
+      (window.debugLogger?.info || console.log)('✅ CACHE HIT: Using valid cached allocation data', {
         grand: _allocCache.data.grand,
         groups: Object.keys(_allocCache.data.totals).length,
         age: Math.round((now - _allocCache.ts) / 1000) + 's'
       });
       return _allocCache.data;
     } else if (_allocCache.data && _allocCache.key === cacheKey && (now - _allocCache.ts) < 60000) {
-      debugLogger.warn('🚨 CACHE INVALID: Cached data has grand=0, forcing refresh', {
+      (window.debugLogger?.warn || console.warn)('🚨 CACHE INVALID: Cached data has grand=0, forcing refresh', {
         grand: _allocCache.data.grand,
         age: Math.round((now - _allocCache.ts) / 1000) + 's'
       });
@@ -236,7 +236,7 @@ async function getCurrentAllocationByGroup(minUsd = 1.0) {
     let useStoreData = false;
 
     // DEBUG: Vérifier l'état du store
-    debugLogger.debug('🔍 STORE DEBUG getCurrentAllocationByGroup:', {
+    (window.debugLogger?.debug || console.log)('🔍 STORE DEBUG getCurrentAllocationByGroup:', {
       storeExists: !!window.store,
       storeGetFunction: !!(window.store && typeof window.store.get === 'function'),
       storeBalances: window.store ? window.store.get('wallet.balances') : 'no store',
@@ -252,7 +252,7 @@ async function getCurrentAllocationByGroup(minUsd = 1.0) {
           const storeTotal = window.store.get('wallet.total');
 
           if (storeBalances && storeBalances.length > 0 && storeTotal > 0) {
-            debugLogger.debug(`✅ STORE RETRY SUCCESS (attempt ${i + 1}/${maxRetries}):`, {
+            (window.debugLogger?.debug || console.log)(`✅ STORE RETRY SUCCESS (attempt ${i + 1}/${maxRetries}):`, {
               items: storeBalances.length,
               total: storeTotal,
               delay: i * delayMs + 'ms'
@@ -262,7 +262,7 @@ async function getCurrentAllocationByGroup(minUsd = 1.0) {
         }
 
         if (i < maxRetries - 1) {
-          debugLogger.debug(`⏳ STORE RETRY ${i + 1}/${maxRetries}: Waiting ${delayMs}ms for data injection...`);
+          (window.debugLogger?.debug || console.log)(`⏳ STORE RETRY ${i + 1}/${maxRetries}: Waiting ${delayMs}ms for data injection...`);
           await new Promise(resolve => setTimeout(resolve, delayMs));
         }
       }
@@ -275,7 +275,7 @@ async function getCurrentAllocationByGroup(minUsd = 1.0) {
         const storeBalances = window.store.get('wallet.balances');
         const storeTotal = window.store.get('wallet.total');
 
-        debugLogger.debug('🔍 STORE DATA CHECK (immediate):', {
+        (window.debugLogger?.debug || console.log)('🔍 STORE DATA CHECK (immediate):', {
           balances: storeBalances ? `${storeBalances.length} items` : 'null/undefined',
           total: storeTotal,
           firstBalance: storeBalances ? storeBalances[0] : 'no data'
@@ -285,13 +285,13 @@ async function getCurrentAllocationByGroup(minUsd = 1.0) {
           items = storeBalances;
           grand = storeTotal;
           useStoreData = true;
-          debugLogger.info('✅ STORE IMMEDIATE: Using data from store', {
+          (window.debugLogger?.info || console.log)('✅ STORE IMMEDIATE: Using data from store', {
             items: items.length,
             total: grand,
             source: 'store_immediate'
           });
         } else {
-          debugLogger.debug('⏳ STORE INCOMPLETE: Trying retry logic...');
+          (window.debugLogger?.debug || console.log)('⏳ STORE INCOMPLETE: Trying retry logic...');
           // Si pas de données, essayer le retry pattern
           const retryResult = await waitForStoreData();
           if (retryResult) {
@@ -299,17 +299,17 @@ async function getCurrentAllocationByGroup(minUsd = 1.0) {
             grand = retryResult.total;
             useStoreData = true;
           } else {
-            debugLogger.warn('🚨 STORE RETRY FAILED: No data after retries');
+            (window.debugLogger?.warn || console.warn)('🚨 STORE RETRY FAILED: No data after retries');
           }
         }
       } else {
-        debugLogger.warn('🚨 STORE NOT AVAILABLE:', {
+        (window.debugLogger?.warn || console.warn)('🚨 STORE NOT AVAILABLE:', {
           storeExists: !!window.store,
           hasGetMethod: window.store ? typeof window.store.get === 'function' : false
         });
       }
     } catch (e) {
-      debugLogger.warn('Store data access failed:', e.message);
+      (window.debugLogger?.warn || console.warn)('Store data access failed:', e.message);
     }
 
     // Si pas de données store, essayer l'API (peut échouer avec 429)
@@ -323,12 +323,12 @@ async function getCurrentAllocationByGroup(minUsd = 1.0) {
           window.globalConfig.apiRequest('/balances/current', { params: { min_usd: cfgMin } })
         ]);
         items = (balances && balances.items) || [];
-        debugLogger.info('✅ API SUCCESS: Using fresh API data', {
+        (window.debugLogger?.info || console.log)('✅ API SUCCESS: Using fresh API data', {
           items: items.length,
           source: 'api_direct'
         });
       } catch (apiError) {
-        debugLogger.warn('🚨 API FAILED (probably 429):', apiError.message);
+        (window.debugLogger?.warn || console.warn)('🚨 API FAILED (probably 429):', apiError.message);
 
         // Dernier recours: essayer d'utiliser loadBalanceData si disponible
         if (typeof window.loadBalanceData === 'function') {
@@ -338,14 +338,14 @@ async function getCurrentAllocationByGroup(minUsd = 1.0) {
               items = balanceResult.data.items;
               grand = items.reduce((sum, item) => sum + (parseFloat(item.value_usd) || 0), 0);
               useStoreData = true;
-              debugLogger.info('✅ LOADBALANCEDATA FALLBACK: Using cached balance data', {
+              (window.debugLogger?.info || console.log)('✅ LOADBALANCEDATA FALLBACK: Using cached balance data', {
                 items: items.length,
                 total: grand,
                 source: 'loadBalanceData_cache'
               });
             }
           } catch (e) {
-            debugLogger.warn('loadBalanceData fallback failed:', e.message);
+            (window.debugLogger?.warn || console.warn)('loadBalanceData fallback failed:', e.message);
           }
         }
 
@@ -361,7 +361,7 @@ async function getCurrentAllocationByGroup(minUsd = 1.0) {
     try {
       groups = await getAllGroups();
     } catch (error) {
-      debugLogger.warn('⚠️ Failed to get groups from shared-asset-groups, using fallback');
+      (window.debugLogger?.warn || console.warn)('⚠️ Failed to get groups from shared-asset-groups, using fallback');
       groups = ['BTC', 'ETH', 'Stablecoins', 'SOL', 'L1/L0 majors', 'L2/Scaling', 'DeFi', 'AI/Data', 'Gaming/NFT', 'Memecoins', 'Others'];
     }
 
@@ -403,7 +403,7 @@ async function getCurrentAllocationByGroup(minUsd = 1.0) {
 
     return result;
   } catch (e) {
-    debugLogger.warn('Current allocation fetch failed:', e.message || e);
+    (window.debugLogger?.warn || console.warn)('Current allocation fetch failed:', e.message || e);
     return null;
   }
 }
@@ -732,9 +732,9 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
   let allocationBlock = '';
   try {
     // SOURCE CANONIQUE UNIQUE: Utiliser targets_by_group (même source que plan d'exécution)
-    debugLogger.warn('🔥 UNIFIED SOURCE: Using u.targets_by_group as canonical source');
+    (window.debugLogger?.warn || console.warn)('🔥 UNIFIED SOURCE: Using u.targets_by_group as canonical source');
     let allocation = u.targets_by_group;
-    debugLogger.warn('🔥 UNIFIED SOURCE: targets_by_group result:', allocation);
+    (window.debugLogger?.warn || console.warn)('🔥 UNIFIED SOURCE: targets_by_group result:', allocation);
 
     // PATCH C - Moteur unique : utiliser groupAssetsByClassification comme Rebalance (DÉSACTIVÉ pour test)
     let allocation_backup = null;
@@ -781,10 +781,10 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
             totalValue
           });
         } else {
-          debugLogger.warn('🔧 PATCH C: totalValue is 0, skipping allocation');
+          (window.debugLogger?.warn || console.warn)('🔧 PATCH C: totalValue is 0, skipping allocation');
         }
       } else {
-        debugLogger.warn('🔧 PATCH C: No balance data available');
+        (window.debugLogger?.warn || console.warn)('🔧 PATCH C: No balance data available');
       }
     } catch (e) {
       console.error('🔧 PATCH C failed with error:', e.message, e.stack);
@@ -792,7 +792,7 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
 
     // Fallback vers u.targets_by_group si patch échoue (plus de presets hardcodés)
     if (!allocation || Object.keys(allocation).length === 0) {
-      debugLogger.warn('🚨 PATCH C FAILED - Using dynamic targets_by_group as fallback');
+      (window.debugLogger?.warn || console.warn)('🚨 PATCH C FAILED - Using dynamic targets_by_group as fallback');
 
       // Fallback ultime : utiliser les positions actuelles normalisées
       allocation = {};
@@ -821,7 +821,7 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
       // Dernier recours: utiliser targets_by_group (dynamique)
       if (!allocation || Object.values(allocation).every(v => v === 0)) {
         allocation = u.targets_by_group || {};
-        debugLogger.warn('⚠️ ULTIMATE FALLBACK: u.targets_by_group utilisé (calcul dynamique)');
+        (window.debugLogger?.warn || console.warn)('⚠️ ULTIMATE FALLBACK: u.targets_by_group utilisé (calcul dynamique)');
       }
     }
 
@@ -834,7 +834,7 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
     // GARDE-FOUS - Checksum et validation
     const total = Object.values(allocation || {}).reduce((a, b) => a + (isFinite(b) ? b : 0), 0);
     if (Math.abs(total - 100) > 0.5) {
-      debugLogger.warn(`⚠️ target_sum_mismatch: somme = ${total.toFixed(1)}% (≠ 100%)`);
+      (window.debugLogger?.warn || console.warn)(`⚠️ target_sum_mismatch: somme = ${total.toFixed(1)}% (≠ 100%)`);
       // Petite normalisation douce (hors stables)
       if (allocation && allocation['Stablecoins'] != null) {
         const st = allocation['Stablecoins'];
@@ -844,7 +844,7 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
         nonKeys.forEach(k => allocation[k] = allocation[k] * (space / nonSum));
         const newTotal = Object.values(allocation).reduce((a, b) => a + b, 0);
         if (Math.abs(newTotal - 100) > 0.5) {
-          debugLogger.warn(`⚠️ soft renorm failed: ${newTotal.toFixed(2)}%`);
+          (window.debugLogger?.warn || console.warn)(`⚠️ soft renorm failed: ${newTotal.toFixed(2)}%`);
         }
       }
     }
@@ -906,14 +906,14 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
       // LECTURE DIRECTE: Objectifs théoriques = source canonique dynamique
       if (u.targets_by_group && Object.keys(u.targets_by_group).length > 0) {
         executionTargets = { ...u.targets_by_group };
-        debugLogger.info('✅ DYNAMIC TARGETS utilisés (plus de presets!):', {
+        (window.debugLogger?.info || console.log)('✅ DYNAMIC TARGETS utilisés (plus de presets!):', {
           source: 'u.targets_by_group (computed dynamically)',
           targets: Object.entries(executionTargets).map(([k,v]) => `${k}: ${v.toFixed(1)}%`),
           stables_pct: executionTargets['Stablecoins']?.toFixed(1) + '%',
           sum: Object.values(executionTargets).reduce((a,b) => a+b, 0).toFixed(1) + '%'
         });
       } else {
-        debugLogger.warn('⚠️ targets_by_group manquant, fallback sur allocation actuelle');
+        (window.debugLogger?.warn || console.warn)('⚠️ targets_by_group manquant, fallback sur allocation actuelle');
       }
 
       const targetAdj = executionTargets;
@@ -1010,10 +1010,10 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
             hasCurrentData: !!(current && current.groups)
           });
         } else {
-          debugLogger.warn('⚠️ No targetAdj data to persist', { targetAdj, keys: Object.keys(targetAdj || {}) });
+          (window.debugLogger?.warn || console.warn)('⚠️ No targetAdj data to persist', { targetAdj, keys: Object.keys(targetAdj || {}) });
         }
       } catch (e) {
-        debugLogger.warn('Persist unified suggested allocation failed:', e?.message || e);
+        (window.debugLogger?.warn || console.warn)('Persist unified suggested allocation failed:', e?.message || e);
       }
 
       // NOUVEAU - Séparation Budget vs Exécution
@@ -1136,7 +1136,7 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
       `;
     }
   } catch (e) {
-    debugLogger.warn('Unified allocation render skipped:', e.message || e);
+    (window.debugLogger?.warn || console.warn)('Unified allocation render skipped:', e.message || e);
   }
 
   // Section des écarts séparée supprimée pour simplifier l'UI
@@ -1276,7 +1276,7 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
     `)}</div>
   `;
   
-  debugLogger.debug('🧠 INTELLIGENT UNIFIED INSIGHTS rendered with:', {
+  (window.debugLogger?.debug || console.log)('🧠 INTELLIGENT UNIFIED INSIGHTS rendered with:', {
     recommendations: recos.length,
     contradictions: u.contradictions?.length || 0,
     intelligence_active: u.health.intelligence_modules,
@@ -1289,7 +1289,7 @@ function invalidateAllocationCache() {
   _allocCache.data = null;
   _allocCache.key = null;
   _allocCache.ts = 0;
-  debugLogger.debug('🗑️ Allocation cache invalidated due to source/user/taxonomy change');
+  (window.debugLogger?.debug || console.log)('🗑️ Allocation cache invalidated due to source/user/taxonomy change');
 }
 
 // Listen for data source and user changes to invalidate cache
@@ -1329,7 +1329,7 @@ if (typeof window !== 'undefined') {
           await window.renderUnifiedInsights();
         }
       } catch (e) {
-        debugLogger.warn('UnifiedInsights re-render failed:', e.message);
+        (window.debugLogger?.warn || console.warn)('UnifiedInsights re-render failed:', e.message);
       }
     }, 100); // Court délai pour laisser le budget se mettre à jour
   });

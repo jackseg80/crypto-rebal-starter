@@ -46,7 +46,7 @@ export async function fetchSignals() {
         throw new Error('Fear & Greed API failed');
       }
     } catch (error) {
-      debugLogger.warn('⚠️ Fear & Greed fallback:', error);
+      (window.debugLogger?.warn || console.warn)('⚠️ Fear & Greed fallback:', error);
       signals.fear_greed = {
         value: 48, // Static fallback to current real value
         normalized: null,
@@ -76,7 +76,7 @@ export async function fetchSignals() {
         throw new Error('CoinGecko API failed');
       }
     } catch (error) {
-      debugLogger.warn('⚠️ BTC Dominance fallback:', error);
+      (window.debugLogger?.warn || console.warn)('⚠️ BTC Dominance fallback:', error);
       signals.btc_dominance = {
         value: 57.5, // Current approximate value
         normalized: null,
@@ -106,7 +106,7 @@ export async function fetchSignals() {
         throw new Error('Binance API failed');
       }
     } catch (error) {
-      debugLogger.warn('⚠️ Funding Rate fallback:', error);
+      (window.debugLogger?.warn || console.warn)('⚠️ Funding Rate fallback:', error);
       signals.funding_rate = {
         value: 0.0001, // Neutral funding rate (0.01%)
         normalized: null,
@@ -146,7 +146,7 @@ export async function fetchSignals() {
         throw new Error(`CoinGecko prices API failed with status: ${pricesResponse.status}`);
       }
     } catch (error) {
-      debugLogger.warn('⚠️ ETH/BTC Ratio fallback:', error);
+      (window.debugLogger?.warn || console.warn)('⚠️ ETH/BTC Ratio fallback:', error);
       signals.eth_btc_ratio = {
         value: 0.037, // Approximate current ratio
         normalized: null,
@@ -185,7 +185,7 @@ export async function fetchSignals() {
         throw new Error('CoinGecko market chart API failed');
       }
     } catch (error) {
-      debugLogger.warn('⚠️ Volatility fallback:', error);
+      (window.debugLogger?.warn || console.warn)('⚠️ Volatility fallback:', error);
       signals.volatility = {
         value: 0.65, // 65% typical crypto volatility
         normalized: null,
@@ -216,7 +216,7 @@ export async function fetchSignals() {
         throw new Error('CoinGecko trend API failed');
       }
     } catch (error) {
-      debugLogger.warn('⚠️ Trend fallback:', error);
+      (window.debugLogger?.warn || console.warn)('⚠️ Trend fallback:', error);
       signals.trend = {
         value: 0.025, // 2.5% slight positive trend
         normalized: null,
@@ -265,7 +265,7 @@ function normalizeSignal(key, rawValue) {
       // Higher ETH/BTC = alt season = higher CCS
       // Handle edge case where rawValue might be 0 or very small
       if (rawValue <= 0) {
-        debugLogger.warn('ETH/BTC ratio is 0 or negative, using neutral score');
+        (window.debugLogger?.warn || console.warn)('ETH/BTC ratio is 0 or negative, using neutral score');
         return 50; // Neutral score
       }
       const ethNorm = Math.max(0, Math.min(100, (rawValue - 0.025) / (0.06 - 0.025) * 100)); // Adjusted range: 0.025-0.06
@@ -308,7 +308,7 @@ export function computeCCS(signals, weights = DEFAULT_CCS_WEIGHTS) {
     
     const weight = weights[key];
     if (!weight || !signal || typeof signal.value !== 'number') {
-      debugLogger.warn(`Skipping invalid signal: ${key}`);
+      (window.debugLogger?.warn || console.warn)(`Skipping invalid signal: ${key}`);
       continue;
     }
     

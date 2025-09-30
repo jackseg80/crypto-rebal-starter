@@ -181,7 +181,10 @@
       "Bash(set:*)",
       "Bash(copy:*)",
       "Bash(Remove-Item \"D:\\Python\\crypto-rebal-starter\\api\\smart_taxonomy_endpoints_safe.py\")",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(detect-secrets scan:*)",
+      "Bash(.venvScriptsactivate)",
+      "Bash(.venv/Scripts/python:*)"
     ],
     "deny": [],
     "ask": [],

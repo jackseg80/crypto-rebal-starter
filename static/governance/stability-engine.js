@@ -36,7 +36,7 @@ export function applyHysteresis(newValue, state) {
 
   // Staleness gating: freeze adaptive weights if stale
   if (isDataStale && !stabilityState.staleness_frozen) {
-    debugLogger.warn('🔒 Staleness gating: freezing adaptive weights at last stable value');
+    (window.debugLogger?.warn || console.warn)('🔒 Staleness gating: freezing adaptive weights at last stable value');
     stabilityState.staleness_frozen = true;
     // Return last stable value to freeze weights
     return stabilityState.last_stable_value ?? newValue;

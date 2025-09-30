@@ -22,7 +22,7 @@
         document.documentElement.setAttribute('data-theme', t);
         document.documentElement.setAttribute('data-style', s);
         // journaliser doucement pour debug si besoin
-        // debugLogger.debug(`[appearance] applied: theme=${t}, style=${s}`);
+        // (window.debugLogger?.debug || console.log)(`[appearance] applied: theme=${t}, style=${s}`);
     }
 
     // Expose global pour settings.html (appliquer instantanément)

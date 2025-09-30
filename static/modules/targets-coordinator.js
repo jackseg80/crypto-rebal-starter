@@ -52,7 +52,7 @@ export function applyPhaseTilt(targets, phase, phaseConfidence = 1.0) {
 
   // Vérifier la confiance de phase
   if (phaseConfidence < FEATURE_FLAGS.ALTSEASON_TILT_MIN_PHASE_CONFIDENCE) {
-    debugLogger.warn('[PhaseTilt] Phase confidence too low, skipping tilt');
+    (window.debugLogger?.warn || console.warn)('[PhaseTilt] Phase confidence too low, skipping tilt');
     return out;
   }
 
@@ -74,7 +74,7 @@ export function applyPhaseTilt(targets, phase, phaseConfidence = 1.0) {
       out[source] = Math.max(0, (out[source] ?? 0) - reductionPerSource);
     });
 
-    debugLogger.debug(`[PhaseTilt] Applied ${tilt}% tilt for ${phase} (confidence: ${phaseConfidence})`);
+    (window.debugLogger?.debug || console.log)(`[PhaseTilt] Applied ${tilt}% tilt for ${phase} (confidence: ${phaseConfidence})`);
   }
 
   return out;
@@ -92,7 +92,7 @@ export function updateFeatureFlags(newFlags) {
       FEATURE_FLAGS[key] = newFlags[key];
     }
   });
-  debugLogger.debug('[FeatureFlags] Updated:', FEATURE_FLAGS);
+  (window.debugLogger?.debug || console.log)('[FeatureFlags] Updated:', FEATURE_FLAGS);
 }
 
 /**
@@ -347,7 +347,7 @@ export function generateSmartTargets() {
   });
 
   if (blendedScore == null) {
-    debugLogger.warn('⚠️ Blended score not available for smart targets');
+    (window.debugLogger?.warn || console.warn)('⚠️ Blended score not available for smart targets');
     return {
       targets: normalizeTargets(DEFAULT_MACRO_TARGETS),
       strategy: 'Macro fallback (no blended score)',
@@ -745,7 +745,7 @@ function appendToDecisionLog(entry) {
     localStorage.setItem(logKey, JSON.stringify(entries));
 
   } catch (error) {
-    debugLogger.warn('Failed to append to decision log:', error);
+    (window.debugLogger?.warn || console.warn)('Failed to append to decision log:', error);
   }
 }
 
@@ -758,7 +758,7 @@ export function getDecisionLog(limit = 20) {
     const entries = log ? JSON.parse(log) : [];
     return entries.slice(-limit).reverse(); // Most recent first
   } catch (error) {
-    debugLogger.warn('Failed to read decision log:', error);
+    (window.debugLogger?.warn || console.warn)('Failed to read decision log:', error);
     return [];
   }
 }

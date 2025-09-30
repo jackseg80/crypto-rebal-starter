@@ -259,12 +259,12 @@ class WealthContextBar {
       if (badgeContainer) {
         // Connect to real data sources
         this.connectToRealData(badgeContainer, renderBadges);
-        debugLogger.info('✅ Global status badge initialized with real data sources');
+        (window.debugLogger?.info || console.log)('✅ Global status badge initialized with real data sources');
       } else {
-        debugLogger.warn('⚠️ global-status-badge container not found');
+        (window.debugLogger?.warn || console.warn)('⚠️ global-status-badge container not found');
       }
     } catch (error) {
-      debugLogger.warn('Failed to initialize global status badge:', error);
+      (window.debugLogger?.warn || console.warn)('Failed to initialize global status badge:', error);
     }
   }
 
@@ -288,9 +288,9 @@ class WealthContextBar {
 
       // Render with fresh data
       renderBadges(badgeContainer);
-      debugLogger.info('✅ Badge updated with real API data');
+      (window.debugLogger?.info || console.log)('✅ Badge updated with real API data');
     } catch (error) {
-      debugLogger.warn('API data fetch failed:', error);
+      (window.debugLogger?.warn || console.warn)('API data fetch failed:', error);
       renderBadges(badgeContainer); // Fallback to default
     }
   }
@@ -312,9 +312,9 @@ class WealthContextBar {
       try {
         const { getUnifiedMLStatus } = await import('../shared-ml-functions.js');
         mlStatus = await getUnifiedMLStatus();
-        debugLogger.info('✅ ML status loaded from unified source');
+        (window.debugLogger?.info || console.log)('✅ ML status loaded from unified source');
       } catch (error) {
-        debugLogger.warn('⚠️ Unified ML source failed:', error.message);
+        (window.debugLogger?.warn || console.warn)('⚠️ Unified ML source failed:', error.message);
         mlStatus = null;
       }
 
@@ -338,7 +338,7 @@ class WealthContextBar {
         engineCap = Math.round(confidence < 0.5 ? 25 : 15 + ((1-confidence) * 10));
         apiStatus = mlStatus.source !== 'error' ? 'healthy' : 'stale';
 
-        debugLogger.debug(`🎯 Unified ML: ${modelsLoaded}/${mlStatus.totalModels} models, source: ${dataSource}, confidence: ${(confidence*100).toFixed(1)}%`);
+        (window.debugLogger?.debug || console.log)(`🎯 Unified ML: ${modelsLoaded}/${mlStatus.totalModels} models, source: ${dataSource}, confidence: ${(confidence*100).toFixed(1)}%`);
       } else {
         // Fallback if unified ML fails - try Risk data first
         if (risk?.risk_metrics) {
@@ -348,7 +348,7 @@ class WealthContextBar {
           contradiction = Math.min(0.5, risk.risk_metrics.volatility_annualized || 0.3);
           engineCap = Math.abs(risk.risk_metrics.var_95_1d || 0.03) * 100;
           apiStatus = 'healthy';
-          debugLogger.debug(`📊 Risk Backend: VaR ${risk.risk_metrics.var_95_1d?.toFixed(3)}, Vol ${(contradiction*100).toFixed(1)}%`);
+          (window.debugLogger?.debug || console.log)(`📊 Risk Backend: VaR ${risk.risk_metrics.var_95_1d?.toFixed(3)}, Vol ${(contradiction*100).toFixed(1)}%`);
         } else {
           // Final fallback
           dataSource = 'fallback';
@@ -357,7 +357,7 @@ class WealthContextBar {
           contradiction = 0.15 + ((dayOfYear % 7) * 0.01);
           engineCap = 18 + (dayOfYear % 5);
           apiStatus = 'stale';
-          debugLogger.debug(`⚠️ Badge using final fallback data`);
+          (window.debugLogger?.debug || console.log)(`⚠️ Badge using final fallback data`);
         }
       }
 
@@ -405,10 +405,10 @@ class WealthContextBar {
         }
       };
 
-      debugLogger.debug(`🔗 Unified data: source=${dataSource}, models=${modelsLoaded}, contradiction=${(contradiction*100).toFixed(1)}%, cap=${engineCap}%, overrides=${overrides.length}`);
+      (window.debugLogger?.debug || console.log)(`🔗 Unified data: source=${dataSource}, models=${modelsLoaded}, contradiction=${(contradiction*100).toFixed(1)}%, cap=${engineCap}%, overrides=${overrides.length}`);
 
     } catch (error) {
-      debugLogger.warn('Failed to fetch real API data:', error);
+      (window.debugLogger?.warn || console.warn)('Failed to fetch real API data:', error);
     }
   }
 
@@ -429,7 +429,7 @@ class WealthContextBar {
   setupRealDataIntegration(badgeContainer, renderBadges) {
     // Listen for governance state changes
     if (window.store && typeof window.store.subscribe === 'function') {
-      debugLogger.debug('🔗 Connected to window.store for real-time updates');
+      (window.debugLogger?.debug || console.log)('🔗 Connected to window.store for real-time updates');
       window.store.subscribe(() => {
         try {
           renderBadges(badgeContainer);
@@ -454,7 +454,7 @@ class WealthContextBar {
       setTimeout(() => renderBadges(badgeContainer), 100);
     });
 
-    debugLogger.debug('🔗 Real data event listeners setup for badge updates');
+    (window.debugLogger?.debug || console.log)('🔗 Real data event listeners setup for badge updates');
   }
 }
 

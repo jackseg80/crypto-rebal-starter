@@ -408,12 +408,12 @@ class AIServiceManager {
      * Initialiser tous les services
      */
     async initialize() {
-        debugLogger.debug('🤖 Initializing AI Services...');
+        (window.debugLogger?.debug || console.log)('🤖 Initializing AI Services...');
         
         try {
             // Vérifier la santé des services
             const health = await this.healthService.checkHealth();
-            debugLogger.debug('Health check:', health);
+            (window.debugLogger?.debug || console.log)('Health check:', health);
 
             // Démarrer la surveillance des régimes de marché
             this.regimeService.startRealTimeMonitoring();
@@ -422,7 +422,7 @@ class AIServiceManager {
             this.startHealthMonitoring();
 
             this.isInitialized = true;
-            debugLogger.info('✅ AI Services initialized successfully');
+            (window.debugLogger?.info || console.log)('✅ AI Services initialized successfully');
             
             return { success: true, health };
         } catch (error) {
@@ -439,7 +439,7 @@ class AIServiceManager {
             try {
                 const health = await this.healthService.checkHealth();
                 if (health.status !== 'healthy') {
-                    debugLogger.warn('⚠️  AI Services health issue detected:', health);
+                    (window.debugLogger?.warn || console.warn)('⚠️  AI Services health issue detected:', health);
                     // Émettre un événement pour l'UI
                     window.dispatchEvent(new CustomEvent('aiHealthWarning', { 
                         detail: health 
@@ -484,7 +484,7 @@ class AIServiceManager {
      */
     dispose() {
         this.stopHealthMonitoring();
-        debugLogger.debug('🔄 AI Services disposed');
+        (window.debugLogger?.debug || console.log)('🔄 AI Services disposed');
     }
 }
 

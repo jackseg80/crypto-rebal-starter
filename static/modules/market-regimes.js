@@ -198,7 +198,7 @@ export function applyMarketOverrides(regime, onchainScore, riskScore) {
  * Calcule le budget de risque global selon la formule stratégique
  */
 export function calculateRiskBudget(blendedScore, riskScore) {
-  debugLogger.info('💰 Calculating Risk Budget:', { blendedScore, riskScore });
+  (window.debugLogger?.info || console.log)('💰 Calculating Risk Budget:', { blendedScore, riskScore });
   
   // Formule: RiskCap = 1 - 0.5 × (RiskScore/100)
   const riskCap = riskScore != null ? 1 - 0.5 * (riskScore / 100) : 0.75;
@@ -239,7 +239,7 @@ export function calculateRiskBudget(blendedScore, riskScore) {
     generated_at: new Date().toISOString()
   };
   
-  debugLogger.info('💰 Risk Budget calculated:', result);
+  (window.debugLogger?.info || console.log)('💰 Risk Budget calculated:', result);
   return result;
 }
 

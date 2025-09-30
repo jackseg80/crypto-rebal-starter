@@ -154,7 +154,7 @@ export function calculateCompositeScoreV2(indicators, useDynamicWeighting = fals
     
     let rawValue = data.value_numeric || data.value || 0;
     if (typeof rawValue !== 'number') {
-      debugLogger.warn(`⚠️ Invalid numeric value for ${indicatorName}: ${rawValue}`);
+      (window.debugLogger?.warn || console.warn)(`⚠️ Invalid numeric value for ${indicatorName}: ${rawValue}`);
       return;
     }
 
