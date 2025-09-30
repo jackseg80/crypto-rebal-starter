@@ -174,11 +174,66 @@ curl "http://localhost:8000/portfolio/metrics?source=cointracking_api&user_id=ja
 
 ---
 
-## 4) Windows 11 — conventions pratiques
+## 4) Environnement virtuel Python (.venv)
+
+**OBLIGATOIRE** : Toujours travailler dans l'environnement virtuel `.venv` pour l'isolation des dépendances.
+
+### Activation
+```bash
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
+
+# Windows CMD
+.venv\Scripts\activate.bat
+
+# Linux/Mac
+source .venv/bin/activate
+```
+
+### Installation dépendances
+```bash
+# Activer .venv d'abord, puis :
+pip install -r requirements.txt
+
+# Ou installer un package spécifique :
+pip install <package-name>
+```
+
+### Vérification
+```bash
+# Vérifier que .venv est actif (prompt doit afficher (.venv))
+python --version
+pip list
+```
+
+### Commandes courantes
+```bash
+# Lancer le serveur (avec .venv activé)
+python -m uvicorn api.main:app --reload --port 8000
+
+# Ou utiliser le script fourni
+.\start-dev.ps1  # Windows
+./start-dev.sh   # Linux/Mac
+
+# Tests (avec .venv activé)
+pytest -q tests/unit
+pytest -q tests/integration
+```
+
+**IMPORTANT** :
+- Ne jamais installer de packages en dehors de `.venv`
+- Toujours activer `.venv` avant toute commande Python/pip
+- Le dossier `.venv/` est exclu du Git (voir `.gitignore`)
+- Recréer `.venv` si corrompu : `python -m venv .venv`
+
+---
+
+## 5) Windows 11 — conventions pratiques
 - Utiliser les scripts `.ps1`/`.bat` fournis (éviter `bash` non portable).
 - Chemins : supporter Windows (éviter `touch`, préférer PowerShell).
+- **Toujours activer `.venv` avant de travailler** (voir section précédente).
 
-## 5) Architecture (résumé)
+## 6) Architecture (résumé)
 
 - API: `api/main.py` (CORS/CSP/GZip/TrustedHost, montages `/static`, `/data`, `/tests`) + routers `api/*_endpoints.py`.
 - Services: `services/*` (risk mgmt, execution, analytics, ML…).
@@ -244,7 +299,7 @@ Note: simulation-engine.js maintient la parité avec unified-insights-v2.js (voi
 
 ---
 
-## 6) Playbooks
+## 7) Playbooks
 
 ### A) Ajouter un endpoint FastAPI
 
@@ -326,7 +381,7 @@ async def vol_predict(assets: List[str] = Query(..., min_items=1, max_items=50),
 
 ---
 
-## 7) Conventions & garde‑fous
+## 8) Conventions & garde‑fous
 
 - Python: FastAPI + Pydantic v2; exceptions propres; logs cohérents.
 - JS: ESM (`type="module"`), imports dynamiques pour lourds; pas d’URL API en dur.
@@ -337,7 +392,7 @@ async def vol_predict(assets: List[str] = Query(..., min_items=1, max_items=50),
 
 ---
 
-## 8) Caches & cross‑tab (important)
+## 9) Caches & cross‑tab (important)
 
 - Le Risk Dashboard publie des scores dans localStorage:
   - Clés simples: `risk_score_onchain`, `risk_score_risk`, `risk_score_blended`, `risk_score_ccs`, `risk_score_timestamp`.
@@ -346,7 +401,7 @@ async def vol_predict(assets: List[str] = Query(..., min_items=1, max_items=50),
   - Lire les clés simples si récentes; sinon tomber sur `risk_scores_cache`.
   - Écouter l'événement `storage` pour se mettre à jour.
 
-### 4.1) Sources System - Store Injection & Fallback
+### 9.1) Sources System - Store Injection & Fallback
 
 **Problème résolu (Sep 2025)** : Race condition entre injection store et getCurrentAllocationByGroup causant $0 dans "Objectifs Théoriques".
 
@@ -362,7 +417,7 @@ async def vol_predict(assets: List[str] = Query(..., min_items=1, max_items=50),
 3. **API fallback** : `/balances/current` si store vide (peut 429)
 4. **loadBalanceData** : Cache legacy en dernier recours
 
-### 4.2) Sources System v2 - Architecture Unifiée
+### 9.2) Sources System v2 - Architecture Unifiée
 
 **Composants principaux** :
 - `api/services/sources_resolver.py` : SOT unique pour résolution des chemins de données
@@ -379,7 +434,7 @@ async def vol_predict(assets: List[str] = Query(..., min_items=1, max_items=50),
 - Scan et import automatisés par module
 - Interface dépréciée pour l'ancien système (lecture seule)
 
-### 4.3) Sources System - Finition UX & Legacy Cleanup
+### 9.3) Sources System - Finition UX & Legacy Cleanup
 
 **Migration UI complète** (Sep 2025) :
 - Suppression définitive des boutons import legacy (`saxo-upload.html`)
@@ -400,7 +455,7 @@ async def vol_predict(assets: List[str] = Query(..., min_items=1, max_items=50),
 - Polling automatique 60s sur toutes les pages Bourse/Analytics
 - Fallback gracieux en cas d'échec API
 
-### 4.4) P&L Today - Tracking par (user_id, source)
+### 9.4) P&L Today - Tracking par (user_id, source)
 
 **Objectif** : Calculer le P&L (Profit & Loss) Today en comparant la valeur actuelle du portfolio avec le dernier snapshot historique.
 
@@ -457,7 +512,7 @@ curl "http://localhost:8000/portfolio/metrics?source=cointracking&user_id=jack"
 
 ---
 
-## 9) Definition of Done (DoD)
+## 10) Definition of Done (DoD)
 
 - Tests unitaires verts + smoke test d’API (si endpoint).
 - Lint OK; CI verte.
@@ -467,7 +522,7 @@ curl "http://localhost:8000/portfolio/metrics?source=cointracking&user_id=jack"
 
 ---
 
-## 10) Phase Engine (Détection Proactive de Phases Market)
+## 11) Phase Engine (Détection Proactive de Phases Market)
 
 **Objectif :** Appliquer des tilts d'allocation proactifs selon les phases market détectées (ETH expansion, altseason, risk-off).
 
@@ -511,11 +566,15 @@ localStorage.setItem('PHASE_ENGINE_DEBUG_FORCE', 'eth_expansion') // Force phase
 
 ---
 
-## 11) Aides‑mémoire
+## 12) Aides‑mémoire
 
 Dev:
 
 ```bash
+# TOUJOURS activer .venv d'abord (voir section 4)
+.venv\Scripts\Activate.ps1  # Windows PowerShell
+
+# Puis lancer le serveur
 uvicorn api.main:app --reload --port 8000
 # http://localhost:8000/static/analytics-unified.html
 # http://localhost:8000/static/risk-dashboard.html
@@ -524,6 +583,10 @@ uvicorn api.main:app --reload --port 8000
 Tests:
 
 ```bash
+# TOUJOURS activer .venv d'abord
+.venv\Scripts\Activate.ps1  # Windows PowerShell
+
+# Puis lancer les tests
 pytest -q tests/unit
 pytest -q tests/integration
 python tests/smoke_test_refactored_endpoints.py
@@ -538,7 +601,7 @@ docker run -p 8000:8000 --env-file .env crypto-rebal
 
 ---
 
-## 12) Paramétrage agent (optionnel)
+## 13) Paramétrage agent (optionnel)
 
 `.claude/settings.local.json` (déjà présent) doit inclure au minimum:
 
@@ -565,7 +628,7 @@ docker run -p 8000:8000 --env-file .env crypto-rebal
 
 ---
 
-## 13) Architecture endpoints post-refactoring (important)
+## 14) Architecture endpoints post-refactoring (important)
 
 **Namespaces consolidés** (ne pas créer de nouveaux) :
 - `/api/ml/*` - Toutes fonctions ML (remplace /api/ml-predictions, /api/ai)
