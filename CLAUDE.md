@@ -90,7 +90,7 @@ static/test-phase-engine.html (suite tests 16 cases)
 
 ---
 
-## 2) Playbooks
+## 5) Playbooks
 
 ### A) Ajouter un endpoint FastAPI
 
@@ -172,7 +172,7 @@ async def vol_predict(assets: List[str] = Query(..., min_items=1, max_items=50),
 
 ---
 
-## 3) Conventions & garde‑fous
+## 6) Conventions & garde‑fous
 
 - Python: FastAPI + Pydantic v2; exceptions propres; logs cohérents.
 - JS: ESM (`type="module"`), imports dynamiques pour lourds; pas d’URL API en dur.
@@ -183,7 +183,7 @@ async def vol_predict(assets: List[str] = Query(..., min_items=1, max_items=50),
 
 ---
 
-## 4) Caches & cross‑tab (important)
+## 7) Caches & cross‑tab (important)
 
 - Le Risk Dashboard publie des scores dans localStorage:
   - Clés simples: `risk_score_onchain`, `risk_score_risk`, `risk_score_blended`, `risk_score_ccs`, `risk_score_timestamp`.
@@ -247,7 +247,7 @@ async def vol_predict(assets: List[str] = Query(..., min_items=1, max_items=50),
 
 ---
 
-## 5) Definition of Done (DoD)
+## 8) Definition of Done (DoD)
 
 - Tests unitaires verts + smoke test d’API (si endpoint).
 - Lint OK; CI verte.
@@ -257,7 +257,7 @@ async def vol_predict(assets: List[str] = Query(..., min_items=1, max_items=50),
 
 ---
 
-## 6) Phase Engine (Détection Proactive de Phases Market)
+## 9) Phase Engine (Détection Proactive de Phases Market)
 
 **Objectif :** Appliquer des tilts d'allocation proactifs selon les phases market détectées (ETH expansion, altseason, risk-off).
 
@@ -301,7 +301,7 @@ localStorage.setItem('PHASE_ENGINE_DEBUG_FORCE', 'eth_expansion') // Force phase
 
 ---
 
-## 7) Aides‑mémoire
+## 10) Aides‑mémoire
 
 Dev:
 
@@ -328,7 +328,7 @@ docker run -p 8000:8000 --env-file .env crypto-rebal
 
 ---
 
-## 7) Paramétrage agent (optionnel)
+## 11) Paramétrage agent (optionnel)
 
 `.claude/settings.local.json` (déjà présent) doit inclure au minimum:
 
