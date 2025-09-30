@@ -529,14 +529,6 @@
       </div>
 
       <div class="source-controls">
-        <div>
-          <label for="sim-source-select" style="color: var(--theme-text-muted); font-size: 0.9rem;">Source:</label>
-          <select id="sim-source-select" style="padding: 0.5rem; border: 1px solid var(--theme-border); border-radius: var(--radius-sm); background: var(--theme-bg); color: var(--theme-text); margin-left: 0.5rem;">
-            <option value="cointracking">CoinTracking</option>
-            <option value="stub">Données de test</option>
-          </select>
-        </div>
-
         <div class="mode-toggle">
           <button id="mode-live" class="active">📊 Live</button>
           <button id="mode-simulation">🎭 Simulation</button>
@@ -1169,7 +1161,30 @@
         }
         const metricsData = await metricsResponse.json();
 
-        // 3. ML Status (optionnel, pour scores détaillés)
+        // 2. Calculer les VRAIES allocations actuelles du wallet (comme analytics-unified.html)
+        console.log('🎭 SIM: Calculating real current allocations from balances...');
+        const { groupAssetsByClassification } = await import('./shared-asset-groups.js');
+        const groupedData = groupAssetsByClassification(balances);
+
+        // Convertir en format attendu: allocations actuelles en %
+        const currentAllocations = {};
+        groupedData.forEach(group => {
+          const percentage = (group.value / totalValue) * 100;
+          currentAllocations[group.label] = percentage;
+        });
+
+        console.log('🎭 SIM: Real current allocations calculated:', {
+          allocations: currentAllocations,
+          totalValue,
+          groupsCount: groupedData.length
+        });
+
+        // 3. Calculer les targets théoriques depuis les métriques
+        const theoreticalTargets = metricsData.targets || {};
+
+        console.log('🎭 SIM: Theoretical targets from metrics:', theoreticalTargets);
+
+        // 4. ML Status (optionnel, pour scores détaillés)
         let mlScores = { decision_index: 50, confidence: 0.8 };
         try {
           const mlResponse = await fetch(`${apiBase}/api/ml/status`);
@@ -1181,7 +1196,7 @@
           console.warn('🎭 SIM: ML status not available, using defaults');
         }
 
-        // Construire un résultat similaire au simulateur depuis les vraies données
+        // 5. Construire un résultat avec les VRAIES allocations actuelles et targets théoriques
         const liveResult = {
           di: {
             di: Math.round(mlScores.decision_index || 50),
@@ -1196,7 +1211,10 @@
               max_stables: 60
             }
           },
-          cappedTargets: metricsData.targets || {},
+          // ALLOCATIONS ACTUELLES RÉELLES (depuis wallet groupé)
+          currentAllocations: currentAllocations,
+          // TARGETS THÉORIQUES (depuis analytics)
+          cappedTargets: theoreticalTargets,
           orders: {
             orders: [],
             summary: {
@@ -1209,12 +1227,17 @@
           explanation: {
             summaryNL: `📊 Données réelles depuis ${activeSource}\n\n` +
                        `Portfolio: ${balancesData.items?.length || 0} assets\n` +
-                       `Valeur totale: $${metricsData.metrics?.total_value_usd?.toFixed(2) || '0'}\n` +
-                       `Performance 24h: ${metricsData.performance?.percentage_change?.toFixed(2) || '0'}%`
+                       `Valeur totale: $${totalValue.toFixed(2)}\n` +
+                       `Performance 24h: ${metricsData.performance?.percentage_change?.toFixed(2) || '0'}%\n\n` +
+                       `Allocations réelles:\n` +
+                       Object.entries(currentAllocations)
+                         .filter(([_, pct]) => pct > 0.5)
+                         .map(([group, pct]) => `  • ${group}: ${pct.toFixed(1)}%`)
+                         .join('\n')
           },
           presetInfo: {
             name: 'Live Data',
-            desc: `Source: ${activeSource} | User: ${userId}`
+            desc: `Source: ${activeSource} | User: ${userId} | ${assetCount} assets`
           },
           ui: {
             stateForEngine: {
@@ -1222,6 +1245,12 @@
                 contradiction_index: mlScores.contradiction_index || 0.5
               }
             }
+          },
+          // Ajouter les balances brutes pour debug
+          _debug: {
+            balances: balances,
+            groupedData: groupedData,
+            totalValue: totalValue
           }
         };
 
@@ -1241,7 +1270,10 @@
     }
 
     function displayResults(result) {
-      const { di, riskBudget, cappedTargets, orders, explanation } = result;
+      const { di, riskBudget, cappedTargets, currentAllocations, orders, explanation } = result;
+
+      // Déterminer si on est en mode Live ou Simulation
+      const isLiveMode = result?.presetInfo?.name === 'Live Data';
 
       // Affichage badges dans le header des résultats
       const stateForEngine = result?.ui?.stateForEngine ?? null;
@@ -1267,7 +1299,7 @@
       const presetDesc = result?.presetInfo?.desc || result?.context?.presetInfo?.desc || '';
       const presetEl = document.getElementById('sim-selected-preset');
       if (presetEl) {
-        presetEl.textContent = `Preset: ${presetName}`;
+        presetEl.textContent = `${isLiveMode ? '📊 Live' : '🎭 Simulation'}: ${presetName}`;
         if (presetDesc) {
           presetEl.setAttribute('title', presetDesc);
         } else {
@@ -1289,8 +1321,9 @@
       document.getElementById('sim-stables-bar').style.width = `${stablesPct}%`;
       document.getElementById('sim-risky-bar').style.width = `${riskyPct}%`;
 
-      // Allocation chart (simplifiée)
-      displayAllocationChart(cappedTargets);
+      // Allocation chart: afficher currentAllocations en mode Live, cappedTargets en mode Simulation
+      const allocationsToDisplay = isLiveMode && currentAllocations ? currentAllocations : cappedTargets;
+      displayAllocationChart(allocationsToDisplay, isLiveMode);
 
       // Execution plan
       document.getElementById('sim-total-delta').textContent = `${orders.summary.totalDelta}%`;
@@ -1312,7 +1345,7 @@
       document.getElementById('sim-summary-nl').textContent = explanation.summaryNL;
     }
 
-    function displayAllocationChart(targets) {
+    function displayAllocationChart(targets, isLiveMode = false) {
       const chartEl = document.getElementById('sim-allocation-chart');
       if (!chartEl || !targets) return;
 
@@ -1321,7 +1354,10 @@
         .sort(([,a], [,b]) => b - a)
         .filter(([, value]) => value >= 0.1); // Filtrer les très petites valeurs
 
-      let html = '<div style="display: flex; flex-direction: column; gap: 0.5rem;">';
+      const chartTitle = isLiveMode ? '📊 Allocations Actuelles (Wallet Réel)' : '🎯 Allocations Cibles (Simulation)';
+
+      let html = `<div style="margin-bottom: 0.75rem; font-weight: 600; font-size: 0.95rem; color: var(--theme-text);">${chartTitle}</div>`;
+      html += '<div style="display: flex; flex-direction: column; gap: 0.5rem;">';
 
       for (const [group, pct] of sortedTargets) {
         const width = Math.max(2, (pct / Math.max(...Object.values(targets))) * 100);
@@ -1329,11 +1365,11 @@
 
         html += `
           <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem;">
-            <div style="width: 80px; text-align: right; color: var(--theme-text-muted);">${group}:</div>
+            <div style="width: 100px; text-align: right; color: var(--theme-text-muted); overflow: hidden; text-overflow: ellipsis;" title="${group}">${group}:</div>
             <div style="flex: 1; background: var(--theme-border); height: 20px; border-radius: 10px; overflow: hidden;">
               <div style="width: ${width}%; height: 100%; background: ${color}; transition: width 0.3s ease;"></div>
             </div>
-            <div style="width: 40px; text-align: right; font-family: monospace; font-weight: 600;">${pct.toFixed(1)}%</div>
+            <div style="width: 50px; text-align: right; font-family: monospace; font-weight: 600;">${pct.toFixed(1)}%</div>
           </div>
         `;
       }
