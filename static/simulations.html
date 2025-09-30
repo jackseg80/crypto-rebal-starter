@@ -791,16 +791,35 @@
     async function testSelectedSource() {
       const select = document.getElementById('sim-source-select');
       const source = select?.value || getActiveSource();
+      const userId = window.globalConfig?.get('user_id') || 'demo';
       const apiBase = window.globalConfig?.get('api_base_url') || window.location.origin;
 
       try {
-        const response = await fetch(`${apiBase}/balances/current?source=${source}`);
+        const response = await fetch(`${apiBase}/balances/current?source=${source}&user_id=${userId}`);
         const data = await response.json();
 
-        if (response.ok && data.items?.length > 0) {
-          alert(`✅ Source "${source}" OK\n\n${data.items.length} assets trouvés\nValeur totale: $${data.items.reduce((sum, i) => sum + (i.value_usd || 0), 0).toFixed(2)}`);
+        console.log('🎭 SIM: Test source response:', data);
+
+        // Gérer différents formats de réponse
+        const items = data.items || data.balances || [];
+        const sourceUsed = data.source_used || source;
+
+        if (response.ok && items.length > 0) {
+          const totalValue = items.reduce((sum, item) => {
+            return sum + (item.value_usd || item.valueUsd || item.total_usd || 0);
+          }, 0);
+
+          alert(`✅ Source "${sourceUsed}" OK\n\n` +
+                `${items.length} assets trouvés\n` +
+                `Valeur totale: $${totalValue.toFixed(2)}\n` +
+                `User: ${userId}`);
+        } else if (response.ok && items.length === 0) {
+          alert(`⚠️ Source "${sourceUsed}" accessible mais vide\n\n` +
+                `Aucun asset trouvé.\n` +
+                `Vérifiez que la source contient des données.`);
         } else {
-          alert(`⚠️ Source "${source}" ne retourne pas de données`);
+          alert(`❌ Source "${source}" erreur ${response.status}\n\n` +
+                `Réponse: ${JSON.stringify(data).substring(0, 200)}`);
         }
       } catch (error) {
         alert(`❌ Erreur test source "${source}":\n${error.message}`);
@@ -1011,62 +1030,78 @@
       try {
         const apiBase = window.globalConfig?.get('api_base_url') || window.location.origin;
 
-        // Charger les données réelles depuis les mêmes endpoints qu'Analytics
+        // Charger les données réelles depuis les endpoints existants
         console.log('🎭 SIM: Loading live data from Analytics...');
 
-        // 1. Decision Index & Scores depuis unified ML
-        const mlResponse = await fetch(`${apiBase}/api/ml/unified-decision-index`);
-        const mlData = await mlResponse.json();
-
-        // 2. Risk Budget depuis market-regimes
-        const regimeResponse = await fetch(`${apiBase}/api/ml/market-regime`);
-        const regimeData = await regimeResponse.json();
-
-        // 3. Targets actuels
-        const targetsResponse = await fetch(`${apiBase}/api/strategy/allocations/dynamic`);
-        const targetsData = await targetsResponse.json();
-
-        // 4. Portfolio actuel (utilise la source configurée dans Settings)
         const activeSource = getActiveSource();
-        console.log('🎭 SIM: Using data source:', activeSource);
-        const portfolioResponse = await fetch(`${apiBase}/balances/current?source=${activeSource}`);
-        const portfolioData = await portfolioResponse.json();
+        const userId = window.globalConfig?.get('user_id') || 'demo';
+        console.log('🎭 SIM: Using data source:', activeSource, '| User:', userId);
 
-        // Construire un résultat similaire au simulateur
+        // 1. Portfolio metrics (contient DI, performance, etc.)
+        const metricsResponse = await fetch(`${apiBase}/portfolio/metrics?source=${activeSource}&user_id=${userId}`);
+        if (!metricsResponse.ok) {
+          throw new Error(`Portfolio metrics failed: ${metricsResponse.status}`);
+        }
+        const metricsData = await metricsResponse.json();
+
+        // 2. Balances pour construire le portfolio
+        const balancesResponse = await fetch(`${apiBase}/balances/current?source=${activeSource}&user_id=${userId}`);
+        if (!balancesResponse.ok) {
+          throw new Error(`Balances failed: ${balancesResponse.status}`);
+        }
+        const balancesData = await balancesResponse.json();
+
+        // 3. ML Status (optionnel, pour scores détaillés)
+        let mlScores = { decision_index: 50, confidence: 0.8 };
+        try {
+          const mlResponse = await fetch(`${apiBase}/api/ml/status`);
+          if (mlResponse.ok) {
+            const mlData = await mlResponse.json();
+            mlScores = mlData;
+          }
+        } catch (e) {
+          console.warn('🎭 SIM: ML status not available, using defaults');
+        }
+
+        // Construire un résultat similaire au simulateur depuis les vraies données
         const liveResult = {
           di: {
-            di: Math.round(mlData.decision_index || mlData.di || 50),
+            di: Math.round(mlScores.decision_index || 50),
             source: 'live_analytics',
-            confidence: mlData.confidence || 0.8
+            confidence: mlScores.confidence || 0.8
           },
           riskBudget: {
-            target_stables_pct: regimeData.risk_budget?.target_stables_pct || 30,
-            curve: 'regime-based',
+            target_stables_pct: metricsData.performance?.risk_budget || 30,
+            curve: 'live-data',
             clamps: {
               min_stables: 10,
               max_stables: 60
             }
           },
-          cappedTargets: targetsData.allocations || targetsData.targets || {},
+          cappedTargets: metricsData.targets || {},
           orders: {
             orders: [],
             summary: {
               totalDelta: 0,
               globalThreshold: 2,
-              shouldExecute: false
+              shouldExecute: false,
+              message: `Mode Live - ${balancesData.items?.length || 0} assets réels`
             }
           },
           explanation: {
-            summaryNL: `Données réelles depuis Analytics. Decision Index: ${Math.round(mlData.decision_index || 50)}, Risk Budget: ${Math.round(regimeData.risk_budget?.target_stables_pct || 30)}% stables.`
+            summaryNL: `📊 Données réelles depuis ${activeSource}\n\n` +
+                       `Portfolio: ${balancesData.items?.length || 0} assets\n` +
+                       `Valeur totale: $${metricsData.metrics?.total_value_usd?.toFixed(2) || '0'}\n` +
+                       `Performance 24h: ${metricsData.performance?.percentage_change?.toFixed(2) || '0'}%`
           },
           presetInfo: {
             name: 'Live Data',
-            desc: 'Données réelles depuis Analytics Unified'
+            desc: `Source: ${activeSource} | User: ${userId}`
           },
           ui: {
             stateForEngine: {
               governance: {
-                contradiction_index: mlData.contradiction_index || 0.5
+                contradiction_index: mlScores.contradiction_index || 0.5
               }
             }
           }
