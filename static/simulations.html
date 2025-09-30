@@ -866,6 +866,11 @@
         const state = appState.controls.getState();
         onControlsUpdate(state);
       }
+
+      // Si on passe en mode live, charger les vraies données depuis Analytics
+      if (mode === 'live') {
+        loadLiveData();
+      }
     }
 
     async function onControlsUpdate(controlsState) {
@@ -912,6 +917,89 @@
       } catch (error) {
         console.error('🎭 SIM: Simulation failed:', error);
         showError('Erreur de simulation: ' + error.message);
+      } finally {
+        appState.isRunning = false;
+      }
+    }
+
+    async function loadLiveData() {
+      if (appState.isRunning) return;
+
+      appState.isRunning = true;
+      showLoadingState();
+
+      try {
+        const apiBase = window.globalConfig?.get('api_base_url') || window.location.origin;
+
+        // Charger les données réelles depuis les mêmes endpoints qu'Analytics
+        console.log('🎭 SIM: Loading live data from Analytics...');
+
+        // 1. Decision Index & Scores depuis unified ML
+        const mlResponse = await fetch(`${apiBase}/api/ml/unified-decision-index`);
+        const mlData = await mlResponse.json();
+
+        // 2. Risk Budget depuis market-regimes
+        const regimeResponse = await fetch(`${apiBase}/api/ml/market-regime`);
+        const regimeData = await regimeResponse.json();
+
+        // 3. Targets actuels
+        const targetsResponse = await fetch(`${apiBase}/api/strategy/allocations/dynamic`);
+        const targetsData = await targetsResponse.json();
+
+        // 4. Portfolio actuel
+        const portfolioResponse = await fetch(`${apiBase}/balances/current?source=${appState.sourceId}`);
+        const portfolioData = await portfolioResponse.json();
+
+        // Construire un résultat similaire au simulateur
+        const liveResult = {
+          di: {
+            di: Math.round(mlData.decision_index || mlData.di || 50),
+            source: 'live_analytics',
+            confidence: mlData.confidence || 0.8
+          },
+          riskBudget: {
+            target_stables_pct: regimeData.risk_budget?.target_stables_pct || 30,
+            curve: 'regime-based',
+            clamps: {
+              min_stables: 10,
+              max_stables: 60
+            }
+          },
+          cappedTargets: targetsData.allocations || targetsData.targets || {},
+          orders: {
+            orders: [],
+            summary: {
+              totalDelta: 0,
+              globalThreshold: 2,
+              shouldExecute: false
+            }
+          },
+          explanation: {
+            summaryNL: `Données réelles depuis Analytics. Decision Index: ${Math.round(mlData.decision_index || 50)}, Risk Budget: ${Math.round(regimeData.risk_budget?.target_stables_pct || 30)}% stables.`
+          },
+          presetInfo: {
+            name: 'Live Data',
+            desc: 'Données réelles depuis Analytics Unified'
+          },
+          ui: {
+            stateForEngine: {
+              governance: {
+                contradiction_index: mlData.contradiction_index || 0.5
+              }
+            }
+          }
+        };
+
+        console.log('🎭 SIM: Live data loaded:', liveResult);
+
+        // Afficher les résultats
+        displayResults(liveResult);
+        appState.inspector.updateInspector(liveResult);
+        showResultsState();
+
+      } catch (error) {
+        console.error('🎭 SIM: Live data loading failed:', error);
+        showError('Erreur de chargement des données live: ' + error.message);
       } finally {
         appState.isRunning = false;
       }

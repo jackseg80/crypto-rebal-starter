@@ -275,6 +275,63 @@ Ajouter tests Jest/Vitest pour valider les cas A, B, C de façon automatique.
 
 ---
 
+## 🔴 Mode Live vs 🎭 Mode Simulation
+
+### Mode Live 📊
+**Objectif** : Afficher les données **réelles** calculées par Analytics Unified
+
+**Sources de données** :
+- `/api/ml/unified-decision-index` → Decision Index actuel
+- `/api/ml/market-regime` → Risk Budget basé sur le régime market
+- `/api/strategy/allocations/dynamic` → Targets calculés par Strategy API v3
+- `/balances/current` → Portfolio réel
+
+**Utilisation** :
+- Voir l'état actuel du système sans simuler
+- Comparer avec les simulations
+- Vérifier la cohérence Analytics ↔ Simulator
+
+### Mode Simulation 🎭
+**Objectif** : Tester des scénarios **hypothétiques** avec contrôles personnalisés
+
+**Sources de données** :
+- `simulation-engine.js` → Calculs locaux déterministes
+- Presets prédéfinis (10 scénarios)
+- Sliders utilisateur (cycle, scores, contradictions)
+
+**Utilisation** :
+- Tester "et si" (what-if analysis)
+- Valider stratégies avant application
+- Explorer sensibilité aux paramètres
+
+### Comparaison
+
+| Aspect | Live | Simulation |
+|--------|------|------------|
+| **Données** | Réelles (APIs) | Hypothétiques (engine local) |
+| **DI Source** | Analytics v2 | simulation-engine.js |
+| **Risk Budget** | market-regimes.js | computeRiskBudget() ou regimeData |
+| **Targets** | Strategy API v3 | computeMacroTargetsDynamic() |
+| **Poids adaptatifs** | unified-insights-v2.js | Réplique locale (fallback) |
+| **Éditable** | ❌ Non | ✅ Oui (sliders) |
+| **Temps réel** | ✅ Oui | ❌ Non (snapshot) |
+
+### Convergence Attendue
+
+Si tu utilises la même source (ex: `cointracking`) et que :
+- Analytics calcule DI = 72
+- Simulation avec sliders par défaut calcule DI = 72±0.1
+
+Alors **les deux modes devraient converger** (±0.1) !
+
+Si divergence > 1 point :
+1. Vérifier que les scores sont identiques (cycle, onchain, risk)
+2. Vérifier `governance.contradiction_index`
+3. Vérifier logs console pour boost cycle ≥ 90
+4. Comparer `regimeData.risk_budget` vs calcul local
+
+---
+
 **Dernière mise à jour** : 2025-09-30
-**Version** : 1.0
+**Version** : 1.1 (ajout mode Live)
 **Auteur** : Claude + Jack
