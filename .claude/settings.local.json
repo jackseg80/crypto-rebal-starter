@@ -186,7 +186,9 @@
       "Bash(.venvScriptsactivate)",
       "Bash(.venv/Scripts/python:*)",
       "Bash(git rebase:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(awk:*)",
+      "Bash(xargs:*)"
     ],
     "deny": [],
     "ask": [],

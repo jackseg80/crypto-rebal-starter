@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Badges Direct</title>
+    <link rel="stylesheet" href="shared-theme.css">
+    <style>
+        body { font-family: system-ui; padding: 2rem; background: var(--theme-background); color: var(--theme-text); }
+        .test-container { background: var(--theme-surface); border: 1px solid var(--theme-border); border-radius: 8px; padding: 1.5rem; margin: 1rem 0; }
+        .badges-container { margin: 1rem 0; padding: 1rem; background: var(--theme-bg); border-radius: 4px; text-align: center; border: 1px dashed var(--theme-border); }
+        .test-log { background: var(--theme-bg); padding: 1rem; border-radius: 4px; font-family: monospace; font-size: 0.85rem; max-height: 300px; overflow-y: auto; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>🎯 Test Badges - Simulation des 3 Pages</h1>
+
+    <div class="test-container">
+        <h2>Risk Dashboard Simulation</h2>
+        <p>Container #badges-risk :</p>
+        <div class="badges-container">
+            <div id="badges-risk"></div>
+        </div>
+    </div>
+
+    <div class="test-container">
+        <h2>Saxo Dashboard Simulation</h2>
+        <p>Container #badges-saxo :</p>
+        <div class="badges-container">
+            <div id="badges-saxo"></div>
+        </div>
+    </div>
+
+    <div class="test-container">
+        <h2>Settings Simulation</h2>
+        <p>Container #badges-settings :</p>
+        <div class="badges-container">
+            <div id="badges-settings"></div>
+        </div>
+    </div>
+
+    <div class="test-container">
+        <h2>Test Log</h2>
+        <div class="test-log" id="test-log"></div>
+        <button onclick="clearTestLog()">Clear Log</button>
+    </div>
+
+    <script type="module">
+        import { renderBadges } from './components/Badges.js';
+
+        const testLog = document.getElementById('test-log');
+
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString('fr-FR');
+            testLog.textContent += `[${timestamp}] ${message}\n`;
+            console.log(`[Test] ${message}`);
+            testLog.scrollTop = testLog.scrollHeight;
+        }
+
+        window.clearTestLog = () => {
+            testLog.textContent = '';
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            log('🎯 Test direct des badges - START');
+
+            // Test Risk Dashboard
+            try {
+                log('Testing Risk Dashboard badges...');
+                const riskContainer = document.getElementById('badges-risk');
+                if (riskContainer) {
+                    log('✅ badges-risk container found');
+                    renderBadges(riskContainer, {
+                        source: 'Risk Engine',
+                        updated: new Date(),
+                        contradiction: 20,
+                        cap: 10,
+                        overrides: 0,
+                        status: 'healthy'
+                    });
+                    log('✅ Risk badge rendered successfully');
+                } else {
+                    log('❌ badges-risk container not found');
+                }
+            } catch (error) {
+                log(`❌ Risk badge error: ${error.message}`);
+            }
+
+            // Test Saxo Dashboard
+            try {
+                log('Testing Saxo Dashboard badges...');
+                const saxoContainer = document.getElementById('badges-saxo');
+                if (saxoContainer) {
+                    log('✅ badges-saxo container found');
+                    renderBadges(saxoContainer, {
+                        source: 'Saxo Backend',
+                        updated: new Date(),
+                        contradiction: 5,
+                        cap: 15,
+                        overrides: 1,
+                        status: 'healthy'
+                    });
+                    log('✅ Saxo badge rendered successfully');
+                } else {
+                    log('❌ badges-saxo container not found');
+                }
+            } catch (error) {
+                log(`❌ Saxo badge error: ${error.message}`);
+            }
+
+            // Test Settings
+            try {
+                log('Testing Settings badges...');
+                const settingsContainer = document.getElementById('badges-settings');
+                if (settingsContainer) {
+                    log('✅ badges-settings container found');
+                    renderBadges(settingsContainer, {
+                        source: 'Config API',
+                        updated: new Date(),
+                        contradiction: 0,
+                        cap: 20,
+                        overrides: 2,
+                        status: 'healthy'
+                    });
+                    log('✅ Settings badge rendered successfully');
+                } else {
+                    log('❌ badges-settings container not found');
+                }
+            } catch (error) {
+                log(`❌ Settings badge error: ${error.message}`);
+            }
+
+            log('🎯 Test direct des badges - COMPLETE');
+
+            // Verify CSS injection
+            setTimeout(() => {
+                const cssEl = document.getElementById('governance-badges-css');
+                if (cssEl) {
+                    log('✅ Badge CSS injected successfully');
+                } else {
+                    log('⚠️ Badge CSS not found');
+                }
+            }, 100);
+        });
+    </script>
+</body>
+</html>

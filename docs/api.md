@@ -52,18 +52,26 @@ Flux actuel centré sur **pages dédiées** et import fichier :
 - Le calcul **P&L Today** côté Bourse peut dépendre de données `prev_close`. Si indisponible, il peut être 0.
 - L’intégration Bourse n’est pas encore alignée sur le même modèle que Crypto (c’est la **roadmap**).
 
-## Wealth (expérimental / partiel aujourd’hui)
+## Wealth (Phase 2 complétée ✅)
 
-> **Statut** : le namespace Wealth est amorcé dans le code (endpoints présents selon branches), mais la **source de vérité** côté Bourse reste aujourd’hui les endpoints `api/saxo/*` et les pages `saxo-*.html`.
+> **Statut** : Namespace Wealth **opérationnel**, endpoints disponibles, lecture legacy active. Phase 2 terminée (Sep 2025).
 
-Objectif cible (non encore généralisé aujourd’hui) :
-- `GET /api/wealth/modules` → découverte modules disponibles
-- `GET /api/wealth/{module}/accounts|instruments|positions|prices`
-- `POST /api/wealth/{module}/rebalance/preview`
+**Endpoints disponibles** :
+- `GET /api/wealth/modules` → découverte modules disponibles (retourne `["saxo"]` si snapshot présent)
+- `GET /api/wealth/{module}/accounts` → liste comptes normalisés
+- `GET /api/wealth/{module}/instruments` → catalogue instruments
+- `GET /api/wealth/{module}/positions` → positions actuelles avec P&L
+- `GET /api/wealth/{module}/prices` → prix instruments (si disponibles)
+- `POST /api/wealth/{module}/rebalance/preview` → simulation rebalancing
 
-**Attention** :
-- Le fichier `models/wealth.py` peut **manquer** dans ta copie actuelle, et certaines routes Wealth peuvent être **incomplètes**.
-- Merci de te référer à la **roadmap** `docs/TODO_WEALTH_MERGE.md` pour la cible à venir.
+**Modèles** :
+- Fichier `models/wealth.py` **disponible** avec `AccountModel`, `InstrumentModel`, `PositionModel`, `PricePoint`
+- Adapter Saxo : `adapters/saxo_adapter.py` retourne modèles normalisés
+
+**Intégration UI** :
+- Pages : `saxo-dashboard.html`, `analytics-equities.html` (beta)
+- Tuile Dashboard : intégrée dans `dashboard.html` avec store partagé
+- Roadmap Phase 3 : voir `docs/TODO_WEALTH_MERGE.md`
 
 ## Taxonomy
 - `GET /taxonomy`

@@ -1777,8 +1777,7 @@ async def update_api_keys(payload: APIKeysRequest, debug_token: str = None):
 # inclure les routes taxonomie, execution, monitoring et analytics
 app.include_router(taxonomy_router)
 app.include_router(execution_router)
-app.include_router(analytics_router)
-# Double montage pour uniformiser /api/analytics ET /analytics
+# Analytics router monté une seule fois avec prefix=/api/analytics
 app.include_router(analytics_router, prefix="/api")
 app.include_router(market_router)
 app.include_router(kraken_router)

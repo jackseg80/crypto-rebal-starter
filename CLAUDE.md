@@ -52,6 +52,8 @@ Fichiers clés:
 ```
 api/main.py (auto-init ML, routers, middleware)
 api/execution_endpoints.py (governance routes unifiées)
+api/execution_dashboard.py (dashboard execution temps réel)
+api/execution_history.py (historique exécution)
 api/risk_endpoints.py (risk management unifié)
 api/alerts_endpoints.py (alertes centralisées)
 api/unified_ml_endpoints.py (ML unifié, orchestrateur)
@@ -61,6 +63,7 @@ api/wealth_endpoints.py (Wealth cross-asset)
 api/sources_endpoints.py (Sources System v2)
 api/services/sources_resolver.py (SOT résolution données)
 api/services/data_router.py (Router priorité sources)
+models/wealth.py (modèles Wealth cross-asset)
 services/execution/governance.py (Decision Engine single-writer)
 services/ml/orchestrator.py (MLOrchestrator)
 services/risk_management.py
@@ -81,11 +84,16 @@ static/components/SimControls.js (contrôles UI)
 static/components/SimInspector.js (arbre explication)
 static/presets/sim_presets.json (10 scénarios prédéfinis)
 static/core/risk-dashboard-store.js (sync governance)
-static/core/phase-engine.js (détection phases market)
+static/core/phase-engine.js (détection phases market - production)
+static/core/phase-engine-new.js (nouvelle version - dev)
 static/core/phase-buffers.js (ring buffers time series)
 static/core/phase-inputs-extractor.js (extraction données)
-static/core/unified-insights-v2.js (intégration Phase Engine)
+static/core/unified-insights-v2.js (intégration Phase Engine - production)
+static/core/unified-insights.js (legacy)
+static/core/allocation-engine.js (engine allocations)
+static/core/strategy-api-adapter.js (adaptateur Strategy API v3)
 static/test-phase-engine.html (suite tests 16 cases)
+Note: versions *-backup, *-broken, *-clean sont des archives de développement
 ```
 
 ---
@@ -362,6 +370,18 @@ docker run -p 8000:8000 --env-file .env crypto-rebal
 - `/api/risk/*` - Risk management unifié (/api/risk/advanced/* pour fonctions avancées)
 - `/api/alerts/*` - Alertes centralisées (acknowledge, resolve)
 - `/execution/governance/approve/{resource_id}` - Approbations unifiées (decisions + plans)
+- `/api/saxo/*` - Endpoints Bourse/Saxo
+- `/api/wealth/*` - Endpoints Wealth cross-asset (lecture legacy active)
+- `/api/sources/*` - Sources System v2 (upload, scan, import, test)
+
+**Endpoints avancés** (disponibles mais optionnels) :
+- `/api/strategy/*` - Strategy API v3 (allocations dynamiques)
+- `/api/intelligence/*` - Intelligence endpoints
+- `/api/backtesting/*` - Backtesting historique
+- `/api/multi-asset/*` - Multi-asset analytics
+- `/api/portfolio-optimization/*` - Optimisation portfolio
+- `/api/advanced-analytics/*` - Analytics avancés
+- `/api/unified-phase3/*` - Phase 3 unifiée (experimental)
 
 **Endpoints supprimés** (ne pas recréer) :
 - `/api/test/*` et `/api/alerts/test/*` - Endpoints de test supprimés

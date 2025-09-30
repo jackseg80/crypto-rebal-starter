@@ -150,6 +150,18 @@ class GlobalConfig {
   }
 
   /**
+   * Construit une URL API complète
+   * @param {string} path - Chemin relatif (ex: '/api/risk/status')
+   * @returns {string} URL complète
+   */
+  getApiUrl(path = '') {
+    const base = this.settings.api_base_url || detectDefaultApiBase();
+    const normalizedBase = base.replace(/\/$/, '');
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    return `${normalizedBase}${normalizedPath}`;
+  }
+
+  /**
    * Définit une valeur de configuration
    */
   set(key, value) {

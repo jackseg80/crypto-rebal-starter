@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QA Test - Shared Badges Component</title>
+    <link rel="stylesheet" href="shared-theme.css">
+    <link rel="stylesheet" href="theme-compat.css">
+    <script src="global-config.js"></script>
+    <script src="appearance.js"></script>
+
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: var(--theme-background);
+            color: var(--theme-text);
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .test-section {
+            background: var(--theme-surface);
+            border: 1px solid var(--theme-border);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .test-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--theme-border);
+        }
+
+        .test-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--theme-border-subtle, var(--theme-border));
+        }
+
+        .test-row:last-child {
+            border-bottom: none;
+        }
+
+        .test-label {
+            font-weight: 600;
+            min-width: 200px;
+        }
+
+        .test-result {
+            flex: 1;
+            text-align: center;
+        }
+
+        .status-ok { color: var(--success); }
+        .status-error { color: var(--danger); }
+        .status-warning { color: var(--warning); }
+
+        button {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--theme-border);
+            border-radius: var(--radius-md);
+            background: var(--theme-surface);
+            color: var(--theme-text);
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: var(--brand-primary);
+            color: white;
+        }
+
+        .mock-store {
+            background: var(--theme-bg);
+            padding: 1rem;
+            border-radius: var(--radius-md);
+            font-family: monospace;
+            font-size: 0.85rem;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 QA Test - Shared Badges Component</h1>
+    <p>Test complet du système de badges partagé avec scénarios de robustesse</p>
+
+    <!-- Test 1: Basic Integration -->
+    <div class="test-section">
+        <div class="test-header">
+            <h2>📋 Test 1: Intégration Basique</h2>
+            <button onclick="runBasicTests()">🧪 Run Tests</button>
+        </div>
+        <div class="test-row">
+            <span class="test-label">Badges component import</span>
+            <span class="test-result" id="test-import">⏳ Pending</span>
+        </div>
+        <div class="test-row">
+            <span class="test-label">Time utility import</span>
+            <span class="test-result" id="test-time-import">⏳ Pending</span>
+        </div>
+        <div class="test-row">
+            <span class="test-label">Basic render function</span>
+            <span class="test-result" id="test-render">⏳ Pending</span>
+        </div>
+        <div class="test-row">
+            <span class="test-label">CSS injection</span>
+            <span class="test-result" id="test-css">⏳ Pending</span>
+        </div>
+        <div class="test-row">
+            <span class="test-label">Container test</span>
+            <div class="test-result">
+                <div id="test-badges-basic" style="margin: 0.5rem 0;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Test 2: Data Sources & Store Integration -->
+    <div class="test-section">
+        <div class="test-header">
+            <h2>🗄️ Test 2: Sources de Données</h2>
+            <button onclick="runStoreTests()">🔍 Test Store</button>
+        </div>
+        <div class="test-row">
+            <span class="test-label">Store selector robustesse</span>
+            <span class="test-result" id="test-store-selectors">⏳ Pending</span>
+        </div>
+        <div class="test-row">
+            <span class="test-label">Missing data handling</span>
+            <span class="test-result" id="test-missing-data">⏳ Pending</span>
+        </div>
+        <div class="test-row">
+            <span class="test-label">Cap calculation priority</span>
+            <span class="test-result" id="test-cap-priority">⏳ Pending</span>
+        </div>
+        <div class="test-row">
+            <span class="test-label">Staleness detection</span>
+            <span class="test-result" id="test-staleness">⏳ Pending</span>
+        </div>
+        <div class="test-row">
+            <span class="test-label">Mock store avec données complètes</span>
+            <div class="test-result">
+                <div id="test-badges-with-data" style="margin: 0.5rem 0;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Test 3: Edge Cases & Error Handling -->
+    <div class="test-section">
+        <div class="test-header">
+            <h2>⚠️ Test 3: Cas Limites & Erreurs</h2>
+            <button onclick="runErrorTests()">💥 Test Errors</button>
+        </div>
+        <div class="test-row">
+            <span class="test-label">Container null/undefined</span>
+            <span class="test-result" id="test-null-container">⏳ Pending</span>
+        </div>
+        <div class="test-row">
+            <span class="test-label">Invalid timestamps</span>
+            <span class="test-result" id="test-invalid-timestamps">⏳ Pending</span>
+        </div>
+        <div class="test-row">
+            <span class="test-label">Malformed state object</span>
+            <span class="test-result" id="test-malformed-state">⏳ Pending</span>
+        </div>
+        <div class="test-row">
+            <span class="test-label">Props override</span>
+            <span class="test-result" id="test-props-override">⏳ Pending</span>
+        </div>
+        <div class="test-row">
+            <span class="test-label">Test avec props override</span>
+            <div class="test-result">
+                <div id="test-badges-override" style="margin: 0.5rem 0;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Test 4: Format & Visual Validation -->
+    <div class="test-section">
+        <div class="test-header">
+            <h2>🎨 Test 4: Format & Visuel</h2>
+            <button onclick="runFormatTests()">🎯 Test Format</button>
+        </div>
+        <div class="test-row">
+            <span class="test-label">Format standard</span>
+            <span class="test-result" id="test-standard-format">⏳ Pending</span>
+        </div>
+        <div class="test-row">
+            <span class="test-label">Europe/Zurich timezone</span>
+            <span class="test-result" id="test-timezone">⏳ Pending</span>
+        </div>
+        <div class="test-row">
+            <span class="test-label">STALE/ERROR flags</span>
+            <span class="test-result" id="test-status-flags">⏳ Pending</span>
+        </div>
+        <div class="test-row">
+            <span class="test-label">Status visuel tests</span>
+            <div class="test-result" style="display: grid; gap: 0.5rem;">
+                <div id="test-badges-healthy" style="margin: 0.25rem 0;"></div>
+                <div id="test-badges-stale" style="margin: 0.25rem 0;"></div>
+                <div id="test-badges-error" style="margin: 0.25rem 0;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Test Results Log -->
+    <div class="test-section">
+        <div class="test-header">
+            <h2>📝 Log des Tests</h2>
+            <button onclick="clearLog()">🗑️ Clear Log</button>
+        </div>
+        <div class="mock-store" id="test-log"></div>
+    </div>
+
+    <script type="module">
+        import { renderBadges, formatZurich, isStale, computeEffectiveCap, getDecisionSource, getUpdatedTs, getContradiction, getOverridesCount, getBackendStatus } from './components/Badges.js';
+
+        // Make functions globally available for tests
+        window.testBadges = {
+            renderBadges,
+            formatZurich,
+            isStale,
+            computeEffectiveCap,
+            getDecisionSource,
+            getUpdatedTs,
+            getContradiction,
+            getOverridesCount,
+            getBackendStatus
+        };
+
+        let testLog = [];
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString('fr-FR');
+            testLog.push(`[${timestamp}] ${type.toUpperCase()}: ${message}`);
+            updateLogDisplay();
+        }
+
+        function updateLogDisplay() {
+            document.getElementById('test-log').textContent = testLog.join('\n');
+        }
+
+        function setTestResult(testId, status, message) {
+            const el = document.getElementById(testId);
+            const statusClass = status === 'ok' ? 'status-ok' : status === 'error' ? 'status-error' : 'status-warning';
+            el.className = `test-result ${statusClass}`;
+            el.textContent = `${status === 'ok' ? '✅' : status === 'error' ? '❌' : '⚠️'} ${message}`;
+        }
+
+        // Test 1: Basic Integration
+        window.runBasicTests = function() {
+            log('Running basic integration tests...');
+
+            // Test import
+            try {
+                if (typeof renderBadges === 'function') {
+                    setTestResult('test-import', 'ok', 'Import successful');
+                    log('✅ Badges component imported successfully');
+                } else {
+                    setTestResult('test-import', 'error', 'Import failed');
+                    log('❌ renderBadges is not a function');
+                }
+            } catch (e) {
+                setTestResult('test-import', 'error', e.message);
+                log(`❌ Import error: ${e.message}`);
+            }
+
+            // Test time utilities
+            try {
+                if (typeof formatZurich === 'function') {
+                    const testTime = formatZurich(new Date());
+                    setTestResult('test-time-import', 'ok', `Time: ${testTime}`);
+                    log(`✅ Time utilities working: ${testTime}`);
+                } else {
+                    setTestResult('test-time-import', 'error', 'formatZurich not available');
+                    log('❌ formatZurich is not available');
+                }
+            } catch (e) {
+                setTestResult('test-time-import', 'error', e.message);
+                log(`❌ Time utility error: ${e.message}`);
+            }
+
+            // Test basic render
+            try {
+                const container = document.getElementById('test-badges-basic');
+                renderBadges(container);
+                setTestResult('test-render', 'ok', 'Render successful');
+                log('✅ Basic render successful');
+            } catch (e) {
+                setTestResult('test-render', 'error', e.message);
+                log(`❌ Render error: ${e.message}`);
+            }
+
+            // Test CSS injection
+            setTimeout(() => {
+                const cssEl = document.getElementById('governance-badges-css');
+                if (cssEl) {
+                    setTestResult('test-css', 'ok', 'CSS injected');
+                    log('✅ CSS injection successful');
+                } else {
+                    setTestResult('test-css', 'warning', 'CSS element not found');
+                    log('⚠️ CSS injection element not found');
+                }
+            }, 100);
+        };
+
+        // Test 2: Store Integration
+        window.runStoreTests = function() {
+            log('Running store integration tests...');
+
+            // Mock store with complete data
+            const mockStore = {
+                governance: {
+                    ml_signals: {
+                        decision_source: 'blended',
+                        updated: new Date().toISOString()
+                    },
+                    status: {
+                        contradiction: 0.25
+                    },
+                    caps: {
+                        alert_cap: 15,
+                        engine_cap: 12
+                    },
+                    active_policy: {
+                        cap_daily: 20
+                    },
+                    overrides: ['euphoria_override']
+                },
+                ui: {
+                    apiStatus: {
+                        backend: 'healthy'
+                    }
+                }
+            };
+
+            // Set mock store
+            window.store = {
+                snapshot: () => mockStore,
+                getState: () => mockStore
+            };
+
+            // Test store selectors
+            try {
+                const source = getDecisionSource(mockStore);
+                const updated = getUpdatedTs(mockStore);
+                const contradiction = getContradiction(mockStore);
+                const cap = computeEffectiveCap(mockStore);
+                const overrides = getOverridesCount(mockStore);
+                const status = getBackendStatus(mockStore);
+
+                log(`Store data - Source: ${source}, Updated: ${formatZurich(updated)}, Contradiction: ${contradiction}%, Cap: ${cap}%, Overrides: ${overrides}, Status: ${status}`);
+                setTestResult('test-store-selectors', 'ok', 'All selectors working');
+
+                // Test cap priority
+                if (cap === 15) { // alert_cap should win
+                    setTestResult('test-cap-priority', 'ok', 'Alert cap priority correct');
+                    log('✅ Cap calculation priority working (alert_cap = 15%)');
+                } else {
+                    setTestResult('test-cap-priority', 'warning', `Unexpected cap: ${cap}`);
+                    log(`⚠️ Cap priority issue - got ${cap}, expected 15`);
+                }
+
+                // Render with mock data
+                const container = document.getElementById('test-badges-with-data');
+                renderBadges(container);
+
+            } catch (e) {
+                setTestResult('test-store-selectors', 'error', e.message);
+                log(`❌ Store selector error: ${e.message}`);
+            }
+
+            // Test missing data
+            try {
+                const emptyStore = {};
+                const source = getDecisionSource(emptyStore);
+                const contradiction = getContradiction(emptyStore);
+                const cap = computeEffectiveCap(emptyStore);
+
+                if (source === 'backend' && contradiction === null && cap === null) {
+                    setTestResult('test-missing-data', 'ok', 'Handles missing data correctly');
+                    log('✅ Missing data handled gracefully');
+                } else {
+                    setTestResult('test-missing-data', 'warning', 'Unexpected fallback values');
+                    log(`⚠️ Missing data handling - source: ${source}, contradiction: ${contradiction}, cap: ${cap}`);
+                }
+            } catch (e) {
+                setTestResult('test-missing-data', 'error', e.message);
+                log(`❌ Missing data test error: ${e.message}`);
+            }
+
+            // Test staleness
+            try {
+                const oldTime = new Date(Date.now() - 45 * 60 * 1000); // 45 minutes ago
+                const isOldStale = isStale(oldTime, 30); // 30 minute TTL
+                const isRecentStale = isStale(new Date(), 30);
+
+                if (isOldStale === true && isRecentStale === false) {
+                    setTestResult('test-staleness', 'ok', 'Staleness detection working');
+                    log('✅ Staleness detection working correctly');
+                } else {
+                    setTestResult('test-staleness', 'warning', `Old: ${isOldStale}, Recent: ${isRecentStale}`);
+                    log(`⚠️ Staleness detection issue - old: ${isOldStale}, recent: ${isRecentStale}`);
+                }
+            } catch (e) {
+                setTestResult('test-staleness', 'error', e.message);
+                log(`❌ Staleness test error: ${e.message}`);
+            }
+        };
+
+        // Test 3: Error Handling
+        window.runErrorTests = function() {
+            log('Running error handling tests...');
+
+            // Test null container
+            try {
+                renderBadges(null);
+                // Should not throw, just warn
+                setTestResult('test-null-container', 'ok', 'Handles null container');
+                log('✅ Null container handled gracefully');
+            } catch (e) {
+                setTestResult('test-null-container', 'error', e.message);
+                log(`❌ Null container error: ${e.message}`);
+            }
+
+            // Test invalid timestamps
+            try {
+                const invalidTime1 = formatZurich('invalid-date');
+                const invalidTime2 = formatZurich(null);
+                const invalidTime3 = formatZurich(undefined);
+
+                if (invalidTime1 === '--:--:--' && invalidTime2 === '--:--:--' && invalidTime3 === '--:--:--') {
+                    setTestResult('test-invalid-timestamps', 'ok', 'Invalid timestamps handled');
+                    log('✅ Invalid timestamps return fallback format');
+                } else {
+                    setTestResult('test-invalid-timestamps', 'warning', 'Unexpected timestamp behavior');
+                    log(`⚠️ Invalid timestamp handling - got: ${invalidTime1}, ${invalidTime2}, ${invalidTime3}`);
+                }
+            } catch (e) {
+                setTestResult('test-invalid-timestamps', 'error', e.message);
+                log(`❌ Invalid timestamp test error: ${e.message}`);
+            }
+
+            // Test malformed state
+            try {
+                const malformedState = {
+                    governance: "not-an-object", // Should be object
+                    ui: null,
+                    scores: { contradiction: "not-a-number" }
+                };
+
+                const source = getDecisionSource(malformedState);
+                const cap = computeEffectiveCap(malformedState);
+
+                if (source === '-' || source === 'backend') { // Fallback values
+                    setTestResult('test-malformed-state', 'ok', 'Malformed state handled');
+                    log('✅ Malformed state handled gracefully');
+                } else {
+                    setTestResult('test-malformed-state', 'warning', 'Unexpected malformed handling');
+                    log(`⚠️ Malformed state handling - source: ${source}, cap: ${cap}`);
+                }
+            } catch (e) {
+                setTestResult('test-malformed-state', 'error', e.message);
+                log(`❌ Malformed state test error: ${e.message}`);
+            }
+
+            // Test props override
+            try {
+                const container = document.getElementById('test-badges-override');
+                const overrideProps = {
+                    source: 'Override Test',
+                    updated: new Date(),
+                    contradiction: 99,
+                    cap: 5,
+                    overrides: 3,
+                    status: 'healthy'
+                };
+
+                renderBadges(container, overrideProps);
+                setTestResult('test-props-override', 'ok', 'Props override working');
+                log('✅ Props override functionality working');
+            } catch (e) {
+                setTestResult('test-props-override', 'error', e.message);
+                log(`❌ Props override test error: ${e.message}`);
+            }
+        };
+
+        // Test 4: Format & Visual
+        window.runFormatTests = function() {
+            log('Running format and visual tests...');
+
+            // Test standard format (should contain required elements)
+            try {
+                const container = document.createElement('div');
+                renderBadges(container, {
+                    source: 'Test Source',
+                    updated: new Date(),
+                    contradiction: 25,
+                    cap: 10,
+                    overrides: 2,
+                    status: 'healthy'
+                });
+
+                const html = container.innerHTML;
+                const hasSource = html.includes('Test Source');
+                const hasUpdated = html.includes('Updated');
+                const hasContrad = html.includes('Contrad 25%');
+                const hasCap = html.includes('Cap 10%');
+                const hasOverrides = html.includes('Overrides 2');
+                const hasSeparators = html.includes('•');
+
+                if (hasSource && hasUpdated && hasContrad && hasCap && hasOverrides && hasSeparators) {
+                    setTestResult('test-standard-format', 'ok', 'Standard format correct');
+                    log('✅ Standard format contains all required elements');
+                } else {
+                    setTestResult('test-standard-format', 'warning', 'Format elements missing');
+                    log(`⚠️ Format check - Source: ${hasSource}, Updated: ${hasUpdated}, Contrad: ${hasContrad}, Cap: ${hasCap}, Overrides: ${hasOverrides}, Sep: ${hasSeparators}`);
+                }
+            } catch (e) {
+                setTestResult('test-standard-format', 'error', e.message);
+                log(`❌ Standard format test error: ${e.message}`);
+            }
+
+            // Test Europe/Zurich timezone
+            try {
+                const testDate = new Date('2024-06-15T14:30:00Z'); // UTC time
+                const zurichTime = formatZurich(testDate);
+
+                // Should format to Europe/Zurich time (UTC+2 in summer)
+                if (zurichTime.match(/^\d{2}:\d{2}:\d{2}$/)) {
+                    setTestResult('test-timezone', 'ok', `Zurich time: ${zurichTime}`);
+                    log(`✅ Zurich timezone formatting working: ${zurichTime}`);
+                } else {
+                    setTestResult('test-timezone', 'error', `Invalid format: ${zurichTime}`);
+                    log(`❌ Zurich timezone format invalid: ${zurichTime}`);
+                }
+            } catch (e) {
+                setTestResult('test-timezone', 'error', e.message);
+                log(`❌ Timezone test error: ${e.message}`);
+            }
+
+            // Test status flags
+            try {
+                const healthyContainer = document.getElementById('test-badges-healthy');
+                const staleContainer = document.getElementById('test-badges-stale');
+                const errorContainer = document.getElementById('test-badges-error');
+
+                const now = new Date();
+                const oldTime = new Date(Date.now() - 45 * 60 * 1000); // 45 minutes ago
+
+                renderBadges(healthyContainer, {
+                    source: 'Healthy Test',
+                    updated: now,
+                    status: 'healthy'
+                });
+
+                renderBadges(staleContainer, {
+                    source: 'Stale Test',
+                    updated: oldTime,
+                    status: 'stale'
+                });
+
+                renderBadges(errorContainer, {
+                    source: 'Error Test',
+                    updated: now,
+                    status: 'error'
+                });
+
+                setTestResult('test-status-flags', 'ok', 'Status flags rendered');
+                log('✅ Status flag visual tests completed');
+
+                // Check for STALE/ERROR in HTML
+                setTimeout(() => {
+                    const staleHtml = staleContainer.innerHTML;
+                    const errorHtml = errorContainer.innerHTML;
+
+                    if (staleHtml.includes('STALE') && errorHtml.includes('ERROR')) {
+                        log('✅ STALE/ERROR flags present in HTML');
+                    } else {
+                        log('⚠️ STALE/ERROR flags may be missing from HTML');
+                    }
+                }, 100);
+
+            } catch (e) {
+                setTestResult('test-status-flags', 'error', e.message);
+                log(`❌ Status flags test error: ${e.message}`);
+            }
+        };
+
+        window.clearLog = function() {
+            testLog = [];
+            updateLogDisplay();
+        };
+
+        // Auto-run basic tests on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            log('QA Test page loaded - ready for testing');
+            setTimeout(runBasicTests, 500);
+        });
+
+    </script>
+</body>
+</html>
