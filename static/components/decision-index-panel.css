@@ -1,0 +1,241 @@
+/**
+ * Decision Index Panel - Styles OPTIMISÉS
+ * Compatible dark mode, contraste amélioré, layout compact
+ */
+
+:root {
+  /* Palette couleurs VIVES pour piliers (contraste dark mode) */
+  --di-color-cycle: #7aa2f7;    /* bleu lisible dark */
+  --di-color-onchain: #2ac3de;  /* cyan vif */
+  --di-color-risk: #f7768e;     /* rose/rouge */
+  --di-bar-bg: rgba(255, 255, 255, 0.02); /* Fond barre légèrement contrasté */
+}
+
+/* Conteneur principal - COMPACT */
+.di-panel {
+  background: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm);  /* Réduit de --space-md */
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);  /* Réduit de --space-md */
+}
+
+.di-panel-fallback {
+  gap: var(--space-xs);
+}
+
+/* Header (valeur DI + badges) - COMPACT */
+.di-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;  /* flex-start → center pour alignement vertical */
+  gap: var(--space-sm);  /* Réduit de --space-md */
+  flex-wrap: wrap;
+}
+
+/* Valeur DI (grand chiffre) */
+.di-value {
+  font-size: 2.5rem;  /* Réduit de 3rem */
+  font-weight: 800;
+  color: var(--brand-primary);
+  line-height: 1;
+  margin: 0;
+}
+
+/* Conteneur badges */
+.di-badges {
+  display: flex;
+  gap: 0.4rem;  /* Réduit de 0.5rem */
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* Badge individuel */
+.di-badge {
+  display: inline-block;
+  padding: 0.2rem 0.4rem;  /* Réduit de 0.25/0.5 */
+  border-radius: var(--radius-sm);
+  font-size: 0.7rem;  /* Réduit de 0.75rem */
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  cursor: help;
+  transition: all 0.2s ease;
+}
+
+.di-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+/* Couleurs badges selon type */
+.di-badge-success {
+  background: color-mix(in oklab, var(--success) 20%, transparent);
+  color: var(--success);
+  border: 1px solid var(--success);
+}
+
+.di-badge-warning {
+  background: color-mix(in oklab, var(--warning) 20%, transparent);
+  color: var(--warning);
+  border: 1px solid var(--warning);
+}
+
+.di-badge-danger {
+  background: color-mix(in oklab, var(--danger) 20%, transparent);
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+
+.di-badge-info {
+  background: color-mix(in oklab, var(--brand-primary) 20%, transparent);
+  color: var(--brand-primary);
+  border: 1px solid var(--brand-primary);
+}
+
+.di-badge-neutral {
+  background: color-mix(in oklab, var(--theme-text-muted) 20%, transparent);
+  color: var(--theme-text-muted);
+  border: 1px solid var(--theme-border);
+}
+
+/* Zone barre empilée - PROGRESS BAR STYLE */
+.di-stack {
+  background: var(--di-bar-bg);  /* Fond légèrement contrasté */
+  border-radius: var(--radius-sm);
+  padding: 0;  /* Pas de padding interne */
+  min-height: 32px;  /* Réduit de 100px → progress bar */
+}
+
+.di-stack canvas {
+  display: block;
+  width: 100% !important;
+  height: 32px !important;
+}
+
+/* Zone sparkline - COMPACT */
+.di-spark {
+  background: transparent;  /* Pas de fond gris */
+  border-radius: var(--radius-sm);
+  padding: 0;
+  min-height: 48px;  /* Réduit de 80px */
+}
+
+.di-spark canvas {
+  display: block;
+  width: 100% !important;
+  height: 48px !important;
+}
+
+/* Placeholder historique (si < 3 points) */
+.di-spark-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  font-size: 0.75rem;
+  color: var(--theme-text-muted);
+  font-style: italic;
+}
+
+/* Micropuces métriques (sous la barre) */
+.di-metrics {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: nowrap;  /* No-wrap desktop */
+  font-size: 0.7rem;
+  color: var(--theme-text-muted);
+  margin-top: var(--space-xs);
+}
+
+.di-metric-item {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.di-metric-label {
+  color: #AEB2B9;  /* Gris descriptif explicite */
+}
+
+.di-metric-value {
+  font-weight: 600;  /* Accentuer chiffres */
+  color: inherit;  /* Hérite couleur du pilier */
+}
+
+/* Footnote - ALIGNÉE DROITE */
+.di-foot {
+  font-size: 0.7rem;  /* Réduit de 0.8rem */
+  color: var(--theme-text-muted);
+  text-align: right;  /* Centré → droite */
+  margin-top: 0;  /* Pas de marge supplémentaire */
+  transition: opacity 0.2s ease;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .di-metrics {
+    flex-wrap: wrap;  /* Wrap sur mobile */
+  }
+
+  .di-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .di-value {
+    font-size: 2rem;
+    text-align: center;
+  }
+
+  .di-badges {
+    justify-content: center;
+  }
+
+  .di-badge {
+    font-size: 0.65rem;
+    padding: 0.15rem 0.35rem;
+  }
+
+  .di-stack,
+  .di-spark,
+  .di-spark-placeholder {
+    min-height: 40px;
+    height: 40px;
+  }
+
+  .di-metrics {
+    justify-content: center;
+  }
+
+  .di-foot {
+    text-align: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .di-panel {
+    padding: var(--space-xs);
+    gap: var(--space-xs);
+  }
+
+  .di-value {
+    font-size: 1.75rem;
+  }
+
+  .di-badges {
+    gap: 0.25rem;
+  }
+
+  .di-badge {
+    font-size: 0.6rem;
+    padding: 0.12rem 0.3rem;
+  }
+
+  .di-metrics {
+    font-size: 0.65rem;
+  }
+}

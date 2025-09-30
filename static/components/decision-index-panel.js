@@ -1,21 +1,17 @@
 /**
- * Decision Index Panel - Composant visuel réutilisable
+ * Decision Index Panel - Composant visuel OPTIMISÉ v2
  *
- * Affiche le Decision Index avec:
- * - Barre empilée (contributions relatives des 3 piliers)
- * - Sparkline (historique DI)
- * - Badges compacts (Confiance, Contradiction, Cap, Mode)
- * - Footnote (Source + Live status)
+ * Améliorations:
+ * - Palette vive (contraste dark mode)
+ * - Charts sans axes/grilles (progress bar + sparkline)
+ * - Placeholder si historique < 3 points
+ * - Micropuces métriques (Cycle/OnChain/Risk avec w×s)
+ * - Layout compact + footnote alignée droite
  *
- * ⚠️ IMPORTANT: Chart.js doit être chargé AVANT ce module
- *
- * ⚠️ IMPORTANT — Sémantique Risk:
- * Risk est un score POSITIF (0..100, plus haut = mieux).
- * Ne jamais inverser (pas de 100 - risk).
- * Contributions UI: (w * score) / Σ(w * score).
+ * ⚠️ Chart.js doit être chargé AVANT ce module
  */
 
-// Instances Chart.js (pour cleanup proper)
+// Instances Chart.js (cleanup)
 let chartInstances = {
   stacked: null,
   sparkline: null
@@ -25,34 +21,35 @@ let chartInstances = {
 let refreshTimeout = null;
 
 /**
- * Palette couleurs (CSS variables pour dark mode)
+ * Palette couleurs - Lire depuis CSS (avec fallback)
  */
-const COLORS = {
-  cycle: 'var(--di-color-cycle, #3b82f6)',    // bleu
-  onchain: 'var(--di-color-onchain, #06b6d4)', // cyan
-  risk: 'var(--di-color-risk, #ec4899)'        // rose
-};
+function getColors() {
+  // Lire les variables CSS (fallback sur couleurs vives si absent)
+  const root = document.documentElement;
+  const getVar = (name, fallback) => {
+    const value = getComputedStyle(root).getPropertyValue(name)?.trim();
+    return (value && value !== '') ? value : fallback;
+  };
+
+  return {
+    cycle: getVar('--di-color-cycle', '#7aa2f7'),
+    onchain: getVar('--di-color-onchain', '#2ac3de'),
+    risk: getVar('--di-color-risk', '#f7768e')
+  };
+}
 
 /**
- * Calcule les contributions relatives de chaque pilier au DI
- *
- * Formule: part_i = (weight_i × score_i) / Σ(weight_k × score_k)
- *
- * ⚠️ CRITIQUE: NE PAS inverser le score Risk (100 - x)
- * Le score Risk est déjà normalisé (0-100, plus haut = meilleur)
- *
- * @param {Object} weights - Poids POST-adaptatifs {cycle, onchain, risk}
- * @param {Object} scores - Scores bruts {cycle, onchain, risk}
- * @returns {Object} Contributions en % + valeurs brutes pour tooltips
+ * Calcule contributions relatives (formule: (w×s)/Σ)
+ * ⚠️ PAS d'inversion Risk
  */
 function calculateRelativeContributions(weights, scores) {
   const epsilon = 1e-6;
 
-  // Clamp scores [0, 100] + filtre null/undefined
+  // Clamp scores [0, 100]
   const clampedScores = {
     cycle: Math.max(0, Math.min(100, scores.cycle || 0)),
     onchain: Math.max(0, Math.min(100, scores.onchain || 0)),
-    risk: Math.max(0, Math.min(100, scores.risk || 0))  // ✅ PAS d'inversion (100 - x)
+    risk: Math.max(0, Math.min(100, scores.risk || 0))  // ✅ PAS d'inversion
   };
 
   // Valeurs brutes (w × s)
@@ -62,49 +59,42 @@ function calculateRelativeContributions(weights, scores) {
     risk: (weights.risk || 0) * clampedScores.risk
   };
 
-  // Somme totale (avec epsilon pour éviter division par zéro)
   const sum = Object.values(raw).reduce((a, b) => a + b, 0) || epsilon;
 
-  // Contributions relatives (%)
   return {
     cycle: (raw.cycle / sum) * 100,
     onchain: (raw.onchain / sum) * 100,
     risk: (raw.risk / sum) * 100,
-    raw: raw  // Pour tooltips "w×s = X"
+    raw: raw  // Pour tooltips + micropuces
   };
 }
 
 /**
- * Génère les badges avec couleurs conditionnelles et tooltips
- *
- * @param {Object} meta - Métadonnées {confidence, contradiction, cap, mode}
- * @returns {string} HTML des badges
+ * Génère badges avec couleurs conditionnelles
  */
 function renderBadges(meta) {
   const badges = [];
 
-  // 1. CONFIANCE (<40% warning, 40-70% neutral, >70% success)
+  // 1. Confiance
   const confPct = Math.round((meta.confidence || 0) * 100);
   const confClass = confPct < 40 ? 'warning' : confPct < 70 ? 'neutral' : 'success';
   badges.push(
     `<span class="di-badge di-badge-${confClass}" title="Niveau de certitude: ${confPct}%">` +
-    `Conf. ${confPct}%</span>`
+    `Conf ${confPct}%</span>`
   );
 
-  // 2. CONTRADICTION (<30% success, 30-50% warning, >50% danger)
+  // 2. Contradiction
   const contraPct = Math.round((meta.contradiction || 0) * 100);
   const contraClass = contraPct < 30 ? 'success' : contraPct < 50 ? 'warning' : 'danger';
   badges.push(
     `<span class="di-badge di-badge-${contraClass}" title="Divergence entre sources: ${contraPct}%">` +
-    `Contrad. ${contraPct}%</span>`
+    `Contrad ${contraPct}%</span>`
   );
 
-  // 3. CAP (valider unité: 0-1 → ×100, NaN → —)
+  // 3. Cap
   let capPct = meta.cap;
   if (typeof capPct === 'number' && Number.isFinite(capPct)) {
-    if (capPct <= 1) {
-      capPct = Math.round(capPct * 100);
-    }
+    if (capPct <= 1) capPct = Math.round(capPct * 100);
     badges.push(
       `<span class="di-badge di-badge-info" title="Cap quotidien gouvernance">` +
       `Cap ${capPct}%</span>`
@@ -116,7 +106,7 @@ function renderBadges(meta) {
     );
   }
 
-  // 4. MODE (toujours info)
+  // 4. Mode
   badges.push(
     `<span class="di-badge di-badge-info" title="Mode stratégique actif">` +
     `Mode ${meta.mode || '—'}</span>`
@@ -126,10 +116,32 @@ function renderBadges(meta) {
 }
 
 /**
- * Génère la footnote compacte
- *
- * @param {Object} meta - Métadonnées {source, live}
- * @returns {string} HTML de la footnote
+ * Génère micropuces métriques (sous la barre)
+ * Affiche: Cycle 88 (w 0.65) • OnChain 41 (w 0.25) • Risk 57 (w 0.10)
+ */
+function renderMetrics(weights, scores, contribs) {
+  const metrics = [];
+
+  const addMetric = (label, score, weight, color) => {
+    metrics.push(
+      `<div class="di-metric-item" style="color: ${color};">` +
+      `<span class="di-metric-label">${label}</span>` +
+      `<span class="di-metric-value">${Math.round(score)}</span>` +
+      `<span style="opacity: 0.7; font-size: 0.65rem;">(w ${weight.toFixed(2)})</span>` +
+      `</div>`
+    );
+  };
+
+  const colors = getColors();
+  addMetric('Cycle', scores.cycle || 0, weights.cycle || 0, colors.cycle);
+  addMetric('OnChain', scores.onchain || 0, weights.onchain || 0, colors.onchain);
+  addMetric('Risk', scores.risk || 0, weights.risk || 0, colors.risk);
+
+  return `<div class="di-metrics">${metrics.join(' • ')}</div>`;
+}
+
+/**
+ * Footnote compacte (alignée droite)
  */
 function renderFootnote(meta) {
   const liveStyle = meta.live ? '' : 'opacity: 0.6;';
@@ -137,16 +149,11 @@ function renderFootnote(meta) {
 }
 
 /**
- * Render la barre empilée Chart.js (contributions relatives)
- *
- * @param {HTMLCanvasElement} canvas - Canvas élément
- * @param {Object} contributions - Contributions relatives calculées
- * @param {Object} opts - Options {heightStacked, palette}
+ * Render barre empilée Chart.js (SANS axes/grilles, progress bar style)
  */
-function renderStackedBar(canvas, contributions, opts = {}) {
+function renderStackedBar(canvas, contributions, weights, scores, opts = {}) {
   const ctx = canvas.getContext('2d');
-  const height = opts.heightStacked || 80;
-  canvas.height = height;
+  const colors = getColors();
 
   const config = {
     type: 'bar',
@@ -156,20 +163,35 @@ function renderStackedBar(canvas, contributions, opts = {}) {
         {
           label: 'Cycle',
           data: [contributions.cycle],
-          backgroundColor: COLORS.cycle,
-          borderWidth: 0
+          backgroundColor: colors.cycle,
+          borderWidth: 0,
+          _meta: {
+            score: scores.cycle || 0,
+            weight: weights.cycle || 0,
+            wxs: contributions.raw.cycle
+          }
         },
         {
           label: 'On-Chain',
           data: [contributions.onchain],
-          backgroundColor: COLORS.onchain,
-          borderWidth: 0
+          backgroundColor: colors.onchain,
+          borderWidth: 0,
+          _meta: {
+            score: scores.onchain || 0,
+            weight: weights.onchain || 0,
+            wxs: contributions.raw.onchain
+          }
         },
         {
           label: 'Risk',
           data: [contributions.risk],
-          backgroundColor: COLORS.risk,
-          borderWidth: 0
+          backgroundColor: colors.risk,
+          borderWidth: 0,
+          _meta: {
+            score: scores.risk || 0,
+            weight: weights.risk || 0,
+            wxs: contributions.raw.risk
+          }
         }
       ]
     },
@@ -180,33 +202,57 @@ function renderStackedBar(canvas, contributions, opts = {}) {
       scales: {
         x: {
           stacked: true,
-          display: true,
+          display: false,
+          min: 0,
           max: 100,
-          ticks: {
-            callback: (value) => value + '%'
-          }
+          grid: { display: false }
         },
         y: {
           stacked: true,
-          display: false
+          display: false,
+          grid: { display: false }
         }
       },
       plugins: {
         legend: {
-          display: true,
-          position: 'bottom',
-          labels: {
-            boxWidth: 12,
-            padding: 8
-          }
+          display: false
+        },
+        datalabels: {
+          display: (context) => {
+            if (!context.parsed || typeof context.parsed.x !== 'number') {
+              return false;
+            }
+            const value = context.parsed.x;
+            const chart = context.chart;
+            const meta = chart.getDatasetMeta(context.datasetIndex);
+            const bar = meta.data[context.dataIndex];
+            const segmentWidth = bar ? bar.width : 0;
+            return value >= 10 && segmentWidth >= 52;
+          },
+          color: '#ffffff',
+          font: { weight: 600, size: 11 },
+          textShadowColor: 'rgba(0, 0, 0, 0.5)',
+          textShadowBlur: 4,
+          formatter: (value, context) => {
+            const label = context.dataset.label;
+            return `${label} ${value.toFixed(0)}%`;
+          },
+          anchor: 'center',
+          align: 'center',
+          clamp: true,
+          offset: 0
         },
         tooltip: {
           callbacks: {
+            title: () => '',
             label: (context) => {
               const pillar = context.dataset.label;
-              const pct = context.parsed.x.toFixed(1);
-              const rawValue = contributions.raw[pillar.toLowerCase().replace('-', '')] || 0;
-              return `${pillar}: ${pct}% (w×s = ${rawValue.toFixed(1)})`;
+              const pct = context.parsed.x?.toFixed(1) ?? '0.0';
+              const meta = context.dataset._meta || {};
+              const score = meta.score != null ? Math.round(meta.score) : '?';
+              const weight = meta.weight != null ? meta.weight.toFixed(2) : '?';
+              const wxs = meta.wxs != null ? meta.wxs.toFixed(1) : '?';
+              return `${pillar} — ${pct}% (score ${score}, w ${weight}, w×s ${wxs})`;
             }
           }
         }
@@ -221,28 +267,16 @@ function renderStackedBar(canvas, contributions, opts = {}) {
 }
 
 /**
- * Render la sparkline Chart.js (historique DI)
- *
- * @param {HTMLCanvasElement} canvas - Canvas élément
- * @param {Array<number>} history - Historique DI (0-100)
- * @param {Object} opts - Options {heightSpark}
+ * Render sparkline Chart.js (SANS axes/grilles, mini)
+ * Retourne null si history < 6 points (placeholder géré dans HTML)
  */
 function renderSparkline(canvas, history, opts = {}) {
-  const ctx = canvas.getContext('2d');
-  const height = opts.heightSpark || 60;
-  canvas.height = height;
-
-  // Limiter à 100 points max
-  const data = (history || []).slice(-100);
-
-  if (data.length === 0) {
-    // Pas de données: afficher message
-    ctx.font = '12px sans-serif';
-    ctx.fillStyle = 'var(--theme-text-muted)';
-    ctx.textAlign = 'center';
-    ctx.fillText('Historique indisponible', canvas.width / 2, canvas.height / 2);
+  if (!Array.isArray(history) || history.length < 6) {
     return null;
   }
+
+  const ctx = canvas.getContext('2d');
+  const data = history.slice(-100);  // Max 100 points
 
   const config = {
     type: 'line',
@@ -250,8 +284,8 @@ function renderSparkline(canvas, history, opts = {}) {
       labels: data.map((_, i) => i),
       datasets: [{
         data: data,
-        borderColor: 'var(--brand-primary)',
-        borderWidth: 2,
+        borderColor: getColors().cycle,  // Couleur cycle pour cohérence
+        borderWidth: 1.5,
         fill: false,
         pointRadius: 0,
         tension: 0.35
@@ -262,22 +296,24 @@ function renderSparkline(canvas, history, opts = {}) {
       maintainAspectRatio: false,
       scales: {
         x: {
-          display: false
+          display: false,  // ✅ MASQUER axes complètement
+          grid: { display: false }
         },
         y: {
-          display: true,
+          display: false,  // ✅ MASQUER axes complètement
           min: 0,
           max: 100,
-          ticks: {
-            callback: (value) => value
-          }
+          grid: { display: false }
         }
       },
+      elements: {
+        point: { radius: 0 }  // ✅ Pas de points visibles
+      },
       plugins: {
-        legend: {
-          display: false
-        },
+        legend: { display: false },
+        datalabels: { display: false },  // ✅ FORCER OFF (même si global=false)
         tooltip: {
+          enabled: true,  // Garde tooltip simple
           callbacks: {
             label: (context) => `DI: ${context.parsed.y.toFixed(0)}`
           }
@@ -294,9 +330,6 @@ function renderSparkline(canvas, history, opts = {}) {
 
 /**
  * Fallback texte si Chart.js absent
- *
- * @param {HTMLElement} container - Conteneur DOM
- * @param {Object} data - Données complètes
  */
 function renderTextFallback(container, data) {
   console.warn('⚠️ Chart.js not loaded - using text fallback for Decision Index Panel');
@@ -312,12 +345,12 @@ function renderTextFallback(container, data) {
         <div class="di-value">${Math.round(data.di)}</div>
         <div class="di-badges">${renderBadges(data.meta)}</div>
       </div>
-      <div style="margin: var(--space-sm) 0; font-size: 0.9rem; color: var(--theme-text-muted);">
+      <div style="margin: var(--space-xs) 0; font-size: 0.85rem; color: var(--theme-text-muted);">
         Cycle: ${contribs.cycle.toFixed(1)}% •
         On-Chain: ${contribs.onchain.toFixed(1)}% •
         Risk: ${contribs.risk.toFixed(1)}%
       </div>
-      <div style="font-size: 0.85rem; color: var(--theme-text-muted);">
+      <div style="font-size: 0.8rem; color: var(--theme-text-muted);">
         Historique: ${historyText}
       </div>
       ${renderFootnote(data.meta)}
@@ -327,10 +360,6 @@ function renderTextFallback(container, data) {
 
 /**
  * Render interne (sans debounce)
- *
- * @param {HTMLElement} container - Conteneur DOM
- * @param {Object} data - Données complètes
- * @param {Object} opts - Options
  */
 function _renderDIPanelInternal(container, data, opts = {}) {
   if (!container) {
@@ -338,7 +367,7 @@ function _renderDIPanelInternal(container, data, opts = {}) {
     return;
   }
 
-  // Debug toggle (localhost uniquement)
+  // Debug toggle
   if (window.__DI_DEBUG__ && window.location?.hostname === 'localhost') {
     console.log('🐛 DI Panel Input:', {
       di: data.di,
@@ -354,7 +383,7 @@ function _renderDIPanelInternal(container, data, opts = {}) {
     return renderTextFallback(container, data);
   }
 
-  // Détruire anciennes instances Chart.js (évite fuites mémoire)
+  // Cleanup Chart.js
   if (chartInstances.stacked) {
     chartInstances.stacked.destroy();
     chartInstances.stacked = null;
@@ -364,7 +393,7 @@ function _renderDIPanelInternal(container, data, opts = {}) {
     chartInstances.sparkline = null;
   }
 
-  // Calculer contributions relatives
+  // Calculer contributions
   const contribs = calculateRelativeContributions(data.weights, data.scores);
 
   if (window.__DI_DEBUG__ && window.location?.hostname === 'localhost') {
@@ -372,6 +401,8 @@ function _renderDIPanelInternal(container, data, opts = {}) {
   }
 
   // Générer HTML structure
+  const showSparkline = data.history && data.history.length >= 6;
+
   container.innerHTML = `
     <div class="di-panel">
       <div class="di-head">
@@ -381,8 +412,12 @@ function _renderDIPanelInternal(container, data, opts = {}) {
       <div class="di-stack">
         <canvas id="${container.id}-stack-chart"></canvas>
       </div>
+      ${renderMetrics(data.weights, data.scores, contribs)}
       <div class="di-spark">
-        <canvas id="${container.id}-spark-chart"></canvas>
+        ${showSparkline
+          ? `<canvas id="${container.id}-spark-chart"></canvas>`
+          : `<div class="di-spark-placeholder">Historique en cours de collecte (${data.history?.length || 0}/6 points)</div>`
+        }
       </div>
       ${renderFootnote(data.meta)}
     </div>
@@ -390,42 +425,27 @@ function _renderDIPanelInternal(container, data, opts = {}) {
 
   // Render charts
   const stackCanvas = document.getElementById(`${container.id}-stack-chart`);
-  const sparkCanvas = document.getElementById(`${container.id}-spark-chart`);
-
   if (stackCanvas) {
-    chartInstances.stacked = renderStackedBar(stackCanvas, contribs, opts);
+    chartInstances.stacked = renderStackedBar(stackCanvas, contribs, data.weights, data.scores, opts);
   }
 
-  if (sparkCanvas) {
-    chartInstances.sparkline = renderSparkline(sparkCanvas, data.history, opts);
+  if (showSparkline) {
+    const sparkCanvas = document.getElementById(`${container.id}-spark-chart`);
+    if (sparkCanvas) {
+      chartInstances.sparkline = renderSparkline(sparkCanvas, data.history, opts);
+    }
   }
 }
 
 /**
  * Fonction principale - Render le panneau Decision Index
  *
- * @param {HTMLElement} container - Conteneur DOM où dessiner le panneau
- * @param {Object} data - Données structurées {di, weights, scores, history, meta}
- * @param {Object} opts - Options {heightStacked, heightSpark, palette}
- *
- * Structure data attendue:
- * {
- *   di: number (0-100),
- *   weights: { cycle: number, onchain: number, risk: number },  // POST-adaptatifs
- *   scores: { cycle: number, onchain: number, risk: number },   // 0-100
- *   history: number[],  // 0-100, max 100 points
- *   meta: {
- *     confidence: number (0-1),
- *     contradiction: number (0-1),
- *     cap: number (% ou 0-1) | null,
- *     mode: string,
- *     source: string,
- *     live: boolean
- *   }
- * }
+ * @param {HTMLElement} container - Conteneur DOM
+ * @param {Object} data - Données {di, weights, scores, history, meta}
+ * @param {Object} opts - Options {heightStacked, heightSpark}
  */
 export function renderDecisionIndexPanel(container, data, opts = {}) {
-  // Debounce 150ms (évite jank sur rafales de MAJ)
+  // Debounce 150ms
   clearTimeout(refreshTimeout);
   refreshTimeout = setTimeout(() => {
     _renderDIPanelInternal(container, data, opts);
@@ -433,7 +453,7 @@ export function renderDecisionIndexPanel(container, data, opts = {}) {
 }
 
 /**
- * Cleanup global (appeler avant destruction page)
+ * Cleanup global
  */
 export function destroyDIPanelCharts() {
   if (chartInstances.stacked) {
@@ -448,7 +468,6 @@ export function destroyDIPanelCharts() {
 
 /**
  * Helper pour initialiser Chart.js (idempotent)
- * ⚠️ À appeler depuis les pages, PAS automatiquement
  */
 export async function ensureChartJSLoaded() {
   if (window.Chart) {

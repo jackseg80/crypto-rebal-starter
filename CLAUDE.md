@@ -270,13 +270,16 @@ services/analytics/*.py
 services/ml/*.py
 static/components/nav.js (navigation unifiée)
 static/components/GovernancePanel.js (intégré dans risk-dashboard)
+static/components/decision-index-panel.js (panneau DI réutilisable Chart.js)
+static/components/decision-index-panel.css (style compact dark mode)
+static/components/UnifiedInsights.js (intégration DI + weights post-adaptatifs)
 static/global-config.js (config endpoints)
 static/dashboard.html (tuile Saxo intégrée)
-static/analytics-unified.html (ML temps réel, Sources injection)
+static/analytics-unified.html (ML temps réel, Sources injection, panneau DI)
 static/risk-dashboard.html (GovernancePanel intégré)
 static/rebalance.html (Priority/Proportional modes)
 static/execution.html + execution_history.html
-static/simulations.html (simulateur pipeline complet)
+static/simulations.html (simulateur pipeline complet, panneau DI)
 static/modules/wealth-saxo-summary.js (store partagé Saxo)
 static/modules/simulation-engine.js (engine déterministe)
 static/components/SimControls.js (contrôles UI)
@@ -364,15 +367,69 @@ async def vol_predict(assets: List[str] = Query(..., min_items=1, max_items=50),
 
 - Utiliser le store `static/core/risk-dashboard-store.js`.
 - Ajouter/modifier KPI dans `static/risk-dashboard.html` + modules sous `static/modules/*.js`.
-- Respecter le système de cache persistant (voir “Caches & cross‑tab”).
+- Respecter le système de cache persistant (voir "Caches & cross‑tab").
 
-### D) Intégrations front (iframes/nav)
+### D) Utiliser le panneau Decision Index
 
-- Pour embarquer une page dans une autre: utiliser une URL relative + `?nav=off` et lazy‑load l’iframe au clic d’onglet.
+**Objectif** : Afficher DI + contributions + sparkline dans analytics/simulations.
+
+**Composant** : `static/components/decision-index-panel.js` + `.css`
+
+**Règles critiques** :
+1. **Formule contributions** : `(weight × score) / Σ(weight × score)` — **PAS d'inversion Risk**
+2. **Weights post-adaptatifs** : Passer les poids APRÈS adjustements (ex: Cycle≥90 → wCycle=0.65)
+3. **Sparkline** : N'affiche que si `history.length ≥ 6` (sinon placeholder)
+4. **Labels barre** : Affichés si segment ≥10% ET ≥52px largeur
+5. **Tooltip** : Format complet `Cycle — 83.1% (score 100, w 0.65, w×s 65.0)`
+
+**Exemple intégration** :
+```javascript
+import { renderDecisionIndexPanel } from './components/decision-index-panel.js';
+
+const data = {
+  di: 65,
+  weights: { cycle: 0.65, onchain: 0.25, risk: 0.10 },  // Post-adaptatifs
+  scores: { cycle: 100, onchain: 41, risk: 57 },
+  history: [60, 62, 65, 67, 65],  // < 6 → placeholder
+  meta: {
+    confidence: 0.82,
+    contradiction: 0.15,
+    cap: 0.15,
+    mode: 'Priority',
+    source: 'V2',
+    live: true
+  }
+};
+
+const container = document.getElementById('di-container');
+renderDecisionIndexPanel(container, data);
+```
+
+**Injection weights dans unified-insights-v2.js** (lignes 357-362, 388-392) :
+```javascript
+decision.weights = {
+  cycle: adaptiveWeights.wCycle,
+  onchain: adaptiveWeights.wOnchain,
+  risk: adaptiveWeights.wRisk
+};
+```
+
+**Normalisation clés dans UnifiedInsights.js** (lignes 1206-1219) :
+```javascript
+const weights = {
+  cycle:   (eff && (eff.cycle   ?? eff.wCycle))   ?? 0.5,
+  onchain: (eff && (eff.onchain ?? eff.wOnchain)) ?? 0.3,
+  risk:    (eff && (eff.risk    ?? eff.wRisk))    ?? 0.2,
+};
+```
+
+### E) Intégrations front (iframes/nav)
+
+- Pour embarquer une page dans une autre: utiliser une URL relative + `?nav=off` et lazy‑load l'iframe au clic d'onglet.
 - Ne jamais dur‑coder `localhost` dans un `src`; préférer relative ou `window.location.origin + '/static/...'`.
-- Le menu unifié ne s’injecte pas si `nav=off`.
+- Le menu unifié ne s'injecte pas si `nav=off`.
 
-### E) Écrire des tests
+### F) Écrire des tests
 
 - Unit: logique pure (services).
 - Integration: TestClient FastAPI (pinger endpoint + vérifier schémas/contrats).
