@@ -200,8 +200,10 @@ static/core/unified-insights-v2.js (intégration Phase Engine - production)
 static/core/unified-insights.js (legacy)
 static/core/allocation-engine.js (engine allocations)
 static/core/strategy-api-adapter.js (adaptateur Strategy API v3)
+static/modules/simulation-engine.js (réplique unified-insights-v2 - aligné Sep 2025)
 static/test-phase-engine.html (suite tests 16 cases)
 Note: versions *-backup, *-broken, *-clean sont des archives de développement
+Note: simulation-engine.js maintient la parité avec unified-insights-v2.js (voir docs/SIMULATION_ENGINE_ALIGNMENT.md)
 ```
 
 ---

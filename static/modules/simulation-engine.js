@@ -29,7 +29,46 @@ async function loadContradictionModules() {
         stale: false,
         useBaseWeights: false
       }),
-      calculateAdaptiveWeights: (base, state) => base,
+      // ⚠️ RÉPLIQUE unified-insights-v2.js lignes 42-94
+      calculateAdaptiveWeights: (base, state) => {
+        const cycleScore = state?.cycle?.score ?? 50;
+        const onchainScore = state?.scores?.onchain ?? 50;
+        const governanceContradiction = state?.governance?.contradiction_index ?? 0;
+
+        // Pondérations de base
+        let wCycle = base.cycle ?? 0.5;
+        let wOnchain = base.onchain ?? 0.3;
+        let wRisk = base.risk ?? 0.2;
+
+        // RÈGLE 1: Cycle ≥ 90 → boost wCycle (identique à v2)
+        if (cycleScore >= 90) {
+          wCycle = 0.65;
+          wOnchain = 0.25;
+          wRisk = 0.1;
+          console.debug('🚀 SIM: Adaptive weights - Cycle ≥ 90 → boost cycle influence');
+        } else if (cycleScore >= 70) {
+          wCycle = 0.55;
+          wOnchain = 0.28;
+          wRisk = 0.17;
+        }
+
+        // RÈGLE 2: Contradiction élevée → pénalité on-chain légère
+        const contradictionLevel = Math.round(governanceContradiction * 100);
+        if (contradictionLevel >= 50) {
+          wOnchain = Math.max(0.2, wOnchain * 0.9); // -10% max
+          console.debug('🔸 SIM: High contradiction → reduced onchain weight');
+        }
+
+        // Normaliser les poids pour qu'ils somment à 1.0
+        const sum = wCycle + wOnchain + wRisk;
+        if (sum > 0) {
+          wCycle /= sum;
+          wOnchain /= sum;
+          wRisk /= sum;
+        }
+
+        return { cycle: wCycle, onchain: wOnchain, risk: wRisk, wCycle, wOnchain, wRisk };
+      },
       applyContradictionCaps: (policy, state) => policy
     };
   }
@@ -431,9 +470,10 @@ export function computeDecisionIndex(context) {
   }
 
   // PRIORITÉ 2: CCS Mixte (cycle + onchain + risk)
-  let wCycle = 0.50;
-  let wOnchain = 0.30;
-  let wRisk = 0.20;
+  // ⚠️ FIX CRITIQUE: Utiliser context.weights si fourni (poids adaptatifs)
+  let wCycle = context.weights?.cycle ?? context.weights?.wCycle ?? 0.50;
+  let wOnchain = context.weights?.onchain ?? context.weights?.wOnchain ?? 0.30;
+  let wRisk = context.weights?.risk ?? context.weights?.wRisk ?? 0.20;
 
   // Ajuster selon confiances
   wCycle *= (0.8 + 0.4 * confidences.cycle);
@@ -1024,7 +1064,8 @@ export async function simulateFullPipeline(uiOverrides = {}) {
     const executionOverrides = uiOverrides?.execution ?? {};
 
     // 2. Système de Contradiction Unifié
-    const BASE_WEIGHTS = { cycle: 0.4, onchain: 0.35, risk: 0.25 };
+    // ⚠️ ALIGNÉ avec unified-insights-v2.js (lignes 50-52)
+    const BASE_WEIGHTS = { cycle: 0.5, onchain: 0.3, risk: 0.2 };
     const SMOOTHING_CFG = { ema_alpha: 0.25, deadband: 2, persistence: 3 };
 
     // Construire snapshot d'état pour contradiction unifié
@@ -1121,7 +1162,19 @@ export async function simulateFullPipeline(uiOverrides = {}) {
     const di = computeDecisionIndex({ ...baseContext, weights });
 
     // 4. Risk Budget
-    const riskBudget = computeRiskBudget(di.di, uiOverrides.riskBudget, uiOverrides.marketOverlays);
+    // ⚠️ PRIORITÉ: regimeData.risk_budget si disponible (source unique comme Analytics)
+    let riskBudget;
+    if (stateForEngine.regimeData?.risk_budget?.target_stables_pct != null) {
+      riskBudget = {
+        target_stables_pct: stateForEngine.regimeData.risk_budget.target_stables_pct,
+        source: 'market-regimes (v2)',
+        regime_based: true
+      };
+      console.debug('✅ SIM: Using regimeData.risk_budget as source of truth:', riskBudget);
+    } else {
+      riskBudget = computeRiskBudget(di.di, uiOverrides.riskBudget, uiOverrides.marketOverlays);
+      console.debug('⚠️ SIM: Fallback to computed risk budget (no regimeData):', riskBudget);
+    }
 
     // 5. Targets de base
     const targets = computeTargets(riskBudget, { ...baseContext, weights });
