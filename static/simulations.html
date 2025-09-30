@@ -541,6 +541,14 @@
           <button id="mode-live" class="active">📊 Live</button>
           <button id="mode-simulation">🎭 Simulation</button>
         </div>
+
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <label for="sim-source-select" style="font-size: 0.9rem; color: var(--theme-text-muted);">Source:</label>
+          <select id="sim-source-select" style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--theme-border); background: var(--theme-surface); color: var(--theme-text); font-size: 0.9rem;">
+            <option value="">Charger...</option>
+          </select>
+          <button id="test-source-btn" class="btn secondary" style="padding: 6px 12px; font-size: 0.85rem;">🧪 Test</button>
+        </div>
       </div>
     </div>
 
@@ -729,21 +737,82 @@
     // État global de l'application
     let appState = {
       mode: 'live', // 'live' ou 'simulation'
-      sourceId: 'cointracking',
+      sourceId: null, // Sera initialisé depuis globalConfig
       controls: null,
       inspector: null,
       lastSimulation: null,
       isRunning: false
     };
 
+    // Fonction pour récupérer la source active depuis globalConfig
+    function getActiveSource() {
+      return window.globalConfig?.get('data_source') || 'stub_balanced';
+    }
+
     // Debounce pour éviter d'inonder le moteur
     let controlsUpdateTimeout = null;
+
+    // Charger les sources disponibles depuis l'API
+    async function loadAvailableSources() {
+      try {
+        const apiBase = window.globalConfig?.get('api_base_url') || window.location.origin;
+        const response = await fetch(`${apiBase}/api/users/sources`);
+
+        if (!response.ok) {
+          console.warn('Failed to load sources');
+          return;
+        }
+
+        const data = await response.json();
+        const select = document.getElementById('sim-source-select');
+
+        if (!select) return;
+
+        // Peupler le select
+        select.innerHTML = '';
+        (data.sources || []).forEach(source => {
+          const option = document.createElement('option');
+          option.value = source.key;
+          option.textContent = source.label;
+          select.appendChild(option);
+        });
+
+        // Sélectionner la source active
+        const activeSource = getActiveSource();
+        select.value = activeSource;
+
+        console.log('🎭 SIM: Loaded sources:', data.sources?.length || 0, '| Active:', activeSource);
+      } catch (error) {
+        console.error('Failed to load sources:', error);
+      }
+    }
+
+    // Tester la source sélectionnée
+    async function testSelectedSource() {
+      const select = document.getElementById('sim-source-select');
+      const source = select?.value || getActiveSource();
+      const apiBase = window.globalConfig?.get('api_base_url') || window.location.origin;
+
+      try {
+        const response = await fetch(`${apiBase}/balances/current?source=${source}`);
+        const data = await response.json();
+
+        if (response.ok && data.items?.length > 0) {
+          alert(`✅ Source "${source}" OK\n\n${data.items.length} assets trouvés\nValeur totale: $${data.items.reduce((sum, i) => sum + (i.value_usd || 0), 0).toFixed(2)}`);
+        } else {
+          alert(`⚠️ Source "${source}" ne retourne pas de données`);
+        }
+      } catch (error) {
+        alert(`❌ Erreur test source "${source}":\n${error.message}`);
+      }
+    }
 
     // Initialisation
     document.addEventListener('DOMContentLoaded', async () => {
       console.log('🎭 SIM: Simulator page initialized');
 
       try {
+        await loadAvailableSources();
         await initializeSimulator();
         attachEventListeners();
         setInitialState();
@@ -793,11 +862,22 @@
         switchMode('simulation');
       });
 
-      // Source select
-      document.getElementById('sim-source-select')?.addEventListener('change', async (e) => {
-        appState.sourceId = e.target.value;
-        await reinitializeWithNewSource();
+      // Source selector
+      document.getElementById('sim-source-select')?.addEventListener('change', (e) => {
+        const newSource = e.target.value;
+        console.log('🎭 SIM: Source changed to:', newSource);
+        // Mettre à jour globalConfig pour cohérence
+        if (window.globalConfig) {
+          window.globalConfig.set('data_source', newSource);
+        }
+        // Recharger si en mode Live
+        if (appState.mode === 'live') {
+          loadLiveData();
+        }
       });
+
+      // Test source button
+      document.getElementById('test-source-btn')?.addEventListener('click', testSelectedSource);
 
       pinButton?.addEventListener('click', () => {
         const controlsPanel = document.getElementById('controls');
@@ -946,8 +1026,10 @@
         const targetsResponse = await fetch(`${apiBase}/api/strategy/allocations/dynamic`);
         const targetsData = await targetsResponse.json();
 
-        // 4. Portfolio actuel
-        const portfolioResponse = await fetch(`${apiBase}/balances/current?source=${appState.sourceId}`);
+        // 4. Portfolio actuel (utilise la source configurée dans Settings)
+        const activeSource = getActiveSource();
+        console.log('🎭 SIM: Using data source:', activeSource);
+        const portfolioResponse = await fetch(`${apiBase}/balances/current?source=${activeSource}`);
         const portfolioData = await portfolioResponse.json();
 
         // Construire un résultat similaire au simulateur
