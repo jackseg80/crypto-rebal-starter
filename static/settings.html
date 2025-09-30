@@ -2540,6 +2540,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function checkCSVStatus() {
       const statusDiv = document.getElementById('csv-download-status');
+      if (!statusDiv) {
+        console.debug('CSV status div not found, skipping CSV status check');
+        return;
+      }
 
       try {
         const response = await globalConfig.apiRequest('/csv/status');
