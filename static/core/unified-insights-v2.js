@@ -11,8 +11,8 @@ import { analyzeContradictorySignals } from '../modules/composite-score-v2.js';
 import { calculateIntelligentDecisionIndexAPI, StrategyConfig } from './strategy-api-adapter.js';
 import { calculateAdaptiveWeights as calculateAdaptiveWeightsV2 } from '../governance/contradiction-policy.js';
 
-// Import de fallback vers l'ancienne version si nécessaire
-import { calculateIntelligentDecisionIndex as legacyCalculation } from './unified-insights.js';
+// Import de fallback vers l'ancienne version si nécessaire (archived)
+import { calculateIntelligentDecisionIndex as legacyCalculation } from '../archive/unified-insights-versions/unified-insights.js';
 
 // Lightweight helpers (conservés pour compatibilité)
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
