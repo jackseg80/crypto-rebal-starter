@@ -11,16 +11,29 @@ import { analyzeContradictorySignals } from '../modules/composite-score-v2.js';
 import { calculateIntelligentDecisionIndexAPI, StrategyConfig } from './strategy-api-adapter.js';
 import { calculateAdaptiveWeights as calculateAdaptiveWeightsV2 } from '../governance/contradiction-policy.js';
 
-// Import de fallback vers l'ancienne version si nécessaire (archived)
-import { calculateIntelligentDecisionIndex as legacyCalculation } from '../archive/unified-insights-versions/unified-insights.js';
-
 // Lightweight helpers (conservés pour compatibilité)
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
 const pct = (x) => Math.round(clamp01(x) * 100);
 const colorForScore = (s) => s > 70 ? 'var(--danger)' : s >= 40 ? 'var(--warning)' : 'var(--success)';
 
-// Debug flag pour comparaison legacy vs API
-const ENABLE_COMPARISON_LOGGING = false;
+// Simple inline fallback (remplace import legacy archivé)
+function simpleFallbackCalculation(context) {
+  const { blendedScore = 50, cycleData = {}, onchainScore = 50, riskScore = 50 } = context;
+  const cycleScore = cycleData.score ?? 50;
+  const weights = { cycle: 0.35, onchain: 0.25, risk: 0.2, blended: 0.2 };
+  const score = Math.round(
+    weights.cycle * cycleScore +
+    weights.onchain * onchainScore +
+    weights.risk * riskScore +
+    weights.blended * blendedScore
+  );
+  return {
+    score: Math.max(0, Math.min(100, score)),
+    confidence: 0.5,
+    action: score > 70 ? 'HOLD_STABLE' : score >= 40 ? 'MONITOR' : 'RISK_ON',
+    source: 'inline_fallback'
+  };
+}
 
 /**
  * Calcule les pondérations adaptatives selon le contexte de marché
@@ -343,31 +356,17 @@ export async function getUnifiedState() {
       template: decision.template_used
     });
 
-    // Comparaison avec legacy pour validation (si activé)
-    if (ENABLE_COMPARISON_LOGGING) {
-      try {
-        const legacyDecision = legacyCalculation(context);
-        console.debug('📊 Legacy vs API comparison:', {
-          legacy_score: legacyDecision.score,
-          api_score: decision.score,
-          difference: Math.abs(legacyDecision.score - decision.score),
-          legacy_confidence: legacyDecision.confidence,
-          api_confidence: decision.confidence
-        });
-      } catch (e) {
-        console.debug('⚠️ Legacy comparison failed:', e.message);
-      }
-    }
+    // Comparaison désactivée (legacy archivé)
 
   } catch (error) {
-    (window.debugLogger?.warn || console.warn)('⚠️ Strategy API failed, using legacy fallback:', error.message);
+    (window.debugLogger?.warn || console.warn)('⚠️ Strategy API failed, using inline fallback:', error.message);
 
-    // Fallback vers calcul legacy en cas d'erreur API
+    // Fallback vers calcul simple en cas d'erreur API
     const context = {
       blendedScore, cycleData, regimeData, signalsData,
       onchainScore, onchainConfidence: ocMeta?.confidence ?? 0, riskScore
     };
-    decision = legacyCalculation(context);
+    decision = simpleFallbackCalculation(context);
   }
 
   // ENHANCED HEALTH (conservé + ajout info Strategy API)
