@@ -13,23 +13,29 @@
 5. Perf: attention aux appels répétés; privilégier caches/ETag si dispo.
 
 ## 1) Aujourd'hui : quelles pages/endpoints utiliser ?
-- **Crypto** :
-  - UI : `dashboard.html`, `analytics-unified.html`, `risk-dashboard.html`, `rebalance.html`
-  - API : `/balances/current`, `/rebalance/plan`, `/portfolio/metrics`, …
-- **Bourse / Saxo** :
-  - UI : `saxo-upload.html` (import), `saxo-dashboard.html` (consultation)
-  - API : `/api/saxo/*` (upload/positions/accounts/instruments …)
+- **Crypto** (production ready):
+  - UI : `dashboard.html`, `analytics-unified.html`, `risk-dashboard.html`, `rebalance.html`, `execution.html`, `execution_history.html`
+  - API : `/balances/current`, `/rebalance/plan`, `/portfolio/metrics`, `/execution/*`, `/api/ml/*`, `/api/risk/*`
+- **Bourse / Saxo** (Phase 2 complétée):
+  - UI : `saxo-upload.html` (import), `saxo-dashboard.html` (consultation), `analytics-equities.html` (beta)
+  - API : `/api/saxo/*` (upload/positions/accounts/instruments), `/api/wealth/*` (lecture legacy active)
+  - Intégration : Tuile Saxo dans `dashboard.html` avec store partagé (`wealth-saxo-summary.js`)
+- **Simulateur** (production ready):
+  - UI : `simulations.html` (pipeline complet Decision → Execution avec 10 presets)
+  - Engine : `static/modules/simulation-engine.js`, contrôles `static/components/SimControls.js`
+- **Outils/Debug** : 60+ pages test/debug disponibles (préfixe `test-*`, `debug-*`, `clear-*`)
 
-## 2) Wealth — statut
-- Namespace `/api/wealth/*` : **en cours**, ne pas basculer par défaut.
-- Ne pas créer `analytics-equities.html` / `risk-equities.html` / `rebalance-equities.html` sans instruction explicite.
-- Pour la cible à venir : lire `docs/TODO_WEALTH_MERGE.md`.
+## 2) Wealth — statut (Phase 2 complétée ✅)
+- Namespace `/api/wealth/*` : **opérationnel**, endpoints disponibles, lecture legacy active
+- Pages existantes : `analytics-equities.html` (beta)
+- Phase 3 à venir : `risk-equities.html`, `rebalance-equities.html`
+- Roadmap complète : voir `docs/TODO_WEALTH_MERGE.md`
 
-## 2) Windows 11 — conventions pratiques
+## 3) Windows 11 — conventions pratiques
 - Utiliser les scripts `.ps1`/`.bat` fournis (éviter `bash` non portable).
 - Chemins : supporter Windows (éviter `touch`, préférer PowerShell).
 
-## 1) Architecture (résumé)
+## 4) Architecture (résumé)
 
 - API: `api/main.py` (CORS/CSP/GZip/TrustedHost, montages `/static`, `/data`, `/tests`) + routers `api/*_endpoints.py`.
 - Services: `services/*` (risk mgmt, execution, analytics, ML…).
@@ -44,35 +50,42 @@
 Fichiers clés:
 
 ```
-api/main.py (auto-init ML au startup)
+api/main.py (auto-init ML, routers, middleware)
 api/execution_endpoints.py (governance routes unifiées)
-api/risk_endpoints.py
+api/risk_endpoints.py (risk management unifié)
 api/alerts_endpoints.py (alertes centralisées)
-api/unified_ml_endpoints.py (ML unifié)
-api/realtime_endpoints.py
-services/execution/governance.py (Decision Engine)
+api/unified_ml_endpoints.py (ML unifié, orchestrateur)
+api/realtime_endpoints.py (SSE/WebSocket)
+api/saxo_endpoints.py (Bourse/Saxo)
+api/wealth_endpoints.py (Wealth cross-asset)
+api/sources_endpoints.py (Sources System v2)
+api/services/sources_resolver.py (SOT résolution données)
+api/services/data_router.py (Router priorité sources)
+services/execution/governance.py (Decision Engine single-writer)
 services/ml/orchestrator.py (MLOrchestrator)
 services/risk_management.py
-services/analytics/.py
-services/ml/.py
-static/components/nav.js
+services/analytics/*.py
+services/ml/*.py
+static/components/nav.js (navigation unifiée)
 static/components/GovernancePanel.js (intégré dans risk-dashboard)
-static/global-config.js
-static/analytics-unified.html (section ML temps réel)
-static/risk-dashboard.html (avec GovernancePanel intégré)
-static/portfolio-optimization.html
+static/global-config.js (config endpoints)
+static/dashboard.html (tuile Saxo intégrée)
+static/analytics-unified.html (ML temps réel, Sources injection)
+static/risk-dashboard.html (GovernancePanel intégré)
+static/rebalance.html (Priority/Proportional modes)
+static/execution.html + execution_history.html
 static/simulations.html (simulateur pipeline complet)
-static/modules/*.js
-static/modules/simulation-engine.js (engine simulation avec fixes deterministes)
-static/components/SimControls.js (controles UI)
+static/modules/wealth-saxo-summary.js (store partagé Saxo)
+static/modules/simulation-engine.js (engine déterministe)
+static/components/SimControls.js (contrôles UI)
 static/components/SimInspector.js (arbre explication)
-static/presets/sim_presets.json (10 scenarios predefinis)
+static/presets/sim_presets.json (10 scénarios prédéfinis)
 static/core/risk-dashboard-store.js (sync governance)
-static/core/phase-engine.js (détection de phases market)
-static/core/phase-buffers.js (ring buffers pour time series)
-static/core/phase-inputs-extractor.js (extraction données phases)
+static/core/phase-engine.js (détection phases market)
+static/core/phase-buffers.js (ring buffers time series)
+static/core/phase-inputs-extractor.js (extraction données)
 static/core/unified-insights-v2.js (intégration Phase Engine)
-static/test-phase-engine.html (suite de tests complète)
+static/test-phase-engine.html (suite tests 16 cases)
 ```
 
 ---
