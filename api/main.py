@@ -1858,7 +1858,7 @@ async def portfolio_metrics(source: str = Query("cointracking"), user: str = Dep
     """Métriques calculées du portfolio (user-scoped)"""
     try:
         # Récupérer les données de balance actuelles
-        res = await resolve_current_balances(source=source, user=user)
+        res = await resolve_current_balances(source=source, user_id=user)
         rows = _to_rows(res.get("items", []))
         balances = {"source_used": res.get("source_used"), "items": rows}
         # Do not compute on stub sources unless explicitly allowed
