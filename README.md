@@ -200,10 +200,12 @@ function computeMacroTargetsDynamic(ctx, rb, walletStats) {
 - Architecture: `docs/architecture.md`
 - Governance: `docs/governance.md`
 - Risk Dashboard: `docs/risk-dashboard.md`
+- **Performance Monitoring**: `docs/PERFORMANCE_MONITORING.md` ⭐ NEW
 - Télémétrie: `docs/telemetry.md`
 - Runbooks: `docs/runbooks.md`
 - Intégrations: `docs/integrations.md`
 - Refactoring & migration: `docs/refactoring.md`
+- P&L System: `docs/PERFORMANCE_PNL_SYSTEM.md`
 
 Endpoints utiles:
 ```

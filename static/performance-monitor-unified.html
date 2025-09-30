@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Performance Monitor Unifié - Crypto Rebal</title>
+    <link rel="stylesheet" href="shared-theme.css">
+    <script src="global-config.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: #00d4ff;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .section {
+            background: rgba(30, 30, 50, 0.8);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid rgba(0, 212, 255, 0.2);
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #00d4ff;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title .icon {
+            font-size: 24px;
+        }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border-left: 3px solid transparent;
+        }
+
+        .metric-row.good { border-left-color: #4caf50; }
+        .metric-row.warning { border-left-color: #ff9800; }
+        .metric-row.critical { border-left-color: #f44336; }
+        .metric-row.neutral { border-left-color: #2196f3; }
+
+        .metric-label {
+            font-size: 14px;
+            color: #b0b0b0;
+        }
+
+        .metric-value {
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .metric-value.small {
+            font-size: 14px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            justify-content: center;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        button.success {
+            background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%);
+        }
+
+        button.danger {
+            background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+        }
+
+        button.secondary {
+            background: linear-gradient(135deg, #607d8b 0%, #455a64 100%);
+        }
+
+        .log-container {
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 8px;
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 5px;
+            border-left: 2px solid #666;
+            padding-left: 10px;
+        }
+
+        .log-entry .timestamp {
+            color: #888;
+            font-size: 11px;
+        }
+
+        .log-entry .message {
+            color: #e0e0e0;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-badge.online { background: #4caf50; color: white; }
+        .status-badge.offline { background: #f44336; color: white; }
+        .status-badge.degraded { background: #ff9800; color: white; }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4caf50 0%, #8bc34a 100%);
+            transition: width 0.3s ease;
+        }
+
+        .progress-bar-fill.warning {
+            background: linear-gradient(90deg, #ff9800 0%, #ffc107 100%);
+        }
+
+        .progress-bar-fill.critical {
+            background: linear-gradient(90deg, #f44336 0%, #e91e63 100%);
+        }
+
+        .chart-placeholder {
+            height: 150px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            font-size: 12px;
+        }
+
+        .auto-refresh-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 212, 255, 0.2);
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 12px;
+            border: 1px solid rgba(0, 212, 255, 0.5);
+        }
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .loading {
+            animation: pulse 1.5s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="auto-refresh-indicator" id="autoRefreshIndicator">
+        🔄 Auto-refresh: <strong>ON</strong> (10s)
+    </div>
+
+    <div class="container">
+        <h1>🎯 Performance Monitor Unifié</h1>
+        <p class="subtitle">Monitoring temps réel des caches, endpoints et performance système</p>
+
+        <div class="controls">
+            <button onclick="refreshAll()" class="success">🔄 Refresh All</button>
+            <button onclick="runStressTest()" class="danger">⚡ Stress Test</button>
+            <button onclick="clearAllCaches()">🧹 Clear Caches</button>
+            <button onclick="toggleAutoRefresh()" class="secondary" id="autoRefreshBtn">⏸️ Pause Auto-Refresh</button>
+            <button onclick="exportReport()">📊 Export Report</button>
+        </div>
+
+        <!-- Section 1: Frontend Caches -->
+        <div class="grid">
+            <div class="section">
+                <div class="section-title">
+                    <span class="icon">💾</span>
+                    Frontend Caches
+                </div>
+                <div id="frontendCaches">
+                    <div class="metric-row neutral loading">
+                        <span class="metric-label">Loading...</span>
+                        <span class="metric-value">...</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">
+                    <span class="icon">🧠</span>
+                    Risk Dashboard Store
+                </div>
+                <div id="riskDashboardStore">
+                    <div class="metric-row neutral loading">
+                        <span class="metric-label">Loading...</span>
+                        <span class="metric-value">...</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">
+                    <span class="icon">⛓️</span>
+                    OnChain Indicators Cache
+                </div>
+                <div id="onchainCache">
+                    <div class="metric-row neutral loading">
+                        <span class="metric-label">Loading...</span>
+                        <span class="metric-value">...</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">
+                    <span class="icon">📦</span>
+                    LocalStorage Usage
+                </div>
+                <div id="localStorageUsage">
+                    <div class="metric-row neutral loading">
+                        <span class="metric-label">Loading...</span>
+                        <span class="metric-value">...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 2: Backend Performance -->
+        <div class="grid">
+            <div class="section">
+                <div class="section-title">
+                    <span class="icon">🤖</span>
+                    ML Pipeline Cache
+                </div>
+                <div id="mlPipelineCache">
+                    <div class="metric-row neutral loading">
+                        <span class="metric-label">Loading...</span>
+                        <span class="metric-value">...</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">
+                    <span class="icon">🚀</span>
+                    API Endpoints Performance
+                </div>
+                <div id="apiPerformance">
+                    <div class="metric-row neutral loading">
+                        <span class="metric-label">Loading...</span>
+                        <span class="metric-value">...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 3: Data Freshness -->
+        <div class="grid">
+            <div class="section full-width">
+                <div class="section-title">
+                    <span class="icon">🕐</span>
+                    Data Freshness & Staleness
+                </div>
+                <div id="dataFreshness">
+                    <div class="metric-row neutral loading">
+                        <span class="metric-label">Loading...</span>
+                        <span class="metric-value">...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 4: Activity Log -->
+        <div class="grid">
+            <div class="section full-width">
+                <div class="section-title">
+                    <span class="icon">📜</span>
+                    Activity Log
+                </div>
+                <div class="log-container" id="activityLog">
+                    <div class="log-entry">
+                        <span class="timestamp">[00:00:00]</span>
+                        <span class="message">Performance monitor initialized</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        const API_BASE = window.globalConfig?.get('api_base_url') || window.location.origin;
+        let autoRefreshEnabled = true;
+        let autoRefreshInterval = null;
+        const logs = [];
+
+        // ============= LOGGING =============
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            logs.push({ timestamp, message, type });
+
+            const logContainer = document.getElementById('activityLog');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `
+                <span class="timestamp">[${timestamp}]</span>
+                <span class="message">${message}</span>
+            `;
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+
+            // Keep only last 100 logs
+            if (logs.length > 100) {
+                logs.shift();
+                logContainer.removeChild(logContainer.firstChild);
+            }
+        }
+
+        // ============= FRONTEND CACHES =============
+        async function checkFrontendCaches() {
+            const container = document.getElementById('frontendCaches');
+            const metrics = [];
+
+            try {
+                // Check onchain indicators module cache
+                const onchainModule = await import('./modules/onchain-indicators.js');
+                const cacheStats = onchainModule.getCacheStats();
+
+                metrics.push({
+                    label: 'OnChain Module Cache',
+                    value: `${cacheStats.cacheSize} entries`,
+                    status: cacheStats.cacheSize > 0 ? 'good' : 'neutral'
+                });
+
+                metrics.push({
+                    label: 'OnChain Hit Rate',
+                    value: `${cacheStats.hitRate}%`,
+                    status: cacheStats.hitRate > 70 ? 'good' : cacheStats.hitRate > 30 ? 'warning' : 'critical'
+                });
+
+                metrics.push({
+                    label: 'OnChain Total Requests',
+                    value: cacheStats.totalRequests,
+                    status: 'neutral'
+                });
+
+                addLog(`Frontend caches checked: ${cacheStats.cacheSize} entries, ${cacheStats.hitRate}% hit rate`);
+            } catch (error) {
+                metrics.push({
+                    label: 'OnChain Cache',
+                    value: 'Not loaded',
+                    status: 'neutral'
+                });
+                addLog(`Frontend cache check: module not loaded (normal if not used)`, 'warning');
+            }
+
+            renderMetrics(container, metrics);
+        }
+
+        // ============= RISK DASHBOARD STORE =============
+        function checkRiskDashboardStore() {
+            const container = document.getElementById('riskDashboardStore');
+            const metrics = [];
+
+            try {
+                // Check localStorage keys
+                const riskScore = localStorage.getItem('risk_score_blended');
+                const riskScoreTimestamp = localStorage.getItem('risk_score_timestamp');
+                const riskCache = localStorage.getItem('risk_scores_cache');
+
+                if (riskScore) {
+                    metrics.push({
+                        label: 'Blended Risk Score',
+                        value: riskScore,
+                        status: 'good'
+                    });
+                }
+
+                if (riskScoreTimestamp) {
+                    const age = Date.now() - parseInt(riskScoreTimestamp);
+                    const ageMinutes = Math.floor(age / 1000 / 60);
+                    metrics.push({
+                        label: 'Score Age',
+                        value: `${ageMinutes} min`,
+                        status: ageMinutes < 15 ? 'good' : ageMinutes < 60 ? 'warning' : 'critical'
+                    });
+                }
+
+                if (riskCache) {
+                    const cache = JSON.parse(riskCache);
+                    const cacheAge = Date.now() - (cache.timestamp || 0);
+                    const cacheAgeHours = Math.floor(cacheAge / 1000 / 60 / 60);
+                    metrics.push({
+                        label: 'Persistent Cache Age',
+                        value: `${cacheAgeHours}h`,
+                        status: cacheAgeHours < 12 ? 'good' : 'warning'
+                    });
+                }
+
+                if (metrics.length === 0) {
+                    metrics.push({
+                        label: 'Risk Store',
+                        value: 'No data',
+                        status: 'neutral'
+                    });
+                }
+
+                addLog(`Risk Dashboard Store: ${metrics.length} metrics found`);
+            } catch (error) {
+                metrics.push({
+                    label: 'Error',
+                    value: error.message,
+                    status: 'critical'
+                });
+                addLog(`Risk store check failed: ${error.message}`, 'error');
+            }
+
+            renderMetrics(container, metrics);
+        }
+
+        // ============= ONCHAIN CACHE =============
+        function checkOnchainCache() {
+            const container = document.getElementById('onchainCache');
+            const metrics = [];
+
+            try {
+                const cacheKey = 'CTB_ONCHAIN_CACHE_V2';
+                const cache = localStorage.getItem(cacheKey);
+
+                if (cache) {
+                    const data = JSON.parse(cache);
+                    const age = Date.now() - (data.saved_at || 0);
+                    const ageMinutes = Math.floor(age / 1000 / 60);
+
+                    metrics.push({
+                        label: 'Indicators Count',
+                        value: data.count || 0,
+                        status: data.count > 0 ? 'good' : 'neutral'
+                    });
+
+                    metrics.push({
+                        label: 'Cache Age',
+                        value: `${ageMinutes} min`,
+                        status: ageMinutes < 10 ? 'good' : ageMinutes < 30 ? 'warning' : 'critical'
+                    });
+
+                    metrics.push({
+                        label: 'Cache Source',
+                        value: data.source || 'unknown',
+                        status: 'neutral'
+                    });
+
+                    addLog(`OnChain cache: ${data.count} indicators, ${ageMinutes}min old`);
+                } else {
+                    metrics.push({
+                        label: 'OnChain Cache',
+                        value: 'Empty',
+                        status: 'neutral'
+                    });
+                    addLog('OnChain cache is empty (will populate on first use)');
+                }
+            } catch (error) {
+                metrics.push({
+                    label: 'Error',
+                    value: error.message,
+                    status: 'critical'
+                });
+                addLog(`OnChain cache check failed: ${error.message}`, 'error');
+            }
+
+            renderMetrics(container, metrics);
+        }
+
+        // ============= LOCALSTORAGE USAGE =============
+        function checkLocalStorageUsage() {
+            const container = document.getElementById('localStorageUsage');
+            const metrics = [];
+
+            try {
+                let totalSize = 0;
+                for (let key in localStorage) {
+                    if (localStorage.hasOwnProperty(key)) {
+                        totalSize += localStorage[key].length + key.length;
+                    }
+                }
+
+                const totalSizeKB = (totalSize / 1024).toFixed(2);
+                const quotaMB = 5; // Typical localStorage quota is 5-10MB
+                const usagePercent = ((totalSize / 1024 / 1024) / quotaMB * 100).toFixed(1);
+
+                metrics.push({
+                    label: 'Total Keys',
+                    value: Object.keys(localStorage).length,
+                    status: 'neutral'
+                });
+
+                metrics.push({
+                    label: 'Storage Used',
+                    value: `${totalSizeKB} KB`,
+                    status: usagePercent < 50 ? 'good' : usagePercent < 80 ? 'warning' : 'critical'
+                });
+
+                metrics.push({
+                    label: 'Quota Usage',
+                    value: `${usagePercent}%`,
+                    status: usagePercent < 50 ? 'good' : usagePercent < 80 ? 'warning' : 'critical',
+                    progress: parseFloat(usagePercent)
+                });
+
+                addLog(`LocalStorage: ${totalSizeKB}KB used (${usagePercent}%)`);
+            } catch (error) {
+                metrics.push({
+                    label: 'Error',
+                    value: error.message,
+                    status: 'critical'
+                });
+                addLog(`LocalStorage check failed: ${error.message}`, 'error');
+            }
+
+            renderMetrics(container, metrics);
+        }
+
+        // ============= ML PIPELINE CACHE =============
+        async function checkMLPipelineCache() {
+            const container = document.getElementById('mlPipelineCache');
+            const metrics = [];
+
+            try {
+                const response = await fetch(`${API_BASE}/api/ml/cache/stats`);
+
+                if (response.ok) {
+                    const result = await response.json();
+                    const data = result.cache_stats || {};
+
+                    const modelsLoaded = data.models_loaded || data.cached_models || 0;
+                    const memoryMb = data.total_size_mb || 0;
+                    const hitRate = data.cache_hits && data.cache_hits + data.cache_misses > 0
+                        ? Math.round((data.cache_hits / (data.cache_hits + data.cache_misses)) * 100)
+                        : 0;
+
+                    metrics.push({
+                        label: 'Models Loaded',
+                        value: modelsLoaded,
+                        status: modelsLoaded > 0 ? 'good' : 'neutral'
+                    });
+
+                    metrics.push({
+                        label: 'Memory Usage',
+                        value: `${memoryMb.toFixed(1)} MB`,
+                        status: memoryMb > 1500 ? 'warning' : memoryMb > 0 ? 'good' : 'neutral'
+                    });
+
+                    metrics.push({
+                        label: 'Cache Hit Rate',
+                        value: `${hitRate}%`,
+                        status: hitRate > 70 ? 'good' : hitRate > 0 ? 'warning' : 'neutral'
+                    });
+
+                    addLog(`ML Pipeline: ${modelsLoaded} models, ${memoryMb.toFixed(1)}MB, ${hitRate}% hit rate`);
+                } else if (response.status === 404) {
+                    metrics.push({
+                        label: 'ML Cache Endpoint',
+                        value: 'Not implemented',
+                        status: 'neutral'
+                    });
+                    addLog('ML cache stats endpoint not yet implemented');
+                } else {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+            } catch (error) {
+                metrics.push({
+                    label: 'ML Pipeline',
+                    value: 'Unavailable',
+                    status: 'neutral'
+                });
+                addLog(`ML Pipeline check: ${error.message}`, 'warning');
+            }
+
+            renderMetrics(container, metrics);
+        }
+
+        // ============= API PERFORMANCE =============
+        async function checkAPIPerformance() {
+            const container = document.getElementById('apiPerformance');
+            const metrics = [];
+
+            const endpoints = [
+                { path: '/portfolio/metrics?user_id=demo&source=stub_balanced', label: 'Portfolio Metrics' },
+                { path: '/balances/current?user_id=demo&source=stub_balanced', label: 'Balances' },
+                { path: '/api/ml/status', label: 'ML Status' },
+            ];
+
+            for (const endpoint of endpoints) {
+                try {
+                    const start = performance.now();
+                    const response = await fetch(`${API_BASE}${endpoint.path}`);
+                    const duration = Math.round(performance.now() - start);
+
+                    metrics.push({
+                        label: endpoint.label,
+                        value: `${duration}ms`,
+                        status: duration < 100 ? 'good' : duration < 500 ? 'warning' : 'critical'
+                    });
+
+                    addLog(`${endpoint.label}: ${duration}ms (${response.status})`);
+                } catch (error) {
+                    metrics.push({
+                        label: endpoint.label,
+                        value: 'Error',
+                        status: 'critical'
+                    });
+                    addLog(`${endpoint.label}: ${error.message}`, 'error');
+                }
+            }
+
+            renderMetrics(container, metrics);
+        }
+
+        // ============= DATA FRESHNESS =============
+        async function checkDataFreshness() {
+            const container = document.getElementById('dataFreshness');
+            const metrics = [];
+
+            try {
+                // Portfolio snapshots freshness
+                const portfolioResp = await fetch(`${API_BASE}/portfolio/metrics?user_id=demo&source=stub_balanced`);
+                if (portfolioResp.ok) {
+                    const data = await portfolioResp.json();
+                    if (data.performance && data.performance.last_snapshot) {
+                        const lastSnapshot = new Date(data.performance.last_snapshot);
+                        const age = Date.now() - lastSnapshot.getTime();
+                        const ageHours = Math.floor(age / 1000 / 60 / 60);
+
+                        metrics.push({
+                            label: 'Last Portfolio Snapshot',
+                            value: `${ageHours}h ago`,
+                            status: ageHours < 24 ? 'good' : ageHours < 72 ? 'warning' : 'critical'
+                        });
+                    }
+                }
+
+                // Risk scores freshness
+                const riskTimestamp = localStorage.getItem('risk_score_timestamp');
+                if (riskTimestamp) {
+                    const age = Date.now() - parseInt(riskTimestamp);
+                    const ageMinutes = Math.floor(age / 1000 / 60);
+                    metrics.push({
+                        label: 'Risk Scores',
+                        value: `${ageMinutes}min ago`,
+                        status: ageMinutes < 15 ? 'good' : ageMinutes < 60 ? 'warning' : 'critical'
+                    });
+                }
+
+                // OnChain indicators freshness
+                const onchainCache = localStorage.getItem('CTB_ONCHAIN_CACHE_V2');
+                if (onchainCache) {
+                    const data = JSON.parse(onchainCache);
+                    const age = Date.now() - (data.saved_at || 0);
+                    const ageMinutes = Math.floor(age / 1000 / 60);
+                    metrics.push({
+                        label: 'OnChain Indicators',
+                        value: `${ageMinutes}min ago`,
+                        status: ageMinutes < 30 ? 'good' : ageMinutes < 120 ? 'warning' : 'critical'
+                    });
+                }
+
+                if (metrics.length === 0) {
+                    metrics.push({
+                        label: 'No Data',
+                        value: 'System not yet initialized',
+                        status: 'neutral'
+                    });
+                }
+
+                addLog(`Data freshness: ${metrics.length} sources checked`);
+            } catch (error) {
+                metrics.push({
+                    label: 'Error',
+                    value: error.message,
+                    status: 'critical'
+                });
+                addLog(`Freshness check failed: ${error.message}`, 'error');
+            }
+
+            renderMetrics(container, metrics);
+        }
+
+        // ============= RENDER HELPERS =============
+        function renderMetrics(container, metrics) {
+            container.innerHTML = metrics.map(m => {
+                let progressBar = '';
+                if (m.progress !== undefined) {
+                    const progressClass = m.status === 'critical' ? 'critical' : m.status === 'warning' ? 'warning' : '';
+                    progressBar = `
+                        <div class="progress-bar">
+                            <div class="progress-bar-fill ${progressClass}" style="width: ${m.progress}%"></div>
+                        </div>
+                    `;
+                }
+
+                return `
+                    <div class="metric-row ${m.status}">
+                        <span class="metric-label">${m.label}</span>
+                        <span class="metric-value ${m.small ? 'small' : ''}">${m.value}</span>
+                    </div>
+                    ${progressBar}
+                `;
+            }).join('');
+        }
+
+        // ============= STRESS TEST =============
+        async function runStressTest() {
+            addLog('🔥 Starting stress test...', 'warning');
+            const start = Date.now();
+            const concurrentRequests = 10; // Réduit de 20 à 10 pour éviter rate limiting
+
+            try {
+                const promises = [];
+
+                // Envoyer les requêtes avec un délai pour éviter 429
+                for (let i = 0; i < concurrentRequests; i++) {
+                    promises.push(
+                        new Promise(resolve => {
+                            setTimeout(() => {
+                                resolve(fetch(`${API_BASE}/portfolio/metrics?user_id=demo&source=stub_balanced`));
+                            }, i * 50); // 50ms de délai entre chaque
+                        })
+                    );
+                }
+
+                const results = await Promise.allSettled(promises);
+                const successful = results.filter(r => r.status === 'fulfilled' && r.value.ok).length;
+                const duration = Date.now() - start;
+
+                addLog(`✅ Stress test completed: ${successful}/${concurrentRequests} successful in ${duration}ms`, 'info');
+                alert(`Stress Test Results:\n${successful}/${concurrentRequests} requests successful\nTotal time: ${duration}ms\nAvg: ${Math.round(duration/concurrentRequests)}ms per request`);
+            } catch (error) {
+                addLog(`❌ Stress test failed: ${error.message}`, 'error');
+            }
+        }
+
+        // ============= CACHE MANAGEMENT =============
+        async function clearAllCaches() {
+            if (!confirm('Clear all caches? This will reset localStorage and force fresh data fetches.')) {
+                return;
+            }
+
+            try {
+                // Clear localStorage (keep user config)
+                const keysToKeep = ['user_id', 'data_source', 'theme'];
+                const backup = {};
+                keysToKeep.forEach(key => {
+                    if (localStorage.getItem(key)) {
+                        backup[key] = localStorage.getItem(key);
+                    }
+                });
+
+                localStorage.clear();
+
+                // Restore kept keys
+                Object.entries(backup).forEach(([key, value]) => {
+                    localStorage.setItem(key, value);
+                });
+
+                addLog('🧹 All caches cleared successfully', 'info');
+                alert('Caches cleared! Refreshing monitor...');
+                await refreshAll();
+            } catch (error) {
+                addLog(`❌ Cache clear failed: ${error.message}`, 'error');
+            }
+        }
+
+        // ============= AUTO REFRESH =============
+        function toggleAutoRefresh() {
+            autoRefreshEnabled = !autoRefreshEnabled;
+            const btn = document.getElementById('autoRefreshBtn');
+            const indicator = document.getElementById('autoRefreshIndicator');
+
+            if (autoRefreshEnabled) {
+                btn.textContent = '⏸️ Pause Auto-Refresh';
+                indicator.innerHTML = '🔄 Auto-refresh: <strong>ON</strong> (10s)';
+                startAutoRefresh();
+                addLog('Auto-refresh enabled', 'info');
+            } else {
+                btn.textContent = '▶️ Resume Auto-Refresh';
+                indicator.innerHTML = '⏸️ Auto-refresh: <strong>PAUSED</strong>';
+                stopAutoRefresh();
+                addLog('Auto-refresh paused', 'info');
+            }
+        }
+
+        function startAutoRefresh() {
+            if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+            autoRefreshInterval = setInterval(refreshAll, 10000);
+        }
+
+        function stopAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+        }
+
+        // ============= REFRESH ALL =============
+        async function refreshAll() {
+            addLog('🔄 Refreshing all metrics...');
+
+            await Promise.all([
+                checkFrontendCaches(),
+                checkRiskDashboardStore(),
+                checkOnchainCache(),
+                checkLocalStorageUsage(),
+                checkMLPipelineCache(),
+                checkAPIPerformance(),
+                checkDataFreshness()
+            ]);
+
+            addLog('✅ All metrics refreshed');
+        }
+
+        // ============= EXPORT REPORT =============
+        function exportReport() {
+            const report = {
+                timestamp: new Date().toISOString(),
+                logs: logs,
+                localStorage_keys: Object.keys(localStorage),
+                localStorage_size: Object.keys(localStorage).reduce((sum, key) => {
+                    return sum + localStorage[key].length + key.length;
+                }, 0)
+            };
+
+            const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `performance-report-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            addLog('📊 Report exported successfully', 'info');
+        }
+
+        // ============= INITIALIZATION =============
+        window.refreshAll = refreshAll;
+        window.runStressTest = runStressTest;
+        window.clearAllCaches = clearAllCaches;
+        window.toggleAutoRefresh = toggleAutoRefresh;
+        window.exportReport = exportReport;
+
+        // Initial load
+        addLog('🎯 Performance Monitor initialized');
+        refreshAll();
+        startAutoRefresh();
+    </script>
+</body>
+</html>

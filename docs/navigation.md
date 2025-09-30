@@ -107,7 +107,7 @@ https://domain.com/analytics-unified.html#ml?household=main&module=crypto&ccy=EU
 |-------------|-------------------|
 | `ai-dashboard.html` | `analytics-unified.html#ml` |
 | `intelligence-dashboard.html` | `analytics-unified.html#ml` |
-| `performance-monitor.html` | `analytics-unified.html#performance` |
+| `performance-monitor.html` | `performance-monitor-unified.html` (nouveau monitor système) |
 | `cycle-analysis.html` | `analytics-unified.html#cycles` |
 | `execution_history.html` | `execution.html#history` |
 | `debug-menu.html` | `settings.html#tools` |
