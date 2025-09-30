@@ -371,16 +371,23 @@ async def vol_predict(assets: List[str] = Query(..., min_items=1, max_items=50),
 
 ### D) Utiliser le panneau Decision Index
 
-**Objectif** : Afficher DI + contributions + sparkline dans analytics/simulations.
+**Objectif** : Afficher DI + contributions + Trend Chip + Regime Ribbon + aide dans analytics/simulations.
 
-**Composant** : `static/components/decision-index-panel.js` + `.css`
+**Composant** : `static/components/decision-index-panel.js` + `.css` (v3)
+
+**Nouvelles fonctionnalités v3** :
+- **Trend Chip** : Remplace sparkline. Affiche Δ7j, Δ30j, σ_7j, état "Stable/Agité". Flèches colorées (↗︎/↘︎/→).
+- **Regime Ribbon** : 7-14 cases colorées (bull/neutral/caution/risk) avec tooltips (phase, cap, contradiction).
+- **Système d'aide** : Popover accessible (icône ℹ️, ESC, focus trap, clic hors).
+- **Suppression sparkline** : Plus aucun canvas sparkline (ligne parasite éliminée).
 
 **Règles critiques** :
 1. **Formule contributions** : `(weight × score) / Σ(weight × score)` — **PAS d'inversion Risk**
 2. **Weights post-adaptatifs** : Passer les poids APRÈS adjustements (ex: Cycle≥90 → wCycle=0.65)
-3. **Sparkline** : N'affiche que si `history.length ≥ 6` (sinon placeholder)
-4. **Labels barre** : Affichés si segment ≥10% ET ≥52px largeur
-5. **Tooltip** : Format complet `Cycle — 83.1% (score 100, w 0.65, w×s 65.0)`
+3. **Trend Chip** : Affiché si `history.length ≥ 6`, sinon "collecte (N/6)"
+4. **Regime Ribbon** : Affiché si `regimeHistory` fourni et non vide
+5. **Labels barre** : Affichés si segment ≥10% ET ≥52px largeur
+6. **Tooltip barre** : Format complet `Cycle — 83.1% (score 100, w 0.65, w×s 65.0)`
 
 **Exemple intégration** :
 ```javascript
@@ -390,7 +397,13 @@ const data = {
   di: 65,
   weights: { cycle: 0.65, onchain: 0.25, risk: 0.10 },  // Post-adaptatifs
   scores: { cycle: 100, onchain: 41, risk: 57 },
-  history: [60, 62, 65, 67, 65],  // < 6 → placeholder
+  history: [60, 62, 65, 67, 65, 68, 70],  // ≥ 6 → Trend Chip
+  regimeHistory: [  // NOUVEAU : 7-14 derniers pas (optionnel)
+    { phase: 'Euphorie', cap: 0.07, contradiction: 0.48 },
+    { phase: 'Bull', cap: 0.05, contradiction: 0.12 },
+    { phase: 'Neutral', cap: 0.15, contradiction: 0.25 }
+    // ... jusqu'à 14 max
+  ],
   meta: {
     confidence: 0.82,
     contradiction: 0.15,
@@ -422,6 +435,30 @@ const weights = {
   risk:    (eff && (eff.risk    ?? eff.wRisk))    ?? 0.2,
 };
 ```
+
+**Accessibilité clavier** :
+- `Tab` jusqu'à icône ℹ️ → `Enter/Space` ouvre popover
+- `ESC` ferme popover et restaure focus sur ℹ️
+- Focus trap dans popover (`Tab` cycle entre éléments focusables)
+- Tous boutons avec `aria-label`, popover avec `role="dialog"` et `aria-modal="true"`
+- Outline visible sur `:focus-visible` (2px solid `--brand-primary`)
+
+**Structure regimeHistory** :
+```javascript
+// Chaque entrée = un pas temporel (jour/iteration)
+{
+  phase: string,        // "Bull", "Euphorie", "Neutral", "Prudence", etc.
+  name: string,         // Alias de phase (fallback)
+  cap: number,          // 0-1 (governance cap actif)
+  contradiction: number // 0-1 (divergence entre sources)
+}
+```
+
+**Mapping phase → couleur ribbon** :
+- `bull/euphori/expansion` → vert (`#38d39f`)
+- `bear/risk/prudence` → rouge (`#f7768e`)
+- `caution/warning` → orange (`#ff9e64`)
+- `neutral` → bleu (`#7aa2f7`)
 
 ### E) Intégrations front (iframes/nav)
 
