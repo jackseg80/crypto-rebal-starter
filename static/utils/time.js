@@ -29,7 +29,7 @@ export function formatZurich(ts) {
     }).format(date);
 
   } catch (error) {
-    console.warn('Error formatting Zurich time:', error);
+    debugLogger.warn('Error formatting Zurich time:', error);
     return '--:--:--';
   }
 }
@@ -89,7 +89,7 @@ export function formatZurichFull(ts) {
     }).format(date);
 
   } catch (error) {
-    console.warn('Error formatting full Zurich time:', error);
+    debugLogger.warn('Error formatting full Zurich time:', error);
     return '--.--.---- --:--:--';
   }
 }
@@ -125,13 +125,13 @@ export function getZurichOffset(ts = new Date()) {
 export function testZurichTime() {
   const now = new Date();
 
-  console.log('=== Zurich Time Test ===');
-  console.log('UTC:', now.toISOString());
-  console.log('Zurich (HH:MM:SS):', formatZurich(now));
-  console.log('Zurich (full):', formatZurichFull(now));
-  console.log('Zurich offset:', getZurichOffset(now));
-  console.log('Is stale (30min):', isStale(new Date(now.getTime() - 31 * 60 * 1000)));
-  console.log('========================');
+  debugLogger.debug('=== Zurich Time Test ===');
+  debugLogger.debug('UTC:', now.toISOString());
+  debugLogger.debug('Zurich (HH:MM:SS):', formatZurich(now));
+  debugLogger.debug('Zurich (full):', formatZurichFull(now));
+  debugLogger.debug('Zurich offset:', getZurichOffset(now));
+  debugLogger.debug('Is stale (30min):', isStale(new Date(now.getTime() - 31 * 60 * 1000)));
+  debugLogger.debug('========================');
 }
 
 // Make test available globally for debugging

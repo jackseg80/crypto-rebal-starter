@@ -287,7 +287,7 @@ export class SimControls {
       // Valeurs directes
       return obj[path] || 0;
     } catch (error) {
-      console.warn('🎛️ SIM: getNestedValue error for path:', path, error);
+      debugLogger.warn('🎛️ SIM: getNestedValue error for path:', path, error);
       return 0;
     }
   }
@@ -503,7 +503,7 @@ export class SimControls {
           break;
 
         default:
-          console.warn('🎛️ SIM: Unknown control ID:', id);
+          debugLogger.warn('🎛️ SIM: Unknown control ID:', id);
           break;
       }
     } catch (error) {
@@ -593,7 +593,7 @@ export class SimControls {
 
       this.presets = presets.presets || [];
     } catch (error) {
-      console.warn('🎭 SIM: Failed to load presets:', error);
+      debugLogger.warn('🎭 SIM: Failed to load presets:', error);
       this.presets = [];
     }
   }
@@ -623,7 +623,7 @@ export class SimControls {
     this.isLoadingPreset = false;
     this.debouncedUpdate();
 
-    console.log('🎭 SIM: presetLoaded -', { name: preset.name, version: preset.version });
+    debugLogger.debug('🎭 SIM: presetLoaded -', { name: preset.name, version: preset.version });
   }
 
   updateUI() {

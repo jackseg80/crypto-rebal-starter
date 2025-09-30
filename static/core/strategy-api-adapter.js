@@ -243,13 +243,13 @@ export async function calculateIntelligentDecisionIndexAPI(context) {
       } else {
         // Fallback API Strategy classique
         debugLog('⚠️ V2 allocation failed, fallback to API Strategy');
-        console.warn('❌ V2 Allocation Engine returned null - checking reasons...');
+        debugLogger.warn('❌ V2 Allocation Engine returned null - checking reasons...');
 
         try {
           const strategyResult = await getStrategyFromAPI(templateId);
           finalResult = convertStrategyResultToLegacyFormat(strategyResult, context);
         } catch (apiError) {
-          console.warn('⚠️ API Strategy also failed, using hardcoded fallback');
+          debugLogger.warn('⚠️ API Strategy also failed, using hardcoded fallback');
           // Fallback ultime: allocation hardcodée basée sur le cycle
           finalResult = createFallbackAllocation(context);
         }
@@ -272,7 +272,7 @@ export async function calculateIntelligentDecisionIndexAPI(context) {
     return finalResult;
     
   } catch (error) {
-    console.warn('Strategy API failed, using fallback:', error.message);
+    debugLogger.warn('Strategy API failed, using fallback:', error.message);
     
     // Fallback vers logique legacy si configuré
     if (MIGRATION_CONFIG.fallback_on_error) {
@@ -306,7 +306,7 @@ export async function getAvailableStrategyTemplates() {
     return templates;
     
   } catch (error) {
-    console.warn('Failed to fetch strategy templates:', error.message);
+    debugLogger.warn('Failed to fetch strategy templates:', error.message);
     return {
       balanced: { name: 'Balanced', template: 'balanced', risk_level: 'medium' },
       conservative: { name: 'Conservative', template: 'conservative', risk_level: 'low' },
@@ -334,7 +334,7 @@ export async function compareStrategyTemplates(templateIds = ['conservative', 'b
     return comparison;
     
   } catch (error) {
-    console.warn('Failed to compare templates:', error.message);
+    debugLogger.warn('Failed to compare templates:', error.message);
     return { comparisons: {}, generated_at: new Date().toISOString() };
   }
 }
@@ -400,7 +400,7 @@ async function getCurrentPositions() {
       { symbol: 'LINK', value_usd: 200 }
     ];
   } catch (error) {
-    console.warn('Failed to get current positions:', error.message);
+    debugLogger.warn('Failed to get current positions:', error.message);
     return [];
   }
 }
@@ -543,18 +543,18 @@ function createFallbackAllocation(context) {
  * @returns {object} Map { groupTopLevel -> % } de 11 entrées, somme ≈ 100
  */
 export function buildTheoreticalTargets(u) {
-  console.warn('🚨 buildTheoreticalTargets FONCTION OVERRIDE APPELÉE !', new Date().toISOString());
+  debugLogger.warn('🚨 buildTheoreticalTargets FONCTION OVERRIDE APPELÉE !', new Date().toISOString());
 
   // VERROUILLAGE STABLES: Utiliser source canonique pour cohérence parfaite
   if (u?.targets_by_group) {
-    console.log('✅ STABLES VERROUILLÉES: Utilisation source canonique u.targets_by_group');
+    debugLogger.info('✅ STABLES VERROUILLÉES: Utilisation source canonique u.targets_by_group');
     console.debug('🔒 buildTheoreticalTargets source: CANONICAL_TARGETS_BY_GROUP', u.targets_by_group);
     return u.targets_by_group;
   }
 
   // FALLBACK: Logique artificielle si pas de source canonique (cas edge)
   const blendedScore = u?.scores?.blended || u?.decision?.score || 50;
-  console.warn('⚠️ FALLBACK vers logique artificielle - targets_by_group manquant', { blendedScore });
+  debugLogger.warn('⚠️ FALLBACK vers logique artificielle - targets_by_group manquant', { blendedScore });
 
   let stablesTarget, btcTarget, ethTarget, altsTarget;
 
@@ -584,7 +584,7 @@ export function buildTheoreticalTargets(u) {
     'Others': 0
   };
 
-  console.log('🎯 FALLBACK TARGETS (buildTheoreticalTargets):', artificialTargets);
+  debugLogger.debug('🎯 FALLBACK TARGETS (buildTheoreticalTargets):', artificialTargets);
   console.debug('📊 buildTheoreticalTargets source: FALLBACK_REGIME_LOGIC', { blendedScore, regime: blendedScore >= 70 ? 'Euphoria' : blendedScore >= 50 ? 'Expansion' : 'Accumulation' });
 
   return artificialTargets;

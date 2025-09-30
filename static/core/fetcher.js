@@ -42,7 +42,7 @@ export async function fetchCached(key, fetchFn, cacheType = 'signals') {
       }
     }
   } catch (error) {
-    console.warn(`Failed to read disk cache for ${key}:`, error);
+    debugLogger.warn(`Failed to read disk cache for ${key}:`, error);
   }
   
   // Cache miss - fetch fresh data
@@ -58,7 +58,7 @@ export async function fetchCached(key, fetchFn, cacheType = 'signals') {
     try {
       localStorage.setItem(`cache:${key}`, JSON.stringify(entry));
     } catch (error) {
-      console.warn(`Failed to write disk cache for ${key}:`, error);
+      debugLogger.warn(`Failed to write disk cache for ${key}:`, error);
     }
     
     return data;
@@ -71,7 +71,7 @@ export async function fetchCached(key, fetchFn, cacheType = 'signals') {
       tryParseLocalStorage(`cache:${key}`);
     
     if (staleEntry?.data) {
-      console.warn(`Returning stale data for ${key}`);
+      debugLogger.warn(`Returning stale data for ${key}`);
       return staleEntry.data;
     }
     

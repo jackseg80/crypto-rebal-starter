@@ -52,7 +52,7 @@ export function applyPhaseTilt(targets, phase, phaseConfidence = 1.0) {
 
   // Vérifier la confiance de phase
   if (phaseConfidence < FEATURE_FLAGS.ALTSEASON_TILT_MIN_PHASE_CONFIDENCE) {
-    console.warn('[PhaseTilt] Phase confidence too low, skipping tilt');
+    debugLogger.warn('[PhaseTilt] Phase confidence too low, skipping tilt');
     return out;
   }
 
@@ -74,7 +74,7 @@ export function applyPhaseTilt(targets, phase, phaseConfidence = 1.0) {
       out[source] = Math.max(0, (out[source] ?? 0) - reductionPerSource);
     });
 
-    console.log(`[PhaseTilt] Applied ${tilt}% tilt for ${phase} (confidence: ${phaseConfidence})`);
+    debugLogger.debug(`[PhaseTilt] Applied ${tilt}% tilt for ${phase} (confidence: ${phaseConfidence})`);
   }
 
   return out;
@@ -92,7 +92,7 @@ export function updateFeatureFlags(newFlags) {
       FEATURE_FLAGS[key] = newFlags[key];
     }
   });
-  console.log('[FeatureFlags] Updated:', FEATURE_FLAGS);
+  debugLogger.debug('[FeatureFlags] Updated:', FEATURE_FLAGS);
 }
 
 /**
@@ -347,7 +347,7 @@ export function generateSmartTargets() {
   });
 
   if (blendedScore == null) {
-    console.warn('⚠️ Blended score not available for smart targets');
+    debugLogger.warn('⚠️ Blended score not available for smart targets');
     return {
       targets: normalizeTargets(DEFAULT_MACRO_TARGETS),
       strategy: 'Macro fallback (no blended score)',
@@ -745,7 +745,7 @@ function appendToDecisionLog(entry) {
     localStorage.setItem(logKey, JSON.stringify(entries));
 
   } catch (error) {
-    console.warn('Failed to append to decision log:', error);
+    debugLogger.warn('Failed to append to decision log:', error);
   }
 }
 
@@ -758,7 +758,7 @@ export function getDecisionLog(limit = 20) {
     const entries = log ? JSON.parse(log) : [];
     return entries.slice(-limit).reverse(); // Most recent first
   } catch (error) {
-    console.warn('Failed to read decision log:', error);
+    debugLogger.warn('Failed to read decision log:', error);
     return [];
   }
 }

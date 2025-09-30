@@ -16,7 +16,7 @@ const initUserSwitcher = async () => {
     // Charger la liste des utilisateurs depuis config/users.json
     const usersResponse = await fetch('/config/users.json', { cache: 'no-store' });
     if (!usersResponse.ok) {
-      console.warn('Could not load users config');
+      debugLogger.warn('Could not load users config');
       return;
     }
 
@@ -63,7 +63,7 @@ const switchUser = (newUserId) => {
     const oldUser = localStorage.getItem('activeUser');
     localStorage.setItem('activeUser', newUserId);
 
-    console.log(`Switching from user '${oldUser}' to '${newUserId}'`);
+    debugLogger.debug(`Switching from user '${oldUser}' to '${newUserId}'`);
 
     // Émettre un événement pour informer les autres composants
     const event = new CustomEvent('activeUserChanged', {

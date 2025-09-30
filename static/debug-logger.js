@@ -20,7 +20,7 @@ class DebugLogger {
             DEBUG: 3    // Affiché si debug activé
         };
         
-        console.log(`🔧 DebugLogger initialized - Debug mode: ${this.debugEnabled ? 'ON' : 'OFF'}`);
+        debugLogger.debug(`🔧 DebugLogger initialized - Debug mode: ${this.debugEnabled ? 'ON' : 'OFF'}`);
 
         // Synchroniser avec globalConfig si présent
         try {
@@ -74,7 +74,7 @@ class DebugLogger {
     setDebugMode(enabled) {
         this.debugEnabled = enabled;
         localStorage.setItem('crypto_debug_mode', enabled.toString());
-        console.log(`🔧 Debug mode ${enabled ? 'ENABLED' : 'DISABLED'}`);
+        debugLogger.debug(`🔧 Debug mode ${enabled ? 'ENABLED' : 'DISABLED'}`);
         // Mettre à jour les hooks
         this.applyConsoleOverride();
     }
@@ -90,7 +90,7 @@ class DebugLogger {
      * Log de niveau WARN (toujours affiché)
      */
     warn(message, ...args) {
-        console.warn(`⚠️ ${message}`, ...args);
+        debugLogger.warn(`⚠️ ${message}`, ...args);
     }
     
     /**
@@ -98,7 +98,7 @@ class DebugLogger {
      */
     info(message, ...args) {
         if (this.debugEnabled) {
-            console.log(`ℹ️ ${message}`, ...args);
+            debugLogger.debug(`ℹ️ ${message}`, ...args);
         }
     }
     
@@ -107,7 +107,7 @@ class DebugLogger {
      */
     debug(message, ...args) {
         if (this.debugEnabled) {
-            console.log(`🔍 DEBUG ${message}`, ...args);
+            debugLogger.debug(`🔍 DEBUG ${message}`, ...args);
         }
     }
     
@@ -117,7 +117,7 @@ class DebugLogger {
     perf(message, ...args) {
         if (this.debugEnabled) {
             console.time(message);
-            console.log(`⚡ PERF ${message}`, ...args);
+            debugLogger.debug(`⚡ PERF ${message}`, ...args);
         }
     }
     
@@ -136,7 +136,7 @@ class DebugLogger {
     api(endpoint, data = null) {
         if (this.debugEnabled) {
             console.group(`🌐 API ${endpoint}`);
-            if (data) console.log('Data:', data);
+            if (data) debugLogger.debug('Data:', data);
             console.groupEnd();
         }
     }
@@ -146,7 +146,7 @@ class DebugLogger {
      */
     ui(action, details = null) {
         if (this.debugEnabled) {
-            console.log(`🎨 UI ${action}`, details || '');
+            debugLogger.debug(`🎨 UI ${action}`, details || '');
         }
     }
     
@@ -156,9 +156,9 @@ class DebugLogger {
     stats() {
         if (this.debugEnabled) {
             console.group('📊 Debug Statistics');
-            console.log('Debug mode:', this.debugEnabled);
-            console.log('Environment:', window.location.hostname);
-            console.log('Config available:', !!window.globalConfig);
+            debugLogger.debug('Debug mode:', this.debugEnabled);
+            debugLogger.debug('Environment:', window.location.hostname);
+            debugLogger.debug('Config available:', !!window.globalConfig);
             console.groupEnd();
         }
     }
@@ -198,7 +198,7 @@ class DebugLogger {
                     ok = resp.ok; status = resp.status;
                     return resp;
                 } catch (err) {
-                    if (trace) console.warn('🌐 fetch error', { url: urlStr, err: err?.message });
+                    if (trace) debugLogger.warn('🌐 fetch error', { url: urlStr, err: err?.message });
                     throw err;
                 } finally {
                     if (trace) {
@@ -240,4 +240,4 @@ window.toggleDebug = () => {
 window.debugOn = () => { debugLogger.setDebugMode(true); window.globalConfig?.setDebugMode?.(true); return 'Debug ON'; };
 window.debugOff = () => { debugLogger.setDebugMode(false); window.globalConfig?.setDebugMode?.(false); return 'Debug OFF'; };
 
-console.log('🚀 Debug Logger loaded - Type toggleDebug() to switch modes');
+debugLogger.debug('🚀 Debug Logger loaded - Type toggleDebug() to switch modes');

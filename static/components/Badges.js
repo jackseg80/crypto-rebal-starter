@@ -212,7 +212,7 @@ function mergeBadgeDataWithFallback(primary, fallback, overrideFlags = computeOv
  */
 function renderBadges(containerEl, props = {}) {
   if (!containerEl) {
-    console.warn('renderBadges: containerEl is required');
+    debugLogger.warn('renderBadges: containerEl is required');
     return;
   }
 

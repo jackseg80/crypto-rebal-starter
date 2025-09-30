@@ -65,3 +65,15 @@ repos:
         args: ["-c", "from api.main import app; import json; json.dumps(app.openapi())"]
         language: system
         pass_filenames: false
+
+  # Secret scanning for security
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks

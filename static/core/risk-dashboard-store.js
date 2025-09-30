@@ -151,7 +151,7 @@ const storeActions = {
     try {
       localStorage.setItem(key, JSON.stringify(toSave));
     } catch (error) {
-      console.warn('Failed to persist state:', error);
+      debugLogger.warn('Failed to persist state:', error);
     }
   },
 
@@ -176,7 +176,7 @@ const storeActions = {
         }
       }
     } catch (error) {
-      console.warn('Failed to hydrate state:', error);
+      debugLogger.warn('Failed to hydrate state:', error);
     }
   },
 
@@ -283,7 +283,7 @@ const storeActions = {
         return true;
       }
     } catch (error) {
-      console.warn('Failed to update governance blended score:', error);
+      debugLogger.warn('Failed to update governance blended score:', error);
     }
     return false;
   },
@@ -324,7 +324,7 @@ const storeActions = {
         return true;
       }
     } catch (error) {
-      console.warn('Failed to recompute governance blended score:', error);
+      debugLogger.warn('Failed to recompute governance blended score:', error);
     }
     return false;
   },
@@ -356,7 +356,7 @@ const storeActions = {
 
       if (response.ok) {
         const result = await response.json();
-        console.log('Decision approval result:', result);
+        debugLogger.debug('Decision approval result:', result);
 
         // Refresh governance state after approval
         this.debouncedSyncGovernanceState();
@@ -393,7 +393,7 @@ const storeActions = {
 
       if (response.ok) {
         const result = await response.json();
-        console.log('System freeze result:', result);
+        debugLogger.debug('System freeze result:', result);
 
         // Refresh governance state after freeze
         this.debouncedSyncGovernanceState();
@@ -434,7 +434,7 @@ const storeActions = {
 
       if (response.ok) {
         const result = await response.json();
-        console.log('System unfreeze result:', result);
+        debugLogger.debug('System unfreeze result:', result);
 
         // Refresh governance state after unfreeze
         this.debouncedSyncGovernanceState();
@@ -468,7 +468,7 @@ const storeActions = {
 
       if (response.ok) {
         const result = await response.json();
-        console.log('Governance mode change result:', result);
+        debugLogger.debug('Governance mode change result:', result);
 
         // Refresh governance state after mode change
         this.debouncedSyncGovernanceState();
@@ -500,7 +500,7 @@ const storeActions = {
 
       if (response.ok) {
         const result = await response.json();
-        console.log('Decision proposal result:', result);
+        debugLogger.debug('Decision proposal result:', result);
 
         // Refresh governance state after proposal
         this.debouncedSyncGovernanceState();
@@ -546,9 +546,9 @@ const storeActions = {
         getStabilityDebugInfo
       };
 
-      console.log('🎯 Stability Engine intégré au store');
+      debugLogger.debug('🎯 Stability Engine intégré au store');
     } catch (error) {
-      console.warn('⚠️ Stability Engine non disponible:', error.message);
+      debugLogger.warn('⚠️ Stability Engine non disponible:', error.message);
       // Fallback simple sans hystérésis
       this._stabilityEngine = {
         getStableContradiction: (state) => state?.governance?.contradiction_index ?? 0,
@@ -585,7 +585,7 @@ const storeActions = {
   resetStability() {
     if (storeActions._stabilityEngine) {
       storeActions._stabilityEngine.resetStabilityState();
-      console.log('🔄 Stability Engine reset');
+      debugLogger.debug('🔄 Stability Engine reset');
     }
   },
 

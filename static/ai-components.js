@@ -788,7 +788,7 @@ class RebalancingSuggestions extends AIComponent {
 
     showSimulationResults(simulation) {
         // Implémentation d'une modal de résultats
-        console.log('Simulation results:', simulation);
+        debugLogger.debug('Simulation results:', simulation);
         alert(`Simulation terminée:\nGain estimé: ${this.formatPercentage(simulation.expected_return || 0)}\nRisque: ${this.formatPercentage(simulation.risk_score || 0)}`);
     }
 }
@@ -819,7 +819,7 @@ window.AIComponents = {
      */
     initializeAll(container = document) {
         const components = container.querySelectorAll('volatility-display, market-regime-display, correlation-matrix, sentiment-indicator, rebalancing-suggestions');
-        console.log(`🔧 Initializing ${components.length} AI components`);
+        debugLogger.debug(`🔧 Initializing ${components.length} AI components`);
         return components;
     },
 

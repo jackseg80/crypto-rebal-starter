@@ -567,27 +567,27 @@ class InteractiveDashboard {
                 this.fetchPerformanceData()
             ]);
 
-            console.log('📊 Portfolio data loaded:', portfolio);
-            console.log('💰 Price data loaded:', prices);
-            console.log('📈 Performance data loaded:', performance);
+            debugLogger.info('📊 Portfolio data loaded:', portfolio);
+            debugLogger.info('💰 Price data loaded:', prices);
+            debugLogger.info('📈 Performance data loaded:', performance);
 
             this.data.portfolio = portfolio;
             this.data.prices = prices;
             this.data.performance = performance;
 
-            console.log('🔄 Updating KPIs...');
+            debugLogger.debug('🔄 Updating KPIs...');
             this.updateKPIs();
             
-            console.log('📈 Rendering charts...');
+            debugLogger.info('📈 Rendering charts...');
             this.renderCharts();
 
-            console.log('✅ Setting connection status to connected...');
+            debugLogger.info('✅ Setting connection status to connected...');
             this.setConnectionStatus('connected', 'Connected');
             
             const lastUpdateElement = document.getElementById('last-update');
             if (lastUpdateElement) {
                 lastUpdateElement.textContent = new Date().toLocaleTimeString();
-                console.log('🕒 Last update time set:', new Date().toLocaleTimeString());
+                debugLogger.debug('🕒 Last update time set:', new Date().toLocaleTimeString());
             } else {
                 console.error('❌ last-update element not found!');
             }
@@ -603,7 +603,7 @@ class InteractiveDashboard {
             // Use the same data loading system as other dashboards
             const balanceResult = await window.loadBalanceData();
 
-            console.log('🔄 Balance result from loadBalanceData:', balanceResult);
+            debugLogger.debug('🔄 Balance result from loadBalanceData:', balanceResult);
 
             if (!balanceResult || !balanceResult.success) {
                 throw new Error(balanceResult?.error || 'Failed to load balance data');
@@ -612,18 +612,18 @@ class InteractiveDashboard {
             let balances;
             if (balanceResult.csvText) {
                 // Source CSV locale
-                console.log('📄 Loading from CSV text');
+                debugLogger.debug('📄 Loading from CSV text');
                 balances = this.parseCSVBalances(balanceResult.csvText);
             } else if (balanceResult.data && Array.isArray(balanceResult.data.items)) {
                 // Source API
-                console.log('🌐 Loading from API data');
+                debugLogger.debug('🌐 Loading from API data');
                 balances = balanceResult.data.items;
             } else {
-                console.warn('Unknown data format:', balanceResult);
+                debugLogger.warn('Unknown data format:', balanceResult);
                 throw new Error('Invalid data format received');
             }
 
-            console.log('💰 Parsed balances:', balances);
+            debugLogger.info('💰 Parsed balances:', balances);
 
             const total_value = balances.reduce((sum, item) => sum + (parseFloat(item.value_usd) || 0), 0);
 
@@ -649,7 +649,7 @@ class InteractiveDashboard {
 
     async fetchPriceData() {
         try {
-            console.log('📈 Attempting to fetch real price data...');
+            debugLogger.info('📈 Attempting to fetch real price data...');
 
             // Try to get real price data first with timeout
             const globalSettings = window.globalConfig?.getAll?.() || {};
@@ -667,7 +667,7 @@ class InteractiveDashboard {
 
                 if (response.ok) {
                     const priceData = await response.json();
-                    console.log('✅ Real price data loaded:', priceData);
+                    debugLogger.info('✅ Real price data loaded:', priceData);
                     return priceData;
                 }
             } catch (apiError) {
@@ -681,7 +681,7 @@ class InteractiveDashboard {
             }
 
             // Aucune donnée mockée - retourner données vides
-            console.log('📊 No price data available from configured sources');
+            debugLogger.info('📊 No price data available from configured sources');
             return { history: [], latest: {} };
 
         } catch (error) {
@@ -692,7 +692,7 @@ class InteractiveDashboard {
 
     async fetchPerformanceData() {
         try {
-            console.log('📊 Attempting to fetch real performance data...');
+            debugLogger.info('📊 Attempting to fetch real performance data...');
 
             // Try to get real performance data first with timeout
             const globalSettings = window.globalConfig?.getAll?.() || {};
@@ -710,19 +710,19 @@ class InteractiveDashboard {
 
                 if (response.ok) {
                     const performanceData = await response.json();
-                    console.log('✅ Real performance data loaded:', performanceData);
+                    debugLogger.info('✅ Real performance data loaded:', performanceData);
                     return performanceData;
                 }
             } catch (apiError) {
                 if (apiError.name === 'AbortError') {
-                    console.log('⏰ Performance API timeout, calculating from portfolio');
+                    debugLogger.debug('⏰ Performance API timeout, calculating from portfolio');
                 } else {
-                    console.log('⚠️ Real performance API not available, calculating from portfolio:', apiError.message);
+                    debugLogger.warn('⚠️ Real performance API not available, calculating from portfolio:', apiError.message);
                 }
             }
 
             // Retourner données vides au lieu de mock data
-            console.log('📊 No performance data available from configured sources');
+            debugLogger.info('📊 No performance data available from configured sources');
             return {
                 timeseries: [],
                 correlation_matrix: {},
@@ -767,13 +767,13 @@ class InteractiveDashboard {
     }
 
     renderCharts() {
-        console.log('📊 renderCharts() called');
+        debugLogger.info('📊 renderCharts() called');
         this.hideAllLoadingSpinners();
 
         // Portfolio composition
-        console.log('🥧 Checking portfolio holdings:', this.data.portfolio?.holdings);
+        debugLogger.debug('🥧 Checking portfolio holdings:', this.data.portfolio?.holdings);
         if (this.data.portfolio?.holdings) {
-            console.log('✅ Creating portfolio composition chart...');
+            debugLogger.info('✅ Creating portfolio composition chart...');
             try {
                 this.charts.createPortfolioComposition(
                     'portfolio-composition-chart',
@@ -783,18 +783,18 @@ class InteractiveDashboard {
                         onAssetClick: (symbol) => this.showAssetDetails(symbol)
                     }
                 );
-                console.log('✅ Portfolio composition chart created');
+                debugLogger.info('✅ Portfolio composition chart created');
             } catch (chartError) {
                 console.error('❌ Error creating portfolio composition chart:', chartError);
             }
         } else {
-            console.warn('⚠️ No portfolio holdings data available for chart');
+            debugLogger.warn('⚠️ No portfolio holdings data available for chart');
         }
 
         // Performance chart
-        console.log('📈 Checking performance data:', this.data.performance);
+        debugLogger.info('📈 Checking performance data:', this.data.performance);
         if (this.data.performance?.timeseries || this.data.performance?.history) {
-            console.log('✅ Creating performance chart with timeseries data...');
+            debugLogger.info('✅ Creating performance chart with timeseries data...');
             try {
                 this.charts.createPerformanceChart(
                     'performance-chart',
@@ -806,40 +806,40 @@ class InteractiveDashboard {
                         title: 'Portfolio Performance (30 days)'
                     }
                 );
-                console.log('✅ Performance chart created');
+                debugLogger.info('✅ Performance chart created');
             } catch (chartError) {
                 console.error('❌ Error creating performance chart:', chartError);
             }
         } else {
-            console.warn('⚠️ No performance timeseries data available for chart');
+            debugLogger.warn('⚠️ No performance timeseries data available for chart');
         }
 
         // Risk chart (correlation by default)
-        console.log('📊 Checking risk data:', this.data.performance?.correlation_matrix);
+        debugLogger.info('📊 Checking risk data:', this.data.performance?.correlation_matrix);
         if (this.data.performance?.correlation_matrix) {
-            console.log('✅ Creating risk chart...');
+            debugLogger.info('✅ Creating risk chart...');
             try {
                 this.renderRiskChart('correlation');
-                console.log('✅ Risk chart created');
+                debugLogger.info('✅ Risk chart created');
             } catch (chartError) {
                 console.error('❌ Error creating risk chart:', chartError);
             }
         } else {
-            console.warn('⚠️ No correlation matrix data available for risk chart');
+            debugLogger.warn('⚠️ No correlation matrix data available for risk chart');
         }
 
         // Optimization chart
-        console.log('🎯 Checking optimization data:', this.data.performance?.risk_return_data);
+        debugLogger.debug('🎯 Checking optimization data:', this.data.performance?.risk_return_data);
         if (this.data.performance?.risk_return_data) {
-            console.log('✅ Creating optimization chart...');
+            debugLogger.info('✅ Creating optimization chart...');
             try {
                 this.renderOptimizationChart('risk-return');
-                console.log('✅ Optimization chart created');
+                debugLogger.info('✅ Optimization chart created');
             } catch (chartError) {
                 console.error('❌ Error creating optimization chart:', chartError);
             }
         } else {
-            console.warn('⚠️ No risk-return data available for optimization chart');
+            debugLogger.warn('⚠️ No risk-return data available for optimization chart');
         }
     }
 
@@ -951,7 +951,7 @@ class InteractiveDashboard {
 
     showAssetDetails(symbol) {
         // Implementation for asset detail modal/panel
-        console.log('Show details for:', symbol);
+        debugLogger.debug('Show details for:', symbol);
     }
 
     // CSV parsing and data utility functions
@@ -981,7 +981,7 @@ class InteractiveDashboard {
                     }
                 }
             } catch (error) {
-                console.warn('Error parsing CSV line:', error.message);
+                debugLogger.warn('Error parsing CSV line:', error.message);
             }
         }
 

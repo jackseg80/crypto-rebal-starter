@@ -54,18 +54,18 @@ function initializeTaxonomySync() {
   // Essayer d'abord un chargement synchrone immédiat
   try {
     loadTaxonomyDataSync();
-    console.log('✅ Taxonomy data loaded synchronously on init:', Object.keys(KNOWN_ASSET_MAPPING).length, 'aliases,', GROUP_ORDER.length, 'groups');
+    debugLogger.info('✅ Taxonomy data loaded synchronously on init:', Object.keys(KNOWN_ASSET_MAPPING).length, 'aliases,', GROUP_ORDER.length, 'groups');
   } catch (error) {
-    console.warn('⚠️ Sync load on init failed, trying async...', error.message);
+    debugLogger.warn('⚠️ Sync load on init failed, trying async...', error.message);
 
     // Fallback async si sync fail
     loadTaxonomyData()
       .then(data => {
         updateGlobalVariables(data);
-        console.log('✅ Taxonomy data loaded asynchronously:', Object.keys(KNOWN_ASSET_MAPPING).length, 'aliases,', GROUP_ORDER.length, 'groups');
+        debugLogger.info('✅ Taxonomy data loaded asynchronously:', Object.keys(KNOWN_ASSET_MAPPING).length, 'aliases,', GROUP_ORDER.length, 'groups');
       })
       .catch(error => {
-        console.warn('⚠️ Taxonomy async load failed, using fallback:', error.message);
+        debugLogger.warn('⚠️ Taxonomy async load failed, using fallback:', error.message);
         // Utiliser les fallback en cas d'erreur
         const fallbackData = {
           aliases: {},
@@ -102,11 +102,11 @@ async function loadTaxonomyData() {
     };
     cacheTimestamp = now;
 
-    console.log('✅ Taxonomy data loaded from API:', Object.keys(taxonomyCache.aliases).length, 'aliases,', taxonomyCache.groups.length, 'groups');
+    debugLogger.info('✅ Taxonomy data loaded from API:', Object.keys(taxonomyCache.aliases).length, 'aliases,', taxonomyCache.groups.length, 'groups');
 
     return taxonomyCache;
   } catch (error) {
-    console.warn('⚠️ Taxonomy API unavailable, using fallback:', error.message);
+    debugLogger.warn('⚠️ Taxonomy API unavailable, using fallback:', error.message);
 
     // Fallback si API indisponible
     taxonomyCache = {
@@ -152,9 +152,9 @@ export function loadTaxonomyDataSync() {
 
     updateGlobalVariables(taxonomyCache);
 
-    console.log('✅ Taxonomy data loaded sync from API:', Object.keys(taxonomyCache.aliases).length, 'aliases,', taxonomyCache.groups.length, 'groups');
+    debugLogger.info('✅ Taxonomy data loaded sync from API:', Object.keys(taxonomyCache.aliases).length, 'aliases,', taxonomyCache.groups.length, 'groups');
   } catch (error) {
-    console.warn('⚠️ Taxonomy sync API failed, using fallback:', error.message);
+    debugLogger.warn('⚠️ Taxonomy sync API failed, using fallback:', error.message);
 
     // Fallback si API indisponible
     taxonomyCache = {
@@ -218,17 +218,17 @@ export function getAssetGroup(symbol) {
 
   // Si les données ne sont pas encore chargées, essayer de charger depuis l'API de façon synchrone
   if (Object.keys(KNOWN_ASSET_MAPPING).length === 0) {
-    console.warn('⚠️ Taxonomy data not loaded yet, trying sync load...');
+    debugLogger.warn('⚠️ Taxonomy data not loaded yet, trying sync load...');
     try {
       loadTaxonomyDataSync();
     } catch (error) {
-      console.warn('⚠️ Sync load failed, using fallback:', error.message);
+      debugLogger.warn('⚠️ Sync load failed, using fallback:', error.message);
       return autoClassifySymbolFallback(upperSymbol);
     }
 
     // Vérifier encore après le chargement sync
     if (Object.keys(KNOWN_ASSET_MAPPING).length === 0) {
-      console.warn('⚠️ Sync load returned empty mapping, using fallback');
+      debugLogger.warn('⚠️ Sync load returned empty mapping, using fallback');
       return autoClassifySymbolFallback(upperSymbol);
     }
   }
@@ -291,7 +291,7 @@ export async function getGroupsFormat() {
 
 // Force reload taxonomy data (clear cache)
 export function forceReloadTaxonomy() {
-  console.log('🔄 Forcing taxonomy reload...');
+  debugLogger.debug('🔄 Forcing taxonomy reload...');
   taxonomyCache = null;
   cacheTimestamp = 0;
 
@@ -303,7 +303,7 @@ export function forceReloadTaxonomy() {
   // Reload synchronously
   initializeTaxonomySync();
 
-  console.log('✅ Taxonomy reload completed');
+  debugLogger.info('✅ Taxonomy reload completed');
 }
 
 // Debug: afficher la classification complète
@@ -312,9 +312,9 @@ export async function debugClassification() {
   const aliases = await getAliasMapping();
 
   console.table(groups);
-  console.log('Total groups:', Object.keys(groups).length);
-  console.log('Total symbols:', Object.values(groups).flat().length);
-  console.log('Aliases mapping:', aliases);
+  debugLogger.debug('Total groups:', Object.keys(groups).length);
+  debugLogger.debug('Total symbols:', Object.values(groups).flat().length);
+  debugLogger.debug('Aliases mapping:', aliases);
 }
 
 // Fonction synchrone pour la compatibilité avec l'ancien code - deprecated

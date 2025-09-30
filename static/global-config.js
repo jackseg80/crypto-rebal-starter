@@ -125,7 +125,7 @@ class GlobalConfig {
         }
       }
     } catch (error) {
-      console.warn('Erreur chargement configuration:', error);
+      debugLogger.warn('Erreur chargement configuration:', error);
       this.settings = { ...DEFAULT_SETTINGS };
     }
   }
@@ -181,7 +181,7 @@ class GlobalConfig {
 
       // Auto-invalidation des caches quand la source change
       if (oldValue && oldValue !== newValue) {
-        console.log(`🔄 Global config data source changed: ${oldValue} -> ${newValue}, clearing caches`);
+        debugLogger.debug(`🔄 Global config data source changed: ${oldValue} -> ${newValue}, clearing caches`);
 
         // Vider le cache balance pour tous les utilisateurs
         if (typeof balanceCache !== 'undefined') {
@@ -197,7 +197,7 @@ class GlobalConfig {
             key.includes('portfolio_')
           );
           cacheKeys.forEach(key => localStorage.removeItem(key));
-          console.log(`🧹 Cleared ${cacheKeys.length} localStorage cache entries`);
+          debugLogger.debug(`🧹 Cleared ${cacheKeys.length} localStorage cache entries`);
         } catch (e) {
           console.debug('Cache clearing error (non-critical):', e);
         }
@@ -512,7 +512,7 @@ window.refreshBalanceData = () => window.loadBalanceData(true); // Force refresh
 
 // Fonction pour forcer le refresh de toutes les données
 window.refreshAllData = () => {
-  console.log('🔄 Refreshing all data sources...');
+  debugLogger.debug('🔄 Refreshing all data sources...');
 
   // Vider tous les caches
   if (typeof balanceCache !== 'undefined') balanceCache.clear();
@@ -535,7 +535,7 @@ window.refreshAllData = () => {
   // Émettre un événement pour que les autres composants se rechargent
   window.dispatchEvent(new CustomEvent('dataRefreshRequested'));
 
-  console.log(`🧹 Cleared ${cacheKeys.length} cache entries and requested data refresh`);
+  debugLogger.debug(`🧹 Cleared ${cacheKeys.length} cache entries and requested data refresh`);
 };
 
 /**
@@ -642,7 +642,7 @@ window.loadBalanceData = async function(forceRefresh = false) {
     }
   } catch (error) {
     console.error(`❌ Error loading balance data via API (source: ${dataSource}):`, error);
-    console.log('🔄 Trying fallback: direct CSV file loading...');
+    debugLogger.debug('🔄 Trying fallback: direct CSV file loading...');
     
     // Fallback: try to load CSV files directly
     try {
@@ -653,11 +653,11 @@ window.loadBalanceData = async function(forceRefresh = false) {
       
       for (const csvFile of csvFiles) {
         try {
-          console.log(`📄 Attempting to load: ${csvFile}`);
+          debugLogger.debug(`📄 Attempting to load: ${csvFile}`);
           const response = await fetch(csvFile);
           if (response.ok) {
             const csvText = await response.text();
-            console.log(`✅ Successfully loaded ${csvFile} (${csvText.length} characters)`);
+            debugLogger.debug(`✅ Successfully loaded ${csvFile} (${csvText.length} characters)`);
             return {
               success: true,
               csvText: csvText,
@@ -666,7 +666,7 @@ window.loadBalanceData = async function(forceRefresh = false) {
             };
           }
         } catch (fileError) {
-          console.log(`⚠️ Could not load ${csvFile}:`, fileError.message);
+          debugLogger.debug(`⚠️ Could not load ${csvFile}:`, fileError.message);
         }
       }
       
@@ -686,11 +686,11 @@ window.loadBalanceData = async function(forceRefresh = false) {
       // Pour les sources stub ou legacy, fallback vers stub
       try {
         const stubFlavor = dataSource.startsWith('stub') ? dataSource : 'stub_balanced';
-        console.log(`🔄 Falling back to stub: ${stubFlavor}`);
+        debugLogger.debug(`🔄 Falling back to stub: ${stubFlavor}`);
         const stubData = await globalConfig.apiRequest('/balances/current', {
           params: { source: stubFlavor, _t: timestamp }
         });
-        console.log('✅ Successfully loaded stub data from API');
+        debugLogger.info('✅ Successfully loaded stub data from API');
         return { success: true, data: stubData, source: stubData?.source_used || stubFlavor };
       } catch (stubError) {
         console.error('❌ Stub data via API also failed:', stubError);
@@ -743,7 +743,7 @@ window.parseCSVBalances = function(csvText) {
         }
       }
     } catch (error) {
-      console.warn('Error parsing CSV line:', error);
+      debugLogger.warn('Error parsing CSV line:', error);
     }
   }
 

@@ -59,12 +59,12 @@ function writeOnchainCache(payload) {
       cache_version: 'v2'
     };
     localStorage.setItem(LS_KEY, JSON.stringify(cacheEntry));
-    console.log('💾 On-chain indicators cached', {
+    debugLogger.debug('💾 On-chain indicators cached', {
       count: payload.count || 0,
       cached_at: new Date().toISOString()
     });
   } catch (error) {
-    console.warn('Failed to write onchain cache:', error);
+    debugLogger.warn('Failed to write onchain cache:', error);
   }
 }
 
@@ -229,7 +229,7 @@ class IntelligentCache {
       }
     }
 
-    console.log(`🧹 Cache cleanup: ${cleaned} expired entries removed`);
+    debugLogger.debug(`🧹 Cache cleanup: ${cleaned} expired entries removed`);
     return cleaned;
   }
 
@@ -630,12 +630,12 @@ export function getCacheStats() {
 
 export function clearCache() {
   intelligentCache.clear();
-  console.log('🧹 OnChain indicators cache cleared');
+  debugLogger.debug('🧹 OnChain indicators cache cleared');
 }
 
 export function invalidateCache(key) {
   intelligentCache.invalidate(key);
-  console.log(`🔄 Cache invalidated for: ${key}`);
+  debugLogger.debug(`🔄 Cache invalidated for: ${key}`);
 }
 
 /**
@@ -660,7 +660,7 @@ async function performanceMonitoredFetch(url, options = {}) {
       ? responseTime 
       : (stats.avgResponseTime + responseTime) / 2;
     
-    console.log(`📡 API response time: ${Math.round(responseTime)}ms`);
+    debugLogger.debug(`📡 API response time: ${Math.round(responseTime)}ms`);
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -672,11 +672,11 @@ async function performanceMonitoredFetch(url, options = {}) {
     const responseTime = endTime - startTime;
     
     if (error.name === 'TimeoutError') {
-      console.warn('⏰ API request timed out after 10s');
+      debugLogger.warn('⏰ API request timed out after 10s');
     } else if (error.name === 'AbortError') {
-      console.warn('🚫 API request was aborted');
+      debugLogger.warn('🚫 API request was aborted');
     } else {
-      console.warn(`🌐 Network error (${Math.round(responseTime)}ms):`, error.message);
+      debugLogger.warn(`🌐 Network error (${Math.round(responseTime)}ms):`, error.message);
     }
     
     throw error;
@@ -691,11 +691,11 @@ async function fetchFearGreedIndex() {
     // Check intelligent cache first
     const cached = intelligentCache.get('fear_greed');
     if (cached) {
-      console.log('📊 Fear & Greed from intelligent cache');
+      debugLogger.info('📊 Fear & Greed from intelligent cache');
       return cached;
     }
 
-    console.log('📡 Fetching Fear & Greed from API...');
+    debugLogger.debug('📡 Fetching Fear & Greed from API...');
     const response = await performanceMonitoredFetch('https://api.alternative.me/fng/?limit=1');
     const data = await response.json();
     if (data.data && data.data[0]) {
@@ -708,13 +708,13 @@ async function fetchFearGreedIndex() {
       
       // Store in intelligent cache
       intelligentCache.set('fear_greed', result);
-      console.log('💾 Fear & Greed cached with adaptive TTL');
+      debugLogger.debug('💾 Fear & Greed cached with adaptive TTL');
       
       return result;
     }
     throw new Error('Invalid response format');
   } catch (error) {
-    console.warn('Fear & Greed Index fetch failed:', error.message);
+    debugLogger.warn('Fear & Greed Index fetch failed:', error.message);
     return null;
   }
 }
@@ -748,11 +748,11 @@ const _logLimiter = {
  */
 async function revalidateInBackground() {
   try {
-    console.log('🔄 SWR: Revalidating onchain indicators in background...');
+    debugLogger.debug('🔄 SWR: Revalidating onchain indicators in background...');
     await fetchCryptoToolboxIndicators({ force: true, silent: true });
-    console.log('✅ SWR: Background revalidation completed');
+    debugLogger.info('✅ SWR: Background revalidation completed');
   } catch (error) {
-    console.warn('⚠️ SWR: Background revalidation failed:', error.message);
+    debugLogger.warn('⚠️ SWR: Background revalidation failed:', error.message);
   }
 }
 
@@ -761,7 +761,7 @@ async function revalidateInBackground() {
  */
 export async function fetchCryptoToolboxIndicators({ force = false, silent = false } = {}) {
   if (!silent) {
-    console.log('🌐 Fetching indicators from Crypto-Toolbox API...');
+    debugLogger.debug('🌐 Fetching indicators from Crypto-Toolbox API...');
   }
 
   const cached = readOnchainCache();
@@ -773,7 +773,7 @@ export async function fetchCryptoToolboxIndicators({ force = false, silent = fal
 
     if (age < TTL_SHOW_MS) {
       // Cache is fresh - return immediately
-      console.log(`⚡ SWR: Serving from cache (age: ${Math.round(age / 1000 / 60)}min)`, {
+      debugLogger.debug(`⚡ SWR: Serving from cache (age: ${Math.round(age / 1000 / 60)}min)`, {
         served_from: 'cache',
         cache_age_minutes: Math.round(age / 1000 / 60),
         indicators_count: cached.count || 0
@@ -789,7 +789,7 @@ export async function fetchCryptoToolboxIndicators({ force = false, silent = fal
 
     // Between TTL_SHOW and TTL_HARD: show cache + revalidate in background
     if (age < TTL_HARD_MS) {
-      console.log(`🔄 SWR: Serving stale cache + background revalidation (age: ${Math.round(age / 1000 / 60)}min)`, {
+      debugLogger.debug(`🔄 SWR: Serving stale cache + background revalidation (age: ${Math.round(age / 1000 / 60)}min)`, {
         served_from: 'cache+bg',
         cache_age_minutes: Math.round(age / 1000 / 60)
       });
@@ -799,7 +799,7 @@ export async function fetchCryptoToolboxIndicators({ force = false, silent = fal
     }
 
     // > TTL_HARD: fall through to network
-    console.log(`🌐 SWR: Cache too old (age: ${Math.round(age / 1000 / 60)}min), forcing network`, {
+    debugLogger.debug(`🌐 SWR: Cache too old (age: ${Math.round(age / 1000 / 60)}min), forcing network`, {
       served_from: 'network',
       reason: 'cache_expired'
     });
@@ -809,7 +809,7 @@ export async function fetchCryptoToolboxIndicators({ force = false, silent = fal
   if (_circuitBreakerState.isOpen) {
     if (now - _circuitBreakerState.lastFailure < _circuitBreakerState.RESET_TIMEOUT) {
       if (_logLimiter.limit('circuit_breaker_active')) {
-        console.warn('🚨 SWR: Circuit breaker OPEN - returning stale cache instead of network', {
+        debugLogger.warn('🚨 SWR: Circuit breaker OPEN - returning stale cache instead of network', {
           failures: _circuitBreakerState.failures,
           time_to_reset: Math.round((_circuitBreakerState.RESET_TIMEOUT - (now - _circuitBreakerState.lastFailure)) / 1000) + 's'
         });
@@ -823,13 +823,13 @@ export async function fetchCryptoToolboxIndicators({ force = false, silent = fal
       // Reset circuit breaker
       _circuitBreakerState.isOpen = false;
       _circuitBreakerState.failures = 0;
-      console.log('🔄 SWR: Circuit breaker RESET - attempting network again');
+      debugLogger.debug('🔄 SWR: Circuit breaker RESET - attempting network again');
     }
   }
 
   // 3) Network fetch with deduplication
   if (_ongoingFetch) {
-    console.log('🔄 SWR: Deduplicating concurrent request');
+    debugLogger.debug('🔄 SWR: Deduplicating concurrent request');
     return _ongoingFetch;
   }
 
@@ -843,7 +843,7 @@ export async function fetchCryptoToolboxIndicators({ force = false, silent = fal
   try {
     response = await performanceMonitoredFetch(proxyUrl);
   } catch (err) {
-    console.warn(`🌐 Proxy ${proxyUrl} failed (${err?.message || err}). Trying direct fallback...`);
+    debugLogger.warn(`🌐 Proxy ${proxyUrl} failed (${err?.message || err}). Trying direct fallback...`);
     // Tentatives fallback direct vers le scraper Flask (peut nécessiter CORS côté Flask)
     const fallbacks = [
       'http://127.0.0.1:8801/api/crypto-toolbox',
@@ -857,11 +857,11 @@ export async function fetchCryptoToolboxIndicators({ force = false, silent = fal
     for (const url of fallbacks) {
       try {
         response = await performanceMonitoredFetch(url);
-        console.log(`✅ Fallback succeeded at ${url}`);
+        debugLogger.debug(`✅ Fallback succeeded at ${url}`);
         break;
       } catch (e) {
         lastError = e;
-        console.warn(`🌐 Fallback ${url} failed: ${e?.message || e}`);
+        debugLogger.warn(`🌐 Fallback ${url} failed: ${e?.message || e}`);
       }
     }
     if (!response) {
@@ -871,14 +871,14 @@ export async function fetchCryptoToolboxIndicators({ force = false, silent = fal
     
     if (!response.ok) {
       if (response.status === 404) {
-        console.warn('⚠️ Crypto-Toolbox service not available (optional feature)');
+        debugLogger.warn('⚠️ Crypto-Toolbox service not available (optional feature)');
         return null; // Service optionnel non disponible
       }
       throw new Error(`Backend API error: ${response.status} ${response.statusText}`);
     }
     
   const apiData = await response.json();
-  console.log(`📊 API response:`, apiData);
+  debugLogger.debug(`📊 API response:`, apiData);
   
   // Tolérance aux différentes formes de payload
   if (apiData.success === false) {
@@ -892,7 +892,7 @@ export async function fetchCryptoToolboxIndicators({ force = false, silent = fal
     raw = Object.values(raw);
   }
   if (!Array.isArray(raw)) {
-    console.warn('⚠️ No indicator list array in response; attempting single-item normalization');
+    debugLogger.warn('⚠️ No indicator list array in response; attempting single-item normalization');
     raw = [];
   }
   
@@ -919,7 +919,7 @@ export async function fetchCryptoToolboxIndicators({ force = false, silent = fal
     const cleanKey = String(originalName).toLowerCase().replace(/[^a-z0-9]/g, '_');
     const num = pickNumeric(entry);
     if (num == null || Number.isNaN(num)) {
-      console.warn(`⚠️ Skipped indicator without numeric value: ${originalName}`);
+      debugLogger.warn(`⚠️ Skipped indicator without numeric value: ${originalName}`);
       return;
     }
     const inCritical = pickBool(entry, 'in_critical_zone', 'critical', 'is_critical') || false;
@@ -943,10 +943,10 @@ export async function fetchCryptoToolboxIndicators({ force = false, silent = fal
       scraped_at: scrapedAt,
       source: entry.source || 'crypto-toolbox'
     };
-    console.log(`✅ Processed: ${originalName} = ${num}% ${inCritical ? '🚨' : ''}`);
+    debugLogger.debug(`✅ Processed: ${originalName} = ${num}% ${inCritical ? '🚨' : ''}`);
   });
   
-  console.log(`📊 Converted ${Object.keys(indicators).length} indicators from API`);
+  debugLogger.debug(`📊 Converted ${Object.keys(indicators).length} indicators from API`);
 
   if (Object.keys(indicators).length > 0) {
     // Prepare SWR cache payload
@@ -968,7 +968,7 @@ export async function fetchCryptoToolboxIndicators({ force = false, silent = fal
     _circuitBreakerState.failures = 0;
     _circuitBreakerState.isOpen = false;
 
-    console.log(`✅ SWR: Network fetch successful`, {
+    debugLogger.debug(`✅ SWR: Network fetch successful`, {
       served_from: 'network',
       indicators_count: Object.keys(indicators).length,
       response_time_ms: '~661ms' // approximation from logs
@@ -984,7 +984,7 @@ export async function fetchCryptoToolboxIndicators({ force = false, silent = fal
 
     // Enhanced graceful degradation for all types of API failures
     if (_logLimiter.limit('api_failure')) {
-      console.warn('🌐 Crypto-Toolbox API failure:', error.message);
+      debugLogger.warn('🌐 Crypto-Toolbox API failure:', error.message);
     }
 
     // Update circuit breaker state for persistent failures
@@ -1015,7 +1015,7 @@ export async function fetchCryptoToolboxIndicators({ force = false, silent = fal
 
     // Last resort: return minimal empty state instead of throwing
     if (_logLimiter.limit('empty_fallback')) {
-      console.warn('🔄 No cache available, returning empty state for graceful degradation');
+      debugLogger.warn('🔄 No cache available, returning empty state for graceful degradation');
     }
     return {
       indicators: {},
@@ -1046,12 +1046,12 @@ function parseCryptoToolboxHTML(html) {
     
     // Stratégie 1: Parser comme ton code Python - table tbody tr
     const tables = doc.querySelectorAll('table');
-    console.log(`🔍 Found ${tables.length} tables to parse`);
+    debugLogger.debug(`🔍 Found ${tables.length} tables to parse`);
     
     tables.forEach((table, tableIndex) => {
       // Chercher tbody tr comme dans ton code Python
       const rows = table.querySelectorAll('tbody tr');
-      console.log(`🔍 Table ${tableIndex + 1}: Found ${rows.length} tbody rows`);
+      debugLogger.debug(`🔍 Table ${tableIndex + 1}: Found ${rows.length} tbody rows`);
       
       if (rows.length === 0) {
         // Fallback: chercher tr directement
@@ -1099,10 +1099,10 @@ function parseCryptoToolboxHTML(html) {
             
             console.debug(`✅ Mapped: ${name} → ${mappedKey} (${numericValue})`);
           } else {
-            console.warn(`⚠️ Unmapped indicator: "${name}"`);
+            debugLogger.warn(`⚠️ Unmapped indicator: "${name}"`);
           }
         } else {
-          console.warn(`⚠️ No numeric value found in: "${valueText}"`);
+          debugLogger.warn(`⚠️ No numeric value found in: "${valueText}"`);
         }
       }
     }
@@ -1222,7 +1222,7 @@ function mapCryptoToolboxIndicatorName(frenchName) {
     }
   }
   
-  console.warn(`⚠️ Unknown indicator name: "${frenchName}"`);
+  debugLogger.warn(`⚠️ Unknown indicator name: "${frenchName}"`);
   return null;
 }
 
@@ -1418,7 +1418,7 @@ export async function fetchAllIndicators({ force = false } = {}) {
     } else {
       errors.push('Crypto-Toolbox: Backend unavailable - no indicators loaded');
       if (_logLimiter.limit('backend_unavailable')) {
-        console.warn('⚠️ Crypto-Toolbox backend failed, no indicators loaded');
+        debugLogger.warn('⚠️ Crypto-Toolbox backend failed, no indicators loaded');
       }
     }
     
@@ -1450,7 +1450,7 @@ export async function fetchAllIndicators({ force = false } = {}) {
     console.debug(`✅ Real indicators loaded: ${successCount} total indicators`);
     
     if (errors.length > 0) {
-      console.warn('⚠️ Some fallback indicators unavailable:', errors);
+      debugLogger.warn('⚠️ Some fallback indicators unavailable:', errors);
     }
     
     // Log indicator summary by source
@@ -1475,7 +1475,7 @@ export async function fetchAllIndicators({ force = false } = {}) {
     };
     
   } catch (error) {
-    console.warn('❌ Error fetching real indicators, using graceful fallback:', error.message);
+    debugLogger.warn('❌ Error fetching real indicators, using graceful fallback:', error.message);
 
     // Return minimal working state for graceful degradation
     return {
@@ -1550,7 +1550,7 @@ export function calculateCompositeScore(indicators) {
     let rawValue = data.value_numeric || data.value || data.percent_in_cycle;
     
     if (typeof rawValue !== 'number') {
-      console.warn(`⚠️ Invalid numeric value for ${indicatorName}: ${rawValue}`);
+      debugLogger.warn(`⚠️ Invalid numeric value for ${indicatorName}: ${rawValue}`);
       return;
     }
     

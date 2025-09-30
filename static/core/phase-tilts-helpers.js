@@ -13,7 +13,7 @@
  */
 export function tiltRiskyZeroSum(T, ups = {}, downsKeys = []) {
   if (!T || typeof T !== 'object') {
-    console.warn('⚠️ TiltHelpers: Invalid targets object');
+    debugLogger.warn('⚠️ TiltHelpers: Invalid targets object');
     return T;
   }
 
@@ -60,13 +60,13 @@ export function tiltRiskyZeroSum(T, ups = {}, downsKeys = []) {
     .filter(k => (T[k] || 0) > 0);
 
   if (compensationPool.length === 0) {
-    console.warn('⚠️ TiltHelpers: No valid compensation pool, cannot apply tilts');
+    debugLogger.warn('⚠️ TiltHelpers: No valid compensation pool, cannot apply tilts');
     return T;
   }
 
   const poolSum = compensationPool.reduce((sum, k) => sum + (T[k] || 0), 0);
   if (poolSum <= 0) {
-    console.warn('⚠️ TiltHelpers: Compensation pool sum is zero');
+    debugLogger.warn('⚠️ TiltHelpers: Compensation pool sum is zero');
     return T;
   }
 
@@ -138,7 +138,7 @@ export function tiltRiskyZeroSum(T, ups = {}, downsKeys = []) {
  */
 export function applyCapsAndNormalize(T, caps = {}, stablesFloor = 5) {
   if (!T || typeof T !== 'object') {
-    console.warn('⚠️ TiltHelpers: Invalid targets for caps');
+    debugLogger.warn('⚠️ TiltHelpers: Invalid targets for caps');
     return { T: null, capsTriggered: [], stablesFloorHit: false };
   }
 
@@ -252,7 +252,7 @@ export function applyCapsAndNormalize(T, caps = {}, stablesFloor = 5) {
   // 2) Stables floor check (abort if breached)
   const currentStables = result['Stablecoins'] || 0;
   if (currentStables < stablesFloor) {
-    console.warn('🚨 TiltHelpers: Stables floor breached - aborting tilts this tick:', {
+    debugLogger.warn('🚨 TiltHelpers: Stables floor breached - aborting tilts this tick:', {
       current: currentStables.toFixed(2) + '%',
       floor: stablesFloor + '%'
     });
@@ -319,7 +319,7 @@ export function applyCapsAndNormalize(T, caps = {}, stablesFloor = 5) {
  */
 export function applyMinEffectFilter(tiltedTargets, originalTargets, threshold = 0.5) {
   if (!tiltedTargets || !originalTargets) {
-    console.warn('⚠️ TiltHelpers: Invalid targets for min-effect filter');
+    debugLogger.warn('⚠️ TiltHelpers: Invalid targets for min-effect filter');
     return tiltedTargets;
   }
 

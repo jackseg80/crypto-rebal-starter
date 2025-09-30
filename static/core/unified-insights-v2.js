@@ -1,7 +1,7 @@
 // Unified Insights V2 - Migration vers Strategy API (PR-C)
 // Nouvelle version qui utilise l'API Strategy tout en gardant la compatibilité
 // Remplace progressivement unified-insights.js
-console.warn('🔄 UNIFIED-INSIGHTS-V2.JS LOADED - FORCE CACHE RELOAD TIMESTAMP:', new Date().toISOString());
+debugLogger.warn('🔄 UNIFIED-INSIGHTS-V2.JS LOADED - FORCE CACHE RELOAD TIMESTAMP:', new Date().toISOString());
 
 import { store } from './risk-dashboard-store.js';
 import { getRegimeDisplayData, getMarketRegime } from '../modules/market-regimes.js';
@@ -175,7 +175,7 @@ function computeMacroTargetsDynamic(ctx, rb, walletStats) {
   console.error('🔍 SIMPLE DEBUG - Market conditions:', { bull, bear, hedge, fear });
   console.error('🔍 SIMPLE DEBUG - Stables/Risky:', { stables, riskyPool });
 
-  console.log('🎯 Dynamic targets computed:', targets);
+  debugLogger.debug('🎯 Dynamic targets computed:', targets);
   console.debug('📊 Target breakdown: stables=' + stables + '%, risky=' + riskyPool + '%');
 
   return targets;
@@ -206,7 +206,7 @@ export async function getUnifiedState() {
     console.debug('✅ Contradictions Intelligence loaded:', contradictions.length);
   } catch (error) {
     contradictions = (state.scores?.contradictory_signals || []).slice(0, 2);
-    console.warn('⚠️ Contradictions fallback:', error);
+    debugLogger.warn('⚠️ Contradictions fallback:', error);
   }
 
   console.debug('🧠 UNIFIED STATE V2 - Using Strategy API + sophisticated modules');
@@ -217,7 +217,7 @@ export async function getUnifiedState() {
     cycleData = estimateCyclePosition();
     console.debug('✅ Cycle Intelligence loaded:', cycleData.phase?.phase, cycleData.score);
   } catch (error) {
-    console.warn('⚠️ Cycle Intelligence fallback:', error);
+    debugLogger.warn('⚠️ Cycle Intelligence fallback:', error);
     cycleData = {
       months: state.cycle?.months ?? null,
       score: Math.round(state.cycle?.ccsStar ?? state.cycle?.score ?? 50),
@@ -244,7 +244,7 @@ export async function getUnifiedState() {
       regimeData = { regime: getMarketRegime(50), recommendations: [], risk_budget: null };
     }
   } catch (error) {
-    console.warn('⚠️ Regime Intelligence fallback:', error);
+    debugLogger.warn('⚠️ Regime Intelligence fallback:', error);
     regimeData = { regime: { name: 'Unknown', emoji: '❓' }, recommendations: [], risk_budget: null };
   }
 
@@ -274,7 +274,7 @@ export async function getUnifiedState() {
       }
     }
   } catch (e) {
-    console.warn('⚠️ Multi-source sentiment fallback to store data');
+    debugLogger.warn('⚠️ Multi-source sentiment fallback to store data');
   }
   
   try {
@@ -295,7 +295,7 @@ export async function getUnifiedState() {
     
     console.debug('✅ Signals Intelligence loaded:', signalsData.interpretation, signalsData.confidence);
   } catch (error) {
-    console.warn('⚠️ Signals Intelligence fallback:', error);
+    debugLogger.warn('⚠️ Signals Intelligence fallback:', error);
     signalsData = { interpretation: 'neutral', confidence: 0.4, signals_strength: 'weak' };
   }
 
@@ -360,7 +360,7 @@ export async function getUnifiedState() {
     }
 
   } catch (error) {
-    console.warn('⚠️ Strategy API failed, using legacy fallback:', error.message);
+    debugLogger.warn('⚠️ Strategy API failed, using legacy fallback:', error.message);
 
     // Fallback vers calcul legacy en cas d'erreur API
     const context = {
@@ -593,7 +593,7 @@ export async function getUnifiedState() {
 
             if (ctx.flags.phase_engine === 'shadow') {
               // Shadow mode: log detailed results
-              console.log('🧪 PhaseEngine Shadow Mode:', {
+              debugLogger.debug('🧪 PhaseEngine Shadow Mode:', {
                 phase,
                 inputsQuality: phaseInputs.partial ? 'partial' : 'complete',
                 originalTargets: Object.keys(dynamicTargets).reduce((acc, k) => {
@@ -633,14 +633,14 @@ export async function getUnifiedState() {
               if (phaseResult.targets) {
                 dynamicTargets = phaseResult.targets;
               } else {
-                console.warn('⚠️ PhaseEngine: No targets returned, keeping original');
+                debugLogger.warn('⚠️ PhaseEngine: No targets returned, keeping original');
               }
 
               // Calculate sums properly for logging
               const originalSum = Object.values(phaseResult.original || {}).reduce((a, b) => a + (Number(b) || 0), 0);
               const newSum = Object.values(dynamicTargets || {}).reduce((a, b) => a + (Number(b) || 0), 0);
 
-              console.log('✅ PhaseEngine Apply Mode - TARGETS MODIFIED:', {
+              debugLogger.info('✅ PhaseEngine Apply Mode - TARGETS MODIFIED:', {
                 phase,
                 tiltsApplied: phaseResult.metadata?.tiltsApplied ?? 'unknown',
                 capsTriggered: phaseResult.metadata?.capsTriggered ?? 'unknown',
@@ -690,7 +690,7 @@ export async function getUnifiedState() {
 
       // Sync cache no longer needed since Phase Engine is now awaitable
 
-      console.log('🎯 DYNAMIC TARGETS' + (ctx.flags.phase_engine !== 'off' ? ' + PHASE ENGINE' : '') + ':', {
+      debugLogger.debug('🎯 DYNAMIC TARGETS' + (ctx.flags.phase_engine !== 'off' ? ' + PHASE ENGINE' : '') + ':', {
         old_method: 'preset_from_api',
         new_method: 'dynamic_computation' + (ctx.flags.phase_engine !== 'off' ? ' + phase_tilts' : ''),
         phase_engine_mode: ctx.flags.phase_engine,

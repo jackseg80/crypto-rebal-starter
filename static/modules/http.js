@@ -16,7 +16,7 @@ export async function safeFetch(url, options = {}) {
             // Ajouter X-User depuis le sélecteur global (comme nav.js)
             const currentUser = window.getCurrentUser ? window.getCurrentUser() : null;
             if (!currentUser) {
-                console.warn('[http.js] No current user found, requests may use default user');
+                debugLogger.warn('[http.js] No current user found, requests may use default user');
             }
 
             const res = await fetch(url, {
@@ -58,7 +58,7 @@ export async function safeFetch(url, options = {}) {
             // Retry sur certains status codes
             if (!ok && retryStatusCodes.includes(res.status) && attempt < maxRetries) {
                 const delay = baseDelay * Math.pow(2, attempt); // Retry exponentiel
-                console.warn(`[safeFetch] Retry ${attempt + 1}/${maxRetries} for ${url} (status ${res.status}), waiting ${delay}ms`);
+                debugLogger.warn(`[safeFetch] Retry ${attempt + 1}/${maxRetries} for ${url} (status ${res.status}), waiting ${delay}ms`);
                 await new Promise(resolve => setTimeout(resolve, delay));
                 continue;
             }
@@ -78,7 +78,7 @@ export async function safeFetch(url, options = {}) {
             // Network errors ou timeouts - retry
             if (attempt < maxRetries) {
                 const delay = baseDelay * Math.pow(2, attempt);
-                console.warn(`[safeFetch] Retry ${attempt + 1}/${maxRetries} for ${url} (${error.name}), waiting ${delay}ms`);
+                debugLogger.warn(`[safeFetch] Retry ${attempt + 1}/${maxRetries} for ${url} (${error.name}), waiting ${delay}ms`);
                 await new Promise(resolve => setTimeout(resolve, delay));
                 continue;
             }

@@ -61,7 +61,7 @@ export async function calculateHierarchicalAllocation(context, currentPositions 
       loadTaxonomyDataSync(); // Fonction synchrone, pas d'await
       console.debug('✅ Taxonomy data loaded for allocation engine');
     } catch (taxonomyError) {
-      console.warn('⚠️ Taxonomy loading failed, continuing with fallback:', taxonomyError.message);
+      debugLogger.warn('⚠️ Taxonomy loading failed, continuing with fallback:', taxonomyError.message);
       // Continue quand même, getAssetGroup aura ses fallbacks
     }
     // 1. EXTRACTION DU CONTEXTE
@@ -109,7 +109,7 @@ export async function calculateHierarchicalAllocation(context, currentPositions 
       sum + (typeof val === 'number' && !isNaN(val) ? val : 0), 0
     );
     if (Math.abs(targetSum - 1.0) > 0.01) {
-      console.warn(`⚠️ target_sum_mismatch: somme secteurs = ${(targetSum * 100).toFixed(1)}% (≠ 100%)`);
+      debugLogger.warn(`⚠️ target_sum_mismatch: somme secteurs = ${(targetSum * 100).toFixed(1)}% (≠ 100%)`);
     }
 
     // CHECKSUM DÉTAILLÉ
@@ -134,7 +134,7 @@ export async function calculateHierarchicalAllocation(context, currentPositions 
       Object.keys(coinAllocation).forEach(key => {
         coinAllocation[key] *= scale;
       });
-      console.warn('⚠️ Allocation normalized to sum to 1.0');
+      debugLogger.warn('⚠️ Allocation normalized to sum to 1.0');
     }
 
     // 8. LOGS POUR DEBUG
@@ -477,7 +477,7 @@ function validateTotalAllocation(allocation) {
   const isValid = Math.abs(total - 1) < 0.001; // Tolérance 0.1%
 
   if (!isValid) {
-    console.warn('⚠️ Total allocation mismatch:', total, 'from values:', validValues);
+    debugLogger.warn('⚠️ Total allocation mismatch:', total, 'from values:', validValues);
   }
 
   return { total, isValid };
@@ -532,7 +532,7 @@ function validateHierarchy(allocation, currentPositions) {
       const parentWeight = allocation[parentGroup] || 0;
 
       if (parentGroup !== key && parentGroup !== 'Others' && parentWeight > 0.001) {
-        console.warn(`⚠️ child_at_top_level: ${key} (${allocation[key].toFixed(3)}) + parent ${parentGroup} (${parentWeight.toFixed(3)}) = vrai double-comptage`);
+        debugLogger.warn(`⚠️ child_at_top_level: ${key} (${allocation[key].toFixed(3)}) + parent ${parentGroup} (${parentWeight.toFixed(3)}) = vrai double-comptage`);
         issues.push(`child_at_top_level: ${key} → ${parentGroup}`);
       } else if (parentGroup !== key) {
         console.debug(`🔍 child_at_top_level: ${key} (${allocation[key].toFixed(3)}) mais parent ${parentGroup} = 0 - OK`);

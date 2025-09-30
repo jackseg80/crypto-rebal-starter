@@ -73,7 +73,7 @@ async function loadRealComputeFunction() {
       realComputeMacroTargetsDynamic = module.computeMacroTargetsDynamic;
       console.debug('✅ SIM: Real computeMacroTargetsDynamic loaded from unified-insights-v2.js');
     } catch (error) {
-      console.warn('⚠️ SIM: Failed to load real computeMacroTargetsDynamic, using fallback:', error.message);
+      debugLogger.warn('⚠️ SIM: Failed to load real computeMacroTargetsDynamic, using fallback:', error.message);
     }
   }
 
@@ -86,7 +86,7 @@ async function loadRealComputeFunction() {
       assetGroupsModule = await import('../shared-asset-groups.js');
       console.debug('✅ SIM: Asset groups module loaded');
     } catch (error) {
-      console.warn('⚠️ SIM: Failed to load shared-asset-groups.js:', error.message);
+      debugLogger.warn('⚠️ SIM: Failed to load shared-asset-groups.js:', error.message);
     }
   }
 
@@ -96,7 +96,7 @@ async function loadRealComputeFunction() {
       phaseEngineModule = await import('../core/phase-engine.js');
       console.debug('✅ SIM: Real Phase Engine loaded');
     } catch (error) {
-      console.warn('⚠️ SIM: Failed to load phase-engine.js, using fallback tilts:', error.message);
+      debugLogger.warn('⚠️ SIM: Failed to load phase-engine.js, using fallback tilts:', error.message);
     }
   }
 }
@@ -167,7 +167,7 @@ function computeMacroTargetsDynamic(ctx, rb, walletStats) {
     targets[heavy] = +(targets[heavy] + diff).toFixed(1);
   }
 
-  console.log('🎯 Fallback targets computed:', targets);
+  debugLogger.debug('🎯 Fallback targets computed:', targets);
   return targets;
 }
 
@@ -177,7 +177,7 @@ function computeMacroTargetsDynamic(ctx, rb, walletStats) {
 async function computeCurrentAllocation(wallet) {
   if (!assetGroupsModule || !wallet?.balances?.length) {
     // Fallback sur position simulée
-    console.warn('⚠️ SIM: Using fallback allocation (no real wallet data)');
+    debugLogger.warn('⚠️ SIM: Using fallback allocation (no real wallet data)');
     return {
       Stablecoins: 25,
       BTC: 40,
@@ -284,7 +284,7 @@ export async function initSimulation({ sourceId }) {
       sourceId
     };
 
-    console.log('🎭 SIM: sourceLoaded -', {
+    debugLogger.debug('🎭 SIM: sourceLoaded -', {
       timestamp: new Date().toISOString(),
       walletItems: snapshot.wallet?.balances?.length || 0,
       totalValue: snapshot.wallet?.total || 0,
@@ -327,7 +327,7 @@ async function loadSourceSnapshot(sourceId) {
         };
       }
     } catch (error) {
-      console.warn('🎭 SIM: loadBalanceData failed, using store fallback:', error);
+      debugLogger.warn('🎭 SIM: loadBalanceData failed, using store fallback:', error);
     }
   }
 
@@ -426,7 +426,7 @@ export function computeDecisionIndex(context) {
       reasoning: 'Backend decision forced via UI override'
     };
 
-    console.log('🎭 SIM: diComputed -', result);
+    debugLogger.debug('🎭 SIM: diComputed -', result);
     return result;
   }
 
@@ -485,7 +485,7 @@ export function computeDecisionIndex(context) {
     reasoning: `CCS mixte: Cycle(${scores.cycle}×${wCycle.toFixed(2)}) + OnChain(${scores.onchain}×${wOnchain.toFixed(2)}) + Risk(${100-scores.risk}×${wRisk.toFixed(2)})`
   };
 
-  console.log('🎭 SIM: diComputed -', result);
+  debugLogger.debug('🎭 SIM: diComputed -', result);
   return result;
 }
 
@@ -589,7 +589,7 @@ export function computeRiskBudget(di, options = {}, marketOverlays = {}) {
   // Sauvegarder pour hystérésis suivante
   simulationState.lastRiskBudget = result;
 
-  console.log('🎭 SIM: riskBudgetUpdated -', result);
+  debugLogger.debug('🎭 SIM: riskBudgetUpdated -', result);
   return result;
 }
 
@@ -619,7 +619,7 @@ export function computeTargets(riskBudget, context) {
   // RÉUTILISER la fonction existante
   const targets = computeMacroTargetsDynamic(ctx, riskBudget, walletStats);
 
-  console.log('🎭 SIM: targetsComputed -', targets);
+  debugLogger.debug('🎭 SIM: targetsComputed -', targets);
   return targets;
 }
 
@@ -650,7 +650,7 @@ export async function applyPhaseEngineTilts(targets, phaseConfig) {
 
       return unwrapped;
     } catch (error) {
-      console.warn('⚠️ SIM: Real Phase Engine failed, using fallback:', error.message);
+      debugLogger.warn('⚠️ SIM: Real Phase Engine failed, using fallback:', error.message);
     }
   }
 
@@ -686,7 +686,7 @@ export async function applyPhaseEngineTilts(targets, phaseConfig) {
     }
   }
 
-  console.log('🎭 SIM: phaseTiltsApplied -', { phase, original: targets, tilted: tiltedTargets });
+  debugLogger.debug('🎭 SIM: phaseTiltsApplied -', { phase, original: targets, tilted: tiltedTargets });
   return tiltedTargets;
 }
 
@@ -724,7 +724,7 @@ export function applyGovernanceCaps(targets, govSettings = {}) {
   }
 
   if (capsTriggered.length > 0) {
-    console.log('🎭 SIM: capsTriggered -', capsTriggered);
+    debugLogger.debug('🎭 SIM: capsTriggered -', capsTriggered);
   }
 
   return { targets: cappedTargets, capsTriggered };
@@ -799,7 +799,7 @@ export function planOrdersSimulated(current, targets, execPolicy = {}) {
     policy: execPolicy
   };
 
-  console.log('🎭 SIM: ordersPlanned -', result);
+  debugLogger.debug('🎭 SIM: ordersPlanned -', result);
   return result;
 }
 
@@ -948,7 +948,7 @@ export function loadPreset(presetObj) {
     execution: presetObj.execution || { global_delta_threshold_pct: 2, bucket_delta_threshold_pct: 1 }
   };
 
-  console.log('🎭 SIM: presetLoaded -', { name: presetObj.name, version: presetObj.version });
+  debugLogger.debug('🎭 SIM: presetLoaded -', { name: presetObj.name, version: presetObj.version });
   return uiState;
 }
 
@@ -990,7 +990,7 @@ export function stateToUrlHash(uiState) {
     const compressed = btoa(JSON.stringify(uiState));
     return `#sim=${compressed}`;
   } catch (error) {
-    console.warn('🎭 SIM: Failed to encode state to URL:', error);
+    debugLogger.warn('🎭 SIM: Failed to encode state to URL:', error);
     return '#sim=error';
   }
 }
@@ -1003,10 +1003,10 @@ export function stateFromUrlHash() {
     const compressed = hash.substring(5);
     const state = JSON.parse(atob(compressed));
 
-    console.log('🎭 SIM: State restored from URL hash');
+    debugLogger.debug('🎭 SIM: State restored from URL hash');
     return state;
   } catch (error) {
-    console.warn('🎭 SIM: Failed to decode state from URL:', error);
+    debugLogger.warn('🎭 SIM: Failed to decode state from URL:', error);
     return null;
   }
 }
@@ -1189,7 +1189,7 @@ export async function simulateFullPipeline(uiOverrides = {}) {
       }
     };
 
-    console.log('🎭 SIM: Full pipeline completed successfully');
+    debugLogger.debug('🎭 SIM: Full pipeline completed successfully');
     return fullResult;
 
   } catch (error) {

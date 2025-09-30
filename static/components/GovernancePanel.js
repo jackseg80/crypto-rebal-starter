@@ -474,7 +474,7 @@ class GovernancePanel {
           await store.syncGovernanceState();
         }
       } catch (govError) {
-        console.warn('Governance state sync failed (non-critical):', govError.message);
+        debugLogger.warn('Governance state sync failed (non-critical):', govError.message);
         // Set mock governance data to prevent UI errors
         store.set('governance', {
           current_state: 'IDLE',
@@ -490,7 +490,7 @@ class GovernancePanel {
           await store.syncMLSignals();
         }
       } catch (mlError) {
-        console.warn('ML signals sync failed (non-critical):', mlError.message);
+        debugLogger.warn('ML signals sync failed (non-critical):', mlError.message);
         // Set mock ML signals to prevent UI errors
         store.set('governance.ml_signals', {
           confidence: 0.5,
@@ -502,7 +502,7 @@ class GovernancePanel {
       try {
         await this.syncAlerts();
       } catch (alertError) {
-        console.warn('Alerts sync failed (non-critical):', alertError.message);
+        debugLogger.warn('Alerts sync failed (non-critical):', alertError.message);
       }
       
       // Update UI
@@ -559,12 +559,12 @@ class GovernancePanel {
         
       } else if (response.status === 503) {
         // Alert engine not initialized - not an error in development
-        console.warn('Alert engine not yet initialized');
+        debugLogger.warn('Alert engine not yet initialized');
         this.updateAlertsBadge(0);
         this.updateTransparencyBadge('Normal', 'Alert system initializing...');
       }
     } catch (error) {
-      console.warn('Could not sync alerts:', error.message);
+      debugLogger.warn('Could not sync alerts:', error.message);
       // Non-blocking error - alerts system might not be running
       this.updateAlertsBadge(0);
       this.updateTransparencyBadge('Normal', 'Alert system unavailable');

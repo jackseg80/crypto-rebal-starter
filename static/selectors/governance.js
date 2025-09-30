@@ -33,7 +33,7 @@ export function getContradictionPctCompat(state) {
   if (Number.isFinite(primary) && primary > 0) return primary;
 
   // Fallback vers anciennes sources (à supprimer progressivement)
-  console.warn("⚠️ Fallback to legacy contradiction source - update code to use governance.contradiction_index");
+  debugLogger.warn("⚠️ Fallback to legacy contradiction source - update code to use governance.contradiction_index");
   const legacyCount = state?.scores?.contradictory_signals?.length ??
                      state?.contradictions?.length ?? 0;
   return Math.min(100, legacyCount * 20); // 0-5 signals → 0-100%
@@ -184,7 +184,7 @@ export function selectOverridesCount(state) {
 
     return count;
   } catch (error) {
-    console.warn("Error counting overrides:", error);
+    debugLogger.warn("Error counting overrides:", error);
     return 0;
   }
 }

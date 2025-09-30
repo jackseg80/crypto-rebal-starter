@@ -25,7 +25,7 @@ async function fetchWithCache(key, fetchFn) {
         cache.set(key, { data, timestamp: now });
         return data;
     } catch (error) {
-        console.warn(`Failed to fetch ${key}:`, error);
+        debugLogger.warn(`Failed to fetch ${key}:`, error);
         return null;
     }
 }
@@ -164,10 +164,10 @@ async function loadTabData(tabId) {
                 break;
             case 'intelligence-ml':
                 // ML Tab handled by its own initialization system
-                console.log('🤖 Intelligence ML tab activated - components should auto-initialize');
+                debugLogger.debug('🤖 Intelligence ML tab activated - components should auto-initialize');
                 break;
             default:
-                console.warn(`Unknown tab: ${tab}`);
+                debugLogger.warn(`Unknown tab: ${tab}`);
         }
     } catch (error) {
         console.error(`Error loading ${tab} data:`, error);
@@ -254,14 +254,14 @@ async function loadTabData(tabId) {
               if (!response.ok) throw new Error(`HTTP ${response.status}`);
               return await response.json();
           });
-      } catch (e) { console.warn('cache-stats failed', e); }
+      } catch (e) { debugLogger.warn('cache-stats failed', e); }
       try {
           memoryStats = await fetchWithCache('memory-stats', async () => {
               const response = await fetch(`${API_BASE}/api/performance/system/memory`);
               if (!response.ok) throw new Error(`HTTP ${response.status}`);
               return await response.json();
           });
-      } catch (e) { console.warn('memory-stats failed', e); }
+      } catch (e) { debugLogger.warn('memory-stats failed', e); }
       
       if (cacheStats?.success) {
           const cache = cacheStats.cache_stats;

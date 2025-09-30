@@ -165,7 +165,7 @@ class AIStateManager extends EventEmitter {
      * Initialiser le gestionnaire d'état
      */
     async initialize() {
-        console.log('🔄 Initializing AI State Manager...');
+        debugLogger.debug('🔄 Initializing AI State Manager...');
         
         try {
             // Vérifier la disponibilité des services IA
@@ -183,7 +183,7 @@ class AIStateManager extends EventEmitter {
             this.setupCleanupEvents();
             
             this.isInitialized = true;
-            console.log('✅ AI State Manager initialized');
+            debugLogger.info('✅ AI State Manager initialized');
             this.emit('initialized', { timestamp: new Date() });
             
             return true;
@@ -627,7 +627,7 @@ class AIStateManager extends EventEmitter {
      * Force la mise à jour de toutes les données
      */
     async forceUpdate() {
-        console.log('🔄 Force updating all AI data...');
+        debugLogger.debug('🔄 Force updating all AI data...');
         
         // Vider le cache
         this.cache.clear();
@@ -645,7 +645,7 @@ class AIStateManager extends EventEmitter {
         
         const failed = results.filter(result => result.status === 'rejected');
         if (failed.length > 0) {
-            console.warn(`${failed.length} updates failed during force update`);
+            debugLogger.warn(`${failed.length} updates failed during force update`);
         }
         
         this.emit('force:updated', { 
@@ -680,7 +680,7 @@ class AIStateManager extends EventEmitter {
      */
     pauseUpdates() {
         this.timers.forEach(timer => clearInterval(timer));
-        console.log('⏸️  AI updates paused');
+        debugLogger.debug('⏸️  AI updates paused');
     }
 
     /**
@@ -689,7 +689,7 @@ class AIStateManager extends EventEmitter {
     resumeUpdates() {
         if (this.isInitialized) {
             this.startAutoUpdates();
-            console.log('▶️  AI updates resumed');
+            debugLogger.debug('▶️  AI updates resumed');
         }
     }
 
@@ -707,7 +707,7 @@ class AIStateManager extends EventEmitter {
         // Nettoyer les événements
         this.events = {};
         
-        console.log('🔄 AI State Manager disposed');
+        debugLogger.debug('🔄 AI State Manager disposed');
     }
 }
 
@@ -731,7 +731,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Timeout de sécurité
         setTimeout(() => {
             clearInterval(checkServiceManager);
-            console.warn('AI Service Manager not available for state manager initialization');
+            debugLogger.warn('AI Service Manager not available for state manager initialization');
         }, 10000);
     }
 });

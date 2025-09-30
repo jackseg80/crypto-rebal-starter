@@ -15,6 +15,9 @@ import logging
 import asyncio
 import httpx
 
+# Logger setup
+logger = logging.getLogger(__name__)
+
 # Import real ML orchestrator
 try:
     from ..ml.orchestrator import get_orchestrator

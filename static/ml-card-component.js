@@ -133,7 +133,7 @@ export class MLCard {
         try {
             localStorage.setItem('ml_cards_order', JSON.stringify(order));
         } catch (e) {
-            console.warn('Could not save card order:', e);
+            debugLogger.warn('Could not save card order:', e);
         }
     }
 
@@ -314,7 +314,7 @@ export class MLCardManager {
                 });
             }
         } catch (e) {
-            console.warn('Could not restore card order:', e);
+            debugLogger.warn('Could not restore card order:', e);
         }
     }
 }
