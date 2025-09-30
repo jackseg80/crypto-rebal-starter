@@ -1,30 +1,35 @@
 /**
- * Decision Index Panel - Composant visuel OPTIMISÉ v2
+ * Decision Index Panel - Composant visuel OPTIMISÉ v3
  *
- * Améliorations:
- * - Palette vive (contraste dark mode)
- * - Charts sans axes/grilles (progress bar + sparkline)
- * - Placeholder si historique < 3 points
- * - Micropuces métriques (Cycle/OnChain/Risk avec w×s)
- * - Layout compact + footnote alignée droite
+ * Nouvelles fonctionnalités:
+ * - Trend Chip (Δ7j, Δ30j, σ, état Stable/Agité) remplace sparkline
+ * - Regime Ribbon (7-14 cases colorées selon phase market)
+ * - Système d'aide hybride (popover + icône ℹ️)
+ * - Labels centrés dans barre empilée
+ * - Tooltips enrichis (part relative + score + poids + w×s)
+ * - Accessibilité clavier complète
  *
- * ⚠️ Chart.js doit être chargé AVANT ce module
+ * ⚠️ Chart.js + chartjs-plugin-datalabels doivent être chargés AVANT
  */
 
 // Instances Chart.js (cleanup)
 let chartInstances = {
-  stacked: null,
-  sparkline: null
+  stacked: null
 };
 
 // Debounce timeout
 let refreshTimeout = null;
 
+// État du popover d'aide
+let helpPopoverState = {
+  isOpen: false,
+  lastFocusedElement: null
+};
+
 /**
  * Palette couleurs - Lire depuis CSS (avec fallback)
  */
 function getColors() {
-  // Lire les variables CSS (fallback sur couleurs vives si absent)
   const root = document.documentElement;
   const getVar = (name, fallback) => {
     const value = getComputedStyle(root).getPropertyValue(name)?.trim();
@@ -65,8 +70,18 @@ function calculateRelativeContributions(weights, scores) {
     cycle: (raw.cycle / sum) * 100,
     onchain: (raw.onchain / sum) * 100,
     risk: (raw.risk / sum) * 100,
-    raw: raw  // Pour tooltips + micropuces
+    raw: raw  // Pour tooltips
   };
+}
+
+/**
+ * Calcule écart-type d'un tableau de nombres
+ */
+function stddev(arr) {
+  if (!arr || arr.length < 2) return 0;
+  const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+  const variance = arr.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / arr.length;
+  return Math.sqrt(variance);
 }
 
 /**
@@ -116,28 +131,84 @@ function renderBadges(meta) {
 }
 
 /**
- * Génère micropuces métriques (sous la barre)
- * Affiche: Cycle 88 (w 0.65) • OnChain 41 (w 0.25) • Risk 57 (w 0.10)
+ * Génère Trend Chip (remplace sparkline)
+ * Affiche: Δ7j, σ, état Stable/Agité
  */
-function renderMetrics(weights, scores, contribs) {
-  const metrics = [];
+function renderTrendChip(history = []) {
+  const n = history.length;
 
-  const addMetric = (label, score, weight, color) => {
-    metrics.push(
-      `<div class="di-metric-item" style="color: ${color};">` +
-      `<span class="di-metric-label">${label}</span>` +
-      `<span class="di-metric-value">${Math.round(score)}</span>` +
-      `<span style="opacity: 0.7; font-size: 0.65rem;">(w ${weight.toFixed(2)})</span>` +
-      `</div>`
-    );
-  };
+  // Collecte en cours (< 6 points)
+  if (n < 6) {
+    return `<div class="di-trend di-trend-collect" title="Collecte historique en cours">` +
+      `Trend: collecte (${n}/6)</div>`;
+  }
 
-  const colors = getColors();
-  addMetric('Cycle', scores.cycle || 0, weights.cycle || 0, colors.cycle);
-  addMetric('OnChain', scores.onchain || 0, weights.onchain || 0, colors.onchain);
-  addMetric('Risk', scores.risk || 0, weights.risk || 0, colors.risk);
+  const last = history[n - 1];
+  const idx7 = Math.max(0, n - 7);
+  const idx30 = Math.max(0, n - 30);
 
-  return `<div class="di-metrics">${metrics.join(' • ')}</div>`;
+  const d7 = history[idx7];
+  const d30 = history[idx30];
+
+  const delta7 = last - d7;
+  const delta30 = last - d30;
+
+  const recent = history.slice(idx7);
+  const sigma7 = stddev(recent);
+
+  // Symbole flèche
+  let arrow = '→';
+  let trendClass = 'flat';
+  if (delta7 > 1.0) {
+    arrow = '↗︎';
+    trendClass = 'up';
+  } else if (delta7 < -1.0) {
+    arrow = '↘︎';
+    trendClass = 'down';
+  }
+
+  // État volatilité
+  const state = sigma7 < 1.0 ? 'Stable' : 'Agité';
+
+  const tooltipText = `Δ7j: ${delta7.toFixed(1)} • Δ30j: ${delta30.toFixed(1)} • σ_7j: ${sigma7.toFixed(1)}`;
+
+  return `<div class="di-trend di-trend-${trendClass}" title="${tooltipText}">` +
+    `Trend: ${arrow} ${delta7 >= 0 ? '+' : ''}${delta7.toFixed(1)} pts (7j) • σ=${sigma7.toFixed(1)} • ${state}</div>`;
+}
+
+/**
+ * Génère Regime Ribbon (7-14 cases colorées)
+ */
+function renderRegimeRibbon(regimeHistory = []) {
+  if (!regimeHistory || regimeHistory.length === 0) {
+    return '';  // Masquer si pas de données
+  }
+
+  const cells = regimeHistory.slice(-14).map((regime, idx) => {
+    const dayOffset = regimeHistory.length - 1 - idx;
+    const phase = regime.phase || regime.name || 'unknown';
+    const phaseClass = mapPhaseToClass(phase);
+
+    const capPct = regime.cap != null ? Math.round(regime.cap * 100) : '—';
+    const contraPct = regime.contradiction != null ? Math.round(regime.contradiction * 100) : '—';
+
+    const tooltipText = `J-${dayOffset} • Phase: ${phase} • cap: ${capPct}% • contradiction: ${contraPct}%`;
+
+    return `<span class="di-ribbon-cell di-ribbon-${phaseClass}" title="${tooltipText}"></span>`;
+  }).join('');
+
+  return `<div class="di-ribbon">${cells}</div>`;
+}
+
+/**
+ * Map phase name vers classe CSS
+ */
+function mapPhaseToClass(phase) {
+  const p = (phase || '').toLowerCase();
+  if (p.includes('bull') || p.includes('euphori') || p.includes('expansion')) return 'bull';
+  if (p.includes('bear') || p.includes('risk') || p.includes('prudence')) return 'risk';
+  if (p.includes('caution') || p.includes('warning')) return 'caution';
+  return 'neutral';
 }
 
 /**
@@ -166,7 +237,7 @@ function renderStackedBar(canvas, contributions, weights, scores, opts = {}) {
           backgroundColor: colors.cycle,
           borderWidth: 0,
           _meta: {
-            score: scores.cycle || 0,
+            score: Math.round(scores.cycle || 0),
             weight: weights.cycle || 0,
             wxs: contributions.raw.cycle
           }
@@ -177,7 +248,7 @@ function renderStackedBar(canvas, contributions, weights, scores, opts = {}) {
           backgroundColor: colors.onchain,
           borderWidth: 0,
           _meta: {
-            score: scores.onchain || 0,
+            score: Math.round(scores.onchain || 0),
             weight: weights.onchain || 0,
             wxs: contributions.raw.onchain
           }
@@ -188,7 +259,7 @@ function renderStackedBar(canvas, contributions, weights, scores, opts = {}) {
           backgroundColor: colors.risk,
           borderWidth: 0,
           _meta: {
-            score: scores.risk || 0,
+            score: Math.round(scores.risk || 0),
             weight: weights.risk || 0,
             wxs: contributions.raw.risk
           }
@@ -234,8 +305,7 @@ function renderStackedBar(canvas, contributions, weights, scores, opts = {}) {
           textShadowColor: 'rgba(0, 0, 0, 0.5)',
           textShadowBlur: 4,
           formatter: (value, context) => {
-            const label = context.dataset.label;
-            return `${label} ${value.toFixed(0)}%`;
+            return `${context.dataset.label} ${value.toFixed(0)}%`;
           },
           anchor: 'center',
           align: 'center',
@@ -247,11 +317,11 @@ function renderStackedBar(canvas, contributions, weights, scores, opts = {}) {
             title: () => '',
             label: (context) => {
               const pillar = context.dataset.label;
-              const pct = context.parsed.x?.toFixed(1) ?? '0.0';
-              const meta = context.dataset._meta || {};
-              const score = meta.score != null ? Math.round(meta.score) : '?';
-              const weight = meta.weight != null ? meta.weight.toFixed(2) : '?';
-              const wxs = meta.wxs != null ? meta.wxs.toFixed(1) : '?';
+              const pct = (context.parsed.x ?? 0).toFixed(1);
+              const m = context.dataset._meta || {};
+              const score = m.score != null ? m.score : '?';
+              const weight = m.weight != null ? m.weight.toFixed(2) : '?';
+              const wxs = m.wxs != null ? m.wxs.toFixed(1) : '?';
               return `${pillar} — ${pct}% (score ${score}, w ${weight}, w×s ${wxs})`;
             }
           }
@@ -267,65 +337,122 @@ function renderStackedBar(canvas, contributions, weights, scores, opts = {}) {
 }
 
 /**
- * Render sparkline Chart.js (SANS axes/grilles, mini)
- * Retourne null si history < 6 points (placeholder géré dans HTML)
+ * Monte le popover d'aide (système hybride)
  */
-function renderSparkline(canvas, history, opts = {}) {
-  if (!Array.isArray(history) || history.length < 6) {
-    return null;
-  }
+function mountHelpPopover(rootEl) {
+  const trigger = rootEl.querySelector('.di-help-trigger');
+  const popover = rootEl.querySelector('.di-help');
 
-  const ctx = canvas.getContext('2d');
-  const data = history.slice(-100);  // Max 100 points
+  if (!trigger || !popover) return;
 
-  const config = {
-    type: 'line',
-    data: {
-      labels: data.map((_, i) => i),
-      datasets: [{
-        data: data,
-        borderColor: getColors().cycle,  // Couleur cycle pour cohérence
-        borderWidth: 1.5,
-        fill: false,
-        pointRadius: 0,
-        tension: 0.35
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        x: {
-          display: false,  // ✅ MASQUER axes complètement
-          grid: { display: false }
-        },
-        y: {
-          display: false,  // ✅ MASQUER axes complètement
-          min: 0,
-          max: 100,
-          grid: { display: false }
-        }
-      },
-      elements: {
-        point: { radius: 0 }  // ✅ Pas de points visibles
-      },
-      plugins: {
-        legend: { display: false },
-        datalabels: { display: false },  // ✅ FORCER OFF (même si global=false)
-        tooltip: {
-          enabled: true,  // Garde tooltip simple
-          callbacks: {
-            label: (context) => `DI: ${context.parsed.y.toFixed(0)}`
-          }
-        }
-      },
-      animation: {
-        duration: 0
+  // Toggle popover
+  const togglePopover = (show) => {
+    if (show) {
+      helpPopoverState.isOpen = true;
+      helpPopoverState.lastFocusedElement = document.activeElement;
+      popover.style.display = 'block';
+      trigger.setAttribute('aria-expanded', 'true');
+
+      // Focus premier élément focusable
+      setTimeout(() => {
+        const firstFocusable = popover.querySelector('button, [href], [tabindex]:not([tabindex="-1"])');
+        if (firstFocusable) firstFocusable.focus();
+      }, 50);
+    } else {
+      helpPopoverState.isOpen = false;
+      popover.style.display = 'none';
+      trigger.setAttribute('aria-expanded', 'false');
+
+      // Restaurer focus
+      if (helpPopoverState.lastFocusedElement) {
+        helpPopoverState.lastFocusedElement.focus();
       }
     }
   };
 
-  return new Chart(ctx, config);
+  // Événement trigger
+  trigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    togglePopover(!helpPopoverState.isOpen);
+  });
+
+  // Bouton fermer
+  const closeBtn = popover.querySelector('.di-help-close');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => togglePopover(false));
+  }
+
+  // ESC pour fermer
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && helpPopoverState.isOpen) {
+      togglePopover(false);
+    }
+  });
+
+  // Clic hors popover
+  document.addEventListener('click', (e) => {
+    if (helpPopoverState.isOpen && !popover.contains(e.target) && e.target !== trigger) {
+      togglePopover(false);
+    }
+  });
+
+  // Focus trap simple
+  popover.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') {
+      const focusables = Array.from(popover.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      ));
+
+      if (focusables.length === 0) return;
+
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
+  });
+}
+
+/**
+ * Génère contenu du popover d'aide
+ */
+function renderHelpContent() {
+  return `
+    <div class="di-help" style="display: none;" role="dialog" aria-labelledby="di-help-title" aria-modal="true">
+      <div class="di-help-header">
+        <h3 id="di-help-title">Comment lire le Decision Index</h3>
+        <button class="di-help-close" aria-label="Fermer l'aide" type="button">×</button>
+      </div>
+      <div class="di-help-body">
+        <section>
+          <h4>📊 Barre empilée (contributions)</h4>
+          <p>La largeur de chaque segment reflète sa contribution relative au DI. Passez la souris pour voir le détail (score, poids, contribution).</p>
+        </section>
+        <section>
+          <h4>📈 Trend Chip</h4>
+          <p>Synthétise la dynamique courte (variation 7j/30j) et la volatilité (σ). Une flèche ↗︎ indique une hausse, ↘︎ une baisse. "Stable" signifie faible volatilité (σ < 1.0).</p>
+        </section>
+        <section>
+          <h4>🎨 Regime Ribbon</h4>
+          <p>Colorie la phase récente du marché (7-14 derniers pas). Survolez une case pour voir les détails de ce jour (phase, cap, contradiction).</p>
+        </section>
+        <section>
+          <h4>💡 Note importante</h4>
+          <p>Un DI stable peut venir d'un cap gouvernance, d'un régime constant, ou d'une faible dispersion des signaux.</p>
+        </section>
+      </div>
+    </div>
+  `;
 }
 
 /**
@@ -335,13 +462,14 @@ function renderTextFallback(container, data) {
   console.warn('⚠️ Chart.js not loaded - using text fallback for Decision Index Panel');
 
   const contribs = calculateRelativeContributions(data.weights, data.scores);
-  const historyText = data.history && data.history.length > 0
-    ? data.history.slice(-5).join(' → ')
-    : 'indisponible';
 
   container.innerHTML = `
     <div class="di-panel di-panel-fallback">
       <div class="di-head">
+        <div class="di-title">
+          <span>Decision Index</span>
+          <button class="di-help-trigger" aria-label="Aide Decision Index" aria-expanded="false" type="button">ℹ️</button>
+        </div>
         <div class="di-value">${Math.round(data.di)}</div>
         <div class="di-badges">${renderBadges(data.meta)}</div>
       </div>
@@ -350,12 +478,13 @@ function renderTextFallback(container, data) {
         On-Chain: ${contribs.onchain.toFixed(1)}% •
         Risk: ${contribs.risk.toFixed(1)}%
       </div>
-      <div style="font-size: 0.8rem; color: var(--theme-text-muted);">
-        Historique: ${historyText}
-      </div>
+      ${renderTrendChip(data.history)}
       ${renderFootnote(data.meta)}
+      ${renderHelpContent()}
     </div>
   `;
+
+  mountHelpPopover(container);
 }
 
 /**
@@ -373,8 +502,8 @@ function _renderDIPanelInternal(container, data, opts = {}) {
       di: data.di,
       weights: data.weights,
       scores: data.scores,
-      cap: data.meta?.cap,
-      history_length: data.history?.length || 0
+      history_length: data.history?.length || 0,
+      regime_history_length: data.regimeHistory?.length || 0
     });
   }
 
@@ -388,10 +517,6 @@ function _renderDIPanelInternal(container, data, opts = {}) {
     chartInstances.stacked.destroy();
     chartInstances.stacked = null;
   }
-  if (chartInstances.sparkline) {
-    chartInstances.sparkline.destroy();
-    chartInstances.sparkline = null;
-  }
 
   // Calculer contributions
   const contribs = calculateRelativeContributions(data.weights, data.scores);
@@ -401,48 +526,42 @@ function _renderDIPanelInternal(container, data, opts = {}) {
   }
 
   // Générer HTML structure
-  const showSparkline = data.history && data.history.length >= 6;
-
   container.innerHTML = `
     <div class="di-panel">
       <div class="di-head">
+        <div class="di-title">
+          <span>Decision Index</span>
+          <button class="di-help-trigger" aria-label="Aide Decision Index" aria-expanded="false" aria-controls="di-help-popover" type="button">ℹ️</button>
+        </div>
         <div class="di-value">${Math.round(data.di)}</div>
         <div class="di-badges">${renderBadges(data.meta)}</div>
       </div>
       <div class="di-stack">
         <canvas id="${container.id}-stack-chart"></canvas>
       </div>
-      ${renderMetrics(data.weights, data.scores, contribs)}
-      <div class="di-spark">
-        ${showSparkline
-          ? `<canvas id="${container.id}-spark-chart"></canvas>`
-          : `<div class="di-spark-placeholder">Historique en cours de collecte (${data.history?.length || 0}/6 points)</div>`
-        }
-      </div>
+      ${renderTrendChip(data.history)}
+      ${renderRegimeRibbon(data.regimeHistory)}
       ${renderFootnote(data.meta)}
+      ${renderHelpContent()}
     </div>
   `;
 
-  // Render charts
+  // Render chart
   const stackCanvas = document.getElementById(`${container.id}-stack-chart`);
   if (stackCanvas) {
     chartInstances.stacked = renderStackedBar(stackCanvas, contribs, data.weights, data.scores, opts);
   }
 
-  if (showSparkline) {
-    const sparkCanvas = document.getElementById(`${container.id}-spark-chart`);
-    if (sparkCanvas) {
-      chartInstances.sparkline = renderSparkline(sparkCanvas, data.history, opts);
-    }
-  }
+  // Monter popover
+  mountHelpPopover(container);
 }
 
 /**
  * Fonction principale - Render le panneau Decision Index
  *
  * @param {HTMLElement} container - Conteneur DOM
- * @param {Object} data - Données {di, weights, scores, history, meta}
- * @param {Object} opts - Options {heightStacked, heightSpark}
+ * @param {Object} data - Données {di, weights, scores, history, regimeHistory, meta}
+ * @param {Object} opts - Options {}
  */
 export function renderDecisionIndexPanel(container, data, opts = {}) {
   // Debounce 150ms
@@ -459,10 +578,6 @@ export function destroyDIPanelCharts() {
   if (chartInstances.stacked) {
     chartInstances.stacked.destroy();
     chartInstances.stacked = null;
-  }
-  if (chartInstances.sparkline) {
-    chartInstances.sparkline.destroy();
-    chartInstances.sparkline = null;
   }
 }
 

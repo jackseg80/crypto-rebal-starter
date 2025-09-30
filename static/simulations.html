@@ -7,6 +7,19 @@
   <title>Simulateur de Rebalancing - Crypto Rebalancer</title>
   <link rel="stylesheet" href="shared-theme.css">
   <link rel="stylesheet" href="theme-compat.css">
+  <link rel="stylesheet" href="components/decision-index-panel.css?v=20250130f">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+  <script>
+    // ✅ Enregistrement datalabels (idempotent)
+    if (window.Chart && window.ChartDataLabels && !window.__di_dl_registered__) {
+      window.Chart.register(window.ChartDataLabels);
+      // ✅ Désactiver globalement, puis réactiver seulement sur barre empilée
+      window.Chart.defaults.set('plugins.datalabels', { display: false });
+      window.__di_dl_registered__ = true;
+      console.debug('✅ chartjs-plugin-datalabels registered (global display: false)');
+    }
+  </script>
   <script src="debug-logger.js"></script>
   <script src="global-config.js"></script>
   <script src="appearance.js"></script>
@@ -601,14 +614,8 @@
             <!-- Decision Index -->
             <div class="result-card">
               <h4>🎯 Decision Index</h4>
-              <div class="di-gauge">
-                <div id="sim-di-gauge" class="di-value">--</div>
-                <div id="sim-di-source-badge" class="di-source">Source: --</div>
-                <div style="margin-top: var(--space-sm); font-size: 0.9rem; color: var(--theme-text-muted);">
-                  Confiance: <span id="sim-di-confidence">--</span>%
-                </div>
-                <div id="sim-selected-preset" class="di-preset">Preset: Custom</div>
-              </div>
+              <div id="di-panel-sim"></div>
+              <div id="sim-selected-preset" class="di-preset" style="margin-top: var(--space-sm);">Preset: Custom</div>
             </div>
 
             <!-- Risk Budget -->
@@ -700,6 +707,9 @@
 
     // Badges UI
     import { renderBadges } from './components/Badges.js';
+
+    // Decision Index Panel
+    import { renderDecisionIndexPanel } from './components/decision-index-panel.js';
 
     // CSV parsing functions (from dashboard.html)
     function parseCSVBalancesAuto(csvText, { thresholdUSD = 1.0 } = {}) {
@@ -1579,10 +1589,55 @@
         console.warn('Badges render skipped:', e?.message);
       }
 
-      // Decision Index
-      document.getElementById('sim-di-gauge').textContent = di.di;
-      document.getElementById('sim-di-source-badge').textContent = `Source: ${di.source}`;
-      document.getElementById('sim-di-confidence').textContent = Math.round(di.confidence * 100);
+      // Decision Index - Nouveau panneau visuel
+      const activeUser = localStorage.getItem('activeUser') || 'demo';
+      const dataSource = window.globalConfig?.get('data_source') || 'unknown';
+      const historyKey = `di_history_${activeUser}_${dataSource}_simulation`;
+
+      // Buffer historique (mémoire, max 100 points, clé scindée)
+      if (!window.diHistoryBuffers) window.diHistoryBuffers = {};
+      if (!window.diHistoryBuffers[historyKey]) window.diHistoryBuffers[historyKey] = [];
+
+      // Ajouter DI actuel à l'historique (clamped [0, 100])
+      const diClamped = Math.max(0, Math.min(100, di.di));
+      window.diHistoryBuffers[historyKey].push(diClamped);
+      if (window.diHistoryBuffers[historyKey].length > 100) {
+        window.diHistoryBuffers[historyKey].shift();
+      }
+
+      // Valider unité cap (0-1 → ×100, NaN → null)
+      let diCapPercent = result.ui?.capPercent;
+      if (typeof diCapPercent === 'number' && diCapPercent <= 1) {
+        diCapPercent = Math.round(diCapPercent * 100);
+      }
+      if (typeof diCapPercent !== 'number' || !Number.isFinite(diCapPercent)) {
+        diCapPercent = null;
+      }
+
+      // Préparer data pour panneau DI
+      const diPanelData = {
+        di: diClamped,
+        weights: di.weights || { cycle: 0.5, onchain: 0.3, risk: 0.2 },  // POST-adaptatifs
+        scores: {
+          cycle: result.context?.scores?.cycle || 0,
+          onchain: result.context?.scores?.onchain || 0,
+          risk: result.context?.scores?.risk || 0
+        },
+        history: [...window.diHistoryBuffers[historyKey]],
+        meta: {
+          confidence: di.confidence || 0,
+          contradiction: result.ui?.stateForEngine?.governance?.contradiction_index || 0,
+          cap: diCapPercent,
+          mode: result.ui?.mode || 'Normal',
+          source: di.source || 'simulation_engine',
+          live: isLiveMode
+        }
+      };
+
+      // Render panneau DI
+      renderDecisionIndexPanel(document.getElementById('di-panel-sim'), diPanelData);
+
+      // Preset info (conservé pour affichage sous le panneau)
       const presetName = result?.presetInfo?.name || result?.context?.presetInfo?.name || 'Custom';
       const presetDesc = result?.presetInfo?.desc || result?.context?.presetInfo?.desc || '';
       const presetEl = document.getElementById('sim-selected-preset');
