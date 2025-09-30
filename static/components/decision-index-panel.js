@@ -177,9 +177,9 @@ function renderTrendChip(history = []) {
 }
 
 /**
- * Génère Regime Ribbon (7-14 cases colorées)
+ * Génère Regime Ribbon (7-14 cases colorées) - HTML string
  */
-function renderRegimeRibbon(regimeHistory = []) {
+function renderRegimeRibbonHTML(regimeHistory = []) {
   if (!regimeHistory || regimeHistory.length === 0) {
     return '';  // Masquer si pas de données
   }
@@ -197,7 +197,37 @@ function renderRegimeRibbon(regimeHistory = []) {
     return `<span class="di-ribbon-cell di-ribbon-${phaseClass}" title="${tooltipText}"></span>`;
   }).join('');
 
-  return `<div class="di-ribbon">${cells}</div>`;
+  return cells;
+}
+
+/**
+ * Génère Events (icônes conditionnelles)
+ */
+function renderEvents(meta = {}) {
+  const parts = [];
+  const sep = '<span class="di-events-dot">•</span>';
+
+  // Cap actif (> 0)
+  if (typeof meta.cap === 'number' && meta.cap > 0) {
+    parts.push('⚡ cap actif');
+  }
+
+  // Contradiction haute (≥ 50%)
+  if (typeof meta.contradiction === 'number' && meta.contradiction >= 0.5) {
+    parts.push('🛑 contradiction haute');
+  }
+
+  // Mode non-normal
+  if (meta.mode && meta.mode.toLowerCase() !== 'normal' && meta.mode !== '—') {
+    parts.push(`🎛 mode ${meta.mode}`);
+  }
+
+  // Changement de phase (optionnel)
+  if (meta.changedPhase) {
+    parts.push('🧭 changement de phase');
+  }
+
+  return parts.length ? parts.join(` ${sep} `) : '';
 }
 
 /**
@@ -305,7 +335,8 @@ function renderStackedBar(canvas, contributions, weights, scores, opts = {}) {
           textShadowColor: 'rgba(0, 0, 0, 0.5)',
           textShadowBlur: 4,
           formatter: (value, context) => {
-            return `${context.dataset.label} ${value.toFixed(0)}%`;
+            // ✅ Pas de puce/symbole, juste le texte
+            return `${context.dataset.label} ${value.toFixed(1)}%`;
           },
           anchor: 'center',
           align: 'center',
@@ -525,22 +556,41 @@ function _renderDIPanelInternal(container, data, opts = {}) {
     console.log('🐛 DI Panel Contributions:', contribs);
   }
 
-  // Générer HTML structure
+  // Générer HTML structure (nouveau layout 2 colonnes)
+  const ribbonCells = renderRegimeRibbonHTML(data.regimeHistory);
+  const eventsHTML = renderEvents(data.meta);
+  const showRibbonRow = ribbonCells || eventsHTML;
+
   container.innerHTML = `
     <div class="di-panel">
-      <div class="di-head">
-        <div class="di-title">
-          <span>Decision Index</span>
-          <button class="di-help-trigger" aria-label="Aide Decision Index" aria-expanded="false" aria-controls="di-help-popover" type="button">ℹ️</button>
+      <div class="di-header">
+        <div class="di-left">
+          <div class="di-title-row">
+            <div class="di-title">DECISION INDEX</div>
+            <button class="di-help-trigger" aria-label="Aide Decision Index" aria-expanded="false" aria-controls="di-help-popover" type="button">ℹ️</button>
+          </div>
+          <div class="di-score">${Math.round(data.di)}</div>
         </div>
-        <div class="di-value">${Math.round(data.di)}</div>
-        <div class="di-badges">${renderBadges(data.meta)}</div>
+        <div class="di-right">
+          <div class="di-badges">${renderBadges(data.meta)}</div>
+        </div>
       </div>
-      <div class="di-stack">
-        <canvas id="${container.id}-stack-chart"></canvas>
+
+      <div class="di-progress">
+        <canvas id="${container.id}-stack-chart" class="di-stack-canvas"></canvas>
       </div>
-      ${renderTrendChip(data.history)}
-      ${renderRegimeRibbon(data.regimeHistory)}
+
+      <div class="di-trend-row">
+        ${renderTrendChip(data.history)}
+      </div>
+
+      ${showRibbonRow ? `
+        <div class="di-ribbon-row">
+          <div class="di-ribbon" aria-label="Regime ribbon">${ribbonCells}</div>
+          <div class="di-events">${eventsHTML}</div>
+        </div>
+      ` : ''}
+
       ${renderFootnote(data.meta)}
       ${renderHelpContent()}
     </div>
