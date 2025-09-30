@@ -541,6 +541,14 @@
           </select>
           <button id="test-source-btn" class="btn secondary" style="padding: 6px 12px; font-size: 0.85rem;">🧪 Test</button>
         </div>
+
+        <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+          <label for="cycle-preset-select" style="font-size: 0.9rem; color: var(--theme-text-muted);">🎭 Scénario:</label>
+          <select id="cycle-preset-select" style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--theme-border); background: var(--theme-surface); color: var(--theme-text); font-size: 0.9rem; flex: 1;">
+            <option value="">Charger les presets...</option>
+          </select>
+          <button id="apply-preset-btn" class="btn primary" style="padding: 6px 12px; font-size: 0.85rem;">▶️ Appliquer</button>
+        </div>
       </div>
     </div>
 
@@ -901,12 +909,83 @@
       }
     }
 
+    // Charger les presets de phases de cycle
+    let cyclePresets = null;
+    async function loadCyclePresets() {
+      try {
+        const response = await fetch('/static/presets/cycle_phase_presets.json');
+        const data = await response.json();
+        cyclePresets = data;
+
+        const select = document.getElementById('cycle-preset-select');
+        if (!select) return;
+
+        // Vider et repeupler
+        select.innerHTML = '<option value="">💼 Données Actuelles (baseline)</option>';
+
+        data.presets.forEach(preset => {
+          if (preset.id !== 'current') { // Skip "current" car c'est le défaut
+            const option = document.createElement('option');
+            option.value = preset.id;
+            option.textContent = preset.name;
+            option.title = preset.description;
+            select.appendChild(option);
+          }
+        });
+
+        console.log(`🎭 SIM: Loaded ${data.presets.length} cycle presets`);
+      } catch (error) {
+        console.error('🎭 SIM: Failed to load cycle presets:', error);
+      }
+    }
+
+    // Appliquer un preset de phase
+    async function applyPreset() {
+      const select = document.getElementById('cycle-preset-select');
+      const presetId = select?.value;
+
+      if (!presetId) {
+        // Pas de preset sélectionné = mode Live normal
+        await loadLiveData();
+        return;
+      }
+
+      if (!cyclePresets) {
+        alert('❌ Les presets ne sont pas chargés');
+        return;
+      }
+
+      const preset = cyclePresets.presets.find(p => p.id === presetId);
+      if (!preset) {
+        alert(`❌ Preset "${presetId}" introuvable`);
+        return;
+      }
+
+      console.log(`🎭 SIM: Applying preset "${preset.name}"`, preset.overrides);
+
+      // TODO: Implémenter l'application du preset avec overrides
+      // Pour l'instant, afficher un aperçu
+      alert(`🎭 Preset "${preset.name}"\n\n` +
+            `${preset.description}\n\n` +
+            `Overrides:\n` +
+            `• Cycle Score: ${preset.overrides.cycle_score}\n` +
+            `• Onchain Score: ${preset.overrides.onchain_score}\n` +
+            `• Risk Score: ${preset.overrides.risk_score}\n` +
+            `• Contradiction: ${preset.overrides.contradiction_pct}%\n` +
+            `• Risk Appetite: ${preset.overrides.risk_appetite}\n\n` +
+            `Résultats attendus:\n` +
+            `• DI: ${preset.expected.di_range}\n` +
+            `• Stables: ${preset.expected.stables_target}\n\n` +
+            `⚠️ Implémentation complète à venir...`);
+    }
+
     // Initialisation
     document.addEventListener('DOMContentLoaded', async () => {
       console.log('🎭 SIM: Simulator page initialized');
 
       try {
         await loadAvailableSources();
+        await loadCyclePresets(); // Charger les presets
         await initializeSimulator();
         attachEventListeners();
         setInitialState();
@@ -972,6 +1051,9 @@
 
       // Test source button
       document.getElementById('test-source-btn')?.addEventListener('click', testSelectedSource);
+
+      // Apply preset button
+      document.getElementById('apply-preset-btn')?.addEventListener('click', applyPreset);
 
       pinButton?.addEventListener('click', () => {
         const controlsPanel = document.getElementById('controls');
