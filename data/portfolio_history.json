@@ -1,173 +1,37 @@
 [
   {
-    "date": "2025-08-20T17:24:20.864233",
-    "total_value_usd": 0,
-    "asset_count": 0,
-    "group_count": 0,
-    "diversity_score": 0,
-    "top_holding_symbol": "N/A",
-    "top_holding_percentage": 0,
-    "group_distribution": {}
-  },
-  {
-    "date": "2025-08-20T17:30:38.218460",
-    "total_value_usd": 0,
-    "asset_count": 0,
-    "group_count": 0,
-    "diversity_score": 0,
-    "top_holding_symbol": "N/A",
-    "top_holding_percentage": 0,
-    "group_distribution": {}
-  },
-  {
-    "date": "2025-08-20T17:30:40.235831",
-    "total_value_usd": 0,
-    "asset_count": 0,
-    "group_count": 0,
-    "diversity_score": 0,
-    "top_holding_symbol": "N/A",
-    "top_holding_percentage": 0,
-    "group_distribution": {}
-  },
-  {
-    "date": "2025-08-20T17:35:19.096973",
-    "total_value_usd": 0,
-    "asset_count": 0,
-    "group_count": 0,
-    "diversity_score": 0,
-    "top_holding_symbol": "N/A",
-    "top_holding_percentage": 0,
-    "group_distribution": {}
-  },
-  {
-    "date": "2025-08-20T17:41:47.770474",
-    "total_value_usd": 425115.35000000003,
-    "asset_count": 49,
-    "group_count": 1,
-    "diversity_score": 0,
-    "top_holding_symbol": "BTC",
-    "top_holding_percentage": 0.4428885007328011,
-    "group_distribution": {
-      "Others": 425115.35
-    }
-  },
-  {
-    "date": "2025-08-21T08:43:30.426856",
-    "total_value_usd": 430257.65650741,
-    "asset_count": 271,
+    "date": "2025-09-30T13:34:54.633083",
+    "user_id": "jack",
+    "source": "cointracking_api",
+    "total_value_usd": 423158.89497776,
+    "asset_count": 294,
     "group_count": 6,
     "diversity_score": 3,
     "top_holding_symbol": "BTC",
-    "top_holding_percentage": 0.40472433116053336,
+    "top_holding_percentage": 0.4071848968966747,
     "group_distribution": {
-      "Others": 74493.60539879996,
-      "L1/L0 majors": 36859.44532841,
-      "BTC": 188936.16368479002,
-      "ETH": 96933.39120309,
-      "Stablecoins": 28548.96219154,
-      "SOL": 4486.08870078
+      "Others": 79303.06914073999,
+      "L1/L0 majors": 39054.59248236,
+      "BTC": 187145.99408186998,
+      "ETH": 96900.79238609999,
+      "Stablecoins": 18234.38892989,
+      "SOL": 2520.0579568
     }
   },
   {
-    "date": "2025-08-21T10:46:47.230337",
-    "total_value_usd": 425115.35000000003,
-    "asset_count": 49,
-    "group_count": 6,
-    "diversity_score": 3,
-    "top_holding_symbol": "BTC",
-    "top_holding_percentage": 0.4428885007328011,
+    "date": "2025-09-30T13:42:28.722088",
+    "user_id": "jack",
+    "source": "cointracking",
+    "total_value_usd": 133100.0,
+    "asset_count": 5,
+    "group_count": 3,
+    "diversity_score": 1,
+    "top_holding_symbol": "ETH",
+    "top_holding_percentage": 0.5634861006761833,
     "group_distribution": {
-      "BTC": 205343.17,
-      "ETH": 97790.43999999999,
-      "Stablecoins": 24454.95,
-      "L1/L0 majors": 35689.68,
-      "Others": 59600.76,
-      "SOL": 2236.35
-    }
-  },
-  {
-    "date": "2025-08-21T19:11:55.731315",
-    "total_value_usd": 425115.35000000003,
-    "asset_count": 49,
-    "group_count": 6,
-    "diversity_score": 3,
-    "top_holding_symbol": "BTC",
-    "top_holding_percentage": 0.4428885007328011,
-    "group_distribution": {
-      "BTC": 205343.17,
-      "ETH": 97790.43999999999,
-      "Stablecoins": 24454.95,
-      "L1/L0 majors": 35689.68,
-      "Others": 59600.76,
-      "SOL": 2236.35
-    }
-  },
-  {
-    "date": "2025-08-22T08:05:19.725678",
-    "total_value_usd": 425778.8137744,
-    "asset_count": 274,
-    "group_count": 6,
-    "diversity_score": 3,
-    "top_holding_symbol": "BTC",
-    "top_holding_percentage": 0.40722301468679817,
-    "group_distribution": {
-      "Others": 75179.92999486002,
-      "L1/L0 majors": 36344.562062430006,
-      "BTC": 188022.52218014,
-      "ETH": 96550.23387988,
-      "Stablecoins": 27454.8660497,
-      "SOL": 2226.69960739
-    }
-  },
-  {
-    "date": "2025-08-22T12:55:30.032724",
-    "total_value_usd": 425115.35000000003,
-    "asset_count": 49,
-    "group_count": 6,
-    "diversity_score": 3,
-    "top_holding_symbol": "BTC",
-    "top_holding_percentage": 0.4428885007328011,
-    "group_distribution": {
-      "BTC": 205343.17,
-      "ETH": 97790.43999999999,
-      "Stablecoins": 24454.95,
-      "L1/L0 majors": 35689.68000000001,
-      "Others": 59600.76,
-      "SOL": 2236.35
-    }
-  },
-  {
-    "date": "2025-08-22T17:15:34.372651",
-    "total_value_usd": 443172.55813725,
-    "asset_count": 274,
-    "group_count": 6,
-    "diversity_score": 3,
-    "top_holding_symbol": "BTC",
-    "top_holding_percentage": 0.40354653055885564,
-    "group_distribution": {
-      "Others": 78946.89846734003,
-      "L1/L0 majors": 37776.14958791,
-      "BTC": 193838.61891587,
-      "ETH": 102807.03543054001,
-      "Stablecoins": 27469.24651358,
-      "SOL": 2334.60922201
-    }
-  },
-  {
-    "date": "2025-08-22T20:15:19.820138",
-    "total_value_usd": 451987.45512034,
-    "asset_count": 274,
-    "group_count": 6,
-    "diversity_score": 5,
-    "top_holding_symbol": "BTC",
-    "top_holding_percentage": 0.3975047373589258,
-    "group_distribution": {
-      "Others": 80701.75825707988,
-      "L1/L0 majors": 38443.316339670004,
-      "BTC": 194728.74307069,
-      "ETH": 108235.82532465,
-      "Stablecoins": 27489.44827791,
-      "SOL": 2388.36385034
+      "BTC": 33600.0,
+      "ETH": 75000.0,
+      "Others": 24500.0
     }
   }
 ]

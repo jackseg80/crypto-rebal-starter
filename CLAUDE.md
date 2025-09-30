@@ -50,7 +50,7 @@
 Fichiers clés:
 
 ```
-api/main.py (auto-init ML, routers, middleware)
+api/main.py (auto-init ML, routers, middleware, endpoints P&L)
 api/execution_endpoints.py (governance routes unifiées)
 api/execution_dashboard.py (dashboard execution temps réel)
 api/execution_history.py (historique exécution)
@@ -67,6 +67,7 @@ models/wealth.py (modèles Wealth cross-asset)
 services/execution/governance.py (Decision Engine single-writer)
 services/ml/orchestrator.py (MLOrchestrator)
 services/risk_management.py
+services/portfolio.py (analytics portfolio + P&L tracking)
 services/analytics/*.py
 services/ml/*.py
 static/components/nav.js (navigation unifiée)
@@ -245,13 +246,69 @@ async def vol_predict(assets: List[str] = Query(..., min_items=1, max_items=50),
 - Patterns legacy automatiques : `csv/CoinTracking*.csv`, `csv/saxo*.csv`, `csv/positions*.csv`
 - Marquage `is_legacy=true` dans `/api/sources/list`
 - Priorité dans `effective_path` : legacy files → autres fichiers détectés
-- Compatibilité totale avec fichiers utilisateurs existants
+- **IMPORTANT** : Dossiers `data/users/*/csv/` sont legacy et ont été supprimés (Sep 2025)
+- Tous les fichiers doivent être dans `cointracking/uploads/` ou `saxobank/uploads/`
 
 **Monitoring temps réel** :
 - `refreshSaxoStaleness()` : Fonction universelle avec gestion d'erreurs
 - Indicateurs couleur selon âge : vert (minutes), jaune (heures), rouge (jours/erreur)
 - Polling automatique 60s sur toutes les pages Bourse/Analytics
 - Fallback gracieux en cas d'échec API
+
+### 4.4) P&L Today - Tracking par (user_id, source)
+
+**Objectif** : Calculer le P&L (Profit & Loss) Today en comparant la valeur actuelle du portfolio avec le dernier snapshot historique.
+
+**Architecture** (Sep 2025) :
+- `services/portfolio.py` : Gestion snapshots et calcul P&L
+- `data/portfolio_history.json` : Fichier unique multi-tenant avec snapshots
+- Endpoints : `/portfolio/metrics` (GET), `/portfolio/snapshot` (POST)
+- Frontend : `static/dashboard.html` affiche P&L Today dans tuile Portfolio Overview
+
+**Principe de fonctionnement** :
+1. **Snapshots isolés par (user_id, source)** : Chaque combinaison user/source a son propre historique
+2. **Stockage** : Tous les snapshots dans un seul fichier JSON avec filtrage dynamique
+3. **Calcul P&L** : `current_value - latest_snapshot_value` pour la même combinaison (user_id, source)
+4. **Limite** : 365 snapshots max par combinaison (user_id, source)
+
+**Exemples d'utilisation** :
+```bash
+# Créer un snapshot
+curl -X POST "http://localhost:8000/portfolio/snapshot?source=cointracking&user_id=jack"
+
+# Consulter P&L
+curl "http://localhost:8000/portfolio/metrics?source=cointracking&user_id=jack"
+```
+
+**Structure snapshot** :
+```json
+{
+  "date": "2025-09-30T13:34:39.940690",
+  "user_id": "jack",
+  "source": "cointracking",
+  "total_value_usd": 133100.00,
+  "asset_count": 5,
+  "group_count": 3,
+  "diversity_score": 2,
+  "top_holding_symbol": "ETH",
+  "top_holding_percentage": 0.56,
+  "group_distribution": {...}
+}
+```
+
+**IMPORTANT** :
+- Un snapshot = une photo à un instant T
+- P&L nécessite au moins 2 snapshots pour la même source
+- Sources différentes (CSV vs API) ont des P&L indépendants
+- Exemple : `jack + cointracking` (CSV 5 assets) ≠ `jack + cointracking_api` (API 190 assets)
+
+**Fichiers modifiés** :
+- `services/portfolio.py:96` : `calculate_performance_metrics()` accepte `user_id` et `source`
+- `services/portfolio.py:165` : `save_portfolio_snapshot()` sauvegarde avec `user_id` et `source`
+- `services/portfolio.py:350` : `_load_historical_data()` filtre par `user_id` et `source`
+- `api/main.py:1857` : `/portfolio/metrics` passe `user_id` à `calculate_performance_metrics()`
+- `api/main.py:1881` : `/portfolio/snapshot` accepte `user_id` et `source`
+- `static/dashboard.html:1186` : Appel API avec `user_id` et `source` depuis localStorage
 
 ---
 

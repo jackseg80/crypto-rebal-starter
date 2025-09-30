@@ -93,17 +93,19 @@ class PortfolioAnalytics:
             "last_updated": datetime.now().isoformat()
         }
     
-    def calculate_performance_metrics(self, current_data: Dict[str, Any]) -> Dict[str, Any]:
+    def calculate_performance_metrics(self, current_data: Dict[str, Any], user_id: str = "demo", source: str = "cointracking") -> Dict[str, Any]:
         """
         Calcule les métriques de performance vs historique
-        
+
         Args:
             current_data: Données actuelles du portfolio
-            
+            user_id: ID de l'utilisateur pour filtrer l'historique
+            source: Source de données pour filtrer l'historique
+
         Returns:
             Dict avec métriques de performance
         """
-        historical_data = self._load_historical_data()
+        historical_data = self._load_historical_data(user_id=user_id, source=source)
         
         if not historical_data:
             return {
@@ -160,21 +162,25 @@ class PortfolioAnalytics:
             "historical_entries_count": len(historical_data)
         }
     
-    def save_portfolio_snapshot(self, balances_data: Dict[str, Any]) -> bool:
+    def save_portfolio_snapshot(self, balances_data: Dict[str, Any], user_id: str = "demo", source: str = "cointracking") -> bool:
         """
         Sauvegarde un snapshot du portfolio pour suivi historique
-        
+
         Args:
             balances_data: Données de balance actuelles
-            
+            user_id: ID de l'utilisateur
+            source: Source de données
+
         Returns:
             True si sauvé avec succès
         """
         try:
             metrics = self.calculate_portfolio_metrics(balances_data)
-            
+
             snapshot = {
                 "date": datetime.now().isoformat(),
+                "user_id": user_id,
+                "source": source,
                 "total_value_usd": metrics["total_value_usd"],
                 "asset_count": metrics["asset_count"],
                 "group_count": metrics["group_count"],
@@ -183,25 +189,45 @@ class PortfolioAnalytics:
                 "top_holding_percentage": metrics["top_holding"]["percentage"],
                 "group_distribution": metrics["group_distribution"]
             }
-            
-            # Charger données existantes
-            historical_data = self._load_historical_data()
-            
+
+            # Charger toutes les données existantes
+            try:
+                if os.path.exists(self.historical_data_file):
+                    with open(self.historical_data_file, 'r', encoding='utf-8') as f:
+                        all_historical_data = json.load(f)
+                else:
+                    all_historical_data = []
+            except Exception as e:
+                logger.error(f"Erreur chargement historique existant: {e}")
+                all_historical_data = []
+
             # Ajouter nouveau snapshot
-            historical_data.append(snapshot)
-            
-            # Garder seulement les 365 derniers jours
-            if len(historical_data) > 365:
-                historical_data = historical_data[-365:]
-            
+            all_historical_data.append(snapshot)
+
+            # Garder seulement les 365 derniers jours par (user_id, source)
+            # Group by (user_id, source) and keep last 365 for each
+            from collections import defaultdict
+            grouped = defaultdict(list)
+            for entry in all_historical_data:
+                key = (entry.get('user_id', 'demo'), entry.get('source', 'cointracking'))
+                grouped[key].append(entry)
+
+            # Keep last 365 per group
+            filtered_data = []
+            for key, entries in grouped.items():
+                # Sort by date
+                sorted_entries = sorted(entries, key=lambda x: x.get('date', ''))
+                # Keep last 365
+                filtered_data.extend(sorted_entries[-365:])
+
             # Sauvegarder
             os.makedirs(os.path.dirname(self.historical_data_file), exist_ok=True)
             with open(self.historical_data_file, 'w', encoding='utf-8') as f:
-                json.dump(historical_data, f, indent=2, ensure_ascii=False)
-            
-            logger.info(f"Portfolio snapshot sauvé ({metrics['total_value_usd']:.2f} USD)")
+                json.dump(filtered_data, f, indent=2, ensure_ascii=False)
+
+            logger.info(f"Portfolio snapshot sauvé ({metrics['total_value_usd']:.2f} USD) for user={user_id}, source={source}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Erreur sauvegarde snapshot: {e}")
             return False
@@ -345,15 +371,22 @@ class PortfolioAnalytics:
         
         return recommendations[:3]  # Limiter à 3 recommandations
     
-    def _load_historical_data(self) -> List[Dict[str, Any]]:
-        """Charge les données historiques du portfolio"""
+    def _load_historical_data(self, user_id: str = "demo", source: str = "cointracking") -> List[Dict[str, Any]]:
+        """Charge les données historiques du portfolio filtrées par user et source"""
         try:
             if os.path.exists(self.historical_data_file):
                 with open(self.historical_data_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                    all_data = json.load(f)
+                    # Filter by user_id and source
+                    filtered = [
+                        entry for entry in all_data
+                        if entry.get('user_id') == user_id and entry.get('source') == source
+                    ]
+                    logger.info(f"Loaded {len(filtered)} historical entries for user={user_id}, source={source} (total={len(all_data)})")
+                    return filtered
         except Exception as e:
             logger.error(f"Erreur chargement données historiques: {e}")
-        
+
         return []
     
     def _get_group_for_symbol(self, symbol: str) -> str:

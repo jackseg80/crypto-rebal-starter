@@ -1122,6 +1122,7 @@
                 sourceDisplay.textContent = displaySource;
             }
 
+            // Load balances first (original working code)
             console.debug('📡 About to call window.loadBalanceData()...');
             let balanceResult;
 
@@ -1175,6 +1176,32 @@
                 sampleAssets: balances.slice(0, 5).map(b => `${b.symbol}: $${b.value_usd}`)
             });
 
+            // Try to fetch P&L from API (non-blocking)
+            let performance = {
+                performance_available: false,
+                current_value_usd: totalValue,
+                absolute_change_usd: 0
+            };
+
+            try {
+                const activeUser = localStorage.getItem('activeUser') || 'demo';
+                const pnlUrl = `${window.location.origin}/portfolio/metrics?source=${currentSource}&user_id=${activeUser}`;
+                const pnlResponse = await fetch(pnlUrl);
+
+                if (pnlResponse.ok) {
+                    const pnlData = await pnlResponse.json();
+                    if (pnlData.ok && pnlData.performance && pnlData.performance.performance_available) {
+                        performance = pnlData.performance;
+                        console.log('✅ [PNL] P&L loaded from API:', {
+                            pnl: performance.absolute_change_usd,
+                            pnlPct: performance.percentage_change
+                        });
+                    }
+                }
+            } catch (e) {
+                console.warn('⚠️ Could not fetch P&L from API:', e.message);
+            }
+
             return {
                 ok: true,
                 metrics: {
@@ -1182,11 +1209,7 @@
                     asset_count: assetCount,
                     last_updated: new Date().toISOString()
                 },
-                performance: {
-                    performance_available: true,
-                    current_value_usd: totalValue,
-                    absolute_change_usd: 0 // TODO: Calculer à partir de données réelles
-                },
+                performance: performance,
                 balances: {
                     items: balances,
                     total_count: balances.length,
@@ -1324,6 +1347,12 @@
             document.getElementById('total-value').textContent = formatUSD(metrics.total_value_usd || 0);
 
             const dailyPnl = performance?.absolute_change_usd || 0;
+            console.log('🔍 [PNL Display] Values:', {
+                raw_performance: performance,
+                absolute_change_usd: performance?.absolute_change_usd,
+                dailyPnl: dailyPnl,
+                formatted: formatUSD(dailyPnl)
+            });
             const pnlEl = document.getElementById('daily-pnl');
             pnlEl.textContent = formatUSD(dailyPnl);
             pnlEl.style.color = dailyPnl >= 0 ? 'var(--success)' : 'var(--danger)';

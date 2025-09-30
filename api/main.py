@@ -1854,11 +1854,11 @@ app.include_router(unified_phase3_router)
 
 # ---------- Portfolio Analytics ----------
 @app.get("/portfolio/metrics")
-async def portfolio_metrics(source: str = Query("cointracking")):
+async def portfolio_metrics(source: str = Query("cointracking"), user_id: str = Query("demo")):
     """Métriques calculées du portfolio"""
     try:
         # Récupérer les données de balance actuelles
-        res = await resolve_current_balances(source=source)
+        res = await resolve_current_balances(source=source, user_id=user_id)
         rows = _to_rows(res.get("items", []))
         balances = {"source_used": res.get("source_used"), "items": rows}
         # Do not compute on stub sources unless explicitly allowed
@@ -1867,7 +1867,7 @@ async def portfolio_metrics(source: str = Query("cointracking")):
         
         # Calculer les métriques
         metrics = portfolio_analytics.calculate_portfolio_metrics(balances)
-        performance = portfolio_analytics.calculate_performance_metrics(metrics)
+        performance = portfolio_analytics.calculate_performance_metrics(metrics, user_id=user_id, source=source)
         
         return {
             "ok": True,
@@ -1878,19 +1878,19 @@ async def portfolio_metrics(source: str = Query("cointracking")):
         return {"ok": False, "error": str(e)}
 
 @app.post("/portfolio/snapshot")
-async def save_portfolio_snapshot(source: str = Query("cointracking")):
+async def save_portfolio_snapshot(source: str = Query("cointracking"), user_id: str = Query("demo")):
     """Sauvegarde un snapshot du portfolio pour suivi historique"""
     try:
         # Récupérer les données actuelles
-        res = await resolve_current_balances(source=source)
+        res = await resolve_current_balances(source=source, user_id=user_id)
         rows = _to_rows(res.get("items", []))
         balances = {"source_used": res.get("source_used"), "items": rows}
-        
+
         # Sauvegarder le snapshot
-        success = portfolio_analytics.save_portfolio_snapshot(balances)
-        
+        success = portfolio_analytics.save_portfolio_snapshot(balances, user_id=user_id, source=source)
+
         if success:
-            return {"ok": True, "message": "Snapshot sauvegardé"}
+            return {"ok": True, "message": f"Snapshot sauvegardé pour user={user_id}, source={source}"}
         else:
             return {"ok": False, "error": "Erreur lors de la sauvegarde"}
     except Exception as e:
