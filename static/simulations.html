@@ -1184,7 +1184,56 @@
 
         console.log('🎭 SIM: Theoretical targets from metrics:', theoreticalTargets);
 
-        // 4. Utiliser le SYSTÈME UNIFIÉ pour obtenir les VRAIES données (comme analytics-unified.html)
+        // 4. INITIALISER LE STORE avant d'appeler getUnifiedState() (CRITIQUE!)
+        console.log('🎭 SIM: Initializing store with complete data...');
+
+        // Créer window.store s'il n'existe pas
+        if (!window.store) {
+          window.store = {
+            data: {},
+            set(key, value) {
+              this.data[key] = value;
+            },
+            get(key) {
+              return this.data[key];
+            }
+          };
+        }
+
+        // Injecter balances dans le store (requis par getUnifiedState)
+        window.store.set('wallet.balances', balances);
+        window.store.set('wallet.total', totalValue);
+        console.log('🎭 SIM: Store initialized with wallet data:', {
+          balances: balances.length,
+          total: totalValue
+        });
+
+        // Charger les scores dans le store (cycle, onchain, risk)
+        try {
+          // Cycle score
+          const { getCurrentCycleMonths, cycleScoreFromMonths, getCyclePhase } = await import('./modules/cycle-navigator.js');
+          const c = getCurrentCycleMonths();
+          const cycleScore = Math.round(cycleScoreFromMonths(c.months));
+          const cyclePhase = getCyclePhase(c.months);
+          window.store.set('cycle.months', c.months);
+          window.store.set('cycle.score', cycleScore);
+          window.store.set('cycle.phase', cyclePhase);
+          console.log('🎭 SIM: Cycle data loaded:', { score: cycleScore, phase: cyclePhase });
+
+          // Onchain score (simplifié pour l'instant)
+          // TODO: Charger les vrais indicateurs onchain
+          window.store.set('scores.onchain', 72); // Valeur par défaut
+          console.log('🎭 SIM: Onchain score set to default: 72');
+
+          // Risk score
+          window.store.set('scores.risk', 34); // Valeur par défaut
+          console.log('🎭 SIM: Risk score set to default: 34');
+
+        } catch (e) {
+          console.warn('🎭 SIM: Failed to load scores:', e.message);
+        }
+
+        // 5. Utiliser le SYSTÈME UNIFIÉ pour obtenir les VRAIES données (comme analytics-unified.html)
         console.log('🎭 SIM: Loading unified state from Analytics system...');
         let unifiedState = null;
         try {
@@ -1193,13 +1242,14 @@
           console.log('🎭 SIM: Unified state loaded:', {
             decisionScore: unifiedState?.decision?.score,
             contradiction: unifiedState?.governance?.contradiction_index,
-            riskBudget: unifiedState?.risk?.budget?.target_stables_pct
+            riskBudget: unifiedState?.risk?.budget?.target_stables_pct,
+            hasTargets: !!unifiedState?.targets_by_group
           });
         } catch (e) {
           console.warn('🎭 SIM: Failed to load unified state, using fallback:', e.message);
         }
 
-        // 5. Construire un résultat avec les données du système unifié (si disponible)
+        // 6. Construire un résultat avec les données du système unifié (si disponible)
         const decisionIndex = unifiedState?.decision?.score ?? 50;
         const contradictionIndex = unifiedState?.governance?.contradiction_index ?? 0.5;
         const confidence = unifiedState?.decision?.confidence ?? 0.8;
