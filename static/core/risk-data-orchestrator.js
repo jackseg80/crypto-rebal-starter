@@ -5,7 +5,7 @@
 import { fetchAndComputeCCS, DEFAULT_CCS_WEIGHTS } from '../modules/signals-engine.js';
 import { estimateCyclePosition, blendCCS, getCyclePhase } from '../modules/cycle-navigator.js';
 import { fetchAllIndicators, calculateCompositeScore, enhanceCycleScore } from '../modules/onchain-indicators.js';
-import { detectMarketRegime } from '../modules/market-regimes.js';
+import { getRegimeDisplayData } from '../modules/market-regimes.js';
 
 /**
  * Hydrate le risk store avec toutes les métriques calculées
@@ -24,8 +24,25 @@ export async function hydrateRiskStore() {
   const startTime = performance.now();
 
   try {
+    // Fetch alerts d'abord (asynchrone, indépendant des autres calculs)
+    const fetchAlerts = async () => {
+      try {
+        if (!window.globalConfig?.apiRequest) {
+          console.warn('⚠️ globalConfig.apiRequest not available for alerts');
+          return [];
+        }
+        const alertsData = await window.globalConfig.apiRequest('/api/alerts/active', {
+          params: { include_snoozed: false }
+        });
+        return Array.isArray(alertsData) ? alertsData : [];
+      } catch (err) {
+        console.warn('⚠️ Alerts fetch failed:', err);
+        return [];
+      }
+    };
+
     // Calculer toutes les métriques en parallèle pour performance optimale
-    const [ccsResult, cycleResult, indicatorsResult, regimeResult] = await Promise.allSettled([
+    const [ccsResult, cycleResult, indicatorsResult, alertsResult] = await Promise.allSettled([
       fetchAndComputeCCS().catch(err => {
         console.warn('⚠️ CCS calculation failed:', err);
         return null;
@@ -38,17 +55,14 @@ export async function hydrateRiskStore() {
         console.warn('⚠️ On-chain indicators fetch failed:', err);
         return null;
       }),
-      detectMarketRegime().catch(err => {
-        console.warn('⚠️ Market regime detection failed:', err);
-        return null;
-      })
+      fetchAlerts()
     ]);
 
     // Extraire les résultats (null si échec)
     const ccs = ccsResult.status === 'fulfilled' ? ccsResult.value : null;
     const cycle = cycleResult.status === 'fulfilled' ? cycleResult.value : null;
     const indicators = indicatorsResult.status === 'fulfilled' ? indicatorsResult.value : null;
-    const regime = regimeResult.status === 'fulfilled' ? regimeResult.value : null;
+    const alerts = alertsResult.status === 'fulfilled' ? alertsResult.value : [];
 
     // Calculer score composite on-chain
     let onchainScore = null;
@@ -67,6 +81,22 @@ export async function hydrateRiskStore() {
         blendedScore = blendCCS(ccs.score, cycle.ccsStar || ccs.score);
       } catch (err) {
         console.warn('⚠️ Blended score calculation failed:', err);
+      }
+    }
+
+    // Calculer market regime (nécessite blended + onchain + risk scores)
+    let regime = null;
+    if (blendedScore !== null || onchainScore !== null) {
+      try {
+        // getRegimeDisplayData retourne { phase, cap, contradiction, ... }
+        const riskScore = currentState.scores?.risk || null;
+        regime = getRegimeDisplayData(
+          blendedScore || 50,
+          onchainScore || 50,
+          riskScore || 50
+        );
+      } catch (err) {
+        console.warn('⚠️ Market regime calculation failed:', err);
       }
     }
 
@@ -102,6 +132,9 @@ export async function hydrateRiskStore() {
         risk: currentState.scores?.risk
       },
 
+      // Alerts (IMPORTANT: doit être un tableau pour risk-sidebar-full.js)
+      alerts: alerts || [],
+
       // Metadata hydratation
       _hydrated: true,
       _hydration_timestamp: new Date().toISOString(),
@@ -123,7 +156,8 @@ export async function hydrateRiskStore() {
           cycle: cycle !== null,
           onchain: onchainScore !== null,
           blended: blendedScore !== null,
-          regime: regime !== null
+          regime: regime !== null,
+          alerts: alerts.length > 0
         }
       }
     }));
@@ -134,7 +168,8 @@ export async function hydrateRiskStore() {
       cycle: cycle ? `${cycle.phase} (${cycle.months}mo)` : 'N/A',
       onchain: onchainScore !== null ? onchainScore.toFixed(1) : 'N/A',
       blended: blendedScore !== null ? blendedScore.toFixed(1) : 'N/A',
-      regime: regime ? regime.phase : 'N/A'
+      regime: regime ? regime.phase : 'N/A',
+      alerts: `${alerts.length} alerts`
     });
 
   } catch (err) {
