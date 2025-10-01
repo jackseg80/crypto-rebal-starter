@@ -80,8 +80,9 @@ function computeTrendWindow(history, win = 7) {
 
 /**
  * Génère SVG sparkline pour série temporelle DI
+ * @param {number} delta - Delta pour coloration (vert si >0, rouge si <0, gris sinon)
  */
-function renderSparkline(series, width = 260, height = 36, dashed = false) {
+function renderSparkline(series, width = 260, height = 36, dashed = false, delta = 0) {
   if (!Array.isArray(series) || series.length === 0) {
     return `<div class="spark-placeholder">—</div>`;
   }
@@ -92,7 +93,13 @@ function renderSparkline(series, width = 260, height = 36, dashed = false) {
   const px = (i) => (i / (n - 1)) * (width - 2) + 1;
   const py = (v) => height - ((v - min) / span) * (height - 2) - 1;
   const d = series.map((v, i) => `${i === 0 ? 'M' : 'L'} ${px(i).toFixed(1)} ${py(v).toFixed(1)}`).join(' ');
-  const cls = dashed ? 'spark-line dashed' : 'spark-line';
+
+  // Coloration selon pente
+  let colorClass = 'neutral';
+  if (delta > 0.5) colorClass = 'up';
+  else if (delta < -0.5) colorClass = 'down';
+
+  const cls = dashed ? `spark-line dashed ${colorClass}` : `spark-line ${colorClass}`;
   return `
     <svg class="spark" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
       <path d="${d}" class="${cls}"/>
@@ -850,8 +857,26 @@ function _renderDIPanelInternal(container, data, opts = {}) {
   const trendSigma = _round(tw.sigma, 1);
   const trendState = tw.state;
   const dashed = !tw.ok;
-  const trendSpark = renderSparkline(tw.series, 280, 40, dashed);
-  const deltaBadge = `${trendDelta === 0 ? '→' : (trendDelta > 0 ? '↗' : '↘')} ${trendDelta > 0 ? '+' : ''}${trendDelta} pts`;
+  const trendSpark = renderSparkline(tw.series, 280, 40, dashed, trendDelta);
+
+  // Badges trend
+  let trendBadges = '';
+  if (!tw.ok || tw.n < 2) {
+    // État insuffisant: pill muted avec icône
+    trendBadges = `<span class="pill pill--muted">… Historique insuffisant</span>`;
+  } else {
+    // Badges normaux
+    const deltaBadge = `${trendDelta === 0 ? '→' : (trendDelta > 0 ? '↗' : '↘')} ${trendDelta > 0 ? '+' : ''}${trendDelta} pts`;
+
+    // σ avec seuils visuels (vert <1, orange 1-2, rouge >2)
+    const toneSigma = trendSigma < 1 ? 'ok' : trendSigma <= 2 ? 'warn' : 'danger';
+
+    trendBadges = `
+      <span class="pill pill--${trendDelta > 1 ? 'ok' : (trendDelta < -1 ? 'danger' : 'warn')}">${deltaBadge}</span>
+      <span class="pill pill--${toneSigma}">σ ${trendSigma}</span>
+      <span class="pill pill--${trendState === 'Haussier' ? 'ok' : (trendState === 'Baissier' ? 'danger' : 'warn')}">${trendState}</span>
+    `;
+  }
 
   const regimeRibbon = renderRegimeRibbon(data.meta, data.regimeHistory);  // ✅ toujours rendu avec fallback
 
@@ -901,14 +926,15 @@ function _renderDIPanelInternal(container, data, opts = {}) {
 
           ${breakdown}
 
-          <div class="trend-grid">
-            <div class="trend-left">
-              ${trendSpark}
-            </div>
-            <div class="trend-right">
-              <span class="pill pill--${trendDelta > 1 ? 'ok' : (trendDelta < -1 ? 'danger' : 'warn')}">${deltaBadge}</span>
-              <span class="pill pill--info">σ ${trendSigma}</span>
-              <span class="pill pill--${trendState === 'Haussier' ? 'ok' : (trendState === 'Baissier' ? 'danger' : 'warn')}">${trendState}</span>
+          <div class="trend-section">
+            <div class="trend-title">Trend (${tw.n}j)</div>
+            <div class="trend-grid">
+              <div class="trend-left">
+                ${trendSpark}
+              </div>
+              <div class="trend-right">
+                ${trendBadges}
+              </div>
             </div>
           </div>
 

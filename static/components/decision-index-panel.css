@@ -443,13 +443,26 @@
   border-color: rgba(56, 142, 60, 0.35);
 }
 
+/* Trend section avec titre */
+.trend-section {
+  margin-top: 8px;
+}
+
+.trend-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--theme-text-muted, #9aa5ce);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
 /* Trend grid avec sparkline + badges */
 .trend-grid {
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
   gap: 12px;
-  margin-top: 8px;
 }
 
 .trend-left {
@@ -464,8 +477,21 @@
 
 .spark-line {
   fill: none;
-  stroke: rgba(159, 178, 255, 0.95);
   stroke-width: 2;
+  transition: stroke 0.3s ease;
+}
+
+/* Coloration sparkline selon pente */
+.spark-line.up {
+  stroke: rgba(139, 209, 124, 0.95);
+}
+
+.spark-line.down {
+  stroke: rgba(229, 115, 115, 0.95);
+}
+
+.spark-line.neutral {
+  stroke: rgba(159, 178, 255, 0.7);
 }
 
 .spark-line.dashed {
