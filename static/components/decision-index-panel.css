@@ -424,79 +424,111 @@
   border-color: rgba(56, 142, 60, 0.35);
 }
 
-/* Main row (2 colonnes: graphique + infos) */
-.di-main-row {
-  display: grid;
-  grid-template-columns: 1fr 220px;
-  gap: 1rem;
-  margin-top: 0.5rem;
-}
-
-.di-main-left {
-  min-width: 0;
-}
-
-.di-main-right {
+/* Header right top (Euphorie + events badges) */
+.di-right-top {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 0.75rem;
+  margin-bottom: 0.5rem;
 }
 
-/* Info blocks (droite) */
-.di-info-block {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 6px;
-  padding: 0.5rem;
+.di-phase-badge {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #8bd17c;
+  text-transform: capitalize;
 }
 
-.di-info-label {
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  color: var(--theme-text-muted, #9aa5ce);
-  margin-bottom: 0.3rem;
-  letter-spacing: 0.05em;
-}
-
-.di-info-value {
-  font-size: 0.85rem;
+.di-ev-header {
+  font-size: 0.95rem;
   font-weight: 600;
   color: var(--theme-text, #c0caf5);
-  margin-bottom: 0.2rem;
 }
 
-.di-info-state {
-  font-size: 0.75rem;
-  color: var(--theme-text-muted, #9aa5ce);
-}
-
-.di-events-compact {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.di-ev-compact {
-  font-size: 0.75rem;
-  padding: 0.2rem 0.4rem;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.di-ev-compact.di-ev-info {
-  background: rgba(33, 150, 243, 0.1);
+.di-ev-header.di-ev-info {
   color: #64b5f6;
 }
 
-.di-ev-compact.di-ev-warning {
-  background: rgba(255, 152, 0, 0.1);
+.di-ev-header.di-ev-warning {
   color: #ffb74d;
 }
 
-.di-ev-compact.di-ev-success {
-  background: rgba(76, 175, 80, 0.1);
+.di-ev-header.di-ev-success {
   color: #81c784;
+}
+
+/* Trend info (sous le graphique) */
+.di-trend-info {
+  font-size: 1rem;
+  color: var(--theme-text-muted, #9aa5ce);
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Regime section (rectangles larges horizontaux) */
+.di-regime-section {
+  margin-top: 1.5rem;
+}
+
+.di-regime-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--theme-text-muted, #9aa5ce);
+  margin-bottom: 0.75rem;
+  text-transform: capitalize;
+}
+
+.di-regime-bars {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.regime-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.regime-label {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--theme-text, #c0caf5);
+  text-transform: capitalize;
+}
+
+.regime-rect {
+  width: 100%;
+  height: 40px;
+  border-radius: 8px;
+  transition: transform 0.2s ease;
+}
+
+.regime-rect:hover {
+  transform: scale(1.02);
+}
+
+.regime-rect-bull {
+  background: linear-gradient(135deg, #8bd17c 0%, #6fba5f 100%);
+  box-shadow: 0 4px 12px rgba(139, 209, 124, 0.3);
+}
+
+.regime-rect-neutral {
+  background: linear-gradient(135deg, #c5c7ce 0%, #a8aab3 100%);
+  box-shadow: 0 4px 12px rgba(197, 199, 206, 0.3);
+}
+
+.regime-rect-caution {
+  background: linear-gradient(135deg, #ffbf69 0%, #ffa94d 100%);
+  box-shadow: 0 4px 12px rgba(255, 191, 105, 0.3);
+}
+
+.regime-rect-risk {
+  background: linear-gradient(135deg, #ff9478 0%, #ff7858 100%);
+  box-shadow: 0 4px 12px rgba(255, 148, 120, 0.3);
 }
 
 /* Breakdown line (sous la barre) */
@@ -633,19 +665,24 @@
 
 /* Responsive mobile */
 @media (max-width: 768px) {
-  .di-main-row {
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
+  .di-phase-badge {
+    font-size: 1.2rem;
   }
 
-  .di-main-right {
-    flex-direction: row;
-    flex-wrap: wrap;
+  .di-ev-header {
+    font-size: 0.8rem;
   }
 
-  .di-info-block {
-    flex: 1;
-    min-width: 140px;
+  .di-regime-bars {
+    gap: 1rem;
+  }
+
+  .regime-label {
+    font-size: 0.85rem;
+  }
+
+  .regime-rect {
+    height: 32px;
   }
 
   .di-score {
@@ -654,6 +691,10 @@
 
   .di-badges {
     font-size: 0.65rem;
+  }
+
+  .di-trend-info {
+    font-size: 0.9rem;
   }
 
   .di-trend-row {

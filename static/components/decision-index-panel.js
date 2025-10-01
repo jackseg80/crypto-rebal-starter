@@ -303,6 +303,35 @@ function renderEventsBadges(events = []) {
 }
 
 /**
+ * Génère regime bar (rectangles larges horizontaux avec labels)
+ */
+function renderRegimeBar(regimeHistory = []) {
+  const arr = Array.isArray(regimeHistory) ? regimeHistory.slice(-3) : [];
+
+  if (arr.length === 0) return '';
+
+  const items = arr.reverse().map((r, i) => {
+    const phase = (r.phase || r.name || 'neutral');
+    const phaseClass = mapPhaseToClass(phase);
+    const label = phase.charAt(0).toUpperCase() + phase.slice(1);
+
+    return `
+      <div class="regime-item">
+        <div class="regime-label">${label}</div>
+        <div class="regime-rect regime-rect-${phaseClass}"></div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="di-regime-section">
+      <div class="di-regime-title">Regime</div>
+      <div class="di-regime-bars">${items}</div>
+    </div>
+  `;
+}
+
+/**
  * Génère regime dots (5 pastilles récentes)
  */
 function renderRegimeDots(regimeHistory = []) {
@@ -788,15 +817,19 @@ function _renderDIPanelInternal(container, data, opts = {}) {
     console.log('🐛 DI Panel Contributions:', contribs);
   }
 
-  // Calculer breakdown, trend, events, regime dots
+  // Calculer breakdown, trend, events, regime
   const breakdown = renderBreakdown(data.weights, data.scores);
   const trend = calculateTrend(data.history);
   const trendArrow = trend.delta > 0 ? '↗︎' : trend.delta < 0 ? '↘︎' : '→';
   const trendSign = trend.delta >= 0 ? '+' : '';
   const eventsData = calculateEvents(data.meta);
-  const eventsHTML = renderEventsBadges(eventsData);
-  const regimeDots = renderRegimeDots(data.regimeHistory);
+  const n = data.history?.length || 0;
   const footerHTML = opts.showFooter ? renderFooterStatus(data) : '';
+
+  // Events badges pour le header (à côté de Euphorie)
+  const eventsBadgesHTML = eventsData.length > 0
+    ? eventsData.map(e => `<span class="di-ev-header di-ev-${e.type}">${e.text}</span>`).join('')
+    : '';
 
   container.innerHTML = `
     <div class="di-panel">
@@ -809,44 +842,25 @@ function _renderDIPanelInternal(container, data, opts = {}) {
           <div class="di-score">${Math.round(data.di)}</div>
         </div>
         <div class="di-right">
+          <div class="di-right-top">
+            <div class="di-phase-badge">${data.meta.phase || 'Neutral'}</div>
+            ${eventsBadgesHTML}
+          </div>
           <div class="di-badges">${renderBadges(data.meta)}</div>
         </div>
       </div>
 
-      <div class="di-main-row">
-        <div class="di-main-left">
-          <div class="di-progress">
-            <canvas id="${container.id}-stack-chart" class="di-stack-canvas"></canvas>
-          </div>
-          ${breakdown}
-        </div>
-
-        <div class="di-main-right">
-          <div class="di-info-block">
-            <div class="di-info-label">Trend</div>
-            <div class="di-info-value">
-              ${trendArrow} ${trendSign}${trend.delta} pts • σ=${trend.sigma}
-            </div>
-            <div class="di-info-state">${trend.state}</div>
-          </div>
-
-          ${eventsData.length > 0 ? `
-            <div class="di-info-block">
-              <div class="di-info-label">Events</div>
-              <div class="di-events-compact">
-                ${eventsData.map(e => `<div class="di-ev-compact di-ev-${e.type}">${e.icon} ${e.text}</div>`).join('')}
-              </div>
-            </div>
-          ` : ''}
-
-          ${regimeDots ? `
-            <div class="di-info-block">
-              <div class="di-info-label">Regime</div>
-              ${regimeDots}
-            </div>
-          ` : ''}
-        </div>
+      <div class="di-progress">
+        <canvas id="${container.id}-stack-chart" class="di-stack-canvas"></canvas>
       </div>
+
+      ${breakdown}
+
+      <div class="di-trend-info">
+        Trend: ${trendArrow} ${trendSign}${trend.delta} pts (${Math.abs(n - 7)} j) • σ=${trend.sigma} • ${trend.state}
+      </div>
+
+      ${data.regimeHistory && data.regimeHistory.length > 0 ? renderRegimeBar(data.regimeHistory) : ''}
 
       ${footerHTML}
       ${renderFootnote(data.meta)}
