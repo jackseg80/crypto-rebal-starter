@@ -23,8 +23,9 @@ export function enableFlyoutLayoutAdapter(mainSelector = 'body', options = {}) {
 
     console.log(`[FlyoutLayoutAdapter] Initializing for ${mainSelector}`, { offset, transition });
 
-    // Ajouter la transition CSS
+    // Ajouter la transition CSS et un padding permanent à gauche pour la poignée du flyout
     mainEl.style.transition = `margin-left ${transition}, margin-right ${transition}`;
+    mainEl.style.paddingLeft = '48px'; // Espace pour la poignée du flyout (handle)
 
     // Écouter les changements d'état du flyout
     document.addEventListener('flyout-state-change', (e) => {
@@ -34,17 +35,17 @@ export function enableFlyoutLayoutAdapter(mainSelector = 'body', options = {}) {
       if (pinned) {
         if (position === 'left') {
           mainEl.style.marginLeft = `${width + offset}px`;
-          mainEl.style.marginRight = '0';
+          mainEl.style.marginRight = 'auto';
           console.log(`[FlyoutLayoutAdapter] Applied margin-left: ${width + offset}px`);
         } else if (position === 'right') {
           mainEl.style.marginRight = `${width + offset}px`;
-          mainEl.style.marginLeft = '0';
+          mainEl.style.marginLeft = 'auto';
           console.log(`[FlyoutLayoutAdapter] Applied margin-right: ${width + offset}px`);
         }
       } else {
-        mainEl.style.marginLeft = '0';
-        mainEl.style.marginRight = '0';
-        console.log('[FlyoutLayoutAdapter] Reset margins');
+        mainEl.style.marginLeft = 'auto';
+        mainEl.style.marginRight = 'auto';
+        console.log('[FlyoutLayoutAdapter] Reset margins to auto');
       }
     });
 
@@ -61,11 +62,16 @@ export function enableFlyoutLayoutAdapter(mainSelector = 'body', options = {}) {
           const position = flyoutPanel.getAttribute('position') || 'left';
           if (position === 'left') {
             mainEl.style.marginLeft = `${width + offset}px`;
+            mainEl.style.marginRight = 'auto';
             console.log(`[FlyoutLayoutAdapter] Initial margin-left: ${width + offset}px`);
           } else {
             mainEl.style.marginRight = `${width + offset}px`;
+            mainEl.style.marginLeft = 'auto';
             console.log(`[FlyoutLayoutAdapter] Initial margin-right: ${width + offset}px`);
           }
+        } else {
+          mainEl.style.marginLeft = 'auto';
+          mainEl.style.marginRight = 'auto';
         }
       } else {
         console.warn('[FlyoutLayoutAdapter] flyout-panel element not found');
