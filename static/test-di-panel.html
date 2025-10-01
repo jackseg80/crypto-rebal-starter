@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Decision Index Panel</title>
+  <link rel="stylesheet" href="shared-theme.css">
+  <link rel="stylesheet" href="components/decision-index-panel.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    body {
+      padding: 2rem;
+      background: var(--theme-bg);
+      color: var(--theme-text);
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    h1 {
+      margin-bottom: 2rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 Test Decision Index Panel</h1>
+    <div id="test-panel"></div>
+    <div style="margin-top: 2rem; padding: 1rem; background: var(--theme-surface); border-radius: 8px;">
+      <h3>Console Output</h3>
+      <pre id="console-output" style="font-size: 0.85rem; color: var(--theme-text-muted);"></pre>
+    </div>
+  </div>
+
+  <script type="module">
+    // Intercept console for display
+    const consoleOutput = document.getElementById('console-output');
+    const originalLog = console.log;
+    const originalError = console.error;
+
+    console.log = (...args) => {
+      originalLog(...args);
+      consoleOutput.textContent += `[LOG] ${args.join(' ')}\n`;
+    };
+
+    console.error = (...args) => {
+      originalError(...args);
+      consoleOutput.textContent += `[ERROR] ${args.join(' ')}\n`;
+      consoleOutput.style.color = 'var(--danger)';
+    };
+
+    console.log('✅ Script started');
+
+    try {
+      // Import the panel
+      console.log('📦 Importing decision-index-panel...');
+      const { renderDecisionIndexPanel } = await import('./components/decision-index-panel.js');
+      console.log('✅ decision-index-panel imported successfully');
+
+      // Test data
+      const testData = {
+        di: 73,
+        weights: { cycle: 0.55, onchain: 0.28, risk: 0.17 },
+        scores: {
+          cycle: 88,
+          onchain: 41,
+          risk: 57
+        },
+        history: [65, 67, 70, 69, 71, 73, 72, 74, 73],
+        meta: {
+          confidence: 0.82,
+          contradiction: 0.15,
+          cap: 45,
+          mode: 'Normal',
+          source: 'test',
+          live: false
+        }
+      };
+
+      console.log('📊 Test data prepared:', testData);
+
+      // Render
+      console.log('🎨 Rendering panel...');
+      const container = document.getElementById('test-panel');
+      renderDecisionIndexPanel(container, testData);
+
+      console.log('✅ Panel rendered successfully!');
+
+    } catch (error) {
+      console.error('❌ Test failed:', error.message);
+      console.error('Stack:', error.stack);
+    }
+  </script>
+</body>
+</html>

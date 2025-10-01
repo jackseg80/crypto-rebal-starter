@@ -482,7 +482,7 @@ function intelligenceBadge(status) {
   return `<span style="background: ${colors[status] || colors.unknown}; color: white; padding: 1px 4px; border-radius: 3px; font-size: .7rem; font-weight: 600;">${status}</span>`;
 }
 
-export async function renderUnifiedInsights(containerId = 'unified-root') {
+export async function renderUnifiedInsights(containerId = 'unified-root', options = {}) {
   const el = document.getElementById(containerId);
   if (!el) return;
 
@@ -1142,9 +1142,12 @@ export async function renderUnifiedInsights(containerId = 'unified-root') {
   // Section des écarts séparée supprimée pour simplifier l'UI
   const deltasBlock = '';
 
+  // Permet de masquer l'ancien header (nouveau panneau DI v5 le remplace)
+  const _header = options.hideHeader ? '' : header;
+
   el.innerHTML = `
-    ${header}
-    <div style="height: .5rem;"></div>
+    ${_header}
+    ${_header ? '<div style="height: .5rem;"></div>' : ''}
     ${quad}
     <div style="height: .5rem;"></div>
     ${recBlock}
