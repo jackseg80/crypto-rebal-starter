@@ -96,15 +96,29 @@ export async function hydrateRiskStore() {
       return factors > 0 ? Math.max(0, Math.min(100, score)) : 50;
     };
 
-    // Calculer contradiction depuis risk_metrics
+    // Calculer contradiction depuis correlation_metrics
     const calculateContradiction = (riskData) => {
-      if (!riskData?.risk_metrics) return null;
-      // Contradiction = divergence entre différentes métriques de risque
-      // Utiliser avg_correlation comme proxy (haute corrélation = faible contradiction)
-      const corr = riskData.risk_metrics.avg_correlation;
-      if (corr == null) return null;
-      // Inverser: haute corrélation → faible contradiction
-      return Math.max(0, Math.min(1, 1 - Math.abs(corr)));
+      if (!riskData?.correlation_metrics) return null;
+
+      // Méthode 1: Utiliser diversification_ratio (1.0 = parfaite corrélation, >1 = diversifié)
+      // Plus le ratio est élevé, moins il y a contradiction (bonne diversification)
+      const divRatio = riskData.correlation_metrics.diversification_ratio;
+      if (divRatio != null && divRatio >= 1) {
+        // Diversification ratio typique: 1.0 (mauvais) à 3.0+ (excellent)
+        // Contradiction inversement proportionnelle: 1.0 → 100%, 3.0 → 0%
+        const contradiction = Math.max(0, Math.min(1, (2.0 - divRatio) / 2.0));
+        return contradiction;
+      }
+
+      // Méthode 2: Calculer moyenne des top correlations
+      const topCorrs = riskData.correlation_metrics.top_correlations;
+      if (Array.isArray(topCorrs) && topCorrs.length > 0) {
+        const avgCorr = topCorrs.reduce((sum, item) => sum + Math.abs(item.correlation || 0), 0) / topCorrs.length;
+        // Haute corrélation moyenne → faible contradiction
+        return Math.max(0, Math.min(1, 1 - avgCorr));
+      }
+
+      return null;
     };
 
     // Calculer toutes les métriques en parallèle pour performance optimale
