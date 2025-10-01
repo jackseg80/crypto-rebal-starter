@@ -1,0 +1,146 @@
+/**
+ * Flyout Panel Component - Reusable
+ *
+ * Panneau latéral détachable avec système hover/pin
+ * Inspiré de simulations.html
+ *
+ * Usage:
+ *   <link rel="stylesheet" href="/static/components/flyout-panel.css">
+ *   <script type="module" src="/static/components/flyout-panel.js"></script>
+ */
+
+.flyout-panel {
+  position: fixed;
+  top: 140px;
+  left: 0;
+  width: min(340px, 92vw);
+  max-height: calc(100vh - 160px);
+  padding: var(--space-lg);
+  background: color-mix(in srgb, var(--theme-surface) 88%, transparent 12%);
+  border: 1px solid color-mix(in srgb, var(--theme-border) 45%, transparent);
+  border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  transform: translateX(calc(-100% + 48px));
+  transition: transform 0.25s ease, opacity 0.25s ease;
+  opacity: 0.5;
+  z-index: 9999;
+}
+
+.flyout-panel:hover,
+.flyout-panel:focus-within,
+.flyout-panel.is-pinned {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.flyout-panel .flyout-handle {
+  position: absolute;
+  right: -48px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--brand-primary);
+  color: white;
+  padding: var(--space-md) var(--space-xs);
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+  opacity: 0.85;
+  transition: opacity 0.2s ease;
+}
+
+.flyout-panel:hover .flyout-handle,
+.flyout-panel:focus-within .flyout-handle,
+.flyout-panel.is-pinned .flyout-handle {
+  opacity: 0;
+}
+
+.flyout-panel .flyout-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-md);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid color-mix(in srgb, var(--theme-border) 30%, transparent);
+}
+
+.flyout-panel h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--theme-text);
+}
+
+.flyout-panel .pin-btn {
+  font-size: 0.85rem;
+  padding: 0.35rem 0.75rem;
+  background: transparent;
+  color: var(--theme-text-muted);
+  border: 1px solid var(--theme-border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.flyout-panel .pin-btn:hover {
+  background: color-mix(in srgb, var(--brand-primary) 10%, transparent);
+  border-color: var(--brand-primary);
+}
+
+.flyout-panel .pin-btn[aria-pressed="true"] {
+  background: var(--brand-primary);
+  color: white;
+  border-color: var(--brand-primary);
+}
+
+.flyout-panel .flyout-content {
+  overflow-y: auto;
+  padding-right: var(--space-sm);
+  margin-right: calc(-1 * var(--space-sm));
+  scrollbar-width: none;
+}
+
+.flyout-panel .flyout-content::-webkit-scrollbar {
+  display: none;
+}
+
+/* Compact styles pour contenu du sidebar */
+.flyout-panel .ccs-gauge {
+  padding: var(--space-md) !important;
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 30%, transparent) !important;
+}
+
+.flyout-panel .decision-card {
+  padding: 1.25rem !important;
+}
+
+.flyout-panel .sidebar-section {
+  margin-bottom: var(--space-md) !important;
+}
+
+.flyout-panel .sidebar-section:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* Décaler le contenu (pas les menus) légèrement vers la droite */
+body.flyout-enabled .dashboard-layout,
+body.flyout-enabled #governance-container,
+body.flyout-enabled .controls {
+  margin-left: 40px;
+  transition: margin-left 0.25s ease;
+}
+
+/* Ajuster la largeur du Decision Engine pour qu'il ne dépasse pas */
+body.flyout-enabled #governance-container {
+  max-width: calc(95vw - 40px);
+}
