@@ -303,32 +303,23 @@ function renderEventsBadges(events = []) {
 }
 
 /**
- * Génère regime bar (rectangles larges horizontaux avec labels)
+ * Génère regime ribbon (pastilles colorées horizontales)
  */
-function renderRegimeBar(regimeHistory = []) {
-  const arr = Array.isArray(regimeHistory) ? regimeHistory.slice(-3) : [];
+function renderRegimeRibbonCompact(regimeHistory = []) {
+  const arr = Array.isArray(regimeHistory) ? regimeHistory.slice(-10) : [];
 
   if (arr.length === 0) return '';
 
-  const items = arr.reverse().map((r, i) => {
-    const phase = (r.phase || r.name || 'neutral');
+  const dots = arr.map((r, i) => {
+    const phase = (r.phase || r.name || 'neutral').toLowerCase();
     const phaseClass = mapPhaseToClass(phase);
-    const label = phase.charAt(0).toUpperCase() + phase.slice(1);
+    const k = arr.length - 1 - i;
+    const title = `J-${k} • ${phase}`;
 
-    return `
-      <div class="regime-item">
-        <div class="regime-label">${label}</div>
-        <div class="regime-rect regime-rect-${phaseClass}"></div>
-      </div>
-    `;
+    return `<span class="rg-dot rg-dot-${phaseClass}" title="${title}"></span>`;
   }).join('');
 
-  return `
-    <div class="di-regime-section">
-      <div class="di-regime-title">Regime</div>
-      <div class="di-regime-bars">${items}</div>
-    </div>
-  `;
+  return `<div class="di-regime-ribbon"><span class="rg">${dots}</span></div>`;
 }
 
 /**
@@ -817,53 +808,72 @@ function _renderDIPanelInternal(container, data, opts = {}) {
     console.log('🐛 DI Panel Contributions:', contribs);
   }
 
-  // Calculer breakdown, trend, events, regime
+  // Calculer breakdown, trend, regime ribbon
   const breakdown = renderBreakdown(data.weights, data.scores);
   const trend = calculateTrend(data.history);
   const trendArrow = trend.delta > 0 ? '↗︎' : trend.delta < 0 ? '↘︎' : '→';
   const trendSign = trend.delta >= 0 ? '+' : '';
-  const eventsData = calculateEvents(data.meta);
   const n = data.history?.length || 0;
-  const footerHTML = opts.showFooter ? renderFooterStatus(data) : '';
+  const regimeRibbon = renderRegimeRibbonCompact(data.regimeHistory);
 
-  // Events badges pour le header (à côté de Euphorie)
-  const eventsBadgesHTML = eventsData.length > 0
-    ? eventsData.map(e => `<span class="di-ev-header di-ev-${e.type}">${e.text}</span>`).join('')
-    : '';
+  const m = data.meta || {};
+
+  // Cap en %
+  let capPct = m.cap;
+  if (typeof capPct === 'number' && capPct <= 1) capPct = Math.round(capPct * 100);
+
+  // Contradiction
+  let contrad = m.contradiction || 0;
+  if (contrad <= 1) contrad = Math.round(contrad * 100);
+  const showContradWarning = contrad >= 45;
+
+  // Footer source + live + time
+  const timeStr = (() => {
+    try { return m.updated ? new Date(m.updated).toLocaleTimeString() : ''; } catch { return ''; }
+  })();
 
   container.innerHTML = `
     <div class="di-panel">
-      <div class="di-header">
+      <div class="di-panel-header">
+        <button class="di-help-trigger" aria-label="Aide Decision Index" aria-expanded="false" aria-controls="di-help-popover" type="button">ℹ️</button>
+      </div>
+
+      <div class="di-grid">
         <div class="di-left">
-          <div class="di-title-row">
-            <div class="di-title">DECISION INDEX</div>
-            <button class="di-help-trigger" aria-label="Aide Decision Index" aria-expanded="false" aria-controls="di-help-popover" type="button">ℹ️</button>
-          </div>
+          <div class="di-title">DECISION INDEX</div>
           <div class="di-score">${Math.round(data.di)}</div>
-        </div>
-        <div class="di-right">
-          <div class="di-right-top">
-            <div class="di-phase-badge">${data.meta.phase || 'Neutral'}</div>
-            ${eventsBadgesHTML}
+
+          <div class="di-progress">
+            <canvas id="${container.id}-stack-chart" class="di-stack-canvas"></canvas>
           </div>
-          <div class="di-badges">${renderBadges(data.meta)}</div>
+
+          ${breakdown}
+
+          <div class="di-trend-info">
+            Trend: ${trendArrow} ${trendSign}${trend.delta} pts (${Math.abs(n - 7)} j) • σ=${trend.sigma} • ${trend.state}
+          </div>
+
+          ${regimeRibbon ? `<div class="di-regime-row">Regime Ribbon: ${regimeRibbon}</div>` : ''}
+        </div>
+
+        <div class="di-right">
+          <div class="di-phase">${m.phase || 'Neutral'}</div>
+
+          <div class="di-status-list">
+            <div class="di-status">Backend: ${m.backend ? 'healthy' : 'down'}</div>
+            <div class="di-status">Signals: ${m.signals ? 'healthy' : (m.signals_status || 'limited')}</div>
+            <div class="di-status">Governance: ${m.governance_mode || 'IDLE'}</div>
+            <div class="di-status">⚡ Cap actif ${capPct || 0}%</div>
+            <div class="di-status">🎛 Mode: ${m.mode || 'Normal'}</div>
+            ${showContradWarning ? `<div class="di-status di-status-warn">⚠️ Contradiction haute (${contrad}%)</div>` : ''}
+          </div>
         </div>
       </div>
 
-      <div class="di-progress">
-        <canvas id="${container.id}-stack-chart" class="di-stack-canvas"></canvas>
+      <div class="di-footer-compact">
+        Source: ${m.source || '—'} • Live: ${m.live ? 'ON' : 'OFF'}${timeStr ? ' • ' + timeStr : ''}
       </div>
 
-      ${breakdown}
-
-      <div class="di-trend-info">
-        Trend: ${trendArrow} ${trendSign}${trend.delta} pts (${Math.abs(n - 7)} j) • σ=${trend.sigma} • ${trend.state}
-      </div>
-
-      ${data.regimeHistory && data.regimeHistory.length > 0 ? renderRegimeBar(data.regimeHistory) : ''}
-
-      ${footerHTML}
-      ${renderFootnote(data.meta)}
       ${renderHelpContent()}
     </div>
   `;
