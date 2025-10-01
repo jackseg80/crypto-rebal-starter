@@ -452,25 +452,27 @@
 }
 
 .box {
-  padding: 10px 12px;
+  padding: 8px 10px;
   border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 10px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.04);
 }
 
 .box-title {
   font-weight: 700;
-  font-size: 0.95rem;
-  margin-bottom: 0.35rem;
+  font-size: 0.8rem;
+  margin-bottom: 0.3rem;
   color: var(--theme-text);
+  text-align: left;
 }
 
 .kv {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  margin: 4px 0;
+  gap: 8px;
+  margin: 3px 0;
+  font-size: 0.8rem;
 }
 
 .kv > span:first-child {
@@ -479,10 +481,10 @@
 
 /* Pills de statut */
 .pill {
-  padding: 0.2rem 0.55rem;
+  padding: 0.15rem 0.45rem;
   border-radius: 999px;
   font-weight: 600;
-  font-size: 0.86rem;
+  font-size: 0.75rem;
   border: 1px solid transparent;
   background: rgba(255, 255, 255, 0.06);
   color: var(--theme-text);
