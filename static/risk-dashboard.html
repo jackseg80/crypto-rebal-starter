@@ -3429,6 +3429,11 @@
 
     // ====== Sidebar Updates ======
     function updateSidebar(state) {
+      // DÉSACTIVÉ: L'ancien panel HTML a été supprimé, remplacé par Web Component <risk-sidebar-full>
+      // Cette fonction est conservée comme no-op pour éviter les erreurs dans le code legacy
+      return;
+
+      // Code legacy désactivé ci-dessous:
       // Get all scores from state
       const ccsScore = state.ccs?.score;
       const onchainScore = state.scores?.onchain;
