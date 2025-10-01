@@ -189,12 +189,13 @@ class RiskSidebarFull extends HTMLElement {
 
   /**
    * Mise à jour depuis le state (port de l'ancienne fonction updateSidebar())
+   * **Option A**: Masque les sections avec données manquantes (pas de "N/A")
    * @param {Object} state - RiskState normalisé
    */
   _updateFromState(state) {
     if (!state || !this.$) return;
 
-    // CCS Mixte (ccsStar ou score)
+    // === SECTION 1: CCS Mixte ===
     const ccsScore = state.cycle?.ccsStar ?? state.ccs?.score;
     console.log('[risk-sidebar-full] CCS score check:', {
       ccsStar: state.cycle?.ccsStar,
@@ -203,40 +204,44 @@ class RiskSidebarFull extends HTMLElement {
       cycle: state.cycle,
       ccs: state.ccs
     });
-    if (Number.isFinite(ccsScore)) {
+
+    const hasCCS = Number.isFinite(ccsScore);
+    this._showSection('section-ccs', hasCCS);
+
+    if (hasCCS) {
       this.$.ccsMix.textContent = Math.round(ccsScore);
       this.$.ccsMixLabel.textContent = this._getScoreLabel(ccsScore);
       this._applyScoreClass(this.$.ccsMix, ccsScore);
-    } else {
-      this.$.ccsMix.textContent = '--';
-      this.$.ccsMixLabel.textContent = 'N/A';
     }
 
-    // On-Chain
+    // === SECTION 2: On-Chain ===
     const onchainScore = state.scores?.onchain;
-    if (Number.isFinite(onchainScore)) {
+    const hasOnchain = Number.isFinite(onchainScore);
+    this._showSection('section-onchain', hasOnchain);
+
+    if (hasOnchain) {
       this.$.onchain.textContent = Math.round(onchainScore);
       this.$.onchainLabel.textContent = this._getScoreLabel(onchainScore);
       this._applyScoreClass(this.$.onchain, onchainScore);
-    } else {
-      this.$.onchain.textContent = '--';
-      this.$.onchainLabel.textContent = 'N/A';
     }
 
-    // Risk
+    // === SECTION 3: Risk ===
     const riskScore = state.scores?.risk;
-    if (Number.isFinite(riskScore)) {
+    const hasRisk = Number.isFinite(riskScore);
+    this._showSection('section-risk', hasRisk);
+
+    if (hasRisk) {
       this.$.risk.textContent = Math.round(riskScore);
       this.$.riskLabel.textContent = this._getScoreLabel(riskScore);
       this._applyScoreClass(this.$.risk, riskScore);
-    } else {
-      this.$.risk.textContent = '--';
-      this.$.riskLabel.textContent = 'N/A';
     }
 
-    // Blended Decision
+    // === SECTION 4: Blended Decision ===
     const blendedScore = state.scores?.blended ?? state.scores?.blendedDecision;
-    if (Number.isFinite(blendedScore)) {
+    const hasBlended = Number.isFinite(blendedScore);
+    this._showSection('section-blended', hasBlended);
+
+    if (hasBlended) {
       this.$.blended.textContent = Math.round(blendedScore);
       this.$.blendedLabel.textContent = this._getScoreLabel(blendedScore);
       this._applyScoreClass(this.$.blended, blendedScore);
@@ -250,23 +255,22 @@ class RiskSidebarFull extends HTMLElement {
         parts.push(`Contradiction: ${Math.round(state.governance.contradiction_index * 100)}%`);
       }
       this.$.blendedMeta.textContent = parts.join(' • ');
-    } else {
-      this.$.blended.textContent = '--';
-      this.$.blendedLabel.textContent = 'N/A';
-      this.$.blendedMeta.textContent = '';
     }
 
-    // Market Regime
-    if (state.regime?.phase) {
+    // === SECTION 5: Market Regime ===
+    const hasRegime = !!(state.regime?.phase);
+    this._showSection('section-regime', hasRegime);
+
+    if (hasRegime) {
       this.$.regimeDot.className = 'status-dot ' + this._getRegimeClass(state.regime.phase);
       this.$.regimeText.textContent = state.regime.phase;
-    } else {
-      this.$.regimeDot.className = 'status-dot';
-      this.$.regimeText.textContent = 'Unknown';
     }
 
-    // Cycle Position
-    if (state.cycle?.months && state.cycle?.phase) {
+    // === SECTION 6: Cycle Position ===
+    const hasCycle = !!(state.cycle?.months && state.cycle?.phase);
+    this._showSection('section-cycle', hasCycle);
+
+    if (hasCycle) {
       const months = Math.round(state.cycle.months);
       const phase = state.cycle.phase;
       this.$.cycleDot.className = 'status-dot healthy';
@@ -274,60 +278,62 @@ class RiskSidebarFull extends HTMLElement {
         <strong>${phase.emoji || ''} ${phase.phase?.replace('_', ' ').toUpperCase() || 'Unknown'}</strong><br>
         <span style="font-size: 0.7rem; opacity: 0.8;">Month ${months} post-halving</span>
       `;
-    } else {
-      this.$.cycleDot.className = 'status-dot';
-      this.$.cycleText.textContent = 'Loading cycle data...';
     }
 
-    // Targets Summary
-    if (state.targets?.changes && state.targets.changes.length > 0) {
+    // === SECTION 7: Targets Summary ===
+    const hasTargets = !!(state.targets?.changes && state.targets.changes.length > 0);
+    this._showSection('section-targets', hasTargets);
+
+    if (hasTargets) {
       this.$.targetsSummary.innerHTML = `
         <div class="status-text">${state.targets.changes.length} change${state.targets.changes.length !== 1 ? 's' : ''} proposed</div>
       `;
-    } else {
-      this.$.targetsSummary.innerHTML = '<div class="status-text">No changes proposed</div>';
     }
 
-    // API Health (basique)
+    // === SECTION 8: API Health ===
+    // Always show (stub data, low value - could hide if needed)
+    this._showSection('section-api-health', true);
     this.$.backendDot.className = 'status-dot healthy';
     this.$.signalsDot.className = 'status-dot healthy';
 
-    // Governance Status
-    const govMode = state.governance?.mode || 'manual';
-    const isActive = govMode === 'auto' || govMode === 'guardian';
-    this.$.governanceDot.className = 'status-dot ' + (isActive ? 'healthy' : '');
-    this.$.governanceText.textContent = isActive ? 'Active' : 'Manual';
-    this.$.governanceMode.textContent = `Mode: ${govMode}`;
+    // === SECTION 9: Governance Status ===
+    const hasGovernance = !!(state.governance);
+    this._showSection('section-governance', hasGovernance);
 
-    const contraPct = (state.governance?.contradiction_index ?? 0) * 100;
-    this.$.governanceContradiction.textContent = `Contradiction: ${contraPct.toFixed(1)}%`;
+    if (hasGovernance) {
+      const govMode = state.governance.mode || 'manual';
+      const isActive = govMode === 'auto' || govMode === 'guardian';
+      this.$.governanceDot.className = 'status-dot ' + (isActive ? 'healthy' : '');
+      this.$.governanceText.textContent = isActive ? 'Active' : 'Manual';
+      this.$.governanceMode.textContent = `Mode: ${govMode}`;
 
-    // Constraints
-    if (state.governance?.constraints) {
-      const activeConstraints = Object.entries(state.governance.constraints)
-        .filter(([_, active]) => active)
-        .map(([name, _]) => name);
+      const contraPct = (state.governance.contradiction_index ?? 0) * 100;
+      this.$.governanceContradiction.textContent = `Contradiction: ${contraPct.toFixed(1)}%`;
 
-      if (activeConstraints.length > 0) {
-        this.$.governanceConstraints.textContent = `⚠️ Active: ${activeConstraints.join(', ')}`;
-      } else {
-        this.$.governanceConstraints.textContent = '';
+      // Constraints
+      if (state.governance.constraints) {
+        const activeConstraints = Object.entries(state.governance.constraints)
+          .filter(([_, active]) => active)
+          .map(([name, _]) => name);
+
+        if (activeConstraints.length > 0) {
+          this.$.governanceConstraints.textContent = `⚠️ Active: ${activeConstraints.join(', ')}`;
+        } else {
+          this.$.governanceConstraints.textContent = '';
+        }
       }
     }
 
-    // Active Alerts
+    // === SECTION 10: Active Alerts ===
     const alerts = state.alerts || [];
     const activeAlerts = alerts.filter(a => a.status === 'active');
-    const count = activeAlerts.length;
+    const hasAlerts = activeAlerts.length > 0;
+    this._showSection('section-alerts', true); // Always show (even if 0 alerts)
 
-    if (count === 0) {
-      this.$.alertsDot.className = 'status-dot healthy';
-      this.$.alertsText.textContent = 'No active alerts';
-      this.$.alertsList.innerHTML = '<div class="status-text" style="text-align: center; opacity: 0.6;">No active alerts</div>';
-    } else {
+    if (hasAlerts) {
       const highSeverity = activeAlerts.some(a => a.severity === 'high' || a.severity === 'critical');
       this.$.alertsDot.className = 'status-dot ' + (highSeverity ? 'error' : 'warning');
-      this.$.alertsText.textContent = `${count} active alert${count !== 1 ? 's' : ''}`;
+      this.$.alertsText.textContent = `${activeAlerts.length} active alert${activeAlerts.length !== 1 ? 's' : ''}`;
 
       this.$.alertsList.innerHTML = activeAlerts.slice(0, 5).map(alert => `
         <div style="padding: 6px 8px; margin: 4px 0; background: var(--theme-bg); border-left: 3px solid var(--${this._getSeverityColor(alert.severity)}); border-radius: 4px; font-size: 0.7rem;">
@@ -335,6 +341,22 @@ class RiskSidebarFull extends HTMLElement {
           <div style="opacity: 0.8; margin-top: 2px;">${alert.message}</div>
         </div>
       `).join('');
+    } else {
+      this.$.alertsDot.className = 'status-dot healthy';
+      this.$.alertsText.textContent = 'No active alerts';
+      this.$.alertsList.innerHTML = '<div class="status-text" style="text-align: center; opacity: 0.6;">No active alerts</div>';
+    }
+  }
+
+  /**
+   * Show/hide a section by ID
+   * @param {string} sectionId - ID of the section element
+   * @param {boolean} visible - true to show, false to hide
+   */
+  _showSection(sectionId, visible) {
+    const section = this.shadowRoot.getElementById(sectionId);
+    if (section) {
+      section.style.display = visible ? '' : 'none';
     }
   }
 
@@ -530,7 +552,7 @@ class RiskSidebarFull extends HTMLElement {
       </style>
 
       <!-- CCS Mixte -->
-      <div class="sidebar-section">
+      <div class="sidebar-section" id="section-ccs">
         <div class="sidebar-title">🎯 CCS Mixte (Directeur)</div>
         <div class="ccs-gauge">
           <div class="ccs-score" id="ccs-ccs-mix">--</div>
@@ -539,7 +561,7 @@ class RiskSidebarFull extends HTMLElement {
       </div>
 
       <!-- On-Chain Composite -->
-      <div class="sidebar-section">
+      <div class="sidebar-section" id="section-onchain">
         <div class="sidebar-title">🔗 On-Chain Composite</div>
         <div class="ccs-gauge">
           <div class="ccs-score" id="kpi-onchain">--</div>
@@ -548,7 +570,7 @@ class RiskSidebarFull extends HTMLElement {
       </div>
 
       <!-- Risk Score Portfolio -->
-      <div class="sidebar-section">
+      <div class="sidebar-section" id="section-risk">
         <div class="sidebar-title">🛡️ Risk Score</div>
         <div class="ccs-gauge">
           <div class="ccs-score" id="kpi-risk">--</div>
@@ -557,7 +579,7 @@ class RiskSidebarFull extends HTMLElement {
       </div>
 
       <!-- Blended Decision Score -->
-      <div class="sidebar-section" style="margin-top:1.5rem;">
+      <div class="sidebar-section" id="section-blended" style="margin-top:1.5rem;">
         <div class="sidebar-title" style="font-size:1rem; font-weight:700;">
           ⚖️ Score Décisionnel
         </div>
@@ -569,7 +591,7 @@ class RiskSidebarFull extends HTMLElement {
       </div>
 
       <!-- Market Regime -->
-      <div class="sidebar-section">
+      <div class="sidebar-section" id="section-regime">
         <div class="sidebar-title">📊 Régime de Marché</div>
         <div class="status-indicator">
           <div class="status-dot" id="regime-dot"></div>
@@ -578,7 +600,7 @@ class RiskSidebarFull extends HTMLElement {
       </div>
 
       <!-- Cycle Position -->
-      <div class="sidebar-section">
+      <div class="sidebar-section" id="section-cycle">
         <div class="sidebar-title">Cycle Position</div>
         <div class="status-indicator">
           <div class="status-dot" id="cycle-dot"></div>
@@ -587,7 +609,7 @@ class RiskSidebarFull extends HTMLElement {
       </div>
 
       <!-- Targets Summary -->
-      <div class="sidebar-section">
+      <div class="sidebar-section" id="section-targets">
         <div class="sidebar-title">Target Changes</div>
         <div id="targets-summary">
           <div class="status-text">No changes proposed</div>
@@ -595,7 +617,7 @@ class RiskSidebarFull extends HTMLElement {
       </div>
 
       <!-- API Status -->
-      <div class="sidebar-section">
+      <div class="sidebar-section" id="section-api-health">
         <div class="sidebar-title">API Health</div>
         <div class="status-indicator">
           <div class="status-dot" id="backend-dot"></div>
@@ -608,7 +630,7 @@ class RiskSidebarFull extends HTMLElement {
       </div>
 
       <!-- Governance Status -->
-      <div class="sidebar-section">
+      <div class="sidebar-section" id="section-governance">
         <div class="sidebar-title">Governance</div>
         <div class="status-indicator">
           <div class="status-dot" id="governance-dot"></div>
@@ -622,7 +644,7 @@ class RiskSidebarFull extends HTMLElement {
       </div>
 
       <!-- Active Alerts -->
-      <div class="sidebar-section">
+      <div class="sidebar-section" id="section-alerts">
         <div class="sidebar-title">🚨 Active Alerts</div>
         <div class="status-indicator">
           <div class="status-dot" id="alerts-dot"></div>
