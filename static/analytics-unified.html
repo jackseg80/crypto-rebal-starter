@@ -247,16 +247,21 @@
         // (maintenant on peut récupérer les vraies données via getUnifiedState)
         const cacheBust2 = Date.now();
         const { renderDecisionIndexPanel } = await import(`./components/decision-index-panel.js?v=${cacheBust2}`);
-        const { getUnifiedState } = await import('./core/unified-insights-v2.js');
+        const { getUnifiedState } = await import(`./core/unified-insights-v2.js?v=${cacheBust2}`);
 
         // Récupérer l'état unifié (MÊME source que UnifiedInsights)
         const u = await getUnifiedState();
         console.debug('🔍 Unified state for DI panel:', u);
+        console.debug('🔍 Scores object in unified state:', u.scores);
+        console.debug('🔍 Risk score from unified state:', u.scores?.risk);
+        console.debug('🔍 Risk score from store:', store.get('scores.risk'));
 
         const cycleScore = u.cycle?.score ?? 50;
         const onchainScore = u.onchain?.score ?? 50;
         const riskScore = u.scores?.risk ?? 50;
         const blendedScore = u.decision?.score ?? 50;
+
+        console.debug('🔍 Final scores used in DI panel:', { cycleScore, onchainScore, riskScore, blendedScore });
 
         // Weights (depuis unified state)
         const wCycle = u.decision?.weights?.cycle ?? 0.5;
