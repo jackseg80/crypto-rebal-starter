@@ -208,6 +208,27 @@ function computeMacroTargetsDynamic(ctx, rb, walletStats) {
 - **Gestion des locations** : Attribution automatique des vraies exchanges (Kraken, Binance, etc.) depuis les données CSV
 - **Interface unifiée** : Toggle simple dans l'interface de rebalancing pour basculer entre modes proportionnel et priority
 
+## UI Components
+
+### Flyout Panel (Risk Dashboard)
+Panneau latéral détachable avec système hover/pin, inspiré de simulations.html.
+
+**Activation** :
+```javascript
+localStorage.setItem('__ui.flyout.enabled', '1')
+```
+
+**Fonctionnalités** :
+- 📍 **Auto-hide** : 48px visible, expansion au hover
+- 📌 **Épinglable** : Reste ouvert, pousse le contenu à droite
+- 🎯 **Poignée visible** : "🎯 Risk" avec opacité ajustable
+- 🔄 **Données live** : Contenu déplacé (pas cloné), mises à jour en temps réel
+- 📐 **Layout adaptatif** : Décalage 40px (base) ou 380px (épinglé)
+- ♻️ **Persistance** : État épinglé sauvegardé dans localStorage
+
+**Implémentation actuelle** : `static/risk-dashboard.html` (inline CSS + JS)
+**Status** : Réutilisable sur d'autres pages (extraction en cours)
+
 ## Documentation
 - Guide agent: `CLAUDE.md`
 - Index docs: `docs/index.md`
