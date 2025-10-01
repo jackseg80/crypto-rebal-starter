@@ -79,6 +79,9 @@ export async function hydrateRiskStore() {
       }
     }
 
+    // Récupérer état actuel AVANT tout calcul (pour préserver données existantes)
+    const currentState = window.riskStore.getState();
+
     // Calculer blended score (CCS + Cycle)
     let blendedScore = null;
     if (ccs && cycle) {
@@ -104,9 +107,6 @@ export async function hydrateRiskStore() {
         console.warn('⚠️ Market regime calculation failed:', err);
       }
     }
-
-    // Récupérer état actuel pour préserver données existantes
-    const currentState = window.riskStore.getState();
 
     // Construire nouveau état avec métriques calculées
     const newState = {
@@ -171,8 +171,8 @@ export async function hydrateRiskStore() {
     console.log(`✅ Risk store hydrated successfully in ${duration}ms`, {
       ccs: ccs ? `${ccs.score} (${ccs.interpretation})` : 'N/A',
       cycle: cycle ? `${cycle.phase} (${cycle.months}mo)` : 'N/A',
-      onchain: onchainScore !== null ? onchainScore.toFixed(1) : 'N/A',
-      blended: blendedScore !== null ? blendedScore.toFixed(1) : 'N/A',
+      onchain: onchainScore !== null && typeof onchainScore === 'number' ? onchainScore.toFixed(1) : (onchainScore || 'N/A'),
+      blended: blendedScore !== null && typeof blendedScore === 'number' ? blendedScore.toFixed(1) : (blendedScore || 'N/A'),
       regime: regime ? regime.phase : 'N/A',
       alerts: `${alerts.length} alerts`
     });
