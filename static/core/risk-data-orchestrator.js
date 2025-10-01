@@ -220,7 +220,14 @@ export async function hydrateRiskStore() {
         risk: riskScore ?? currentState.scores?.risk
       },
 
-      // Contradiction (divergence entre métriques)
+      // Governance (pour compatibilité avec risk-sidebar-full.js)
+      governance: {
+        ...(currentState.governance || {}),
+        // Contradiction doit être dans governance.contradiction_index (0..1)
+        contradiction_index: contradiction ?? currentState.governance?.contradiction_index
+      },
+
+      // Contradiction (stockage racine pour compatibilité legacy)
       contradiction: contradiction ?? currentState.contradiction,
 
       // Alerts (IMPORTANT: doit être un tableau pour risk-sidebar-full.js)
