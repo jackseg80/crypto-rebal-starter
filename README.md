@@ -210,7 +210,7 @@ function computeMacroTargetsDynamic(ctx, rb, walletStats) {
 
 ## UI Components
 
-### Flyout Panel (Risk Dashboard)
+### Flyout Panel (Composant Réutilisable)
 Panneau latéral détachable avec système hover/pin, inspiré de simulations.html.
 
 **Activation** :
@@ -221,13 +221,48 @@ localStorage.setItem('__ui.flyout.enabled', '1')
 **Fonctionnalités** :
 - 📍 **Auto-hide** : 48px visible, expansion au hover
 - 📌 **Épinglable** : Reste ouvert, pousse le contenu à droite
-- 🎯 **Poignée visible** : "🎯 Risk" avec opacité ajustable
+- 🎯 **Poignée visible** : Texte personnalisable avec opacité ajustable
 - 🔄 **Données live** : Contenu déplacé (pas cloné), mises à jour en temps réel
-- 📐 **Layout adaptatif** : Décalage 40px (base) ou 380px (épinglé)
+- 📐 **Layout adaptatif** : Décalage configurable (défaut: 40px base + 340px épinglé)
 - ♻️ **Persistance** : État épinglé sauvegardé dans localStorage
+- ⚙️ **Configuration flexible** : Conteneurs à pousser, décalages, titre personnalisables
 
-**Implémentation actuelle** : `static/risk-dashboard.html` (inline CSS + JS)
-**Status** : Réutilisable sur d'autres pages (extraction en cours)
+**Fichiers** :
+- `static/components/flyout-panel.css` - Styles réutilisables
+- `static/components/flyout-panel.js` - Logique avec API ES6
+- `static/components/risk-snapshot.js` - Composant Risk Snapshot réutilisable
+
+**Utilisation** :
+```javascript
+import { createFlyoutPanel } from '/static/components/flyout-panel.js';
+import { createRiskSnapshot } from '/static/components/risk-snapshot.js';
+
+// Créer un conteneur pour le Risk Snapshot
+const flyoutSource = document.createElement('div');
+flyoutSource.style.display = 'none';
+document.body.appendChild(flyoutSource);
+
+// Injecter le Risk Snapshot
+createRiskSnapshot(flyoutSource);
+
+// Initialiser le flyout
+createFlyoutPanel({
+  sourceSelector: '.flyout-source',       // Sélecteur CSS du conteneur
+  title: '🎯 Risk Snapshot',              // Titre du panneau
+  handleText: '🎯 Risk',                  // Texte poignée
+  persistKey: 'page_name',                // Clé localStorage unique
+  removeToggleButton: false,              // Garder bouton toggle
+  pushContainers: ['.wrap', '.controls'], // Éléments à décaler
+  baseOffset: 40,                         // Décalage base (px)
+  pinnedOffset: 340                       // Décalage épinglé (px)
+});
+```
+
+**Pages utilisant le flyout** :
+- ✅ `risk-dashboard.html` - Risk Snapshot (scores, régime, governance, alertes)
+- ✅ `analytics-unified.html` - Risk Snapshot (accès rapide sans changer de page)
+- ✅ `rebalance.html` - Risk Snapshot (suivi risque pendant rebalancing)
+- ✅ `execution.html` - Risk Snapshot (monitoring risque pendant exécution)
 
 ## Documentation
 - Guide agent: `CLAUDE.md`

@@ -1379,6 +1379,36 @@
     }
   </style>
   <script type="module" src="components/tooltips.js"></script>
+
+  <!-- Flyout Panel Component -->
+  <link rel="stylesheet" href="/static/components/flyout-panel.css">
+  <script type="module">
+    import { createFlyoutPanel } from '/static/components/flyout-panel.js';
+    import { createRiskSnapshot } from '/static/components/risk-snapshot.js';
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // Créer un conteneur pour le Risk Snapshot
+      const flyoutSource = document.createElement('div');
+      flyoutSource.className = 'analytics-flyout-source';
+      flyoutSource.style.display = 'none';
+      document.body.appendChild(flyoutSource);
+
+      // Injecter le Risk Snapshot
+      createRiskSnapshot(flyoutSource);
+
+      // Initialiser le flyout
+      createFlyoutPanel({
+        sourceSelector: '.analytics-flyout-source',
+        title: '🎯 Risk Snapshot',
+        handleText: '🎯 Risk',
+        persistKey: 'analytics_unified',
+        removeToggleButton: false,
+        pushContainers: ['.wrap'],
+        baseOffset: 40,
+        pinnedOffset: 340
+      });
+    });
+  </script>
 </head>
 
 <body>

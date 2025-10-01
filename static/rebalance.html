@@ -65,6 +65,37 @@
   <script src="performance-optimizer.js"></script>
   <script src="global-config.js"></script>
   <script src="appearance.js"></script>
+
+  <!-- Flyout Panel Component -->
+  <link rel="stylesheet" href="/static/components/flyout-panel.css">
+  <script type="module">
+    import { createFlyoutPanel } from '/static/components/flyout-panel.js';
+    import { createRiskSnapshot } from '/static/components/risk-snapshot.js';
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // Créer un conteneur pour le Risk Snapshot
+      const flyoutSource = document.createElement('div');
+      flyoutSource.className = 'rebalance-flyout-source';
+      flyoutSource.style.display = 'none';
+      document.body.appendChild(flyoutSource);
+
+      // Injecter le Risk Snapshot
+      createRiskSnapshot(flyoutSource);
+
+      // Initialiser le flyout
+      createFlyoutPanel({
+        sourceSelector: '.rebalance-flyout-source',
+        title: '🎯 Risk Snapshot',
+        handleText: '🎯 Risk',
+        persistKey: 'rebalance',
+        removeToggleButton: false,
+        pushContainers: ['.container', '.controls'],
+        baseOffset: 40,
+        pinnedOffset: 340
+      });
+    });
+  </script>
+
   <style>
     /* Onglets locaux (Rebalancing / Optimization) */
     .tabs {
