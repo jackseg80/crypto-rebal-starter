@@ -8,7 +8,7 @@
  * @param {number} options.offset - Offset supplémentaire en pixels (défaut: 20px de padding)
  * @param {string} options.transition - Durée de la transition CSS (défaut: '0.3s ease')
  */
-export function enableFlyoutLayoutAdapter(mainSelector = '.container', options = {}) {
+export function enableFlyoutLayoutAdapter(mainSelector = 'body', options = {}) {
   const {
     offset = 20,
     transition = '0.3s ease'
