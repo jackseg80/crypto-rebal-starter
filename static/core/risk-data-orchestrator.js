@@ -42,14 +42,19 @@ export async function hydrateRiskStore() {
     };
 
     // Calculer toutes les métriques en parallèle pour performance optimale
+    // NOTE: estimateCyclePosition() est SYNCHRONE, on le wrap dans Promise.resolve()
     const [ccsResult, cycleResult, indicatorsResult, alertsResult] = await Promise.allSettled([
       fetchAndComputeCCS().catch(err => {
         console.warn('⚠️ CCS calculation failed:', err);
         return null;
       }),
-      estimateCyclePosition().catch(err => {
-        console.warn('⚠️ Cycle estimation failed:', err);
-        return null;
+      Promise.resolve().then(() => {
+        try {
+          return estimateCyclePosition();
+        } catch (err) {
+          console.warn('⚠️ Cycle estimation failed:', err);
+          return null;
+        }
       }),
       fetchAllIndicators().catch(err => {
         console.warn('⚠️ On-chain indicators fetch failed:', err);
