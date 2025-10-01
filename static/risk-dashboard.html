@@ -4386,6 +4386,9 @@
           const finalState = store.snapshot();
           updateSidebar(finalState);
 
+          // Update alerts in store (for risk-sidebar-full component)
+          store.set('alerts', alertsData || []);
+
           // Update alerts display
           updateAlertsDisplay(alertsData);
 
