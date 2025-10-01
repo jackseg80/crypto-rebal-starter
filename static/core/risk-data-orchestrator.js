@@ -24,7 +24,7 @@ export async function hydrateRiskStore() {
   const startTime = performance.now();
 
   try {
-    // Fetch alerts d'abord (asynchrone, indépendant des autres calculs)
+    // Fetch alerts (asynchrone, indépendant des autres calculs)
     const fetchAlerts = async () => {
       try {
         if (!window.globalConfig?.apiRequest) {
@@ -41,9 +41,75 @@ export async function hydrateRiskStore() {
       }
     };
 
+    // Fetch risk data from API (pour risk score + contradiction)
+    const fetchRiskData = async () => {
+      try {
+        if (!window.globalConfig?.apiRequest) {
+          console.warn('⚠️ globalConfig.apiRequest not available for risk data');
+          return null;
+        }
+        const riskData = await window.globalConfig.apiRequest('/api/risk/dashboard', {
+          params: { min_usd: 1.0, price_history_days: 365, lookback_days: 90 }
+        });
+        return riskData;
+      } catch (err) {
+        console.warn('⚠️ Risk data fetch failed:', err);
+        return null;
+      }
+    };
+
+    // Calculer risk score depuis risk_metrics (même logique que risk-dashboard.html)
+    const calculateRiskScore = (riskData) => {
+      if (!riskData?.risk_metrics) return null;
+
+      const metrics = riskData.risk_metrics;
+      let score = 50; // Start neutral
+      let factors = 0;
+
+      // Sharpe ratio (higher is better)
+      if (metrics.sharpe_ratio != null) {
+        score += metrics.sharpe_ratio > 1 ? 20 : metrics.sharpe_ratio > 0.5 ? 10 : -10;
+        factors++;
+      }
+
+      // Volatility (lower is better for risk score)
+      if (metrics.volatility != null) {
+        const vol = Math.abs(metrics.volatility);
+        score += vol < 0.2 ? 15 : vol < 0.4 ? 5 : -15;
+        factors++;
+      }
+
+      // Max Drawdown (lower is better)
+      if (metrics.max_drawdown != null) {
+        const dd = Math.abs(metrics.max_drawdown);
+        score += dd < 0.15 ? 10 : dd < 0.3 ? 0 : -10;
+        factors++;
+      }
+
+      // Correlation (lower is better - more diversification)
+      if (metrics.avg_correlation != null) {
+        const corr = Math.abs(metrics.avg_correlation);
+        score += corr < 0.3 ? 10 : corr < 0.5 ? 5 : -5;
+        factors++;
+      }
+
+      return factors > 0 ? Math.max(0, Math.min(100, score)) : 50;
+    };
+
+    // Calculer contradiction depuis risk_metrics
+    const calculateContradiction = (riskData) => {
+      if (!riskData?.risk_metrics) return null;
+      // Contradiction = divergence entre différentes métriques de risque
+      // Utiliser avg_correlation comme proxy (haute corrélation = faible contradiction)
+      const corr = riskData.risk_metrics.avg_correlation;
+      if (corr == null) return null;
+      // Inverser: haute corrélation → faible contradiction
+      return Math.max(0, Math.min(1, 1 - Math.abs(corr)));
+    };
+
     // Calculer toutes les métriques en parallèle pour performance optimale
     // NOTE: estimateCyclePosition() est SYNCHRONE, on le wrap dans Promise.resolve()
-    const [ccsResult, cycleResult, indicatorsResult, alertsResult] = await Promise.allSettled([
+    const [ccsResult, cycleResult, indicatorsResult, alertsResult, riskResult] = await Promise.allSettled([
       fetchAndComputeCCS().catch(err => {
         console.warn('⚠️ CCS calculation failed:', err);
         return null;
@@ -60,7 +126,8 @@ export async function hydrateRiskStore() {
         console.warn('⚠️ On-chain indicators fetch failed:', err);
         return null;
       }),
-      fetchAlerts()
+      fetchAlerts(),
+      fetchRiskData()
     ]);
 
     // Extraire les résultats (null si échec)
@@ -68,6 +135,11 @@ export async function hydrateRiskStore() {
     const cycle = cycleResult.status === 'fulfilled' ? cycleResult.value : null;
     const indicators = indicatorsResult.status === 'fulfilled' ? indicatorsResult.value : null;
     const alerts = alertsResult.status === 'fulfilled' ? alertsResult.value : [];
+    const riskData = riskResult.status === 'fulfilled' ? riskResult.value : null;
+
+    // Calculer risk score et contradiction depuis riskData
+    const riskScore = riskData ? calculateRiskScore(riskData) : null;
+    const contradiction = riskData ? calculateContradiction(riskData) : null;
 
     // Ajouter interpretation au CCS si manquant
     if (ccs && !ccs.interpretation) {
@@ -105,11 +177,12 @@ export async function hydrateRiskStore() {
     let regime = null;
     if (blendedScore !== null || onchainScore !== null) {
       try {
-        const riskScore = currentState.scores?.risk || null;
+        // Utiliser le risk score calculé, sinon fallback sur store existant
+        const finalRiskScore = riskScore ?? currentState.scores?.risk ?? 50;
         const regimeData = getRegimeDisplayData(
           blendedScore || 50,
           onchainScore || 50,
-          riskScore || 50
+          finalRiskScore
         );
         // getRegimeDisplayData returns { regime: {...}, risk_budget, allocation, recommendations }
         regime = regimeData?.regime ?? null;
@@ -143,9 +216,12 @@ export async function hydrateRiskStore() {
         ...(currentState.scores || {}),
         onchain: onchainScore,
         blended: blendedScore,
-        // Préserver risk score existant (calculé par backend)
-        risk: currentState.scores?.risk
+        // Risk score calculé depuis API /api/risk/dashboard
+        risk: riskScore ?? currentState.scores?.risk
       },
+
+      // Contradiction (divergence entre métriques)
+      contradiction: contradiction ?? currentState.contradiction,
 
       // Alerts (IMPORTANT: doit être un tableau pour risk-sidebar-full.js)
       alerts: alerts || [],
@@ -171,7 +247,9 @@ export async function hydrateRiskStore() {
           cycle: cycle !== null,
           onchain: onchainScore !== null,
           blended: blendedScore !== null,
+          risk: riskScore !== null,
           regime: regime !== null,
+          contradiction: contradiction !== null,
           alerts: alerts.length > 0
         }
       }
@@ -183,7 +261,9 @@ export async function hydrateRiskStore() {
       cycle: cycle ? `${cycle.phase?.phase || cycle.phase} (${cycle.months}mo)` : 'N/A',
       onchain: onchainScore !== null && typeof onchainScore === 'number' ? onchainScore.toFixed(1) : (onchainScore || 'N/A'),
       blended: blendedScore !== null && typeof blendedScore === 'number' ? blendedScore.toFixed(1) : (blendedScore || 'N/A'),
+      risk: riskScore !== null && typeof riskScore === 'number' ? riskScore.toFixed(1) : (riskScore || 'N/A'),
       regime: regime ? regime.phase : 'N/A',
+      contradiction: contradiction !== null && typeof contradiction === 'number' ? contradiction.toFixed(2) : (contradiction || 'N/A'),
       alerts: `${alerts.length} alerts`
     });
 
