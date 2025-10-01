@@ -384,7 +384,6 @@ function renderRegimeRibbon(meta, regimeHistoryRaw) {
 
   return `
     <div class="di-ribbon">
-      <div class="di-ribbon-title">Regime</div>
       <div class="rg-row">${bars}</div>
     </div>`;
 }
@@ -863,13 +862,24 @@ function _renderDIPanelInternal(container, data, opts = {}) {
   const deltaBadge = `${trendDelta === 0 ? '→' : (trendDelta > 0 ? '↗' : '↘')} ${trendDelta > 0 ? '+' : ''}${trendDelta} pts`;
   const toneSigma = trendSigma < 1 ? 'ok' : trendSigma <= 2 ? 'warn' : 'danger';
 
+  // Badges à droite si données OK, sinon vide
   const trendRight = tw.ok
     ? `
         <span class="pill pill--${trendDelta > 1 ? 'ok' : (trendDelta < -1 ? 'danger' : 'warn')}">${deltaBadge}</span>
         <span class="pill pill--${toneSigma}">σ ${trendSigma}</span>
         <span class="pill pill--${trendState === 'Haussier' ? 'ok' : (trendState === 'Baissier' ? 'danger' : 'warn')}">${trendState}</span>
       `
-    : `<span class="pill pill--muted pill--ellipsis">… Historique insuffisant</span>`;
+    : '';
+
+  // Badge insuffisant à gauche si pas assez de données
+  const trendLeft = tw.ok
+    ? trendSpark
+    : `
+        <div style="display: flex; align-items: center; gap: 8px;">
+          ${trendSpark}
+          <span class="pill pill--muted pill--ellipsis">… Historique insuffisant</span>
+        </div>
+      `;
 
   // Regime avec titre séparé
   const regimeRibbon = `
@@ -928,7 +938,7 @@ function _renderDIPanelInternal(container, data, opts = {}) {
             <div class="trend-title">Trend (${tw.n}j)</div>
             <div class="trend-grid">
               <div class="trend-left">
-                ${trendSpark}
+                ${trendLeft}
               </div>
               <div class="trend-right">
                 ${trendRight}
