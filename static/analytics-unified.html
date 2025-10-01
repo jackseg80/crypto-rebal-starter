@@ -2159,7 +2159,7 @@
   <script type="module">
     // Adapter le layout quand la sidebar est épinglée
     import { enableFlyoutLayoutAdapter } from './components/flyout-layout-adapter.js';
-    enableFlyoutLayoutAdapter(); // Utilise body par défaut
+    enableFlyoutLayoutAdapter('.wrap'); // Décaler uniquement le contenu, pas le menu
   </script>
 
   <flyout-panel position="left" width="340" persist-key="analytics_flyout">
