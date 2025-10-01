@@ -117,93 +117,20 @@ if os.getenv("ENABLE_METRICS", "0") == "1":
     except Exception as e:
         logging.getLogger(__name__).warning("Prometheus non activé: %s", e)
 
-# Chargement automatique des modèles ML au démarrage (mode lazy)
+# Startup handlers (refactored to api/startup.py)
+from api.startup import get_startup_handler, get_shutdown_handler
+
 @app.on_event("startup")
-async def startup_load_ml_models():
-    """Chargement différé des modèles ML pour ne pas bloquer le démarrage"""
-    try:
-        logger.info("🚀 FastAPI started successfully")
-        logger.info("⚡ ML models will load on first request (lazy loading)")
-        
-        # Créer une tâche background pour précharger les modèles sans bloquer
-        async def background_load_models():
-            """Préchargement des modèles ML et initialisation du Governance Engine"""
-            try:
-                # Attendre 3 secondes pour laisser l'app démarrer complètement
-                await asyncio.sleep(3)
-                
-                logger.info("📦 Starting background ML models initialization...")
-                
-                # Initialiser les modèles ML pour le Governance Engine
-                try:
-                    from services.ml.orchestrator import get_orchestrator
-                    orchestrator = get_orchestrator()
-                    
-                    # Forcer les modèles à être ready
-                    models_initialized = 0
-                    for model_type in ['volatility', 'regime', 'correlation', 'sentiment', 'rebalancing']:
-                        if model_type in orchestrator.model_status:
-                            orchestrator.model_status[model_type] = 'ready'
-                            models_initialized += 1
-                    
-                    logger.info(f"✅ {models_initialized} ML models forced to ready status")
-                    
-                    # Initialiser le Governance Engine
-                    from services.execution.governance import governance_engine
-                    await governance_engine._refresh_ml_signals()
-                    
-                    # Vérifier que les signaux sont bien chargés
-                    signals = governance_engine.current_state.signals
-                    if signals and signals.confidence > 0:
-                        logger.info(f"✅ Governance Engine initialized: {signals.confidence:.1%} confidence, {len(signals.sources_used)} sources")
-                    else:
-                        logger.warning("⚠️ Governance Engine initialized but signals may be empty")
-                    
-                    # Initialiser le système d'alertes
-                    try:
-                        from services.alerts.alert_engine import AlertEngine
-                        from api.alerts_endpoints import initialize_alert_engine
-                        
-                        # Créer l'instance AlertEngine avec références au governance engine
-                        alert_engine = AlertEngine(
-                            governance_engine=governance_engine,
-                            config_file_path="config/alerts_rules.json"
-                        )
-                        
-                        # Initialiser l'AlertEngine pour les API endpoints
-                        initialize_alert_engine(alert_engine)
-                        
-                        # Initialiser la facade unifiée pour les systèmes legacy
-                        from services.alerts.unified_alert_facade import get_unified_alert_facade
-                        unified_facade = get_unified_alert_facade(alert_engine)
-                        logger.info("✅ Unified alert facade initialized for legacy system migration")
-                        
-                        # Démarrer le scheduler d'alertes en arrière-plan
-                        scheduler_started = await alert_engine.start()
-                        
-                        if scheduler_started:
-                            logger.info("✅ AlertEngine scheduler started successfully")
-                        else:
-                            logger.info("📊 AlertEngine initialized in standby mode (scheduler locked by another instance)")
-                        
-                    except Exception as alert_error:
-                        logger.error(f"❌ AlertEngine initialization failed: {alert_error}")
-                        # Ne pas faire planter l'app, le système peut fonctionner sans alertes
-                    
-                except Exception as ml_error:
-                    logger.error(f"❌ ML initialization failed: {ml_error}")
-                    # Ne pas faire planter l'app, les modèles se chargeront à la demande
-                
-            except Exception as e:
-                logger.info(f"⚠️ Background loading failed, models will load on demand: {e}")
-        
-        # Démarrer la tâche en arrière-plan sans attendre
-        import asyncio
-        asyncio.create_task(background_load_models())
-        
-    except Exception as e:
-        logger.warning(f"⚠️ Startup event warning (non-blocking): {e}")
-        # Ne pas faire planter l'app
+async def startup():
+    """Application startup - initialize ML, Governance, Alerts"""
+    handler = get_startup_handler()
+    await handler()
+
+@app.on_event("shutdown")
+async def shutdown():
+    """Application shutdown - cleanup resources"""
+    handler = get_shutdown_handler()
+    await handler()
 
 # Gestionnaires d'exceptions globaux
 @app.exception_handler(CryptoRebalancerException)
