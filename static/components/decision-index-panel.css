@@ -35,8 +35,14 @@
 /* Grid 2 colonnes (gauche=graphique+trend+regime, droite=phase+statuts) */
 .di-grid {
   display: grid;
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
   gap: 20px;
+}
+
+@media (max-width: 768px) {
+  .di-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .di-left {
