@@ -810,14 +810,28 @@ function _renderDIPanelInternal(container, data, opts = {}) {
 
   const m = data.meta || {};
 
-  // Cap en %
-  let capPct = m.cap;
-  if (typeof capPct === 'number' && capPct <= 1) capPct = Math.round(capPct * 100);
+  // ---------- Tones & seuils (cohérents projet) ----------
+  // Contradiction (ratio [0..1])
+  const contrad01 = _safe(m.contradiction || 0);
+  const contradPct = Math.round(contrad01 * 100);
+  const toneContrad = contrad01 >= 0.70 ? 'danger' : contrad01 >= 0.45 ? 'warn' : 'ok';
 
-  // Contradiction
-  let contrad = m.contradiction || 0;
-  if (contrad <= 1) contrad = Math.round(contrad * 100);
-  const showContradWarning = contrad >= 45;
+  // Cap (en % entier)
+  const capPct = Math.round(_safe(m.cap || 0));
+  const toneCap = capPct >= 10 ? 'danger' : capPct >= 5 ? 'warn' : capPct > 0 ? 'info' : 'muted';
+
+  // Mode de gouvernance (impact vitesse d'exécution)
+  const modeStr = String(m?.mode || 'Normal');
+  const toneMode = /slow/i.test(modeStr) ? 'warn'
+                   : /manual/i.test(modeStr) ? 'info'
+                   : /auto|normal/i.test(modeStr) ? 'ok'
+                   : 'muted';
+
+  // Phase → ton direct (bull/neutral/bear)
+  const phaseStr = String(m?.phase || 'neutral').toLowerCase();
+  const tonePhase = phaseStr.includes('euphor') || phaseStr.includes('bull') ? 'ok'
+                   : phaseStr.includes('bear') || phaseStr.includes('risk-off') ? 'danger'
+                   : 'warn';
 
   // Footer source + live + time
   const timeStr = (() => {
@@ -848,15 +862,20 @@ function _renderDIPanelInternal(container, data, opts = {}) {
         </div>
 
         <div class="di-right">
-          <div class="di-phase">${m.phase || 'Neutral'}</div>
-
-          <div class="di-status-list">
-            <div class="di-status">Backend: ${m.backend ? 'healthy' : 'down'}</div>
-            <div class="di-status">Signals: ${m.signals ? 'healthy' : (m.signals_status || 'limited')}</div>
-            <div class="di-status">Governance: ${m.governance_mode || 'IDLE'}</div>
-            <div class="di-status">⚡ Cap actif ${capPct || 0}%</div>
-            <div class="di-status">🎛 Mode: ${m.mode || 'Normal'}</div>
-            ${showContradWarning ? `<div class="di-status di-status-warn">⚠️ Contradiction haute (${contrad}%)</div>` : ''}
+          <div class="di-rightgrid">
+            <div class="box box-decision">
+              <div class="box-title">Décision</div>
+              <div class="kv"><span>Phase</span><span class="pill pill--${tonePhase}">${m.phase || 'Neutral'}</span></div>
+              <div class="kv"><span>Contradiction</span><span class="pill pill--${toneContrad}">${contradPct}%</span></div>
+              <div class="kv"><span>Cap actif</span><span class="pill pill--${toneCap}">${capPct}%</span></div>
+              <div class="kv"><span>Mode</span><span class="pill pill--${toneMode}">${modeStr}</span></div>
+            </div>
+            <div class="box box-system">
+              <div class="box-title">Système</div>
+              <div class="kv"><span>Backend</span><span class="pill pill--${m.backend ? 'ok':'danger'}">${m.backend ? 'healthy':'down'}</span></div>
+              <div class="kv"><span>Signals</span><span class="pill pill--${m.signals ? 'ok':'warn'}">${m.signals ? 'healthy' : (m.signals_status || 'limited')}</span></div>
+              <div class="kv"><span>Governance</span><span class="pill pill--info">${m.governance_mode || '—'}</span></div>
+            </div>
           </div>
         </div>
       </div>
