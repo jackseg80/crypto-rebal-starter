@@ -512,6 +512,12 @@
   gap: 0.4rem;
   flex-wrap: wrap;
   justify-content: flex-end;
+  align-items: center;
+}
+
+/* Badge ellipses pour historique insuffisant */
+.pill--ellipsis {
+  letter-spacing: 0.02em;
 }
 
 /* Phase active (colonne droite) */
@@ -563,10 +569,10 @@
 }
 
 .pill--muted {
-  opacity: 0.5;
-  background: rgba(255, 255, 255, 0.03);
-  color: var(--theme-text-muted, #9aa5ce);
-  border-color: rgba(255, 255, 255, 0.05);
+  opacity: 0.75 !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: var(--theme-text-muted, #9aa5ce) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
   font-weight: 400;
   font-size: 0.7rem;
 }
@@ -606,8 +612,23 @@
 }
 
 /* Regime ribbon (3 barres: Euphorie/Neutral/Bearish) */
+/* Section Regime avec titre séparé */
+.regime-section {
+  margin-top: 10px;
+}
+
+.reg-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--theme-text-muted, #9aa5ce);
+  margin: 6px 0 8px;
+  text-transform: uppercase;
+  font-variant: small-caps;
+}
+
 .di-ribbon {
-  margin-top: 8px;
+  margin-top: 2px;
 }
 
 .di-ribbon-title {
@@ -621,7 +642,7 @@
 .rg-row {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  gap: 14px;
+  gap: 16px;
 }
 
 .rg-item {
@@ -643,8 +664,8 @@
 
 .rg-bar {
   height: 12px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
   transition: all 0.3s ease;
 }

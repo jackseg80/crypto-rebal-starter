@@ -859,26 +859,24 @@ function _renderDIPanelInternal(container, data, opts = {}) {
   const dashed = !tw.ok;
   const trendSpark = renderSparkline(tw.series, 280, 40, dashed, trendDelta);
 
-  // Badges trend
-  let trendBadges = '';
-  if (!tw.ok || tw.n < 2) {
-    // État insuffisant: pill muted avec icône
-    trendBadges = `<span class="pill pill--muted">… Historique insuffisant</span>`;
-  } else {
-    // Badges normaux
-    const deltaBadge = `${trendDelta === 0 ? '→' : (trendDelta > 0 ? '↗' : '↘')} ${trendDelta > 0 ? '+' : ''}${trendDelta} pts`;
+  // Affichage à droite : soit les 3 pills (Δ / σ / État), soit le badge "Historique insuffisant"
+  const deltaBadge = `${trendDelta === 0 ? '→' : (trendDelta > 0 ? '↗' : '↘')} ${trendDelta > 0 ? '+' : ''}${trendDelta} pts`;
+  const toneSigma = trendSigma < 1 ? 'ok' : trendSigma <= 2 ? 'warn' : 'danger';
 
-    // σ avec seuils visuels (vert <1, orange 1-2, rouge >2)
-    const toneSigma = trendSigma < 1 ? 'ok' : trendSigma <= 2 ? 'warn' : 'danger';
+  const trendRight = tw.ok
+    ? `
+        <span class="pill pill--${trendDelta > 1 ? 'ok' : (trendDelta < -1 ? 'danger' : 'warn')}">${deltaBadge}</span>
+        <span class="pill pill--${toneSigma}">σ ${trendSigma}</span>
+        <span class="pill pill--${trendState === 'Haussier' ? 'ok' : (trendState === 'Baissier' ? 'danger' : 'warn')}">${trendState}</span>
+      `
+    : `<span class="pill pill--muted pill--ellipsis">… Historique insuffisant</span>`;
 
-    trendBadges = `
-      <span class="pill pill--${trendDelta > 1 ? 'ok' : (trendDelta < -1 ? 'danger' : 'warn')}">${deltaBadge}</span>
-      <span class="pill pill--${toneSigma}">σ ${trendSigma}</span>
-      <span class="pill pill--${trendState === 'Haussier' ? 'ok' : (trendState === 'Baissier' ? 'danger' : 'warn')}">${trendState}</span>
-    `;
-  }
-
-  const regimeRibbon = renderRegimeRibbon(data.meta, data.regimeHistory);  // ✅ toujours rendu avec fallback
+  // Regime avec titre séparé
+  const regimeRibbon = `
+    <div class="regime-section">
+      <div class="reg-title">REGIME</div>
+      ${renderRegimeRibbon(data.meta, data.regimeHistory)}
+    </div>`;
 
   const m = data.meta || {};
 
@@ -933,7 +931,7 @@ function _renderDIPanelInternal(container, data, opts = {}) {
                 ${trendSpark}
               </div>
               <div class="trend-right">
-                ${trendBadges}
+                ${trendRight}
               </div>
             </div>
           </div>
