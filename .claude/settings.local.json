@@ -33,7 +33,9 @@
       "Bash(git mv:*)",
       "Bash(\".venv/Scripts/python.exe\" tools/gen_api_reference.py)",
       "Bash(\".venv/Scripts/python.exe\" tools/gen_broken_refs.py)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(git restore:*)",
+      "Bash(del staticcomponentsflyout-panel.js staticcomponentsrisk-snapshot.js)"
     ],
     "deny": [],
     "ask": [],

@@ -3471,6 +3471,16 @@
       /* unified nav enabled via components/nav.js; legacy init removed */
     });
   </script>
+
+  <!-- Unified Risk Flyout Panel (Full Sidebar) -->
+  <script type="module" src="components/flyout-panel.js"></script>
+  <script type="module" src="components/risk-sidebar-full.js"></script>
+
+  <flyout-panel position="left" width="340" persist-key="rebalance_flyout">
+    <span slot="title">🎯 Risk Dashboard</span>
+    <risk-sidebar-full slot="content" poll-ms="30000"></risk-sidebar-full>
+  </flyout-panel>
+
 </body>
 
 </html>

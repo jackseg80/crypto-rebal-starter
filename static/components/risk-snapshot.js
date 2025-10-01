@@ -1,208 +1,361 @@
-/**
- * Risk Snapshot Component - Reusable
- *
- * Composant qui affiche un snapshot des scores Risk, governance et alertes.
- * Utilisable dans le flyout panel sur n'importe quelle page.
- *
- * Usage:
- *   import { createRiskSnapshot } from '/static/components/risk-snapshot.js';
- *   const container = document.createElement('div');
- *   createRiskSnapshot(container);
- */
+// static/components/risk-snapshot.js
+// Web Component Data pour affichage Risk avec store subscribe + fallback API polling
+
+import { fetchRisk, waitForGlobalEventOrTimeout, fallbackSelectors } from './utils.js';
+
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const pct = (x, d = 0) => Number.isFinite(x) ? (x * 100).toFixed(d) + '%' : '—';
+
+// Import sélecteurs asynchrone (compatible sans top-level await)
+const selectorsPromise = import('../selectors/governance.js').catch(() => null);
 
 /**
- * Crée un snapshot Risk dans un conteneur
- * @param {HTMLElement} container - Conteneur où injecter le snapshot
- * @returns {Object} - Objet avec méthode refresh()
+ * @typedef {Object} RiskState
+ * @property {Object} governance
+ * @property {number} [governance.contradiction_index] - 0..1 ou 0..100
+ * @property {number} [governance.cap_daily] - 0..1
+ * @property {string} [governance.ml_signals_timestamp] - ISO
+ * @property {Object} [scores]
+ * @property {number} [scores.ccs]
+ * @property {number} [scores.onchain]
+ * @property {number} [scores.risk]
+ * @property {number} [scores.blended]
+ * @property {Array}  [alerts]
  */
-export function createRiskSnapshot(container) {
-  // Injecter le HTML
-  container.innerHTML = `
-    <!-- CCS Mixte (Score Directeur du Marché) -->
-    <div class="sidebar-section">
-      <div class="sidebar-title">🎯 CCS Mixte (Directeur)</div>
-      <div class="ccs-gauge" id="flyout-ccs-gauge">
-        <div class="ccs-score" id="flyout-ccs-ccs-mix" data-score="ccs">--</div>
-        <div class="ccs-label" id="flyout-ccs-mixte-label">Loading...</div>
-      </div>
-    </div>
 
-    <!-- On-Chain Composite -->
-    <div class="sidebar-section">
-      <div class="sidebar-title">🔗 On-Chain Composite</div>
-      <div class="ccs-gauge" id="flyout-onchain-gauge">
-        <div class="ccs-score" id="flyout-kpi-onchain" data-score="onchain">--</div>
-        <div class="ccs-label" id="flyout-onchain-label">Loading...</div>
-      </div>
-    </div>
+class RiskSnapshot extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this.title = this.getAttribute('title') || 'Risk Snapshot';
+    this.pollMs = Number(this.getAttribute('poll-ms') || 30000); // 0 => pas de polling
+    this.include = {
+      ccs: this.hasAttribute('include-ccs'),
+      onchain: this.hasAttribute('include-onchain'),
+      risk: this.hasAttribute('include-risk'),
+      blended: this.hasAttribute('include-blended'),
+      alerts: this.hasAttribute('include-alerts'),
+    };
+    this._prevContradiction = null;
+    this._unsub = null;
+    this._poll = null;
+  }
 
-    <!-- Risk Score Portfolio -->
-    <div class="sidebar-section">
-      <div class="sidebar-title">🛡️ Risk Score</div>
-      <div class="ccs-gauge" id="flyout-risk-gauge">
-        <div class="ccs-score" id="flyout-kpi-risk" data-score="risk">--</div>
-        <div class="ccs-label" id="flyout-risk-label">Loading...</div>
-      </div>
-    </div>
+  connectedCallback() {
+    this._render();
+    this._afterConnect();
+  }
 
-    <!-- Blended Decision Score (Synthèse principale) -->
-    <div class="sidebar-section" style="margin-top:1.5rem;">
-      <div class="sidebar-title" style="font-size:1rem; font-weight:700;">
-        ⚖️ Score Décisionnel
-      </div>
-      <div class="ccs-gauge decision-card" id="flyout-blended-gauge"
-        style="padding:1.25rem; border:2px solid var(--theme-border); box-shadow:0 0 12px rgba(0,0,0,0.15);">
-        <div class="ccs-score" id="flyout-kpi-blended" data-score="blended" style="font-size:2.5rem;">--</div>
-        <div class="ccs-label" id="flyout-blended-label" style="font-size:0.95rem; font-weight:700;">Loading...</div>
-        <div class="ccs-meta" id="flyout-blended-meta"
-          style="font-size:.7rem; color: var(--theme-text-muted); margin-top:.25rem;"></div>
-      </div>
-    </div>
+  disconnectedCallback() {
+    if (typeof this._unsub === 'function') {
+      this._unsub();
+      this._unsub = null;
+    }
+    if (this._poll) {
+      clearInterval(this._poll);
+      this._poll = null;
+    }
+  }
 
-    <!-- Market Regime -->
-    <div class="sidebar-section">
-      <div class="sidebar-title">📊 Régime de Marché</div>
-      <div id="flyout-market-regime">
-        <div class="status-indicator">
-          <div class="status-dot" id="flyout-regime-dot"></div>
-          <div class="status-text" id="flyout-regime-text">Loading market regime...</div>
+  async _afterConnect() {
+    this.$ = {
+      title: this.shadowRoot.querySelector('#title'),
+      regime: this.shadowRoot.querySelector('#regime'),
+      cTxt: this.shadowRoot.querySelector('#c-txt'),
+      cBar: this.shadowRoot.querySelector('#c-bar'),
+      cap: this.shadowRoot.querySelector('#cap'),
+      trend: this.shadowRoot.querySelector('#trend'),
+      fresh: this.shadowRoot.querySelector('#fresh'),
+      fdot: this.shadowRoot.querySelector('#fdot'),
+      // sections étendues, déjà présentes mais cachées par défaut
+      extCCS: this.shadowRoot.querySelector('#ext-ccs'),
+      extOnchain: this.shadowRoot.querySelector('#ext-onchain'),
+      extRisk: this.shadowRoot.querySelector('#ext-risk'),
+      extBlended: this.shadowRoot.querySelector('#ext-blended'),
+      extAlerts: this.shadowRoot.querySelector('#ext-alerts'),
+    };
+    this.$.title.textContent = this.title;
+
+    const selMod = await selectorsPromise;
+    this._selectors = selMod ? {
+      selectContradiction01: selMod.selectContradiction01,
+      selectCapPercent: selMod.selectCapPercent,
+      selectGovernanceTimestamp: selMod.selectGovernanceTimestamp,
+    } : fallbackSelectors;
+
+    if (window.riskStore?.subscribe) {
+      this._connectStore();
+      return;
+    }
+
+    const ready = await waitForGlobalEventOrTimeout('riskStoreReady', 1500);
+    if (ready && window.riskStore?.subscribe) {
+      this._connectStore();
+      return;
+    }
+
+    if (this.pollMs > 0) {
+      await this._pollOnce();
+      this._poll = setInterval(() => this._pollOnce(), this.pollMs);
+    }
+  }
+
+  _connectStore() {
+    const push = () => {
+      const state = window.riskStore?.getState?.() || {};
+      this._updateFromState(state);
+    };
+    push();
+    this._unsub = window.riskStore.subscribe(push);
+  }
+
+  async _pollOnce() {
+    this._setLoading(true);
+    const j = await fetchRisk();
+    this._setLoading(false);
+
+    if (!j) {
+      this._setError('API indisponible');
+      return;
+    }
+
+    this._setError(null);
+    const state = { governance: j?.governance || j?.risk?.governance || {} };
+    this._updateFromState(state);
+  }
+
+  _setLoading(on) {
+    if (this.$?.title) this.$.title.style.opacity = on ? '0.6' : '1';
+  }
+
+  _setError(msg) {
+    if (!this.$?.trend) return;
+    if (msg) {
+      this.$.trend.textContent = '⚠';
+      this.$.trend.title = msg;
+    } else {
+      this.$.trend.title = '';
+    }
+  }
+
+  _computeTrend(curr) {
+    const prev = this._prevContradiction;
+    this._prevContradiction = curr;
+    if (!Number.isFinite(prev)) return '→';
+    const delta = curr - prev;
+    if (Math.abs(delta) < 0.05) return '→';
+    return delta > 0 ? '↗' : '↘';
+  }
+
+  _updateFromState(/** @type {RiskState} */ s) {
+    const c01 = clamp(this._selectors.selectContradiction01(s));
+    const cap = this._selectors.selectCapPercent(s);
+    const ts = this._selectors.selectGovernanceTimestamp(s);
+
+    this.$.cTxt.textContent = pct(c01, 0);
+    this.$.cBar.style.width = (c01 * 100).toFixed(0) + '%';
+    this.$.cap.textContent = Number.isFinite(cap) ? (cap * 100).toFixed(2) + '%' : '—';
+
+    let freshTxt = '—', dot = '';
+    if (ts) {
+      const t = new Date(ts).getTime();
+      const min = (Date.now() - t) / 60000;
+      freshTxt = min < 2 ? 'Temps réel' : `${min.toFixed(0)} min`;
+      dot = min < 5 ? 'ok' : (min < 60 ? 'warn' : 'danger');
+    }
+    this.$.fresh.textContent = freshTxt;
+    this.$.fdot.className = 'dot ' + dot;
+
+    this.$.trend.textContent = this._computeTrend(c01);
+    const regime = (c01 < 0.3 && cap >= 0.01) ? 'Euphorie' : (c01 > 0.7 ? 'Stress' : 'Neutre');
+    this.$.regime.textContent = regime;
+
+    // Sections étendues (si un jour on branche des scores additionnels)
+    if (this.include.ccs && this.$.extCCS) this.$.extCCS.hidden = false;
+    if (this.include.onchain && this.$.extOnchain) this.$.extOnchain.hidden = false;
+    if (this.include.risk && this.$.extRisk) this.$.extRisk.hidden = false;
+    if (this.include.blended && this.$.extBlended) this.$.extBlended.hidden = false;
+    if (this.include.alerts && this.$.extAlerts) this.$.extAlerts.hidden = false;
+  }
+
+  _render() {
+    this.shadowRoot.innerHTML = `
+      <style>
+        :host {
+          --card-bg: var(--theme-surface, #0f1115);
+          --card-fg: var(--theme-fg, #e5e7eb);
+          --card-border: var(--theme-border, #2a2f3b);
+        }
+
+        .card {
+          border: 1px solid var(--card-border);
+          background: var(--card-bg);
+          color: var(--card-fg);
+          border-radius: 12px;
+          overflow: hidden;
+        }
+
+        .header {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 12px;
+          border-bottom: 1px solid var(--card-border);
+        }
+
+        .title {
+          font-weight: 600;
+          font-size: 14px;
+          letter-spacing: .2px;
+          flex: 1;
+        }
+
+        .badge {
+          font-size: 11px;
+          padding: 4px 8px;
+          border-radius: 999px;
+          background: #1f2937;
+          border: 1px solid #374151;
+        }
+
+        .body {
+          padding: 10px 12px;
+          display: grid;
+          gap: 10px;
+        }
+
+        .row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+        }
+
+        .kv {
+          display: flex;
+          align-items: baseline;
+          gap: 8px;
+        }
+
+        .k {
+          font-size: 12px;
+          color: #9ca3af;
+        }
+
+        .v {
+          font-size: 14px;
+          font-weight: 600;
+        }
+
+        .progress {
+          height: 8px;
+          border-radius: 999px;
+          background: #1f2937;
+          overflow: hidden;
+          flex: 1;
+          border: 1px solid var(--card-border);
+        }
+
+        .progress i {
+          display: block;
+          height: 100%;
+          width: 0%;
+          background: #3b82f6;
+          transition: width .35s ease;
+        }
+
+        .dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 999px;
+          display: inline-block;
+          margin-right: 6px;
+          background: #6b7280;
+        }
+
+        .dot.ok {
+          background: #10b981;
+        }
+
+        .dot.warn {
+          background: #f59e0b;
+        }
+
+        .dot.danger {
+          background: #ef4444;
+        }
+
+        .extended {
+          opacity: .9;
+        }
+      </style>
+
+      <div class="card">
+        <div class="header">
+          <div class="title" id="title">Risk Snapshot</div>
+          <span class="badge" id="regime">—</span>
+        </div>
+        <div class="body">
+          <div class="row">
+            <div class="kv">
+              <div class="k">Contradiction</div>
+              <div class="v" id="c-txt">—</div>
+            </div>
+            <div class="progress"><i id="c-bar"></i></div>
+          </div>
+          <div class="row">
+            <div class="kv">
+              <div class="k">Cap journalier</div>
+              <div class="v" id="cap">—</div>
+            </div>
+            <div class="kv">
+              <div class="k">Trend</div>
+              <div class="v" id="trend">→</div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="kv">
+              <div class="k">Fraîcheur</div>
+              <div class="v"><i class="dot" id="fdot"></i><span id="fresh">—</span></div>
+            </div>
+          </div>
+
+          <!-- Sections étendues (déjà en place, masquées par défaut) -->
+          <div class="row extended" id="ext-ccs" hidden>
+            <div class="kv">
+              <div class="k">CCS Mixte</div>
+              <div class="v">—</div>
+            </div>
+          </div>
+          <div class="row extended" id="ext-onchain" hidden>
+            <div class="kv">
+              <div class="k">On-Chain</div>
+              <div class="v">—</div>
+            </div>
+          </div>
+          <div class="row extended" id="ext-risk" hidden>
+            <div class="kv">
+              <div class="k">Risk</div>
+              <div class="v">—</div>
+            </div>
+          </div>
+          <div class="row extended" id="ext-blended" hidden>
+            <div class="kv">
+              <div class="k">Blended</div>
+              <div class="v">—</div>
+            </div>
+          </div>
+          <div class="row extended" id="ext-alerts" hidden>
+            <div class="kv">
+              <div class="k">Alerts</div>
+              <div class="v">—</div>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-
-    <!-- Governance Status -->
-    <div class="sidebar-section">
-      <div class="sidebar-title">Governance</div>
-      <div id="flyout-governance-status">
-        <div class="status-indicator">
-          <div class="status-dot" id="flyout-governance-dot"></div>
-          <div class="status-text" id="flyout-governance-text">Loading...</div>
-        </div>
-        <div class="governance-details" id="flyout-governance-details"
-          style="margin-top: 8px; font-size: 0.85em; opacity: 0.8;">
-          <div id="flyout-governance-mode">Mode: manual</div>
-          <div id="flyout-governance-contradiction">Contradiction: 0.0%</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Active Alerts -->
-    <div class="sidebar-section">
-      <div class="sidebar-title">🚨 Active Alerts</div>
-      <div id="flyout-alerts-status">
-        <div id="flyout-alerts-summary" class="status-indicator">
-          <div class="status-dot" id="flyout-alerts-dot"></div>
-          <div class="status-text" id="flyout-alerts-text">Loading alerts...</div>
-        </div>
-      </div>
-    </div>
-  `;
-
-  // Fonction pour rafraîchir les données
-  async function refresh() {
-    try {
-      // Charger les scores depuis le store Risk ou l'API
-      if (window.riskStore) {
-        const state = window.riskStore.getState();
-        updateScores(state);
-      } else {
-        // Fallback: charger depuis l'API
-        await loadFromAPI();
-      }
-    } catch (error) {
-      console.error('Failed to refresh risk snapshot:', error);
-    }
+    `;
   }
-
-  // Mettre à jour les scores depuis l'état du store
-  function updateScores(state) {
-    // CCS Mixte
-    const ccsEl = document.getElementById('flyout-ccs-ccs-mix');
-    const ccsLabelEl = document.getElementById('flyout-ccs-mixte-label');
-    if (ccsEl && state.ccs !== undefined) {
-      ccsEl.textContent = Math.round(state.ccs);
-      ccsEl.setAttribute('data-score', state.ccs);
-      if (ccsLabelEl) ccsLabelEl.textContent = getScoreLabel(state.ccs);
-    }
-
-    // On-Chain
-    const onchainEl = document.getElementById('flyout-kpi-onchain');
-    const onchainLabelEl = document.getElementById('flyout-onchain-label');
-    if (onchainEl && state.onchain !== undefined) {
-      onchainEl.textContent = Math.round(state.onchain);
-      onchainEl.setAttribute('data-score', state.onchain);
-      if (onchainLabelEl) onchainLabelEl.textContent = getScoreLabel(state.onchain);
-    }
-
-    // Risk
-    const riskEl = document.getElementById('flyout-kpi-risk');
-    const riskLabelEl = document.getElementById('flyout-risk-label');
-    if (riskEl && state.risk !== undefined) {
-      riskEl.textContent = Math.round(state.risk);
-      riskEl.setAttribute('data-score', state.risk);
-      if (riskLabelEl) riskLabelEl.textContent = getScoreLabel(state.risk);
-    }
-
-    // Blended
-    const blendedEl = document.getElementById('flyout-kpi-blended');
-    const blendedLabelEl = document.getElementById('flyout-blended-label');
-    if (blendedEl && state.blended !== undefined) {
-      blendedEl.textContent = Math.round(state.blended);
-      blendedEl.setAttribute('data-score', state.blended);
-      if (blendedLabelEl) blendedLabelEl.textContent = getScoreLabel(state.blended);
-    }
-
-    // Governance
-    updateGovernance(state.governance);
-  }
-
-  // Charger depuis l'API
-  async function loadFromAPI() {
-    const response = await fetch('/api/risk/scores');
-    if (response.ok) {
-      const data = await response.json();
-      updateScores(data);
-    }
-  }
-
-  // Mettre à jour governance
-  function updateGovernance(governance) {
-    if (!governance) return;
-
-    const dotEl = document.getElementById('flyout-governance-dot');
-    const textEl = document.getElementById('flyout-governance-text');
-    const modeEl = document.getElementById('flyout-governance-mode');
-    const contradictionEl = document.getElementById('flyout-governance-contradiction');
-
-    if (dotEl) dotEl.className = `status-dot ${governance.active ? 'status-success' : 'status-warning'}`;
-    if (textEl) textEl.textContent = governance.active ? 'Active' : 'Inactive';
-    if (modeEl) modeEl.textContent = `Mode: ${governance.mode || 'manual'}`;
-    if (contradictionEl) {
-      const pct = ((governance.contradiction_index || 0) * 100).toFixed(1);
-      contradictionEl.textContent = `Contradiction: ${pct}%`;
-    }
-  }
-
-  // Helper pour obtenir le label d'un score
-  function getScoreLabel(score) {
-    if (score >= 80) return 'Excellent';
-    if (score >= 60) return 'Bon';
-    if (score >= 40) return 'Modéré';
-    if (score >= 20) return 'Faible';
-    return 'Très Faible';
-  }
-
-  // S'abonner au store si disponible
-  if (window.riskStore) {
-    window.riskStore.subscribe(() => {
-      const state = window.riskStore.getState();
-      updateScores(state);
-    });
-  }
-
-  // Charger initialement
-  refresh();
-
-  // Retourner l'interface publique
-  return { refresh };
 }
+
+customElements.define('risk-snapshot', RiskSnapshot);
+export { RiskSnapshot };

@@ -622,6 +622,9 @@ export const store = {
 // Also make it available globally for non-module scripts
 window.riskStore = store;
 
+// Emit event to signal store is ready (for Web Components)
+window.dispatchEvent(new CustomEvent('riskStoreReady', { detail: { store: window.riskStore } }));
+
 // Legacy aliases for existing dashboards
 window.store = store;
 window.__store = store;

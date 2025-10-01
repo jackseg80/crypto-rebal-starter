@@ -1,104 +1,13 @@
 # API Reference (auto-généré)
 
-> **Note**
-> Ce document est **auto-généré** par `tools/gen_api_reference.py`.
-> Merci de **ne pas éditer les tableaux de routes à la main**. Les sections "Guides", "Conventions" et "Exemples" ci-dessous sont **éditables**.
+_Généré par `tools/gen_api_reference.py` — ne pas éditer à la main._
 
-# Référence API — Vue d'ensemble
-
-Cette référence liste **toutes les routes** (GET/POST/PUT/DELETE/PATCH), groupées par **namespace** (premier segment du chemin).
-Elle complète les documents fonctionnels : `docs/FRONTEND_PAGES.md` (qui consomme quoi) et `docs/MODULE_MAP.md` (modules & exports).
-
-## TL;DR — Quickstart
-
-- **Base URL** : définie via `static/global-config.js` (`API_BASE_URL`) — **pas d'URL en dur**.
-- **Auth** : `Authorization: Bearer <token>` (si activé)
-- **Content-Type** : `application/json; charset=utf-8`
-- **Réponses JSON** : UTF-8, champs snake_case
-- **Cache** : `ETag` + `If-None-Match` (voir section ETag)
-
-### Exemple `curl`
-```bash
-curl -sS -H "Authorization: Bearer $TOKEN" \
-     -H "Accept: application/json" \
-     "$API_BASE_URL/portfolio/metrics?user_id=alice&since=2025-01-01"
-```
+**Total endpoints** : 325
 
 ## Conventions
-
-### Identifiants & multi-tenant
-- Tous les endpoints acceptent/propagent `user_id` (query ou header).
-- Les identifiants de ressources sont en UUID (sauf mention contraire).
-
-### Paramètres
-- **Path params** : `/resource/{id}` → obligatoires
-- **Query params** : optionnels, typés (bool=true|false, dates ISO-8601, décimaux en .)
-
-### Pagination
-- **Entrée** : `limit` (par défaut 50, max 500), `cursor` (opaque)
-- **Sortie** :
-```json
-{ "data": [...], "next_cursor": "..." }
-```
-- Boucler côté client jusqu'à `next_cursor = null`.
-
-### Filtrage & tri
-- Filtrage par champ : `?status=active&asset=BTC`
-- Tri : `?order_by=timestamp&order=desc`
-
-### Champs communs (réponses liste)
-- `data`: tableau d'objets
-- `meta`: informations complémentaires (facultatif)
-- `next_cursor`: pagination (facultatif)
-
-## ETag, cache & idempotence
-- **ETag** renvoyé sur les endpoints de lecture; réutiliser via `If-None-Match` pour éviter les transferts inutiles (réponse 304 Not Modified).
-- Les POST idempotents peuvent, si exposé, accepter `Idempotency-Key` (UUID v4) → répéter une requête ne duplique pas l'effet.
-
-## Gestion des erreurs
-- Codes HTTP standard : 400 (validation), 401 (auth), 403 (droits), 404 (absent), 409 (conflit), 422 (schéma), 429 (rate limit), 5xx (serveur).
-- Format d'erreur :
-```json
-{
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "Field 'amount' must be > 0",
-    "details": { "field": "amount", "min": 0 }
-  },
-  "request_id": "req_abc123"
-}
-```
-
-### Exemple erreur curl
-```bash
-curl -i -H "Accept: application/json" "$API_BASE_URL/api/risk/score?user_id="
-# HTTP/1.1 400 Bad Request
-# { "error": { "code": "VALIDATION_ERROR", "message": "..."} , "request_id": "..." }
-```
-
-## Authentification & sécurité
-- **Auth** (si activée) : `Authorization: Bearer <token>`.
-- **Scope minimal** : principe du moindre privilège (lecture seule si possible).
-- **Journaux** : chaque requête est horodatée (Europe/Zurich) et peut renvoyer `request_id`.
-
-## Versionning & stabilité
-- Les URLs sont stables; les évolutions rétro-compatibles ajoutent des champs optionnels.
-- Les dépréciations sont annoncées dans `CHANGELOG.md` et marquées "(deprecated)" dans le tableau des routes.
-- Les changements cassants sont regroupés et annoncés au moins 30 jours avant.
-
-## Limitation de débit (rate limit)
-- Réponses peuvent inclure :
-  `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`.
-- En cas de 429, réessayer après `X-RateLimit-Reset`.
-
-## Liens utiles
-- Pages front consommant l'API : [docs/FRONTEND_PAGES.md](docs/FRONTEND_PAGES.md)
-- Modules JS appelant l'API : [docs/MODULE_MAP.md](docs/MODULE_MAP.md)
-- Sémantique Risk (canonique) : [docs/RISK_SEMANTICS.md](docs/RISK_SEMANTICS.md)
-- P&L Today : [docs/PNL_TODAY.md](docs/PNL_TODAY.md)
-- Simulation Engine : [docs/SIMULATION_ENGINE.md](docs/SIMULATION_ENGINE.md)
-
-<!-- Les sections par namespace générées par l'outil commencent ci-dessous -->
+- Méthodes triées par chemin
+- Groupement par **namespace** (1er segment)
+- `summary` = 1ère ligne de docstring si disponible
 
 ## Namespace `/advanced-rebalancing`
 
