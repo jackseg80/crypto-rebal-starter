@@ -12,7 +12,8 @@ from typing import Dict
 from services.risk.advanced_risk_engine import (
     AdvancedRiskEngine, create_advanced_risk_engine,
     VaRMethod, RiskHorizon, StressScenario,
-    VaRResult, StressTestResult, MonteCarloResult, RiskAttributionResult
+    VaRResult, StressTestResult, MonteCarloResult
+    # RiskAttributionResult removed - not implemented in advanced_risk_engine.py
 )
 
 

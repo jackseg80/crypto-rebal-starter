@@ -1,4 +1,5 @@
 import { selectCapPercent } from '../selectors/governance.js';
+import { calculateAdaptiveWeights } from '../governance/contradiction-policy.js';
 
 /**
  * Simulation Engine - Pipeline exact d'Analytics Unified en mode simulation
@@ -12,8 +13,8 @@ let contradictionModules = null;
 
 async function loadContradictionModules() {
   if (!contradictionModules) {
-    // Use fallbacks directly since modules don't exist yet
-    console.debug('⚠️ SIM: Using fallback contradiction modules (modules not implemented yet)');
+    // Use unified calculateAdaptiveWeights from contradiction-policy.js
+    console.debug('✅ SIM: Using unified contradiction modules from contradiction-policy.js');
     contradictionModules = {
       smoothContradiction: (value, prevValue, config, state) => {
         // Simple fallback - just apply basic smoothing
@@ -29,49 +30,20 @@ async function loadContradictionModules() {
         stale: false,
         useBaseWeights: false
       }),
-      // ⚠️ RÉPLIQUE unified-insights-v2.js lignes 42-94
-      // ⚠️ IMPORTANT — Sémantique Risk:
-      // Risk est un score POSITIF (0..100, plus haut = mieux).
-      // Ne jamais inverser (pas de 100 - risk).
-      // Contributions UI: (w * score) / Σ(w * score).
+      // ✅ UNIFIED: Use centralized calculateAdaptiveWeights from contradiction-policy.js
+      // No more duplication - single source of truth for weight calculations
       calculateAdaptiveWeights: (base, state) => {
-        const cycleScore = state?.cycle?.score ?? 50;
-        const onchainScore = state?.scores?.onchain ?? 50;
-        const governanceContradiction = state?.governance?.contradiction_index ?? 0;
-
-        // Pondérations de base
-        let wCycle = base.cycle ?? 0.5;
-        let wOnchain = base.onchain ?? 0.3;
-        let wRisk = base.risk ?? 0.2;
-
-        // RÈGLE 1: Cycle ≥ 90 → boost wCycle (identique à v2)
-        if (cycleScore >= 90) {
-          wCycle = 0.65;
-          wOnchain = 0.25;
-          wRisk = 0.1;
-          console.debug('🚀 SIM: Adaptive weights - Cycle ≥ 90 → boost cycle influence');
-        } else if (cycleScore >= 70) {
-          wCycle = 0.55;
-          wOnchain = 0.28;
-          wRisk = 0.17;
-        }
-
-        // RÈGLE 2: Contradiction élevée → pénalité on-chain légère
-        const contradictionLevel = Math.round(governanceContradiction * 100);
-        if (contradictionLevel >= 50) {
-          wOnchain = Math.max(0.2, wOnchain * 0.9); // -10% max
-          console.debug('🔸 SIM: High contradiction → reduced onchain weight');
-        }
-
-        // Normaliser les poids pour qu'ils somment à 1.0
-        const sum = wCycle + wOnchain + wRisk;
-        if (sum > 0) {
-          wCycle /= sum;
-          wOnchain /= sum;
-          wRisk /= sum;
-        }
-
-        return { cycle: wCycle, onchain: wOnchain, risk: wRisk, wCycle, wOnchain, wRisk };
+        // Delegate to centralized implementation
+        const result = calculateAdaptiveWeights(base, state);
+        // Return format compatible with simulation engine expectations
+        return {
+          cycle: result.cycle,
+          onchain: result.onchain,
+          risk: result.risk,
+          wCycle: result.cycle,
+          wOnchain: result.onchain,
+          wRisk: result.risk
+        };
       },
       applyContradictionCaps: (policy, state) => policy
     };

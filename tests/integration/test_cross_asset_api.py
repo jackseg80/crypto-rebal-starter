@@ -14,8 +14,8 @@ from datetime import datetime, timezone
 from api.main import app
 from services.alerts.cross_asset_correlation import (
     CorrelationSpike,
-    CorrelationCluster,
-    SystemicRiskScore
+    ConcentrationCluster,  # Renamed from CorrelationCluster
+    CrossAssetStatus  # Replaces SystemicRiskScore
 )
 
 
