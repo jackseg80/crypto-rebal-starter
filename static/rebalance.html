@@ -936,47 +936,9 @@
       if (strategyViewMode === 'compact') document.getElementById('strategies-content')?.classList.add('compact');
     });
 
-    /* ---------- SUPPRIMÉ: Mock CCS Data Generation ---------- */
-    function generateMockCCSData_DISABLED() {
-      console.error('⚠️ Mock CCS data generation disabled. Use real CCS data from risk-dashboard.');
-      return;
-      // Ne génère les données mock que si aucune donnée récente n'existe
-      const existingData = localStorage.getItem('last_targets');
-      if (existingData) {
-        try {
-          const data = JSON.parse(existingData);
-          const dataAge = Date.now() - new Date(data.timestamp).getTime();
-          // Si les données sont récentes (moins de 2h), ne pas écraser
-          if (dataAge < 2 * 60 * 60 * 1000 && data.source === 'risk-dashboard-ccs') {
-            console.debug('🔍 CCS data already exists and is recent, skipping mock generation');
-            return;
-          }
-        } catch (error) {
-          console.debug('🔍 Existing data invalid, will generate mock');
-        }
-      }
-
-      // Générer des données CCS mock réalistes
-      const mockCCSData = {
-        targets: {
-          'BTC': 44.2,
-          'ETH': 24.3,
-          'Stablecoins': 19.6,
-          'L1/L0 majors': 7.1,
-          'L2/Scaling': 2.4,
-          'DeFi': 1.8,
-          'AI/Data': 0.6,
-          'Others': 0.0,
-          model_version: 'ccs-blended-mock'
-        },
-        timestamp: new Date().toISOString(),
-        strategy: 'Blended CCS* (72) - Mock Data',
-        source: 'risk-dashboard-ccs'
-      };
-
-      localStorage.setItem('last_targets', JSON.stringify(mockCCSData));
-      console.debug('🔍 Generated mock CCS data for sync functionality:', mockCCSData);
-    }
+    /* ---------- SUPPRIMÉ: Mock CCS Data Generation (40 lignes) ---------- */
+    // Fonction generateMockCCSData_DISABLED() supprimée - jamais appelée, désactivée depuis longtemps
+    // Utilisait des données mock au lieu des vraies données CCS de risk-dashboard
 
     /* ---------- Fonction de synchronisation CCS ---------- */
     function syncCCSTargets() {
