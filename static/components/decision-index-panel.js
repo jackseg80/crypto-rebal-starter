@@ -415,14 +415,13 @@ function renderFooterStatus(data) {
   return `
     <div class="di-footer">
       <div class="di-footer-left">
-        ${good('● Euphorie')}&nbsp;<span class="di-source">${m.source || ''}</span>
+        ${good(`● ${m.phase || 'Neutral'}`)}
       </div>
       <div class="di-footer-right">
         ${pill(`Backend ${m.backend ? 'healthy' : 'check'}`)}
         ${pill(`Signals ${m.signals ? 'healthy' : (m.signals_status || 'limited')}`)}
         ${m.governance_mode ? pill(`Governance ${m.governance_mode}`) : ''}
-        ${scoreCycle != null ? pill(`Cycle active (${scoreCycle}${confCycle != null ? ', ' + confCycle + '%' : ''})`) : ''}
-        ${m.phase ? pill(`Regime ${m.phase}`) : ''}
+        ${scoreCycle != null ? pill(`Cycle ${scoreCycle}${confCycle != null ? ' (' + confCycle + '%)' : ''}`) : ''}
         ${timeStr ? pill(timeStr) : ''}
       </div>
     </div>
@@ -814,24 +813,40 @@ function _renderDIPanelInternal(container, data, opts = {}) {
         </div>
       </div>
 
-      <div class="di-progress">
-        <canvas id="${container.id}-stack-chart" class="di-stack-canvas"></canvas>
-      </div>
-
-      ${breakdown}
-
-      <div class="di-row" style="margin-top: 0.5rem;">
-        <div class="di-col">
-          <div style="font-size: 0.8rem; color: var(--theme-text-muted, #9aa5ce);">
-            Trend: ${trendArrow} ${trendSign}${trend.delta} pts (7j) • σ=${trend.sigma} • ${trend.state}
+      <div class="di-main-row">
+        <div class="di-main-left">
+          <div class="di-progress">
+            <canvas id="${container.id}-stack-chart" class="di-stack-canvas"></canvas>
           </div>
+          ${breakdown}
         </div>
-        <div class="di-col" style="flex: 0 0 auto;">
-          ${regimeDots}
+
+        <div class="di-main-right">
+          <div class="di-info-block">
+            <div class="di-info-label">Trend</div>
+            <div class="di-info-value">
+              ${trendArrow} ${trendSign}${trend.delta} pts • σ=${trend.sigma}
+            </div>
+            <div class="di-info-state">${trend.state}</div>
+          </div>
+
+          ${eventsData.length > 0 ? `
+            <div class="di-info-block">
+              <div class="di-info-label">Events</div>
+              <div class="di-events-compact">
+                ${eventsData.map(e => `<div class="di-ev-compact di-ev-${e.type}">${e.icon} ${e.text}</div>`).join('')}
+              </div>
+            </div>
+          ` : ''}
+
+          ${regimeDots ? `
+            <div class="di-info-block">
+              <div class="di-info-label">Regime</div>
+              ${regimeDots}
+            </div>
+          ` : ''}
         </div>
       </div>
-
-      ${eventsHTML}
 
       ${footerHTML}
       ${renderFootnote(data.meta)}
