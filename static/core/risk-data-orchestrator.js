@@ -2,7 +2,7 @@
 // Orchestrateur centralisé pour hydrater le risk store avec toutes les métriques calculées
 // Utilisé par rebalance.html, analytics-unified.html, execution.html pour parité avec risk-dashboard.html
 
-import { fetchAndComputeCCS, DEFAULT_CCS_WEIGHTS } from '../modules/signals-engine.js';
+import { fetchAndComputeCCS, interpretCCS, DEFAULT_CCS_WEIGHTS } from '../modules/signals-engine.js';
 import { estimateCyclePosition, blendCCS, getCyclePhase } from '../modules/cycle-navigator.js';
 import { fetchAllIndicators, calculateCompositeScore, enhanceCycleScore } from '../modules/onchain-indicators.js';
 import { getRegimeDisplayData } from '../modules/market-regimes.js';
@@ -64,10 +64,15 @@ export async function hydrateRiskStore() {
     ]);
 
     // Extraire les résultats (null si échec)
-    const ccs = ccsResult.status === 'fulfilled' ? ccsResult.value : null;
+    let ccs = ccsResult.status === 'fulfilled' ? ccsResult.value : null;
     const cycle = cycleResult.status === 'fulfilled' ? cycleResult.value : null;
     const indicators = indicatorsResult.status === 'fulfilled' ? indicatorsResult.value : null;
     const alerts = alertsResult.status === 'fulfilled' ? alertsResult.value : [];
+
+    // Ajouter interpretation au CCS si manquant
+    if (ccs && !ccs.interpretation) {
+      ccs = { ...ccs, interpretation: interpretCCS(ccs.score) };
+    }
 
     // Calculer score composite on-chain
     let onchainScore = null;
@@ -170,7 +175,7 @@ export async function hydrateRiskStore() {
     const duration = Math.round(performance.now() - startTime);
     console.log(`✅ Risk store hydrated successfully in ${duration}ms`, {
       ccs: ccs ? `${ccs.score} (${ccs.interpretation})` : 'N/A',
-      cycle: cycle ? `${cycle.phase} (${cycle.months}mo)` : 'N/A',
+      cycle: cycle ? `${cycle.phase?.phase || cycle.phase} (${cycle.months}mo)` : 'N/A',
       onchain: onchainScore !== null && typeof onchainScore === 'number' ? onchainScore.toFixed(1) : (onchainScore || 'N/A'),
       blended: blendedScore !== null && typeof blendedScore === 'number' ? blendedScore.toFixed(1) : (blendedScore || 'N/A'),
       regime: regime ? regime.phase : 'N/A',
