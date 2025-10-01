@@ -213,22 +213,19 @@ function renderSparkbar(history = []) {
 }
 
 /**
- * Génère breakdown line (w×s pour chaque pilier)
+ * Génère breakdown line (scores avec typographie uniforme)
  */
 function renderBreakdown(weights, scores) {
-  const w = weights || {};
   const s = scores || {};
-  const parts = [
-    { name: 'Cycle', val: _round(_safe(w.cycle) * _safe(s.cycle), 1), color: 'var(--di-color-cycle, #7aa2f7)' },
-    { name: 'On-Chain', val: _round(_safe(w.onchain) * _safe(s.onchain), 1), color: 'var(--di-color-onchain, #2ac3de)' },
-    { name: 'Risk', val: _round(_safe(w.risk) * _safe(s.risk), 1), color: 'var(--di-color-risk, #f7768e)' }
-  ];
 
-  const html = parts.map(p =>
-    `<span style="color: ${p.color}; font-weight: 600;">${p.name}</span> ${p.val}`
-  ).join('<span class="di-sep">·</span>');
-
-  return `<div class="di-subline">${html}</div>`;
+  return `
+    <div class="di-subline">
+      <span class="lbl lbl-cycle">Cycle <b>${_round(s.cycle || 0)}</b></span>
+      <span class="dot">·</span>
+      <span class="lbl lbl-oc">On-Chain <b>${_round(s.onchain || 0, 1)}</b></span>
+      <span class="dot">·</span>
+      <span class="lbl lbl-risk">Risk <b>${_round(s.risk || 0)}</b></span>
+    </div>`;
 }
 
 /**

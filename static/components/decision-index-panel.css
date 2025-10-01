@@ -163,18 +163,16 @@
 
 /* Barre empilée (progress bar) */
 .di-progress {
-  margin-top: 6px;
-  margin-bottom: 8px;
-  background: var(--di-bar-bg);
-  border-radius: 6px;
-  padding: 4px 6px;
-  min-height: 36px;
-  display: flex;
-  align-items: center;
+  margin: 10px 0 6px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .di-stack-canvas {
-  max-height: 32px;
+  height: 100%;
   width: 100%;
 }
 
@@ -629,18 +627,42 @@
 
 /* Breakdown line (sous la barre) */
 .di-subline {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: var(--theme-text-muted, #9aa5ce);
   margin-top: 0.5rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
   display: flex;
-  gap: 0.5rem;
+  gap: 0.4rem;
   justify-content: center;
   align-items: center;
 }
 
+.lbl {
+  opacity: 0.9;
+}
+
+.lbl-cycle {
+  color: #8ea6ff;
+}
+
+.lbl-oc {
+  color: #79c8d6;
+}
+
+.lbl-risk {
+  color: #e4959b;
+}
+
+.lbl b {
+  font-weight: 700;
+  color: var(--theme-text, #c0caf5);
+}
+
 /* Séparateur */
+.dot {
+  color: rgba(255, 255, 255, 0.3);
+  margin: 0 0.2rem;
+}
+
 .di-sep {
   color: rgba(255, 255, 255, 0.3);
   margin: 0 0.3rem;
