@@ -47,8 +47,8 @@ export async function fetchWithTimeout(url, { timeoutMs = 5000, signal } = {}) {
 
 /**
  * Fetch risk data avec fallback automatique
- * Essaie /api/risk/dashboard puis /api/risk/metrics
- * @returns {Promise<Object|null>} JSON data ou null si échec
+ * Maps API response to expected store structure
+ * @returns {Promise<Object|null>} Mapped data ou null si échec
  */
 export async function fetchRisk() {
   // 1) Endpoint canonique
@@ -57,22 +57,75 @@ export async function fetchRisk() {
       '/api/risk/dashboard?min_usd=0&price_history_days=30&lookback_days=30',
       { timeoutMs: 5000 }
     );
-    if (r?.ok) return await r.json();
+    if (r?.ok) {
+      const data = await r.json();
+
+      // Map API response to expected store structure
+      // API returns: { risk_metrics, portfolio_summary, correlation_metrics, alerts }
+      // Expected: { ccs, scores, cycle, governance, alerts }
+
+      const mapped = {
+        // CCS data (not in API - stub for now)
+        ccs: {
+          score: null, // Not available in this endpoint
+        },
+
+        // Scores (derive from risk_metrics)
+        scores: {
+          onchain: null,  // Calculated frontend-side
+          risk: data.risk_metrics?.risk_score ?? null,
+          blended: null,  // Calculated frontend-side
+        },
+
+        // Cycle data (not in API - stub for now)
+        cycle: {
+          ccsStar: null,  // Not available in this endpoint
+          months: null,
+          phase: null,
+        },
+
+        // Governance (stub)
+        governance: {
+          contradiction_index: 0.0,
+          cap_daily: 0.01,
+          ml_signals_timestamp: data.timestamp,
+          mode: 'manual',
+        },
+
+        // Targets
+        targets: {},
+
+        // Alerts
+        alerts: data.alerts || [],
+
+        // Regime (stub)
+        regime: {
+          phase: null,
+        },
+
+        // Keep raw data for reference
+        _raw: data,
+      };
+
+      console.log('[fetchRisk] Mapped data from /api/risk/dashboard:', mapped);
+      return mapped;
+    }
     console.warn('[risk-snapshot] /api/risk/dashboard not OK:', r?.status);
   } catch (err) {
     console.warn('[risk-snapshot] Primary API failed:', err?.message || err);
   }
 
-  // 2) Fallback
-  try {
-    const r2 = await fetchWithTimeout('/api/risk/metrics', { timeoutMs: 5000 });
-    if (r2?.ok) return await r2.json();
-    console.warn('[risk-snapshot] /api/risk/metrics not OK:', r2?.status);
-  } catch (err) {
-    console.error('[risk-snapshot] Fallback API failed:', err?.message || err);
-  }
-
-  return null;
+  // 2) Fallback: try to build a minimal structure
+  console.warn('[fetchRisk] All endpoints failed, returning stub');
+  return {
+    ccs: { score: null },
+    scores: { onchain: null, risk: null, blended: null },
+    cycle: { ccsStar: null, months: null },
+    governance: { contradiction_index: 0.0, cap_daily: 0.01 },
+    targets: {},
+    alerts: [],
+    regime: { phase: null },
+  };
 }
 
 /**

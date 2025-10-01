@@ -35,7 +35,8 @@
       "Bash(\".venv/Scripts/python.exe\" tools/gen_broken_refs.py)",
       "Bash(dir:*)",
       "Bash(git restore:*)",
-      "Bash(del staticcomponentsflyout-panel.js staticcomponentsrisk-snapshot.js)"
+      "Bash(del staticcomponentsflyout-panel.js staticcomponentsrisk-snapshot.js)",
+      "Bash(\".venv/Scripts/python.exe\" -c \"import sys; sys.path.insert(0, ''api''); from main import app; routes = [(r.path, list(r.methods)) for r in app.routes if hasattr(r, ''path'') and ''decision'' in r.path.lower()]; print(''\\n''.join([f''{p} {m}'' for p, m in routes]))\")"
     ],
     "deny": [],
     "ask": [],
