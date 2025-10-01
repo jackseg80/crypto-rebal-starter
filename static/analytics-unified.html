@@ -1380,36 +1380,7 @@
   </style>
   <script type="module" src="components/tooltips.js"></script>
 
-  <!-- Flyout Panel Component -->
-  <link rel="stylesheet" href="/static/components/flyout-panel.css">
-  <link rel="stylesheet" href="/static/components/risk-sidebar.css">
-  <script type="module">
-    import { createFlyoutPanel } from '/static/components/flyout-panel.js';
-    import { createRiskSidebar } from '/static/components/risk-sidebar.js';
-
-    document.addEventListener('DOMContentLoaded', () => {
-      // Créer un conteneur pour la Risk Sidebar
-      const sidebarContainer = document.createElement('div');
-      sidebarContainer.className = 'sidebar risk-sidebar-source';
-      sidebarContainer.style.display = 'none';
-      document.body.appendChild(sidebarContainer);
-
-      // Générer le contenu de la Risk Sidebar
-      createRiskSidebar(sidebarContainer);
-
-      // Initialiser le flyout
-      createFlyoutPanel({
-        sourceSelector: '.risk-sidebar-source',
-        title: '🎯 Risk Snapshot',
-        handleText: '🎯 Risk',
-        persistKey: 'analytics_unified',
-        removeToggleButton: true,
-        pushContainers: ['.wrap'],
-        baseOffset: 40,
-        pinnedOffset: 340
-      });
-    });
-  </script>
+  <!-- Flyout Panel Component (Web Components - imported at end of body) -->
 </head>
 
 <body>
