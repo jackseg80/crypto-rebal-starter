@@ -445,16 +445,18 @@
 
 /* Trend section avec titre */
 .trend-section {
-  margin-top: 8px;
+  margin-top: 10px;
+  margin-bottom: 10px;
 }
 
 .trend-title {
-  font-size: 0.8rem;
-  font-weight: 600;
+  font-size: 0.75rem;
+  font-weight: 700;
   color: var(--theme-text-muted, #9aa5ce);
   margin-bottom: 6px;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.05em;
+  font-variant: small-caps;
 }
 
 /* Trend grid avec sparkline + badges */
@@ -561,7 +563,12 @@
 }
 
 .pill--muted {
-  opacity: 0.7;
+  opacity: 0.5;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--theme-text-muted, #9aa5ce);
+  border-color: rgba(255, 255, 255, 0.05);
+  font-weight: 400;
+  font-size: 0.7rem;
 }
 
 .pill--ok {
