@@ -56,8 +56,7 @@
   flex-direction: column;
   gap: 0.4rem;
   font-size: 0.9rem;
-  align-items: flex-end;
-  text-align: right;
+  align-items: flex-start;
 }
 
 .di-title-row {
