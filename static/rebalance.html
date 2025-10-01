@@ -66,36 +66,9 @@
   <script src="global-config.js"></script>
   <script src="appearance.js"></script>
 
-  <!-- Flyout Panel Component -->
-  <link rel="stylesheet" href="/static/components/flyout-panel.css">
-  <link rel="stylesheet" href="/static/components/risk-sidebar.css">
-  <script type="module">
-    import { createFlyoutPanel } from '/static/components/flyout-panel.js';
-    import { createRiskSidebar } from '/static/components/risk-sidebar.js';
-
-    document.addEventListener('DOMContentLoaded', () => {
-      // Créer un conteneur pour la Risk Sidebar
-      const sidebarContainer = document.createElement('div');
-      sidebarContainer.className = 'sidebar risk-sidebar-source';
-      sidebarContainer.style.display = 'none';
-      document.body.appendChild(sidebarContainer);
-
-      // Générer le contenu de la Risk Sidebar
-      createRiskSidebar(sidebarContainer);
-
-      // Initialiser le flyout
-      createFlyoutPanel({
-        sourceSelector: '.risk-sidebar-source',
-        title: '🎯 Risk Snapshot',
-        handleText: '🎯 Risk',
-        persistKey: 'rebalance',
-        removeToggleButton: true,
-        pushContainers: ['.container', '.controls'],
-        baseOffset: 40,
-        pinnedOffset: 340
-      });
-    });
-  </script>
+  <!-- Unified Risk Flyout Panel (Full Sidebar) -->
+  <script type="module" src="components/flyout-panel.js"></script>
+  <script type="module" src="components/risk-sidebar-full.js"></script>
 
   <style>
     /* Onglets locaux (Rebalancing / Optimization) */
@@ -626,6 +599,12 @@
 </head>
 
 <body>
+
+  <!-- Unified Risk Flyout Panel -->
+  <flyout-panel position="left" width="340" persist-key="rebalance_flyout">
+    <span slot="title">🎯 Risk Dashboard</span>
+    <risk-sidebar-full slot="content" poll-ms="30000"></risk-sidebar-full>
+  </flyout-panel>
 
   <div class="wrap" style="padding-top: var(--space-lg);">
     <!-- Stratégies de Rebalancing -->
