@@ -132,25 +132,30 @@ export function createRiskSidebar(container) {
     </div>
   `;
 
+  // Exposer la fonction de mise à jour globalement pour que risk-dashboard.html puisse l'appeler
+  window.updateRiskSidebar = (state) => {
+    updateSidebarFromState(state);
+  };
+
   // Connecter les mises à jour live via riskStore
   if (window.riskStore) {
     // Subscribe to store updates
     window.riskStore.subscribe(() => {
-      updateScores(window.riskStore.getState());
+      updateSidebarFromState(window.riskStore.getState());
     });
 
-    // Initial update
-    updateScores(window.riskStore.getState());
+    // Initial update avec un délai pour attendre le chargement
+    setTimeout(() => {
+      updateSidebarFromState(window.riskStore.getState());
+    }, 100);
   } else {
-    console.warn('⚠️ riskStore not available, sidebar will not auto-update');
-    // Fallback: polling API
-    startPolling();
+    console.warn('⚠️ riskStore not available, sidebar will use fallback');
   }
 
   return {
     refresh: () => {
       if (window.riskStore) {
-        updateScores(window.riskStore.getState());
+        updateSidebarFromState(window.riskStore.getState());
       } else {
         fetchAndUpdate();
       }
@@ -158,42 +163,128 @@ export function createRiskSidebar(container) {
   };
 }
 
-// Fonction pour mettre à jour tous les scores
-function updateScores(state) {
-  // CCS Mixte
-  updateScore('ccs-ccs-mix', 'ccs-mixte-label', state.ccs_mix, 'ccs');
+// Fonction pour mettre à jour tous les scores depuis le state (format risk-dashboard.html)
+function updateSidebarFromState(state) {
+  if (!state) return;
 
-  // On-Chain
-  updateScore('kpi-onchain', 'onchain-label', state.onchain, 'onchain');
+  console.debug('🔄 Updating Risk Sidebar from state:', state);
 
-  // Risk Score
-  updateScore('kpi-risk', 'risk-label', state.risk, 'risk');
+  // CCS Mixte (ccsStar depuis state.cycle)
+  const ccsScore = state.cycle?.ccsStar || state.ccs?.score;
+  updateScoreElement('ccs-ccs-mix', 'ccs-mixte-label', ccsScore, 'ccs');
 
-  // Blended Decision
-  updateScore('kpi-blended', 'blended-label', state.blended, 'blended');
-  if (state.blended_meta) {
-    const metaEl = document.getElementById('blended-meta');
-    if (metaEl) metaEl.textContent = state.blended_meta;
+  // On-Chain (depuis state.scores)
+  const onchainScore = state.scores?.onchain;
+  updateScoreElement('kpi-onchain', 'onchain-label', onchainScore, 'onchain');
+
+  // Risk Score (depuis state.scores)
+  const riskScore = state.scores?.risk;
+  updateScoreElement('kpi-risk', 'risk-label', riskScore, 'risk');
+
+  // Blended Decision (depuis state.scores)
+  const blendedScore = state.scores?.blended;
+  updateScoreElement('kpi-blended', 'blended-label', blendedScore, 'blended');
+
+  // Cycle indicator
+  if (state.cycle?.months && state.cycle?.phase) {
+    const cycleText = document.getElementById('cycle-text');
+    const cycleDot = document.getElementById('cycle-dot');
+    if (cycleText && cycleDot) {
+      const months = Math.round(state.cycle.months);
+      const phase = state.cycle.phase;
+      cycleText.innerHTML = `
+        <div style="font-size: 11px; font-weight: 600;">${phase.emoji || ''} ${phase.phase?.replace('_', ' ').toUpperCase() || 'Unknown'}</div>
+        <div style="font-size: 10px; opacity: 0.8;">Month ${months} post-halving</div>
+      `;
+      cycleDot.style.backgroundColor = phase.color || 'var(--theme-text-muted)';
+    }
   }
 
   // Market Regime
-  if (state.regime) {
-    updateRegime(state.regime);
-  }
+  updateMarketRegimeFromState(state);
 
   // Governance
-  if (state.governance) {
-    updateGovernance(state.governance);
-  }
+  updateGovernanceFromState(state);
 
   // Alerts
-  if (state.alerts) {
-    updateAlerts(state.alerts);
+  updateAlertsFromState(state);
+}
+
+// Mise à jour Market Regime depuis state
+function updateMarketRegimeFromState(state) {
+  const regimeDot = document.getElementById('regime-dot');
+  const regimeText = document.getElementById('regime-text');
+
+  if (!regimeDot || !regimeText) return;
+
+  // Utiliser la logique de risk-dashboard.html
+  const blendedScore = state.scores?.blended || 0;
+  let regime = 'Neutral';
+  let dotClass = 'status-dot';
+
+  if (blendedScore >= 70) {
+    regime = 'Bull Market';
+    dotClass += ' status-success';
+  } else if (blendedScore >= 40) {
+    regime = 'Neutral';
+    dotClass += ' status-warning';
+  } else {
+    regime = 'Risk-Off';
+    dotClass += ' status-error';
+  }
+
+  regimeDot.className = dotClass;
+  regimeText.textContent = regime;
+}
+
+// Mise à jour Governance depuis state
+function updateGovernanceFromState(state) {
+  const governanceDot = document.getElementById('governance-dot');
+  const governanceText = document.getElementById('governance-text');
+  const governanceMode = document.getElementById('governance-mode');
+  const governanceContradiction = document.getElementById('governance-contradiction');
+
+  if (!window.store) return;
+
+  const governanceStatus = window.store.getGovernanceStatus();
+
+  if (governanceDot && governanceText) {
+    let dotClass = 'status-dot';
+    let statusText = governanceStatus.state;
+
+    if (governanceStatus.state === 'FROZEN') {
+      dotClass += ' status-error';
+      statusText = '❄️ Frozen';
+    } else if (governanceStatus.needsAttention) {
+      dotClass += ' status-warning';
+      statusText = '⚠️ Needs attention';
+    } else if (governanceStatus.isActive) {
+      dotClass += ' status-success';
+      statusText = '✓ Active';
+    } else {
+      dotClass += ' idle';
+      statusText = '○ Idle';
+    }
+
+    governanceDot.className = dotClass;
+    governanceText.textContent = statusText;
+  }
+
+  if (governanceMode && governanceContradiction) {
+    governanceMode.textContent = `Mode: ${governanceStatus.mode}`;
+    const contraPct = (governanceStatus.contradictionLevel * 100);
+    governanceContradiction.textContent = `Contradiction: ${contraPct.toFixed(1)}%`;
   }
 }
 
+// Mise à jour Alerts depuis state
+function updateAlertsFromState(state) {
+  // Les alertes sont gérées par loadAlertsForSidebar() dans risk-dashboard.html
+  // On ne fait rien ici pour éviter les conflits
+}
+
 // Fonction helper pour mettre à jour un score individuel
-function updateScore(scoreId, labelId, value, type) {
+function updateScoreElement(scoreId, labelId, value, type) {
   const scoreEl = document.getElementById(scoreId);
   const labelEl = document.getElementById(labelId);
 
@@ -237,117 +328,3 @@ function getLabel(value, type) {
   return 'Défavorable';
 }
 
-// Fonction pour mettre à jour le régime de marché
-function updateRegime(regime) {
-  const dotEl = document.getElementById('regime-dot');
-  const textEl = document.getElementById('regime-text');
-
-  if (!dotEl || !textEl) return;
-
-  textEl.textContent = regime.text || regime;
-
-  // Color based on regime
-  const regimeStr = (regime.text || regime).toLowerCase();
-  dotEl.className = 'status-dot';
-  if (regimeStr.includes('bull') || regimeStr.includes('euphori')) {
-    dotEl.classList.add('status-success');
-  } else if (regimeStr.includes('bear') || regimeStr.includes('risk')) {
-    dotEl.classList.add('status-error');
-  } else {
-    dotEl.classList.add('status-warning');
-  }
-}
-
-// Fonction pour mettre à jour la governance
-function updateGovernance(governance) {
-  const dotEl = document.getElementById('governance-dot');
-  const textEl = document.getElementById('governance-text');
-  const modeEl = document.getElementById('governance-mode');
-  const contradictionEl = document.getElementById('governance-contradiction');
-  const constraintsEl = document.getElementById('governance-constraints');
-
-  if (textEl) textEl.textContent = governance.status || 'Active';
-  if (modeEl) modeEl.textContent = `Mode: ${governance.mode || 'manual'}`;
-  if (contradictionEl) {
-    const contradiction = governance.contradiction || 0;
-    contradictionEl.textContent = `Contradiction: ${(contradiction * 100).toFixed(1)}%`;
-  }
-  if (constraintsEl && governance.constraints) {
-    constraintsEl.textContent = governance.constraints;
-  }
-
-  if (dotEl) {
-    dotEl.className = 'status-dot status-success';
-    if (governance.contradiction && governance.contradiction > 0.3) {
-      dotEl.className = 'status-dot status-warning';
-    }
-  }
-}
-
-// Fonction pour mettre à jour les alertes
-function updateAlerts(alerts) {
-  const dotEl = document.getElementById('alerts-dot');
-  const textEl = document.getElementById('alerts-text');
-  const listEl = document.getElementById('alerts-list');
-
-  const activeAlerts = Array.isArray(alerts) ? alerts.filter(a => a.status === 'active') : [];
-
-  if (textEl) {
-    textEl.textContent = activeAlerts.length === 0
-      ? 'No active alerts'
-      : `${activeAlerts.length} active alert${activeAlerts.length > 1 ? 's' : ''}`;
-  }
-
-  if (dotEl) {
-    dotEl.className = 'status-dot';
-    if (activeAlerts.length === 0) {
-      dotEl.classList.add('status-success');
-    } else {
-      const hasCritical = activeAlerts.some(a => a.severity === 'S3');
-      dotEl.classList.add(hasCritical ? 'status-error' : 'status-warning');
-    }
-  }
-
-  if (listEl) {
-    if (activeAlerts.length === 0) {
-      listEl.innerHTML = '<div style="font-size:0.85rem;opacity:0.7;">All clear ✓</div>';
-    } else {
-      const items = activeAlerts.slice(0, 5).map(alert => `
-        <div style="padding:4px 0; font-size:0.85rem; border-bottom:1px solid var(--theme-border-subtle);">
-          <span style="color:${alert.severity === 'S3' ? 'var(--danger)' : 'var(--warning)'};">
-            ${alert.severity === 'S3' ? '🔴' : '🟡'}
-          </span>
-          ${alert.message || alert.type}
-        </div>
-      `).join('');
-      listEl.innerHTML = items;
-    }
-  }
-}
-
-// Fallback: polling API si riskStore n'est pas disponible
-let pollingInterval;
-function startPolling() {
-  fetchAndUpdate();
-  pollingInterval = setInterval(fetchAndUpdate, 30000); // 30s
-}
-
-async function fetchAndUpdate() {
-  try {
-    const base = window.globalConfig?.get('api_base_url') || '';
-    const response = await fetch(`${base}/api/risk/scores/all`);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json();
-    updateScores(data);
-  } catch (error) {
-    console.warn('Failed to fetch risk scores:', error);
-  }
-}
-
-// Cleanup
-export function destroyRiskSidebar() {
-  if (pollingInterval) {
-    clearInterval(pollingInterval);
-    pollingInterval = null;
-  }
-}
