@@ -443,6 +443,49 @@
   border-color: rgba(56, 142, 60, 0.35);
 }
 
+/* Trend grid avec sparkline + badges */
+.trend-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.trend-left {
+  min-width: 220px;
+}
+
+.spark {
+  width: 100%;
+  height: 40px;
+  display: block;
+}
+
+.spark-line {
+  fill: none;
+  stroke: rgba(159, 178, 255, 0.95);
+  stroke-width: 2;
+}
+
+.spark-line.dashed {
+  stroke-dasharray: 4 4;
+  opacity: 0.6;
+}
+
+.spark-placeholder {
+  color: var(--theme-text-muted, #9aa5ce);
+  font-size: 0.85rem;
+  opacity: 0.5;
+}
+
+.trend-right {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 /* Phase active (colonne droite) */
 /* Sous-cartes à droite */
 .di-rightgrid {

@@ -59,6 +59,47 @@ function _round(val, decimals = 1) {
 }
 
 /**
+ * Calcule fenêtre de trend (Δ, σ, état) sur historique DI
+ */
+function computeTrendWindow(history, win = 7) {
+  const arr = Array.isArray(history) ? history.map(h => (h?.di ?? h) ?? 0) : [];
+  const n = Math.min(win, arr.length);
+  if (n < 2) return { ok: false, n, delta: 0, sigma: 0, state: 'Insuffisant', series: arr.slice(-n) };
+  const series = arr.slice(-n);
+  const first = series[0];
+  const last = series[series.length - 1];
+  const delta = last - first;
+  const avg = series.reduce((a, b) => a + b, 0) / series.length;
+  const varg = series.reduce((a, b) => a + (b - avg) ** 2, 0) / series.length;
+  const sigma = Math.sqrt(varg);
+  let state = 'Stable';
+  if (delta > 1) state = 'Haussier';
+  else if (delta < -1) state = 'Baissier';
+  return { ok: true, n, delta, sigma, state, series };
+}
+
+/**
+ * Génère SVG sparkline pour série temporelle DI
+ */
+function renderSparkline(series, width = 260, height = 36, dashed = false) {
+  if (!Array.isArray(series) || series.length === 0) {
+    return `<div class="spark-placeholder">—</div>`;
+  }
+  const n = series.length;
+  const min = Math.min(...series);
+  const max = Math.max(...series);
+  const span = (max - min) || 1;
+  const px = (i) => (i / (n - 1)) * (width - 2) + 1;
+  const py = (v) => height - ((v - min) / span) * (height - 2) - 1;
+  const d = series.map((v, i) => `${i === 0 ? 'M' : 'L'} ${px(i).toFixed(1)} ${py(v).toFixed(1)}`).join(' ');
+  const cls = dashed ? 'spark-line dashed' : 'spark-line';
+  return `
+    <svg class="spark" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+      <path d="${d}" class="${cls}"/>
+    </svg>`;
+}
+
+/**
  * Calcule contributions relatives (formule: (w×s)/Σ)
  * ⚠️ PAS d'inversion Risk
  */
@@ -802,10 +843,16 @@ function _renderDIPanelInternal(container, data, opts = {}) {
 
   // Calculer breakdown, trend, regime ribbon
   const breakdown = renderBreakdown(data.weights, data.scores);
-  const trend = calculateTrend(data.history);
-  const trendArrow = trend.delta > 0 ? '↗︎' : trend.delta < 0 ? '↘︎' : '→';
-  const trendSign = trend.delta >= 0 ? '+' : '';
-  const n = data.history?.length || 0;
+
+  // Nouveau calcul trend avec sparkline
+  const tw = computeTrendWindow(data.history, 7);
+  const trendDelta = _round(tw.delta, 1);
+  const trendSigma = _round(tw.sigma, 1);
+  const trendState = tw.state;
+  const dashed = !tw.ok;
+  const trendSpark = renderSparkline(tw.series, 280, 40, dashed);
+  const deltaBadge = `${trendDelta === 0 ? '→' : (trendDelta > 0 ? '↗' : '↘')} ${trendDelta > 0 ? '+' : ''}${trendDelta} pts`;
+
   const regimeRibbon = renderRegimeRibbon(data.meta, data.regimeHistory);  // ✅ toujours rendu avec fallback
 
   const m = data.meta || {};
@@ -854,8 +901,15 @@ function _renderDIPanelInternal(container, data, opts = {}) {
 
           ${breakdown}
 
-          <div class="di-trend-info">
-            Trend: ${trendArrow} ${trendSign}${trend.delta} pts (${Math.abs(n - 7)} j) • σ=${trend.sigma} • ${trend.state}
+          <div class="trend-grid">
+            <div class="trend-left">
+              ${trendSpark}
+            </div>
+            <div class="trend-right">
+              <span class="pill pill--${trendDelta > 1 ? 'ok' : (trendDelta < -1 ? 'danger' : 'warn')}">${deltaBadge}</span>
+              <span class="pill pill--info">σ ${trendSigma}</span>
+              <span class="pill pill--${trendState === 'Haussier' ? 'ok' : (trendState === 'Baissier' ? 'danger' : 'warn')}">${trendState}</span>
+            </div>
           </div>
 
           ${regimeRibbon}
