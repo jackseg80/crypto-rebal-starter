@@ -367,33 +367,6 @@ function renderRegimeDots(regimeHistory = []) {
 }
 
 /**
- * Génère Regime Ribbon (7-14 cases colorées)
- */
-function renderRegimeRibbon(regimeHistory = []) {
-  const arr = Array.isArray(regimeHistory) ? regimeHistory.slice(-14) : [];
-
-  if (arr.length === 0) {
-    return '';  // Pas de ribbon si vide
-  }
-
-  const cells = arr.map((r, i) => {
-    const phase = (r.phase || 'neutral').toLowerCase();
-    const phaseClass = mapPhaseToClass(phase);
-    const k = arr.length - 1 - i;
-
-    // Tooltip détaillé
-    const label = r.label || phase;
-    const capStr = typeof r.cap === 'number' ? ` • cap ${r.cap}%` : '';
-    const contradStr = typeof r.contrad === 'number' ? ` • contradiction ${(r.contrad * 100).toFixed(0)}%` : '';
-    const title = `J-${k} • Phase: ${label}${capStr}${contradStr}`;
-
-    return `<span class="di-ribbon-cell di-ribbon-${phaseClass}" title="${title}"></span>`;
-  }).join('');
-
-  return `<div class="di-ribbon">${cells}</div>`;
-}
-
-/**
  * Génère Events (icônes conditionnelles)
  */
 function renderEvents(meta = {}) {
