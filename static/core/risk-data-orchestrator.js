@@ -41,7 +41,7 @@ export async function hydrateRiskStore() {
       }
     };
 
-    // Fetch risk data from API (pour risk score + contradiction)
+    // Fetch risk data from API (pour risk score)
     const fetchRiskData = async () => {
       try {
         if (!window.globalConfig?.apiRequest) {
@@ -54,6 +54,21 @@ export async function hydrateRiskStore() {
         return riskData;
       } catch (err) {
         console.warn('⚠️ Risk data fetch failed:', err);
+        return null;
+      }
+    };
+
+    // Fetch governance state (pour contradiction_index autoritaire)
+    const fetchGovernanceState = async () => {
+      try {
+        const response = await fetch(`${window.location.origin}/execution/governance/state`);
+        if (!response.ok) {
+          console.warn('⚠️ Governance state fetch failed:', response.status);
+          return null;
+        }
+        return await response.json();
+      } catch (err) {
+        console.warn('⚠️ Governance state fetch failed:', err);
         return null;
       }
     };
@@ -96,34 +111,9 @@ export async function hydrateRiskStore() {
       return factors > 0 ? Math.max(0, Math.min(100, score)) : 50;
     };
 
-    // Calculer contradiction depuis correlation_metrics
-    const calculateContradiction = (riskData) => {
-      if (!riskData?.correlation_metrics) return null;
-
-      // Méthode 1: Utiliser diversification_ratio (1.0 = parfaite corrélation, >1 = diversifié)
-      // Plus le ratio est élevé, moins il y a contradiction (bonne diversification)
-      const divRatio = riskData.correlation_metrics.diversification_ratio;
-      if (divRatio != null && divRatio >= 1) {
-        // Diversification ratio typique: 1.0 (mauvais) à 3.0+ (excellent)
-        // Contradiction inversement proportionnelle: 1.0 → 100%, 3.0 → 0%
-        const contradiction = Math.max(0, Math.min(1, (2.0 - divRatio) / 2.0));
-        return contradiction;
-      }
-
-      // Méthode 2: Calculer moyenne des top correlations
-      const topCorrs = riskData.correlation_metrics.top_correlations;
-      if (Array.isArray(topCorrs) && topCorrs.length > 0) {
-        const avgCorr = topCorrs.reduce((sum, item) => sum + Math.abs(item.correlation || 0), 0) / topCorrs.length;
-        // Haute corrélation moyenne → faible contradiction
-        return Math.max(0, Math.min(1, 1 - avgCorr));
-      }
-
-      return null;
-    };
-
     // Calculer toutes les métriques en parallèle pour performance optimale
     // NOTE: estimateCyclePosition() est SYNCHRONE, on le wrap dans Promise.resolve()
-    const [ccsResult, cycleResult, indicatorsResult, alertsResult, riskResult] = await Promise.allSettled([
+    const [ccsResult, cycleResult, indicatorsResult, alertsResult, riskResult, governanceResult] = await Promise.allSettled([
       fetchAndComputeCCS().catch(err => {
         console.warn('⚠️ CCS calculation failed:', err);
         return null;
@@ -141,7 +131,8 @@ export async function hydrateRiskStore() {
         return null;
       }),
       fetchAlerts(),
-      fetchRiskData()
+      fetchRiskData(),
+      fetchGovernanceState()
     ]);
 
     // Extraire les résultats (null si échec)
@@ -150,10 +141,13 @@ export async function hydrateRiskStore() {
     const indicators = indicatorsResult.status === 'fulfilled' ? indicatorsResult.value : null;
     const alerts = alertsResult.status === 'fulfilled' ? alertsResult.value : [];
     const riskData = riskResult.status === 'fulfilled' ? riskResult.value : null;
+    const governanceState = governanceResult.status === 'fulfilled' ? governanceResult.value : null;
 
-    // Calculer risk score et contradiction depuis riskData
+    // Calculer risk score depuis riskData
     const riskScore = riskData ? calculateRiskScore(riskData) : null;
-    const contradiction = riskData ? calculateContradiction(riskData) : null;
+
+    // Utiliser contradiction_index autoritaire depuis governance state (source de vérité backend)
+    const contradiction = governanceState?.contradiction_index ?? null;
 
     // Ajouter interpretation au CCS si manquant
     if (ccs && !ccs.interpretation) {
