@@ -76,9 +76,11 @@ export async function hydrateRiskStore() {
 
     // Calculer score composite on-chain
     let onchainScore = null;
-    if (indicators && indicators.length > 0) {
+    if (indicators && Object.keys(indicators).length > 0) {
       try {
-        onchainScore = calculateCompositeScore(indicators);
+        const compositeResult = calculateCompositeScore(indicators);
+        // calculateCompositeScore returns { score, confidence, contributors, ... }
+        onchainScore = compositeResult?.score ?? null;
       } catch (err) {
         console.warn('⚠️ On-chain composite score calculation failed:', err);
       }
@@ -91,7 +93,9 @@ export async function hydrateRiskStore() {
     let blendedScore = null;
     if (ccs && cycle) {
       try {
-        blendedScore = blendCCS(ccs.score, cycle.ccsStar || ccs.score);
+        const blendResult = blendCCS(ccs.score, cycle.months || 18);
+        // blendCCS returns { originalCCS, cycleScore, blendedCCS, cycleWeight, phase }
+        blendedScore = blendResult?.blendedCCS ?? null;
       } catch (err) {
         console.warn('⚠️ Blended score calculation failed:', err);
       }
@@ -101,13 +105,14 @@ export async function hydrateRiskStore() {
     let regime = null;
     if (blendedScore !== null || onchainScore !== null) {
       try {
-        // getRegimeDisplayData retourne { phase, cap, contradiction, ... }
         const riskScore = currentState.scores?.risk || null;
-        regime = getRegimeDisplayData(
+        const regimeData = getRegimeDisplayData(
           blendedScore || 50,
           onchainScore || 50,
           riskScore || 50
         );
+        // getRegimeDisplayData returns { regime: {...}, risk_budget, allocation, recommendations }
+        regime = regimeData?.regime ?? null;
       } catch (err) {
         console.warn('⚠️ Market regime calculation failed:', err);
       }
@@ -174,7 +179,7 @@ export async function hydrateRiskStore() {
 
     const duration = Math.round(performance.now() - startTime);
     console.log(`✅ Risk store hydrated successfully in ${duration}ms`, {
-      ccs: ccs ? `${ccs.score} (${ccs.interpretation})` : 'N/A',
+      ccs: ccs ? `${ccs.score} (${ccs.interpretation?.label || ccs.interpretation})` : 'N/A',
       cycle: cycle ? `${cycle.phase?.phase || cycle.phase} (${cycle.months}mo)` : 'N/A',
       onchain: onchainScore !== null && typeof onchainScore === 'number' ? onchainScore.toFixed(1) : (onchainScore || 'N/A'),
       blended: blendedScore !== null && typeof blendedScore === 'number' ? blendedScore.toFixed(1) : (blendedScore || 'N/A'),
