@@ -63,20 +63,25 @@ class FlyoutPanel extends HTMLElement {
 
         .flyout {
           position: fixed;
-          top: 0;
-          bottom: 0;
+          top: 120px;
           left: 0;
           width: var(--flyout-width);
+          max-height: calc(100vh - 140px);
           color: var(--flyout-fg);
-          backdrop-filter: blur(var(--flyout-blur));
-          background: color-mix(in oklab, var(--flyout-bg) 90%, transparent);
-          border-right: 1px solid var(--flyout-border);
+          backdrop-filter: blur(16px) saturate(1.8);
+          background: color-mix(in srgb, var(--flyout-bg) 88%, transparent 12%);
+          border: 1px solid color-mix(in srgb, var(--flyout-border) 45%, transparent);
+          border-left: none;
+          border-radius: 0 var(--radius-xl, 12px) var(--radius-xl, 12px) 0;
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
           transform: translateX(calc(-100% + var(--flyout-handle-width)));
-          transition: transform .25s ease;
+          transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s ease;
+          opacity: 0.5;
           display: grid;
           grid-template-rows: auto 1fr;
-          z-index: 9999;
+          z-index: 25;
           font-size: var(--flyout-font-size);
+          overflow: hidden;
         }
 
         .flyout.right {
@@ -90,22 +95,33 @@ class FlyoutPanel extends HTMLElement {
         .flyout.open,
         .flyout.pinned {
           transform: translateX(0);
+          opacity: 1;
         }
 
         .handle {
           position: absolute;
-          top: 40%;
-          right: -1px;
+          top: 50%;
+          transform: translateY(-50%);
+          right: -48px;
           width: var(--flyout-handle-width);
-          height: 120px;
-          background: color-mix(in oklab, var(--flyout-bg) 80%, transparent);
-          border: 1px solid var(--flyout-border);
-          border-left: none;
-          border-radius: 0 8px 8px 0;
+          padding: var(--space-md, 12px) var(--space-xs, 6px);
+          background: var(--brand-primary, #3b82f6);
+          color: white;
+          border: none;
+          border-radius: 0 var(--radius-lg, 8px) var(--radius-lg, 8px) 0;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
           display: grid;
           place-items: center;
           cursor: pointer;
-          color: #9ca3af;
+          font-size: 0.75rem;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          writing-mode: vertical-rl;
+          text-orientation: mixed;
+          opacity: 0.85;
+          transition: opacity 0.2s ease;
+          pointer-events: auto;
         }
 
         .flyout.right .handle {
@@ -114,6 +130,12 @@ class FlyoutPanel extends HTMLElement {
           border-left: 1px solid var(--flyout-border);
           border-right: none;
           border-radius: 8px 0 0 8px;
+        }
+
+        .flyout.open .handle,
+        .flyout.pinned .handle {
+          opacity: 0;
+          pointer-events: none;
         }
 
         header {
