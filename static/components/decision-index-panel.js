@@ -875,9 +875,9 @@ function _renderDIPanelInternal(container, data, opts = {}) {
   const trendLeft = tw.ok
     ? trendSpark
     : `
-        <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
           ${trendSpark}
-          <span class="pill pill--muted pill--ellipsis">… Historique insuffisant</span>
+          <span class="pill pill--muted pill--ellipsis" style="margin-left: 8px;">… Historique insuffisant</span>
         </div>
       `;
 
