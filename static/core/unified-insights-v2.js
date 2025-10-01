@@ -472,6 +472,13 @@ export async function getUnifiedState() {
       var95_1d: risk?.var_95_1d ?? risk?.var95_1d ?? null,
       budget: regimeData.risk_budget
     },
+    // Scores consolidés pour Decision Index Panel
+    scores: {
+      cycle: Math.round(cycleData.score ?? 50),
+      onchain: onchainScore != null ? Math.round(onchainScore) : null,
+      risk: riskScore != null ? Math.round(riskScore) : null,
+      blended: blendedScore != null ? Math.round(blendedScore) : null
+    },
 
     // NOUVEAUX EXPOSÉS - Budget vs Exécution (Hard-switch V2)
     risk_budget: {
