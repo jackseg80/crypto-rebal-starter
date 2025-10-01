@@ -211,6 +211,16 @@
 
   <script type="module" src="components/tooltips.js"></script>
 
+  <!-- Risk Dashboard Store + Calculation Modules (for flyout panel parity) -->
+  <script type="module" src="core/risk-dashboard-store.js"></script>
+  <script type="module" src="core/fetcher.js"></script>
+  <script type="module" src="modules/signals-engine.js"></script>
+  <script type="module" src="modules/cycle-navigator.js"></script>
+  <script type="module" src="modules/onchain-indicators.js"></script>
+  <script type="module" src="modules/market-regimes.js"></script>
+  <script type="module" src="modules/targets-coordinator.js"></script>
+  <script type="module" src="core/risk-data-orchestrator.js"></script>
+
   <!-- Unified Risk Flyout Panel (Full Sidebar) -->
   <script type="module" src="components/flyout-panel.js"></script>
   <script type="module" src="components/risk-sidebar-full.js"></script>
@@ -221,7 +231,7 @@
   <!-- Unified Risk Flyout Panel -->
   <flyout-panel position="left" width="340" persist-key="execution_flyout">
     <span slot="title">🎯 Risk Dashboard</span>
-    <risk-sidebar-full slot="content" poll-ms="30000"></risk-sidebar-full>
+    <risk-sidebar-full slot="content" poll-ms="0"></risk-sidebar-full>
   </flyout-panel>
 
   <div class="wrap">
