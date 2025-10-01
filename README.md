@@ -229,32 +229,33 @@ localStorage.setItem('__ui.flyout.enabled', '1')
 
 **Fichiers** :
 - `static/components/flyout-panel.css` - Styles réutilisables
-- `static/components/flyout-panel.js` - Logique avec API ES6
-- `static/components/risk-snapshot.js` - Composant Risk Snapshot réutilisable
+- `static/components/flyout-panel.js` - Logique flyout avec API ES6
+- `static/components/risk-sidebar.js` - Composant Risk Sidebar réutilisable (génère HTML + mises à jour live)
 
 **Utilisation** :
 ```javascript
 import { createFlyoutPanel } from '/static/components/flyout-panel.js';
-import { createRiskSnapshot } from '/static/components/risk-snapshot.js';
+import { createRiskSidebar } from '/static/components/risk-sidebar.js';
 
-// Créer un conteneur pour le Risk Snapshot
-const flyoutSource = document.createElement('div');
-flyoutSource.style.display = 'none';
-document.body.appendChild(flyoutSource);
+// Créer un conteneur pour la Risk Sidebar
+const sidebarContainer = document.createElement('div');
+sidebarContainer.className = 'sidebar risk-sidebar-source';
+sidebarContainer.style.display = 'none';
+document.body.appendChild(sidebarContainer);
 
-// Injecter le Risk Snapshot
-createRiskSnapshot(flyoutSource);
+// Générer le contenu de la Risk Sidebar (scores, régime, governance, alertes)
+createRiskSidebar(sidebarContainer);
 
 // Initialiser le flyout
 createFlyoutPanel({
-  sourceSelector: '.flyout-source',       // Sélecteur CSS du conteneur
-  title: '🎯 Risk Snapshot',              // Titre du panneau
-  handleText: '🎯 Risk',                  // Texte poignée
-  persistKey: 'page_name',                // Clé localStorage unique
-  removeToggleButton: false,              // Garder bouton toggle
-  pushContainers: ['.wrap', '.controls'], // Éléments à décaler
-  baseOffset: 40,                         // Décalage base (px)
-  pinnedOffset: 340                       // Décalage épinglé (px)
+  sourceSelector: '.risk-sidebar-source',  // Sélecteur CSS du conteneur
+  title: '🎯 Risk Snapshot',               // Titre du panneau
+  handleText: '🎯 Risk',                   // Texte poignée
+  persistKey: 'page_name',                 // Clé localStorage unique
+  removeToggleButton: true,                // Supprimer bouton toggle
+  pushContainers: ['.wrap', '.controls'],  // Éléments à décaler
+  baseOffset: 40,                          // Décalage base (px)
+  pinnedOffset: 340                        // Décalage épinglé (px)
 });
 ```
 
