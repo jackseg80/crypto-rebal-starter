@@ -829,13 +829,12 @@ function _renderDIPanelInternal(container, data, opts = {}) {
 
   container.innerHTML = `
     <div class="di-panel">
-      <div class="di-panel-header">
-        <button class="di-help-trigger" aria-label="Aide Decision Index" aria-expanded="false" aria-controls="di-help-popover" type="button">ℹ️</button>
-      </div>
-
       <div class="di-grid">
         <div class="di-left">
-          <div class="di-title">DECISION INDEX</div>
+          <div class="di-title-row">
+            <div class="di-title">DECISION INDEX</div>
+            <button class="di-help-trigger" aria-label="Aide Decision Index" aria-expanded="false" aria-controls="di-help-popover" type="button">ℹ️</button>
+          </div>
           <div class="di-score">${Math.round(data.di)}</div>
 
           <div class="di-progress">
