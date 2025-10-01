@@ -8,10 +8,11 @@
 - **Lancement**: `.\.venv\Scripts\activate.ps1 ; uvicorn api.main:app --reload`
 
 ## Règles générales
-- ❌ Pas d’URL en dur → utiliser `static/global-config.js`  
-- ✅ Respecter caches/TTL (`risk_scores_cache`, 12h) et système cross-tab  
-- ❌ Pas de nouveaux endpoints temps réel (`/realtime/publish`, `/broadcast`)  
-- ✅ Toujours produire des **git diff unifiés minimaux** (pas de refactors massifs)  
+- ❌ Pas d'URL en dur → utiliser `static/global-config.js`
+- ✅ Respecter caches/TTL (`risk_scores_cache`, 12h) et système cross-tab
+- ❌ Pas de nouveaux endpoints temps réel (`/realtime/publish`, `/broadcast`)
+- ✅ Toujours produire des **git diff unifiés minimaux** (pas de refactors massifs)
+- ⚠️ **Sémantique Risk** : Voir [docs/RISK_SEMANTICS.md](docs/RISK_SEMANTICS.md)  
 
 ## Fichiers pivots
 - **P&L Today**  

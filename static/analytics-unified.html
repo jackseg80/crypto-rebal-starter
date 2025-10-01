@@ -248,6 +248,10 @@
         const cacheBust2 = Date.now();
         const { renderDecisionIndexPanel } = await import(`./components/decision-index-panel.js?v=${cacheBust2}`);
         const { getUnifiedState } = await import(`./core/unified-insights-v2.js?v=${cacheBust2}`);
+        const diHistoryModule = await import(`./utils/di-history.js?v=${cacheBust2}`);
+
+        // Exposer API DI history dans window pour debug/réutilisation
+        window.__DI_HISTORY__ = diHistoryModule;
 
         // Récupérer l'état unifié (MÊME source que UnifiedInsights)
         const u = await getUnifiedState();
@@ -299,6 +303,54 @@
         // Alpha si disponible dans signals
         const alpha = s?.signals?.alpha;
 
+        // 📊 Historique Decision Index (persistance localStorage via di-history.js)
+        const activeUser = localStorage.getItem('activeUser') || 'demo';
+        const dataSource = window.globalConfig?.get('data_source') || 'cointracking';
+
+        // Détecter contexte simulation
+        const isSimulation = !!window.__SIMULATION__;
+        const suffix = isSimulation ? '_sim' : '_prod';
+
+        // Générer clé scopée avec timezone Europe/Zurich
+        const historyKey = diHistoryModule.makeKey({
+          user: activeUser,
+          source: dataSource,
+          suffix
+        });
+        const today = diHistoryModule.getTodayCH();
+
+        // Charger historique existant (avec sanitization)
+        let diHistory = diHistoryModule.loadHistory(historyKey, 30);
+
+        // Migration douce depuis legacy s?.di_history si première utilisation
+        if (diHistory.length === 0 && s?.di_history && Array.isArray(s.di_history) && s.di_history.length > 0) {
+          console.debug('📦 Migration legacy DI history...');
+          diHistory = diHistoryModule.migrateLegacy(s.di_history, 30);
+          diHistoryModule.saveHistory(historyKey, diHistory);
+          console.debug('✅ Legacy migration done:', { count: diHistory.length });
+        }
+
+        // Ajouter score actuel si nécessaire (date différente OU delta > 0.1)
+        const { history: updatedHistory, added } = diHistoryModule.pushIfNeeded({
+          key: historyKey,
+          history: diHistory,
+          today,
+          di: blendedScore,
+          max: 30,
+          minDelta: 0.1
+        });
+
+        diHistory = updatedHistory;
+
+        if (added) {
+          console.debug('📊 DI history updated:', {
+            count: diHistory.length,
+            latest: blendedScore,
+            context: isSimulation ? 'simulation' : 'production',
+            timezone: 'Europe/Zurich'
+          });
+        }
+
         const panelData = {
           di: blendedScore,
           scores: { cycle: cycleScore, onchain: onchainScore, risk: riskScore },
@@ -319,7 +371,7 @@
             signals_status: s.ui?.apiStatus?.signals || 'limited',
             alpha: alpha                           // ✅ alpha si dispo [0..1]
           },
-          history: (s?.di_history || []),                                          // ✅ di history
+          history: diHistory.map(h => h.di),                                       // ✅ di history (array de scores)
           regimeHistory: (s?.regime?.history || s?.regime_history || [])           // ✅ regime history (2 clés possibles)
         };
 

@@ -1,0 +1,13 @@
+{
+  "$schema": "internal/presets/cycle_phase.schema.json",
+  "version": 1,
+  "presets": [
+    {
+      "id": "baseline",
+      "label": "Baseline",
+      "phases": ["expansion", "slowdown", "contraction", "recovery"],
+      "weights": { "expansion": 1.0, "slowdown": 0.5, "contraction": -0.5, "recovery": 0.8 },
+      "notes": "Preset de base pour playground analytics"
+    }
+  ]
+}

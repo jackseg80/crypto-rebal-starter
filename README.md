@@ -41,6 +41,23 @@ Le projet implémente des mesures de sécurité robustes :
 - ✅ **Tests automatisés** : Tests de sécurité des headers, validation automatique
 - 📄 **Documentation** : Voir [SECURITY.md](SECURITY.md) pour les détails complets
 
+> **⚠️ Règle Canonique — Sémantique Risk**
+>
+> Le **Risk Score** est un indicateur **positif** de robustesse, borné **[0..100]**.
+>
+> **Convention** : Plus haut = plus robuste (risque perçu plus faible).
+>
+> **Conséquence** : Dans le Decision Index (DI), Risk contribue **positivement** :
+> ```
+> DI = wCycle·scoreCycle + wOnchain·scoreOnchain + wRisk·scoreRisk
+> ```
+>
+> **❌ Interdit** : Ne jamais inverser avec `100 - scoreRisk`.
+>
+> **Visualisation** : Contribution = `(poids × score) / Σ(poids × score)`
+>
+> 📖 Source : [docs/RISK_SEMANTICS.md](docs/RISK_SEMANTICS.md)
+
 **Audit de sécurité** :
 ```bash
 python tools/security-check.py  # Validation complète
@@ -205,7 +222,7 @@ function computeMacroTargetsDynamic(ctx, rb, walletStats) {
 - Runbooks: `docs/runbooks.md`
 - Intégrations: `docs/integrations.md`
 - Refactoring & migration: `docs/refactoring.md`
-- P&L System: `docs/PERFORMANCE_PNL_SYSTEM.md`
+- P&L System: `docs/PNL_TODAY.md`
 
 Endpoints utiles:
 ```

@@ -1,5 +1,7 @@
 # Système P&L Today - Documentation
 
+> **Note** : Anciennement `docs/PERFORMANCE_PNL_SYSTEM.md` (renommé pour cohérence)
+
 ## Vue d'ensemble
 
 Le système P&L Today fournit un calcul fiable du profit/perte journalier basé sur des **snapshots historiques** avec ancres temporelles flexibles. Chaque combinaison (user_id, source) maintient son propre historique de snapshots pour un tracking P&L indépendant.

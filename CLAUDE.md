@@ -11,7 +11,24 @@
 3. Config front: aucune URL API en dur → `static/global-config.js`.
 4. Modifs minimales: patchs ciblés, pas de refontes/renommages massifs sans demande explicite.
 5. Perf: attention aux appels répétés; privilégier caches/ETag si dispo.
-6. **Sémantique Risk** : Risk est un score **positif** (0..100, plus haut = mieux). **Ne jamais inverser** avec `100 - risk` dans les calculs ou visualisations.
+6. **Sémantique Risk** : Voir [docs/RISK_SEMANTICS.md](docs/RISK_SEMANTICS.md) pour la règle canonique.
+
+> **⚠️ Règle Canonique — Sémantique Risk**
+>
+> Le **Risk Score** est un indicateur **positif** de robustesse, borné **[0..100]**.
+>
+> **Convention** : Plus haut = plus robuste (risque perçu plus faible).
+>
+> **Conséquence** : Dans le Decision Index (DI), Risk contribue **positivement** :
+> ```
+> DI = wCycle·scoreCycle + wOnchain·scoreOnchain + wRisk·scoreRisk
+> ```
+>
+> **❌ Interdit** : Ne jamais inverser avec `100 - scoreRisk`.
+>
+> **Visualisation** : Contribution = `(poids × score) / Σ(poids × score)`
+>
+> 📖 Source : [docs/RISK_SEMANTICS.md](docs/RISK_SEMANTICS.md)
 
 ## 1) Aujourd'hui : quelles pages/endpoints utiliser ?
 - **Crypto** (production ready):

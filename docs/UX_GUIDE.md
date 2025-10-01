@@ -25,10 +25,23 @@ const contribRisk = (wRisk * scoreRisk) / total;
 ```
 
 **⚠️ IMPORTANT — Sémantique Risk** :
-- **Risk** est un score **positif** (0..100), où **plus haut = mieux**
-- **Ne JAMAIS appliquer** `100 - scoreRisk` dans le calcul des contributions
-- **Raison** : Risk mesure la robustesse du portfolio, pas le risque perçu négatif
-- **Convention** : Plus Risk est élevé, meilleur est le portfolio
+
+> **⚠️ Règle Canonique — Sémantique Risk**
+>
+> Le **Risk Score** est un indicateur **positif** de robustesse, borné **[0..100]**.
+>
+> **Convention** : Plus haut = plus robuste (risque perçu plus faible).
+>
+> **Conséquence** : Dans le Decision Index (DI), Risk contribue **positivement** :
+> ```
+> DI = wCycle·scoreCycle + wOnchain·scoreOnchain + wRisk·scoreRisk
+> ```
+>
+> **❌ Interdit** : Ne jamais inverser avec `100 - scoreRisk`.
+>
+> **Visualisation** : Contribution = `(poids × score) / Σ(poids × score)`
+>
+> 📖 Source : [RISK_SEMANTICS.md](RISK_SEMANTICS.md)
 
 **Exemple visuel** :
 ```

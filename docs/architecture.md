@@ -91,11 +91,23 @@ Voir [CLAUDE.md Section 3](../CLAUDE.md) pour détails complets.
 #### Pilier Risk (Sémantique et Propagation)
 
 **⚠️ IMPORTANT — Sémantique Risk** :
-- **Risk** est un score **positif** (0..100), où **plus haut = mieux** (portfolio plus robuste, risque perçu plus faible)
-- **Ne jamais inverser** : Pas de `100 - scoreRisk` dans les calculs ou visualisations
-- **Formule Decision Index** : `DI = wCycle × scoreCycle + wOnchain × scoreOnchain + wRisk × scoreRisk`
-- **Poids post-adaptatifs** : Les poids (wCycle, wOnchain, wRisk) sont ajustés par la politique d'adaptation (boost cycle≥90, pénalités contradiction)
-- **Contributions UI** : Visualisation barre empilée = `(poids × score) / Σ(poids × score)` sans inversion Risk
+
+> **⚠️ Règle Canonique — Sémantique Risk**
+>
+> Le **Risk Score** est un indicateur **positif** de robustesse, borné **[0..100]**.
+>
+> **Convention** : Plus haut = plus robuste (risque perçu plus faible).
+>
+> **Conséquence** : Dans le Decision Index (DI), Risk contribue **positivement** :
+> ```
+> DI = wCycle·scoreCycle + wOnchain·scoreOnchain + wRisk·scoreRisk
+> ```
+>
+> **❌ Interdit** : Ne jamais inverser avec `100 - scoreRisk`.
+>
+> **Visualisation** : Contribution = `(poids × score) / Σ(poids × score)`
+>
+> 📖 Source : [RISK_SEMANTICS.md](RISK_SEMANTICS.md)
 - **Badges (Confiance/Contradiction)** : Influencent les poids, pas les scores bruts
 
 **Modules concernés** :

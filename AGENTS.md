@@ -12,6 +12,7 @@ Il décrit l'**état ACTUEL** du projet et les **règles de contribution** (Wind
 - Respect des perfs : batching, pagination, caches locaux.
 - Tests obligatoires si du code backend est modifié.
 - Sécurité : pas de nouveaux endpoints sensibles (`/realtime/...`) sans validation.
+- **Sémantique Risk** : Voir [docs/RISK_SEMANTICS.md](docs/RISK_SEMANTICS.md) pour la règle canonique.
 
 ### 0.1 Contexte Windows 11
 - Scripts PowerShell `.ps1`/`.bat` : préférer ces outils aux commandes Linux non-portables.

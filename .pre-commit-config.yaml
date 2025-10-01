@@ -77,3 +77,19 @@ repos:
     rev: v8.18.4
     hooks:
       - id: gitleaks
+
+  # Crypto Rebal custom hooks - enforce project rules
+  - repo: local
+    hooks:
+      - id: check-risk-inversion
+        name: Check for Risk Score inversion
+        entry: python tools/check_risk_inversion.py
+        language: python
+        types_or: [python, javascript, ts, tsx]
+        files: '\.(py|js|ts|tsx)$'
+
+      - id: validate-commit-msg
+        name: Validate commit message format
+        entry: python tools/validate_commit_msg.py
+        language: python
+        stages: [commit-msg]

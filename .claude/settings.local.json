@@ -26,7 +26,14 @@
       "Bash(\".venv/Scripts/python.exe\" -c \"from api.portfolio_endpoints import router; print(''✅ Import réussi'')\")",
       "Bash(\".venv/Scripts/python.exe\" -c \"from api.main import app; print(''✅ API main chargée''); from api.portfolio_endpoints import router; print(''✅ Portfolio endpoints importé'')\")",
       "Bash(\".venv/Scripts/python.exe\" -m pytest tests/integration/test_smoke_api.py::test_healthz -v)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(\".venv/Scripts/python.exe\" -c \"from api.startup import get_startup_handler; print(''''Import startup OK'''')\")",
+      "Bash(\".venv/Scripts/python.exe\" -m pytest tests/integration/test_smoke_api.py -v --tb=short)",
+      "Bash(test:*)",
+      "Bash(git mv:*)",
+      "Bash(\".venv/Scripts/python.exe\" tools/gen_api_reference.py)",
+      "Bash(\".venv/Scripts/python.exe\" tools/gen_broken_refs.py)",
+      "Bash(dir:*)"
     ],
     "deny": [],
     "ask": [],

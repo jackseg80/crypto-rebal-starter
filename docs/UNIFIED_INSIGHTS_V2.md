@@ -19,10 +19,23 @@ DI = wCycle × scoreCycle + wOnchain × scoreOnchain + wRisk × scoreRisk
 ```
 
 **⚠️ IMPORTANT — Sémantique Risk** :
-- **Risk** est un score **positif** (0..100), où **plus haut = mieux** (portfolio plus robuste, risque perçu plus faible)
-- **Ne jamais inverser** : Pas de `100 - scoreRisk` dans les calculs ou visualisations
-- **Propagation directe** : `wRisk × scoreRisk` est utilisé tel quel dans la formule DI
-- **Contributions UI** : Visualisation barre empilée = `(poids × score) / Σ(poids × score)` sans transformation
+
+> **⚠️ Règle Canonique — Sémantique Risk**
+>
+> Le **Risk Score** est un indicateur **positif** de robustesse, borné **[0..100]**.
+>
+> **Convention** : Plus haut = plus robuste (risque perçu plus faible).
+>
+> **Conséquence** : Dans le Decision Index (DI), Risk contribue **positivement** :
+> ```
+> DI = wCycle·scoreCycle + wOnchain·scoreOnchain + wRisk·scoreRisk
+> ```
+>
+> **❌ Interdit** : Ne jamais inverser avec `100 - scoreRisk`.
+>
+> **Visualisation** : Contribution = `(poids × score) / Σ(poids × score)`
+>
+> 📖 Source : [RISK_SEMANTICS.md](RISK_SEMANTICS.md)
 
 ### 2. Poids Adaptatifs
 
