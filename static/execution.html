@@ -210,9 +210,19 @@
   </style>
 
   <script type="module" src="components/tooltips.js"></script>
+
+  <!-- Unified Risk Flyout Panel (Full Sidebar) -->
+  <script type="module" src="components/flyout-panel.js"></script>
+  <script type="module" src="components/risk-sidebar-full.js"></script>
 </head>
 
 <body>
+
+  <!-- Unified Risk Flyout Panel -->
+  <flyout-panel position="left" width="340" persist-key="execution_flyout">
+    <span slot="title">🎯 Risk Dashboard</span>
+    <risk-sidebar-full slot="content" poll-ms="30000"></risk-sidebar-full>
+  </flyout-panel>
 
   <div class="wrap">
 
@@ -404,9 +414,8 @@
     </div>
   </div>
 
-  <script src="/static/global-config.js"></script>
   <script>
-    // Configuration globale déjà chargée par global-config.js
+    // Configuration globale déjà chargée par global-config.js (ligne 30)
     // const globalConfig est déjà disponible
     let validatedPlan = null;
     let activeMonitoring = null;
