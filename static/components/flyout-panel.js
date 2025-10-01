@@ -179,6 +179,30 @@ class FlyoutPanel extends HTMLElement {
           overflow: auto;
           padding: var(--flyout-padding);
         }
+
+        /* Scrollbar styling - elegant and minimal */
+        main::-webkit-scrollbar {
+          width: 6px;
+        }
+
+        main::-webkit-scrollbar-track {
+          background: transparent;
+        }
+
+        main::-webkit-scrollbar-thumb {
+          background: color-mix(in srgb, var(--brand-primary, #3b82f6) 55%, transparent);
+          border-radius: 999px;
+        }
+
+        main::-webkit-scrollbar-thumb:hover {
+          background: color-mix(in srgb, var(--brand-primary, #3b82f6) 75%, transparent);
+        }
+
+        /* Firefox scrollbar */
+        main {
+          scrollbar-width: thin;
+          scrollbar-color: color-mix(in srgb, var(--brand-primary, #3b82f6) 55%, transparent) transparent;
+        }
       </style>
 
       <div class="flyout" role="complementary" aria-label="Flyout panel" aria-expanded="false">

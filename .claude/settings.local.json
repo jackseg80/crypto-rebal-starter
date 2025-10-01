@@ -1,11 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(for file in static/risk-dashboard.html static/analytics-unified.html static/rebalance.html static/archive/demos/execution.html)",
-      "Bash(do echo \"=== $file ===\")",
-      "Bash(done)",
-      "Bash(do echo \"\")",
-      "Bash(echo \"File: $file\")"
+      "Bash(\".venv/Scripts/python.exe\" -c \"import requests; r = requests.get(''http://localhost:8000/execution/governance/state''); print(''Status:'', r.status_code); import json; data = r.json(); print(''Keys:'', list(data.keys())); print(''contradiction_index:'', data.get(''contradiction_index'')); print(''Full data:''); import pprint; pprint.pprint(data)\")"
     ],
     "deny": [],
     "ask": [],
