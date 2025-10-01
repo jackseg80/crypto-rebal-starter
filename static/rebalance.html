@@ -76,6 +76,11 @@
   <!-- Unified Risk Flyout Panel (Full Sidebar) -->
   <script type="module" src="components/flyout-panel.js"></script>
   <script type="module" src="components/risk-sidebar-full.js"></script>
+  <script type="module">
+    // Adapter le layout quand la sidebar est épinglée
+    import { enableFlyoutLayoutAdapter } from './components/flyout-layout-adapter.js';
+    enableFlyoutLayoutAdapter('.container', { offset: 20 });
+  </script>
 
   <style>
     /* Onglets locaux (Rebalancing / Optimization) */

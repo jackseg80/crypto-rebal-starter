@@ -211,7 +211,6 @@ class FlyoutPanel extends HTMLElement {
           <div class="title"><slot name="title">Panel</slot></div>
           <div class="actions">
             <button id="pin" title="Épingler" aria-pressed="false">📍</button>
-            <button id="close" title="Fermer">✕</button>
           </div>
         </header>
         <main>
@@ -225,8 +224,7 @@ class FlyoutPanel extends HTMLElement {
     this.$ = {
       root: this.shadowRoot.querySelector('.flyout'),
       handle: this.shadowRoot.querySelector('.handle'),
-      pin: this.shadowRoot.querySelector('#pin'),
-      close: this.shadowRoot.querySelector('#close')
+      pin: this.shadowRoot.querySelector('#pin')
     };
 
     // Load persisted state
@@ -254,23 +252,10 @@ class FlyoutPanel extends HTMLElement {
       this._apply();
     };
 
-    this._onClose = () => {
-      if (!this.state.pinned) {
-        this.$.root.classList.remove('open');
-        this._apply();
-      }
-    };
-
-    this._onKey = (e) => {
-      if (e.key === 'Escape') this._onClose();
-    };
-
     // Bind events
     this.$.handle.addEventListener('mouseenter', this._onEnter);
     this.$.root.addEventListener('mouseleave', this._onLeave);
     this.$.pin.addEventListener('click', this._onPin);
-    this.$.close.addEventListener('click', this._onClose);
-    document.addEventListener('keydown', this._onKey);
 
     this._apply();
   }
@@ -279,8 +264,6 @@ class FlyoutPanel extends HTMLElement {
     this.$?.handle.removeEventListener('mouseenter', this._onEnter);
     this.$?.root.removeEventListener('mouseleave', this._onLeave);
     this.$?.pin.removeEventListener('click', this._onPin);
-    this.$?.close.removeEventListener('click', this._onClose);
-    document.removeEventListener('keydown', this._onKey);
   }
 
   _persist() {
@@ -302,6 +285,13 @@ class FlyoutPanel extends HTMLElement {
 
     // Dynamic width
     this.style.setProperty('--flyout-width', `${this.state.width}px`);
+
+    // Dispatch event for layout shifts
+    this.dispatchEvent(new CustomEvent('flyout-state-change', {
+      bubbles: true,
+      composed: true,
+      detail: { pinned: this.state.pinned, width: this.state.width, position: this.state.position }
+    }));
   }
 }
 
