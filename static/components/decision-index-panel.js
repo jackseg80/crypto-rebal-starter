@@ -44,6 +44,21 @@ function getColors() {
 }
 
 /**
+ * Helper: valeur sûre (fallback 0)
+ */
+function _safe(val) {
+  return (typeof val === 'number' && Number.isFinite(val)) ? val : 0;
+}
+
+/**
+ * Helper: arrondi à N décimales
+ */
+function _round(val, decimals = 1) {
+  const v = _safe(val);
+  return Number(v.toFixed(decimals));
+}
+
+/**
  * Calcule contributions relatives (formule: (w×s)/Σ)
  * ⚠️ PAS d'inversion Risk
  */
@@ -90,29 +105,31 @@ function stddev(arr) {
 function renderBadges(meta) {
   const badges = [];
 
-  // 1. Confiance
-  const confPct = Math.round((meta.confidence || 0) * 100);
+  // 1. Confiance (accepte 0-1 ou 0-100)
+  let confPct = meta.confidence || 0;
+  if (confPct <= 1) confPct = Math.round(confPct * 100);
   const confClass = confPct < 40 ? 'warning' : confPct < 70 ? 'neutral' : 'success';
   badges.push(
     `<span class="di-badge di-badge-${confClass}" title="Niveau de certitude: ${confPct}%">` +
-    `Conf ${confPct}%</span>`
+    `CONF ${confPct}%</span>`
   );
 
-  // 2. Contradiction
-  const contraPct = Math.round((meta.contradiction || 0) * 100);
+  // 2. Contradiction (accepte 0-1 ou 0-100)
+  let contraPct = meta.contradiction || 0;
+  if (contraPct <= 1) contraPct = Math.round(contraPct * 100);
   const contraClass = contraPct < 30 ? 'success' : contraPct < 50 ? 'warning' : 'danger';
   badges.push(
     `<span class="di-badge di-badge-${contraClass}" title="Divergence entre sources: ${contraPct}%">` +
-    `Contrad ${contraPct}%</span>`
+    `CONTRAD ${contraPct}%</span>`
   );
 
-  // 3. Cap
+  // 3. Cap (accepte 0-1 ou 0-100)
   let capPct = meta.cap;
   if (typeof capPct === 'number' && Number.isFinite(capPct)) {
     if (capPct <= 1) capPct = Math.round(capPct * 100);
     badges.push(
       `<span class="di-badge di-badge-info" title="Cap quotidien gouvernance">` +
-      `Cap ${capPct}%</span>`
+      `CAP ${capPct}%</span>`
     );
   } else {
     badges.push(
@@ -121,10 +138,11 @@ function renderBadges(meta) {
     );
   }
 
-  // 4. Mode
+  // 4. Mode (uppercase pour correspondre à l'image)
+  const modeText = (meta.mode || 'normal').toUpperCase();
   badges.push(
     `<span class="di-badge di-badge-info" title="Mode stratégique actif">` +
-    `Mode ${meta.mode || '—'}</span>`
+    `MODE ${modeText}</span>`
   );
 
   return badges.join('');
@@ -192,6 +210,118 @@ function renderSparkbar(history = []) {
   }).join('');
 
   return `<div class="di-sparkbar" aria-label="Decision Index recent trend">${bars}</div>`;
+}
+
+/**
+ * Génère breakdown line (w×s pour chaque pilier)
+ */
+function renderBreakdown(weights, scores) {
+  const w = weights || {};
+  const s = scores || {};
+  const parts = [
+    { name: 'Cycle', val: _round(_safe(w.cycle) * _safe(s.cycle), 1), color: 'var(--di-color-cycle, #7aa2f7)' },
+    { name: 'On-Chain', val: _round(_safe(w.onchain) * _safe(s.onchain), 1), color: 'var(--di-color-onchain, #2ac3de)' },
+    { name: 'Risk', val: _round(_safe(w.risk) * _safe(s.risk), 1), color: 'var(--di-color-risk, #f7768e)' }
+  ];
+
+  const html = parts.map(p =>
+    `<span style="color: ${p.color}; font-weight: 600;">${p.name}</span> ${p.val}`
+  ).join('<span class="di-sep">·</span>');
+
+  return `<div class="di-subline">${html}</div>`;
+}
+
+/**
+ * Calcule trend (Δ7j, sigma, état)
+ */
+function calculateTrend(history = []) {
+  const n = (history || []).length;
+  if (n < 3) return { delta: 0, sigma: 0, state: 'Collecte' };
+
+  const last = _safe(history[n - 1]);
+  const idx7 = Math.max(0, n - 7);
+  const prev7 = _safe(history[idx7]);
+  const delta = _round(last - prev7, 1);
+
+  // Calcul σ sur fenêtre récente
+  const slice = history.slice(idx7);
+  const mean = slice.reduce((a, b) => a + b, 0) / slice.length;
+  const variance = slice.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / slice.length;
+  const sigma = _round(Math.sqrt(variance), 1);
+
+  let state = 'Stable';
+  if (sigma >= 2) state = 'Agité';
+  else if (delta > 2) state = 'Haussier';
+  else if (delta < -2) state = 'Baissier';
+
+  return { delta, sigma, state };
+}
+
+/**
+ * Génère events array
+ */
+function calculateEvents(meta = {}) {
+  const events = [];
+
+  // Cap actif
+  const cap = _safe(meta.cap);
+  if (cap > 0) {
+    events.push({ icon: '⚡', text: `Cap actif ${cap}%`, type: 'info' });
+  }
+
+  // Contradiction haute
+  const contrad = _safe(meta.contradiction);
+  if (contrad >= 0.5) {
+    events.push({ icon: '🛑', text: `Contradiction ${_round(contrad * 100, 0)}%`, type: 'warning' });
+  }
+
+  // Mode non-normal
+  if (meta.mode && meta.mode.toLowerCase() !== 'normal' && meta.mode !== '—') {
+    events.push({ icon: '🎛', text: `Mode ${meta.mode}`, type: 'info' });
+  }
+
+  // Alpha disponible
+  if (meta.alpha !== undefined && meta.alpha !== null) {
+    const alphaVal = _round(meta.alpha * 100, 0);
+    events.push({ icon: '🎯', text: `Alpha ${alphaVal}%`, type: 'success' });
+  }
+
+  return events;
+}
+
+/**
+ * Render events badges
+ */
+function renderEventsBadges(events = []) {
+  if (!events.length) return '';
+
+  const badges = events.map(e =>
+    `<span class="di-ev di-ev-${e.type || 'info'}"><span class="di-ico">${e.icon}</span> ${e.text}</span>`
+  ).join('');
+
+  return `<div class="di-events">${badges}</div>`;
+}
+
+/**
+ * Génère regime dots (5 pastilles récentes)
+ */
+function renderRegimeDots(regimeHistory = []) {
+  const arr = Array.isArray(regimeHistory) ? regimeHistory.slice(-5) : [];
+
+  if (arr.length === 0) return '';
+
+  const dots = arr.map((r, i) => {
+    const phase = (r.phase || 'neutral').toLowerCase();
+    const phaseClass = mapPhaseToClass(phase);
+    const k = arr.length - 1 - i;
+
+    const label = r.label || phase;
+    const title = `J-${k} • ${label}`;
+
+    return `<span class="rg-dot rg-dot-${phaseClass}" title="${title}"></span>`;
+  }).join('');
+
+  return `<div class="di-ribbon"><span class="rg">${dots}</span></div>`;
 }
 
 /**
@@ -267,6 +397,36 @@ function mapPhaseToClass(phase) {
 function renderFootnote(meta) {
   const liveStyle = meta.live ? '' : 'opacity: 0.6;';
   return `<div class="di-foot" style="${liveStyle}">Source: ${meta.source || '—'} • Live: ${meta.live ? 'ON' : 'OFF'}</div>`;
+}
+
+/**
+ * Footer status (rangée badges bas) - optionnel
+ */
+function renderFooterStatus(data) {
+  const m = data.meta || {};
+  const scoreCycle = Number.isFinite(data?.scores?.cycle) ? Math.round(data.scores.cycle) : null;
+  const confCycle = Number.isFinite(m.cycle_confidence) ? Math.round(m.cycle_confidence * 100) : null;
+  const timeStr = (() => {
+    try { return m.updated ? new Date(m.updated).toLocaleTimeString() : ''; } catch { return ''; }
+  })();
+  const pill = (txt) => `<span class="di-mini">${txt}</span>`;
+  const good = (txt) => `<span class="di-mini di-mini-good">${txt}</span>`;
+
+  return `
+    <div class="di-footer">
+      <div class="di-footer-left">
+        ${good('● Euphorie')}&nbsp;<span class="di-source">${m.source || ''}</span>
+      </div>
+      <div class="di-footer-right">
+        ${pill(`Backend ${m.backend ? 'healthy' : 'check'}`)}
+        ${pill(`Signals ${m.signals ? 'healthy' : (m.signals_status || 'limited')}`)}
+        ${m.governance_mode ? pill(`Governance ${m.governance_mode}`) : ''}
+        ${scoreCycle != null ? pill(`Cycle active (${scoreCycle}${confCycle != null ? ', ' + confCycle + '%' : ''})`) : ''}
+        ${m.phase ? pill(`Regime ${m.phase}`) : ''}
+        ${timeStr ? pill(timeStr) : ''}
+      </div>
+    </div>
+  `;
 }
 
 /**
@@ -507,6 +667,59 @@ function renderHelpContent() {
 }
 
 /**
+ * Monte tooltip sur hover des segments de la barre
+ */
+function mountSegmentTooltip(container, data) {
+  const canvas = container.querySelector('.di-stack-canvas');
+  if (!canvas || !chartInstances.stacked) return;
+
+  let tooltip = container.querySelector('.di-tip');
+  if (!tooltip) {
+    tooltip = document.createElement('div');
+    tooltip.className = 'di-tip';
+    tooltip.style.display = 'none';
+    container.appendChild(tooltip);
+  }
+
+  const showTooltip = (text, x, y) => {
+    tooltip.innerHTML = text;
+    tooltip.style.display = 'block';
+    tooltip.style.left = `${x}px`;
+    tooltip.style.top = `${y}px`;
+  };
+
+  const hideTooltip = () => {
+    tooltip.style.display = 'none';
+  };
+
+  canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // Détecter segment via Chart.js
+    const elements = chartInstances.stacked.getElementsAtEventForMode(e, 'nearest', { intersect: true }, false);
+
+    if (elements.length > 0) {
+      const index = elements[0].index;
+      const pillarNames = ['Cycle', 'On-Chain', 'Risk'];
+      const pillar = pillarNames[index] || '';
+      const score = data.scores?.[pillar.toLowerCase().replace('-', '')] || 0;
+      const weight = data.weights?.[pillar.toLowerCase().replace('-', '')] || 0;
+      const contribution = _round(weight * score, 1);
+
+      const text = `<strong>${pillar}</strong><br/>Score: ${_round(score, 1)}<br/>Poids: ${_round(weight * 100, 0)}%<br/>Contribution: ${contribution}`;
+
+      showTooltip(text, e.clientX - rect.left + 10, e.clientY - rect.top - 10);
+    } else {
+      hideTooltip();
+    }
+  });
+
+  canvas.addEventListener('mouseleave', hideTooltip);
+}
+
+/**
  * Fallback texte si Chart.js absent
  */
 function renderTextFallback(container, data) {
@@ -576,12 +789,15 @@ function _renderDIPanelInternal(container, data, opts = {}) {
     console.log('🐛 DI Panel Contributions:', contribs);
   }
 
-  // Générer HTML structure (Sparkbar + Ribbon + Events)
-  const trendMetrics = renderTrendMetrics(data.history);
-  const sparkbar = renderSparkbar(data.history);
-  const ribbon = renderRegimeRibbon(data.regimeHistory);
-  const events = renderEvents(data.meta);
-  const showRibbonRow = ribbon || events;
+  // Calculer breakdown, trend, events, regime dots
+  const breakdown = renderBreakdown(data.weights, data.scores);
+  const trend = calculateTrend(data.history);
+  const trendArrow = trend.delta > 0 ? '↗︎' : trend.delta < 0 ? '↘︎' : '→';
+  const trendSign = trend.delta >= 0 ? '+' : '';
+  const eventsData = calculateEvents(data.meta);
+  const eventsHTML = renderEventsBadges(eventsData);
+  const regimeDots = renderRegimeDots(data.regimeHistory);
+  const footerHTML = opts.showFooter ? renderFooterStatus(data) : '';
 
   container.innerHTML = `
     <div class="di-panel">
@@ -602,18 +818,22 @@ function _renderDIPanelInternal(container, data, opts = {}) {
         <canvas id="${container.id}-stack-chart" class="di-stack-canvas"></canvas>
       </div>
 
-      <div class="di-trend-row">
-        ${trendMetrics}
-        ${sparkbar}
+      ${breakdown}
+
+      <div class="di-row" style="margin-top: 0.5rem;">
+        <div class="di-col">
+          <div style="font-size: 0.8rem; color: var(--theme-text-muted, #9aa5ce);">
+            Trend: ${trendArrow} ${trendSign}${trend.delta} pts (7j) • σ=${trend.sigma} • ${trend.state}
+          </div>
+        </div>
+        <div class="di-col" style="flex: 0 0 auto;">
+          ${regimeDots}
+        </div>
       </div>
 
-      ${showRibbonRow ? `
-        <div class="di-ribbon-row">
-          ${ribbon}
-          ${events}
-        </div>
-      ` : ''}
+      ${eventsHTML}
 
+      ${footerHTML}
       ${renderFootnote(data.meta)}
       ${renderHelpContent()}
     </div>
@@ -624,6 +844,9 @@ function _renderDIPanelInternal(container, data, opts = {}) {
   if (stackCanvas) {
     chartInstances.stacked = renderStackedBar(stackCanvas, contribs, data.weights, data.scores, opts);
   }
+
+  // Monter tooltip sur barre
+  mountSegmentTooltip(container, data);
 
   // Monter popover
   mountHelpPopover(container);

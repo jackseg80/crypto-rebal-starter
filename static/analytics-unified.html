@@ -28,6 +28,17 @@
   <script type="module" src="analytics-unified.js"></script>
   <script type="module">
     import { initDeepLinks } from './components/deep-links.js';
+    import {
+      selectContradiction01,
+      selectEffectiveCap,
+      selectGovernanceTimestamp
+    } from './selectors/governance.js';
+
+    // Rendre les sélecteurs accessibles globalement
+    window.selectContradiction01 = selectContradiction01;
+    window.selectEffectiveCap = selectEffectiveCap;
+    window.selectGovernanceTimestamp = selectGovernanceTimestamp;
+
     // Ancres pour analytics-unified.html - pointent vers le contenu réel
     initDeepLinks({
       'unified-root': 'Analytics Unifiés',
@@ -223,13 +234,98 @@
           }
         };
 
-        // Appeler la fonction originale avec l'override en place
-        console.debug('🔥 LOCAL: Calling originalRender with fixes applied...');
-        await originalRender(containerId);
+        // 1) Rendre UnifiedInsights SANS son ancien header (on injecte le nouveau DI v5 au-dessus)
+        console.debug('🔥 LOCAL: Calling originalRender with fixes applied + hideHeader:true');
+        await originalRender(containerId, { hideHeader: true });
 
         // Restaurer la fonction originale après utilisation
         if (originalFunction) {
           window.buildTheoreticalTargets = originalFunction;
+        }
+
+        // 2) APRÈS le rendu UnifiedInsights, injecter le nouveau Decision Index Panel v5 EN HAUT
+        // (maintenant on peut récupérer les vraies données via getUnifiedState)
+        const cacheBust2 = Date.now();
+        const { renderDecisionIndexPanel } = await import(`./components/decision-index-panel.js?v=${cacheBust2}`);
+        const { getUnifiedState } = await import('./core/unified-insights-v2.js');
+
+        // Récupérer l'état unifié (MÊME source que UnifiedInsights)
+        const u = await getUnifiedState();
+        console.debug('🔍 Unified state for DI panel:', u);
+
+        const cycleScore = u.cycle?.score ?? 50;
+        const onchainScore = u.onchain?.score ?? 50;
+        const riskScore = u.risk_scores?.risk ?? 50;
+        const blendedScore = u.decision?.score ?? 50;
+
+        // Weights (depuis unified state)
+        const wCycle = u.decision?.weights?.cycle ?? 0.5;
+        const wOnchain = u.decision?.weights?.onchain ?? 0.3;
+        const wRisk = u.decision?.weights?.risk ?? 0.2;
+
+        // Calcul blended confidence
+        const s = store.snapshot();
+        const ocConf = Math.max(0, Math.min(1, s.scores?.onchain_metadata?.confidence ?? 0.5));
+        const cycleConf = Math.max(0, Math.min(1, s.cycle?.confidence ?? 0.5));
+        const wSum = (wCycle + wOnchain + wRisk) || 1;
+        const blendedConfidence = (wCycle * cycleConf + wOnchain * ocConf + wRisk * 1.0) / wSum; // risk=1.0
+
+        // Sélecteurs gouvernance normalisés
+        const capPercent = window.selectEffectiveCap(s);           // entier en %
+        const contrad01 = window.selectContradiction01(s);        // [0..1]
+        const updatedISO = window.selectGovernanceTimestamp(s);     // ISO string
+        const modeLabel = (() => {
+          const m = s?.governance?.mode || s?.governance?.current_state || 'normal';
+          return String(m).replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, x => x.toUpperCase());
+        })();
+
+        // Régime et phase
+        const regimeData = u.regime || {};
+        const phaseEngineMode = localStorage.getItem('PHASE_ENGINE_ENABLED') || 'shadow';
+        let actualPhase = regimeData.name || 'neutral';
+        if (typeof window !== 'undefined') {
+          if (window._phaseEngineAppliedResult?.phase) {
+            actualPhase = window._phaseEngineAppliedResult.phase;
+          } else if (window._phaseEngineShadowResult?.phase) {
+            actualPhase = window._phaseEngineShadowResult.phase;
+          }
+        }
+
+        // Alpha si disponible dans signals
+        const alpha = s?.signals?.alpha;
+
+        const panelData = {
+          di: blendedScore,
+          scores: { cycle: cycleScore, onchain: onchainScore, risk: riskScore },
+          weights: { cycle: wCycle, onchain: wOnchain, risk: wRisk },
+          meta: {
+            phase: actualPhase,
+            source: u.decision?.source || window.globalConfig?.get('data_source') || 'allocation_engine_v2',
+            live: s.ui?.apiStatus?.backend === 'healthy',
+            backend: s.ui?.apiStatus?.backend === 'healthy',
+            signals: s.ui?.apiStatus?.signals === 'healthy',
+            governance_mode: s.governance?.current_state || 'IDLE',
+            cap: capPercent,                       // ✅ entier %
+            mode: modeLabel,                       // ✅ "Manual", "Slow", ...
+            confidence: blendedConfidence,         // ✅ [0..1]
+            contradiction: contrad01,              // ✅ [0..1]
+            cycle_confidence: cycleConf,           // pour badge bas
+            updated: updatedISO,                   // pour horodatage
+            signals_status: s.ui?.apiStatus?.signals || 'limited',
+            alpha: alpha                           // ✅ alpha si dispo [0..1]
+          },
+          history: s?.di_history || [],           // si dispo
+          regimeHistory: s?.regime?.history || []
+        };
+
+        // Créer conteneur pour le nouveau panneau AU-DESSUS du contenu UnifiedInsights
+        const existingContent = el.innerHTML;
+        el.innerHTML = `<div id="new-di-panel" style="margin-bottom: 0.5rem;"></div>${existingContent}`;
+
+        const newPanelEl = document.getElementById('new-di-panel');
+        if (newPanelEl) {
+          renderDecisionIndexPanel(newPanelEl, panelData, { showFooter: true });
+          console.debug('✅ New Decision Index panel v5 injected at top with footer');
         }
 
         console.debug('🔥 LOCAL: Unified rendering completed with fixes');
