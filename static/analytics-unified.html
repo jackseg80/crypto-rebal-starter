@@ -299,7 +299,7 @@
           scores: { cycle: cycleScore, onchain: onchainScore, risk: riskScore },
           weights: { cycle: wCycle, onchain: wOnchain, risk: wRisk },
           meta: {
-            phase: actualPhase,
+            phase: (s?.regime?.name || regimeData?.name || actualPhase || 'neutral'),   // ✅ phase toujours renseignée
             source: u.decision?.source || window.globalConfig?.get('data_source') || 'allocation_engine_v2',
             live: s.ui?.apiStatus?.backend === 'healthy',
             backend: s.ui?.apiStatus?.backend === 'healthy',
@@ -314,8 +314,8 @@
             signals_status: s.ui?.apiStatus?.signals || 'limited',
             alpha: alpha                           // ✅ alpha si dispo [0..1]
           },
-          history: s?.di_history || [],           // si dispo
-          regimeHistory: s?.regime?.history || []
+          history: (s?.di_history || []),                                          // ✅ di history
+          regimeHistory: (s?.regime?.history || s?.regime_history || [])           // ✅ regime history (2 clés possibles)
         };
 
         // Créer conteneur pour le nouveau panneau AU-DESSUS du contenu UnifiedInsights

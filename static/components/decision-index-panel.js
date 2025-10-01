@@ -303,23 +303,45 @@ function renderEventsBadges(events = []) {
 }
 
 /**
- * Génère regime ribbon (pastilles colorées horizontales)
+ * Mapping phase name → index (0=Bull, 1=Neutral, 2=Bear)
  */
-function renderRegimeRibbonCompact(regimeHistory = []) {
-  const arr = Array.isArray(regimeHistory) ? regimeHistory.slice(-10) : [];
+function phaseToIndex(name) {
+  const n = String(name || '').toLowerCase();
+  if (n.includes('euphor') || n.includes('bull') || n.includes('risk-on') || n.includes('expansion')) return 0;
+  if (n.includes('bear') || n.includes('risk-off') || n.includes('prudence')) return 2;
+  return 1; // Neutral par défaut
+}
 
-  if (arr.length === 0) return '';
+/**
+ * Génère regime ribbon (3 barres: Euphorie/Neutral/Bearish) avec fallback sur meta.phase
+ */
+function renderRegimeRibbon(meta, regimeHistoryRaw) {
+  const rHist = Array.isArray(regimeHistoryRaw) ? regimeHistoryRaw.slice(-5) : [];
+  let activeIdx = phaseToIndex(meta?.phase);
 
-  const dots = arr.map((r, i) => {
-    const phase = (r.phase || r.name || 'neutral').toLowerCase();
-    const phaseClass = mapPhaseToClass(phase);
-    const k = arr.length - 1 - i;
-    const title = `J-${k} • ${phase}`;
+  // Si historique exploitable, déduire niveau d'après nb d'éléments "actifs"
+  if (rHist.length > 0) {
+    const actives = rHist.filter(x => (x?.active ?? x?.bull ?? x?.risk_on ?? false)).length;
+    // 0..5 actifs → 0..2 index
+    const level = actives >= 4 ? 0 : (actives <= 1 ? 2 : 1);
+    activeIdx = level;
+  }
 
-    return `<span class="rg-dot rg-dot-${phaseClass}" title="${title}"></span>`;
+  const labels = ['Euphorie', 'Neutral', 'Bearish'];
+  const bars = labels.map((lab, idx) => {
+    const on = idx === activeIdx ? 'on' : '';
+    return `
+      <div class="rg-item">
+        <div class="rg-label ${on}">${lab}</div>
+        <div class="rg-bar ${on}"></div>
+      </div>`;
   }).join('');
 
-  return `<div class="di-regime-ribbon"><span class="rg">${dots}</span></div>`;
+  return `
+    <div class="di-ribbon">
+      <div class="di-ribbon-title">Regime</div>
+      <div class="rg-row">${bars}</div>
+    </div>`;
 }
 
 /**
@@ -814,7 +836,7 @@ function _renderDIPanelInternal(container, data, opts = {}) {
   const trendArrow = trend.delta > 0 ? '↗︎' : trend.delta < 0 ? '↘︎' : '→';
   const trendSign = trend.delta >= 0 ? '+' : '';
   const n = data.history?.length || 0;
-  const regimeRibbon = renderRegimeRibbonCompact(data.regimeHistory);
+  const regimeRibbon = renderRegimeRibbon(data.meta, data.regimeHistory);  // ✅ toujours rendu avec fallback
 
   const m = data.meta || {};
 
@@ -853,7 +875,7 @@ function _renderDIPanelInternal(container, data, opts = {}) {
             Trend: ${trendArrow} ${trendSign}${trend.delta} pts (${Math.abs(n - 7)} j) • σ=${trend.sigma} • ${trend.state}
           </div>
 
-          ${regimeRibbon ? `<div class="di-regime-row">Regime Ribbon: ${regimeRibbon}</div>` : ''}
+          ${regimeRibbon}
         </div>
 
         <div class="di-right">

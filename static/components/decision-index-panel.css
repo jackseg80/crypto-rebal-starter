@@ -470,18 +470,77 @@
   text-align: center;
 }
 
-/* Regime ribbon row */
-.di-regime-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.85rem;
-  color: var(--theme-text-muted, #9aa5ce);
+/* Regime ribbon (3 barres: Euphorie/Neutral/Bearish) */
+.di-ribbon {
+  margin-top: 8px;
 }
 
-.di-regime-ribbon {
-  display: inline-flex;
-  gap: 0.3rem;
+.di-ribbon-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--theme-text-muted, #9aa5ce);
+  margin-bottom: 6px;
+  text-transform: capitalize;
+}
+
+.rg-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 14px;
+}
+
+.rg-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rg-label {
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: var(--theme-text-muted, #9aa5ce);
+  transition: color 0.2s ease;
+}
+
+.rg-label.on {
+  color: #8bd17c;
+}
+
+.rg-bar {
+  height: 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: all 0.3s ease;
+}
+
+/* Euphorie (1er item) */
+.rg-item:nth-child(1) .rg-bar.on {
+  background: linear-gradient(90deg, #6ecb8b, #8bd17c);
+  border-color: rgba(139, 209, 124, 0.55);
+  box-shadow: 0 2px 8px rgba(139, 209, 124, 0.3);
+}
+
+/* Neutral (2e item) */
+.rg-item:nth-child(2) .rg-bar.on {
+  background: linear-gradient(90deg, #f0c96b, #f0ad4e);
+  border-color: rgba(240, 173, 78, 0.6);
+  box-shadow: 0 2px 8px rgba(240, 173, 78, 0.3);
+}
+
+.rg-item:nth-child(2) .rg-label.on {
+  color: #f0ad4e;
+}
+
+/* Bearish (3e item) */
+.rg-item:nth-child(3) .rg-bar.on {
+  background: linear-gradient(90deg, #e88b7f, #e57373);
+  border-color: rgba(229, 115, 115, 0.65);
+  box-shadow: 0 2px 8px rgba(229, 115, 115, 0.3);
+}
+
+.rg-item:nth-child(3) .rg-label.on {
+  color: #e57373;
 }
 
 /* Trend info (sous le graphique) */
