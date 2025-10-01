@@ -14,46 +14,69 @@ export function enableFlyoutLayoutAdapter(mainSelector = '.container', options =
     transition = '0.3s ease'
   } = options;
 
-  const mainEl = document.querySelector(mainSelector);
-  if (!mainEl) {
-    console.warn(`[FlyoutLayoutAdapter] Element not found: ${mainSelector}`);
-    return;
-  }
-
-  // Ajouter la transition CSS
-  mainEl.style.transition = `margin-left ${transition}, margin-right ${transition}`;
-
-  // Écouter les changements d'état du flyout
-  document.addEventListener('flyout-state-change', (e) => {
-    const { pinned, width, position } = e.detail;
-
-    if (pinned) {
-      if (position === 'left') {
-        mainEl.style.marginLeft = `${width + offset}px`;
-        mainEl.style.marginRight = '0';
-      } else if (position === 'right') {
-        mainEl.style.marginRight = `${width + offset}px`;
-        mainEl.style.marginLeft = '0';
-      }
-    } else {
-      mainEl.style.marginLeft = '0';
-      mainEl.style.marginRight = '0';
+  const init = () => {
+    const mainEl = document.querySelector(mainSelector);
+    if (!mainEl) {
+      console.warn(`[FlyoutLayoutAdapter] Element not found: ${mainSelector}`);
+      return;
     }
-  });
 
-  // Déclencher l'état initial
-  const flyoutPanel = document.querySelector('flyout-panel');
-  if (flyoutPanel) {
-    const persistKey = flyoutPanel.getAttribute('persist-key') || 'flyout';
-    const persisted = JSON.parse(localStorage.getItem(`flyout:${persistKey}`) || '{}');
-    if (persisted.pinned) {
-      const width = Number(flyoutPanel.getAttribute('width')) || 340;
-      const position = flyoutPanel.getAttribute('position') || 'left';
-      if (position === 'left') {
-        mainEl.style.marginLeft = `${width + offset}px`;
+    console.log(`[FlyoutLayoutAdapter] Initializing for ${mainSelector}`, { offset, transition });
+
+    // Ajouter la transition CSS
+    mainEl.style.transition = `margin-left ${transition}, margin-right ${transition}`;
+
+    // Écouter les changements d'état du flyout
+    document.addEventListener('flyout-state-change', (e) => {
+      const { pinned, width, position } = e.detail;
+      console.log('[FlyoutLayoutAdapter] State change:', { pinned, width, position });
+
+      if (pinned) {
+        if (position === 'left') {
+          mainEl.style.marginLeft = `${width + offset}px`;
+          mainEl.style.marginRight = '0';
+          console.log(`[FlyoutLayoutAdapter] Applied margin-left: ${width + offset}px`);
+        } else if (position === 'right') {
+          mainEl.style.marginRight = `${width + offset}px`;
+          mainEl.style.marginLeft = '0';
+          console.log(`[FlyoutLayoutAdapter] Applied margin-right: ${width + offset}px`);
+        }
       } else {
-        mainEl.style.marginRight = `${width + offset}px`;
+        mainEl.style.marginLeft = '0';
+        mainEl.style.marginRight = '0';
+        console.log('[FlyoutLayoutAdapter] Reset margins');
       }
-    }
+    });
+
+    // Déclencher l'état initial après un court délai pour laisser le Web Component s'initialiser
+    setTimeout(() => {
+      const flyoutPanel = document.querySelector('flyout-panel');
+      if (flyoutPanel) {
+        const persistKey = flyoutPanel.getAttribute('persist-key') || 'flyout';
+        const persisted = JSON.parse(localStorage.getItem(`flyout:${persistKey}`) || '{}');
+        console.log('[FlyoutLayoutAdapter] Initial state from localStorage:', { persistKey, persisted });
+
+        if (persisted.pinned) {
+          const width = Number(flyoutPanel.getAttribute('width')) || 340;
+          const position = flyoutPanel.getAttribute('position') || 'left';
+          if (position === 'left') {
+            mainEl.style.marginLeft = `${width + offset}px`;
+            console.log(`[FlyoutLayoutAdapter] Initial margin-left: ${width + offset}px`);
+          } else {
+            mainEl.style.marginRight = `${width + offset}px`;
+            console.log(`[FlyoutLayoutAdapter] Initial margin-right: ${width + offset}px`);
+          }
+        }
+      } else {
+        console.warn('[FlyoutLayoutAdapter] flyout-panel element not found');
+      }
+    }, 100);
+  };
+
+  // Attendre que le DOM soit prêt
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
   }
 }
