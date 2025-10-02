@@ -223,11 +223,14 @@ export async function hydrateRiskStore() {
       ccs: ccs || currentState.ccs || { score: null },
 
       // Cycle position
-      cycle: cycle || currentState.cycle || {
+      cycle: cycle ? {
+        ...cycle,
+        ccsStar: blendedScore // CCS blended with cycle
+      } : (currentState.cycle || {
         ccsStar: null,
         months: null,
         phase: null
-      },
+      }),
 
       // Market regime
       regime: regime || currentState.regime || {

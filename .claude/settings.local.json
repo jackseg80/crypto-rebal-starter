@@ -10,7 +10,8 @@
       "Bash(done)",
       "Bash(curl -s \"http://localhost:8000/api/risk/dashboard\")",
       "Bash(curl:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": [],
