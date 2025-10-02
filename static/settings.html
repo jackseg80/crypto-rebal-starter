@@ -431,10 +431,10 @@
         </p>
       </div>
 
-      <div class="card" style="opacity: 0.6; pointer-events: none;"
+      <div class="card" style="opacity: 1;"
         data-tooltip="Configuration de la source principale pour les données de portfolio (CSV local, API CoinTracking ou échanges directs)."
         data-source="Fichiers de configuration + APIs">
-        <h3>📡 Source de Données (Legacy - Lecture Seule)</h3>
+        <h3>📡 Source de Données</h3>
         <div class="form-group">
           <label>Source principale des balances</label>
           <div id="data_source_sections">
@@ -1222,7 +1222,30 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.addEventListener('click', () => {
           const sel = btn.getAttribute('data-target');
           const target = document.querySelector(sel);
-          if (target) activate(target);
+          if (target) {
+            activate(target);
+
+            // 🔧 FIX: When switching to Sources tab, refresh radio selection
+            if (target.id === 'tab-sources') {
+              setTimeout(() => {
+                if (window.userSettings && (window.userSettings.data_source === 'cointracking' || window.userSettings.data_source === 'csv') && window.userSettings.csv_selected_file) {
+                  const allRadios = document.querySelectorAll('.radio-option input[name="data_source"]');
+                  allRadios.forEach(inp => {
+                    if (inp.parentElement) inp.parentElement.classList.remove('selected');
+                  });
+
+                  const byFile = document.querySelector(`.radio-option input[name="data_source"][data-file="${window.userSettings.csv_selected_file}"]`);
+                  if (byFile) {
+                    byFile.checked = true;
+                    if (byFile.parentElement) {
+                      byFile.parentElement.classList.add('selected');
+                      console.log(`🎯 Tab switch: Refreshed radio selection for ${window.userSettings.csv_selected_file}`);
+                    }
+                  }
+                }
+              }, 100); // Small delay to ensure tab is fully rendered
+            }
+          }
         })
       });
       // Deep link support via hash
@@ -1285,6 +1308,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const csvContainer = document.getElementById('data_source_demo'); // Réutiliser pour CSV
         const apiContainer = document.getElementById('data_source_ct');   // Réutiliser pour API
 
+        // Vider complètement les conteneurs avant de recréer (évite duplications)
         if (csvContainer) {
           csvContainer.innerHTML = '<h4 style="margin: 0 0 0.5rem 0; color: var(--theme-text-muted);">📄 Fichiers CSV</h4>';
         }
@@ -1292,22 +1316,11 @@ document.addEventListener('DOMContentLoaded', function() {
           apiContainer.innerHTML = '<h4 style="margin: 1rem 0 0.5rem 0; color: var(--theme-text-muted);">🌐 API</h4>';
         }
 
+        console.log('🏗️ buildDataSourceControls: Cleared containers, rebuilding radios...');
+
         const buildOption = (source) => {
           const wrapper = document.createElement('div');
           wrapper.className = 'radio-option';
-          // Sélection selon type
-          if (source.type === 'csv') {
-            wrapper.addEventListener('click', async () => {
-              // Enregistrer le fichier sélectionné (nom de base)
-              const fname = (source.file_path || '').split(/[/\\\\]/).pop();
-              if (!window.userSettings) window.userSettings = getDefaultSettings();
-              window.userSettings.csv_selected_file = fname || null;
-              await selectDataSource(source.key);
-              try { await saveSettings(); } catch (_) { }
-            });
-          } else {
-            wrapper.addEventListener('click', async () => await selectDataSource(source.key));
-          }
 
           const input = document.createElement('input');
           input.type = 'radio';
@@ -1315,13 +1328,38 @@ document.addEventListener('DOMContentLoaded', function() {
           input.value = source.key;
           if (source.type === 'csv') {
             const fname = (source.file_path || '').split(/[/\\\\]/).pop();
-            if (fname) input.setAttribute('data-file', fname);
+            if (fname) {
+              input.setAttribute('data-file', fname);
+              console.log(`📝 buildOption: Created radio for ${source.key} with data-file="${fname}"`);
+            }
           }
           input.id = `source_${source.key}`;
 
+          // 🔧 FIX: Utiliser click sur le wrapper comme solution principale
+          // L'événement change ne se déclenche pas toujours (problème de propagation)
+          wrapper.addEventListener('click', async (e) => {
+            // Ne pas déclencher si on clique sur un élément qui gère déjà le clic
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'LABEL') {
+              return; // Le label va cocher l'input automatiquement
+            }
+            console.log(`🖱️ Wrapper clicked:`, {key: source.key, type: source.type, file_path: source.file_path});
+            input.checked = true;
+            await selectDataSource(source.key);
+          });
+
+          // Event sur le label aussi (plus sûr)
           const label = document.createElement('label');
           label.setAttribute('for', `source_${source.key}`);
           label.innerHTML = source.label;
+          label.style.cursor = 'pointer';
+          label.addEventListener('click', async (e) => {
+            e.preventDefault(); // Empêcher le comportement par défaut
+            console.log(`🖱️ Label clicked:`, {key: source.key, type: source.type, file_path: source.file_path});
+            input.checked = true;
+            await selectDataSource(source.key);
+          });
+
+          console.log(`✅ Event listeners attached for ${source.key}`);
 
           wrapper.appendChild(input);
           wrapper.appendChild(label);
@@ -1366,6 +1404,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const s = window.userSettings || getDefaultSettings();
       // S'assurer que les contrôles sont construits d'abord
       await buildDataSourceControls();
+
       // Valeurs initiales
       if (document.getElementById('quick_data_source')) {
         const quickEl = document.getElementById('quick_data_source');
@@ -1375,7 +1414,10 @@ document.addEventListener('DOMContentLoaded', function() {
           const list = window.availableSources || [];
           if ((s.data_source === 'csv' || s.data_source === 'cointracking') && s.csv_selected_file) {
             const match = list.find(src => src.type === 'csv' && (src.file_path || '').split(/[/\\\\]/).pop() === s.csv_selected_file);
-            if (match) quickEl.value = match.key;
+            if (match) {
+              quickEl.value = match.key;
+              console.log(`🔍 Restored CSV selection: ${match.key} (${s.csv_selected_file})`);
+            }
           }
         } catch (_) { }
       }
@@ -1385,10 +1427,8 @@ document.addEventListener('DOMContentLoaded', function() {
       document.getElementById('quick_theme').value = s.theme || 'auto';
       document.getElementById('quick_api_base_url').value = s.api_base_url || window.location.origin;
 
-      // Synchroniser l'état initial des radios Source avec la valeur actuelle
-      if (s.data_source) {
-        try { await selectDataSource(s.data_source); } catch (_) { }
-      }
+      // Note: Le cochage des radios est maintenant géré par updateUI() qui est appelé APRÈS
+      // buildDataSourceControls(), donc les radios existent déjà quand updateUI() s'exécute
 
       // Listeners: appliquent immédiatement dans globalConfig
       if (document.getElementById('quick_data_source')) {
@@ -1479,6 +1519,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Charger les settings depuis l'API utilisateur
     async function loadSettings() {
+      console.log('🔄 loadSettings() called');
       try {
         const response = await fetch('/api/users/settings', {
           headers: { 'X-User': getActiveUser() }
@@ -1495,9 +1536,11 @@ document.addEventListener('DOMContentLoaded', function() {
       }
 
       // Mettre à jour l'interface
-      updateUI();
+      // IMPORTANT: buildDataSourceControls() doit être appelé AVANT updateUI()
+      // pour que les radios existent quand on essaie de les cocher
+      if (window.globalConfig) await initQuickSettings(); // Crée les radios
+      updateUI(); // Coche les radios
       await updateStatusSummary();
-      if (window.globalConfig) await initQuickSettings();
     }
 
     // Sauvegarder les settings via l'API utilisateur
@@ -1544,11 +1587,21 @@ document.addEventListener('DOMContentLoaded', function() {
       // Source de données
       let srcSelected = false;
       if ((globalSettings.data_source === 'csv' || globalSettings.data_source === 'cointracking') && globalSettings.csv_selected_file) {
+        console.log(`🔍 updateUI: Looking for radio with data-file="${globalSettings.csv_selected_file}"`);
         const byFile = document.querySelector(`.radio-option input[name="data_source"][data-file="${globalSettings.csv_selected_file}"]`);
+        console.log(`🔍 updateUI: Found radio?`, byFile);
         if (byFile) {
           byFile.checked = true;
-          if (byFile.parentElement) byFile.parentElement.classList.add('selected');
+          const parent = byFile.closest('.radio-option');
+          if (parent) {
+            parent.classList.add('selected');
+            console.log(`✅ updateUI: Radio checked and parent marked as selected for ${globalSettings.csv_selected_file}`);
+          } else {
+            console.warn(`⚠️ updateUI: Could not find .radio-option parent for ${globalSettings.csv_selected_file}`);
+          }
           srcSelected = true;
+        } else {
+          console.warn(`❌ updateUI: No radio found for file ${globalSettings.csv_selected_file}`);
         }
       }
       if (!srcSelected) {
@@ -1701,10 +1754,40 @@ document.addEventListener('DOMContentLoaded', function() {
 
       // Vider tous les caches quand la source change
       const oldSource = window.userSettings.data_source;
+      const oldFile = window.userSettings.csv_selected_file;
       const isCsvKey = typeof source === 'string' && source.startsWith('csv_');
       const effectiveNew = isCsvKey ? 'cointracking' : source;
-      if (oldSource && oldSource !== effectiveNew) {
-        console.log(`🔄 Source change detected: ${oldSource} -> ${source}, clearing all caches`);
+
+      // Déterminer le nouveau fichier si CSV
+      let newFile = null;
+      if (isCsvKey) {
+        console.log(`🔍 Looking for source key: ${source} in availableSources:`, window.availableSources);
+        const src = (window.availableSources || []).find(s => s.key === source);
+        console.log(`🔍 Found source object:`, src);
+        if (src && src.file_path) {
+          newFile = src.file_path.split(/[/\\\\]/).pop();
+          console.log(`✅ Extracted filename: ${newFile} from path: ${src.file_path}`);
+        } else {
+          console.warn(`❌ No source found for key: ${source} OR no file_path`);
+        }
+      }
+
+      console.log(`📊 selectDataSource summary:`, {
+        source_param: source,
+        isCsvKey,
+        oldSource,
+        oldFile,
+        effectiveNew,
+        newFile,
+        willSave: isCsvKey
+      });
+
+      // Vider caches si changement réel de source OU de fichier CSV
+      const sourceChanged = oldSource && oldSource !== effectiveNew;
+      const fileChanged = effectiveNew === 'cointracking' && oldFile !== newFile;
+
+      if (sourceChanged || fileChanged) {
+        console.log(`🔄 Source change detected: ${oldSource}/${oldFile} -> ${effectiveNew}/${newFile}, clearing all caches`);
 
         // Vider le cache balance
         if (typeof window.clearBalanceCache === 'function') {
@@ -1724,14 +1807,21 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       }
 
-      // Déterminer si on sélectionne une option CSV spécifique (recalcul local si appelé hors bloc ci-dessus)
-      // const isCsvKey = typeof source === 'string' && source.startsWith('csv_');
-
       // Mettre à jour la valeur stockée
       if (isCsvKey) {
         window.userSettings.data_source = 'cointracking';
+        window.userSettings.csv_selected_file = newFile;
+        console.log(`💾 Updated userSettings:`, {
+          data_source: window.userSettings.data_source,
+          csv_selected_file: window.userSettings.csv_selected_file
+        });
       } else {
         window.userSettings.data_source = source;
+        window.userSettings.csv_selected_file = null; // Réinitialiser si on passe à API
+        console.log(`💾 Updated userSettings (API mode):`, {
+          data_source: window.userSettings.data_source,
+          csv_selected_file: window.userSettings.csv_selected_file
+        });
       }
 
       // Synchroniser le select rapide (Résumé)
@@ -1770,10 +1860,34 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       await updateStatusSummary();
 
-      // Persister la sélection si elle change réellement
-      if (!oldSource || oldSource !== source) {
+      // Persister la sélection si changement réel (source OU fichier CSV)
+      if (sourceChanged || fileChanged) {
+        console.log(`💾 Saving settings after source/file change`);
         try { await saveSettings(); } catch (_) { }
       }
+
+      // 🔧 FIX: Force radio selection update AFTER all async operations
+      // Use requestAnimationFrame to ensure DOM has fully rendered
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          // Ensure the correct radio is visually selected
+          const allRadios = document.querySelectorAll('.radio-option input[name="data_source"]');
+          allRadios.forEach(inp => {
+            if (inp.parentElement) inp.parentElement.classList.remove('selected');
+          });
+
+          if ((window.userSettings.data_source === 'cointracking' || window.userSettings.data_source === 'csv') && window.userSettings.csv_selected_file) {
+            const byFile = document.querySelector(`.radio-option input[name="data_source"][data-file="${window.userSettings.csv_selected_file}"]`);
+            if (byFile) {
+              byFile.checked = true;
+              if (byFile.parentElement) {
+                byFile.parentElement.classList.add('selected');
+                console.log(`🎯 selectDataSource: Force-updated visual selection for ${window.userSettings.csv_selected_file}`);
+              }
+            }
+          }
+        });
+      });
     }
 
     // Sélection de pricing
@@ -2416,6 +2530,35 @@ document.addEventListener('DOMContentLoaded', function() {
         console.debug('🎨 Thème changé:', event.detail);
         // L'interface n'a pas besoin d'être mise à jour car elle suit déjà globalConfig
       });
+
+      // 🔧 FIX GLOBAL: Event delegation pour capturer TOUS les clics sur les radios data_source
+      // Ceci fonctionne même si les radios sont créés dynamiquement
+      document.addEventListener('click', async (e) => {
+        const target = e.target;
+
+        // Vérifier si on a cliqué sur un label ou input radio de data_source
+        let radio = null;
+        if (target.tagName === 'INPUT' && target.type === 'radio' && target.name === 'data_source') {
+          radio = target;
+        } else if (target.tagName === 'LABEL') {
+          const forAttr = target.getAttribute('for');
+          if (forAttr && forAttr.startsWith('source_')) {
+            radio = document.getElementById(forAttr);
+          }
+        }
+
+        if (radio && radio.name === 'data_source') {
+          console.log(`🎯 GLOBAL CLICK CAPTURED: Radio ${radio.value} clicked`);
+
+          // Attendre un tick pour que le radio soit coché
+          await new Promise(resolve => setTimeout(resolve, 10));
+
+          if (radio.checked) {
+            console.log(`✅ Radio is now checked, calling selectDataSource("${radio.value}")`);
+            await selectDataSource(radio.value);
+          }
+        }
+      }, true); // useCapture=true pour capturer avant les autres handlers
     });
 
     // ===== FONCTIONS TÉLÉCHARGEMENT CSV =====
@@ -2616,7 +2759,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Charger le status des CSV au chargement de la page
     document.addEventListener('DOMContentLoaded', () => {
-      try { loadSettings().catch(console.error); } catch (_) { }
+      // loadSettings() est déjà appelé dans le premier DOMContentLoaded (ligne ~2438)
+      // donc pas besoin de l'appeler ici à nouveau
       setTimeout(checkCSVStatus, 1000); // Attendre que globalConfig soit prêt
       setTimeout(loadSaxoIntegrationStatus, 1500); // Load Saxo status
 

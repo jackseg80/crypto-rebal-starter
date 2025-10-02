@@ -1115,11 +1115,28 @@
             const currentSource = globalConfig.get('data_source');
             console.debug(`📊 Using data source: ${currentSource}`);
 
-            // Update source display (show cointracking_csv when using CSV files)
+            // Update source display (show actual CSV filename when using CSV files)
             const sourceDisplay = document.getElementById('portfolio-source-display');
             if (sourceDisplay) {
                 let displaySource = currentSource || 'Unknown';
-                if (displaySource === 'cointracking') displaySource = 'cointracking_csv';
+
+                // If using cointracking source, try to get the actual CSV filename
+                if (displaySource === 'cointracking') {
+                    try {
+                        const userSettings = await fetch('/api/users/settings', {
+                            headers: { 'X-User': localStorage.getItem('activeUser') || 'demo' }
+                        }).then(r => r.ok ? r.json() : null);
+
+                        const csvFileName = userSettings?.csv_selected_file;
+                        if (csvFileName) {
+                            displaySource = csvFileName;
+                        } else {
+                            displaySource = 'cointracking_csv';
+                        }
+                    } catch (e) {
+                        displaySource = 'cointracking_csv';
+                    }
+                }
                 sourceDisplay.textContent = displaySource;
             }
 

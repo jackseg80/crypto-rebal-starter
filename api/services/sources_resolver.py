@@ -15,7 +15,9 @@ def resolve_effective_path(user_fs: UserScopedFS, module: str) -> Tuple[str, Opt
     """
     Résolution unique et centralisée des sources de données.
 
-    Priorité absolue: snapshots → imports → legacy → empty
+    Priorité absolue:
+    1. Fichier explicite de l'utilisateur (csv_selected_file)
+    2. snapshots → imports → legacy → empty
 
     Args:
         user_fs: FileSystem utilisateur sécurisé
@@ -23,9 +25,26 @@ def resolve_effective_path(user_fs: UserScopedFS, module: str) -> Tuple[str, Opt
 
     Returns:
         Tuple[mode, path]:
-        - mode: 'snapshot' | 'imports' | 'legacy' | 'empty'
+        - mode: 'snapshot' | 'imports' | 'legacy' | 'user_choice' | 'empty'
         - path: Chemin absolu du fichier à lire ou None
     """
+
+    # 0) 🎯 PRIORITÉ UTILISATEUR: Fichier explicitement sélectionné
+    try:
+        user_settings = user_fs.read_json("config.json")
+        csv_selected_file = user_settings.get("csv_selected_file")
+
+        if csv_selected_file and module == "cointracking":
+            # Chercher le fichier dans uploads/ puis imports/
+            for search_dir in ["cointracking/uploads", "cointracking/imports", "cointracking/snapshots"]:
+                potential_path = user_fs.get_path(f"{search_dir}/{csv_selected_file}")
+                if os.path.exists(potential_path):
+                    logger.info(f"👤 Sources resolver: Using user-selected file for {module} - {potential_path}")
+                    return "user_choice", potential_path
+
+            logger.warning(f"⚠️ User-selected file not found: {csv_selected_file}, falling back to auto-detection")
+    except Exception as e:
+        logger.debug(f"Could not read user settings: {e}")
 
     # 1) 🎯 PRIORITÉ ABSOLUE: Snapshots Sources
     snapshot_pattern = f"{module}/snapshots/latest.*"

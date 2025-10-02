@@ -180,17 +180,38 @@ async def get_user_data_sources(user: str = Depends(get_active_user)) -> Dict[st
 
         sources = []
 
-        # CSV: lister les fichiers CSV disponibles (par profil uniquement)
-        csv_files = data_router.get_csv_files("balance")
-        if csv_files:
-            for i, csv_file in enumerate(csv_files[:20]):  # Montrer jusqu'à 20 fichiers si besoin
-                file_name = Path(csv_file).name
-                sources.append({
-                    "key": f"csv_{i}",
-                    "label": f"📄 {file_name}",
-                    "type": "csv",
-                    "file_path": csv_file
-                })
+        # CSV: lister TOUS les fichiers CSV disponibles dans uploads/ et imports/
+        # (pas seulement celui résolu par effective_path)
+        csv_files = []
+
+        # Scanner uploads/
+        uploads_dir = data_router.user_fs.get_path("cointracking/uploads")
+        if Path(uploads_dir).exists():
+            csv_files.extend(list(Path(uploads_dir).glob("*.csv")))
+
+        # Scanner imports/
+        imports_dir = data_router.user_fs.get_path("cointracking/imports")
+        if Path(imports_dir).exists():
+            csv_files.extend(list(Path(imports_dir).glob("*.csv")))
+
+        # Scanner snapshots/ (latest.csv)
+        snapshots_dir = data_router.user_fs.get_path("cointracking/snapshots")
+        if Path(snapshots_dir).exists():
+            csv_files.extend(list(Path(snapshots_dir).glob("*.csv")))
+
+        # Trier par nom et dédupliquer
+        csv_files = sorted(set(csv_files), key=lambda p: p.name.lower())
+
+        for i, csv_path in enumerate(csv_files[:50]):  # Max 50 fichiers
+            file_name = csv_path.name
+            # Générer une clé unique basée sur le nom du fichier (slug-friendly)
+            file_slug = file_name.replace('.csv', '').lower().replace(' ', '_').replace('-', '_')
+            sources.append({
+                "key": f"csv_{file_slug}",
+                "label": f"📄 {file_name}",
+                "type": "csv",
+                "file_path": str(csv_path)
+            })
 
         # API CoinTracking: seulement si l'utilisateur a des clés API
         user_settings = data_router.settings

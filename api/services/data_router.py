@@ -197,8 +197,8 @@ class UserDataRouter:
         mode, path = resolve_effective_path(self.user_fs, "cointracking")
         logger.info(f"🔍 Sources resolver returned: mode={mode}, path={path} for user {self.user_id}")
 
-        if mode in ("snapshot", "imports"):
-            # Snapshots et imports ont priorité absolue sur tout
+        if mode in ("snapshot", "imports", "user_choice"):
+            # Snapshots, imports et choix utilisateur ont priorité absolue sur tout
             self._effective_read = mode
             self._effective_path = path
             logger.info(f"🎯 Sources First: Using {mode} for user {self.user_id} - {path}")

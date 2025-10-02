@@ -286,7 +286,7 @@ function createSourcesList(moduleName, module) {
 
       // 🔥 NOUVELLE LOGIQUE: Valeur basée sur le nom de fichier pour correspondre au système existant
       const sourceValue = `csv_${index}`;
-      const isSelected = isSourceCurrentlySelected(moduleName, sourceValue);
+      const isSelected = isSourceCurrentlySelected(moduleName, sourceValue, module.detected_files);
 
       sources.push(`
         <label class="source-option">
@@ -736,7 +736,7 @@ function setupSourcesEventHandlers() {
 /**
  * Vérifie si une source est actuellement sélectionnée pour un module
  */
-function isSourceCurrentlySelected(moduleName, sourceValue) {
+function isSourceCurrentlySelected(moduleName, sourceValue, detectedFiles = null) {
   try {
     const userConfig = JSON.parse(localStorage.getItem('userConfig') || '{}');
     const currentUser = getCurrentUser();
@@ -750,18 +750,38 @@ function isSourceCurrentlySelected(moduleName, sourceValue) {
       return config.data_source === `${moduleName}_api`;
     }
 
-    // Pour les fichiers CSV - vérifier le fichier spécifique via csv_glob
+    // Pour les fichiers CSV - vérifier le fichier spécifique via csv_selected_file ou csv_glob
     if (sourceValue.startsWith('csv_')) {
-      if (config.data_source !== 'cointracking') return false;
-      // Récupérer le fichier correspondant à sourceValue dans les sources détectées
-      const detectedSources = window.sourcesData?.modules?.find(m => m.name === moduleName)?.detected_files || [];
+      if (config.data_source !== 'cointracking') {
+        console.log(`[isSourceCurrentlySelected] ${sourceValue} - data_source=${config.data_source}, not cointracking`);
+        return false;
+      }
+
+      // Récupérer le fichier correspondant à sourceValue
+      // Utiliser detectedFiles si fourni (évite le problème de timing), sinon fallback sur window.sourcesData
+      const detectedSources = detectedFiles || window.sourcesData?.modules?.find(m => m.name === moduleName)?.detected_files || [];
       const sourceIndex = parseInt(sourceValue.replace('csv_', ''));
       const expectedFile = detectedSources[sourceIndex];
+
+      console.log(`[isSourceCurrentlySelected] ${sourceValue}: index=${sourceIndex}, file=${expectedFile?.name}, csv_selected=${config.csv_selected_file}`);
+
       if (!expectedFile) return false;
-      // Vérifier si csv_glob correspond à ce fichier spécifique (en enlevant les wildcards)
-      if (!config.csv_glob) return false;
-      const cleanGlob = config.csv_glob.replace(/\*/g, '');
-      return expectedFile.name === cleanGlob || expectedFile.name.includes(cleanGlob) || cleanGlob.includes(expectedFile.name);
+
+      // ⚠️ PRIORITÉ 1: Vérifier csv_selected_file (utilisé par sources_resolver.py)
+      if (config.csv_selected_file) {
+        const match = expectedFile.name === config.csv_selected_file;
+        console.log(`[isSourceCurrentlySelected] ${sourceValue}: ${expectedFile.name} === ${config.csv_selected_file} ? ${match}`);
+        return match;
+      }
+
+      // PRIORITÉ 2: Fallback sur csv_glob (ancien système)
+      if (config.csv_glob) {
+        const cleanGlob = config.csv_glob.replace(/\*/g, '');
+        const match = expectedFile.name === cleanGlob || expectedFile.name.includes(cleanGlob) || cleanGlob.includes(expectedFile.name);
+        return match;
+      }
+
+      return false;
     }
 
     return false;
@@ -785,9 +805,11 @@ async function selectActiveSource(moduleName, sourceValue, fileName) {
     if (sourceValue.includes('_api')) {
       updateData.data_source = sourceValue;
       updateData.csv_glob = '';
+      updateData.csv_selected_file = null; // Reset CSV selection when switching to API
     } else if (sourceValue.startsWith('csv_')) {
       updateData.data_source = 'cointracking';
       updateData.csv_glob = fileName ? `*${fileName}*` : '*.csv';
+      updateData.csv_selected_file = fileName; // ⚠️ CRITIQUE: Ajouter csv_selected_file pour sources_resolver.py
     }
 
     // ⚠️ CRITIQUE: Récupérer d'abord la config complète pour préserver les clés API
@@ -837,8 +859,11 @@ async function selectActiveSource(moduleName, sourceValue, fileName) {
     // ✅ Synchroniser globalConfig pour le dashboard
     if (window.globalConfig) {
       window.globalConfig.set('data_source', updateData.data_source);
-      if (updateData.csv_glob) {
+      if (updateData.csv_glob !== undefined) {
         window.globalConfig.set('csv_glob', updateData.csv_glob);
+      }
+      if (updateData.csv_selected_file !== undefined) {
+        window.globalConfig.set('csv_selected_file', updateData.csv_selected_file);
       }
     }
 
@@ -857,6 +882,9 @@ async function selectActiveSource(moduleName, sourceValue, fileName) {
     }));
 
     (window.debugLogger?.debug || console.log)(`[Sources] ✅ Source selected and saved: ${sourceValue}`);
+
+    // Mettre à jour visuellement les radios (sans recharger toute l'UI qui causerait un flicker)
+    // Les radios sont déjà cochés par le onchange natif, pas besoin de refresh complet
 
     // Afficher un feedback visuel temporaire
     showTemporaryFeedback(`Source sélectionnée: ${fileName || sourceValue}`);
