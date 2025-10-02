@@ -386,6 +386,100 @@ async def vol_predict(assets: List[str] = Query(..., min_items=1, max_items=50),
 - Ajouter/modifier KPI dans `static/risk-dashboard.html` + modules sous `static/modules/*.js`.
 - Respecter le système de cache persistant (voir "Caches & cross‑tab").
 
+### C.1) Dual-Window Metrics (Oct 2025) 🆕
+
+**Objectif** : Métriques stables même avec assets récents (évite Sharpe négatifs sur courte période).
+
+**Problème résolu** : Portfolio avec cryptos récentes (55j historique) montrait Sharpe -0.29 avec Risk Score 65 → incohérence apparente due à intersection temporelle courte.
+
+**Solution** : Système dual-view automatique via `/api/risk/dashboard?use_dual_window=true`
+
+#### Architecture Backend
+
+**Service** : `services/portfolio_metrics.py:169` - `calculate_dual_window_metrics()`
+
+**Paramètres par défaut** :
+```python
+min_history_days: int = 180      # Jours minimum cohorte long-term
+min_coverage_pct: float = 0.80   # % valeur minimum (80%)
+min_asset_count: int = 5         # Nombre assets minimum
+```
+
+**Cascade Fallback** (automatique) :
+1. 365j + 80% couverture (priorité)
+2. 180j + 70% couverture
+3. 120j + 60% couverture
+4. 90j + 50% couverture (dernier recours)
+5. Full intersection uniquement si aucune cohorte valide (warning)
+
+#### Frontend Display
+
+**Badges automatiques** (`risk-dashboard.html:4217`) :
+- 📈 **Long-Term** : Fenêtre stable (ex: 365j, 3 assets, 80% valeur) + Sharpe
+- 🔍 **Full Intersection** : Vue complète (tous assets, ex: 55j) + comparaison Sharpe
+- ⚠️ **Alerte exclusion** : Si > 20% valeur exclue ou divergence Sharpe > 0.5
+- ✓ **Source autoritaire** : Indique quelle fenêtre est utilisée pour Risk Score
+
+**Exemple réponse API** :
+```json
+{
+  "risk_metrics": {
+    "risk_score": 65.0,
+    "dual_window": {
+      "enabled": true,
+      "long_term": {
+        "available": true,
+        "window_days": 365,
+        "asset_count": 3,
+        "coverage_pct": 0.80,
+        "metrics": {"sharpe_ratio": 1.42, "risk_score": 65.0}
+      },
+      "full_intersection": {
+        "window_days": 55,
+        "asset_count": 5,
+        "metrics": {"sharpe_ratio": -0.29, "risk_score": 38.0}
+      },
+      "exclusions": {
+        "excluded_assets": [{"symbol": "PEPE", "reason": "history_55d_<_365d"}],
+        "excluded_pct": 0.20
+      }
+    }
+  }
+}
+```
+
+#### Usage dans Code
+
+**Activer dual-window** (activé par défaut) :
+```python
+# Endpoint
+GET /api/risk/dashboard?use_dual_window=true&min_history_days=180&min_coverage_pct=0.80
+```
+
+**Interpréter résultats** :
+- `window_used.risk_score_source == 'long_term'` → Score fiable (cohorte stable)
+- `window_used.risk_score_source == 'full_intersection'` → Warning (pas de cohorte long-term)
+- `dual_window.exclusions.excluded_pct > 0.2` → Alerte UI (20%+ exclu)
+
+#### Tests
+
+**Fichier** : `tests/unit/test_dual_window_metrics.py`
+
+**Commande** :
+```bash
+pytest tests/unit/test_dual_window_metrics.py -v  # 7 tests
+```
+
+**Couverture** :
+- ✅ Cohorte long-term disponible (cas nominal)
+- ✅ Cascade fallback (365 → 180j)
+- ✅ Aucune cohorte valide (fallback full intersection)
+- ✅ Divergence Sharpe, métadonnées précises, edge cases
+
+#### Documentation Complète
+
+📖 Voir [docs/RISK_SEMANTICS.md](docs/RISK_SEMANTICS.md) - Section "Dual Window System"
+
 ### D) Utiliser le panneau Decision Index
 
 **Objectif** : Afficher DI + contributions + Trend Chip + Regime Ribbon + aide dans analytics/simulations.
