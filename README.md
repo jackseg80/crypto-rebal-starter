@@ -10,6 +10,7 @@ Plateforme de gestion de patrimoine cross‑asset (Crypto, Bourse, Banque, Diver
 - **ML avancé** (LSTM, Transformers), signaux temps réel
 - **Analytics**: Sharpe/Calmar, drawdown, VaR/CVaR
 - **Risk management v2**: corrélations, stress testing, alertes, circuit breakers, GRI (Group Risk Index)
+- **Risk Scoring centralisé** : Dual score system (quantitatif + structurel) avec architecture anti-duplication
 - **Strategy API v3**: calculs dynamiques remplaçant les presets hardcodés
 - **Classification unifiée** des assets via taxonomy_aliases.json (source unique de vérité)
 - **Synchronisation parfaite** Analytics ↔ Rebalance via u.targets_by_group
@@ -41,22 +42,26 @@ Le projet implémente des mesures de sécurité robustes :
 - ✅ **Tests automatisés** : Tests de sécurité des headers, validation automatique
 - 📄 **Documentation** : Voir [SECURITY.md](SECURITY.md) pour les détails complets
 
-> **⚠️ Règle Canonique — Sémantique Risk**
+> **⚠️ Règle Canonique — Sémantique Risk (Option A)**
 >
 > Le **Risk Score** est un indicateur **positif** de robustesse, borné **[0..100]**.
 >
 > **Convention** : Plus haut = plus robuste (risque perçu plus faible).
+>
+> **Dual Score System** :
+> - `risk_score` (autoritaire) : VaR + Sharpe + Drawdown + Volatilité → UI, Decision Index
+> - `risk_score_structural` (structurel) : + GRI + Concentration + Structure → Garde-fou allocation
 >
 > **Conséquence** : Dans le Decision Index (DI), Risk contribue **positivement** :
 > ```
 > DI = wCycle·scoreCycle + wOnchain·scoreOnchain + wRisk·scoreRisk
 > ```
 >
-> **❌ Interdit** : Ne jamais inverser avec `100 - scoreRisk`.
+> **❌ Interdit** : Ne jamais inverser avec `100 - scoreRisk`, ne jamais dupliquer la logique scoring.
 >
-> **Visualisation** : Contribution = `(poids × score) / Σ(poids × score)`
+> **Architecture** : Module central `services/risk_scoring.py` (Single Source of Truth)
 >
-> 📖 Source : [docs/RISK_SEMANTICS.md](docs/RISK_SEMANTICS.md)
+> 📖 Sources : [docs/RISK_SEMANTICS.md](docs/RISK_SEMANTICS.md) | [docs/RISK_SCORING_MODULE.md](docs/RISK_SCORING_MODULE.md)
 
 **Audit de sécurité** :
 ```bash

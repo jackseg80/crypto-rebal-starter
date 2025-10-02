@@ -26,37 +26,43 @@ class PortfolioMetrics:
     # Rendements
     total_return_pct: float
     annualized_return_pct: float
-    
+
     # Risque
     volatility_annualized: float
     sharpe_ratio: float
     sortino_ratio: float
     calmar_ratio: float
-    
+
     # Drawdown
     max_drawdown: float
     current_drawdown: float
     max_drawdown_duration_days: int
-    
+
     # Distribution des rendements
     skewness: float
     kurtosis: float
-    
+
     # Value at Risk
     var_95_1d: float
     var_99_1d: float
     cvar_95_1d: float
     cvar_99_1d: float
-    
+
     # Métriques supplémentaires
     ulcer_index: float
     positive_months_pct: float
     win_loss_ratio: float
-    
+
+    # ✅ Risk Assessment (docs/RISK_SEMANTICS.md)
+    # overall_risk_level: str  # "very_low", "low", "medium", "high", "very_high", "critical"
+    # risk_score: float        # Score 0-100 (robustesse: plus haut = moins risqué)
+    overall_risk_level: str = "medium"
+    risk_score: float = 50.0
+
     # Métadonnées
-    data_points: int
-    calculation_date: datetime
-    confidence_level: float
+    data_points: int = 0
+    calculation_date: datetime = None
+    confidence_level: float = 0.95
 
 @dataclass
 class CorrelationMetrics:
@@ -121,7 +127,19 @@ class PortfolioMetricsService:
         ulcer_index = self._calculate_ulcer_index(portfolio_returns)
         positive_months = self._calculate_positive_months_pct(portfolio_returns)
         win_loss_ratio = self._calculate_win_loss_ratio(portfolio_returns)
-        
+
+        # ✅ Risk Assessment (docs/RISK_SEMANTICS.md)
+        # Risk Score = indicateur POSITIF de robustesse [0-100]
+        # Plus haut = plus robuste (risque perçu plus faible)
+        # IMPORTANT: Utilise la fonction centralisée pour éviter duplication
+        from services.risk_scoring import assess_risk_level
+        risk_assessment = assess_risk_level(
+            var_metrics=var_metrics,
+            sharpe_ratio=sharpe_ratio,
+            max_drawdown=drawdown_metrics['max_drawdown'],
+            volatility=volatility
+        )
+
         return PortfolioMetrics(
             total_return_pct=total_return * 100,
             annualized_return_pct=annualized_return * 100,
@@ -141,6 +159,8 @@ class PortfolioMetricsService:
             ulcer_index=ulcer_index,
             positive_months_pct=positive_months,
             win_loss_ratio=win_loss_ratio,
+            overall_risk_level=risk_assessment["level"],
+            risk_score=risk_assessment["score"],
             data_points=len(portfolio_returns),
             calculation_date=datetime.now(),
             confidence_level=confidence_level
@@ -369,8 +389,11 @@ class PortfolioMetricsService:
         
         # Trier par corrélation décroissante
         correlations.sort(key=lambda x: abs(x['correlation']), reverse=True)
-        
+
         return correlations[:10]  # Top 10
+
+    # ⚠️ REMOVED: _assess_overall_risk_level() is now centralized in services/risk_scoring.py
+    # Import from there to avoid duplication and ensure consistency across the codebase
 
 
 # Instance globale du service

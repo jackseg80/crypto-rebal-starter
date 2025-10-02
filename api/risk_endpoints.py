@@ -480,7 +480,8 @@ async def get_risk_dashboard(
     min_usd: float = Query(1.0, description="Seuil minimum en USD"),
     price_history_days: int = Query(30, ge=10, le=365, description="Fenêtre d'historique pour métriques (jours)"),
     lookback_days: int = Query(30, ge=10, le=365, description="Fenêtre pour corrélations (jours)"),
-    user: str = Depends(get_active_user)
+    user_id: Optional[str] = Query(None, description="User ID (optionnel, prioritaire sur X-User header)"),
+    user_header: str = Depends(get_active_user)
 ):
     """
     Endpoint pour dashboard de risque temps réel
@@ -488,10 +489,13 @@ async def get_risk_dashboard(
     """
     try:
         start_time = datetime.now()
-        
+
+        # Déterminer user effectif : Query param prioritaire, sinon header
+        effective_user = user_id or user_header
+
         # Récupération unifiée des balances (supporte stub | cointracking | cointracking_api)
         from api.unified_data import get_unified_filtered_balances
-        unified = await get_unified_filtered_balances(source=source, min_usd=min_usd, user_id=user)
+        unified = await get_unified_filtered_balances(source=source, min_usd=min_usd, user_id=effective_user)
         balances = unified.get("items", [])
         source_used = unified.get("source_used", source)
         
@@ -583,7 +587,13 @@ async def get_risk_dashboard(
 
         # Construction de la réponse dashboard avec métriques centralisées
         
-        # Calculer le Risk Score v2 avec intégration GRI
+        # ✅ Utiliser le Risk Score autoritaire du service (docs/RISK_SEMANTICS.md)
+        # Le service calcule déjà risk_score (robustesse 0-100) et overall_risk_level (enum)
+        # avec la sémantique correcte : score élevé = robuste = risque faible
+        risk_score_authoritative = risk_metrics.risk_score
+        overall_risk_level = getattr(risk_metrics.overall_risk_level, "value", str(risk_metrics.overall_risk_level))
+
+        # Calculer le Risk Score Structural (avec intégration GRI + concentration + structure)
         risk_score_result = _calculate_risk_score_v2(
             risk_metrics=risk_metrics,
             exposure_by_group=exposure_by_group,
@@ -591,17 +601,8 @@ async def get_risk_dashboard(
             balances=balances,
             correlation_metrics=correlation_metrics
         )
-        risk_score = risk_score_result[0]  # Score final
-        
-        # Déterminer le niveau de risque
-        if risk_score >= 75:
-            overall_risk_level = "very_high"
-        elif risk_score >= 60:
-            overall_risk_level = "high"
-        elif risk_score >= 40:
-            overall_risk_level = "medium"
-        else:
-            overall_risk_level = "low"
+        risk_score_structural = risk_score_result[0]  # Score structurel
+        structural_breakdown = risk_score_result[1]   # Détail contributions
         
         dashboard_data = {
             "success": True,
@@ -627,14 +628,23 @@ async def get_risk_dashboard(
                 "ulcer_index": risk_metrics.ulcer_index,
                 "skewness": risk_metrics.skewness,
                 "kurtosis": risk_metrics.kurtosis,
+                # ✅ Scores et niveau autoritaires (source de vérité)
                 "overall_risk_level": overall_risk_level,
-                "risk_score": risk_score,
+                "risk_score": risk_score_authoritative,        # Autoritaire (VaR + Sharpe + DD + Vol)
+                "risk_score_structural": risk_score_structural,  # Structurel (+ GRI + Concentration)
+                "structural_breakdown": structural_breakdown,    # Détail contributions (audit)
                 # Exposition par groupes et indice GRI (0-10)
                 "exposure_by_group": exposure_by_group,
                 "group_risk_index": group_risk_index,
                 "calculation_date": risk_metrics.calculation_date.isoformat(),
                 "data_points": risk_metrics.data_points,
-                "confidence_level": risk_metrics.confidence_level
+                "confidence_level": risk_metrics.confidence_level,
+                # ✅ Metadata fenêtres temporelles (traçabilité)
+                "window_used": {
+                    "price_history_days": price_history_days,
+                    "lookback_days": lookback_days,
+                    "actual_data_points": risk_metrics.data_points
+                }
             },
             "correlation_metrics": {
                 "diversification_ratio": correlation_metrics.diversification_ratio,
@@ -644,7 +654,7 @@ async def get_risk_dashboard(
             "alerts": _generate_centralized_risk_alerts(risk_metrics, correlation_metrics)
         }
         
-        logger.info(f"✅ Centralized metrics calculated: Sharpe={risk_metrics.sharpe_ratio:.2f}, Vol={risk_metrics.volatility_annualized:.2f}, MaxDD={risk_metrics.max_drawdown:.2%}, RiskScore={risk_score}")
+        logger.info(f"✅ Centralized metrics calculated: Sharpe={risk_metrics.sharpe_ratio:.2f}, Vol={risk_metrics.volatility_annualized:.2f}, MaxDD={risk_metrics.max_drawdown:.2%}, RiskScore={risk_score_authoritative:.1f}, RiskStructural={risk_score_structural:.1f}")
 
         end_time = datetime.now()
         calculation_time = f"{(end_time - start_time).total_seconds():.2f}s"
@@ -657,16 +667,16 @@ async def get_risk_dashboard(
         groups_hash = hashlib.md5(",".join(sorted(exposure_by_group.keys())).encode()).hexdigest()[:8]
 
         dashboard_data["meta"] = {
-            "user_id": user,
+            "user_id": effective_user,
             "source_id": source_used,
             "taxonomy_version": taxonomy_version,
             "taxonomy_hash": groups_hash,
             "generated_at": datetime.now().isoformat(),
-            "correlation_id": f"risk-{user}-{int(datetime.now().timestamp())}"
+            "correlation_id": f"risk-{effective_user}-{int(datetime.now().timestamp())}"
         }
 
         # Log metadata for traceability
-        logger.info(f"🏷️ Risk dashboard metadata: user={user}, source={source_used}, taxonomy={taxonomy_version}:{groups_hash}")
+        logger.info(f"🏷️ Risk dashboard metadata: user={effective_user}, source={source_used}, taxonomy={taxonomy_version}:{groups_hash}")
 
         return dashboard_data
         

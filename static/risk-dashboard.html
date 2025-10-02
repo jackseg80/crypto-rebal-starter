@@ -2382,14 +2382,29 @@
         // Utiliser directement les données de balance et calculer le risque côté client
         const balanceResult = await fetchCached(
           `risk-dashboard-balance:${(localStorage.getItem('activeUser') || 'demo')}:${dataSource}:${minUsd}`,
-          () => window.globalConfig.apiRequest('/balances/current', { params: { min_usd: minUsd } }),
+          () => window.globalConfig.apiRequest('/balances/current', { params: { source: dataSource, min_usd: minUsd } }),
           'risk'
         );
 
         // Use the real backend endpoint for risk dashboard
+        // ✅ Inclure source et user_id pour isolation multi-tenant
         const apiResult = await window.globalConfig.apiRequest('/api/risk/dashboard', {
-          params: { min_usd: minUsd, price_history_days: analysisDays, lookback_days: corrDays }
+          params: {
+            source: dataSource,
+            min_usd: minUsd,
+            price_history_days: analysisDays,
+            lookback_days: corrDays
+          }
         });
+
+        // 🔍 DEBUG: Log la réponse brute avec nouveaux champs
+        console.debug('🔍 Raw API response:', JSON.stringify({
+          sharpe: apiResult?.risk_metrics?.sharpe_ratio,
+          var95: apiResult?.risk_metrics?.var_95_1d,
+          risk_score: apiResult?.risk_metrics?.risk_score,
+          risk_score_structural: apiResult?.risk_metrics?.risk_score_structural,
+          window_used: apiResult?.risk_metrics?.window_used
+        }));
 
         // Vérifier que apiResult est valide avant de l'utiliser
         if (!apiResult || !apiResult.risk_metrics) {
@@ -2401,7 +2416,8 @@
           apiResult.balances = Array.isArray(balanceResult?.items) ? balanceResult.items : [];
         } catch (_) { /* ignore */ }
 
-        console.log(`📊 Real risk metrics calculated: VaR 95%: ${(apiResult.risk_metrics.var_95_1d * 100).toFixed(2)}%, Sharpe: ${apiResult.risk_metrics.sharpe_ratio.toFixed(2)}`);
+        const m = apiResult.risk_metrics;
+        console.log(`📊 Risk metrics from API: VaR 95%: ${(m.var_95_1d * 100).toFixed(2)}%, Sharpe: ${m.sharpe_ratio.toFixed(2)}, Risk Score: ${m.risk_score} (authoritative), Structural: ${m.risk_score_structural || 'N/A'}, Window: ${m.window_used?.actual_data_points || '?'} pts`);
 
         // The backend already provides the correct structure, just return it
         return apiResult;
@@ -4197,6 +4213,12 @@
               <span class="metric-label">Risk Score</span>
               <span class="metric-value" data-score="risk-display">${safeFixed(m.risk_score, 1)}/100</span>
             </div>
+            ${m.risk_score_structural != null ? `
+            <div class="metric-row" style="opacity: 0.8;">
+              <span class="metric-label" title="Risk Score Structural : Intègre exposition par groupe (GRI), concentration et structure du portfolio">Structural <span style="font-size: 0.7em; color: var(--theme-accent);">struct</span></span>
+              <span class="metric-value" style="font-size: 0.9em;">${safeFixed(m.risk_score_structural, 1)}/100</span>
+            </div>
+            ` : ''}
             <div class="metric-row">
               <span class="metric-label">Risk Level</span>
               <span class="risk-level risk-${(m.overall_risk_level || 'unknown').replace('_', '-')}">${(m.overall_risk_level || 'Unknown').replace('_', ' ')}</span>
