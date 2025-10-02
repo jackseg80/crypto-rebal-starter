@@ -236,7 +236,7 @@ def get_shutdown_handler():
             try:
                 from api.crypto_toolbox_endpoints import shutdown_playwright
                 await shutdown_playwright()
-                logger.info("✅ Playwright browser closed")
+                # Note: shutdown_playwright() logs its own status
             except ImportError:
                 pass  # Module not loaded, nothing to clean up
             except Exception as e:

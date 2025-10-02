@@ -123,6 +123,9 @@ async def shutdown_playwright():
     """
     global _browser, _playwright_instance
 
+    # Only log if browser was actually initialized
+    browser_was_active = _browser is not None or _playwright_instance is not None
+
     if _browser:
         try:
             logger.info("🛑 Closing Playwright browser...")
@@ -140,6 +143,10 @@ async def shutdown_playwright():
             logger.warning(f"⚠️ Error stopping Playwright: {e}")
         finally:
             _playwright_instance = None
+
+    # Log skip only if nothing was initialized
+    if not browser_was_active:
+        logger.debug("⏭️ Playwright shutdown skipped (never initialized)")
 
 
 async def _ensure_browser() -> Browser:
