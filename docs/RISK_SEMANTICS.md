@@ -131,6 +131,161 @@ level = score_to_level(score)
 
 ---
 
+## Dual Window System (Oct 2025) 🆕
+
+### Problème Résolu
+
+**Symptôme** : Portfolio avec cryptos récentes (ex: 55j historique) montre Sharpe -0.29 avec Risk Score 65 (robuste) — incohérence apparente.
+
+**Cause** : Intersection temporelle courte (55j au lieu de 365j demandés) produit des ratios instables et négatifs — mathématiquement correct mais trompeur pour évaluation portfolio.
+
+**Solution** : Système Dual-Window avec 2 vues :
+
+#### 1️⃣ Long-Term Window (Autoritaire)
+- **Objectif** : Métriques stables sur historique long
+- **Cohorte** : Exclut assets récents, garde ≥80% valeur portfolio
+- **Cascade Fallback** :
+  - 365j + 80% couverture (priorité)
+  - 180j + 70% couverture
+  - 120j + 60% couverture
+  - 90j + 50% couverture (dernier recours)
+- **Garde-fous** : min 5 assets, min 180j historique
+- **Usage** : Score autoritaire pour Decision Index et communication
+
+#### 2️⃣ Full Intersection Window (Référence)
+- **Objectif** : Vue complète incluant TOUS les assets
+- **Période** : Intersection commune minimale (peut être courte)
+- **Usage** : Détection divergences, alertes temporelles
+
+### Architecture
+
+**Service** : `services/portfolio_metrics.py:169` - `calculate_dual_window_metrics()`
+
+**Paramètres** :
+```python
+min_history_days: int = 180      # Jours minimum cohorte LT
+min_coverage_pct: float = 0.80   # % valeur minimum (80%)
+min_asset_count: int = 5         # Nombre assets minimum
+```
+
+**Endpoint** : `/api/risk/dashboard?use_dual_window=true`
+
+**Nouveaux Query Params** :
+- `use_dual_window` (bool, défaut=True)
+- `min_history_days` (int, défaut=180)
+- `min_coverage_pct` (float, défaut=0.80)
+- `min_asset_count` (int, défaut=5)
+
+### Réponse API Étendue
+
+```json
+{
+  "risk_metrics": {
+    "risk_score": 65.0,
+    "sharpe_ratio": 1.42,
+    "window_used": {
+      "dual_window_enabled": true,
+      "risk_score_source": "long_term"
+    },
+    "dual_window": {
+      "enabled": true,
+      "long_term": {
+        "available": true,
+        "window_days": 365,
+        "asset_count": 3,
+        "coverage_pct": 0.80,
+        "metrics": {
+          "sharpe_ratio": 1.42,
+          "volatility": 0.32,
+          "risk_score": 65.0
+        }
+      },
+      "full_intersection": {
+        "window_days": 55,
+        "asset_count": 5,
+        "metrics": {
+          "sharpe_ratio": -0.29,
+          "volatility": 0.85,
+          "risk_score": 38.0
+        }
+      },
+      "exclusions": {
+        "excluded_assets": [{"symbol": "PEPE", "reason": "history_55d_<_365d"}],
+        "excluded_value_usd": 20000,
+        "excluded_pct": 0.20,
+        "included_assets": [...],
+        "included_pct": 0.80,
+        "target_days": 365,
+        "achieved_days": 365,
+        "reason": "success"
+      }
+    }
+  }
+}
+```
+
+### Frontend Display
+
+**Badges Dual-Window** (risk-dashboard.html:4217) :
+- 📈 **Long-Term** : Fenêtre + couverture + Sharpe (vert/autoritaire)
+- 🔍 **Full Intersection** : Fenêtre + divergence vs LT (rouge si écart > 0.5)
+- ⚠️ **Alerte Exclusion** : Si > 20% valeur exclue
+- ✓ **Source** : Indique quelle fenêtre est autoritaire
+
+### Tests
+
+**Fichier** : `tests/unit/test_dual_window_metrics.py`
+
+**Couverture** :
+- ✅ Cohorte long-term disponible (cas nominal)
+- ✅ Cascade fallback (365 → 180j)
+- ✅ Aucune cohorte valide (fallback full intersection)
+- ✅ Divergence Sharpe entre fenêtres
+- ✅ Métadonnées exclusions précises
+- ✅ Asset count insuffisant
+- ✅ Fenêtres identiques quand tous assets ont historique long
+
+**Commande** :
+```bash
+pytest tests/unit/test_dual_window_metrics.py -v
+```
+
+### Cas d'Usage
+
+#### ✅ Bon Cas : Portfolio Mature
+- 5 assets, tous 365j+ historique
+- Long-Term = Full Intersection
+- Risk Score stable et fiable
+
+#### ⚠️ Attention : Portfolio Mixte
+- 3 assets anciens (365j, 80% valeur)
+- 2 assets récents (55j, 20% valeur)
+- Long-Term exclut récents → score stable
+- Full Intersection inclut récents → score instable (alerte)
+
+#### ❌ Limitation : Portfolio Récent
+- Tous assets < 90j
+- Aucune cohorte long-term
+- Fallback full intersection uniquement (warning)
+
+### Fix Bonus : Score Structural
+
+**Corrigé** : `api/risk_endpoints.py:73-84`
+
+**Avant** (❌ Inversé) :
+```python
+if perf_ratio < 0.5: d_perf = +10  # Mauvais Sharpe augmentait le score
+```
+
+**Après** (✅ Correct) :
+```python
+if perf_ratio < 0:     d_perf = -15  # Négatif diminue score
+elif perf_ratio < 0.5: d_perf = -10  # Faible diminue score
+elif perf_ratio > 2.0: d_perf = +15  # Excellent augmente score
+```
+
+---
+
 ## QA Checklist (Étendue)
 
 - [ ] Aucun `100 - scoreRisk` dans le code ni dans les docs
@@ -140,3 +295,7 @@ level = score_to_level(score)
 - [ ] **NOUVEAU** : Endpoint n'override PAS le `overall_risk_level` du service (pas de re-mapping)
 - [ ] **NOUVEAU** : Tests non-régression passent (`pytest tests/unit/test_risk_scoring.py`)
 - [ ] **NOUVEAU** : API expose `structural_breakdown` et `window_used` pour audit
+- [ ] **🆕 Dual-Window** : Long-Term window disponible quand possible (≥80% couverture)
+- [ ] **🆕 Dual-Window** : Alerte exclusion si > 20% valeur exclue
+- [ ] **🆕 Dual-Window** : Tests dual-window passent (`pytest tests/unit/test_dual_window_metrics.py`)
+- [ ] **🆕 Score Structural** : Sharpe/Volatility non inversés (bon → +score)

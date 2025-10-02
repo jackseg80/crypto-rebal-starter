@@ -3,7 +3,7 @@
   "api_base_url": "http://localhost:8000",
   "display_currency": "USD",
   "min_usd_threshold": 10.0,
-  "csv_glob": "csv/*.csv",
+  "csv_glob": "",
   "csv_selected_file": "CoinTracking - Current Balance.csv",
   "cointracking_api_key": "cf000a5a49d5bf2f375aae85e3cc7b2a",
   "cointracking_api_secret": "50dbe21bd3227e1327291fd5476494459e48860725ec5247",

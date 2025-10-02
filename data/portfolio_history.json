@@ -660,22 +660,6 @@
     "pricing_timestamp": "2025-09-30T13:00:00+02:00"
   },
   {
-    "date": "2025-09-30T13:42:28.722088",
-    "user_id": "jack",
-    "source": "cointracking",
-    "total_value_usd": 133100.0,
-    "asset_count": 5,
-    "group_count": 3,
-    "diversity_score": 1,
-    "top_holding_symbol": "ETH",
-    "top_holding_percentage": 0.5634861006761833,
-    "group_distribution": {
-      "BTC": 33600.0,
-      "ETH": 75000.0,
-      "Others": 24500.0
-    }
-  },
-  {
     "date": "2025-10-01T13:00:00+02:00",
     "user_id": "jack",
     "source": "cointracking_api",
@@ -698,25 +682,34 @@
     "pricing_timestamp": "2025-10-01T13:00:00+02:00"
   },
   {
-    "date": "2025-10-02T13:00:00+02:00",
+    "date": "2025-10-02T16:15:53.738603+02:00",
     "user_id": "jack",
     "source": "cointracking_api",
-    "total_value_usd": 441370.21,
-    "asset_count": 191,
-    "group_count": 6,
-    "diversity_score": 5,
-    "top_holding_symbol": "BTC",
-    "top_holding_percentage": 0.4,
-    "group_distribution": {
-      "BTC": 176548.08400000003,
-      "ETH": 97101.4462,
-      "L1/L0 majors": 39723.3189,
-      "Others": 83860.3399,
-      "Stablecoins": 22068.510500000004,
-      "SOL": 4413.7021
-    },
+    "total_value_usd": 0,
+    "asset_count": 0,
+    "group_count": 0,
+    "diversity_score": 0,
+    "top_holding_symbol": "N/A",
+    "top_holding_percentage": 0,
+    "group_distribution": {},
     "valuation_currency": "USD",
     "price_source": "cointracking_api",
-    "pricing_timestamp": "2025-10-02T13:00:00+02:00"
+    "pricing_timestamp": "2025-10-02T16:15:53.738603+02:00"
+  },
+  {
+    "date": "2025-09-30T13:42:28.722088",
+    "user_id": "jack",
+    "source": "cointracking",
+    "total_value_usd": 133100.0,
+    "asset_count": 5,
+    "group_count": 3,
+    "diversity_score": 1,
+    "top_holding_symbol": "ETH",
+    "top_holding_percentage": 0.5634861006761833,
+    "group_distribution": {
+      "BTC": 33600.0,
+      "ETH": 75000.0,
+      "Others": 24500.0
+    }
   }
 ]

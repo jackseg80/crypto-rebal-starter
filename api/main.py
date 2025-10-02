@@ -214,7 +214,8 @@ else:
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Rate limiting basé sur la configuration
-app.add_middleware(RateLimitMiddleware)
+# DÉSACTIVÉ temporairement pour debug (réactiver en production)
+# app.add_middleware(RateLimitMiddleware)
 
 # Middleware pour headers de sécurité (CSP centralisée via config)
 @app.middleware("http")
@@ -2096,3 +2097,4 @@ async def get_configured_data_source():
 # Force reload
 # Force reload 2
 # Force reload
+

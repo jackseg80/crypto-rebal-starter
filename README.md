@@ -11,6 +11,7 @@ Plateforme de gestion de patrimoine cross‑asset (Crypto, Bourse, Banque, Diver
 - **Analytics**: Sharpe/Calmar, drawdown, VaR/CVaR
 - **Risk management v2**: corrélations, stress testing, alertes, circuit breakers, GRI (Group Risk Index)
 - **Risk Scoring centralisé** : Dual score system (quantitatif + structurel) avec architecture anti-duplication
+- **🆕 Dual-Window Metrics** : Système dual-view (long-term + full intersection) pour métriques stables même avec assets récents
 - **Strategy API v3**: calculs dynamiques remplaçant les presets hardcodés
 - **Classification unifiée** des assets via taxonomy_aliases.json (source unique de vérité)
 - **Synchronisation parfaite** Analytics ↔ Rebalance via u.targets_by_group
@@ -52,6 +53,12 @@ Le projet implémente des mesures de sécurité robustes :
 > - `risk_score` (autoritaire) : VaR + Sharpe + Drawdown + Volatilité → UI, Decision Index
 > - `risk_score_structural` (structurel) : + GRI + Concentration + Structure → Garde-fou allocation
 >
+> **🆕 Dual-Window Metrics** (Oct 2025) :
+> - **Long-Term Window** : Cohorte stable (≥180j, ≥80% valeur) → Score autoritaire
+> - **Full Intersection** : Vue complète (tous assets) → Détection divergences
+> - **Cascade Fallback** : 365j/80% → 180j/70% → 120j/60% → 90j/50%
+> - **Usage** : Métriques stables même avec assets récents (évite Sharpe négatifs sur 55j)
+>
 > **Conséquence** : Dans le Decision Index (DI), Risk contribue **positivement** :
 > ```
 > DI = wCycle·scoreCycle + wOnchain·scoreOnchain + wRisk·scoreRisk
@@ -62,6 +69,8 @@ Le projet implémente des mesures de sécurité robustes :
 > **Architecture** : Module central `services/risk_scoring.py` (Single Source of Truth)
 >
 > 📖 Sources : [docs/RISK_SEMANTICS.md](docs/RISK_SEMANTICS.md) | [docs/RISK_SCORING_MODULE.md](docs/RISK_SCORING_MODULE.md)
+>
+> 🧪 Tests : `pytest tests/unit/test_risk_scoring.py` (scoring) + `pytest tests/unit/test_dual_window_metrics.py` (dual-window)
 
 **Audit de sécurité** :
 ```bash

@@ -4213,6 +4213,55 @@
               <span class="metric-label">Risk Score</span>
               <span class="metric-value" data-score="risk-display">${safeFixed(m.risk_score, 1)}/100</span>
             </div>
+
+            <!-- 🆕 Dual Window Badges -->
+            ${m.dual_window?.enabled ? `
+            <div style="margin: 8px 0; padding: 8px; background: rgba(122, 162, 247, 0.1); border-radius: 6px; border-left: 3px solid var(--brand-primary);">
+              ${m.dual_window.long_term?.available ? `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <span style="font-size: 0.85em; color: var(--text-secondary);">
+                    📈 Long-Term (${m.dual_window.long_term.window_days}d, ${m.dual_window.long_term.asset_count} assets, ${(m.dual_window.long_term.coverage_pct * 100).toFixed(0)}%)
+                  </span>
+                  <span style="font-size: 0.85em; font-weight: 600; color: var(--brand-primary);">
+                    Sharpe: ${safeFixed(m.dual_window.long_term.metrics?.sharpe_ratio, 2)}
+                  </span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span style="font-size: 0.85em; color: var(--text-secondary);">
+                    🔍 Full Intersection (${m.dual_window.full_intersection.window_days}d, ${m.dual_window.full_intersection.asset_count} assets)
+                  </span>
+                  <span style="font-size: 0.85em; color: ${Math.abs(m.dual_window.full_intersection.metrics?.sharpe_ratio - m.dual_window.long_term.metrics?.sharpe_ratio) > 0.5 ? 'var(--theme-error)' : 'var(--text-secondary)'};">
+                    Sharpe: ${safeFixed(m.dual_window.full_intersection.metrics?.sharpe_ratio, 2)}
+                  </span>
+                </div>
+                ${m.dual_window.exclusions?.excluded_pct > 0.2 ? `
+                <div style="margin-top: 6px; padding: 4px 8px; background: rgba(247, 118, 142, 0.15); border-radius: 4px;">
+                  <span style="font-size: 0.8em; color: var(--theme-error);">
+                    ⚠️ ${m.dual_window.exclusions.excluded_assets.length} assets exclus (${(m.dual_window.exclusions.excluded_pct * 100).toFixed(0)}% valeur) - historique court
+                  </span>
+                </div>
+                ` : ''}
+                <div style="margin-top: 6px; font-size: 0.75em; color: var(--text-tertiary); font-style: italic;">
+                  ✓ Score autoritaire basé sur Long-Term (stable)
+                </div>
+              ` : `
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span style="font-size: 0.85em; color: var(--theme-warning);">
+                    ⚠️ Full Intersection only (${m.dual_window.full_intersection.window_days}d, ${m.dual_window.full_intersection.asset_count} assets)
+                  </span>
+                  <span style="font-size: 0.85em; color: var(--text-secondary);">
+                    Sharpe: ${safeFixed(m.dual_window.full_intersection.metrics?.sharpe_ratio, 2)}
+                  </span>
+                </div>
+                <div style="margin-top: 6px; padding: 4px 8px; background: rgba(255, 158, 100, 0.15); border-radius: 4px;">
+                  <span style="font-size: 0.8em; color: var(--theme-warning);">
+                    ⚠️ Cohorte long-term indisponible - métriques sur fenêtre courte (${m.dual_window.exclusions?.reason || 'unknown'})
+                  </span>
+                </div>
+              `}
+            </div>
+            ` : ''}
+
             ${m.risk_score_structural != null ? `
             <div class="metric-row" style="opacity: 0.8;">
               <span class="metric-label" title="Risk Score Structural : Intègre exposition par groupe (GRI), concentration et structure du portfolio">Structural <span style="font-size: 0.7em; color: var(--theme-accent);">struct</span></span>

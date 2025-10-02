@@ -132,6 +132,10 @@ def assess_risk_level(
     score += delta
     breakdown['sharpe'] = delta
 
+    # Debug log
+    import logging
+    logging.getLogger(__name__).debug(f"🔍 Risk Score calc: sharpe={sharpe_ratio:.4f}, delta={delta}, score after={score:.1f}")
+
     # Max Drawdown impact (higher DD = LESS robust → score decreases)
     abs_dd = abs(max_drawdown)
     if abs_dd > 0.50:

@@ -165,7 +165,160 @@ class PortfolioMetricsService:
             calculation_date=datetime.now(),
             confidence_level=confidence_level
         )
-    
+
+    def calculate_dual_window_metrics(
+        self,
+        price_data: pd.DataFrame,
+        balances: List[Dict[str, Any]],
+        min_history_days: int = 180,
+        min_coverage_pct: float = 0.80,
+        min_asset_count: int = 5,
+        confidence_level: float = 0.95
+    ) -> Dict[str, Any]:
+        """
+        Calcule les métriques sur deux fenêtres temporelles :
+        1. Long-Term Window : Cohorte stable avec historique ≥ min_history_days
+        2. Full Intersection : Tous les assets (fenêtre commune courte)
+
+        Args:
+            price_data: DataFrame avec les prix historiques
+            balances: Liste des holdings actuels
+            min_history_days: Jours minimum pour cohorte long-term (défaut: 180)
+            min_coverage_pct: % minimum de valeur couverte (défaut: 0.80 = 80%)
+            min_asset_count: Nombre minimum d'assets dans cohorte (défaut: 5)
+            confidence_level: Niveau de confiance pour VaR
+
+        Returns:
+            Dict avec 'long_term', 'full_intersection', 'exclusions_metadata'
+        """
+        logger.info(f"🔍 Dual Window: min_history={min_history_days}d, min_coverage={min_coverage_pct*100}%, min_assets={min_asset_count}")
+
+        # Calculer la valeur totale du portfolio
+        total_portfolio_value = sum(float(b.get('value_usd', 0)) for b in balances)
+
+        # Cascade fallback thresholds
+        cascade_configs = [
+            (365, 0.80),  # 365 jours, 80% couverture
+            (180, 0.70),  # 180 jours, 70% couverture
+            (120, 0.60),  # 120 jours, 60% couverture
+            (90, 0.50),   # 90 jours, 50% couverture
+        ]
+
+        long_term_result = None
+        exclusions_metadata = {
+            'excluded_assets': [],
+            'excluded_value_usd': 0.0,
+            'excluded_pct': 0.0,
+            'included_assets': [],
+            'included_value_usd': 0.0,
+            'included_pct': 0.0,
+            'target_days': min_history_days,
+            'achieved_days': 0,
+            'reason': 'pending'
+        }
+
+        # Essayer cascade fallback
+        for target_days, min_cov in cascade_configs:
+            if target_days > len(price_data):
+                logger.warning(f"⏭️  Skip cascade {target_days}d (only {len(price_data)} points available)")
+                continue
+
+            # Construire la cohorte pour cette fenêtre
+            cohort_balances = []
+            cohort_value = 0.0
+            excluded_balances = []
+            excluded_value = 0.0
+
+            for balance in balances:
+                symbol = (balance.get('symbol') or '').upper()
+                value_usd = float(balance.get('value_usd', 0))
+
+                if symbol not in price_data.columns:
+                    excluded_balances.append({**balance, 'reason': 'not_in_price_data'})
+                    excluded_value += value_usd
+                    continue
+
+                # Vérifier historique disponible
+                asset_history = price_data[symbol].dropna()
+                if len(asset_history) < target_days:
+                    excluded_balances.append({**balance, 'reason': f'history_{len(asset_history)}d_<_{target_days}d'})
+                    excluded_value += value_usd
+                else:
+                    cohort_balances.append(balance)
+                    cohort_value += value_usd
+
+            # Vérifier si la cohorte satisfait les critères
+            coverage_pct = cohort_value / total_portfolio_value if total_portfolio_value > 0 else 0
+
+            if coverage_pct >= min_cov and len(cohort_balances) >= min_asset_count:
+                logger.info(f"✅ Cohort found: {target_days}d, {len(cohort_balances)} assets, {coverage_pct*100:.1f}% value")
+
+                # Calculer les métriques sur cette cohorte
+                cohort_price_data = price_data.tail(target_days)
+                try:
+                    long_term_metrics = self.calculate_portfolio_metrics(
+                        cohort_price_data,
+                        cohort_balances,
+                        confidence_level
+                    )
+
+                    long_term_result = {
+                        'metrics': long_term_metrics,
+                        'window_days': target_days,
+                        'asset_count': len(cohort_balances),
+                        'coverage_pct': coverage_pct
+                    }
+
+                    exclusions_metadata.update({
+                        'excluded_assets': excluded_balances,
+                        'excluded_value_usd': excluded_value,
+                        'excluded_pct': excluded_value / total_portfolio_value if total_portfolio_value > 0 else 0,
+                        'included_assets': cohort_balances,
+                        'included_value_usd': cohort_value,
+                        'included_pct': coverage_pct,
+                        'target_days': target_days,
+                        'achieved_days': target_days,
+                        'reason': 'success'
+                    })
+
+                    break  # Sortir de la cascade
+
+                except Exception as e:
+                    logger.warning(f"⚠️  Cohort {target_days}d failed calculation: {e}")
+                    continue
+            else:
+                logger.warning(f"❌ Cohort {target_days}d insufficient: {len(cohort_balances)} assets, {coverage_pct*100:.1f}% (need {min_cov*100}%)")
+
+        # Fallback si aucune cohorte trouvée
+        if long_term_result is None:
+            logger.warning("⚠️  No valid long-term cohort found, using full intersection as fallback")
+            exclusions_metadata['reason'] = 'no_valid_cohort_found'
+
+        # Calculer la fenêtre Full Intersection (tous les assets)
+        try:
+            full_intersection_metrics = self.calculate_portfolio_metrics(
+                price_data,
+                balances,
+                confidence_level
+            )
+
+            full_intersection_result = {
+                'metrics': full_intersection_metrics,
+                'window_days': len(price_data),
+                'asset_count': len(balances),
+                'coverage_pct': 1.0
+            }
+        except Exception as e:
+            logger.error(f"❌ Full intersection calculation failed: {e}")
+            raise
+
+        return {
+            'long_term': long_term_result,
+            'full_intersection': full_intersection_result,
+            'exclusions_metadata': exclusions_metadata,
+            'risk_score_source': 'long_term' if long_term_result else 'full_intersection'
+        }
+
     def calculate_correlation_metrics(
         self, 
         price_data: pd.DataFrame,

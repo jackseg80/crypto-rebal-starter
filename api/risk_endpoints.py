@@ -60,23 +60,38 @@ def _calculate_risk_score_v2(
     breakdown['drawdown'] = d_dd
 
     # Volatility annualized
+    # ✅ Option A semantics: Low volatility → more robust → score increases
     vol = float(getattr(risk_metrics, 'volatility_annualized', 0.0) or 0.0)
-    d_vol = -5.0 if vol < 0.30 else (0.0 if vol <= 0.60 else 10.0)
+    if vol < 0.20:
+        d_vol = +10.0   # Very low volatility → score increases
+    elif vol < 0.30:
+        d_vol = +5.0    # Low volatility → score increases
+    elif vol <= 0.60:
+        d_vol = 0.0     # Moderate volatility → neutral
+    elif vol <= 1.0:
+        d_vol = -5.0    # High volatility → score decreases
+    else:
+        d_vol = -10.0   # Very high volatility → score decreases more
     score += d_vol
     breakdown['volatility'] = d_vol
 
     # Sharpe/Sortino (use the worse)
+    # ✅ Option A semantics: Good performance → score increases (robustness)
     sharpe = float(getattr(risk_metrics, 'sharpe_ratio', 0.0) or 0.0)
     sortino = float(getattr(risk_metrics, 'sortino_ratio', sharpe) or sharpe)
     perf_ratio = min(sharpe, sortino)
-    if perf_ratio < 0.5:
-        d_perf = 10.0
+    if perf_ratio < 0:
+        d_perf = -15.0  # Negative → score decreases (less robust)
+    elif perf_ratio < 0.5:
+        d_perf = -10.0  # Poor → score decreases
     elif perf_ratio <= 1.0:
-        d_perf = 0.0
+        d_perf = 0.0    # Neutral
     elif perf_ratio <= 1.5:
-        d_perf = -5.0
+        d_perf = +5.0   # Good → score increases
+    elif perf_ratio <= 2.0:
+        d_perf = +10.0  # Very good → score increases more
     else:
-        d_perf = -10.0
+        d_perf = +15.0  # Excellent → score increases significantly
     score += d_perf
     breakdown['risk_adjusted_perf'] = d_perf
 
@@ -481,7 +496,12 @@ async def get_risk_dashboard(
     price_history_days: int = Query(30, ge=10, le=365, description="Fenêtre d'historique pour métriques (jours)"),
     lookback_days: int = Query(30, ge=10, le=365, description="Fenêtre pour corrélations (jours)"),
     user_id: Optional[str] = Query(None, description="User ID (optionnel, prioritaire sur X-User header)"),
-    user_header: str = Depends(get_active_user)
+    user_header: str = Depends(get_active_user),
+    # 🆕 Dual Window System parameters
+    use_dual_window: bool = Query(True, description="Activer système dual-window (long-term + full intersection)"),
+    min_history_days: int = Query(180, ge=90, le=365, description="Jours minimum pour cohorte long-term"),
+    min_coverage_pct: float = Query(0.80, ge=0.5, le=1.0, description="% minimum de valeur couverte pour cohorte"),
+    min_asset_count: int = Query(5, ge=3, le=20, description="Nombre minimum d'assets dans cohorte")
 ):
     """
     Endpoint pour dashboard de risque temps réel
@@ -536,13 +556,39 @@ async def get_risk_dashboard(
         
         # Créer DataFrame des prix
         price_df = pd.DataFrame(price_data).fillna(method='ffill').dropna()
-        
-        # Calculer les métriques avec le service centralisé
-        risk_metrics = portfolio_metrics_service.calculate_portfolio_metrics(
-            price_data=price_df,
-            balances=balances,
-            confidence_level=0.95
-        )
+
+        # 🆕 Dual Window System : Calculer métriques sur 2 fenêtres si activé
+        dual_window_result = None
+        if use_dual_window:
+            try:
+                dual_window_result = portfolio_metrics_service.calculate_dual_window_metrics(
+                    price_data=price_df,
+                    balances=balances,
+                    min_history_days=min_history_days,
+                    min_coverage_pct=min_coverage_pct,
+                    min_asset_count=min_asset_count,
+                    confidence_level=0.95
+                )
+
+                # Utiliser long-term comme autoritaire si disponible, sinon full intersection
+                if dual_window_result['long_term']:
+                    risk_metrics = dual_window_result['long_term']['metrics']
+                    logger.info(f"✅ Using LONG-TERM window: {dual_window_result['long_term']['window_days']}d, {dual_window_result['long_term']['asset_count']} assets")
+                else:
+                    risk_metrics = dual_window_result['full_intersection']['metrics']
+                    logger.warning(f"⚠️  Using FULL INTERSECTION fallback: {dual_window_result['full_intersection']['window_days']}d")
+
+            except Exception as e:
+                logger.error(f"❌ Dual window calculation failed, falling back to single window: {e}")
+                use_dual_window = False  # Désactiver pour le reste de la réponse
+
+        # Fallback : Calcul single-window classique
+        if not use_dual_window or dual_window_result is None:
+            risk_metrics = portfolio_metrics_service.calculate_portfolio_metrics(
+                price_data=price_df,
+                balances=balances,
+                confidence_level=0.95
+            )
         
         # Calculer les métriques de corrélation
         correlation_metrics = portfolio_metrics_service.calculate_correlation_metrics(
@@ -639,12 +685,40 @@ async def get_risk_dashboard(
                 "calculation_date": risk_metrics.calculation_date.isoformat(),
                 "data_points": risk_metrics.data_points,
                 "confidence_level": risk_metrics.confidence_level,
-                # ✅ Metadata fenêtres temporelles (traçabilité)
+                # ✅ Metadata fenêtres temporelles (traçabilité + dual-window)
                 "window_used": {
                     "price_history_days": price_history_days,
                     "lookback_days": lookback_days,
-                    "actual_data_points": risk_metrics.data_points
-                }
+                    "actual_data_points": risk_metrics.data_points,
+                    # 🆕 Dual Window Metadata
+                    "dual_window_enabled": use_dual_window and dual_window_result is not None,
+                    "risk_score_source": dual_window_result['risk_score_source'] if dual_window_result else 'single_window'
+                },
+                # 🆕 Dual Window Details (si activé)
+                "dual_window": {
+                    "enabled": use_dual_window and dual_window_result is not None,
+                    "long_term": {
+                        "available": dual_window_result['long_term'] is not None if dual_window_result else False,
+                        "window_days": dual_window_result['long_term']['window_days'] if dual_window_result and dual_window_result['long_term'] else None,
+                        "asset_count": dual_window_result['long_term']['asset_count'] if dual_window_result and dual_window_result['long_term'] else None,
+                        "coverage_pct": dual_window_result['long_term']['coverage_pct'] if dual_window_result and dual_window_result['long_term'] else None,
+                        "metrics": {
+                            "sharpe_ratio": dual_window_result['long_term']['metrics'].sharpe_ratio if dual_window_result and dual_window_result['long_term'] else None,
+                            "volatility": dual_window_result['long_term']['metrics'].volatility_annualized if dual_window_result and dual_window_result['long_term'] else None,
+                            "risk_score": dual_window_result['long_term']['metrics'].risk_score if dual_window_result and dual_window_result['long_term'] else None
+                        } if dual_window_result and dual_window_result['long_term'] else None
+                    } if dual_window_result else None,
+                    "full_intersection": {
+                        "window_days": dual_window_result['full_intersection']['window_days'] if dual_window_result else None,
+                        "asset_count": dual_window_result['full_intersection']['asset_count'] if dual_window_result else None,
+                        "metrics": {
+                            "sharpe_ratio": dual_window_result['full_intersection']['metrics'].sharpe_ratio if dual_window_result else None,
+                            "volatility": dual_window_result['full_intersection']['metrics'].volatility_annualized if dual_window_result else None,
+                            "risk_score": dual_window_result['full_intersection']['metrics'].risk_score if dual_window_result else None
+                        } if dual_window_result else None
+                    } if dual_window_result else None,
+                    "exclusions": dual_window_result['exclusions_metadata'] if dual_window_result else None
+                } if use_dual_window else None
             },
             "correlation_metrics": {
                 "diversification_ratio": correlation_metrics.diversification_ratio,
@@ -654,7 +728,15 @@ async def get_risk_dashboard(
             "alerts": _generate_centralized_risk_alerts(risk_metrics, correlation_metrics)
         }
         
-        logger.info(f"✅ Centralized metrics calculated: Sharpe={risk_metrics.sharpe_ratio:.2f}, Vol={risk_metrics.volatility_annualized:.2f}, MaxDD={risk_metrics.max_drawdown:.2%}, RiskScore={risk_score_authoritative:.1f}, RiskStructural={risk_score_structural:.1f}")
+        # Log détaillé avec info dual-window
+        dual_info = ""
+        if dual_window_result:
+            if dual_window_result['long_term']:
+                dual_info = f" [Dual-Window: LT={dual_window_result['long_term']['window_days']}d/{dual_window_result['long_term']['asset_count']}assets, FI={dual_window_result['full_intersection']['window_days']}d/{dual_window_result['full_intersection']['asset_count']}assets]"
+            else:
+                dual_info = f" [Dual-Window: FI fallback only]"
+
+        logger.info(f"✅ Centralized metrics calculated: Sharpe={risk_metrics.sharpe_ratio:.2f}, Vol={risk_metrics.volatility_annualized:.2f}, MaxDD={risk_metrics.max_drawdown:.2%}, RiskScore={risk_score_authoritative:.1f}, RiskStructural={risk_score_structural:.1f}{dual_info}")
 
         end_time = datetime.now()
         calculation_time = f"{(end_time - start_time).total_seconds():.2f}s"
