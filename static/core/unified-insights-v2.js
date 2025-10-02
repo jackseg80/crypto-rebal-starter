@@ -897,9 +897,22 @@ export function deriveRecommendations(u) {
       const regimeKey = rec.type || 'general';
       const msgHash = (rec.message || rec.action || '').toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 30);
 
-      // Extract stables percentage if mentioned
-      const stablesMatch = (rec.message || rec.action || '').match(/(\d+)%/);
-      const isStablesReco = /stables?/i.test(rec.message || rec.action || '');
+      // Extract stables percentage if mentioned (check BOTH message AND action)
+      const messageText = rec.message || '';
+      const actionText = rec.action || '';
+      const combinedText = messageText + ' ' + actionText;
+      const stablesMatch = combinedText.match(/(\d+)%/);
+      const isStablesReco = /stables?/i.test(combinedText);
+
+      // DEBUG: Log detection
+      if (isStablesReco) {
+        console.log('[CONSOLIDATION DEBUG] Regime stables reco detected:', {
+          message: rec.message,
+          action: rec.action,
+          stablesMatch: stablesMatch?.[1],
+          isStablesReco
+        });
+      }
 
       recos.push({
         key: `reco:regime:${regimeKey}:${msgHash}`,
@@ -1021,6 +1034,19 @@ export function deriveRecommendations(u) {
   function consolidateStablesRecommendations(recos) {
     const stablesRecs = recos.filter(r => r.topic === 'stables_allocation');
 
+    // DEBUG: Log all stables recommendations detected
+    console.log('[CONSOLIDATION DEBUG] Stables recommendations found:', {
+      count: stablesRecs.length,
+      recos: stablesRecs.map(r => ({
+        key: r.key,
+        topic: r.topic,
+        value: r.value,
+        title: r.title,
+        reason: r.reason,
+        source: r.source
+      }))
+    });
+
     if (stablesRecs.length <= 1) return recos; // Pas de duplication
 
     const order = { critical: 0, high: 1, medium: 2, low: 3 };
@@ -1030,6 +1056,13 @@ export function deriveRecommendations(u) {
       order[p] <= order[r.priority] ? p : r.priority, 'medium'
     );
 
+    // Mapper les sources à des labels lisibles
+    const sourceLabels = {
+      'strategy-api': 'Strategy',
+      'regime-intelligence': 'Regime',
+      'risk-budget': 'Risk'
+    };
+
     const merged = {
       key: `reco:stables:consensus:${value}`,
       topic: 'stables_allocation',
@@ -1037,12 +1070,17 @@ export function deriveRecommendations(u) {
       priority: topPriority,
       title: `Allocation stables: ${value}%`,
       subtitle: `Consensus confirmé par ${sources.length} sources`,
-      reason: stablesRecs.map(r => `• ${r.reason || r.title}`).join('\n'),
+      reason: stablesRecs.map(r => {
+        const sourceLabel = sourceLabels[r.source] || r.source;
+        return `• ${sourceLabel}: ${r.reason || r.title}`;
+      }).join('\n'),
       icon: '🎯',
       source: sources.join(' + '),
       consolidated: true,
       sourceCount: sources.length
     };
+
+    console.log('[CONSOLIDATION DEBUG] Merged recommendation:', merged);
 
     // Remplacer les N cartes par 1
     return [merged, ...recos.filter(r => r.topic !== 'stables_allocation')];

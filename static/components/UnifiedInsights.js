@@ -701,7 +701,8 @@ export async function renderUnifiedInsights(containerId = 'unified-root', option
                 ${r.icon || '💡'} ${r.title}
                 ${r.source ? `<span style="background: var(--theme-text-muted); color: white; padding: 1px 4px; border-radius: 3px; font-size: .6rem; opacity: 0.7;">${r.source.split('-')[0]}</span>` : ''}
               </div>
-              <div style="font-size:.85rem; color: var(--theme-text-muted); margin-top:.25rem;">${r.reason}</div>
+              ${r.subtitle ? `<div style="font-size:.75rem; color: var(--info); margin-top:.25rem; font-style: italic;">${r.subtitle}</div>` : ''}
+              <div style="font-size:.85rem; color: var(--theme-text-muted); margin-top:.25rem; white-space: pre-line;">${r.reason}</div>
             </div>
             <div style="font-size:.7rem; padding:2px 6px; border-radius:10px; color:white; background:${r.priority==='critical'?'var(--danger)':r.priority==='high'?'var(--danger)':r.priority==='medium'?'var(--warning)':'var(--info)'}; text-transform:uppercase; font-weight:700; flex-shrink: 0;">${r.priority}</div>
           </div>

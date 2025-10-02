@@ -2390,10 +2390,17 @@
         const apiResult = await window.globalConfig.apiRequest('/api/risk/dashboard', {
           params: { min_usd: minUsd, price_history_days: analysisDays, lookback_days: corrDays }
         });
+
+        // Vérifier que apiResult est valide avant de l'utiliser
+        if (!apiResult || !apiResult.risk_metrics) {
+          throw new Error('Invalid API response structure');
+        }
+
         // Inclure les balances pour calculer concentration/stablecoins côté UI
         try {
           apiResult.balances = Array.isArray(balanceResult?.items) ? balanceResult.items : [];
         } catch (_) { /* ignore */ }
+
         console.log(`📊 Real risk metrics calculated: VaR 95%: ${(apiResult.risk_metrics.var_95_1d * 100).toFixed(2)}%, Sharpe: ${apiResult.risk_metrics.sharpe_ratio.toFixed(2)}`);
 
         // The backend already provides the correct structure, just return it
