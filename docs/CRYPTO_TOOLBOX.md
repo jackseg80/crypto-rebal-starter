@@ -6,7 +6,7 @@ This module scrapes cryptocurrency market indicators from [crypto-toolbox.vercel
 
 **Purpose**: Provide real-time risk indicators (BMO, MVRV, Puell Multiple, etc.) for decision-making in the portfolio management system.
 
-**Status**: ✅ **Production (default)** - FastAPI native implementation active since Commit 7. Flask proxy available as fallback (`CRYPTO_TOOLBOX_NEW=0`).
+**Status**: ✅ **Production** - FastAPI native implementation. Flask proxy removed in Commit 8 (Oct 2025).
 
 ---
 
@@ -580,12 +580,12 @@ Before proceeding to Commit 7, verify:
 | 4 | ✅ Feature flag | Complete | `CRYPTO_TOOLBOX_NEW` A/B testing |
 | 5 | ✅ Dev/Docker | Complete | Scripts, Dockerfile, deployment docs |
 | 6 | ✅ A/B testing | Complete | Validation procedures, comparison tools |
-| 7 | ✅ **Default ON** | **Current** | FastAPI native by default, Flask fallback |
-| 8 | ⏸️ Remove Flask | Pending | Final cleanup after 48h validation |
+| 7 | ✅ **Default ON** | Complete | FastAPI native by default, Flask fallback |
+| 8 | ✅ **Flask removed** | **Complete** | Final cleanup - migration finished |
 
-**Current Status**: FastAPI native implementation is **production default** (Commit 7). Flask proxy remains available for emergency rollback.
+**Current Status**: ✅ **Migration complete** - FastAPI native is the only implementation. Flask proxy and feature flag removed.
 
 ---
 
 **Last updated**: 2025-10-02
-**Status**: Phase 7 - FastAPI Native Production Default (Commit 7)
+**Status**: Phase 8 - Migration Complete (Flask Removed)

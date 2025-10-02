@@ -69,8 +69,7 @@ Scraping temps réel d'indicateurs de risque crypto (MVRV, BMO, Puell Multiple, 
 
 - **Technologie** : Playwright (async browser automation) intégré nativement dans FastAPI
 - **Endpoint** : `GET /api/crypto-toolbox` (cache 30 min, <50ms cached, <5s fresh)
-- **Status** : ✅ Production (FastAPI native par défaut depuis migration 2025-10)
-- **Fallback** : Flask proxy disponible via `CRYPTO_TOOLBOX_NEW=0` (legacy)
+- **Status** : ✅ Production (migration Flask → FastAPI complétée Oct 2025)
 - **Compatibilité** : Python 3.13+ Windows/Linux (hot reload désactivé sur Windows pour compatibilité asyncio)
 
 **Documentation** : [docs/CRYPTO_TOOLBOX.md](docs/CRYPTO_TOOLBOX.md)
@@ -105,18 +104,16 @@ playwright install chromium
 
 3) Lancer l'API
 
-**Méthode recommandée** (scripts avec détection automatique) :
+**Méthode recommandée** (scripts) :
 
 Linux/macOS:
 ```bash
-./start_dev.sh          # FastAPI native (défaut)
-./start_dev.sh 0        # Flask proxy (legacy)
+./start_dev.sh
 ```
 
 Windows (PowerShell):
 ```powershell
-.\start_dev.ps1                    # FastAPI native (défaut)
-.\start_dev.ps1 -CryptoToolboxMode 0   # Flask proxy (legacy)
+.\start_dev.ps1
 ```
 
 **Méthode manuelle** :
