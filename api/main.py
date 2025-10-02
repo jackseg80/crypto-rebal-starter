@@ -35,9 +35,9 @@ ALLOW_STUB_SOURCES = (os.getenv("ALLOW_STUB_SOURCES", "false").strip().lower() =
 COMPUTE_ON_STUB_SOURCES = (os.getenv("COMPUTE_ON_STUB_SOURCES", "false").strip().lower() == "true")
 
 # Feature flag: Crypto-Toolbox API (FastAPI native vs Flask proxy)
-# 0 = Flask proxy (legacy, default)
-# 1 = FastAPI native (new, Playwright async)
-CRYPTO_TOOLBOX_NEW = int(os.getenv("CRYPTO_TOOLBOX_NEW", "0"))
+# 0 = Flask proxy (legacy fallback)
+# 1 = FastAPI native (default, Playwright async)
+CRYPTO_TOOLBOX_NEW = int(os.getenv("CRYPTO_TOOLBOX_NEW", "1"))
 
 # Config logger (dev-friendly by default) — initialize early so it's available in imports below
 logging.basicConfig(

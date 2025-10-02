@@ -6,6 +6,8 @@ This module scrapes cryptocurrency market indicators from [crypto-toolbox.vercel
 
 **Purpose**: Provide real-time risk indicators (BMO, MVRV, Puell Multiple, etc.) for decision-making in the portfolio management system.
 
+**Status**: ✅ **Production (default)** - FastAPI native implementation active since Commit 7. Flask proxy available as fallback (`CRYPTO_TOOLBOX_NEW=0`).
+
 ---
 
 ## Architecture
@@ -348,21 +350,23 @@ WantedBy=multi-user.target
 ### Environment Variable
 
 ```bash
-# Default (legacy Flask proxy)
-export CRYPTO_TOOLBOX_NEW=0
-
-# New FastAPI native scraper
+# Default (FastAPI native, production)
 export CRYPTO_TOOLBOX_NEW=1
+
+# Fallback (Flask proxy, legacy)
+export CRYPTO_TOOLBOX_NEW=0
 ```
+
+**Note**: Since Commit 7, FastAPI mode is **enabled by default**. Flask proxy remains available for emergency rollback.
 
 ### Testing A/B Switch
 
 ```bash
-# Test with legacy (Flask proxy on port 8001)
-CRYPTO_TOOLBOX_NEW=0 uvicorn api.main:app --port 8000
+# Test with default (FastAPI native)
+uvicorn api.main:app --port 8000
 
-# Test with new (FastAPI native)
-CRYPTO_TOOLBOX_NEW=1 uvicorn api.main:app --port 8000
+# Test with legacy fallback (Flask proxy on port 8001)
+CRYPTO_TOOLBOX_NEW=0 uvicorn api.main:app --port 8000
 
 # Compare outputs
 curl http://localhost:8000/api/crypto-toolbox | jq '.total_count'
@@ -370,16 +374,16 @@ curl http://localhost:8000/api/crypto-toolbox | jq '.total_count'
 
 ### Startup Logs
 
-**Flag OFF (default)**:
-```
-📡 Crypto-Toolbox: Using Flask proxy (CRYPTO_TOOLBOX_NEW=0, legacy mode)
-```
-
-**Flag ON**:
+**Default (FastAPI native)**:
 ```
 🎭 Crypto-Toolbox: Using FastAPI native scraper (CRYPTO_TOOLBOX_NEW=1)
 🎭 Initializing Playwright browser...
 ✅ Playwright browser launched successfully
+```
+
+**Fallback (Flask proxy)**:
+```
+📡 Crypto-Toolbox: Using Flask proxy (CRYPTO_TOOLBOX_NEW=0, legacy mode)
 ```
 
 ---
@@ -564,5 +568,24 @@ Before proceeding to Commit 7, verify:
 
 ---
 
+---
+
+## Migration Timeline
+
+| Phase | Commit | Status | Description |
+|-------|--------|--------|-------------|
+| 1 | ✅ Router skeleton | Complete | API contract, endpoints structure |
+| 2 | ✅ Lifecycle hooks | Complete | Playwright startup/shutdown in `api/startup.py` |
+| 3 | ✅ Parsing parity | Complete | 100% identical logic ported from Flask |
+| 4 | ✅ Feature flag | Complete | `CRYPTO_TOOLBOX_NEW` A/B testing |
+| 5 | ✅ Dev/Docker | Complete | Scripts, Dockerfile, deployment docs |
+| 6 | ✅ A/B testing | Complete | Validation procedures, comparison tools |
+| 7 | ✅ **Default ON** | **Current** | FastAPI native by default, Flask fallback |
+| 8 | ⏸️ Remove Flask | Pending | Final cleanup after 48h validation |
+
+**Current Status**: FastAPI native implementation is **production default** (Commit 7). Flask proxy remains available for emergency rollback.
+
+---
+
 **Last updated**: 2025-10-02
-**Status**: Phase 6 - A/B Testing & Validation (Commit 6)
+**Status**: Phase 7 - FastAPI Native Production Default (Commit 7)
