@@ -1241,8 +1241,8 @@
             const v2 = await import('./modules/composite-score-v2.js');
             // Use SWR-cached version (force=false pour utiliser cache)
             const indicators = await onchain.fetchAllIndicators({ force: false });
-            const dyn = localStorage.getItem('enable_dynamic_weighting') === 'true';
-            const composite = v2.calculateCompositeScoreV2(indicators, dyn);
+            // Dynamic weighting always enabled (V2 production mode)
+            const composite = v2.calculateCompositeScoreV2(indicators, true);
 
             if (typeof composite.score === 'number') {
               window.store.set('scores.onchain', composite.score);

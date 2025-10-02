@@ -151,20 +151,32 @@ function getTransitionStatus(score, regime) {
 }
 
 /**
- * Applique des overrides basés sur les conditions de marché
+ * Applique des overrides basés sur les conditions de marché avec hysteresis
  */
 export function applyMarketOverrides(regime, onchainScore, riskScore) {
   let adjustedRegime = { ...regime };
   const overrides = [];
-  
-  // Override 1: Divergence On-Chain > 25 pts
-  if (onchainScore != null && Math.abs(regime.score - onchainScore) > 25) {
-    adjustedRegime.allocation_bias.stables_target += 10;
-    overrides.push({
-      type: 'onchain_divergence',
-      message: `Divergence On-Chain détectée (${Math.abs(regime.score - onchainScore).toFixed(1)} pts)`,
-      adjustment: '+10% stables'
-    });
+
+  // Init flags hysteresis
+  if (!window.__marketOverrideFlags) window.__marketOverrideFlags = {};
+  const flags = window.__marketOverrideFlags;
+
+  // Fonction flip pour Schmitt trigger
+  const flip = (prev, val, up, down) => prev ? (val > down) : (val >= up);
+
+  // Override 1: Divergence On-Chain avec hysteresis (up=27, down=23)
+  if (onchainScore != null) {
+    const divergence = Math.abs(regime.score - onchainScore);
+    flags.onchain_div = flip(flags.onchain_div, divergence, 27, 23);
+
+    if (flags.onchain_div) {
+      adjustedRegime.allocation_bias.stables_target += 10;
+      overrides.push({
+        type: 'onchain_divergence',
+        message: `Divergence On-Chain détectée (${divergence.toFixed(1)} pts)`,
+        adjustment: '+10% stables'
+      });
+    }
   }
   
   // Override 2: Risk Score ≥ 80 (très risqué)
@@ -194,21 +206,40 @@ export function applyMarketOverrides(regime, onchainScore, riskScore) {
   return adjustedRegime;
 }
 
+// Cache Risk Budget avec TTL 30s et clé basée sur scores arrondis
+let _riskBudgetCache = { key: null, data: null, timestamp: 0 };
+
 /**
- * Calcule le budget de risque global selon la formule stratégique
+ * Calcule le budget de risque global selon la formule stratégique avec cache snapshot
  */
 export function calculateRiskBudget(blendedScore, riskScore) {
-  (window.debugLogger?.info || console.log)('💰 Calculating Risk Budget:', { blendedScore, riskScore });
-  
-  // Formule: RiskCap = 1 - 0.5 × (RiskScore/100)
-  const riskCap = riskScore != null ? 1 - 0.5 * (riskScore / 100) : 0.75;
-  
-  // BaseRisky = clamp((Blended - 35)/45, 0, 1)
-  const baseRisky = Math.max(0, Math.min(1, (blendedScore - 35) / 45));
-  
+  // ARRONDIR les scores d'entrée pour stabilité (éviter micro-variations 68.3 vs 68.7)
+  const blendedRounded = Math.round(blendedScore);
+  const riskRounded = Math.round(riskScore || 0);
+
+  const now = Date.now();
+  const cacheKey = `${blendedRounded}-${riskRounded}`;
+
+  // Vérifier cache (TTL 30s)
+  if (_riskBudgetCache.key === cacheKey && now - _riskBudgetCache.timestamp < 30000) {
+    console.debug('💰 Risk Budget from cache:', cacheKey);
+    return _riskBudgetCache.data;
+  }
+
+  (window.debugLogger?.info || console.log)('💰 Calculating Risk Budget:', {
+    original: { blended: blendedScore, risk: riskScore },
+    rounded: { blended: blendedRounded, risk: riskRounded }
+  });
+
+  // Formule: RiskCap = 1 - 0.5 × (RiskScore/100) - utiliser score arrondi
+  const riskCap = riskRounded != null ? 1 - 0.5 * (riskRounded / 100) : 0.75;
+
+  // BaseRisky = clamp((Blended - 35)/45, 0, 1) - utiliser score arrondi
+  const baseRisky = Math.max(0, Math.min(1, (blendedRounded - 35) / 45));
+
   // Risky = clamp(BaseRisky × RiskCap, 20%, 85%)
   const riskyAllocation = Math.max(0.20, Math.min(0.85, baseRisky * riskCap));
-  
+
   // Stables = 1 - Risky
   const stablesAllocation = 1 - riskyAllocation;
 
@@ -238,7 +269,14 @@ export function calculateRiskBudget(blendedScore, riskScore) {
     target_stables_pct: stablesPct,
     generated_at: new Date().toISOString()
   };
-  
+
+  // Sauvegarder dans cache
+  _riskBudgetCache = {
+    key: cacheKey,
+    data: result,
+    timestamp: now
+  };
+
   (window.debugLogger?.info || console.log)('💰 Risk Budget calculated:', result);
   return result;
 }
@@ -362,17 +400,28 @@ export function generateRegimeRecommendations(regime, riskBudget) {
 }
 
 /**
- * Exporte les données du régime pour l'interface
+ * Exporte les données du régime pour l'interface avec base/adjusted/effective séparés
  */
 export function getRegimeDisplayData(blendedScore, onchainScore, riskScore) {
-  const regime = getMarketRegime(blendedScore);
-  const adjustedRegime = applyMarketOverrides(regime, onchainScore, riskScore);
+  const base = getMarketRegime(blendedScore);
+  const adjusted = applyMarketOverrides(base, onchainScore, riskScore);
+
+  // Recalculer le regime effectif après ajustements (en cas de changement de score)
+  const effectiveScore = adjusted.score;
+  const effective = getMarketRegime(effectiveScore);
+
+  // Copier les overrides dans effective pour traçabilité
+  effective.overrides = adjusted.overrides;
+  effective.allocation_bias = adjusted.allocation_bias;
+
   const riskBudget = calculateRiskBudget(blendedScore, riskScore);
-  const allocation = allocateRiskyBudget(riskBudget.percentages.risky, adjustedRegime);
-  const recommendations = generateRegimeRecommendations(adjustedRegime, riskBudget);
-  
+  const allocation = allocateRiskyBudget(riskBudget.percentages.risky, effective);
+  const recommendations = generateRegimeRecommendations(effective, riskBudget);
+
   return {
-    regime: adjustedRegime,
+    regime: effective,  // ✅ Utiliser effective avec le bon key
+    base_regime: base,
+    adjusted_regime: adjusted,
     risk_budget: riskBudget,
     allocation,
     recommendations,

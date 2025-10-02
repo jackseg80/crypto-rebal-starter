@@ -19,6 +19,7 @@
 
   <!-- Core modules ESM -->
   <script type="module" src="core/risk-dashboard-store.js"></script>
+  <script type="module" src="core/risk-data-orchestrator.js"></script>  <!-- ✅ SSOT hydration -->
   <script type="module" src="core/fetcher.js"></script>
 
   <!-- CCS modules ESM -->
@@ -2180,7 +2181,7 @@
     import { fetchAndComputeCCS, interpretCCS, DEFAULT_CCS_WEIGHTS } from './modules/signals-engine.js';
     import { estimateCyclePosition, blendCCS, getCyclePhase } from './modules/cycle-navigator.js';
     import { proposeTargets, applyTargets, computePlan, DEFAULT_MACRO_TARGETS, getDecisionLog } from './modules/targets-coordinator.js';
-    import { fetchAllIndicators, calculateCompositeScore, enhanceCycleScore } from './modules/onchain-indicators.js';
+    import { fetchAllIndicators, enhanceCycleScore } from './modules/onchain-indicators.js';
     import { calculateCompositeScoreV2, analyzeContradictorySignals } from './modules/composite-score-v2.js';
     import { getMarketRegime, applyMarketOverrides, calculateRiskBudget, getRegimeDisplayData } from './modules/market-regimes.js';
 
@@ -3361,16 +3362,12 @@
           return null;
         }
 
-        // Check if dynamic weighting is enabled (from localStorage setting)
-        const useDynamicWeighting = localStorage.getItem('enable_dynamic_weighting') === 'true';
-
-        console.debug(`🎯 calculateOnChainScore: useDynamicWeighting = ${useDynamicWeighting} (from localStorage: ${localStorage.getItem('enable_dynamic_weighting')})`);
-
-        const composite = calculateCompositeScoreV2(indicators, useDynamicWeighting);
+        // Dynamic weighting always enabled (V2 production mode)
+        const composite = calculateCompositeScoreV2(indicators, true);
 
         console.debug(`📊 Composite result: score=${composite.score}, version=${composite.version}, hasDynamic=${!!composite.dynamicWeighting}`);
 
-        if (useDynamicWeighting && composite.dynamicWeighting) {
+        if (composite.dynamicWeighting) {
           console.debug(`🤖 Dynamic weighting applied: ${composite.dynamicWeighting.phase.name} phase`);
         }
 
@@ -3433,43 +3430,8 @@
       }
     }
 
-    // Calculate Risk Score from portfolio metrics
-    function calculateRiskScore(riskData) {
-      if (!riskData?.risk_metrics) return 50;
-
-      const metrics = riskData.risk_metrics;
-      let score = 50; // Start neutral
-      let factors = 0;
-
-      // Sharpe ratio (higher is better)
-      if (metrics.sharpe_ratio != null) {
-        score += metrics.sharpe_ratio > 1 ? 20 : metrics.sharpe_ratio > 0.5 ? 10 : -10;
-        factors++;
-      }
-
-      // Volatility (lower is better for risk score)
-      if (metrics.volatility != null) {
-        const vol = Math.abs(metrics.volatility);
-        score += vol < 0.2 ? 15 : vol < 0.4 ? 5 : -15;
-        factors++;
-      }
-
-      // Max Drawdown (lower is better)
-      if (metrics.max_drawdown != null) {
-        const dd = Math.abs(metrics.max_drawdown);
-        score += dd < 0.1 ? 15 : dd < 0.2 ? 5 : -15;
-        factors++;
-      }
-
-      // VaR 95% (lower is better)
-      if (metrics.var95_1d != null) {
-        const var95 = Math.abs(metrics.var95_1d);
-        score += var95 < 0.05 ? 10 : var95 < 0.1 ? 0 : -10;
-        factors++;
-      }
-
-      return Math.max(0, Math.min(100, factors > 0 ? score : 50));
-    }
+    // ❌ SUPPRIMÉ: calculateRiskScore() locale (divergeait de l'orchestrator)
+    // ✅ Maintenant calculé par risk-data-orchestrator.js (source unique SSOT)
 
     // Calculate strategic Blended Score (nouvelle formule market-aware)
     function calculateBlendedScore(ccsMixteScore, onchainScore, riskScore) {
@@ -3503,12 +3465,12 @@
         console.warn('  ⚠️ On-Chain Score non disponible (APIs payantes requises) - poids redistribué');
       }
 
-      // Risk adjustment : 20% (100 - Risk pour inverser le score)
+      // Risk contribution : 20% (score direct, plus haut = plus robuste)
+      // ✅ Respecte docs/RISK_SEMANTICS.md - NE PAS inverser
       if (riskScore != null) {
-        const riskAdjusted = 100 - riskScore; // Haut risque = bas score
-        totalScore += riskAdjusted * 0.20;
+        totalScore += riskScore * 0.20;
         totalWeight += 0.20;
-        console.debug('  → Risk contribution (100-risk):', riskAdjusted * 0.20);
+        console.debug('  → Risk contribution (direct):', riskScore * 0.20);
       }
 
       const finalScore = totalWeight > 0 ? totalScore / totalWeight : 50;
@@ -3530,82 +3492,47 @@
       } catch (e) { /* no-op */ }
     }
 
-    // Main function to calculate all scores
-    async function calculateAllScores(riskData, ccsData) {
+    // ✅ REMPLACÉ: Load scores from orchestrator (SSOT)
+    async function loadScoresFromStore() {
       try {
-        console.debug('🎯 Calculating all scores...');
+        console.debug('🔄 Waiting for orchestrator hydration...');
 
-        // Check cached scores first
-        const cachedScores = getCachedData('SCORES');
-        if (cachedScores && cachedScores.data) {
-          const age = Math.round((Date.now() - cachedScores.timestamp) / (1000 * 60));
-          console.log(`⚡ Using cached scores (${age} minutes old)`);
-
-          const scores = cachedScores.data;
-          // Hydrate store with cached scores so subscribers (updateSidebar) see values
-          try {
-            if (scores.onchainScore != null) store.set('scores.onchain', scores.onchainScore);
-            if (scores.riskScore != null) store.set('scores.risk', scores.riskScore);
-            if (scores.blendedScore != null) store.set('scores.blended', scores.blendedScore);
-            if (scores.ccsScore != null) store.set('ccs.score', scores.ccsScore);
-            if (scores.ccsMixteScore != null) store.set('cycle.ccsStar', scores.ccsMixteScore);
-          } catch (e) {
-            console.warn('Failed to hydrate store with cached scores:', e);
-          }
-
-          updateScoreDisplays(scores.onchainScore, scores.riskScore, scores.blendedScore, scores.ccsScore);
-          updateMarketRegime(scores.blendedScore, scores.onchainScore, scores.riskScore);
-          return scores;
+        // ✅ Attendre hydratation complète du store par l'orchestrator
+        if (!store.getState()?._hydrated) {
+          await new Promise(resolve => {
+            const handler = (e) => {
+              if (e.detail?.hydrated) {
+                console.log('✅ Store hydrated by orchestrator, source:', e.detail.source);
+                resolve();
+              }
+            };
+            window.addEventListener('riskStoreReady', handler, { once: true });
+          });
         }
 
-        console.debug('🔄 No valid cache found, calculating fresh scores...');
+        // ✅ Lire scores depuis store (source unique)
+        const state = store.snapshot();
+        const onchainScore = state.scores?.onchain;
+        const riskScore = state.scores?.risk;
+        const blendedScore = state.scores?.blended;
+        const ccsScore = state.ccs?.score;
+        const ccsMixteScore = state.cycle?.ccsStar;
 
-        // Apply calibrated parameters if available
-        const calibratedParams = loadCalibrationParams();
-        if (calibratedParams) {
-          // Apply to cycle navigator module
-          const module = await import('./modules/cycle-navigator.js');
-          module.setCycleParams(calibratedParams);
-          console.debug('🔄 Applied calibrated parameters');
-        }
+        console.debug('📊 Scores loaded from orchestrator:', {
+          onchain: onchainScore,
+          risk: riskScore,
+          blended: blendedScore,
+          ccs: ccsScore,
+          ccsMixte: ccsMixteScore,
+          source: state._hydration_source,
+          duration: state._hydration_duration_ms + 'ms'
+        });
 
-        // Get current CCS and cycle data
-        const currentState = store.snapshot();
-        const ccsScore = currentState.ccs?.score;
-        const ccsMixteScore = currentState.cycle?.ccsStar; // CCS + Cycle blended
+        // ✅ Mettre à jour UI
+        updateScoreDisplays(onchainScore, riskScore, blendedScore, ccsScore);
+        updateMarketRegime(blendedScore, onchainScore, riskScore);
 
-        // Calculate On-Chain Score
-        onchainScore = await calculateOnChainScore();
-
-        // Use Risk Score directly from backend (consistent with Risk Overview)
-        riskScore = riskData?.risk_metrics?.risk_score ?? 50;
-        console.debug('🛡️ Risk Score (from backend):', riskScore);
-
-        // Calculate Strategic Blended Score (nouvelle formule)
-        blendedScore = calculateBlendedScore(ccsMixteScore, onchainScore, riskScore);
-        // Reflect decision state in UI card
-        try { applyDecisionState(blendedScore); } catch { }
-
-        // Store the scores in the store for use by other modules
-        store.set('scores.onchain', onchainScore);
-        store.set('scores.risk', riskScore);
-        store.set('scores.blended', blendedScore);
-
-        // Prefer server-side recompute of blended (source of truth)
-        try { await store.recomputeGovernanceBlended(ccsMixteScore, onchainScore, riskScore); } catch { }
-
-        // Store scores in persistent cache
-        const scoreData = {
-          onchainScore: onchainScore,
-          riskScore: riskScore,
-          blendedScore: blendedScore,
-          ccsScore: ccsScore,
-          ccsMixteScore: ccsMixteScore
-        };
-        setCachedData('SCORES', scoreData);
-
-        // Also store scores in localStorage for cross-page access (compatibility)
-        // Include data source in the score keys for proper synchronization
+        // ✅ Compatibility: Store in localStorage for legacy cross-page access
         const dataSource = globalConfig.get('data_source') || 'unknown';
         const __user = (localStorage.getItem('activeUser') || 'demo');
         const __prefix = (k) => `${k}:${__user}`;
@@ -3618,26 +3545,24 @@
           localStorage.setItem(__prefix('risk_score_data_source'), dataSource);
         } catch (_) { }
 
-        // STOCKER CCS MIXTE sera fait APRÈS le calcul du blending dans updateScoreDisplays
-
-        console.debug('📊 All scores calculated:', {
-          ccs: ccsScore,
-          ccsMixte: ccsMixteScore,
-          onchain: onchainScore,
-          risk: riskScore,
-          blended: blendedScore
-        });
-
-        // Calculate market regime
-        updateMarketRegime(blendedScore, onchainScore, riskScore);
-
-        // Update sidebar with fresh state
-        const freshState = store.snapshot();
+        return { onchainScore, riskScore, blendedScore, ccsScore, ccsMixteScore };
 
       } catch (error) {
-        console.error('❌ Erreur calcul des scores:', error);
+        console.error('❌ Erreur chargement scores depuis store:', error);
+        // ✅ Fallback: Use partial data if available
+        const state = store.snapshot();
+        return {
+          onchainScore: state.scores?.onchain ?? null,
+          riskScore: state.scores?.risk ?? null,
+          blendedScore: state.scores?.blended ?? null,
+          ccsScore: state.ccs?.score ?? null,
+          ccsMixteScore: state.cycle?.ccsStar ?? null
+        };
       }
     }
+
+    // ❌ OBSOLÈTE: calculateAllScores() supprimée (remplacée par loadScoresFromStore)
+    // L'orchestrator est maintenant la source unique de vérité (SSOT)
 
     // ====== Market Regime Functions ======
     function updateMarketRegime(blendedScore, onchainScore, riskScore) {
@@ -3691,51 +3616,8 @@
       } catch { }
     }, 2000);
 
-    window.toggleDynamicWeighting = function () {
-      const toggle = document.getElementById('dynamic-weighting-toggle');
-      const status = document.getElementById('dynamic-weighting-status');
-      if (!toggle) return; // UI pas encore rendu
-      const isEnabled = toggle.checked;
-      localStorage.setItem('enable_dynamic_weighting', isEnabled.toString());
-
-      console.debug(`🔄 Toggle changed: ${isEnabled} (localStorage now: ${localStorage.getItem('enable_dynamic_weighting')})`);
-
-      if (status) {
-        if (isEnabled) {
-          status.textContent = '🤖 Pondération dynamique active';
-          status.style.color = 'var(--success)';
-        } else {
-          status.textContent = 'Pondération statique V2';
-          status.style.color = 'var(--theme-text-muted)';
-        }
-      }
-
-      // Clear any cached composite score to force recalculation
-      if (window.compositeScoreCache) {
-        console.debug('🗑️ Clearing composite score cache');
-        window.compositeScoreCache.cache.clear();
-      }
-
-      // Trigger refresh to apply new weighting
-      setTimeout(refreshDashboard, 500);
-    };
-
-    // Initialize dynamic weighting state on load
-    function initializeDynamicWeightingToggle() {
-      const toggle = document.getElementById('dynamic-weighting-toggle');
-      const status = document.getElementById('dynamic-weighting-status');
-      const isEnabled = localStorage.getItem('enable_dynamic_weighting') === 'true';
-      if (toggle) toggle.checked = isEnabled;
-      if (status) {
-        if (isEnabled) {
-          status.textContent = '🤖 Pondération dynamique active';
-          status.style.color = 'var(--warning)';
-        } else {
-          status.textContent = 'Pondération statique V2';
-          status.style.color = 'var(--theme-text-muted)';
-        }
-      }
-    }
+    // Dynamic weighting is now always enabled (V2 production mode)
+    // Legacy functions removed: toggleDynamicWeighting, initializeDynamicWeightingToggle
 
     // ====== Section Collapse Functions ======
 
@@ -3905,8 +3787,8 @@
             await loadBlendedCCS();
           }
 
-          // Calculate additional scores
-          await calculateAllScores(riskData, ccsData);
+          // ✅ Load scores from orchestrator (SSOT)
+          await loadScoresFromStore();
 
           // Force sidebar update after all scores are calculated
           const finalState = store.snapshot();
@@ -3941,7 +3823,7 @@
             if (ccsData) {
               await loadBlendedCCS();
             }
-            await calculateAllScores(riskData, ccsData);
+            await loadScoresFromStore();
           } catch (e) {
             console.warn('Partial score calculation failed:', e);
           }
@@ -4306,7 +4188,7 @@
             </div>
             <div class="metric-row">
               <span class="metric-label">Risk Score</span>
-              <span class="metric-value">${safeFixed(m.risk_score, 1)}/100</span>
+              <span class="metric-value" data-score="risk-display">${safeFixed(m.risk_score, 1)}/100</span>
             </div>
             <div class="metric-row">
               <span class="metric-label">Risk Level</span>
@@ -5102,7 +4984,7 @@
         const onchainModule = await import('./modules/onchain-indicators.js');
         const cycleModule = await import('./modules/cycle-navigator.js');
 
-        const { fetchAllIndicators, calculateCompositeScore, enhanceCycleScore, analyzeDivergence, generateRecommendations } = onchainModule;
+        const { fetchAllIndicators, enhanceCycleScore, analyzeDivergence, generateRecommendations } = onchainModule;
         const { cycleScoreFromMonths, getCurrentCycleMonths } = cycleModule;
 
         const container = document.getElementById('onchain-indicators-content');
@@ -5118,12 +5000,11 @@
         // Données
         const indicators = await fetchAllIndicators();
 
-        // Check if dynamic weighting is enabled (from localStorage setting)
-        const useDynamicWeighting = localStorage.getItem('enable_dynamic_weighting') === 'true';
-        const composite = calculateCompositeScoreV2(indicators, useDynamicWeighting);
+        // Dynamic weighting always enabled (V2 production mode)
+        const composite = calculateCompositeScoreV2(indicators, true);
 
-        if (useDynamicWeighting && composite.dynamicWeighting) {
-          console.log(`🤖 Dynamic weighting applied in UI: ${composite.dynamicWeighting.phase.name} phase`);
+        if (composite.dynamicWeighting) {
+          console.log(`🤖 Dynamic weighting applied: ${composite.dynamicWeighting.phase.name} phase`);
         }
 
         // Score de cycle actuel
@@ -5408,9 +5289,6 @@
         ${recosBlock}
       `;
 
-        // Appliquer l'état du toggle après rendu
-        try { initializeDynamicWeightingToggle(); } catch (e) { console.warn('Init toggle failed', e); }
-
         console.log('✅ Indicateurs on-chain (thémés) chargés:', { sigmoidScore, composite: composite.score, enhanced: enhanced.enhanced_score });
       } catch (error) {
         console.error('❌ Erreur indicateurs on-chain:', error);
@@ -5511,10 +5389,6 @@
           <div style="display: flex; justify-content: space-between; align-items: center; gap: .75rem; margin-bottom: 1rem;">
             <h3 style="margin: 0;">🔗 Indicateurs On-Chain</h3>
             <div style="display:flex; align-items:center; gap:.75rem;">
-              <label style="display:flex; align-items:center; gap:.4rem; cursor:pointer; font-weight:600;" title="Active une pondération dynamique des indicateurs selon le contexte de marché (accumulation, expansion, euphorie, correction). Recalcule les scores avec des poids adaptés.">
-                <input type="checkbox" id="dynamic-weighting-toggle" onchange="toggleDynamicWeighting()" style="transform: scale(1.1);">
-                <span>🎯 Adaptation contextuelle</span>
-              </label>
               <button onclick="toggleSection('onchain-indicators')" style="background: none; border: 1px solid var(--theme-border); border-radius: 4px; padding: 4px 8px; cursor: pointer; color: var(--theme-text); font-size: 0.8rem;" title="Réduire/Agrandir">
                 <span id="onchain-indicators-arrow">▼</span>
               </button>
@@ -5838,11 +5712,8 @@
       const state = store.snapshot();
       if (!state.scores?.blended) {
         console.log('🔄 Blended score not available, recalculating scores...');
-        const riskData = state.risk;
-        const ccsData = state.ccs;
-        if (riskData && ccsData) {
-          await calculateAllScores(riskData, ccsData);
-        }
+        // ✅ Load scores from orchestrator (no need for riskData/ccsData params)
+        await loadScoresFromStore();
       }
 
       // Get updated state after potential score calculation
@@ -7148,6 +7019,12 @@
         if (elBlend && blendedScore != null) elBlend.textContent = String(Math.round(blendedScore));
         if (elCcs && ccsScore != null) elCcs.textContent = String(Math.round(ccsScore));
 
+        // ✅ CRITIQUE: Mettre à jour l'affichage Risk Score dans Risk Overview (ligne 4238)
+        const riskDisplayEl = document.querySelector('[data-score="risk-display"]');
+        if (riskDisplayEl && riskScore != null) {
+          riskDisplayEl.textContent = `${riskScore.toFixed(1)}/100`;
+        }
+
         console.log('📊 Score displays updated from cache');
       } catch (error) {
         console.warn('Error updating score displays:', error);
@@ -7189,9 +7066,6 @@
 
       // Hydrate store from localStorage
       store.hydrate();
-
-      // Initialize dynamic weighting toggle
-      initializeDynamicWeightingToggle();
 
       // Initialize section collapse states
       initializeSectionStates();

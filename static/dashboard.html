@@ -228,11 +228,12 @@
                     console.log('✅ Blended score loaded from cache for dashboard');
                 } else {
                     // Calculate blended if we have component scores
+                    // ✅ Respecte docs/RISK_SEMANTICS.md - Risk Score utilisé directement (pas d'inversion)
                     const state = store.snapshot();
                     const cycleScore = state.cycle?.score ?? 50;
                     const onchainScore = state.scores?.onchain ?? 50;
                     const riskScore = state.scores?.risk ?? 50;
-                    const blended = (cycleScore * 0.50) + (onchainScore * 0.30) + ((100 - riskScore) * 0.20);
+                    const blended = (cycleScore * 0.50) + (onchainScore * 0.30) + (riskScore * 0.20);
                     const blendedScore = Math.round(Math.max(0, Math.min(100, blended)));
                     store.set('scores.blended', blendedScore);
                     console.log('✅ Blended score calculated for dashboard');

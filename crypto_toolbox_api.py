@@ -29,7 +29,7 @@ CRYPTO_TOOLBOX_URL = "https://crypto-toolbox.vercel.app/signaux"
 # Cache simple en mémoire (dans un vrai projet, utiliser Redis)
 cache_data = {}
 cache_timestamp = None
-CACHE_DURATION = 300  # 5 minutes
+CACHE_DURATION = 1800  # 30 minutes (au lieu de 5min)
 
 def scrape_crypto_toolbox_data():
     """

@@ -100,13 +100,23 @@
 
     // Temporary simplified version to debug the issue
     async function renderUnifiedInsights(containerId = 'unified-root') {
+      // ANTI-DOUBLE RENDER MUTEX
+      if (window.__unified_rendering) {
+        console.debug('🔒 Render already in progress, skipping duplicate call');
+        return;
+      }
+      window.__unified_rendering = true;
+
       console.debug('🔥 LOCAL FUNCTION UNIFIED: analytics-unified.html renderUnifiedInsights called', {
         containerId,
         timestamp: new Date().toISOString()
       });
 
       const el = document.getElementById(containerId);
-      if (!el) return;
+      if (!el) {
+        window.__unified_rendering = false;
+        return;
+      }
 
       // Affichage de chargement initial
       el.innerHTML = `
@@ -402,6 +412,11 @@
             </div>
           </div>
         `;
+      } finally {
+        // Relâcher le mutex après 100ms (allow intentional refresh)
+        setTimeout(() => {
+          window.__unified_rendering = false;
+        }, 100);
       }
     }
 
@@ -673,40 +688,32 @@
     }
 
     // Lightweight unified data loader with INTELLIGENT CACHING
-    async function loadUnifiedData() {
-      console.log('🧠 Loading unified data with intelligent caching...');
+    async function loadUnifiedData(force = false) {
+      console.log('🧠 Loading unified data with intelligent caching...', { force });
       let loadedFromCache = 0;
 
       try {
         const priceDays = 365, corrDays = 90;
 
-        // 1) Risk (backend) - With cache
-        if (isCacheValid(CACHE_CONFIG.risk.key, CACHE_CONFIG.risk.ttl)) {
-          console.log('✅ Risk data loaded from cache');
-          const riskData = getCache(CACHE_CONFIG.risk.key);
-          store.set('risk', riskData);
-          const rs = riskData?.risk_metrics?.risk_score;
-          if (typeof rs === 'number') store.set('scores.risk', rs);
-          store.set('ui.apiStatus.backend', 'healthy');
+        // 1) Risk (backend) - Use orchestrator's hydrated value (DON'T OVERWRITE)
+        // Orchestrator already loaded risk score via risk-data-orchestrator.js
+        const existingRiskScore = store.get('scores.risk');
+        if (typeof existingRiskScore === 'number') {
+          console.log(`✅ Risk score already hydrated by orchestrator: ${existingRiskScore}`);
           loadedFromCache++;
         } else {
-          try {
-            const minUsd = globalConfig.get('min_usd_threshold');
-            const riskData = await window.globalConfig.apiRequest('/api/risk/dashboard', {
-              params: { price_history_days: priceDays, lookback_days: corrDays, min_usd: minUsd }
-            });
-            if (riskData && riskData.success) {
-              setCache(CACHE_CONFIG.risk.key, riskData);
-              store.set('risk', riskData);
-              const rs = riskData?.risk_metrics?.risk_score;
-              if (typeof rs === 'number') store.set('scores.risk', rs);
-              store.set('ui.apiStatus.backend', 'healthy');
-              console.log('✅ Risk data fetched and cached');
-            } else {
-              store.set('ui.apiStatus.backend', 'error');
-            }
-          } catch (_) { store.set('ui.apiStatus.backend', 'error'); }
-
+          console.log('⚠️ Risk score not yet hydrated, waiting for orchestrator...');
+          // Wait for orchestrator hydration if not ready
+          await new Promise(resolve => {
+            const handler = (e) => {
+              if (e.detail?.hydrated) {
+                console.log('✅ Orchestrator hydrated, risk score available');
+                resolve();
+              }
+            };
+            window.addEventListener('riskStoreReady', handler, { once: true });
+            setTimeout(resolve, 2000); // Fallback timeout
+          });
         }
 
         // 2) Cycle (client-side) - With cache
@@ -732,8 +739,10 @@
           } catch (e) { console.warn('Cycle data load failed:', e.message); }
         }
 
-        // 3) On-Chain (via scraper/proxy) - SWR Cache (no more force refresh)
-        const manualRefresh = window.location.search.includes('force_onchain=true');
+        // 3) On-Chain (via scraper/proxy) - SWR Cache with hard refresh detection
+        const isHardRefresh = performance.navigation?.type === 1 ||
+                              performance.getEntriesByType?.('navigation')?.[0]?.type === 'reload';
+        const manualRefresh = window.location.search.includes('force_onchain=true') || isHardRefresh;
 
         if (!manualRefresh && isCacheValid(CACHE_CONFIG.onchain.key, CACHE_CONFIG.onchain.ttl)) {
           console.log('✅ On-Chain data loaded from legacy cache');
@@ -752,8 +761,8 @@
             const v2 = await import('./modules/composite-score-v2.js');
             // Use SWR-cached version by default (no force unless manual)
             const indicators = await onchain.fetchAllIndicators({ force: manualRefresh });
-            const dyn = localStorage.getItem('enable_dynamic_weighting') === 'true';
-            const composite = v2.calculateCompositeScoreV2(indicators, dyn);
+            // Dynamic weighting always enabled (V2 production mode)
+            const composite = v2.calculateCompositeScoreV2(indicators, true);
 
             let finalComposite = composite;
             // Fallback minimal si score null: utiliser Fear & Greed pour produire un score on-chain basique
@@ -768,7 +777,7 @@
                       fear_greed_min: { name: 'Fear & Greed', value_numeric: fg, in_critical_zone: fg >= 80 || fg <= 20, raw_value: String(fg) },
                       _metadata: { available_count: 1 }
                     };
-                    finalComposite = v2.calculateCompositeScoreV2(minimal, false);
+                    finalComposite = v2.calculateCompositeScoreV2(minimal, true);
                     console.log('✅ On-Chain fallback (Fear & Greed) used in unified loader');
                   }
                 }
@@ -927,32 +936,46 @@
               }
             }
 
-            const cycleScore = s.cycle?.score ?? 50;
+            // ✅ UNIFORMISATION avec risk-dashboard.html (même formule canonique)
+            // Formule : 50% CCS Mixte + 30% On-Chain + 20% Risk (sans inversion)
+            // Respecte docs/RISK_SEMANTICS.md
+
+            const ccsMixteScore = s.cycle?.ccsStar ?? s.cycle?.score ?? 50; // CCS Mixte (CCS + Cycle blended)
             const onchainScore = s.scores?.onchain ?? 50;
             const riskScore = s.scores?.risk ?? 50;
-            const ocConf = Math.max(0, Math.min(1, s.scores?.onchain_metadata?.confidence ?? 0.5));
-            const cycleConf = Math.max(0, Math.min(1, s.cycle?.confidence ?? 0.5));
-            const riskAdj = Math.max(0, Math.min(1, (100 - riskScore) / 100));
-            const contradictions = (s.scores?.contradictory_signals || []).length;
 
-            // Base weights
-            let wCycle = 0.50 * (0.8 + 0.4 * cycleConf);
-            let wOnchain = 0.30 * (0.8 + 0.4 * ocConf);
-            let wRisk = 0.20 * (0.8 + 0.4 * riskAdj);
+            // Poids fixes identiques à risk-dashboard.html
+            const wCCSMixte = 0.50;
+            const wOnchain = 0.30;
+            const wRisk = 0.20;
 
-            // Penalize if contradictions present (limit to -20%)
-            const contraFactor = Math.max(0.8, 1 - 0.1 * contradictions);
-            wOnchain *= contraFactor;
-            wCycle *= contraFactor;
+            // Calcul blended avec formule canonique (pas d'inversion Risk!)
+            let totalScore = 0;
+            let totalWeight = 0;
 
-            // Normalize weights
-            const wSum = wCycle + wOnchain + wRisk;
-            wCycle = wCycle / wSum;
-            wOnchain = wOnchain / wSum;
-            wRisk = wRisk / wSum;
+            if (ccsMixteScore != null) {
+              totalScore += ccsMixteScore * wCCSMixte;
+              totalWeight += wCCSMixte;
+            }
+            if (onchainScore != null) {
+              totalScore += onchainScore * wOnchain;
+              totalWeight += wOnchain;
+            }
+            if (riskScore != null) {
+              totalScore += riskScore * wRisk; // ✅ Direct, pas d'inversion
+              totalWeight += wRisk;
+            }
 
-            const blended = (cycleScore * wCycle) + (onchainScore * wOnchain) + ((100 - riskScore) * wRisk);
+            const blended = totalWeight > 0 ? totalScore / totalWeight : 50;
             const blendedScore = Math.round(Math.max(0, Math.min(100, blended)));
+
+            console.debug('🎯 Blended Score (formule canonique):', {
+              ccsMixte: ccsMixteScore,
+              onchain: onchainScore,
+              risk: riskScore,
+              blended: blendedScore,
+              weights: { ccsMixte: wCCSMixte, onchain: wOnchain, risk: wRisk }
+            });
 
             // 5) Market Regime (sentiment/régime agrégé)  
             let regimeData = null;
@@ -1138,8 +1161,13 @@
         console.warn('❌ Force reload taxonomy failed:', taxonomyError.message);
       }
 
-      // 1) Charger les données d'abord
-      await loadUnifiedData();
+      // 1) Charger les données d'abord (detect hard refresh)
+      const isHardRefresh = performance.navigation?.type === 1 ||
+                            performance.getEntriesByType?.('navigation')?.[0]?.type === 'reload';
+      if (isHardRefresh) {
+        console.log('🔄 Hard refresh detected, forcing cache refresh for all data');
+      }
+      await loadUnifiedData(isHardRefresh);
 
       // Enhanced UI Mutex with render state tracking
       if (!window.__uiMutex) {
@@ -1269,6 +1297,14 @@
         }, 500); // Increased from 250ms to 500ms for better batching
       });
 
+      // ✅ CRITIQUE: Attendre hydratation orchestrator avant 1er updateRiskMetrics
+      window.addEventListener('riskStoreReady', (e) => {
+        if (e.detail?.hydrated) {
+          console.log('✅ Orchestrator hydrated, refreshing risk metrics');
+          updateRiskMetrics();
+        }
+      }, { once: true });
+
       // Simple fallback banner toggle
       setInterval(() => {
         try {
@@ -1381,7 +1417,7 @@
   <script type="module" src="components/tooltips.js"></script>
 
   <!-- Risk Dashboard Store + Calculation Modules (for flyout panel parity) -->
-  <script src="global-config.js"></script>
+  <!-- global-config.js already loaded in head, don't reload -->
   <script type="module" src="core/risk-dashboard-store.js"></script>
   <script type="module" src="core/fetcher.js"></script>
   <script type="module" src="modules/signals-engine.js"></script>

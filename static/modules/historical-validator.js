@@ -9,7 +9,7 @@
  */
 
 import { calculateCompositeScoreV2, analyzeContradictorySignals } from './composite-score-v2.js';
-import { calculateCompositeScore } from './onchain-indicators.js';
+// Legacy V1 removed - using V2 only
 
 /**
  * Périodes de test historiques avec données de contexte
@@ -219,25 +219,13 @@ export async function runFullBacktest() {
   
   for (const period of Object.keys(HISTORICAL_PERIODS)) {
     (window.debugLogger?.debug || console.log)(`\n📊 Testing period: ${HISTORICAL_PERIODS[period].name}`);
-    
-    // Test V1 system
-    const v1Results = await validatePeriod(period, calculateCompositeScore, 'V1');
-    results.v1[period] = v1Results;
-    
-    // Test V2 system  
+
+    // Test V2 system (V1 removed - production uses V2 only)
     const v2Results = await validatePeriod(period, calculateCompositeScoreV2, 'V2');
     results.v2[period] = v2Results;
-    
-    // Calculate improvements
-    results.comparison[period] = {
-      accuracyImprovement: v2Results.accuracy - v1Results.accuracy,
-      scoreStability: calculateStability(v2Results.scores) - calculateStability(v1Results.scores),
-      contradictionReduction: v1Results.contradictionRate - v2Results.contradictionRate
-    };
-    
+
     (window.debugLogger?.debug || console.log)(`✅ ${HISTORICAL_PERIODS[period].name}:`);
-    (window.debugLogger?.debug || console.log)(`   V1: ${v1Results.accuracy.toFixed(1)}% accuracy`);
-    (window.debugLogger?.debug || console.log)(`   V2: ${v2Results.accuracy.toFixed(1)}% accuracy (+${results.comparison[period].accuracyImprovement.toFixed(1)}%)`);
+    (window.debugLogger?.debug || console.log)(`   V2: ${v2Results.accuracy.toFixed(1)}% accuracy`);
   }
   
   // Calculate overall metrics
