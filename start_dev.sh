@@ -4,11 +4,11 @@ set -euo pipefail
 # Start crypto-rebal development server with optional Crypto-Toolbox mode
 #
 # Usage:
-#   ./start_dev.sh                    # Flask proxy (legacy, default)
-#   ./start_dev.sh 1                  # FastAPI native (Playwright)
-#   CRYPTO_TOOLBOX_NEW=1 ./start_dev.sh  # Environment variable
+#   ./start_dev.sh                    # FastAPI native (default)
+#   ./start_dev.sh 0                  # Flask proxy (legacy fallback)
+#   CRYPTO_TOOLBOX_NEW=0 ./start_dev.sh  # Environment variable
 
-CRYPTO_TOOLBOX_MODE="${1:-${CRYPTO_TOOLBOX_NEW:-0}}"
+CRYPTO_TOOLBOX_MODE="${1:-${CRYPTO_TOOLBOX_NEW:-1}}"
 PORT="${2:-8000}"
 WORKERS="${3:-1}"
 

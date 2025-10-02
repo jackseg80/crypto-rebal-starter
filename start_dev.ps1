@@ -5,8 +5,8 @@
 
 .DESCRIPTION
     Starts Uvicorn server with configurable CRYPTO_TOOLBOX_NEW flag:
-    - 0 (default): Legacy Flask proxy (requires separate Flask server on port 8001)
-    - 1: New FastAPI native Playwright scraper (requires playwright install)
+    - 0: Legacy Flask proxy (requires separate Flask server on port 8001)
+    - 1 (default): FastAPI native Playwright scraper (requires playwright install)
 
 .PARAMETER CryptoToolboxMode
     Crypto-Toolbox mode: 0=Flask proxy (legacy), 1=FastAPI native (new)
@@ -19,11 +19,11 @@
 
 .EXAMPLE
     .\start_dev.ps1
-    # Start with Flask proxy (legacy mode)
+    # Start with FastAPI native (default)
 
 .EXAMPLE
-    .\start_dev.ps1 -CryptoToolboxMode 1
-    # Start with FastAPI native Playwright scraper
+    .\start_dev.ps1 -CryptoToolboxMode 0
+    # Start with Flask proxy (legacy fallback)
 
 .EXAMPLE
     $env:CRYPTO_TOOLBOX_NEW=1; .\start_dev.ps1
@@ -31,7 +31,7 @@
 #>
 
 param(
-    [int]$CryptoToolboxMode = [int]$env:CRYPTO_TOOLBOX_NEW ?? 0,
+    [int]$CryptoToolboxMode = $(if ($env:CRYPTO_TOOLBOX_NEW) { [int]$env:CRYPTO_TOOLBOX_NEW } else { 1 }),
     [int]$Port = 8000,
     [int]$Workers = 1
 )
