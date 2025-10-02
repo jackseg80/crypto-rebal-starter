@@ -1,7 +1,11 @@
 @echo off
-echo 🚀 Starting development server with CTRL+C working
-echo ⚡ Version: main_working.py (stable)
+echo 🚀 Starting development server
+echo ⚡ Auto-reload enabled
 echo 🛑 Press CTRL+C to stop
 echo.
-uvicorn api.main_working:app --reload --port 8000
+echo Activating virtual environment...
+call .venv\Scripts\activate.bat
+echo.
+echo Starting FastAPI server on http://localhost:8000
+uvicorn api.main:app --reload --port 8000
 pause

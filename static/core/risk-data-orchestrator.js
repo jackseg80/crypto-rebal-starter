@@ -90,42 +90,22 @@ export async function hydrateRiskStore() {
       }
     };
 
-    // Calculer risk score depuis risk_metrics (même logique que risk-dashboard.html)
+    // ✅ Utiliser risk_score déjà calculé par l'API backend (source de vérité)
     const calculateRiskScore = (riskData) => {
       if (!riskData?.risk_metrics) return null;
 
-      const metrics = riskData.risk_metrics;
-      let score = 50; // Start neutral
-      let factors = 0;
+      // L'API /api/risk/dashboard retourne déjà un risk_score calculé côté Python
+      // avec la formule autoritaire depuis services/risk_management.py
+      const riskScore = riskData.risk_metrics.risk_score;
 
-      // Sharpe ratio (higher is better)
-      if (metrics.sharpe_ratio != null) {
-        score += metrics.sharpe_ratio > 1 ? 20 : metrics.sharpe_ratio > 0.5 ? 10 : -10;
-        factors++;
+      if (riskScore != null && typeof riskScore === 'number') {
+        console.debug('✅ Risk score from backend API:', riskScore);
+        return Math.max(0, Math.min(100, riskScore));
       }
 
-      // Volatility (lower is better for risk score)
-      if (metrics.volatility != null) {
-        const vol = Math.abs(metrics.volatility);
-        score += vol < 0.2 ? 15 : vol < 0.4 ? 5 : -15;
-        factors++;
-      }
-
-      // Max Drawdown (lower is better)
-      if (metrics.max_drawdown != null) {
-        const dd = Math.abs(metrics.max_drawdown);
-        score += dd < 0.15 ? 10 : dd < 0.3 ? 0 : -10;
-        factors++;
-      }
-
-      // Correlation (lower is better - more diversification)
-      if (metrics.avg_correlation != null) {
-        const corr = Math.abs(metrics.avg_correlation);
-        score += corr < 0.3 ? 10 : corr < 0.5 ? 5 : -5;
-        factors++;
-      }
-
-      return factors > 0 ? Math.max(0, Math.min(100, score)) : 50;
+      // ❌ Fallback: si risk_score manque, retourner null (ne pas calculer côté client)
+      console.warn('⚠️ risk_score missing from API response, using fallback');
+      return null;
     };
 
     // Calculer toutes les métriques en parallèle pour performance optimale

@@ -911,73 +911,81 @@ class AdvancedRiskManager:
         }
     
     def _assess_overall_risk_level(
-        self, 
+        self,
         var_metrics: Dict[str, float],
-        perf_metrics: Dict[str, float], 
+        perf_metrics: Dict[str, float],
         drawdown_metrics: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Évalue le niveau de risque global du portfolio"""
-        
-        # Score basé sur différents critères
-        score = 50.0  # Score de base
-        
-        # VaR impact
-        var_95 = var_metrics.get("var_95", 0.0)
+        """
+        Évalue le niveau de risque global du portfolio.
+
+        ✅ Sémantique Risk (docs/RISK_SEMANTICS.md):
+        - Risk Score = indicateur POSITIF de robustesse [0-100]
+        - Plus haut = plus robuste (risque perçu plus faible)
+        - Donc: bonnes métriques → score augmente, mauvaises → score diminue
+        """
+
+        # Score basé sur différents critères (50 = neutre)
+        score = 50.0
+
+        # VaR impact (plus VaR est élevé, MOINS robuste → score diminue)
+        var_95 = abs(var_metrics.get("var_95", 0.0))  # abs() car VaR est négatif
         if var_95 > 0.25:
-            score += 30
+            score -= 30  # ❌ VaR très élevé → score baisse
         elif var_95 > 0.15:
-            score += 20
+            score -= 20
         elif var_95 > 0.10:
-            score += 10
-        elif var_95 < 0.05:
             score -= 10
-        
-        # Volatilité impact
+        elif var_95 < 0.05:
+            score += 10  # ✅ VaR faible → score monte
+
+        # Volatilité impact (plus vol est élevée, MOINS robuste → score diminue)
         vol = perf_metrics.get("volatility", 0.0)
         if vol > 1.0:
-            score += 25
+            score -= 25  # ❌ Volatilité extrême → score baisse
         elif vol > 0.6:
-            score += 15
-        elif vol > 0.4:
-            score += 5
-        elif vol < 0.2:
             score -= 15
-        
-        # Max drawdown impact
-        max_dd = drawdown_metrics.get("max_drawdown", 0.0)
+        elif vol > 0.4:
+            score -= 5
+        elif vol < 0.2:
+            score += 15  # ✅ Volatilité faible → score monte
+
+        # Max drawdown impact (plus DD est élevé, MOINS robuste → score diminue)
+        max_dd = abs(drawdown_metrics.get("max_drawdown", 0.0))  # abs() car DD est négatif
         if max_dd > 0.50:
-            score += 20
+            score -= 20  # ❌ Drawdown sévère → score baisse
         elif max_dd > 0.30:
-            score += 10
-        elif max_dd < 0.10:
             score -= 10
-        
-        # Sharpe ratio impact (inverse)
+        elif max_dd < 0.10:
+            score += 10  # ✅ Drawdown limité → score monte
+
+        # Sharpe ratio impact (plus Sharpe est élevé, PLUS robuste → score augmente)
         sharpe = perf_metrics.get("sharpe", 0.0)
         if sharpe < 0:
-            score += 15
+            score -= 15  # ❌ Sharpe négatif → score baisse
         elif sharpe > 1.5:
-            score -= 15
+            score += 15  # ✅ Excellent Sharpe → score monte
         elif sharpe > 1.0:
-            score -= 10
-        
-        # Normaliser le score
+            score += 10  # ✅ Bon Sharpe → score monte
+
+        # Normaliser le score [0-100]
         score = max(0, min(100, score))
-        
-        # Déterminer le niveau de risque
+
+        # ✅ Déterminer le niveau de risque INVERSÉ (score élevé = risque faible)
+        # Attention: level représente le RISQUE, donc inverse du score
         if score >= 80:
-            level = RiskLevel.CRITICAL
+            level = RiskLevel.VERY_LOW  # Score élevé = risque très faible
         elif score >= 65:
-            level = RiskLevel.VERY_HIGH
-        elif score >= 50:
-            level = RiskLevel.HIGH
-        elif score >= 35:
-            level = RiskLevel.MEDIUM
-        elif score >= 20:
             level = RiskLevel.LOW
+        elif score >= 50:
+            level = RiskLevel.MEDIUM
+        elif score >= 35:
+            level = RiskLevel.HIGH
+        elif score >= 20:
+            level = RiskLevel.VERY_HIGH
         else:
-            level = RiskLevel.VERY_LOW
-        
+            level = RiskLevel.CRITICAL  # Score faible = risque critique
+
         return {
             "level": level,
             "score": score
