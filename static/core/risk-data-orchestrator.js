@@ -187,15 +187,42 @@ export async function hydrateRiskStore() {
     const currentState = window.riskStore.getState();
 
     // Calculer blended score (CCS + Cycle)
-    let blendedScore = null;
+    // Blend CCS with Cycle to get ccsStar
+    let ccsStar = null;
     if (ccs && cycle) {
       try {
         const blendResult = blendCCS(ccs.score, cycle.months || 18);
         // blendCCS returns { originalCCS, cycleScore, blendedCCS, cycleWeight, phase }
-        blendedScore = blendResult?.blendedCCS ?? null;
+        ccsStar = blendResult?.blendedCCS ?? null;
       } catch (err) {
-        console.warn('⚠️ Blended score calculation failed:', err);
+        console.warn('⚠️ CCS blend calculation failed:', err);
       }
+    }
+
+    // Calculate final blended score (CCS*0.5 + OnChain*0.3 + Risk*0.2)
+    let blendedScore = null;
+    if (ccsStar !== null || onchainScore !== null || riskScore !== null) {
+      const wCCS = 0.50;
+      const wOnchain = 0.30;
+      const wRisk = 0.20;
+
+      let totalScore = 0;
+      let totalWeight = 0;
+
+      if (ccsStar !== null) {
+        totalScore += ccsStar * wCCS;
+        totalWeight += wCCS;
+      }
+      if (onchainScore !== null) {
+        totalScore += onchainScore * wOnchain;
+        totalWeight += wOnchain;
+      }
+      if (riskScore !== null) {
+        totalScore += riskScore * wRisk;
+        totalWeight += wRisk;
+      }
+
+      blendedScore = totalWeight > 0 ? Math.round(totalScore / totalWeight) : null;
     }
 
     // Calculer market regime (nécessite blended + onchain + risk scores)
@@ -225,7 +252,7 @@ export async function hydrateRiskStore() {
       // Cycle position
       cycle: cycle ? {
         ...cycle,
-        ccsStar: blendedScore // CCS blended with cycle
+        ccsStar: ccsStar // CCS blended with cycle
       } : (currentState.cycle || {
         ccsStar: null,
         months: null,
