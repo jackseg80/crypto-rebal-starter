@@ -384,5 +384,70 @@ curl http://localhost:8000/api/crypto-toolbox | jq '.total_count'
 
 ---
 
+## Development & Deployment
+
+### Local Development
+
+**Windows (PowerShell)**:
+```powershell
+# Legacy mode (default)
+.\start_dev.ps1
+
+# FastAPI native mode
+.\start_dev.ps1 -CryptoToolboxMode 1
+
+# Or use environment variable
+$env:CRYPTO_TOOLBOX_NEW=1; .\start_dev.ps1
+```
+
+**Linux/Mac (Bash)**:
+```bash
+# Legacy mode (default)
+./start_dev.sh
+
+# FastAPI native mode
+./start_dev.sh 1
+
+# Or use environment variable
+CRYPTO_TOOLBOX_NEW=1 ./start_dev.sh
+```
+
+### Docker Deployment
+
+**Build image** (includes Playwright + Chromium):
+```bash
+docker build -t crypto-rebal .
+```
+
+**Run container** (FastAPI mode by default):
+```bash
+# Default (CRYPTO_TOOLBOX_NEW=1)
+docker run -p 8000:8000 crypto-rebal
+
+# Override to legacy mode
+docker run -p 8000:8000 -e CRYPTO_TOOLBOX_NEW=0 crypto-rebal
+```
+
+**Note**: Docker image includes Playwright dependencies (~300MB additional size). To reduce image size for legacy-only deployments, remove lines 34-36 from Dockerfile.
+
+### Playwright Installation (Development)
+
+If using FastAPI mode (`CRYPTO_TOOLBOX_NEW=1`) locally:
+
+```bash
+# Install Playwright
+pip install playwright
+
+# Install Chromium browser
+playwright install chromium
+
+# Verify installation
+python -c "from playwright.async_api import async_playwright; print('OK')"
+```
+
+**Important**: Single-worker Uvicorn is **required** for Playwright mode (browser state is not multi-process safe).
+
+---
+
 **Last updated**: 2025-10-02
-**Status**: Phase 4 - Router Integrated with Feature Flag (Commit 4)
+**Status**: Phase 5 - Dev Scripts + Docker (Commit 5)
