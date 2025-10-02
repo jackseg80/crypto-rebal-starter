@@ -875,10 +875,15 @@ export function deriveRecommendations(u) {
     }
     window.__prevPrimaryTarget = primaryTarget;
 
+    const isStablesTarget = /stablecoin/i.test(primaryTarget.symbol);
+    const allocPct = Math.round(primaryTarget.weight * 100);
+
     recos.push({
       key: `reco:strategy:primary:${primaryTarget.symbol}`,  // Clé canonique stable
+      topic: isStablesTarget ? 'stables_allocation' : undefined,
+      value: isStablesTarget ? allocPct : undefined,
       priority: 'high',
-      title: `Allocation ${primaryTarget.symbol}: ${Math.round(primaryTarget.weight * 100)}%`,
+      title: `Allocation ${primaryTarget.symbol}: ${allocPct}%`,
       reason: primaryTarget.rationale || `Suggestion ${u.strategy.template_used}`,
       icon: '🎯',
       source: 'strategy-api'
@@ -892,8 +897,14 @@ export function deriveRecommendations(u) {
       const regimeKey = rec.type || 'general';
       const msgHash = (rec.message || rec.action || '').toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 30);
 
+      // Extract stables percentage if mentioned
+      const stablesMatch = (rec.message || rec.action || '').match(/(\d+)%/);
+      const isStablesReco = /stables?/i.test(rec.message || rec.action || '');
+
       recos.push({
         key: `reco:regime:${regimeKey}:${msgHash}`,
+        topic: isStablesReco ? 'stables_allocation' : undefined,
+        value: isStablesReco && stablesMatch ? parseInt(stablesMatch[1]) : undefined,
         priority: rec.priority || 'medium',
         title: rec.message || rec.title || rec.action,
         reason: rec.action || rec.message || 'Recommandation du régime de marché',
@@ -996,6 +1007,8 @@ export function deriveRecommendations(u) {
   if (flags.stables_high) {
     recos.push({
       key: 'reco:risk:stables_high',
+      topic: 'stables_allocation',
+      value: u.risk.budget.percentages?.stables,
       priority: 'medium',
       title: `Allocation stables: ${u.risk.budget.percentages?.stables}%`,
       reason: 'Budget de risque calculé par algorithme sophistiqué',
@@ -1003,6 +1016,40 @@ export function deriveRecommendations(u) {
       source: 'risk-budget'
     });
   }
+
+  // CONSOLIDATION DES RECOMMENDATIONS STABLES (même allocation = 1 seule carte)
+  function consolidateStablesRecommendations(recos) {
+    const stablesRecs = recos.filter(r => r.topic === 'stables_allocation');
+
+    if (stablesRecs.length <= 1) return recos; // Pas de duplication
+
+    const order = { critical: 0, high: 1, medium: 2, low: 3 };
+    const value = stablesRecs[0].value ?? stablesRecs[0].title?.match(/(\d+)%/)?.[1];
+    const sources = [...new Set(stablesRecs.map(r => r.source))];
+    const topPriority = stablesRecs.reduce((p, r) =>
+      order[p] <= order[r.priority] ? p : r.priority, 'medium'
+    );
+
+    const merged = {
+      key: `reco:stables:consensus:${value}`,
+      topic: 'stables_allocation',
+      value: value,
+      priority: topPriority,
+      title: `Allocation stables: ${value}%`,
+      subtitle: `Consensus confirmé par ${sources.length} sources`,
+      reason: stablesRecs.map(r => `• ${r.reason || r.title}`).join('\n'),
+      icon: '🎯',
+      source: sources.join(' + '),
+      consolidated: true,
+      sourceCount: sources.length
+    };
+
+    // Remplacer les N cartes par 1
+    return [merged, ...recos.filter(r => r.topic !== 'stables_allocation')];
+  }
+
+  // Appliquer consolidation
+  recos = consolidateStablesRecommendations(recos);
 
   // DÉDUPLICATION + TRI STABLE par clé canonique
   const prio = { critical: 0, high: 1, medium: 2, low: 3 };
