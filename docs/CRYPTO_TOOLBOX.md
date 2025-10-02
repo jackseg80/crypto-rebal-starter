@@ -307,7 +307,12 @@ WantedBy=multi-user.target
   - BMO special handling (multiple sub-indicators)
   - Operator evaluation (>=, <=, >, <)
   - Async Playwright calls (sync → async migration)
-- ⏳ Integration in `api/main.py` (Commit 4, behind feature flag)
+- ✅ **Router integrated in `api/main.py`** (behind feature flag)
+  - Feature flag: `CRYPTO_TOOLBOX_NEW` (0=Flask proxy, 1=FastAPI native)
+  - Default: 0 (legacy Flask proxy, safe)
+  - Router loaded conditionally with try/except
+  - Legacy proxy disabled when flag=1
+  - Logs clearly indicate active mode
 - ⏳ A/B testing & validation (Commit 6)
 - ⏳ Legacy Flask removal (Commit 8, after A/B validation)
 
@@ -338,5 +343,46 @@ WantedBy=multi-user.target
 
 ---
 
+## Feature Flag Usage
+
+### Environment Variable
+
+```bash
+# Default (legacy Flask proxy)
+export CRYPTO_TOOLBOX_NEW=0
+
+# New FastAPI native scraper
+export CRYPTO_TOOLBOX_NEW=1
+```
+
+### Testing A/B Switch
+
+```bash
+# Test with legacy (Flask proxy on port 8001)
+CRYPTO_TOOLBOX_NEW=0 uvicorn api.main:app --port 8000
+
+# Test with new (FastAPI native)
+CRYPTO_TOOLBOX_NEW=1 uvicorn api.main:app --port 8000
+
+# Compare outputs
+curl http://localhost:8000/api/crypto-toolbox | jq '.total_count'
+```
+
+### Startup Logs
+
+**Flag OFF (default)**:
+```
+📡 Crypto-Toolbox: Using Flask proxy (CRYPTO_TOOLBOX_NEW=0, legacy mode)
+```
+
+**Flag ON**:
+```
+🎭 Crypto-Toolbox: Using FastAPI native scraper (CRYPTO_TOOLBOX_NEW=1)
+🎭 Initializing Playwright browser...
+✅ Playwright browser launched successfully
+```
+
+---
+
 **Last updated**: 2025-10-02
-**Status**: Phase 3 - Parsing Logic Ported (Commit 3)
+**Status**: Phase 4 - Router Integrated with Feature Flag (Commit 4)

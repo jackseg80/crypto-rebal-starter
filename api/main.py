@@ -34,6 +34,11 @@ ENVIRONMENT = settings.environment
 ALLOW_STUB_SOURCES = (os.getenv("ALLOW_STUB_SOURCES", "false").strip().lower() == "true")
 COMPUTE_ON_STUB_SOURCES = (os.getenv("COMPUTE_ON_STUB_SOURCES", "false").strip().lower() == "true")
 
+# Feature flag: Crypto-Toolbox API (FastAPI native vs Flask proxy)
+# 0 = Flask proxy (legacy, default)
+# 1 = FastAPI native (new, Playwright async)
+CRYPTO_TOOLBOX_NEW = int(os.getenv("CRYPTO_TOOLBOX_NEW", "0"))
+
 # Config logger (dev-friendly by default) — initialize early so it's available in imports below
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL, logging.INFO),
@@ -427,30 +432,34 @@ async def request_logger(request: Request, call_next):
             )
 
 # ------------------------
-# Proxy: Crypto-Toolbox API
+# Proxy: Crypto-Toolbox API (Legacy Flask proxy, only if CRYPTO_TOOLBOX_NEW=0)
 # ------------------------
-@app.get("/api/crypto-toolbox")
-async def proxy_crypto_toolbox():
-    """
-    Proxy vers le backend Flask de scraping Crypto-Toolbox (port 8001 par défaut).
-    Le frontend appelle /api/crypto-toolbox sur le serveur FastAPI (8000),
-    et ce proxy relaie vers 127.0.0.1:8001 pour éviter tout souci d'origine/CORS.
-    """
-    target_base = os.getenv("CRYPTO_TOOLBOX_API_BASE", "http://127.0.0.1:8001")
-    target_url = f"{target_base.rstrip('/')}/api/crypto-toolbox"
-    try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            r = await client.get(target_url)
-        # Retourner la réponse telle quelle (statut + payload)
-        content_type = r.headers.get("content-type", "application/json")
-        return Response(content=r.content, status_code=r.status_code, media_type=content_type)
-    except httpx.RequestError as e:
-        logger.error(f"Crypto-Toolbox proxy error: {e}")
-        return JSONResponse(status_code=502, content={
-            "success": False,
-            "error": "upstream_unreachable",
-            "message": f"Crypto-Toolbox upstream not reachable at {target_url}",
-        })
+if not CRYPTO_TOOLBOX_NEW:
+    @app.get("/api/crypto-toolbox")
+    async def proxy_crypto_toolbox():
+        """
+        Proxy vers le backend Flask de scraping Crypto-Toolbox (port 8001 par défaut).
+        Le frontend appelle /api/crypto-toolbox sur le serveur FastAPI (8000),
+        et ce proxy relaie vers 127.0.0.1:8001 pour éviter tout souci d'origine/CORS.
+
+        Note: Ce proxy est actif uniquement si CRYPTO_TOOLBOX_NEW=0 (legacy mode).
+        Avec CRYPTO_TOOLBOX_NEW=1, le router FastAPI natif est utilisé.
+        """
+        target_base = os.getenv("CRYPTO_TOOLBOX_API_BASE", "http://127.0.0.1:8001")
+        target_url = f"{target_base.rstrip('/')}/api/crypto-toolbox"
+        try:
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                r = await client.get(target_url)
+            # Retourner la réponse telle quelle (statut + payload)
+            content_type = r.headers.get("content-type", "application/json")
+            return Response(content=r.content, status_code=r.status_code, media_type=content_type)
+        except httpx.RequestError as e:
+            logger.error(f"Crypto-Toolbox proxy error: {e}")
+            return JSONResponse(status_code=502, content={
+                "success": False,
+                "error": "upstream_unreachable",
+                "message": f"Crypto-Toolbox upstream not reachable at {target_url}",
+            })
 
 @app.get("/debug/paths")
 async def debug_paths():
@@ -1782,6 +1791,18 @@ app.include_router(unified_phase3_router)
 # Portfolio Analytics (refactored endpoints)
 from api.portfolio_endpoints import router as portfolio_router
 app.include_router(portfolio_router)
+
+# Crypto-Toolbox router (conditionally included based on feature flag)
+if CRYPTO_TOOLBOX_NEW:
+    try:
+        from api.crypto_toolbox_endpoints import router as crypto_toolbox_router
+        app.include_router(crypto_toolbox_router)
+        logger.info("🎭 Crypto-Toolbox: Using FastAPI native scraper (CRYPTO_TOOLBOX_NEW=1)")
+    except Exception as e:
+        logger.error(f"❌ Failed to load crypto_toolbox router: {e}")
+        logger.info("⚠️ Falling back to Flask proxy for crypto-toolbox")
+else:
+    logger.info("📡 Crypto-Toolbox: Using Flask proxy (CRYPTO_TOOLBOX_NEW=0, legacy mode)")
 
 # ---------- Legacy Portfolio Endpoints Removed ----------
 # Migrated to api/portfolio_endpoints.py:
