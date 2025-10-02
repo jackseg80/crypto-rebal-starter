@@ -1058,6 +1058,61 @@ async def health_detailed():
     }
 
 
+@app.get("/api/scheduler/health")
+async def scheduler_health():
+    """
+    Scheduler health check endpoint - shows status of all scheduled jobs.
+
+    Returns:
+        dict: Job status with last run time, duration, and errors
+    """
+    try:
+        from api.scheduler import get_scheduler, get_job_status
+
+        scheduler = get_scheduler()
+
+        if scheduler is None:
+            return {
+                "ok": False,
+                "enabled": False,
+                "message": "Scheduler not running (RUN_SCHEDULER != 1)",
+                "jobs": {}
+            }
+
+        # Get job status
+        job_status = get_job_status()
+
+        # Get next run times
+        jobs = scheduler.get_jobs()
+        next_runs = {}
+        for job in jobs:
+            next_runs[job.id] = {
+                "name": job.name,
+                "next_run": job.next_run_time.isoformat() if job.next_run_time else None
+            }
+
+        # Merge status with next runs
+        for job_id, status in job_status.items():
+            if job_id in next_runs:
+                status["next_run"] = next_runs[job_id]["next_run"]
+                status["name"] = next_runs[job_id]["name"]
+
+        return {
+            "ok": True,
+            "enabled": True,
+            "jobs_count": len(jobs),
+            "jobs": job_status,
+            "next_runs": next_runs
+        }
+
+    except Exception as e:
+        logger.exception("Failed to get scheduler health")
+        return {
+            "ok": False,
+            "error": str(e)
+        }
+
+
 @app.get("/schema")
 async def schema():
     """Fallback endpoint to expose OpenAPI schema if /openapi.json isn't reachable in your env."""

@@ -104,16 +104,30 @@ playwright install chromium
 
 3) Lancer l'API
 
-**Méthode recommandée** (scripts) :
+**Méthode recommandée** (scripts avec paramètres) :
 
 Linux/macOS:
 ```bash
+# Dev standard (hot reload, pas de scheduler)
 ./start_dev.sh
+
+# Avec scheduler activé (pas de hot reload)
+./start_dev.sh --enable-scheduler
 ```
 
 Windows (PowerShell):
 ```powershell
+# Dev standard (Playwright, pas de scheduler, pas de hot reload)
 .\start_dev.ps1
+
+# Avec scheduler activé (P&L snapshots, OHLCV updates automatiques)
+.\start_dev.ps1 -EnableScheduler
+
+# Mode Flask legacy avec hot reload
+.\start_dev.ps1 -CryptoToolboxMode 0 -Reload
+
+# Port personnalisé
+.\start_dev.ps1 -Port 8001
 ```
 
 **Méthode manuelle** :
