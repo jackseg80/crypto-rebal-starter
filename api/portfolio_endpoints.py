@@ -34,8 +34,8 @@ COMPUTE_ON_STUB_SOURCES = False
 # Helper to get resolve function dynamically
 def _get_resolve_balances():
     """Dynamic import to avoid circular dependency"""
-    from api.main import resolve_current_balances
-    return resolve_current_balances
+    from api.unified_data import get_unified_filtered_balances
+    return get_unified_filtered_balances
 
 
 def _to_rows(items):
@@ -46,7 +46,7 @@ def _to_rows(items):
         {
             "symbol": item.get("symbol", ""),
             "amount": item.get("amount", 0),
-            "usd_value": item.get("usd_value", 0),
+            "usd_value": item.get("value_usd", 0) or item.get("usd_value", 0),  # Support both formats
             "group": item.get("group", "Others")
         }
         for item in items
@@ -58,7 +58,8 @@ async def portfolio_metrics(
     source: str = Query("cointracking"),
     user_id: str = Query("demo"),
     anchor: str = Query("prev_snapshot"),  # "midnight", "prev_snapshot", "prev_close"
-    window: str = Query("24h")  # "24h", "7d", "30d", "ytd"
+    window: str = Query("24h"),  # "24h", "7d", "30d", "ytd"
+    min_usd: float = Query(1.0)  # Default 1.0 to match dashboard behavior
 ):
     """
     Métriques calculées du portfolio avec P&L configurable.
@@ -68,14 +69,15 @@ async def portfolio_metrics(
         user_id: ID utilisateur (demo, jack, etc.)
         anchor: Type d'ancre pour P&L ("midnight", "prev_snapshot", "prev_close")
         window: Fenêtre temporelle ("24h", "7d", "30d", "ytd")
+        min_usd: Seuil minimal USD (1.0 par défaut pour match dashboard)
 
     Returns:
         Métriques portfolio + performance vs ancre choisie
     """
     try:
-        # Récupérer les données de balance actuelles
+        # Récupérer les données de balance actuelles avec le même seuil que le dashboard
         resolve_func = _get_resolve_balances()
-        res = await resolve_func(source=source, user_id=user_id)
+        res = await resolve_func(source=source, user_id=user_id, min_usd=min_usd)
         rows = _to_rows(res.get("items", []))
         balances = {"source_used": res.get("source_used"), "items": rows}
 
@@ -106,13 +108,14 @@ async def portfolio_metrics(
 @router.post("/portfolio/snapshot")
 async def save_portfolio_snapshot(
     source: str = Query("cointracking"),
-    user_id: str = Query("demo")
+    user_id: str = Query("demo"),
+    min_usd: float = Query(1.0)  # Default 1.0 to match dashboard behavior
 ):
     """Sauvegarde un snapshot du portfolio pour suivi historique"""
     try:
-        # Récupérer les données actuelles
+        # Récupérer les données actuelles avec le même seuil que le dashboard
         resolve_func = _get_resolve_balances()
-        res = await resolve_func(source=source, user_id=user_id)
+        res = await resolve_func(source=source, user_id=user_id, min_usd=min_usd)
         rows = _to_rows(res.get("items", []))
         balances = {"source_used": res.get("source_used"), "items": rows}
 

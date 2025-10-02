@@ -33,5 +33,27 @@
       "ETH": 75000.0,
       "Others": 24500.0
     }
+  },
+  {
+    "date": "2025-10-02T11:12:04.334456+02:00",
+    "user_id": "jack",
+    "source": "cointracking_api",
+    "total_value_usd": 448992.16960301,
+    "asset_count": 191,
+    "group_count": 6,
+    "diversity_score": 5,
+    "top_holding_symbol": "BTC",
+    "top_holding_percentage": 0.39873657178552674,
+    "group_distribution": {
+      "Others": 85781.55603465003,
+      "L1/L0 majors": 41724.724083910005,
+      "BTC": 194450.80869967,
+      "ETH": 101221.8723662,
+      "Stablecoins": 23071.8175537,
+      "SOL": 2741.39086488
+    },
+    "valuation_currency": "USD",
+    "price_source": "cointracking_api",
+    "pricing_timestamp": "2025-10-02T11:12:04.334456+02:00"
   }
 ]
