@@ -63,6 +63,18 @@ Le projet implémente des mesures de sécurité robustes :
 python tools/security-check.py  # Validation complète
 ```
 
+## 🎭 Crypto-Toolbox Integration
+
+Scraping temps réel d'indicateurs de risque crypto (MVRV, BMO, Puell Multiple, etc.) depuis [crypto-toolbox.vercel.app](https://crypto-toolbox.vercel.app/signaux).
+
+- **Technologie** : Playwright (async browser automation) intégré nativement dans FastAPI
+- **Endpoint** : `GET /api/crypto-toolbox` (cache 30 min, <50ms cached, <5s fresh)
+- **Status** : ✅ Production (FastAPI native par défaut depuis migration 2025-10)
+- **Fallback** : Flask proxy disponible via `CRYPTO_TOOLBOX_NEW=0` (legacy)
+- **Compatibilité** : Python 3.13+ Windows/Linux (hot reload désactivé sur Windows pour compatibilité asyncio)
+
+**Documentation** : [docs/CRYPTO_TOOLBOX.md](docs/CRYPTO_TOOLBOX.md)
+
 ## Démarrage rapide
 Prérequis: Python 3.10+, pip, virtualenv
 
@@ -83,9 +95,31 @@ py -m venv .venv
 pip install -r requirements.txt
 copy env.example .env
 ```
-2) Lancer l'API
 
-**Important** : Toujours utiliser le Python du virtualenv pour avoir toutes les dépendances :
+2) Installer Playwright (optionnel, pour crypto-toolbox scraping)
+
+```bash
+pip install playwright
+playwright install chromium
+```
+
+3) Lancer l'API
+
+**Méthode recommandée** (scripts avec détection automatique) :
+
+Linux/macOS:
+```bash
+./start_dev.sh          # FastAPI native (défaut)
+./start_dev.sh 0        # Flask proxy (legacy)
+```
+
+Windows (PowerShell):
+```powershell
+.\start_dev.ps1                    # FastAPI native (défaut)
+.\start_dev.ps1 -CryptoToolboxMode 0   # Flask proxy (legacy)
+```
+
+**Méthode manuelle** :
 
 Linux/macOS:
 ```bash
@@ -94,7 +128,8 @@ uvicorn api.main:app --reload --port 8000
 
 Windows (PowerShell):
 ```powershell
-.venv\Scripts\python -m uvicorn api.main:app --reload --port 8000
+.venv\Scripts\python -m uvicorn api.main:app --port 8000
+# Note: --reload désactivé sur Windows pour compatibilité Playwright
 ```
 3) Ouvrir l’UI (servie par FastAPI)
 ```
