@@ -148,20 +148,49 @@ RUN playwright install chromium --with-deps
 
 ## Lifecycle Management
 
-### Startup
-1. FastAPI app starts (`api/main.py`)
-2. `startup_playwright()` called from `api/startup.py`
-3. Playwright launched, Chromium browser opened
-4. Browser kept alive for request reuse
+### Startup Sequence
+1. **FastAPI app starts** (`api/main.py`)
+2. **ML models initialize** (3s delay, background task)
+3. **Governance Engine** initialized
+4. **Alert Engine** scheduler started
+5. **Playwright browser** initialized (optional, non-blocking)
+   - Only if `api/crypto_toolbox_endpoints` successfully imported
+   - If fails → logs warning, browser lazy-launched on first request
+   - Memory footprint: ~200 MB (Chromium process)
 
-### Shutdown
-1. FastAPI shutdown event triggered
-2. `shutdown_playwright()` closes browser gracefully
-3. Playwright instance stopped
+**Order of initialization** (in `api/startup.py`):
+```python
+models_count = await initialize_ml_models()           # 1st
+governance_ok = await initialize_governance_engine()  # 2nd
+alerts_ok = await initialize_alert_engine()           # 3rd
+playwright_ok = await initialize_playwright_browser() # 4th (optional)
+```
 
-### Recovery
-- If browser crashes → auto re-launch on next request
-- Uses `browser.is_connected()` check before each scrape
+**Memory impact**:
+- Baseline (FastAPI + ML): ~300-400 MB
+- With Playwright browser: ~500-600 MB
+- Per request overhead: ~1-2 MB (page context)
+
+### Shutdown Sequence
+1. **FastAPI shutdown event** triggered (SIGTERM/SIGINT)
+2. **Alert Engine** scheduler stopped gracefully
+3. **Playwright browser** closed (if initialized)
+   - All pages closed
+   - Browser process terminated
+   - Playwright instance stopped
+4. **Cleanup complete** (logs confirmation)
+
+### Recovery & Resilience
+- **Browser crash**: Auto re-launch on next request
+  - `_ensure_browser()` checks `browser.is_connected()`
+  - New browser spawned if disconnected
+  - Request retried automatically
+- **Import failure**: Graceful degradation
+  - Startup continues even if Playwright fails
+  - Logs warning, endpoints return 502 until browser available
+- **Page timeout**: 15-second limit per scrape
+  - Request fails with HTTPException 502
+  - Cache serves stale data if available
 
 ---
 

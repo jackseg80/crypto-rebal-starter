@@ -112,6 +112,40 @@ async def initialize_alert_engine():
         return False
 
 
+async def initialize_playwright_browser():
+    """
+    Initialize Playwright browser for crypto-toolbox scraping (optional, disabled by default).
+
+    Returns:
+        bool: True if initialized successfully
+
+    Note:
+        - Only initializes if crypto_toolbox router is enabled in api/main.py
+        - Browser launched in headless mode, shared across requests
+        - Auto-recovery on crash (lazy re-launch)
+        - Memory: ~150-200 MB (Chromium process)
+    """
+    try:
+        # Check if crypto_toolbox module is available
+        try:
+            from api.crypto_toolbox_endpoints import startup_playwright
+        except ImportError:
+            logger.debug("⏭️ crypto_toolbox_endpoints not available, skipping Playwright init")
+            return False
+
+        logger.info("🎭 Initializing Playwright browser for crypto-toolbox scraping...")
+        await startup_playwright()
+        logger.info("✅ Playwright browser initialized successfully (~200 MB memory)")
+
+        return True
+
+    except Exception as e:
+        logger.warning(f"⚠️ Playwright initialization failed (non-blocking): {e}")
+        logger.info("📊 crypto-toolbox endpoints will use lazy browser launch on first request")
+        # Don't crash the app, browser will be launched on first request
+        return False
+
+
 async def background_startup_tasks():
     """
     Background task to initialize ML models, Governance, and Alerts.
@@ -133,11 +167,16 @@ async def background_startup_tasks():
             # Initialize Alert Engine
             alerts_ok = await initialize_alert_engine()
 
+            # Initialize Playwright (optional, for crypto-toolbox scraping)
+            # Note: Browser not launched unless router enabled in api/main.py
+            playwright_ok = await initialize_playwright_browser()
+
             logger.info(
                 f"🎯 Startup complete: "
                 f"ML={models_count} models, "
                 f"Governance={'✅' if governance_ok else '⚠️'}, "
-                f"Alerts={'✅' if alerts_ok else '⚠️'}"
+                f"Alerts={'✅' if alerts_ok else '⚠️'}, "
+                f"Playwright={'✅' if playwright_ok else '⏭️'}"
             )
 
     except Exception as e:
@@ -192,6 +231,16 @@ def get_shutdown_handler():
                     logger.info("✅ AlertEngine scheduler stopped")
             except Exception as e:
                 logger.warning(f"⚠️ Alert engine cleanup failed: {e}")
+
+            # Close Playwright browser if initialized
+            try:
+                from api.crypto_toolbox_endpoints import shutdown_playwright
+                await shutdown_playwright()
+                logger.info("✅ Playwright browser closed")
+            except ImportError:
+                pass  # Module not loaded, nothing to clean up
+            except Exception as e:
+                logger.warning(f"⚠️ Playwright cleanup failed: {e}")
 
             logger.info("✅ Shutdown complete")
 
