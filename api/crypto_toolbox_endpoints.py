@@ -172,26 +172,50 @@ async def _ensure_browser() -> Browser:
 
 
 # ============================================================================
-# Scraping Logic (TODO: Port from Flask)
+# Scraping Logic (Ported from crypto_toolbox_api.py)
 # ============================================================================
+
+def _parse_comparison(txt: str) -> tuple:
+    """
+    Parse comparison operators and thresholds (e.g., ">=80", "<=20").
+
+    Args:
+        txt: Threshold text (e.g., ">=80 (critical)")
+
+    Returns:
+        Tuple (operator, threshold_value) or (None, None) if no match
+    """
+    import re
+    m = re.search(r'(>=|<=|>|<)\s*([\d.,]+)', txt.replace(',', ''))
+    return (m.group(1), float(m.group(2))) if m else (None, None)
+
 
 async def _scrape_crypto_toolbox() -> Dict[str, Any]:
     """
-    Scrape crypto-toolbox.vercel.app indicators.
+    Scrape crypto-toolbox.vercel.app indicators with Playwright.
+
+    Parsing logic ported from crypto_toolbox_api.py (Flask version).
+    Handles special cases:
+    - BMO (par Prof. Chaîne): Multiple sub-indicators
+    - Comparison operators: >=, <=, >, <
+    - Numeric value extraction with regex
 
     Returns:
-        Dict with structure defined in module docstring
+        Dict with structure:
+        {
+            "success": True,
+            "indicators": [...],
+            "total_count": int,
+            "critical_count": int,
+            "scraped_at": ISO timestamp,
+            "source": "crypto-toolbox.vercel.app"
+        }
 
     Raises:
-        Exception: If scraping fails
-
-    TODO:
-    - Port parsing logic from crypto_toolbox_api.py
-    - Handle BMO special case (multiple sub-indicators)
-    - Parse comparison operators (>=, <=, >, <)
-    - Extract numeric values and thresholds
-    - Calculate in_critical_zone for each indicator
+        Exception: If scraping fails (page load, parsing errors)
     """
+    import re
+
     browser = await _ensure_browser()
 
     async with _concurrency:
@@ -202,15 +226,72 @@ async def _scrape_crypto_toolbox() -> Dict[str, Any]:
             await page.wait_for_load_state("networkidle")
             await asyncio.sleep(2)  # Extra delay for client-side hydration
 
-            # TODO: Port parsing logic here
-            # rows = await page.locator("table tbody tr").all()
-            # indicators = []
-            # for row in rows:
-            #     cells = await row.locator("td").all()
-            #     # ... parsing logic ...
+            # Parse table rows
+            rows = await page.locator("table tbody tr").all()
+            logger.info(f"🔍 Found {len(rows)} table rows")
 
-            # Placeholder response
             indicators = []
+
+            for row in rows:
+                cells = await row.locator("td").all()
+                if len(cells) < 3:
+                    continue
+
+                name = (await cells[0].inner_text()).strip()
+                val_raw = (await cells[1].inner_text()).strip()
+                thr_raw = (await cells[2].inner_text()).strip()
+
+                logger.debug(f"Raw row: {name} | {val_raw} | {thr_raw}")
+
+                # Special handling for BMO (multiple sub-indicators)
+                if name == "BMO (par Prof. Chaîne)":
+                    vals = re.findall(r'[\d.]+', val_raw.replace(',', ''))
+                    thrs = re.findall(r'(>=?\s*[\d.]+)\s*\(([^)]+)\)', thr_raw)
+
+                    for v_str, (thr_str, label) in zip(vals, thrs):
+                        val = float(v_str)
+                        op, thr = _parse_comparison(thr_str)
+                        in_zone = (op == '>=' and val >= thr) or (op == '>' and val > thr)
+
+                        indicators.append({
+                            'name': f"{name} ({label})",
+                            'value': v_str,
+                            'value_numeric': val,
+                            'threshold': thr_str,
+                            'threshold_numeric': thr,
+                            'in_critical_zone': in_zone,
+                            'raw_value': val_raw,
+                            'raw_threshold': thr_raw
+                        })
+                    continue
+
+                # Normal indicator processing
+                val_match = re.search(r'[\d.,]+', val_raw.replace(',', ''))
+                if val_match:
+                    val = float(val_match.group())
+                    op, thr = _parse_comparison(thr_raw)
+
+                    if op is not None:
+                        in_zone = {
+                            '>=': val >= thr,
+                            '<=': val <= thr,
+                            '>': val > thr,
+                            '<': val < thr
+                        }.get(op, False)
+
+                        indicators.append({
+                            'name': name,
+                            'value': val_raw.replace('\n', ' '),
+                            'value_numeric': val,
+                            'threshold': thr_raw.replace('\n', ' '),
+                            'threshold_numeric': thr,
+                            'threshold_operator': op,
+                            'in_critical_zone': in_zone,
+                            'raw_value': val_raw,
+                            'raw_threshold': thr_raw
+                        })
+
+            logger.info(f"✅ Successfully scraped {len(indicators)} indicators")
 
             return {
                 "success": True,

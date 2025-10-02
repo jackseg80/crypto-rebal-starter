@@ -301,10 +301,26 @@ WantedBy=multi-user.target
 ### Current State
 - ✅ Router skeleton created (`api/crypto_toolbox_endpoints.py`)
 - ✅ Contract documented (JSON schema, invariants)
-- ✅ Lifecycle hooks defined (startup/shutdown)
-- ⏳ Parsing logic (to be ported from Flask in Commit 3)
+- ✅ Lifecycle hooks integrated (`api/startup.py`)
+- ✅ **Parsing logic ported from Flask** (100% parity)
+  - `_parse_comparison()` function (regex-based)
+  - BMO special handling (multiple sub-indicators)
+  - Operator evaluation (>=, <=, >, <)
+  - Async Playwright calls (sync → async migration)
 - ⏳ Integration in `api/main.py` (Commit 4, behind feature flag)
+- ⏳ A/B testing & validation (Commit 6)
 - ⏳ Legacy Flask removal (Commit 8, after A/B validation)
+
+### Parsing Parity
+
+**Validated** against `crypto_toolbox_api.py`:
+- ✅ Regex patterns identical
+- ✅ BMO multi-indicator logic identical
+- ✅ Numeric extraction identical
+- ✅ Threshold parsing identical
+- ✅ JSON structure identical
+
+**See**: `docs/CRYPTO_TOOLBOX_PARITY.md` for detailed checklist
 
 ### Rollback Strategy
 - **Before Commit 4**: No impact (router not included)
@@ -315,11 +331,12 @@ WantedBy=multi-user.target
 
 ## References
 
-- **Original Flask implementation**: `crypto_toolbox_api.py` (to be removed)
-- **Proxy endpoint**: `api/main.py:432-447` (to be removed)
+- **Original Flask implementation**: `crypto_toolbox_api.py` (to be removed in Commit 8)
+- **Proxy endpoint**: `api/main.py:432-447` (to be removed in Commit 8)
+- **Parity validation**: `docs/CRYPTO_TOOLBOX_PARITY.md`
 - **Target site**: https://crypto-toolbox.vercel.app/signaux
 
 ---
 
 **Last updated**: 2025-10-02
-**Status**: Phase 1 - Router Skeleton (Commit 1)
+**Status**: Phase 3 - Parsing Logic Ported (Commit 3)
