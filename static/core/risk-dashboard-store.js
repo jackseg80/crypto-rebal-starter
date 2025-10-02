@@ -237,11 +237,33 @@ const storeActions = {
     return false;
   },
 
+  // Last-good fallback pour 429 rate limiting
+  _lastGoodMLSignals: null,
+  _mlSignalsBackoffDelay: 1000,
+
   async syncMLSignals() {
     try {
       const response = await fetch(`${window.location.origin}/execution/governance/signals`);
+
+      // Rate limited: use last-good snapshot avec backoff exponentiel
+      if (response.status === 429) {
+        console.warn('⚠️ Rate limited (429), using last-good ML signals snapshot');
+        this._mlSignalsBackoffDelay = Math.min(this._mlSignalsBackoffDelay * 2, 30000);
+
+        // Retourner last-good si disponible
+        if (this._lastGoodMLSignals) {
+          return this._lastGoodMLSignals;
+        }
+        return null;
+      }
+
       if (response.ok) {
         const data = await response.json();
+
+        // Sauvegarder last-good snapshot
+        this._lastGoodMLSignals = data.signals;
+        this._mlSignalsBackoffDelay = 1000; // Reset backoff
+
         this.update({
           'governance.ml_signals': data.signals,
           'governance.last_sync': Date.now()
@@ -255,6 +277,12 @@ const storeActions = {
     } catch (error) {
       console.error('Failed to sync ML signals:', error);
       this.update({ 'ui.errors': [...(getState().ui.errors || []), `ML signals sync error: ${error.message}`] });
+
+      // Graceful degradation: retourner last-good si disponible
+      if (this._lastGoodMLSignals) {
+        console.warn('⚠️ Using last-good ML signals after error');
+        return this._lastGoodMLSignals;
+      }
     }
     return null;
   },

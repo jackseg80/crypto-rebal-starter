@@ -245,18 +245,24 @@ export async function getUnifiedState() {
     };
   }
 
-  // 2. REGIME INTELLIGENCE (conservé identique)
+  // 2. REGIME INTELLIGENCE avec scores arrondis pour stabilité
   let regimeData;
   try {
     if (blendedScore != null) {
-      regimeData = getRegimeDisplayData(blendedScore, onchainScore, riskScore);
+      // ARRONDIR les scores pour éviter micro-variations (68.3 vs 68.7 → même regime)
+      const blendedRounded = Math.round(blendedScore);
+      const onchainRounded = onchainScore != null ? Math.round(onchainScore) : null;
+      const riskRounded = riskScore != null ? Math.round(riskScore) : null;
+
+      regimeData = getRegimeDisplayData(blendedRounded, onchainRounded, riskRounded);
       console.debug('✅ Regime Intelligence loaded:', {
         regimeName: regimeData.regime?.name,
         recommendationsCount: regimeData.recommendations?.length,
         hasRiskBudget: !!regimeData.risk_budget,
         riskBudgetKeys: regimeData.risk_budget ? Object.keys(regimeData.risk_budget) : null,
         stablesAllocation: regimeData.risk_budget?.stables_allocation,
-        targetStablesPct: regimeData.risk_budget?.target_stables_pct
+        targetStablesPct: regimeData.risk_budget?.target_stables_pct,
+        scoresUsed: { blended: blendedRounded, onchain: onchainRounded, risk: riskRounded }
       });
     } else {
       regimeData = { regime: getMarketRegime(50), recommendations: [], risk_budget: null };
@@ -799,32 +805,119 @@ export async function getUnifiedState() {
 }
 
 /**
- * Dérivation des recommandations (conservée identique pour compatibilité)
+ * Génère un ID de snapshot basé sur les données stables (pas les timestamps auto-générés)
+ */
+function snapshotId(u) {
+  return JSON.stringify({
+    user: u.user?.id || localStorage.getItem('activeUser') || 'demo',
+    source: u.meta?.data_source,
+    // Scores arrondis pour stabilité (pas de timestamps qui changent)
+    blended: Math.round(u.decision?.score || 50),
+    onchain: Math.round(u.scores?.onchain || 50),
+    risk: Math.round(u.scores?.risk || 50),
+    cycle: Math.round(u.scores?.cycle || 50),
+    // Governance stable
+    contradiction: Math.round((u.governance?.contradiction_index || 0) * 100),
+    // Risk budget stable (arrondi)
+    stables_alloc: Math.round((u.risk?.budget?.stables_allocation || 0) * 100),
+    // Regime key (pas timestamp)
+    regime_key: u.regime?.key,
+    // Strategy template (pas generated_at)
+    strategy_template: u.strategy?.template_used
+  });
+}
+
+// Cache snapshot-based avec TTL 30s
+let _recoCache = { snapshotId: null, recos: null, timestamp: 0 };
+
+/**
+ * Dérivation des recommandations avec cache snapshot-based et stabilité renforcée
  */
 export function deriveRecommendations(u) {
-  console.debug('🧠 DERIVING INTELLIGENT RECOMMENDATIONS V2');
-  
+  // Vérifier cache snapshot d'abord
+  const currentSnapshotId = snapshotId(u);
+  const now = Date.now();
+
+  if (_recoCache.snapshotId === currentSnapshotId && now - _recoCache.timestamp < 30000) {
+    console.debug('🎯 Recommendations from snapshot cache:', _recoCache.recos.length);
+    return _recoCache.recos;
+  }
+
+  console.debug('🧠 DERIVING INTELLIGENT RECOMMENDATIONS V2 - Snapshot:', currentSnapshotId.substring(0, 120) + '...');
+  console.debug('📊 Snapshot Key Factors:', {
+    blended: Math.round(u.decision?.score || 50),
+    onchain: Math.round(u.scores?.onchain || 50),
+    risk: Math.round(u.scores?.risk || 50),
+    cycle: Math.round(u.scores?.cycle || 50),
+    contradiction: Math.round((u.governance?.contradiction_index || 0) * 100),
+    stables_alloc: Math.round((u.risk?.budget?.stables_allocation || 0) * 100),
+    regime_key: u.regime?.key
+  });
+
   let recos = [];
 
-  // 1. USE STRATEGY API TARGETS si disponibles
+  // 1. USE STRATEGY API TARGETS avec primary stable (tie-breaker)
   if (u.strategy?.targets?.length > 0) {
-    const primaryTarget = u.strategy.targets.reduce((max, target) => 
-      target.weight > max.weight ? target : max
+    // Tri stable: poids DESC puis symbol ASC
+    const targets = [...u.strategy.targets].sort((a,b) =>
+      (b.weight - a.weight) || (a.symbol||'').localeCompare(b.symbol||'')
     );
-    
+
+    let primaryTarget = targets[0];
+    const prevPrimary = window.__prevPrimaryTarget;
+
+    // Hysteresis: si écart < 0.5% avec 2e, garder l'ancien (éviter flip visuel)
+    if (prevPrimary && targets[1] && Math.abs(primaryTarget.weight - targets[1].weight) < 0.005) {
+      const prevStillTop = targets.find(t => t.symbol === prevPrimary.symbol);
+      if (prevStillTop && prevStillTop.weight >= targets[0].weight - 0.005) {
+        primaryTarget = prevStillTop;
+      }
+    }
+    window.__prevPrimaryTarget = primaryTarget;
+
+    const isStablesTarget = /stablecoin/i.test(primaryTarget.symbol);
+    const allocPct = Math.round(primaryTarget.weight * 100);
+
     recos.push({
+      key: `reco:strategy:primary:${primaryTarget.symbol}`,  // Clé canonique stable
+      topic: isStablesTarget ? 'stables_allocation' : undefined,
+      value: isStablesTarget ? allocPct : undefined,
       priority: 'high',
-      title: `Allocation ${primaryTarget.symbol}: ${Math.round(primaryTarget.weight * 100)}%`,
+      title: `Allocation ${primaryTarget.symbol}: ${allocPct}%`,
       reason: primaryTarget.rationale || `Suggestion ${u.strategy.template_used}`,
       icon: '🎯',
       source: 'strategy-api'
     });
   }
 
-  // 2. USE REGIME RECOMMENDATIONS (conservé)
+  // 2. USE REGIME RECOMMENDATIONS avec clés canoniques
   if (u.intelligence?.regimeRecommendations?.length > 0) {
     u.intelligence.regimeRecommendations.forEach(rec => {
+      // Générer clé stable basée sur type + message
+      const regimeKey = rec.type || 'general';
+      const msgHash = (rec.message || rec.action || '').toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 30);
+
+      // Extract stables percentage if mentioned (check BOTH message AND action)
+      const messageText = rec.message || '';
+      const actionText = rec.action || '';
+      const combinedText = messageText + ' ' + actionText;
+      const stablesMatch = combinedText.match(/(\d+)%/);
+      const isStablesReco = /stables?/i.test(combinedText);
+
+      // DEBUG: Log detection
+      if (isStablesReco) {
+        console.log('[CONSOLIDATION DEBUG] Regime stables reco detected:', {
+          message: rec.message,
+          action: rec.action,
+          stablesMatch: stablesMatch?.[1],
+          isStablesReco
+        });
+      }
+
       recos.push({
+        key: `reco:regime:${regimeKey}:${msgHash}`,
+        topic: isStablesReco ? 'stables_allocation' : undefined,
+        value: isStablesReco && stablesMatch ? parseInt(stablesMatch[1]) : undefined,
         priority: rec.priority || 'medium',
         title: rec.message || rec.title || rec.action,
         reason: rec.action || rec.message || 'Recommandation du régime de marché',
@@ -834,11 +927,12 @@ export function deriveRecommendations(u) {
     });
   }
 
-  // 3. CYCLE-BASED RECOMMENDATIONS (conservé)
+  // 3. CYCLE-BASED RECOMMENDATIONS avec clés canoniques
   if (u.cycle?.phase?.phase) {
     const phase = u.cycle.phase.phase;
     if (phase === 'peak' && u.decision.score > 75) {
       recos.push({
+        key: 'reco:cycle:peak_profits',
         priority: 'high',
         title: 'Prendre des profits progressifs',
         reason: `Phase ${u.cycle.phase.description} + Score élevé`,
@@ -847,6 +941,7 @@ export function deriveRecommendations(u) {
       });
     } else if (phase === 'accumulation' && u.decision.score < 40) {
       recos.push({
+        key: 'reco:cycle:accumulation',
         priority: 'medium',
         title: 'Accumuler positions de qualité',
         reason: `Phase ${u.cycle.phase.description} + Score bas`,
@@ -856,11 +951,12 @@ export function deriveRecommendations(u) {
     }
   }
 
-  // 4. STRATEGY API POLICY HINTS (NOUVEAU)
+  // 4. STRATEGY API POLICY HINTS avec clés canoniques
   if (u.strategy?.policy_hint) {
     const policyHint = u.strategy.policy_hint;
     if (policyHint === 'Slow') {
       recos.push({
+        key: 'reco:policy:slow',
         priority: 'medium',
         title: 'Approche prudente recommandée',
         reason: 'Signaux contradictoires ou confiance faible détectée',
@@ -869,7 +965,8 @@ export function deriveRecommendations(u) {
       });
     } else if (policyHint === 'Aggressive') {
       recos.push({
-        priority: 'high', 
+        key: 'reco:policy:aggressive',
+        priority: 'high',
         title: 'Opportunité d\'allocation agressive',
         reason: 'Score élevé et signaux cohérents',
         icon: '⚡',
@@ -878,24 +975,36 @@ export function deriveRecommendations(u) {
     }
   }
 
-  // 5. CONTRADICTION ALERTS (conservé + governance unifiée)
+  // 5. CONTRADICTION ALERTS avec hysteresis + clés canoniques
   const governanceContradiction = u.governance?.contradiction_index || 0;
   const onchainContradictions = u.contradictions?.length || 0;
 
-  // Utiliser governance.contradiction_index comme source primaire (plus fiable)
-  if (governanceContradiction > 0.3) {
+  // Init flags hysteresis
+  if (!window.__recoFlags) window.__recoFlags = {};
+  const flags = window.__recoFlags;
+
+  // Fonction flip pour Schmitt trigger
+  const flip = (prev, val, up, down) => prev ? (val > down) : (val >= up);
+
+  // Hysteresis sur contradiction governance (up=0.35, down=0.25)
+  flags.contradiction_high = flip(flags.contradiction_high, governanceContradiction, 0.35, 0.25);
+
+  if (flags.contradiction_high) {
+    const isVeryHigh = governanceContradiction > 0.7;
     recos.push({
-      priority: governanceContradiction > 0.7 ? 'high' : 'medium',
+      key: isVeryHigh ? 'reco:gov:contradiction_very_high' : 'reco:gov:contradiction_high',
+      priority: isVeryHigh ? 'high' : 'medium',
       title: `Signaux contradictoires: ${Math.round(governanceContradiction * 100)}%`,
-      reason: governanceContradiction > 0.7 ?
+      reason: isVeryHigh ?
         'Forte contradiction détectée - approche prudente recommandée' :
         'Contradiction modérée détectée entre sources',
-      icon: governanceContradiction > 0.7 ? '🚨' : '⚡',
+      icon: isVeryHigh ? '🚨' : '⚡',
       source: 'governance-contradiction'
     });
-  } else if (onchainContradictions > 0) {
-    // Fallback vers contradictions on-chain si governance faible
+  } else if (onchainContradictions > 0 && governanceContradiction < 0.25) {
+    // Fallback vers contradictions on-chain seulement si governance très faible
     recos.push({
+      key: 'reco:onchain:contradiction',
       priority: 'medium',
       title: 'Signaux on-chain contradictoires détectés',
       reason: `${onchainContradictions} divergence(s) entre indicateurs`,
@@ -904,9 +1013,15 @@ export function deriveRecommendations(u) {
     });
   }
 
-  // 6. RISK BUDGET RECOMMENDATIONS (conservé)
-  if (u.risk?.budget?.stables_allocation > 0.4) {
+  // 6. RISK BUDGET RECOMMENDATIONS avec hysteresis (up=0.45, down=0.37)
+  const stablesAlloc = u.risk?.budget?.stables_allocation || 0;
+  flags.stables_high = flip(flags.stables_high, stablesAlloc, 0.45, 0.37);
+
+  if (flags.stables_high) {
     recos.push({
+      key: 'reco:risk:stables_high',
+      topic: 'stables_allocation',
+      value: u.risk.budget.percentages?.stables,
       priority: 'medium',
       title: `Allocation stables: ${u.risk.budget.percentages?.stables}%`,
       reason: 'Budget de risque calculé par algorithme sophistiqué',
@@ -915,8 +1030,85 @@ export function deriveRecommendations(u) {
     });
   }
 
-  console.debug('🎯 Recommendations derived:', recos.length, 'from', [...new Set(recos.map(r => r.source))].join(', '));
-  return recos;
+  // CONSOLIDATION DES RECOMMENDATIONS STABLES (même allocation = 1 seule carte)
+  function consolidateStablesRecommendations(recos) {
+    const stablesRecs = recos.filter(r => r.topic === 'stables_allocation');
+
+    // DEBUG: Log all stables recommendations detected
+    console.log('[CONSOLIDATION DEBUG] Stables recommendations found:', {
+      count: stablesRecs.length,
+      recos: stablesRecs.map(r => ({
+        key: r.key,
+        topic: r.topic,
+        value: r.value,
+        title: r.title,
+        reason: r.reason,
+        source: r.source
+      }))
+    });
+
+    if (stablesRecs.length <= 1) return recos; // Pas de duplication
+
+    const order = { critical: 0, high: 1, medium: 2, low: 3 };
+    const value = stablesRecs[0].value ?? stablesRecs[0].title?.match(/(\d+)%/)?.[1];
+    const sources = [...new Set(stablesRecs.map(r => r.source))];
+    const topPriority = stablesRecs.reduce((p, r) =>
+      order[p] <= order[r.priority] ? p : r.priority, 'medium'
+    );
+
+    // Mapper les sources à des labels lisibles
+    const sourceLabels = {
+      'strategy-api': 'Strategy',
+      'regime-intelligence': 'Regime',
+      'risk-budget': 'Risk'
+    };
+
+    const merged = {
+      key: `reco:stables:consensus:${value}`,
+      topic: 'stables_allocation',
+      value: value,
+      priority: topPriority,
+      title: `Allocation stables: ${value}%`,
+      subtitle: `Consensus confirmé par ${sources.length} sources`,
+      reason: stablesRecs.map(r => {
+        const sourceLabel = sourceLabels[r.source] || r.source;
+        return `• ${sourceLabel}: ${r.reason || r.title}`;
+      }).join('\n'),
+      icon: '🎯',
+      source: sources.join(' + '),
+      consolidated: true,
+      sourceCount: sources.length
+    };
+
+    console.log('[CONSOLIDATION DEBUG] Merged recommendation:', merged);
+
+    // Remplacer les N cartes par 1
+    return [merged, ...recos.filter(r => r.topic !== 'stables_allocation')];
+  }
+
+  // Appliquer consolidation
+  recos = consolidateStablesRecommendations(recos);
+
+  // DÉDUPLICATION + TRI STABLE par clé canonique
+  const prio = { critical: 0, high: 1, medium: 2, low: 3 };
+  const uniqueRecos = Array.from(new Map(recos.map(r => [r.key, r])).values())
+    .sort((a,b) =>
+      (prio[a.priority] - prio[b.priority]) ||
+      (a.source||'').localeCompare(b.source||'') ||
+      (a.key||'').localeCompare(b.key||'')
+    );
+
+  // Sauvegarder dans cache snapshot
+  _recoCache = {
+    snapshotId: currentSnapshotId,
+    recos: uniqueRecos,
+    timestamp: now
+  };
+
+  console.debug('🎯 Recommendations derived:', uniqueRecos.length, 'unique from', [...new Set(uniqueRecos.map(r => r.source))].join(', '));
+  console.debug('🔑 Snapshot ID:', currentSnapshotId.substring(0, 80) + '...');
+
+  return uniqueRecos;
 }
 
 // Exports pour compatibilité

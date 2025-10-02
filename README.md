@@ -63,6 +63,17 @@ Le projet implémente des mesures de sécurité robustes :
 python tools/security-check.py  # Validation complète
 ```
 
+## 🎭 Crypto-Toolbox Integration
+
+Scraping temps réel d'indicateurs de risque crypto (MVRV, BMO, Puell Multiple, etc.) depuis [crypto-toolbox.vercel.app](https://crypto-toolbox.vercel.app/signaux).
+
+- **Technologie** : Playwright (async browser automation) intégré nativement dans FastAPI
+- **Endpoint** : `GET /api/crypto-toolbox` (cache 30 min, <50ms cached, <5s fresh)
+- **Status** : ✅ Production (migration Flask → FastAPI complétée Oct 2025)
+- **Compatibilité** : Python 3.13+ Windows/Linux (hot reload désactivé sur Windows pour compatibilité asyncio)
+
+**Documentation** : [docs/CRYPTO_TOOLBOX.md](docs/CRYPTO_TOOLBOX.md)
+
 ## Démarrage rapide
 Prérequis: Python 3.10+, pip, virtualenv
 
@@ -83,9 +94,43 @@ py -m venv .venv
 pip install -r requirements.txt
 copy env.example .env
 ```
-2) Lancer l'API
 
-**Important** : Toujours utiliser le Python du virtualenv pour avoir toutes les dépendances :
+2) Installer Playwright (optionnel, pour crypto-toolbox scraping)
+
+```bash
+pip install playwright
+playwright install chromium
+```
+
+3) Lancer l'API
+
+**Méthode recommandée** (scripts avec paramètres) :
+
+Linux/macOS:
+```bash
+# Dev standard (hot reload, pas de scheduler)
+./start_dev.sh
+
+# Avec scheduler activé (pas de hot reload)
+./start_dev.sh --enable-scheduler
+```
+
+Windows (PowerShell):
+```powershell
+# Dev standard (Playwright, pas de scheduler, pas de hot reload)
+.\start_dev.ps1
+
+# Avec scheduler activé (P&L snapshots, OHLCV updates automatiques)
+.\start_dev.ps1 -EnableScheduler
+
+# Mode Flask legacy avec hot reload
+.\start_dev.ps1 -CryptoToolboxMode 0 -Reload
+
+# Port personnalisé
+.\start_dev.ps1 -Port 8001
+```
+
+**Méthode manuelle** :
 
 Linux/macOS:
 ```bash
@@ -94,7 +139,8 @@ uvicorn api.main:app --reload --port 8000
 
 Windows (PowerShell):
 ```powershell
-.venv\Scripts\python -m uvicorn api.main:app --reload --port 8000
+.venv\Scripts\python -m uvicorn api.main:app --port 8000
+# Note: --reload désactivé sur Windows pour compatibilité Playwright
 ```
 3) Ouvrir l’UI (servie par FastAPI)
 ```

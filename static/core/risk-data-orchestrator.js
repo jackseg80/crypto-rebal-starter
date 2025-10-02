@@ -4,8 +4,17 @@
 
 import { fetchAndComputeCCS, interpretCCS, DEFAULT_CCS_WEIGHTS } from '../modules/signals-engine.js';
 import { estimateCyclePosition, blendCCS, getCyclePhase } from '../modules/cycle-navigator.js';
-import { fetchAllIndicators, calculateCompositeScore, enhanceCycleScore } from '../modules/onchain-indicators.js';
+import { fetchAllIndicators, enhanceCycleScore } from '../modules/onchain-indicators.js';
+import { calculateCompositeScoreV2 } from '../modules/composite-score-v2.js';
 import { getRegimeDisplayData } from '../modules/market-regimes.js';
+
+// ✅ Singleton guard: empêche doubles initialisations
+if (window.__risk_orchestrator_init) {
+  console.log('⚠️ Risk orchestrator already initialized, skipping duplicate');
+} else {
+  window.__risk_orchestrator_init = true;
+  console.log('✅ Risk orchestrator initialized (singleton)');
+}
 
 /**
  * Hydrate le risk store avec toutes les métriques calculées
@@ -22,6 +31,14 @@ export async function hydrateRiskStore() {
 
   console.log('🔄 Starting risk store hydration...');
   const startTime = performance.now();
+
+  // ✅ Détecter hard refresh (Ctrl+Shift+R) pour forcer cache bust
+  const isHardRefresh = performance.navigation?.type === 1 ||
+                        performance.getEntriesByType?.('navigation')?.[0]?.type === 'reload';
+  const forceRefresh = isHardRefresh || false;
+  if (forceRefresh) {
+    console.log('🔄 Hard refresh detected, forcing cache refresh');
+  }
 
   try {
     // Fetch alerts (asynchrone, indépendant des autres calculs)
@@ -126,7 +143,7 @@ export async function hydrateRiskStore() {
           return null;
         }
       }),
-      fetchAllIndicators().catch(err => {
+      fetchAllIndicators({ force: forceRefresh }).catch(err => {
         console.warn('⚠️ On-chain indicators fetch failed:', err);
         return null;
       }),
@@ -154,12 +171,12 @@ export async function hydrateRiskStore() {
       ccs = { ...ccs, interpretation: interpretCCS(ccs.score) };
     }
 
-    // Calculer score composite on-chain
+    // Calculer score composite on-chain avec V2 (plus précis, dynamic weighting always enabled)
     let onchainScore = null;
     if (indicators && Object.keys(indicators).length > 0) {
       try {
-        const compositeResult = calculateCompositeScore(indicators);
-        // calculateCompositeScore returns { score, confidence, contributors, ... }
+        const compositeResult = calculateCompositeScoreV2(indicators, true);
+        // calculateCompositeScoreV2 returns { score, confidence, contributors, ... }
         onchainScore = compositeResult?.score ?? null;
       } catch (err) {
         console.warn('⚠️ On-chain composite score calculation failed:', err);
@@ -170,15 +187,42 @@ export async function hydrateRiskStore() {
     const currentState = window.riskStore.getState();
 
     // Calculer blended score (CCS + Cycle)
-    let blendedScore = null;
+    // Blend CCS with Cycle to get ccsStar
+    let ccsStar = null;
     if (ccs && cycle) {
       try {
         const blendResult = blendCCS(ccs.score, cycle.months || 18);
         // blendCCS returns { originalCCS, cycleScore, blendedCCS, cycleWeight, phase }
-        blendedScore = blendResult?.blendedCCS ?? null;
+        ccsStar = blendResult?.blendedCCS ?? null;
       } catch (err) {
-        console.warn('⚠️ Blended score calculation failed:', err);
+        console.warn('⚠️ CCS blend calculation failed:', err);
       }
+    }
+
+    // Calculate final blended score (CCS*0.5 + OnChain*0.3 + Risk*0.2)
+    let blendedScore = null;
+    if (ccsStar !== null || onchainScore !== null || riskScore !== null) {
+      const wCCS = 0.50;
+      const wOnchain = 0.30;
+      const wRisk = 0.20;
+
+      let totalScore = 0;
+      let totalWeight = 0;
+
+      if (ccsStar !== null) {
+        totalScore += ccsStar * wCCS;
+        totalWeight += wCCS;
+      }
+      if (onchainScore !== null) {
+        totalScore += onchainScore * wOnchain;
+        totalWeight += wOnchain;
+      }
+      if (riskScore !== null) {
+        totalScore += riskScore * wRisk;
+        totalWeight += wRisk;
+      }
+
+      blendedScore = totalWeight > 0 ? Math.round(totalScore / totalWeight) : null;
     }
 
     // Calculer market regime (nécessite blended + onchain + risk scores)
@@ -206,11 +250,14 @@ export async function hydrateRiskStore() {
       ccs: ccs || currentState.ccs || { score: null },
 
       // Cycle position
-      cycle: cycle || currentState.cycle || {
+      cycle: cycle ? {
+        ...cycle,
+        ccsStar: ccsStar // CCS blended with cycle
+      } : (currentState.cycle || {
         ccsStar: null,
         months: null,
         phase: null
-      },
+      }),
 
       // Market regime
       regime: regime || currentState.regime || {
@@ -244,7 +291,8 @@ export async function hydrateRiskStore() {
       // Metadata hydratation
       _hydrated: true,
       _hydration_timestamp: new Date().toISOString(),
-      _hydration_duration_ms: Math.round(performance.now() - startTime)
+      _hydration_duration_ms: Math.round(performance.now() - startTime),
+      _hydration_source: 'risk-data-orchestrator'  // ✅ Traçabilité source
     };
 
     // Mise à jour atomique du store

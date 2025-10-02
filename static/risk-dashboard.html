@@ -19,6 +19,7 @@
 
   <!-- Core modules ESM -->
   <script type="module" src="core/risk-dashboard-store.js"></script>
+  <script type="module" src="core/risk-data-orchestrator.js"></script>  <!-- ✅ SSOT hydration -->
   <script type="module" src="core/fetcher.js"></script>
 
   <!-- CCS modules ESM -->
@@ -50,80 +51,12 @@
       }
     }
 
-    /* ===== Layout Hybride: Sidebar + Main ===== */
+    /* ===== Layout principal ===== */
     .dashboard-layout {
       display: grid;
       grid-template-columns: 1fr;
-      /* Full width since sidebar is hidden */
       gap: var(--space-lg);
       min-height: calc(100vh - 200px);
-    }
-
-    /* Transition douce sur la grille et la sidebar */
-    .dashboard-layout,
-    .sidebar {
-      transition: grid-template-columns .25s ease, width .25s ease, padding .2s ease;
-    }
-
-    /* État "réduit" : la 1ère colonne devient étroite */
-    .dashboard-layout.sidebar-collapsed {
-      grid-template-columns: 0 1fr;
-      /* barre complètement fermée */
-    }
-
-    /* La barre devient invisible (pas de padding/bordure/ombre) */
-    .sidebar.collapsed {
-      padding: 0 !important;
-      border: 0 !important;
-      box-shadow: none !important;
-      width: 0 !important;
-      overflow: visible;
-      /* pour laisser le bouton flotter par-dessus */
-    }
-
-    /* On cache TOUT le contenu de la barre... */
-    .sidebar.collapsed>* {
-      display: none !important;
-    }
-
-    /* ...sauf le bouton de toggle, qui devient flottant */
-    #sidebar-toggle {
-      transition: transform .2s ease, opacity .2s ease;
-    }
-
-    /* Bouton flottant quand la barre est réduite */
-    .dashboard-layout {
-      position: relative;
-    }
-
-    /* ancre pour le bouton en absolute */
-    .sidebar.collapsed #sidebar-toggle {
-      display: inline-flex !important;
-      position: absolute;
-      /* ancré au layout (voir règle ci-dessus) */
-      left: 0;
-      /* collé au bord gauche */
-      top: 50%;
-      transform: translate(-40%, -40%);
-      /* demi hors-cadre = “poignée” */
-      z-index: 50;
-      padding: .4rem .5rem;
-      border-radius: var(--radius-full);
-      background: var(--theme-surface);
-      border: 1px solid var(--theme-border);
-      box-shadow: var(--shadow-sm);
-      width: auto;
-      /* bouton compact */
-    }
-
-    /* En mode réduit : icône seule, pas de texte */
-    .sidebar.collapsed .sidebar-toggle-text {
-      display: none !important;
-    }
-
-    /* Petite sécurité visuelle au survol */
-    .sidebar.collapsed #sidebar-toggle:hover {
-      transform: translate(-50%, -50%) scale(1.2);
     }
 
     /* Blended: style de base + transitions */
@@ -185,29 +118,6 @@
       background: #007bff;
     }
 
-    .sidebar-toggle-full {
-      width: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: .5rem;
-      background: var(--theme-bg);
-      color: var(--theme-text);
-      border: 1px solid var(--theme-border);
-      border-radius: var(--radius-md);
-      padding: .5rem;
-      margin-bottom: var(--space-md);
-      cursor: pointer;
-    }
-
-    .sidebar-section-top {
-      margin-top: 1.5rem;
-    }
-
-    .sidebar-title {
-      font-size: 1rem;
-      font-weight: 700;
-    }
 
     .blended-gauge-container {
       padding: 2rem;
@@ -400,11 +310,6 @@
     }
 
 
-    @media (max-width: 1024px) {
-      .dashboard-layout.sidebar-collapsed {
-        grid-template-columns: 64px 1fr;
-      }
-    }
 
     @media (max-width: 1024px) {
       .dashboard-layout {
@@ -437,23 +342,6 @@
       box-shadow: var(--shadow-sm);
     }
 
-    /* ===== Sidebar Components ===== */
-    .sidebar-section {
-      margin-bottom: var(--space-xl);
-    }
-
-    .sidebar-section:last-child {
-      margin-bottom: 0;
-    }
-
-    .sidebar-title {
-      font-size: 0.875rem;
-      font-weight: 600;
-      color: var(--theme-text-muted);
-      margin-bottom: var(--space-sm);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
 
     .ccs-gauge {
       text-align: center;
@@ -2293,7 +2181,7 @@
     import { fetchAndComputeCCS, interpretCCS, DEFAULT_CCS_WEIGHTS } from './modules/signals-engine.js';
     import { estimateCyclePosition, blendCCS, getCyclePhase } from './modules/cycle-navigator.js';
     import { proposeTargets, applyTargets, computePlan, DEFAULT_MACRO_TARGETS, getDecisionLog } from './modules/targets-coordinator.js';
-    import { fetchAllIndicators, calculateCompositeScore, enhanceCycleScore } from './modules/onchain-indicators.js';
+    import { fetchAllIndicators, enhanceCycleScore } from './modules/onchain-indicators.js';
     import { calculateCompositeScoreV2, analyzeContradictorySignals } from './modules/composite-score-v2.js';
     import { getMarketRegime, applyMarketOverrides, calculateRiskBudget, getRegimeDisplayData } from './modules/market-regimes.js';
 
@@ -2502,10 +2390,17 @@
         const apiResult = await window.globalConfig.apiRequest('/api/risk/dashboard', {
           params: { min_usd: minUsd, price_history_days: analysisDays, lookback_days: corrDays }
         });
+
+        // Vérifier que apiResult est valide avant de l'utiliser
+        if (!apiResult || !apiResult.risk_metrics) {
+          throw new Error('Invalid API response structure');
+        }
+
         // Inclure les balances pour calculer concentration/stablecoins côté UI
         try {
           apiResult.balances = Array.isArray(balanceResult?.items) ? balanceResult.items : [];
         } catch (_) { /* ignore */ }
+
         console.log(`📊 Real risk metrics calculated: VaR 95%: ${(apiResult.risk_metrics.var_95_1d * 100).toFixed(2)}%, Sharpe: ${apiResult.risk_metrics.sharpe_ratio.toFixed(2)}`);
 
         // The backend already provides the correct structure, just return it
@@ -3428,235 +3323,8 @@
     }
 
     // ====== Sidebar Updates ======
-    function updateSidebar(state) {
-      // DÉSACTIVÉ: L'ancien panel HTML a été supprimé, remplacé par Web Component <risk-sidebar-full>
-      // Cette fonction est conservée comme no-op pour éviter les erreurs dans le code legacy
-      return;
-
-      // Code legacy désactivé ci-dessous:
-      // Get all scores from state
-      const ccsScore = state.ccs?.score;
-      const onchainScore = state.scores?.onchain;
-      const riskScore = state.scores?.risk;
-      const blendedScore = state.scores?.blended;
-
-      // Update API status
-      const backendDot = document.getElementById('backend-dot');
-      const signalsDot = document.getElementById('signals-dot');
-
-      if (backendDot) {
-        backendDot.className = `status-dot ${state.ui?.apiStatus?.backend || 'unknown'}`;
-      }
-      if (signalsDot) {
-        signalsDot.className = `status-dot ${state.ui?.apiStatus?.signals || 'unknown'}`;
-      }
-
-      // Update governance status
-      const governanceStatus = store.getGovernanceStatus();
-      const governanceDot = document.getElementById('governance-dot');
-      const governanceText = document.getElementById('governance-text');
-      const governanceMode = document.getElementById('governance-mode');
-      const governanceContradiction = document.getElementById('governance-contradiction');
-
-      if (governanceDot && governanceText) {
-        // Set status dot color based on state
-        let dotClass = 'status-dot';
-        let statusText = governanceStatus.state;
-
-        if (governanceStatus.state === 'FROZEN') {
-          dotClass += ' error';
-          statusText = '❄️ Frozen';
-        } else if (governanceStatus.needsAttention) {
-          dotClass += ' warning';
-          statusText = '⚠️ Needs attention';
-        } else if (governanceStatus.isActive) {
-          dotClass += ' success';
-          statusText = '✓ Active';
-        } else {
-          dotClass += ' idle';
-          statusText = '○ Idle';
-        }
-
-        governanceDot.className = dotClass;
-        governanceText.textContent = statusText;
-      }
-
-      if (governanceMode && governanceContradiction) {
-        governanceMode.textContent = `Mode: ${governanceStatus.mode}`;
-        const contraPct = (governanceStatus.contradictionLevel * 100);
-        governanceContradiction.textContent = `Contradiction: ${contraPct.toFixed(1)}%`;
-
-        // Gate 'Aggressive' mode in UI: blended < 70 or contradiction > 40%
-        try {
-          const constraintsEl = document.getElementById('governance-constraints');
-          const blended = state.scores?.blended || 0;
-          const gated = (blended < 70) || (contraPct > 40);
-          if (constraintsEl) {
-            constraintsEl.textContent = gated ? 'Aggressive disabled (blended < 70 or contradiction > 40%)' : '';
-          }
-        } catch { }
-      }
-
-      // Update cycle indicator with enhanced info
-      const cycleText = document.getElementById('cycle-text');
-      const cycleDot = document.getElementById('cycle-dot');
-
-      if (state.cycle?.months && state.cycle?.phase) {
-        const months = Math.round(state.cycle.months);
-        const phase = state.cycle.phase;
-
-        cycleText.innerHTML = `
-          <div style="font-size: 11px; font-weight: 600;">${phase.emoji} ${phase.phase.replace('_', ' ').toUpperCase()}</div>
-          <div style="font-size: 10px; opacity: 0.8;">Month ${months} post-halving</div>
-        `;
-
-        // Color based on phase
-        cycleDot.style.backgroundColor = phase.color;
-        cycleDot.className = 'status-dot';
-      } else {
-        cycleText.textContent = 'Loading cycle data...';
-        cycleDot.className = 'status-dot';
-      }
-
-      // Update CCS Mixte score (Score Directeur)
-      const ccsMixEl = document.getElementById('ccs-ccs-mix');
-      const ccsMixLabel = document.getElementById('ccs-mixte-label');
-      console.debug('🔍 DEBUG CCS Mixte storage condition:', {
-        'state.cycle?.ccsStar': state.cycle?.ccsStar,
-        'ccsScore': ccsScore,
-        'condition met': !!(state.cycle?.ccsStar && ccsScore)
-      });
-
-      if (state.cycle?.ccsStar && ccsScore) {
-        ccsMixEl.textContent = Math.round(state.cycle.ccsStar);
-
-        // STOCKER CCS MIXTE dans localStorage pour unified-scores.html (AU BON MOMENT)
-        localStorage.setItem('risk_score_ccs_mixte', state.cycle.ccsStar.toString());
-        console.debug('✅ Stored CCS Mixte in localStorage:', state.cycle.ccsStar);
-
-        if (ccsMixLabel) {
-          const cycleWeight = Math.round((state.cycle?.weight || 0.3) * 100);
-          ccsMixLabel.textContent = `CCS + Cycle (${cycleWeight}%)`;
-          // Style dynamique selon le score
-          const score = state.cycle.ccsStar;
-          // Harmoniser avec Score Composite V2: >70 rouge, <40 vert, sinon orange
-          ccsMixEl.style.color = score > 70 ? '#ef4444' : score >= 40 ? '#f59e0b' : '#10b981';
-        }
-      } else {
-        ccsMixEl.textContent = '--';
-        if (ccsMixLabel) ccsMixLabel.textContent = 'Loading...';
-      }
-
-      // Update On-Chain score
-      const onchainEl = document.getElementById('kpi-onchain');
-      const onchainLabel = document.getElementById('onchain-label');
-      if (onchainScore !== null && onchainScore !== undefined) {
-        onchainEl.textContent = Math.round(onchainScore);
-        // Harmoniser avec Score Composite V2: >70 rouge, <40 vert, sinon orange
-        onchainEl.style.color = onchainScore > 70 ? '#ef4444' : onchainScore >= 40 ? '#f59e0b' : '#10b981';
-        if (onchainLabel) {
-          onchainLabel.textContent = `MVRV, NVT, Puell, F&G`;
-        }
-      } else {
-        onchainEl.textContent = '--';
-        if (onchainLabel) onchainLabel.textContent = 'Loading...';
-      }
-
-      // Update Risk Score
-      const riskEl = document.getElementById('kpi-risk');
-      const riskLabel = document.getElementById('risk-label');
-      if (riskScore !== null && riskScore !== undefined) {
-        riskEl.textContent = Math.round(riskScore);
-        // Harmoniser: score élevé = plus risqué (rouge)
-        riskEl.style.color = riskScore > 70 ? '#ef4444' : riskScore >= 40 ? '#f59e0b' : '#10b981';
-        if (riskLabel) {
-          const riskLevel = riskScore > 70 ? 'High Risk' : riskScore >= 40 ? 'Medium' : 'Low Risk';
-          riskLabel.textContent = riskLevel;
-        }
-      } else {
-        riskEl.textContent = '--';
-        if (riskLabel) riskLabel.textContent = 'Loading...';
-      }
-
-      // Update Strategic Blended Score (synthèse de décision)
-      const blendedEl = document.getElementById('kpi-blended');
-      const blendedLabel = document.getElementById('blended-label');
-      const blendedGauge = document.getElementById('blended-gauge');
-
-      if (blendedScore !== null && blendedScore !== undefined) {
-        const s = Math.round(blendedScore);
-        blendedEl.textContent = s;
-
-        let regime, regimeColor, tone;
-        if (s >= 85) { regime = 'Distribution'; regimeColor = '#dc2626'; tone = 'danger'; }
-        else if (s >= 70) { regime = 'Euphorie'; regimeColor = '#f59e0b'; tone = 'warning'; }
-        else if (s >= 40) { regime = 'Expansion'; regimeColor = '#10b981'; tone = 'success'; }
-        else { regime = 'Accumulation'; regimeColor = '#3b82f6'; tone = 'info'; }
-
-        blendedEl.style.color = regimeColor;
-        blendedLabel.textContent = regime;
-        blendedLabel.style.color = regimeColor;
-
-        // 👉 applique le “tone” pour que le CSS choisisse fond/bordure/ombre
-        blendedGauge.setAttribute('data-tone', tone);
-
-        // Phase 1D: Update blended meta with badges parité Analytics/Risk
-        try {
-          const metaEl = document.getElementById('blended-meta');
-          const ml = store.get('governance.ml_signals');
-          const policy = store.get('governance.active_policy');
-
-          const source = (ml && typeof ml.decision_score === 'number') ? 'backend' : 'SMART';
-          const ci = ml && typeof ml.contradiction_index === 'number' ? Math.round(ml.contradiction_index * 100) : null;
-          const ts = ml && ml.timestamp ? new Date(ml.timestamp) : null;
-          const hh = ts ? ts.toLocaleTimeString() : null;
-          const cap = policy && typeof policy.cap_daily === 'number' ? Math.round(policy.cap_daily * 100) : null;
-          const backendStatus = store.get('ui.apiStatus.backend');
-
-          if (metaEl) {
-            // Phase 1D: Format identique Analytics/Risk
-            const badges = [];
-            badges.push(source);
-            if (hh) badges.push(`Updated ${hh}`);
-            if (ci != null) badges.push(`Contrad ${ci}%`);
-            if (cap != null) badges.push(`Cap ${cap}%`);
-
-            // Overrides count (simulate for now)
-            const overrides = 0; // TODO: Get from governance state
-            if (overrides > 0) badges.push(`Overrides ${overrides}`);
-
-            // Status indicators
-            if (backendStatus === 'stale') badges.push('STALE');
-            if (backendStatus === 'error') badges.push('ERROR');
-
-            metaEl.textContent = badges.join(' • ');
-          }
-        } catch { }
-      } else {
-        blendedEl.textContent = '--';
-        blendedLabel.textContent = 'Loading...';
-        blendedLabel.style.color = '';
-        blendedGauge.removeAttribute('data-tone');
-        const metaEl = document.getElementById('blended-meta');
-        if (metaEl) metaEl.textContent = '';
-      }
-
-      // Update targets summary placeholder
-      const targetsSummary = document.getElementById('targets-summary');
-      if (targetsSummary) {
-        const ccsStar = state.cycle?.ccsStar;
-        if (ccsStar && ccsScore) {
-          targetsSummary.innerHTML = `
-            <div style="font-size: 11px;">
-              <div>CCS: ${Math.round(ccsScore)} → ${Math.round(ccsStar)} (blended)</div>
-              <div style="font-size: 10px; opacity: 0.8; margin-top: 2px;">Final: ${blendedScore ? Math.round(blendedScore) : '--'}/100</div>
-            </div>
-          `;
-        } else {
-          targetsSummary.innerHTML = '<div class="status-text">Loading targets...</div>';
-        }
-      }
-    }
+    // SUPPRIMÉ: Fonction updateSidebar() - remplacée par Web Component <risk-sidebar-full>
+    // 228 lignes de code legacy supprimées (manipulation DOM d'une sidebar HTML qui n'existe plus)
 
 
     // Risk rating rules for different metrics
@@ -3701,16 +3369,12 @@
           return null;
         }
 
-        // Check if dynamic weighting is enabled (from localStorage setting)
-        const useDynamicWeighting = localStorage.getItem('enable_dynamic_weighting') === 'true';
-
-        console.debug(`🎯 calculateOnChainScore: useDynamicWeighting = ${useDynamicWeighting} (from localStorage: ${localStorage.getItem('enable_dynamic_weighting')})`);
-
-        const composite = calculateCompositeScoreV2(indicators, useDynamicWeighting);
+        // Dynamic weighting always enabled (V2 production mode)
+        const composite = calculateCompositeScoreV2(indicators, true);
 
         console.debug(`📊 Composite result: score=${composite.score}, version=${composite.version}, hasDynamic=${!!composite.dynamicWeighting}`);
 
-        if (useDynamicWeighting && composite.dynamicWeighting) {
+        if (composite.dynamicWeighting) {
           console.debug(`🤖 Dynamic weighting applied: ${composite.dynamicWeighting.phase.name} phase`);
         }
 
@@ -3773,43 +3437,8 @@
       }
     }
 
-    // Calculate Risk Score from portfolio metrics
-    function calculateRiskScore(riskData) {
-      if (!riskData?.risk_metrics) return 50;
-
-      const metrics = riskData.risk_metrics;
-      let score = 50; // Start neutral
-      let factors = 0;
-
-      // Sharpe ratio (higher is better)
-      if (metrics.sharpe_ratio != null) {
-        score += metrics.sharpe_ratio > 1 ? 20 : metrics.sharpe_ratio > 0.5 ? 10 : -10;
-        factors++;
-      }
-
-      // Volatility (lower is better for risk score)
-      if (metrics.volatility != null) {
-        const vol = Math.abs(metrics.volatility);
-        score += vol < 0.2 ? 15 : vol < 0.4 ? 5 : -15;
-        factors++;
-      }
-
-      // Max Drawdown (lower is better)
-      if (metrics.max_drawdown != null) {
-        const dd = Math.abs(metrics.max_drawdown);
-        score += dd < 0.1 ? 15 : dd < 0.2 ? 5 : -15;
-        factors++;
-      }
-
-      // VaR 95% (lower is better)
-      if (metrics.var95_1d != null) {
-        const var95 = Math.abs(metrics.var95_1d);
-        score += var95 < 0.05 ? 10 : var95 < 0.1 ? 0 : -10;
-        factors++;
-      }
-
-      return Math.max(0, Math.min(100, factors > 0 ? score : 50));
-    }
+    // ❌ SUPPRIMÉ: calculateRiskScore() locale (divergeait de l'orchestrator)
+    // ✅ Maintenant calculé par risk-data-orchestrator.js (source unique SSOT)
 
     // Calculate strategic Blended Score (nouvelle formule market-aware)
     function calculateBlendedScore(ccsMixteScore, onchainScore, riskScore) {
@@ -3843,12 +3472,12 @@
         console.warn('  ⚠️ On-Chain Score non disponible (APIs payantes requises) - poids redistribué');
       }
 
-      // Risk adjustment : 20% (100 - Risk pour inverser le score)
+      // Risk contribution : 20% (score direct, plus haut = plus robuste)
+      // ✅ Respecte docs/RISK_SEMANTICS.md - NE PAS inverser
       if (riskScore != null) {
-        const riskAdjusted = 100 - riskScore; // Haut risque = bas score
-        totalScore += riskAdjusted * 0.20;
+        totalScore += riskScore * 0.20;
         totalWeight += 0.20;
-        console.debug('  → Risk contribution (100-risk):', riskAdjusted * 0.20);
+        console.debug('  → Risk contribution (direct):', riskScore * 0.20);
       }
 
       const finalScore = totalWeight > 0 ? totalScore / totalWeight : 50;
@@ -3870,84 +3499,47 @@
       } catch (e) { /* no-op */ }
     }
 
-    // Main function to calculate all scores
-    async function calculateAllScores(riskData, ccsData) {
+    // ✅ REMPLACÉ: Load scores from orchestrator (SSOT)
+    async function loadScoresFromStore() {
       try {
-        console.debug('🎯 Calculating all scores...');
+        console.debug('🔄 Waiting for orchestrator hydration...');
 
-        // Check cached scores first
-        const cachedScores = getCachedData('SCORES');
-        if (cachedScores && cachedScores.data) {
-          const age = Math.round((Date.now() - cachedScores.timestamp) / (1000 * 60));
-          console.log(`⚡ Using cached scores (${age} minutes old)`);
-
-          const scores = cachedScores.data;
-          // Hydrate store with cached scores so subscribers (updateSidebar) see values
-          try {
-            if (scores.onchainScore != null) store.set('scores.onchain', scores.onchainScore);
-            if (scores.riskScore != null) store.set('scores.risk', scores.riskScore);
-            if (scores.blendedScore != null) store.set('scores.blended', scores.blendedScore);
-            if (scores.ccsScore != null) store.set('ccs.score', scores.ccsScore);
-            if (scores.ccsMixteScore != null) store.set('cycle.ccsStar', scores.ccsMixteScore);
-          } catch (e) {
-            console.warn('Failed to hydrate store with cached scores:', e);
-          }
-
-          updateScoreDisplays(scores.onchainScore, scores.riskScore, scores.blendedScore, scores.ccsScore);
-          // Ensure sidebar reflects the hydrated store
-          try { updateSidebar(store.snapshot()); } catch { }
-          updateMarketRegime(scores.blendedScore, scores.onchainScore, scores.riskScore);
-          return scores;
+        // ✅ Attendre hydratation complète du store par l'orchestrator
+        if (!store.getState()?._hydrated) {
+          await new Promise(resolve => {
+            const handler = (e) => {
+              if (e.detail?.hydrated) {
+                console.log('✅ Store hydrated by orchestrator, source:', e.detail.source);
+                resolve();
+              }
+            };
+            window.addEventListener('riskStoreReady', handler, { once: true });
+          });
         }
 
-        console.debug('🔄 No valid cache found, calculating fresh scores...');
+        // ✅ Lire scores depuis store (source unique)
+        const state = store.snapshot();
+        const onchainScore = state.scores?.onchain;
+        const riskScore = state.scores?.risk;
+        const blendedScore = state.scores?.blended;
+        const ccsScore = state.ccs?.score;
+        const ccsMixteScore = state.cycle?.ccsStar;
 
-        // Apply calibrated parameters if available
-        const calibratedParams = loadCalibrationParams();
-        if (calibratedParams) {
-          // Apply to cycle navigator module
-          const module = await import('./modules/cycle-navigator.js');
-          module.setCycleParams(calibratedParams);
-          console.debug('🔄 Applied calibrated parameters');
-        }
+        console.debug('📊 Scores loaded from orchestrator:', {
+          onchain: onchainScore,
+          risk: riskScore,
+          blended: blendedScore,
+          ccs: ccsScore,
+          ccsMixte: ccsMixteScore,
+          source: state._hydration_source,
+          duration: state._hydration_duration_ms + 'ms'
+        });
 
-        // Get current CCS and cycle data
-        const currentState = store.snapshot();
-        const ccsScore = currentState.ccs?.score;
-        const ccsMixteScore = currentState.cycle?.ccsStar; // CCS + Cycle blended
+        // ✅ Mettre à jour UI
+        updateScoreDisplays(onchainScore, riskScore, blendedScore, ccsScore);
+        updateMarketRegime(blendedScore, onchainScore, riskScore);
 
-        // Calculate On-Chain Score
-        onchainScore = await calculateOnChainScore();
-
-        // Use Risk Score directly from backend (consistent with Risk Overview)
-        riskScore = riskData?.risk_metrics?.risk_score ?? 50;
-        console.debug('🛡️ Risk Score (from backend):', riskScore);
-
-        // Calculate Strategic Blended Score (nouvelle formule)
-        blendedScore = calculateBlendedScore(ccsMixteScore, onchainScore, riskScore);
-        // Reflect decision state in UI card
-        try { applyDecisionState(blendedScore); } catch { }
-
-        // Store the scores in the store for use by other modules
-        store.set('scores.onchain', onchainScore);
-        store.set('scores.risk', riskScore);
-        store.set('scores.blended', blendedScore);
-
-        // Prefer server-side recompute of blended (source of truth)
-        try { await store.recomputeGovernanceBlended(ccsMixteScore, onchainScore, riskScore); } catch { }
-
-        // Store scores in persistent cache
-        const scoreData = {
-          onchainScore: onchainScore,
-          riskScore: riskScore,
-          blendedScore: blendedScore,
-          ccsScore: ccsScore,
-          ccsMixteScore: ccsMixteScore
-        };
-        setCachedData('SCORES', scoreData);
-
-        // Also store scores in localStorage for cross-page access (compatibility)
-        // Include data source in the score keys for proper synchronization
+        // ✅ Compatibility: Store in localStorage for legacy cross-page access
         const dataSource = globalConfig.get('data_source') || 'unknown';
         const __user = (localStorage.getItem('activeUser') || 'demo');
         const __prefix = (k) => `${k}:${__user}`;
@@ -3960,27 +3552,24 @@
           localStorage.setItem(__prefix('risk_score_data_source'), dataSource);
         } catch (_) { }
 
-        // STOCKER CCS MIXTE sera fait APRÈS le calcul du blending dans updateScoreDisplays
-
-        console.debug('📊 All scores calculated:', {
-          ccs: ccsScore,
-          ccsMixte: ccsMixteScore,
-          onchain: onchainScore,
-          risk: riskScore,
-          blended: blendedScore
-        });
-
-        // Calculate market regime
-        updateMarketRegime(blendedScore, onchainScore, riskScore);
-
-        // Update sidebar with fresh state
-        const freshState = store.snapshot();
-        updateSidebar(freshState);
+        return { onchainScore, riskScore, blendedScore, ccsScore, ccsMixteScore };
 
       } catch (error) {
-        console.error('❌ Erreur calcul des scores:', error);
+        console.error('❌ Erreur chargement scores depuis store:', error);
+        // ✅ Fallback: Use partial data if available
+        const state = store.snapshot();
+        return {
+          onchainScore: state.scores?.onchain ?? null,
+          riskScore: state.scores?.risk ?? null,
+          blendedScore: state.scores?.blended ?? null,
+          ccsScore: state.ccs?.score ?? null,
+          ccsMixteScore: state.cycle?.ccsStar ?? null
+        };
       }
     }
+
+    // ❌ OBSOLÈTE: calculateAllScores() supprimée (remplacée par loadScoresFromStore)
+    // L'orchestrator est maintenant la source unique de vérité (SSOT)
 
     // ====== Market Regime Functions ======
     function updateMarketRegime(blendedScore, onchainScore, riskScore) {
@@ -4034,51 +3623,8 @@
       } catch { }
     }, 2000);
 
-    window.toggleDynamicWeighting = function () {
-      const toggle = document.getElementById('dynamic-weighting-toggle');
-      const status = document.getElementById('dynamic-weighting-status');
-      if (!toggle) return; // UI pas encore rendu
-      const isEnabled = toggle.checked;
-      localStorage.setItem('enable_dynamic_weighting', isEnabled.toString());
-
-      console.debug(`🔄 Toggle changed: ${isEnabled} (localStorage now: ${localStorage.getItem('enable_dynamic_weighting')})`);
-
-      if (status) {
-        if (isEnabled) {
-          status.textContent = '🤖 Pondération dynamique active';
-          status.style.color = 'var(--success)';
-        } else {
-          status.textContent = 'Pondération statique V2';
-          status.style.color = 'var(--theme-text-muted)';
-        }
-      }
-
-      // Clear any cached composite score to force recalculation
-      if (window.compositeScoreCache) {
-        console.debug('🗑️ Clearing composite score cache');
-        window.compositeScoreCache.cache.clear();
-      }
-
-      // Trigger refresh to apply new weighting
-      setTimeout(refreshDashboard, 500);
-    };
-
-    // Initialize dynamic weighting state on load
-    function initializeDynamicWeightingToggle() {
-      const toggle = document.getElementById('dynamic-weighting-toggle');
-      const status = document.getElementById('dynamic-weighting-status');
-      const isEnabled = localStorage.getItem('enable_dynamic_weighting') === 'true';
-      if (toggle) toggle.checked = isEnabled;
-      if (status) {
-        if (isEnabled) {
-          status.textContent = '🤖 Pondération dynamique active';
-          status.style.color = 'var(--warning)';
-        } else {
-          status.textContent = 'Pondération statique V2';
-          status.style.color = 'var(--theme-text-muted)';
-        }
-      }
-    }
+    // Dynamic weighting is now always enabled (V2 production mode)
+    // Legacy functions removed: toggleDynamicWeighting, initializeDynamicWeightingToggle
 
     // ====== Section Collapse Functions ======
 
@@ -4248,13 +3794,11 @@
             await loadBlendedCCS();
           }
 
-          // Calculate additional scores
-          await calculateAllScores(riskData, ccsData);
+          // ✅ Load scores from orchestrator (SSOT)
+          await loadScoresFromStore();
 
           // Force sidebar update after all scores are calculated
           const finalState = store.snapshot();
-          updateSidebar(finalState);
-
           // Update alerts in store (for risk-sidebar-full component)
           store.set('alerts', alertsData || []);
 
@@ -4286,8 +3830,7 @@
             if (ccsData) {
               await loadBlendedCCS();
             }
-            await calculateAllScores(riskData, ccsData);
-            updateSidebar(store.snapshot());
+            await loadScoresFromStore();
           } catch (e) {
             console.warn('Partial score calculation failed:', e);
           }
@@ -4652,7 +4195,7 @@
             </div>
             <div class="metric-row">
               <span class="metric-label">Risk Score</span>
-              <span class="metric-value">${safeFixed(m.risk_score, 1)}/100</span>
+              <span class="metric-value" data-score="risk-display">${safeFixed(m.risk_score, 1)}/100</span>
             </div>
             <div class="metric-row">
               <span class="metric-label">Risk Level</span>
@@ -5448,7 +4991,7 @@
         const onchainModule = await import('./modules/onchain-indicators.js');
         const cycleModule = await import('./modules/cycle-navigator.js');
 
-        const { fetchAllIndicators, calculateCompositeScore, enhanceCycleScore, analyzeDivergence, generateRecommendations } = onchainModule;
+        const { fetchAllIndicators, enhanceCycleScore, analyzeDivergence, generateRecommendations } = onchainModule;
         const { cycleScoreFromMonths, getCurrentCycleMonths } = cycleModule;
 
         const container = document.getElementById('onchain-indicators-content');
@@ -5464,12 +5007,11 @@
         // Données
         const indicators = await fetchAllIndicators();
 
-        // Check if dynamic weighting is enabled (from localStorage setting)
-        const useDynamicWeighting = localStorage.getItem('enable_dynamic_weighting') === 'true';
-        const composite = calculateCompositeScoreV2(indicators, useDynamicWeighting);
+        // Dynamic weighting always enabled (V2 production mode)
+        const composite = calculateCompositeScoreV2(indicators, true);
 
-        if (useDynamicWeighting && composite.dynamicWeighting) {
-          console.log(`🤖 Dynamic weighting applied in UI: ${composite.dynamicWeighting.phase.name} phase`);
+        if (composite.dynamicWeighting) {
+          console.log(`🤖 Dynamic weighting applied: ${composite.dynamicWeighting.phase.name} phase`);
         }
 
         // Score de cycle actuel
@@ -5754,9 +5296,6 @@
         ${recosBlock}
       `;
 
-        // Appliquer l'état du toggle après rendu
-        try { initializeDynamicWeightingToggle(); } catch (e) { console.warn('Init toggle failed', e); }
-
         console.log('✅ Indicateurs on-chain (thémés) chargés:', { sigmoidScore, composite: composite.score, enhanced: enhanced.enhanced_score });
       } catch (error) {
         console.error('❌ Erreur indicateurs on-chain:', error);
@@ -5857,10 +5396,6 @@
           <div style="display: flex; justify-content: space-between; align-items: center; gap: .75rem; margin-bottom: 1rem;">
             <h3 style="margin: 0;">🔗 Indicateurs On-Chain</h3>
             <div style="display:flex; align-items:center; gap:.75rem;">
-              <label style="display:flex; align-items:center; gap:.4rem; cursor:pointer; font-weight:600;" title="Active une pondération dynamique des indicateurs selon le contexte de marché (accumulation, expansion, euphorie, correction). Recalcule les scores avec des poids adaptés.">
-                <input type="checkbox" id="dynamic-weighting-toggle" onchange="toggleDynamicWeighting()" style="transform: scale(1.1);">
-                <span>🎯 Adaptation contextuelle</span>
-              </label>
               <button onclick="toggleSection('onchain-indicators')" style="background: none; border: 1px solid var(--theme-border); border-radius: 4px; padding: 4px 8px; cursor: pointer; color: var(--theme-text); font-size: 0.8rem;" title="Réduire/Agrandir">
                 <span id="onchain-indicators-arrow">▼</span>
               </button>
@@ -6184,11 +5719,8 @@
       const state = store.snapshot();
       if (!state.scores?.blended) {
         console.log('🔄 Blended score not available, recalculating scores...');
-        const riskData = state.risk;
-        const ccsData = state.ccs;
-        if (riskData && ccsData) {
-          await calculateAllScores(riskData, ccsData);
-        }
+        // ✅ Load scores from orchestrator (no need for riskData/ccsData params)
+        await loadScoresFromStore();
       }
 
       // Get updated state after potential score calculation
@@ -6538,10 +6070,8 @@
 
     // ====== Initialization & Store Connection ======
 
-    // Subscribe to store changes for sidebar and content updates
+    // Subscribe to store changes for content updates
     store.subscribe((state) => {
-      updateSidebar(state);
-
       // Auto-update active tab content when data changes
       const activeTab = state.ui?.activeTab;
       if (activeTab === 'cycles' && state.ccs?.score && state.cycle?.months) {
@@ -6601,9 +6131,6 @@
         if (store.get('ui.activeTab') === 'targets') {
           renderTargetsContent().catch(err => console.error('Failed to render targets after strategy apply:', err));
         }
-
-        // Update sidebar with governance info
-        updateSidebar(store.snapshot());
 
         console.log(`Applied strategy via governance: ${mode} - ${proposal.strategy}`);
         console.log(`Governance mode: ${governanceStatus.mode}, state: ${governanceStatus.state}`);
@@ -7499,6 +7026,12 @@
         if (elBlend && blendedScore != null) elBlend.textContent = String(Math.round(blendedScore));
         if (elCcs && ccsScore != null) elCcs.textContent = String(Math.round(ccsScore));
 
+        // ✅ CRITIQUE: Mettre à jour l'affichage Risk Score dans Risk Overview (ligne 4238)
+        const riskDisplayEl = document.querySelector('[data-score="risk-display"]');
+        if (riskDisplayEl && riskScore != null) {
+          riskDisplayEl.textContent = `${riskScore.toFixed(1)}/100`;
+        }
+
         console.log('📊 Score displays updated from cache');
       } catch (error) {
         console.warn('Error updating score displays:', error);
@@ -7541,12 +7074,6 @@
       // Hydrate store from localStorage
       store.hydrate();
 
-      // Initial sidebar update
-      updateSidebar(store.snapshot());
-
-      // Initialize dynamic weighting toggle
-      initializeDynamicWeightingToggle();
-
       // Initialize section collapse states
       initializeSectionStates();
 
@@ -7562,9 +7089,6 @@
           await store.syncGovernanceState();
           await store.syncMLSignals();
           console.log('✅ Governance system initialized');
-
-          // Update sidebar with governance status
-          updateSidebar(store.snapshot());
         } catch (error) {
           console.warn('⚠️ Failed to initialize governance:', error);
         }
@@ -7614,42 +7138,8 @@
       console.log('Risk Dashboard CCS MVP initialized');
     });
 
-    (function () {
-      const layout = document.querySelector('.dashboard-layout');
-      const sidebar = document.querySelector('.sidebar');
-      const btn = document.getElementById('sidebar-toggle');
-      const icon = document.getElementById('sidebar-toggle-icon');
-      const LS_KEY = 'risk_sidebar_collapsed';
-
-      if (!layout || !sidebar || !btn || !icon) return;
-
-      // Restaurer l'état depuis localStorage
-      const collapsed = localStorage.getItem(LS_KEY) === '1';
-      applyCollapsed(collapsed);
-
-      // Toggle
-      btn.addEventListener('click', () => {
-        const newState = !layout.classList.contains('sidebar-collapsed');
-        applyCollapsed(newState);
-        localStorage.setItem(LS_KEY, newState ? '1' : '0');
-        // Certains graphes réagissent mieux avec un resize
-        window.dispatchEvent(new Event('resize'));
-      });
-
-      function applyCollapsed(isCollapsed) {
-        layout.classList.toggle('sidebar-collapsed', isCollapsed);
-        sidebar.classList.toggle('collapsed', isCollapsed);
-        if (isCollapsed) {
-          icon.textContent = '⟩⟩'; // état réduit → icône pour "agrandir"
-          btn.setAttribute('aria-label', 'Agrandir la barre latérale');
-          btn.title = 'Agrandir la barre';
-        } else {
-          icon.textContent = '⟨⟨'; // état normal → icône pour "réduire"
-          btn.setAttribute('aria-label', 'Réduire la barre latérale');
-          btn.title = 'Réduire la barre';
-        }
-      }
-    })();
+    // SUPPRIMÉ: Sidebar toggle logic - remplacé par Web Component flyout-panel avec bouton pin intégré
+    // 35 lignes de code legacy supprimées (manipulation classList pour sidebar qui n'existe plus)
   </script>
 
   <script type="module">

@@ -228,11 +228,12 @@
                     console.log('✅ Blended score loaded from cache for dashboard');
                 } else {
                     // Calculate blended if we have component scores
+                    // ✅ Respecte docs/RISK_SEMANTICS.md - Risk Score utilisé directement (pas d'inversion)
                     const state = store.snapshot();
                     const cycleScore = state.cycle?.score ?? 50;
                     const onchainScore = state.scores?.onchain ?? 50;
                     const riskScore = state.scores?.risk ?? 50;
-                    const blended = (cycleScore * 0.50) + (onchainScore * 0.30) + ((100 - riskScore) * 0.20);
+                    const blended = (cycleScore * 0.50) + (onchainScore * 0.30) + (riskScore * 0.20);
                     const blendedScore = Math.round(Math.max(0, Math.min(100, blended)));
                     store.set('scores.blended', blendedScore);
                     console.log('✅ Blended score calculated for dashboard');
@@ -1347,14 +1348,23 @@
             document.getElementById('total-value').textContent = formatUSD(metrics.total_value_usd || 0);
 
             const dailyPnl = performance?.absolute_change_usd || 0;
+            const dailyPnlPct = performance?.percentage_change || 0;
             console.log('🔍 [PNL Display] Values:', {
                 raw_performance: performance,
                 absolute_change_usd: performance?.absolute_change_usd,
+                percentage_change: performance?.percentage_change,
                 dailyPnl: dailyPnl,
+                dailyPnlPct: dailyPnlPct,
                 formatted: formatUSD(dailyPnl)
             });
             const pnlEl = document.getElementById('daily-pnl');
-            pnlEl.textContent = formatUSD(dailyPnl);
+
+            // Format: "+25,833.28$ (+6.11%)" ou "-1,234.56$ (-2.34%)"
+            const pnlSign = dailyPnl >= 0 ? '+' : '';
+            const pctSign = dailyPnlPct >= 0 ? '+' : '';
+            const pnlText = `${pnlSign}${formatUSD(dailyPnl)} (${pctSign}${dailyPnlPct.toFixed(2)}%)`;
+
+            pnlEl.textContent = pnlText;
             pnlEl.style.color = dailyPnl >= 0 ? 'var(--success)' : 'var(--danger)';
 
             document.getElementById('assets-count').textContent = metrics.asset_count || 0;

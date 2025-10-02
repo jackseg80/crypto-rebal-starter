@@ -32,6 +32,9 @@
 
 // ===== SWR CACHE SYSTEM =====
 
+// Import V2 composite score calculator (replaces legacy V1)
+import { calculateCompositeScoreV2 } from './composite-score-v2.js';
+
 /**
  * SWR (Stale-While-Revalidate) cache constants - optimized for onchain indicators
  */
@@ -1506,138 +1509,7 @@ function normalizeAndInvertScore(rawValue, classification) {
  * Calcule un score composite amélioré avec catégorisation intelligente
  * Intègre les 30+ indicateurs réels de Crypto-Toolbox
  */
-export function calculateCompositeScore(indicators) {
-  if (!indicators || Object.keys(indicators).filter(k => k !== '_metadata').length === 0) {
-    return {
-      score: null,
-      confidence: 0,
-      contributors: [],
-      categoryBreakdown: {},
-      criticalZoneCount: 0,
-      message: 'Aucun indicateur disponible'
-    };
-  }
-  
-  // Structures pour calculer le score par catégorie
-  const categoryScores = {};
-  const categoryWeights = {};
-  const categoryContributors = {};
-  let totalCriticalZone = 0;
-  
-  // Initialiser les catégories
-  Object.keys(INDICATOR_CATEGORIES).forEach(categoryKey => {
-    categoryScores[categoryKey] = 0;
-    categoryWeights[categoryKey] = 0;
-    categoryContributors[categoryKey] = [];
-  });
-  
-  // Traiter chaque indicateur avec la nouvelle logique
-  Object.entries(indicators).forEach(([key, data]) => {
-    // Ignorer les métadonnées
-    if (key.startsWith('_') || !data || typeof data !== 'object') {
-      return;
-    }
-    
-    // Classer l'indicateur automatiquement
-    let indicatorName = data.name || key;
-    const classification = classifyIndicator(indicatorName);
-    
-    // Obtenir la valeur numérique de l'indicateur
-    let rawValue = data.value_numeric || data.value || data.percent_in_cycle;
-    
-    if (typeof rawValue !== 'number') {
-      (window.debugLogger?.warn || console.warn)(`⚠️ Invalid numeric value for ${indicatorName}: ${rawValue}`);
-      return;
-    }
-    
-    // Normaliser et inverser si nécessaire
-    const normalizedScore = normalizeAndInvertScore(rawValue, classification);
-    
-    // Calculer la contribution pondérée
-    const indicatorWeight = classification.weight * classification.categoryWeight;
-    const contribution = normalizedScore * indicatorWeight;
-    
-    // Ajouter à la catégorie appropriée
-    const category = classification.category;
-    categoryScores[category] += contribution;
-    categoryWeights[category] += indicatorWeight;
-    
-    // Compter les zones critiques
-    if (data.in_critical_zone) {
-      totalCriticalZone++;
-    }
-    
-    // Ajouter aux contributeurs
-    categoryContributors[category].push({
-      name: indicatorName,
-      originalValue: rawValue,
-      normalizedScore: normalizedScore,
-      weight: indicatorWeight,
-      contribution: contribution,
-      inCriticalZone: data.in_critical_zone || false,
-      classification: classification,
-      raw_threshold: data.raw_threshold
-    });
-    
-    console.debug(`📊 ${indicatorName}: ${rawValue}% → ${normalizedScore} (${category}, weight: ${indicatorWeight.toFixed(3)})`);
-  });
-  
-  // Calculer le score final par catégorie puis globalement
-  let finalScore = 0;
-  let totalWeight = 0;
-  const categoryBreakdown = {};
-  
-  Object.entries(categoryScores).forEach(([category, score]) => {
-    const weight = categoryWeights[category];
-    if (weight > 0) {
-      const categoryScore = score / weight;
-      const categoryWeight = INDICATOR_CATEGORIES[category].weight;
-      
-      finalScore += categoryScore * categoryWeight;
-      totalWeight += categoryWeight;
-      
-      categoryBreakdown[category] = {
-        score: Math.round(categoryScore),
-        weight: categoryWeight,
-        contributorsCount: categoryContributors[category].length,
-        description: INDICATOR_CATEGORIES[category].description,
-        contributors: categoryContributors[category].sort((a, b) => b.contribution - a.contribution)
-      };
-    }
-  });
-  
-  if (totalWeight === 0) {
-    return {
-      score: null,
-      confidence: 0,
-      contributors: [],
-      categoryBreakdown: {},
-      criticalZoneCount: 0,
-      message: 'Aucun indicateur réel disponible pour calculer le score composite'
-    };
-  }
-  
-  const compositeScore = finalScore / totalWeight;
-  
-  // Calculer la confiance basée sur le nombre d'indicateurs et la diversité des catégories
-  const totalIndicators = Object.values(categoryContributors).flat().length;
-  const activeCategories = Object.keys(categoryBreakdown).length;
-  const confidence = Math.min(0.95, (totalIndicators * 0.05) + (activeCategories * 0.15));
-  
-  // Assembler tous les contributeurs pour la compatibilité
-  const allContributors = Object.values(categoryContributors).flat();
-  
-  return {
-    score: Math.round(compositeScore),
-    confidence: Math.round(confidence * 100) / 100,
-    contributors: allContributors.sort((a, b) => b.contribution - a.contribution),
-    categoryBreakdown: categoryBreakdown,
-    criticalZoneCount: totalCriticalZone,
-    totalIndicators: totalIndicators,
-    activeCategories: activeCategories,
-    message: `Score composite basé sur ${totalIndicators} indicateur(s) réel(s) dans ${activeCategories} catégorie(s) (${totalCriticalZone} en zone critique)`
-  };
-}
+// Legacy V1 calculateCompositeScore removed - use calculateCompositeScoreV2 from composite-score-v2.js
 
 /**
  * Combine le score de cycle sigmoïde avec les indicateurs on-chain
@@ -1647,7 +1519,7 @@ export function enhanceCycleScore(sigmoidScore, onchainWeight = 0.3) {
     try {
       // Récupérer les indicateurs
       const indicators = await fetchAllIndicators();
-      const composite = calculateCompositeScore(indicators);
+      const composite = calculateCompositeScoreV2(indicators, true); // V2 with dynamic weighting
       
       // Blend des scores
       const enhancedScore = sigmoidScore * (1 - onchainWeight) + composite.score * onchainWeight;
@@ -1678,7 +1550,7 @@ export function enhanceCycleScore(sigmoidScore, onchainWeight = 0.3) {
  * Analyse la divergence entre modèle sigmoïde et indicateurs
  */
 export function analyzeDivergence(sigmoidScore, indicators) {
-  const composite = calculateCompositeScore(indicators);
+  const composite = calculateCompositeScoreV2(indicators, true); // V2 with dynamic weighting
   const divergence = Math.abs(sigmoidScore - composite.score);
   
   let signal = 'neutral';

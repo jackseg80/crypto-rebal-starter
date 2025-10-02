@@ -171,11 +171,30 @@ class RiskSidebarFull extends HTMLElement {
   _connectStore() {
     const push = () => {
       const state = window.riskStore?.getState?.() || {};
-      console.log('[risk-sidebar-full] Store state:', state);
+
+      // ✅ Vérifier hydratation complète avant affichage
+      if (!state._hydrated) {
+        console.log('[risk-sidebar-full] Store not hydrated yet, waiting...');
+        return;
+      }
+
+      console.log('[risk-sidebar-full] Store hydrated, source:', state._hydration_source || 'unknown');
       this._updateFromState(state);
     };
+
     push();
     this._unsub = window.riskStore.subscribe(push);
+
+    // ✅ Écouter hydratation si pas encore faite
+    if (!window.riskStore.getState()?._hydrated) {
+      const handler = (e) => {
+        if (e.detail?.hydrated) {
+          console.log('[risk-sidebar-full] Hydration complete, updating...');
+          push();
+        }
+      };
+      window.addEventListener('riskStoreReady', handler, { once: true });
+    }
   }
 
   async _pollOnce() {

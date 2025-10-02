@@ -29,9 +29,10 @@ python-binance>=1.0.19
 ccxt>=4.0.0
 yfinance>=0.2.28  # Stock/ETF/Bond data
 
-# Task Queue & Background Jobs (Optional - for advanced features)
+# Task Queue & Background Jobs
 redis>=5.0.0
 rq>=1.15.0
+APScheduler==3.10.4  # In-process periodic task scheduling
 
 # Monitoring & Logging (Development)
 # Note: These are optional for basic usage

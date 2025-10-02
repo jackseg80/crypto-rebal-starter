@@ -13,14 +13,33 @@
    - La source de données (démo/CSV/API) — liste centralisée.
    - La devise d’affichage (USD/EUR/BTC). La conversion est réelle à l’affichage; si le taux est temporairement indisponible, l’UI affiche `—`.
 
-## Lancer l’API
+## Lancer l'API
+
+**Méthode recommandée** (avec scripts) :
+
+Linux/macOS:
+```bash
+./start_dev.sh          # FastAPI native avec Playwright (défaut)
+./start_dev.sh 0        # Mode Flask proxy (legacy)
+```
+
+Windows (PowerShell):
+```powershell
+.\start_dev.ps1                    # FastAPI native (défaut)
+.\start_dev.ps1 -CryptoToolboxMode 0   # Flask proxy (legacy)
+```
+
+**Méthode manuelle** :
+
 Linux/macOS:
 ```bash
 uvicorn api.main:app --reload --port 8000
 ```
+
 Windows (PowerShell):
 ```powershell
-python -m uvicorn api.main:app --reload --port 8000
+python -m uvicorn api.main:app --port 8000
+# Note: --reload désactivé sur Windows pour compatibilité Playwright
 ```
 
 ## Ouvrir l’UI

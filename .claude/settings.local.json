@@ -1,7 +1,17 @@
 {
   "permissions": {
     "allow": [
-      "Bash(\".venv/Scripts/python.exe\" -c \"import requests; r = requests.get(''http://localhost:8000/execution/governance/state''); print(''Status:'', r.status_code); import json; data = r.json(); print(''Keys:'', list(data.keys())); print(''contradiction_index:'', data.get(''contradiction_index'')); print(''Full data:''); import pprint; pprint.pprint(data)\")"
+      "Bash(for file in analytics-unified.html dashboard.html execution.html)",
+      "Bash(do echo \"=== $file ===\")",
+      "Bash(wc:*)",
+      "Bash(python:*)",
+      "Bash(for file in \"d:\\Python\\crypto-rebal-starter\\static\\analytics-unified.html\" \"d:\\Python\\crypto-rebal-starter\\static\\dashboard.html\" \"d:\\Python\\crypto-rebal-starter\\static\\execution.html\")",
+      "Bash(grep:*)",
+      "Bash(done)",
+      "Bash(curl -s \"http://localhost:8000/api/risk/dashboard\")",
+      "Bash(curl:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": [],
