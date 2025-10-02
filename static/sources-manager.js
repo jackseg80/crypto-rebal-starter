@@ -1,6 +1,9 @@
 /**
  * Gestionnaire du nouveau système Sources unifié
  * Remplace la logique CSV et Intégrations par un système centralisé
+ *
+ * Debug mode: Activer les logs détaillés avec window.__DEBUG_SOURCES__ = true
+ * Les logs standards utilisent window.debugLogger si disponible
  */
 
 // Utilitaire fetch simple avec retry et headers utilisateur
@@ -276,6 +279,25 @@ function createModuleCard(module) {
  */
 function createSourcesList(moduleName, module) {
   const sources = [];
+  const userConfig = JSON.parse(localStorage.getItem('userConfig') || '{}');
+  const currentUser = getCurrentUser();
+  const config = userConfig[currentUser] || {};
+
+  // Vérifier si le fichier sélectionné existe encore
+  if (config.csv_selected_file && module.detected_files) {
+    const fileStillExists = module.detected_files.some(f =>
+      f.name.trim().toLowerCase() === config.csv_selected_file.trim().toLowerCase()
+    );
+
+    if (!fileStillExists) {
+      console.warn('[sources] CSV sélectionné manquant:', config.csv_selected_file);
+
+      // Fallback: sélectionner le premier fichier disponible si possible
+      if (module.detected_files.length > 0 && window.showToast) {
+        window.showToast(`Le fichier "${config.csv_selected_file}" n'existe plus. Veuillez sélectionner une nouvelle source.`, 'warning');
+      }
+    }
+  }
 
   // Ajouter les fichiers
   if (module.detected_files) {
@@ -753,24 +775,33 @@ function isSourceCurrentlySelected(moduleName, sourceValue, detectedFiles = null
     // Pour les fichiers CSV - vérifier le fichier spécifique via csv_selected_file ou csv_glob
     if (sourceValue.startsWith('csv_')) {
       if (config.data_source !== 'cointracking') {
-        console.log(`[isSourceCurrentlySelected] ${sourceValue} - data_source=${config.data_source}, not cointracking`);
+        if (window.__DEBUG_SOURCES__) console.log(`[isSourceCurrentlySelected] ${sourceValue} - data_source=${config.data_source}, not cointracking`);
         return false;
       }
 
       // Récupérer le fichier correspondant à sourceValue
       // Utiliser detectedFiles si fourni (évite le problème de timing), sinon fallback sur window.sourcesData
-      const detectedSources = detectedFiles || window.sourcesData?.modules?.find(m => m.name === moduleName)?.detected_files || [];
-      const sourceIndex = parseInt(sourceValue.replace('csv_', ''));
+      const detectedSources = Array.isArray(detectedFiles)
+        ? detectedFiles
+        : (window.sourcesData?.modules?.find(m => m.name === moduleName)?.detected_files || []);
+
+      if (!Array.isArray(detectedSources) || detectedSources.length === 0) return false;
+
+      const sourceIndex = Number.parseInt(String(sourceValue).replace('csv_', ''), 10);
+      if (!Number.isFinite(sourceIndex) || sourceIndex < 0 || sourceIndex >= detectedSources.length) return false;
+
       const expectedFile = detectedSources[sourceIndex];
+      if (!expectedFile || !expectedFile.name) return false;
 
-      console.log(`[isSourceCurrentlySelected] ${sourceValue}: index=${sourceIndex}, file=${expectedFile?.name}, csv_selected=${config.csv_selected_file}`);
-
-      if (!expectedFile) return false;
+      if (window.__DEBUG_SOURCES__) console.log(`[isSourceCurrentlySelected] ${sourceValue}: index=${sourceIndex}, file=${expectedFile?.name}, csv_selected=${config.csv_selected_file}`);
 
       // ⚠️ PRIORITÉ 1: Vérifier csv_selected_file (utilisé par sources_resolver.py)
-      if (config.csv_selected_file) {
-        const match = expectedFile.name === config.csv_selected_file;
-        console.log(`[isSourceCurrentlySelected] ${sourceValue}: ${expectedFile.name} === ${config.csv_selected_file} ? ${match}`);
+      if (typeof config.csv_selected_file === 'string' && config.csv_selected_file.length > 0) {
+        // Normalisation légère (casse et espaces) pour robustesse
+        const a = expectedFile.name.trim().toLowerCase();
+        const b = config.csv_selected_file.trim().toLowerCase();
+        const match = a === b;
+        if (window.__DEBUG_SOURCES__) console.log(`[isSourceCurrentlySelected] ${sourceValue}: ${expectedFile.name} === ${config.csv_selected_file} ? ${match}`);
         return match;
       }
 
@@ -807,9 +838,16 @@ async function selectActiveSource(moduleName, sourceValue, fileName) {
       updateData.csv_glob = '';
       updateData.csv_selected_file = null; // Reset CSV selection when switching to API
     } else if (sourceValue.startsWith('csv_')) {
+      const safeFile = (fileName || '').trim();
+
+      if (!safeFile) {
+        console.warn('[sources] csv_selected_file vide, abandon de la sélection.');
+        return;
+      }
+
       updateData.data_source = 'cointracking';
-      updateData.csv_glob = fileName ? `*${fileName}*` : '*.csv';
-      updateData.csv_selected_file = fileName; // ⚠️ CRITIQUE: Ajouter csv_selected_file pour sources_resolver.py
+      updateData.csv_glob = `*${safeFile}*`;
+      updateData.csv_selected_file = safeFile; // ⚠️ CRITIQUE: Ajouter csv_selected_file pour sources_resolver.py
     }
 
     // ⚠️ CRITIQUE: Récupérer d'abord la config complète pour préserver les clés API
@@ -847,7 +885,18 @@ async function selectActiveSource(moduleName, sourceValue, fileName) {
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      const errorDetail = await response.text();
+      console.error('[sources] Échec de la sauvegarde', errorDetail);
+
+      // Rollback visuel: recharger le panneau depuis l'état serveur
+      await loadSourcesManager();
+
+      // Notification utilisateur
+      if (window.showToast) {
+        window.showToast('Impossible de sauvegarder la source. Réessaie.', 'error');
+      }
+
+      throw new Error(`HTTP ${response.status}: ${errorDetail}`);
     }
 
     // Mettre à jour le localStorage local
@@ -865,6 +914,11 @@ async function selectActiveSource(moduleName, sourceValue, fileName) {
       if (updateData.csv_selected_file !== undefined) {
         window.globalConfig.set('csv_selected_file', updateData.csv_selected_file);
       }
+    }
+
+    // Notification succès
+    if (window.showToast) {
+      window.showToast('Source mise à jour', 'success');
     }
 
     // Notifier les autres onglets

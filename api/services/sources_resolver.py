@@ -32,9 +32,13 @@ def resolve_effective_path(user_fs: UserScopedFS, module: str) -> Tuple[str, Opt
     # 0) 🎯 PRIORITÉ UTILISATEUR: Fichier explicitement sélectionné
     try:
         user_settings = user_fs.read_json("config.json")
+        data_source = user_settings.get("data_source", "")
         csv_selected_file = user_settings.get("csv_selected_file")
 
-        if csv_selected_file and module == "cointracking":
+        # Ne pas utiliser csv_selected_file si l'utilisateur a explicitement choisi l'API
+        if data_source.endswith("_api"):
+            logger.debug(f"User has selected API mode ({data_source}), skipping CSV file resolution")
+        elif csv_selected_file and module == "cointracking" and data_source == "cointracking":
             # Chercher le fichier dans uploads/ puis imports/
             for search_dir in ["cointracking/uploads", "cointracking/imports", "cointracking/snapshots"]:
                 potential_path = user_fs.get_path(f"{search_dir}/{csv_selected_file}")
