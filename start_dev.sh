@@ -46,4 +46,16 @@ echo ""
 
 # Set environment variable and start server
 export CRYPTO_TOOLBOX_NEW="$CRYPTO_TOOLBOX_MODE"
-.venv/bin/python -m uvicorn api.main:app --reload --port "$PORT" --workers "$WORKERS"
+
+# Note: --reload disabled for Playwright mode on Windows (asyncio subprocess incompatibility)
+if [ "$CRYPTO_TOOLBOX_MODE" -eq 1 ] && [ "$(uname -s)" = "Linux" ]; then
+    # Linux: reload OK with Playwright
+    .venv/bin/python -m uvicorn api.main:app --reload --port "$PORT" --workers "$WORKERS"
+elif [ "$CRYPTO_TOOLBOX_MODE" -eq 1 ]; then
+    # Windows/Mac: no reload with Playwright
+    echo "⚠️  Hot reload disabled (required for Playwright on Windows)"
+    .venv/bin/python -m uvicorn api.main:app --port "$PORT" --workers "$WORKERS"
+else
+    # Flask mode: reload OK
+    .venv/bin/python -m uvicorn api.main:app --reload --port "$PORT" --workers "$WORKERS"
+fi

@@ -76,4 +76,10 @@ Write-Host "━━━━━━━━━━━━━━━━━━━━━━�
 $env:CRYPTO_TOOLBOX_NEW = $CryptoToolboxMode
 
 # Start server
-& .venv\Scripts\python.exe -m uvicorn api.main:app --reload --port $Port --workers $Workers
+# Note: --reload disabled for Playwright mode on Windows (asyncio subprocess incompatibility)
+if ($CryptoToolboxMode -eq 1) {
+    Write-Host "⚠️  Hot reload disabled (required for Playwright on Windows)" -ForegroundColor Yellow
+    & .venv\Scripts\python.exe -m uvicorn api.main:app --port $Port --workers $Workers
+} else {
+    & .venv\Scripts\python.exe -m uvicorn api.main:app --reload --port $Port --workers $Workers
+}
