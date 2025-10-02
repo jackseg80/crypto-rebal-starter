@@ -195,6 +195,110 @@ Before switching default to FastAPI (`CRYPTO_TOOLBOX_NEW=1`), validate:
 
 ---
 
+## A/B Testing Procedure (Commit 6)
+
+### Step 1: Capture Baseline (Flask)
+
+**Prerequisites**:
+- Flask server must be running on port 8001
+- Run `python crypto_toolbox_api.py` in separate terminal
+
+**Capture**:
+```bash
+# Test Flask is responding
+curl -s http://localhost:8001/api/crypto-toolbox | jq '.success'
+
+# Capture full output
+curl -s http://localhost:8001/api/crypto-toolbox > test_flask_baseline.json
+
+# Verify
+jq '.total_count, .critical_count' test_flask_baseline.json
+```
+
+### Step 2: Test FastAPI (New Implementation)
+
+**Prerequisites**:
+- Set `CRYPTO_TOOLBOX_NEW=1`
+- Playwright installed (`pip install playwright && playwright install chromium`)
+
+**Windows (PowerShell)**:
+```powershell
+.\start_dev.ps1 -CryptoToolboxMode 1
+```
+
+**Linux/Mac**:
+```bash
+./start_dev.sh 1
+```
+
+**Capture** (in another terminal):
+```bash
+# Force fresh scrape (bypass cache)
+curl -s "http://localhost:8000/api/crypto-toolbox?force=true" > test_fastapi_new.json
+
+# Verify
+jq '.total_count, .critical_count' test_fastapi_new.json
+```
+
+### Step 3: Compare Outputs
+
+**Quick comparison**:
+```bash
+# Use provided comparison script
+python scripts/compare_crypto_toolbox.py test_flask_baseline.json test_fastapi_new.json
+```
+
+**Manual comparison** (if script not available):
+```bash
+# Compare counts
+echo "Flask:" && jq '.total_count, .critical_count' test_flask_baseline.json
+echo "FastAPI:" && jq '.total_count, .critical_count' test_fastapi_new.json
+
+# Sort and compare indicator names
+jq -S '.indicators | sort_by(.name) | .[].name' test_flask_baseline.json > flask_names.txt
+jq -S '.indicators | sort_by(.name) | .[].name' test_fastapi_new.json > fastapi_names.txt
+diff flask_names.txt fastapi_names.txt
+
+# Compare critical zones
+jq -S '.indicators | sort_by(.name) | map({name, value_numeric, in_critical_zone})' test_flask_baseline.json > flask_critical.json
+jq -S '.indicators | sort_by(.name) | map({name, value_numeric, in_critical_zone})' test_fastapi_new.json > fastapi_critical.json
+diff flask_critical.json fastapi_critical.json
+```
+
+### Step 4: Performance Testing
+
+**Cache miss** (first request):
+```bash
+# Restart server, then test
+time curl -s "http://localhost:8000/api/crypto-toolbox?force=true" > /dev/null
+# Expected: <5 seconds
+```
+
+**Cache hit** (second request within 30 minutes):
+```bash
+time curl -s "http://localhost:8000/api/crypto-toolbox" > /dev/null
+# Expected: <50ms
+```
+
+### Step 5: Validation Checklist
+
+Mark as ✅ if passing:
+
+- [ ] **Correctness**: `total_count` matches (±1 tolerance)
+- [ ] **Correctness**: `critical_count` matches exactly
+- [ ] **Correctness**: All indicator names present in both
+- [ ] **Correctness**: BMO sub-indicators split correctly
+- [ ] **Correctness**: No parsing errors in server logs
+- [ ] **Performance**: Cache miss <5s
+- [ ] **Performance**: Cache hit <50ms
+- [ ] **Stability**: 10 consecutive requests succeed (no browser crashes)
+
+**If all ✅**: Proceed to Commit 7 (switch default flag)
+
+**If any ❌**: Investigate and fix before proceeding
+
+---
+
 ## Known Differences (Expected)
 
 | Field | Flask | FastAPI | Reason |
@@ -214,9 +318,21 @@ If any of these fail, **rollback to Flask** (`CRYPTO_TOOLBOX_NEW=0`):
 - ❌ Missing indicators (name not found)
 - ❌ Parsing errors in logs (>5% of requests)
 - ❌ Response time >10 seconds (timeout)
+- ❌ Browser crashes (>10% of requests)
+- ❌ Memory leak (browser memory >500MB after 1 hour)
+
+**Rollback procedure**:
+```bash
+# Set flag to 0
+export CRYPTO_TOOLBOX_NEW=0  # Linux
+$env:CRYPTO_TOOLBOX_NEW=0     # Windows
+
+# Restart server
+# Flask proxy will be used automatically
+```
 
 ---
 
 **Last updated**: 2025-10-02
-**Status**: Parsing logic ported (Commit 3)
-**Next**: A/B testing (Commit 6)
+**Status**: A/B Testing Procedures (Commit 6)
+**Next**: Switch default flag (Commit 7)

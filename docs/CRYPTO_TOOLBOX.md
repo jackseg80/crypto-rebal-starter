@@ -449,5 +449,120 @@ python -c "from playwright.async_api import async_playwright; print('OK')"
 
 ---
 
+## A/B Testing & Validation
+
+### Prerequisites
+
+Before testing, ensure you have:
+1. **Flask server** running on port 8001 (for baseline)
+   ```bash
+   python crypto_toolbox_api.py
+   ```
+
+2. **Playwright installed** (for FastAPI mode)
+   ```bash
+   pip install playwright
+   playwright install chromium
+   ```
+
+### Step 1: Capture Flask Baseline
+
+```bash
+# Verify Flask is responding
+curl -s http://localhost:8001/api/crypto-toolbox | jq '.success'
+
+# Capture output
+curl -s http://localhost:8001/api/crypto-toolbox > test_flask_baseline.json
+
+# Check counts
+jq '.total_count, .critical_count' test_flask_baseline.json
+```
+
+### Step 2: Test FastAPI Implementation
+
+**Start server in FastAPI mode**:
+```bash
+# Windows
+.\start_dev.ps1 -CryptoToolboxMode 1
+
+# Linux/Mac
+./start_dev.sh 1
+```
+
+**Capture output** (in another terminal):
+```bash
+# Force fresh scrape (bypass cache)
+curl -s "http://localhost:8000/api/crypto-toolbox?force=true" > test_fastapi_new.json
+
+# Check counts
+jq '.total_count, .critical_count' test_fastapi_new.json
+```
+
+### Step 3: Run Comparison
+
+**Automated comparison**:
+```bash
+python scripts/compare_crypto_toolbox.py test_flask_baseline.json test_fastapi_new.json
+```
+
+**Expected output**:
+```
+COUNTS COMPARISON
+Total count   - Flask: 15 | FastAPI: 15 | Match: ✅
+Critical count - Flask:  3 | FastAPI:  3 | Match: ✅
+
+INDICATOR NAMES COMPARISON
+✅ All indicator names match
+
+VALUES & CRITICAL ZONES COMPARISON
+✅ All values match (tolerance: ±0.01)
+✅ All critical zones match
+
+SUMMARY
+✅ VALIDATION PASSED - FastAPI implementation matches Flask
+   You can proceed with Commit 7 (switch default flag)
+```
+
+### Step 4: Performance Validation
+
+**Cache miss** (first request):
+```bash
+time curl -s "http://localhost:8000/api/crypto-toolbox?force=true" > /dev/null
+# Expected: <5 seconds
+```
+
+**Cache hit** (within 30 minutes):
+```bash
+time curl -s "http://localhost:8000/api/crypto-toolbox" > /dev/null
+# Expected: <50ms
+```
+
+**Stability test** (10 consecutive requests):
+```bash
+for i in {1..10}; do
+  curl -s "http://localhost:8000/api/crypto-toolbox?force=true" | jq '.success'
+done
+# Expected: All "true"
+```
+
+### Validation Checklist
+
+Before proceeding to Commit 7, verify:
+
+- [ ] `total_count` matches (±1 tolerance)
+- [ ] `critical_count` matches exactly
+- [ ] All indicator names present in both
+- [ ] BMO sub-indicators split correctly
+- [ ] No parsing errors in logs
+- [ ] Cache miss <5s
+- [ ] Cache hit <50ms
+- [ ] 10 consecutive requests succeed
+
+**If all ✅**: Proceed to Commit 7 (switch default flag)
+
+**If any ❌**: See [CRYPTO_TOOLBOX_PARITY.md](CRYPTO_TOOLBOX_PARITY.md) for rollback procedure
+
+---
+
 **Last updated**: 2025-10-02
-**Status**: Phase 5 - Dev Scripts + Docker (Commit 5)
+**Status**: Phase 6 - A/B Testing & Validation (Commit 6)
