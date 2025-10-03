@@ -13,6 +13,17 @@ class WealthContextBar {
     this.context = this.loadContext();
     this.isInitialized = false;
     this.abortController = null; // Pour annuler fetch en cours lors du switch user
+
+    // Anti-PUT rafale + idempotence
+    this.settingsPutController = null; // AbortController pour PUT /api/users/settings
+    this.lastAppliedSettings = null; // JSON string des derniers settings appliqués
+    this.sourcesCache = null; // Cache pour /api/users/sources
+    this.sourcesCacheTime = 0; // Timestamp du cache
+    this.sourcesCacheTTL = 60000; // 60 secondes
+
+    // Debounce pour changement de source
+    this.accountChangeDebounceTimer = null;
+    this.accountChangeDebounceDelay = 250; // 250ms
   }
 
   loadContext() {
@@ -93,13 +104,24 @@ class WealthContextBar {
   }
 
   async loadAccountSources() {
+    const activeUser = localStorage.getItem('activeUser') || 'demo';
+    const now = Date.now();
+
+    // Utiliser cache si valide (< 60s) et même user
+    if (this.sourcesCache &&
+        this.sourcesCacheTime > 0 &&
+        (now - this.sourcesCacheTime) < this.sourcesCacheTTL &&
+        this.sourcesCache.user === activeUser) {
+      console.debug('WealthContextBar: Using cached sources');
+      return this.buildAccountOptions(this.sourcesCache.sources || []);
+    }
+
     // Annuler fetch précédent si en cours
     if (this.abortController) {
       this.abortController.abort();
     }
 
     this.abortController = new AbortController();
-    const activeUser = localStorage.getItem('activeUser') || 'demo';
 
     try {
       const response = await fetch('/api/users/sources', {
@@ -112,6 +134,14 @@ class WealthContextBar {
       }
 
       const data = await response.json();
+
+      // Mettre en cache
+      this.sourcesCache = {
+        user: activeUser,
+        sources: data.sources || []
+      };
+      this.sourcesCacheTime = now;
+
       return this.buildAccountOptions(data.sources || []);
 
     } catch (error) {
@@ -159,6 +189,61 @@ class WealthContextBar {
 
   buildFallbackAccountOptions() {
     return '<option value="all">Tous</option>';
+  }
+
+  async persistSettingsSafely(settings, source) {
+    const payload = JSON.stringify(settings);
+
+    // Idempotence: ne pas persister si rien n'a changé
+    if (payload === this.lastAppliedSettings) {
+      console.debug('WealthContextBar: Settings unchanged, skipping PUT');
+      return { ok: true, skipped: true };
+    }
+
+    // Annuler PUT en cours (anti-rafale)
+    if (this.settingsPutController) {
+      console.debug('WealthContextBar: Aborting previous PUT request');
+      this.settingsPutController.abort();
+      this.settingsPutController = null;
+    }
+
+    this.settingsPutController = new AbortController();
+    const activeUser = localStorage.getItem('activeUser') || 'demo';
+
+    try {
+      const response = await fetch('/api/users/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User': activeUser
+        },
+        body: payload,
+        signal: this.settingsPutController.signal
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+      }
+
+      this.lastAppliedSettings = payload;
+      console.debug('WealthContextBar: Settings persisted successfully');
+
+      return { ok: true };
+
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        console.debug('WealthContextBar: PUT aborted (newer request started)');
+        return { ok: false, aborted: true };
+      }
+
+      console.error('WealthContextBar: Failed to persist settings:', error);
+      return { ok: false, error };
+
+    } finally {
+      if (this.settingsPutController) {
+        this.settingsPutController = null;
+      }
+    }
   }
 
   async handleAccountChange(selectedValue, options = {}) {
@@ -307,43 +392,90 @@ class WealthContextBar {
       }));
     }
 
-    // Sauvegarder dans le backend
+    // Sauvegarder dans le backend avec protection anti-rafale
     if (sourceChanged || fileChanged) {
-      try {
-        const activeUser = localStorage.getItem('activeUser') || 'demo';
-        const response = await fetch('/api/users/settings', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-User': activeUser
-          },
-          body: JSON.stringify(window.userSettings)
-        });
+      // Sauvegarder état AVANT modification pour rollback si échec
+      const rollbackState = {
+        source: oldSource,
+        file: oldFile,
+        globalConfigValue: oldSource,
+        userSettingsSource: oldSource,
+        userSettingsFile: oldFile,
+        contextAccount: this.context.account
+      };
 
-        if (response.ok) {
-          console.debug(`WealthContextBar: Settings saved successfully`);
+      const persistResult = await this.persistSettingsSafely(window.userSettings, source);
 
-          // Notification visuelle avec reload automatique
-          if (!skipNotification) {
-            if (typeof window.showNotification === 'function') {
-              window.showNotification(`✅ Source changée: ${source.label}`, 'success');
-            }
+      if (!persistResult.ok && !persistResult.aborted) {
+        // ROLLBACK UI si erreur réseau/serveur
+        console.error('WealthContextBar: Persistence failed, rolling back UI...');
 
-            // Recharger la page automatiquement après 1 seconde
-            // Cela garantit que TOUTES les pages (même celles sans listener dataSourceChanged)
-            // utilisent la nouvelle source immédiatement
-            setTimeout(() => {
-              console.debug('WealthContextBar: Auto-reloading page after source change...');
-              window.location.reload();
-            }, 1000);
-          }
-        } else {
-          console.error('Failed to save settings:', await response.text());
+        // Restaurer globalConfig
+        if (typeof window.globalConfig !== 'undefined') {
+          window.globalConfig.set('data_source', rollbackState.globalConfigValue);
         }
-      } catch (error) {
-        console.error('Error saving settings:', error);
+
+        // Restaurer userSettings
+        window.userSettings.data_source = rollbackState.userSettingsSource;
+        window.userSettings.csv_selected_file = rollbackState.userSettingsFile;
+
+        // Restaurer dropdown
+        const accountSelect = document.getElementById('wealth-account');
+        if (accountSelect) {
+          // Retrouver la valeur originale dans le dropdown
+          const originalValue = rollbackState.userSettingsFile
+            ? `csv:csv_${rollbackState.userSettingsFile.replace('.csv', '').toLowerCase().replace(/[^a-z0-9_]/g, '_')}`
+            : rollbackState.userSettingsSource === 'cointracking_api' ? 'api:cointracking_api' : 'all';
+          accountSelect.value = originalValue;
+          this.context.account = originalValue;
+        }
+
+        // Notification erreur
+        if (typeof window.showNotification === 'function') {
+          window.showNotification(`❌ Échec changement source: ${persistResult.error?.message || 'Erreur réseau'}`, 'error');
+        }
+
+        return; // Arrêter ici, pas de reload
+      }
+
+      // Si succès ou aborté (nouvelle requête en cours)
+      if (persistResult.ok && !persistResult.skipped && !skipNotification) {
+        // Notification visuelle avec reload automatique
+        if (typeof window.showNotification === 'function') {
+          window.showNotification(`✅ Source changée: ${source.label}`, 'success');
+        }
+
+        // Reload conditionnel (intelligent)
+        this.scheduleSmartReload();
       }
     }
+  }
+
+  scheduleSmartReload() {
+    // Feature flag dev: ?noReload=1
+    if (/[?&]noReload=1/.test(location.search)) {
+      console.debug('WealthContextBar: Reload skipped (noReload=1 flag)');
+      return;
+    }
+
+    // Détecter si des listeners dataSourceChanged sont présents
+    let hasListener = false;
+    const listenerDetector = () => {
+      hasListener = true;
+      window.removeEventListener('dataSourceChanged', listenerDetector);
+    };
+    window.addEventListener('dataSourceChanged', listenerDetector, { once: true });
+
+    // Attendre 300ms pour laisser les listeners s'enregistrer
+    setTimeout(() => {
+      if (hasListener) {
+        console.debug('WealthContextBar: Soft reload (dataSourceChanged listeners detected)');
+        // Les listeners vont recharger les données, pas besoin de reload complet
+      } else {
+        console.debug('WealthContextBar: Hard reload (no listeners, full page refresh)');
+        window.location.reload();
+      }
+    }, 300);
   }
 
   async setupUserSwitchListener() {
@@ -572,10 +704,22 @@ class WealthContextBar {
     });
 
     // Gestion spéciale pour 'account' qui doit changer la source de données
+    // Avec debounce 250ms pour éviter PUT multiples lors navigation clavier
     const accountSelect = document.getElementById('wealth-account');
     if (accountSelect) {
-      accountSelect.addEventListener('change', async (e) => {
-        await this.handleAccountChange(e.target.value);
+      accountSelect.addEventListener('change', (e) => {
+        const selectedValue = e.target.value;
+
+        // Annuler timer précédent
+        if (this.accountChangeDebounceTimer) {
+          clearTimeout(this.accountChangeDebounceTimer);
+        }
+
+        // Debounce 250ms
+        this.accountChangeDebounceTimer = setTimeout(async () => {
+          await this.handleAccountChange(selectedValue);
+          this.accountChangeDebounceTimer = null;
+        }, this.accountChangeDebounceDelay);
       });
     }
 

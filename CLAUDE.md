@@ -1,5 +1,11 @@
 # CLAUDE.md — Guide de travail pour agents (Crypto Rebal Starter)
 
+> Canonical Source Notice
+>
+> La source unique de vérité pour les règles agents est `AGENTS.md` (générique, multi‑IA). Ce document est un wrapper/guide d’usage pour Claude/Code. En cas de divergence, suivre `AGENTS.md`.
+>
+> Dernière synchro avec `AGENTS.md`: Oct 2025.
+
 > Objectif : permettre à un agent (Claude/Code) d’intervenir vite et bien **sur l’état ACTUEL** du repo.
 > Périmètre: FastAPI `api/`, services Python `services/`, front HTML/JS `static/`, connecteurs `connectors/`, tests `tests/`.
 

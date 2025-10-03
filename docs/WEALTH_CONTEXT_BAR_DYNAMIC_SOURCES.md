@@ -143,14 +143,37 @@ Nouvelle méthode `handleAccountChange()` qui réplique la logique de `settings.
 ```
 User clique dropdown → Sélectionne source
 ↓
+Debounce 250ms (évite PUT multiples si navigation clavier)
+↓
 Notification verte: "✅ Source changée: ..."
 ↓
-1 seconde d'attente (permet de lire la notification)
-↓
-Page recharge automatiquement
+Reload intelligent (soft si listeners, hard sinon, 300ms)
 ↓
 Données affichées = nouvelle source ✅
 ```
+
+### 9. **Protection prod-ready** 🛡️ 🆕
+
+**Anti-rafale & idempotence** :
+- `AbortController` annule PUT en cours si nouveau changement
+- Hash JSON des settings → skip si inchangé
+- Debounce 250ms sur navigation clavier
+
+**Rollback UI** :
+- Sauvegarde état AVANT modification
+- Si PUT échoue → restaure dropdown, globalConfig, userSettings
+- Notification erreur rouge avec message détaillé
+
+**Reload intelligent** :
+- Détecte listeners `dataSourceChanged` (300ms)
+- Si présents → soft reload (pas de page refresh)
+- Si absents → hard reload complet
+- Feature flag `?noReload=1` pour dev
+
+**Cache sources** :
+- 60s TTL sur `/api/users/sources` par user
+- Évite spam si barre instanciée sur plusieurs pages
+- Invalidation automatique au switch user
 
 ## 📋 Checklist de tests
 
@@ -172,6 +195,13 @@ Données affichées = nouvelle source ✅
 - [x] **Émission événement `dataSourceChanged` pour pages avec listeners** ⚡ 🆕
 - [x] **Reload automatique après 1s pour changement immédiat** ⚡ 🆕
 - [x] **Restauration au chargement appelle handleAccountChange() avec skipSave** 🆕
+- [x] **Anti-rafale : AbortController annule PUT en cours** 🛡️ 🆕
+- [x] **Idempotence : Skip PUT si settings inchangés** 🛡️ 🆕
+- [x] **Rollback UI si PUT échoue (dropdown + globalConfig + userSettings)** 🛡️ 🆕
+- [x] **Reload intelligent : soft si listeners présents, hard sinon** 🛡️ 🆕
+- [x] **Cache 60s sur /api/users/sources** 🛡️ 🆕
+- [x] **Debounce 250ms sur changement source** 🛡️ 🆕
+- [x] **Feature flag ?noReload=1 pour dev** 🛡️ 🆕
 
 ## 🧪 Pages de test
 
@@ -214,13 +244,20 @@ Données affichées = nouvelle source ✅
 - `render()` : Appel async `loadAndPopulateAccountSources()`
 - **`bindEvents()`** 🆕 : Listener spécial pour 'account' → `handleAccountChange()`
 
-**Lignes ajoutées/modifiées** : ~290 lignes
+**Lignes ajoutées/modifiées** : ~400 lignes
 
 **Fonctionnalités clés ajoutées** :
 - Paramètre `options = { skipSave, skipNotification }` pour éviter boucles infinies
 - Émission `dataSourceChanged` event pour pages avec listeners
 - Reload automatique après 1s pour compatibilité universelle
 - Appel `handleAccountChange()` lors restauration (avec `skipSave: true`)
+
+**Améliorations prod-ready** 🛡️ :
+- `persistSettingsSafely()` : Guard anti-rafale + idempotence + rollback
+- `scheduleSmartReload()` : Reload intelligent (soft/hard selon listeners)
+- Cache 60s sur `/api/users/sources` avec invalidation user
+- Debounce 250ms sur changement source
+- Feature flag `?noReload=1` pour développement
 
 ### `static/test-wealth-context-bar-dynamic.html`
 
