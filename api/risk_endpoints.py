@@ -6,7 +6,11 @@ Fournit les métriques VaR/CVaR, corrélation, stress tests et monitoring temps 
 from __future__ import annotations
 import logging
 from typing import Dict, List, Any, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, date
+from dataclasses import asdict, is_dataclass
+from decimal import Decimal
+import math
+import numpy as np
 
 from fastapi import APIRouter, HTTPException, Query, Depends
 from api.deps import get_active_user
@@ -19,6 +23,48 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/risk", tags=["risk-management"])
 COMPUTE_ON_STUB_SOURCES = (os.getenv("COMPUTE_ON_STUB_SOURCES", "false").strip().lower() == "true")
+
+# ===== Helper: Convert python/numpy/pandas types to JSON-safe natives =====
+def _clean_for_json(obj: Any) -> Any:
+    """Recursively convert complex types (numpy, dataclass, datetime) to JSON-safe values"""
+
+    if obj is None or isinstance(obj, (str, bool)):
+        return obj
+
+    if isinstance(obj, (int, np.integer)):
+        return int(obj)
+
+    if isinstance(obj, (float, np.floating, Decimal)):
+        value = float(obj)
+        if math.isnan(value) or math.isinf(value):
+            return None
+        return value
+
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+
+    if isinstance(obj, np.ndarray):
+        return [_clean_for_json(item) for item in obj.tolist()]
+
+    if isinstance(obj, (list, tuple, set)):
+        return [_clean_for_json(item) for item in obj]
+
+    if is_dataclass(obj):
+        return {key: _clean_for_json(value) for key, value in asdict(obj).items()}
+
+    if hasattr(obj, "_asdict"):
+        return {key: _clean_for_json(value) for key, value in obj._asdict().items()}
+
+    if isinstance(obj, dict):
+        return {str(key): _clean_for_json(value) for key, value in obj.items()}
+
+    if hasattr(obj, "dict"):
+        return {key: _clean_for_json(value) for key, value in obj.dict().items()}
+
+    if hasattr(obj, "__dict__"):
+        return {key: _clean_for_json(value) for key, value in obj.__dict__.items()}
+
+    return obj
 
 # ===== Helper: Risk Score V2 (feature-flagged) =====
 def _calculate_risk_score_v2(
@@ -497,6 +543,8 @@ async def get_risk_dashboard(
     lookback_days: int = Query(30, ge=10, le=365, description="Fenêtre pour corrélations (jours)"),
     user_id: Optional[str] = Query(None, description="User ID (optionnel, prioritaire sur X-User header)"),
     user_header: str = Depends(get_active_user),
+    # 🆕 Risk Version (Phase 5 - Shadow Mode)
+    risk_version: str = Query("v2_shadow", description="Version Risk Score: legacy | v2_shadow | v2_active"),
     # 🆕 Dual Window System parameters
     use_dual_window: bool = Query(True, description="Activer système dual-window (long-term + full intersection)"),
     min_history_days: int = Query(180, ge=90, le=365, description="Jours minimum pour cohorte long-term"),
@@ -557,9 +605,33 @@ async def get_risk_dashboard(
         # Créer DataFrame des prix
         price_df = pd.DataFrame(price_data).fillna(method='ffill').dropna()
 
-        # 🆕 Dual Window System : Calculer métriques sur 2 fenêtres si activé
+        # 🆕 Phase 5: Shadow Mode - Calcul des 2 versions si nécessaire
+        logger.info(f"🧪 SHADOW MODE DEBUG: risk_version received = '{risk_version}', use_dual_window = {use_dual_window}")
+        compute_legacy = risk_version in ["legacy", "v2_shadow"]
+        compute_v2 = risk_version in ["v2_shadow", "v2_active"]
+        logger.info(f"🧪 SHADOW MODE DEBUG: compute_legacy = {compute_legacy}, compute_v2 = {compute_v2}")
+
+        risk_metrics_legacy = None
+        risk_metrics_v2 = None
         dual_window_result = None
-        if use_dual_window:
+        blend_metadata = None
+
+        # Calcul LEGACY (sans blend, Long-Term pur)
+        if compute_legacy:
+            try:
+                # Single window classique (ancien comportement)
+                risk_metrics_legacy = portfolio_metrics_service.calculate_portfolio_metrics(
+                    price_data=price_df,
+                    balances=balances,
+                    confidence_level=0.95
+                )
+                logger.info(f"📊 LEGACY Risk Score calculated: {risk_metrics_legacy.risk_score:.1f}")
+            except Exception as e:
+                logger.error(f"❌ Legacy calculation failed: {e}")
+                risk_metrics_legacy = None
+
+        # Calcul V2 (avec Dual-Window Blend + Pénalités)
+        if compute_v2 and use_dual_window:
             try:
                 dual_window_result = portfolio_metrics_service.calculate_dual_window_metrics(
                     price_data=price_df,
@@ -570,25 +642,182 @@ async def get_risk_dashboard(
                     confidence_level=0.95
                 )
 
-                # Utiliser long-term comme autoritaire si disponible, sinon full intersection
-                if dual_window_result['long_term']:
-                    risk_metrics = dual_window_result['long_term']['metrics']
-                    logger.info(f"✅ Using LONG-TERM window: {dual_window_result['long_term']['window_days']}d, {dual_window_result['long_term']['asset_count']} assets")
+                # 🆕 BLEND DYNAMIQUE: Full Intersection prioritaire avec pénalités
+                long_term = dual_window_result.get('long_term')
+                full_inter = dual_window_result['full_intersection']
+                exclusions = dual_window_result.get('exclusions_metadata', {})
+
+                # Critères pour blend weight
+                days_full = full_inter['window_days']
+                # Coverage = % du portfolio couvert par Long-Term cohort (NOT Full Intersection!)
+                coverage_long_term = long_term.get('coverage_pct', 0.0) if long_term else 0.0
+
+                # Blend weight dynamique:
+                # Si Long-Term coverage faible (beaucoup d'exclusions) → priorité Full Intersection
+                # Si Long-Term coverage élevé (peu d'exclusions) → blend équilibré Long-Term + Full
+                #
+                # Version simplifiée: w_long directement proportionnel à coverage_LT
+                w_long = coverage_long_term * 0.4  # Max 40% si coverage=100%
+                w_full = 1 - w_long  # Donc w_full entre 0.6 et 1.0
+
+                # Pénalités communes à tous les cas
+                excluded_pct = exclusions.get('excluded_pct', 0.0)
+                penalty_excluded = -75 * max(0.0, (excluded_pct - 0.20) / 0.80) if excluded_pct > 0.20 else 0.0
+
+                # Pénalité memecoins jeunes (assets exclus de long-term qui sont des memes)
+                excluded_assets = exclusions.get('excluded_assets', [])
+                meme_keywords = ['PEPE', 'BONK', 'DOGE', 'SHIB', 'WIF', 'FLOKI']
+                young_memes = [a for a in excluded_assets if any(kw in str(a.get('symbol', '')).upper() for kw in meme_keywords)]
+
+                if young_memes and len(young_memes) >= 2:
+                    # Calculer % valeur des memes jeunes
+                    total_value = sum(float(b.get('value_usd', 0)) for b in balances)
+                    young_memes_value = sum(float(a.get('value_usd', 0)) for a in young_memes)
+                    young_memes_pct = young_memes_value / total_value if total_value > 0 else 0
+                    penalty_memes_age = -min(25, 80 * young_memes_pct) if young_memes_pct > 0.30 else 0.0
                 else:
-                    risk_metrics = dual_window_result['full_intersection']['metrics']
-                    logger.warning(f"⚠️  Using FULL INTERSECTION fallback: {dual_window_result['full_intersection']['window_days']}d")
+                    penalty_memes_age = 0.0
+                    young_memes_pct = 0.0
+
+                # CAS 1: Blend Long-Term + Full Intersection
+                if long_term and days_full >= 120 and coverage_long_term >= 0.80:
+                    logger.info(f"✅ BLEND MODE: Full={w_full:.2f}, Long={w_long:.2f} ({days_full}d, LT coverage={coverage_long_term*100:.0f}%)")
+
+                    # Blend Risk Score
+                    risk_score_full = full_inter['metrics'].risk_score
+                    risk_score_long = long_term['metrics'].risk_score
+                    blended_risk_score = w_full * risk_score_full + w_long * risk_score_long
+
+                    # Appliquer pénalités
+                    final_risk_score = max(0, min(100, blended_risk_score + penalty_excluded + penalty_memes_age))
+
+                    logger.info(f"📊 Risk Score V2 blend: full={risk_score_full:.1f}, long={risk_score_long:.1f}, blended={blended_risk_score:.1f}")
+                    logger.info(f"⚠️  Penalties: excluded={penalty_excluded:.1f}, young_memes={penalty_memes_age:.1f} ({len(young_memes)} memes)")
+                    logger.info(f"✅ Final Risk Score V2: {final_risk_score:.1f} (was {blended_risk_score:.1f} before penalties)")
+
+                    # ✅ Stocker métriques v2 AVEC Risk Score V2 = Blend + Pénalités
+                    risk_metrics_v2 = full_inter['metrics']._replace(risk_score=final_risk_score)
+
+                    # Sharpe blendé (pour cohérence)
+                    sharpe_blended = w_full * full_inter['metrics'].sharpe_ratio + w_long * long_term['metrics'].sharpe_ratio
+                    risk_metrics_v2 = risk_metrics_v2._replace(sharpe_ratio=sharpe_blended)
+
+                    # 🆕 Phase 5: Métadonnées blend pour API response
+                    blend_metadata = {
+                        "mode": "blend",
+                        "w_full": w_full,
+                        "w_long": w_long,
+                        "risk_score_full": risk_score_full,
+                        "risk_score_long": risk_score_long,
+                        "blended_risk_score": blended_risk_score,
+                        "penalty_excluded": penalty_excluded,
+                        "penalty_memes": penalty_memes_age,
+                        "final_risk_score_v2": final_risk_score,
+                        "young_memes_count": len(young_memes),
+                        "young_memes_pct": young_memes_pct,
+                        "excluded_pct": excluded_pct,
+                        "sharpe_used": {
+                            "full": full_inter['metrics'].sharpe_ratio,
+                            "long": long_term['metrics'].sharpe_ratio,
+                            "blended": sharpe_blended
+                        }
+                    }
+
+                # CAS 2: Long-Term uniquement (Full insuffisante) AVEC pénalités
+                elif long_term:
+                    logger.info(f"✅ Using LONG-TERM window: {long_term['window_days']}d, {long_term['asset_count']} assets (Full insufficient)")
+
+                    base_risk_score = long_term['metrics'].risk_score
+                    final_risk_score = max(0, min(100, base_risk_score + penalty_excluded + penalty_memes_age))
+
+                    logger.info(f"📊 Risk Score V2 (Long-Term only): base={base_risk_score:.1f}, penalties={penalty_excluded + penalty_memes_age:.1f}, final={final_risk_score:.1f}")
+                    logger.info(f"⚠️  Penalties: excluded={penalty_excluded:.1f}, young_memes={penalty_memes_age:.1f} ({len(young_memes)} memes)")
+
+                    # ✅ Stocker métriques v2 avec pénalités
+                    risk_metrics_v2 = long_term['metrics']._replace(risk_score=final_risk_score)
+
+                    blend_metadata = {
+                        "mode": "long_term_only",
+                        "w_full": 0.0,
+                        "w_long": 1.0,
+                        "risk_score_full": full_inter['metrics'].risk_score,
+                        "risk_score_long": base_risk_score,
+                        "blended_risk_score": base_risk_score,
+                        "penalty_excluded": penalty_excluded,
+                        "penalty_memes": penalty_memes_age,
+                        "final_risk_score_v2": final_risk_score,
+                        "young_memes_count": len(young_memes),
+                        "young_memes_pct": young_memes_pct,
+                        "excluded_pct": excluded_pct,
+                        "sharpe_used": {
+                            "full": full_inter['metrics'].sharpe_ratio,
+                            "long": long_term['metrics'].sharpe_ratio,
+                            "blended": long_term['metrics'].sharpe_ratio
+                        }
+                    }
+
+                # CAS 3: Full Intersection uniquement (pas de cohorte long-term) AVEC pénalités
+                else:
+                    logger.warning(f"⚠️  Using FULL INTERSECTION only: {days_full}d (no long-term cohort)")
+
+                    base_risk_score = full_inter['metrics'].risk_score
+                    final_risk_score = max(0, min(100, base_risk_score + penalty_excluded + penalty_memes_age))
+
+                    logger.info(f"📊 Risk Score V2 (Full only): base={base_risk_score:.1f}, penalties={penalty_excluded + penalty_memes_age:.1f}, final={final_risk_score:.1f}")
+                    logger.info(f"⚠️  Penalties: excluded={penalty_excluded:.1f}, young_memes={penalty_memes_age:.1f} ({len(young_memes)} memes)")
+
+                    # ✅ Stocker métriques v2 avec pénalités
+                    risk_metrics_v2 = full_inter['metrics']._replace(risk_score=final_risk_score)
+
+                    # Métadonnées pour API
+                    blend_metadata = {
+                        "mode": "full_intersection_only",
+                        "w_full": 1.0,
+                        "w_long": 0.0,
+                        "risk_score_full": base_risk_score,
+                        "risk_score_long": None,
+                        "blended_risk_score": base_risk_score,
+                        "penalty_excluded": penalty_excluded,
+                        "penalty_memes": penalty_memes_age,
+                        "final_risk_score_v2": final_risk_score,
+                        "young_memes_count": len(young_memes),
+                        "young_memes_pct": young_memes_pct,
+                        "excluded_pct": excluded_pct,
+                        "sharpe_used": {
+                            "full": full_inter['metrics'].sharpe_ratio,
+                            "long": None,
+                            "blended": full_inter['metrics'].sharpe_ratio
+                        }
+                    }
 
             except Exception as e:
-                logger.error(f"❌ Dual window calculation failed, falling back to single window: {e}")
-                use_dual_window = False  # Désactiver pour le reste de la réponse
+                logger.error(f"❌ Dual window V2 calculation failed: {e}")
+                risk_metrics_v2 = None
 
-        # Fallback : Calcul single-window classique
-        if not use_dual_window or dual_window_result is None:
-            risk_metrics = portfolio_metrics_service.calculate_portfolio_metrics(
+        # Fallback si V2 demandé mais échec
+        if compute_v2 and risk_metrics_v2 is None:
+            logger.warning("⚠️  V2 requested but failed, falling back to legacy calculation")
+            risk_metrics_v2 = portfolio_metrics_service.calculate_portfolio_metrics(
                 price_data=price_df,
                 balances=balances,
                 confidence_level=0.95
             )
+
+        # Déterminer quel score est "actif" (utilisé pour décisions)
+        if risk_version == "v2_active":
+            risk_metrics = risk_metrics_v2 if risk_metrics_v2 else risk_metrics_legacy
+            active_version = "v2"
+        else:
+            # legacy ou v2_shadow → legacy est actif
+            risk_metrics = risk_metrics_legacy if risk_metrics_legacy else risk_metrics_v2
+            active_version = "legacy"
+
+        # Fallback ultime si aucun calcul n'a réussi
+        if risk_metrics is None:
+            return {
+                "success": False,
+                "message": "Failed to calculate risk metrics (both legacy and v2 failed)"
+            }
         
         # Calculer les métriques de corrélation
         correlation_metrics = portfolio_metrics_service.calculate_correlation_metrics(
@@ -639,17 +868,49 @@ async def get_risk_dashboard(
         risk_score_authoritative = risk_metrics.risk_score
         overall_risk_level = getattr(risk_metrics.overall_risk_level, "value", str(risk_metrics.overall_risk_level))
 
-        # Calculer le Risk Score Structural (avec intégration GRI + concentration + structure)
-        risk_score_result = _calculate_risk_score_v2(
-            risk_metrics=risk_metrics,
-            exposure_by_group=exposure_by_group,
-            group_risk_index=group_risk_index,
-            balances=balances,
-            correlation_metrics=correlation_metrics
+        # 🆕 Phase 4: Calculer les 2 versions du Structural Score si nécessaire
+        from services.risk.structural_score_v2 import compute_structural_score_v2, get_structural_level
+
+        # Variables pour shadow mode
+        risk_score_structural_legacy = None
+        structural_breakdown_legacy = None
+        structural_score_v2 = None
+        structural_breakdown_v2 = None
+
+        # Inputs communs pour les 2 calculs
+        total_value = sum(float(h.get("value_usd", 0.0)) for h in balances) or 1.0
+        hhi = sum((float(h.get("value_usd", 0.0)) / total_value) ** 2 for h in balances)
+        memes_pct = exposure_by_group.get('Memecoins', 0.0)
+        effective_assets = getattr(correlation_metrics, 'effective_assets', len(balances))
+
+        # Calcul LEGACY Structural (utilise toujours risk_metrics, qui est déjà sélectionné)
+        if risk_metrics:
+            risk_score_result = _calculate_risk_score_v2(
+                risk_metrics=risk_metrics,
+                exposure_by_group=exposure_by_group,
+                group_risk_index=group_risk_index,
+                balances=balances,
+                correlation_metrics=correlation_metrics
+            )
+            risk_score_structural_legacy = risk_score_result[0]
+            structural_breakdown_legacy = risk_score_result[1]
+
+        # Calcul V2 Structural (toujours, car c'est la nouvelle formule)
+        structural_score_v2, structural_breakdown_v2 = compute_structural_score_v2(
+            hhi=hhi,
+            memes_pct=memes_pct,
+            gri=group_risk_index,
+            effective_assets=effective_assets,
+            total_value=total_value
         )
-        risk_score_structural = risk_score_result[0]  # Score structurel
-        structural_breakdown = risk_score_result[1]   # Détail contributions
-        
+
+        # Pour compatibilité, garder l'ancien nom pour la réponse par défaut
+        risk_score_structural = structural_score_v2 if risk_version == "v2_active" else (risk_score_structural_legacy or structural_score_v2)
+        structural_breakdown = structural_breakdown_v2 if risk_version == "v2_active" else (structural_breakdown_legacy or structural_breakdown_v2)
+
+        # 🆕 DEBUG: Log avant création du dict
+        logger.info(f"🧪 SHADOW V2 DEBUG: About to create dashboard_data with risk_version={risk_version}, active_version={active_version}, structural_score_v2={structural_score_v2}")
+
         dashboard_data = {
             "success": True,
             "timestamp": datetime.now().isoformat(),
@@ -676,9 +937,29 @@ async def get_risk_dashboard(
                 "kurtosis": risk_metrics.kurtosis,
                 # ✅ Scores et niveau autoritaires (source de vérité)
                 "overall_risk_level": overall_risk_level,
-                "risk_score": risk_score_authoritative,        # Autoritaire (VaR + Sharpe + DD + Vol)
+                "risk_score": risk_score_authoritative,        # Autoritaire (VaR + Sharpe + DD + Vol) - ACTIF
                 "risk_score_structural": risk_score_structural,  # Structurel (+ GRI + Concentration)
                 "structural_breakdown": structural_breakdown,    # Détail contributions (audit)
+                # 🆕 Phase 5 + 4: Shadow Mode - Version info (Risk + Structure)
+                "risk_version_info": (lambda: _clean_for_json({
+                    "active_version": active_version,                                      # legacy | v2
+                    "requested_version": risk_version,                                     # legacy | v2_shadow | v2_active
+                    # Risk Score (VaR + Sharpe + DD + Vol) - Performance de marché
+                    "risk_score_legacy": risk_metrics_legacy.risk_score if risk_metrics_legacy else None,
+                    "risk_score_v2": risk_metrics_v2.risk_score if risk_metrics_v2 else None,
+                    "sharpe_legacy": risk_metrics_legacy.sharpe_ratio if risk_metrics_legacy else None,
+                    "sharpe_v2": risk_metrics_v2.sharpe_ratio if risk_metrics_v2 else None,
+                    # 🆕 Portfolio Structure Score - Structure pure (HHI, memes, GRI, diversité)
+                    "portfolio_structure_score": structural_score_v2,
+                    "structure_breakdown": structural_breakdown_v2,
+                    "structure_label": "structure_pure",
+                    # Integrated Structural (legacy) - Mix structure + performance
+                    "integrated_structural_legacy": risk_score_structural_legacy,
+                    "integrated_breakdown_legacy": structural_breakdown_legacy,
+                    "integrated_label": "structure_plus_performance",
+                    # Métadonnées blend v2 (si disponible)
+                    "blend_metadata": blend_metadata
+                }))() if risk_version in ["v2_shadow", "v2_active"] else None,
                 # Exposition par groupes et indice GRI (0-10)
                 "exposure_by_group": exposure_by_group,
                 "group_risk_index": group_risk_index,
@@ -760,7 +1041,20 @@ async def get_risk_dashboard(
         # Log metadata for traceability
         logger.info(f"🏷️ Risk dashboard metadata: user={effective_user}, source={source_used}, taxonomy={taxonomy_version}:{groups_hash}")
 
-        return dashboard_data
+        # 🆕 DEBUG: Log risk_version_info avant retour
+        sanitized_dashboard = _clean_for_json(dashboard_data)
+
+        logger.info(
+            "🧪 SHADOW V2 DEBUG: dashboard_data['risk_metrics']['risk_version_info'] = %s",
+            sanitized_dashboard.get('risk_metrics', {}).get('risk_version_info')
+        )
+
+        # 🚨 CHECK 0: Marqueurs uniques pour prouver l'endpoint atteint
+        import time
+        sanitized_dashboard["__served_by__"] = "risk_endpoints.py:v2_shadow"
+        sanitized_dashboard["__ts__"] = time.time()
+
+        return sanitized_dashboard
         
     except Exception as e:
         logger.error(f"Erreur dashboard risque: {e}")
@@ -1223,3 +1517,4 @@ def _generate_risk_alerts(risk_metrics: RiskMetrics, correlation_matrix: Correla
         })
     
     return alerts
+

@@ -16,6 +16,37 @@ const clamp01 = (x) => Math.max(0, Math.min(1, x));
 const pct = (x) => Math.round(clamp01(x) * 100);
 const colorForScore = (s) => s > 70 ? 'var(--danger)' : s >= 40 ? 'var(--warning)' : 'var(--success)';
 
+/**
+ * 🆕 STRUCTURE MODULATION V2 (Oct 2025)
+ * Moduler la cible de stables et le cap selon la qualité structurelle du portfolio
+ *
+ * @param {number} structureScore - Portfolio Structure Score V2 (0-100)
+ * @returns {object} { deltaStables, deltaCap }
+ *
+ * Règles:
+ * - Structure faible (< 50) → +10 pts stables, cap -0.5
+ * - Structure moyenne (50-60) → +5 pts stables, cap 0
+ * - Structure forte (≥ 80) → -5 pts stables, cap +0.5
+ * - Sinon (60-80) → Neutre (0, 0)
+ */
+export function computeStructureModulation(structureScore) {
+  if (structureScore == null || Number.isNaN(structureScore)) {
+    return { deltaStables: 0, deltaCap: 0 };
+  }
+
+  if (structureScore < 50) {
+    return { deltaStables: +10, deltaCap: -0.5 };
+  }
+  if (structureScore < 60) {
+    return { deltaStables: +5, deltaCap: 0 };
+  }
+  if (structureScore >= 80) {
+    return { deltaStables: -5, deltaCap: +0.5 };
+  }
+  // Neutre pour 60-80
+  return { deltaStables: 0, deltaCap: 0 };
+}
+
 // Simple inline fallback (remplace import legacy archivé)
 function simpleFallbackCalculation(context) {
   const { blendedScore = 50, cycleData = {}, onchainScore = 50, riskScore = 50 } = context;
@@ -102,19 +133,44 @@ function calculateAdaptiveWeights(cycleData, onchainScore, contradictions, gover
  * DYNAMIQUE - Calcule les cibles d'allocation macro selon le contexte réel
  * Remplace les presets hardcodés par un calcul adaptatif
  * @param {object} ctx - Contexte (cycle, regime, sentiment, governance)
- * @param {object} rb - Risk budget avec target_stables_pct
+ * @param {object} rb - Risk budget avec target_stables_pct, min_stables, max_stables
  * @param {object} walletStats - Stats wallet (concentration, volatilité)
+ * @param {object} data - Données complètes (pour accès risk_metrics.risk_version_info)
  * @returns {object} Targets par groupe, somme = 100%
  */
-function computeMacroTargetsDynamic(ctx, rb, walletStats) {
-  console.debug('🎯 computeMacroTargetsDynamic called:', { ctx, rb, walletStats });
+function computeMacroTargetsDynamic(ctx, rb, walletStats, data = null) {
+  console.debug('🎯 computeMacroTargetsDynamic called:', { ctx, rb, walletStats, hasData: !!data });
 
-  // 0) Stables = SOURCE DE VÉRITÉ (risk budget)
-  let stables = rb?.target_stables_pct;
-  if (typeof stables !== 'number' || stables < 0 || stables > 100) {
-    console.debug('⚠️ target_stables_pct invalide, fallback 25%:', stables);
-    stables = 25;
+  // 0) Stables = SOURCE DE VÉRITÉ (risk budget) avec Structure Modulation V2
+  let stablesBase = rb?.target_stables_pct;
+  if (typeof stablesBase !== 'number' || stablesBase < 0 || stablesBase > 100) {
+    console.debug('⚠️ target_stables_pct invalide, fallback 25%:', stablesBase);
+    stablesBase = 25;
   }
+
+  // 🆕 Structure Modulation V2 (Oct 2025)
+  const structureScore = data?.risk?.risk_metrics?.risk_version_info?.portfolio_structure_score;
+  const { deltaStables, deltaCap } = computeStructureModulation(structureScore);
+
+  // Appliquer modulation avec clamp [min_stables, max_stables]
+  const minStables = rb?.min_stables ?? 10;
+  const maxStables = rb?.max_stables ?? 60;
+  const stablesModulated = Math.max(minStables, Math.min(maxStables, stablesBase + deltaStables));
+
+  // Métadonnées pour UI/logs
+  ctx.structure_modulation = {
+    structure_score: structureScore ?? null,
+    delta_stables: deltaStables,
+    delta_cap: deltaCap,
+    stables_before: stablesBase,
+    stables_after: stablesModulated,
+    note: 'V2 portfolio structure modulation',
+    enabled: structureScore != null
+  };
+
+  console.debug('🏗️ Structure Modulation V2:', ctx.structure_modulation);
+
+  const stables = stablesModulated;
   const riskyPool = Math.max(0, 100 - stables); // Espace pour assets risqués
 
   // 1) Poids de base relatifs (hors stables) - Portfolio neutre
@@ -533,7 +589,9 @@ export async function getUnifiedState() {
       };
 
       // CALCUL DYNAMIQUE: remplace les presets hardcodés
-      let dynamicTargets = computeMacroTargetsDynamic(ctx, rb, walletStats);
+      // 🆕 Passer risk_metrics pour Structure Modulation V2
+      const dataForModulation = { risk: { risk_metrics: risk } };
+      let dynamicTargets = computeMacroTargetsDynamic(ctx, rb, walletStats, dataForModulation);
 
       // PHASE ENGINE INTEGRATION (shadow/apply modes)
       if (ctx.flags.phase_engine === 'shadow' || ctx.flags.phase_engine === 'apply') {
@@ -797,6 +855,38 @@ export async function getUnifiedState() {
       { stablesFinal, stablesBudget }
     );
   }
+
+  // 🆕 Exposer Structure Modulation V2 (Oct 2025)
+  // ctx.structure_modulation est défini dans computeMacroTargetsDynamic()
+  // On le récupère depuis le contexte utilisé pour les targets
+  const structureMod = await (async () => {
+    try {
+      // Reconstruire le contexte (même que pour targets_by_group)
+      const ctx = {
+        regime: regimeData.regime?.name?.toLowerCase(),
+        cycle_score: cycleData.score,
+        governance_mode: decision.governance_mode || 'Normal',
+        sentiment: sentimentData?.interpretation,
+        flags: {
+          phase_engine: typeof window !== 'undefined' ?
+            localStorage.getItem('PHASE_ENGINE_ENABLED') || 'shadow' : 'off'
+        }
+      };
+
+      const rb = regimeData.risk_budget;
+      const dataForModulation = { risk: { risk_metrics: risk } };
+
+      // Appeler computeMacroTargetsDynamic pour obtenir ctx.structure_modulation
+      computeMacroTargetsDynamic(ctx, rb, {}, dataForModulation);
+
+      return ctx.structure_modulation || null;
+    } catch (error) {
+      console.warn('⚠️ Structure modulation unavailable:', error);
+      return null;
+    }
+  })();
+
+  unifiedState.structure_modulation = structureMod;
 
   // Timestamp fiable
   unifiedState.lastUpdate = rb?.generated_at || unifiedState?.lastUpdate || new Date().toISOString();

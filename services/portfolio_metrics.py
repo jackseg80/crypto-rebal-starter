@@ -128,6 +128,65 @@ class PortfolioMetricsService:
         positive_months = self._calculate_positive_months_pct(portfolio_returns)
         win_loss_ratio = self._calculate_win_loss_ratio(portfolio_returns)
 
+        # 🆕 Calculate structural metrics for risk scoring
+        memecoins_pct = 0.0
+        hhi = 0.0
+        gri = 5.0  # Default neutral
+        diversification_ratio = 1.0  # Default neutral
+
+        if balances:
+            # Calculate memecoins %
+            from services.taxonomy import Taxonomy
+            taxonomy = Taxonomy.load()
+            total_value = sum(float(b.get('value_usd', 0)) for b in balances)
+
+            if total_value > 0:
+                # Memecoins %
+                memes_value = sum(
+                    float(b.get('value_usd', 0))
+                    for b in balances
+                    if taxonomy.group_for_alias(str(b.get('symbol', '')).upper()) == 'Memecoins'
+                )
+                memecoins_pct = memes_value / total_value
+
+                # HHI (concentration)
+                weights = [float(b.get('value_usd', 0)) / total_value for b in balances]
+                hhi = sum(w * w for w in weights)
+
+                # GRI (Group Risk Index)
+                GROUP_RISK_LEVELS = {
+                    'Stablecoins': 0,
+                    'BTC': 2,
+                    'ETH': 3,
+                    'L2/Scaling': 5,
+                    'DeFi': 5,
+                    'AI/Data': 5,
+                    'SOL': 6,
+                    'L1/L0 majors': 6,
+                    'Gaming/NFT': 6,
+                    'Others': 7,
+                    'Memecoins': 9,
+                }
+                exposure_by_group = {}
+                for b in balances:
+                    symbol = str(b.get('symbol', '')).upper()
+                    group = taxonomy.group_for_alias(symbol)
+                    weight = float(b.get('value_usd', 0)) / total_value
+                    exposure_by_group[group] = exposure_by_group.get(group, 0.0) + weight
+
+                gri_raw = sum(
+                    exposure_by_group.get(g, 0.0) * GROUP_RISK_LEVELS.get(g, 6)
+                    for g in exposure_by_group
+                )
+                gri = max(0.0, min(10.0, gri_raw))
+
+        # Calculate correlation metrics for diversification ratio
+        correlation_metrics = self.calculate_correlation_metrics(
+            price_data=price_data,
+            min_correlation_threshold=0.7
+        )
+        diversification_ratio = correlation_metrics.diversification_ratio
+
         # ✅ Risk Assessment (docs/RISK_SEMANTICS.md)
         # Risk Score = indicateur POSITIF de robustesse [0-100]
         # Plus haut = plus robuste (risque perçu plus faible)
@@ -137,7 +196,12 @@ class PortfolioMetricsService:
             var_metrics=var_metrics,
             sharpe_ratio=sharpe_ratio,
             max_drawdown=drawdown_metrics['max_drawdown'],
-            volatility=volatility
+            volatility=volatility,
+            # 🆕 Structural penalties (V2+ scoring)
+            memecoins_pct=memecoins_pct,
+            hhi=hhi,
+            gri=gri,
+            diversification_ratio=diversification_ratio
         )
 
         return PortfolioMetrics(

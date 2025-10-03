@@ -76,21 +76,31 @@ def assess_risk_level(
     var_metrics: Dict[str, float],
     sharpe_ratio: float,
     max_drawdown: float,
-    volatility: float
+    volatility: float,
+    # 🆕 Structural penalties (optional, for V2+ scoring)
+    memecoins_pct: float = 0.0,
+    hhi: float = 0.0,
+    gri: float = 5.0,
+    diversification_ratio: float = 1.0
 ) -> Dict[str, Any]:
     """
-    Calculate authoritative Risk Score based on quantitative metrics.
+    Calculate authoritative Risk Score based on quantitative metrics + structural penalties.
 
     This is the canonical implementation for Option A semantics:
     - Risk Score = robustness indicator [0..100]
     - Good metrics (low VaR, high Sharpe) → score increases
     - Bad metrics (high VaR, low Sharpe) → score decreases
+    - 🆕 BAD structure (memes, concentration) → score decreases
 
     Args:
         var_metrics: Dict with 'var_95', 'var_99', 'cvar_95', 'cvar_99'
         sharpe_ratio: Sharpe ratio (risk-adjusted return)
         max_drawdown: Maximum drawdown (negative value)
         volatility: Annualized volatility
+        memecoins_pct: % of portfolio in memecoins (0.0-1.0)
+        hhi: Herfindahl-Hirschman Index (concentration, 0.0-1.0)
+        gri: Group Risk Index (0-10, higher = riskier groups)
+        diversification_ratio: Diversification ratio (0-1, higher = better)
 
     Returns:
         Dict with:
@@ -164,6 +174,61 @@ def assess_risk_level(
         delta = 0
     score += delta
     breakdown['volatility'] = delta
+
+    # 🆕 STRUCTURAL PENALTIES (V2+ scoring)
+    # These penalties apply ALWAYS, not just in dual-window mode
+
+    # Memecoins penalty (higher % = LESS robust → score decreases)
+    if memecoins_pct > 0.50:
+        delta = -30  # ❌ >50% memes → major penalty
+    elif memecoins_pct > 0.30:
+        delta = -20  # ❌ >30% memes → significant penalty
+    elif memecoins_pct > 0.15:
+        delta = -10  # ⚠️ >15% memes → moderate penalty
+    elif memecoins_pct > 0.05:
+        delta = -5   # ⚠️ >5% memes → light penalty
+    else:
+        delta = 0    # ✅ Low memes → no penalty
+    score += delta
+    breakdown['memecoins'] = delta
+
+    # Concentration penalty (HHI: higher = more concentrated = LESS robust)
+    if hhi > 0.40:
+        delta = -15  # ❌ Very concentrated → score drops
+    elif hhi > 0.25:
+        delta = -10
+    elif hhi > 0.15:
+        delta = -5
+    else:
+        delta = 0    # ✅ Well diversified → no penalty
+    score += delta
+    breakdown['concentration'] = delta
+
+    # Group Risk Index penalty (GRI: higher = riskier groups)
+    if gri > 7.0:
+        delta = -15  # ❌ Very risky groups → score drops
+    elif gri > 6.0:
+        delta = -10
+    elif gri > 5.0:
+        delta = -5
+    elif gri < 3.0:
+        delta = +5   # ✅ Safe groups → score rises
+    else:
+        delta = 0
+    score += delta
+    breakdown['group_risk'] = delta
+
+    # Diversification penalty (lower ratio = LESS robust)
+    if diversification_ratio < 0.4:
+        delta = -10  # ❌ Very low diversification → score drops
+    elif diversification_ratio < 0.6:
+        delta = -5
+    elif diversification_ratio > 0.8:
+        delta = +5   # ✅ High diversification → score rises
+    else:
+        delta = 0
+    score += delta
+    breakdown['diversification'] = delta
 
     # Clamp score to [0, 100]
     score = max(0, min(100, score))

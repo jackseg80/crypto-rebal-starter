@@ -486,6 +486,104 @@ pytest tests/unit/test_dual_window_metrics.py -v  # 7 tests
 
 📖 Voir [docs/RISK_SEMANTICS.md](docs/RISK_SEMANTICS.md) - Section "Dual Window System"
 
+### C.2) Risk Score V2 - Blend avec Pénalités (Oct 2025) 🆕
+
+**Objectif** : Diverger du Risk Score Legacy sur les portfolios "degen" (actifs récents, memecoins jeunes).
+
+**Problème résolu** : Avant, `risk_score_v2 == risk_score_legacy` (même calcul). Pas de détection degen.
+
+**Solution** : Risk Score V2 = **Dual-Window Blend + Pénalités**
+
+#### Modes de Calcul V2
+
+Le Risk Score V2 utilise **3 cas possibles** selon la qualité de l'historique :
+
+1. **Blend** (Long-Term + Full Intersection) : Si cohort long-term valide (180j+, 80%+ coverage)
+   ```
+   w_long = coverage_LT × 0.4
+   w_full = 1 - w_long
+   blended = w_full × full_score + w_long × long_score
+   final_v2 = blended + penalties
+   ```
+
+2. **Long-Term Only** : Si cohort long-term valide mais Full insuffisante (<120j)
+   ```
+   final_v2 = long_score + penalties
+   ```
+
+3. **Full Intersection Only** : Si aucune cohort long-term (cascade fallback échoué)
+   ```
+   final_v2 = full_score + penalties
+   ```
+
+#### Pénalités Appliquées
+
+**Exclusion** : Si > 20% du portfolio exclu de la cohort long-term
+```python
+penalty_excluded = -75 × max(0, (excluded_pct - 0.20) / 0.80)  # Max -75 points
+```
+
+**Memecoins Jeunes** : Si ≥ 2 memes exclus ET > 30% de valeur
+```python
+penalty_memes = -min(25, 80 × young_memes_pct)  # Max -25 points
+```
+
+#### Shadow Mode (v2_shadow)
+
+**Endpoint** :
+```
+GET /api/risk/dashboard?risk_version=v2_shadow&use_dual_window=true
+```
+
+**Réponse API** :
+```json
+{
+  "risk_metrics": {
+    "risk_version_info": {
+      "active_version": "legacy",
+      "risk_score_legacy": 60.0,
+      "risk_score_v2": 30.0,  # ← Divergence -30 points (degen détecté)
+      "blend_metadata": {
+        "mode": "blend",
+        "final_risk_score_v2": 30.0,
+        "penalty_excluded": -28,
+        "penalty_memes": -25,
+        "young_memes_count": 3,
+        "excluded_pct": 0.40
+      }
+    }
+  }
+}
+```
+
+#### Exemples Divergence
+
+**Portfolio Sain** (BTC/ETH/stables, historique long) :
+- Legacy: 85/100, V2: 85/100 → Divergence: 0 ✅
+
+**Portfolio Degen** (40% memes jeunes récents) :
+- Legacy: 60/100, V2: 30/100 → Divergence: -30 ⚠️
+
+#### Frontend
+
+**Dashboard** : `risk-dashboard.html:4240-4350` affiche badges Shadow Mode :
+- 🔷 **Legacy Risk Score** : Single window classique
+- 🔶 **V2 Risk Score** : Dual-window + pénalités
+- 🟣 **Structural Scores** : Integrated (Legacy) vs Structure Pure (V2)
+
+#### Tests
+
+**Fichier** : `test_risk_score_v2_divergence.py`
+
+**Commande** :
+```bash
+.venv/Scripts/python.exe test_risk_score_v2_divergence.py
+```
+
+#### Documentation Complète
+
+📖 Voir [docs/RISK_SCORE_V2_IMPLEMENTATION.md](docs/RISK_SCORE_V2_IMPLEMENTATION.md)
+
 ### D) Utiliser le panneau Decision Index
 
 **Objectif** : Afficher DI + contributions + Trend Chip + Regime Ribbon + aide dans analytics/simulations.

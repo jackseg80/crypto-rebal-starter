@@ -2,7 +2,23 @@
 // Macro → Secteurs → Coins avec floors contextuels et incumbency protection
 
 import { getAssetGroup, UNIFIED_ASSET_GROUPS, GROUP_ORDER, loadTaxonomyDataSync } from '../shared-asset-groups.js';
-import { selectCapPercent } from '../selectors/governance.js';
+// ✅ MODIFIÉ (Phase 1.2): Utiliser selectEffectiveCap pour cohérence staleness/alert/policy
+import { selectEffectiveCap } from '../selectors/governance.js';
+
+/**
+ * 🆕 STRUCTURE MODULATION V2 (Oct 2025)
+ * Applique deltaCap depuis structure modulation au cap effectif de gouvernance
+ *
+ * @param {object} state - Store state (pour selectEffectiveCap)
+ * @param {number} deltaCap - Ajustement de cap (±0.5 max)
+ * @returns {number} Cap effectif ajusté (%)
+ */
+function getEffectiveCapWithStructure(state, deltaCap = 0) {
+  const capEff = selectEffectiveCap(state); // Source gouvernance (staleness, alerts, policy)
+  const adjusted = Math.max(0, capEff + (deltaCap || 0)); // Jamais négatif
+  const maxDelta = 0.5; // Garde-fou: +0.5% max vis-à-vis de la gouvernance
+  return Math.min(adjusted, capEff + maxDelta);
+}
 
 // Feature flag pour activation
 const ALLOCATION_ENGINE_V2 = true; // Will be controlled by config later
@@ -71,8 +87,18 @@ export async function calculateHierarchicalAllocation(context, currentPositions 
       riskScore = 50,
       adaptiveWeights = {},
       risk_budget = {},
-      contradiction = 0
+      contradiction = 0,
+      // ✅ NOUVEAU (Phase 1.3): Récupérer meme_cap depuis regime.allocation_bias
+      regime = {},
+      // 🆕 NOUVEAU (Oct 2025): Structure Modulation V2 pour deltaCap
+      structure_modulation = {}
     } = context;
+
+    // Extraire meme_cap depuis le régime de marché
+    const meme_cap = regime?.allocation_bias?.meme_cap ?? null;
+
+    // 🆕 Extraire deltaCap depuis structure modulation
+    const deltaCap = structure_modulation?.delta_cap ?? 0;
 
     // 2. DÉTECTION PHASE MARCHÉ
     const isBullishPhase = cycleScore >= 90;
@@ -89,8 +115,8 @@ export async function calculateHierarchicalAllocation(context, currentPositions 
     const sectorAllocation = calculateSectorAllocation(macroAllocation, selectedFloors, isBullishPhase);
     console.debug('🏭 Sector allocation:', sectorAllocation);
 
-    // 5. ALLOCATION NIVEAU 3 - COINS (Incumbency Protection)
-    const coinAllocation = calculateCoinAllocation(sectorAllocation, currentPositions, selectedFloors);
+    // 5. ALLOCATION NIVEAU 3 - COINS (Incumbency Protection + Meme Cap)
+    const coinAllocation = calculateCoinAllocation(sectorAllocation, currentPositions, selectedFloors, meme_cap);
     console.debug('🪙 Coin allocation:', coinAllocation);
 
     // 6. CALCUL ITERATIONS ESTIMÉES
@@ -154,7 +180,18 @@ export async function calculateHierarchicalAllocation(context, currentPositions 
         phase: isBullishPhase ? 'bullish' : isModeratePhase ? 'moderate' : 'bearish',
         floors_applied: selectedFloors,
         adaptive_weights: adaptiveWeights,
-        total_check: validateTotalAllocation(coinAllocation)
+        total_check: validateTotalAllocation(coinAllocation),
+        // ✅ NOUVEAU (Phase 1.3): Métadonnées meme_cap
+        meme_cap: typeof window !== 'undefined' ? window._allocationMetadata?.meme_cap : {
+          defined: meme_cap !== null,
+          value: meme_cap,
+          applied: false
+        },
+        // 🆕 NOUVEAU (Oct 2025): Structure Modulation V2
+        structure_modulation: structure_modulation?.enabled ? {
+          ...structure_modulation,
+          cap_after: executionPlan.cap_pct_per_iter // Cap effectif APRÈS deltaCap
+        } : null
       }
     };
 
@@ -309,13 +346,15 @@ function calculateSectorAllocation(macroAllocation, floors, isBullishPhase) {
 }
 
 /**
- * Niveau 3: Distribution intra-secteur avec protection incumbency
+ * Niveau 3: Distribution intra-secteur avec protection incumbency + meme_cap
+ * @param {number|null} meme_cap - Cap maximal pour Memecoins en % (0-100), depuis market-regimes
  */
-function calculateCoinAllocation(sectorAllocation, currentPositions, floors) {
+function calculateCoinAllocation(sectorAllocation, currentPositions, floors, meme_cap = null) {
   const coinAllocation = {};
   const heldAssets = new Set(currentPositions.map(pos => pos.symbol?.toUpperCase()).filter(Boolean));
 
   console.debug('🔒 Incumbency protection for held assets:', Array.from(heldAssets));
+  console.debug('🎭 Meme cap from regime:', meme_cap !== null ? `${meme_cap}%` : 'none');
 
   // Debug: check how assets are classified
   currentPositions.forEach(pos => {
@@ -381,19 +420,78 @@ function calculateCoinAllocation(sectorAllocation, currentPositions, floors) {
     }
   });
 
+  // ✅ NOUVEAU (Phase 1.3): Appliquer meme_cap APRÈS calcul initial, AVANT normalisation
+  let memeCapApplied = false;
+  if (meme_cap !== null && typeof meme_cap === 'number') {
+    const memeCapDecimal = meme_cap / 100; // Convertir % en décimal (0-1)
+
+    // Calculer allocation actuelle Memecoins (groupe + coins individuels)
+    let totalMemecoins = coinAllocation['Memecoins'] || 0;
+
+    // Ajouter coins individuels classés comme memecoins
+    const memecoinsGroup = UNIFIED_ASSET_GROUPS['Memecoins'] || [];
+    memecoinsGroup.forEach(asset => {
+      if (coinAllocation[asset]) {
+        totalMemecoins += coinAllocation[asset];
+      }
+    });
+
+    // Appliquer le cap si dépassement
+    if (totalMemecoins > memeCapDecimal) {
+      const excess = totalMemecoins - memeCapDecimal;
+      const reductionFactor = memeCapDecimal / totalMemecoins;
+
+      // Réduire proportionnellement groupe + coins individuels
+      if (coinAllocation['Memecoins']) {
+        coinAllocation['Memecoins'] *= reductionFactor;
+      }
+      memecoinsGroup.forEach(asset => {
+        if (coinAllocation[asset]) {
+          coinAllocation[asset] *= reductionFactor;
+        }
+      });
+
+      // Redistribuer l'excédent vers BTC/ETH (safe assets)
+      const btcShare = 0.6;
+      const ethShare = 0.4;
+      coinAllocation['BTC'] = (coinAllocation['BTC'] || 0) + excess * btcShare;
+      coinAllocation['ETH'] = (coinAllocation['ETH'] || 0) + excess * ethShare;
+
+      memeCapApplied = true;
+      console.debug(`🎭 Meme cap applied: ${(totalMemecoins * 100).toFixed(1)}% → ${meme_cap}% (excess ${(excess * 100).toFixed(2)}% → BTC/ETH)`);
+    }
+  }
+
+  // Log métadonnée pour validation
+  if (typeof window !== 'undefined') {
+    if (!window._allocationMetadata) window._allocationMetadata = {};
+    window._allocationMetadata.meme_cap = {
+      defined: meme_cap !== null,
+      value: meme_cap,
+      applied: memeCapApplied
+    };
+  }
+
   return coinAllocation;
 }
 
 /**
  * Calcul du plan d'exécution (iterations estimées)
+ * 🆕 MODIFIÉ (Oct 2025): Support Structure Modulation V2 deltaCap
  */
 function calculateExecutionPlan(targetAllocation, currentPositions, executionContext = {}) {
   let capPct = executionContext.cap_pct_per_iter;
 
+  // 🆕 Extraire deltaCap depuis structure_modulation
+  const deltaCap = executionContext.structure_modulation?.delta_cap ?? 0;
+
+  // ✅ MODIFIÉ (Phase 1.2): Utiliser selectEffectiveCap au lieu de selectCapPercent
+  // 🆕 MODIFIÉ (Oct 2025): Appliquer deltaCap depuis structure modulation
+  // Gère automatiquement: backend error (5%), staleness (8%), alert override, policy, engine + structure deltaCap
   if (capPct == null) {
     const contextState = executionContext.state || executionContext.unified_state || null;
     if (contextState) {
-      capPct = selectCapPercent(contextState);
+      capPct = getEffectiveCapWithStructure(contextState, deltaCap);
     }
   }
 
@@ -405,7 +503,7 @@ function calculateExecutionPlan(targetAllocation, currentPositions, executionCon
   if (capPct == null && typeof window !== 'undefined') {
     try {
       const fallbackState = (typeof window.store?.snapshot === 'function' ? window.store.snapshot() : null) || window.realDataStore || {};
-      capPct = selectCapPercent(fallbackState);
+      capPct = getEffectiveCapWithStructure(fallbackState, deltaCap);
     } catch (error) {
       console.debug('calculateExecutionPlan cap fallback failed', error?.message || error);
     }

@@ -2388,22 +2388,34 @@
 
         // Use the real backend endpoint for risk dashboard
         // ✅ Inclure source et user_id pour isolation multi-tenant
+        // ✅ NOUVEAU (Phase 5.5): Shadow Mode V2 + Dual Window
         const apiResult = await window.globalConfig.apiRequest('/api/risk/dashboard', {
           params: {
             source: dataSource,
             min_usd: minUsd,
             price_history_days: analysisDays,
-            lookback_days: corrDays
+            lookback_days: corrDays,
+            risk_version: 'v2_shadow',  // Shadow mode: retourne legacy + v2
+            use_dual_window: true        // Dual-window metrics actives
           }
         });
 
-        // 🔍 DEBUG: Log la réponse brute avec nouveaux champs
-        console.debug('🔍 Raw API response:', JSON.stringify({
-          sharpe: apiResult?.risk_metrics?.sharpe_ratio,
+        // 🔍 DEBUG: Log la réponse brute avec nouveaux champs V2
+        console.debug('🔍 Raw API response (Shadow Mode V2):', JSON.stringify({
+          // Legacy scores
+          sharpe_legacy: apiResult?.risk_metrics?.sharpe_ratio,
           var95: apiResult?.risk_metrics?.var_95_1d,
-          risk_score: apiResult?.risk_metrics?.risk_score,
-          risk_score_structural: apiResult?.risk_metrics?.risk_score_structural,
-          window_used: apiResult?.risk_metrics?.window_used
+          risk_score_legacy: apiResult?.risk_metrics?.risk_score,
+          structural_legacy: apiResult?.risk_metrics?.risk_score_structural,
+          window_used: apiResult?.risk_metrics?.window_used,
+          // V2 Shadow Mode info (🔧 FIX: Chemin correct!)
+          risk_version_info: apiResult?.risk_metrics?.risk_version_info ? {
+            active_version: apiResult.risk_metrics.risk_version_info.active_version,
+            risk_score_v2: apiResult.risk_metrics.risk_version_info.risk_score_v2,
+            sharpe_v2: apiResult.risk_metrics.risk_version_info.sharpe_v2,
+            portfolio_structure_score: apiResult.risk_metrics.risk_version_info.portfolio_structure_score,
+            integrated_structural_legacy: apiResult.risk_metrics.risk_version_info.integrated_structural_legacy
+          } : null
         }));
 
         // Vérifier que apiResult est valide avant de l'utiliser
@@ -2417,7 +2429,7 @@
         } catch (_) { /* ignore */ }
 
         const m = apiResult.risk_metrics;
-        console.log(`📊 Risk metrics from API: VaR 95%: ${(m.var_95_1d * 100).toFixed(2)}%, Sharpe: ${m.sharpe_ratio.toFixed(2)}, Risk Score: ${m.risk_score} (authoritative), Structural: ${m.risk_score_structural || 'N/A'}, Window: ${m.window_used?.actual_data_points || '?'} pts`);
+        console.log(`🧪 SHADOW V2 - Risk metrics from API: VaR 95%: ${(m.var_95_1d * 100).toFixed(2)}%, Sharpe: ${m.sharpe_ratio.toFixed(2)}, Risk Score: ${m.risk_score} (authoritative), Structural: ${m.risk_score_structural || 'N/A'}, Window: ${m.window_used?.actual_data_points || '?'} pts, risk_version_info: ${m.risk_version_info ? 'PRESENT ✅' : 'MISSING ❌'}`);
 
         // The backend already provides the correct structure, just return it
         return apiResult;
@@ -2574,17 +2586,26 @@
       return benchmarks[key] || {};
     }
 
-    function generateRecommendations(metrics, correlations, groups) {
+    function generateRecommendations(metrics, correlations, groups, fullData) {
       const recommendations = [];
 
       // VaR recommendations (VaR renvoyé en valeur positive)
+      // ⚠️ MODIFIÉ (Phase 1.1): Suppression % stables hardcodé, branché sur risk_budget API
       if (metrics.var_95_1d > 0.08) {
+        const riskBudget = fullData?.risk_budget || fullData?.regime?.risk_budget;
+        const targetStables = riskBudget?.target_stables_pct;
+
+        let action = 'Augmentez la part de stablecoins ou Bitcoin pour réduire la volatilité';
+        if (typeof targetStables === 'number') {
+          action = `Allocation stables recommandée: ${targetStables}% (calculée selon votre profil de risque)`;
+        }
+
         recommendations.push({
           priority: 'high',
           icon: '🛡️',
           title: 'Réduire le risque de perte journalière',
-          description: 'Votre VaR de ' + formatPercent(metrics.var_95_1d) + ' est élevé. Augmentez la part de stablecoins ou Bitcoin.',
-          action: 'Ciblez 15-25% de stablecoins pour stabiliser le portfolio'
+          description: 'Votre VaR de ' + formatPercent(metrics.var_95_1d) + ' est élevé.',
+          action: action
         });
       }
 
@@ -3964,7 +3985,8 @@
       // Helper functions are defined at the top of the script
 
       // Prépare: HTML recommandations et alertes pour la section top-summary
-      const recos = generateRecommendations(m, c, p.groups || {});
+      // ✅ MODIFIÉ (Phase 1.1): Passe fullData pour accès à risk_budget
+      const recos = generateRecommendations(m, c, p.groups || {}, data);
       const recommendationsHtml = (() => {
         return recos.map(rec => `
           <div class="recommendation recommendation-${rec.priority}">
@@ -4214,6 +4236,45 @@
               <span class="metric-value" data-score="risk-display">${safeFixed(m.risk_score, 1)}/100</span>
             </div>
 
+            <!-- 🆕 Shadow Mode V2 Badge -->
+            ${m.risk_version_info ? `
+            <div style="margin: 8px 0; padding: 8px; background: rgba(158, 206, 106, 0.1); border-radius: 6px; border-left: 3px solid #9ece6a;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span style="font-size: 0.8em; font-weight: 600; color: #9ece6a;">
+                  🧪 Shadow Mode V2 - Comparaison Scores
+                </span>
+                <span style="font-size: 0.7em; color: var(--text-tertiary); font-style: italic;">
+                  (${m.risk_version_info.active_version})
+                </span>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.85em;">
+                <div>
+                  <div style="color: var(--text-secondary); margin-bottom: 2px;">Legacy Risk Score:</div>
+                  <div style="font-weight: 600; color: var(--text-primary);">
+                    ${m.risk_version_info.risk_score_legacy != null ? safeFixed(m.risk_version_info.risk_score_legacy, 1) : 'N/A'}/100
+                  </div>
+                  <div style="font-size: 0.75em; color: var(--text-tertiary); margin-top: 2px;">
+                    Sharpe: ${m.risk_version_info.sharpe_legacy != null ? safeFixed(m.risk_version_info.sharpe_legacy, 2) : 'N/A'}
+                  </div>
+                </div>
+                <div>
+                  <div style="color: var(--text-secondary); margin-bottom: 2px;">V2 Risk Score:</div>
+                  <div style="font-weight: 600; color: #9ece6a;">
+                    ${m.risk_version_info.risk_score_v2 != null ? safeFixed(m.risk_version_info.risk_score_v2, 1) : 'N/A'}/100
+                  </div>
+                  <div style="font-size: 0.75em; color: var(--text-tertiary); margin-top: 2px;">
+                    Sharpe: ${m.risk_version_info.sharpe_v2 != null ? safeFixed(m.risk_version_info.sharpe_v2, 2) : 'N/A'}
+                  </div>
+                </div>
+              </div>
+              <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(158, 206, 106, 0.2);">
+                <div style="font-size: 0.75em; color: var(--text-tertiary); font-style: italic;">
+                  ℹ️ V2 utilise Dual-Window Blend pour stabilité avec assets récents
+                </div>
+              </div>
+            </div>
+            ` : ''}
+
             <!-- 🆕 Dual Window Badges -->
             ${m.dual_window?.enabled ? `
             <div style="margin: 8px 0; padding: 8px; background: rgba(122, 162, 247, 0.1); border-radius: 6px; border-left: 3px solid var(--brand-primary);">
@@ -4262,12 +4323,116 @@
             </div>
             ` : ''}
 
-            ${m.risk_score_structural != null ? `
+            <!-- 🆕 Structural Score - Shadow Mode V2 -->
+            ${m.risk_version_info ? `
+            <div style="margin: 8px 0; padding: 8px; background: rgba(187, 154, 247, 0.1); border-radius: 6px; border-left: 3px solid #bb9af7;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span style="font-size: 0.8em; font-weight: 600; color: #bb9af7;">
+                  🏗️ Structural Score - Comparaison
+                </span>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.85em;">
+                <div>
+                  <div style="color: var(--text-secondary); margin-bottom: 2px;">Integrated (Legacy):</div>
+                  <div style="font-weight: 600; color: var(--text-primary);" title="Structure + Performance (VaR, CVaR, DD, Vol)">
+                    ${m.risk_version_info.integrated_structural_legacy != null ? safeFixed(m.risk_version_info.integrated_structural_legacy, 1) : 'N/A'}/100
+                  </div>
+                  <div style="font-size: 0.7em; color: var(--text-tertiary); margin-top: 2px;">
+                    (structure + performance)
+                  </div>
+                </div>
+                <div>
+                  <div style="color: var(--text-secondary); margin-bottom: 2px;">Portfolio Structure (V2):</div>
+                  <div style="font-weight: 600; color: #bb9af7;" title="HHI, Memecoins, GRI, Diversification uniquement">
+                    ${m.risk_version_info.portfolio_structure_score != null ? safeFixed(m.risk_version_info.portfolio_structure_score, 1) : 'N/A'}/100
+                  </div>
+                  <div style="font-size: 0.7em; color: var(--text-tertiary); margin-top: 2px;">
+                    (structure pure)
+                  </div>
+                </div>
+              </div>
+              <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(187, 154, 247, 0.2);">
+                <div style="font-size: 0.75em; color: var(--text-tertiary); font-style: italic;">
+                  ℹ️ V2 = pure structure (HHI, memes, GRI, div) | Legacy = hybrid (+ VaR, CVaR, DD, Vol)
+                </div>
+              </div>
+            </div>
+            ` : m.risk_score_structural != null ? `
             <div class="metric-row" style="opacity: 0.8;">
               <span class="metric-label" title="Risk Score Structural : Intègre exposition par groupe (GRI), concentration et structure du portfolio">Structural <span style="font-size: 0.7em; color: var(--theme-accent);">struct</span></span>
               <span class="metric-value" style="font-size: 0.9em;">${safeFixed(m.risk_score_structural, 1)}/100</span>
             </div>
             ` : ''}
+
+            <!-- 🆕 Structure Modulation V2 (Oct 2025) -->
+            ${(() => {
+              // Lire structure_modulation depuis unified state (si disponible)
+              try {
+                const unifiedState = window.store?.snapshot?.();
+                const structureMod = unifiedState?.structure_modulation;
+
+                // Afficher seulement si activé ET disponible
+                if (!structureMod?.enabled || structureMod.structure_score == null) {
+                  return '';
+                }
+
+                const structureScore = structureMod.structure_score;
+                const deltaStables = structureMod.delta_stables || 0;
+                const deltaCap = structureMod.delta_cap || 0;
+                const stablesAfter = structureMod.stables_after || 0;
+                const capAfter = structureMod.cap_after || 0;
+
+                // Couleur selon impact
+                let color = '#7aa2f7'; // Bleu neutre
+                if (deltaStables > 0) color = '#f7768e'; // Rouge (plus de stables = prudence)
+                else if (deltaStables < 0) color = '#9ece6a'; // Vert (moins de stables = opportunité)
+
+                return `
+                <div style="margin: 8px 0; padding: 8px; background: rgba(122, 162, 247, 0.1); border-radius: 6px; border-left: 3px solid ${color};">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <span style="font-size: 0.8em; font-weight: 600; color: ${color};">
+                      🏗️ Structure Modulation V2
+                    </span>
+                    <span style="font-size: 0.7em; color: var(--text-tertiary); font-style: italic;">
+                      active
+                    </span>
+                  </div>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.85em;">
+                    <div>
+                      <div style="color: var(--text-secondary); margin-bottom: 2px;">Structure Score:</div>
+                      <div style="font-weight: 600; color: var(--text-primary);">
+                        ${safeFixed(structureScore, 1)}/100
+                      </div>
+                    </div>
+                    <div>
+                      <div style="color: var(--text-secondary); margin-bottom: 2px;">Δ Stables:</div>
+                      <div style="font-weight: 600; color: ${deltaStables > 0 ? '#f7768e' : deltaStables < 0 ? '#9ece6a' : 'var(--text-primary)'};">
+                        ${deltaStables > 0 ? '+' : ''}${deltaStables} pts
+                      </div>
+                      <div style="font-size: 0.7em; color: var(--text-tertiary); margin-top: 2px;">
+                        → ${stablesAfter}% stables
+                      </div>
+                    </div>
+                  </div>
+                  <div style="margin-top: 6px; font-size: 0.8em;">
+                    <div style="color: var(--text-secondary); margin-bottom: 2px;">Cap effectif:</div>
+                    <div style="font-weight: 600; color: var(--text-primary);">
+                      ${typeof capAfter === 'number' ? safeFixed(capAfter, 1) : 'N/A'}%
+                      ${deltaCap !== 0 ? `<span style="color: ${deltaCap > 0 ? '#9ece6a' : '#f7768e'}; font-size: 0.85em;"> (${deltaCap > 0 ? '+' : ''}${safeFixed(deltaCap, 1)})</span>` : ''}
+                    </div>
+                  </div>
+                  <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(122, 162, 247, 0.2);">
+                    <div style="font-size: 0.75em; color: var(--text-tertiary); font-style: italic;">
+                      ℹ️ Modulation basée sur la qualité structurelle (HHI, memes, GRI, diversification)
+                    </div>
+                  </div>
+                </div>
+                `;
+              } catch (error) {
+                return '';
+              }
+            })()}
+
             <div class="metric-row">
               <span class="metric-label">Risk Level</span>
               <span class="risk-level risk-${(m.overall_risk_level || 'unknown').replace('_', '-')}">${(m.overall_risk_level || 'Unknown').replace('_', ' ')}</span>
@@ -7395,7 +7560,9 @@
             params: {
               price_history_days: priceDays,
               lookback_days: corrDays,
-              min_usd: minUsd
+              min_usd: minUsd,
+              risk_version: 'v2_shadow',  // Shadow Mode V2
+              use_dual_window: true
             }
           });
 
@@ -7631,7 +7798,9 @@
             params: {
               price_history_days: priceDays,
               lookback_days: corrDays,
-              min_usd: minUsd
+              min_usd: minUsd,
+              risk_version: 'v2_shadow',  // Shadow Mode V2
+              use_dual_window: true
             }
           });
           if (!data.success) {
@@ -8056,4 +8225,4 @@
 
 </body>
 
-</html>
+</html><!-- Cache bust: 1759493016 -->
