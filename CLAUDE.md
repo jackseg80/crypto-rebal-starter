@@ -715,6 +715,47 @@ curl "http://localhost:8000/portfolio/metrics?source=cointracking&user_id=jack"
 - `api/main.py:1881` : `/portfolio/snapshot` accepte `user_id` et `source`
 - `static/dashboard.html:1186` : Appel API avec `user_id` et `source` depuis localStorage
 
+### 9.5) WealthContextBar - Menu Secondaire Dynamique (Oct 2025) 🆕
+
+**Objectif** : Permettre de changer la source de données (CSV/API) depuis **n'importe quelle page** via le menu secondaire "Compte", avec effet immédiat sur tout le projet.
+
+**Composant** : `static/components/WealthContextBar.js`
+
+**Fonctionnalités** :
+- **Sources dynamiques** : Dropdown "Compte" chargé depuis `/api/users/sources` (CSV + API)
+- **Multi-tenant strict** : Isolation par user via `wealth_ctx:{user_id}` dans localStorage
+- **Synchronisation complète** : Change `window.globalConfig`, `window.userSettings`, backend
+- **Reload automatique** : Page recharge après 1s pour afficher immédiatement la nouvelle source
+
+**Workflow utilisateur** :
+```
+1. User ouvre n'importe quelle page (dashboard, analytics, rebalance...)
+2. Clique menu "Compte" → Voit tous ses CSV + API disponibles
+3. Sélectionne une nouvelle source (ex: 📄 benchmark.csv)
+4. Notification: "✅ Source changée: 📄 benchmark.csv"
+5. Page recharge automatiquement après 1s
+6. Toutes les données affichées = nouvelle source ✅
+```
+
+**Technique** :
+```javascript
+// Émission event dataSourceChanged pour pages avec listeners
+window.dispatchEvent(new CustomEvent('dataSourceChanged', {
+  detail: { oldSource: 'cointracking', newSource: 'cointracking',
+            oldFile: 'old.csv', newFile: 'new.csv' }
+}));
+
+// Reload auto après 1s pour compatibilité universelle
+setTimeout(() => window.location.reload(), 1000);
+```
+
+**Backend** :
+- Endpoint : `GET /api/users/sources?X-User={user}` → Liste CSV + API
+- Persistence : `PUT /api/users/settings` → Sauvegarde `data_source` et `csv_selected_file`
+- Isolation : Chaque user a ses propres sources dans `data/users/{user}/cointracking/`
+
+**Documentation complète** : [docs/WEALTH_CONTEXT_BAR_DYNAMIC_SOURCES.md](docs/WEALTH_CONTEXT_BAR_DYNAMIC_SOURCES.md)
+
 ---
 
 ## 10) Definition of Done (DoD)
@@ -854,6 +895,8 @@ docker run -p 8000:8000 --env-file .env crypto-rebal
 - `/api/unified-phase3/*` - Phase 3 unifiée (experimental)
 
 **Endpoints supprimés** (ne pas recréer) :
-- `/api/test/*` et `/api/alerts/test/*` - Endpoints de test supprimés
+- `/api/test/*` - Endpoints de test supprimés
 - `/api/realtime/publish` et `/broadcast` - Supprimés pour sécurité
 
+**Endpoints de test (dev seulement, protégés)** :
+- `/api/alerts/test/*` — disponibles uniquement en dev/staging, désactivés par défaut, activables via `ENABLE_ALERTS_TEST_ENDPOINTS=true` (toujours off en prod)

@@ -12,13 +12,16 @@ class WealthContextBar {
     };
     this.context = this.loadContext();
     this.isInitialized = false;
+    this.abortController = null; // Pour annuler fetch en cours lors du switch user
   }
 
   loadContext() {
     try {
-      // Priorité : querystring > localStorage > defaults
+      // Priorité : querystring > localStorage (namespacé par user) > defaults
       const params = new URLSearchParams(location.search);
-      const stored = JSON.parse(localStorage.getItem(this.storageKey) || '{}');
+      const activeUser = localStorage.getItem('activeUser') || 'demo';
+      const userKey = `wealth_ctx:${activeUser}`;
+      const stored = JSON.parse(localStorage.getItem(userKey) || '{}');
 
       return {
         household: params.get('household') || stored.household || this.defaults.household,
@@ -34,12 +37,34 @@ class WealthContextBar {
 
   saveContext() {
     try {
-      localStorage.setItem(this.storageKey, JSON.stringify(this.context));
+      // Sauvegarder dans localStorage namespacé par user
+      const activeUser = localStorage.getItem('activeUser') || 'demo';
+      const userKey = `wealth_ctx:${activeUser}`;
+      localStorage.setItem(userKey, JSON.stringify(this.context));
+
       this.updateQueryString();
-      this.emit('wealth:change', this.context);
+
+      // Émettre événement avec structure canonique
+      this.emit('wealth:change', {
+        ...this.context,
+        account: this.parseAccountValue(this.context.account),
+        sourceValue: this.context.account || 'all'
+      });
     } catch (error) {
       console.error('Error saving wealth context:', error);
     }
+  }
+
+  parseAccountValue(rawValue) {
+    if (!rawValue || rawValue === 'all') {
+      return { type: 'all', key: null };
+    }
+    const parts = rawValue.split(':');
+    if (parts.length === 2) {
+      return { type: parts[0], key: parts[1] };
+    }
+    // Fallback pour anciennes valeurs (trading, hold, staking)
+    return { type: 'legacy', key: rawValue };
   }
 
   updateQueryString() {
@@ -67,7 +92,306 @@ class WealthContextBar {
     }));
   }
 
-  render() {
+  async loadAccountSources() {
+    // Annuler fetch précédent si en cours
+    if (this.abortController) {
+      this.abortController.abort();
+    }
+
+    this.abortController = new AbortController();
+    const activeUser = localStorage.getItem('activeUser') || 'demo';
+
+    try {
+      const response = await fetch('/api/users/sources', {
+        headers: { 'X-User': activeUser },
+        signal: this.abortController.signal
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return this.buildAccountOptions(data.sources || []);
+
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        console.debug('Account sources fetch aborted (user switch)');
+        return null; // Retourner null pour indiquer abort
+      }
+      console.warn('Failed to load account sources, using fallback:', error);
+      return this.buildFallbackAccountOptions();
+    } finally {
+      this.abortController = null;
+    }
+  }
+
+  buildAccountOptions(sources) {
+    // Trier : API d'abord (alphabétique), puis CSV (alphabétique)
+    const apis = sources
+      .filter(s => s.type === 'api')
+      .sort((a, b) => a.label.localeCompare(b.label));
+
+    const csvs = sources
+      .filter(s => s.type === 'csv')
+      .sort((a, b) => a.label.localeCompare(b.label));
+
+    let html = '<option value="all">Tous</option>';
+
+    if (apis.length > 0) {
+      html += '<option disabled>──── API ────</option>';
+      apis.forEach(s => {
+        const value = `${s.type}:${s.key}`;
+        html += `<option value="${value}" data-type="${s.type}">${s.label}</option>`;
+      });
+    }
+
+    if (csvs.length > 0) {
+      html += '<option disabled>──── CSV ────</option>';
+      csvs.forEach(s => {
+        const value = `${s.type}:${s.key}`;
+        html += `<option value="${value}" data-type="${s.type}">${s.label}</option>`;
+      });
+    }
+
+    return html;
+  }
+
+  buildFallbackAccountOptions() {
+    return '<option value="all">Tous</option>';
+  }
+
+  async handleAccountChange(selectedValue, options = {}) {
+    const { skipSave = false, skipNotification = false } = options;
+
+    console.debug(`WealthContextBar: Account changed to "${selectedValue}" (skipSave=${skipSave})`);
+
+    // Si "all", ne rien faire de spécial
+    if (selectedValue === 'all') {
+      this.context.account = 'all';
+      if (!skipSave) {
+        this.saveContext();
+      }
+      return;
+    }
+
+    // Parse la valeur : type:key (ex: csv:csv_latest ou api:cointracking_api)
+    const parts = selectedValue.split(':');
+    if (parts.length !== 2) {
+      console.warn(`WealthContextBar: Invalid account value format: ${selectedValue}`);
+      return;
+    }
+
+    const [type, key] = parts;
+
+    // Charger les sources disponibles si pas déjà chargé
+    if (!window.availableSources) {
+      try {
+        const activeUser = localStorage.getItem('activeUser') || 'demo';
+        const response = await fetch('/api/users/sources', {
+          headers: { 'X-User': activeUser }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          window.availableSources = data.sources || [];
+        }
+      } catch (error) {
+        console.error('Failed to load sources:', error);
+        return;
+      }
+    }
+
+    // Trouver la source correspondante
+    const source = window.availableSources.find(s => s.key === key && s.type === type);
+    if (!source) {
+      console.warn(`WealthContextBar: Source not found for key=${key}, type=${type}`);
+      return;
+    }
+
+    // Initialiser userSettings si nécessaire
+    if (!window.userSettings) {
+      window.userSettings = {
+        data_source: 'csv',
+        csv_selected_file: null
+      };
+    }
+
+    // Préserver les clés API (critique!)
+    try {
+      const activeUser = localStorage.getItem('activeUser') || 'demo';
+      const response = await fetch('/api/users/settings', {
+        headers: { 'X-User': activeUser }
+      });
+      if (response.ok) {
+        const currentSettings = await response.json();
+        const apiKeys = ['coingecko_api_key', 'cointracking_api_key', 'cointracking_api_secret', 'fred_api_key', 'debug_token'];
+        apiKeys.forEach(k => {
+          if (currentSettings[k]) {
+            window.userSettings[k] = currentSettings[k];
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('Could not reload settings to preserve API keys:', e);
+    }
+
+    // Déterminer l'ancienne et nouvelle source
+    const oldSource = window.userSettings.data_source;
+    const oldFile = window.userSettings.csv_selected_file;
+
+    let effectiveNew, newFile = null;
+
+    if (type === 'csv') {
+      effectiveNew = 'cointracking';
+      newFile = source.file_path ? source.file_path.split(/[/\\]/).pop() : null;
+    } else if (type === 'api' && key === 'cointracking_api') {
+      effectiveNew = 'cointracking_api';
+    } else {
+      effectiveNew = key; // Autre type de source
+    }
+
+    // Vider caches si changement réel
+    const sourceChanged = oldSource && oldSource !== effectiveNew;
+    const fileChanged = effectiveNew === 'cointracking' && oldFile !== newFile;
+
+    if (sourceChanged || fileChanged) {
+      console.debug(`WealthContextBar: Source changed from ${oldSource}/${oldFile} to ${effectiveNew}/${newFile}`);
+
+      // Vider cache balance
+      if (typeof window.clearBalanceCache === 'function') {
+        window.clearBalanceCache();
+      }
+
+      // Vider localStorage cache
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('cache:') || key.includes('risk_score') || key.includes('balance_')) {
+          localStorage.removeItem(key);
+        }
+      });
+
+      // Mettre à jour globalConfig
+      if (typeof window.globalConfig !== 'undefined') {
+        window.globalConfig.set('data_source', effectiveNew);
+      }
+    }
+
+    // Mettre à jour userSettings
+    if (type === 'csv') {
+      window.userSettings.data_source = 'cointracking';
+      window.userSettings.csv_selected_file = newFile;
+    } else {
+      window.userSettings.data_source = effectiveNew;
+      window.userSettings.csv_selected_file = null;
+    }
+
+    // Mettre à jour context interne
+    this.context.account = selectedValue;
+
+    // Sauvegarder dans localStorage seulement si pas skipSave
+    if (!skipSave) {
+      this.saveContext();
+    }
+
+    // Émettre événement dataSourceChanged pour que les pages rechargent
+    if (sourceChanged || fileChanged) {
+      console.debug(`WealthContextBar: Emitting dataSourceChanged event (${oldSource} → ${effectiveNew})`);
+
+      // Event personnalisé pour recharger les données dans la même page
+      window.dispatchEvent(new CustomEvent('dataSourceChanged', {
+        detail: {
+          oldSource: oldSource,
+          newSource: effectiveNew,
+          oldFile: oldFile,
+          newFile: newFile
+        }
+      }));
+    }
+
+    // Sauvegarder dans le backend
+    if (sourceChanged || fileChanged) {
+      try {
+        const activeUser = localStorage.getItem('activeUser') || 'demo';
+        const response = await fetch('/api/users/settings', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User': activeUser
+          },
+          body: JSON.stringify(window.userSettings)
+        });
+
+        if (response.ok) {
+          console.debug(`WealthContextBar: Settings saved successfully`);
+
+          // Notification visuelle avec reload automatique
+          if (!skipNotification) {
+            if (typeof window.showNotification === 'function') {
+              window.showNotification(`✅ Source changée: ${source.label}`, 'success');
+            }
+
+            // Recharger la page automatiquement après 1 seconde
+            // Cela garantit que TOUTES les pages (même celles sans listener dataSourceChanged)
+            // utilisent la nouvelle source immédiatement
+            setTimeout(() => {
+              console.debug('WealthContextBar: Auto-reloading page after source change...');
+              window.location.reload();
+            }, 1000);
+          }
+        } else {
+          console.error('Failed to save settings:', await response.text());
+        }
+      } catch (error) {
+        console.error('Error saving settings:', error);
+      }
+    }
+  }
+
+  async setupUserSwitchListener() {
+    window.addEventListener('activeUserChanged', async (e) => {
+      console.debug(`WealthContextBar: User switched from ${e.detail.oldUser} to ${e.detail.newUser}`);
+
+      // Annuler fetch en cours
+      if (this.abortController) {
+        this.abortController.abort();
+      }
+
+      // Recharger les sources pour le nouvel utilisateur
+      const accountSelect = document.getElementById('wealth-account');
+      if (!accountSelect) return;
+
+      // Afficher état de chargement
+      accountSelect.setAttribute('aria-busy', 'true');
+      accountSelect.innerHTML = '<option>Chargement…</option>';
+
+      const accountHTML = await this.loadAccountSources();
+
+      // Si le fetch a été aborté (null), ne rien faire
+      if (accountHTML === null) return;
+
+      accountSelect.innerHTML = accountHTML;
+      accountSelect.removeAttribute('aria-busy');
+
+      // Restaurer sélection depuis localStorage namespacé du nouveau user
+      const newUserKey = `wealth_ctx:${e.detail.newUser}`;
+      const storedCtx = JSON.parse(localStorage.getItem(newUserKey) || '{}');
+      const restoredValue = storedCtx.account || 'all';
+      accountSelect.value = restoredValue;
+
+      // Mettre à jour le contexte interne
+      this.context.account = restoredValue;
+
+      console.debug(`WealthContextBar: Account restored to "${restoredValue}" for user ${e.detail.newUser}`);
+
+      // Appeler handleAccountChange pour synchroniser globalConfig/userSettings
+      // skipSave=true car déjà sauvegardé dans localStorage
+      // skipNotification=true car c'est une restauration après switch user
+      if (restoredValue && restoredValue !== 'all') {
+        await this.handleAccountChange(restoredValue, { skipSave: true, skipNotification: true });
+      }
+    });
+  }
+
+  async render() {
     if (this.isInitialized) return;
 
     const style = document.createElement('style');
@@ -141,11 +465,8 @@ class WealthContextBar {
 
       <div class="context-group">
         <span class="context-label">Compte:</span>
-        <select id="wealth-account">
-          <option value="all">Tous</option>
-          <option value="trading">Trading</option>
-          <option value="hold">Hold</option>
-          <option value="staking">Staking</option>
+        <select id="wealth-account" aria-busy="true">
+          <option>Chargement…</option>
         </select>
       </div>
 
@@ -188,8 +509,16 @@ class WealthContextBar {
     }
 
     this.bindEvents();
-    this.updateSelects();
     this.isInitialized = true;
+
+    // Charger les sources de comptes de manière asynchrone
+    this.loadAndPopulateAccountSources();
+
+    // Setup listener pour changement d'utilisateur
+    this.setupUserSwitchListener();
+
+    // Mettre à jour les autres selects (household, module, currency)
+    this.updateSelects();
 
     // Initialize global status badge
     this.initGlobalBadge();
@@ -200,9 +529,39 @@ class WealthContextBar {
     }, 100);
   }
 
+  async loadAndPopulateAccountSources() {
+    const accountSelect = document.getElementById('wealth-account');
+    if (!accountSelect) return;
+
+    const accountHTML = await this.loadAccountSources();
+
+    // Si le fetch a été aborté (null), ne rien faire
+    if (accountHTML === null) return;
+
+    accountSelect.innerHTML = accountHTML;
+    accountSelect.removeAttribute('aria-busy');
+
+    // Restaurer sélection depuis localStorage namespacé
+    const activeUser = localStorage.getItem('activeUser') || 'demo';
+    const userKey = `wealth_ctx:${activeUser}`;
+    const stored = JSON.parse(localStorage.getItem(userKey) || '{}');
+    const restoredValue = stored.account || 'all';
+    accountSelect.value = restoredValue;
+
+    console.debug(`WealthContextBar: Account sources loaded, restored to "${restoredValue}"`);
+
+    // IMPORTANT: Appeler handleAccountChange pour synchroniser globalConfig/userSettings
+    // Cela garantit que la source restaurée est bien appliquée dans tout le projet
+    // skipSave=true car la valeur vient du localStorage (évite boucle)
+    // skipNotification=true car c'est une restauration, pas un changement utilisateur
+    if (restoredValue && restoredValue !== 'all') {
+      await this.handleAccountChange(restoredValue, { skipSave: true, skipNotification: true });
+    }
+  }
+
   bindEvents() {
     // Gestion des changements
-    ['household', 'account', 'module', 'currency'].forEach(key => {
+    ['household', 'module', 'currency'].forEach(key => {
       const select = document.getElementById(`wealth-${key}`);
       if (select) {
         select.addEventListener('change', (e) => {
@@ -211,6 +570,14 @@ class WealthContextBar {
         });
       }
     });
+
+    // Gestion spéciale pour 'account' qui doit changer la source de données
+    const accountSelect = document.getElementById('wealth-account');
+    if (accountSelect) {
+      accountSelect.addEventListener('change', async (e) => {
+        await this.handleAccountChange(e.target.value);
+      });
+    }
 
     // Reset button
     const resetBtn = document.getElementById('wealth-reset');
