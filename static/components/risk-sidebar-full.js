@@ -426,10 +426,10 @@ class RiskSidebarFull extends HTMLElement {
       el.classList.add('score-critical');
     }
 
-    // Appliquer directement le style
-    el.style.color = color;
+    // Appliquer directement le style avec !important via setProperty
+    el.style.setProperty('color', color, 'important');
 
-    console.log(`[risk-sidebar] Applied color ${color} (${level}) to ${el.id} (score: ${score})`);
+    console.log(`[risk-sidebar] Applied color ${color} (${level}) to ${el.id} (score: ${score}) with !important`);
   }
 
   _getRegimeClass(phase) {
