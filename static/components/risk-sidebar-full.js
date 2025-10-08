@@ -392,15 +392,44 @@ class RiskSidebarFull extends HTMLElement {
   }
 
   _applyScoreClass(el, score) {
-    if (!el) return;
+    if (!el) {
+      console.warn('[risk-sidebar] _applyScoreClass called with null element');
+      return;
+    }
+
+    // Reset class
     el.className = 'ccs-score';
-    let className = '';
-    if (score >= 80) { el.classList.add('score-excellent'); className = 'excellent'; }
-    else if (score >= 60) { el.classList.add('score-good'); className = 'good'; }
-    else if (score >= 40) { el.classList.add('score-neutral'); className = 'neutral'; }
-    else if (score >= 20) { el.classList.add('score-warning'); className = 'warning'; }
-    else { el.classList.add('score-critical'); className = 'critical'; }
-    console.debug(`[risk-sidebar] Applied class score-${className} to ${el.id} (score: ${score})`);
+
+    // Apply color directly via style (plus fiable que CSS classes dans Shadow DOM)
+    let color = '#7aa2f7'; // brand-primary par défaut
+    let level = '';
+
+    if (score >= 80) {
+      color = '#38d39f'; // success (vert)
+      level = 'excellent';
+      el.classList.add('score-excellent');
+    } else if (score >= 60) {
+      color = '#7aa2f7'; // brand-primary (bleu)
+      level = 'good';
+      el.classList.add('score-good');
+    } else if (score >= 40) {
+      color = '#2ac3de'; // info (cyan)
+      level = 'neutral';
+      el.classList.add('score-neutral');
+    } else if (score >= 20) {
+      color = '#ff9e64'; // warning (orange)
+      level = 'warning';
+      el.classList.add('score-warning');
+    } else {
+      color = '#f7768e'; // danger (rouge)
+      level = 'critical';
+      el.classList.add('score-critical');
+    }
+
+    // Appliquer directement le style
+    el.style.color = color;
+
+    console.log(`[risk-sidebar] Applied color ${color} (${level}) to ${el.id} (score: ${score})`);
   }
 
   _getRegimeClass(phase) {
