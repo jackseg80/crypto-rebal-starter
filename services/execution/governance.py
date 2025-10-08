@@ -345,12 +345,12 @@ class GovernanceEngine:
             
         except Exception as e:
             logger.error(f"Error getting current state: {e}")
-            # Fallback : état par défaut safe avec policy conservatrice
+            # FIX Oct 2025: Fallback safe 8% (not 1% ultra-restrictive)
             return DecisionState(
                 governance_mode="manual",
                 execution_policy=Policy(
-                    mode="Freeze", 
-                    cap_daily=0.01,
+                    mode="Freeze",
+                    cap_daily=0.08,  # Safe fallback 8% (aligned with stale/frontend defaults)
                     signals_ttl_seconds=300,  # TTL court en cas d'erreur
                     plan_cooldown_hours=48    # Cooldown long en cas d'erreur
                 ),
@@ -700,7 +700,7 @@ class GovernanceEngine:
                 )
                 return self._enforce_policy_bounds(Policy(**degraded_policy))
 
-            return self._enforce_policy_bounds(Policy(mode="Freeze", cap_daily=0.01, notes=f"Error fallback: {e}"))
+            return self._enforce_policy_bounds(Policy(mode="Freeze", cap_daily=0.08, notes=f"Error fallback: {e}"))  # FIX Oct 2025: 8% safe fallback
 
     def apply_alert_cap_reduction(self, reduction_percentage: float, alert_id: str, reason: str) -> bool:
         """
