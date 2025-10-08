@@ -87,7 +87,7 @@ export async function fetchRisk() {
         // Governance (stub)
         governance: {
           contradiction_index: 0.0,
-          cap_daily: 0.01,
+          cap_daily: 0.08,  // FIX Oct 2025: Safe default 8% (aligned with backend/store)
           ml_signals_timestamp: data.timestamp,
           mode: 'manual',
         },
@@ -121,7 +121,7 @@ export async function fetchRisk() {
     ccs: { score: null },
     scores: { onchain: null, risk: null, blended: null },
     cycle: { ccsStar: null, months: null },
-    governance: { contradiction_index: 0.0, cap_daily: 0.01 },
+    governance: { contradiction_index: 0.0, cap_daily: 0.08 },  // FIX Oct 2025: Safe default 8%
     targets: {},
     alerts: [],
     regime: { phase: null },
