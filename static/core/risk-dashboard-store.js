@@ -72,7 +72,7 @@ const initialStateFactory = () => ({
     last_decision_id: null,
     contradiction_index: 0.0,
     ml_signals_timestamp: null,
-    active_policy: { cap_daily: 0.01 },
+    active_policy: { cap_daily: 0.08 },  // FIX Oct 2025: Default fallback 8% (safe conservative, not 1%)
     pending_approvals: [],
     next_update_time: null,
     decisions: [],
@@ -219,7 +219,7 @@ const storeActions = {
           'governance.last_decision_id': governanceState.last_decision_id,
           'governance.contradiction_index': governanceState.contradiction_index,
           'governance.ml_signals_timestamp': governanceState.ml_signals_timestamp,
-          'governance.active_policy': governanceState.active_policy ?? { cap_daily: 0.01 },
+          'governance.active_policy': governanceState.active_policy ?? { cap_daily: 0.08 },  // FIX Oct 2025: Safe fallback 8%
           'governance.pending_approvals': Array.isArray(governanceState.pending_approvals) ? governanceState.pending_approvals : [],
           'governance.next_update_time': governanceState.next_update_time,
           'governance.last_sync': Date.now()
