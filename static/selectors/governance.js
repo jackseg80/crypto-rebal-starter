@@ -86,7 +86,9 @@ export function selectPolicyCapPercent(state) {
 
 export function selectEngineCapPercent(state) {
   try {
-    const raw = state?.governance?.engine_cap_daily ??
+    // FIX (Oct 2025): Ajouter execution_policy.cap_daily en priorité (source backend autoritaire)
+    const raw = state?.governance?.execution_policy?.cap_daily ??
+                state?.governance?.engine_cap_daily ??
                 state?.governance?.caps?.engine_cap ??
                 state?.governance?.computed_cap;
     return normalizeCapToPercent(raw);
