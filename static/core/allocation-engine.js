@@ -509,8 +509,16 @@ function calculateExecutionPlan(targetAllocation, currentPositions, executionCon
     }
   }
 
+  // PARE-FEU (Oct 2025): Ne jamais fallbacker silencieusement à 0%
+  // Si cap indisponible, retourner plan vide (skip ce tick)
   if (capPct == null) {
-    capPct = 0;
+    console.warn('[Exec] Cap indisponible → skip iteration (pas de fallback 0%)');
+    return {
+      iterations: 0,
+      estimated_days: 0,
+      cap_unavailable: true,
+      message: 'Cap non disponible, exécution ignorée ce tick'
+    };
   }
 
   const capPerIter = capPct / 100;

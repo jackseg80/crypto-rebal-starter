@@ -293,6 +293,10 @@
         const capPercent = window.selectEffectiveCap(s);           // entier en %
         const contrad01 = window.selectContradiction01(s);        // [0..1]
         const updatedISO = window.selectGovernanceTimestamp(s);     // ISO string
+
+        // LOG CONTRÔLE (Oct 2025): Tracer cohérence UI/Backend cap
+        const beCap = s?.governance?.execution_policy?.cap_daily;
+        console.debug('[CAP] ui=%s%% be=%s%%', capPercent, beCap ? (beCap*100).toFixed(2) : 'NA');
         const modeLabel = (() => {
           const m = s?.governance?.mode || s?.governance?.current_state || 'normal';
           return String(m).replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, x => x.toUpperCase());
