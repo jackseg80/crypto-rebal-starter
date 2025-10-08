@@ -388,12 +388,15 @@ class RiskSidebarFull extends HTMLElement {
   }
 
   _applyScoreClass(el, score) {
+    if (!el) return;
     el.className = 'ccs-score';
-    if (score >= 80) el.classList.add('score-excellent');
-    else if (score >= 60) el.classList.add('score-good');
-    else if (score >= 40) el.classList.add('score-neutral');
-    else if (score >= 20) el.classList.add('score-warning');
-    else el.classList.add('score-critical');
+    let className = '';
+    if (score >= 80) { el.classList.add('score-excellent'); className = 'excellent'; }
+    else if (score >= 60) { el.classList.add('score-good'); className = 'good'; }
+    else if (score >= 40) { el.classList.add('score-neutral'); className = 'neutral'; }
+    else if (score >= 20) { el.classList.add('score-warning'); className = 'warning'; }
+    else { el.classList.add('score-critical'); className = 'critical'; }
+    console.debug(`[risk-sidebar] Applied class score-${className} to ${el.id} (score: ${score})`);
   }
 
   _getRegimeClass(phase) {
@@ -422,10 +425,11 @@ class RiskSidebarFull extends HTMLElement {
           --card-fg: var(--theme-fg, #e5e7eb);
           --card-border: var(--theme-border, #2a2f3b);
           --brand-primary: var(--brand-primary, #7aa2f7);
-          --success: var(--success, #10b981);
-          --warning: var(--warning, #f59e0b);
-          --danger: var(--danger, #ef4444);
-          --info: var(--info, #3b82f6);
+          /* TokyoNight colors for scores */
+          --success: #38d39f;
+          --warning: #ff9e64;
+          --danger: #f7768e;
+          --info: #2ac3de;
           --theme-bg: var(--theme-bg, #1a1b26);
           --theme-text-muted: var(--theme-text-muted, #9ca3af);
           --space-xs: 0.25rem;
