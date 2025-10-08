@@ -429,7 +429,13 @@ class RiskSidebarFull extends HTMLElement {
     // Appliquer directement le style avec !important via setProperty
     el.style.setProperty('color', color, 'important');
 
-    console.log(`[risk-sidebar] Applied color ${color} (${level}) to ${el.id} (score: ${score}) with !important`);
+    // Ajouter un fond coloré très subtil (10% opacité)
+    const bgColor = color + '1a'; // Ajoute 10% d'opacité en hexa (1a ≈ 10%)
+    el.style.setProperty('background', bgColor, 'important');
+    el.style.setProperty('border-radius', '8px', 'important');
+    el.style.setProperty('padding', '0.25rem', 'important');
+
+    console.log(`[risk-sidebar] Applied color ${color} + bg ${bgColor} (${level}) to ${el.id} (score: ${score})`);
   }
 
   _getRegimeClass(phase) {
