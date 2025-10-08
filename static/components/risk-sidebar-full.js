@@ -231,7 +231,7 @@ class RiskSidebarFull extends HTMLElement {
       console.log('[risk-sidebar] CCS Mixte update:', { score: ccsScore, element: this.$.ccsMix, hasElement: !!this.$.ccsMix });
       this.$.ccsMix.textContent = Math.round(ccsScore);
       this.$.ccsMixLabel.textContent = this._getScoreLabel(ccsScore);
-      this._applyScoreClass(this.$.ccsMix, ccsScore);
+      this._applyScoreClass(this.$.ccsMix, ccsScore, this.$.ccsMix.parentElement);
     } else {
       console.warn('[risk-sidebar] CCS Mixte: no valid score', ccsScore);
     }
@@ -244,7 +244,7 @@ class RiskSidebarFull extends HTMLElement {
     if (hasOnchain) {
       this.$.onchain.textContent = Math.round(onchainScore);
       this.$.onchainLabel.textContent = this._getScoreLabel(onchainScore);
-      this._applyScoreClass(this.$.onchain, onchainScore);
+      this._applyScoreClass(this.$.onchain, onchainScore, this.$.onchain.parentElement);
     }
 
     // === SECTION 3: Risk ===
@@ -255,7 +255,7 @@ class RiskSidebarFull extends HTMLElement {
     if (hasRisk) {
       this.$.risk.textContent = Math.round(riskScore);
       this.$.riskLabel.textContent = this._getScoreLabel(riskScore);
-      this._applyScoreClass(this.$.risk, riskScore);
+      this._applyScoreClass(this.$.risk, riskScore, this.$.risk.parentElement);
     }
 
     // === SECTION 4: Blended Decision ===
@@ -267,7 +267,7 @@ class RiskSidebarFull extends HTMLElement {
       console.log('[risk-sidebar] Blended update:', { score: blendedScore, element: this.$.blended, hasElement: !!this.$.blended });
       this.$.blended.textContent = Math.round(blendedScore);
       this.$.blendedLabel.textContent = this._getScoreLabel(blendedScore);
-      this._applyScoreClass(this.$.blended, blendedScore);
+      this._applyScoreClass(this.$.blended, blendedScore, this.$.blended.parentElement);
 
       // Meta info (confidence, contradiction)
       const parts = [];
@@ -391,7 +391,7 @@ class RiskSidebarFull extends HTMLElement {
     return 'Critique';
   }
 
-  _applyScoreClass(el, score) {
+  _applyScoreClass(el, score, parentContainer) {
     if (!el) {
       console.warn('[risk-sidebar] _applyScoreClass called with null element');
       return;
@@ -426,16 +426,16 @@ class RiskSidebarFull extends HTMLElement {
       el.classList.add('score-critical');
     }
 
-    // Appliquer directement le style avec !important via setProperty
+    // Appliquer la couleur au texte
     el.style.setProperty('color', color, 'important');
 
-    // Ajouter un fond coloré très subtil (10% opacité)
-    const bgColor = color + '1a'; // Ajoute 10% d'opacité en hexa (1a ≈ 10%)
-    el.style.setProperty('background', bgColor, 'important');
-    el.style.setProperty('border-radius', '8px', 'important');
-    el.style.setProperty('padding', '0.25rem', 'important');
+    // Appliquer le fond coloré sur le parent (container .ccs-gauge) pour remplir toute la cellule
+    if (parentContainer) {
+      const bgColor = color + '1a'; // 10% opacité
+      parentContainer.style.setProperty('background', bgColor, 'important');
+    }
 
-    console.log(`[risk-sidebar] Applied color ${color} + bg ${bgColor} (${level}) to ${el.id} (score: ${score})`);
+    console.log(`[risk-sidebar] Applied color ${color} (${level}) to ${el.id} + bg on parent (score: ${score})`);
   }
 
   _getRegimeClass(phase) {
