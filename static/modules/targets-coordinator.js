@@ -133,6 +133,12 @@ export function normalizeTargets(targets) {
     throw new Error('Total allocation must be positive');
   }
 
+  // Si le total est déjà très proche de 100%, ne pas renormaliser (évite les erreurs d'arrondi)
+  if (Math.abs(total - 100) < 0.01) {
+    console.debug('✅ Targets already normalized, skipping renormalization (total:', total, ')');
+    return { ...completeTargets }; // Retourner une copie sans modifier
+  }
+
   // Normalize
   const normalized = {};
   Object.entries(numericTargets).forEach(([key, value]) => {
@@ -142,6 +148,7 @@ export function normalizeTargets(targets) {
   // Add model version back
   normalized.model_version = model_version || 'unknown';
 
+  console.debug('🔄 Normalized targets (total was', total, ')');
   return normalized;
 }
 
@@ -328,6 +335,88 @@ function applyOnChainIntelligence(baseRegime, onchainMetadata) {
 }
 
 /**
+ * Pure function to compute exposure cap based on multiple signals
+ * @param {Object} params - Input parameters
+ * @param {number} params.blendedScore - Blended score (0-100)
+ * @param {number} params.riskScore - Risk score (0-100)
+ * @param {number} params.decision_score - Backend decision score (0-1)
+ * @param {number} params.confidence - Backend confidence (0-1)
+ * @param {number} params.volatility - Portfolio volatility (0-1 decimal, e.g., 0.32 = 32%)
+ * @param {string} params.regime - Market regime name
+ * @param {string} params.backendStatus - Backend status ('ok', 'stale', 'error')
+ * @returns {number} Exposure cap percentage (0-100)
+ */
+export function computeExposureCap({ blendedScore, riskScore, decision_score, confidence, volatility, regime, backendStatus }) {
+  const bs = Number(blendedScore ?? 0);    // 0..100
+  const rs = Number(riskScore ?? 0);       // 0..100
+  const ds = Number(decision_score ?? 0);  // 0..1
+  const dc = Number(confidence ?? 0);      // 0..1
+  let vol = Number(volatility ?? 0);       // 0..1 decimal
+
+  // Normalize volatility if passed as percentage
+  if (vol > 1) vol = vol / 100;
+
+  const raw = ds * dc;  // Combined signal quality (0..1)
+
+  // 1) Base cap guided by blended + risk (more robust than ds*dc alone)
+  let base =
+    (bs >= 70 && rs >= 80) ? 90 :
+    (bs >= 70 && rs >= 60) ? 85 :  // Euphorie with medium Risk
+    (bs >= 65 && rs >= 70) ? 80 :
+    (bs >= 65)             ? 75 :  // Expansion with lower Risk
+    (bs >= 55 && rs >= 60) ? 70 :
+    (bs >= 55)             ? 65 : 55;
+
+  // 2) Signal quality adjustment (smooth gradient instead of cliffs)
+  const signalPenalty = Math.max(0, Math.round((0.65 - raw) * 15));
+  base -= Math.min(10, signalPenalty);
+
+  // 3) Volatility penalty (smoother, max 10pts instead of 15)
+  // Reference: 20% annualized vol, penalty kicks in above that
+  const volPenalty = Math.max(0, Math.round((vol - 0.20) * 50));
+  base -= Math.min(10, volPenalty);
+
+  // 4) Backend status degradation (exclusive, not cumulative)
+  if (backendStatus === 'error') {
+    base -= 25;
+  } else if (backendStatus === 'stale') {
+    base -= 15;
+  }
+
+  // 5) Regime-based floor (prevents absurd allocations like 60% stables in Euphorie)
+  const minByRegime = {
+    'euphorie': 75,      // French
+    'euphoria': 75,      // English fallback
+    'expansion': 60,
+    'neutral': 40,
+    'accumulation': 30,
+    'bear': 20,
+    'capitulation': 10,
+  };
+  const regimeKey = String(regime?.name || regime || '').toLowerCase();
+  let regimeMin = minByRegime[regimeKey] ?? 40;
+
+  // Dynamic boost: If Expansion + high Risk Score (≥80), allow more aggressive allocation
+  if (regimeKey === 'expansion' && rs >= 80) {
+    regimeMin = 65;  // Boost floor from 60% to 65%
+  }
+
+  // 6) Final bounds
+  const finalCap = Math.max(regimeMin, Math.min(95, Math.round(base)));
+
+  // Debug logging
+  if (window.__DEBUG_RISK__ || (typeof localStorage !== 'undefined' && localStorage.getItem('DEBUG_RISK'))) {
+    console.log('🔍 EXPOSURE CAP COMPUTED:', {
+      inputs: { bs, rs, ds, dc, vol, regime: regimeKey, backendStatus },
+      intermediate: { base: base + (backendStatus === 'error' ? 25 : backendStatus === 'stale' ? 15 : 0), signalPenalty, volPenalty, regimeMin },
+      output: { finalCap }
+    });
+  }
+
+  return finalCap;
+}
+
+/**
  * Generate smart targets using market regime system with enhanced on-chain intelligence
  */
 export function generateSmartTargets() {
@@ -358,9 +447,10 @@ export function generateSmartTargets() {
   }
 
   try {
-    // Get market regime
+    // Get market regime - DEEP COPY to avoid mutation across calls
     const regime = getMarketRegime(blendedScore);
-    let adjustedRegime = applyMarketOverrides(regime, onchainScore, riskScore);
+    const regimeCopy = JSON.parse(JSON.stringify(regime)); // Deep copy to prevent mutation
+    let adjustedRegime = applyMarketOverrides(regimeCopy, onchainScore, riskScore);
 
     // Apply enhanced on-chain intelligence if available
     if (onchainMetadata) {
@@ -370,35 +460,39 @@ export function generateSmartTargets() {
     // Calculate risk budget (context)
     const riskBudget = calculateRiskBudget(blendedScore, riskScore);
 
-    // Backend-driven exposure cap (Decision Engine)
-    let exposureCap = null;
-    let exposureSource = 'fallback';
-    try {
-      if (backendSignals && typeof backendSignals.decision_score === 'number') {
-        const ds = backendSignals.decision_score;           // 0..1
-        const dc = Math.max(0, Math.min(1, backendSignals.confidence ?? 0.5));
-        const volVals = backendSignals.volatility ? Object.values(backendSignals.volatility).filter(v => typeof v === 'number') : [];
-        const avgVol = volVals.length ? (volVals.reduce((a, b) => a + b, 0) / volVals.length) : 0.0; // decimal (e.g., 0.25)
-        const raw = ds * dc;
-        // Base cap tiers
-        let cap = (raw >= 0.8 && blendedScore >= 70) ? 85 : (raw >= 0.65 ? 70 : 55);
-        // Volatility adjustment: downscale if vol high (>20%)
-        const volPenalty = Math.max(0, Math.round((avgVol - 0.20) * 100)); // e.g., 0.30 -> 10
-        cap = Math.max(30, Math.min(95, cap - Math.min(15, volPenalty)));
-        exposureCap = cap; // percent of portfolio risky max
-        exposureSource = 'backend';
-      }
-    } catch { }
+    // Compute exposure cap using new pure function
+    const volVals = (backendSignals?.volatility && typeof backendSignals.volatility === 'object')
+      ? Object.values(backendSignals.volatility).filter(v => typeof v === 'number')
+      : [];
+    const avgVol = volVals.length ? (volVals.reduce((a, b) => a + b, 0) / volVals.length) : 0.0;
 
-    // Final risky budget after cap and backend fallback
+    const exposureCap = computeExposureCap({
+      blendedScore,
+      riskScore,
+      decision_score: backendSignals?.decision_score,
+      confidence: backendSignals?.confidence,
+      volatility: avgVol,
+      regime: adjustedRegime.name,
+      backendStatus: backendStatus || 'unknown'
+    });
+
+    const exposureSource = (backendSignals && typeof backendSignals.decision_score === 'number') ? 'backend' : 'fallback';
+
+    // Final risky budget after cap
     const baseRisky = riskBudget.percentages.risky; // % risky suggested by regime/risk
-    let finalRisky = (typeof exposureCap === 'number') ? Math.min(baseRisky, exposureCap) : baseRisky;
-    // If backend is down, enforce a prudent fallback cap (5%)
-    if (backendStatus === 'error') {
-      finalRisky = Math.min(finalRisky, 5);
-    } else if (backendStatus === 'stale') {
-      // If signals are stale, enforce a conservative cap (8%)
-      finalRisky = Math.min(finalRisky, 8);
+    let finalRisky = Math.min(baseRisky, exposureCap);
+
+    // NIVEAU 3 FIX (Oct 2025): Lire cap backend comme limite supplémentaire si disponible
+    const backendCap = state.governance?.execution_policy?.cap_daily;  // cap_daily en fraction (0-1)
+    if (backendCap != null && typeof backendCap === 'number' && backendCap > 0 && backendCap <= 1) {
+      const backendCapPct = backendCap * 100;  // Convertir en %
+      console.debug(`🔗 Backend cap available: ${backendCapPct.toFixed(1)}% (finalRisky before: ${finalRisky.toFixed(1)}%)`);
+
+      // Appliquer cap backend comme limite MAX supplémentaire
+      finalRisky = Math.min(finalRisky, backendCapPct);
+      console.debug(`🔗 finalRisky after backend cap: ${finalRisky.toFixed(1)}%`);
+    } else {
+      console.debug(`🔗 Backend cap not available (value: ${backendCap}), using frontend cap only`);
     }
 
     // Allocate risky budget according to regime with finalRisky
@@ -411,7 +505,15 @@ export function generateSmartTargets() {
     console.debug('📊 Risk budget:', riskBudget.percentages);
     console.debug('🎯 Regime:', adjustedRegime.name);
 
-    const strategy = `${adjustedRegime.emoji} ${adjustedRegime.name} (${Math.round(blendedScore)}) | ${Math.round(100 - finalRisky)}% Stables${exposureCap != null ? ` | Cap ${exposureCap}% (Decision Engine)` : ''}`;
+    // Déterminer source du cap final
+    let capSource = '';
+    if (backendCap != null && backendCap > 0 && finalRisky <= (backendCap * 100)) {
+      capSource = ` | Cap ${finalRisky.toFixed(1)}% (Backend Governance)`;
+    } else if (exposureCap != null) {
+      capSource = ` | Cap ${exposureCap}% (Frontend + Backend)`;
+    }
+
+    const strategy = `${adjustedRegime.emoji} ${adjustedRegime.name} (${Math.round(blendedScore)}) | ${Math.round(100 - finalRisky)}% Stables${capSource}`;
 
     return {
       targets: normalizeTargets(smartAllocation),

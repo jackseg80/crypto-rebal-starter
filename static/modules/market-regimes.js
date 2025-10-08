@@ -154,7 +154,11 @@ function getTransitionStatus(score, regime) {
  * Applique des overrides basés sur les conditions de marché avec hysteresis
  */
 export function applyMarketOverrides(regime, onchainScore, riskScore) {
-  let adjustedRegime = { ...regime };
+  // DEEP COPY to avoid mutating the original regime object
+  let adjustedRegime = {
+    ...regime,
+    allocation_bias: { ...regime.allocation_bias } // Deep copy allocation_bias
+  };
   const overrides = [];
 
   // Init flags hysteresis
@@ -164,10 +168,11 @@ export function applyMarketOverrides(regime, onchainScore, riskScore) {
   // Fonction flip pour Schmitt trigger
   const flip = (prev, val, up, down) => prev ? (val > down) : (val >= up);
 
-  // Override 1: Divergence On-Chain avec hysteresis (up=27, down=23)
+  // Override 1: Divergence On-Chain avec hysteresis ÉLARGIE (up=30, down=20)
+  // Élargi pour éviter flip-flop: gap de 10pts (était 4pts avant)
   if (onchainScore != null) {
     const divergence = Math.abs(regime.score - onchainScore);
-    flags.onchain_div = flip(flags.onchain_div, divergence, 27, 23);
+    flags.onchain_div = flip(flags.onchain_div, divergence, 30, 20);  // ÉLARGI
 
     if (flags.onchain_div) {
       adjustedRegime.allocation_bias.stables_target += 10;
@@ -217,28 +222,60 @@ export function calculateRiskBudget(blendedScore, riskScore) {
   const blendedRounded = Math.round(blendedScore);
   const riskRounded = Math.round(riskScore || 0);
 
-  const now = Date.now();
-  const cacheKey = `${blendedRounded}-${riskRounded}`;
+  // FEATURE FLAG: Risk semantics version (legacy, v2_conservative, v2_aggressive)
+  // IMPORTANT: Lire AVANT le cache pour inclure dans la clé
+  // FIXÉ À v2_conservative (Oct 2025) pour cohérence - migration progressive
+  const riskSemanticsMode = (typeof localStorage !== 'undefined')
+    ? localStorage.getItem('RISK_SEMANTICS_MODE') || 'v2_conservative'  // CHANGED: default v2_conservative
+    : 'v2_conservative';
 
-  // Vérifier cache (TTL 30s)
+  const now = Date.now();
+  const cacheKey = `${blendedRounded}-${riskRounded}-${riskSemanticsMode}`; // Include mode in key!
+
+  // CACHE RÉACTIVÉ (Oct 2025) - TTL 30s pour stabilité
   if (_riskBudgetCache.key === cacheKey && now - _riskBudgetCache.timestamp < 30000) {
     console.debug('💰 Risk Budget from cache:', cacheKey);
-    return _riskBudgetCache.data;
+    return JSON.parse(JSON.stringify(_riskBudgetCache.data));
   }
+  console.debug('💰 Cache MISS - Calculating fresh Risk Budget (key:', cacheKey, ')');
 
   (window.debugLogger?.info || console.log)('💰 Calculating Risk Budget:', {
     original: { blended: blendedScore, risk: riskScore },
-    rounded: { blended: blendedRounded, risk: riskRounded }
+    rounded: { blended: blendedRounded, risk: riskRounded },
+    mode: riskSemanticsMode
   });
 
-  // Formule: RiskCap = 1 - 0.5 × (RiskScore/100) - utiliser score arrondi
-  const riskCap = riskRounded != null ? 1 - 0.5 * (riskRounded / 100) : 0.75;
+  let risk_factor;
+
+  if (riskSemanticsMode === 'legacy') {
+    // LEGACY (INVERSÉ): RiskCap = 1 - 0.5 × (RiskScore/100)
+    // ❌ BUG: Traite Risk Score comme danger (haut=dangereux) au lieu de robustesse
+    const riskCap = riskRounded != null ? 1 - 0.5 * (riskRounded / 100) : 0.75;
+    risk_factor = riskCap;
+    console.debug('⚠️ LEGACY MODE: Using inverted risk semantics (will be deprecated)');
+  } else if (riskSemanticsMode === 'v2_conservative') {
+    // V2 CONSERVATIVE: risk_factor = 0.5 + 0.5 × (RiskScore/100)
+    // ✅ CORRECT: Risk Score = robustesse (haut=robuste → plus de risky autorisé)
+    // Range: [0.5 .. 1.0]
+    risk_factor = 0.5 + 0.5 * (riskRounded / 100);
+    console.debug('✅ V2 CONSERVATIVE: risk_factor =', risk_factor.toFixed(3));
+  } else if (riskSemanticsMode === 'v2_aggressive') {
+    // V2 AGGRESSIVE: risk_factor = 0.4 + 0.7 × (RiskScore/100)
+    // ✅ CORRECT: Plus de différenciation entre portfolios fragiles/robustes
+    // Range: [0.4 .. 1.1]
+    risk_factor = 0.4 + 0.7 * (riskRounded / 100);
+    console.debug('✅ V2 AGGRESSIVE: risk_factor =', risk_factor.toFixed(3));
+  } else {
+    // Fallback to conservative if unknown mode
+    risk_factor = 0.5 + 0.5 * (riskRounded / 100);
+    console.warn('Unknown RISK_SEMANTICS_MODE:', riskSemanticsMode, '- using v2_conservative');
+  }
 
   // BaseRisky = clamp((Blended - 35)/45, 0, 1) - utiliser score arrondi
   const baseRisky = Math.max(0, Math.min(1, (blendedRounded - 35) / 45));
 
-  // Risky = clamp(BaseRisky × RiskCap, 20%, 85%)
-  const riskyAllocation = Math.max(0.20, Math.min(0.85, baseRisky * riskCap));
+  // Risky = clamp(BaseRisky × risk_factor, 20%, 85%)
+  const riskyAllocation = Math.max(0.20, Math.min(0.85, baseRisky * risk_factor));
 
   // Stables = 1 - Risky
   const stablesAllocation = 1 - riskyAllocation;
@@ -260,14 +297,21 @@ export function calculateRiskBudget(blendedScore, riskScore) {
   });
 
   const result = {
-    risk_cap: riskCap,
+    risk_factor: risk_factor,  // NEW: Expose risk_factor for debugging
     base_risky: baseRisky,
     risky_allocation: riskyAllocation,
     stables_allocation: stablesAllocation,
     percentages: { risky: riskyPct, stables: stablesPct },
     // Champ canonique pour source unique
     target_stables_pct: stablesPct,
-    generated_at: new Date().toISOString()
+    generated_at: new Date().toISOString(),
+    // NEW: Metadata for traceability
+    metadata: {
+      semantics_mode: riskSemanticsMode,
+      blended_score: blendedRounded,
+      risk_score: riskRounded,
+      formula_version: riskSemanticsMode === 'legacy' ? 'v1_inverted' : 'v2_correct'
+    }
   };
 
   // Sauvegarder dans cache
@@ -285,6 +329,8 @@ export function calculateRiskBudget(blendedScore, riskScore) {
  * Répartit l'allocation "risky" selon le régime de marché
  */
 export function allocateRiskyBudget(riskyPercentage, regime) {
+  console.log('🚨 [allocateRiskyBudget] CALLED - riskyPercentage:', riskyPercentage, 'regime:', regime?.name, 'bias:', regime?.allocation_bias);
+
   // Base par défaut : BTC 50% / ETH 30% / Midcaps 20%
   let allocation = {
     btc: 50,
@@ -292,7 +338,9 @@ export function allocateRiskyBudget(riskyPercentage, regime) {
     midcaps: 15,
     meme: 5
   };
-  
+
+  console.log('🚨 [allocateRiskyBudget] BEFORE bias - allocation:', {...allocation});
+
   // Ajustements selon le régime
   const bias = regime.allocation_bias;
   
@@ -300,31 +348,64 @@ export function allocateRiskyBudget(riskyPercentage, regime) {
   allocation.eth += bias.eth_boost || 0;
   allocation.midcaps += (bias.alts_reduction || 0);
   allocation.meme = Math.min(allocation.meme, bias.meme_cap || 5);
-  
-  // Normaliser à 100%
+
+  console.log('🚨 [allocateRiskyBudget] AFTER bias - allocation:', {...allocation});
+
+  // Normaliser à 100% (déterministe: arrondir puis ajuster le reste sur BTC)
   const total = allocation.btc + allocation.eth + allocation.midcaps + allocation.meme;
+  console.log('🚨 [allocateRiskyBudget] Total before normalization:', total);
   if (total !== 100) {
     const factor = 100 / total;
-    allocation.btc = Math.round(allocation.btc * factor);
-    allocation.eth = Math.round(allocation.eth * factor);
-    allocation.midcaps = Math.round(allocation.midcaps * factor);
-    allocation.meme = Math.round(allocation.meme * factor);
+    allocation.btc = Math.floor(allocation.btc * factor);
+    allocation.eth = Math.floor(allocation.eth * factor);
+    allocation.midcaps = Math.floor(allocation.midcaps * factor);
+    allocation.meme = Math.floor(allocation.meme * factor);
+
+    // Ajuster le reste sur BTC (groupe principal) pour garantir 100%
+    const currentTotal = allocation.btc + allocation.eth + allocation.midcaps + allocation.meme;
+    allocation.btc += (100 - currentTotal);
   }
   
-  // Appliquer le pourcentage risky
+  // Appliquer le pourcentage risky (sur la partie risky uniquement, pas sur stables)
   const riskyFactor = riskyPercentage / 100;
-  
+
+  // Calculer les allocations risky (en % du TOTAL portfolio)
+  const btcAlloc = allocation.btc * riskyFactor;
+  const ethAlloc = allocation.eth * riskyFactor;
+  const solAlloc = allocation.midcaps * riskyFactor * 0.2;
+  const l1Alloc = allocation.midcaps * riskyFactor * 0.4;
+  const l2Alloc = allocation.midcaps * riskyFactor * 0.3;
+  const defiAlloc = allocation.midcaps * riskyFactor * 0.1;
+  const aiAlloc = allocation.meme * riskyFactor * 0.5;
+  const gameAlloc = allocation.meme * riskyFactor * 0.3;
+  const memeAlloc = allocation.meme * riskyFactor * 0.2;
+
+  // Calculer le total risky effectif (pour vérifier)
+  const totalRisky = btcAlloc + ethAlloc + solAlloc + l1Alloc + l2Alloc + defiAlloc + aiAlloc + gameAlloc + memeAlloc;
+
+  // Ajuster stables pour garantir 100% exact
+  const stablesAlloc = 100 - totalRisky;
+
+  console.log('🚨 [allocateRiskyBudget] FINAL RESULT:', {
+    riskyPercentage,
+    BTC: btcAlloc.toFixed(2),
+    ETH: ethAlloc.toFixed(2),
+    totalRisky: totalRisky.toFixed(2),
+    stables: stablesAlloc.toFixed(2),
+    sum: (totalRisky + stablesAlloc).toFixed(2)
+  });
+
   return {
-    BTC: allocation.btc * riskyFactor,
-    ETH: allocation.eth * riskyFactor,
-    SOL: allocation.midcaps * riskyFactor * 0.2,
-    'L1/L0 majors': allocation.midcaps * riskyFactor * 0.4,
-    'L2/Scaling': allocation.midcaps * riskyFactor * 0.3,
-    'DeFi': allocation.midcaps * riskyFactor * 0.1,
-    'AI/Data': allocation.meme * riskyFactor * 0.5,
-    'Gaming/NFT': allocation.meme * riskyFactor * 0.3,
-    'Memecoins': allocation.meme * riskyFactor * 0.2,
-    'Stablecoins': 100 - riskyPercentage,
+    BTC: btcAlloc,
+    ETH: ethAlloc,
+    SOL: solAlloc,
+    'L1/L0 majors': l1Alloc,
+    'L2/Scaling': l2Alloc,
+    'DeFi': defiAlloc,
+    'AI/Data': aiAlloc,
+    'Gaming/NFT': gameAlloc,
+    'Memecoins': memeAlloc,
+    'Stablecoins': stablesAlloc,
     'Others': 0
   };
 }

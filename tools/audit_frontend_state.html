@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audit Frontend State</title>
+    <style>
+        body {
+            font-family: 'Consolas', 'Monaco', monospace;
+            background: #1a1a1a;
+            color: #00ff00;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #00ff00;
+            border-bottom: 2px solid #00ff00;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #ffaa00;
+            margin-top: 30px;
+        }
+        .section {
+            background: #2a2a2a;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 3px solid #00ff00;
+        }
+        .warning {
+            background: #4a2a00;
+            border-left-color: #ff9900;
+            color: #ffaa00;
+        }
+        .error {
+            background: #4a0000;
+            border-left-color: #ff0000;
+            color: #ff6666;
+        }
+        .success {
+            background: #004a00;
+            border-left-color: #00ff00;
+        }
+        code {
+            background: #000;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+        button {
+            background: #00ff00;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            margin: 10px 5px;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #00dd00;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 AUDIT FRONTEND STATE</h1>
+
+    <button onclick="runAudit()">▶️ Run Audit</button>
+    <button onclick="clearLogs()">🗑️ Clear Logs</button>
+
+    <div id="output"></div>
+
+    <script type="module">
+        import { calculateRiskBudget, getFeatureFlags } from '../static/modules/market-regimes.js';
+        import { store } from '../static/core/risk-dashboard-store.js';
+
+        window.runAudit = function() {
+            const output = document.getElementById('output');
+            let html = '';
+
+            html += '<h2>📦 LOCALSTORAGE STATE</h2>';
+
+            // Risk Semantics Mode
+            const riskMode = localStorage.getItem('RISK_SEMANTICS_MODE');
+            const riskModeClass = riskMode === 'legacy' ? 'warning' : 'success';
+            html += `<div class="section ${riskModeClass}">`;
+            html += `<strong>RISK_SEMANTICS_MODE:</strong> <code>${riskMode || 'NOT SET (defaults to legacy)'}</code><br>`;
+            if (riskMode === 'legacy') {
+                html += `<span style="color: #ff9900">⚠️ Using LEGACY mode (inverted formula, BUG!)</span><br>`;
+                html += `Formula: <code>risk_factor = 1 - 0.5 × (Risk/100)</code><br>`;
+                html += `Recommend: <code>localStorage.setItem('RISK_SEMANTICS_MODE', 'v2_conservative')</code>`;
+            } else if (riskMode === 'v2_conservative') {
+                html += `<span style="color: #00ff00">✅ Using V2 CONSERVATIVE (correct formula)</span><br>`;
+                html += `Formula: <code>risk_factor = 0.5 + 0.5 × (Risk/100)</code>`;
+            } else if (riskMode === 'v2_aggressive') {
+                html += `<span style="color: #00ff00">✅ Using V2 AGGRESSIVE (correct formula)</span><br>`;
+                html += `Formula: <code>risk_factor = 0.4 + 0.7 × (Risk/100)</code>`;
+            }
+            html += `</div>`;
+
+            // Phase Engine
+            const phaseMode = localStorage.getItem('PHASE_ENGINE_ENABLED');
+            html += `<div class="section">`;
+            html += `<strong>PHASE_ENGINE_ENABLED:</strong> <code>${phaseMode || 'NOT SET (defaults to shadow)'}</code><br>`;
+            html += `Modes: <code>off</code> | <code>shadow</code> (logs only) | <code>apply</code> (active tilts)`;
+            html += `</div>`;
+
+            // Active User
+            const activeUser = localStorage.getItem('activeUser');
+            html += `<div class="section">`;
+            html += `<strong>activeUser:</strong> <code>${activeUser || 'demo'}</code>`;
+            html += `</div>`;
+
+            // Store snapshot
+            html += '<h2>🏪 STORE SNAPSHOT</h2>';
+            const state = store.snapshot();
+
+            html += `<div class="section">`;
+            html += `<strong>scores.blended:</strong> <code>${state.scores?.blended?.toFixed(2) || 'N/A'}</code><br>`;
+            html += `<strong>scores.onchain:</strong> <code>${state.scores?.onchain?.toFixed(2) || 'N/A'}</code><br>`;
+            html += `<strong>scores.risk:</strong> <code>${state.scores?.risk?.toFixed(2) || 'N/A'}</code><br>`;
+            html += `<strong>scores.cycle:</strong> <code>${state.scores?.cycle?.toFixed(2) || 'N/A'}</code><br>`;
+            html += `</div>`;
+
+            html += `<div class="section">`;
+            html += `<strong>governance.ml_signals:</strong><br>`;
+            if (state.governance?.ml_signals) {
+                const sig = state.governance.ml_signals;
+                html += `├─ decision_score: <code>${sig.decision_score?.toFixed(3) || 'N/A'}</code><br>`;
+                html += `├─ confidence: <code>${sig.confidence?.toFixed(3) || 'N/A'}</code><br>`;
+                html += `├─ contradiction_index: <code>${sig.contradiction_index?.toFixed(3) || 'N/A'}</code><br>`;
+                html += `└─ blended_score: <code>${sig.blended_score || 'N/A'}</code>`;
+            } else {
+                html += `<span style="color: #ff9900">⚠️ NOT AVAILABLE</span>`;
+            }
+            html += `</div>`;
+
+            // Risk Budget Simulation
+            html += '<h2>💰 RISK BUDGET SIMULATION</h2>';
+
+            const blended = state.scores?.blended || 65;
+            const risk = state.scores?.risk || 90;
+
+            // Test with current localStorage mode
+            try {
+                const riskBudget = calculateRiskBudget(blended, risk);
+                const budgetClass = riskBudget.metadata?.semantics_mode === 'legacy' ? 'warning' : 'success';
+
+                html += `<div class="section ${budgetClass}">`;
+                html += `<strong>Test with current settings:</strong><br>`;
+                html += `Blended: <code>${blended.toFixed(1)}</code>, Risk: <code>${risk.toFixed(1)}</code><br>`;
+                html += `Mode: <code>${riskBudget.metadata?.semantics_mode}</code><br>`;
+                html += `risk_factor: <code>${riskBudget.risk_factor.toFixed(3)}</code><br>`;
+                html += `risky%: <code>${riskBudget.percentages.risky}%</code><br>`;
+                html += `<strong>stables%: <code>${riskBudget.percentages.stables}%</code></strong>`;
+                html += `</div>`;
+            } catch (err) {
+                html += `<div class="section error">Error: ${err.message}</div>`;
+            }
+
+            // Compare modes
+            html += `<div class="section">`;
+            html += `<strong>Comparison across modes (Blended=65, Risk=90):</strong><br>`;
+
+            const modes = ['legacy', 'v2_conservative', 'v2_aggressive'];
+            const originalMode = localStorage.getItem('RISK_SEMANTICS_MODE');
+
+            html += `<table border="1" cellpadding="5" style="margin-top:10px;border-collapse:collapse">`;
+            html += `<tr><th>Mode</th><th>risk_factor</th><th>risky%</th><th>stables%</th></tr>`;
+
+            modes.forEach(mode => {
+                localStorage.setItem('RISK_SEMANTICS_MODE', mode);
+                try {
+                    const rb = calculateRiskBudget(65, 90);
+                    html += `<tr>`;
+                    html += `<td><code>${mode}</code></td>`;
+                    html += `<td>${rb.risk_factor.toFixed(3)}</td>`;
+                    html += `<td>${rb.percentages.risky}%</td>`;
+                    html += `<td><strong>${rb.percentages.stables}%</strong></td>`;
+                    html += `</tr>`;
+                } catch (err) {
+                    html += `<tr><td colspan="4" style="color:red">Error: ${err.message}</td></tr>`;
+                }
+            });
+
+            html += `</table>`;
+
+            // Restore original mode
+            if (originalMode) {
+                localStorage.setItem('RISK_SEMANTICS_MODE', originalMode);
+            } else {
+                localStorage.removeItem('RISK_SEMANTICS_MODE');
+            }
+
+            html += `<br><span style="color:#888">Note: Original mode restored after test</span>`;
+            html += `</div>`;
+
+            // Feature Flags
+            html += '<h2>🚩 FEATURE FLAGS (Phase Tilts)</h2>';
+            try {
+                const flags = getFeatureFlags();
+                html += `<div class="section">`;
+                html += `<strong>ALTSEASON_TILT_ENABLED:</strong> <code>${flags.ALTSEASON_TILT_ENABLED}</code><br>`;
+                html += `<strong>ALTSEASON_TILT_MAX:</strong> <code>${flags.ALTSEASON_TILT_MAX}%</code><br>`;
+                html += `<strong>ALTSEASON_TILT_AMOUNT:</strong> <code>${flags.ALTSEASON_TILT_AMOUNT}%</code><br>`;
+                html += `<strong>ALTSEASON_TILT_MIN_PHASE_CONFIDENCE:</strong> <code>${flags.ALTSEASON_TILT_MIN_PHASE_CONFIDENCE}</code>`;
+                html += `</div>`;
+            } catch (err) {
+                html += `<div class="section error">Error: ${err.message}</div>`;
+            }
+
+            // Diagnostic
+            html += '<h2>🔍 DIAGNOSTIC</h2>';
+
+            const issues = [];
+            if (!riskMode || riskMode === 'legacy') {
+                issues.push({
+                    type: 'error',
+                    msg: 'RISK_SEMANTICS_MODE is LEGACY (inverted formula)',
+                    fix: `localStorage.setItem('RISK_SEMANTICS_MODE', 'v2_conservative')`
+                });
+            }
+
+            if (!state.scores?.blended) {
+                issues.push({
+                    type: 'warning',
+                    msg: 'Blended score not available in store',
+                    fix: 'Check if backend is running and scores are loaded'
+                });
+            }
+
+            if (!state.governance?.ml_signals) {
+                issues.push({
+                    type: 'warning',
+                    msg: 'ML signals not available in store',
+                    fix: 'Check if governance endpoint is responding'
+                });
+            }
+
+            if (issues.length === 0) {
+                html += `<div class="section success">✅ No major issues detected</div>`;
+            } else {
+                issues.forEach(issue => {
+                    html += `<div class="section ${issue.type}">`;
+                    html += `<strong>${issue.type.toUpperCase()}:</strong> ${issue.msg}<br>`;
+                    html += `<strong>Fix:</strong> <code>${issue.fix}</code>`;
+                    html += `</div>`;
+                });
+            }
+
+            output.innerHTML = html;
+        };
+
+        window.clearLogs = function() {
+            document.getElementById('output').innerHTML = '';
+        };
+
+        // Auto-run on load
+        window.runAudit();
+    </script>
+</body>
+</html>
