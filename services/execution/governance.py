@@ -527,8 +527,13 @@ class GovernanceEngine:
                 cap_raw = 0.08  # 8% baseline
                 ramp_hours = 12
 
-            # Phase 1A: Smoothing cap = 0.7*cap(t-1) + 0.3*cap_raw
-            cap_smoothed = 0.7 * self._last_cap + 0.3 * cap_raw
+            # Phase 1A: Dead zone anti-oscillation (ignore micro-variations <0.5%)
+            DEAD_ZONE_BPS = 0.005  # 50 bps = 0.5%
+            if abs(cap_raw - self._last_cap) < DEAD_ZONE_BPS:
+                cap_raw = self._last_cap  # Keep stable, ignore noise
+
+            # Phase 1A: Smoothing cap with increased stability (80/20 instead of 70/30)
+            cap_smoothed = 0.80 * self._last_cap + 0.20 * cap_raw
 
             # Garde-fou : pas de variation > 2 pts entre runs (sauf stale/error)
             max_variation = 0.02  # 2 points de pourcentage
@@ -658,10 +663,18 @@ class GovernanceEngine:
                 notes=f"ML: contradiction={contradiction:.2f}, confidence={confidence:.2f}, vol={avg_volatility:.3f}{cap_info}"
             )
 
-            # Logging enrichi Phase 1A
-            logger.debug(f"Policy derived: mode={mode}, cap={cap:.1%} (engine={cap_engine:.1%}), "
-                        f"contradiction={contradiction:.3f}, prudent_mode={self._prudent_mode}, "
-                        f"alert_reduction={self._alert_cap_reduction:.1%}{cap_info}")
+            # Logging enrichi Phase 1A avec détails complets pour debug oscillation
+            logger.info(
+                f"[CAP_FLOW] contradiction={contradiction:.3f}, confidence={confidence:.3f}, "
+                f"cap_raw={cap_raw:.4f} ({cap_raw*100:.2f}%), cap_smoothed={cap_smoothed:.4f} ({cap_smoothed*100:.2f}%), "
+                f"cap_engine={cap_engine:.4f} ({cap_engine*100:.2f}%), "
+                f"cap_stale={'%.4f (%.2f%%)' % (cap_stale, cap_stale*100) if cap_stale else 'N/A'}, "
+                f"cap_error={'%.4f (%.2f%%)' % (cap_error, cap_error*100) if cap_error else 'N/A'}, "
+                f"cap_alert={cap_alert:.4f} ({cap_alert*100:.2f}%), cap_final={cap:.4f} ({cap*100:.2f}%), "
+                f"var_state={var_state}, stale_state={stale_state}, "
+                f"signals_age={signals_age:.0f}s, prudent_mode={self._prudent_mode}, "
+                f"mode={mode}{cap_info}"
+            )
 
             return policy
             
