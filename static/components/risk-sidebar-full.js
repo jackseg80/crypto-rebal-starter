@@ -474,11 +474,12 @@ class RiskSidebarFull extends HTMLElement {
           margin-bottom: var(--space-xs);
         }
 
-        .ccs-score.score-excellent { color: var(--success); }
-        .ccs-score.score-good { color: var(--brand-primary); }
-        .ccs-score.score-neutral { color: var(--info); }
-        .ccs-score.score-warning { color: var(--warning); }
-        .ccs-score.score-critical { color: var(--danger); }
+        /* Couleurs par score - !important pour override la couleur par défaut */
+        .ccs-score.score-excellent { color: var(--success) !important; }
+        .ccs-score.score-good { color: var(--brand-primary) !important; }
+        .ccs-score.score-neutral { color: var(--info) !important; }
+        .ccs-score.score-warning { color: var(--warning) !important; }
+        .ccs-score.score-critical { color: var(--danger) !important; }
 
         .ccs-label {
           font-size: 0.75rem;
