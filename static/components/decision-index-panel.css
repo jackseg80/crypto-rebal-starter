@@ -109,13 +109,34 @@
   transform: scale(0.95);
 }
 
-/* Score (grand chiffre) */
+/* Score (grand chiffre) - coloré dynamiquement selon valeur */
 .di-score {
   font-size: 2.6rem;
   line-height: 1;
   font-weight: 800;
   color: var(--brand-primary, #7aa2f7);
   margin: 0;
+}
+
+/* Couleurs dynamiques selon score (sémantique positive: plus haut = meilleur) */
+.di-score[data-score-level="excellent"] {
+  color: var(--success, #38d39f);
+}
+
+.di-score[data-score-level="good"] {
+  color: var(--brand-primary, #7aa2f7);
+}
+
+.di-score[data-score-level="medium"] {
+  color: var(--info, #2ac3de);
+}
+
+.di-score[data-score-level="warning"] {
+  color: var(--warning, #ff9e64);
+}
+
+.di-score[data-score-level="danger"] {
+  color: var(--danger, #f7768e);
 }
 
 /* Badges (alignés à droite) */

@@ -4052,9 +4052,10 @@
                 <div style="color: var(--theme-text-muted); margin-top: 0.25rem;">
                   ${(() => {
           const riskScore = m.risk_score || 0;
-          if (riskScore > 70) return 'Élevé - Attention aux corrections brutales';
-          if (riskScore > 50) return 'Modéré - Typique pour crypto';
-          return 'Contrôlé - Bon équilibre risque/rendement';
+          // IMPORTANT: Risk Score positif - plus haut = meilleur (plus robuste)
+          if (riskScore > 70) return 'Excellent - Portfolio très robuste';
+          if (riskScore > 50) return 'Bon - Équilibre robustesse/rendement';
+          return 'Faible - Attention aux fortes volatilités';
         })()}
                 </div>
               </div>
@@ -5272,12 +5273,12 @@
         const recosData = { enhanced_score: composite.score, contributors: composite.contributors, confidence: composite.confidence };
         const recos = generateRecommendations(recosData) || [];
 
-        // Utilitaires couleur (se basent uniquement sur les vars de thème)
+        // Utilitaires couleur (IMPORTANT: sémantique positive - plus haut = meilleur)
         const pickScoreColor = (score) => {
           if (score == null) return 'var(--theme-text)';
-          if (score > 70) return 'var(--danger)';     // zone chaude (souvent “surchauffe” on-chain)
-          if (score < 40) return 'var(--success)';    // zone favorable
-          return 'var(--warning)';                    // zone neutre/attention
+          if (score > 70) return 'var(--success)';    // Excellent (robuste)
+          if (score >= 40) return 'var(--warning)';   // Moyen
+          return 'var(--danger)';                     // Faible (risqué)
         };
 
         const card = (inner, { accentLeft = null, pad = true } = {}) => `

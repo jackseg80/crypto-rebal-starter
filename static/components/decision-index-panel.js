@@ -27,6 +27,21 @@ let helpPopoverState = {
 };
 
 /**
+ * Détermine le niveau de couleur d'un score (sémantique positive: plus haut = meilleur)
+ * @param {number} score - Score 0-100
+ * @returns {string} - "excellent", "good", "medium", "warning", "danger"
+ */
+function getScoreLevel(score) {
+  if (score == null || isNaN(score)) return 'medium';
+  const s = Number(score);
+  if (s >= 75) return 'excellent';  // Vert
+  if (s >= 60) return 'good';       // Bleu primaire
+  if (s >= 45) return 'medium';     // Bleu info
+  if (s >= 30) return 'warning';    // Orange
+  return 'danger';                  // Rouge
+}
+
+/**
  * Palette couleurs - Lire depuis CSS (avec fallback)
  */
 function getColors() {
@@ -926,7 +941,7 @@ function _renderDIPanelInternal(container, data, opts = {}) {
             <div class="di-title">DECISION INDEX</div>
             <button class="di-help-trigger" aria-label="Aide Decision Index" aria-expanded="false" aria-controls="di-help-popover" type="button">ℹ️</button>
           </div>
-          <div class="di-score">${Math.round(data.di)}</div>
+          <div class="di-score" data-score-level="${getScoreLevel(data.di)}">${Math.round(data.di)}</div>
 
           <div class="di-progress">
             <canvas id="${container.id}-stack-chart" class="di-stack-canvas"></canvas>
