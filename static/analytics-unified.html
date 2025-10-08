@@ -550,23 +550,23 @@
           volatilityElement.textContent = '--';
         }
 
-        // Update Risk Score
+        // Update Risk Score (IMPORTANT: Risk Score est positif - plus haut = plus robuste)
         const scoreElement = document.getElementById('risk-score-value');
         if (scoreElement && riskScore != null) {
           scoreElement.textContent = `${Math.round(riskScore)}/100`;
-          scoreElement.style.color = riskScore > 70 ? 'var(--danger)' :
-            riskScore > 40 ? 'var(--warning)' : 'var(--success)';
+          scoreElement.style.color = riskScore > 70 ? 'var(--success)' :
+            riskScore > 40 ? 'var(--warning)' : 'var(--danger)';
         } else if (scoreElement) {
           scoreElement.textContent = '--/100';
         }
 
-        // Update On-Chain Score
+        // Update On-Chain Score (IMPORTANT: Score positif - plus haut = meilleur signal)
         const onchainScore = store.get('scores.onchain');
         const onchainElement = document.getElementById('risk-kpi-onchain-value');
         if (onchainElement && onchainScore != null) {
           onchainElement.textContent = `${Math.round(onchainScore)}/100`;
-          onchainElement.style.color = onchainScore > 70 ? 'var(--danger)' :
-            onchainScore > 40 ? 'var(--warning)' : 'var(--success)';
+          onchainElement.style.color = onchainScore > 70 ? 'var(--success)' :
+            onchainScore > 40 ? 'var(--warning)' : 'var(--danger)';
         } else if (onchainElement) {
           onchainElement.textContent = '--/100';
         }

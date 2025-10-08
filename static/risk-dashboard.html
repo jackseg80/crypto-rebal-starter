@@ -4669,8 +4669,9 @@
         }));
 
         // Import cycle navigator functions et indicateurs on-chain
-        const { cycleScoreFromMonths, getCyclePhase } = await import('./modules/cycle-navigator.js');
-        const { fetchAllIndicators, enhanceCycleScore, analyzeDivergence } = await import('./modules/onchain-indicators.js');
+        const cacheBuster = `?v=${Date.now()}`;
+        const { cycleScoreFromMonths, getCyclePhase } = await import(`./modules/cycle-navigator.js${cacheBuster}`);
+        const { fetchAllIndicators, enhanceCycleScore, analyzeDivergence } = await import(`./modules/onchain-indicators.js${cacheBuster}`);
 
         // 🎯 CALIBRATION HISTORIQUE AUTOMATIQUE (avec garde anti-boucle)
         try {
@@ -5224,8 +5225,9 @@
     async function loadOnChainIndicators() {
       try {
         console.log('🔄 Loading on-chain indicators modules...');
-        const onchainModule = await import('./modules/onchain-indicators.js');
-        const cycleModule = await import('./modules/cycle-navigator.js');
+        const cacheBuster = `?v=${Date.now()}`;
+        const onchainModule = await import(`./modules/onchain-indicators.js${cacheBuster}`);
+        const cycleModule = await import(`./modules/cycle-navigator.js${cacheBuster}`);
 
         const { fetchAllIndicators, enhanceCycleScore, analyzeDivergence, generateRecommendations } = onchainModule;
         const { cycleScoreFromMonths, getCurrentCycleMonths } = cycleModule;
@@ -5266,7 +5268,9 @@
             }
           }
         } catch (e) { console.warn('Failed to propagate onchain score to store:', e); }
-        const recos = generateRecommendations(enhanced) || [];
+        // IMPORTANT: Utiliser composite.score (pur on-chain) pour les recommandations, pas enhanced (blend avec cycle)
+        const recosData = { enhanced_score: composite.score, contributors: composite.contributors, confidence: composite.confidence };
+        const recos = generateRecommendations(recosData) || [];
 
         // Utilitaires couleur (se basent uniquement sur les vars de thème)
         const pickScoreColor = (score) => {
@@ -6051,16 +6055,40 @@
     }
 
     function renderTargetsTable(targets, strategy) {
+      // Robustly handle invalid inputs
+      if (!targets || typeof targets !== 'object') {
+        console.warn('[renderTargetsTable] Invalid targets:', targets);
+        return `<div style="color: var(--warning); font-size: 0.875rem;">⚠️ Invalid allocation data</div>`;
+      }
+
       const { model_version, ...allocations } = targets;
+
+      // Filter and validate allocations with extra safety
+      const validEntries = Object.entries(allocations)
+        .filter(([key, value]) => {
+          const isValid = value != null && typeof value === 'number' && !isNaN(value);
+          if (!isValid && value != null) {
+            console.warn(`[renderTargetsTable] Filtered invalid allocation: ${key}=${value} (type: ${typeof value})`);
+          }
+          return isValid;
+        })
+        .sort(([, a], [, b]) => b - a);
+
+      if (validEntries.length === 0) {
+        return `
+          <div style="font-size: 0.75rem; color: var(--theme-text-muted); margin-bottom: var(--space-sm);">
+            ${strategy} (${model_version || 'unknown'})
+          </div>
+          <div style="color: var(--warning); font-size: 0.875rem;">⚠️ No valid allocations found</div>
+        `;
+      }
 
       return `
         <div style="font-size: 0.75rem; color: var(--theme-text-muted); margin-bottom: var(--space-sm);">
-          ${strategy} (${model_version})
+          ${strategy} (${model_version || 'unknown'})
         </div>
         <div class="risk-grid">
-          ${Object.entries(allocations)
-          .sort(([, a], [, b]) => b - a)
-          .map(([asset, allocation]) => `
+          ${validEntries.map(([asset, allocation]) => `
               <div class="metric-row">
                 <span class="metric-label">${asset}:</span>
                 <span class="metric-value">${allocation.toFixed(1)}%</span>

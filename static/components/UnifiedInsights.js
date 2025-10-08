@@ -458,9 +458,9 @@ function applyCycleMultipliersToTargets(targets, multipliers) {
 
 // Color scales
 // - Positive scale: high = good (green)
-// - Risk scale: high = risky (red)
+// - Risk Score scale: high = robust/low risk (green) - See RISK_SEMANTICS.md
 const colorPositive = (s) => s > 70 ? 'var(--success)' : s >= 40 ? 'var(--warning)' : 'var(--danger)';
-const colorRisk = (s) => s > 70 ? 'var(--danger)' : s >= 40 ? 'var(--warning)' : 'var(--success)';
+const colorRisk = (s) => s > 70 ? 'var(--success)' : s >= 40 ? 'var(--warning)' : 'var(--danger)';
 
 function card(inner, opts = {}) {
   const { accentLeft = null, title = null } = opts;

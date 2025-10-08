@@ -1589,20 +1589,41 @@ export function generateRecommendations(enhancedData) {
   const recommendations = [];
   const { enhanced_score, contributors, confidence } = enhancedData;
   
-  // Recommandations basées sur le score enhancé
+  // Recommandations basées sur le score enhancé (IMPORTANT: score positif - plus haut = meilleur)
   if (enhanced_score > 80) {
     recommendations.push({
       type: 'warning',
       title: 'Zone de Distribution Probable',
-      message: 'Score élevé - Considérer la prise de profits',
+      message: 'Score élevé - Euphorie détectée, considérer la prise de profits',
       action: 'Réduire l\'exposition aux altcoins, augmenter les stables'
     });
-  } else if (enhanced_score < 30) {
+  } else if (enhanced_score >= 60) {
+    recommendations.push({
+      type: 'info',
+      title: 'Marché Bull Confirmé',
+      message: 'Score bon - Momentum haussier présent mais pas d\'euphorie',
+      action: 'Maintenir l\'allocation actuelle, surveiller les signaux de pic'
+    });
+  } else if (enhanced_score >= 40) {
+    recommendations.push({
+      type: 'neutral',
+      title: 'Zone de Transition',
+      message: 'Score moyen - Phase d\'incertitude ou consolidation',
+      action: 'Prudence recommandée, attendre confirmation de tendance'
+    });
+  } else if (enhanced_score >= 30) {
+    recommendations.push({
+      type: 'caution',
+      title: 'Momentum Faible Détecté',
+      message: 'Score faible - Indicateurs on-chain pessimistes',
+      action: 'Réduire progressivement l\'exposition risquée (altcoins), augmenter les stables'
+    });
+  } else {
     recommendations.push({
       type: 'opportunity',
-      title: 'Zone d\'Accumulation Probable', 
-      message: 'Score faible - Opportunité d\'achat potentielle',
-      action: 'Considérer l\'augmentation de l\'allocation Bitcoin/ETH'
+      title: 'Zone d\'Accumulation Probable',
+      message: 'Score très faible - Opportunité d\'achat potentielle (capitulation/bear)',
+      action: 'Considérer l\'augmentation progressive de l\'allocation Bitcoin/ETH'
     });
   }
   
