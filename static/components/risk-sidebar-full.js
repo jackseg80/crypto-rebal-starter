@@ -228,9 +228,12 @@ class RiskSidebarFull extends HTMLElement {
     this._showSection('section-ccs', hasCCS);
 
     if (hasCCS) {
+      console.log('[risk-sidebar] CCS Mixte update:', { score: ccsScore, element: this.$.ccsMix, hasElement: !!this.$.ccsMix });
       this.$.ccsMix.textContent = Math.round(ccsScore);
       this.$.ccsMixLabel.textContent = this._getScoreLabel(ccsScore);
       this._applyScoreClass(this.$.ccsMix, ccsScore);
+    } else {
+      console.warn('[risk-sidebar] CCS Mixte: no valid score', ccsScore);
     }
 
     // === SECTION 2: On-Chain ===
@@ -261,6 +264,7 @@ class RiskSidebarFull extends HTMLElement {
     this._showSection('section-blended', hasBlended);
 
     if (hasBlended) {
+      console.log('[risk-sidebar] Blended update:', { score: blendedScore, element: this.$.blended, hasElement: !!this.$.blended });
       this.$.blended.textContent = Math.round(blendedScore);
       this.$.blendedLabel.textContent = this._getScoreLabel(blendedScore);
       this._applyScoreClass(this.$.blended, blendedScore);
