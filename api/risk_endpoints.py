@@ -66,6 +66,32 @@ def _clean_for_json(obj: Any) -> Any:
 
     return obj
 
+# ===== Helper: Score → Level canonical mapping (docs/RISK_SEMANTICS.md) =====
+def _score_to_risk_level(score: float) -> str:
+    """
+    Canonical mapping: Risk Score [0-100] → Risk Level
+
+    Source: docs/RISK_SEMANTICS.md + services/risk_scoring.py:score_to_level()
+    Higher score = more robust = lower risk
+
+    Returns: "very_low" | "low" | "medium" | "high" | "very_high" | "critical"
+    """
+    from services.risk_management import RiskLevel
+    score = max(0, min(100, score))  # Clamp to [0, 100]
+
+    if score >= 80:
+        return RiskLevel.VERY_LOW
+    elif score >= 65:
+        return RiskLevel.LOW
+    elif score >= 50:
+        return RiskLevel.MEDIUM
+    elif score >= 35:
+        return RiskLevel.HIGH
+    elif score >= 20:
+        return RiskLevel.VERY_HIGH
+    else:
+        return RiskLevel.CRITICAL
+
 # ===== Helper: Risk Score V2 (feature-flagged) =====
 def _calculate_risk_score_v2(
     risk_metrics,
@@ -700,6 +726,9 @@ async def get_risk_dashboard(
                     # ✅ Stocker métriques v2 AVEC Risk Score V2 = Blend + Pénalités
                     risk_metrics_v2 = replace(full_inter['metrics'], risk_score=final_risk_score)
 
+                    # 🆕 RECALCULER overall_risk_level à partir du nouveau score
+                    risk_metrics_v2 = replace(risk_metrics_v2, overall_risk_level=_score_to_risk_level(final_risk_score))
+
                     # Sharpe blendé (pour cohérence)
                     sharpe_blended = w_full * full_inter['metrics'].sharpe_ratio + w_long * long_term['metrics'].sharpe_ratio
                     risk_metrics_v2 = replace(risk_metrics_v2, sharpe_ratio=sharpe_blended)
@@ -738,6 +767,9 @@ async def get_risk_dashboard(
                     # ✅ Stocker métriques v2 avec pénalités
                     risk_metrics_v2 = replace(long_term['metrics'], risk_score=final_risk_score)
 
+                    # 🆕 RECALCULER overall_risk_level à partir du nouveau score
+                    risk_metrics_v2 = replace(risk_metrics_v2, overall_risk_level=_score_to_risk_level(final_risk_score))
+
                     blend_metadata = {
                         "mode": "long_term_only",
                         "w_full": 0.0,
@@ -770,6 +802,9 @@ async def get_risk_dashboard(
 
                     # ✅ Stocker métriques v2 avec pénalités
                     risk_metrics_v2 = replace(full_inter['metrics'], risk_score=final_risk_score)
+
+                    # 🆕 RECALCULER overall_risk_level à partir du nouveau score
+                    risk_metrics_v2 = replace(risk_metrics_v2, overall_risk_level=_score_to_risk_level(final_risk_score))
 
                     # Métadonnées pour API
                     blend_metadata = {
