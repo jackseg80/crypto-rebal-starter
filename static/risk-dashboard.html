@@ -2172,14 +2172,40 @@
         return `${v.toFixed(cur === 'BTC' ? 8 : 2)} ${cur}`;
       }
     }
+    // 🆕 Oct 2025: Score → Risk Level mapping (canonical from docs/RISK_SEMANTICS.md)
+    function scoreToRiskLevel(score) {
+      if (score == null) return 'unknown';
+      if (score >= 80) return 'very-low';     // Très robuste
+      if (score >= 65) return 'low';          // Robuste
+      if (score >= 50) return 'medium';       // Modéré
+      if (score >= 35) return 'high';         // Fragile
+      if (score >= 20) return 'very-high';    // Très fragile
+      return 'critical';                      // Critique (<20)
+    }
+
     // Score color utility (IMPORTANT: positive semantics - higher = better/more robust)
+    // 🔧 Oct 2025: Granularité alignée sur les thresholds canoniques
     function pickScoreColor(score) {
       if (score == null) return 'var(--theme-text)';
-      if (score > 70) return 'var(--success)';    // Excellent (robust)
-      if (score >= 40) return 'var(--warning)';   // Medium
-      return 'var(--danger)';                     // Low (risky)
+      if (score >= 80) return '#9ece6a';      // Vert foncé (very_low risk)
+      if (score >= 65) return '#73daca';      // Vert clair (low risk)
+      if (score >= 50) return '#ff9e64';      // Jaune/Orange (medium)
+      if (score >= 35) return '#e0af68';      // Orange clair (high)
+      if (score >= 20) return '#f7768e';      // Rouge clair (very_high)
+      return '#db4b4b';                       // Rouge foncé (critical)
     }
+
     // Score interpretation utility
+    function getScoreInterpretation(score) {
+      if (score == null) return 'Métrique non disponible';
+      if (score >= 80) return 'Portfolio très robuste - excellent';
+      if (score >= 65) return 'Portfolio robuste - bien protégé';
+      if (score >= 50) return 'Robustesse modérée - surveiller';
+      if (score >= 35) return 'Portfolio fragile - attention requise';
+      if (score >= 20) return 'Portfolio très fragile - risque élevé';
+      return 'Portfolio critique - danger immédiat';
+    }
+
     // 🆕 Oct 2025: Toggle breakdown panel (expose globally for onclick handlers)
     window.toggleBreakdown = function(panelId) {
       const panel = document.getElementById(panelId);
@@ -2188,13 +2214,6 @@
         panel.style.display = isVisible ? 'none' : 'block';
       }
     };
-
-    function getScoreInterpretation(score) {
-      if (score == null) return 'Métrique non disponible';
-      if (score > 70) return 'Portfolio robuste - bien protégé';
-      if (score >= 40) return 'Robustesse modérée - surveiller';
-      return 'Portfolio fragile - risque élevé';
-    }
 
     // Import core modules
     import { store } from './core/risk-dashboard-store.js';
@@ -4276,7 +4295,7 @@
             </div>
             <div id="risk-score-breakdown" class="breakdown-panel" style="display: none; margin: 8px 0; padding: 12px; background: rgba(30, 30, 46, 0.6); border-radius: 8px; border: 1px solid rgba(125, 207, 255, 0.2); font-size: 0.85em;">
               <div class="breakdown-header" style="font-weight: 600; color: var(--brand-primary); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
-                <span>📊 Détail du calcul (Base = 50)</span>
+                <span>📊 Détail du calcul (Base = 50) ${m.risk_version_info ? `— ${m.risk_version_info.active_version === 'v2' ? 'V2' : 'Legacy'}` : ''}</span>
                 <button onclick="toggleBreakdown('risk-score-breakdown')" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 1.2em;" aria-label="Fermer">×</button>
               </div>
               <div class="breakdown-table" style="display: flex; flex-direction: column; gap: 4px;">
@@ -4286,6 +4305,7 @@
                   <span class="breakdown-cumul" style="color: var(--brand-primary); font-weight: 600; min-width: 50px; text-align: right;">50.0</span>
                 </div>
                 ${(() => {
+                  // 🔧 Oct 2025: Use V2 breakdown when v2_active, otherwise legacy
                   const breakdown = m.structural_breakdown || {};
                   let cumul = 50.0;
                   const rows = [];
@@ -4532,7 +4552,7 @@
 
             <div class="metric-row">
               <span class="metric-label">Risk Level</span>
-              <span class="risk-level risk-${(m.overall_risk_level || 'unknown').replace('_', '-')}">${(m.overall_risk_level || 'Unknown').replace('_', ' ')}</span>
+              <span class="risk-level risk-${scoreToRiskLevel(m.risk_score)}">${scoreToRiskLevel(m.risk_score).replace('-', ' ').toUpperCase()}</span>
             </div>
             <div class="metric-benchmark">
               📊 <strong>Crypto historique:</strong> Bon: -30%, Typique: -50%, Extrême: -70%+
