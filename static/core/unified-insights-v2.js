@@ -244,11 +244,7 @@ function computeMacroTargetsDynamic(ctx, rb, walletStats, data = null) {
     console.debug('🔧 Sum adjustment applied:', { diff, heavy });
   }
 
-  console.error('🔍 SIMPLE DEBUG - Final targets:', targets);
-  console.error('🔍 SIMPLE DEBUG - Base weights:', base);
-  console.error('🔍 SIMPLE DEBUG - Market conditions:', { bull, bear, hedge, fear });
-  console.error('🔍 SIMPLE DEBUG - Stables/Risky:', { stables, riskyPool });
-
+  // Debug logs removed (obsolete, redundant with comprehensive log below)
   (window.debugLogger?.debug || console.log)('🎯 Dynamic targets computed:', targets);
   console.debug('📊 Target breakdown: stables=' + stables + '%, risky=' + riskyPool + '%');
 
