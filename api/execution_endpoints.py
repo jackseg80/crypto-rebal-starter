@@ -684,9 +684,16 @@ async def get_governance_state():
                 )
                 
                 # Cycle signals enrichis par Phase Engine
+                # Map cycle position string to float (0-1 scale)
+                position_map = {
+                    'early_cycle': 0.25,
+                    'mid_cycle': 0.50,
+                    'late_cycle': 0.75,
+                    'peak': 1.0
+                }
                 cycle_signals = CycleSignals(
                     btc_cycle={
-                        "position": "mid_cycle",  # Simulé
+                        "position": position_map.get('mid_cycle', 0.5),  # Float 0-1 (Pydantic expects float)
                         "confidence": 0.7
                     },
                     rotation={}
