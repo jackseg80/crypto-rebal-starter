@@ -567,9 +567,10 @@ async def get_market_breadth():
         logger.info("Calculating market breadth metrics")
 
         # Utiliser les données de balances existantes pour calculer les métriques
-        from api.balances import get_unified_filtered_balances
+        from api.unified_data import get_unified_filtered_balances
 
-        balances = await get_unified_filtered_balances()
+        balances_response = await get_unified_filtered_balances()
+        balances = balances_response.get('items', []) if isinstance(balances_response, dict) else balances_response
 
         if not balances:
             logger.warning("No balance data available for market breadth calculation")

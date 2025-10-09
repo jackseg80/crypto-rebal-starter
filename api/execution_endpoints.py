@@ -142,7 +142,7 @@ class PortfolioMetrics(BaseModel):
 
 class SuggestionIA(BaseModel):
     """Proposition IA canonique (lecture seule)"""
-    targets: List[Dict[str, float]] = Field(..., description="Cibles suggérées")
+    targets: List[Dict[str, Any]] = Field(..., description="Cibles suggérées")
     rationale: str = Field(..., description="Logique de la suggestion")
     policy_hint: str = Field(..., description="Suggestion de policy (Slow/Normal/Aggressive)")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confiance dans la suggestion")

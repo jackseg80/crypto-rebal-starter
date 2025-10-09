@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime, date
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict, is_dataclass, replace
 from decimal import Decimal
 import math
 import numpy as np
@@ -696,11 +696,11 @@ async def get_risk_dashboard(
                     logger.info(f"✅ Final Risk Score V2: {final_risk_score:.1f} (was {blended_risk_score:.1f} before penalties)")
 
                     # ✅ Stocker métriques v2 AVEC Risk Score V2 = Blend + Pénalités
-                    risk_metrics_v2 = full_inter['metrics']._replace(risk_score=final_risk_score)
+                    risk_metrics_v2 = replace(full_inter['metrics'], risk_score=final_risk_score)
 
                     # Sharpe blendé (pour cohérence)
                     sharpe_blended = w_full * full_inter['metrics'].sharpe_ratio + w_long * long_term['metrics'].sharpe_ratio
-                    risk_metrics_v2 = risk_metrics_v2._replace(sharpe_ratio=sharpe_blended)
+                    risk_metrics_v2 = replace(risk_metrics_v2, sharpe_ratio=sharpe_blended)
 
                     # 🆕 Phase 5: Métadonnées blend pour API response
                     blend_metadata = {
@@ -734,7 +734,7 @@ async def get_risk_dashboard(
                     logger.info(f"⚠️  Penalties: excluded={penalty_excluded:.1f}, young_memes={penalty_memes_age:.1f} ({len(young_memes)} memes)")
 
                     # ✅ Stocker métriques v2 avec pénalités
-                    risk_metrics_v2 = long_term['metrics']._replace(risk_score=final_risk_score)
+                    risk_metrics_v2 = replace(long_term['metrics'], risk_score=final_risk_score)
 
                     blend_metadata = {
                         "mode": "long_term_only",
@@ -767,7 +767,7 @@ async def get_risk_dashboard(
                     logger.info(f"⚠️  Penalties: excluded={penalty_excluded:.1f}, young_memes={penalty_memes_age:.1f} ({len(young_memes)} memes)")
 
                     # ✅ Stocker métriques v2 avec pénalités
-                    risk_metrics_v2 = full_inter['metrics']._replace(risk_score=final_risk_score)
+                    risk_metrics_v2 = replace(full_inter['metrics'], risk_score=final_risk_score)
 
                     # Métadonnées pour API
                     blend_metadata = {
