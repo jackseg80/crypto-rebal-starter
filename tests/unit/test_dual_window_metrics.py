@@ -108,9 +108,9 @@ def test_dual_window_long_term_available(portfolio_service, create_price_data, c
     assert result['long_term']['coverage_pct'] >= 0.80, "Couverture ≥ 80%"
 
     assert result['full_intersection'] is not None
-    # Note: full_intersection utilise toute la période dispo (price_data complet)
-    # mais les métriques sont calculées sur l'intersection commune des assets (via pandas dropna)
-    assert result['full_intersection']['window_days'] == len(price_data), "Utilise toute la période dispo"
+    # Note: full_intersection utilise l'intersection temporelle (après dropna())
+    # Ici, SOL n'a que 55j, donc l'intersection complète = 55j (pas 365j)
+    assert result['full_intersection']['window_days'] == 55, "Intersection temporelle = 55j (SOL limite)"
     assert result['full_intersection']['asset_count'] == 3, "Tous les assets"
 
     assert result['risk_score_source'] == 'long_term', "Source autoritaire = long_term"
@@ -204,7 +204,7 @@ def test_dual_window_sharpe_divergence(portfolio_service, create_price_data, cre
     # Setup : Asset ancien stable, récent volatil
     price_data = create_price_data([
         {'symbol': 'BTC', 'days': 365, 'base_price': 50000},
-        {'symbol': 'PEPE', 'days': 30, 'base_price': 0.00001}  # Très récent, volatil
+        {'symbol': 'PEPE', 'days': 60, 'base_price': 0.00001}  # Récent volatil (60j pour > 30 après dropna)
     ])
 
     balances = create_balances([
@@ -234,7 +234,7 @@ def test_dual_window_sharpe_divergence(portfolio_service, create_price_data, cre
     # Note: avec BTC=70% et couverture min=70%, la cascade peut fallback à 180j
     # (car 365j avec 1 seul asset ne satisfait pas toujours la couverture selon cascade)
     assert result['long_term']['window_days'] >= 180, "Au moins 180j"
-    assert result['full_intersection']['window_days'] == len(price_data), "Utilise période complète dispo"
+    assert result['full_intersection']['window_days'] == 60, "Intersection temporelle = 60j (PEPE limite)"
 
 
 # ============================================================================
