@@ -208,8 +208,8 @@ const initUnifiedNav = () => {
         <nav class="main-nav" aria-label="Navigation principale">
           <ul class="menu">
             <li><a href="dashboard.html" data-route="dashboard.html">Portfolio</a></li>
-            <li><a href="analytics-unified.html" data-route="analytics-unified.html">Analytics</a></li>
             <li><a href="risk-dashboard.html" data-route="risk-dashboard.html">Risk</a></li>
+            <li><a href="analytics-unified.html" data-route="analytics-unified.html">Analytics</a></li>
             <li><a href="rebalance.html" data-route="rebalance.html">Rebalance</a></li>
             <li><a href="execution.html" data-route="execution.html">Execution</a></li>
             <li><a href="saxo-dashboard.html" data-route="saxo-dashboard.html">Bourse</a></li>

@@ -7118,12 +7118,12 @@
 
     // ===== PERSISTENT CACHE SYSTEM =====
     const CACHE_CONFIG = {
-      SCORES: { key: 'risk_scores_cache', ttl: 12 * 60 * 60 * 1000 }, // 12 heures
-      CCS_DATA: { key: 'ccs_data_cache', ttl: 6 * 60 * 60 * 1000 },  // 6 heures  
-      ONCHAIN: { key: 'onchain_data_cache', ttl: 4 * 60 * 60 * 1000 }, // 4 heures
-      RISK_METRICS: { key: 'risk_metrics_cache', ttl: 8 * 60 * 60 * 1000 }, // 8 heures
-      CYCLE_CONTENT: { key: 'cycle_content_cache', ttl: 12 * 60 * 60 * 1000 }, // 12 heures HTML
-      CYCLE_DATA: { key: 'cycle_data_cache', ttl: 6 * 60 * 60 * 1000 }, // 6 heures données
+      SCORES: { key: 'risk_scores_cache', ttl: 6 * 60 * 60 * 1000 }, // 6 heures (peut changer avec trades)
+      CCS_DATA: { key: 'ccs_data_cache', ttl: 6 * 60 * 60 * 1000 },  // 6 heures
+      ONCHAIN: { key: 'onchain_data_cache', ttl: 6 * 60 * 60 * 1000 }, // 6 heures (blockchain metrics)
+      RISK_METRICS: { key: 'risk_metrics_cache', ttl: 6 * 60 * 60 * 1000 }, // 6 heures
+      CYCLE_CONTENT: { key: 'cycle_content_cache', ttl: 24 * 60 * 60 * 1000 }, // 24 heures HTML (macro)
+      CYCLE_DATA: { key: 'cycle_data_cache', ttl: 24 * 60 * 60 * 1000 }, // 24 heures données (macro)
       CYCLE_CHART: { key: 'cycle_chart_cache', ttl: 24 * 60 * 60 * 1000 } // 24 heures graphique
     };
 

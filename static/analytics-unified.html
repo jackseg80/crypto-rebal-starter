@@ -432,10 +432,10 @@
 
     // INTELLIGENT CACHE SYSTEM - Avoid constant recalculations
     const CACHE_CONFIG = {
-      risk: { ttl: 5 * 60 * 1000, key: 'analytics_unified_risk' },      // 5 minutes
-      cycle: { ttl: 60 * 60 * 1000, key: 'analytics_unified_cycle' },    // 1 hour
-      onchain: { ttl: 2 * 60 * 1000, key: 'analytics_unified_onchain' }, // 2 minutes (was 10min)
-      blended: { ttl: 1 * 60 * 1000, key: 'analytics_unified_blended' }   // 1 minute (was 2min)
+      risk: { ttl: 3 * 60 * 60 * 1000, key: 'analytics_unified_risk' },      // 3 hours (can change with trades)
+      cycle: { ttl: 24 * 60 * 60 * 1000, key: 'analytics_unified_cycle' },    // 24 hours (macro halving cycle)
+      onchain: { ttl: 6 * 60 * 60 * 1000, key: 'analytics_unified_onchain' }, // 6 hours (blockchain metrics)
+      blended: { ttl: 1 * 60 * 1000, key: 'analytics_unified_blended' }       // 1 minute (decision index)
     };
 
     // Generate cache key that includes data source to invalidate on source change
@@ -470,7 +470,7 @@
       } catch { return null; }
     }
 
-    // ===== CROSS-PAGE CACHE: Read from risk-dashboard's persistent cache (12h TTL) =====
+    // ===== CROSS-PAGE CACHE: Read from risk-dashboard's persistent cache (6h TTL) =====
     function readRiskDashboardCache() {
       try {
         const dataSource = globalConfig.get('data_source') || 'unknown';
@@ -484,15 +484,15 @@
 
         const parsed = JSON.parse(cached);
         const age = Date.now() - parsed.timestamp;
-        const ttl = 12 * 60 * 60 * 1000; // 12 heures (même TTL que risk-dashboard)
+        const ttl = 6 * 60 * 60 * 1000; // 6 heures (même TTL que risk-dashboard)
 
         if (age > ttl) {
-          console.log(`⏰ Risk dashboard cache expired (age: ${Math.round(age / 60000)} min > 720 min)`);
+          console.log(`⏰ Risk dashboard cache expired (age: ${Math.round(age / 60000)} min > 360 min)`);
           return null;
         }
 
         const ageMin = Math.round(age / 60000);
-        console.log(`✅ CROSS-PAGE CACHE HIT: Using risk-dashboard cache (age: ${ageMin} min, TTL: 12h)`);
+        console.log(`✅ CROSS-PAGE CACHE HIT: Using risk-dashboard cache (age: ${ageMin} min, TTL: 6h)`);
 
         return {
           onchainScore: parsed.data?.onchainScore,
@@ -500,7 +500,7 @@
           blendedScore: parsed.data?.blendedScore,
           ccsScore: parsed.data?.ccsScore,
           timestamp: parsed.timestamp,
-          source: 'risk_dashboard_12h_cache'
+          source: 'risk_dashboard_6h_cache'
         };
       } catch (e) {
         console.warn('❌ Failed to read risk-dashboard cache:', e.message);
@@ -737,10 +737,11 @@
       try {
         const priceDays = 365, corrDays = 90;
 
-        // 0) PRIORITY: Try cross-page cache from risk-dashboard (12h TTL) - MUCH faster!
+        // 0) PRIORITY: Try cross-page cache from risk-dashboard (6h TTL) - MUCH faster!
         if (!force) {
           const dashboardCache = readRiskDashboardCache();
           if (dashboardCache) {
+            console.log('🎯 CROSS-PAGE CACHE FOUND - Hydrating store with cached scores...');
             // Hydrate store immediately with cached scores
             if (typeof dashboardCache.onchainScore === 'number') {
               store.set('scores.onchain', dashboardCache.onchainScore);
@@ -758,7 +759,15 @@
             }
 
             // Skip slow API calls if cache is fresh
-            console.log(`✅ Skipping slow Risk/On-Chain API calls - using ${Math.round((Date.now() - dashboardCache.timestamp) / 60000)}min old cache`);
+            const cacheAge = Math.round((Date.now() - dashboardCache.timestamp) / 60000);
+            console.log(`✅ Skipping slow Risk/On-Chain API calls - using ${cacheAge}min old cache (TTL: 6h)`);
+            console.log('📊 Store now has scores:', {
+              onchain: store.get('scores.onchain'),
+              risk: store.get('scores.risk'),
+              blended: store.get('scores.blended')
+            });
+          } else {
+            console.warn('⚠️ No cross-page cache - will use slower API calls');
           }
         }
 
@@ -1066,7 +1075,7 @@
         }
 
         const cacheEfficiency = loadedFromCache > 0 ? `${loadedFromCache}/4 from cache` : 'full calculation';
-        const crossPageUsed = store.get('scores.onchain') && store.get('scores.risk') ? ' (12h cross-page cache)' : '';
+        const crossPageUsed = store.get('scores.onchain') && store.get('scores.risk') ? ' (6h cross-page cache)' : '';
         console.log(`🎯 Unified data loading completed - ${cacheEfficiency}${crossPageUsed}${loadedFromCache > 0 ? ' ⚡ FAST' : ''}`);
 
         // CONTRÔLES D - Invariants obligatoires (3 assertions critiques)
@@ -1275,9 +1284,22 @@
           stables: storeSnapshot?.risk?.budget?.percentages?.stables
         });
 
-        if (currentHash === window.__uiMutex.lastHash) {
-          console.debug('🔒 State unchanged: Skipping render');
+        // IMPORTANT: Ne pas skip si scores manquants (premier rendu ou cache pas encore chargé)
+        const hasScores = storeSnapshot?.scores?.cycle != null || storeSnapshot?.scores?.onchain != null || storeSnapshot?.scores?.risk != null;
+        const isFirstRender = window.__uiMutex.lastRender === 0;
+
+        if (currentHash === window.__uiMutex.lastHash && hasScores && !isFirstRender) {
+          console.debug('🔒 State unchanged: Skipping render (scores OK)');
           return;
+        }
+
+        if (!hasScores) {
+          console.warn('⚠️ Rendering with incomplete scores:', {
+            cycle: storeSnapshot?.scores?.cycle,
+            onchain: storeSnapshot?.scores?.onchain,
+            risk: storeSnapshot?.scores?.risk,
+            will_render: 'yes (waiting for data)'
+          });
         }
 
         window.__uiMutex.busy = true;
@@ -1286,7 +1308,7 @@
 
         try {
           await renderUnifiedInsights('unified-root');
-          console.debug('✅ Render completed');
+          console.debug('✅ Render completed', { hasScores });
         } finally {
           window.__uiMutex.busy = false;
         }
@@ -1309,7 +1331,8 @@
           console.log('✅ Governance system initialized in analytics dashboard');
 
           // 3) Premier rendu avec données fraîches ET governance synchronisée
-          renderUnifiedInsightsOnce();
+          // IMPORTANT: Attendre que le rendu soit terminé pour éviter race condition
+          await renderUnifiedInsightsOnce();
 
           // Refresh governance panel if initialized
           if (window.governancePanel) {
