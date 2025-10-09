@@ -147,11 +147,14 @@ def assess_risk_level(
     logging.getLogger(__name__).debug(f"🔍 Risk Score calc: sharpe={sharpe_ratio:.4f}, delta={delta}, score after={score:.1f}")
 
     # Max Drawdown impact (higher DD = LESS robust → score decreases)
+    # 🔧 Oct 2025: Adouci pénalités DD pour éviter score=0 sur portfolios altcoins
     abs_dd = abs(max_drawdown)
-    if abs_dd > 0.50:
-        delta = -25  # ❌ Drawdown > 50% → score drops
+    if abs_dd > 0.70:
+        delta = -22  # ❌ Drawdown > 70% → score drops
+    elif abs_dd > 0.50:
+        delta = -15  # ❌ Drawdown > 50% → significant penalty (était -25)
     elif abs_dd > 0.30:
-        delta = -15
+        delta = -10  # ⚠️ Drawdown > 30% → moderate penalty (était -15)
     elif abs_dd < 0.10:
         delta = +10  # ✅ Low drawdown → score rises
     elif abs_dd < 0.20:
@@ -179,38 +182,43 @@ def assess_risk_level(
     # These penalties apply ALWAYS, not just in dual-window mode
 
     # Memecoins penalty (higher % = LESS robust → score decreases)
-    if memecoins_pct > 0.50:
-        delta = -30  # ❌ >50% memes → major penalty
+    # 🔧 Oct 2025: Adouci les pénalités pour éviter score=0 systématique sur portfolios degen
+    if memecoins_pct > 0.70:
+        delta = -22  # ❌ >70% memes → major penalty
+    elif memecoins_pct > 0.50:
+        delta = -15  # ❌ >50% memes → significant penalty (était -30)
     elif memecoins_pct > 0.30:
-        delta = -20  # ❌ >30% memes → significant penalty
+        delta = -10  # ⚠️ >30% memes → moderate penalty (était -20)
     elif memecoins_pct > 0.15:
-        delta = -10  # ⚠️ >15% memes → moderate penalty
+        delta = -6   # ⚠️ >15% memes → light penalty (était -10)
     elif memecoins_pct > 0.05:
-        delta = -5   # ⚠️ >5% memes → light penalty
+        delta = -3   # ⚠️ >5% memes → minimal penalty (était -5)
     else:
         delta = 0    # ✅ Low memes → no penalty
     score += delta
     breakdown['memecoins'] = delta
 
     # Concentration penalty (HHI: higher = more concentrated = LESS robust)
+    # 🔧 Oct 2025: Réduit pénalités HHI pour éviter over-penalization
     if hhi > 0.40:
-        delta = -15  # ❌ Very concentrated → score drops
+        delta = -12  # ❌ Very concentrated → score drops (était -15)
     elif hhi > 0.25:
-        delta = -10
+        delta = -8   # ⚠️ Concentrated (était -10)
     elif hhi > 0.15:
-        delta = -5
+        delta = -3   # ⚠️ Slight concentration (était -5)
     else:
         delta = 0    # ✅ Well diversified → no penalty
     score += delta
     breakdown['concentration'] = delta
 
     # Group Risk Index penalty (GRI: higher = riskier groups)
+    # 🔧 Oct 2025: Réduit pénalités GRI pour éviter over-penalization
     if gri > 7.0:
-        delta = -15  # ❌ Very risky groups → score drops
+        delta = -10  # ❌ Very risky groups → score drops (était -15)
     elif gri > 6.0:
-        delta = -10
+        delta = -7   # ⚠️ Risky groups (était -10)
     elif gri > 5.0:
-        delta = -5
+        delta = -4   # ⚠️ Moderate risk (était -5)
     elif gri < 3.0:
         delta = +5   # ✅ Safe groups → score rises
     else:

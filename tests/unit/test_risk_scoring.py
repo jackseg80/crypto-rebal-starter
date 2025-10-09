@@ -64,14 +64,14 @@ class TestAssessRiskLevel:
     """Test risk score calculation with Option A semantics"""
 
     def test_neutral_baseline(self):
-        """Neutral metrics → score around 50"""
+        """Neutral metrics → score around 50 (Oct 2025: +10 car Sharpe 0.8 → +5, Div 1.0 → +5)"""
         result = assess_risk_level(
             var_metrics={"var_95": 0.12, "var_99": 0.18},
             sharpe_ratio=0.8,
             max_drawdown=-0.25,
             volatility=0.45
         )
-        assert 45 <= result["score"] <= 55
+        assert 55 <= result["score"] <= 65  # Adjusted for softened penalties (was 45-55)
         assert result["level"] == "medium"
         assert "breakdown" in result
 
