@@ -1014,9 +1014,11 @@ async def get_symbol_sentiment(
             # Try to get from governance engine if available
             from services.execution.governance import governance_engine
             current_state = await governance_engine.get_current_state()
-            
+
             if current_state and current_state.signals:
-                sentiment_value = current_state.signals.sentiment
+                # Extract sentiment_score from dict (sentiment is Dict[str, float])
+                sentiment_dict = current_state.signals.sentiment
+                sentiment_value = sentiment_dict.get('sentiment_score', 0.0) if isinstance(sentiment_dict, dict) else 0.0
                 confidence = current_state.signals.confidence
                 logger.debug(f"Using governance sentiment: {sentiment_value}, confidence: {confidence}")
             else:
