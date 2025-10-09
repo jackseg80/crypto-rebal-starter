@@ -8,8 +8,8 @@ const RAM_CACHE = new Map();
 
 // TTL configurations per data type
 const CACHE_CONFIG = {
-  signals: { ram: 2 * 60 * 1000, disk: 10 * 60 * 1000 },      // 2min RAM, 10min disk
-  risk: { ram: 5 * 60 * 1000, disk: 30 * 60 * 1000 },         // 5min RAM, 30min disk  
+  signals: { ram: 15 * 60 * 1000, disk: 60 * 60 * 1000 },     // 15min RAM, 60min disk (CoinGecko rate limit fix)
+  risk: { ram: 5 * 60 * 1000, disk: 30 * 60 * 1000 },         // 5min RAM, 30min disk
   portfolio: { ram: 1 * 60 * 1000, disk: 5 * 60 * 1000 },     // 1min RAM, 5min disk
   cycles: { ram: 10 * 60 * 1000, disk: 6 * 60 * 60 * 1000 }   // 10min RAM, 6h disk
 };

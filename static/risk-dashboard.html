@@ -2881,7 +2881,8 @@
       const alertsList = document.getElementById('alerts-list');
 
       if (!alertsDot || !alertsText || !alertsList) {
-        console.warn('Alerts display elements not found');
+        // Elements are now in Web Component <risk-sidebar-full>, skip legacy update
+        console.debug('Alerts display: skipping legacy DOM update (elements in Web Component)');
         return;
       }
 
@@ -7644,7 +7645,7 @@ dans les 10 000 scénarios.`;
         console.log('🔄 Data source changed, clearing cache and reloading...', event.detail);
         clearCache();
         // Reload the dashboard after source change
-        setTimeout(loadDashboard, 100);
+        setTimeout(() => refreshDashboard(true), 100);
       });
 
       // Initialize shared header
