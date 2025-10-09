@@ -563,7 +563,8 @@ class GovernanceEngine:
 
             # Phase 4: Ordre de priorité caps avec hystérésis: error(5%) > stale(8%) > alert > engine
             cap_engine = cap  # Cap calculé par engine
-            cap_alert = cap_engine - self._alert_cap_reduction  # Cap réduit par AlertEngine
+            # FIX Oct 2025: Alert reduction with floor 3% to prevent spiral down to 1%
+            cap_alert = max(0.03, cap_engine - self._alert_cap_reduction)  # Floor 3% même si alert active
             cap_stale = None
             cap_error = None
 
@@ -644,10 +645,11 @@ class GovernanceEngine:
             no_trade_threshold = max(0.0, min(0.10, no_trade_threshold))
             execution_cost_bps = int(max(0, min(100, round(execution_cost))))
 
-            # Mettre a jour _last_cap pour le prochain smoothing (mais seulement si pas stale/error)
-            if cap_error is None and cap_stale is None:
+            # Mettre a jour _last_cap pour le prochain smoothing (mais seulement si pas stale/error/alert)
+            # FIX Oct 2025: Ne pas updater si alert active → évite spiral down
+            if cap_error is None and cap_stale is None and self._alert_cap_reduction == 0:
                 self._last_cap = cap
-            # Sinon, garder _last_cap pour revenir au smoothing quand stale/error disparait
+            # Sinon, garder _last_cap pour revenir au smoothing quand stale/error/alert disparait
 
 
             policy = Policy(
