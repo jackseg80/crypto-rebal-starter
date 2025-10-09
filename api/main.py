@@ -4,7 +4,6 @@ from time import monotonic
 import os, sys, inspect, hashlib, time, json
 from datetime import datetime
 import httpx
-# Force reload for V2 penalty implementation
 from fastapi import FastAPI, Query, Body, Response, HTTPException, Request, APIRouter, Depends, Header, Path
 import logging
 from fastapi.middleware.cors import CORSMiddleware
@@ -214,9 +213,12 @@ else:
 # Compression GZip pour améliorer les performances
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-# Rate limiting basé sur la configuration
-# DÉSACTIVÉ temporairement pour debug (réactiver en production)
-# app.add_middleware(RateLimitMiddleware)
+# Rate limiting basé sur la configuration (activé uniquement en production)
+if ENVIRONMENT == "production" or not DEBUG:
+    app.add_middleware(RateLimitMiddleware)
+    logger.info("Rate limiting middleware enabled (production mode)")
+else:
+    logger.info("Rate limiting middleware disabled (development mode)")
 
 # Middleware pour headers de sécurité (CSP centralisée via config)
 @app.middleware("http")
@@ -304,9 +306,9 @@ async def add_security_headers(request: Request, call_next):
             f"manifest-src 'self'"
         )
         response.headers["Content-Security-Policy"] = csp
-    except Exception:
+    except Exception as e:
         # En cas d'erreur de config, ne pas bloquer la réponse
-        pass
+        logger.warning(f"Failed to set CSP headers: {e}")
     
     # Headers d'information pour le debug
     if DEBUG:
@@ -541,7 +543,8 @@ async def _load_ctapi_exchanges(min_usd: float = 0.0) -> dict:
 def _parse_min_usd(raw: str | None, default: float = 1.0) -> float:
     try:
         return float(raw) if raw is not None else default
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Failed to parse min_usd value '{raw}', using default {default}: {e}")
         return default
 
 def _get_data_age_minutes(source_used: str) -> float:
@@ -563,8 +566,8 @@ def _get_data_age_minutes(source_used: str) -> float:
                 mtime = os.path.getmtime(csv_path)
                 age_seconds = time.time() - mtime
                 return age_seconds / 60.0
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to get mtime for CSV file {csv_path}: {e}")
         # Fallback : considérer les données CSV comme récentes pour utiliser prix locaux
         return 5.0  # 5 minutes par défaut (récent)
     elif source_used == "cointracking_api":
@@ -884,8 +887,8 @@ async def resolve_current_balances(source: str = Query("cointracking_api"), user
                         "value_usd": r.get("value_usd"),
                         "location": r.get("location") or "CoinTracking",
                     })
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"Failed to load CoinTracking CSV data (source=cointracking): {e}")
         return {"source_used": "cointracking", "items": items}
 
     # --- Fallback CSV/local (ancienne logique) ---
@@ -913,8 +916,8 @@ async def resolve_current_balances(source: str = Query("cointracking_api"), user
                     "value_usd": r.get("value_usd"),
                     "location": r.get("location") or "CoinTracking",
                 })
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"Failed to load CoinTracking fallback CSV data: {e}")
 
     return {"source_used": "cointracking", "items": items}
 
@@ -928,7 +931,6 @@ def _assign_locations_to_actions(plan: dict, rows: list[dict], min_trade_usd: fl
     import logging
     logger = logging.getLogger(__name__)
     logger.info(f"🔧 _assign_locations_to_actions CALLED with {len(rows)} rows, {len(plan.get('actions', []))} actions")
-    print(f"🔧 DEBUG _assign_locations_to_actions CALLED with {len(rows)} rows, {len(plan.get('actions', []))} actions")
 
     # holdings[symbol][location] -> total value_usd
     holdings: dict[str, dict[str, float]] = {}
@@ -1042,8 +1044,9 @@ async def favicon():
         )
         data = base64.b64decode(b64)
         return Response(content=data, media_type="image/png")
-    except Exception:
+    except Exception as e:
         # Fallback to no-content if decoding somehow fails
+        logger.warning(f"Failed to decode favicon data: {e}")
         return Response(status_code=204)
 
 @app.get("/test-simple")
@@ -1192,9 +1195,9 @@ async def rebalance_plan(
         min_trade_usd=float(payload.get("min_trade_usd", 25.0)),
     )
 
-    print(f"🔧 BEFORE _assign_locations_to_actions: plan has {len(plan.get('actions', []))} actions")
+    logger.debug(f"🔧 BEFORE _assign_locations_to_actions: plan has {len(plan.get('actions', []))} actions")
     plan = _assign_locations_to_actions(plan, rows, min_trade_usd=float(payload.get("min_trade_usd", 25.0)))
-    print(f"🔧 AFTER _assign_locations_to_actions: plan has {len(plan.get('actions', []))} actions")
+    logger.debug(f"🔧 AFTER _assign_locations_to_actions: plan has {len(plan.get('actions', []))} actions")
 
     # enrichissement prix (selon "pricing")
     source_used = unified_data.get("source_used", source)
@@ -1447,7 +1450,8 @@ async def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str,
             try:
                 from services.pricing import aget_prices_usd
                 market_price_map = await aget_prices_usd(list(symbols))
-            except Exception:
+            except Exception as e:
+                logger.debug(f"Async pricing failed, falling back to sync: {e}")
                 from services.pricing import get_prices_usd
                 market_price_map = get_prices_usd(list(symbols))
             market_price_map = {k: v for k, v in market_price_map.items() if v is not None}
@@ -1478,7 +1482,8 @@ async def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str,
             try:
                 from services.pricing import aget_prices_usd
                 market_price_map = await aget_prices_usd(list(symbols))
-            except Exception:
+            except Exception as e:
+                logger.debug(f"Async pricing failed, falling back to sync: {e}")
                 from services.pricing import get_prices_usd
                 market_price_map = get_prices_usd(list(symbols))
             market_price_map = {k: v for k, v in market_price_map.items() if v is not None}
@@ -1534,8 +1539,8 @@ async def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str,
             a["price_source"] = price_source
             try:
                 a["est_quantity"] = round(float(a["usd"]) / float(final_price), 8)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to calculate est_quantity for action {a.get('symbol')}: {e}")
         
         if diagnostic:
             pricing_details.append({
@@ -1864,8 +1869,8 @@ async def portfolio_breakdown_locations(
                 "fallback": False,
                 "message": "",
             }
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"Failed to load CoinTracking API exchanges data: {e}")
 
     # Fallback explicite si VRAIMENT rien
     return {
@@ -2094,8 +2099,3 @@ async def get_configured_data_source():
     except Exception as e:
         logger.error(f"Error getting data source config: {e}")
         return {"data_source": "stub"}  # Safe fallback
-
-# Force reload
-# Force reload 2
-# Force reload
-
