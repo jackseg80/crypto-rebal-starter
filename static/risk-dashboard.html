@@ -6429,6 +6429,169 @@
       document.querySelectorAll('.hinted[data-key]').forEach(el => {
         const key = el.getAttribute('data-key');
 
+        // === Tooltips GRI personnalisés ===
+        if (key === 'gri_index') {
+          el.addEventListener('mouseenter', (e) => {
+            const title = 'Group Risk Index (GRI)';
+            const body = `Moyenne pondérée des risques par groupe sur échelle 0-10.
+
+Calcul : GRI = Σ (poids × score)
+
+Chaque score groupe intègre :
+• Structure (40%) : contrepartie, gouvernance
+• Volatilité (30%) : σ historique
+• Corrélation (20%) : redondance portefeuille
+• Liquidité (10%) : profondeur, custody`;
+            showTip(title, body, e.clientX, e.clientY);
+          });
+          el.addEventListener('mousemove', (e) => moveTip(e.clientX, e.clientY));
+          el.addEventListener('mouseleave', hideTip);
+          el.classList.add('hinted');
+          return;
+        }
+
+        if (key === 'gri_level') {
+          el.addEventListener('mouseenter', (e) => {
+            const title = 'Risk Level';
+            const body = `Catégorisation du risque global :
+
+• LOW (< 3.0) : Portefeuille défensif
+• MEDIUM (3.0-6.0) : Risque modéré
+• HIGH (≥ 6.0) : Risque accru
+
+Basé sur le GRI calculé sur l'ensemble du portefeuille.`;
+            showTip(title, body, e.clientX, e.clientY);
+          });
+          el.addEventListener('mousemove', (e) => moveTip(e.clientX, e.clientY));
+          el.addEventListener('mouseleave', hideTip);
+          el.classList.add('hinted');
+          return;
+        }
+
+        if (key === 'groups_count') {
+          el.addEventListener('mouseenter', (e) => {
+            const title = 'Groups Count';
+            const body = `Nombre de catégories d'actifs détectées :
+BTC, ETH, L1/L0, Stablecoins, Memecoins, etc.
+
+Reflète la diversification structurelle du portefeuille.`;
+            showTip(title, body, e.clientX, e.clientY);
+          });
+          el.addEventListener('mousemove', (e) => moveTip(e.clientX, e.clientY));
+          el.addEventListener('mouseleave', hideTip);
+          el.classList.add('hinted');
+          return;
+        }
+
+        if (key === 'gri_groups_header') {
+          el.addEventListener('mouseenter', (e) => {
+            const title = 'Exposition & Risque par Groupe';
+            const body = `Chaque groupe affiche :
+• % du portefeuille (exposition)
+• Score 0-10 (risque composite)
+
+Score = 40% structural + 30% vola + 20% correl + 10% liquid`;
+            showTip(title, body, e.clientX, e.clientY);
+          });
+          el.addEventListener('mousemove', (e) => moveTip(e.clientX, e.clientY));
+          el.addEventListener('mouseleave', hideTip);
+          el.classList.add('hinted');
+          return;
+        }
+
+        if (key === 'gri_interpretation') {
+          el.addEventListener('mouseenter', (e) => {
+            const title = 'Interprétation du niveau de risque';
+            const body = `Ce niveau est déduit du Group Risk Index
+et des simulations Monte Carlo.
+
+Il ne représente pas un conseil d'investissement,
+mais une estimation statistique du risque global.`;
+            showTip(title, body, e.clientX, e.clientY);
+          });
+          el.addEventListener('mousemove', (e) => moveTip(e.clientX, e.clientY));
+          el.addEventListener('mouseleave', hideTip);
+          el.classList.add('hinted');
+          return;
+        }
+
+        // === Tooltips pour les groupes individuels ===
+        if (key.startsWith('group:')) {
+          const groupName = key.replace('group:', '');
+          const groupTooltips = {
+            'BTC': 'Actif de référence du marché.\nFaible volatilité relative, forte liquidité,\ncorrélation modérée avec le marché.',
+            'ETH': 'Actif à risque modéré.\nVolatilité supérieure à BTC mais structure solide.',
+            'L1/L0 majors': 'Coins d\'infrastructure (SOL, AVAX, etc.).\nPlus volatils, risque structurel moyen à élevé.',
+            'L2/Scaling': 'Solutions de scalabilité (Arbitrum, Optimism, Polygon).\nRisque modéré, corrélés à ETH.',
+            'DeFi': 'Protocoles de finance décentralisée.\nVolatilité élevée, risque smart contract.',
+            'AI/Data': 'Projets IA et data (FET, OCEAN, etc.).\nSecteur émergent, volatilité élevée.',
+            'SOL': 'Solana : blockchain haute performance.\nVolatilité importante, corrélation moyenne.',
+            'Gaming/NFT': 'Tokens gaming et NFTs.\nForte volatilité, corrélation au sentiment.',
+            'Memecoins': 'Tokens spéculatifs (DOGE, SHIB, PEPE).\nVolatilité extrême, risque très élevé.',
+            'Stablecoins': 'Coins adossés au dollar (USDT, USDC, DAI).\nRisque faible mais non nul :\n• Contrepartie émetteur\n• Régulation\n• Dépeg potentiel',
+            'Others': 'Coins secondaires.\nFaible liquidité, forte corrélation,\nrisque élevé.'
+          };
+
+          el.addEventListener('mouseenter', (e) => {
+            const riskLevel = el.getAttribute('data-risk-level') || '5';
+            const title = `${groupName} — ${riskLevel}/10`;
+            const body = groupTooltips[groupName] || 'Groupe d\'actifs non catégorisé.';
+            showTip(title, body, e.clientX, e.clientY);
+          });
+          el.addEventListener('mousemove', (e) => moveTip(e.clientX, e.clientY));
+          el.addEventListener('mouseleave', hideTip);
+          el.classList.add('hinted');
+          return;
+        }
+
+        // === Tooltips Monte Carlo ===
+        if (key === 'mc_simulations') {
+          el.addEventListener('mouseenter', (e) => {
+            const title = 'Simulations';
+            const body = `Nombre d'itérations Monte Carlo effectuées.
+
+Plus il y en a, plus la distribution est fiable.
+10 000 simulations = précision statistique standard.`;
+            showTip(title, body, e.clientX, e.clientY);
+          });
+          el.addEventListener('mousemove', (e) => moveTip(e.clientX, e.clientY));
+          el.addEventListener('mouseleave', hideTip);
+          el.classList.add('hinted');
+          return;
+        }
+
+        if (key === 'mc_worst_case') {
+          el.addEventListener('mouseenter', (e) => {
+            const title = 'Pire scénario (Drawdown maximal simulé)';
+            const body = `La plus forte perte observée parmi les 10 000 simulations.
+
+Représente un événement de queue extrême
+(< 0.01% de probabilité).`;
+            showTip(title, body, e.clientX, e.clientY);
+          });
+          el.addEventListener('mousemove', (e) => moveTip(e.clientX, e.clientY));
+          el.addEventListener('mouseleave', hideTip);
+          el.classList.add('hinted');
+          return;
+        }
+
+        if (key === 'mc_loss_prob') {
+          el.addEventListener('mouseenter', (e) => {
+            const title = 'Probabilité perte > 20%';
+            const body = `Probabilité qu'une perte supérieure à 20%
+survienne sur la période simulée.
+
+Basée sur la fréquence observée
+dans les 10 000 scénarios.`;
+            showTip(title, body, e.clientX, e.clientY);
+          });
+          el.addEventListener('mousemove', (e) => moveTip(e.clientX, e.clientY));
+          el.addEventListener('mouseleave', hideTip);
+          el.classList.add('hinted');
+          return;
+        }
+
+        // === Métriques de risque standard ===
         // attache une bulle "vivante" qui lit la valeur *au moment* du survol
         el.addEventListener('mouseenter', (e) => {
           // 1) essaie data-value
@@ -6464,6 +6627,9 @@
         el.classList.add('hinted');
       });
     }
+
+    // Expose globally for Phase 3A components
+    window.decorateRiskTooltips = decorateRiskTooltips;
 
     // ====== Initialization & Store Connection ======
 
@@ -7743,7 +7909,7 @@
           // Convert exposure to display format
           const topGroups = Object.entries(exposureByGroup)
             .sort(([, a], [, b]) => b - a)  // Sort by weight descending
-            .slice(0, 5)  // Top 5 groups
+            // Show all groups (not just top 5)
             .map(([name, weight]) => ({
               name,
               weight: Math.round(weight * 100),
@@ -7754,38 +7920,88 @@
           const griColor = gri < 3 ? 'var(--success)' : gri < 6 ? 'var(--warning)' : 'var(--danger)';
           const griLevel = gri < 3 ? 'LOW' : gri < 6 ? 'MEDIUM' : 'HIGH';
 
+          // Group risk levels - Calculated by backend V2 engine (services/risk_scoring.py)
+          // These are RELATIVE scores in GRI context (0=lowest structural risk, 10=highest)
+          // Stablecoins = 5/10 because: structural (contrepartie/peg) + low diversification
+          const GROUP_RISK_LEVELS = {
+            'Stablecoins': 5, 'BTC': 2, 'ETH': 3, 'L2/Scaling': 5,
+            'DeFi': 5, 'AI/Data': 5, 'SOL': 6, 'L1/L0 majors': 6,
+            'Gaming/NFT': 6, 'Others': 7, 'Memecoins': 9
+          };
+
+          // Debug: log group names to verify API naming
+          console.debug('📊 GRI groups from API:', Object.keys(exposureByGroup));
+
           document.getElementById('gri-analysis-content').innerHTML = `
               <div class="gri-overview">
                 <div class="var-method">
-                  <span class="method-label">Group Risk Index (GRI)</span>
+                  <span class="method-label hinted" data-key="gri_index">
+                    Group Risk Index (GRI)
+                  </span>
                   <span class="var-value" style="color: ${griColor}">${gri.toFixed(1)}/10</span>
                 </div>
                 <div class="var-method">
-                  <span class="method-label">Risk Level</span>
+                  <span class="method-label hinted" data-key="gri_level">
+                    Risk Level
+                  </span>
                   <span class="var-value">${griLevel}</span>
                 </div>
                 <div class="var-method">
-                  <span class="method-label">Groups Count</span>
+                  <span class="method-label hinted" data-key="groups_count">
+                    Groups Count
+                  </span>
                   <span class="var-value">${Object.keys(exposureByGroup).length}</span>
                 </div>
               </div>
               <div class="gri-groups">
-                <h5>Exposition par Groupes</h5>
-                ${topGroups.map(group => `
-                  <div class="var-method">
-                    <span class="method-label">${group.name}</span>
-                    <span class="var-value">${group.weight}%</span>
-                  </div>
-                `).join('')}
+                <h5 class="hinted" data-key="gri_groups_header">
+                  Exposition & Risque par Groupe
+                </h5>
+                ${topGroups.map(group => {
+                  const riskLevel = GROUP_RISK_LEVELS[group.name] || 5;
+                  const riskColor = riskLevel < 3 ? '#9ece6a' :  // Vert (faible)
+                                    riskLevel < 6 ? '#e0af68' :   // Jaune (moyen)
+                                    riskLevel < 8 ? '#ff9e64' :   // Orange (élevé)
+                                    '#f7768e';                     // Rouge (très élevé)
+
+                  // Debug si fallback 5/10 utilisé
+                  if (!(group.name in GROUP_RISK_LEVELS)) {
+                    console.warn('⚠️ Group name not in risk levels:', group.name, '(using fallback 5/10)');
+                  }
+
+                  return `
+                    <div class="var-method hinted" data-key="group:${group.name}" data-risk-level="${riskLevel}" style="position: relative; padding: 0.75rem 0.75rem 0.75rem 0.75rem; background: var(--theme-bg); border-radius: 6px; margin-bottom: 0.5rem; overflow: hidden;">
+                      <!-- Barre colorée de fond -->
+                      <div style="position: absolute; top: 0; left: 0; height: 100%; width: ${group.weight}%; background: ${riskColor}; opacity: 0.15; border-radius: 6px; transition: width 0.3s ease;"></div>
+
+                      <!-- Contenu -->
+                      <div style="position: relative; display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
+                        <span class="method-label" style="font-weight: 500;">${group.name}</span>
+                        <span class="var-value" style="font-weight: 600;">${group.weight}%</span>
+                      </div>
+
+                      <!-- Badge risque à droite sur la barre -->
+                      <span style="position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%); font-size: 0.7rem; padding: 2px 6px; background: ${riskColor}; color: white; border-radius: 3px; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">
+                        ${riskLevel}/10
+                      </span>
+                    </div>
+                  `;
+                }).join('')}
               </div>
               <div class="gri-interpretation">
-                <div class="metric-interpretation">
+                <div class="metric-interpretation hinted" data-key="gri_interpretation">
                   ${gri < 3 ? '✅ Portfolio faible risque' :
               gri < 6 ? '⚠️ Portfolio risque modéré' :
                 '🚨 Portfolio haut risque - Considérer diversifier'}
                 </div>
               </div>
             `;
+
+          // Call decorateRiskTooltips to initialize all tooltips
+          setTimeout(() => {
+            window.decorateRiskTooltips();
+          }, 100);
+
         } catch (error) {
           console.error('Error loading GRI Analysis:', error);
           document.getElementById('gri-analysis-content').innerHTML =
@@ -7929,21 +8145,30 @@
 
       async function loadMonteCarloResults() {
         document.getElementById('monte-carlo-content').innerHTML = `
+            <p style="font-size: 0.85rem; color: var(--theme-text-muted); margin-bottom: 1rem; font-style: italic;">
+              Simulation de 10 000 scénarios aléatoires basée sur la distribution historique de rendements.
+              Fournit une évaluation probabiliste du risque extrême.
+            </p>
             <div class="monte-carlo-summary">
-              <div class="sim-stat">
+              <div class="sim-stat hinted" data-key="mc_simulations">
                 <span class="stat-label">Simulations</span>
                 <span class="stat-value">10,000</span>
               </div>
-              <div class="sim-stat">
+              <div class="sim-stat hinted" data-key="mc_worst_case">
                 <span class="stat-label">Pire scénario</span>
                 <span class="stat-value text-danger">-68.5%</span>
               </div>
-              <div class="sim-stat">
+              <div class="sim-stat hinted" data-key="mc_loss_prob">
                 <span class="stat-label">Probabilité perte >20%</span>
                 <span class="stat-value">12.3%</span>
               </div>
             </div>
           `;
+
+        // Call decorateRiskTooltips to initialize all tooltips
+        setTimeout(() => {
+          window.decorateRiskTooltips();
+        }, 100);
       }
 
       async function loadRiskAttribution() {
@@ -7972,45 +8197,29 @@
           const exposureByGroup = riskMetrics.exposure_by_group || {};
           const correlationMetrics = data.correlation_metrics || {};
 
-          // Group risk levels for attribution calculation
-          const GROUP_RISK_LEVELS = {
-            'Stablecoins': 0, 'BTC': 2, 'ETH': 3, 'L2/Scaling': 5,
-            'DeFi': 5, 'AI/Data': 5, 'SOL': 6, 'L1/L0 majors': 6,
-            'Gaming/NFT': 6, 'Others': 7, 'Memecoins': 9
-          };
-
-          // Calculate risk contribution by group
-          const riskContributions = Object.entries(exposureByGroup)
-            .map(([group, weight]) => ({
-              group,
-              weight: weight * 100,
-              riskLevel: GROUP_RISK_LEVELS[group] || 5,
-              riskContribution: weight * (GROUP_RISK_LEVELS[group] || 5) * 100
-            }))
-            .sort((a, b) => b.riskContribution - a.riskContribution)
-            .slice(0, 6);
-
-          const rows = riskContributions.map(item => `
-              <div class="var-method">
-                <span class="method-label">${item.group}</span>
-                <span class="stat-value">${item.weight.toFixed(1)}% <small style="color:var(--theme-text-muted);">(niveau ${item.riskLevel}/10)</small></span>
-              </div>
-            `).join('');
+          // Risk attribution now consolidated in GRI Analysis section (no duplicate needed)
 
           el.innerHTML = `
+              <p style="font-size: 0.85rem; color: var(--theme-text-muted); margin-bottom: 1rem; font-style: italic;">
+                Analyse de la structure du risque et de la diversification du portefeuille.
+              </p>
               <div class="var-methods">
-                <div class="sim-stat" style="justify-content:space-between;">
+                <div class="sim-stat hinted" data-key="diversification_ratio" data-value="${correlationMetrics.diversification_ratio || 0}" style="justify-content:space-between;">
                   <span class="stat-label">Diversification Ratio</span>
                   <span class="stat-value">${(correlationMetrics.diversification_ratio || 0).toFixed(2)}</span>
                 </div>
-                <div class="sim-stat" style="justify-content:space-between;">
+                <div class="sim-stat hinted" data-key="effective_assets" data-value="${correlationMetrics.effective_assets || 0}" style="justify-content:space-between;">
                   <span class="stat-label">Effective Assets</span>
                   <span class="stat-value">${Math.round(correlationMetrics.effective_assets || 0)}</span>
                 </div>
-                <div class="attribution-header" style="margin: 1rem 0 0.5rem 0; font-weight: 600; font-size: 0.9rem;">Attribution par Groupe:</div>
-                ${rows}
               </div>
             `;
+
+          // Call decorateRiskTooltips to initialize all tooltips
+          setTimeout(() => {
+            window.decorateRiskTooltips();
+          }, 100);
+
         } catch (e) {
           console.warn('Risk attribution load failed:', e);
           el.innerHTML = `<div class="warning">Erreur lors du calcul d'attribution: ${e.message}</div>`;
