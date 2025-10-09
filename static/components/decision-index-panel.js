@@ -102,12 +102,24 @@ function renderSparkline(series, width = 260, height = 36, dashed = false, delta
     return `<div class="spark-placeholder">—</div>`;
   }
   const n = series.length;
-  const min = Math.min(...series);
-  const max = Math.max(...series);
+
+  // Protection contre NaN : besoin d'au moins 2 points pour tracer une ligne
+  if (n === 1) {
+    return `<div class="spark-placeholder" title="1 point (min 2 requis)">●</div>`;
+  }
+
+  // Filtrer les valeurs invalides (NaN, null, undefined)
+  const validSeries = series.filter(v => typeof v === 'number' && Number.isFinite(v));
+  if (validSeries.length < 2) {
+    return `<div class="spark-placeholder" title="Données invalides">—</div>`;
+  }
+
+  const min = Math.min(...validSeries);
+  const max = Math.max(...validSeries);
   const span = (max - min) || 1;
-  const px = (i) => (i / (n - 1)) * (width - 2) + 1;
+  const px = (i) => (i / (validSeries.length - 1)) * (width - 2) + 1;
   const py = (v) => height - ((v - min) / span) * (height - 2) - 1;
-  const d = series.map((v, i) => `${i === 0 ? 'M' : 'L'} ${px(i).toFixed(1)} ${py(v).toFixed(1)}`).join(' ');
+  const d = validSeries.map((v, i) => `${i === 0 ? 'M' : 'L'} ${px(i).toFixed(1)} ${py(v).toFixed(1)}`).join(' ');
 
   // Coloration selon pente
   let colorClass = 'neutral';
