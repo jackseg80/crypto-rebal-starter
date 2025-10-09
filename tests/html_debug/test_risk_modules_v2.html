@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tests - Risk Dashboard Modules</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1b26;
+            color: #c0caf5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #7aa2f7;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #414868;
+            padding-bottom: 10px;
+        }
+
+        .test-suite {
+            background: #24283b;
+            border: 1px solid #414868;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .test-case {
+            background: #1f2335;
+            border-left: 3px solid #565f89;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            transition: all 0.3s;
+        }
+
+        .test-case.pass {
+            border-left-color: #9ece6a;
+        }
+
+        .test-case.fail {
+            border-left-color: #f7768e;
+        }
+
+        .test-name {
+            font-weight: bold;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .test-status {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .test-status.pass {
+            background: #9ece6a;
+            color: #1a1b26;
+        }
+
+        .test-status.fail {
+            background: #f7768e;
+            color: #1a1b26;
+        }
+
+        .test-status.pending {
+            background: #565f89;
+            color: #c0caf5;
+        }
+
+        .test-detail {
+            font-size: 14px;
+            color: #a9b1d6;
+            margin-top: 5px;
+        }
+
+        .test-error {
+            background: #2a1820;
+            border: 1px solid #f7768e;
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: #f7768e;
+            white-space: pre-wrap;
+        }
+
+        .summary {
+            background: #24283b;
+            border: 2px solid #7aa2f7;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+        }
+
+        .summary-item {
+            text-align: center;
+        }
+
+        .summary-value {
+            font-size: 36px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .summary-value.pass {
+            color: #9ece6a;
+        }
+
+        .summary-value.fail {
+            color: #f7768e;
+        }
+
+        .summary-label {
+            font-size: 14px;
+            color: #565f89;
+            text-transform: uppercase;
+        }
+
+        .run-button {
+            background: #7aa2f7;
+            color: #1a1b26;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 20px;
+        }
+
+        .run-button:hover {
+            background: #9ece6a;
+            transform: translateY(-2px);
+        }
+
+        .run-button:disabled {
+            background: #565f89;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .log {
+            background: #1f2335;
+            border: 1px solid #414868;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+        }
+
+        .log-entry.info {
+            color: #7aa2f7;
+        }
+
+        .log-entry.success {
+            color: #9ece6a;
+        }
+
+        .log-entry.error {
+            color: #f7768e;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Tests - Risk Dashboard Modules</h1>
+
+        <button class="run-button" id="runBtn">▶️ Lancer les Tests</button>
+
+        <div class="summary" id="summary">
+            <div class="summary-item">
+                <div class="summary-value pass" id="passCount">0</div>
+                <div class="summary-label">Pass</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-value fail" id="failCount">0</div>
+                <div class="summary-label">Fail</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-value" id="totalCount">0</div>
+                <div class="summary-label">Total</div>
+            </div>
+        </div>
+
+        <div id="testResults"></div>
+
+        <div class="log" id="logContainer"></div>
+    </div>
+
+    <script src="/tests/html_debug/test_risk_modules.js"></script>
+</body>
+</html>
