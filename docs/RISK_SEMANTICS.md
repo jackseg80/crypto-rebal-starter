@@ -80,6 +80,89 @@ score = clamp(score, 0, 100)
 level = score_to_level(score)
 ```
 
+### 🔧 Pénalités Adoucies (Oct 2025) 🆕
+
+**Problème résolu** : Portfolios "degen" (55% memecoins + DD 61%) scoraient systématiquement à 0/100 à cause de pénalités cumulatives trop sévères.
+
+**Correctif** : Réduction progressive des pénalités pour éviter clamp à 0 sur portfolios risqués mais cohérents.
+
+#### Nouveaux Seuils de Pénalités
+
+| Métrique | Seuil | Ancien | Nouveau | Réduction |
+|----------|-------|--------|---------|-----------|
+| **Memecoins** | >70% | — | -25 | Nouveau |
+| | >50% | -30 | **-18** | -40% |
+| | >30% | -20 | **-12** | -40% |
+| | >15% | -10 | **-8** | -20% |
+| | >5% | -5 | **-4** | -20% |
+| **Drawdown** | >70% | — | -22 | Nouveau |
+| | >50% | -25 | **-15** | -40% |
+| | >30% | -15 | **-12** | -20% |
+| **HHI (Concentration)** | >0.40 | -15 | **-12** | -20% |
+| | >0.25 | -10 | **-8** | -20% |
+| | >0.15 | -5 | **-3** | -40% |
+| **GRI (Group Risk)** | >7.0 | -15 | **-10** | -33% |
+| | >6.0 | -10 | **-7** | -30% |
+| | >5.0 | -5 | **-4** | -20% |
+
+**Validation** : Tests `test_risk_scoring_edge_cases.py` (11 tests, monotonicité + bornes + transitions)
+
+#### Exemples de Scoring Réels
+
+**Portfolio Degen (55% memecoins, DD 61%, Vol 65%)**
+```
+Base:           50
+VaR 95% (6.2%): +5  → 55
+Sharpe (0.33):  +0  → 55
+DD (61.7%):    -15  → 40  ✅ (était -25)
+Vol (64.96%):   -5  → 35
+Memes (54.99%):-15  → 20  ✅ (était -30)
+HHI (0.218):    -3  → 17  ✅ (était -5)
+GRI (7.44):    -10  → 7   ✅ (était -15)
+Div (1.09):     +5  → 12
+
+Score final: 12/100 → Risk Level "critical" (<20)
+```
+**Interprétation** : Portfolio très risqué mais cohérent avec stratégie degen. Score > 0 valide l'existence d'une structure minimale (diversification 1.09).
+
+---
+
+**Portfolio Équilibré (192 assets, Sharpe 1.84, Long-Term 93% coverage)**
+```
+Base:           50
+VaR 95% (2.9%): +10 → 60
+Sharpe (1.84): +15  → 75
+DD (42.3%):    -12  → 63
+Vol (30.3%):    +5  → 68
+Memes (1.6%):   -4  → 64
+HHI (0.08):     +0  → 64
+GRI (3.5):      +5  → 69
+Div (1.41):     +5  → 74
+
+Score final: 74/100 → Risk Level "low" (65-80)
+```
+**Interprétation** : Portfolio robuste avec bonne diversification (effective assets: 132). Long-Term window (365j, 124 assets) valide stabilité historique.
+
+---
+
+**Portfolio Catastrophique (75% memes, DD 80%, Sharpe négatif)**
+```
+Base:           50
+VaR 95% (15%): -15  → 35
+Sharpe (-0.2): -15  → 20
+DD (80%):      -22  → -2
+Vol (85%):     -10  → -12
+Memes (75%):   -25  → -37
+HHI (0.35):     -8  → -45
+GRI (8.5):     -10  → -55
+Div (0.5):      -5  → -60
+
+Score final: 0/100 → Risk Level "critical" (clamped)
+```
+**Interprétation** : Portfolio ultra-extrême avec Sharpe négatif + DD 80% + 75% memes. Score 0 est acceptable pour ce niveau de risque catastrophique.
+
+**🎯 Règle d'or** : Un portfolio degen "normal" (Sharpe positif, DD < 70%, < 70% memes) doit scorer **10-25**, pas 0.
+
 ### 🏗️ Formule Risk Score Structural
 
 **Base** : `risk_score` (autoritaire)
