@@ -2745,25 +2745,51 @@
 
     // NOTE: calculateCorrelationMetrics() supprimée - corrélations calculées par le backend Python
 
-    // Import unified asset grouping functions
+    // Import unified asset grouping functions with forced taxonomy reload
     let groupAssetsByClassification, getAssetGroup;
 
-    // Load unified asset groups dynamically
-    import('./shared-asset-groups.js').then(module => {
-      groupAssetsByClassification = module.groupAssetsByClassification;
-      getAssetGroup = module.getAssetGroup;
-      console.debug('✅ Risk Dashboard: Unified asset groups loaded');
-    });
+    // Load unified asset groups dynamically with forced taxonomy reload
+    async function initAssetGroups() {
+      try {
+        console.debug('🔄 [Risk Dashboard] Force reloading taxonomy for proper asset classification...');
+        const module = await import('./shared-asset-groups.js');
+        await module.forceReloadTaxonomy();
 
-    function groupAssetsByAliases(items) {
-      console.debug('🔍 DEBUG Risk Dashboard: Grouping', items.length, 'assets by unified taxonomy');
+        groupAssetsByClassification = module.groupAssetsByClassification;
+        getAssetGroup = module.getAssetGroup;
 
-      // Utiliser le système unifié si disponible, sinon fallback simple
+        if (!Object.keys(module.UNIFIED_ASSET_GROUPS || {}).length) {
+          console.warn('⚠️ [Risk Dashboard] Taxonomy non chargée – risque de "Others" gonflé');
+        } else {
+          console.log('✅ [Risk Dashboard] Taxonomy loaded:', Object.keys(module.UNIFIED_ASSET_GROUPS).length, 'groupes');
+        }
+      } catch (error) {
+        console.error('❌ [Risk Dashboard] Failed to load taxonomy:', error);
+      }
+    }
+
+    // Initialize asset groups on page load
+    initAssetGroups();
+
+    async function groupAssetsByAliases(items) {
+      console.debug('🔍 [Risk Dashboard] Grouping', items.length, 'assets by unified taxonomy');
+
+      // Utiliser le système unifié si disponible
       if (groupAssetsByClassification) {
         return groupAssetsByClassification(items);
-      } else {
+      }
+
+      // Si pas encore chargé, charger maintenant
+      try {
+        console.debug('⏳ [Risk Dashboard] Taxonomy not loaded yet, importing now...');
+        const module = await import('./shared-asset-groups.js');
+        await module.forceReloadTaxonomy();
+        groupAssetsByClassification = module.groupAssetsByClassification;
+        getAssetGroup = module.getAssetGroup;
+        return groupAssetsByClassification(items);
+      } catch (error) {
         // Fallback simple si le module n'est pas encore chargé
-        console.warn('⚠️ Risk Dashboard: Unified groups not loaded yet, using simple fallback');
+        console.warn('⚠️ [Risk Dashboard] Unified groups failed to load, using simple fallback:', error);
         return items.map(item => ({
           label: item.symbol,
           value: parseFloat(item.value_usd || 0),
@@ -7912,7 +7938,7 @@ dans les 10 000 scénarios.`;
             // Show all groups (not just top 5)
             .map(([name, weight]) => ({
               name,
-              weight: Math.round(weight * 100),
+              weight: (weight * 100).toFixed(1),  // Keep 1 decimal (0.2% → "0.2")
               weight_raw: weight
             }));
 

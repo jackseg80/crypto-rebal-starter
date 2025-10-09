@@ -866,13 +866,6 @@ async def get_risk_dashboard(
         total_value = sum(float(h.get("value_usd", 0.0)) for h in balances) or 0.0
         from services.taxonomy import Taxonomy
         taxonomy = Taxonomy.load()
-        exposure_by_group = {}
-        if total_value > 0:
-            for h in balances:
-                symbol = str(h.get('symbol', '')).upper()
-                group = taxonomy.group_for_alias(symbol)
-                w = float(h.get('value_usd', 0.0)) / total_value
-                exposure_by_group[group] = exposure_by_group.get(group, 0.0) + w
 
         # Barème de risque par groupe (0-10), simple et explicable
         GROUP_RISK_LEVELS = {
@@ -888,6 +881,18 @@ async def get_risk_dashboard(
             'Others': 7,
             'Memecoins': 9,
         }
+
+        # Initialize exposure_by_group with ALL 11 canonical groups at 0.0
+        # This ensures all groups appear in API response, even if portfolio has 0% in some
+        exposure_by_group = {group: 0.0 for group in GROUP_RISK_LEVELS.keys()}
+
+        # Add actual exposures
+        if total_value > 0:
+            for h in balances:
+                symbol = str(h.get('symbol', '')).upper()
+                group = taxonomy.group_for_alias(symbol)
+                w = float(h.get('value_usd', 0.0)) / total_value
+                exposure_by_group[group] = exposure_by_group.get(group, 0.0) + w
         if exposure_by_group:
             gri_raw = 0.0
             for g, w in exposure_by_group.items():

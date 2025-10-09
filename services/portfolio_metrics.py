@@ -167,7 +167,11 @@ class PortfolioMetricsService:
                     'Others': 7,
                     'Memecoins': 9,
                 }
-                exposure_by_group = {}
+                # Initialize exposure_by_group with ALL 11 canonical groups at 0.0
+                # This ensures all groups appear in API response, even if portfolio has 0% in some
+                exposure_by_group = {group: 0.0 for group in GROUP_RISK_LEVELS.keys()}
+
+                # Add actual exposures
                 for b in balances:
                     symbol = str(b.get('symbol', '')).upper()
                     group = taxonomy.group_for_alias(symbol)

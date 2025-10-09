@@ -1400,7 +1400,7 @@
             await updatePortfolioChart(data.balances);
             // N'appeler le breakdown que si le conteneur est présent dans le DOM
             if (document.getElementById('breakdown-list')) {
-                updatePortfolioBreakdown(data.balances);
+                await updatePortfolioBreakdown(data.balances);
             }
         }
         function updateConnectionsDisplay(data) {
@@ -1655,19 +1655,31 @@
             }
         }
 
-        // Couleurs pour le graphique portfolio
+        // Couleurs pour le graphique portfolio (11 couleurs pour les 11 groupes canoniques)
         const PORTFOLIO_COLORS = [
             '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6',
-            '#06b6d4', '#84cc16', '#f97316', '#ec4899', '#6366f1'
+            '#06b6d4', '#84cc16', '#f97316', '#ec4899', '#6366f1',
+            '#14b8a6'  // Ajout 11ème couleur (teal)
         ];
 
         // Classification dynamique - sera chargée depuis alias-manager
         let ASSET_GROUPS = null;
 
-        // Fonction simplifiée - plus besoin de charger séparément, utilise directement les fonctions
+        // Force reload taxonomy pour classification correcte des 11 groupes
         async function loadAssetGroups() {
-            console.debug('🔍 Asset groups ready via unified functions');
-            // Plus besoin de charger, les fonctions sont directement disponibles
+            try {
+                console.debug('🔄 [Dashboard] Force reloading taxonomy for proper asset classification...');
+                const { forceReloadTaxonomy, UNIFIED_ASSET_GROUPS } = await import('./shared-asset-groups.js');
+                await forceReloadTaxonomy();
+
+                if (!Object.keys(UNIFIED_ASSET_GROUPS || {}).length) {
+                    console.warn('⚠️ [Dashboard] Taxonomy non chargée – risque de "Others" gonflé');
+                } else {
+                    console.log('✅ [Dashboard] Taxonomy loaded:', Object.keys(UNIFIED_ASSET_GROUPS).length, 'groupes');
+                }
+            } catch (error) {
+                console.error('❌ [Dashboard] Failed to load taxonomy:', error);
+            }
         }
 
         // Parser CSV : wrapper auto qui utilise window.parseCSVBalances si dispo, sinon notre local
@@ -1738,23 +1750,21 @@
             return result;
         }
 
-        function groupAssetsByAliases(items) {
-            // Utiliser la fonction unifiée de groupement (synchrone)
+        async function groupAssetsByAliases(items) {
+            // Utiliser la fonction unifiée de groupement directement depuis le module
             try {
-                console.log('🔄 Trying unified groupAssetsByClassification with', items.length, 'items');
-                const classify = (typeof window !== 'undefined' && typeof window.groupAssetsByClassification === 'function')
-                    ? window.groupAssetsByClassification
-                    : null;
+                console.log('🔄 [Dashboard] Classifying', items.length, 'assets with unified taxonomy');
+                const { groupAssetsByClassification } = await import('./shared-asset-groups.js');
 
-                if (!classify) {
-                    throw new ReferenceError('groupAssetsByClassification helper unavailable on window');
+                if (!groupAssetsByClassification) {
+                    throw new ReferenceError('groupAssetsByClassification not available');
                 }
 
-                const result = classify(items);
-                console.log('✅ Unified grouping succeeded, found', result.length, 'groups');
+                const result = groupAssetsByClassification(items);
+                console.log('✅ [Dashboard] Unified grouping succeeded, found', result.length, 'groups');
                 return result;
             } catch (error) {
-                console.warn('⚠️ Unified grouping failed, using fallback with manual grouping:', error);
+                console.warn('⚠️ [Dashboard] Unified grouping failed, using fallback:', error);
                 // Fallback qui utilise aussi le groupement par classification
                 const groups = new Map();
                 const resolveGroup = (typeof window !== 'undefined' && typeof window.getAssetGroup === 'function')
@@ -1887,13 +1897,12 @@
 
             // Regrouper par aliases
             log.debug('Filtered items for chart:', filteredItems.length);
-            const groupedData = groupAssetsByAliases(filteredItems);
+            const groupedData = await groupAssetsByAliases(filteredItems);
             log.debug('Grouped data:', groupedData.length, 'groups');
 
-            // Trier par valeur et prendre les top 8
+            // Trier par valeur et afficher TOUS les groupes (11 groupes canoniques)
             const sortedData = groupedData
-                .sort((a, b) => b.value - a.value)
-                .slice(0, 8);
+                .sort((a, b) => b.value - a.value);
 
             const labels = sortedData.map(item => item.label);
             const values = sortedData.map(item => item.value);
@@ -1935,7 +1944,7 @@
                     labels: labels,
                     datasets: [{
                         data: values,
-                        backgroundColor: PORTFOLIO_COLORS.slice(0, values.length),
+                        backgroundColor: values.map((_, i) => PORTFOLIO_COLORS[i % PORTFOLIO_COLORS.length]),
                         borderColor: isDark ? '#374151' : '#ffffff',
                         borderWidth: 2,
                         hoverBorderWidth: 3
@@ -1987,7 +1996,7 @@
         }
 
         // Afficher la liste détaillée des allocations
-        function updatePortfolioBreakdown(balancesData) {
+        async function updatePortfolioBreakdown(balancesData) {
             const container = document.getElementById('breakdown-list');
             // Si le conteneur n'existe pas sur cette page, on sort proprement
             if (!container) {
@@ -2002,7 +2011,7 @@
             const filteredItems = items.filter(item => parseFloat(item.value_usd || 0) > 0);
 
             // Regrouper par aliases comme le graphique
-            const groupedData = groupAssetsByAliases(filteredItems);
+            const groupedData = await groupAssetsByAliases(filteredItems);
             const sortedData = groupedData.sort((a, b) => b.value - a.value);
             const total = sortedData.reduce((sum, item) => sum + item.value, 0);
 
