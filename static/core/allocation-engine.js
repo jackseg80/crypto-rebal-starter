@@ -472,6 +472,21 @@ function calculateCoinAllocation(sectorAllocation, currentPositions, floors, mem
     };
   }
 
+  // 🔧 NORMALISATION PRÉVENTIVE: corriger les erreurs d'arrondi accumulées
+  const allocSum = Object.values(coinAllocation).reduce((sum, val) =>
+    sum + (typeof val === 'number' && !isNaN(val) ? val : 0), 0
+  );
+
+  if (Math.abs(allocSum - 1.0) > 0.001) {
+    console.debug(`🔧 Normalizing coin allocation: ${(allocSum * 100).toFixed(2)}% → 100%`);
+    const scale = 1.0 / allocSum;
+    Object.keys(coinAllocation).forEach(key => {
+      if (typeof coinAllocation[key] === 'number' && !isNaN(coinAllocation[key])) {
+        coinAllocation[key] *= scale;
+      }
+    });
+  }
+
   return coinAllocation;
 }
 
