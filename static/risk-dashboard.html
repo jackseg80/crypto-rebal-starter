@@ -320,6 +320,12 @@
     import { calculateCompositeScoreV2, analyzeContradictorySignals } from './modules/composite-score-v2.js';
     import { getMarketRegime, applyMarketOverrides, calculateRiskBudget, getRegimeDisplayData } from './modules/market-regimes.js';
 
+    // Import tab-specific modules
+    import { renderAlertsContent } from './modules/risk-alerts-tab.js';
+    import { renderRiskOverviewContent } from './modules/risk-overview-tab.js';
+    import { renderCyclesContent, renderCyclesContentUncached, createBitcoinCycleChart, loadOnChainIndicators, fetchBitcoinHistoricalData } from './modules/risk-cycles-tab.js';
+    import { renderTargetsContent, getCurrentPortfolioAllocation } from './modules/risk-targets-tab.js';
+
     // Global state
     let autoRefreshInterval = null;
     let isRefreshing = false;
