@@ -321,8 +321,7 @@
     import { getMarketRegime, applyMarketOverrides, calculateRiskBudget, getRegimeDisplayData } from './modules/market-regimes.js';
 
     // Import tab-specific modules
-    import { renderAlertsContent } from './modules/risk-alerts-tab.js';
-    import { renderRiskOverviewContent } from './modules/risk-overview-tab.js';
+    // Note: Alerts and Risk Overview tabs use dynamic imports in risk-dashboard-main.js
     import { renderCyclesContent, renderCyclesContentUncached, createBitcoinCycleChart, loadOnChainIndicators, fetchBitcoinHistoricalData } from './modules/risk-cycles-tab.js';
     import { renderTargetsContent, getCurrentPortfolioAllocation } from './modules/risk-targets-tab.js';
 
