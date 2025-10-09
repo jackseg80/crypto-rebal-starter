@@ -360,5 +360,151 @@ def test_dual_window_identical_when_all_long_history(portfolio_service, create_p
     assert abs(lt_score - fi_score) < 0.1, "Scores quasi-identiques"
 
 
+class TestDualWindowStability:
+    """Test stabilité : un seul asset récent ne doit pas shrink toute la fenêtre"""
+
+    def test_single_recent_asset_doesnt_shrink_full_window(self, portfolio_service, create_price_data, create_balances):
+        """7 assets 365j + 1 asset 61j → Long-Term = 365j (7 assets), Full = 61j (8 assets)"""
+
+        # Setup : 7 assets anciens (90% valeur) + 1 récent (10% valeur)
+        price_data = create_price_data([
+            {'symbol': 'BTC', 'days': 365, 'base_price': 50000},
+            {'symbol': 'ETH', 'days': 365, 'base_price': 3000},
+            {'symbol': 'SOL', 'days': 365, 'base_price': 150},
+            {'symbol': 'AVAX', 'days': 365, 'base_price': 40},
+            {'symbol': 'APT', 'days': 365, 'base_price': 10},
+            {'symbol': 'DOGE', 'days': 365, 'base_price': 0.08},
+            {'symbol': 'SHIB', 'days': 365, 'base_price': 0.000007},
+            {'symbol': 'PEPE', 'days': 61, 'base_price': 0.000001}  # Récent
+        ])
+
+        balances = create_balances([
+            {'symbol': 'BTC', 'value_usd': 15000},   # 30.6%
+            {'symbol': 'ETH', 'value_usd': 8000},    # 16.3%
+            {'symbol': 'SOL', 'value_usd': 6000},    # 12.2%
+            {'symbol': 'AVAX', 'value_usd': 5000},   # 10.2%
+            {'symbol': 'APT', 'value_usd': 4000},    # 8.2%
+            {'symbol': 'DOGE', 'value_usd': 3000},   # 6.1%
+            {'symbol': 'SHIB', 'value_usd': 3000},   # 6.1%
+            {'symbol': 'PEPE', 'value_usd': 5000}    # 10.2% (récent)
+        ])
+
+        # Execute
+        result = portfolio_service.calculate_dual_window_metrics(
+            price_data=price_data,
+            balances=balances,
+            min_history_days=180,
+            min_coverage_pct=0.80,
+            min_asset_count=5
+        )
+
+        # Assert : Long-Term doit être sur 365j (pas shrink à 61j)
+        assert result['long_term'] is not None, "Long-term window devrait être disponible"
+        assert result['long_term']['window_days'] == 365, "Long-term devrait utiliser 365j (pas shrink à 61j)"
+        assert result['long_term']['asset_count'] == 7, "Long-term devrait avoir 7 assets (pas 8)"
+        assert result['long_term']['coverage_pct'] >= 0.80, "Couverture devrait être ≥ 80% (7 assets)"
+
+        # Assert : Full Intersection doit être sur 61j (intersection minimale)
+        assert result['full_intersection'] is not None
+        assert result['full_intersection']['window_days'] == 61, "Full intersection devrait être 61j (PEPE limite)"
+        assert result['full_intersection']['asset_count'] == 8, "Full intersection devrait inclure tous les 8 assets"
+
+        # Assert : PEPE exclu de Long-Term mais présent dans Full
+        excl = result['exclusions_metadata']
+        assert len(excl['excluded_assets']) == 1, "1 asset exclu (PEPE)"
+        assert excl['excluded_assets'][0]['symbol'] == 'PEPE'
+        assert excl['excluded_pct'] < 0.15, "PEPE représente ~10% du portfolio"
+
+    def test_multiple_recent_assets_correct_coverage(self, portfolio_service, create_price_data, create_balances):
+        """5 assets 365j (70%) + 3 assets 60j (30%) → Long-Term cascade à 180j pour inclure plus d'assets"""
+
+        # Setup : 5 assets anciens (70% valeur) + 3 récents (30% valeur)
+        price_data = create_price_data([
+            {'symbol': 'BTC', 'days': 365, 'base_price': 50000},
+            {'symbol': 'ETH', 'days': 365, 'base_price': 3000},
+            {'symbol': 'SOL', 'days': 365, 'base_price': 150},
+            {'symbol': 'AVAX', 'days': 365, 'base_price': 40},
+            {'symbol': 'MATIC', 'days': 365, 'base_price': 1.5},
+            {'symbol': 'PEPE', 'days': 60, 'base_price': 0.000001},
+            {'symbol': 'BONK', 'days': 60, 'base_price': 0.00001},
+            {'symbol': 'WIF', 'days': 60, 'base_price': 0.5}
+        ])
+
+        balances = create_balances([
+            {'symbol': 'BTC', 'value_usd': 25000},   # 25%
+            {'symbol': 'ETH', 'value_usd': 18000},   # 18%
+            {'symbol': 'SOL', 'value_usd': 12000},   # 12%
+            {'symbol': 'AVAX', 'value_usd': 9000},   # 9%
+            {'symbol': 'MATIC', 'value_usd': 6000},  # 6%
+            {'symbol': 'PEPE', 'value_usd': 10000},  # 10%
+            {'symbol': 'BONK', 'value_usd': 10000},  # 10%
+            {'symbol': 'WIF', 'value_usd': 10000}    # 10%
+        ])
+
+        # Execute
+        result = portfolio_service.calculate_dual_window_metrics(
+            price_data=price_data,
+            balances=balances,
+            min_history_days=180,
+            min_coverage_pct=0.70,  # Accepter 70% pour avoir cohorte long-term
+            min_asset_count=5
+        )
+
+        # Assert : Long-Term disponible via cascade (365j échoue 70% < 80%, 180j OK)
+        assert result['long_term'] is not None, "Long-term window devrait être disponible"
+        assert result['long_term']['window_days'] in [180, 365], "Cascade peut utiliser 180j ou 365j selon couverture"
+        assert result['long_term']['asset_count'] == 5, "5 assets anciens"
+        assert result['long_term']['coverage_pct'] >= 0.65, "Couverture ≥ 65%"
+
+        # Assert : 3 memecoins récents exclus
+        excl = result['exclusions_metadata']
+        assert len(excl['excluded_assets']) == 3, "3 assets récents exclus"
+        excluded_symbols = {a['symbol'] for a in excl['excluded_assets']}
+        assert excluded_symbols == {'PEPE', 'BONK', 'WIF'}
+
+    def test_all_assets_long_history_no_exclusion(self, portfolio_service, create_price_data, create_balances):
+        """Tous assets 365j → Pas d'exclusion, Long-Term = Full Intersection"""
+
+        # Setup : Tous assets avec 365j historique
+        price_data = create_price_data([
+            {'symbol': 'BTC', 'days': 365, 'base_price': 50000},
+            {'symbol': 'ETH', 'days': 365, 'base_price': 3000},
+            {'symbol': 'SOL', 'days': 365, 'base_price': 150},
+            {'symbol': 'AVAX', 'days': 365, 'base_price': 40},
+            {'symbol': 'MATIC', 'days': 365, 'base_price': 1.5}
+        ])
+
+        balances = create_balances([
+            {'symbol': 'BTC', 'value_usd': 30000},
+            {'symbol': 'ETH', 'value_usd': 25000},
+            {'symbol': 'SOL', 'value_usd': 20000},
+            {'symbol': 'AVAX', 'value_usd': 15000},
+            {'symbol': 'MATIC', 'value_usd': 10000}
+        ])
+
+        # Execute
+        result = portfolio_service.calculate_dual_window_metrics(
+            price_data=price_data,
+            balances=balances,
+            min_history_days=180,
+            min_coverage_pct=0.80,
+            min_asset_count=5
+        )
+
+        # Assert : Aucune exclusion
+        assert result['long_term'] is not None
+        assert result['long_term']['window_days'] == 365
+        assert result['long_term']['asset_count'] == 5
+
+        assert result['full_intersection']['window_days'] == 365
+        assert result['full_intersection']['asset_count'] == 5
+
+        # Assert : Pas d'exclusions
+        excl = result['exclusions_metadata']
+        assert len(excl['excluded_assets']) == 0, "Aucun asset exclu"
+        assert excl['excluded_pct'] == 0.0, "0% exclu"
+        assert excl['reason'] == 'success'
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])

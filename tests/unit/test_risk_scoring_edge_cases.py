@@ -226,6 +226,81 @@ class TestBoundsAndClamps:
         assert result["level"] in ["very_low", "low"]
 
 
+class TestHysteresis:
+    """Test hystérésis autour des seuils critiques (48-52%)"""
+
+    def test_hysteresis_zone_smooth_transition(self):
+        """Zone 48-52% memecoins doit avoir transition douce (pas de flip-flop)"""
+        base_metrics = {
+            "var_95": 0.08, "var_99": 0.12,
+            "sharpe": 0.6, "max_dd": -0.25, "vol": 0.40,
+            "hhi": 0.12, "gri": 5.0, "div": 1.0
+        }
+
+        scores = []
+        deltas = []
+        for memes_pct in [0.45, 0.48, 0.49, 0.50, 0.51, 0.52, 0.55]:
+            result = assess_risk_level(
+                var_metrics={"var_95": base_metrics["var_95"], "var_99": base_metrics["var_99"]},
+                sharpe_ratio=base_metrics["sharpe"],
+                max_drawdown=base_metrics["max_dd"],
+                volatility=base_metrics["vol"],
+                memecoins_pct=memes_pct,
+                hhi=base_metrics["hhi"],
+                gri=base_metrics["gri"],
+                diversification_ratio=base_metrics["div"]
+            )
+            scores.append(result["score"])
+            deltas.append(result["breakdown"]["memecoins"])
+
+        # Zones attendues
+        assert deltas[0] == -10.0, "45% doit être zone basse (-10)"
+        assert deltas[1] == -10.0, "48% doit être début zone hystérésis (-10)"
+        assert -13 <= deltas[3] <= -11, "50% doit être milieu zone hystérésis (~-12.5)"
+        assert deltas[5] == -15.0, "52% doit être fin zone hystérésis (-15)"
+        assert deltas[6] == -15.0, "55% doit être zone haute (-15)"
+
+        # Transition doit être monotone
+        for i in range(len(deltas) - 1):
+            assert deltas[i] >= deltas[i + 1], \
+                f"Pénalité doit augmenter monotonement : {deltas}"
+
+        # Pas de saut > 3 points entre paliers adjacents (transition douce)
+        for i in range(len(deltas) - 1):
+            diff = abs(deltas[i] - deltas[i + 1])
+            assert diff <= 3, \
+                f"Saut hystérésis trop brutal ({diff:.1f}) entre {memes_pct*100:.0f}% et {(memes_pct+0.01)*100:.0f}%"
+
+    def test_hysteresis_avoids_flip_flop(self):
+        """Hystérésis évite flip-flop quand memes oscillent autour de 50%"""
+        base_metrics = {
+            "var_95": 0.08, "var_99": 0.12,
+            "sharpe": 0.6, "max_dd": -0.25, "vol": 0.40,
+            "hhi": 0.12, "gri": 5.0, "div": 1.0
+        }
+
+        # Simuler oscillations 49% → 51% → 49% (cas fréquent en trading)
+        results = []
+        for memes_pct in [0.49, 0.51, 0.49]:
+            result = assess_risk_level(
+                var_metrics={"var_95": base_metrics["var_95"], "var_99": base_metrics["var_99"]},
+                sharpe_ratio=base_metrics["sharpe"],
+                max_drawdown=base_metrics["max_dd"],
+                volatility=base_metrics["vol"],
+                memecoins_pct=memes_pct,
+                hhi=base_metrics["hhi"],
+                gri=base_metrics["gri"],
+                diversification_ratio=base_metrics["div"]
+            )
+            results.append(result)
+
+        # Sans hystérésis : 49%→50 (-10) vs 51%→50 (-15) = saut brutal de 5 pts
+        # Avec hystérésis : 49%→53.7 (-11.3) vs 51%→51.2 (-13.8) = variation douce de 2.5 pts
+        diff_49_51 = abs(results[0]["score"] - results[1]["score"])
+        assert diff_49_51 <= 3, \
+            f"Oscillation 49%→51% doit être douce (< 3pts), pas {diff_49_51:.1f}pts"
+
+
 class TestTransitionStability:
     """Test que les transitions sont stables (pas de sauts brutaux)"""
 

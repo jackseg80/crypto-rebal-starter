@@ -183,10 +183,17 @@ def assess_risk_level(
 
     # Memecoins penalty (higher % = LESS robust → score decreases)
     # 🔧 Oct 2025: Adouci les pénalités pour éviter score=0 systématique sur portfolios degen
+    # 🆕 Hystérésis autour des seuils critiques pour éviter flip-flop
     if memecoins_pct > 0.70:
         delta = -22  # ❌ >70% memes → major penalty
-    elif memecoins_pct > 0.50:
+    elif memecoins_pct > 0.52:
+        # Zone franche >52% : pénalité confirmée
         delta = -15  # ❌ >50% memes → significant penalty (était -30)
+    elif memecoins_pct >= 0.48:
+        # Zone transition 48-52% : interpolation linéaire pour éviter flip-flop
+        t = (memecoins_pct - 0.48) / 0.04  # 0.0 à 1.0
+        delta = -10 + t * (-15 - (-10))  # Transition douce de -10 à -15
+        delta = round(delta, 1)
     elif memecoins_pct > 0.30:
         delta = -10  # ⚠️ >30% memes → moderate penalty (était -20)
     elif memecoins_pct > 0.15:
