@@ -412,12 +412,41 @@ L'écosystème Sources est maintenant **100% unifié et production-ready** :
 - ✅ Cache invalidation pour données invalides (`grand = 0`)
 - ✅ Tests multi-utilisateurs passés
 
+### ✅ **Risk Dashboard Refactoring - Architecture Modulaire** (Oct 2025)
+
+Le Risk Dashboard a été refactorisé pour une meilleure maintenabilité :
+
+**Réduction de Taille** :
+- **-2020 lignes** dans `risk-dashboard.html` (-23.5%)
+- **CSS externalisé** : `css/risk-dashboard.css` (~1900 lignes)
+- **Modules JavaScript** : 7 fichiers séparés (~1500 lignes total)
+
+**Architecture Finale** :
+```
+static/
+├── risk-dashboard.html (6581 lignes)
+├── css/risk-dashboard.css (styles)
+└── modules/
+    ├── risk-utils.js (helpers communs)
+    ├── risk-dashboard-main.js (orchestrateur)
+    ├── alerts-tab.js (onglet complet ✅)
+    └── *-tab.js (stubs pour migration progressive)
+```
+
+**Avantages** :
+- ✅ **Maintenabilité** : Code organisé par responsabilité
+- ✅ **Performance** : Lazy-loading des onglets, meilleur cache navigateur
+- ✅ **Évolutivité** : Migration progressive possible, tests futurs facilités
+- ✅ **Lisibilité** : Séparation claire HTML / CSS / JS avec imports ES6
+
+📖 **Documentation** : [REFACTORING_SUMMARY.md](REFACTORING_SUMMARY.md) | [static/MIGRATION_RISK_DASHBOARD.md](static/MIGRATION_RISK_DASHBOARD.md)
+
 ### Governance UI (Cap d'exécution)
 
 - Source de vérité frontend: `GET /execution/governance/state.active_policy.cap_daily`.
 - Utiliser `selectCapPercent(state)` du module `static/selectors/governance.js` pour tout affichage/calcul en %.
-- Si la policy est absente, fallback sur engine cap (affiché en second comme “SMART {x}%”).
+- Si la policy est absente, fallback sur engine cap (affiché en second comme "SMART {x}%").
 - Convergence: `ceil(maxDelta / (capPct/100))`. Exemple: maxΔ=23 pts, cap=1% → 23 itérations; cap=10% → 3.
-- Badge serré: afficher “🧊 Freeze/Cap serré (±X%)” pour Freeze ou cap ≤ 2%.
+- Badge serré: afficher "🧊 Freeze/Cap serré (±X%)" pour Freeze ou cap ≤ 2%.
 
 
