@@ -17,7 +17,10 @@
 ### Après Refactoring
 - **Fichier HTML :** `risk-dashboard.html` (~6580 lignes) **↓ 23.5%**
 - **CSS externe :** `css/risk-dashboard.css` (~1900 lignes)
-- **Modules JavaScript :** 7 fichiers (~1500 lignes total)
+- **Modules JavaScript :** 7 fichiers (~2800 lignes total)
+  - 2 onglets complets (Alerts: 450 lignes, Risk Overview: 810 lignes)
+  - 2 stubs (Cycles, Targets)
+  - 3 core modules (utils, main, shared)
 - **Maintenabilité :** ✅ Excellente (séparation des préoccupations)
 
 ---
@@ -66,7 +69,18 @@ static/modules/alerts-tab.js (~450 lignes)
 - Format unifié des alertes
 
 ```
-static/modules/risk-overview-tab.js (stub)
+static/modules/risk-overview-tab.js (~810 lignes) ✅ COMPLET
+```
+**Onglet Risk Overview (complet) :**
+- Métriques de risque (VaR, CVaR, Sharpe, Sortino, Calmar)
+- Risk Score avec breakdown détaillé
+- Dual Window metrics (Long-Term vs Full Intersection)
+- Recommandations personnalisées
+- Alertes de risque
+- Tooltips interactifs sur toutes les métriques
+- Support complet Risk Score V2 + Shadow Mode
+
+```
 static/modules/cycles-tab.js (stub)
 static/modules/targets-tab.js (stub)
 ```
@@ -94,7 +108,7 @@ static/
 │   ├── risk-utils.js (400 lignes)
 │   ├── risk-dashboard-main.js (200 lignes)
 │   ├── alerts-tab.js (450 lignes) ✅ COMPLET
-│   ├── risk-overview-tab.js (stub)
+│   ├── risk-overview-tab.js (810 lignes) ✅ COMPLET
 │   ├── cycles-tab.js (stub)
 │   └── targets-tab.js (stub)
 └── migrate_risk_dashboard.py (script automatique)
@@ -149,20 +163,25 @@ static/
 
 ## 🔄 Migration Progressive - Prochaines Étapes
 
-### Phase 1 : Validation (ACTUELLE) ✅
-- Onglet Alerts migré
+### Phase 1 : Validation ✅ COMPLÉTÉE
+- Onglet Alerts migré (450 lignes)
 - Stubs pour autres onglets
 - Tests de base réussis
 
-### Phase 2 : Migration Risk Overview (Optionnel)
-```javascript
-// TODO: Migrer dans risk-overview-tab.js
-// - Rendu des métriques de risque
-// - Graphiques et visualisations
-// - Recommandations
-```
+### Phase 2 : Migration Risk Overview ✅ COMPLÉTÉE (Oct 2025)
+- **Fichier** : `static/modules/risk-overview-tab.js` (810 lignes)
+- **Fonctionnalités migrées** :
+  - ✅ Métriques de risque complètes (VaR, CVaR, Sharpe, Sortino, Calmar)
+  - ✅ Risk Score avec breakdown détaillé (base + 8 composants)
+  - ✅ Dual Window metrics (Long-Term vs Full Intersection)
+  - ✅ Risk Score V2 + Shadow Mode (detection portfolios degen)
+  - ✅ Recommandations personnalisées (VaR, Sharpe, diversification, drawdown)
+  - ✅ Alertes de risque avec severités
+  - ✅ Tooltips interactifs sur toutes les métriques
+  - ✅ Support complet des insights (concentration, stablecoins, HHI)
+- **Réduction** : ~1500 lignes extraites du HTML vers module ES6
 
-### Phase 3 : Migration Cycles (Optionnel)
+### Phase 3 : Migration Cycles (TODO)
 ```javascript
 // TODO: Migrer dans cycles-tab.js
 // - Graphique Bitcoin cycles
@@ -281,9 +300,13 @@ import { formatMoney, showLoading } from './risk-utils.js';
 **Refactoring réussi avec migration progressive !**
 
 - ✅ **-2020 lignes** dans risk-dashboard.html (-23.5%)
-- ✅ **7 nouveaux modules** bien organisés
-- ✅ **Onglet Alerts** entièrement fonctionnel
+- ✅ **7 nouveaux modules** bien organisés (~2800 lignes total)
+- ✅ **2 onglets complets** migrés et fonctionnels :
+  - **Alerts** (450 lignes) - Système complet avec filtrage et pagination
+  - **Risk Overview** (810 lignes) - Métriques complètes + Risk Score V2 + Dual Window
 - ✅ **Architecture scalable** pour évolution future
 - ✅ **Backup de sécurité** créé
+
+**Prochaines étapes :** Cycles Tab (~800 lignes) puis Targets Tab (~700 lignes) pour finaliser la migration complète.
 
 **Bravo pour cette amélioration de la qualité du code ! 🎉**
