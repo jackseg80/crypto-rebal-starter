@@ -311,29 +311,7 @@
 
 
 
-    @media (max-width: 1024px) {
-      .dashboard-layout {
-        grid-template-columns: 220px 1fr;
-        gap: var(--space-md);
-      }
-
-      .sidebar {
-        max-height: none;
-        position: relative;
-      }
-    }
-
-    .sidebar {
-      background: var(--theme-surface);
-      border: 1px solid var(--theme-border);
-      border-radius: var(--radius-lg);
-      padding: var(--space-lg);
-      box-shadow: var(--shadow-sm);
-      position: sticky;
-      top: var(--space-lg);
-      max-height: calc(110vh - 110px);
-      overflow-y: auto;
-    }
+    /* Sidebar CSS removed - replaced by Web Component <risk-sidebar-full> in flyout-panel */
 
     .main-content {
       background: var(--theme-surface);
@@ -3439,8 +3417,7 @@
     }
 
     // ====== Sidebar Updates ======
-    // SUPPRIMÉ: Fonction updateSidebar() - remplacée par Web Component <risk-sidebar-full>
-    // 228 lignes de code legacy supprimées (manipulation DOM d'une sidebar HTML qui n'existe plus)
+    // Note: Sidebar now handled by Web Component <risk-sidebar-full> in flyout-panel
 
 
     // Risk rating rules for different metrics
@@ -3941,7 +3918,7 @@
             renderApiError(errorMessage);
           }
 
-          // Attempt partial scoring so sidebar is still populated
+          // Attempt partial scoring so risk-sidebar-full component is still populated
           try {
             if (ccsData) {
               await loadBlendedCCS();
@@ -7606,7 +7583,7 @@ dans les 10 000 scénarios.`;
         if (scoreElements.blended) scoreElements.blended.textContent = Math.round(blendedScore || 0);
         if (scoreElements.ccs) scoreElements.ccs.textContent = Math.round(ccsScore || 0);
 
-        // Fallback: also update sidebar KPI elements by id
+        // Fallback: also update KPI elements by id (for risk-sidebar-full component)
         const elOn = document.getElementById('kpi-onchain');
         const elRisk = document.getElementById('kpi-risk');
         const elBlend = document.getElementById('kpi-blended');
@@ -7728,8 +7705,7 @@ dans les 10 000 scénarios.`;
       console.log('Risk Dashboard CCS MVP initialized');
     });
 
-    // SUPPRIMÉ: Sidebar toggle logic - remplacé par Web Component flyout-panel avec bouton pin intégré
-    // 35 lignes de code legacy supprimées (manipulation classList pour sidebar qui n'existe plus)
+    // Note: Sidebar toggle now handled by flyout-panel Web Component with integrated pin button
   </script>
 
   <script type="module">
