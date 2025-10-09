@@ -249,6 +249,7 @@ class GovernanceEngine:
         self._prudent_mode = False  # État hystérésis prudent/normal
         self._alert_cap_reduction = 0.0  # Réduction cap par AlertEngine
         self._alert_cooldown_until = datetime.min  # Cooldown AlertEngine
+        self._last_progressive_clear = datetime.now()  # Timestamp dernier auto-clear progressif
 
         # Phase 4: Hystérésis anti-yo-yo pour VaR et stale detection
         self._var_hysteresis_state = "normal"  # "normal" | "prudent"
@@ -677,6 +678,19 @@ class GovernanceEngine:
                 f"signals_age={signals_age:.0f}s, prudent_mode={self._prudent_mode}, "
                 f"mode={mode}{cap_info}"
             )
+
+            # Auto-clear progressif alert reduction (every 30min, -1% step)
+            # FIX Oct 2025: Auto-recovery from alert cap reduction
+            if self._alert_cap_reduction > 0:
+                time_since_last_clear = (datetime.now() - self._last_progressive_clear).total_seconds()
+                if time_since_last_clear > 1800:  # 30 minutes
+                    old_reduction = self._alert_cap_reduction
+                    self.clear_alert_cap_reduction(progressive=True)
+                    self._last_progressive_clear = datetime.now()
+                    logger.warning(
+                        f"Auto progressive clear: {old_reduction:.1%} → {self._alert_cap_reduction:.1%} "
+                        f"(next clear in 30min)"
+                    )
 
             return policy
             
