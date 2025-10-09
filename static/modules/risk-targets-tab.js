@@ -310,6 +310,12 @@ export function renderActionPlan(current, proposed) {
         </div>
         <div class="risk-grid">
           ${plan.actions.map(action => {
+            // Validate action has required properties
+            if (!action || !action.asset || action.amount == null || action.current == null || action.target == null) {
+              console.warn('[renderActionPlan] Invalid action:', action);
+              return '';
+            }
+
             const color = action.action === 'buy' ? 'var(--success)' : 'var(--danger)';
             const icon = action.action === 'buy' ? '🟢' : '🔴';
 

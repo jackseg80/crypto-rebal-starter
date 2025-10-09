@@ -3126,6 +3126,13 @@ dans les 10 000 scénarios.`;
     // Expose refresh menu helpers for inline handlers
     window.toggleRefreshMenu = toggleRefreshMenu;
     window.closeRefreshMenu = closeRefreshMenu;
+    // Expose cache functions for tab modules
+    window.getCachedData = getCachedData;
+    window.setCachedData = setCachedData;
+    // Expose badge update function for tab modules
+    window.updateRiskDashboardBadges = updateRiskDashboardBadges;
+    // Expose score loading function for tab modules
+    window.loadScoresFromStore = loadScoresFromStore;
 
     // ===== PHASE 2A: TOAST NOTIFICATION SYSTEM =====
     let toastIdCounter = 0;
