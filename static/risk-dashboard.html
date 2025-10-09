@@ -2180,14 +2180,14 @@
       return 'var(--danger)';                     // Low (risky)
     }
     // Score interpretation utility
-    // 🆕 Oct 2025: Toggle breakdown panel
-    function toggleBreakdown(panelId) {
+    // 🆕 Oct 2025: Toggle breakdown panel (expose globally for onclick handlers)
+    window.toggleBreakdown = function(panelId) {
       const panel = document.getElementById(panelId);
       if (panel) {
         const isVisible = panel.style.display !== 'none';
         panel.style.display = isVisible ? 'none' : 'block';
       }
-    }
+    };
 
     function getScoreInterpretation(score) {
       if (score == null) return 'Métrique non disponible';
