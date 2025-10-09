@@ -318,7 +318,9 @@ class PortfolioMetricsService:
                 logger.info(f"✅ Cohort found: {target_days}d, {len(cohort_balances)} assets, {coverage_pct*100:.1f}% value")
 
                 # Calculer les métriques sur cette cohorte
-                cohort_price_data = price_data.tail(target_days)
+                # ⚠️ IMPORTANT: Filtrer les colonnes de la cohorte AVANT de nettoyer les NaN
+                cohort_symbols = [b.get('symbol', '').upper() for b in cohort_balances]
+                cohort_price_data = price_data[cohort_symbols].dropna().tail(target_days)
                 try:
                     long_term_metrics = self.calculate_portfolio_metrics(
                         cohort_price_data,
@@ -360,15 +362,17 @@ class PortfolioMetricsService:
 
         # Calculer la fenêtre Full Intersection (tous les assets)
         try:
+            # ⚠️ IMPORTANT: dropna() pour éliminer les lignes avec NaN (intersection temporelle)
+            full_intersection_price_data = price_data.dropna()
             full_intersection_metrics = self.calculate_portfolio_metrics(
-                price_data,
+                full_intersection_price_data,
                 balances,
                 confidence_level
             )
 
             full_intersection_result = {
                 'metrics': full_intersection_metrics,
-                'window_days': len(price_data),
+                'window_days': len(full_intersection_price_data),  # ✅ Utiliser le DataFrame nettoyé
                 'asset_count': len(balances),
                 'coverage_pct': 1.0
             }

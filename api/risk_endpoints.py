@@ -603,7 +603,9 @@ async def get_risk_dashboard(
             }
         
         # Créer DataFrame des prix
-        price_df = pd.DataFrame(price_data).fillna(method='ffill').dropna()
+        # ⚠️ NE PAS faire dropna() ici ! Le service dual-window a besoin des données complètes
+        # pour calculer séparément la cohorte long-term (365j) et l'intersection full (61j)
+        price_df = pd.DataFrame(price_data).fillna(method='ffill')
 
         # 🆕 Phase 5: Shadow Mode - Calcul des 2 versions si nécessaire
         logger.info(f"🧪 SHADOW MODE DEBUG: risk_version received = '{risk_version}', use_dual_window = {use_dual_window}")
