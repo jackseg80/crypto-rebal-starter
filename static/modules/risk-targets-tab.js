@@ -6,7 +6,7 @@
 //
 // Dependencies:
 // - ./targets-coordinator.js (proposeTargets, applyTargets, computePlan, getDecisionLog)
-// - ./shared-asset-groups.js (getAssetGroup, UNIFIED_ASSET_GROUPS, GROUP_ORDER)
+// - ../shared-asset-groups.js (getAssetGroup, UNIFIED_ASSET_GROUPS, GROUP_ORDER)
 // - window.store (state management)
 // - window.loadBalanceData (portfolio loading)
 // - window.parseCSVBalances (CSV parsing)
@@ -75,7 +75,7 @@ export async function getCurrentPortfolioAllocation() {
   const totalValue = realBalances.reduce((sum, item) => sum + item.value_usd, 0);
 
   // Use the unified asset classification system
-  const { getAssetGroup, UNIFIED_ASSET_GROUPS, GROUP_ORDER } = await import('./shared-asset-groups.js');
+  const { getAssetGroup, UNIFIED_ASSET_GROUPS, GROUP_ORDER } = await import('../shared-asset-groups.js');
 
   // Initialize allocation object with all groups
   const allocation = {};
