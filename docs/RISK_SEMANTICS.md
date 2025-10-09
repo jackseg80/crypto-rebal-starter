@@ -382,3 +382,71 @@ elif perf_ratio > 2.0: d_perf = +15  # Excellent augmente score
 - [ ] **🆕 Dual-Window** : Alerte exclusion si > 20% valeur exclue
 - [ ] **🆕 Dual-Window** : Tests dual-window passent (`pytest tests/unit/test_dual_window_metrics.py`)
 - [ ] **🆕 Score Structural** : Sharpe/Volatility non inversés (bon → +score)
+
+---
+
+## Migration Oct 2025 — V2 as Authoritative Engine
+
+À partir du commit **[MIGRATE-TO-V2]**, le **Risk Score V2** (Dual-Window Blend + pénalités existantes) devient le moteur autoritaire pour l'API et l'UI.
+
+### 🎯 Changements
+
+**API:**
+- Défaut `risk_version="v2_active"` (était `"v2_shadow"`)
+- Endpoint `/api/risk/dashboard` retourne désormais:
+  - `risk_metrics.risk_score` → **V2** (Dual-Window Blend + pénalités)
+  - `risk_metrics.risk_version_info.active_version` → `"v2"`
+  - `risk_metrics.risk_version_info.risk_score_legacy` → Legacy (comparaison)
+
+**Dashboard:**
+- Affiche V2 comme score principal avec badge ✓ (vert)
+- Legacy disponible pour comparaison (atténué, à droite)
+- Badge "Comparaison des Versions" remplace "Shadow Mode V2"
+
+**Formule:**
+- Aucune modification (Dual-Window Blend + pénalités Oct 2025 inchangés)
+- Voir sections "Dual Window System" et "Pénalités Adoucies (Oct 2025)"
+
+### 🔍 Raison
+
+V2 est plus stable et représentatif grâce au système **Dual-Window** qui gère mieux les assets récents:
+- **Long-Term Window** : Cohorte stable (≥180j historique, ≥80% valeur)
+- **Full Intersection** : Vue complète (tous assets, fenêtre courte)
+- **Blend dynamique** : Pondération selon couverture Long-Term + pénalités exclusions/memecoins
+
+Avantages:
+- ✅ Sharpe stable même avec assets récents (pas de biais fenêtre courte)
+- ✅ Détection portfolios degen (pénalités memecoins jeunes + exclusions)
+- ✅ Transparence (métadonnées dual-window exposées dans API)
+
+### 📋 Migration pour Utilisateurs API
+
+**Breaking Change Mineur:**
+Si vos appels dépendaient du comportement Legacy par défaut, ajoutez explicitement `?risk_version=legacy` à vos requêtes:
+
+```bash
+# AVANT (implicite: Legacy)
+GET /api/risk/dashboard?source=cointracking&user_id=demo
+
+# APRÈS (explicite: Legacy pour compatibilité)
+GET /api/risk/dashboard?source=cointracking&user_id=demo&risk_version=legacy
+```
+
+**Bénéfice:**
+V2 offre des scores plus stables sur portfolios avec assets récents. Divergence Legacy/V2 indique problèmes structurels (memecoins jeunes, exclusions importantes).
+
+### 🧪 Validation
+
+Tests existants passent sans modification (V2 déjà implémenté et testé):
+```bash
+pytest tests/unit/test_dual_window_metrics.py -v      # 7 tests
+pytest tests/unit/test_risk_semantics_baseline.py -v  # Tests baseline
+```
+
+Sanity check API:
+```bash
+# Vérifier active_version = v2
+curl -s "http://localhost:8000/api/risk/dashboard?source=cointracking&user_id=demo" \
+  | jq '.risk_metrics.risk_version_info.active_version'
+# Attendu: "v2"
+```

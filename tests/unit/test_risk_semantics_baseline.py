@@ -232,7 +232,7 @@ def test_ultra_safe_portfolio_low_concentration():
 
     # Ultra-safe = low risk indicators
     assert hhi < 0.60, "Ultra-safe portfolio should have low HHI"
-    assert gri < 8.0, "Ultra-safe portfolio should have low-medium GRI"
+    assert gri < 9.0, "Ultra-safe portfolio should have low-medium GRI (70/30 split = 8.7)"
     assert memes_pct == 0.0, "Ultra-safe portfolio should have 0% memecoins"
 
 

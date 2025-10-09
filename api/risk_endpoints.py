@@ -543,8 +543,8 @@ async def get_risk_dashboard(
     lookback_days: int = Query(30, ge=10, le=365, description="Fenêtre pour corrélations (jours)"),
     user_id: Optional[str] = Query(None, description="User ID (optionnel, prioritaire sur X-User header)"),
     user_header: str = Depends(get_active_user),
-    # 🆕 Risk Version (Phase 5 - Shadow Mode)
-    risk_version: str = Query("v2_shadow", description="Version Risk Score: legacy | v2_shadow | v2_active"),
+    # 🆕 Risk Version (Phase 5 - V2 Active)
+    risk_version: str = Query("v2_active", description="Version Risk Score: legacy | v2_shadow | v2_active"),
     # 🆕 Dual Window System parameters
     use_dual_window: bool = Query(True, description="Activer système dual-window (long-term + full intersection)"),
     min_history_days: int = Query(180, ge=90, le=365, description="Jours minimum pour cohorte long-term"),
