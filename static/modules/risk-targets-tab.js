@@ -310,9 +310,13 @@ export function renderActionPlan(current, proposed) {
         </div>
         <div class="risk-grid">
           ${plan.actions.map(action => {
-            // Validate action has required properties
-            if (!action || !action.asset || action.amount == null || action.current == null || action.target == null) {
-              console.warn('[renderActionPlan] Invalid action:', action);
+            // Validate action has required properties (support both formats: _pct and non-_pct)
+            const amount = action.change_pct ?? action.amount;
+            const current = action.current_pct ?? action.current;
+            const target = action.target_pct ?? action.target;
+
+            if (!action || !action.asset || amount == null || current == null || target == null) {
+              console.warn('[renderActionPlan] Invalid action (missing required fields):', action);
               return '';
             }
 
@@ -323,7 +327,7 @@ export function renderActionPlan(current, proposed) {
               <div class="metric-row">
                 <span class="metric-label">${icon} ${action.asset}:</span>
                 <span class="metric-value" style="color: ${color};">
-                  ${action.action === 'buy' ? '+' : ''}${action.amount.toFixed(1)}% (${action.current.toFixed(1)}% → ${action.target.toFixed(1)}%)
+                  ${action.action === 'buy' ? '+' : ''}${amount.toFixed(1)}% (${current.toFixed(1)}% → ${target.toFixed(1)}%)
                 </span>
               </div>
             `;
