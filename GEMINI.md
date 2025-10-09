@@ -1,5 +1,11 @@
 # GEMINI.md — Contexte rapide (Crypto Rebal Starter)
 
+> Canonical Source Notice
+>
+> La source unique de vérité pour les règles agents est `AGENTS.md` (générique, multi‑IA). Ce document est un mémo ciblé pour Gemini. En cas de divergence, suivre `AGENTS.md`.
+>
+> Dernière synchro avec `AGENTS.md`: Oct 2025.
+
 ## Environnement
 - **OS**: Windows 11  
 - **Shell**: PowerShell  

@@ -1,0 +1,289 @@
+Medium_Risk_Contra.csv
+
+📋 Points clés de votre portfolio
+🎯 Niveau de risque
+Élevé - Attention aux corrections brutales
+📊 Diversification
+Excellente - Portfolio bien réparti
+⚡ Performance/Risque
+Excellent - Rendement supérieur pour le risque pris
+🔝 Concentration
+Top 5: 234.5% • HHI: 2.57
+💵 Stablecoins
+54.5% du portefeuille
+🧪 Données de calcul
+8 actifs utilisés
+⚠️ Risk Alerts
+✅ All Clear
+No significant risk alerts at this time.
+💡 Recommandations d'amélioration
+🔗
+Réduire les corrélations élevées
+Important
+Corrélations >75% détectées entre ETH-AAVE, ETH-UNI, LINK-AAVE, BTC-ETH, ETH-LINK, BTC-SOL
+▶️ Diversifiez vers des secteurs moins corrélés (BTC vs ETH vs secteurs niche)
+📊 Portfolio Summary
+Total Value:
+55 000,00 $
+Number of Assets:
+8
+Data Confidence
+95.0%
+📉 Value at Risk (VaR)
+lookback 30j (VaR), 60j (CVaR)
+VaR 95% (1 day)
+-4.11%
+💡 Valeur hors limites
+VaR 99% (1 day)
+-5.75%
+💡 Valeur hors limites
+CVaR 95% (1 day)
+-5.68%
+CVaR 99% (1 day)
+-8.22%
+📊 Benchmarks crypto: Conservateur: -4%, Typique: -7%, Agressif: -12%
+📈 Risk-Adjusted Performance
+Vol 45j • Sharpe 90j • Sortino 120j • Calmar 365j
+Volatility (Annual)
+47.42%
+💡 Volatilité modérée
+Sharpe Ratio
+2.01
+💡 Excellent rendement ajusté au risque
+Sortino Ratio
+3.40
+💡 Excellente protection contre les baisses
+Calmar Ratio
+5.69
+📊 Benchmarks crypto: Excellent: >1.5, Bon: >1.0, Acceptable: >0.5 (Sharpe)
+📊 Drawdown Analysis
+lookback 180j
+Max Drawdown
+-17.10%
+💡 Valeur hors limites
+Current Drawdown
+-11.69%
+Risk Score
+85.0/100
+📈 Long-Term (180d, 7 assets, 99%)
+Sharpe: 2.01
+🔍 Full Intersection (358d, 8 assets)
+Sharpe: 1.10
+✓ Score autoritaire basé sur Long-Term (stable)
+Structural struct
+65.0/100
+Risk Level
+very low
+📊 Crypto historique: Bon: -30%, Typique: -50%, Extrême: -70%+
+🔗 Diversification Analysis corr 90j
+Diversification Ratio
+1.16
+💡 Bien diversifié (corrélations faibles ou négatives)
+Effective Assets
+7.0
+💡 Très peu d'actifs effectifs
+📊 Diversification: Excellent: >0.7, Limité: 0.4-0.7, Faible: <0.4
+Top Asset Correlations:
+ETH - AAVE:
+80.2%
+ETH - UNI:
+79.5%
+LINK - AAVE:
+78.5%
+🎯 Phase 3A: Advanced Risk Analysis
+VaR Models Active
+Group Risk Index (GRI)
+Group Risk Index (GRI)
+3.7/10
+Risk Level
+MEDIUM
+Groups Count
+6
+Exposition par Groupes
+BTC
+38%
+DeFi
+31%
+ETH
+16%
+SOL
+8%
+L1/L0 majors
+5%
+⚠️ Portfolio risque modéré
+Monte Carlo Simulation
+Simulations
+10,000
+Pire scénario
+-68.5%
+Probabilité perte >20%
+12.3%
+Risk Attribution
+Diversification Ratio
+1.16
+Effective Assets
+7
+Attribution par Groupe:
+DeFi
+30.9% (niveau 5/10)
+BTC
+38.2% (niveau 2/10)
+ETH
+16.4% (niveau 3/10)
+SOL
+8.2% (niveau 6/10)
+L1/L0 majors
+5.5% (niveau 6/10)
+L2/Scaling
+0.9% (niveau 5/10)
+
+📊 CCS Market Score
+55
+Bullish
+Model Version:
+ccs-1
+Last Update:
+23:26:29
+🔄 Position dans le Cycle
+🟢
+BULL BUILD
+Mois 18 post-halving
+(Dernier halving: 20 avril 2024)
+Cycle Score:
+100/100
+Confidence:
+40%
+⚖️ Stratégie Hybride
+CCS Original:
+55
+Poids Cycle:
+30%
+CCS Mixte*:
+69
+Stratégie:
+Bullish
+
+Scores:
+🎯 CCS Mixte (Directeur)
+69
+Bon
+🔗 On-Chain Composite
+36
+Faible
+🛡️ Risk Score
+85
+Excellent
+⚖️ Score Décisionnel
+62
+Bon
+Contradiction: 48%
+
+Analytics:
+DECISION INDEX
+ℹ️
+65
+Cycle 100
+·
+On-Chain 36
+·
+Risk 85
+Trend (1j)
+… Historique insuffisant
+REGIME
+Euphorie
+Neutral
+Bearish
+Décision
+Phase
+Expansion
+Contradiction
+48%
+Cap actif
+1%
+Mode
+Manual
+Système
+Backend
+healthy
+Signals
+healthy
+Governance
+IDLE
+Source: allocation_engine_v2 • Live: ON • 23:27:29
+🔄 Cycle
+40%
+100
+Bull Market Building (18m post-halving)
+18m post-halving
+💡 ETH + midcaps progressifs, équilibre
+🔗 On-Chain
+86%
+36
+Critiques: 1
+Top Drivers: sentiment_social (40), cycle_technical (37)
+Consensus: neutral, bullish, bullish
+🛡️ Risque & Budget
+85
+VaR95: — • Vol: —
+💰 Risky: 35% • Stables: 65%
+🤖 Régime & Sentiment
+🟢 Expansion
+64%
+Fear & Greed: — • Neutre
+💡 Recommandations Intelligentes
+🎯 Allocation stables: 65%
+strategy
+Consensus confirmé par 3 sources
+• Strategy: V2 engine allocation (bullish phase)
+• Regime: Stables ≥50%, alts ≤20%, memes=0%
+• Regime: Allocation stables recommandée: 65%
+• Risk: Budget de risque calculé par algorithme sophistiqué
+high
+💡 Expansion en cours
+regime
+Maintenir équilibre, rotation progressive vers ETH/midcaps
+medium
+Budget & Objectifs
+💡 Objectifs Théoriques
+Budget Risque: regime_based
+Stablecoins
+Objectif
+65.0%
+$35,750
+BTC
+Objectif
+13.7%
+$7,535
+ETH
+Objectif
+10.4%
+$5,720
+L2/Scaling
+Objectif
+2.4%
+$1,320
+SOL
+Objectif
+2.3%
+$1,265
+L1/L0 majors
+Objectif
+2.1%
+$1,155
+DeFi
+Objectif
+1.7%
+$935
+AI/Data
+Objectif
+1.4%
+$770
+Gaming/NFT
+Objectif
+0.7%
+$385
+Memecoins
+Objectif
+0.3%
+$165
+💰 Budget stables théorique: 65% (calculé par algorithme de risque)

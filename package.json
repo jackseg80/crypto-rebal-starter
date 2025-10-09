@@ -1,0 +1,17 @@
+{
+  "name": "crypto-rebal-starter",
+  "version": "1.0.0",
+  "description": "Crypto Portfolio Rebalancing System",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage"
+  },
+  "devDependencies": {
+    "vitest": "^1.2.0",
+    "@vitest/ui": "^1.2.0",
+    "happy-dom": "^13.0.0"
+  }
+}

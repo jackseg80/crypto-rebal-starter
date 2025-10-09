@@ -470,6 +470,44 @@
       } catch { return null; }
     }
 
+    // ===== CROSS-PAGE CACHE: Read from risk-dashboard's persistent cache (12h TTL) =====
+    function readRiskDashboardCache() {
+      try {
+        const dataSource = globalConfig.get('data_source') || 'unknown';
+        const cacheKey = `risk_scores_cache_${dataSource}`;
+        const cached = localStorage.getItem(cacheKey);
+
+        if (!cached) {
+          console.log('⏭️ No risk-dashboard cache found');
+          return null;
+        }
+
+        const parsed = JSON.parse(cached);
+        const age = Date.now() - parsed.timestamp;
+        const ttl = 12 * 60 * 60 * 1000; // 12 heures (même TTL que risk-dashboard)
+
+        if (age > ttl) {
+          console.log(`⏰ Risk dashboard cache expired (age: ${Math.round(age / 60000)} min > 720 min)`);
+          return null;
+        }
+
+        const ageMin = Math.round(age / 60000);
+        console.log(`✅ CROSS-PAGE CACHE HIT: Using risk-dashboard cache (age: ${ageMin} min, TTL: 12h)`);
+
+        return {
+          onchainScore: parsed.data?.onchainScore,
+          riskScore: parsed.data?.riskScore,
+          blendedScore: parsed.data?.blendedScore,
+          ccsScore: parsed.data?.ccsScore,
+          timestamp: parsed.timestamp,
+          source: 'risk_dashboard_12h_cache'
+        };
+      } catch (e) {
+        console.warn('❌ Failed to read risk-dashboard cache:', e.message);
+        return null;
+      }
+    }
+
     // Update badges with current analytics data
     function updateAnalyticsBadges() {
       if (!window.analyticsBadges) return;
@@ -699,6 +737,31 @@
       try {
         const priceDays = 365, corrDays = 90;
 
+        // 0) PRIORITY: Try cross-page cache from risk-dashboard (12h TTL) - MUCH faster!
+        if (!force) {
+          const dashboardCache = readRiskDashboardCache();
+          if (dashboardCache) {
+            // Hydrate store immediately with cached scores
+            if (typeof dashboardCache.onchainScore === 'number') {
+              store.set('scores.onchain', dashboardCache.onchainScore);
+              console.log(`⚡ FAST: On-Chain from cache: ${dashboardCache.onchainScore}`);
+              loadedFromCache++;
+            }
+            if (typeof dashboardCache.riskScore === 'number') {
+              store.set('scores.risk', dashboardCache.riskScore);
+              console.log(`⚡ FAST: Risk from cache: ${dashboardCache.riskScore}`);
+              loadedFromCache++;
+            }
+            if (typeof dashboardCache.blendedScore === 'number') {
+              store.set('scores.blended', dashboardCache.blendedScore);
+              console.log(`⚡ FAST: Blended from cache: ${dashboardCache.blendedScore}`);
+            }
+
+            // Skip slow API calls if cache is fresh
+            console.log(`✅ Skipping slow Risk/On-Chain API calls - using ${Math.round((Date.now() - dashboardCache.timestamp) / 60000)}min old cache`);
+          }
+        }
+
         // 1) Risk (backend) - Use orchestrator's hydrated value (DON'T OVERWRITE)
         // Orchestrator already loaded risk score via risk-data-orchestrator.js
         const existingRiskScore = store.get('scores.risk');
@@ -746,9 +809,14 @@
         // 3) On-Chain (via scraper/proxy) - SWR Cache with hard refresh detection
         const isHardRefresh = performance.navigation?.type === 1 ||
                               performance.getEntriesByType?.('navigation')?.[0]?.type === 'reload';
-        const manualRefresh = window.location.search.includes('force_onchain=true') || isHardRefresh;
+        const manualRefresh = window.location.search.includes('force_onchain=true') || isHardRefresh || force;
 
-        if (!manualRefresh && isCacheValid(CACHE_CONFIG.onchain.key, CACHE_CONFIG.onchain.ttl)) {
+        // Check if already loaded from dashboard cache
+        const existingOnchainScore = store.get('scores.onchain');
+        if (!manualRefresh && typeof existingOnchainScore === 'number') {
+          console.log('✅ On-Chain already in store from dashboard cache, skipping API');
+          loadedFromCache++;
+        } else if (!manualRefresh && isCacheValid(CACHE_CONFIG.onchain.key, CACHE_CONFIG.onchain.ttl)) {
           console.log('✅ On-Chain data loaded from legacy cache');
           const onchainData = getCache(CACHE_CONFIG.onchain.key);
           if (typeof onchainData.score === 'number') {
@@ -998,7 +1066,8 @@
         }
 
         const cacheEfficiency = loadedFromCache > 0 ? `${loadedFromCache}/4 from cache` : 'full calculation';
-        console.log(`🎯 Unified data loading completed - ${cacheEfficiency}${loadedFromCache > 0 ? ' ⚡' : ''}`);
+        const crossPageUsed = store.get('scores.onchain') && store.get('scores.risk') ? ' (12h cross-page cache)' : '';
+        console.log(`🎯 Unified data loading completed - ${cacheEfficiency}${crossPageUsed}${loadedFromCache > 0 ? ' ⚡ FAST' : ''}`);
 
         // CONTRÔLES D - Invariants obligatoires (3 assertions critiques)
         try {

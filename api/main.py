@@ -4,6 +4,7 @@ from time import monotonic
 import os, sys, inspect, hashlib, time, json
 from datetime import datetime
 import httpx
+# Force reload for V2 penalty implementation
 from fastapi import FastAPI, Query, Body, Response, HTTPException, Request, APIRouter, Depends, Header, Path
 import logging
 from fastapi.middleware.cors import CORSMiddleware
@@ -1748,7 +1749,7 @@ app.include_router(kraken_router)
 app.include_router(smart_taxonomy_router)
 app.include_router(advanced_rebalancing_router)
 app.include_router(risk_router)
-app.include_router(risk_dashboard_router)
+# app.include_router(risk_dashboard_router)  # ⛔️ DÉSACTIVÉ - Conflit route /api/risk/dashboard avec risk_router (Shadow Mode V2)
 app.include_router(execution_history_router)
 app.include_router(monitoring_advanced_router)
 app.include_router(portfolio_monitoring_router)

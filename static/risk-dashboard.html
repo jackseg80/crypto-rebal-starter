@@ -2172,6 +2172,20 @@
         return `${v.toFixed(cur === 'BTC' ? 8 : 2)} ${cur}`;
       }
     }
+    // Score color utility (IMPORTANT: positive semantics - higher = better/more robust)
+    function pickScoreColor(score) {
+      if (score == null) return 'var(--theme-text)';
+      if (score > 70) return 'var(--success)';    // Excellent (robust)
+      if (score >= 40) return 'var(--warning)';   // Medium
+      return 'var(--danger)';                     // Low (risky)
+    }
+    // Score interpretation utility
+    function getScoreInterpretation(score) {
+      if (score == null) return 'Métrique non disponible';
+      if (score > 70) return 'Portfolio robuste - bien protégé';
+      if (score >= 40) return 'Robustesse modérée - surveiller';
+      return 'Portfolio fragile - risque élevé';
+    }
 
     // Import core modules
     import { store } from './core/risk-dashboard-store.js';
@@ -2530,6 +2544,16 @@
             danger: "Très peu d'actifs effectifs",
             warning: "Diversification partielle",
             good: "Bonne diversification"
+          }
+        },
+        'risk_score': {
+          danger: [0, 40],     // 0-40: faible robustesse
+          warning: [40, 65],   // 40-65: robustesse modérée
+          good: [65, 100],     // 65-100: bonne robustesse
+          interpretation: {
+            danger: "Portfolio fragile - risque élevé",
+            warning: "Robustesse modérée - surveiller",
+            good: "Portfolio robuste - bien protégé"
           }
         }
       };
@@ -4234,7 +4258,12 @@
             </div>
             <div class="metric-row">
               <span class="metric-label">Risk Score</span>
-              <span class="metric-value" data-score="risk-display">${safeFixed(m.risk_score, 1)}/100</span>
+              <span class="metric-value hinted" data-key="risk_score" data-value="${m.risk_score}" data-score="risk-display" style="color: ${pickScoreColor(m.risk_score)}">
+                ${safeFixed(m.risk_score, 1)}/100
+              </span>
+            </div>
+            <div class="metric-interpretation">
+              💡 ${getScoreInterpretation(m.risk_score)}
             </div>
 
             <!-- 🆕 Shadow Mode V2 Badge -->

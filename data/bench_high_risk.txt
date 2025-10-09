@@ -1,0 +1,293 @@
+High_Risk_Contra.csv
+
+Risk overview:
+📋 Points clés de votre portfolio
+🎯 Niveau de risque
+Contrôlé - Bon équilibre risque/rendement
+📊 Diversification
+Excellente - Portfolio bien réparti
+⚡ Performance/Risque
+À améliorer - Risque élevé vs rendement
+🔝 Concentration
+Top 5: 262.7% • HHI: 3.23
+💵 Stablecoins
+61.1% du portefeuille
+🧪 Données de calcul
+8 actifs utilisés
+⚠️ Risk Alerts
+✅ All Clear
+No significant risk alerts at this time.
+💡 Recommandations d'amélioration
+📈
+Améliorer le rendement ajusté au risque
+Important
+Sharpe ratio de 0.80 - cherchez des actifs avec meilleur ratio risque/rendement.
+▶️ Considérez réduire les memecoins, augmenter BTC/ETH
+🔗
+Réduire les corrélations élevées
+Important
+Corrélations >75% détectées entre DOGE-SHIB, BTC-DOGE, BTC-ETH, ETH-AVAX, AVAX-APT, ETH-DOGE, BTC-SOL, ETH-SHIB
+▶️ Diversifiez vers des secteurs moins corrélés (BTC vs ETH vs secteurs niche)
+📊 Portfolio Summary
+Total Value:
+49 100,00 $
+Number of Assets:
+8
+Data Confidence
+95.0%
+📉 Value at Risk (VaR)
+lookback 30j (VaR), 60j (CVaR)
+VaR 95% (1 day)
+-5.55%
+💡 Valeur hors limites
+VaR 99% (1 day)
+-8.58%
+💡 Valeur hors limites
+CVaR 95% (1 day)
+-7.59%
+CVaR 99% (1 day)
+-9.67%
+📊 Benchmarks crypto: Conservateur: -4%, Typique: -7%, Agressif: -12%
+📈 Risk-Adjusted Performance
+Vol 45j • Sharpe 90j • Sortino 120j • Calmar 365j
+Volatility (Annual)
+61.33%
+💡 Volatilité modérée
+Sharpe Ratio
+0.80
+💡 Rendement/risque acceptable
+Sortino Ratio
+1.41
+💡 Excellente protection contre les baisses
+Calmar Ratio
+1.57
+📊 Benchmarks crypto: Excellent: >1.5, Bon: >1.0, Acceptable: >0.5 (Sharpe)
+📊 Drawdown Analysis
+lookback 180j
+Max Drawdown
+-32.50%
+💡 Valeur hors limites
+Current Drawdown
+-15.65%
+Risk Score
+40.0/100
+📈 Long-Term (180d, 8 assets, 100%)
+Sharpe: 0.80
+🔍 Full Intersection (358d, 8 assets)
+Sharpe: 0.32
+✓ Score autoritaire basé sur Long-Term (stable)
+Structural struct
+61.9/100
+Risk Level
+high
+📊 Crypto historique: Bon: -30%, Typique: -50%, Extrême: -70%+
+🔗 Diversification Analysis corr 90j
+Diversification Ratio
+1.16
+💡 Bien diversifié (corrélations faibles ou négatives)
+Effective Assets
+8.0
+💡 Très peu d'actifs effectifs
+📊 Diversification: Excellent: >0.7, Limité: 0.4-0.7, Faible: <0.4
+Top Asset Correlations:
+DOGE - SHIB:
+86.7%
+BTC - DOGE:
+78.6%
+BTC - ETH:
+76.5%
+🎯 Phase 3A: Advanced Risk Analysis
+VaR Models Active
+Group Risk Index (GRI)
+Group Risk Index (GRI)
+7.4/10
+Risk Level
+HIGH
+Groups Count
+5
+Exposition par Groupes
+Memecoins
+55%
+SOL
+31%
+L1/L0 majors
+9%
+BTC
+4%
+ETH
+1%
+🚨 Portfolio haut risque - Considérer diversifier
+Monte Carlo Simulation
+Simulations
+10,000
+Pire scénario
+-68.5%
+Probabilité perte >20%
+12.3%
+Risk Attribution
+Diversification Ratio
+1.16
+Effective Assets
+8
+Attribution par Groupe:
+Memecoins
+55.0% (niveau 9/10)
+SOL
+30.5% (niveau 6/10)
+L1/L0 majors
+9.0% (niveau 6/10)
+BTC
+4.3% (niveau 2/10)
+ETH
+1.2% (niveau 3/10)
+
+Market Cycles:
+📊 CCS Market Score
+55
+Bullish
+Model Version:
+ccs-1
+Last Update:
+Invalid Date
+🔄 Position dans le Cycle
+🟢
+BULL BUILD
+Mois 18 post-halving
+(Dernier halving: 20 avril 2024)
+Cycle Score:
+100/100
+Confidence:
+40%
+⚖️ Stratégie Hybride
+CCS Original:
+55
+Poids Cycle:
+30%
+CCS Mixte*:
+69
+Stratégie:
+Bullish
+
+Scores:
+🎯 CCS Mixte (Directeur)
+69
+Bon
+🔗 On-Chain Composite
+36
+Faible
+🛡️ Risk Score
+40
+Neutre
+⚖️ Score Décisionnel
+53
+Neutre
+Contradiction: 48%
+
+Analytics:
+DECISION INDEX
+ℹ️
+65
+Cycle 100
+·
+On-Chain 36
+·
+Risk 40
+Trend (1j)
+… Historique insuffisant
+REGIME
+Euphorie
+Neutral
+Bearish
+Décision
+Phase
+Expansion
+Contradiction
+48%
+Cap actif
+1%
+Mode
+Manual
+Système
+Backend
+healthy
+Signals
+healthy
+Governance
+IDLE
+Source: allocation_engine_v2 • Live: ON • 23:30:34
+🔄 Cycle
+40%
+100
+Bull Market Building (18m post-halving)
+18m post-halving
+💡 ETH + midcaps progressifs, équilibre
+🔗 On-Chain
+86%
+36
+Critiques: 1
+Top Drivers: sentiment_social (40), cycle_technical (37)
+Consensus: neutral, bullish, bullish
+🛡️ Risque & Budget
+40
+VaR95: — • Vol: —
+💰 Risky: 32% • Stables: 68%
+🤖 Régime & Sentiment
+🟢 Expansion
+93%
+Fear & Greed: — • Neutre
+💡 Recommandations Intelligentes
+🎯 Allocation stables: 68%
+strategy
+Consensus confirmé par 3 sources
+• Strategy: V2 engine allocation (bullish phase)
+• Regime: Allocation stables recommandée: 68%
+• Risk: Budget de risque calculé par algorithme sophistiqué
+high
+💡 Expansion en cours
+regime
+Maintenir équilibre, rotation progressive vers ETH/midcaps
+medium
+Budget & Objectifs
+💡 Objectifs Théoriques
+Budget Risque: regime_based
+Stablecoins
+Objectif
+68.0%
+$33,388
+BTC
+Objectif
+12.5%
+$6,138
+ETH
+Objectif
+9.5%
+$4,665
+L2/Scaling
+Objectif
+2.2%
+$1,080
+SOL
+Objectif
+2.1%
+$1,031
+L1/L0 majors
+Objectif
+1.9%
+$933
+DeFi
+Objectif
+1.6%
+$786
+AI/Data
+Objectif
+1.3%
+$638
+Gaming/NFT
+Objectif
+0.6%
+$295
+Memecoins
+Objectif
+0.3%
+$147
+💰 Budget stables théorique: 68% (calculé par algorithme de risque)

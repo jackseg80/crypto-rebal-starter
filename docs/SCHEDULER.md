@@ -455,8 +455,8 @@ CronTrigger(hour=2, minute=0, timezone="Europe/Zurich", jitter=60)
 
 ## Related Documentation
 
-- [P&L Tracking](PORTFOLIO_PNL.md) - Portfolio snapshot system
-- [OHLCV Data](PRICE_HISTORY.md) - Price history updates (if exists)
+- [P&L Today](PNL_TODAY.md) - Portfolio snapshot system
+- OHLCV Data: see [risk-dashboard.md](risk-dashboard.md) (sources de données et scripts), and `services/price_history.py`
 - [Startup Lifecycle](../api/startup.py) - Application initialization
 - [Multi-User System](../CLAUDE.md#3-système-multi-utilisateurs) - User isolation
 
