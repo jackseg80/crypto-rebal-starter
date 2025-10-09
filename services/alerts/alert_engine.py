@@ -1429,12 +1429,17 @@ class AlertEngine:
             realtime_engine = await self._get_realtime_broadcaster()
             if realtime_engine:
                 # Create stream event for the alert
+                # Format message from alert data (Alert has no 'message' attribute)
+                formatted_msg = alert.format_unified_message()
+                message_text = formatted_msg.get("action", f"{alert.alert_type.value}: {alert.severity.value}")
+
                 event_data = {
                     "alert_id": alert.id,
                     "type": alert.alert_type.value,
                     "severity": alert.severity.value,
-                    "message": alert.message,
-                    "context": alert.context,
+                    "message": message_text,
+                    "formatted_message": formatted_msg,  # Include full formatted message
+                    "data": alert.data,  # Include alert data for context
                     "timestamp": alert.created_at.isoformat(),
                     "source": "alert_engine"
                 }
