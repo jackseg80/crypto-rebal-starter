@@ -33,7 +33,7 @@
         import { store } from './core/risk-dashboard-store.js';
         import { UNIFIED_ASSET_GROUPS, getAssetGroup, groupAssetsByClassification } from './shared-asset-groups.js';
         import { selectCapPercent, selectPolicyCapPercent, selectEngineCapPercent } from './selectors/governance.js';
-        import { fetchSaxoSummary, formatCurrency, getMetricColor } from './modules/wealth-saxo-summary.js';
+        // Note: fetchSaxoSummary imported dynamically in refreshSaxoTile() to avoid scope issues
 
         const colorForScore = (s) => s > 70 ? 'var(--danger)' : s >= 40 ? 'var(--warning)' : 'var(--success)';
 
@@ -2262,6 +2262,8 @@
             if (statusEl) statusEl.className = 'status-badge status-loading';
 
             try {
+                // Dynamic import to access module functions
+                const { fetchSaxoSummary, formatCurrency, getMetricColor } = await import('./modules/wealth-saxo-summary.js');
                 const summary = await fetchSaxoSummary();
 
                 if (summary.isEmpty || summary.error) {

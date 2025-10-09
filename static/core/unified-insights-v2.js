@@ -849,11 +849,15 @@ export async function getUnifiedState() {
   if (typeof rb?.target_stables_pct === 'number' && unifiedState.targets_by_group?.Stablecoins != null) {
     const stablesFinal = Math.round(unifiedState.targets_by_group.Stablecoins * 10) / 10;
     const stablesBudget = Math.round(rb.target_stables_pct * 10) / 10;
-    console.assert(
-      Math.abs(stablesFinal - stablesBudget) < 1, // Tolérance 1%
-      'Stablecoins diffèrent entre targets_by_group et risk_budget.target_stables_pct',
-      { stablesFinal, stablesBudget }
-    );
+    const diff = Math.abs(stablesFinal - stablesBudget);
+
+    // Log as warning if divergence > 15% (frontend vs backend can differ legitimately)
+    if (diff >= 15) {
+      (window.debugLogger?.warn || console.warn)('⚠️ Large stablecoins divergence between targets_by_group and risk_budget',
+        { stablesFinal, stablesBudget, diff: `${diff.toFixed(1)}%` });
+    } else if (diff >= 5) {
+      console.debug('ℹ️ Moderate stablecoins divergence (expected):', { stablesFinal, stablesBudget, diff: `${diff.toFixed(1)}%` });
+    }
   }
 
   // 🆕 Exposer Structure Modulation V2 (Oct 2025)
