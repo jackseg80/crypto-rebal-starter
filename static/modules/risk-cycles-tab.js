@@ -723,15 +723,19 @@ export async function createBitcoinCycleChart(canvasId, forceRefresh = false) {
   } catch (error) {
     console.error('❌ Failed to create Bitcoin cycle chart:', error);
 
-    // Show error message in canvas container
-    const container = canvas.parentElement;
-    container.innerHTML = `
-      <div style="text-align: center; padding: 2rem; color: var(--theme-text-muted);">
-        <div style="font-size: 1.2rem; margin-bottom: 1rem;">⚠️ Impossible de charger le graphique des cycles</div>
-        <div style="font-size: 0.9rem;">Erreur: ${error.message}</div>
-        <div style="font-size: 0.8rem; margin-top: 0.5rem;">Essayez de rafraîchir la page ou vérifiez votre connexion.</div>
-      </div>
-    `;
+    // Show error message in canvas container (if it still exists)
+    const container = canvas?.parentElement;
+    if (container) {
+      container.innerHTML = `
+        <div style="text-align: center; padding: 2rem; color: var(--theme-text-muted);">
+          <div style="font-size: 1.2rem; margin-bottom: 1rem;">⚠️ Impossible de charger le graphique des cycles</div>
+          <div style="font-size: 0.9rem;">Erreur: ${error.message}</div>
+          <div style="font-size: 0.8rem; margin-top: 0.5rem;">Essayez de rafraîchir la page ou vérifiez votre connexion.</div>
+        </div>
+      `;
+    } else {
+      console.warn('⚠️ Cannot show error message: container not found');
+    }
 
     return null;
   }

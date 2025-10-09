@@ -4686,6 +4686,13 @@ dans les 10 000 scénarios.`;
 
       async init() {
         console.log('🚀 BitcoinCycleChart init() called');
+
+        // Guard: prevent re-initialization
+        if (this.chartLoaded) {
+          console.debug('⚡ Chart already loaded, skipping re-initialization');
+          return;
+        }
+
         try {
           // Afficher un indicateur de chargement
           if (this.placeholder) {
