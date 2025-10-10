@@ -399,8 +399,9 @@ window.applyStrategy = async function (mode) {
 
     // Convert proposal targets to format expected by /execution/governance/propose
     // API expects: [{ symbol: "BTC", weight: 0.35 }] where weight is 0-1 fraction
+    // Filter out zero allocations (API rejects weight: 0)
     const targets = Object.entries(proposal.targets)
-      .filter(([key]) => key !== 'model_version')
+      .filter(([key, value]) => key !== 'model_version' && value > 0)
       .map(([symbol, target_pct]) => ({
         symbol: symbol,
         weight: target_pct / 100 // Convert percentage to fraction (35% -> 0.35)
