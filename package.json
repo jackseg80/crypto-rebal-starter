@@ -7,11 +7,17 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest --coverage"
+    "test:coverage": "vitest --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:report": "playwright show-report tests/e2e-report"
   },
   "devDependencies": {
-    "vitest": "^1.2.0",
+    "@playwright/test": "^1.56.0",
     "@vitest/ui": "^1.2.0",
-    "happy-dom": "^13.0.0"
+    "happy-dom": "^13.0.0",
+    "vitest": "^1.2.0"
   }
 }
