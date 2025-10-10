@@ -1096,17 +1096,44 @@ function showSourcesConfiguration() {
   }
 }
 
-function saveSourcesConfiguration() {
+async function saveSourcesConfiguration() {
   const ttl = document.getElementById('sources_snapshot_ttl').value;
   const warning = document.getElementById('sources_warning_threshold').value;
   const autoRefresh = document.getElementById('sources_auto_refresh').checked;
 
-  // NOTE: Save to localStorage for now (client-side only)
-  // TODO (tracked in TECHNICAL_DEBT.md): Implement server-side persistence
-  // via PUT /api/users/{user_id}/settings/sources for multi-device sync
-  localStorage.setItem('sources_auto_refresh', autoRefresh);
+  // Sauvegarde via API pour persistance multi-device
+  try {
+    const activeUser = localStorage.getItem('activeUser') || 'demo';
+    const response = await fetch('/api/users/settings', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User': activeUser
+      },
+      body: JSON.stringify({
+        sources_snapshot_ttl: parseInt(ttl),
+        sources_warning_threshold: parseInt(warning),
+        sources_auto_refresh: autoRefresh
+      })
+    });
 
-  showNotification('Configuration sources sauvegardée (local)', 'success');
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+    debugLogger.debug('Sources settings saved:', result);
+
+    // Backup localStorage pour compatibilité
+    localStorage.setItem('sources_auto_refresh', autoRefresh);
+
+    showNotification('✅ Configuration sources sauvegardée', 'success');
+  } catch (error) {
+    debugLogger.error('Failed to save sources settings:', error);
+    // Fallback localStorage
+    localStorage.setItem('sources_auto_refresh', autoRefresh);
+    showNotification('⚠️ Sauvegarde locale uniquement (API indisponible)', 'warning');
+  }
 }
 
 function toggleSourcesLogs() {
