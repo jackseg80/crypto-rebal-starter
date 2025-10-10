@@ -772,6 +772,11 @@ async def get_governance_state():
             logger.warning(f"Error generating IA suggestion: {e}")
         
         # CONSTRUCTION DE LA RÉPONSE UNIFIÉE
+        # Count pending approvals (plans in DRAFT or REVIEWED state)
+        pending_approvals = 0
+        if state.proposed_plan and state.proposed_plan.status in ["DRAFT", "REVIEWED"]:
+            pending_approvals = 1
+
         return GovernanceStateResponse(
             # Champs existants (compatibilité)
             current_state=current_state,
@@ -780,7 +785,7 @@ async def get_governance_state():
             contradiction_index=state.signals.contradiction_index if state.signals else 0.0,
             ml_signals_timestamp=state.signals.timestamp.isoformat() if state.signals and hasattr(state.signals, 'timestamp') and state.signals.timestamp else (state.last_update.isoformat() if state.last_update else datetime.now().isoformat()),
             active_policy=state.execution_policy.dict() if state.execution_policy else None,
-            pending_approvals=0,  # TODO: Implement decision tracking
+            pending_approvals=pending_approvals,
             next_update_time=state.last_update.isoformat() if state.last_update else None,
             etag=current_etag,
             auto_unfreeze_at=state.auto_unfreeze_at.isoformat() if state.auto_unfreeze_at else None,
@@ -884,11 +889,44 @@ async def get_ml_signals():
                 "timestamp": datetime.now().isoformat()
             }
         
+        # Derive policy recommendation from ML signals
+        derived_policy = None
+        try:
+            contradiction = signals.contradiction_index
+            confidence = signals.confidence
+
+            # Determine mode based on contradiction and confidence
+            if contradiction > 0.7 or confidence < 0.4:
+                mode = "Slow"
+                cap_daily = 0.03  # 3% cap for high uncertainty
+            elif contradiction < 0.3 and confidence > 0.8:
+                mode = "Aggressive"
+                cap_daily = 0.15  # 15% cap for high confidence
+            else:
+                mode = "Normal"
+                cap_daily = 0.08  # 8% cap default
+
+            # Adjust cap based on volatility if available
+            if hasattr(signals, 'volatility') and signals.volatility:
+                avg_vol = sum(signals.volatility.values()) / len(signals.volatility)
+                if avg_vol > 0.15:  # High volatility
+                    cap_daily = max(0.02, cap_daily * 0.5)  # Reduce cap by 50%
+
+            derived_policy = {
+                "mode": mode,
+                "cap_daily": cap_daily,
+                "ramp_hours": 48 if mode == "Slow" else 24 if mode == "Normal" else 12,
+                "rationale": f"Derived from contradiction={contradiction:.2f}, confidence={confidence:.2f}",
+                "confidence": confidence
+            }
+        except Exception as e:
+            logger.warning(f"Error deriving policy: {e}")
+
         return {
             "signals": {
                 "volatility": signals.volatility,
                 "regime": signals.regime,
-                "correlation": signals.correlation,  
+                "correlation": signals.correlation,
                 "sentiment": signals.sentiment,
                 "decision_score": signals.decision_score,
                 "confidence": signals.confidence,
@@ -897,7 +935,7 @@ async def get_ml_signals():
                 "sources_used": signals.sources_used,
                 "timestamp": signals.timestamp.isoformat() if hasattr(signals, 'timestamp') and signals.timestamp else None
             },
-            "derived_policy": None,  # TODO: Implement derived policy in MLSignals
+            "derived_policy": derived_policy,
             "timestamp": datetime.now().isoformat()
         }
         

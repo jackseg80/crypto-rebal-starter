@@ -1369,17 +1369,20 @@ class AlertEngine:
         """Extrait données de corrélation pour features ML"""
         if self.cross_asset_enabled and self.cross_asset_analyzer:
             try:
-                # Obtenir status corrélation actuel
-                status = self.cross_asset_analyzer.get_correlation_status("1h")
+                # Obtenir status corrélation multi-timeframe
+                status_1h = self.cross_asset_analyzer.get_correlation_status("1h")
+                status_4h = self.cross_asset_analyzer.get_correlation_status("4h")
+                status_1d = self.cross_asset_analyzer.get_correlation_status("1d")
+
                 return {
                     "correlation_matrices": {
-                        "1h": status.get("matrix", {}).get("correlation_matrix", np.array([])),
-                        "4h": np.array([]),  # TODO: implémenter multi-timeframe 
-                        "1d": np.array([])
+                        "1h": status_1h.get("matrix", {}).get("correlation_matrix", np.array([])),
+                        "4h": status_4h.get("matrix", {}).get("correlation_matrix", np.array([])),
+                        "1d": status_1d.get("matrix", {}).get("correlation_matrix", np.array([]))
                     },
                     "correlation_history": getattr(self.cross_asset_analyzer, '_correlation_history', {}),
-                    "systemic_risk": status.get("risk_assessment", {}),
-                    "assets": status.get("matrix", {}).get("assets", [])
+                    "systemic_risk": status_1h.get("risk_assessment", {}),
+                    "assets": status_1h.get("matrix", {}).get("assets", [])
                 }
             except Exception as e:
                 logger.warning(f"Error extracting correlation data: {e}")
