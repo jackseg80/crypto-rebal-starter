@@ -10,15 +10,17 @@ Ce module fournit:
 - Analytics de performance des stratégies
 """
 
-from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, Depends
 from fastapi.responses import JSONResponse
 from typing import Dict, List, Any, Optional
 import os
 import logging
 from datetime import datetime, timezone, timedelta
 import json
-import os
 from pathlib import Path
+
+# Import services pour données réelles
+from services.portfolio import portfolio_analytics
 
 logger = logging.getLogger(__name__)
 
@@ -54,10 +56,142 @@ def save_json_file(file_path: Path, data: Any):
     except Exception as e:
         logger.error(f"Error saving {file_path}: {e}")
 
+async def get_real_portfolio_data(source: str = "cointracking", user_id: str = "demo") -> Dict[str, Any]:
+    """
+    Récupérer les vraies données de portefeuille via les services
+
+    Args:
+        source: Source de données (cointracking, cointracking_api, etc.)
+        user_id: ID utilisateur pour isolation multi-tenant
+
+    Returns:
+        Dict avec métriques de portfolio réelles
+    """
+    try:
+        # Import local pour éviter imports circulaires
+        from api.main import resolve_current_balances, _to_rows
+
+        # 1. Récupérer les balances actuelles
+        res = await resolve_current_balances(source=source, user_id=user_id)
+        items = res.get("items", [])
+
+        if not items:
+            logger.warning(f"No portfolio items found for user={user_id}, source={source}")
+            return _get_empty_portfolio_data()
+
+        # 2. Calculer métriques de base avec portfolio_analytics
+        balances_data = {"items": items}
+        metrics = portfolio_analytics.calculate_portfolio_metrics(balances_data)
+
+        # 3. Calculer métriques de performance (P&L)
+        perf_metrics = portfolio_analytics.calculate_performance_metrics(
+            current_data=metrics,
+            user_id=user_id,
+            source=source,
+            anchor="prev_snapshot",
+            window="24h"
+        )
+
+        perf_metrics_7d = portfolio_analytics.calculate_performance_metrics(
+            current_data=metrics,
+            user_id=user_id,
+            source=source,
+            anchor="prev_snapshot",
+            window="7d"
+        )
+
+        # 4. Construire structure par asset avec allocations
+        total_value = metrics["total_value_usd"]
+        assets_by_group = {}
+
+        for item in items:
+            group = item.get("group", "Others")
+            value = item.get("value_usd", 0) or item.get("usd_value", 0)
+
+            if group not in assets_by_group:
+                assets_by_group[group] = {
+                    "current_allocation": 0.0,
+                    "target_allocation": 0.0,  # TODO: Récupérer depuis config user
+                    "deviation": 0.0,
+                    "value_usd": 0.0,
+                    "change_24h": 0.0  # TODO: Calculer depuis historique prix
+                }
+
+            assets_by_group[group]["value_usd"] += value
+
+        # Calculer allocations en %
+        for group, data in assets_by_group.items():
+            data["current_allocation"] = (data["value_usd"] / total_value * 100) if total_value > 0 else 0
+            # Pour l'instant, target = current (pas de système de targets configurables)
+            # TODO: Récupérer targets depuis Strategy API ou config user
+            data["target_allocation"] = data["current_allocation"]
+            data["deviation"] = data["current_allocation"] - data["target_allocation"]
+
+        # 5. Métriques de performance globales
+        change_24h = perf_metrics.get("percentage_change", 0.0) if perf_metrics.get("performance_available") else 0.0
+        change_7d = perf_metrics_7d.get("percentage_change", 0.0) if perf_metrics_7d.get("performance_available") else 0.0
+
+        # 6. Retourner structure compatible
+        return {
+            "total_value": total_value,
+            "change_24h": change_24h,
+            "change_7d": change_7d,
+            "last_update": datetime.now(timezone.utc).isoformat(),
+            "assets": assets_by_group,
+            "performance_metrics": {
+                "sharpe_ratio": 0.0,  # TODO: Calculer depuis risk_manager
+                "max_drawdown": 0.0,  # TODO: Calculer depuis historique
+                "volatility": 0.0,    # TODO: Calculer depuis historique
+                "total_return_7d": change_7d,
+                "total_return_30d": 0.0  # TODO: Calculer
+            },
+            "metadata": {
+                "source": source,
+                "user_id": user_id,
+                "asset_count": metrics["asset_count"],
+                "group_count": metrics["group_count"],
+                "diversity_score": metrics["diversity_score"]
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching real portfolio data for user={user_id}, source={source}: {e}")
+        # Fallback sur données vides plutôt que mock
+        return _get_empty_portfolio_data()
+
+
+def _get_empty_portfolio_data() -> Dict[str, Any]:
+    """Retourne une structure de portfolio vide"""
+    return {
+        "total_value": 0.0,
+        "change_24h": 0.0,
+        "change_7d": 0.0,
+        "last_update": datetime.now(timezone.utc).isoformat(),
+        "assets": {},
+        "performance_metrics": {
+            "sharpe_ratio": 0.0,
+            "max_drawdown": 0.0,
+            "volatility": 0.0,
+            "total_return_7d": 0.0,
+            "total_return_30d": 0.0
+        },
+        "metadata": {
+            "source": "none",
+            "user_id": "unknown",
+            "asset_count": 0,
+            "group_count": 0,
+            "diversity_score": 0
+        }
+    }
+
+
 def get_mock_portfolio_data():
-    """Générer des données de portefeuille simulées pour développement"""
+    """
+    DEPRECATED: Générer des données de portefeuille simulées pour développement
+    Utilisé uniquement comme fallback si USE_MOCK_MONITORING=true
+    """
     now = datetime.now(timezone.utc)
-    
+
     return {
         "total_value": 433032.21,
         "change_24h": 2.34,
@@ -96,114 +230,166 @@ def get_mock_portfolio_data():
     }
 
 @router.get("/metrics")
-async def get_portfolio_metrics():
-    """Obtenir les métriques actuelles du portefeuille"""
+async def get_portfolio_metrics(
+    source: str = Query("cointracking", description="Source de données (cointracking, cointracking_api, etc.)"),
+    user_id: str = Query("demo", description="ID utilisateur pour isolation multi-tenant")
+):
+    """
+    Obtenir les métriques actuelles du portefeuille
+
+    Args:
+        source: Source de données (cointracking, cointracking_api, saxobank, etc.)
+        user_id: ID utilisateur (demo, jack, donato, etc.)
+
+    Returns:
+        Métriques complètes du portfolio avec allocations et déviations
+    """
     try:
+        # Récupérer les vraies données ou mock selon config
         if USE_MOCK_MONITORING:
-            # Pour le développement, utiliser des données simulées
-            mock_data = get_mock_portfolio_data()
+            logger.info("Using MOCK data for portfolio metrics (USE_MOCK_MONITORING=true)")
+            portfolio_data = get_mock_portfolio_data()
         else:
-            # TODO: Remettre ici la collecte réelle via les services (history_manager, data_router, etc.)
-            mock_data = get_mock_portfolio_data()  # fallback temporaire
-        
+            logger.info(f"Using REAL data for portfolio metrics (user={user_id}, source={source})")
+            portfolio_data = await get_real_portfolio_data(source=source, user_id=user_id)
+
         # Calculer les déviations maximales
-        max_deviation = max([
-            abs(asset["deviation"]) 
-            for asset in mock_data["assets"].values()
-        ])
-        
+        if portfolio_data["assets"]:
+            max_deviation = max([
+                abs(asset["deviation"])
+                for asset in portfolio_data["assets"].values()
+            ])
+        else:
+            max_deviation = 0.0
+
         # Détermine le statut global
         status = "healthy"
         if max_deviation > 10:
             status = "critical"
         elif max_deviation > 5:
             status = "warning"
-        
+
         response = {
-            **mock_data,
+            **portfolio_data,
             "max_deviation": max_deviation,
             "portfolio_status": status,
-            "last_rebalance": (datetime.now(timezone.utc) - timedelta(hours=18)).isoformat(),
+            "last_rebalance": (datetime.now(timezone.utc) - timedelta(hours=18)).isoformat(),  # TODO: Récupérer vraie dernière rebal
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
-        
+
         # Sauvegarder les métriques
         save_json_file(PORTFOLIO_METRICS_FILE, response)
-        
+
         return JSONResponse(response)
-        
+
     except Exception as e:
-        logger.error(f"Error getting portfolio metrics: {e}")
+        logger.error(f"Error getting portfolio metrics for user={user_id}, source={source}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/alerts")
 async def get_portfolio_alerts(
+    source: str = Query("cointracking", description="Source de données"),
+    user_id: str = Query("demo", description="ID utilisateur"),
     active_only: bool = Query(True, description="Retourner seulement les alertes actives"),
     limit: int = Query(20, ge=1, le=100, description="Nombre maximum d'alertes")
 ):
-    """Obtenir les alertes de portefeuille"""
+    """
+    Obtenir les alertes de portefeuille basées sur les vraies déviations d'allocation
+
+    Args:
+        source: Source de données
+        user_id: ID utilisateur
+        active_only: Retourner seulement les alertes actives
+        limit: Nombre maximum d'alertes à retourner
+
+    Returns:
+        Liste d'alertes avec déviations, performance, etc.
+    """
     try:
-        # Générer des alertes simulées basées sur les métriques actuelles
-        portfolio_data = get_mock_portfolio_data()
+        # Récupérer les données réelles ou mock
+        if USE_MOCK_MONITORING:
+            portfolio_data = get_mock_portfolio_data()
+        else:
+            portfolio_data = await get_real_portfolio_data(source=source, user_id=user_id)
+
         alerts = []
-        
         now = datetime.now(timezone.utc)
-        
-        # Alertes de déviation
+
+        # Alertes de déviation d'allocation
         for asset_name, asset_data in portfolio_data["assets"].items():
             deviation = abs(asset_data["deviation"])
-            if deviation > 5:
+            if deviation > 5:  # Seuil de 5% pour générer une alerte
                 alert_type = "critical" if deviation > 10 else "warning"
                 alerts.append({
-                    "id": f"deviation-{asset_name.lower()}",
+                    "id": f"deviation-{asset_name.lower()}-{user_id}",
                     "type": alert_type,
                     "category": "allocation_deviation",
                     "title": f"Déviation d'allocation - {asset_name}",
-                    "message": f"{asset_name} dévie de {deviation:.1f}% de l'allocation cible ({asset_data['target_allocation']}%)",
+                    "message": f"{asset_name} dévie de {deviation:.1f}% de l'allocation cible ({asset_data['target_allocation']:.1f}%)",
                     "asset": asset_name,
                     "deviation": asset_data["deviation"],
                     "current_allocation": asset_data["current_allocation"],
                     "target_allocation": asset_data["target_allocation"],
                     "timestamp": (now - timedelta(minutes=15)).isoformat(),
-                    "resolved": False
+                    "resolved": False,
+                    "user_id": user_id,
+                    "source": source
                 })
-        
-        # Alerte de performance si nécessaire
+
+        # Alerte de performance si baisse significative
         if portfolio_data["change_24h"] < -10:
             alerts.append({
-                "id": "performance-decline",
+                "id": f"performance-decline-{user_id}",
                 "type": "warning",
                 "category": "performance",
                 "title": "Baisse de performance significative",
                 "message": f"Le portefeuille a baissé de {abs(portfolio_data['change_24h']):.1f}% dans les dernières 24h",
                 "timestamp": (now - timedelta(hours=1)).isoformat(),
-                "resolved": False
+                "resolved": False,
+                "user_id": user_id,
+                "source": source
             })
-        
+
+        # Alerte de hausse exceptionnelle
+        if portfolio_data["change_24h"] > 15:
+            alerts.append({
+                "id": f"performance-surge-{user_id}",
+                "type": "info",
+                "category": "performance",
+                "title": "Hausse de performance exceptionnelle",
+                "message": f"Le portefeuille a progressé de {portfolio_data['change_24h']:.1f}% dans les dernières 24h",
+                "timestamp": (now - timedelta(minutes=30)).isoformat(),
+                "resolved": False,
+                "user_id": user_id,
+                "source": source
+            })
+
         # Filtrer si seulement les alertes actives
         if active_only:
             alerts = [a for a in alerts if not a.get("resolved", False)]
-        
+
         # Limiter le nombre d'alertes
         alerts = alerts[:limit]
-        
+
         # Sauvegarder les alertes
         alerts_data = {
             "alerts": alerts,
             "last_updated": now.isoformat(),
-            "total_active": len([a for a in alerts if not a.get("resolved", False)])
+            "total_active": len([a for a in alerts if not a.get("resolved", False)]),
+            "user_id": user_id,
+            "source": source
         }
         save_json_file(ALERTS_FILE, alerts_data)
-        
+
         return JSONResponse({
             "alerts": alerts,
             "total": len(alerts),
             "active_count": len([a for a in alerts if not a.get("resolved", False)]),
             "timestamp": now.isoformat()
         })
-        
+
     except Exception as e:
-        logger.error(f"Error getting portfolio alerts: {e}")
+        logger.error(f"Error getting portfolio alerts for user={user_id}, source={source}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/rebalance-history")
@@ -283,66 +469,155 @@ async def get_rebalance_history(
 
 @router.get("/performance")
 async def get_performance_analytics(
+    source: str = Query("cointracking", description="Source de données"),
+    user_id: str = Query("demo", description="ID utilisateur"),
     period_days: int = Query(30, ge=1, le=365, description="Période d'analyse en jours")
 ):
-    """Obtenir les analytics de performance"""
+    """
+    Obtenir les analytics de performance basés sur l'historique réel du portfolio
+
+    Args:
+        source: Source de données
+        user_id: ID utilisateur
+        period_days: Nombre de jours d'historique à analyser
+
+    Returns:
+        Données de performance avec métriques calculées depuis snapshots historiques
+    """
     try:
         now = datetime.now(timezone.utc)
-        
-        # Générer des données de performance simulées
-        performance_data = []
-        for i in range(period_days):
-            date = now - timedelta(days=period_days - i)
-            
-            # Simuler une valeur de portefeuille avec tendance et volatilité
-            base_value = 400000
-            trend = i * 50  # Tendance légèrement haussière
-            volatility = 5000 * (0.5 - (i % 7) / 7)  # Volatilité hebdomadaire
-            daily_value = base_value + trend + volatility
-            
-            performance_data.append({
-                "date": date.date().isoformat(),
-                "portfolio_value": round(daily_value, 2),
-                "daily_return": round(((daily_value - base_value) / base_value) * 100, 3) if i > 0 else 0,
-                "benchmark_return": round((i * 0.05), 3)  # Benchmark fictif
+
+        # Charger l'historique réel du portfolio
+        historical_data = portfolio_analytics._load_historical_data(user_id=user_id, source=source)
+
+        if not historical_data:
+            # Pas de données historiques disponibles
+            return JSONResponse({
+                "performance_data": [],
+                "metrics": {
+                    "total_return": 0.0,
+                    "volatility": 0.0,
+                    "max_drawdown": 0.0,
+                    "sharpe_ratio": 0.0,
+                    "best_day": 0.0,
+                    "worst_day": 0.0
+                },
+                "period_days": period_days,
+                "message": f"Pas de données historiques disponibles pour user={user_id}, source={source}",
+                "timestamp": now.isoformat()
             })
-        
-        # Calculer les métriques de performance
-        if len(performance_data) > 1:
-            total_return = ((performance_data[-1]["portfolio_value"] - performance_data[0]["portfolio_value"]) 
-                          / performance_data[0]["portfolio_value"]) * 100
-            
-            daily_returns = [p["daily_return"] for p in performance_data[1:]]
-            volatility = (sum([(r - sum(daily_returns)/len(daily_returns))**2 for r in daily_returns]) 
-                         / len(daily_returns))**0.5 if daily_returns else 0
-            
-            max_value = max([p["portfolio_value"] for p in performance_data])
-            current_value = performance_data[-1]["portfolio_value"]
-            max_drawdown = ((max_value - current_value) / max_value) * 100 if max_value > 0 else 0
-            
-            avg_return = sum(daily_returns) / len(daily_returns) if daily_returns else 0
-            sharpe_ratio = (avg_return / volatility) if volatility > 0 else 0
+
+        # Filtrer les derniers X jours
+        cutoff_date = now - timedelta(days=period_days)
+        filtered_data = [
+            entry for entry in historical_data
+            if datetime.fromisoformat(entry.get("date", "")) >= cutoff_date
+        ]
+
+        if len(filtered_data) < 2:
+            return JSONResponse({
+                "performance_data": [],
+                "metrics": {
+                    "total_return": 0.0,
+                    "volatility": 0.0,
+                    "max_drawdown": 0.0,
+                    "sharpe_ratio": 0.0,
+                    "best_day": 0.0,
+                    "worst_day": 0.0
+                },
+                "period_days": period_days,
+                "message": f"Pas assez de données historiques (minimum 2 snapshots requis, trouvé {len(filtered_data)})",
+                "timestamp": now.isoformat()
+            })
+
+        # Construire les données de performance
+        performance_data = []
+        daily_returns = []
+        max_value_seen = 0.0
+        drawdowns = []
+
+        for i, entry in enumerate(filtered_data):
+            value = entry.get("total_value_usd", 0.0)
+            date_str = entry.get("date", "")
+
+            # Calculer le return quotidien
+            if i > 0:
+                prev_value = filtered_data[i-1].get("total_value_usd", 0.0)
+                if prev_value > 0:
+                    daily_return = ((value - prev_value) / prev_value) * 100
+                    daily_returns.append(daily_return)
+                else:
+                    daily_return = 0.0
+            else:
+                daily_return = 0.0
+
+            # Calculer le drawdown actuel
+            max_value_seen = max(max_value_seen, value)
+            if max_value_seen > 0:
+                drawdown = ((max_value_seen - value) / max_value_seen) * 100
+                drawdowns.append(drawdown)
+
+            performance_data.append({
+                "date": datetime.fromisoformat(date_str).date().isoformat(),
+                "portfolio_value": round(value, 2),
+                "daily_return": round(daily_return, 3),
+                "drawdown": round(drawdown if i > 0 else 0.0, 3)
+            })
+
+        # Calculer les métriques globales
+        if len(filtered_data) > 1:
+            first_value = filtered_data[0].get("total_value_usd", 0.0)
+            last_value = filtered_data[-1].get("total_value_usd", 0.0)
+
+            total_return = ((last_value - first_value) / first_value) * 100 if first_value > 0 else 0.0
+
+            # Volatilité (écart-type des returns quotidiens)
+            if len(daily_returns) > 1:
+                avg_return = sum(daily_returns) / len(daily_returns)
+                variance = sum([(r - avg_return)**2 for r in daily_returns]) / len(daily_returns)
+                volatility = variance**0.5
+                # Annualiser la volatilité (sqrt(365))
+                volatility_annualized = volatility * (365**0.5)
+            else:
+                avg_return = 0.0
+                volatility = 0.0
+                volatility_annualized = 0.0
+
+            # Max drawdown
+            max_drawdown = max(drawdowns) if drawdowns else 0.0
+
+            # Sharpe ratio simplifié (assume risk-free rate = 0)
+            if volatility > 0:
+                sharpe_ratio = avg_return / volatility
+            else:
+                sharpe_ratio = 0.0
+
+            best_day = max(daily_returns, default=0.0)
+            worst_day = min(daily_returns, default=0.0)
         else:
-            total_return = volatility = max_drawdown = sharpe_ratio = 0
-        
+            total_return = volatility = volatility_annualized = max_drawdown = sharpe_ratio = 0.0
+            best_day = worst_day = 0.0
+
         metrics = {
             "total_return": round(total_return, 2),
             "volatility": round(volatility, 2),
+            "volatility_annualized": round(volatility_annualized, 2),
             "max_drawdown": round(max_drawdown, 2),
             "sharpe_ratio": round(sharpe_ratio, 2),
-            "best_day": round(max(daily_returns, default=0), 2),
-            "worst_day": round(min(daily_returns, default=0), 2)
+            "best_day": round(best_day, 2),
+            "worst_day": round(worst_day, 2),
+            "data_points": len(filtered_data)
         }
-        
+
         return JSONResponse({
             "performance_data": performance_data,
             "metrics": metrics,
             "period_days": period_days,
             "timestamp": now.isoformat()
         })
-        
+
     except Exception as e:
-        logger.error(f"Error getting performance analytics: {e}")
+        logger.error(f"Error getting performance analytics for user={user_id}, source={source}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # REMOVED: Duplicate alert resolution endpoint - use /api/alerts/resolve/{alert_id} instead
@@ -445,16 +720,36 @@ async def get_strategy_performance(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/dashboard-summary")
-async def get_dashboard_summary():
-    """Résumé complet pour le dashboard de monitoring"""
+async def get_dashboard_summary(
+    source: str = Query("cointracking", description="Source de données"),
+    user_id: str = Query("demo", description="ID utilisateur")
+):
+    """
+    Résumé complet pour le dashboard de monitoring
+
+    Args:
+        source: Source de données
+        user_id: ID utilisateur
+
+    Returns:
+        Vue agrégée du statut global, portfolio, alertes, rebalancing
+    """
     try:
-        # Obtenir toutes les données nécessaires
-        portfolio_data = get_mock_portfolio_data()
-        
-        # Alertes actives
+        # Obtenir les données réelles du portfolio
+        if USE_MOCK_MONITORING:
+            portfolio_data = get_mock_portfolio_data()
+        else:
+            portfolio_data = await get_real_portfolio_data(source=source, user_id=user_id)
+
+        # Alertes actives pour cet utilisateur
         alerts_data = load_json_file(ALERTS_FILE, {"alerts": []})
-        active_alerts = [a for a in alerts_data.get("alerts", []) if not a.get("resolved", False)]
-        
+        active_alerts = [
+            a for a in alerts_data.get("alerts", [])
+            if not a.get("resolved", False)
+            and a.get("user_id") == user_id
+            and a.get("source") == source
+        ]
+
         # Historique récent des rééquilibrages
         history_data = load_json_file(REBALANCE_HISTORY_FILE, {"rebalances": []})
         recent_rebalances = sorted(
@@ -462,27 +757,37 @@ async def get_dashboard_summary():
             key=lambda x: x.get("timestamp", ""),
             reverse=True
         )[:5]
-        
-        # Statut global
-        max_deviation = max([abs(asset["deviation"]) for asset in portfolio_data["assets"].values()])
-        
+
+        # Statut global basé sur déviations et alertes
+        if portfolio_data["assets"]:
+            max_deviation = max([abs(asset["deviation"]) for asset in portfolio_data["assets"].values()])
+        else:
+            max_deviation = 0.0
+
         global_status = "healthy"
         if len(active_alerts) > 2 or max_deviation > 10:
             global_status = "critical"
         elif len(active_alerts) > 0 or max_deviation > 5:
             global_status = "warning"
-        
+
+        # Métriques de performance si disponibles
+        perf_available = portfolio_data.get("metadata", {}).get("asset_count", 0) > 0
+
         return JSONResponse({
             "global_status": global_status,
             "portfolio": {
                 "total_value": portfolio_data["total_value"],
                 "change_24h": portfolio_data["change_24h"],
+                "change_7d": portfolio_data["change_7d"],
                 "max_deviation": max_deviation,
-                "last_update": portfolio_data["last_update"]
+                "last_update": portfolio_data["last_update"],
+                "asset_count": portfolio_data.get("metadata", {}).get("asset_count", 0),
+                "diversity_score": portfolio_data.get("metadata", {}).get("diversity_score", 0)
             },
             "alerts": {
                 "active_count": len(active_alerts),
                 "critical_count": len([a for a in active_alerts if a.get("type") == "critical"]),
+                "warning_count": len([a for a in active_alerts if a.get("type") == "warning"]),
                 "latest": active_alerts[:3]  # Dernières 3 alertes
             },
             "rebalancing": {
@@ -494,12 +799,14 @@ async def get_dashboard_summary():
             },
             "system": {
                 "monitoring_active": True,
+                "data_source": source,
+                "user_id": user_id,
                 "last_check": datetime.now(timezone.utc).isoformat(),
-                "uptime": "99.2%"  # Simulé
+                "performance_available": perf_available
             },
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
-        
+
     except Exception as e:
-        logger.error(f"Error getting dashboard summary: {e}")
+        logger.error(f"Error getting dashboard summary for user={user_id}, source={source}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
