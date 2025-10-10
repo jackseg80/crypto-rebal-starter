@@ -740,7 +740,7 @@ export async function getUnifiedState() {
             }
 
           } catch (error) {
-            console.error('❌ PhaseEngine: Import/execution failed:', error);
+            debugLogger.error('❌ PhaseEngine: Import/execution failed:', error);
 
             // Fallback notification
             if (typeof window !== 'undefined') {
@@ -884,7 +884,7 @@ export async function getUnifiedState() {
 
       return ctx.structure_modulation || null;
     } catch (error) {
-      console.warn('⚠️ Structure modulation unavailable:', error);
+      debugLogger.warn('⚠️ Structure modulation unavailable:', error);
       return null;
     }
   })();
@@ -999,7 +999,7 @@ export function deriveRecommendations(u) {
 
       // DEBUG: Log detection
       if (isStablesReco) {
-        console.log('[CONSOLIDATION DEBUG] Regime stables reco detected:', {
+        debugLogger.debug('[CONSOLIDATION DEBUG] Regime stables reco detected:', {
           message: rec.message,
           action: rec.action,
           stablesMatch: stablesMatch?.[1],
@@ -1128,7 +1128,7 @@ export function deriveRecommendations(u) {
     const stablesRecs = recos.filter(r => r.topic === 'stables_allocation');
 
     // DEBUG: Log all stables recommendations detected
-    console.log('[CONSOLIDATION DEBUG] Stables recommendations found:', {
+    debugLogger.debug('[CONSOLIDATION DEBUG] Stables recommendations found:', {
       count: stablesRecs.length,
       recos: stablesRecs.map(r => ({
         key: r.key,
@@ -1173,7 +1173,7 @@ export function deriveRecommendations(u) {
       sourceCount: sources.length
     };
 
-    console.log('[CONSOLIDATION DEBUG] Merged recommendation:', merged);
+    debugLogger.debug('[CONSOLIDATION DEBUG] Merged recommendation:', merged);
 
     // Remplacer les N cartes par 1
     return [merged, ...recos.filter(r => r.topic !== 'stables_allocation')];

@@ -231,7 +231,7 @@ const storeActions = {
         return true;
       }
     } catch (error) {
-      console.error('Failed to sync governance state:', error);
+      debugLogger.error('Failed to sync governance state:', error);
       this.update({ 'ui.errors': [...(getState().ui.errors || []), `Governance sync error: ${error.message}`] });
     }
     return false;
@@ -247,7 +247,7 @@ const storeActions = {
 
       // Rate limited: use last-good snapshot avec backoff exponentiel
       if (response.status === 429) {
-        console.warn('⚠️ Rate limited (429), using last-good ML signals snapshot');
+        debugLogger.warn('⚠️ Rate limited (429), using last-good ML signals snapshot');
         this._mlSignalsBackoffDelay = Math.min(this._mlSignalsBackoffDelay * 2, 30000);
 
         // Retourner last-good si disponible
@@ -275,12 +275,12 @@ const storeActions = {
         return data.signals;
       }
     } catch (error) {
-      console.error('Failed to sync ML signals:', error);
+      debugLogger.error('Failed to sync ML signals:', error);
       this.update({ 'ui.errors': [...(getState().ui.errors || []), `ML signals sync error: ${error.message}`] });
 
       // Graceful degradation: retourner last-good si disponible
       if (this._lastGoodMLSignals) {
-        console.warn('⚠️ Using last-good ML signals after error');
+        debugLogger.warn('⚠️ Using last-good ML signals after error');
         return this._lastGoodMLSignals;
       }
     }
@@ -391,7 +391,7 @@ const storeActions = {
         return true;
       }
     } catch (error) {
-      console.error('Failed to approve decision:', error);
+      debugLogger.error('Failed to approve decision:', error);
       this.update({ 'ui.errors': [...(getState().ui.errors || []), `Decision approval error: ${error.message}`] });
     }
     return false;
@@ -436,7 +436,7 @@ const storeActions = {
       if (error.idempotent) {
         throw error;
       }
-      console.error('Failed to freeze system:', error);
+      debugLogger.error('Failed to freeze system:', error);
       this.update({ 'ui.errors': [...(getState().ui.errors || []), `System freeze error: ${error.message}`] });
     }
     return false;
@@ -477,7 +477,7 @@ const storeActions = {
       if (error.idempotent) {
         throw error;
       }
-      console.error('Failed to unfreeze system:', error);
+      debugLogger.error('Failed to unfreeze system:', error);
       this.update({ 'ui.errors': [...(getState().ui.errors || []), `System unfreeze error: ${error.message}`] });
     }
     return false;
@@ -503,7 +503,7 @@ const storeActions = {
         return true;
       }
     } catch (error) {
-      console.error('Failed to set governance mode:', error);
+      debugLogger.error('Failed to set governance mode:', error);
       this.update({ 'ui.errors': [...(getState().ui.errors || []), `Mode change error: ${error.message}`] });
     }
     return false;
@@ -535,7 +535,7 @@ const storeActions = {
         return result;
       }
     } catch (error) {
-      console.error('Failed to propose decision:', error);
+      debugLogger.error('Failed to propose decision:', error);
       this.update({ 'ui.errors': [...(getState().ui.errors || []), `Proposal error: ${error.message}`] });
     }
     return false;

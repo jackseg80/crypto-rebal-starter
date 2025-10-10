@@ -1,0 +1,285 @@
+<!-- Sources Tab Unified - Remplace CSV + Intégrations -->
+<section class="tab-panel" id="tab-sources">
+  <div class="card" data-tooltip="Gérez toutes vos sources de données (CoinTracking, Saxo, etc.) depuis un point central unifié."
+    data-source="Système sources unifié v2">
+    <h3>📊 Sources de Données</h3>
+    <div class="help" style="margin-bottom: 16px;">
+      Point d'entrée unique pour gérer toutes vos sources : scan, import et refresh des données CoinTracking, Saxo Bank et autres.
+    </div>
+
+    <!-- Status global des sources -->
+    <div class="status-grid" id="sources_status_grid">
+      <div class="status-item">
+        <span class="label">Modules actifs:</span>
+        <span class="value" id="sources_active_count">Loading...</span>
+      </div>
+      <div class="status-item">
+        <span class="label">Dernière activité:</span>
+        <span class="value" id="sources_last_activity">-</span>
+      </div>
+      <div class="status-item">
+        <span class="label">Status global:</span>
+        <span class="value" id="sources_status">Initialisation...</span>
+      </div>
+    </div>
+
+    <!-- Grille des modules sources -->
+    <div class="modules-grid" id="sources_modules_grid" style="margin-top: 16px;">
+      <!-- Les cartes de modules seront injectées dynamiquement par sources-manager.js -->
+      <div class="loading-placeholder">
+        <div class="spinner"></div>
+        <span>Chargement des modules sources...</span>
+      </div>
+    </div>
+
+    <!-- Actions globales -->
+    <div style="margin-top: 16px;">
+      <div class="flex-row" style="gap: 12px; flex-wrap: wrap;">
+        <button class="btn primary" onclick="scanAllSources()">
+          🔍 Scanner toutes les sources
+        </button>
+        <button class="btn info" onclick="refreshSourcesStatus()">
+          🔄 Actualiser status
+        </button>
+        <button class="btn secondary" onclick="showSourcesConfiguration()">
+          ⚙️ Configuration avancée
+        </button>
+      </div>
+    </div>
+
+    <!-- Configuration sources (collapsible) -->
+    <details class="config-details" id="sources_config_details" style="margin-top: 16px;">
+      <summary>⚙️ Configuration Sources Avancée</summary>
+      <div class="config-content">
+
+        <div class="form-group">
+          <label for="sources_snapshot_ttl">TTL des snapshots (heures)</label>
+          <input type="number" id="sources_snapshot_ttl" value="24" min="1" max="168">
+          <div class="help">Durée avant qu'un snapshot soit considéré comme obsolète (défaut: 24h)</div>
+        </div>
+
+        <div class="form-group">
+          <label for="sources_warning_threshold">Seuil d'alerte (heures)</label>
+          <input type="number" id="sources_warning_threshold" value="12" min="1" max="72">
+          <div class="help">Durée avant d'afficher un avertissement de staleness (défaut: 12h)</div>
+        </div>
+
+        <div class="form-group">
+          <label for="sources_auto_refresh">Actualisation automatique</label>
+          <input type="checkbox" id="sources_auto_refresh" checked>
+          <div class="help">Actualise automatiquement le statut toutes les 30 secondes</div>
+        </div>
+
+        <div style="margin-top: 16px;">
+          <button class="btn secondary" onclick="saveSourcesConfiguration()">
+            💾 Sauvegarder configuration
+          </button>
+        </div>
+
+      </div>
+    </details>
+
+    <!-- Logs sources -->
+    <div id="sources_logs" style="margin-top: 16px; display: none;">
+      <h4>📋 Logs récents</h4>
+      <div class="logs-container" id="sources_logs_content" style="max-height: 200px; overflow-y: auto; background: var(--theme-surface); padding: 8px; border-radius: 4px; font-family: monospace; font-size: 12px;">
+        <!-- Les logs seront ajoutés dynamiquement -->
+      </div>
+      <div style="margin-top: 8px;">
+        <button class="btn small secondary" onclick="toggleSourcesLogs()">
+          📋 Basculer les logs
+        </button>
+        <button class="btn small info" onclick="clearSourcesLogs()">
+          🗑️ Effacer
+        </button>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- CSS spécifique pour la section Sources -->
+<style>
+/* Grille des modules sources */
+.modules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+/* Cartes individuelles des modules */
+.module-card {
+  background: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+  padding: 16px;
+  transition: all 0.2s ease;
+}
+
+.module-card:hover {
+  border-color: var(--theme-accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.module-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.module-header h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+/* Badges de status */
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.status-badge.enabled, .status-badge.success {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-badge.warning {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.status-badge.disabled, .status-badge.error {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+/* Statistiques des modules */
+.module-stats {
+  margin: 12px 0;
+}
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+
+.stat-item .label {
+  color: var(--theme-text-muted);
+}
+
+.stat-item .value {
+  font-weight: 500;
+}
+
+/* Actions des modules */
+.module-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+/* Loading placeholder */
+.loading-placeholder {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px;
+  color: var(--theme-text-muted);
+  font-style: italic;
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--theme-border);
+  border-top: 2px solid var(--theme-accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Status grid amélioré */
+.status-grid .value.error {
+  color: #dc3545;
+}
+
+.status-grid .value.warning {
+  color: #fd7e14;
+}
+
+.status-grid .value.success {
+  color: #28a745;
+}
+</style>
+
+<!-- JavaScript d'initialisation -->
+<script>
+// Fonctions utilitaires pour la section Sources
+function showSourcesConfiguration() {
+  const details = document.getElementById('sources_config_details');
+  if (details) {
+    details.open = true;
+    details.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+function saveSourcesConfiguration() {
+  const ttl = document.getElementById('sources_snapshot_ttl').value;
+  const warning = document.getElementById('sources_warning_threshold').value;
+  const autoRefresh = document.getElementById('sources_auto_refresh').checked;
+
+  // TODO: Implémenter la sauvegarde via API
+  showNotification('Configuration sources sauvegardée', 'success');
+}
+
+function toggleSourcesLogs() {
+  const logsDiv = document.getElementById('sources_logs');
+  if (logsDiv) {
+    logsDiv.style.display = logsDiv.style.display === 'none' ? 'block' : 'none';
+  }
+}
+
+function clearSourcesLogs() {
+  const logsContent = document.getElementById('sources_logs_content');
+  if (logsContent) {
+    logsContent.innerHTML = '';
+  }
+}
+
+// Initialisation automatique quand l'onglet Sources est activé
+document.addEventListener('DOMContentLoaded', function() {
+  // Observer les changements d'onglet
+  const sourcesTab = document.querySelector('button[data-target="#tab-sources"]');
+  if (sourcesTab) {
+    sourcesTab.addEventListener('click', function() {
+      // Initialiser le sources manager quand l'onglet est activé
+      setTimeout(() => {
+        if (typeof initSourcesManager === 'function') {
+          initSourcesManager();
+        } else {
+          console.warn('[Sources] sources-manager.js not loaded');
+        }
+      }, 100);
+    });
+  }
+});
+</script>

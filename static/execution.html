@@ -397,7 +397,7 @@
                       </div>`;
                   } catch (e) {
                     status.textContent = "Impossible de charger l'historique. Ouvrez la page complète ↗";
-                    console.warn('History inline load failed:', e);
+                    debugLogger.warn('History inline load failed:', e);
                   }
                 }
                 loadHistory();
@@ -498,7 +498,7 @@
             rerender();
           }
         } catch (e) {
-          console.warn('Currency change re-render failed (execution):', e);
+          debugLogger.warn('Currency change re-render failed (execution):', e);
         }
       }
     });
@@ -543,7 +543,7 @@
         if (targetButton) {
           targetButton.classList.add('active');
         } else {
-          console.warn('Could not find button for tab:', tabName);
+          debugLogger.warn('Could not find button for tab:', tabName);
         }
       }
 
@@ -901,7 +901,7 @@
         container.innerHTML = exchangesHtml;
 
       } catch (error) {
-        console.error('Exchanges loading error:', error);
+        debugLogger.error('Exchanges loading error:', error);
       }
     }
 
@@ -915,7 +915,7 @@
         loadExchanges(); // Actualiser la liste
 
       } catch (error) {
-        console.error('Connect exchanges error:', error);
+        debugLogger.error('Connect exchanges error:', error);
         alert(`Erreur de connexion: ${error.message}`);
       }
     }
@@ -933,7 +933,7 @@
         refreshMonitoring();
 
       } catch (error) {
-        console.error('Cancel execution error:', error);
+        debugLogger.error('Cancel execution error:', error);
         alert(`Erreur d'annulation: ${error.message}`);
       }
     }
@@ -956,7 +956,7 @@
       console.debug('🏦 Initializing WealthContextBar integration for execution...');
 
       if (!window.wealthContextBar) {
-        console.warn('WealthContextBar not available');
+        debugLogger.warn('WealthContextBar not available');
         return;
       }
 

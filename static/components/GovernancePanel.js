@@ -516,7 +516,7 @@ class GovernancePanel {
       this.showNotification('State refreshed successfully', 'success');
       
     } catch (error) {
-      console.error('Critical error in refresh state:', error);
+      debugLogger.error('Critical error in refresh state:', error);
       this.showNotification('Refresh completed with warnings - check console', 'warning');
       
       // Reset button state
@@ -738,7 +738,7 @@ class GovernancePanel {
         this.showNotification('Failed to freeze system', 'error');
       }
     } catch (error) {
-      console.error('Freeze system error:', error);
+      debugLogger.error('Freeze system error:', error);
       if (error.message && error.message.includes('idempotent')) {
         this.showNotification('Action already processed (duplicate request detected)', 'warning');
       } else {
@@ -764,7 +764,7 @@ class GovernancePanel {
         this.showNotification('Failed to unfreeze system', 'error');
       }
     } catch (error) {
-      console.error('Unfreeze system error:', error);
+      debugLogger.error('Unfreeze system error:', error);
       if (error.message && error.message.includes('idempotent')) {
         this.showNotification('Action already processed (duplicate request detected)', 'warning');
       } else {
@@ -800,7 +800,7 @@ class GovernancePanel {
       btn.textContent = 'Change Mode';
       
     } catch (error) {
-      console.error('Change mode error:', error);
+      debugLogger.error('Change mode error:', error);
       this.showNotification('Error changing mode', 'error');
     }
   }
@@ -826,7 +826,7 @@ class GovernancePanel {
       btn.textContent = '📋 Propose';
       
     } catch (error) {
-      console.error('Propose decision error:', error);
+      debugLogger.error('Propose decision error:', error);
       this.showNotification('Error proposing decision', 'error');
     }
   }
@@ -1043,7 +1043,7 @@ class GovernancePanel {
         this.showNotification('Failed to approve decision', 'error');
       }
     } catch (error) {
-      console.error('Approve decision error:', error);
+      debugLogger.error('Approve decision error:', error);
       this.showNotification('Error approving decision', 'error');
     }
   }
@@ -1054,7 +1054,7 @@ class GovernancePanel {
       // In a full implementation, this would call a reject endpoint
       this.showNotification('Decision rejected (feature in development)', 'warning');
     } catch (error) {
-      console.error('Reject decision error:', error);
+      debugLogger.error('Reject decision error:', error);
       this.showNotification('Error rejecting decision', 'error');
     }
   }
@@ -1202,7 +1202,7 @@ class GovernancePanel {
       this.showNotification(`Cooldown: ${data.reason}`, data.can_publish ? 'success' : 'warning');
       
     } catch (error) {
-      console.error('Error checking cooldown:', error);
+      debugLogger.error('Error checking cooldown:', error);
       this.showNotification('Error checking cooldown status', 'error');
     }
   }
@@ -1234,7 +1234,7 @@ class GovernancePanel {
         this.showNotification('Failed to review plan', 'error');
       }
     } catch (error) {
-      console.error('Review plan error:', error);
+      debugLogger.error('Review plan error:', error);
       this.showNotification('Error reviewing plan', 'error');
     }
   }
@@ -1268,7 +1268,7 @@ class GovernancePanel {
         this.showNotification('Failed to approve plan', 'error');
       }
     } catch (error) {
-      console.error('Approve plan error:', error);
+      debugLogger.error('Approve plan error:', error);
       this.showNotification('Error approving plan', 'error');
     }
   }
@@ -1296,7 +1296,7 @@ class GovernancePanel {
         this.showNotification('Failed to activate plan', 'error');
       }
     } catch (error) {
-      console.error('Activate plan error:', error);
+      debugLogger.error('Activate plan error:', error);
       this.showNotification('Error activating plan', 'error');
     }
   }
@@ -1324,7 +1324,7 @@ class GovernancePanel {
         this.showNotification('Failed to execute plan', 'error');
       }
     } catch (error) {
-      console.error('Execute plan error:', error);
+      debugLogger.error('Execute plan error:', error);
       this.showNotification('Error executing plan', 'error');
     }
   }
@@ -1356,7 +1356,7 @@ class GovernancePanel {
         this.showNotification('Failed to cancel plan', 'error');
       }
     } catch (error) {
-      console.error('Cancel plan error:', error);
+      debugLogger.error('Cancel plan error:', error);
       this.showNotification('Error cancelling plan', 'error');
     }
   }

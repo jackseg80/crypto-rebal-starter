@@ -53,7 +53,7 @@ const initUserSwitcher = async () => {
     console.debug(`User switcher initialized, current user: ${currentUser}`);
 
   } catch (error) {
-    console.error('Failed to initialize user switcher:', error);
+    debugLogger.error('Failed to initialize user switcher:', error);
   }
 };
 
@@ -92,7 +92,7 @@ const switchUser = (newUserId) => {
     }, 100);
 
   } catch (error) {
-    console.error('Error switching user:', error);
+    debugLogger.error('Error switching user:', error);
   }
 };
 
@@ -552,7 +552,7 @@ const initUnifiedNav = () => {
     });
 
   } catch (err) {
-    console.error('Nav init error:', err);
+    debugLogger.error('Nav init error:', err);
   }
 };
 

@@ -62,7 +62,7 @@ class WealthContextBar {
         sourceValue: this.context.account || 'all'
       });
     } catch (error) {
-      console.error('Error saving wealth context:', error);
+      debugLogger.error('Error saving wealth context:', error);
     }
   }
 
@@ -149,7 +149,7 @@ class WealthContextBar {
         console.debug('Account sources fetch aborted (user switch)');
         return null; // Retourner null pour indiquer abort
       }
-      console.warn('Failed to load account sources, using fallback:', error);
+      debugLogger.warn('Failed to load account sources, using fallback:', error);
       return this.buildFallbackAccountOptions();
     } finally {
       this.abortController = null;
@@ -236,7 +236,7 @@ class WealthContextBar {
         return { ok: false, aborted: true };
       }
 
-      console.error('WealthContextBar: Failed to persist settings:', error);
+      debugLogger.error('WealthContextBar: Failed to persist settings:', error);
       return { ok: false, error };
 
     } finally {
@@ -263,7 +263,7 @@ class WealthContextBar {
     // Parse la valeur : type:key (ex: csv:csv_latest ou api:cointracking_api)
     const parts = selectedValue.split(':');
     if (parts.length !== 2) {
-      console.warn(`WealthContextBar: Invalid account value format: ${selectedValue}`);
+      debugLogger.warn(`WealthContextBar: Invalid account value format: ${selectedValue}`);
       return;
     }
 
@@ -281,7 +281,7 @@ class WealthContextBar {
           window.availableSources = data.sources || [];
         }
       } catch (error) {
-        console.error('Failed to load sources:', error);
+        debugLogger.error('Failed to load sources:', error);
         return;
       }
     }
@@ -289,7 +289,7 @@ class WealthContextBar {
     // Trouver la source correspondante
     const source = window.availableSources.find(s => s.key === key && s.type === type);
     if (!source) {
-      console.warn(`WealthContextBar: Source not found for key=${key}, type=${type}`);
+      debugLogger.warn(`WealthContextBar: Source not found for key=${key}, type=${type}`);
       return;
     }
 
@@ -317,7 +317,7 @@ class WealthContextBar {
         });
       }
     } catch (e) {
-      console.warn('Could not reload settings to preserve API keys:', e);
+      debugLogger.warn('Could not reload settings to preserve API keys:', e);
     }
 
     // Déterminer l'ancienne et nouvelle source
@@ -408,7 +408,7 @@ class WealthContextBar {
 
       if (!persistResult.ok && !persistResult.aborted) {
         // ROLLBACK UI si erreur réseau/serveur
-        console.error('WealthContextBar: Persistence failed, rolling back UI...');
+        debugLogger.error('WealthContextBar: Persistence failed, rolling back UI...');
 
         // Restaurer globalConfig
         if (typeof window.globalConfig !== 'undefined') {

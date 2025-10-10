@@ -342,7 +342,7 @@ function finalizeCapsAndNormalize(targets, options = {}) {
  * @returns {Object} Adjusted targets with metadata
  */
 function applyPhaseTiltsLegacy(targets, phase, ctx = {}) {
-  console.error('❌ LEGACY FUNCTION CALLED - SHOULD NOT HAPPEN!:', { phase, targets: Object.keys(targets) });
+  debugLogger.error('❌ LEGACY FUNCTION CALLED - SHOULD NOT HAPPEN!:', { phase, targets: Object.keys(targets) });
 
   if (!targets || Object.keys(targets).length === 0) {
     (window.debugLogger?.warn || console.warn)('⚠️ PhaseEngine: No targets provided');
@@ -554,7 +554,7 @@ export function getCurrentForce() {
  * @returns {Promise<Object>} Adjusted targets with metadata
  */
 export async function applyPhaseTilts(targets, phase, ctx = {}) {
-  console.error('🚀🚀🚀 NEW RISKY-ONLY FUNCTION CALLED - CACHE_BUST_TIMESTAMP_2025-09-17T18:26:00Z:', {
+  debugLogger.error('🚀🚀🚀 NEW RISKY-ONLY FUNCTION CALLED - CACHE_BUST_TIMESTAMP_2025-09-17T18:26:00Z:', {
     phase,
     targetsCount: Object.keys(targets).length,
     stablesPreserved: (targets['Stablecoins'] || 0).toFixed(2) + '%',
@@ -615,20 +615,20 @@ export async function applyPhaseTilts(targets, phase, ctx = {}) {
 
   try {
     // Apply phase-specific tilts with zero-sum compensation
-    console.error('🔧 BEFORE TILTS - Stables check:', {
+    debugLogger.error('🔧 BEFORE TILTS - Stables check:', {
       originalStables: (targets['Stablecoins'] || 0).toFixed(4) + '%',
       workingStables: (T['Stablecoins'] || 0).toFixed(4) + '%'
     });
 
     switch (phase) {
       case 'eth_expansion':
-        console.error('🎯 Applying ETH expansion tilts...');
+        debugLogger.error('🎯 Applying ETH expansion tilts...');
         T = tiltRiskyZeroSum(T, {
           'ETH': 1.05,        // +5%
           'L2/Scaling': 1.03  // +3%
         }, ['BTC']); // Compensate from BTC only
 
-        console.error('🔧 AFTER ETH_EXPANSION TILTS - Stables check:', {
+        debugLogger.error('🔧 AFTER ETH_EXPANSION TILTS - Stables check:', {
           stablesAfterTilts: (T['Stablecoins'] || 0).toFixed(4) + '%'
         });
         break;
@@ -724,7 +724,7 @@ export async function applyPhaseTilts(targets, phase, ctx = {}) {
     // Validate integrity
     const validation = validateTargetsIntegrity(filteredTargets, originalTargets);
     if (!validation.valid) {
-      console.error('🚨 PhaseEngine: Validation failed:', validation.warnings, 'Metrics:', validation.metrics);
+      debugLogger.error('🚨 PhaseEngine: Validation failed:', validation.warnings, 'Metrics:', validation.metrics);
     }
 
     // Calculate deltas
@@ -765,7 +765,7 @@ export async function applyPhaseTilts(targets, phase, ctx = {}) {
     };
 
   } catch (error) {
-    console.error('🚨 PhaseEngine: Error applying tilts:', error);
+    debugLogger.error('🚨 PhaseEngine: Error applying tilts:', error);
     return {
       targets: { ...targets },
       metadata: {

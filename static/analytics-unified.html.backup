@@ -1,0 +1,2304 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analytics Unifiés - Crypto Rebalancer</title>
+  <link rel="stylesheet" href="shared-theme.css">
+  <link rel="stylesheet" href="theme-compat.css">
+  <link rel="stylesheet" href="components/governance-panel.css">
+  <link rel="stylesheet" href="components/decision-index-panel.css?v=20250130h">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+  <script>
+    // ✅ Enregistrement datalabels (idempotent)
+    if (window.Chart && window.ChartDataLabels && !window.__di_dl_registered__) {
+      window.Chart.register(window.ChartDataLabels);
+      // ✅ Désactiver globalement, puis réactiver seulement sur barre empilée
+      window.Chart.defaults.set('plugins.datalabels', { display: false });
+      window.__di_dl_registered__ = true;
+      console.debug('✅ chartjs-plugin-datalabels registered (global display: false)');
+    }
+  </script>
+  <script src="debug-logger.js"></script>
+  <script src="global-config.js"></script>
+  <script src="appearance.js"></script>
+  <script type="module" src="components/nav.js"></script>
+  <script type="module" src="analytics-unified.js"></script>
+  <script type="module">
+    import { initDeepLinks } from './components/deep-links.js';
+    import {
+      selectContradiction01,
+      selectEffectiveCap,
+      selectGovernanceTimestamp
+    } from './selectors/governance.js';
+
+    // Rendre les sélecteurs accessibles globalement
+    window.selectContradiction01 = selectContradiction01;
+    window.selectEffectiveCap = selectEffectiveCap;
+    window.selectGovernanceTimestamp = selectGovernanceTimestamp;
+
+    // Ancres pour analytics-unified.html - pointent vers le contenu réel
+    initDeepLinks({
+      'unified-root': 'Analytics Unifiés',
+      'tab-intelligence-ml': 'Intelligence ML',
+      'tab-risk': 'Risk Dashboard',
+      'tab-performance': 'Performance Monitor',
+      'tab-cycles': 'Cycle Analysis',
+      'tab-monitoring': 'Advanced Analytics'
+    });
+  </script>
+  <script type="module">
+    /**
+     * Sauvegarde les données unified pour rebalance.html
+     * Compatible avec le nouveau système u.targets_by_group
+     */
+    async function saveUnifiedDataForRebalance() {
+      try {
+        console.debug('💾 Saving unified data for rebalance.html...');
+
+        // Import du système unified-insights-v2
+        const { getUnifiedState } = await import('./core/unified-insights-v2.js');
+        const unifiedState = await getUnifiedState();
+
+        if (!unifiedState || !unifiedState.targets_by_group) {
+          console.warn('⚠️ No unified targets available to save');
+          return;
+        }
+
+        // Préparer les données au format attendu par rebalance.html
+        const unifiedData = {
+          targets: unifiedState.targets_by_group, // Les nouvelles targets dynamiques
+          execution_plan: unifiedState.execution?.plan_iter1 || null,
+          strategy: unifiedState.strategy?.template_used || 'Dynamic',
+          methodology: unifiedState.risk?.budget?.methodology || 'unified_v2',
+          timestamp: new Date().toISOString(),
+
+          // Métadonnées utiles
+          source: 'analytics_unified_v2',
+          stables_source: unifiedState.risk?.budget?.target_stables_pct,
+          cycle_score: unifiedState.cycle?.score,
+          regime_name: unifiedState.regime?.name,
+          decision_score: unifiedState.decision?.score
+        };
+
+        // Sauvegarder dans localStorage avec l'ancienne clé pour compatibilité
+        localStorage.setItem('unified_suggested_allocation', JSON.stringify(unifiedData));
+
+        console.log('✅ Unified data saved for rebalance.html:', {
+          targets_keys: Object.keys(unifiedData.targets),
+          stables_pct: unifiedData.targets.Stablecoins,
+          has_execution_plan: !!unifiedData.execution_plan,
+          timestamp: unifiedData.timestamp
+        });
+
+      } catch (error) {
+        console.error('❌ Failed to save unified data:', error);
+      }
+    }
+
+    // Temporary simplified version to debug the issue
+    async function renderUnifiedInsights(containerId = 'unified-root') {
+      // ANTI-DOUBLE RENDER MUTEX
+      if (window.__unified_rendering) {
+        console.debug('🔒 Render already in progress, skipping duplicate call');
+        return;
+      }
+      window.__unified_rendering = true;
+
+      console.debug('🔥 LOCAL FUNCTION UNIFIED: analytics-unified.html renderUnifiedInsights called', {
+        containerId,
+        timestamp: new Date().toISOString()
+      });
+
+      const el = document.getElementById(containerId);
+      if (!el) {
+        window.__unified_rendering = false;
+        return;
+      }
+
+      // Affichage de chargement initial
+      el.innerHTML = `
+        <div style="background: var(--theme-surface); border: 1px solid var(--theme-border); border-radius: var(--radius-md); padding: var(--space-md);">
+          <div style="display:flex; align-items:center; justify-content: space-between; gap:.75rem;">
+            <div>
+              <div style="font-size: .9rem; color: var(--theme-text-muted); font-weight:600;">Decision Index</div>
+              <div style="font-size: 2rem; font-weight: 800; color: var(--success);">Loading...</div>
+              <div style="font-size: .8rem; color: var(--theme-text-muted);">Chargement des insights unifiés CORRIGÉS</div>
+            </div>
+            <div style="text-align:right; font-size:.8rem; color: var(--theme-text-muted);">
+              <div>Status: Initializing FIX</div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      try {
+        console.debug('🔥 LOCAL: Loading corrected UnifiedInsights logic...');
+
+        // Import des modules nécessaires - CACHE BUST pour forcer rechargement
+        const cacheBust = new Date().toISOString();
+        const { renderUnifiedInsights: originalRender } = await import(`./components/UnifiedInsights.js?v=${cacheBust}`);
+        const { getRegimeDisplayData, getMarketRegime } = await import('./modules/market-regimes.js');
+
+        // OVERRIDE CRITIQUE: Modifier la fonction globale pour corriger le problème
+        const originalFunction = window.buildTheoreticalTargets;
+
+        window.buildTheoreticalTargets = async function(blendedScore, currentPortfolio, riskScore) {
+          console.log('🎯 TARGETS RÉELS (Fix Sources System):', { blendedScore, riskScore, hasCurrentPortfolio: !!currentPortfolio });
+
+          try {
+            // 1) Récupérer les vraies données de balance depuis le store ou recharger
+            let realBalances = store.get('wallet.balances');
+            let totalValue = store.get('wallet.total');
+
+            // Si pas de données dans le store, essayer de les recharger
+            if (!realBalances || !totalValue) {
+              console.log('🔄 No balance data in store, attempting to reload...');
+              if (typeof window.loadBalanceData === 'function') {
+                try {
+                  const balanceResult = await window.loadBalanceData();
+                  if (balanceResult.success) {
+                    realBalances = balanceResult.data?.items || [];
+                    totalValue = realBalances.reduce((sum, item) => sum + (parseFloat(item.value_usd) || 0), 0);
+
+                    // Mettre à jour le store
+                    store.set('wallet.balances', realBalances);
+                    store.set('wallet.total', totalValue);
+
+                    console.log('✅ Balance data reloaded successfully');
+                  }
+                } catch (e) {
+                  console.warn('Failed to reload balance data:', e.message);
+                }
+              }
+            }
+
+            // 2) Si on a des vraies données, les grouper
+            if (realBalances && realBalances.length > 0 && totalValue > 0) {
+              const { groupAssetsByClassification } = await import('./shared-asset-groups.js');
+              const groupedData = groupAssetsByClassification(realBalances);
+
+              // 3) Convertir les groupes en format attendu avec valeurs USD réelles
+              const realTargets = {};
+              groupedData.forEach(group => {
+                realTargets[group.label] = group.value; // Valeur USD réelle
+              });
+
+              console.log('🎯 REAL TARGETS (from grouped data):', {
+                targets: realTargets,
+                totalValue,
+                groupsCount: groupedData.length,
+                source: 'real_balance_data'
+              });
+
+              return realTargets;
+            }
+
+            // 4) Fallback: utiliser le currentPortfolio si fourni
+            if (currentPortfolio && typeof currentPortfolio === 'object') {
+              console.log('🎯 Using currentPortfolio as fallback');
+              return currentPortfolio;
+            }
+
+            // 5) Dernier fallback: logique artificielle mais basée sur un scoring réaliste
+            console.warn('⚠️ Falling back to artificial targets (no real data available)');
+
+            let stablesTarget, btcTarget, ethTarget, altsTarget;
+            if (blendedScore >= 70) {
+              stablesTarget = 20; btcTarget = 35; ethTarget = 25; altsTarget = 20;
+            } else if (blendedScore >= 50) {
+              stablesTarget = 30; btcTarget = 40; ethTarget = 20; altsTarget = 10;
+            } else {
+              stablesTarget = 50; btcTarget = 30; ethTarget = 15; altsTarget = 5;
+            }
+
+            const artificialTargets = {
+              'Stablecoins': stablesTarget,
+              'BTC': btcTarget,
+              'ETH': ethTarget,
+              'SOL': altsTarget * 0.3,
+              'L1/L0 majors': altsTarget * 0.4,
+              'L2/Scaling': altsTarget * 0.2,
+              'DeFi': altsTarget * 0.1,
+              'AI/Data': 0,
+              'Gaming/NFT': 0,
+              'Memecoins': 0,
+              'Others': 0
+            };
+
+            console.log('🎯 FALLBACK TARGETS:', artificialTargets);
+            return artificialTargets;
+
+          } catch (error) {
+            console.error('❌ Error in buildTheoreticalTargets:', error);
+
+            // Fallback d'urgence
+            return {
+              'Stablecoins': 40,
+              'BTC': 35,
+              'ETH': 15,
+              'Others': 10
+            };
+          }
+        };
+
+        // 1) Rendre UnifiedInsights SANS son ancien header (on injecte le nouveau DI v5 au-dessus)
+        console.debug('🔥 LOCAL: Calling originalRender with fixes applied + hideHeader:true');
+        await originalRender(containerId, { hideHeader: true });
+
+        // Restaurer la fonction originale après utilisation
+        if (originalFunction) {
+          window.buildTheoreticalTargets = originalFunction;
+        }
+
+        // 2) APRÈS le rendu UnifiedInsights, injecter le nouveau Decision Index Panel v5 EN HAUT
+        // (maintenant on peut récupérer les vraies données via getUnifiedState)
+        const cacheBust2 = Date.now();
+        const { renderDecisionIndexPanel } = await import(`./components/decision-index-panel.js?v=${cacheBust2}`);
+        const { getUnifiedState } = await import(`./core/unified-insights-v2.js?v=${cacheBust2}`);
+        const diHistoryModule = await import(`./utils/di-history.js?v=${cacheBust2}`);
+
+        // Exposer API DI history dans window pour debug/réutilisation
+        window.__DI_HISTORY__ = diHistoryModule;
+
+        // Récupérer l'état unifié (MÊME source que UnifiedInsights)
+        const u = await getUnifiedState();
+        console.debug('🔍 Unified state for DI panel:', u);
+        console.debug('🔍 Scores object in unified state:', u.scores);
+        console.debug('🔍 Risk score from unified state:', u.scores?.risk);
+        console.debug('🔍 Risk score from store:', store.get('scores.risk'));
+
+        const cycleScore = u.cycle?.score ?? 50;
+        const onchainScore = u.onchain?.score ?? 50;
+        const riskScore = u.scores?.risk ?? 50;
+        const blendedScore = u.decision?.score ?? 50;
+
+        console.debug('🔍 Final scores used in DI panel:', { cycleScore, onchainScore, riskScore, blendedScore });
+
+        // Weights (depuis unified state)
+        const wCycle = u.decision?.weights?.cycle ?? 0.5;
+        const wOnchain = u.decision?.weights?.onchain ?? 0.3;
+        const wRisk = u.decision?.weights?.risk ?? 0.2;
+
+        // Calcul blended confidence
+        const s = store.snapshot();
+        const ocConf = Math.max(0, Math.min(1, s.scores?.onchain_metadata?.confidence ?? 0.5));
+        const cycleConf = Math.max(0, Math.min(1, s.cycle?.confidence ?? 0.5));
+        const wSum = (wCycle + wOnchain + wRisk) || 1;
+        const blendedConfidence = (wCycle * cycleConf + wOnchain * ocConf + wRisk * 1.0) / wSum; // risk=1.0
+
+        // Sélecteurs gouvernance normalisés
+        const capPercent = window.selectEffectiveCap(s);           // entier en %
+        const contrad01 = window.selectContradiction01(s);        // [0..1]
+        const updatedISO = window.selectGovernanceTimestamp(s);     // ISO string
+
+        // LOG CONTRÔLE (Oct 2025): Tracer cohérence UI/Backend cap
+        const beCap = s?.governance?.execution_policy?.cap_daily;
+        console.debug('[CAP] ui=%s%% be=%s%%', capPercent, beCap ? (beCap*100).toFixed(2) : 'NA');
+        const modeLabel = (() => {
+          const m = s?.governance?.mode || s?.governance?.current_state || 'normal';
+          return String(m).replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, x => x.toUpperCase());
+        })();
+
+        // Régime et phase
+        const regimeData = u.regime || {};
+        const phaseEngineMode = localStorage.getItem('PHASE_ENGINE_ENABLED') || 'shadow';
+        let actualPhase = regimeData.name || 'neutral';
+        if (typeof window !== 'undefined') {
+          if (window._phaseEngineAppliedResult?.phase) {
+            actualPhase = window._phaseEngineAppliedResult.phase;
+          } else if (window._phaseEngineShadowResult?.phase) {
+            actualPhase = window._phaseEngineShadowResult.phase;
+          }
+        }
+
+        // Alpha si disponible dans signals
+        const alpha = s?.signals?.alpha;
+
+        // 📊 Historique Decision Index (persistance localStorage via di-history.js)
+        const activeUser = localStorage.getItem('activeUser') || 'demo';
+        const dataSource = window.globalConfig?.get('data_source') || 'cointracking';
+
+        // Détecter contexte simulation
+        const isSimulation = !!window.__SIMULATION__;
+        const suffix = isSimulation ? '_sim' : '_prod';
+
+        // Générer clé scopée avec timezone Europe/Zurich
+        const historyKey = diHistoryModule.makeKey({
+          user: activeUser,
+          source: dataSource,
+          suffix
+        });
+        const today = diHistoryModule.getTodayCH();
+
+        // Charger historique existant (avec sanitization)
+        let diHistory = diHistoryModule.loadHistory(historyKey, 30);
+
+        // Migration douce depuis legacy s?.di_history si première utilisation
+        if (diHistory.length === 0 && s?.di_history && Array.isArray(s.di_history) && s.di_history.length > 0) {
+          console.debug('📦 Migration legacy DI history...');
+          diHistory = diHistoryModule.migrateLegacy(s.di_history, 30);
+          diHistoryModule.saveHistory(historyKey, diHistory);
+          console.debug('✅ Legacy migration done:', { count: diHistory.length });
+        }
+
+        // Ajouter score actuel si nécessaire (date différente OU delta > 0.1)
+        const { history: updatedHistory, added } = diHistoryModule.pushIfNeeded({
+          key: historyKey,
+          history: diHistory,
+          today,
+          di: blendedScore,
+          max: 30,
+          minDelta: 0.1
+        });
+
+        diHistory = updatedHistory;
+
+        if (added) {
+          console.debug('📊 DI history updated:', {
+            count: diHistory.length,
+            latest: blendedScore,
+            context: isSimulation ? 'simulation' : 'production',
+            timezone: 'Europe/Zurich'
+          });
+        }
+
+        const panelData = {
+          di: blendedScore,
+          scores: { cycle: cycleScore, onchain: onchainScore, risk: riskScore },
+          weights: { cycle: wCycle, onchain: wOnchain, risk: wRisk },
+          meta: {
+            phase: (s?.regime?.name || regimeData?.name || actualPhase || 'neutral'),   // ✅ phase toujours renseignée
+            source: u.decision?.source || window.globalConfig?.get('data_source') || 'allocation_engine_v2',
+            live: s.ui?.apiStatus?.backend === 'healthy',
+            backend: s.ui?.apiStatus?.backend === 'healthy',
+            signals: s.ui?.apiStatus?.signals === 'healthy',
+            governance_mode: s.governance?.current_state || 'IDLE',
+            cap: capPercent,                       // ✅ entier %
+            mode: modeLabel,                       // ✅ "Manual", "Slow", ...
+            confidence: blendedConfidence,         // ✅ [0..1]
+            contradiction: contrad01,              // ✅ [0..1]
+            cycle_confidence: cycleConf,           // pour badge bas
+            updated: updatedISO,                   // pour horodatage
+            signals_status: s.ui?.apiStatus?.signals || 'limited',
+            alpha: alpha                           // ✅ alpha si dispo [0..1]
+          },
+          history: diHistory.map(h => h.di),                                       // ✅ di history (array de scores)
+          regimeHistory: (s?.regime?.history || s?.regime_history || [])           // ✅ regime history (2 clés possibles)
+        };
+
+        // Créer conteneur pour le nouveau panneau AU-DESSUS du contenu UnifiedInsights
+        const existingContent = el.innerHTML;
+        el.innerHTML = `<div id="new-di-panel" style="margin-bottom: 0.5rem;"></div>${existingContent}`;
+
+        const newPanelEl = document.getElementById('new-di-panel');
+        if (newPanelEl) {
+          renderDecisionIndexPanel(newPanelEl, panelData, { showFooter: true });
+          console.debug('✅ New Decision Index panel v5 injected at top with footer');
+        }
+
+        console.debug('🔥 LOCAL: Unified rendering completed with fixes');
+
+        // NOUVEAU: Sauvegarder les données unified pour rebalance.html
+        await saveUnifiedDataForRebalance();
+      } catch (error) {
+        console.error('❌ Failed to load corrected UnifiedInsights:', error);
+        el.innerHTML = `
+          <div style="background: var(--theme-surface); border: 1px solid var(--theme-border); border-radius: var(--radius-md); padding: var(--space-md);">
+            <div style="color: var(--danger); text-align: center;">
+              <h3>⚠️ Erreur de Chargement (Corrigé)</h3>
+              <p>Impossible de charger les insights unifiés corrigés: ${error.message}</p>
+              <button onclick="location.reload()" style="background: var(--brand-primary); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); cursor: pointer;">
+                Recharger
+              </button>
+            </div>
+          </div>
+        `;
+      } finally {
+        // Relâcher le mutex après 100ms (allow intentional refresh)
+        setTimeout(() => {
+          window.__unified_rendering = false;
+        }, 100);
+      }
+    }
+
+    // OVERRIDE supprimé d'ici - déplacé plus bas
+
+    // Import des autres composants sans UnifiedInsights pour l'instant
+    import { store } from './core/risk-dashboard-store.js';
+    import { GovernancePanel } from './components/GovernancePanel.js';
+
+    // INTELLIGENT CACHE SYSTEM - Avoid constant recalculations
+    const CACHE_CONFIG = {
+      risk: { ttl: 3 * 60 * 60 * 1000, key: 'analytics_unified_risk' },      // 3 hours (can change with trades)
+      cycle: { ttl: 24 * 60 * 60 * 1000, key: 'analytics_unified_cycle' },    // 24 hours (macro halving cycle)
+      onchain: { ttl: 6 * 60 * 60 * 1000, key: 'analytics_unified_onchain' }, // 6 hours (blockchain metrics)
+      blended: { ttl: 1 * 60 * 1000, key: 'analytics_unified_blended' }       // 1 minute (decision index)
+    };
+
+    // Generate cache key that includes data source to invalidate on source change
+    function getCacheKey(baseKey) {
+      const dataSource = globalConfig.get('data_source') || 'unknown';
+      const user = (localStorage.getItem('activeUser') || 'demo');
+      return `${baseKey}_${user}_${dataSource}`;
+    }
+
+    function isCacheValid(cacheKey, ttl) {
+      try {
+        const fullKey = getCacheKey(cacheKey);
+        const cached = localStorage.getItem(fullKey);
+        if (!cached) return false;
+        const data = JSON.parse(cached);
+        return Date.now() - data.timestamp < ttl;
+      } catch { return false; }
+    }
+
+    function setCache(cacheKey, data) {
+      try {
+        const fullKey = getCacheKey(cacheKey);
+        localStorage.setItem(fullKey, JSON.stringify({ data, timestamp: Date.now() }));
+      } catch { }
+    }
+
+    function getCache(cacheKey) {
+      try {
+        const fullKey = getCacheKey(cacheKey);
+        const cached = localStorage.getItem(fullKey);
+        return cached ? JSON.parse(cached).data : null;
+      } catch { return null; }
+    }
+
+    // ===== CROSS-PAGE CACHE: Read from risk-dashboard's persistent cache (6h TTL) =====
+    function readRiskDashboardCache() {
+      try {
+        const dataSource = globalConfig.get('data_source') || 'unknown';
+        const cacheKey = `risk_scores_cache_${dataSource}`;
+        const cached = localStorage.getItem(cacheKey);
+
+        if (!cached) {
+          console.log('⏭️ No risk-dashboard cache found');
+          return null;
+        }
+
+        const parsed = JSON.parse(cached);
+        const age = Date.now() - parsed.timestamp;
+        const ttl = 6 * 60 * 60 * 1000; // 6 heures (même TTL que risk-dashboard)
+
+        if (age > ttl) {
+          console.log(`⏰ Risk dashboard cache expired (age: ${Math.round(age / 60000)} min > 360 min)`);
+          return null;
+        }
+
+        const ageMin = Math.round(age / 60000);
+        console.log(`✅ CROSS-PAGE CACHE HIT: Using risk-dashboard cache (age: ${ageMin} min, TTL: 6h)`);
+
+        return {
+          onchainScore: parsed.data?.onchainScore,
+          riskScore: parsed.data?.riskScore,
+          blendedScore: parsed.data?.blendedScore,
+          ccsScore: parsed.data?.ccsScore,
+          timestamp: parsed.timestamp,
+          source: 'risk_dashboard_6h_cache'
+        };
+      } catch (e) {
+        console.warn('❌ Failed to read risk-dashboard cache:', e.message);
+        return null;
+      }
+    }
+
+    // Update badges with current analytics data
+    function updateAnalyticsBadges() {
+      if (!window.analyticsBadges) return;
+
+      try {
+        const now = new Date();
+
+        // Risk badge
+        const riskData = store.get('risk');
+        const riskScore = store.get('scores.risk');
+        const riskStatus = store.get('ui.apiStatus.backend') === 'healthy' ? 'ok' : 'error';
+
+        if (window.analyticsBadges.risk) {
+          window.analyticsBadges.risk.updateData({
+            source: 'Risk API',
+            updated: now,
+            contradiction: Math.round((riskData?.correlations?.average_correlation || 0.3) * 100),
+            status: riskStatus
+          });
+        }
+
+        // Performance badge
+        const performance = store.get('performance') || {};
+        if (window.analyticsBadges.performance) {
+          window.analyticsBadges.performance.updateData({
+            source: 'Performance',
+            updated: now,
+            contradiction: Math.round((performance.volatility || 0.15) * 100),
+            status: 'ok'
+          });
+        }
+
+        // Intelligence badge
+        const mlStatus = store.get('ml.status') || {};
+        const intelligenceStatus = mlStatus.ready ? 'ok' : 'stale';
+
+        if (window.analyticsBadges.intelligence) {
+          window.analyticsBadges.intelligence.updateData({
+            source: 'ML Engine',
+            updated: now,
+            status: intelligenceStatus
+          });
+        }
+
+        console.log('🏷️ Analytics badges updated');
+      } catch (error) {
+        console.warn('Badge update failed:', error);
+      }
+    }
+
+    // Update risk metrics with dynamic data from store
+    function updateRiskMetrics() {
+      try {
+        const riskData = store.get('risk');
+        const riskScore = store.get('scores.risk');
+
+        // Update VaR
+        const varElement = document.getElementById('risk-var-value');
+        if (varElement && riskData?.risk_metrics?.var_95_1d != null) {
+          varElement.textContent = `${(riskData.risk_metrics.var_95_1d * 100).toFixed(2)}%`;
+          varElement.style.color = riskData.risk_metrics.var_95_1d < -0.05 ? 'var(--danger)' : 'var(--warning)';
+        } else if (varElement) {
+          varElement.textContent = '--';
+        }
+
+        // Update Max Drawdown
+        const drawdownElement = document.getElementById('risk-drawdown-value');
+        if (drawdownElement && riskData?.risk_metrics?.max_drawdown != null) {
+          drawdownElement.textContent = `${(riskData.risk_metrics.max_drawdown * 100).toFixed(2)}%`;
+          drawdownElement.style.color = riskData.risk_metrics.max_drawdown < -0.1 ? 'var(--danger)' : 'var(--warning)';
+        } else if (drawdownElement) {
+          drawdownElement.textContent = '--';
+        }
+
+        // Update Volatility
+        const volatilityElement = document.getElementById('risk-volatility-value');
+        if (volatilityElement && riskData?.risk_metrics?.volatility_annualized != null) {
+          volatilityElement.textContent = `${(riskData.risk_metrics.volatility_annualized * 100).toFixed(1)}%`;
+          volatilityElement.style.color = riskData.risk_metrics.volatility_annualized > 0.3 ? 'var(--danger)' :
+            riskData.risk_metrics.volatility_annualized > 0.2 ? 'var(--warning)' : 'var(--success)';
+        } else if (volatilityElement) {
+          volatilityElement.textContent = '--';
+        }
+
+        // Update Risk Score (IMPORTANT: Risk Score est positif - plus haut = plus robuste)
+        const scoreElement = document.getElementById('risk-score-value');
+        if (scoreElement && riskScore != null) {
+          scoreElement.textContent = `${Math.round(riskScore)}/100`;
+          scoreElement.style.color = riskScore > 70 ? 'var(--success)' :
+            riskScore > 40 ? 'var(--warning)' : 'var(--danger)';
+        } else if (scoreElement) {
+          scoreElement.textContent = '--/100';
+        }
+
+        // Update On-Chain Score (IMPORTANT: Score positif - plus haut = meilleur signal)
+        const onchainScore = store.get('scores.onchain');
+        const onchainElement = document.getElementById('risk-kpi-onchain-value');
+        if (onchainElement && onchainScore != null) {
+          onchainElement.textContent = `${Math.round(onchainScore)}/100`;
+          onchainElement.style.color = onchainScore > 70 ? 'var(--success)' :
+            onchainScore > 40 ? 'var(--warning)' : 'var(--danger)';
+        } else if (onchainElement) {
+          onchainElement.textContent = '--/100';
+        }
+
+        console.log('📊 Risk metrics updated with dynamic data');
+      } catch (error) {
+        console.warn('Risk metrics update failed:', error);
+      }
+    }
+
+    // Risk Budget ready guard - improved with multiple sources
+    async function ensureRiskBudgetReady(getRiskBudget, options = {}) {
+      const { waitMs = 50, timeoutMs = 8000 } = options || {}; // Increased timeout, reduced polling interval
+
+      const resolveCandidate = () => {
+        let rb = typeof getRiskBudget === 'function' ? getRiskBudget() : null;
+
+        if (!rb?.stables_allocation) {
+          const storeData = store.get('risk.budget');
+          if (storeData?.percentages) {
+            rb = {
+              stables_allocation: storeData.percentages.stables / 100,
+              risky_allocation: storeData.percentages.risky / 100
+            };
+          }
+        }
+
+        if (!rb?.stables_allocation && typeof store?.snapshot === 'function') {
+          const snapshot = store.snapshot();
+          const snapBudget = snapshot?.risk?.budget?.percentages;
+          if (snapBudget?.stables != null && snapBudget?.risky != null) {
+            rb = {
+              stables_allocation: snapBudget.stables / 100,
+              risky_allocation: snapBudget.risky / 100
+            };
+          }
+        }
+
+        if (!rb?.stables_allocation && typeof window.computeRiskBudget === 'function') {
+          try {
+            const computed = window.computeRiskBudget(store.get('scores.blended') || 50);
+            if (computed?.target_stables_pct != null) {
+              rb = {
+                stables_allocation: computed.target_stables_pct / 100,
+                risky_allocation: (100 - computed.target_stables_pct) / 100
+              };
+            }
+          } catch (e) { /* ignore */ }
+        }
+
+        // Additional fallback: check for cached market regimes calculation
+        if (!rb?.stables_allocation && window.store?.get) {
+          const marketRegime = window.store.get('market.regime');
+          if (marketRegime?.risk_budget) {
+            rb = {
+              stables_allocation: marketRegime.risk_budget.stables_allocation,
+              risky_allocation: marketRegime.risk_budget.risky_allocation
+            };
+          }
+        }
+
+        return rb?.stables_allocation != null && rb?.risky_allocation != null ? rb : null;
+      };
+
+      const immediate = resolveCandidate();
+      if (immediate) {
+        return immediate;
+      }
+
+      return new Promise(resolve => {
+        let settled = false;
+        let pollId = null;
+        let timeoutId = null;
+        let unsubscribe = null;
+
+        const cleanup = () => {
+          if (pollId) clearInterval(pollId);
+          if (timeoutId) clearTimeout(timeoutId);
+          if (typeof unsubscribe === 'function') unsubscribe();
+        };
+
+        const finalize = (value, fallback = false) => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+
+          if (fallback) {
+            console.debug('⏰ RiskBudget resolution timeout, computing synthetic allocation');
+            const blendedScore = store.get('scores.blended') || 50;
+            const stablesPercent = Math.max(10, Math.min(80, 100 - blendedScore));
+            console.debug(`💡 Synthetic allocation: ${stablesPercent}% stables based on blended score ${blendedScore}`);
+            resolve({
+              stables_allocation: stablesPercent / 100,
+              risky_allocation: (100 - stablesPercent) / 100
+            });
+            return;
+          }
+
+          resolve(value);
+        };
+
+        const attemptResolve = () => {
+          const candidate = resolveCandidate();
+          if (candidate) {
+            finalize(candidate);
+          }
+        };
+
+        pollId = setInterval(attemptResolve, waitMs);
+        timeoutId = setTimeout(() => finalize(null, true), timeoutMs);
+
+        if (store && typeof store.subscribe === 'function') {
+          unsubscribe = store.subscribe(attemptResolve);
+        }
+
+        // Immediate attempt in case data arrives synchronously
+        attemptResolve();
+      });
+    }
+
+    // Lightweight unified data loader with INTELLIGENT CACHING
+    async function loadUnifiedData(force = false) {
+      console.log('🧠 Loading unified data with intelligent caching...', { force });
+      let loadedFromCache = 0;
+
+      try {
+        const priceDays = 365, corrDays = 90;
+
+        // 0) PRIORITY: Try cross-page cache from risk-dashboard (6h TTL) - MUCH faster!
+        if (!force) {
+          const dashboardCache = readRiskDashboardCache();
+          if (dashboardCache) {
+            console.log('🎯 CROSS-PAGE CACHE FOUND - Hydrating store with cached scores...');
+            // Hydrate store immediately with cached scores
+            if (typeof dashboardCache.onchainScore === 'number') {
+              store.set('scores.onchain', dashboardCache.onchainScore);
+              console.log(`⚡ FAST: On-Chain from cache: ${dashboardCache.onchainScore}`);
+              loadedFromCache++;
+            }
+            if (typeof dashboardCache.riskScore === 'number') {
+              store.set('scores.risk', dashboardCache.riskScore);
+              console.log(`⚡ FAST: Risk from cache: ${dashboardCache.riskScore}`);
+              loadedFromCache++;
+            }
+            if (typeof dashboardCache.blendedScore === 'number') {
+              store.set('scores.blended', dashboardCache.blendedScore);
+              console.log(`⚡ FAST: Blended from cache: ${dashboardCache.blendedScore}`);
+            }
+
+            // Skip slow API calls if cache is fresh
+            const cacheAge = Math.round((Date.now() - dashboardCache.timestamp) / 60000);
+            console.log(`✅ Skipping slow Risk/On-Chain API calls - using ${cacheAge}min old cache (TTL: 6h)`);
+            console.log('📊 Store now has scores:', {
+              onchain: store.get('scores.onchain'),
+              risk: store.get('scores.risk'),
+              blended: store.get('scores.blended')
+            });
+          } else {
+            console.warn('⚠️ No cross-page cache - will use slower API calls');
+          }
+        }
+
+        // 1) Risk (backend) - Use orchestrator's hydrated value (DON'T OVERWRITE)
+        // Orchestrator already loaded risk score via risk-data-orchestrator.js
+        const existingRiskScore = store.get('scores.risk');
+        if (typeof existingRiskScore === 'number') {
+          console.log(`✅ Risk score already hydrated by orchestrator: ${existingRiskScore}`);
+          loadedFromCache++;
+        } else {
+          console.log('⚠️ Risk score not yet hydrated, waiting for orchestrator...');
+          // Wait for orchestrator hydration if not ready
+          await new Promise(resolve => {
+            const handler = (e) => {
+              if (e.detail?.hydrated) {
+                console.log('✅ Orchestrator hydrated, risk score available');
+                resolve();
+              }
+            };
+            window.addEventListener('riskStoreReady', handler, { once: true });
+            setTimeout(resolve, 2000); // Fallback timeout
+          });
+        }
+
+        // 2) Cycle (client-side) - With cache
+        if (isCacheValid(CACHE_CONFIG.cycle.key, CACHE_CONFIG.cycle.ttl)) {
+          console.log('✅ Cycle data loaded from cache');
+          const cycleData = getCache(CACHE_CONFIG.cycle.key);
+          store.set('cycle.months', cycleData.months);
+          store.set('cycle.score', cycleData.score);
+          store.set('cycle.phase', cycleData.phase);
+          loadedFromCache++;
+        } else {
+          try {
+            const { getCurrentCycleMonths, cycleScoreFromMonths, getCyclePhase } = await import('./modules/cycle-navigator.js');
+            const c = getCurrentCycleMonths();
+            const score = Math.round(cycleScoreFromMonths(c.months));
+            const phase = getCyclePhase(c.months);
+            const cycleData = { months: c.months, score, phase };
+            setCache(CACHE_CONFIG.cycle.key, cycleData);
+            store.set('cycle.months', c.months);
+            store.set('cycle.score', score);
+            store.set('cycle.phase', phase);
+            console.log('✅ Cycle data calculated and cached');
+          } catch (e) { console.warn('Cycle data load failed:', e.message); }
+        }
+
+        // 3) On-Chain (via scraper/proxy) - SWR Cache with hard refresh detection
+        const isHardRefresh = performance.navigation?.type === 1 ||
+                              performance.getEntriesByType?.('navigation')?.[0]?.type === 'reload';
+        const manualRefresh = window.location.search.includes('force_onchain=true') || isHardRefresh || force;
+
+        // Check if already loaded from dashboard cache
+        const existingOnchainScore = store.get('scores.onchain');
+        if (!manualRefresh && typeof existingOnchainScore === 'number') {
+          console.log('✅ On-Chain already in store from dashboard cache, skipping API');
+          loadedFromCache++;
+        } else if (!manualRefresh && isCacheValid(CACHE_CONFIG.onchain.key, CACHE_CONFIG.onchain.ttl)) {
+          console.log('✅ On-Chain data loaded from legacy cache');
+          const onchainData = getCache(CACHE_CONFIG.onchain.key);
+          if (typeof onchainData.score === 'number') {
+            store.set('scores.onchain', onchainData.score);
+          }
+          store.set('scores.onchain_metadata', onchainData.metadata);
+          store.set('scores.contradictory_signals', onchainData.contradictory_signals);
+          store.set('ui.apiStatus.signals', 'healthy');
+          loadedFromCache++;
+        } else {
+          console.log('🔄 On-Chain refresh - Using SWR cache for optimal performance...');
+          try {
+            const onchain = await import('./modules/onchain-indicators.js');
+            const v2 = await import('./modules/composite-score-v2.js');
+            // Use SWR-cached version by default (no force unless manual)
+            const indicators = await onchain.fetchAllIndicators({ force: manualRefresh });
+            // Dynamic weighting always enabled (V2 production mode)
+            const composite = v2.calculateCompositeScoreV2(indicators, true);
+
+            let finalComposite = composite;
+            // Fallback minimal si score null: utiliser Fear & Greed pour produire un score on-chain basique
+            if (finalComposite.score == null) {
+              try {
+                const data = await window.globalConfig.apiRequest('/api/ml/sentiment/fear-greed', { params: { days: 1 } });
+                if (data) {
+                  const latest = (data.fear_greed_data && (data.fear_greed_data[0] || data.fear_greed_data)) || null;
+                  const fg = latest?.value ?? latest?.fear_greed_index;
+                  if (typeof fg === 'number') {
+                    const minimal = {
+                      fear_greed_min: { name: 'Fear & Greed', value_numeric: fg, in_critical_zone: fg >= 80 || fg <= 20, raw_value: String(fg) },
+                      _metadata: { available_count: 1 }
+                    };
+                    finalComposite = v2.calculateCompositeScoreV2(minimal, true);
+                    console.log('✅ On-Chain fallback (Fear & Greed) used in unified loader');
+                  }
+                }
+              } catch (fe) { console.warn('On-chain FG fallback failed:', fe.message); }
+            }
+
+            const onchainData = {
+              score: finalComposite.score,
+              metadata: {
+                categoryBreakdown: finalComposite.categoryBreakdown,
+                criticalZoneCount: finalComposite.criticalZoneCount,
+                confidence: finalComposite.confidence,
+              },
+              contradictory_signals: v2.analyzeContradictorySignals(finalComposite.categoryBreakdown)
+            };
+
+            setCache(CACHE_CONFIG.onchain.key, onchainData);
+
+            if (typeof onchainData.score === 'number') {
+              store.set('scores.onchain', onchainData.score);
+            }
+            store.set('scores.onchain_metadata', onchainData.metadata);
+            store.set('scores.contradictory_signals', onchainData.contradictory_signals);
+            store.set('ui.apiStatus.signals', 'healthy');
+            console.log('✅ On-Chain data calculated and cached');
+          } catch (e) {
+            console.warn('On-chain load failed:', e.message);
+            store.set('ui.apiStatus.signals', 'error');
+          }
+        }
+
+        // PATCH B - TOUJOURS exécuter l'injection de données (même avec cache)
+        try {
+          // DEBUG A - Vérification parité Rebalance ↔ Analytics
+          console.log('[whoami]', {
+            currentUser: localStorage.getItem('activeUser') || 'demo',
+            currentSource: window.globalConfig?.get('data_source') || 'unknown'
+          });
+
+          // PATCH B - Forcer même dataset que Rebalance (toujours)
+          if (typeof window.loadBalanceData === 'function') {
+            try {
+              const balanceResult = await window.loadBalanceData();
+              if (balanceResult.success) {
+                const realBalances = balanceResult.data?.items || [];
+
+                // INJECT real data into store to force UnifiedInsights to use same data
+                const totalValue = realBalances.reduce((sum, item) => sum + (parseFloat(item.value_usd) || 0), 0);
+                store.set('wallet.balances', realBalances);
+                store.set('wallet.total', totalValue);
+
+                console.log('🔧 PATCH: Analytics FORCE injection même avec cache:', {
+                  items: realBalances.length,
+                  first5: realBalances.slice(0,5),
+                  total: totalValue,
+                  source: balanceResult.source,
+                  dataSource: window.globalConfig?.get('data_source'),
+                  timestamp: new Date().toISOString()
+                });
+
+                // DEBUG: Vérifier les groupes immédiatement après injection
+                try {
+                  const { groupAssetsByClassification } = await import('./shared-asset-groups.js');
+                  const groupedData = groupAssetsByClassification(realBalances);
+                  console.log('🔍 POST-INJECTION GROUPING (Analytics):', {
+                    groups: groupedData.map(g => ({
+                      label: g.label,
+                      value: g.value,
+                      percentage: ((g.value / totalValue) * 100).toFixed(1) + '%'
+                    })),
+                    totalGrouped: groupedData.reduce((sum, g) => sum + g.value, 0)
+                  });
+                } catch (e) {
+                  console.warn('Post-injection grouping test failed:', e.message);
+                }
+              }
+            } catch (e) {
+              console.warn('🔧 PATCH failed, but continuing:', e.message);
+            }
+          }
+        } catch (e) {
+          console.warn('Patch injection error:', e.message);
+        }
+
+        // 4) Compute blended (decision index) - With cache
+        if (isCacheValid(CACHE_CONFIG.blended.key, CACHE_CONFIG.blended.ttl)) {
+          console.log('✅ Blended score loaded from cache');
+          const blendedData = getCache(CACHE_CONFIG.blended.key);
+          store.set('scores.blended', blendedData.score);
+          store.set('market.regime', blendedData.regime);
+          loadedFromCache++;
+        } else {
+          try {
+            const s = store.snapshot();
+
+            // DEBUG A - Vérification parité Rebalance ↔ Analytics
+            console.log('[whoami]', {
+              currentUser: localStorage.getItem('activeUser') || 'demo',
+              currentSource: window.globalConfig?.get('data_source') || 'unknown'
+            });
+            console.log('[balances]', {
+              storeBalances: s?.wallet?.balances?.slice?.(0,5),
+              storeTotal: s?.wallet?.total,
+              hasLoadBalanceData: typeof window.loadBalanceData === 'function'
+            });
+
+            // PATCH B - Forcer même dataset que Rebalance (temporaire)
+            let realBalances = null;
+            if (typeof window.loadBalanceData === 'function') {
+              try {
+                const balanceResult = await window.loadBalanceData();
+                if (balanceResult.success) {
+                  realBalances = balanceResult.data?.items || [];
+
+                  // INJECT real data into store to force UnifiedInsights to use same data
+                  const totalValue = realBalances.reduce((sum, item) => sum + (parseFloat(item.value_usd) || 0), 0);
+                  store.set('wallet.balances', realBalances);
+                  store.set('wallet.total', totalValue);
+
+                  // DEBUG B - Test grouping avec vraies données comme Rebalance
+                  try {
+                    const { groupAssetsByClassification, getAssetGroup } = await import('./shared-asset-groups.js');
+                    const groupedData = groupAssetsByClassification(realBalances);
+
+                    console.log('🔧 PATCH: Analytics now using same data as Rebalance:', {
+                      items: realBalances.length,
+                      first5: realBalances.slice(0,5),
+                      total: totalValue,
+                      source: balanceResult.source
+                    });
+
+                    console.log('🔍 GROUPING TEST (même fonction que Rebalance):', {
+                      groups: groupedData.map(g => ({
+                        label: g.label,
+                        value: g.value,
+                        percentage: ((g.value / totalValue) * 100).toFixed(1) + '%',
+                        assets: g.assets.slice(0,3) // Juste les 3 premiers
+                      })),
+                      totalGrouped: groupedData.reduce((sum, g) => sum + g.value, 0),
+                      othersGroup: groupedData.find(g => g.label === 'Others')
+                    });
+
+                    // DEBUG - Asset par asset avec classification
+                    console.log('🔍 ASSET CLASSIFICATION:', realBalances.slice(0,10).map(item => ({
+                      symbol: item.symbol,
+                      value: item.value_usd,
+                      group: getAssetGroup(item.symbol)
+                    })));
+
+                  } catch (e) {
+                    console.warn('Failed to test grouping:', e.message);
+                  }
+                }
+              } catch (e) {
+                console.warn('🔧 PATCH failed, fallback to store data:', e.message);
+              }
+            }
+
+            // ✅ UNIFORMISATION avec risk-dashboard.html (même formule canonique)
+            // Formule : 50% CCS Mixte + 30% On-Chain + 20% Risk (sans inversion)
+            // Respecte docs/RISK_SEMANTICS.md
+
+            const ccsMixteScore = s.cycle?.ccsStar ?? s.cycle?.score ?? 50; // CCS Mixte (CCS + Cycle blended)
+            const onchainScore = s.scores?.onchain ?? 50;
+            const riskScore = s.scores?.risk ?? 50;
+
+            // Poids fixes identiques à risk-dashboard.html
+            const wCCSMixte = 0.50;
+            const wOnchain = 0.30;
+            const wRisk = 0.20;
+
+            // Calcul blended avec formule canonique (pas d'inversion Risk!)
+            let totalScore = 0;
+            let totalWeight = 0;
+
+            if (ccsMixteScore != null) {
+              totalScore += ccsMixteScore * wCCSMixte;
+              totalWeight += wCCSMixte;
+            }
+            if (onchainScore != null) {
+              totalScore += onchainScore * wOnchain;
+              totalWeight += wOnchain;
+            }
+            if (riskScore != null) {
+              totalScore += riskScore * wRisk; // ✅ Direct, pas d'inversion
+              totalWeight += wRisk;
+            }
+
+            const blended = totalWeight > 0 ? totalScore / totalWeight : 50;
+            const blendedScore = Math.round(Math.max(0, Math.min(100, blended)));
+
+            console.debug('🎯 Blended Score (formule canonique):', {
+              ccsMixte: ccsMixteScore,
+              onchain: onchainScore,
+              risk: riskScore,
+              blended: blendedScore,
+              weights: { ccsMixte: wCCSMixte, onchain: wOnchain, risk: wRisk }
+            });
+
+            // 5) Market Regime (sentiment/régime agrégé)  
+            let regimeData = null;
+            try {
+              const { getRegimeDisplayData } = await import('./modules/market-regimes.js');
+              regimeData = getRegimeDisplayData(blendedScore, onchainScore, riskScore);
+            } catch (e) { console.warn('Market regime compute failed:', e.message); }
+
+            const blendedData = { score: blendedScore, regime: regimeData };
+            setCache(CACHE_CONFIG.blended.key, blendedData);
+
+            store.set('scores.blended', blendedScore);
+            store.set('market.regime', regimeData);
+            console.log('✅ Blended score calculated and cached');
+          } catch (e) { console.warn('Blended compute failed:', e.message); }
+        }
+
+        const cacheEfficiency = loadedFromCache > 0 ? `${loadedFromCache}/4 from cache` : 'full calculation';
+        const crossPageUsed = store.get('scores.onchain') && store.get('scores.risk') ? ' (6h cross-page cache)' : '';
+        console.log(`🎯 Unified data loading completed - ${cacheEfficiency}${crossPageUsed}${loadedFromCache > 0 ? ' ⚡ FAST' : ''}`);
+
+        // CONTRÔLES D - Invariants obligatoires (3 assertions critiques)
+        try {
+          const stateSnapshot = store.snapshot();
+          const riskBudget = stateSnapshot?.risk?.budget;
+
+          if (riskBudget?.percentages) {
+            const risky = riskBudget.percentages.risky || 0;
+            const stables = riskBudget.percentages.stables || 0;
+            const sum = risky + stables;
+
+            console.assert(Math.abs(sum - 100) <= 0.1,
+              'INVARIANT FAILED: risky+stables != 100',
+              { risky, stables, sum, riskBudget }
+            );
+          }
+
+          // Wait for Risk Budget to be ready before continuing
+          // First try immediate resolution
+          let rb = null;
+          try {
+            const immediate = store.get('risk.budget');
+            if (immediate?.percentages?.stables != null && immediate?.percentages?.risky != null) {
+              rb = {
+                stables_allocation: immediate.percentages.stables / 100,
+                risky_allocation: immediate.percentages.risky / 100
+              };
+            }
+          } catch (e) {
+            // Fall back to async resolution
+          }
+
+          if (!rb) {
+            rb = await ensureRiskBudgetReady(() => window.__store?.riskBudget);
+            if (!rb) {
+              console.debug('⚠️ Skip invariant checks this tick: risk budget not ready');
+              // Don't return, continue with other operations
+            }
+          }
+
+          const targetStablesPct = rb ? Math.round(rb.stables_allocation * 100) : 34; // Default fallback
+          // Remove assert - use computed value instead
+
+          // Vérifier groupes de targets si disponibles
+          const targets = stateSnapshot?.strategy?.targets || [];
+          if (targets.length > 0) {
+            const hasNegativeTargets = targets.some(t => (t.weight_pct || 0) < 0);
+            console.assert(!hasNegativeTargets,
+              'INVARIANT FAILED: target_pct négatif détecté',
+              { targets: targets.filter(t => (t.weight_pct || 0) < 0) }
+            );
+          }
+
+          console.debug('✅ Invariants Analytics validés:', {
+            sumCheck: riskBudget?.percentages ? `${risky}+${stables}=${risky+stables}%` : 'N/A',
+            targetStables: `${targetStablesPct}%`,
+            targetsCount: targets.length,
+            riskBudgetSource: rb ? 'resolved' : 'fallback'
+          });
+
+        } catch (assertError) {
+          console.error('❌ ASSERTION FAILED:', assertError.message);
+        }
+
+        // Update badges with latest data
+        updateAnalyticsBadges();
+
+        // Update risk metrics with dynamic data
+        updateRiskMetrics();
+
+      } catch (e) {
+        console.error('Unified loader fatal:', e);
+      }
+    }
+    // Track data source changes for cache invalidation
+    let lastKnownDataSource = globalConfig.get('data_source');
+    console.log(`📊 Analytics Unified initialized with data source: ${lastKnownDataSource}`);
+
+    // Listen for data source changes
+    window.addEventListener('storage', function (e) {
+      const expectedKey = (window.globalConfig?.getStorageKey && window.globalConfig.getStorageKey()) || 'crypto_rebal_settings_v1';
+      if (e.key === expectedKey) {
+        console.debug('Settings changed in another tab, checking for data source changes...');
+
+        const currentSource = globalConfig.get('data_source');
+        if (currentSource && currentSource !== lastKnownDataSource) {
+          console.debug(`🔄 Data source changed from ${lastKnownDataSource} to ${currentSource}, clearing cache and reloading...`);
+          lastKnownDataSource = currentSource;
+          // Clear all cache for this source change
+          Object.values(CACHE_CONFIG).forEach(config => {
+            const oldKey = getCacheKey(config.key).replace(`_${currentSource}`, `_${lastKnownDataSource || 'unknown'}`);
+            localStorage.removeItem(oldKey);
+          });
+          // Reload with new source
+          loadUnifiedData();
+          // Force re-render of UnifiedInsights component to update advanced risk analysis
+          setTimeout(() => renderUnifiedInsights('unified-root'), 1000);
+        }
+      }
+    });
+
+    window.addEventListener('dataSourceChanged', (event) => {
+      console.debug(`🔄 Explicit data source change in analytics-unified: ${event.detail.oldSource} → ${event.detail.newSource}`);
+      lastKnownDataSource = event.detail.newSource;
+      // Clear cache and reload
+      loadUnifiedData();
+      // Force re-render of UnifiedInsights component to update advanced risk analysis
+      setTimeout(() => renderUnifiedInsights('unified-root'), 1000);
+    });
+
+    // OVERRIDE PRÉCOCE - Avant même le DOMContentLoaded
+    console.log('🔥 EARLY OVERRIDE: Setting renderUnifiedInsights before any other imports');
+    delete window.renderUnifiedInsights;
+    window.renderUnifiedInsights = renderUnifiedInsights;
+
+    // FORCE CACHE BUST: Ajouter timestamp pour forcer le rechargement
+    console.log('🆘 CACHE BUST ANALYTICS UNIFIED:', new Date().toISOString());
+
+    // Suppress chrome extension errors
+    window.addEventListener('error', function(e) {
+      if (e.message && e.message.includes('Could not establish connection')) {
+        // Suppress Chrome extension connection errors
+        e.preventDefault();
+        return false;
+      }
+    });
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      // Initialize governance panel
+      const governanceContainer = document.getElementById('governance-container');
+      if (governanceContainer) {
+        console.log('🏛️ Initializing Governance Panel in analytics dashboard...');
+        const governancePanel = new GovernancePanel(governanceContainer);
+        window.governancePanel = governancePanel; // For debugging
+      }
+
+
+      // OVERRIDE FINAL AVANT INITIAL PAINT
+      console.log('🆘 DOM READY - FINAL OVERRIDE:', new Date().toISOString());
+
+      // FORCE OVERRIDE - Supprimer toute fonction existante d'abord
+      delete window.renderUnifiedInsights;
+      window.renderUnifiedInsights = renderUnifiedInsights;
+
+      // VERIFICATION de l'override
+      console.log('🔍 VERIFICATION OVERRIDE:', {
+        isLocalFunction: window.renderUnifiedInsights === renderUnifiedInsights,
+        functionSource: window.renderUnifiedInsights.toString().includes('🔥 LOCAL FUNCTION UNIFIED')
+      });
+
+      // CORRECTION TIMING: Charger les données AVANT le rendu initial
+      console.log('🔄 LOADING DATA FIRST, THEN RENDERING...');
+
+      // 0) Force reload taxonomie pour éviter fallback "Others"
+      try {
+        const { forceReloadTaxonomy, UNIFIED_ASSET_GROUPS } = await import('./shared-asset-groups.js');
+        await forceReloadTaxonomy();
+        if (!Object.keys(UNIFIED_ASSET_GROUPS || {}).length) {
+          console.warn('⚠️ Taxonomy non chargée – risque de "Others" gonflé. Vérifie API base_url.');
+        } else {
+          console.log('✅ Taxonomy forcée:', Object.keys(UNIFIED_ASSET_GROUPS).length, 'groupes chargés');
+        }
+      } catch (taxonomyError) {
+        console.warn('❌ Force reload taxonomy failed:', taxonomyError.message);
+      }
+
+      // 1) Charger les données d'abord (detect hard refresh)
+      const isHardRefresh = performance.navigation?.type === 1 ||
+                            performance.getEntriesByType?.('navigation')?.[0]?.type === 'reload';
+      if (isHardRefresh) {
+        console.log('🔄 Hard refresh detected, forcing cache refresh for all data');
+      }
+      await loadUnifiedData(isHardRefresh);
+
+      // Enhanced UI Mutex with render state tracking
+      if (!window.__uiMutex) {
+        window.__uiMutex = {
+          busy: false,
+          lastRender: 0,
+          lastHash: '',
+          MIN_RENDER_INTERVAL: 1000 // Minimum 1s between renders
+        };
+      }
+
+      async function renderUnifiedInsightsOnce() {
+        const now = Date.now();
+
+        // Skip if already rendering
+        if (window.__uiMutex.busy) {
+          console.debug('🔒 UI Mutex: Skipping render (already in progress)');
+          return;
+        }
+
+        // Skip if rendered too recently
+        if (now - window.__uiMutex.lastRender < window.__uiMutex.MIN_RENDER_INTERVAL) {
+          console.debug('🔒 Rate limit: Skipping render (too frequent)');
+          return;
+        }
+
+        // Check if state actually changed
+        const storeSnapshot = store.snapshot();
+        const currentHash = JSON.stringify({
+          scores: storeSnapshot?.scores,
+          regime: storeSnapshot?.market?.regime?.name,
+          stables: storeSnapshot?.risk?.budget?.percentages?.stables
+        });
+
+        // IMPORTANT: Ne pas skip si scores manquants (premier rendu ou cache pas encore chargé)
+        const hasScores = storeSnapshot?.scores?.cycle != null || storeSnapshot?.scores?.onchain != null || storeSnapshot?.scores?.risk != null;
+        const isFirstRender = window.__uiMutex.lastRender === 0;
+
+        if (currentHash === window.__uiMutex.lastHash && hasScores && !isFirstRender) {
+          console.debug('🔒 State unchanged: Skipping render (scores OK)');
+          return;
+        }
+
+        if (!hasScores) {
+          console.warn('⚠️ Rendering with incomplete scores:', {
+            cycle: storeSnapshot?.scores?.cycle,
+            onchain: storeSnapshot?.scores?.onchain,
+            risk: storeSnapshot?.scores?.risk,
+            will_render: 'yes (waiting for data)'
+          });
+        }
+
+        window.__uiMutex.busy = true;
+        window.__uiMutex.lastRender = now;
+        window.__uiMutex.lastHash = currentHash;
+
+        try {
+          await renderUnifiedInsights('unified-root');
+          console.debug('✅ Render completed', { hasScores });
+        } finally {
+          window.__uiMutex.busy = false;
+        }
+      }
+
+      // Subscribe once utility
+      function subscribeOnce(el, evt, handler, key) {
+        const k = `__bound_${key}`;
+        if (el[k]) return;
+        el.addEventListener(evt, handler);
+        el[k] = true;
+      }
+
+      // 2) Initialize governance system BEFORE first render
+      setTimeout(async () => {
+        try {
+          console.log('🏛️ Initializing governance system in analytics dashboard...');
+          await store.syncGovernanceState();
+          await store.syncMLSignals();
+          console.log('✅ Governance system initialized in analytics dashboard');
+
+          // 3) Premier rendu avec données fraîches ET governance synchronisée
+          // IMPORTANT: Attendre que le rendu soit terminé pour éviter race condition
+          await renderUnifiedInsightsOnce();
+
+          // Refresh governance panel if initialized
+          if (window.governancePanel) {
+            window.governancePanel.refreshState();
+          }
+        } catch (error) {
+          console.warn('⚠️ Failed to initialize governance in analytics:', error);
+        }
+      }, 500);
+
+      // Manual refresh button handler
+      document.getElementById('manual-refresh-onchain')?.addEventListener('click', async function() {
+        console.log('🔄 Manual refresh triggered by user');
+        this.disabled = true;
+        this.textContent = '⏳ Actualisation...';
+
+        try {
+          // Force refresh onchain data
+          await loadUnifiedData();
+          await renderUnifiedInsightsOnce();
+
+          this.textContent = '✅ Actualisé';
+          setTimeout(() => {
+            this.textContent = '🔄 Actualiser';
+            this.disabled = false;
+          }, 2000);
+        } catch (error) {
+          console.error('Manual refresh failed:', error);
+          this.textContent = '❌ Erreur';
+          setTimeout(() => {
+            this.textContent = '🔄 Actualiser';
+            this.disabled = false;
+          }, 3000);
+        }
+      });
+
+      // Enhanced store subscription with intelligent debouncing
+      let paintTimer, lastStoreHash = '';
+      store.subscribe(() => {
+        // Quick hash check to avoid unnecessary renders
+        const storeSnapshot = store.snapshot();
+        const currentHash = JSON.stringify({
+          scores: storeSnapshot?.scores,
+          regime: storeSnapshot?.market?.regime?.name,
+          stables: storeSnapshot?.risk?.budget?.percentages?.stables
+        });
+
+        // Skip if state hasn't meaningfully changed
+        if (currentHash === lastStoreHash) {
+          return;
+        }
+        lastStoreHash = currentHash;
+
+        clearTimeout(paintTimer);
+        paintTimer = setTimeout(() => {
+          renderUnifiedInsightsOnce();
+          updateRiskMetrics();
+        }, 500); // Increased from 250ms to 500ms for better batching
+      });
+
+      // ✅ CRITIQUE: Attendre hydratation orchestrator avant 1er updateRiskMetrics
+      window.addEventListener('riskStoreReady', (e) => {
+        if (e.detail?.hydrated) {
+          console.log('✅ Orchestrator hydrated, refreshing risk metrics');
+          updateRiskMetrics();
+        }
+      }, { once: true });
+
+      // Simple fallback banner toggle
+      setInterval(() => {
+        try {
+          const status = store.get('ui.apiStatus.backend');
+          const banner = document.getElementById('backend-fallback-banner');
+          if (!banner) return;
+          banner.style.display = (status && status !== 'healthy') ? 'block' : 'none';
+        } catch { }
+      }, 2000);
+    });
+
+    // DERNIÈRE CHANCE - Override après TOUS les imports et définitions
+    console.log('🔥 FINAL FINAL OVERRIDE - After all scripts loaded');
+    setTimeout(() => {
+      delete window.renderUnifiedInsights;
+      window.renderUnifiedInsights = renderUnifiedInsights;
+      console.log('🔥 LATE OVERRIDE APPLIED:', {
+        isOurFunction: window.renderUnifiedInsights === renderUnifiedInsights,
+        hasOurMarker: window.renderUnifiedInsights.toString().includes('🔥 LOCAL FUNCTION UNIFIED')
+      });
+    }, 100);
+  </script>
+  <style>
+    .wrap {
+      max-width: 95vw;
+      margin: 0 auto;
+      padding: var(--space-lg);
+    }
+
+    .tabs {
+      display: flex;
+      gap: .5rem;
+      border-bottom: 1px solid var(--theme-border);
+    }
+
+    .tab-btn {
+      padding: .6rem .9rem;
+      border: 1px solid var(--theme-border);
+      background: var(--theme-surface);
+      color: var(--theme-text);
+      border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+      cursor: pointer;
+    }
+
+    .tab-btn.active {
+      border-color: var(--brand-primary);
+      color: var(--brand-primary);
+      background: color-mix(in oklab, var(--brand-primary) 10%, transparent);
+    }
+
+    .btn-refresh {
+      padding: .6rem .9rem;
+      border: 1px solid var(--theme-border);
+      background: var(--theme-surface);
+      color: var(--theme-text);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      margin-left: auto;
+      transition: all 0.2s;
+    }
+
+    .btn-refresh:hover {
+      background: var(--brand-primary);
+      color: white;
+      border-color: var(--brand-primary);
+    }
+
+    .tab-panel {
+      display: none;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    .panel-card {
+      background: var(--theme-surface);
+      border: 1px solid var(--theme-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-md);
+    }
+
+    .metric-card {
+      background: var(--theme-bg);
+      border: 1px solid var(--theme-border);
+      border-radius: var(--radius-md);
+      padding: 1rem;
+      text-align: center;
+    }
+
+    .metric-card h4 {
+      margin: 0 0 0.5rem 0;
+      font-size: 0.9rem;
+      color: var(--theme-text-muted);
+      font-weight: 500;
+    }
+
+    .metric-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--theme-text);
+      margin: 0.5rem 0;
+    }
+
+    .metric-card small {
+      color: var(--theme-text-muted);
+      font-size: 0.8rem;
+    }
+  </style>
+  <script type="module" src="components/tooltips.js"></script>
+
+  <!-- Risk Dashboard Store + Calculation Modules (for flyout panel parity) -->
+  <!-- global-config.js already loaded in head, don't reload -->
+  <script type="module" src="core/risk-dashboard-store.js"></script>
+  <script type="module" src="core/fetcher.js"></script>
+  <script type="module" src="modules/signals-engine.js"></script>
+  <script type="module" src="modules/cycle-navigator.js"></script>
+  <script type="module" src="modules/onchain-indicators.js"></script>
+  <script type="module" src="modules/market-regimes.js"></script>
+  <script type="module" src="modules/targets-coordinator.js"></script>
+  <script type="module" src="core/risk-data-orchestrator.js"></script>
+</head>
+
+<body>
+  <div id="backend-fallback-banner"
+    style="display:none; background: color-mix(in oklab, var(--warning) 20%, transparent); border: 1px solid var(--warning); color: var(--theme-text); padding: .6rem; margin: .5rem auto; max-width: 95vw; border-radius: 6px;">
+    ⚠ Backend indisponible — mode prudent (cap réduit).
+  </div>
+  <div class="wrap">
+    <!-- Governance Panel -->
+    <div id="governance-container"></div>
+
+
+    <div id="unified-root"></div>
+    <div style="height: 1rem;"></div>
+    <div class="tabs" id="analytics-tabs">
+      <button class="tab-btn active" data-target="#tab-risk">Risk</button>
+      <button class="tab-btn" data-target="#tab-performance">Performance</button>
+      <button class="tab-btn" data-target="#tab-cycles">Cycles</button>
+      <button class="tab-btn" data-target="#tab-monitoring">Monitoring</button>
+      <button class="tab-btn" data-target="#tab-intelligence-ml">🤖 Intelligence ML</button>
+      <button class="btn-refresh" id="manual-refresh-onchain" title="Forcer le rafraîchissement des indicateurs on-chain">🔄 Actualiser</button>
+    </div>
+  </div>
+
+  <section class="wrap tab-panel active" id="tab-risk">
+    <div class="panel-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h3>🛡️ Risk Dashboard</h3>
+        <div id="risk-badge-container"></div>
+      </div>
+      <div
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
+        <div class="metric-card" data-metric="risk-var">
+          <h4>Portfolio VaR</h4>
+          <div class="metric-value" id="risk-var-value">--</div>
+          <small>95% confidence level</small>
+        </div>
+        <div class="metric-card" data-metric="risk-drawdown">
+          <h4>Max Drawdown</h4>
+          <div class="metric-value" id="risk-drawdown-value">--</div>
+          <small>Current cycle</small>
+        </div>
+        <div class="metric-card" data-metric="risk-volatility">
+          <h4>Volatility</h4>
+          <div class="metric-value" id="risk-volatility-value">--</div>
+          <small>30-day annualized</small>
+        </div>
+        <div class="metric-card" data-metric="risk-score">
+          <h4>Risk Score</h4>
+          <div class="metric-value" id="risk-score-value">--/100</div>
+          <small>Unknown</small>
+        </div>
+      </div>
+      <!-- Scores clés du Risk Dashboard (version complète) -->
+      <div
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-top: 1rem;">
+        <div class="metric-card" data-metric="risk-kpi-diversification">
+          <h4>Diversification Ratio</h4>
+          <div class="metric-value">--</div>
+          <small>Corrélation de portefeuille</small>
+        </div>
+        <div class="metric-card" data-metric="risk-kpi-effective-assets">
+          <h4>Effective Assets</h4>
+          <div class="metric-value">--</div>
+          <small>Actifs non-redondants</small>
+        </div>
+        <div class="metric-card" data-metric="risk-kpi-blended">
+          <h4>Score Décisionnel</h4>
+          <div class="metric-value">--</div>
+          <small>CCS × Cycle (synthèse)</small>
+        </div>
+        <div class="metric-card" data-metric="risk-kpi-onchain">
+          <h4>On-Chain Composite</h4>
+          <div class="metric-value" id="risk-kpi-onchain-value">--</div>
+          <small>Fondamentaux on-chain</small>
+        </div>
+      </div>
+      <div style="margin-top: 2rem; padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-md);">
+        <h4>Risk Alerts</h4>
+        <div style="color: var(--theme-text-muted);">• Portfolio concentration within acceptable limits</div>
+        <div style="color: var(--theme-text-muted);">• Correlation risk moderate for current market conditions</div>
+        <div style="color: var(--theme-text-muted);">• No significant exposure warnings</div>
+      </div>
+      <div style="text-align: center; margin-top: 1.5rem; display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+        <a href="risk-dashboard.html?nav=off" target="_blank"
+          style="display: inline-block; background: var(--brand-primary); color: white; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); text-decoration: none; font-weight: 600;">
+          📊 Version complète du Risk Dashboard
+        </a>
+        <a href="simulations.html?nav=off" target="_blank"
+          style="display: inline-block; background: var(--success); color: white; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); text-decoration: none; font-weight: 600;">
+          🧪 Simulateur Pipeline Complet
+        </a>
+      </div>
+    </div>
+  </section>
+  <section class="wrap tab-panel" id="tab-performance">
+    <div class="panel-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h3>📊 Performance Monitor</h3>
+        <div id="performance-badge-container"></div>
+      </div>
+      <div
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
+        <div class="metric-card" data-metric="perf-cache-size">
+          <h4>Memory Cache Size</h4>
+          <div class="metric-value">--</div>
+          <small>Memory cache entries</small>
+        </div>
+        <div class="metric-card" data-metric="perf-disk-cache">
+          <h4>Disk Cache Usage</h4>
+          <div class="metric-value">-- MB</div>
+          <small>Disk cache usage</small>
+        </div>
+        <div class="metric-card" data-metric="perf-memory">
+          <h4>Process Memory</h4>
+          <div class="metric-value">-- MB</div>
+          <small>Process memory</small>
+        </div>
+        <div class="metric-card" data-metric="perf-system-memory">
+          <h4>System Memory Usage</h4>
+          <div class="metric-value">--%</div>
+          <small>System memory usage</small>
+        </div>
+      </div>
+      <div style="margin-top: 2rem; padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-md);">
+        <h4>System Performance</h4>
+        <div style="display: grid; gap: 0.5rem;">
+          <div style="display: flex; justify-content: space-between;"><span>Memory Cache Hit Rate:</span><span
+              style="color: var(--success);">--%</span></div>
+          <div style="display: flex; justify-content: space-between;"><span>Available Memory:</span><span>-- GB</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;"><span>Process Efficiency:</span><span>--</span>
+          </div>
+        </div>
+      </div>
+      <div style="text-align: center; margin-top: 1.5rem;">
+        <a href="performance-monitor-unified.html" target="_blank"
+          style="display: inline-block; background: var(--brand-primary); color: white; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); text-decoration: none; font-weight: 600;">
+          📈 Performance Monitor Unifié (Nouveau)
+        </a>
+      </div>
+    </div>
+  </section>
+  <section class="wrap tab-panel" id="tab-cycles">
+    <div class="panel-card">
+      <h3>🔄 Cycle Analysis</h3>
+      <div
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
+        <div class="metric-card" data-metric="cycle-phase">
+          <h4>Current Phase</h4>
+          <div class="metric-value">--</div>
+          <small>Current phase</small>
+        </div>
+        <div class="metric-card" data-metric="cycle-progress">
+          <h4>Post-Halving Progress</h4>
+          <div class="metric-value">-- months</div>
+          <small>Post-halving progress</small>
+        </div>
+        <div class="metric-card" data-metric="cycle-score">
+          <h4>Cycle Score</h4>
+          <div class="metric-value">--</div>
+          <small>Cycle position score</small>
+        </div>
+        <div class="metric-card" data-metric="cycle-confidence">
+          <h4>Confidence</h4>
+          <div class="metric-value">--%</div>
+          <small>Model certainty</small>
+        </div>
+      </div>
+      <div style="margin-top: 2rem; padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-md);">
+        <h4>Market Cycle Indicators</h4>
+        <div style="display: grid; gap: 0.5rem;">
+          <div style="display: flex; justify-content: space-between;"><span>Fear & Greed Index:</span><span>45
+              (Neutral)</span></div>
+          <div style="display: flex; justify-content: space-between;"><span>RSI (Weekly):</span><span>58
+              (Neutral)</span></div>
+          <div style="display: flex; justify-content: space-between;"><span>MVRV Ratio:</span><span>2.1
+              (Accumulation)</span></div>
+        </div>
+      </div>
+      <div style="text-align: center; margin-top: 1.5rem;">
+        <a href="cycle-analysis.html?nav=off" target="_blank"
+          style="display: inline-block; background: var(--brand-primary); color: white; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); text-decoration: none; font-weight: 600;">
+          🔄 Version complète du Cycle Analysis
+        </a>
+      </div>
+    </div>
+  </section>
+  <section class="wrap tab-panel" id="tab-monitoring">
+    <div class="panel-card">
+      <h3>📈 Advanced Analytics</h3>
+      <div
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
+        <div class="metric-card" data-metric="monitor-total-return">
+          <h4>Total Return</h4>
+          <div class="metric-value">--%</div>
+          <small>Sur la période</small>
+        </div>
+        <div class="metric-card" data-metric="monitor-sharpe">
+          <h4>Sharpe Ratio</h4>
+          <div class="metric-value">--</div>
+          <small>Risque ajusté</small>
+        </div>
+        <div class="metric-card" data-metric="monitor-volatility">
+          <h4>Volatility</h4>
+          <div class="metric-value">--%</div>
+          <small>Risque de marché</small>
+        </div>
+        <div class="metric-card" data-metric="monitor-drawdown">
+          <h4>Max Drawdown</h4>
+          <div class="metric-value">--%</div>
+          <small>Pire baisse</small>
+        </div>
+      </div>
+      <div style="margin-top: 2rem; padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-md);">
+        <h4>Advanced Metrics</h4>
+        <div id="advanced-metrics-breakdown" style="display: grid; gap: 0.5rem;"></div>
+      </div>
+      <div style="text-align: center; margin-top: 1.5rem;">
+        <a href="performance-monitor-unified.html" target="_blank"
+          style="display: inline-block; background: var(--brand-primary); color: white; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); text-decoration: none; font-weight: 600;">
+          📊 Performance Monitor Unifié
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Intelligence ML Tab Panel -->
+  <section class="wrap tab-panel" id="tab-intelligence-ml">
+    <div class="panel-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h3>🤖 Intelligence ML - Vue Analyse Complète</h3>
+        <div id="intelligence-badge-container"></div>
+      </div>
+      <p style="color: var(--theme-text-muted); margin-bottom: 2rem;">
+        Analyse détaillée des modèles ML, prédictions temps réel et administration avancée
+      </p>
+
+      <!-- Stats ML Globales -->
+      <div class="ml-stats-section" style="margin-bottom: 2rem;">
+        <h4 style="margin-bottom: 1rem;">📊 Statistiques ML Globales</h4>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+          <div class="metric-card">
+            <h5>Modèles Actifs</h5>
+            <div class="metric-value" id="ml-active-models">--/4</div>
+            <small>Modèles chargés</small>
+          </div>
+          <div class="metric-card">
+            <h5>Confiance Moyenne</h5>
+            <div class="metric-value" id="ml-avg-confidence">--%</div>
+            <small>Niveau de confiance</small>
+          </div>
+          <div class="metric-card">
+            <h5>Dernière Mise à Jour</h5>
+            <div class="metric-value" id="ml-last-update">--</div>
+            <small>Status ML</small>
+          </div>
+        </div>
+      </div>
+
+      <!-- Vue Modèles Détaillée -->
+      <div class="ml-models-section" style="margin-bottom: 2rem;">
+        <h4 style="margin-bottom: 1rem;">🧠 Santé des Modèles</h4>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+          <div class="metric-card">
+            <h5>🌊 Volatility LSTM</h5>
+            <div class="metric-value" id="ml-vol-model-status">⚪ Unknown</div>
+            <small id="ml-vol-model-details">Statut du modèle</small>
+          </div>
+          <div class="metric-card">
+            <h5>🔄 Regime HMM</h5>
+            <div class="metric-value" id="ml-regime-model-status">⚪ Unknown</div>
+            <small id="ml-regime-model-details">Statut du modèle</small>
+          </div>
+          <div class="metric-card">
+            <h5>🔗 Correlation Transformer</h5>
+            <div class="metric-value" id="ml-corr-model-status">⚪ Unknown</div>
+            <small id="ml-corr-model-details">Statut du modèle</small>
+          </div>
+          <div class="metric-card">
+            <h5>💭 Sentiment Composite</h5>
+            <div class="metric-value" id="ml-sent-model-status">⚪ Unknown</div>
+            <small id="ml-sent-model-details">Statut du modèle</small>
+          </div>
+        </div>
+      </div>
+
+      <!-- Prédictions Temps Réel -->
+      <div class="ml-predictions-section" style="margin-bottom: 2rem;">
+        <h4 style="margin-bottom: 1rem;">🔮 Prédictions Temps Réel</h4>
+        <div id="ml-predictions-container" style="display: grid; gap: 1rem;">
+          <div class="prediction-grid"
+            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+            <!-- Volatilité -->
+            <div class="metric-card" data-metric="ml-volatility-btc">
+              <h5>BTC Volatilité 24h</h5>
+              <div class="metric-value" id="ml-vol-btc">--</div>
+              <small>Prédiction LSTM</small>
+            </div>
+            <div class="metric-card" data-metric="ml-volatility-eth">
+              <h5>ETH Volatilité 24h</h5>
+              <div class="metric-value" id="ml-vol-eth">--</div>
+              <small>Prédiction LSTM</small>
+            </div>
+            <!-- Régimes -->
+            <div class="metric-card" data-metric="ml-regime">
+              <h5>Régime Marché</h5>
+              <div class="metric-value" id="ml-regime">--</div>
+              <small>Classification HMM</small>
+            </div>
+            <!-- Sentiment -->
+            <div class="metric-card" data-metric="ml-sentiment">
+              <h5>Fear & Greed</h5>
+              <div class="metric-value" id="ml-sentiment">--</div>
+              <small>Composite Score</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Administration ML (repliable, RBAC protected) -->
+      <details class="ml-admin-section" style="margin-bottom: 2rem;">
+        <summary
+          style="cursor: pointer; padding: 0.75rem; background: var(--theme-surface-elevated); border-radius: var(--radius-sm); font-weight: 600;">
+          🔧 Administration ML (Admin Only)
+        </summary>
+        <div
+          style="padding: 1rem; border: 1px solid var(--theme-border); border-top: none; border-radius: 0 0 var(--radius-sm) var(--radius-sm);">
+          <div id="ml-admin-ops-container"></div>
+
+          <!-- Actions Admin -->
+          <div class="admin-actions" style="display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap;">
+            <button class="btn secondary" onclick="triggerMLRetraining()" id="btn-retrain">
+              🔄 Retrain Models
+            </button>
+            <button class="btn secondary" onclick="clearMLCache()" id="btn-clear-cache">
+              🗑️ Clear Cache
+            </button>
+            <button class="btn secondary" onclick="downloadMLLogs()" id="btn-logs">
+              📥 Download Logs
+            </button>
+            <button class="btn secondary" onclick="showMLDebug()" id="btn-debug">
+              🔍 Debug Info
+            </button>
+          </div>
+
+          <!-- ML Pipeline Status -->
+          <div class="ml-pipeline-status" style="margin-top: 1.5rem;">
+            <h5 style="margin-bottom: 0.75rem;">Pipeline Status</h5>
+            <div id="ml-pipeline-container"
+              style="font-family: monospace; background: var(--theme-bg); padding: 1rem; border-radius: var(--radius-sm); font-size: 0.85rem;">
+              Loading pipeline status...
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <!-- Lien vers Command Center -->
+      <div style="text-align: center; margin-top: 2rem;">
+        <a href="ai-dashboard.html" target="_blank"
+          style="display: inline-block; background: var(--brand-primary); color: white; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); text-decoration: none; font-weight: 600;">
+          🤖 Ouvrir ML Command Center (Vue Ops)
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <script type="module">
+    // Intelligence ML Tab - Simplified integration without external ML components
+
+    let mlTabInitialized = false;
+
+    // Initialisation quand l'onglet ML est sélectionné
+    function initializeMLTab() {
+      console.log('🤖 Initializing Intelligence ML tab...');
+
+      try {
+        // Démarrer les prédictions temps réel
+        loadMLPredictions();
+        loadMLPipelineStatus();
+
+        // Refresh périodique des prédictions
+        setInterval(loadMLPredictions, 60000); // 1 minute
+        setInterval(loadMLPipelineStatus, 120000); // 2 minutes
+
+        mlTabInitialized = true;
+        console.log('✅ Intelligence ML tab initialized');
+
+      } catch (error) {
+        console.error('❌ ML tab initialization failed:', error);
+        showMLError('Initialization failed: ' + error.message);
+      }
+    }
+
+    // Chargement du statut ML global et prédictions - UTILISE SOURCE CENTRALISÉE
+    async function loadMLPredictions() {
+      try {
+        // 1) Statut ML global depuis source unifiée
+        const { getUnifiedMLStatus } = await import('./shared-ml-functions.js');
+        const mlStatus = await getUnifiedMLStatus();
+
+        if (mlStatus && mlStatus.individual) {
+          // Statistiques globales depuis source centralisée
+          document.getElementById('ml-active-models').textContent = `${mlStatus.totalLoaded}/${mlStatus.totalModels}`;
+
+          // Confiance depuis source centralisée
+          const confidencePercent = Math.round((mlStatus.confidence || 0) * 100);
+          document.getElementById('ml-avg-confidence').textContent = `${confidencePercent}%`;
+
+          // Dernière mise à jour depuis source centralisée
+          document.getElementById('ml-last-update').textContent =
+            mlStatus.timestamp ? new Date(mlStatus.timestamp).toLocaleTimeString('fr-FR') : '--';
+
+          // Statuts des modèles individuels depuis source centralisée
+          const individual = mlStatus.individual;
+
+          // Volatility LSTM depuis source centralisée
+          const volModelsLoaded = individual.volatility.loaded;
+          const volSymbols = individual.volatility.symbols || 0;
+          const volStatus = volModelsLoaded > 0 ? 'active' : 'inactive';
+          const volStatusEl = document.getElementById('ml-vol-model-status');
+          const volDetailsEl = document.getElementById('ml-vol-model-details');
+          if (volStatusEl && volDetailsEl) {
+            const icons = { 'active': '🟢', 'ready': '🟢', 'training': '🔄', 'error': '🔴', 'inactive': '⚪', 'unknown': '❓' };
+            volStatusEl.textContent = `${icons[volStatus]} ${volStatus.charAt(0).toUpperCase() + volStatus.slice(1)}`;
+            volDetailsEl.textContent = `${volModelsLoaded} modèles • ${volSymbols} symboles`;
+          }
+
+          // Regime HMM depuis source centralisée
+          const regimeStatus = individual.regime.loaded > 0 ? 'active' : 'inactive';
+          const regimeStatusEl = document.getElementById('ml-regime-model-status');
+          const regimeDetailsEl = document.getElementById('ml-regime-model-details');
+          if (regimeStatusEl && regimeDetailsEl) {
+            const icons = { 'active': '🟢', 'ready': '🟢', 'training': '🔄', 'error': '🔴', 'inactive': '⚪', 'unknown': '❓' };
+            regimeStatusEl.textContent = `${icons[regimeStatus]} ${regimeStatus.charAt(0).toUpperCase() + regimeStatus.slice(1)}`;
+            regimeDetailsEl.textContent = individual.regime.available ? 'Modèle disponible' : 'Non disponible';
+          }
+
+          // Correlation Transformer depuis source centralisée
+          const corrModelsLoaded = individual.correlation.loaded;
+          const corrStatus = corrModelsLoaded > 0 ? 'active' : 'inactive';
+          const corrStatusEl = document.getElementById('ml-corr-model-status');
+          const corrDetailsEl = document.getElementById('ml-corr-model-details');
+          if (corrStatusEl && corrDetailsEl) {
+            const icons = { 'active': '🟢', 'ready': '🟢', 'training': '🔄', 'error': '🔴', 'inactive': '⚪', 'unknown': '❓' };
+            corrStatusEl.textContent = `${icons[corrStatus]} ${corrStatus.charAt(0).toUpperCase() + corrStatus.slice(1)}`;
+            corrDetailsEl.textContent = `${corrModelsLoaded} modèles chargés`;
+          }
+
+          // Sentiment Composite depuis source centralisée
+          const sentStatusEl = document.getElementById('ml-sent-model-status');
+          const sentDetailsEl = document.getElementById('ml-sent-model-details');
+          if (sentStatusEl && sentDetailsEl) {
+            const sentStatus = individual.sentiment.loaded > 0 ? 'active' : 'inactive';
+            const icons = { 'active': '🟢', 'inactive': '⚪' };
+            sentStatusEl.textContent = `${icons[sentStatus]} ${sentStatus.charAt(0).toUpperCase() + sentStatus.slice(1)}`;
+            sentDetailsEl.textContent = individual.sentiment.available ? 'API composite disponible' : 'Non disponible';
+          }
+
+          console.log(`✅ ML Status chargé depuis source centralisée: ${mlStatus.source}`);
+        } else {
+          console.warn('⚠️ Impossible de charger le statut ML unifié, utilisation des API individuelles...');
+          // Fallback vers l'ancien système si source centralisée échoue
+          await loadMLPredictionsFallback();
+        }
+
+        // 2) Volatilité BTC/ETH
+        const volResponse = await fetch('/api/ml/volatility/predict/BTC?horizon_days=1');
+        if (volResponse.ok) {
+          const volData = await volResponse.json();
+          const vol = volData.volatility_forecast?.volatility_forecast || volData.volatility;
+          document.getElementById('ml-vol-btc').textContent =
+            vol ? `${(vol * 100).toFixed(1)}%` : '--';
+        }
+
+        const volETHResponse = await fetch('/api/ml/volatility/predict/ETH?horizon_days=1');
+        if (volETHResponse.ok) {
+          const volETHData = await volETHResponse.json();
+          const vol = volETHData.volatility_forecast?.volatility_forecast || volETHData.volatility;
+          document.getElementById('ml-vol-eth').textContent =
+            vol ? `${(vol * 100).toFixed(1)}%` : '--';
+        }
+
+        // 3) Régime de marché
+        const regimeResponse = await fetch('/api/ml/regime/current');
+        if (regimeResponse.ok) {
+          const regimeData = await regimeResponse.json();
+          const regimeEl = document.getElementById('ml-regime');
+          if (regimeData.regime_prediction) {
+            const regime = regimeData.regime_prediction.regime_name || '--';
+            regimeEl.textContent = regime;
+            regimeEl.className = `metric-value regime-${regime.toLowerCase() === 'sideways' ? 'neutral' : regime.toLowerCase()}`;
+          }
+        }
+
+        // 4) Sentiment F&G
+        const sentResponse = await fetch('/api/ml/sentiment/fear-greed?days=1');
+        if (sentResponse.ok) {
+          const sentData = await sentResponse.json();
+          const sentEl = document.getElementById('ml-sentiment');
+          if (sentData.aggregated_sentiment) {
+            const score = Math.round(sentData.aggregated_sentiment.score * 100); // Score sur 100
+            sentEl.textContent = score;
+            sentEl.className = `metric-value sentiment-${score < 25 ? 'fear' : score > 75 ? 'greed' : 'neutral'}`;
+          }
+        }
+
+      } catch (error) {
+        console.warn('ML predictions update failed:', error);
+      }
+    }
+
+    // Fallback vers ancien système si source centralisée échoue
+    async function loadMLPredictionsFallback() {
+      try {
+        // Ancien système comme fallback
+        const statusResponse = await fetch('/api/ml/status');
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json();
+          const pipeline = statusData.pipeline_status || {};
+
+          const totalLoaded = Math.min(Math.max(0, pipeline.loaded_models_count || 0), 4);
+          document.getElementById('ml-active-models').textContent = `${totalLoaded}/4`;
+
+          const confidencePercent = Math.min(100, Math.round((totalLoaded / 4) * 100));
+          document.getElementById('ml-avg-confidence').textContent = `${confidencePercent}%`;
+
+          const lastUpdate = pipeline.timestamp || statusData.timestamp;
+          document.getElementById('ml-last-update').textContent =
+            lastUpdate ? new Date(lastUpdate).toLocaleTimeString('fr-FR') : '--';
+
+          console.log('⚠️ Using ML fallback system');
+        }
+      } catch (error) {
+        console.error('ML fallback also failed:', error);
+      }
+    }
+
+    // Chargement du statut pipeline ML
+    async function loadMLPipelineStatus() {
+      try {
+        const response = await fetch('/api/ml/debug/pipeline-info', {
+          headers: { 'X-Admin-Key': 'crypto-rebal-admin-2024' }
+        });
+
+        const container = document.getElementById('ml-pipeline-container');
+
+        if (response.ok) {
+          const data = await response.json();
+          container.innerHTML = `
+            <div>Models Loaded: ${data.models_loaded || 0}/4</div>
+            <div>Cache Size: ${data.cache_size || 0} entries</div>
+            <div>Last Update: ${data.last_update || 'Never'}</div>
+            <div>Status: <span style="color: var(--success);">${data.status || 'Unknown'}</span></div>
+          `;
+        } else if (response.status === 401 || response.status === 403) {
+          container.innerHTML = '<div style="color: var(--warning);">⚠️ Admin access required for pipeline info</div>';
+        } else {
+          container.innerHTML = '<div style="color: var(--danger);">❌ Pipeline status unavailable</div>';
+        }
+
+      } catch (error) {
+        console.warn('Pipeline status update failed:', error);
+        document.getElementById('ml-pipeline-container').innerHTML =
+          '<div style="color: var(--danger);">❌ Connection error</div>';
+      }
+    }
+
+    // Actions Admin ML
+    window.triggerMLRetraining = async function () {
+      if (!confirm('Déclencher le re-entrainement des modèles ML ? (Peut prendre plusieurs minutes)')) return;
+
+      try {
+        const response = await fetch('/api/ml/train', {
+          method: 'POST',
+          headers: { 'X-Admin-Key': 'crypto-rebal-admin-2024' }
+        });
+
+        if (response.ok) {
+          alert('✅ Re-entrainement démarré en arrière-plan');
+        } else {
+          alert('❌ Erreur lors du démarrage: ' + response.statusText);
+        }
+      } catch (error) {
+        alert('❌ Erreur: ' + error.message);
+      }
+    };
+
+    window.clearMLCache = async function () {
+      if (!confirm('Vider le cache ML ?')) return;
+
+      try {
+        const response = await fetch('/api/ml/cache/clear', {
+          method: 'DELETE',
+          headers: { 'X-Admin-Key': 'crypto-rebal-admin-2024' }
+        });
+
+        if (response.ok) {
+          alert('✅ Cache ML vidé');
+          location.reload();
+        } else {
+          alert('❌ Erreur: ' + response.statusText);
+        }
+      } catch (error) {
+        alert('❌ Erreur: ' + error.message);
+      }
+    };
+
+    window.downloadMLLogs = function () {
+      window.open('/api/logs?component=ml&format=txt', '_blank');
+    };
+
+    window.showMLDebug = async function () {
+      try {
+        const response = await fetch('/api/ml/debug/pipeline-info', {
+          headers: { 'X-Admin-Key': 'crypto-rebal-admin-2024' }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const debugWindow = window.open('', '_blank', 'width=800,height=600');
+          debugWindow.document.write(`
+            <html>
+              <head><title>ML Debug Info</title></head>
+              <body style="font-family: monospace; padding: 20px;">
+                <h2>ML Debug Information</h2>
+                <pre>${JSON.stringify(data, null, 2)}</pre>
+              </body>
+            </html>
+          `);
+        } else {
+          alert('❌ Admin access required');
+        }
+      } catch (error) {
+        alert('❌ Erreur: ' + error.message);
+      }
+    };
+
+    function showMLError(message) {
+      document.getElementById('tab-intelligence-ml').innerHTML = `
+        <div class="panel-card" style="text-align: center; padding: 4rem; color: var(--danger);">
+          <h3>⚠️ Intelligence ML Error</h3>
+          <p>${message}</p>
+          <button onclick="location.reload()" style="background: var(--brand-primary); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); cursor: pointer;">
+            Retry
+          </button>
+        </div>
+      `;
+    }
+
+    // Auto-initialisation quand l'onglet devient actif
+    document.addEventListener('DOMContentLoaded', () => {
+      // Observer les changements d'onglets - intégration avec le système existant
+      const tabButtons = document.querySelectorAll('.tab-btn');
+
+      tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+          const targetId = button.dataset.target;
+
+          // Si c'est l'onglet Intelligence ML
+          if (targetId === '#tab-intelligence-ml') {
+            setTimeout(() => {
+              if (!mlTabInitialized) {
+                initializeMLTab();
+              }
+            }, 100); // Petit délai pour que l'onglet soit visible
+          }
+        });
+      });
+
+      // Initialisation préventive des données ML (même si l'onglet n'est pas actif)
+      // Cela permet d'avoir les données prêtes quand l'utilisateur clique sur l'onglet
+      setTimeout(() => {
+        console.log('🤖 Pre-loading ML data for Intelligence tab...');
+        loadMLPredictions();
+        loadMLPipelineStatus();
+        mlTabInitialized = true;
+      }, 1000); // Délai pour laisser la page se charger
+
+      // Auto-init si l'URL contient #ml
+      if (window.location.hash === '#ml' || window.location.search.includes('tab=ml')) {
+        setTimeout(() => {
+          const mlTab = document.querySelector('[data-target="#tab-intelligence-ml"]');
+          mlTab?.click();
+        }, 500);
+      }
+    });
+  </script>
+
+  <style>
+    /* Styles spécifiques pour l'onglet Intelligence ML */
+    .ml-stats-section,
+    .ml-models-section,
+    .ml-predictions-section,
+    .ml-admin-section {
+      background: var(--theme-surface);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+      border: 1px solid var(--theme-border);
+    }
+
+    .prediction-grid .metric-card {
+      transition: all 0.3s ease;
+    }
+
+    .prediction-grid .metric-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Couleurs pour les régimes */
+    .metric-value.regime-bull {
+      color: var(--success);
+    }
+
+    .metric-value.regime-bear {
+      color: var(--danger);
+    }
+
+    .metric-value.regime-neutral {
+      color: var(--warning);
+    }
+
+    /* Couleurs pour le sentiment */
+    .metric-value.sentiment-fear {
+      color: var(--danger);
+    }
+
+    .metric-value.sentiment-greed {
+      color: var(--success);
+    }
+
+    .metric-value.sentiment-neutral {
+      color: var(--theme-text);
+    }
+
+    .admin-actions .btn {
+      font-size: 0.85rem;
+      padding: 0.5rem 1rem;
+    }
+
+    .ml-pipeline-status {
+      background: var(--theme-bg);
+      border-radius: var(--radius-sm);
+      padding: 1rem;
+    }
+
+    /* Responsive pour onglet ML */
+    @media (max-width: 768px) {
+      .prediction-grid {
+        grid-template-columns: 1fr 1fr !important;
+      }
+
+      .admin-actions {
+        flex-direction: column;
+      }
+
+      .admin-actions .btn {
+        width: 100%;
+      }
+    }
+  </style>
+
+  <!-- Unified Risk Flyout Panel (Full Sidebar) -->
+  <script type="module" src="components/flyout-panel.js"></script>
+  <script type="module" src="components/risk-sidebar-full.js"></script>
+  <script type="module">
+    // Adapter le layout quand la sidebar est épinglée
+    import { enableFlyoutLayoutAdapter } from './components/flyout-layout-adapter.js';
+    enableFlyoutLayoutAdapter('.wrap'); // Décaler uniquement le contenu, pas le menu
+  </script>
+
+  <flyout-panel position="left" width="340" persist-key="analytics_flyout">
+    <span slot="title">🎯 Risk Dashboard</span>
+    <risk-sidebar-full slot="content" poll-ms="0"></risk-sidebar-full>
+  </flyout-panel>
+
+</body>
+
+</html>

@@ -268,7 +268,7 @@ export function calculateRiskBudget(blendedScore, riskScore) {
   } else {
     // Fallback to conservative if unknown mode
     risk_factor = 0.5 + 0.5 * (riskRounded / 100);
-    console.warn('Unknown RISK_SEMANTICS_MODE:', riskSemanticsMode, '- using v2_conservative');
+    debugLogger.warn('Unknown RISK_SEMANTICS_MODE:', riskSemanticsMode, '- using v2_conservative');
   }
 
   // BaseRisky = clamp((Blended - 35)/45, 0, 1) - utiliser score arrondi
@@ -329,7 +329,7 @@ export function calculateRiskBudget(blendedScore, riskScore) {
  * Répartit l'allocation "risky" selon le régime de marché
  */
 export function allocateRiskyBudget(riskyPercentage, regime) {
-  console.log('🚨 [allocateRiskyBudget] CALLED - riskyPercentage:', riskyPercentage, 'regime:', regime?.name, 'bias:', regime?.allocation_bias);
+  debugLogger.debug('🚨 [allocateRiskyBudget] CALLED - riskyPercentage:', riskyPercentage, 'regime:', regime?.name, 'bias:', regime?.allocation_bias);
 
   // Base par défaut : BTC 50% / ETH 30% / Midcaps 20%
   let allocation = {
@@ -339,7 +339,7 @@ export function allocateRiskyBudget(riskyPercentage, regime) {
     meme: 5
   };
 
-  console.log('🚨 [allocateRiskyBudget] BEFORE bias - allocation:', {...allocation});
+  debugLogger.debug('🚨 [allocateRiskyBudget] BEFORE bias - allocation:', {...allocation});
 
   // Ajustements selon le régime
   const bias = regime.allocation_bias;
@@ -349,11 +349,11 @@ export function allocateRiskyBudget(riskyPercentage, regime) {
   allocation.midcaps += (bias.alts_reduction || 0);
   allocation.meme = Math.min(allocation.meme, bias.meme_cap || 5);
 
-  console.log('🚨 [allocateRiskyBudget] AFTER bias - allocation:', {...allocation});
+  debugLogger.debug('🚨 [allocateRiskyBudget] AFTER bias - allocation:', {...allocation});
 
   // Normaliser à 100% (déterministe: arrondir puis ajuster le reste sur BTC)
   const total = allocation.btc + allocation.eth + allocation.midcaps + allocation.meme;
-  console.log('🚨 [allocateRiskyBudget] Total before normalization:', total);
+  debugLogger.debug('🚨 [allocateRiskyBudget] Total before normalization:', total);
   if (total !== 100) {
     const factor = 100 / total;
     allocation.btc = Math.floor(allocation.btc * factor);
@@ -386,7 +386,7 @@ export function allocateRiskyBudget(riskyPercentage, regime) {
   // Ajuster stables pour garantir 100% exact
   const stablesAlloc = 100 - totalRisky;
 
-  console.log('🚨 [allocateRiskyBudget] FINAL RESULT:', {
+  debugLogger.debug('🚨 [allocateRiskyBudget] FINAL RESULT:', {
     riskyPercentage,
     BTC: btcAlloc.toFixed(2),
     ETH: ethAlloc.toFixed(2),

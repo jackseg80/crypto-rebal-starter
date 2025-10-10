@@ -378,7 +378,7 @@
 
     // SUPPRIMÉ: Données mockées désactivées - utiliser API réelle uniquement
     async function getMockTaxonomyData() {
-      console.error('⚠️ Mock taxonomy data disabled. Configure real data source in settings.');
+      debugLogger.error('⚠️ Mock taxonomy data disabled. Configure real data source in settings.');
       return { aliases: {}, groups: [] };
       // Données vides - utiliser API taxonomy réelle
       let mockAliases = {};
@@ -428,7 +428,7 @@
           });
         }
       } catch (error) {
-        console.warn('Could not enhance with CSV data:', error);
+        debugLogger.warn('Could not enhance with CSV data:', error);
       }
 
       const mockGroups = ['BTC', 'ETH', 'Stablecoins', 'SOL', 'L1/L0 majors', 'L2/Scaling', 'DeFi', 'AI/Data', 'Gaming/NFT', 'Memecoins', 'Others'];
@@ -480,7 +480,7 @@
             }
           }
         } catch (error) {
-          console.warn('Error parsing CSV line in alias manager:', error);
+          debugLogger.warn('Error parsing CSV line in alias manager:', error);
         }
       }
       
@@ -546,7 +546,7 @@
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           data = await response.json();
         } catch (apiError) {
-          console.warn('Taxonomy API unavailable, using mock data:', apiError);
+          debugLogger.warn('Taxonomy API unavailable, using mock data:', apiError);
           data = await getMockTaxonomyData();
         }
 
@@ -570,7 +570,7 @@
         document.getElementById('stats').style.display = 'flex';
 
       } catch (e) {
-        console.error('Critical error in loadData:', e);
+        debugLogger.error('Critical error in loadData:', e);
         document.getElementById('loading').innerHTML = `❌ Erreur: ${e.message}`;
         
         // Fallback to ensure basic functionality
@@ -587,7 +587,7 @@
           document.getElementById('aliases-container').style.display = 'block';
           document.getElementById('stats').style.display = 'flex';
         } catch (fallbackError) {
-          console.error('Even fallback failed:', fallbackError);
+          debugLogger.error('Even fallback failed:', fallbackError);
           document.getElementById('loading').innerHTML = `❌ Erreur critique: ${fallbackError.message}`;
         }
       }
@@ -659,7 +659,7 @@
         allAliases[alias] = newGroup; filterAliases();
         showNotification(`✅ ${alias} → ${newGroup}`, 'success');
       } catch (e) { 
-        console.warn('Taxonomy API unavailable, simulating change:', e);
+        debugLogger.warn('Taxonomy API unavailable, simulating change:', e);
         allAliases[alias] = newGroup; 
         filterAliases();
         showNotification(`📝 ${alias} → ${newGroup} (mode hors ligne)`, 'info');
@@ -675,7 +675,7 @@
         delete allAliases[alias]; filterAliases();
         showNotification(`🗑️ ${alias} supprimé`, 'success');
       } catch (e) { 
-        console.warn('Delete API unavailable, simulating deletion:', e);
+        debugLogger.warn('Delete API unavailable, simulating deletion:', e);
         delete allAliases[alias]; 
         filterAliases();
         showNotification(`🗑️ ${alias} supprimé (mode hors ligne)`, 'info');
@@ -696,7 +696,7 @@
         aliases.forEach(a => allAliases[a] = group); filterAliases();
         showNotification(`✅ ${aliases.length} aliases → ${group}`, 'success');
       } catch (e) { 
-        console.warn('Batch assign API unavailable:', e);
+        debugLogger.warn('Batch assign API unavailable:', e);
         aliases.forEach(a => allAliases[a] = group); 
         filterAliases();
         showNotification(`📝 ${aliases.length} aliases → ${group} (mode hors ligne)`, 'info');
@@ -714,7 +714,7 @@
         Object.keys(allAliases).forEach(a => allAliases[a] = 'Others'); filterAliases();
         showNotification(`✅ Tous les aliases → Others`, 'success');
       } catch (e) { 
-        console.warn('Assign all API unavailable:', e);
+        debugLogger.warn('Assign all API unavailable:', e);
         Object.keys(allAliases).forEach(a => allAliases[a] = 'Others'); 
         filterAliases();
         showNotification(`📝 Tous les aliases → Others (mode hors ligne)`, 'info');
@@ -751,7 +751,7 @@
         const icon = useCG ? '🚀' : '🔍'; const label = useCG ? 'Mode intelligent (regex + CoinGecko)' : 'Mode regex seul';
         showNotification(`${icon} ${auto_classified_count}/${unknown_count} suggestions (${cov}%)\n📊 ${label}\n💡 ${list}`, 'info', 10000);
       } catch (e) { 
-        console.warn('Suggestions API unavailable:', e);
+        debugLogger.warn('Suggestions API unavailable:', e);
         showNotification(`🔍 Suggestions non disponibles en mode hors ligne`, 'info');
       }
     }
@@ -771,7 +771,7 @@
           await loadData();
         }
       } catch (e) { 
-        console.warn('Auto-classify API unavailable:', e);
+        debugLogger.warn('Auto-classify API unavailable:', e);
         showNotification(`🚀 Classification automatique non disponible en mode hors ligne`, 'info');
       }
     }

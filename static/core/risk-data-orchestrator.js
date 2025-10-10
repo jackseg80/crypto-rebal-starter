@@ -10,10 +10,10 @@ import { getRegimeDisplayData } from '../modules/market-regimes.js';
 
 // ✅ Singleton guard: empêche doubles initialisations
 if (window.__risk_orchestrator_init) {
-  console.log('⚠️ Risk orchestrator already initialized, skipping duplicate');
+  debugLogger.debug('⚠️ Risk orchestrator already initialized, skipping duplicate');
 } else {
   window.__risk_orchestrator_init = true;
-  console.log('✅ Risk orchestrator initialized (singleton)');
+  debugLogger.debug('✅ Risk orchestrator initialized (singleton)');
 }
 
 /**
@@ -29,7 +29,7 @@ export async function hydrateRiskStore() {
     throw new Error('riskStore not available - ensure core/risk-dashboard-store.js is loaded first');
   }
 
-  console.log('🔄 Starting risk store hydration...');
+  debugLogger.debug('🔄 Starting risk store hydration...');
   const startTime = performance.now();
 
   // ✅ Détecter hard refresh (Ctrl+Shift+R) pour forcer cache bust
@@ -37,7 +37,7 @@ export async function hydrateRiskStore() {
                         performance.getEntriesByType?.('navigation')?.[0]?.type === 'reload';
   const forceRefresh = isHardRefresh || false;
   if (forceRefresh) {
-    console.log('🔄 Hard refresh detected, forcing cache refresh');
+    debugLogger.debug('🔄 Hard refresh detected, forcing cache refresh');
   }
 
   try {
@@ -45,7 +45,7 @@ export async function hydrateRiskStore() {
     const fetchAlerts = async () => {
       try {
         if (!window.globalConfig?.apiRequest) {
-          console.warn('⚠️ globalConfig.apiRequest not available for alerts');
+          debugLogger.warn('⚠️ globalConfig.apiRequest not available for alerts');
           return [];
         }
         const alertsData = await window.globalConfig.apiRequest('/api/alerts/active', {
@@ -53,7 +53,7 @@ export async function hydrateRiskStore() {
         });
         return Array.isArray(alertsData) ? alertsData : [];
       } catch (err) {
-        console.warn('⚠️ Alerts fetch failed:', err);
+        debugLogger.warn('⚠️ Alerts fetch failed:', err);
         return [];
       }
     };
@@ -62,7 +62,7 @@ export async function hydrateRiskStore() {
     const fetchRiskData = async () => {
       try {
         if (!window.globalConfig?.apiRequest) {
-          console.warn('⚠️ globalConfig.apiRequest not available for risk data');
+          debugLogger.warn('⚠️ globalConfig.apiRequest not available for risk data');
           return null;
         }
         const riskData = await window.globalConfig.apiRequest('/api/risk/dashboard', {
@@ -70,7 +70,7 @@ export async function hydrateRiskStore() {
         });
         return riskData;
       } catch (err) {
-        console.warn('⚠️ Risk data fetch failed:', err);
+        debugLogger.warn('⚠️ Risk data fetch failed:', err);
         return null;
       }
     };
@@ -80,12 +80,12 @@ export async function hydrateRiskStore() {
       try {
         const response = await fetch(`${window.location.origin}/execution/governance/state`);
         if (!response.ok) {
-          console.warn('⚠️ Governance state fetch failed:', response.status);
+          debugLogger.warn('⚠️ Governance state fetch failed:', response.status);
           return null;
         }
         return await response.json();
       } catch (err) {
-        console.warn('⚠️ Governance state fetch failed:', err);
+        debugLogger.warn('⚠️ Governance state fetch failed:', err);
         return null;
       }
     };
@@ -104,7 +104,7 @@ export async function hydrateRiskStore() {
       }
 
       // ❌ Fallback: si risk_score manque, retourner null (ne pas calculer côté client)
-      console.warn('⚠️ risk_score missing from API response, using fallback');
+      debugLogger.warn('⚠️ risk_score missing from API response, using fallback');
       return null;
     };
 
@@ -112,19 +112,19 @@ export async function hydrateRiskStore() {
     // NOTE: estimateCyclePosition() est SYNCHRONE, on le wrap dans Promise.resolve()
     const [ccsResult, cycleResult, indicatorsResult, alertsResult, riskResult, governanceResult] = await Promise.allSettled([
       fetchAndComputeCCS().catch(err => {
-        console.warn('⚠️ CCS calculation failed:', err);
+        debugLogger.warn('⚠️ CCS calculation failed:', err);
         return null;
       }),
       Promise.resolve().then(() => {
         try {
           return estimateCyclePosition();
         } catch (err) {
-          console.warn('⚠️ Cycle estimation failed:', err);
+          debugLogger.warn('⚠️ Cycle estimation failed:', err);
           return null;
         }
       }),
       fetchAllIndicators({ force: forceRefresh }).catch(err => {
-        console.warn('⚠️ On-chain indicators fetch failed:', err);
+        debugLogger.warn('⚠️ On-chain indicators fetch failed:', err);
         return null;
       }),
       fetchAlerts(),
@@ -159,7 +159,7 @@ export async function hydrateRiskStore() {
         // calculateCompositeScoreV2 returns { score, confidence, contributors, ... }
         onchainScore = compositeResult?.score ?? null;
       } catch (err) {
-        console.warn('⚠️ On-chain composite score calculation failed:', err);
+        debugLogger.warn('⚠️ On-chain composite score calculation failed:', err);
       }
     }
 
@@ -175,7 +175,7 @@ export async function hydrateRiskStore() {
         // blendCCS returns { originalCCS, cycleScore, blendedCCS, cycleWeight, phase }
         ccsStar = blendResult?.blendedCCS ?? null;
       } catch (err) {
-        console.warn('⚠️ CCS blend calculation failed:', err);
+        debugLogger.warn('⚠️ CCS blend calculation failed:', err);
       }
     }
 
@@ -219,7 +219,7 @@ export async function hydrateRiskStore() {
         // getRegimeDisplayData returns { regime: {...}, risk_budget, allocation, recommendations }
         regime = regimeData?.regime ?? null;
       } catch (err) {
-        console.warn('⚠️ Market regime calculation failed:', err);
+        debugLogger.warn('⚠️ Market regime calculation failed:', err);
       }
     }
 
@@ -299,7 +299,7 @@ export async function hydrateRiskStore() {
     }));
 
     const duration = Math.round(performance.now() - startTime);
-    console.log(`✅ Risk store hydrated successfully in ${duration}ms`, {
+    debugLogger.debug(`✅ Risk store hydrated successfully in ${duration}ms`, {
       ccs: ccs ? `${ccs.score} (${ccs.interpretation?.label || ccs.interpretation})` : 'N/A',
       cycle: cycle ? `${cycle.phase?.phase || cycle.phase} (${cycle.months}mo)` : 'N/A',
       onchain: onchainScore !== null && typeof onchainScore === 'number' ? onchainScore.toFixed(1) : (onchainScore || 'N/A'),
@@ -311,7 +311,7 @@ export async function hydrateRiskStore() {
     });
 
   } catch (err) {
-    console.error('❌ Failed to hydrate risk store:', err);
+    debugLogger.error('❌ Failed to hydrate risk store:', err);
 
     // Marquer échec d'hydratation dans le store
     const currentState = window.riskStore.getState();
@@ -334,11 +334,11 @@ function autoInit() {
   // Attendre que riskStore soit disponible (chargé par risk-dashboard-store.js)
   if (window.riskStore) {
     hydrateRiskStore().catch(err => {
-      console.error('Auto-init hydration failed:', err);
+      debugLogger.error('Auto-init hydration failed:', err);
     });
   } else {
     // Retry après 100ms si store pas encore chargé
-    console.log('⏳ Waiting for riskStore to be available...');
+    debugLogger.debug('⏳ Waiting for riskStore to be available...');
     setTimeout(autoInit, 100);
   }
 }

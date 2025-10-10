@@ -90,7 +90,7 @@ export async function postMLAction(endpoint, data = {}) {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         return await response.json();
     } catch (error) {
-        console.error(`ML API ${endpoint} failed:`, error);
+        debugLogger.error(`ML API ${endpoint} failed:`, error);
         throw error;
     }
 }
@@ -366,7 +366,7 @@ export async function getUnifiedMLStatus() {
         (window.debugLogger?.debug || console.log)(`✅ Stable fallback: ${result.totalLoaded}/4 models, ${(result.confidence*100).toFixed(1)}% confidence`);
 
     } catch (error) {
-        console.error('❌ All ML status sources failed:', error);
+        debugLogger.error('❌ All ML status sources failed:', error);
         result.source = 'error';
         result.confidence = 0;
     }

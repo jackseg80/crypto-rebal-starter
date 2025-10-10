@@ -95,7 +95,7 @@
 
             } catch (error) {
                 statusEl.innerHTML = `<span class="error">❌ Erreur: ${error.message}</span>`;
-                console.error('Test error:', error);
+                debugLogger.error('Test error:', error);
             }
         }
 

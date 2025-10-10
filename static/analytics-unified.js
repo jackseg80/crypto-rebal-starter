@@ -170,7 +170,7 @@ async function loadTabData(tabId) {
                 (window.debugLogger?.warn || console.warn)(`Unknown tab: ${tab}`);
         }
     } catch (error) {
-        console.error(`Error loading ${tab} data:`, error);
+        debugLogger.error(`Error loading ${tab} data:`, error);
         showErrorState(tabId);
     }
 }
@@ -315,7 +315,7 @@ async function loadCycleData() {
             showCycleError();
         }
     } catch (error) {
-        console.error('Cycle data loading failed:', error);
+        debugLogger.error('Cycle data loading failed:', error);
         showCycleError();
     }
 }
@@ -345,7 +345,7 @@ async function loadCycleData() {
               `;
           }
       } catch (error) {
-          console.error('Advanced analytics loading failed:', error);
+          debugLogger.error('Advanced analytics loading failed:', error);
           showMonitoringError();
       }
   }

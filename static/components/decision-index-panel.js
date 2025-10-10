@@ -808,7 +808,7 @@ function mountSegmentTooltip(container, data) {
  * Fallback texte si Chart.js absent
  */
 function renderTextFallback(container, data) {
-  console.warn('⚠️ Chart.js not loaded - using text fallback for Decision Index Panel');
+  debugLogger.warn('⚠️ Chart.js not loaded - using text fallback for Decision Index Panel');
 
   const contribs = calculateRelativeContributions(data.weights, data.scores);
 
@@ -841,13 +841,13 @@ function renderTextFallback(container, data) {
  */
 function _renderDIPanelInternal(container, data, opts = {}) {
   if (!container) {
-    console.error('❌ DI Panel: container element not found');
+    debugLogger.error('❌ DI Panel: container element not found');
     return;
   }
 
   // Debug toggle
   if (window.__DI_DEBUG__ && window.location?.hostname === 'localhost') {
-    console.log('🐛 DI Panel Input:', {
+    debugLogger.debug('🐛 DI Panel Input:', {
       di: data.di,
       weights: data.weights,
       scores: data.scores,
@@ -871,7 +871,7 @@ function _renderDIPanelInternal(container, data, opts = {}) {
   const contribs = calculateRelativeContributions(data.weights, data.scores);
 
   if (window.__DI_DEBUG__ && window.location?.hostname === 'localhost') {
-    console.log('🐛 DI Panel Contributions:', contribs);
+    debugLogger.debug('🐛 DI Panel Contributions:', contribs);
   }
 
   // Calculer breakdown, trend, regime ribbon
@@ -1049,17 +1049,17 @@ export async function ensureChartJSLoaded() {
     return true;
   }
 
-  console.warn('⚠️ Chart.js not found - attempting to load from CDN...');
+  debugLogger.warn('⚠️ Chart.js not found - attempting to load from CDN...');
 
   return new Promise((resolve) => {
     const script = document.createElement('script');
     script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
     script.onload = () => {
-      console.log('✅ Chart.js loaded dynamically');
+      debugLogger.debug('✅ Chart.js loaded dynamically');
       resolve(true);
     };
     script.onerror = () => {
-      console.error('❌ Failed to load Chart.js from CDN');
+      debugLogger.error('❌ Failed to load Chart.js from CDN');
       resolve(false);
     };
     document.head.appendChild(script);

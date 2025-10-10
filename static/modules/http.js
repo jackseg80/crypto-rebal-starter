@@ -85,7 +85,7 @@ export async function safeFetch(url, options = {}) {
         }
     }
 
-    console.error(`[safeFetch] All retries failed for ${url}`, lastError);
+    debugLogger.error(`[safeFetch] All retries failed for ${url}`, lastError);
     return {
         ok: false,
         status: 0,

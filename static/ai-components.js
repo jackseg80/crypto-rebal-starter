@@ -153,7 +153,7 @@ class VolatilityDisplay extends AIComponent {
             statusDot.className = 'status-dot online';
             statusText.textContent = 'En ligne';
         } catch (error) {
-            console.error('Volatility data loading failed:', error);
+            debugLogger.error('Volatility data loading failed:', error);
             statusDot.className = 'status-dot offline';
             statusText.textContent = 'Erreur';
         }
@@ -286,7 +286,7 @@ class MarketRegimeDisplay extends AIComponent {
             statusDot.className = 'status-dot online';
             statusText.textContent = 'Actif';
         } catch (error) {
-            console.error('Market regime data loading failed:', error);
+            debugLogger.error('Market regime data loading failed:', error);
             statusDot.className = 'status-dot offline';
             statusText.textContent = 'Erreur';
         }
@@ -421,7 +421,7 @@ class CorrelationMatrix extends AIComponent {
             const timestamp = this.querySelector('#corr-timestamp');
             timestamp.textContent = new Date().toLocaleTimeString();
         } catch (error) {
-            console.error('Correlation data loading failed:', error);
+            debugLogger.error('Correlation data loading failed:', error);
             heatmap.innerHTML = '<div class="error">Erreur de chargement</div>';
         }
     }
@@ -552,7 +552,7 @@ class SentimentIndicator extends AIComponent {
             const data = await window.aiServiceManager.sentimentService.analyze([this.symbol]);
             this.updateDisplay(data);
         } catch (error) {
-            console.error('Sentiment data loading failed:', error);
+            debugLogger.error('Sentiment data loading failed:', error);
         }
     }
 
@@ -696,7 +696,7 @@ class RebalancingSuggestions extends AIComponent {
             const timestamp = this.querySelector('#rebal-timestamp');
             timestamp.textContent = new Date().toLocaleTimeString();
         } catch (error) {
-            console.error('Rebalancing suggestions loading failed:', error);
+            debugLogger.error('Rebalancing suggestions loading failed:', error);
             suggestionsList.innerHTML = '<div class="error">Erreur de génération des suggestions</div>';
         }
     }
@@ -781,7 +781,7 @@ class RebalancingSuggestions extends AIComponent {
             // Afficher les résultats de simulation dans une modal ou un overlay
             this.showSimulationResults(simulation);
         } catch (error) {
-            console.error('Simulation failed:', error);
+            debugLogger.error('Simulation failed:', error);
             alert('Erreur lors de la simulation');
         }
     }

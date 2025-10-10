@@ -983,7 +983,7 @@ export async function fetchCryptoToolboxIndicators({ force = false, silent = fal
   throw new Error('No valid indicators found in API response');
 
   } catch (error) {
-    console.error('❌ Crypto-Toolbox API fetch failed:', error.message);
+    debugLogger.error('❌ Crypto-Toolbox API fetch failed:', error.message);
 
     // Enhanced graceful degradation for all types of API failures
     if (_logLimiter.limit('api_failure')) {
@@ -1006,7 +1006,7 @@ export async function fetchCryptoToolboxIndicators({ force = false, silent = fal
     const staleCache = readOnchainCache();
     if (staleCache && !force) {
       const age = Date.now() - (staleCache.saved_at || 0);
-      console.info(`🔄 Using stale cache due to API failure (age: ${Math.round(age / 1000 / 60)}min)`, {
+      debugLogger.info(`🔄 Using stale cache due to API failure (age: ${Math.round(age / 1000 / 60)}min)`, {
         served_from: 'stale_cache_fallback',
         cache_age_minutes: Math.round(age / 1000 / 60),
         reason: 'api_failure',
@@ -1136,7 +1136,7 @@ function parseCryptoToolboxHTML(html) {
     }
     
   } catch (error) {
-    console.error('❌ Crypto-Toolbox HTML parsing failed:', error.message);
+    debugLogger.error('❌ Crypto-Toolbox HTML parsing failed:', error.message);
   }
   
   return indicators;
@@ -1535,7 +1535,7 @@ export function enhanceCycleScore(sigmoidScore, onchainWeight = 0.3) {
       });
       
     } catch (error) {
-      console.error('Error enhancing cycle score:', error);
+      debugLogger.error('Error enhancing cycle score:', error);
       resolve({
         original_sigmoid: sigmoidScore,
         enhanced_score: sigmoidScore,

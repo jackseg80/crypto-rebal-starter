@@ -17,11 +17,11 @@ export function enableFlyoutLayoutAdapter(mainSelector = 'body', options = {}) {
   const init = () => {
     const mainEl = document.querySelector(mainSelector);
     if (!mainEl) {
-      console.warn(`[FlyoutLayoutAdapter] Element not found: ${mainSelector}`);
+      debugLogger.warn(`[FlyoutLayoutAdapter] Element not found: ${mainSelector}`);
       return;
     }
 
-    console.log(`[FlyoutLayoutAdapter] Initializing for ${mainSelector}`, { offset, transition });
+    debugLogger.debug(`[FlyoutLayoutAdapter] Initializing for ${mainSelector}`, { offset, transition });
 
     // Ajouter la transition CSS et un padding permanent à gauche pour la poignée du flyout
     mainEl.style.transition = `margin-left ${transition}, margin-right ${transition}`;
@@ -30,22 +30,22 @@ export function enableFlyoutLayoutAdapter(mainSelector = 'body', options = {}) {
     // Écouter les changements d'état du flyout
     document.addEventListener('flyout-state-change', (e) => {
       const { pinned, width, position } = e.detail;
-      console.log('[FlyoutLayoutAdapter] State change:', { pinned, width, position });
+      debugLogger.debug('[FlyoutLayoutAdapter] State change:', { pinned, width, position });
 
       if (pinned) {
         if (position === 'left') {
           mainEl.style.marginLeft = `${width + offset}px`;
           mainEl.style.marginRight = 'auto';
-          console.log(`[FlyoutLayoutAdapter] Applied margin-left: ${width + offset}px`);
+          debugLogger.debug(`[FlyoutLayoutAdapter] Applied margin-left: ${width + offset}px`);
         } else if (position === 'right') {
           mainEl.style.marginRight = `${width + offset}px`;
           mainEl.style.marginLeft = 'auto';
-          console.log(`[FlyoutLayoutAdapter] Applied margin-right: ${width + offset}px`);
+          debugLogger.debug(`[FlyoutLayoutAdapter] Applied margin-right: ${width + offset}px`);
         }
       } else {
         mainEl.style.marginLeft = 'auto';
         mainEl.style.marginRight = 'auto';
-        console.log('[FlyoutLayoutAdapter] Reset margins to auto');
+        debugLogger.debug('[FlyoutLayoutAdapter] Reset margins to auto');
       }
     });
 
@@ -55,7 +55,7 @@ export function enableFlyoutLayoutAdapter(mainSelector = 'body', options = {}) {
       if (flyoutPanel) {
         const persistKey = flyoutPanel.getAttribute('persist-key') || 'flyout';
         const persisted = JSON.parse(localStorage.getItem(`flyout:${persistKey}`) || '{}');
-        console.log('[FlyoutLayoutAdapter] Initial state from localStorage:', { persistKey, persisted });
+        debugLogger.debug('[FlyoutLayoutAdapter] Initial state from localStorage:', { persistKey, persisted });
 
         if (persisted.pinned) {
           const width = Number(flyoutPanel.getAttribute('width')) || 340;
@@ -63,18 +63,18 @@ export function enableFlyoutLayoutAdapter(mainSelector = 'body', options = {}) {
           if (position === 'left') {
             mainEl.style.marginLeft = `${width + offset}px`;
             mainEl.style.marginRight = 'auto';
-            console.log(`[FlyoutLayoutAdapter] Initial margin-left: ${width + offset}px`);
+            debugLogger.debug(`[FlyoutLayoutAdapter] Initial margin-left: ${width + offset}px`);
           } else {
             mainEl.style.marginRight = `${width + offset}px`;
             mainEl.style.marginLeft = 'auto';
-            console.log(`[FlyoutLayoutAdapter] Initial margin-right: ${width + offset}px`);
+            debugLogger.debug(`[FlyoutLayoutAdapter] Initial margin-right: ${width + offset}px`);
           }
         } else {
           mainEl.style.marginLeft = 'auto';
           mainEl.style.marginRight = 'auto';
         }
       } else {
-        console.warn('[FlyoutLayoutAdapter] flyout-panel element not found');
+        debugLogger.warn('[FlyoutLayoutAdapter] flyout-panel element not found');
       }
     }, 100);
   };

@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🚀 Exécution - Crypto Rebalancer</title>
+  <link rel="stylesheet" href="shared-theme.css">
+  <link rel="stylesheet" href="theme-compat.css">
+  <script type="module" src="components/nav.js"></script>
+  <script type="module">
+    import { initDeepLinks } from './components/deep-links.js';
+    import { wealthContextBar } from './components/WealthContextBar.js';
+
+    // Ancres pour execution.html : #orders #history #costs #venues
+    initDeepLinks({
+      'orders': 'Créer Plan',
+      'history': 'Historique',
+      'costs': 'Monitoring',
+      'venues': 'Exchanges'
+    });
+
+    // Exposer wealthContextBar globalement pour usage dans le script principal
+    window.wealthContextBar = wealthContextBar;
+  </script>
+
+  <script src="debug-logger.js"></script>
+  <script src="input-validator.js"></script>
+  <script src="performance-optimizer.js"></script>
+  <script src="global-config.js"></script>
+  <script src="appearance.js"></script>
+  <style>
+    /* ===== Container responsive ===== */
+    .container {
+      width: 100%;
+      max-width: 95vw;
+      margin: 0 auto;
+      padding: 0 var(--space-lg);
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        padding: 0 var(--space-md);
+      }
+    }
+
+    .section {
+      background: var(--theme-surface);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      margin-bottom: var(--space-lg);
+      overflow: hidden;
+      border: 1px solid var(--theme-border);
+    }
+
+    .section-header {
+      padding: var(--space-lg) var(--space-xl);
+      border-bottom: 1px solid var(--theme-border);
+      background: var(--theme-surface-elevated);
+    }
+
+    .section-header h2 {
+      color: var(--theme-text);
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: var(--space-xs);
+    }
+
+    .section-header p {
+      color: var(--theme-text-muted);
+      font-size: 0.875rem;
+    }
+
+    .section-content {
+      padding: var(--space-xl);
+    }
+
+    .tab-nav {
+      display: flex;
+      border-bottom: 1px solid var(--theme-border);
+      background: var(--theme-surface-elevated);
+    }
+
+    .tab-button {
+      padding: var(--space-md) var(--space-lg);
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-weight: 500;
+      color: var(--theme-text-muted);
+      border-bottom: 2px solid transparent;
+      transition: all var(--transition-normal);
+    }
+
+    .tab-button.active {
+      color: var(--brand-primary);
+      border-bottom-color: var(--brand-primary);
+      background: var(--theme-surface);
+    }
+
+    .tab-content {
+      display: none;
+      padding: var(--space-xl);
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .status-executing {
+      background: var(--info-bg);
+      color: var(--info);
+    }
+
+    .status-completed {
+      background: var(--success-bg);
+      color: var(--success);
+    }
+
+    .status-failed {
+      background: var(--danger-bg);
+      color: var(--danger);
+    }
+
+    .status-cancelled {
+      background: var(--theme-border-subtle);
+      color: var(--theme-text-muted);
+    }
+
+    .orders-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--theme-surface);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .orders-table th,
+    .orders-table td {
+      padding: 0.75rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--theme-border);
+    }
+
+    .orders-table th {
+      background: var(--theme-surface-elevated);
+      font-weight: 600;
+      color: var(--theme-text);
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .orders-table tbody tr:hover {
+      background: var(--theme-border-subtle);
+    }
+
+    .amount-positive {
+      color: var(--success);
+    }
+
+    .amount-negative {
+      color: var(--danger);
+    }
+
+    /* Custom execution-specific styles - leveraging shared theme */
+    /* Form styles are now inherited from shared-theme.css */
+
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .real-trading-warning {
+      background: linear-gradient(135deg, #fee2e2, #fecaca);
+      border: 2px solid var(--danger);
+      padding: 20px;
+      border-radius: 12px;
+      margin: 20px 0;
+    }
+
+    .real-trading-warning h3 {
+      color: var(--danger);
+      margin-bottom: 12px;
+      font-size: 1.25rem;
+    }
+
+    .real-trading-warning ul {
+      color: #7f1d1d;
+      margin-left: 20px;
+    }
+
+    @media (max-width: 768px) {
+
+      .grid-2,
+      .grid-3 {
+        grid-template-columns: 1fr;
+      }
+
+      .tab-nav {
+        flex-wrap: wrap;
+      }
+
+      .orders-table {
+        font-size: 0.875rem;
+      }
+    }
+  </style>
+
+  <script type="module" src="components/tooltips.js"></script>
+
+  <!-- Risk Dashboard Store + Calculation Modules (for flyout panel parity) -->
+  <script type="module" src="core/risk-dashboard-store.js"></script>
+  <script type="module" src="core/fetcher.js"></script>
+  <script type="module" src="modules/signals-engine.js"></script>
+  <script type="module" src="modules/cycle-navigator.js"></script>
+  <script type="module" src="modules/onchain-indicators.js"></script>
+  <script type="module" src="modules/market-regimes.js"></script>
+  <script type="module" src="modules/targets-coordinator.js"></script>
+  <script type="module" src="core/risk-data-orchestrator.js"></script>
+
+  <!-- Unified Risk Flyout Panel (Full Sidebar) -->
+  <script type="module" src="components/flyout-panel.js"></script>
+  <script type="module" src="components/risk-sidebar-full.js"></script>
+  <script type="module">
+    // Adapter le layout quand la sidebar est épinglée
+    import { enableFlyoutLayoutAdapter } from './components/flyout-layout-adapter.js';
+    enableFlyoutLayoutAdapter('.wrap'); // Décaler uniquement le contenu, pas le menu
+  </script>
+</head>
+
+<body>
+
+  <!-- Unified Risk Flyout Panel -->
+  <flyout-panel position="left" width="340" persist-key="execution_flyout">
+    <span slot="title">🎯 Risk Dashboard</span>
+    <risk-sidebar-full slot="content" poll-ms="0"></risk-sidebar-full>
+  </flyout-panel>
+
+  <div class="wrap">
+
+    <!-- Navigation par onglets -->
+    <div class="section">
+      <div class="tab-nav">
+        <button class="tab-button active" onclick="switchTab('create', this)">
+          📝 Créer Plan
+        </button>
+        <button class="tab-button" onclick="switchTab('monitor', this)">
+          📊 Monitoring
+        </button>
+        <button class="tab-button" onclick="switchTab('history', this)">
+          📜 Historique
+        </button>
+        <button class="tab-button" onclick="switchTab('exchanges', this)">
+          🏢 Exchanges
+        </button>
+      </div>
+
+      <!-- Onglet Création de Plan -->
+      <div id="orders" class="tab-content active">
+        <div class="alert alert-info">
+          <strong>ℹ️ Information :</strong> Importez un plan de rebalancement existant ou saisissez les actions
+          manuellement.
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Plan de Rebalancement (JSON)</label>
+          <textarea id="rebalance-actions" class="form-input form-textarea" rows="15"
+            placeholder='[{"symbol": "BTC", "action": "sell", "usd": -1000, "exec_hint": "Sell on Binance"}, ...]'></textarea>
+          <small style="color: var(--muted);">
+            Collez ici les actions générées par le module de rebalancement
+          </small>
+        </div>
+
+        <div class="grid grid-2">
+          <div class="form-group">
+            <div class="checkbox-group">
+              <input type="checkbox" id="dry-run" checked>
+              <label for="dry-run" class="form-label">Mode Simulation (Dry Run)</label>
+            </div>
+            <small style="color: var(--muted);">
+              Recommandé pour les tests. Aucun ordre réel ne sera passé.
+            </small>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Ordres Parallèles Max</label>
+            <input type="number" id="max-parallel" class="form-input" value="3" min="1" max="10">
+          </div>
+        </div>
+
+        <div id="real-trading-warning" class="real-trading-warning" style="display: none;">
+          <h3>⚠️ ATTENTION - Mode Trading Réel</h3>
+          <p><strong>Vous allez exécuter des ordres réels avec de l'argent réel !</strong></p>
+          <ul>
+            <li>Vérifiez soigneusement toutes les actions avant validation</li>
+            <li>Assurez-vous que vos clés API sont correctement configurées</li>
+            <li>Surveillez l'exécution en temps réel</li>
+            <li>Gardez des liquidités suffisantes sur les exchanges</li>
+          </ul>
+        </div>
+
+        <div class="grid grid-2">
+          <button class="btn btn-primary" onclick="validatePlan()">
+            🔍 Valider Plan
+          </button>
+          <button class="btn btn-success" onclick="createAndExecutePlan()" disabled id="execute-btn">
+            🚀 Créer et Exécuter
+          </button>
+        </div>
+
+        <div id="validation-result" style="margin-top: 20px;"></div>
+      </div>
+
+      <!-- Onglet Monitoring -->
+      <div id="costs" class="tab-content">
+        <div class="grid grid-3">
+          <div class="metric-card">
+            <div class="metric-value" id="active-executions">0</div>
+            <div class="metric-label">Exécutions Actives</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-value" id="total-volume">$0</div>
+            <div class="metric-label">Volume Total</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-value" id="success-rate">0%</div>
+            <div class="metric-label">Taux de Succès</div>
+          </div>
+        </div>
+
+        <div id="active-plans-container" style="margin-top: 24px;">
+          <!-- Les plans actifs seront injectés ici -->
+        </div>
+
+        <button class="btn btn-primary" onclick="refreshMonitoring()">
+          🔄 Actualiser
+        </button>
+      </div>
+
+      <!-- Onglet Historique -->
+      <div id="history" class="tab-content">
+        <div class="section">
+          <div class="section-content">
+            <h3 style="margin-top:0">📋 Historique d'Exécution</h3>
+            <p style="color: var(--theme-text-muted); margin-bottom:1rem;">Historique détaillé des sessions d'exécution
+              et des ordres</p>
+            <div id="history-inline" class="panel-card"
+              style="padding:var(--space-lg); border:1px solid var(--theme-border); border-radius:var(--radius-md); background: var(--theme-surface);">
+              <div id="history-status" style="color:var(--theme-text-muted)">Chargement…</div>
+              <div id="history-list" style="margin-top:1rem"></div>
+            </div>
+            <div style="text-align:right; margin-top:.5rem;">
+              <a href="execution_history.html" target="_blank"
+                style="color: var(--theme-text-muted); text-decoration: none;">Ouvrir l'historique complet ↗</a>
+            </div>
+            <script>
+              (function () {
+                async function loadHistory() {
+                  const status = document.getElementById('history-status');
+                  const list = document.getElementById('history-list');
+                  try {
+                    const base = (window.globalConfig && globalConfig.get('api_base_url')) || '';
+                    const url = (window.globalConfig && globalConfig.getApiUrl) ? globalConfig.getApiUrl('/api/execution/history/sessions', { limit: 20 }) : (base + '/api/execution/history/sessions?limit=20');
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    const data = await res.json();
+                    const sessions = data.sessions || [];
+                    if (!sessions.length) {
+                      status.textContent = 'Aucune session récente';
+                      return;
+                    }
+                    status.textContent = '';
+                    const rows = sessions.map(s => `
+                      <tr>
+                        <td>${new Date(s.timestamp).toLocaleString('fr-FR')}</td>
+                        <td>${s.exchange || '-'}</td>
+                        <td>${s.total_orders}</td>
+                        <td>${(s.successful_orders || 0)}/${s.total_orders}</td>
+                        <td>${formatUSD(s.total_volume_usd || 0)}</td>
+                        <td>${(s.total_fees || 0).toFixed(2)}</td>
+                        <td>${(s.avg_slippage_bps || 0)} bps</td>
+                      </tr>
+                    `).join('');
+                    list.innerHTML = `
+                      <div style="overflow:auto;">
+                        <table class="table" style="width:100%; border-collapse:collapse;">
+                          <thead>
+                            <tr>
+                              <th>Date</th><th>Exchange</th><th>Ordres</th><th>Succès</th><th>Volume</th><th>Frais</th><th>Slippage</th>
+                            </tr>
+                          </thead>
+                          <tbody>${rows}</tbody>
+                        </table>
+                      </div>`;
+                  } catch (e) {
+                    status.textContent = "Impossible de charger l'historique. Ouvrez la page complète ↗";
+                    console.warn('History inline load failed:', e);
+                  }
+                }
+                loadHistory();
+              })();
+            </script>
+          </div>
+        </div>
+      </div>
+
+      <!-- Onglet Exchanges -->
+      <div id="venues" class="tab-content">
+        <div class="alert alert-info">
+          <strong>🏢 Exchanges Configurés :</strong> Statut des adaptateurs d'exchange disponibles
+        </div>
+
+        <div id="exchanges-container">
+          <!-- La liste des exchanges sera injectée ici -->
+        </div>
+
+        <div class="grid grid-2">
+          <button class="btn btn-primary" onclick="loadExchanges()">
+            🔄 Actualiser Exchanges
+          </button>
+          <button class="btn btn-success" onclick="connectExchanges()">
+            🔗 Connecter Tous
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Configuration globale déjà chargée par global-config.js (ligne 30)
+    // const globalConfig est déjà disponible
+    let validatedPlan = null;
+    let activeMonitoring = null;
+
+    // ========== UTILITAIRES ==========
+
+    function formatUSD(value) {
+      const cur = (window.globalConfig && window.globalConfig.get('display_currency')) || 'USD';
+      const rate = (window.currencyManager && window.currencyManager.getRateSync(cur)) || 1;
+      if (cur !== 'USD' && (!rate || rate <= 0)) return '—';
+      const v = (value === null || value === undefined || isNaN(value)) ? 0 : (value * rate);
+      try {
+        const decimals = (cur === 'BTC') ? 8 : 2;
+        const out = new Intl.NumberFormat('fr-FR', {
+          style: 'currency',
+          currency: cur,
+          minimumFractionDigits: decimals,
+          maximumFractionDigits: decimals
+        }).format(v);
+        return (cur === 'USD') ? out.replace(/\s?US$/, '') : out;
+      } catch (_) {
+        const decimals = (cur === 'BTC') ? 8 : 2;
+        return `${v.toFixed(decimals)} ${cur}`;
+      }
+    }
+
+    function formatPercent(value) {
+      if (value === null || value === undefined) return '0.0%';
+      return `${value.toFixed(1)}%`;
+    }
+
+    function formatTimestamp(isoString) {
+      if (!isoString) return 'N/A';
+      return new Date(isoString).toLocaleString('fr-FR');
+    }
+
+    function getStatusBadgeClass(status) {
+      const statusMap = {
+        'pending': 'status-pending',
+        'executing': 'status-executing',
+        'completed': 'status-completed',
+        'failed': 'status-failed',
+        'cancelled': 'status-cancelled'
+      };
+      return statusMap[status] || 'status-pending';
+    }
+
+    function showAlert(container, type, message) {
+      container.innerHTML = `
+        <div class="alert alert-${type}">
+          ${message}
+        </div>
+      `;
+    }
+
+    // Reformat visible amounts when display currency changes
+    window.addEventListener('configChanged', (ev) => {
+      if (ev?.detail?.key === 'display_currency') {
+        try {
+          const cur = (window.globalConfig && window.globalConfig.get('display_currency')) || 'USD';
+          const rerender = () => { try { refreshMonitoring(); loadPlansHistory(); loadExchanges(); } catch(_){} };
+          if (window.currencyManager && cur !== 'USD') {
+            window.currencyManager.ensureRate(cur).then(rerender).catch(rerender);
+          } else {
+            rerender();
+          }
+        } catch (e) {
+          console.warn('Currency change re-render failed (execution):', e);
+        }
+      }
+    });
+
+    window.addEventListener('currencyRateUpdated', () => {
+      try { refreshMonitoring(); loadPlansHistory(); loadExchanges(); } catch(_){}
+    });
+
+    // ========== NAVIGATION ONGLETS ==========
+
+    function switchTab(tabName, buttonElement = null) {
+      // Masquer tous les onglets
+      document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+      });
+
+      // Désactiver tous les boutons
+      document.querySelectorAll('.tab-button').forEach(btn => {
+        btn.classList.remove('active');
+      });
+
+      // Activer l'onglet sélectionné - mapper les noms vers les nouveaux IDs
+      const tabIdMap = {
+        'create': 'orders',
+        'monitor': 'costs',
+        'history': 'history',
+        'exchanges': 'venues'
+      };
+      const targetId = tabIdMap[tabName] || `tab-${tabName}`;
+      document.getElementById(targetId).classList.add('active');
+
+      // Activer le bouton correspondant
+      if (buttonElement) {
+        // Cas d'un appel événementiel avec event.target
+        buttonElement.classList.add('active');
+      } else if (typeof event !== 'undefined' && event.target) {
+        // Cas d'un appel événementiel direct
+        event.target.classList.add('active');
+      } else {
+        // Cas d'un appel programmatique - trouver le bon bouton
+        const targetButton = document.querySelector(`[onclick*="switchTab('${tabName}'"]`);
+        if (targetButton) {
+          targetButton.classList.add('active');
+        } else {
+          console.warn('Could not find button for tab:', tabName);
+        }
+      }
+
+      // Charger les données selon l'onglet
+      switch (tabName) {
+        case 'monitor':
+          refreshMonitoring();
+          break;
+        case 'history':
+          loadPlansHistory();
+          break;
+        case 'exchanges':
+          loadExchanges();
+          break;
+      }
+    }
+
+    // ========== GESTION DRY RUN ==========
+
+    document.getElementById('dry-run').addEventListener('change', function () {
+      const warning = document.getElementById('real-trading-warning');
+      if (this.checked) {
+        warning.style.display = 'none';
+      } else {
+        warning.style.display = 'block';
+      }
+    });
+
+    // ========== VALIDATION DE PLAN ==========
+
+    async function validatePlan() {
+      const actionsText = document.getElementById('rebalance-actions').value.trim();
+      const resultContainer = document.getElementById('validation-result');
+
+      if (!actionsText) {
+        showAlert(resultContainer, 'warning', 'Veuillez saisir les actions de rebalancement');
+        return;
+      }
+
+      try {
+        const parsedInput = JSON.parse(actionsText);
+
+        // Support two formats: direct actions array or complete execution data
+        let actions, metadata;
+        if (Array.isArray(parsedInput)) {
+          // Format 1: Direct actions array
+          actions = parsedInput;
+          metadata = {
+            source: 'manual_input',
+            timestamp: new Date().toISOString()
+          };
+        } else if (parsedInput.rebalance_actions) {
+          // Format 2: Complete execution data from rebalance export
+          actions = parsedInput.rebalance_actions;
+          metadata = parsedInput.metadata || {
+            source: 'imported_plan',
+            timestamp: new Date().toISOString()
+          };
+        } else {
+          throw new Error('Format JSON invalide. Attendu: array d\'actions ou objet avec rebalance_actions');
+        }
+
+        // Validation côté client pour détecter les quantités invalides
+        const invalidActions = actions.filter(action => {
+          // Supporter plusieurs formats: quantity, est_quantity, ou usd (valeur absolue)
+          const quantity = parseFloat(action.quantity || action.est_quantity || 0);
+          const usdAmount = Math.abs(parseFloat(action.usd || 0));
+
+          // Valide si on a soit une quantité > 0, soit un montant USD > 0
+          const hasValidQuantity = !isNaN(quantity) && quantity > 0;
+          const hasValidUSD = !isNaN(usdAmount) && usdAmount > 0;
+
+          return !hasValidQuantity && !hasValidUSD;
+        });
+
+        if (invalidActions.length > 0) {
+          const invalidDetails = invalidActions.map(action => {
+            const qty = action.quantity || action.est_quantity;
+            const usd = action.usd;
+            if (qty !== undefined) {
+              return `${action.symbol}: quantité ${qty} (doit être > 0)`;
+            } else if (usd !== undefined) {
+              return `${action.symbol}: montant USD ${usd} (doit être != 0)`;
+            } else {
+              return `${action.symbol}: aucune quantité ou montant USD spécifié`;
+            }
+          }).join(', ');
+          throw new Error(`Actions avec quantités/montants invalides détectées: ${invalidDetails}`);
+        }
+
+        const response = await globalConfig.apiRequest('/execution/validate-plan', {
+          method: 'POST',
+          body: JSON.stringify({
+            rebalance_actions: actions,
+            metadata: metadata
+          })
+        });
+
+        if (response.valid) {
+          validatedPlan = response;
+          document.getElementById('execute-btn').disabled = false;
+
+          resultContainer.innerHTML = `
+            <div class="alert alert-success">
+              <strong>✅ Plan Validé avec Succès</strong><br>
+              📊 <strong>${response.total_orders}</strong> ordres • 
+              💰 <strong>${formatUSD(response.total_volume)}</strong> volume total<br>
+              ${response.large_orders_count > 0 ? `⚠️ ${response.large_orders_count} gros ordres détectés` : ''}
+            </div>
+          `;
+
+          if (response.warnings.length > 0) {
+            resultContainer.innerHTML += `
+              <div class="alert alert-warning">
+                <strong>⚠️ Avertissements :</strong><br>
+                ${response.warnings.map(w => `• ${w}`).join('<br>')}
+              </div>
+            `;
+          }
+        } else {
+          resultContainer.innerHTML = `
+            <div class="alert alert-danger">
+              <strong>❌ Erreurs de Validation :</strong><br>
+              ${response.errors.map(e => `• ${e}`).join('<br>')}
+            </div>
+          `;
+        }
+
+      } catch (error) {
+        log.error('Validation error:', error);
+        showAlert(resultContainer, 'danger', `Erreur de validation: ${error.message}`);
+      }
+    }
+
+    // ========== CRÉATION ET EXÉCUTION ==========
+
+    async function createAndExecutePlan() {
+      if (!validatedPlan) {
+        alert('Veuillez d\'abord valider le plan');
+        return;
+      }
+
+      const dryRun = document.getElementById('dry-run').checked;
+      const maxParallel = parseInt(document.getElementById('max-parallel').value);
+
+      // Confirmation pour le mode réel
+      if (!dryRun) {
+        const confirmed = confirm(
+          '⚠️ ATTENTION ⚠️\n\n' +
+          'Vous allez exécuter des ordres réels avec de l\'argent réel !\n\n' +
+          `${validatedPlan.total_orders} ordres • ${formatUSD(validatedPlan.total_volume)} volume\n\n` +
+          'Êtes-vous sûr de vouloir continuer ?'
+        );
+
+        if (!confirmed) return;
+      }
+
+      try {
+        // Exécuter le plan
+        const response = await globalConfig.apiRequest(`/execution/execute-plan?plan_id=${validatedPlan.plan_id}&dry_run=${dryRun}&max_parallel=${maxParallel}`, {
+          method: 'POST'
+        });
+
+        if (response.success) {
+          // Basculer vers l'onglet monitoring
+          switchTab('monitor');
+
+          // Démarrer le monitoring en temps réel
+          startRealTimeMonitoring(response.plan_id);
+
+          alert(`🚀 Exécution lancée !\n\nPlan: ${response.plan_id}\nMode: ${dryRun ? 'Simulation' : 'Trading Réel'}`);
+        }
+
+      } catch (error) {
+        log.error('Execution error:', error);
+        alert(`Erreur d'exécution: ${error.message}`);
+      }
+    }
+
+    // ========== MONITORING TEMPS RÉEL ==========
+
+    function startRealTimeMonitoring(planId) {
+      // Arrêter le monitoring précédent
+      if (activeMonitoring) {
+        clearInterval(activeMonitoring);
+      }
+
+      // Monitoring toutes les 2 secondes
+      activeMonitoring = setInterval(async () => {
+        try {
+          const progress = await globalConfig.apiRequest(`/execution/status/${planId}`);
+          updateMonitoringDisplay(planId, progress);
+        } catch (error) {
+          log.error('Monitoring error:', error);
+          // Arrêter le monitoring en cas d'erreur persistante
+          clearInterval(activeMonitoring);
+        }
+      }, 2000);
+    }
+
+    function updateMonitoringDisplay(planId, progress) {
+      const container = document.getElementById('active-plans-container');
+
+      const statusClass = getStatusBadgeClass(progress.status);
+      const isActive = progress.is_active;
+
+      container.innerHTML = `
+        <div class="section">
+          <div class="section-header">
+            <h3>Plan ${planId}</h3>
+            <span class="status-badge ${statusClass}">
+              ${isActive ? '🟢' : '⚪'} ${progress.status.toUpperCase()}
+            </span>
+          </div>
+          <div class="section-content">
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: ${progress.completion_percentage || 0}%"></div>
+            </div>
+            
+            <div class="grid grid-3">
+              <div class="metric-card">
+                <div class="metric-value">${progress.completed_orders}/${progress.total_orders}</div>
+                <div class="metric-label">Ordres Complétés</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-value">${formatPercent(progress.success_rate)}</div>
+                <div class="metric-label">Taux de Succès</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-value">${formatUSD(progress.volume_executed)}</div>
+                <div class="metric-label">Volume Exécuté</div>
+              </div>
+            </div>
+            
+            ${progress.failed_orders > 0 ? `
+              <div class="alert alert-warning">
+                ⚠️ ${progress.failed_orders} ordre(s) en échec
+              </div>
+            ` : ''}
+            
+            <div style="margin-top: 16px;">
+              <button class="btn btn-primary" onclick="showPlanDetails('${planId}')">
+                📋 Détails des Ordres
+              </button>
+              ${isActive ? `
+                <button class="btn btn-danger" onclick="cancelExecution('${planId}')">
+                  ⛔ Annuler Exécution
+                </button>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Arrêter le monitoring si terminé
+      if (!isActive && progress.status !== 'executing') {
+        clearInterval(activeMonitoring);
+        activeMonitoring = null;
+      }
+    }
+
+    // ========== AUTRES FONCTIONS ==========
+
+    async function refreshMonitoring() {
+      try {
+        const stats = await globalConfig.apiRequest('/execution/pipeline-status');
+
+        document.getElementById('active-executions').textContent = stats.active_executions;
+        document.getElementById('total-volume').textContent = formatUSD(stats.statistics.total_volume || 0);
+        document.getElementById('success-rate').textContent = formatPercent(stats.statistics.success_rate || 0);
+
+        if (stats.active_plan_ids.length === 0) {
+          document.getElementById('active-plans-container').innerHTML = `
+            <div class="alert alert-info">
+              ℹ️ Aucune exécution active actuellement
+            </div>
+          `;
+        }
+
+      } catch (error) {
+        log.error('Monitoring refresh error:', error);
+      }
+    }
+
+    async function loadPlansHistory() {
+      try {
+        const response = await globalConfig.apiRequest('/execution/plans?limit=20');
+        const container = document.getElementById('plans-history-container');
+
+        if (response.plans.length === 0) {
+          container.innerHTML = `
+            <div class="alert alert-info">
+              📜 Aucun plan d'exécution dans l'historique
+            </div>
+          `;
+          return;
+        }
+
+        const plansHtml = response.plans.map(plan => `
+          <div class="section" style="margin-bottom: 16px;">
+            <div class="section-content">
+              <div class="grid grid-2">
+                <div>
+                  <strong>${plan.plan_id}</strong><br>
+                  <span class="status-badge ${getStatusBadgeClass(plan.status)}">
+                    ${plan.status.toUpperCase()}
+                  </span>
+                </div>
+                <div style="text-align: right;">
+                  <div><strong>${formatUSD(plan.total_volume)}</strong></div>
+                  <div style="color: var(--muted);">${plan.total_orders} ordres</div>
+                </div>
+              </div>
+              <div style="margin-top: 8px; font-size: 0.875rem; color: var(--muted);">
+                Créé: ${formatTimestamp(plan.created_at)}
+              </div>
+            </div>
+          </div>
+        `).join('');
+
+        container.innerHTML = plansHtml;
+
+      } catch (error) {
+        log.error('History loading error:', error);
+      }
+    }
+
+    async function loadExchanges() {
+      try {
+        const response = await globalConfig.apiRequest('/execution/exchanges');
+        const container = document.getElementById('exchanges-container');
+
+        const exchangesHtml = response.exchanges.map(exchange => `
+          <div class="section" style="margin-bottom: 16px;">
+            <div class="section-content">
+              <div class="grid grid-2">
+                <div>
+                  <strong>${exchange.name}</strong><br>
+                  <span style="color: var(--muted);">${exchange.type}</span>
+                </div>
+                <div style="text-align: right;">
+                  <span class="status-badge ${exchange.connected ? 'status-completed' : 'status-pending'}">
+                    ${exchange.connected ? '🟢 Connecté' : '🔴 Déconnecté'}
+                  </span><br>
+                  <small style="color: var(--muted);">
+                    Frais: ${(exchange.config.fee_rate * 100).toFixed(2)}% • 
+                    Min: ${formatUSD(exchange.config.min_order_size)}
+                  </small>
+                </div>
+              </div>
+            </div>
+          </div>
+        `).join('');
+
+        container.innerHTML = exchangesHtml;
+
+      } catch (error) {
+        console.error('Exchanges loading error:', error);
+      }
+    }
+
+    async function connectExchanges() {
+      try {
+        const response = await globalConfig.apiRequest('/execution/exchanges/connect', {
+          method: 'POST'
+        });
+
+        alert(response.message);
+        loadExchanges(); // Actualiser la liste
+
+      } catch (error) {
+        console.error('Connect exchanges error:', error);
+        alert(`Erreur de connexion: ${error.message}`);
+      }
+    }
+
+    async function cancelExecution(planId) {
+      const confirmed = confirm(`Êtes-vous sûr de vouloir annuler l'exécution du plan ${planId} ?`);
+      if (!confirmed) return;
+
+      try {
+        await globalConfig.apiRequest(`/execution/cancel/${planId}`, {
+          method: 'POST'
+        });
+
+        alert('Annulation demandée. Les ordres en cours vont se terminer.');
+        refreshMonitoring();
+
+      } catch (error) {
+        console.error('Cancel execution error:', error);
+        alert(`Erreur d'annulation: ${error.message}`);
+      }
+    }
+
+    function showPlanDetails(planId) {
+      // Ouvrir les détails dans une nouvelle fenêtre ou modal
+      window.open(`/static/execution-details.html?plan_id=${planId}`, '_blank');
+    }
+
+    // ========== WEALTH CONTEXT BAR INTEGRATION ==========
+
+    let currentWealthContext = {
+      household: 'Household 1',
+      account: 'All Accounts',
+      module: 'crypto',
+      currency: 'USD'
+    };
+
+    function initWealthContextIntegration() {
+      console.debug('🏦 Initializing WealthContextBar integration for execution...');
+
+      if (!window.wealthContextBar) {
+        console.warn('WealthContextBar not available');
+        return;
+      }
+
+      // Récupérer le contexte initial
+      currentWealthContext = { ...window.wealthContextBar.getContext() };
+      console.debug('Initial wealth context for execution:', currentWealthContext);
+
+      // Écouter les changements de contexte
+      window.addEventListener('wealth:change', (event) => {
+        console.debug('Wealth context changed in execution:', event.detail);
+        currentWealthContext = { ...event.detail };
+        reloadDataWithExecutionContext();
+        updateUIForExecutionCapabilities(currentWealthContext.module);
+        updateExecutionModuleBadge(currentWealthContext.module);
+      });
+
+      // Appliquer le contexte initial
+      updateUIForExecutionCapabilities(currentWealthContext.module);
+      updateExecutionModuleBadge(currentWealthContext.module);
+    }
+
+    function reloadDataWithExecutionContext() {
+      console.debug('🔄 Reloading execution data with context:', currentWealthContext);
+
+      // Recharger les exchanges selon le module
+      if (window.loadExchanges) {
+        window.loadExchanges();
+      }
+
+      // Adapter les données selon le contexte
+      switch (currentWealthContext.module) {
+        case 'crypto':
+          // Crypto execution - exchanges crypto, DEX, etc.
+          break;
+        case 'bourse':
+          // Stock execution - brokers, Saxo, etc.
+          break;
+        case 'banque':
+          // Bank execution - transfers, deposits
+          break;
+        case 'divers':
+          // Autres assets - commodities, real estate, etc.
+          break;
+      }
+    }
+
+    function updateUIForExecutionCapabilities(module) {
+      console.debug('🔧 Updating execution UI for module:', module);
+
+      // Mise à jour des capabilities selon le module
+      const exchangesSection = document.querySelector('#venues .section-content');
+      const ordersSection = document.querySelector('#orders .section-content');
+
+      if (exchangesSection) {
+        // Adapter les exchanges/brokers disponibles
+        updateAvailableVenues(module);
+      }
+
+      if (ordersSection) {
+        // Adapter les types d'ordres disponibles
+        updateOrderTypes(module);
+      }
+
+      // Mettre à jour les exemples de données
+      updateExampleActions(module);
+    }
+
+    function updateAvailableVenues(module) {
+      // Cette fonction sera étendue pour adapter les venues selon le module
+      const venueInfo = {
+        'crypto': 'Exchanges crypto (Binance, Kraken, Coinbase, DEX)',
+        'bourse': 'Brokers (Saxo Bank, Interactive Brokers, Trading212)',
+        'banque': 'Institutions bancaires (UBS, CS, PostFinance)',
+        'divers': 'Autres venues (Commodities, Real Estate, P2P)'
+      };
+
+      console.debug(`Available venues for ${module}: ${venueInfo[module] || 'Unknown'}`);
+    }
+
+    function updateOrderTypes(module) {
+      // Cette fonction sera étendue pour adapter les types d'ordres
+      const orderTypes = {
+        'crypto': ['market', 'limit', 'stop-loss', 'dca', 'dex-swap'],
+        'bourse': ['market', 'limit', 'stop-loss', 'trailing-stop'],
+        'banque': ['transfer', 'deposit', 'withdrawal'],
+        'divers': ['purchase', 'sale', 'subscription', 'redemption']
+      };
+
+      console.debug(`Order types for ${module}:`, orderTypes[module] || []);
+    }
+
+    function updateExampleActions(module) {
+      const rebalanceInput = document.getElementById('rebalance-actions');
+      if (!rebalanceInput) return;
+
+      const examples = {
+        'crypto': [
+          { "symbol": "BTC", "action": "sell", "usd": -1000, "exec_hint": "Sell on Binance", "group": "BTC" },
+          { "symbol": "ETH", "action": "buy", "usd": 500, "exec_hint": "Buy on Kraken", "group": "ETH" },
+          { "symbol": "SOL", "action": "buy", "usd": 500, "exec_hint": "Buy on Binance", "group": "SOL" }
+        ],
+        'bourse': [
+          { "symbol": "AAPL", "action": "buy", "usd": 1000, "exec_hint": "Buy on Saxo Bank", "group": "US Tech" },
+          { "symbol": "MSFT", "action": "sell", "usd": -500, "exec_hint": "Sell on Saxo Bank", "group": "US Tech" }
+        ],
+        'banque': [
+          { "symbol": "CHF", "action": "transfer", "usd": 5000, "exec_hint": "Transfer to UBS", "group": "Cash" }
+        ]
+      };
+
+      const moduleExamples = examples[module] || examples['crypto'];
+      rebalanceInput.value = JSON.stringify(moduleExamples, null, 2);
+    }
+
+    function updateExecutionModuleBadge(module) {
+      // Créer ou mettre à jour un badge indiquant le module d'exécution actuel
+      let badge = document.getElementById('execution-module-badge');
+      if (!badge) {
+        badge = document.createElement('div');
+        badge.id = 'execution-module-badge';
+        badge.className = 'module-badge';
+        badge.style.cssText = `
+          position: fixed;
+          top: 80px;
+          right: 20px;
+          background: var(--brand-primary);
+          color: white;
+          padding: 0.5rem 1rem;
+          border-radius: var(--radius-md);
+          font-size: 0.9em;
+          font-weight: 600;
+          box-shadow: var(--shadow-md);
+          z-index: 1000;
+        `;
+        document.body.appendChild(badge);
+      }
+
+      const moduleLabels = {
+        'crypto': '₿ Crypto',
+        'bourse': '📈 Bourse',
+        'banque': '🏦 Banque',
+        'divers': '📊 Divers'
+      };
+
+      badge.textContent = `Exécution: ${moduleLabels[module] || module}`;
+    }
+
+    // ========== INITIALISATION ==========
+
+    document.addEventListener('DOMContentLoaded', () => {
+      console.debug('🚀 Execution interface DOM loaded');
+
+      // Initialiser le header partagé
+      // Navigation thématique initialisée automatiquement
+
+      // Appliquer le thème immédiatement
+      console.debug('Initializing theme for execution page...');
+      if (window.globalConfig && window.globalConfig.applyTheme) {
+        window.globalConfig.applyTheme();
+      }
+      if (window.applyAppearance) {
+        window.applyAppearance();
+      }
+      console.debug('Current theme after execution init:', document.documentElement.getAttribute('data-theme'));
+
+      // Charger les échanges par défaut
+      loadExchanges();
+
+      // Exemple pré-rempli
+      document.getElementById('rebalance-actions').value = JSON.stringify([
+        { "symbol": "BTC", "action": "sell", "usd": -1000, "exec_hint": "Sell on Binance", "group": "BTC" },
+        { "symbol": "ETH", "action": "buy", "usd": 500, "exec_hint": "Buy on Kraken", "group": "ETH" },
+        { "symbol": "SOL", "action": "buy", "usd": 500, "exec_hint": "Buy on Binance", "group": "SOL" }
+      ], null, 2);
+
+      // ========== WEALTH CONTEXT BAR INTEGRATION ==========
+      initWealthContextIntegration();
+
+      // Écouter les changements de thème pour synchronisation cross-tab
+      window.addEventListener('storage', function (e) {
+        if (e.key === 'crypto_rebalancer_settings') {
+          console.debug('Settings changed in another tab, reapplying theme...');
+          setTimeout(() => {
+            if (window.globalConfig && window.globalConfig.applyTheme) {
+              window.globalConfig.applyTheme();
+            }
+            if (window.applyAppearance) {
+              window.applyAppearance();
+            }
+          }, 100);
+        }
+      });
+    });
+  </script>
+
+  <script>
+    // Initialisation automatique de la navigation thématique
+    document.addEventListener('DOMContentLoaded', function () {
+      // Auto-détecter la page courante pour la navigation thématique
+      /* unified nav enabled via components/nav.js; legacy init removed */
+    });
+  </script>
+</body>
+
+</html>

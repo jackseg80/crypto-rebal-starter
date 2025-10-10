@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Force Allocation Display</title>
+    <script src="global-config.js"></script>
+    <link rel="stylesheet" href="shared-theme.css">
+</head>
+<body>
+    <h1>🔧 Force Allocation Display</h1>
+    <button onclick="forceAllocation()">🚀 Force Allocation Suggérée</button>
+    <div id="allocation-container" style="margin-top: 20px;"></div>
+
+    <script type="module">
+        import { renderUnifiedInsights } from './components/UnifiedInsights.js';
+
+        window.forceAllocation = async function() {
+            console.log('🔧 Forcing allocation display...');
+
+            // 1. Créer des données d'allocation de test
+            const mockAllocation = {
+                'BTC': 35.0,
+                'ETH': 25.0,
+                'Stablecoins': 20.0,
+                'SOL': 8.0,
+                'L1/L0 majors': 7.0,
+                'DeFi': 3.0,
+                'L2/Scaling': 2.0
+            };
+
+            // 2. Sauvegarder dans localStorage
+            const payload = {
+                targets: mockAllocation,
+                strategy: 'Test Allocation Forcée',
+                timestamp: new Date().toISOString(),
+                source: 'test-force'
+            };
+            localStorage.setItem('unified_suggested_allocation', JSON.stringify(payload));
+
+            // 3. Mocker l'état unifié avec allocation
+            const mockUnifiedState = {
+                decision: {
+                    score: 75,
+                    confidence: 0.8,
+                    source: 'test'
+                },
+                strategy: {
+                    targets: Object.entries(mockAllocation).map(([symbol, weight]) => ({
+                        symbol,
+                        weight: weight / 100,
+                        weight_pct: weight
+                    }))
+                },
+                intelligence: {
+                    allocation: mockAllocation
+                },
+                cycle: { score: 100, phase: { phase: 'bull_run' } },
+                onchain: { score: 36 },
+                risk: { score: 47, budget: { percentages: { risky: 80, stables: 20 } } },
+                risk_budget: {
+                    target_stables_pct: 20,
+                    methodology: 'test'
+                },
+                execution: {
+                    cap_pct_per_iter: 7,
+                    current_iteration: 1,
+                    estimated_iters_to_target: 3
+                },
+                contradictions: [],
+                health: {}
+            };
+
+            // 4. Mocker getUnifiedState temporairement
+            const originalGetUnifiedState = window.getUnifiedState;
+            window.getUnifiedState = async function() {
+                return mockUnifiedState;
+            };
+
+            try {
+                // 5. Forcer le rendu
+                await renderUnifiedInsights('allocation-container');
+                console.log('✅ Allocation forcée affichée');
+                alert('✅ Allocation suggérée forcée! Vérifiez l\'affichage ci-dessous.');
+            } catch (error) {
+                console.error('❌ Erreur lors du forçage:', error);
+                alert('❌ Erreur: ' + error.message);
+            } finally {
+                // 6. Restaurer la fonction originale
+                window.getUnifiedState = originalGetUnifiedState;
+            }
+        };
+    </script>
+</body>
+</html>

@@ -14,7 +14,7 @@
         import { renderUnifiedInsights } from './components/UnifiedInsights.js';
 
         window.forceAllocation = async function() {
-            console.log('🔧 Forcing allocation display...');
+            debugLogger.debug('🔧 Forcing allocation display...');
 
             // 1. Créer des données d'allocation de test
             const mockAllocation = {
@@ -78,10 +78,10 @@
             try {
                 // 5. Forcer le rendu
                 await renderUnifiedInsights('allocation-container');
-                console.log('✅ Allocation forcée affichée');
+                debugLogger.debug('✅ Allocation forcée affichée');
                 alert('✅ Allocation suggérée forcée! Vérifiez l\'affichage ci-dessous.');
             } catch (error) {
-                console.error('❌ Erreur lors du forçage:', error);
+                debugLogger.error('❌ Erreur lors du forçage:', error);
                 alert('❌ Erreur: ' + error.message);
             } finally {
                 // 6. Restaurer la fonction originale

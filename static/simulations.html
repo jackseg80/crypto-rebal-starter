@@ -746,7 +746,7 @@
             }
           }
         } catch (error) {
-          console.warn('Erreur parsing ligne CSV:', error.message);
+          debugLogger.warn('Erreur parsing ligne CSV:', error.message);
         }
       }
 
@@ -824,7 +824,7 @@
         const response = await fetch(`${apiBase}/api/users/sources`);
 
         if (!response.ok) {
-          console.warn('Failed to load sources');
+          debugLogger.warn('Failed to load sources');
           return;
         }
 
@@ -846,9 +846,9 @@
         const activeSource = getActiveSource();
         select.value = activeSource;
 
-        console.log('🎭 SIM: Loaded sources:', data.sources?.length || 0, '| Active:', activeSource);
+        debugLogger.debug('🎭 SIM: Loaded sources:', data.sources?.length || 0, '| Active:', activeSource);
       } catch (error) {
-        console.error('Failed to load sources:', error);
+        debugLogger.error('Failed to load sources:', error);
       }
     }
 
@@ -858,7 +858,7 @@
       const source = select?.value || getActiveSource();
       const userId = localStorage.getItem('activeUser') || 'demo';
 
-      console.log(`🧪 Testing source: ${source} for user: ${userId}`);
+      debugLogger.debug(`🧪 Testing source: ${source} for user: ${userId}`);
 
       try {
         // ✅ USE UNIFIED loadBalanceData() which handles user_id correctly via X-User header
@@ -875,7 +875,7 @@
           throw new Error('Failed to load balance data');
         }
 
-        console.log('🧪 Balance result:', balanceResult);
+        debugLogger.debug('🧪 Balance result:', balanceResult);
 
         // Parse balances (same logic as dashboard.html)
         let balances;
@@ -907,7 +907,7 @@
                 `Vérifiez que la source contient des données pour l'utilisateur ${userId}.`);
         }
       } catch (error) {
-        console.error('🧪 Test source failed:', error);
+        debugLogger.error('🧪 Test source failed:', error);
         alert(`❌ Erreur test source "${source}":\n${error.message}`);
       }
     }
@@ -915,7 +915,7 @@
 
     // Initialisation
     document.addEventListener('DOMContentLoaded', async () => {
-      console.log('🎭 SIM: Simulator page initialized');
+      debugLogger.debug('🎭 SIM: Simulator page initialized');
 
       try {
         await loadAvailableSources();
@@ -923,7 +923,7 @@
         attachEventListeners();
         setInitialState();
       } catch (error) {
-        console.error('🎭 SIM: Initialization failed:', error);
+        debugLogger.error('🎭 SIM: Initialization failed:', error);
         showError('Échec de l\'initialisation du simulateur: ' + error.message);
       }
     });
@@ -939,7 +939,7 @@
         throw new Error(initResult.error);
       }
 
-      console.log('🎭 SIM: Simulator components initialized');
+      debugLogger.debug('🎭 SIM: Simulator components initialized');
     }
 
     function setControlsPinned(pinned) {
@@ -971,7 +971,7 @@
       // Source selector
       document.getElementById('sim-source-select')?.addEventListener('change', (e) => {
         const newSource = e.target.value;
-        console.log('🎭 SIM: Source changed to:', newSource);
+        debugLogger.debug('🎭 SIM: Source changed to:', newSource);
         // Mettre à jour globalConfig pour cohérence
         if (window.globalConfig) {
           window.globalConfig.set('data_source', newSource);
@@ -1045,7 +1045,7 @@
         }
       }
 
-      console.log('🎭 SIM: Mode switched to:', mode);
+      debugLogger.debug('🎭 SIM: Mode switched to:', mode);
 
       // Si on passe en mode simulation et qu'on a des contrôles, lancer simulation
       if (mode === 'simulation' && appState.controls) {
@@ -1070,7 +1070,7 @@
       }
 
       controlsUpdateTimeout = setTimeout(async () => {
-        console.log('🎭 SIM: Controls updated, running simulation');
+        debugLogger.debug('🎭 SIM: Controls updated, running simulation');
         appState.lastSimulation = controlsState;
 
         // Mettre à jour URL hash
@@ -1092,7 +1092,7 @@
       try {
         // Lancer la simulation complète
         const result = await SimEngine.simulateFullPipeline(controlsState);
-        console.log('🎭 SIM: Simulation completed:', result);
+        debugLogger.debug('🎭 SIM: Simulation completed:', result);
 
         // Afficher les résultats
         displayResults(result);
@@ -1101,7 +1101,7 @@
         showResultsState();
 
       } catch (error) {
-        console.error('🎭 SIM: Simulation failed:', error);
+        debugLogger.error('🎭 SIM: Simulation failed:', error);
         showError('Erreur de simulation: ' + error.message);
       } finally {
         appState.isRunning = false;
@@ -1118,21 +1118,21 @@
         const apiBase = window.globalConfig?.get('api_base_url') || window.location.origin;
 
         // Charger les données réelles depuis les endpoints existants
-        console.log('🎭 SIM: Loading live data from Analytics...');
+        debugLogger.debug('🎭 SIM: Loading live data from Analytics...');
 
         const activeSource = getActiveSource();
         const userId = localStorage.getItem('activeUser') || 'demo';
-        console.log('🎭 SIM: Using data source:', activeSource, '| User:', userId);
+        debugLogger.debug('🎭 SIM: Using data source:', activeSource, '| User:', userId);
 
         // ✅ USE UNIFIED loadBalanceData() like dashboard.html (lines 1130-1148)
-        console.log('🎭 SIM: Calling window.loadBalanceData() with forceRefresh...');
+        debugLogger.debug('🎭 SIM: Calling window.loadBalanceData() with forceRefresh...');
         const balanceResult = await window.loadBalanceData(true); // forceRefresh=true
 
         if (!balanceResult || !balanceResult.success) {
           throw new Error('Failed to load balance data via loadBalanceData()');
         }
 
-        console.log('🎭 SIM: Balance result received:', {
+        debugLogger.debug('🎭 SIM: Balance result received:', {
           hasData: !!balanceResult.data,
           hasCsvText: !!balanceResult.csvText,
           source: balanceResult.source
@@ -1157,7 +1157,7 @@
 
         const totalValue = balances.reduce((sum, it) => sum + (parseFloat(it.value_usd) || 0), 0);
         const assetCount = balances.length;
-        console.log(`🎭 SIM: Parsed ${assetCount} assets, total: $${totalValue.toFixed(2)}`);
+        debugLogger.debug(`🎭 SIM: Parsed ${assetCount} assets, total: $${totalValue.toFixed(2)}`);
 
         // Create balancesData structure
         const balancesData = {
@@ -1174,7 +1174,7 @@
         const metricsData = await metricsResponse.json();
 
         // 2. Calculer les VRAIES allocations actuelles du wallet (comme analytics-unified.html)
-        console.log('🎭 SIM: Calculating real current allocations from balances...');
+        debugLogger.debug('🎭 SIM: Calculating real current allocations from balances...');
         const { groupAssetsByClassification } = await import('./shared-asset-groups.js');
         const groupedData = groupAssetsByClassification(balances);
 
@@ -1185,7 +1185,7 @@
           currentAllocations[group.label] = percentage;
         });
 
-        console.log('🎭 SIM: Real current allocations calculated:', {
+        debugLogger.debug('🎭 SIM: Real current allocations calculated:', {
           allocations: currentAllocations,
           totalValue,
           groupsCount: groupedData.length
@@ -1193,34 +1193,34 @@
 
         // 3. NOTE: Les targets théoriques viendront de unified-insights-v2.js, PAS de /portfolio/metrics
         // Les métriques ne sont utilisées que pour des informations supplémentaires
-        console.log('🎭 SIM: Portfolio metrics loaded (for reference only):', {
+        debugLogger.debug('🎭 SIM: Portfolio metrics loaded (for reference only):', {
           hasTargets: !!metricsData.targets,
           targetKeys: Object.keys(metricsData.targets || {})
         });
 
         // 4. INITIALISER LE STORE avant d'appeler getUnifiedState() (CRITIQUE!)
-        console.log('🎭 SIM: Initializing store with complete data...');
+        debugLogger.debug('🎭 SIM: Initializing store with complete data...');
 
         // CRITICAL: Utiliser le VRAI store de risk-dashboard-store.js
         // unified-insights-v2.js importe ce store, donc il FAUT utiliser le même !
         if (!window.store) {
-          console.warn('🎭 SIM: window.store not found, importing risk-dashboard-store...');
+          debugLogger.warn('🎭 SIM: window.store not found, importing risk-dashboard-store...');
           const { store: riskStore } = await import('./core/risk-dashboard-store.js');
           window.store = riskStore;
-          console.log('🎭 SIM: ✅ risk-dashboard-store imported and set as window.store');
+          debugLogger.debug('🎭 SIM: ✅ risk-dashboard-store imported and set as window.store');
         }
 
         // Injecter balances dans le store (requis par getUnifiedState)
         window.store.set('wallet.balances', balances);
         window.store.set('wallet.total', totalValue);
-        console.log('🎭 SIM: Store initialized with wallet data:', {
+        debugLogger.debug('🎭 SIM: Store initialized with wallet data:', {
           balances: balances.length,
           total: totalValue
         });
 
         // CRITICAL: Charger les scores avec le MÊME système qu'Analytics Unified
         // Utiliser la logique de cache identique + modules client-side
-        console.log('🎭 SIM: Loading scores with Analytics cache system (force=false)...');
+        debugLogger.debug('🎭 SIM: Loading scores with Analytics cache system (force=false)...');
 
         try {
           // 1) Cycle score (client-side)
@@ -1232,11 +1232,11 @@
           window.store.set('cycle.score', cycleScore);
           window.store.set('cycle.phase', cyclePhase);
           window.store.set('cycle.confidence', 0.46); // Static pour l'instant
-          console.log('🎭 SIM: ✅ Cycle score loaded:', { score: cycleScore, phase: cyclePhase });
+          debugLogger.debug('🎭 SIM: ✅ Cycle score loaded:', { score: cycleScore, phase: cyclePhase });
 
           // 2) On-Chain score (modules client-side avec SWR cache - SAME AS ANALYTICS)
           try {
-            console.log('🎭 SIM: Loading onchain from client-side modules (NOT API)...');
+            debugLogger.debug('🎭 SIM: Loading onchain from client-side modules (NOT API)...');
             const onchain = await import('./modules/onchain-indicators.js');
             const v2 = await import('./modules/composite-score-v2.js');
             // Use SWR-cached version (force=false pour utiliser cache)
@@ -1252,18 +1252,18 @@
                 criticalZoneCount: composite.criticalZoneCount || 0,
                 categoryBreakdown: composite.categoryBreakdown || {}
               });
-              console.log('🎭 SIM: ✅ Onchain score from modules:', {
+              debugLogger.debug('🎭 SIM: ✅ Onchain score from modules:', {
                 score: composite.score,
                 confidence: composite.confidence,
                 criticalZones: composite.criticalZoneCount
               });
             } else {
-              console.warn('🎭 SIM: Onchain composite score is null, using default');
+              debugLogger.warn('🎭 SIM: Onchain composite score is null, using default');
               window.store.set('scores.onchain', 50);
               window.store.set('scores.onchain_metadata', { confidence: 0, criticalZoneCount: 0 });
             }
           } catch (e) {
-            console.error('🎭 SIM: Onchain modules error:', e.message);
+            debugLogger.error('🎭 SIM: Onchain modules error:', e.message);
             window.store.set('scores.onchain', 50);
             window.store.set('onchain.confidence', 0);
           }
@@ -1272,13 +1272,13 @@
           try {
             const minUsd = window.globalConfig?.get('min_usd_threshold') || 1;
             const priceDays = 365, corrDays = 90;
-            console.log('🎭 SIM: Loading risk from /risk/dashboard using globalConfig.apiRequest...');
+            debugLogger.debug('🎭 SIM: Loading risk from /risk/dashboard using globalConfig.apiRequest...');
             // Use apiRequest like Analytics does (handles headers automatically)
             const riskData = await window.globalConfig.apiRequest('/api/risk/dashboard', {
               params: { price_history_days: priceDays, lookback_days: corrDays, min_usd: minUsd }
             });
 
-            console.log('🎭 SIM: Risk API response structure:', {
+            debugLogger.debug('🎭 SIM: Risk API response structure:', {
               hasSuccess: !!riskData?.success,
               hasRiskMetrics: !!riskData?.risk_metrics,
               riskMetricsKeys: riskData?.risk_metrics ? Object.keys(riskData.risk_metrics) : [],
@@ -1292,27 +1292,27 @@
                 window.store.set('scores.risk', riskScore);
                 // ALSO set in store.risk for compatibility with unified-insights-v2
                 window.store.set('risk', riskData);
-                console.log('🎭 SIM: ✅ Risk score from dashboard:', { score: riskScore });
+                debugLogger.debug('🎭 SIM: ✅ Risk score from dashboard:', { score: riskScore });
               } else {
-                console.warn('🎭 SIM: ⚠️ Risk score not found in response path risk_metrics.risk_score');
+                debugLogger.warn('🎭 SIM: ⚠️ Risk score not found in response path risk_metrics.risk_score');
                 window.store.set('scores.risk', 50);
               }
             } else {
-              console.warn('🎭 SIM: Risk API did not return success=true');
+              debugLogger.warn('🎭 SIM: Risk API did not return success=true');
               window.store.set('scores.risk', 50);
             }
           } catch (e) {
-            console.error('🎭 SIM: Risk API error:', e.message);
+            debugLogger.error('🎭 SIM: Risk API error:', e.message);
             window.store.set('scores.risk', 50);
           }
         } catch (e) {
-          console.error('🎭 SIM: Failed to load scores:', e.message);
+          debugLogger.error('🎭 SIM: Failed to load scores:', e.message);
         }
 
         // 5. VÉRIFIER que les scores sont bien dans le store AVANT d'appeler getUnifiedState
-        console.log('🎭 SIM: Verifying scores in store before calling getUnifiedState...');
+        debugLogger.debug('🎭 SIM: Verifying scores in store before calling getUnifiedState...');
         const storeSnapshot = window.store.snapshot();
-        console.log('🎭 SIM: Store snapshot BEFORE getUnifiedState:', {
+        debugLogger.debug('🎭 SIM: Store snapshot BEFORE getUnifiedState:', {
           'scores.onchain': storeSnapshot.scores?.onchain,
           'scores.risk': storeSnapshot.scores?.risk,
           'cycle.score': storeSnapshot.cycle?.score,
@@ -1321,13 +1321,13 @@
         });
 
         // 6. Utiliser le SYSTÈME UNIFIÉ pour obtenir les VRAIES données (comme analytics-unified.html)
-        console.log('🎭 SIM: Loading unified state from Analytics system...');
+        debugLogger.debug('🎭 SIM: Loading unified state from Analytics system...');
         let unifiedState = null;
         try {
           // IMPORTANT: Utiliser le même système qu'Analytics Unified
           const { getUnifiedState } = await import('./core/unified-insights-v2.js');
           unifiedState = await getUnifiedState();
-          console.log('🎭 SIM: ✅ Unified state loaded (SAME AS ANALYTICS):', {
+          debugLogger.debug('🎭 SIM: ✅ Unified state loaded (SAME AS ANALYTICS):', {
             '📊 SCORES': {
               cycle: unifiedState?.cycle?.score,
               onchain: unifiedState?.onchain?.composite_score,
@@ -1340,7 +1340,7 @@
             '🔍 PREVIEW': Object.keys(unifiedState?.targets_by_group || {}).slice(0, 5)
           });
         } catch (e) {
-          console.error('🎭 SIM: ❌ CRITICAL - Failed to load unified state:', e.message);
+          debugLogger.error('🎭 SIM: ❌ CRITICAL - Failed to load unified state:', e.message);
           throw new Error(`Cannot load unified state: ${e.message}`);
         }
 
@@ -1363,7 +1363,7 @@
         const onchainConf = unifiedState.onchain?.confidence ?? 0.6;
         const regimeConf = 0.5;
 
-        console.log('🎭 SIM: Using scores from unified-insights-v2 (SAME AS ANALYTICS):', {
+        debugLogger.debug('🎭 SIM: Using scores from unified-insights-v2 (SAME AS ANALYTICS):', {
           cycle: cycleScore,
           onchain: onchainScore,
           risk: riskScore,
@@ -1469,7 +1469,7 @@
         const pipelineExplanation = SimEngine.explainPipeline(pipelineContext, pipelineSteps);
 
         // LOG DÉTAILLÉ : Ce que le moteur de décision utilise EXACTEMENT
-        console.log('🎯 PIPELINE LIVE - ÉTAT COMPLET DU MOTEUR (identique à Analytics Unified):', {
+        debugLogger.debug('🎯 PIPELINE LIVE - ÉTAT COMPLET DU MOTEUR (identique à Analytics Unified):', {
           '⚠️ SOURCE': 'unified-insights-v2.js (SAME AS ANALYTICS)',
           '1️⃣ INPUTS (scores)': {
             cycle: cycleScore,
@@ -1552,7 +1552,7 @@
           }
         };
 
-        console.log('🎭 SIM: Live data loaded:', liveResult);
+        debugLogger.debug('🎭 SIM: Live data loaded:', liveResult);
 
         // Afficher les résultats
         displayResults(liveResult);
@@ -1560,7 +1560,7 @@
         showResultsState();
 
       } catch (error) {
-        console.error('🎭 SIM: Live data loading failed:', error);
+        debugLogger.error('🎭 SIM: Live data loading failed:', error);
         showError('Erreur de chargement des données live: ' + error.message);
       } finally {
         appState.isRunning = false;
@@ -1586,7 +1586,7 @@
           ...badgeProps
         });
       } catch (e) {
-        console.warn('Badges render skipped:', e?.message);
+        debugLogger.warn('Badges render skipped:', e?.message);
       }
 
       // Decision Index - Nouveau panneau visuel
@@ -1770,7 +1770,7 @@
     }
 
     async function reinitializeWithNewSource() {
-      console.log('🎭 SIM: Reinitializing with new source:', appState.sourceId);
+      debugLogger.debug('🎭 SIM: Reinitializing with new source:', appState.sourceId);
 
       showLoadingState();
 
@@ -1789,7 +1789,7 @@
         }
 
       } catch (error) {
-        console.error('🎭 SIM: Reinitialization failed:', error);
+        debugLogger.error('🎭 SIM: Reinitialization failed:', error);
         showError('Échec du changement de source: ' + error.message);
       }
     }

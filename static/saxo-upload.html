@@ -349,7 +349,7 @@
                 }
 
             } catch (error) {
-                console.error('Upload error:', error);
+                debugLogger.error('Upload error:', error);
                 showMessage('Upload failed: ' + error.message, 'error');
             } finally {
                 hideProcessing();
@@ -373,7 +373,7 @@
                     return false;
                 }
 
-                console.log('File validation passed:', result);
+                debugLogger.debug('File validation passed:', result);
                 return true;
 
             } catch (error) {
@@ -481,7 +481,7 @@
             // Show any errors
             if (data.errors && data.errors.length > 0) {
                 showMessage(`Import completed with ${data.errors.length} warnings. Check console for details.`, 'warning');
-                console.warn('Import warnings:', data.errors);
+                debugLogger.warn('Import warnings:', data.errors);
             }
         }
 
@@ -520,7 +520,7 @@
 
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', () => {
-            console.log('Saxo Upload interface initialized');
+            debugLogger.debug('Saxo Upload interface initialized');
         });
     </script>
 </body>

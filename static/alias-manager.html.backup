@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Alias Manager - Crypto Rebalancer</title>
+
+  <!-- Thème & apparence unifiés -->
+  <link rel="stylesheet" href="shared-theme.css">
+  <link rel="stylesheet" href="theme-compat.css">
+  <script type="module" src="components/nav.js"></script>
+
+  <script src="global-config.js"></script>
+<script src="appearance.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box
+    }
+
+    body {
+      margin: 0;
+      background: var(--theme-background);
+      color: var(--theme-text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif
+    }
+
+    .wrap {
+      max-width: 95vw;
+      margin: 0 auto;
+      padding: 16px
+    }
+
+    .card {
+      background: var(--theme-surface);
+      border: 1px solid var(--theme-border);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .card+.card {
+      margin-top: 16px
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0 0 10px 0;
+      color: var(--theme-text)
+    }
+
+    label {
+      font-size: 12px;
+      color: var(--theme-text-muted)
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center
+    }
+
+    input,
+    select,
+    button,
+    textarea {
+      padding: 8px 10px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--theme-border);
+      background: var(--theme-surface);
+      color: var(--theme-text);
+    }
+
+    button {
+      cursor: pointer
+    }
+
+    .btn {
+      background: var(--brand-primary);
+      color: var(--on-primary);
+      font-weight: 700;
+      border: 0;
+      padding: 8px 12px;
+      border-radius: var(--radius-md);
+    }
+
+    .btn:hover {
+      box-shadow: var(--shadow-lg);
+      background: var(--brand-primary-hover)
+    }
+
+    .btn.secondary {
+      background: var(--theme-surface-elevated);
+      color: var(--theme-text);
+      border: 1px solid var(--theme-border)
+    }
+
+    .btn.secondary:hover {
+      background: var(--theme-surface-hover)
+    }
+
+    .btn.danger {
+      background: var(--danger);
+      color: #fff;
+      border: 0
+    }
+
+    .btn.warning {
+      background: var(--warning);
+      color: #fff;
+      border: 0
+    }
+
+    .btn.small {
+      padding: 6px 8px;
+      font-size: 12px;
+      border-radius: var(--radius-sm)
+    }
+
+    .stats {
+      display: flex;
+      gap: 16px;
+      margin: 16px 0
+    }
+
+    .stat {
+      background: var(--theme-surface-elevated);
+      border: 1px solid var(--theme-border);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      text-align: center;
+      min-width: 120px
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--theme-text)
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--theme-text-muted);
+      margin-top: 4px
+    }
+
+    .grid {
+      display: grid;
+      gap: 16px
+    }
+
+    @media(min-width:900px) {
+      .grid.g2 {
+        grid-template-columns: repeat(2, 1fr)
+      }
+    }
+
+    .filters {
+      display: flex;
+      gap: 12px;
+      margin: 16px 0;
+      flex-wrap: wrap
+    }
+
+    /* Table */
+    table {
+      width: 100%;
+      border-collapse: collapse
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--theme-border);
+      padding: 8px;
+      text-align: left;
+      font-size: 13px
+    }
+
+    th {
+      color: var(--theme-text-muted);
+      font-weight: 600;
+      background: var(--theme-surface-elevated)
+    }
+
+    tr:hover td {
+      background: var(--theme-surface-hover)
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--theme-border);
+      background: var(--theme-surface-elevated);
+      font-size: 12px;
+      color: var(--theme-text)
+    }
+
+    .group-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      background: var(--brand-primary-subtle);
+      border: 1px solid var(--theme-border);
+      color: var(--theme-text)
+    }
+
+    .group-badge.btc {
+      background: #f7931a;
+      color: #fff;
+      border-color: #f7931a
+    }
+
+    .group-badge.eth {
+      background: #627eea;
+      color: #fff;
+      border-color: #627eea
+    }
+
+    .group-badge.stablecoins {
+      background: #26a69a;
+      color: #fff;
+      border-color: #26a69a
+    }
+
+    .group-badge.sol {
+      background: #9945ff;
+      color: #fff;
+      border-color: #9945ff
+    }
+
+    .group-badge.others {
+      background: var(--theme-border-subtle);
+      color: var(--theme-text)
+    }
+
+    .alias-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: var(--theme-text-muted)
+    }
+  </style>
+
+  <script type="module" src="components/tooltips.js"></script>`n</head>
+
+<body>
+
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Navigation thématique initialisée automatiquement
+
+      // Appliquer le thème immédiatement
+      console.debug('Initializing theme for alias-manager page...');
+      if (window.globalConfig && window.globalConfig.applyTheme) {
+        window.globalConfig.applyTheme();
+      }
+      if (window.applyAppearance) {
+        window.applyAppearance();
+      }
+      console.debug('Current theme after alias-manager init:', document.documentElement.getAttribute('data-theme'));
+    });
+  </script>
+
+  <div class="wrap" style="margin-top: 20px;">
+    <div class="card">
+      <div class="row">
+        <button class="btn small" onclick="loadData()">🔄 Actualiser</button>
+        <button class="btn small" onclick="getSuggestions()">🔍 Suggestions</button>
+        <button class="btn small" onclick="autoClassify()">🚀 Auto-classifier</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <!-- Stats -->
+    <div class="stats" id="stats" style="display:none">
+      <div class="stat">
+        <div class="stat-value" id="total-aliases">-</div>
+        <div class="stat-label">Total Aliases</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="groups-count">-</div>
+        <div class="stat-label">Groupes</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="memory-count">-</div>
+        <div class="stat-label">En mémoire</div>
+      </div>
+    </div>
+
+    <div class="grid g2">
+      <div class="card">
+        <h3>🔍 Recherche & Filtres</h3>
+        <div class="filters">
+          <div>
+            <label>Rechercher</label><br />
+            <input type="text" id="search" class="search-box" placeholder="Nom d'alias..." oninput="filterAliases()">
+          </div>
+          <div>
+            <label>Groupe</label><br />
+            <select id="group-filter" onchange="filterAliases()">
+              <option value="">Tous les groupes</option>
+            </select>
+          </div>
+          <label style="display:flex;align-items:center;gap:8px;font-weight:normal;margin-left:auto">
+            <input type="checkbox" id="coingecko-enabled" checked>CoinGecko activé
+          </label>
+        </div>
+        <div class="row">
+          <button class="btn secondary small" onclick="clearFilters()">Effacer filtres</button>
+          <button class="btn warning small" onclick="showOnlyUnassigned()">Voir non-assignés</button>
+          <button class="btn small" onclick="showOnlyNewAliases()" style="background: #f59e0b; color: white;">🆕 Voir
+            nouveaux</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>⚡ Actions rapides</h3>
+        <div class="row">
+          <div>
+            <label>Nouveau groupe</label><br />
+            <select id="batch-group">
+              <option value="">Sélectionner groupe...</option>
+            </select>
+          </div>
+          <div>
+            <button class="btn" onclick="assignFiltered()">Assigner les filtrés</button>
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button class="btn secondary small" onclick="assignAllToOthers()">Tout → Others</button>
+          <button class="btn secondary small" onclick="exportAliases()">📥 Export JSON</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="row">
+        <h3>🏷️ Liste des Alias</h3>
+        <div class="pill"><span id="filtered-count">0</span> / <span id="total-count">0</span> affichés</div>
+      </div>
+
+      <div id="loading" class="loading">Chargement des données...</div>
+
+      <div id="aliases-container" style="display:none">
+        <table>
+          <thead>
+            <tr>
+              <th>Alias</th>
+              <th>Groupe actuel</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="aliases-list"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let allAliases = {};
+    let allGroups = [];
+    let filteredAliases = {};
+
+    // SUPPRIMÉ: Données mockées désactivées - utiliser API réelle uniquement
+    async function getMockTaxonomyData() {
+      console.error('⚠️ Mock taxonomy data disabled. Configure real data source in settings.');
+      return { aliases: {}, groups: [] };
+      // Données vides - utiliser API taxonomy réelle
+      let mockAliases = {};
+      
+      // Try to enhance with configured data source
+      try {
+        console.debug('🔍 Loading alias data using configured source...');
+        const balanceResult = await window.loadBalanceData();
+        
+        if (balanceResult.success) {
+          let balances;
+          
+          if (balanceResult.csvText) {
+            // Source CSV locale
+            balances = window.parseCSVBalances(balanceResult.csvText);
+          } else if (balanceResult.data && balanceResult.data.items) {
+            // Source API (stub ou cointracking_api)
+            balances = balanceResult.data.items.map(item => ({
+              symbol: item.symbol,
+              balance: item.balance,
+              value_usd: item.value_usd
+            }));
+          } else {
+            throw new Error('Invalid data format received');
+          }
+          
+          console.debug('🔍 DEBUG Alias Manager: Found', balances.length, 'assets using source:', balanceResult.source);
+          
+          // Add any missing assets from CSV to mockAliases
+          balances.forEach(item => {
+            const symbol = item.symbol.toUpperCase();
+            if (!mockAliases[symbol]) {
+              // Auto-classify based on known patterns
+              if (symbol.includes('BTC') || symbol.includes('WBTC')) {
+                mockAliases[symbol] = 'BTC';
+              } else if (symbol.includes('ETH') || symbol.includes('STETH') || symbol.includes('RETH')) {
+                mockAliases[symbol] = 'ETH';
+              } else if (['USDT', 'USDC', 'DAI', 'USD', 'BUSD', 'EUR'].includes(symbol)) {
+                mockAliases[symbol] = 'Stablecoins';
+              } else if (symbol.includes('SOL')) {
+                mockAliases[symbol] = 'SOL';
+              } else {
+                mockAliases[symbol] = 'Others';
+              }
+              console.debug('🔍 DEBUG: Auto-classified', symbol, 'as', mockAliases[symbol]);
+            }
+          });
+        }
+      } catch (error) {
+        console.warn('Could not enhance with CSV data:', error);
+      }
+
+      const mockGroups = ['BTC', 'ETH', 'Stablecoins', 'SOL', 'L1/L0 majors', 'L2/Scaling', 'DeFi', 'AI/Data', 'Gaming/NFT', 'Memecoins', 'Others'];
+
+      // Add any unknown aliases from last plan
+      const lastPlan = window.globalConfig?.getLastPlanData();
+      if (lastPlan && lastPlan.unknown_aliases) {
+        lastPlan.unknown_aliases.forEach(alias => {
+          if (!mockAliases[alias]) {
+            mockAliases[alias] = 'Others';
+          }
+        });
+      }
+
+      return {
+        aliases: mockAliases,
+        groups: mockGroups,
+        storage: {
+          in_memory_count: Object.keys(mockAliases).length
+        }
+      };
+    }
+    
+    // CSV parsing functions - identique à dashboard.html  
+    function parseCSVBalances(csvText) {
+      const lines = csvText.split('\n');
+      const balances = [];
+      
+      console.debug('🔍 DEBUG Alias Manager: Parsing CSV with', lines.length, 'total lines');
+      
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        
+        try {
+          const columns = parseCSVLine(line);
+          if (columns.length >= 5) {
+            const ticker = columns[0];
+            const amount = parseFloat(columns[3]);
+            const valueUSD = parseFloat(columns[4]);
+            
+            // Même logique - accepter assets >= 0.50$
+            if (ticker && !isNaN(amount) && !isNaN(valueUSD) && valueUSD >= 0.50) {
+              balances.push({
+                symbol: ticker.toUpperCase(),
+                balance: amount,
+                value_usd: valueUSD
+              });
+            }
+          }
+        } catch (error) {
+          console.warn('Error parsing CSV line in alias manager:', error);
+        }
+      }
+      
+      const totalParsed = balances.reduce((sum, item) => sum + item.value_usd, 0);
+      console.debug('🔍 DEBUG Alias Manager: CSV parsing complete -', balances.length, 'assets, total:', totalParsed.toFixed(2), '$');
+      
+      return balances;
+    }
+    
+    function parseCSVLine(line) {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
+      
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ';' && !inQuotes) {
+          result.push(current.trim().replace(/^"|"$/g, ''));
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      
+      if (current) {
+        result.push(current.trim().replace(/^"|"$/g, ''));
+      }
+      
+      return result;
+    }
+
+    // Chargement initial
+    window.addEventListener('DOMContentLoaded', () => {
+      // Supprimer la vérification du plan - fonctionne maintenant indépendamment
+      loadData();
+
+      // Écouter les changements de thème pour synchronisation cross-tab
+      window.addEventListener('storage', function(e) {
+        if (e.key === 'crypto_rebalancer_settings') {
+          console.debug('Settings changed in another tab, reapplying theme...');
+          setTimeout(() => {
+            if (window.globalConfig && window.globalConfig.applyTheme) {
+              window.globalConfig.applyTheme();
+            }
+            if (window.applyAppearance) {
+              window.applyAppearance();
+            }
+          }, 100);
+        }
+      });
+    });
+
+    async function loadData() {
+      try {
+        const apiBase = globalConfig?.get('api_base_url') || 'http://localhost:8765';
+        let data;
+        
+        try {
+          const response = await fetch(`${apiBase}/taxonomy`);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          data = await response.json();
+        } catch (apiError) {
+          console.warn('Taxonomy API unavailable, using mock data:', apiError);
+          data = await getMockTaxonomyData();
+        }
+
+        allAliases = data.aliases || {};
+        allGroups = data.groups || [];
+
+        const defaults = ['BTC', 'ETH', 'Stablecoins', 'SOL', 'L1/L0 majors', 'L2/Scaling', 'DeFi', 'AI/Data', 'Gaming/NFT', 'Memecoins', 'Others'];
+        defaults.forEach(g => { if (!allGroups.includes(g)) allGroups.push(g); });
+
+        const lastPlan = window.globalConfig?.getLastPlanData();
+        if (lastPlan && lastPlan.unknown_aliases) {
+          lastPlan.unknown_aliases.forEach(a => { if (!allAliases[a]) allAliases[a] = 'Others'; });
+        }
+
+        updateStats(data);
+        populateGroupSelectors();
+        filterAliases();
+
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('aliases-container').style.display = 'block';
+        document.getElementById('stats').style.display = 'flex';
+
+      } catch (e) {
+        console.error('Critical error in loadData:', e);
+        document.getElementById('loading').innerHTML = `❌ Erreur: ${e.message}`;
+        
+        // Fallback to ensure basic functionality
+        try {
+          const fallbackData = await getMockTaxonomyData();
+          allAliases = fallbackData.aliases || {};
+          allGroups = fallbackData.groups || [];
+          
+          updateStats(fallbackData);
+          populateGroupSelectors();
+          filterAliases();
+          
+          document.getElementById('loading').style.display = 'none';
+          document.getElementById('aliases-container').style.display = 'block';
+          document.getElementById('stats').style.display = 'flex';
+        } catch (fallbackError) {
+          console.error('Even fallback failed:', fallbackError);
+          document.getElementById('loading').innerHTML = `❌ Erreur critique: ${fallbackError.message}`;
+        }
+      }
+    }
+
+    function updateStats(data) {
+      document.getElementById('total-aliases').textContent = Object.keys(allAliases).length;
+      document.getElementById('groups-count').textContent = allGroups.length;
+      document.getElementById('memory-count').textContent = data.storage?.in_memory_count || 0;
+    }
+
+    function populateGroupSelectors() {
+      ['group-filter', 'batch-group'].forEach(id => {
+        const select = document.getElementById(id);
+        const current = select.value;
+        select.innerHTML = id === 'group-filter' ? '<option value="">Tous les groupes</option>' : '<option value="">Sélectionner groupe...</option>';
+        allGroups.forEach(g => {
+          const opt = document.createElement('option'); opt.value = g; opt.textContent = g; select.appendChild(opt);
+        });
+        if (current) select.value = current;
+      });
+    }
+
+    function filterAliases() {
+      const search = document.getElementById('search').value.toLowerCase();
+      const group = document.getElementById('group-filter').value;
+      filteredAliases = {};
+      Object.entries(allAliases).forEach(([alias, g]) => {
+        const ok = (!search || alias.toLowerCase().includes(search)) && (!group || g === group);
+        if (ok) filteredAliases[alias] = g;
+      });
+      renderAliases();
+    }
+
+    function renderAliases() {
+      const tbody = document.getElementById('aliases-list'); tbody.innerHTML = '';
+      const sorted = Object.entries(filteredAliases).sort(([a], [b]) => a.localeCompare(b));
+      const lastPlan = window.globalConfig?.getLastPlanData(); const unknown = new Set(lastPlan?.unknown_aliases || []);
+
+      sorted.forEach(([alias, group]) => {
+        const tr = document.createElement('tr');
+        const isNew = unknown.has(alias);
+        tr.innerHTML = `
+      <td><strong>${alias}</strong>${isNew ? '<span style="color:#f59e0b;font-size:10px;margin-left:4px;">🆕 NOUVEAU</span>' : ''}</td>
+      <td><span class="group-badge ${group.toLowerCase().replace(/[^a-z]/g, '')}">${group}</span></td>
+      <td class="alias-actions">
+        <select onchange="changeGroup('${alias}', this.value)" style="width:140px">
+          ${allGroups.map(g => `<option value="${g}" ${g === group ? 'selected' : ''}>${g}</option>`).join('')}
+        </select>
+        <button class="btn danger small" onclick="deleteAlias('${alias}')">🗑️</button>
+      </td>`;
+        if (isNew) { tr.style.backgroundColor = 'rgba(245,158,11,.10)'; tr.style.borderLeft = '3px solid #f59e0b'; }
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById('filtered-count').textContent = Object.keys(filteredAliases).length;
+      document.getElementById('total-count').textContent = Object.keys(allAliases).length;
+    }
+
+    async function changeGroup(alias, newGroup) {
+      if (!newGroup || allAliases[alias] === newGroup) return;
+      try {
+        const apiBase = globalConfig?.get('api_base_url') || 'http://localhost:8765';
+        const resp = await fetch(`${apiBase}/taxonomy/aliases`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ aliases: { [alias]: newGroup } })
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        allAliases[alias] = newGroup; filterAliases();
+        showNotification(`✅ ${alias} → ${newGroup}`, 'success');
+      } catch (e) { 
+        console.warn('Taxonomy API unavailable, simulating change:', e);
+        allAliases[alias] = newGroup; 
+        filterAliases();
+        showNotification(`📝 ${alias} → ${newGroup} (mode hors ligne)`, 'info');
+      }
+    }
+
+    async function deleteAlias(alias) {
+      if (!confirm(`Supprimer l'alias "${alias}" ?`)) return;
+      try {
+        const apiBase = globalConfig?.get('api_base_url') || 'http://localhost:8765';
+        const resp = await fetch(`${apiBase}/taxonomy/aliases/${alias}`, { method: 'DELETE' });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        delete allAliases[alias]; filterAliases();
+        showNotification(`🗑️ ${alias} supprimé`, 'success');
+      } catch (e) { 
+        console.warn('Delete API unavailable, simulating deletion:', e);
+        delete allAliases[alias]; 
+        filterAliases();
+        showNotification(`🗑️ ${alias} supprimé (mode hors ligne)`, 'info');
+      }
+    }
+
+    async function assignFiltered() {
+      const group = document.getElementById('batch-group').value;
+      if (!group) return alert('Sélectionnez un groupe de destination');
+      const aliases = Object.keys(filteredAliases);
+      if (aliases.length === 0) return alert('Aucun alias à assigner');
+      if (!confirm(`Assigner ${aliases.length} aliases au groupe "${group}" ?`)) return;
+      try {
+        const apiBase = globalConfig?.get('api_base_url') || 'http://localhost:8765';
+        const payload = {}; aliases.forEach(a => payload[a] = group);
+        const resp = await fetch(`${apiBase}/taxonomy/aliases`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ aliases: payload }) });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        aliases.forEach(a => allAliases[a] = group); filterAliases();
+        showNotification(`✅ ${aliases.length} aliases → ${group}`, 'success');
+      } catch (e) { 
+        console.warn('Batch assign API unavailable:', e);
+        aliases.forEach(a => allAliases[a] = group); 
+        filterAliases();
+        showNotification(`📝 ${aliases.length} aliases → ${group} (mode hors ligne)`, 'info');
+      }
+    }
+
+    async function assignAllToOthers() {
+      const aliases = Object.keys(allAliases);
+      if (!confirm(`Assigner TOUS les ${aliases.length} aliases au groupe "Others" ?`)) return;
+      try {
+        const apiBase = globalConfig?.get('api_base_url') || 'http://localhost:8765';
+        const payload = {}; aliases.forEach(a => payload[a] = 'Others');
+        const resp = await fetch(`${apiBase}/taxonomy/aliases`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ aliases: payload }) });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        Object.keys(allAliases).forEach(a => allAliases[a] = 'Others'); filterAliases();
+        showNotification(`✅ Tous les aliases → Others`, 'success');
+      } catch (e) { 
+        console.warn('Assign all API unavailable:', e);
+        Object.keys(allAliases).forEach(a => allAliases[a] = 'Others'); 
+        filterAliases();
+        showNotification(`📝 Tous les aliases → Others (mode hors ligne)`, 'info');
+      }
+    }
+
+    function clearFilters() { document.getElementById('search').value = ''; document.getElementById('group-filter').value = ''; filterAliases(); }
+    function showOnlyUnassigned() { document.getElementById('group-filter').value = 'Others'; filterAliases(); }
+
+    function showOnlyNewAliases() {
+      document.getElementById('search').value = ''; document.getElementById('group-filter').value = '';
+      const lastPlan = window.globalConfig?.getLastPlanData(); const unknown = new Set(lastPlan?.unknown_aliases || []);
+      filteredAliases = {}; Object.entries(allAliases).forEach(([a, g]) => { if (unknown.has(a)) filteredAliases[a] = g; }); renderAliases();
+    }
+
+    function exportAliases() {
+      const blob = new Blob([JSON.stringify(allAliases, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob); const a = document.createElement('a');
+      a.href = url; a.download = 'taxonomy_aliases.json'; a.click(); URL.revokeObjectURL(url);
+    }
+
+    // Suggestions & auto-classify
+    async function getSuggestions() {
+      try {
+        const apiBase = globalConfig?.get('api_base_url') || 'http://localhost:8765';
+        const useCG = document.getElementById('coingecko-enabled').checked;
+        const ep = useCG ? '/taxonomy/suggestions-enhanced' : '/taxonomy/suggestions';
+        const resp = await fetch(`${apiBase}${ep}`); if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        const { suggestions, auto_classified_count, unknown_count, coverage } = data;
+        if ((auto_classified_count || 0) === 0) { showNotification('Aucune suggestion automatique trouvée', 'info'); return; }
+        const cov = Math.round((coverage || 0) * 100);
+        const list = Object.entries(suggestions).map(([s, g]) => `${s} → ${g}`).slice(0, 5).join(', ');
+        const icon = useCG ? '🚀' : '🔍'; const label = useCG ? 'Mode intelligent (regex + CoinGecko)' : 'Mode regex seul';
+        showNotification(`${icon} ${auto_classified_count}/${unknown_count} suggestions (${cov}%)\n📊 ${label}\n💡 ${list}`, 'info', 10000);
+      } catch (e) { 
+        console.warn('Suggestions API unavailable:', e);
+        showNotification(`🔍 Suggestions non disponibles en mode hors ligne`, 'info');
+      }
+    }
+
+    async function autoClassify() {
+      if (!confirm('Appliquer automatiquement la classification intelligente aux symboles inconnus ?')) return;
+      try {
+        const apiBase = globalConfig?.get('api_base_url') || 'http://localhost:8765';
+        const useCG = document.getElementById('coingecko-enabled').checked;
+        const ep = useCG ? '/taxonomy/auto-classify-enhanced' : '/taxonomy/auto-classify';
+        const resp = await fetch(`${apiBase}${ep}`, { method: 'POST' }); if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        if ((data.classified || 0) === 0) { showNotification(data.message || 'Aucune classification automatique appliquée', 'info'); }
+        else {
+          const label = useCG ? '(avec CoinGecko)' : '(regex seul)';
+          showNotification(`✅ ${data.classified} aliases classifiés automatiquement ${label}`, 'success');
+          await loadData();
+        }
+      } catch (e) { 
+        console.warn('Auto-classify API unavailable:', e);
+        showNotification(`🚀 Classification automatique non disponible en mode hors ligne`, 'info');
+      }
+    }
+
+    function showNotification(message, type = 'info', duration = 3000) {
+      const el = document.createElement('div');
+      el.className = 'notification';
+      el.style.cssText = `
+    position:fixed;bottom:20px;right:20px;padding:12px 16px;border-radius:8px;
+    font-size:14px;z-index:1000;background:${type === 'success' ? 'var(--success)' : type === 'error' ? 'var(--danger)' : 'var(--brand-primary)'};color:#fff;
+    box-shadow:0 4px 12px rgba(0,0,0,.3);max-width:400px;white-space:pre-line;`;
+      el.textContent = message; document.body.appendChild(el); setTimeout(() => el.remove(), duration);
+    }
+  </script>
+
+
+    <script>
+        // Initialisation automatique de la navigation thématique
+        document.addEventListener('DOMContentLoaded', function() {
+            // Auto-détecter la page courante pour la navigation thématique
+            /* unified nav enabled via components/nav.js; legacy init removed */
+        });
+    </script>
+</body>
+
+</html>
+

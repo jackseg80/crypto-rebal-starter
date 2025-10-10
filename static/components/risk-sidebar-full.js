@@ -174,11 +174,11 @@ class RiskSidebarFull extends HTMLElement {
 
       // ✅ Vérifier hydratation complète avant affichage
       if (!state._hydrated) {
-        console.log('[risk-sidebar-full] Store not hydrated yet, waiting...');
+        debugLogger.debug('[risk-sidebar-full] Store not hydrated yet, waiting...');
         return;
       }
 
-      console.log('[risk-sidebar-full] Store hydrated, source:', state._hydration_source || 'unknown');
+      debugLogger.debug('[risk-sidebar-full] Store hydrated, source:', state._hydration_source || 'unknown');
       this._updateFromState(state);
     };
 
@@ -189,7 +189,7 @@ class RiskSidebarFull extends HTMLElement {
     if (!window.riskStore.getState()?._hydrated) {
       const handler = (e) => {
         if (e.detail?.hydrated) {
-          console.log('[risk-sidebar-full] Hydration complete, updating...');
+          debugLogger.debug('[risk-sidebar-full] Hydration complete, updating...');
           push();
         }
       };
@@ -199,10 +199,10 @@ class RiskSidebarFull extends HTMLElement {
 
   async _pollOnce() {
     const j = await fetchRisk();
-    console.log('[risk-sidebar-full] Raw API response:', j);
+    debugLogger.debug('[risk-sidebar-full] Raw API response:', j);
     if (!j) return; // Conserve valeurs précédentes
     const state = normalizeRiskState(j);
-    console.log('[risk-sidebar-full] Normalized state:', state);
+    debugLogger.debug('[risk-sidebar-full] Normalized state:', state);
     this._updateFromState(state);
   }
 
@@ -216,7 +216,7 @@ class RiskSidebarFull extends HTMLElement {
 
     // === SECTION 1: CCS Mixte ===
     const ccsScore = state.cycle?.ccsStar ?? state.ccs?.score;
-    console.log('[risk-sidebar-full] CCS score check:', {
+    debugLogger.debug('[risk-sidebar-full] CCS score check:', {
       ccsStar: state.cycle?.ccsStar,
       ccsScore: state.ccs?.score,
       final: ccsScore,
@@ -228,12 +228,12 @@ class RiskSidebarFull extends HTMLElement {
     this._showSection('section-ccs', hasCCS);
 
     if (hasCCS) {
-      console.log('[risk-sidebar] CCS Mixte update:', { score: ccsScore, element: this.$.ccsMix, hasElement: !!this.$.ccsMix });
+      debugLogger.debug('[risk-sidebar] CCS Mixte update:', { score: ccsScore, element: this.$.ccsMix, hasElement: !!this.$.ccsMix });
       this.$.ccsMix.textContent = Math.round(ccsScore);
       this.$.ccsMixLabel.textContent = this._getScoreLabel(ccsScore);
       this._applyScoreClass(this.$.ccsMix, ccsScore, this.$.ccsMix.parentElement);
     } else {
-      console.warn('[risk-sidebar] CCS Mixte: no valid score', ccsScore);
+      debugLogger.warn('[risk-sidebar] CCS Mixte: no valid score', ccsScore);
     }
 
     // === SECTION 2: On-Chain ===
@@ -264,7 +264,7 @@ class RiskSidebarFull extends HTMLElement {
     this._showSection('section-blended', hasBlended);
 
     if (hasBlended) {
-      console.log('[risk-sidebar] Blended update:', { score: blendedScore, element: this.$.blended, hasElement: !!this.$.blended });
+      debugLogger.debug('[risk-sidebar] Blended update:', { score: blendedScore, element: this.$.blended, hasElement: !!this.$.blended });
       this.$.blended.textContent = Math.round(blendedScore);
       this.$.blendedLabel.textContent = this._getScoreLabel(blendedScore);
       this._applyScoreClass(this.$.blended, blendedScore, this.$.blended.parentElement);
@@ -393,7 +393,7 @@ class RiskSidebarFull extends HTMLElement {
 
   _applyScoreClass(el, score, parentContainer) {
     if (!el) {
-      console.warn('[risk-sidebar] _applyScoreClass called with null element');
+      debugLogger.warn('[risk-sidebar] _applyScoreClass called with null element');
       return;
     }
 
@@ -435,7 +435,7 @@ class RiskSidebarFull extends HTMLElement {
       parentContainer.style.setProperty('background', bgColor, 'important');
     }
 
-    console.log(`[risk-sidebar] Applied color ${color} (${level}) to ${el.id} + bg on parent (score: ${score})`);
+    debugLogger.debug(`[risk-sidebar] Applied color ${color} (${level}) to ${el.id} + bg on parent (score: ${score})`);
   }
 
   _getRegimeClass(phase) {

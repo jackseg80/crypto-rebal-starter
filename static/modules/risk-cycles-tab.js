@@ -21,11 +21,11 @@ import { interpretCCS } from './signals-engine.js';
  * @returns {Promise<{data: Array<{time: number, price: number}>, source: string}>}
  */
 export async function fetchBitcoinHistoricalData() {
-  console.log('🏛️ Tentative de récupération historique Bitcoin...');
+  debugLogger.debug('🏛️ Tentative de récupération historique Bitcoin...');
 
   // 1) FRED via Proxy Backend (résout les problèmes CORS)
   try {
-    console.log('🏛️ Récupération historique Bitcoin depuis FRED via proxy...');
+    debugLogger.debug('🏛️ Récupération historique Bitcoin depuis FRED via proxy...');
     const proxyUrl = '/proxy/fred/bitcoin?start_date=2014-01-01';
     const activeUser = localStorage.getItem('activeUser') || 'demo';
     const r = await fetch(proxyUrl, {
@@ -35,13 +35,13 @@ export async function fetchBitcoinHistoricalData() {
     const result = await r.json();
 
     if (result.success && result.data && result.data.length > 0) {
-      console.log(`✅ FRED Proxy: ${result.data.length} points récupérés (première: $${result.data[0].price}, dernière: $${result.data[result.data.length - 1].price})`);
-      console.log(`📊 Total disponible: ${result.raw_count} observations`);
+      debugLogger.debug(`✅ FRED Proxy: ${result.data.length} points récupérés (première: $${result.data[0].price}, dernière: $${result.data[result.data.length - 1].price})`);
+      debugLogger.debug(`📊 Total disponible: ${result.raw_count} observations`);
 
       // Vérifier que les données commencent bien en 2014
       const firstDate = new Date(result.data[0].time);
       if (firstDate.getFullYear() <= 2014) {
-        console.log(`🎯 HISTORIQUE COMPLET: Données depuis ${firstDate.getFullYear()}!`);
+        debugLogger.debug(`🎯 HISTORIQUE COMPLET: Données depuis ${firstDate.getFullYear()}!`);
       }
 
       return {
@@ -49,15 +49,15 @@ export async function fetchBitcoinHistoricalData() {
         source: result.source
       };
     } else {
-      console.warn('⚠️ FRED Proxy: Aucune donnée ou erreur -', result.error);
+      debugLogger.warn('⚠️ FRED Proxy: Aucune donnée ou erreur -', result.error);
     }
   } catch (e) {
-    console.warn('❌ FRED Proxy échoué, passage à Binance:', e.message);
+    debugLogger.warn('❌ FRED Proxy échoué, passage à Binance:', e.message);
   }
 
   // 2) Binance Klines (BTCUSDT) — 2017+, sans clé, paginé
   try {
-    console.log('🟡 Récupération historique Bitcoin depuis Binance API...');
+    debugLogger.debug('🟡 Récupération historique Bitcoin depuis Binance API...');
     const ONE_DAY = 24 * 60 * 60 * 1000;
     const LIMIT = 1000;
     const out = [];
@@ -87,38 +87,38 @@ export async function fetchBitcoinHistoricalData() {
       await new Promise(res => setTimeout(res, 120)); // éviter rate limit
     }
     if (out.length > 0) {
-      console.log(`✅ Binance: ${out.length} points récupérés en ${requestCount} requêtes (${out[0].price}$ à ${out[out.length - 1].price}$)`);
+      debugLogger.debug(`✅ Binance: ${out.length} points récupérés en ${requestCount} requêtes (${out[0].price}$ à ${out[out.length - 1].price}$)`);
       return { data: out, source: 'Binance BTCUSDT (1d close)' };
     } else {
-      console.warn('⚠️ Binance: Aucune donnée récupérée');
+      debugLogger.warn('⚠️ Binance: Aucune donnée récupérée');
     }
   } catch (e) {
-    console.error('❌ Binance fetch échoué:', e.message);
+    debugLogger.error('❌ Binance fetch échoué:', e.message);
   }
 
   // 3) CoinGecko 365 jours (si on veut au moins la dernière année)
   try {
-    console.log('🦎 Récupération historique Bitcoin depuis CoinGecko API (365j)...');
+    debugLogger.debug('🦎 Récupération historique Bitcoin depuis CoinGecko API (365j)...');
     const r = await fetch('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=365&interval=daily');
     if (!r.ok) throw new Error(`CoinGecko HTTP ${r.status}: ${r.statusText}`);
     const j = await r.json();
     if (Array.isArray(j.prices)) {
       const data = j.prices.map(([t, p]) => ({ time: t, price: p }));
       if (data.length > 0) {
-        console.log(`✅ CoinGecko: ${data.length} points récupérés (${data[0].price.toFixed(0)}$ à ${data[data.length - 1].price.toFixed(0)}$)`);
+        debugLogger.debug(`✅ CoinGecko: ${data.length} points récupérés (${data[0].price.toFixed(0)}$ à ${data[data.length - 1].price.toFixed(0)}$)`);
         return { data, source: 'CoinGecko (365j)' };
       } else {
-        console.warn('⚠️ CoinGecko: Aucune donnée dans la réponse');
+        debugLogger.warn('⚠️ CoinGecko: Aucune donnée dans la réponse');
       }
     } else {
-      console.warn('⚠️ CoinGecko: Format de réponse inattendu');
+      debugLogger.warn('⚠️ CoinGecko: Format de réponse inattendu');
     }
   } catch (e) {
-    console.error('❌ CoinGecko fetch échoué:', e.message);
+    debugLogger.error('❌ CoinGecko fetch échoué:', e.message);
   }
 
   // 4) Rien trouvé → renvoyer vide (pas de courbe prix)
-  console.warn('❌ Aucune source d\'historique Bitcoin disponible');
+  debugLogger.warn('❌ Aucune source d\'historique Bitcoin disponible');
   return { data: [], source: 'Aucune (toutes les APIs ont échoué)' };
 }
 
@@ -132,7 +132,7 @@ export async function fetchBitcoinHistoricalData() {
 export async function createBitcoinCycleChart(canvasId, forceRefresh = false) {
   const canvas = document.getElementById(canvasId);
   if (!canvas) {
-    console.error('Canvas not found:', canvasId);
+    debugLogger.error('Canvas not found:', canvasId);
     return null;
   }
 
@@ -159,7 +159,7 @@ export async function createBitcoinCycleChart(canvasId, forceRefresh = false) {
         console.debug('✅ Chart recreated from cache');
         return window.bitcoinCycleChart;
       } catch (error) {
-        console.warn('Failed to use cached chart, falling back to fresh creation:', error);
+        debugLogger.warn('Failed to use cached chart, falling back to fresh creation:', error);
       }
     }
   }
@@ -168,7 +168,7 @@ export async function createBitcoinCycleChart(canvasId, forceRefresh = false) {
 
   // Destroy existing chart if it exists
   if (window.bitcoinCycleChart) {
-    console.log('🔄 Destroying existing Bitcoin chart...');
+    debugLogger.debug('🔄 Destroying existing Bitcoin chart...');
     window.bitcoinCycleChart.destroy();
     window.bitcoinCycleChart = null;
   }
@@ -176,7 +176,7 @@ export async function createBitcoinCycleChart(canvasId, forceRefresh = false) {
   // Also check if Chart.js has any existing chart on this canvas
   const existingChart = Chart.getChart(canvas);
   if (existingChart) {
-    console.log('🔄 Destroying Chart.js existing chart on canvas...');
+    debugLogger.debug('🔄 Destroying Chart.js existing chart on canvas...');
     existingChart.destroy();
   }
 
@@ -216,12 +216,12 @@ export async function createBitcoinCycleChart(canvasId, forceRefresh = false) {
       if (!hasRecentCalibration) {
         const { calibrateCycleParams } = await import('./cycle-navigator.js');
         const calibRes = calibrateCycleParams();
-        console.log('🎯 Calibration historique automatique (fresh):', calibRes);
+        debugLogger.debug('🎯 Calibration historique automatique (fresh):', calibRes);
       } else {
         console.debug('🎯 Calibration récente détectée - skip recalibration');
       }
     } catch (e) {
-      console.warn('⚠️ Calibration automatique échouée:', e.message);
+      debugLogger.warn('⚠️ Calibration automatique échouée:', e.message);
     }
 
     // Calculate cycle score for each data point
@@ -264,7 +264,7 @@ export async function createBitcoinCycleChart(canvasId, forceRefresh = false) {
     const currentTimestamp = Date.now();
     const currentPrice = priceData[priceData.length - 1]?.y || 108000; // Prix actuel ~$108k
 
-    console.log('📊 Bitcoin price data loaded:', {
+    debugLogger.debug('📊 Bitcoin price data loaded:', {
       dataPoints: priceData.length,
       latestPrice: currentPrice,
       dataSource: priceData.length > 100 ? 'CoinGecko API' : 'Insufficient data'
@@ -684,7 +684,7 @@ export async function createBitcoinCycleChart(canvasId, forceRefresh = false) {
 
             ctx.restore();
           } catch (e) {
-            console.warn('phaseColoredCycleSegments plugin failed:', e);
+            debugLogger.warn('phaseColoredCycleSegments plugin failed:', e);
           }
         }
       }]
@@ -692,12 +692,12 @@ export async function createBitcoinCycleChart(canvasId, forceRefresh = false) {
 
     // Create chart
     window.bitcoinCycleChart = new Chart(canvas, config);
-    console.log('✅ Bitcoin cycle chart created successfully');
+    debugLogger.debug('✅ Bitcoin cycle chart created successfully');
 
     // 🔗 Charger et afficher les indicateurs on-chain après un délai
     setTimeout(() => {
       loadOnChainIndicators().catch(err => {
-        console.error('Failed to load on-chain indicators:', err);
+        debugLogger.error('Failed to load on-chain indicators:', err);
       });
     }, 1000);
 
@@ -715,13 +715,13 @@ export async function createBitcoinCycleChart(canvasId, forceRefresh = false) {
 
       console.debug('💾 Chart configuration cached');
     } catch (cacheError) {
-      console.warn('Failed to cache chart config:', cacheError);
+      debugLogger.warn('Failed to cache chart config:', cacheError);
     }
 
     return window.bitcoinCycleChart;
 
   } catch (error) {
-    console.error('❌ Failed to create Bitcoin cycle chart:', error);
+    debugLogger.error('❌ Failed to create Bitcoin cycle chart:', error);
 
     // Show error message in canvas container (if it still exists)
     const container = canvas?.parentElement;
@@ -734,7 +734,7 @@ export async function createBitcoinCycleChart(canvasId, forceRefresh = false) {
         </div>
       `;
     } else {
-      console.warn('⚠️ Cannot show error message: container not found');
+      debugLogger.warn('⚠️ Cannot show error message: container not found');
     }
 
     return null;
@@ -747,7 +747,7 @@ export async function createBitcoinCycleChart(canvasId, forceRefresh = false) {
  */
 export async function loadOnChainIndicators() {
   try {
-    console.log('🔄 Loading on-chain indicators modules...');
+    debugLogger.debug('🔄 Loading on-chain indicators modules...');
     const cacheBuster = `?v=${Date.now()}`;
     const onchainModule = await import(`./onchain-indicators.js${cacheBuster}`);
     const cycleModule = await import(`./cycle-navigator.js${cacheBuster}`);
@@ -756,7 +756,7 @@ export async function loadOnChainIndicators() {
     const { cycleScoreFromMonths, getCurrentCycleMonths } = cycleModule;
 
     const container = document.getElementById('onchain-indicators-content');
-    if (!container) { console.warn('⚠️ onchain-indicators container not found'); return; }
+    if (!container) { debugLogger.warn('⚠️ onchain-indicators container not found'); return; }
 
     // État de chargement (thémé)
     container.innerHTML = `
@@ -772,7 +772,7 @@ export async function loadOnChainIndicators() {
     const composite = window.calculateCompositeScoreV2(indicators, true);
 
     if (composite.dynamicWeighting) {
-      console.log(`🤖 Dynamic weighting applied: ${composite.dynamicWeighting.phase.name} phase`);
+      debugLogger.debug(`🤖 Dynamic weighting applied: ${composite.dynamicWeighting.phase.name} phase`);
     }
 
     // Score de cycle actuel
@@ -791,7 +791,7 @@ export async function loadOnChainIndicators() {
           console.debug('↔︎ On-chain score unchanged; not updating store');
         }
       }
-    } catch (e) { console.warn('Failed to propagate onchain score to store:', e); }
+    } catch (e) { debugLogger.warn('Failed to propagate onchain score to store:', e); }
 
     // IMPORTANT: Utiliser composite.score (pur on-chain) pour les recommandations, pas enhanced (blend avec cycle)
     const recosData = { enhanced_score: composite.score, contributors: composite.contributors, confidence: composite.confidence };
@@ -966,10 +966,10 @@ export async function loadOnChainIndicators() {
       ${recosHtml}
     `;
 
-    console.log('✅ On-chain indicators loaded successfully');
+    debugLogger.debug('✅ On-chain indicators loaded successfully');
 
   } catch (error) {
-    console.error('Failed to load on-chain indicators:', error);
+    debugLogger.error('Failed to load on-chain indicators:', error);
     const container = document.getElementById('onchain-indicators-content');
     if (container) {
       container.innerHTML = `
@@ -1255,7 +1255,7 @@ export async function recreateCachedChart() {
   const canvas = document.getElementById('bitcoin-cycle-chart');
 
   if (!canvas) {
-    console.warn('Chart canvas not found for cache recreation');
+    debugLogger.warn('Chart canvas not found for cache recreation');
     return;
   }
 
@@ -1272,12 +1272,12 @@ export async function recreateCachedChart() {
     try {
       // Only recreate if in or near viewport and Chart.js is ready
       if (!isNearViewport(canvas)) {
-        console.log('⏸️ Chart not in viewport yet; deferring recreation to lazy loader');
+        debugLogger.debug('⏸️ Chart not in viewport yet; deferring recreation to lazy loader');
         return;
       }
 
       if (!window.Chart) {
-        console.log('📊 Chart.js not loaded yet; lazy loader will handle when visible');
+        debugLogger.debug('📊 Chart.js not loaded yet; lazy loader will handle when visible');
         return;
       }
 
@@ -1291,7 +1291,7 @@ export async function recreateCachedChart() {
       console.debug('✅ Chart recreated from cache');
 
     } catch (error) {
-      console.warn('Failed to recreate cached chart, falling back to fresh render:', error);
+      debugLogger.warn('Failed to recreate cached chart, falling back to fresh render:', error);
       if (window.Chart) {
         await createBitcoinCycleChart('bitcoin-cycle-chart');
       }
@@ -1366,7 +1366,7 @@ if (!window.createBitcoinCycleChart) {
 
 // Global function for backwards compatibility
 window.forceCycleRefresh = async function () {
-  console.log('🔄 Force refreshing cycle content and charts...');
+  debugLogger.debug('🔄 Force refreshing cycle content and charts...');
 
   try {
     // Clear all cycle caches
@@ -1383,7 +1383,7 @@ window.forceCycleRefresh = async function () {
     // Force refresh cycle content
     if (document.getElementById('cycles-tab')?.classList.contains('active')) {
       await renderCyclesContent(true);
-      console.log('✅ Cycle content force refreshed');
+      debugLogger.debug('✅ Cycle content force refreshed');
     } else {
       console.debug('Cycles tab not active, cache cleared for next access');
     }
@@ -1391,7 +1391,7 @@ window.forceCycleRefresh = async function () {
     window.showToast?.('Cache cycles vidé et contenu rafraîchi', 'success');
 
   } catch (error) {
-    console.error('Failed to force refresh cycles:', error);
+    debugLogger.error('Failed to force refresh cycles:', error);
     window.showToast?.('Erreur lors du refresh cycles', 'error');
   }
 };

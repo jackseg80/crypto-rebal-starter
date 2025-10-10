@@ -131,7 +131,7 @@ async function refreshSourcesStatus() {
     return sourcesData;
 
   } catch (error) {
-    console.error('[Sources] Error refreshing status:', error);
+    debugLogger.error('[Sources] Error refreshing status:', error);
 
     // Affichage d'erreur
     const statusEl = document.getElementById('sources_status');
@@ -290,7 +290,7 @@ function createSourcesList(moduleName, module) {
     );
 
     if (!fileStillExists) {
-      console.warn('[sources] CSV sélectionné manquant:', config.csv_selected_file);
+      debugLogger.warn('[sources] CSV sélectionné manquant:', config.csv_selected_file);
 
       // Fallback: sélectionner le premier fichier disponible si possible
       if (module.detected_files.length > 0 && window.showToast) {
@@ -490,7 +490,7 @@ async function scanModule(moduleName) {
     }
 
   } catch (error) {
-    console.error(`[Sources] Error scanning ${moduleName}:`, error);
+    debugLogger.error(`[Sources] Error scanning ${moduleName}:`, error);
     showNotification(`Erreur lors du scan de ${getModuleName(moduleName)}`, 'error');
   }
 }
@@ -567,7 +567,7 @@ async function importSelectedSource(moduleName) {
     }
 
   } catch (error) {
-    console.error(`[Sources] Error importing selected source from ${moduleName}:`, error);
+    debugLogger.error(`[Sources] Error importing selected source from ${moduleName}:`, error);
     showNotification(`Erreur lors de l'import de ${getModuleName(moduleName)}`, 'error');
   }
 }
@@ -606,7 +606,7 @@ async function importModule(moduleName, force = false) {
     }
 
   } catch (error) {
-    console.error(`[Sources] Error importing ${moduleName}:`, error);
+    debugLogger.error(`[Sources] Error importing ${moduleName}:`, error);
     showNotification(`Erreur lors de l'import de ${getModuleName(moduleName)}`, 'error');
   }
 }
@@ -645,7 +645,7 @@ async function refreshModuleApi(moduleName) {
     }
 
   } catch (error) {
-    console.error(`[Sources] Error refreshing API for ${moduleName}:`, error);
+    debugLogger.error(`[Sources] Error refreshing API for ${moduleName}:`, error);
     showNotification(`Erreur lors du refresh API de ${getModuleName(moduleName)}`, 'error');
   }
 }
@@ -674,7 +674,7 @@ async function scanAllSources() {
     (window.debugLogger?.debug || console.log)('[Sources] Scan results:', scanData);
 
   } catch (error) {
-    console.error('[Sources] Error scanning all sources:', error);
+    debugLogger.error('[Sources] Error scanning all sources:', error);
     showNotification('Erreur lors du scan global', 'error');
   }
 }
@@ -775,7 +775,7 @@ function isSourceCurrentlySelected(moduleName, sourceValue, detectedFiles = null
     // Pour les fichiers CSV - vérifier le fichier spécifique via csv_selected_file ou csv_glob
     if (sourceValue.startsWith('csv_')) {
       if (config.data_source !== 'cointracking') {
-        if (window.__DEBUG_SOURCES__) console.log(`[isSourceCurrentlySelected] ${sourceValue} - data_source=${config.data_source}, not cointracking`);
+        if (window.__DEBUG_SOURCES__) debugLogger.debug(`[isSourceCurrentlySelected] ${sourceValue} - data_source=${config.data_source}, not cointracking`);
         return false;
       }
 
@@ -793,7 +793,7 @@ function isSourceCurrentlySelected(moduleName, sourceValue, detectedFiles = null
       const expectedFile = detectedSources[sourceIndex];
       if (!expectedFile || !expectedFile.name) return false;
 
-      if (window.__DEBUG_SOURCES__) console.log(`[isSourceCurrentlySelected] ${sourceValue}: index=${sourceIndex}, file=${expectedFile?.name}, csv_selected=${config.csv_selected_file}`);
+      if (window.__DEBUG_SOURCES__) debugLogger.debug(`[isSourceCurrentlySelected] ${sourceValue}: index=${sourceIndex}, file=${expectedFile?.name}, csv_selected=${config.csv_selected_file}`);
 
       // ⚠️ PRIORITÉ 1: Vérifier csv_selected_file (utilisé par sources_resolver.py)
       if (typeof config.csv_selected_file === 'string' && config.csv_selected_file.length > 0) {
@@ -801,7 +801,7 @@ function isSourceCurrentlySelected(moduleName, sourceValue, detectedFiles = null
         const a = expectedFile.name.trim().toLowerCase();
         const b = config.csv_selected_file.trim().toLowerCase();
         const match = a === b;
-        if (window.__DEBUG_SOURCES__) console.log(`[isSourceCurrentlySelected] ${sourceValue}: ${expectedFile.name} === ${config.csv_selected_file} ? ${match}`);
+        if (window.__DEBUG_SOURCES__) debugLogger.debug(`[isSourceCurrentlySelected] ${sourceValue}: ${expectedFile.name} === ${config.csv_selected_file} ? ${match}`);
         return match;
       }
 
@@ -817,7 +817,7 @@ function isSourceCurrentlySelected(moduleName, sourceValue, detectedFiles = null
 
     return false;
   } catch (error) {
-    console.error('[Sources] Error checking selection:', error);
+    debugLogger.error('[Sources] Error checking selection:', error);
     return false;
   }
 }
@@ -841,7 +841,7 @@ async function selectActiveSource(moduleName, sourceValue, fileName) {
       const safeFile = (fileName || '').trim();
 
       if (!safeFile) {
-        console.warn('[sources] csv_selected_file vide, abandon de la sélection.');
+        debugLogger.warn('[sources] csv_selected_file vide, abandon de la sélection.');
         return;
       }
 
@@ -886,7 +886,7 @@ async function selectActiveSource(moduleName, sourceValue, fileName) {
 
     if (!response.ok) {
       const errorDetail = await response.text();
-      console.error('[sources] Échec de la sauvegarde', errorDetail);
+      debugLogger.error('[sources] Échec de la sauvegarde', errorDetail);
 
       // Rollback visuel: recharger le panneau depuis l'état serveur
       await loadSourcesManager();
@@ -944,7 +944,7 @@ async function selectActiveSource(moduleName, sourceValue, fileName) {
     showTemporaryFeedback(`Source sélectionnée: ${fileName || sourceValue}`);
 
   } catch (error) {
-    console.error('[Sources] Error selecting source:', error);
+    debugLogger.error('[Sources] Error selecting source:', error);
     showTemporaryFeedback('❌ Erreur lors de la sélection', 'error');
   }
 }
@@ -1017,7 +1017,7 @@ Source: ${results.source}`;
     }
 
   } catch (error) {
-    console.error(`[Sources] Error testing ${moduleName}:`, error);
+    debugLogger.error(`[Sources] Error testing ${moduleName}:`, error);
     showExtendedFeedback(`❌ Erreur lors du test: ${error.message}`, 'error');
   }
 }
@@ -1339,7 +1339,7 @@ async function uploadFiles(moduleName) {
     }
 
   } catch (error) {
-    console.error(`[Sources] Upload error:`, error);
+    debugLogger.error(`[Sources] Upload error:`, error);
     showNotification('Erreur lors de l\'upload', 'error');
   } finally {
     uploadBtn.disabled = false;

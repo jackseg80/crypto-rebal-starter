@@ -404,9 +404,9 @@
             const onchainModule = await import('./modules/onchain-indicators.js');
             getCacheStats = onchainModule.getCacheStats;
             clearOnChainCache = onchainModule.clearCache;
-            console.log('✅ OnChain indicators module loaded successfully');
+            debugLogger.debug('✅ OnChain indicators module loaded successfully');
         } catch (error) {
-            console.warn('⚠️ Failed to load onchain indicators module:', error);
+            debugLogger.warn('⚠️ Failed to load onchain indicators module:', error);
             // Fallback mock functions
             getCacheStats = () => ({
                 hits: 0,
@@ -417,7 +417,7 @@
                 cacheSize: 0,
                 patterns: 0
             });
-            clearOnChainCache = () => console.log('Cache clear fallback');
+            clearOnChainCache = () => debugLogger.debug('Cache clear fallback');
         }
 
         let startTime = Date.now();

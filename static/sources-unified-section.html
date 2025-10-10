@@ -276,7 +276,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (typeof initSourcesManager === 'function') {
           initSourcesManager();
         } else {
-          console.warn('[Sources] sources-manager.js not loaded');
+          debugLogger.warn('[Sources] sources-manager.js not loaded');
         }
       }, 100);
     });

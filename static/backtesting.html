@@ -381,7 +381,7 @@
 
         // Initialize
         document.addEventListener('DOMContentLoaded', async () => {
-            console.log('🚀 Initializing Backtesting Dashboard');
+            debugLogger.debug('🚀 Initializing Backtesting Dashboard');
             
             // Initialize navigation
             /* unified nav enabled via components/nav.js; legacy init removed */
@@ -421,11 +421,11 @@
                     strategySelect.appendChild(option);
                 });
                 
-                console.log(`✅ Loaded ${data.strategies.length} strategies`);
+                debugLogger.debug(`✅ Loaded ${data.strategies.length} strategies`);
                 hideStatus();
                 
             } catch (error) {
-                console.error('❌ Error loading strategies:', error);
+                debugLogger.error('❌ Error loading strategies:', error);
                 showStatus('error', `Erreur: ${error.message}`);
                 
                 // Fallback options
@@ -467,7 +467,7 @@
                 showStatus('success', 'Backtest terminé avec succès!');
                 
             } catch (error) {
-                console.error('❌ Backtest failed:', error);
+                debugLogger.error('❌ Backtest failed:', error);
                 showStatus('error', `Erreur: ${error.message}`);
             }
         }

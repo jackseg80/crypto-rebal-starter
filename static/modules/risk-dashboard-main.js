@@ -15,7 +15,7 @@ let isRefreshing = false;
  * @param {string} tabName - Tab to switch to ('risk', 'cycles', 'targets', 'alerts')
  */
 export async function switchTab(tabName) {
-  console.log(`🔄 Switching to tab: ${tabName}`);
+  debugLogger.debug(`🔄 Switching to tab: ${tabName}`);
 
   // Update tab buttons (classes + ARIA attributes)
   document.querySelectorAll('.tab-button').forEach(btn => {
@@ -36,7 +36,7 @@ export async function switchTab(tabName) {
   try {
     const container = document.getElementById(`${tabName}-tab`);
     if (!container) {
-      console.error(`Container for tab ${tabName} not found`);
+      debugLogger.error(`Container for tab ${tabName} not found`);
       return;
     }
 
@@ -72,7 +72,7 @@ export async function switchTab(tabName) {
       }
     }
   } catch (error) {
-    console.error(`Failed to load tab ${tabName}:`, error);
+    debugLogger.error(`Failed to load tab ${tabName}:`, error);
     const container = document.getElementById(`${tabName}-tab`);
     if (container) {
       showError(container, `Failed to load ${tabName} content`, error.message);
@@ -86,7 +86,7 @@ export async function switchTab(tabName) {
  */
 export async function refreshDashboard(forceRefresh = false) {
   if (isRefreshing) {
-    console.log('⏸️ Refresh already in progress, skipping...');
+    debugLogger.debug('⏸️ Refresh already in progress, skipping...');
     return;
   }
 
@@ -98,7 +98,7 @@ export async function refreshDashboard(forceRefresh = false) {
   }
 
   try {
-    console.log(`🔄 Refreshing dashboard (force: ${forceRefresh})`);
+    debugLogger.debug(`🔄 Refreshing dashboard (force: ${forceRefresh})`);
 
     // Refresh current tab
     await switchTab(currentTab);
@@ -109,9 +109,9 @@ export async function refreshDashboard(forceRefresh = false) {
       timestamp.textContent = `Last update: ${new Date().toLocaleTimeString('fr-FR')}`;
     }
 
-    console.log('✅ Dashboard refreshed successfully');
+    debugLogger.debug('✅ Dashboard refreshed successfully');
   } catch (error) {
-    console.error('❌ Failed to refresh dashboard:', error);
+    debugLogger.error('❌ Failed to refresh dashboard:', error);
   } finally {
     isRefreshing = false;
     if (refreshBtn) {
@@ -134,13 +134,13 @@ export function toggleAutoRefresh() {
     autoRefreshInterval = null;
     btn.textContent = '⏱️ Enable Auto-Refresh (30s)';
     btn.style.background = 'var(--brand-primary)';
-    console.log('⏸️ Auto-refresh disabled');
+    debugLogger.debug('⏸️ Auto-refresh disabled');
   } else {
     // Enable auto-refresh
     autoRefreshInterval = setInterval(() => refreshDashboard(false), 30000);
     btn.textContent = '⏸️ Disable Auto-Refresh';
     btn.style.background = 'var(--success)';
-    console.log('▶️ Auto-refresh enabled (30s)');
+    debugLogger.debug('▶️ Auto-refresh enabled (30s)');
   }
 }
 
@@ -148,7 +148,7 @@ export function toggleAutoRefresh() {
  * Initialize the dashboard
  */
 export async function initDashboard() {
-  console.log('🚀 Initializing Risk Dashboard...');
+  debugLogger.debug('🚀 Initializing Risk Dashboard...');
 
   try {
     // Setup event listeners
@@ -190,16 +190,16 @@ export async function initDashboard() {
 
     // Listen for data source changes
     window.addEventListener('dataSourceChanged', (event) => {
-      console.log(`🔄 Data source changed: ${event.detail.oldSource} → ${event.detail.newSource}`);
+      debugLogger.debug(`🔄 Data source changed: ${event.detail.oldSource} → ${event.detail.newSource}`);
       setTimeout(() => refreshDashboard(true), 500);
     });
 
     // Initialize first tab
     await switchTab('risk');
 
-    console.log('✅ Risk Dashboard initialized successfully');
+    debugLogger.debug('✅ Risk Dashboard initialized successfully');
   } catch (error) {
-    console.error('❌ Failed to initialize dashboard:', error);
+    debugLogger.error('❌ Failed to initialize dashboard:', error);
   }
 }
 

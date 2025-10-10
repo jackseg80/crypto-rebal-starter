@@ -64,7 +64,7 @@ export async function fetchCached(key, fetchFn, cacheType = 'signals') {
     return data;
     
   } catch (error) {
-    console.error(`Failed to fetch ${key}:`, error);
+    debugLogger.error(`Failed to fetch ${key}:`, error);
     
     // Try to return stale data as fallback
     const staleEntry = RAM_CACHE.get(key) || 

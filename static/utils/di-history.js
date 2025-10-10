@@ -52,7 +52,7 @@ export function loadHistory(key, max = 30) {
 
     const arr = JSON.parse(raw);
     if (!Array.isArray(arr)) {
-      console.warn('⚠️ DI history: format invalide, expected array');
+      debugLogger.warn('⚠️ DI history: format invalide, expected array');
       return [];
     }
 
@@ -69,7 +69,7 @@ export function loadHistory(key, max = 30) {
 
     return trimmed;
   } catch (e) {
-    console.warn('⚠️ DI history load error:', e);
+    debugLogger.warn('⚠️ DI history load error:', e);
     return [];
   }
 }
@@ -83,7 +83,7 @@ export function saveHistory(key, history) {
   try {
     localStorage.setItem(key, JSON.stringify(history));
   } catch (e) {
-    console.error('❌ DI history save error:', e);
+    debugLogger.error('❌ DI history save error:', e);
   }
 }
 
@@ -101,7 +101,7 @@ export function saveHistory(key, history) {
 export function pushIfNeeded({ key, history, today, di, max = 30, minDelta = 0.1 }) {
   // Validation stricte du score
   if (!Number.isFinite(di)) {
-    console.warn('⚠️ DI history: score invalide (not finite):', di);
+    debugLogger.warn('⚠️ DI history: score invalide (not finite):', di);
     return { history, added: false };
   }
 

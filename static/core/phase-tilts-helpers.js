@@ -117,7 +117,7 @@ export function tiltRiskyZeroSum(T, ups = {}, downsKeys = []) {
   const finalRiskySum = riskyKeys.reduce((sum, k) => sum + (T[k] || 0), 0);
   const finalTotalSum = Object.values(T).reduce((sum, val) => sum + val, 0);
 
-  console.error('✅ TiltHelpers: Zero-sum tilts applied - DETAILED DEBUG:', {
+  debugLogger.error('✅ TiltHelpers: Zero-sum tilts applied - DETAILED DEBUG:', {
     originalStables: stables.toFixed(4) + '%',
     finalStables: finalStables.toFixed(4) + '%',
     stablesPreserved: Math.abs(finalStables - stables) < 0.01,
@@ -264,7 +264,7 @@ export function applyCapsAndNormalize(T, caps = {}, stablesFloor = 5) {
   const totalSum = Object.values(result).reduce((sum, val) => sum + (val || 0), 0);
 
   if (totalSum <= 0) {
-    console.error('🚨 TiltHelpers: Total sum is zero after caps');
+    debugLogger.error('🚨 TiltHelpers: Total sum is zero after caps');
     return { T: null, capsTriggered, stablesFloorHit };
   }
 

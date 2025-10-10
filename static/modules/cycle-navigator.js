@@ -40,7 +40,7 @@ function autoLoadCalibrationParams() {
       }
     }
   } catch (error) {
-    console.error('❌ Error auto-loading cycle parameters:', error);
+    debugLogger.error('❌ Error auto-loading cycle parameters:', error);
   }
   return false;
 }

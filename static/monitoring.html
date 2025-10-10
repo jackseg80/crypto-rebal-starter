@@ -452,7 +452,7 @@
 
                 updateDisplay();
             } catch (error) {
-                console.error('Refresh failed:', error);
+                debugLogger.error('Refresh failed:', error);
             } finally {
                 refreshBtn.disabled = false;
                 refreshBtn.textContent = '🔄 Refresh';

@@ -275,7 +275,7 @@
         }));
         console.debug('✅ Paramètres calibrés sauvegardés', params);
       } catch (error) {
-        console.error('❌ Erreur sauvegarde paramètres:', error);
+        debugLogger.error('❌ Erreur sauvegarde paramètres:', error);
       }
     }
 
@@ -291,7 +291,7 @@
           }
         }
       } catch (error) {
-        console.error('❌ Erreur chargement paramètres:', error);
+        debugLogger.error('❌ Erreur chargement paramètres:', error);
       }
       return null;
     }
@@ -331,7 +331,7 @@
         console.debug('✅ Cycle navigator module loaded successfully');
         return true;
       } catch (error) {
-        console.error('❌ Failed to load cycle navigator:', error);
+        debugLogger.error('❌ Failed to load cycle navigator:', error);
         // 🔁 Fallback local pour que le graphe fonctionne quand même
         cycleScoreFromMonths = _fallbackCycleScoreFromMonths;
         getCycleParams = _fallbackGetCycleParams;
@@ -366,7 +366,7 @@
       const a = parseISODateStrict(dateA);
       const b = parseISODateStrict(dateB);
       if (!a || !b) {
-        console.warn('monthsBetween: invalid date(s)', { dateA, dateB });
+        debugLogger.warn('monthsBetween: invalid date(s)', { dateA, dateB });
         return NaN;
       }
 
@@ -398,7 +398,7 @@
     // Calcul des métriques de précision
     function calculatePrecisionMetrics() {
       if (!moduleLoaded || !cycleScoreFromMonths) {
-        console.error('cycleScoreFromMonths function not available');
+        debugLogger.error('cycleScoreFromMonths function not available');
         return { avgPeakError: 0, avgBottomError: 0, overallAccuracy: 0, completedCycles: [] };
       }
 
@@ -409,7 +409,7 @@
 
       const metrics = document.getElementById('precision-metrics');
       if (!metrics) {
-        console.error('precision-metrics element not found');
+        debugLogger.error('precision-metrics element not found');
         return { avgPeakError: 0, avgBottomError: 0, overallAccuracy: 0, completedCycles: [] };
       }
 
@@ -462,7 +462,7 @@
     // Graphique de validation
     function createValidationChart() {
       if (!moduleLoaded || !cycleScoreFromMonths) {
-        console.error('cycleScoreFromMonths function not available');
+        debugLogger.error('cycleScoreFromMonths function not available');
         return;
       }
 
@@ -471,7 +471,7 @@
 
       // Vérifier que Chart.js est chargé
       if (typeof Chart === 'undefined') {
-        console.error('Chart.js not loaded');
+        debugLogger.error('Chart.js not loaded');
         return;
       }
 
@@ -588,13 +588,13 @@
     // Tableau d'analyse des erreurs
     function populateErrorTable() {
       if (!moduleLoaded || !cycleScoreFromMonths) {
-        console.error('cycleScoreFromMonths function not available');
+        debugLogger.error('cycleScoreFromMonths function not available');
         return;
       }
 
       const tbody = document.getElementById('error-table-body');
       if (!tbody) {
-        console.error('error-table-body element not found');
+        debugLogger.error('error-table-body element not found');
         return;
       }
 
@@ -707,7 +707,7 @@
             localStorage.setItem('cycle_model_precision', String(prec.toFixed(3)));
             addResult('💾 Précision Cycle Sauvegardée', `${(prec * 100).toFixed(1)}%`, 'good');
           } catch (e) {
-            console.warn('Failed to persist cycle_model_precision:', e);
+            debugLogger.warn('Failed to persist cycle_model_precision:', e);
           }
           createValidationChart();
           populateErrorTable();
@@ -722,7 +722,7 @@
             addResult('⚠️ Recommandation', 'Précision faible - Considérer une recalibration', 'warning');
           }
         } catch (error) {
-          console.error('Error in runFullAnalysis:', error);
+          debugLogger.error('Error in runFullAnalysis:', error);
           addResult('❌ Erreur', `Erreur d'analyse: ${error.message}`, 'error');
         }
       }, 500);
@@ -754,7 +754,7 @@
             localStorage.setItem('cycle_model_precision', String(prec.toFixed(3)));
             addResult('💾 Précision Cycle Mise à Jour', `${(prec * 100).toFixed(1)}%`, 'good');
           } catch (e) {
-            console.warn('Failed to persist cycle_model_precision after calibration:', e);
+            debugLogger.warn('Failed to persist cycle_model_precision after calibration:', e);
           }
 
           // Recréer le graphique

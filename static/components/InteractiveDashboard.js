@@ -589,11 +589,11 @@ class InteractiveDashboard {
                 lastUpdateElement.textContent = new Date().toLocaleTimeString();
                 (window.debugLogger?.debug || console.log)('🕒 Last update time set:', new Date().toLocaleTimeString());
             } else {
-                console.error('❌ last-update element not found!');
+                debugLogger.error('❌ last-update element not found!');
             }
 
         } catch (error) {
-            console.error('Failed to load initial data:', error);
+            debugLogger.error('Failed to load initial data:', error);
             this.setConnectionStatus('error', 'Connection failed');
         }
     }
@@ -641,7 +641,7 @@ class InteractiveDashboard {
             };
 
         } catch (error) {
-            console.error('Failed to fetch portfolio data:', error);
+            debugLogger.error('Failed to fetch portfolio data:', error);
             // Ne pas retourner de données mockées - retourner une erreur explicite
             throw new Error(`Portfolio data unavailable: ${error.message}. Please configure data source in settings.`);
         }
@@ -672,9 +672,9 @@ class InteractiveDashboard {
                 }
             } catch (apiError) {
                 if (apiError.name === 'AbortError') {
-                    console.error('⏰ Price API timeout');
+                    debugLogger.error('⏰ Price API timeout');
                 } else {
-                    console.error('⚠️ Real price API not available:', apiError.message);
+                    debugLogger.error('⚠️ Real price API not available:', apiError.message);
                 }
                 // Retourner données vides au lieu de mock data
                 return { history: [], latest: {} };
@@ -685,7 +685,7 @@ class InteractiveDashboard {
             return { history: [], latest: {} };
 
         } catch (error) {
-            console.error('Failed to generate price data:', error);
+            debugLogger.error('Failed to generate price data:', error);
             return { history: [], latest: {} };
         }
     }
@@ -731,7 +731,7 @@ class InteractiveDashboard {
             };
 
         } catch (error) {
-            console.error('Failed to calculate performance data:', error);
+            debugLogger.error('Failed to calculate performance data:', error);
             return {
                 timeseries: [],
                 correlation_matrix: {},
@@ -785,7 +785,7 @@ class InteractiveDashboard {
                 );
                 (window.debugLogger?.info || console.log)('✅ Portfolio composition chart created');
             } catch (chartError) {
-                console.error('❌ Error creating portfolio composition chart:', chartError);
+                debugLogger.error('❌ Error creating portfolio composition chart:', chartError);
             }
         } else {
             (window.debugLogger?.warn || console.warn)('⚠️ No portfolio holdings data available for chart');
@@ -808,7 +808,7 @@ class InteractiveDashboard {
                 );
                 (window.debugLogger?.info || console.log)('✅ Performance chart created');
             } catch (chartError) {
-                console.error('❌ Error creating performance chart:', chartError);
+                debugLogger.error('❌ Error creating performance chart:', chartError);
             }
         } else {
             (window.debugLogger?.warn || console.warn)('⚠️ No performance timeseries data available for chart');
@@ -822,7 +822,7 @@ class InteractiveDashboard {
                 this.renderRiskChart('correlation');
                 (window.debugLogger?.info || console.log)('✅ Risk chart created');
             } catch (chartError) {
-                console.error('❌ Error creating risk chart:', chartError);
+                debugLogger.error('❌ Error creating risk chart:', chartError);
             }
         } else {
             (window.debugLogger?.warn || console.warn)('⚠️ No correlation matrix data available for risk chart');
@@ -836,7 +836,7 @@ class InteractiveDashboard {
                 this.renderOptimizationChart('risk-return');
                 (window.debugLogger?.info || console.log)('✅ Optimization chart created');
             } catch (chartError) {
-                console.error('❌ Error creating optimization chart:', chartError);
+                debugLogger.error('❌ Error creating optimization chart:', chartError);
             }
         } else {
             (window.debugLogger?.warn || console.warn)('⚠️ No risk-return data available for optimization chart');
@@ -918,7 +918,7 @@ class InteractiveDashboard {
         try {
             await this.loadInitialData();
         } catch (error) {
-            console.error('Refresh failed:', error);
+            debugLogger.error('Refresh failed:', error);
             this.setConnectionStatus('error', 'Refresh failed');
         } finally {
             this.isLoading = false;

@@ -681,7 +681,7 @@
         setStatus('✅ Optimisation terminée avec succès');
 
       } catch (error) {
-        console.error('Optimization error:', error);
+        debugLogger.error('Optimization error:', error);
         setStatus('❌ Erreur d\'optimisation');
         showError(`Erreur: ${error.message}`);
       }
@@ -955,7 +955,7 @@
             }
           }
         } catch (e) {
-          console.warn(`Failed to optimize ${algo}:`, e);
+          debugLogger.warn(`Failed to optimize ${algo}:`, e);
         }
       }
 

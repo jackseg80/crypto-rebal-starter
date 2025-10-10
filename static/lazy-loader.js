@@ -159,7 +159,7 @@ class LazyLoader {
             element.dispatchEvent(new CustomEvent('lazyLoaded'));
 
         } catch (error) {
-            console.error(`❌ Failed to lazy load ${lazyType}:`, error);
+            debugLogger.error(`❌ Failed to lazy load ${lazyType}:`, error);
             element.classList.add('lazy-error');
         }
     }
@@ -282,13 +282,13 @@ class LazyLoader {
                 }
                 (window.debugLogger?.debug || console.log)(`✅ Component ${componentName} successfully initialized`);
             } catch (error) {
-                console.error(`❌ Failed to initialize component ${componentName}:`, error);
+                debugLogger.error(`❌ Failed to initialize component ${componentName}:`, error);
             }
         } else {
             if (!componentName) {
-                console.error('❌ No component name specified');
+                debugLogger.error('❌ No component name specified');
             } else {
-                console.error(`❌ Component ${componentName} not found in window object. Available:`, Object.keys(window).filter(k => k.endsWith('Chart') || k.includes('Component')));
+                debugLogger.error(`❌ Component ${componentName} not found in window object. Available:`, Object.keys(window).filter(k => k.endsWith('Chart') || k.includes('Component')));
             }
         }
     }

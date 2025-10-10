@@ -1131,7 +1131,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (typeof initSourcesManager === 'function') {
         initSourcesManager();
       } else {
-        console.warn('[Sources] sources-manager.js not loaded');
+        debugLogger.warn('[Sources] sources-manager.js not loaded');
       }
     }, 100);
   }
@@ -1246,7 +1246,7 @@ document.addEventListener('DOMContentLoaded', function() {
           }
         }
       } catch (error) {
-        console.error('Error loading sources for dropdown:', error);
+        debugLogger.error('Error loading sources for dropdown:', error);
       }
     }
 
@@ -1373,11 +1373,11 @@ document.addEventListener('DOMContentLoaded', function() {
         if (response.ok) {
           window.userSettings = await response.json();
         } else {
-          console.warn('Failed to load user settings, using defaults');
+          debugLogger.warn('Failed to load user settings, using defaults');
           window.userSettings = getDefaultSettings();
         }
       } catch (error) {
-        console.error('Error loading user settings:', error);
+        debugLogger.error('Error loading user settings:', error);
         window.userSettings = getDefaultSettings();
       }
 
@@ -1404,11 +1404,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (!response.ok) {
           const error = await response.json();
-          console.error('Failed to save user settings:', error);
+          debugLogger.error('Failed to save user settings:', error);
           showNotification('❌ Erreur lors de la sauvegarde', 'error');
         }
       } catch (error) {
-        console.error('Error saving user settings:', error);
+        debugLogger.error('Error saving user settings:', error);
         showNotification('❌ Erreur lors de la sauvegarde', 'error');
       }
       await updateStatusSummary();
@@ -1431,11 +1431,11 @@ document.addEventListener('DOMContentLoaded', function() {
           if (parent) {
             parent.classList.add('selected');
           } else {
-            console.warn(`⚠️ updateUI: Could not find .radio-option parent for ${globalSettings.csv_selected_file}`);
+            debugLogger.warn(`⚠️ updateUI: Could not find .radio-option parent for ${globalSettings.csv_selected_file}`);
           }
           srcSelected = true;
         } else {
-          console.warn(`❌ updateUI: No radio found for file ${globalSettings.csv_selected_file}`);
+          debugLogger.warn(`❌ updateUI: No radio found for file ${globalSettings.csv_selected_file}`);
         }
       }
       if (!srcSelected) {
@@ -1583,7 +1583,7 @@ document.addEventListener('DOMContentLoaded', function() {
           });
         }
       } catch (e) {
-        console.warn('Could not reload settings to preserve API keys:', e);
+        debugLogger.warn('Could not reload settings to preserve API keys:', e);
       }
 
       // Vider tous les caches quand la source change
@@ -1599,7 +1599,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (src && src.file_path) {
           newFile = src.file_path.split(/[/\\\\]/).pop();
         } else {
-          console.warn(`❌ No source found for key: ${source} OR no file_path`);
+          debugLogger.warn(`❌ No source found for key: ${source} OR no file_path`);
         }
       }
 
@@ -2578,7 +2578,7 @@ document.addEventListener('DOMContentLoaded', function() {
           try {
             await loadSettings();
           } catch (error) {
-            console.error('Failed to reload settings after user change:', error);
+            debugLogger.error('Failed to reload settings after user change:', error);
           }
         });
       }
@@ -2705,7 +2705,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
       } catch (error) {
-        console.error('❌ Saxo upload error:', error);
+        debugLogger.error('❌ Saxo upload error:', error);
 
         resultDiv.innerHTML = `
           <div style="padding: 1rem; background: var(--danger-bg); border: 1px solid var(--danger); border-radius: var(--radius-md); color: var(--danger);">

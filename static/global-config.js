@@ -138,7 +138,7 @@ class GlobalConfig {
       localStorage.setItem('crypto_rebalancer_settings', JSON.stringify(this.settings));
       console.debug('Configuration sauvegardée');
     } catch (error) {
-      console.error('Erreur sauvegarde configuration:', error);
+      debugLogger.error('Erreur sauvegarde configuration:', error);
     }
   }
 
@@ -641,7 +641,7 @@ window.loadBalanceData = async function(forceRefresh = false) {
       }
     }
   } catch (error) {
-    console.error(`❌ Error loading balance data via API (source: ${dataSource}):`, error);
+    debugLogger.error(`❌ Error loading balance data via API (source: ${dataSource}):`, error);
     (window.debugLogger?.debug || console.log)('🔄 Trying fallback: direct CSV file loading...');
     
     // Fallback: try to load CSV files directly
@@ -671,11 +671,11 @@ window.loadBalanceData = async function(forceRefresh = false) {
       }
       
       // Si aucun fichier CSV accessible et API échoué
-      console.error('📊 No CSV files accessible and API failed.');
+      debugLogger.error('📊 No CSV files accessible and API failed.');
 
       // Pour les sources réelles (csv_*, cointracking_api), ne pas fallback vers stub
       if (dataSource.startsWith('csv_') || dataSource === 'cointracking_api') {
-        console.error(`❌ Real data source '${dataSource}' failed, not falling back to stub`);
+        debugLogger.error(`❌ Real data source '${dataSource}' failed, not falling back to stub`);
         return {
           success: false,
           error: `Failed to load data from source: ${dataSource}`,
@@ -693,7 +693,7 @@ window.loadBalanceData = async function(forceRefresh = false) {
         (window.debugLogger?.info || console.log)('✅ Successfully loaded stub data from API');
         return { success: true, data: stubData, source: stubData?.source_used || stubFlavor };
       } catch (stubError) {
-        console.error('❌ Stub data via API also failed:', stubError);
+        debugLogger.error('❌ Stub data via API also failed:', stubError);
       }
       
       // Dernière option: retourner erreur - pas de données mockées
@@ -704,7 +704,7 @@ window.loadBalanceData = async function(forceRefresh = false) {
       };
       
     } catch (fallbackError) {
-      console.error('❌ Fallback also failed:', fallbackError);
+      debugLogger.error('❌ Fallback also failed:', fallbackError);
       return {
         success: false,
         error: `API failed: ${error.message}, Fallback failed: ${fallbackError.message}`,

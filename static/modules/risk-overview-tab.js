@@ -152,12 +152,12 @@ async function fetchRiskData() {
     } catch (_) { /* ignore */ }
 
     const m = apiResult.risk_metrics;
-    console.log(`🧪 SHADOW V2 - Risk metrics from API: VaR 95%: ${(m.var_95_1d * 100).toFixed(2)}%, Sharpe: ${m.sharpe_ratio.toFixed(2)}, Risk Score: ${m.risk_score} (authoritative), Structural: ${m.risk_score_structural || 'N/A'}, Window: ${m.window_used?.actual_data_points || '?'} pts, risk_version_info: ${m.risk_version_info ? 'PRESENT ✅' : 'MISSING ❌'}`);
+    debugLogger.debug(`🧪 SHADOW V2 - Risk metrics from API: VaR 95%: ${(m.var_95_1d * 100).toFixed(2)}%, Sharpe: ${m.sharpe_ratio.toFixed(2)}, Risk Score: ${m.risk_score} (authoritative), Structural: ${m.risk_score_structural || 'N/A'}, Window: ${m.window_used?.actual_data_points || '?'} pts, risk_version_info: ${m.risk_version_info ? 'PRESENT ✅' : 'MISSING ❌'}`);
 
     // The backend already provides the correct structure, just return it
     return apiResult;
   } catch (error) {
-    console.warn('Risk API unavailable:', error);
+    debugLogger.warn('Risk API unavailable:', error);
     return {
       success: false,
       message: 'Backend de risque indisponible. Assurez-vous que le serveur backend est démarré.',
@@ -274,7 +274,7 @@ function generateRecommendations(metrics, correlations, groups, fullData) {
 
 // ====== Main Render Function ======
 export async function renderRiskOverview(container) {
-  console.log('🚀 Rendering Risk Overview tab (complete module)');
+  debugLogger.debug('🚀 Rendering Risk Overview tab (complete module)');
 
   try {
     // Show loading state
@@ -291,9 +291,9 @@ export async function renderRiskOverview(container) {
     // Render the dashboard
     renderRiskDashboard(container, data);
 
-    console.log('✅ Risk Overview tab rendered successfully');
+    debugLogger.debug('✅ Risk Overview tab rendered successfully');
   } catch (error) {
-    console.error('❌ Failed to render Risk Overview:', error);
+    debugLogger.error('❌ Failed to render Risk Overview:', error);
     showError(container, 'Failed to load risk dashboard: ' + error.message);
   }
 }

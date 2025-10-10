@@ -131,7 +131,7 @@ const initDeepLinks = (sectionAnchors = {}) => {
     window.scrollToSection = scrollToSection;
 
   } catch (error) {
-    console.error('Deep links init error:', error);
+    debugLogger.error('Deep links init error:', error);
   }
 };
 

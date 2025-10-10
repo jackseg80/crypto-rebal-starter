@@ -43,7 +43,7 @@ async function fetchAlertsHistory(filters = {}) {
     return alerts || [];
 
   } catch (error) {
-    console.error('Failed to load alerts history:', error);
+    debugLogger.error('Failed to load alerts history:', error);
     throw error;
   }
 }
@@ -235,7 +235,7 @@ function updateAlertsStats(alerts) {
     container.insertAdjacentHTML('afterbegin', statsHtml);
     console.debug('Stats HTML inserted into container');
   } else {
-    console.warn('alerts-history-content container not found');
+    debugLogger.warn('alerts-history-content container not found');
   }
 }
 
@@ -349,7 +349,7 @@ async function loadAlertsHistory() {
     updateAlertsStats(alerts);
 
   } catch (error) {
-    console.error('Error loading alerts history:', error);
+    debugLogger.error('Error loading alerts history:', error);
     const container = document.getElementById('alerts-history-content');
     if (container) {
       showError(container, 'Failed to load alerts history. Please try again.');
@@ -382,7 +382,7 @@ function loadNextAlertsPage() {
  * @param {HTMLElement} container - Container element
  */
 export async function renderAlertsTab(container) {
-  console.log('🚀 Rendering Alerts History tab');
+  debugLogger.debug('🚀 Rendering Alerts History tab');
 
   // Build tab HTML structure
   container.innerHTML = `

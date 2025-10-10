@@ -154,7 +154,7 @@ export async function calculateHierarchicalAllocation(context, currentPositions 
     });
 
     if (!totalCheck.isValid) {
-      console.error('❌ Invalid allocation total:', totalCheck.total);
+      debugLogger.error('❌ Invalid allocation total:', totalCheck.total);
       // Normaliser l'allocation si nécessaire
       const scale = 1 / totalCheck.total;
       Object.keys(coinAllocation).forEach(key => {
@@ -199,7 +199,7 @@ export async function calculateHierarchicalAllocation(context, currentPositions 
     return result;
 
   } catch (error) {
-    console.error('❌ Allocation Engine V2 failed:', error);
+    debugLogger.error('❌ Allocation Engine V2 failed:', error);
     return null; // Fallback vers V1
   }
 }
@@ -527,7 +527,7 @@ function calculateExecutionPlan(targetAllocation, currentPositions, executionCon
   // PARE-FEU (Oct 2025): Ne jamais fallbacker silencieusement à 0%
   // Si cap indisponible, retourner plan vide (skip ce tick)
   if (capPct == null) {
-    console.warn('[Exec] Cap indisponible → skip iteration (pas de fallback 0%)');
+    debugLogger.warn('[Exec] Cap indisponible → skip iteration (pas de fallback 0%)');
     return {
       iterations: 0,
       estimated_days: 0,

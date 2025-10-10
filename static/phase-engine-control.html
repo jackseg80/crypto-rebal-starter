@@ -119,19 +119,19 @@
     // Mode control
     document.getElementById('mode-off').addEventListener('click', () => {
       localStorage.setItem('PHASE_ENGINE_ENABLED', 'off');
-      console.log('🔴 Phase Engine mode set to: OFF');
+      debugLogger.debug('🔴 Phase Engine mode set to: OFF');
       updateStatus();
     });
 
     document.getElementById('mode-shadow').addEventListener('click', () => {
       localStorage.setItem('PHASE_ENGINE_ENABLED', 'shadow');
-      console.log('🧪 Phase Engine mode set to: SHADOW');
+      debugLogger.debug('🧪 Phase Engine mode set to: SHADOW');
       updateStatus();
     });
 
     document.getElementById('mode-apply').addEventListener('click', () => {
       localStorage.setItem('PHASE_ENGINE_ENABLED', 'apply');
-      console.log('✅ Phase Engine mode set to: APPLY');
+      debugLogger.debug('✅ Phase Engine mode set to: APPLY');
       updateStatus();
     });
 
@@ -139,14 +139,14 @@
     window.forcePhase = function(phase) {
       localStorage.setItem('forced_phase', phase);
       localStorage.removeItem('detected_phase_cache');
-      console.log('🎭 Phase forcée:', phase);
+      debugLogger.debug('🎭 Phase forcée:', phase);
       updateStatus();
     };
 
     window.clearForcedPhase = function() {
       localStorage.removeItem('forced_phase');
       localStorage.removeItem('detected_phase_cache');
-      console.log('🔄 Auto-détection des phases réactivée');
+      debugLogger.debug('🔄 Auto-détection des phases réactivée');
       updateStatus();
     };
 
@@ -253,7 +253,7 @@
         }
 
       } catch (error) {
-        console.error('❌ Test failed:', error);
+        debugLogger.error('❌ Test failed:', error);
         results.innerHTML = `<div class="error">❌ Test échoué: ${error.message}</div>`;
       }
     });

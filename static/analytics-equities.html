@@ -408,7 +408,7 @@
         // Fonction principale de chargement
         async function loadEquitiesData() {
             try {
-                console.log('🏦 Loading equities analytics data...');
+                debugLogger.debug('🏦 Loading equities analytics data...');
 
                 // Charger le résumé pour les KPIs
                 const summary = await fetchSaxoSummary();
@@ -437,7 +437,7 @@
                 }
 
             } catch (error) {
-                console.error('❌ Erreur chargement données bourse:', error);
+                debugLogger.error('❌ Erreur chargement données bourse:', error);
                 showErrorState(error.message);
             }
         }

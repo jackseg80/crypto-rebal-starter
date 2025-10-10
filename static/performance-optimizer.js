@@ -64,7 +64,7 @@ class LazyLoadManager {
             this.intersectionObserver.unobserve(element);
             
         } catch (error) {
-            console.error(`Failed to lazy load ${type}:`, error);
+            debugLogger.error(`Failed to lazy load ${type}:`, error);
             element.classList.add('lazy-error');
         }
     }

@@ -107,16 +107,16 @@ export async function fetchRisk() {
         _raw: data,
       };
 
-      console.log('[fetchRisk] Mapped data from /api/risk/dashboard:', mapped);
+      debugLogger.debug('[fetchRisk] Mapped data from /api/risk/dashboard:', mapped);
       return mapped;
     }
-    console.warn('[risk-snapshot] /api/risk/dashboard not OK:', r?.status);
+    debugLogger.warn('[risk-snapshot] /api/risk/dashboard not OK:', r?.status);
   } catch (err) {
-    console.warn('[risk-snapshot] Primary API failed:', err?.message || err);
+    debugLogger.warn('[risk-snapshot] Primary API failed:', err?.message || err);
   }
 
   // 2) Fallback: try to build a minimal structure
-  console.warn('[fetchRisk] All endpoints failed, returning stub');
+  debugLogger.warn('[fetchRisk] All endpoints failed, returning stub');
   return {
     ccs: { score: null },
     scores: { onchain: null, risk: null, blended: null },

@@ -333,7 +333,7 @@ export function setCachedData(key, data, ttlMs = 12 * 60 * 60 * 1000) {
     };
     localStorage.setItem(key, JSON.stringify(cacheEntry));
   } catch (error) {
-    console.warn(`Failed to cache data for key: ${key}`, error);
+    debugLogger.warn(`Failed to cache data for key: ${key}`, error);
   }
 }
 
@@ -357,7 +357,7 @@ export function getCachedData(key) {
 
     return entry.data;
   } catch (error) {
-    console.warn(`Failed to retrieve cached data for key: ${key}`, error);
+    debugLogger.warn(`Failed to retrieve cached data for key: ${key}`, error);
     return null;
   }
 }
@@ -377,11 +377,11 @@ export function clearAllRiskCaches() {
     try {
       localStorage.removeItem(key);
     } catch (e) {
-      console.warn(`Failed to clear cache: ${key}`, e);
+      debugLogger.warn(`Failed to clear cache: ${key}`, e);
     }
   });
 
-  console.log('✅ All risk dashboard caches cleared');
+  debugLogger.debug('✅ All risk dashboard caches cleared');
 }
 
 // ===== Export all utilities =====

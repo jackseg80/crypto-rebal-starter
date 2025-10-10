@@ -788,7 +788,7 @@ export async function renderUnifiedInsights(containerId = 'unified-root', option
         (window.debugLogger?.warn || console.warn)('🔧 PATCH C: No balance data available');
       }
     } catch (e) {
-      console.error('🔧 PATCH C failed with error:', e.message, e.stack);
+      debugLogger.error('🔧 PATCH C failed with error:', e.message, e.stack);
     }
 
     // Fallback vers u.targets_by_group si patch échoue (plus de presets hardcodés)
@@ -816,7 +816,7 @@ export async function renderUnifiedInsights(containerId = 'unified-root', option
           }
         }
       } catch (e) {
-        console.error('Fallback also failed:', e.message);
+        debugLogger.error('Fallback also failed:', e.message);
       }
 
       // Dernier recours: utiliser targets_by_group (dynamique)
@@ -828,7 +828,7 @@ export async function renderUnifiedInsights(containerId = 'unified-root', option
 
     // Allocation fournie par u.targets_by_group (calcul dynamique) - vérification
     if (!allocation || Object.keys(allocation).length === 0) {
-      console.error('🚨 ERREUR CRITIQUE: targets_by_group vide', { u, allocation });
+      debugLogger.error('🚨 ERREUR CRITIQUE: targets_by_group vide', { u, allocation });
       return '<div class="error-message">❌ Erreur: calculs dynamiques indisponibles</div>';
     }
 
@@ -1045,10 +1045,10 @@ export async function renderUnifiedInsights(containerId = 'unified-root', option
         const totalTgt = visible.reduce((sum, v) => sum + (Number(v.tgt) || 0), 0);
 
         if (!stablesEntry || stablesEntry.tgt < 0.5) {
-          console.error('[ASSERT] UI RENDER: Stablecoins manquantes dans visible targets', { visible, stablesEntry });
+          debugLogger.error('[ASSERT] UI RENDER: Stablecoins manquantes dans visible targets', { visible, stablesEntry });
         }
         if (Math.abs(totalTgt - 100) > 0.5) {
-          console.error('[ASSERT] UI RENDER: Somme targets visible ≠ 100%', { totalTgt, visible });
+          debugLogger.error('[ASSERT] UI RENDER: Somme targets visible ≠ 100%', { totalTgt, visible });
         }
         console.debug(`✅ UI RENDER: Verrous OK - Stables ${stablesEntry?.tgt?.toFixed(1) || 0}%, Total ${totalTgt.toFixed(1)}%`);
       }

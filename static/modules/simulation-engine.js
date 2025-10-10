@@ -230,7 +230,7 @@ async function computeCurrentAllocation(wallet) {
 
     return allocation;
   } catch (error) {
-    console.error('❌ SIM: Failed to compute real allocation:', error);
+    debugLogger.error('❌ SIM: Failed to compute real allocation:', error);
     // Fallback
     return {
       Stablecoins: 25,
@@ -308,7 +308,7 @@ export async function initSimulation({ sourceId }) {
 
     return { success: true, data: snapshot };
   } catch (error) {
-    console.error('🎭 SIM: initSimulation failed:', error);
+    debugLogger.error('🎭 SIM: initSimulation failed:', error);
     return { success: false, error: error.message };
   }
 }
@@ -1227,7 +1227,7 @@ export async function simulateFullPipeline(uiOverrides = {}) {
     return fullResult;
 
   } catch (error) {
-    console.error('🎭 SIM: Pipeline simulation failed:', error);
+    debugLogger.error('🎭 SIM: Pipeline simulation failed:', error);
     throw error;
   }
 }

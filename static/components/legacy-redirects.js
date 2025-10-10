@@ -129,7 +129,7 @@ const checkLegacyRedirect = () => {
   const redirectTarget = legacyRedirects[currentPage];
 
   if (redirectTarget) {
-    console.info(\`🔄 Legacy redirect: \${currentPage} → \${redirectTarget}\`);
+    debugLogger.info(\`🔄 Legacy redirect: \${currentPage} → \${redirectTarget}\`);
 
     // Utiliser replace pour éviter l'ajout à l'historique
     window.location.replace(redirectTarget);

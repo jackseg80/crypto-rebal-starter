@@ -226,7 +226,7 @@ export async function fetchSignals() {
     }
 
   } catch (globalError) {
-    console.error('❌ Global error fetching signals:', globalError);
+    debugLogger.error('❌ Global error fetching signals:', globalError);
     // Return all fallback data if everything fails
     return {
       fear_greed: { value: 48, normalized: null, timestamp: Date.now(), source: 'fallback' },
@@ -362,7 +362,7 @@ export async function fetchAndComputeCCS(weights = DEFAULT_CCS_WEIGHTS) {
     return ccs;
     
   } catch (error) {
-    console.error('Failed to fetch and compute CCS:', error);
+    debugLogger.error('Failed to fetch and compute CCS:', error);
     throw error;
   }
 }

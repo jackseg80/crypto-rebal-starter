@@ -127,7 +127,7 @@ export function generateHistoricalData(period, date, useDeterministicSeed = true
   }
   
   // SUPPRIMÉ: Génération de données mockées - utiliser données réelles
-  console.error('⚠️ historical-validator.js: Mock data generation disabled. Use real historical data sources.');
+  debugLogger.error('⚠️ historical-validator.js: Mock data generation disabled. Use real historical data sources.');
   
   const emptyData = {
     _metadata: {

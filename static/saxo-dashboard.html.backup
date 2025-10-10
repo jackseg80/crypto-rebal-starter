@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📈 Dashboard Bourse - Crypto Rebalancer</title>
+    <link rel="stylesheet" href="shared-theme.css">
+    <link rel="stylesheet" href="theme-compat.css">
+    <script type="module" src="components/nav.js"></script>
+    <script type="module">
+        import { initDeepLinks } from './components/deep-links.js';
+        import { wealthContextBar } from './components/WealthContextBar.js';
+        import { safeFetch } from './modules/http.js';
+
+        // Ancres pour saxo-dashboard.html
+        initDeepLinks({
+            'overview': 'Vue d\'ensemble',
+            'positions': 'Positions',
+            'allocation': 'Allocation',
+            'performance': 'Performance'
+        });
+
+        window.wealthContextBar = wealthContextBar;
+        window.safeFetch = safeFetch;
+    </script>
+    <script src="debug-logger.js"></script>
+  <script src="global-config.js"></script>
+    <script src="appearance.js"></script>
+
+    <style>
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1rem;
+        }
+
+        .dashboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background: var(--theme-surface);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--theme-border);
+        }
+
+        .portfolio-selector {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .portfolio-select {
+            padding: 0.5rem;
+            border: 1px solid var(--theme-border);
+            border-radius: var(--radius-md);
+            background: var(--theme-bg);
+            color: var(--theme-text);
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .dashboard-card {
+            background: var(--theme-surface);
+            border: 1px solid var(--theme-border);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .card-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .card-badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: var(--radius-sm);
+            background: var(--theme-bg);
+            color: var(--theme-text-muted);
+            border: 1px solid var(--theme-border);
+        }
+
+        .metric-large {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--brand-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .metric-label {
+            color: var(--theme-text-muted);
+            font-size: 0.875rem;
+        }
+
+        .allocation-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .allocation-item {
+            text-align: center;
+            padding: 1rem;
+            background: var(--theme-bg);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--theme-border);
+        }
+
+        .allocation-percentage {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--brand-primary);
+        }
+
+        .allocation-label {
+            font-size: 0.75rem;
+            color: var(--theme-text-muted);
+            margin-top: 0.25rem;
+        }
+
+        .positions-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        .positions-table th,
+        .positions-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--theme-border);
+        }
+
+        .positions-table th {
+            background: var(--theme-bg);
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+
+        .positions-table tr:hover {
+            background: var(--theme-bg);
+        }
+
+        .table-container {
+            max-height: 500px;
+            overflow-y: auto;
+            border: 1px solid var(--theme-border);
+            border-radius: var(--radius-md);
+        }
+
+        .asset-class-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: var(--radius-sm);
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .asset-class-stock {
+            background: color-mix(in oklab, var(--brand-primary) 10%, transparent);
+            color: var(--brand-primary);
+        }
+
+        .asset-class-etf {
+            background: color-mix(in oklab, var(--success) 10%, transparent);
+            color: var(--success);
+        }
+
+        .asset-class-bond {
+            background: color-mix(in oklab, var(--warning) 10%, transparent);
+            color: var(--warning);
+        }
+
+        .asset-class-other {
+            background: color-mix(in oklab, var(--info) 10%, transparent);
+            color: var(--info);
+        }
+
+        .currency-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+
+        .currency-item {
+            padding: 0.75rem;
+            text-align: center;
+            background: var(--theme-bg);
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--theme-border);
+        }
+
+        .currency-percentage {
+            font-weight: 700;
+            color: var(--brand-primary);
+        }
+
+        .currency-code {
+            font-size: 0.75rem;
+            color: var(--theme-text-muted);
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 3rem;
+            color: var(--theme-text-muted);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: var(--theme-text-muted);
+        }
+
+        .error-message {
+            background: var(--danger-bg);
+            color: var(--danger);
+            border: 1px solid var(--danger);
+            border-radius: var(--radius-md);
+            padding: 1rem;
+            margin: 1rem 0;
+            text-align: center;
+        }
+
+        .refresh-btn {
+            background: var(--brand-primary);
+            color: white;
+            border: none;
+            border-radius: var(--radius-md);
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all var(--transition-fast);
+        }
+
+        .refresh-btn:hover {
+            background: color-mix(in oklab, var(--brand-primary) 80%, black);
+        }
+
+        .sources-banner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--info-bg);
+            border: 1px solid var(--info);
+            border-radius: var(--radius-md);
+            padding: 0.5rem 0.75rem;
+            font-size: 0.875rem;
+            color: var(--info);
+            margin-left: 0.5rem;
+            min-width: 140px;
+        }
+
+        .sources-link {
+            color: var(--info);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.8rem;
+        }
+
+        .sources-link:hover {
+            text-decoration: underline;
+        }
+
+        .sources-btn {
+            display: inline-block;
+            background: var(--info);
+            color: white;
+            text-decoration: none;
+            border-radius: var(--radius-md);
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            transition: all var(--transition-fast);
+        }
+
+        .sources-btn:hover {
+            background: color-mix(in oklab, var(--info) 80%, black);
+        }
+
+        .tabs {
+            display: flex;
+            gap: 0.25rem;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid var(--theme-border);
+        }
+
+        .tab-btn {
+            padding: 0.75rem 1rem;
+            border: none;
+            background: transparent;
+            color: var(--theme-text-muted);
+            border-bottom: 2px solid transparent;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all var(--transition-fast);
+        }
+
+        .tab-btn.active {
+            color: var(--brand-primary);
+            border-bottom-color: var(--brand-primary);
+        }
+
+        .tab-btn:hover:not(.active) {
+            color: var(--theme-text);
+            background: var(--theme-bg);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Info Banner - Sources System -->
+    <div class="info-banner" style="background: var(--info-bg); border: 1px solid var(--info); color: var(--info); padding: 12px 16px; margin: 16px auto; max-width: 1200px; border-radius: var(--radius-md); display: flex; align-items: center; gap: 12px;">
+        <span style="font-size: 18px;">ℹ️</span>
+        <span>
+            <strong>Nouveau système Sources :</strong>
+            Les imports de données se font maintenant depuis
+            <a href="settings.html#tab-sources" style="color: var(--info); text-decoration: underline;">Configuration → Sources</a>.
+            Cette page affiche les données déjà importées.
+        </span>
+    </div>
+
+    <div class="container">
+        <!-- Dashboard Header -->
+        <div class="dashboard-header">
+            <div>
+                <h1>📈 Dashboard Bourse (Saxo Bank)</h1>
+                <p style="color: var(--theme-text-muted); margin: 0;">Analyse en lecture seule de votre portefeuille
+                    actions</p>
+                <p style="margin: 0.5rem 0 0 0;">
+                    <a href="analytics-equities.html"
+                       style="color: var(--primary); text-decoration: none; font-size: 0.85rem; font-weight: 500;">
+                        🚀 Voir Analytics Bourse (beta)
+                    </a>
+                    <span style="color: var(--theme-text-muted); font-size: 0.75rem; margin-left: 0.5rem;">
+                        - Version expérimentale avec analyse détaillée
+                    </span>
+                </p>
+            </div>
+            <div class="portfolio-selector">
+                <label for="portfolioSelect" style="color: var(--theme-text-muted);">Portfolio:</label>
+                <select id="portfolioSelect" class="portfolio-select" onchange="loadPortfolio()">
+                    <option value="">Select a portfolio...</option>
+                </select>
+                <button class="refresh-btn" onclick="refreshPortfolios()">🔄</button>
+                <div class="sources-banner">
+                    <span>📊 Données Saxo — <span id="saxo-staleness-main">
+                        <span class="spinner" style="opacity: 0.7;">⏳</span> Chargement...
+                    </span></span>
+                    <a href="settings.html#tab-sources" class="sources-link">Gérer Sources →</a>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- Main Content -->
+        <div id="mainContent">
+            <div class="no-data">
+                <h3>No Portfolio Selected</h3>
+                <p>Please select a portfolio from the dropdown above or <a href="settings.html#tab-sources">configure your sources</a>.
+                </p>
+            </div>
+        </div>
+
+        <!-- Dashboard Content (hidden by default) -->
+        <div id="dashboardContent" style="display: none;">
+            <!-- Tabs -->
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('overview')">Vue d'ensemble</button>
+                <button class="tab-btn" onclick="switchTab('positions')">Positions</button>
+                <button class="tab-btn" onclick="switchTab('allocation')">Allocation</button>
+                <button class="tab-btn" onclick="switchTab('currencies')">Devises</button>
+            </div>
+
+            <!-- Overview Tab -->
+            <div id="overview" class="tab-content active">
+                <div class="dashboard-grid">
+                    <!-- Portfolio Summary -->
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Portfolio Summary</h3>
+                            <div class="card-badge" id="portfolioBadge">Read-Only</div>
+                        </div>
+                        <div id="portfolioSummary">
+                            <div class="loading">Loading...</div>
+                        </div>
+                    </div>
+
+                    <!-- Asset Allocation -->
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Asset Allocation</h3>
+                        </div>
+                        <div id="assetAllocation">
+                            <div class="loading">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top Holdings -->
+                <div class="dashboard-card">
+                    <div class="card-header">
+                        <h3 class="card-title">Top 10 Holdings</h3>
+                    </div>
+                    <div id="topHoldings">
+                        <div class="loading">Loading...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Positions Tab -->
+            <div id="positions" class="tab-content">
+                <div class="dashboard-card">
+                    <div class="card-header">
+                        <h3 class="card-title">All Positions</h3>
+                        <div class="card-badge" id="positionsCount">0 positions</div>
+                    </div>
+                    <div id="allPositions">
+                        <div class="loading">Loading...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Allocation Tab -->
+            <div id="allocation" class="tab-content">
+                <div class="dashboard-grid">
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <h3 class="card-title">By Asset Class</h3>
+                        </div>
+                        <div id="assetClassBreakdown">
+                            <div class="loading">Loading...</div>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Top Holdings by Value</h3>
+                        </div>
+                        <div id="holdingsByValue">
+                            <div class="loading">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Currencies Tab -->
+            <div id="currencies" class="tab-content">
+                <div class="dashboard-card">
+                    <div class="card-header">
+                        <h3 class="card-title">Currency Exposure</h3>
+                    </div>
+                    <div id="currencyExposure">
+                        <div class="loading">Loading...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentPortfolioData = null;
+        let currentWealthContext = {
+            household: 'Household 1',
+            account: 'All Accounts',
+            module: 'bourse',
+            currency: 'USD'
+        };
+
+        // Initialize wealth context integration
+        function initWealthContextIntegration() {
+            console.log('🏦 Initializing WealthContextBar integration for Saxo dashboard...');
+
+            if (!window.wealthContextBar) {
+                console.warn('WealthContextBar not available');
+                return;
+            }
+
+            // Set initial context to bourse module
+            currentWealthContext.module = 'bourse';
+            window.wealthContextBar.setContext(currentWealthContext);
+
+            // Listen for context changes
+            window.addEventListener('wealth:change', (event) => {
+                console.log('Wealth context changed in Saxo dashboard:', event.detail);
+                currentWealthContext = { ...event.detail };
+
+                // Update UI based on context changes
+                updateContextualDisplay();
+            });
+
+            console.log('✅ WealthContextBar integrated for Saxo dashboard');
+        }
+
+        function updateContextualDisplay() {
+            // Update currency display based on context
+            if (currentPortfolioData && currentWealthContext.currency !== 'USD') {
+                // Could implement currency conversion here
+                console.log(`Display currency preference: ${currentWealthContext.currency}`);
+            }
+        }
+
+        // Tab switching
+        function switchTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(tabName).classList.add('active');
+
+            // Load data for specific tab if needed
+            if (currentPortfolioData) {
+                switch (tabName) {
+                    case 'positions':
+                        loadAllPositions();
+                        break;
+                    case 'allocation':
+                        loadAllocationDetails();
+                        break;
+                    case 'currencies':
+                        loadCurrencyDetails();
+                        break;
+                }
+            }
+        }
+
+        // Portfolio management
+        async function refreshPortfolios() {
+            try {
+                const { ok, data } = await safeFetch(globalConfig.getApiUrl('/api/saxo/portfolios'));
+                if (!ok) {
+                    console.warn('API Saxo indisponible ou erreur HTTP.');
+                    showNoDataState('Aucun portfolio Saxo disponible - API indisponible');
+                    return;
+                }
+
+                const select = document.getElementById('portfolioSelect');
+                select.innerHTML = '<option value="">Select a portfolio...</option>';
+
+                const portfolios = Array.isArray(data?.portfolios) ? data.portfolios : [];
+                if (portfolios.length === 0) {
+                    console.warn('Aucun portfolio Saxo disponible (data.portfolios est vide ou non défini).');
+                    showNoDataState('Aucun portfolio trouvé - Veuillez importer un snapshot Saxo');
+                    return;
+                }
+
+                portfolios.forEach(portfolio => {
+                    const option = document.createElement('option');
+                    option.value = portfolio.portfolio_id || '';
+                    const pos = portfolio?.positions_count ?? portfolio?.positions?.length ?? 0;
+                    const tv = Number(portfolio?.total_value_usd ?? 0);
+                    option.textContent = `${portfolio.name || 'Portfolio'} (${pos} positions, $${tv.toLocaleString()})`;
+                    select.appendChild(option);
+                });
+
+                // Update status banner
+                updateStatusBanner(portfolios[0]);
+
+                // Auto-select if there's a portfolio in URL
+                const urlParams = new URLSearchParams(window.location.search);
+                const portfolioParam = urlParams.get('portfolio');
+                if (portfolioParam && data?.portfolios?.find(p => p.portfolio_id === portfolioParam)) {
+                    select.value = portfolioParam;
+                    loadPortfolio();
+                }
+
+            } catch (error) {
+                console.error('Error loading portfolios:', error);
+                showError('Failed to load portfolios: ' + error.message);
+            }
+        }
+
+        async function loadPortfolio() {
+            const portfolioId = document.getElementById('portfolioSelect').value;
+
+            if (!portfolioId) {
+                document.getElementById('mainContent').innerHTML = `
+                    <div class="no-data">
+                        <h3>No Portfolio Selected</h3>
+                        <p>Please select a portfolio from the dropdown above.</p>
+                        <div class="info-banner" style="margin-top: 1rem; padding: 12px; background: var(--theme-surface-elevated); border: 1px solid var(--theme-border); border-radius: 6px;">
+                            📊 Données Saxo — <span id="saxo-staleness-nodata">
+                                <span class="spinner" style="opacity: 0.7;">⏳</span> Chargement...
+                            </span><br>
+                            <a href="settings.html#tab-sources" class="btn-link" style="font-size: 0.9rem; margin-top: 8px; display: inline-block;">Gérer les Sources</a>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('dashboardContent').style.display = 'none';
+
+                // Charger le staleness immédiatement pour la section no-data
+                refreshSaxoStaleness('saxo-staleness-nodata');
+                return;
+            }
+
+            try {
+                // Show loading state
+                document.getElementById('mainContent').innerHTML = '<div class="loading">Loading portfolio data...</div>';
+
+                const { ok, data } = await safeFetch(globalConfig.getApiUrl(`/api/saxo/portfolios/${portfolioId}`));
+                if (!ok) {
+                    throw new Error('Failed to load portfolio');
+                }
+
+                currentPortfolioData = data;
+
+                // Hide main content and show dashboard
+                document.getElementById('mainContent').style.display = 'none';
+                document.getElementById('dashboardContent').style.display = 'block';
+
+                // Update URL
+                const url = new URL(window.location);
+                url.searchParams.set('portfolio', portfolioId);
+                window.history.pushState(null, '', url.toString());
+
+                // Load all sections
+                loadOverviewData(data);
+
+            } catch (error) {
+                console.error('Error loading portfolio:', error);
+                showError('Failed to load portfolio: ' + error.message);
+            }
+        }
+
+        function loadOverviewData(data) {
+            // Safe access to data properties
+            const summary = data?.summary || {};
+            const totalValue = Number(summary.total_value_usd || 0);
+            const totalPositions = summary.total_positions || data?.positions?.length || 0;
+            const assetAllocation = summary.asset_allocation || {};
+            const currencyExposure = summary.currency_exposure || {};
+
+            // Portfolio Summary
+            const summaryHtml = `
+                <div class="metric-large">$${totalValue.toLocaleString()}</div>
+                <div class="metric-label">Total Portfolio Value</div>
+                <div style="margin-top: 1rem;">
+                    <div style="display: flex; justify-content: space-between; margin: 0.5rem 0;">
+                        <span>Positions:</span>
+                        <span><strong>${totalPositions}</strong></span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin: 0.5rem 0;">
+                        <span>Asset Classes:</span>
+                        <span><strong>${Object.keys(assetAllocation).length}</strong></span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin: 0.5rem 0;">
+                        <span>Currencies:</span>
+                        <span><strong>${Object.keys(currencyExposure).length}</strong></span>
+                    </div>
+                </div>
+            `;
+            document.getElementById('portfolioSummary').innerHTML = summaryHtml;
+
+            // Asset Allocation
+            const allocationHtml = Object.keys(assetAllocation).length > 0 ? `
+                <div class="allocation-grid">
+                    ${Object.entries(assetAllocation)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([assetClass, percentage]) => `
+                            <div class="allocation-item">
+                                <div class="allocation-percentage">${Number(percentage).toFixed(1)}%</div>
+                                <div class="allocation-label">${assetClass}</div>
+                            </div>
+                        `).join('')}
+                </div>
+            ` : '<div class="no-data">Aucune donnée d\'allocation disponible</div>';
+            document.getElementById('assetAllocation').innerHTML = allocationHtml;
+
+            // Top Holdings
+            const topHoldings = summary.top_holdings || data?.positions?.slice(0, 10) || [];
+            const holdingsHtml = topHoldings.length > 0 ? `
+                <table class="positions-table">
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Market Value</th>
+                            <th>Asset Class</th>
+                            <th>Weight</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${topHoldings.map(position => `
+                            <tr>
+                                <td><strong>${position.symbol || 'N/A'}</strong></td>
+                                <td>$${Number(position.market_value_usd || position.market_value || 0).toLocaleString()}</td>
+                                <td>
+                                    <span class="asset-class-badge asset-class-${(position.asset_class || 'other').toLowerCase()}">
+                                        ${position.asset_class || 'N/A'}
+                                    </span>
+                                </td>
+                                <td>${totalValue > 0 ? (((position.market_value_usd || position.market_value || 0) / totalValue) * 100).toFixed(1) : 0}%</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            ` : '<div class="no-data">Aucune position trouvée</div>';
+            document.getElementById('topHoldings').innerHTML = holdingsHtml;
+        }
+
+        function loadAllPositions() {
+            if (!currentPortfolioData) return;
+
+            const positionsHtml = `
+                <div class="card-badge" style="float: right;">${currentPortfolioData.positions.length} positions</div>
+                <div class="table-container">
+                    <table class="positions-table">
+                        <thead>
+                            <tr>
+                                <th>Symbol</th>
+                                <th>Instrument</th>
+                                <th>Quantity</th>
+                                <th>Market Value</th>
+                                <th>Currency</th>
+                                <th>Asset Class</th>
+                                <th>Weight</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${currentPortfolioData.positions
+                    .sort((a, b) => b.market_value_usd - a.market_value_usd)
+                    .map(position => `
+                                <tr>
+                                    <td><strong>${position.symbol}</strong></td>
+                                    <td>${position.instrument}</td>
+                                    <td>${position.quantity.toLocaleString()}</td>
+                                    <td>$${position.market_value_usd.toLocaleString()}</td>
+                                    <td>${position.currency}</td>
+                                    <td>
+                                        <span class="asset-class-badge asset-class-${position.asset_class.toLowerCase()}">
+                                            ${position.asset_class}
+                                        </span>
+                                    </td>
+                                    <td>${((position.market_value_usd / currentPortfolioData.summary.total_value_usd) * 100).toFixed(1)}%</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            document.getElementById('allPositions').innerHTML = positionsHtml;
+            document.getElementById('positionsCount').textContent = `${currentPortfolioData.positions.length} positions`;
+        }
+
+        function loadAllocationDetails() {
+            if (!currentPortfolioData) return;
+
+            // Asset class breakdown
+            const assetClassHtml = `
+                <div class="allocation-grid">
+                    ${Object.entries(currentPortfolioData.summary.asset_allocation)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([assetClass, percentage]) => `
+                            <div class="allocation-item">
+                                <div class="allocation-percentage">${percentage.toFixed(1)}%</div>
+                                <div class="allocation-label">${assetClass}</div>
+                                <div style="font-size: 0.7rem; color: var(--theme-text-muted); margin-top: 0.25rem;">
+                                    $${(currentPortfolioData.summary.total_value_usd * percentage / 100).toLocaleString()}
+                                </div>
+                            </div>
+                        `).join('')}
+                </div>
+            `;
+            document.getElementById('assetClassBreakdown').innerHTML = assetClassHtml;
+
+            // Holdings by value
+            const holdingsByValueHtml = `
+                <div style="max-height: 400px; overflow-y: auto;">
+                    ${currentPortfolioData.summary.top_holdings.map((position, index) => `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0; border-bottom: 1px solid var(--theme-border);">
+                            <div>
+                                <div style="font-weight: 600;">${index + 1}. ${position.symbol}</div>
+                                <div style="font-size: 0.8rem; color: var(--theme-text-muted);">${position.asset_class}</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-weight: 600;">$${position.market_value_usd.toLocaleString()}</div>
+                                <div style="font-size: 0.8rem; color: var(--theme-text-muted);">
+                                    ${((position.market_value_usd / currentPortfolioData.summary.total_value_usd) * 100).toFixed(1)}%
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            document.getElementById('holdingsByValue').innerHTML = holdingsByValueHtml;
+        }
+
+        function loadCurrencyDetails() {
+            if (!currentPortfolioData) return;
+
+            const currencyHtml = `
+                <div class="currency-grid">
+                    ${Object.entries(currentPortfolioData.summary.currency_exposure)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([currency, percentage]) => `
+                            <div class="currency-item">
+                                <div class="currency-percentage">${percentage.toFixed(1)}%</div>
+                                <div class="currency-code">${currency}</div>
+                                <div style="font-size: 0.7rem; color: var(--theme-text-muted); margin-top: 0.25rem;">
+                                    $${(currentPortfolioData.summary.total_value_usd * percentage / 100).toLocaleString()}
+                                </div>
+                            </div>
+                        `).join('')}
+                </div>
+                <div style="margin-top: 2rem; padding: 1rem; background: var(--info-bg); border-radius: var(--radius-md); border: 1px solid var(--info);">
+                    <div style="font-size: 0.875rem; color: var(--info);">
+                        <strong>Note:</strong> Currency exposure is calculated based on the original currency of each position.
+                        USD values are converted using estimated exchange rates.
+                    </div>
+                </div>
+            `;
+            document.getElementById('currencyExposure').innerHTML = currencyHtml;
+        }
+
+        function showError(message) {
+            document.getElementById('mainContent').innerHTML = `
+                <div class="error-message">${message}</div>
+            `;
+            document.getElementById('dashboardContent').style.display = 'none';
+        }
+
+        function showNoDataState(message) {
+            document.getElementById('mainContent').innerHTML = `
+                <div class="no-data">
+                    <h3>📂 Aucune donnée disponible</h3>
+                    <p>${message}</p>
+                    <a href="settings.html#tab-sources" class="sources-btn">📁 Configurer Sources</a>
+                </div>
+            `;
+            document.getElementById('dashboardContent').style.display = 'none';
+        }
+
+        function updateStatusBanner(portfolio) {
+            if (!portfolio) return;
+
+            const headerDiv = document.querySelector('.dashboard-header div:first-child');
+            let statusBanner = document.getElementById('statusBanner');
+
+            if (!statusBanner) {
+                statusBanner = document.createElement('div');
+                statusBanner.id = 'statusBanner';
+                statusBanner.style.cssText = `
+                    margin-top: 0.5rem;
+                    padding: 0.5rem;
+                    background: var(--info-bg);
+                    border: 1px solid var(--info);
+                    border-radius: var(--radius-sm);
+                    font-size: 0.875rem;
+                    color: var(--info);
+                `;
+                headerDiv.appendChild(statusBanner);
+            }
+
+            const posCount = portfolio?.positions_count ?? portfolio?.positions?.length ?? 0;
+            const importDate = portfolio?.portfolio_id?.includes('25-09-2025') ? '25/09/2025 18:40' : 'Date inconnue';
+
+            statusBanner.innerHTML = `
+                📊 Dernier import : ${importDate} • ${posCount} positions
+            `;
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', async () => {
+            console.log('Saxo Dashboard initialized');
+
+            // Initialize wealth context integration
+            initWealthContextIntegration();
+
+            // Load available portfolios
+            await refreshPortfolios();
+
+            // Initialize staleness monitoring
+            refreshSaxoStaleness('saxo-staleness-main');
+            setInterval(() => refreshSaxoStaleness('saxo-staleness-main'), 60000);
+        });
+
+        // Function to refresh Saxo sources staleness
+        async function refreshSaxoStaleness(elementId) {
+            try {
+                const element = document.getElementById(elementId);
+                if (!element) return;
+
+                element.innerHTML = '<span class="spinner" style="opacity: 0.7;">⏳</span> Vérification...';
+
+                const response = await window.globalConfig.apiRequest('/sources/list');
+                const saxo = response.modules?.find(m => m.name === 'saxobank');
+
+                if (saxo) {
+                    const staleness = saxo.staleness || 'Inconnu';
+                    element.textContent = staleness;
+
+                    // Add visual indicator based on staleness
+                    if (staleness.includes('jour') || staleness.includes('heure')) {
+                        element.style.color = 'var(--warning)';
+                    } else if (staleness.includes('minute')) {
+                        element.style.color = 'var(--success)';
+                    } else {
+                        element.style.color = 'var(--theme-text-muted)';
+                    }
+                } else {
+                    element.textContent = 'Module non trouvé';
+                    element.style.color = 'var(--danger)';
+                }
+            } catch (e) {
+                const element = document.getElementById(elementId);
+                if (element) {
+                    element.textContent = 'Erreur de connexion';
+                    element.style.color = 'var(--danger)';
+                }
+                console.warn('Failed to refresh Saxo staleness:', e);
+            }
+        }
+    </script>
+</body>
+
+</html>

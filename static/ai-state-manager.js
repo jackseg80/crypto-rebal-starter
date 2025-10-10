@@ -30,7 +30,7 @@ class EventEmitter {
             try {
                 callback(data);
             } catch (error) {
-                console.error(`Event callback error for ${event}:`, error);
+                debugLogger.error(`Event callback error for ${event}:`, error);
             }
         });
     }
@@ -188,7 +188,7 @@ class AIStateManager extends EventEmitter {
             
             return true;
         } catch (error) {
-            console.error('❌ AI State Manager initialization failed:', error);
+            debugLogger.error('❌ AI State Manager initialization failed:', error);
             this.emit('error', { type: 'initialization', error });
             return false;
         }
@@ -249,7 +249,7 @@ class AIStateManager extends EventEmitter {
                     break;
             }
         } catch (error) {
-            console.error(`Update failed for ${type}:`, error);
+            debugLogger.error(`Update failed for ${type}:`, error);
             this.stats.errors++;
             this.emit('error', { type: 'update', category: type, error });
         }
@@ -296,7 +296,7 @@ class AIStateManager extends EventEmitter {
             
             return data;
         } catch (error) {
-            console.error('Volatility update failed:', error);
+            debugLogger.error('Volatility update failed:', error);
             throw error;
         }
     }
@@ -352,7 +352,7 @@ class AIStateManager extends EventEmitter {
             
             return data;
         } catch (error) {
-            console.error('Market regime update failed:', error);
+            debugLogger.error('Market regime update failed:', error);
             throw error;
         }
     }
@@ -400,7 +400,7 @@ class AIStateManager extends EventEmitter {
             
             return data;
         } catch (error) {
-            console.error('Correlation update failed:', error);
+            debugLogger.error('Correlation update failed:', error);
             throw error;
         }
     }
@@ -451,7 +451,7 @@ class AIStateManager extends EventEmitter {
             
             return data;
         } catch (error) {
-            console.error('Sentiment update failed:', error);
+            debugLogger.error('Sentiment update failed:', error);
             throw error;
         }
     }
@@ -492,7 +492,7 @@ class AIStateManager extends EventEmitter {
             
             return data;
         } catch (error) {
-            console.error('Health status update failed:', error);
+            debugLogger.error('Health status update failed:', error);
             this.state.health = {
                 status: 'error',
                 error: error.message,
@@ -540,7 +540,7 @@ class AIStateManager extends EventEmitter {
             
             return data;
         } catch (error) {
-            console.error('Rebalancing update failed:', error);
+            debugLogger.error('Rebalancing update failed:', error);
             throw error;
         }
     }

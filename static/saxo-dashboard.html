@@ -500,10 +500,10 @@
 
         // Initialize wealth context integration
         function initWealthContextIntegration() {
-            console.log('🏦 Initializing WealthContextBar integration for Saxo dashboard...');
+            debugLogger.debug('🏦 Initializing WealthContextBar integration for Saxo dashboard...');
 
             if (!window.wealthContextBar) {
-                console.warn('WealthContextBar not available');
+                debugLogger.warn('WealthContextBar not available');
                 return;
             }
 
@@ -513,21 +513,21 @@
 
             // Listen for context changes
             window.addEventListener('wealth:change', (event) => {
-                console.log('Wealth context changed in Saxo dashboard:', event.detail);
+                debugLogger.debug('Wealth context changed in Saxo dashboard:', event.detail);
                 currentWealthContext = { ...event.detail };
 
                 // Update UI based on context changes
                 updateContextualDisplay();
             });
 
-            console.log('✅ WealthContextBar integrated for Saxo dashboard');
+            debugLogger.debug('✅ WealthContextBar integrated for Saxo dashboard');
         }
 
         function updateContextualDisplay() {
             // Update currency display based on context
             if (currentPortfolioData && currentWealthContext.currency !== 'USD') {
                 // Could implement currency conversion here
-                console.log(`Display currency preference: ${currentWealthContext.currency}`);
+                debugLogger.debug(`Display currency preference: ${currentWealthContext.currency}`);
             }
         }
 
@@ -566,7 +566,7 @@
             try {
                 const { ok, data } = await safeFetch(globalConfig.getApiUrl('/api/saxo/portfolios'));
                 if (!ok) {
-                    console.warn('API Saxo indisponible ou erreur HTTP.');
+                    debugLogger.warn('API Saxo indisponible ou erreur HTTP.');
                     showNoDataState('Aucun portfolio Saxo disponible - API indisponible');
                     return;
                 }
@@ -576,7 +576,7 @@
 
                 const portfolios = Array.isArray(data?.portfolios) ? data.portfolios : [];
                 if (portfolios.length === 0) {
-                    console.warn('Aucun portfolio Saxo disponible (data.portfolios est vide ou non défini).');
+                    debugLogger.warn('Aucun portfolio Saxo disponible (data.portfolios est vide ou non défini).');
                     showNoDataState('Aucun portfolio trouvé - Veuillez importer un snapshot Saxo');
                     return;
                 }
@@ -602,7 +602,7 @@
                 }
 
             } catch (error) {
-                console.error('Error loading portfolios:', error);
+                debugLogger.error('Error loading portfolios:', error);
                 showError('Failed to load portfolios: ' + error.message);
             }
         }
@@ -654,7 +654,7 @@
                 loadOverviewData(data);
 
             } catch (error) {
-                console.error('Error loading portfolio:', error);
+                debugLogger.error('Error loading portfolio:', error);
                 showError('Failed to load portfolio: ' + error.message);
             }
         }
@@ -898,7 +898,7 @@
 
         // Initialize page
         document.addEventListener('DOMContentLoaded', async () => {
-            console.log('Saxo Dashboard initialized');
+            debugLogger.debug('Saxo Dashboard initialized');
 
             // Initialize wealth context integration
             initWealthContextIntegration();
@@ -944,7 +944,7 @@
                     element.textContent = 'Erreur de connexion';
                     element.style.color = 'var(--danger)';
                 }
-                console.warn('Failed to refresh Saxo staleness:', e);
+                debugLogger.warn('Failed to refresh Saxo staleness:', e);
             }
         }
     </script>

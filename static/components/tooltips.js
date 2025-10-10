@@ -157,7 +157,7 @@ const initTooltips = () => {
 
     (window.debugLogger?.debug || console.log)('📱 Tooltips système initialisé');
   } catch (err) {
-    console.error('Erreur lors de l\'initialisation des tooltips:', err);
+    debugLogger.error('Erreur lors de l\'initialisation des tooltips:', err);
   }
 };
 

@@ -44,7 +44,7 @@ class HttpClient {
             
             return await response.json();
         } catch (error) {
-            console.error(`Request failed for ${url}:`, error);
+            debugLogger.error(`Request failed for ${url}:`, error);
             throw error;
         }
     }
@@ -101,7 +101,7 @@ class VolatilityPredictorService {
 
             return data;
         } catch (error) {
-            console.error('Volatility prediction failed:', error);
+            debugLogger.error('Volatility prediction failed:', error);
             throw error;
         }
     }
@@ -143,7 +143,7 @@ class MarketRegimeService {
             this.notifySubscribers(data);
             return data;
         } catch (error) {
-            console.error('Market regime detection failed:', error);
+            debugLogger.error('Market regime detection failed:', error);
             throw error;
         }
     }
@@ -164,7 +164,7 @@ class MarketRegimeService {
             try {
                 callback(data);
             } catch (error) {
-                console.error('Subscriber callback failed:', error);
+                debugLogger.error('Subscriber callback failed:', error);
             }
         });
     }
@@ -177,7 +177,7 @@ class MarketRegimeService {
             try {
                 await this.getCurrentRegime();
             } catch (error) {
-                console.error('Real-time regime monitoring error:', error);
+                debugLogger.error('Real-time regime monitoring error:', error);
             }
         }, interval);
     }
@@ -210,7 +210,7 @@ class CorrelationForecastService {
                 model_type: 'transformer'
             });
         } catch (error) {
-            console.error('Correlation forecast failed:', error);
+            debugLogger.error('Correlation forecast failed:', error);
             throw error;
         }
     }
@@ -252,7 +252,7 @@ class SentimentAnalysisService {
                 aggregation_window: '4h'
             });
         } catch (error) {
-            console.error('Sentiment analysis failed:', error);
+            debugLogger.error('Sentiment analysis failed:', error);
             throw error;
         }
     }
@@ -312,7 +312,7 @@ class AutoRebalancingService {
                 safety_checks: this.safetyChecks
             });
         } catch (error) {
-            console.error('Rebalancing suggestions failed:', error);
+            debugLogger.error('Rebalancing suggestions failed:', error);
             throw error;
         }
     }
@@ -362,7 +362,7 @@ class AIHealthService {
         try {
             return await HttpClient.get(this.healthUrl);
         } catch (error) {
-            console.error('Health check failed:', error);
+            debugLogger.error('Health check failed:', error);
             return { status: 'error', error: error.message };
         }
     }
@@ -374,7 +374,7 @@ class AIHealthService {
         try {
             return await HttpClient.get(this.modelsUrl);
         } catch (error) {
-            console.error('Models status check failed:', error);
+            debugLogger.error('Models status check failed:', error);
             return { models: [], status: 'error' };
         }
     }
@@ -426,7 +426,7 @@ class AIServiceManager {
             
             return { success: true, health };
         } catch (error) {
-            console.error('❌ AI Services initialization failed:', error);
+            debugLogger.error('❌ AI Services initialization failed:', error);
             return { success: false, error: error.message };
         }
     }
@@ -446,7 +446,7 @@ class AIServiceManager {
                     }));
                 }
             } catch (error) {
-                console.error('Health monitoring error:', error);
+                debugLogger.error('Health monitoring error:', error);
             }
         }, interval);
     }

@@ -406,7 +406,7 @@ export function computeExposureCap({ blendedScore, riskScore, decision_score, co
 
   // Debug logging
   if (window.__DEBUG_RISK__ || (typeof localStorage !== 'undefined' && localStorage.getItem('DEBUG_RISK'))) {
-    console.log('🔍 EXPOSURE CAP COMPUTED:', {
+    debugLogger.debug('🔍 EXPOSURE CAP COMPUTED:', {
       inputs: { bs, rs, ds, dc, vol, regime: regimeKey, backendStatus },
       intermediate: { base: base + (backendStatus === 'error' ? 25 : backendStatus === 'stale' ? 15 : 0), signalPenalty, volPenalty, regimeMin },
       output: { finalCap }
@@ -532,7 +532,7 @@ export function generateSmartTargets() {
     };
 
   } catch (error) {
-    console.error('❌ Error generating smart targets:', error);
+    debugLogger.error('❌ Error generating smart targets:', error);
     return {
       targets: normalizeTargets(DEFAULT_MACRO_TARGETS),
       strategy: 'Smart targeting failed - using macro fallback',
@@ -690,7 +690,7 @@ export function proposeTargets(mode = 'blend', options = {}) {
     };
 
   } catch (error) {
-    console.error('Failed to propose targets:', error);
+    debugLogger.error('Failed to propose targets:', error);
 
     // Safe fallback
     return {
@@ -821,7 +821,7 @@ export async function applyTargets(proposalResult) {
     return true;
 
   } catch (error) {
-    console.error('Failed to apply targets:', error);
+    debugLogger.error('Failed to apply targets:', error);
     throw error;
   }
 }

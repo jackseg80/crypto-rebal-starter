@@ -23,7 +23,7 @@ export async function getCurrentPortfolioAllocation() {
 
   try {
     // Utiliser la source de données configurée
-    console.log('🔍 Loading portfolio allocation using configured source...');
+    debugLogger.debug('🔍 Loading portfolio allocation using configured source...');
     const balanceResult = await window.loadBalanceData();
 
     if (!balanceResult.success) {
@@ -55,20 +55,20 @@ export async function getCurrentPortfolioAllocation() {
       const cur = (window.globalConfig && window.globalConfig.get('display_currency')) || 'USD';
       const rate = (window.currencyManager && window.currencyManager.getRateSync(cur)) || 1;
       if (cur !== 'USD' && (!rate || rate <= 0)) {
-        console.log('🔍 DEBUG getCurrentPortfolioAllocation: Using real CSV data -', realBalances.length, 'assets, total: —');
+        debugLogger.debug('🔍 DEBUG getCurrentPortfolioAllocation: Using real CSV data -', realBalances.length, 'assets, total: —');
       } else {
         const val = realBalances.reduce((s, i) => s + i.value_usd, 0) * rate;
         try {
           const dec = (cur === 'BTC') ? 8 : 2;
-          console.log('🔍 DEBUG getCurrentPortfolioAllocation: Using real CSV data -', realBalances.length, 'assets, total:', new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, minimumFractionDigits: dec, maximumFractionDigits: dec }).format(val));
+          debugLogger.debug('🔍 DEBUG getCurrentPortfolioAllocation: Using real CSV data -', realBalances.length, 'assets, total:', new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, minimumFractionDigits: dec, maximumFractionDigits: dec }).format(val));
         } catch (_) {
-          console.log('🔍 DEBUG getCurrentPortfolioAllocation: Using real CSV data -', realBalances.length, 'assets, total:', (val).toFixed(cur === 'BTC' ? 8 : 2), cur);
+          debugLogger.debug('🔍 DEBUG getCurrentPortfolioAllocation: Using real CSV data -', realBalances.length, 'assets, total:', (val).toFixed(cur === 'BTC' ? 8 : 2), cur);
         }
       }
     })();
 
   } catch (error) {
-    console.error('CRITICAL: Could not load CSV data in getCurrentPortfolioAllocation:', error);
+    debugLogger.error('CRITICAL: Could not load CSV data in getCurrentPortfolioAllocation:', error);
     throw error; // Don't fallback - fail properly so we know there's an issue
   }
 
@@ -104,7 +104,7 @@ export async function renderTargetsContent() {
   // IMPORTANT: Ensure scores are calculated first
   const state = window.store.snapshot();
   if (!state.scores?.blended) {
-    console.log('🔄 Blended score not available, recalculating scores...');
+    debugLogger.debug('🔄 Blended score not available, recalculating scores...');
     // ✅ Load scores from orchestrator (no need for riskData/ccsData params)
     await window.loadScoresFromStore();
   }
@@ -120,10 +120,10 @@ export async function renderTargetsContent() {
   const smartProposal = proposeTargets('smart');
 
   // DEBUG: Log what blended proposal contains for display
-  console.log('🔍 DEBUG renderTargetsContent - updatedState.scores.blended:', updatedState.scores?.blended);
-  console.log('🔍 DEBUG renderTargetsContent - blendedProposal for DISPLAY:', blendedProposal);
-  console.log('🔍 DEBUG renderTargetsContent - blendedProposal.strategy:', blendedProposal.strategy);
-  console.log('🔍 DEBUG renderTargetsContent - BTC allocation for DISPLAY:', blendedProposal.targets.BTC);
+  debugLogger.debug('🔍 DEBUG renderTargetsContent - updatedState.scores.blended:', updatedState.scores?.blended);
+  debugLogger.debug('🔍 DEBUG renderTargetsContent - blendedProposal for DISPLAY:', blendedProposal);
+  debugLogger.debug('🔍 DEBUG renderTargetsContent - blendedProposal.strategy:', blendedProposal.strategy);
+  debugLogger.debug('🔍 DEBUG renderTargetsContent - BTC allocation for DISPLAY:', blendedProposal.targets.BTC);
 
   // Current targets from store or use blended as default display
   const appliedTargets = updatedState.targets?.proposed || blendedProposal.targets;
@@ -210,7 +210,7 @@ export async function renderTargetsContent() {
 export function renderTargetsTable(targets, strategy) {
   // Robustly handle invalid inputs
   if (!targets || typeof targets !== 'object') {
-    console.warn('[renderTargetsTable] Invalid targets:', targets);
+    debugLogger.warn('[renderTargetsTable] Invalid targets:', targets);
     return `<div style="color: var(--warning); font-size: 0.875rem;">⚠️ Invalid allocation data</div>`;
   }
 
@@ -221,7 +221,7 @@ export function renderTargetsTable(targets, strategy) {
     .filter(([key, value]) => {
       const isValid = value != null && typeof value === 'number' && !isNaN(value);
       if (!isValid && value != null) {
-        console.warn(`[renderTargetsTable] Filtered invalid allocation: ${key}=${value} (type: ${typeof value})`);
+        debugLogger.warn(`[renderTargetsTable] Filtered invalid allocation: ${key}=${value} (type: ${typeof value})`);
       }
       return isValid;
     })
@@ -316,7 +316,7 @@ export function renderActionPlan(current, proposed) {
             const target = action.target_pct ?? action.target;
 
             if (!action || !action.asset || amount == null || current == null || target == null) {
-              console.warn('[renderActionPlan] Invalid action (missing required fields):', action);
+              debugLogger.warn('[renderActionPlan] Invalid action (missing required fields):', action);
               return '';
             }
 
@@ -336,7 +336,7 @@ export function renderActionPlan(current, proposed) {
       </div>
     `;
   } catch (error) {
-    console.error('Error rendering action plan:', error);
+    debugLogger.error('Error rendering action plan:', error);
     return '';
   }
 }
@@ -387,12 +387,12 @@ export function renderDecisionHistory() {
  */
 window.applyStrategy = async function (mode) {
   try {
-    console.log('🔍 DEBUG applyStrategy called with mode:', mode);
-    console.log('🔍 DEBUG store state before:', window.store.snapshot());
+    debugLogger.debug('🔍 DEBUG applyStrategy called with mode:', mode);
+    debugLogger.debug('🔍 DEBUG store state before:', window.store.snapshot());
 
     const proposal = proposeTargets(mode);
-    console.log('🔍 DEBUG proposal result:', proposal);
-    console.log('🔍 DEBUG proposal BTC allocation:', proposal.targets.BTC);
+    debugLogger.debug('🔍 DEBUG proposal result:', proposal);
+    debugLogger.debug('🔍 DEBUG proposal BTC allocation:', proposal.targets.BTC);
 
     // Instead of direct applyTargets, create governance decision
     const currentAllocation = await getCurrentPortfolioAllocation();
@@ -407,15 +407,15 @@ window.applyStrategy = async function (mode) {
         weight: target_pct / 100 // Convert percentage to fraction (35% -> 0.35)
       }));
 
-    console.log('🔍 Creating governance decision with targets:', targets);
-    console.log('🔍 Proposal strategy:', proposal.strategy);
+    debugLogger.debug('🔍 Creating governance decision with targets:', targets);
+    debugLogger.debug('🔍 Proposal strategy:', proposal.strategy);
 
     // Sync governance state first
     await window.store.syncGovernanceState();
     const governanceStatus = window.store.getGovernanceStatus();
 
     if (governanceStatus.state === 'FROZEN') {
-      console.warn('❄️ System is frozen. Cannot create new decisions.');
+      debugLogger.warn('❄️ System is frozen. Cannot create new decisions.');
       return;
     }
 
@@ -448,7 +448,7 @@ window.applyStrategy = async function (mode) {
       const result = await response.json();
 
       if (result.success) {
-        console.log(`✅ Proposition créée avec succès - Plan ID: ${result.plan_id}, Statut: ${result.state}`);
+        debugLogger.debug(`✅ Proposition créée avec succès - Plan ID: ${result.plan_id}, Statut: ${result.state}`);
 
         // Update local store with proposed targets for display
         await applyTargets(proposal);
@@ -459,10 +459,10 @@ window.applyStrategy = async function (mode) {
         throw new Error(result.message || 'Failed to create proposal');
       }
     } catch (error) {
-      console.error('Failed to create governance proposal:', error);
+      debugLogger.error('Failed to create governance proposal:', error);
 
       // Fallback to local apply if API fails (backward compatibility)
-      console.warn('⚠️ Governance API unavailable, falling back to local targets:', error.message);
+      debugLogger.warn('⚠️ Governance API unavailable, falling back to local targets:', error.message);
       await applyTargets(proposal);
       window.store.set('targets.governance_mode', 'manual');
       window.store.set('targets.strategy', `${proposal.strategy} (local - governance unavailable)`);
@@ -470,13 +470,13 @@ window.applyStrategy = async function (mode) {
 
     // Refresh targets content to show updated data
     if (window.store.get('ui.activeTab') === 'targets') {
-      renderTargetsContent().catch(err => console.error('Failed to render targets after strategy apply:', err));
+      renderTargetsContent().catch(err => debugLogger.error('Failed to render targets after strategy apply:', err));
     }
 
-    console.log(`Applied strategy via governance: ${mode} - ${proposal.strategy}`);
-    console.log(`Governance mode: ${governanceStatus.mode}, state: ${governanceStatus.state}`);
+    debugLogger.debug(`Applied strategy via governance: ${mode} - ${proposal.strategy}`);
+    debugLogger.debug(`Governance mode: ${governanceStatus.mode}, state: ${governanceStatus.state}`);
 
   } catch (error) {
-    console.error('❌ Failed to apply strategy:', error.message, error);
+    debugLogger.error('❌ Failed to apply strategy:', error.message, error);
   }
 };

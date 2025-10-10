@@ -507,7 +507,7 @@ export class SimControls {
           break;
       }
     } catch (error) {
-      console.error('🎛️ SIM: mapValueToState error:', error, { id, value });
+      debugLogger.error('🎛️ SIM: mapValueToState error:', error, { id, value });
     }
   }
 
