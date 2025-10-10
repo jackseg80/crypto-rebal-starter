@@ -53,13 +53,13 @@ export async function switchTab(tabName) {
           break;
 
         case 'cycles':
-          const { renderCyclesTab } = await import('./cycles-tab.js');
-          await renderCyclesTab(container);
+          const { renderCyclesContent } = await import('./risk-cycles-tab.js');
+          await renderCyclesContent();
           break;
 
         case 'targets':
-          const { renderTargetsTab } = await import('./targets-tab.js');
-          await renderTargetsTab(container);
+          const { renderTargetsContent } = await import('./risk-targets-tab.js');
+          await renderTargetsContent();
           break;
 
         case 'alerts':

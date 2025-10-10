@@ -1,7 +1,7 @@
 # Dette Technique - Suivi et Roadmap
 
 > **Dernière mise à jour** : 10 octobre 2025
-> **Statut global** : 🟢 Sous contrôle (18 items catalogués)
+> **Statut global** : 🟢 Sous contrôle (14 items actifs, 4 migrations terminées)
 
 Ce document centralise les TODO, FIXME et items de dette technique identifiés dans le codebase, avec priorités et plan de résolution.
 
@@ -9,45 +9,42 @@ Ce document centralise les TODO, FIXME et items de dette technique identifiés d
 
 | Catégorie | Items | Priorité | Action |
 |-----------|-------|----------|--------|
-| **Migration en cours** | 4 | 🟡 MEDIUM | Documenter progrès refactoring |
 | **Features futures** | 6 | 🟢 LOW | Backlog product |
 | **À implémenter** | 6 | 🟡 MEDIUM | Plan d'implémentation |
 | **Documentation** | 1 | 🔵 INFO | Référence existante |
+| **Migration terminée** | 4 | ✅ DONE | Complétée Oct 2025 |
 | **Archives nettoyées** | 7 | ✅ DONE | Supprimées Oct 2025 |
 
-**Total actif** : 17 items (excluant archives)
+**Total actif** : 13 items (excluant migrations/archives complétées)
 
 ---
 
-## 🟡 MEDIUM - Migration Risk Dashboard (4 items)
+## ✅ DONE - Migration Risk Dashboard (4 items - Oct 2025)
 
 **Contexte** : Refactoring Risk Dashboard vers architecture modulaire (Oct 2025)
 
-### Fichiers concernés
+### Migration complétée
 
-#### `static/modules/cycles-tab.js` (2 TODO)
-```javascript
-// TODO: Migrate full implementation from risk-dashboard.html
-// TODO: Migrate the cycles chart and analysis logic here
-```
+#### `static/modules/risk-cycles-tab.js` ✅
+- 1397 lignes de code complet
+- Chart Bitcoin avec halvings, prix historique, cycle score
+- Indicateurs on-chain avec catégories v2
+- Calibration historique automatique
+- Cache intelligent et lazy-loading
 
-**Statut** : Stub créé, migration en cours
-**Action recommandée** : Compléter migration du chart Bitcoin cycles + halving markers
-**Effort estimé** : 2-3h
-**Dépendances** : Chart.js lazy-loading, cycle-navigator.js
+#### `static/modules/risk-targets-tab.js` ✅
+- 442 lignes de code complet
+- 5 stratégies (macro, CCS, cycle, blend, smart)
+- Action plan avec validation
+- Decision history tracking
+- Intégration targets-coordinator.js
 
-#### `static/modules/targets-tab.js` (2 TODO)
-```javascript
-// TODO: Migrate full implementation from risk-dashboard.html
-// TODO: Migrate the targets coordinator logic here
-```
+#### Stubs supprimés
+- `cycles-tab.js` (30 lignes) → Remplacé par `risk-cycles-tab.js`
+- `targets-tab.js` (30 lignes) → Remplacé par `risk-targets-tab.js`
 
-**Statut** : Stub créé, migration en cours
-**Action recommandée** : Migrer targets-coordinator.js vers module dédié
-**Effort estimé** : 3-4h
-**Dépendances** : Strategy API v3, allocation engine
-
-**Tracking Issue** : Voir [docs/static/MIGRATION_RISK_DASHBOARD.md](../static/MIGRATION_RISK_DASHBOARD.md)
+**Date complétion** : 10 octobre 2025
+**Résultat** : Architecture modulaire opérationnelle, -60 lignes de stubs, +1839 lignes de code production
 
 ---
 
@@ -220,11 +217,9 @@ Fichiers supprimés :
 
 ### Moyen Terme (1-2 semaines)
 
-4. **Migration Cycles Tab** (cycles-tab.js) - 3h
-5. **Migration Targets Tab** (targets-tab.js) - 4h
-6. **Governance Overrides** (UnifiedInsights.js) - 30 min
+4. **Governance Overrides** (UnifiedInsights.js) - 30 min
 
-**Total** : 7.5h d'effort
+**Total** : 30 min d'effort
 
 ### Long Terme (> 1 mois)
 
@@ -240,17 +235,20 @@ Fichiers supprimés :
 
 | Métrique | Avant | Après | Delta |
 |----------|-------|-------|-------|
-| TODO/FIXME total | 26 | 18 | -8 ✅ |
+| TODO/FIXME total | 26 | 14 | -12 ✅ |
 | Fichiers backup | 7 | 0 | -7 ✅ |
 | Taille backups | 400 KB | 0 KB | -100% ✅ |
 | Items HIGH priority | 0 | 2 | +2 ⚠️ |
+| Migration Risk Dashboard | 4 TODO | ✅ DONE | -4 ✅ |
 
 ### Tendance
 
 ```
-Oct 2025: 26 items → 18 items (-31% nettoyage)
-Target Nov 2025: 18 items → 10 items (implémenter 8 items)
-Target Dec 2025: 10 items → <5 items (dette sous contrôle)
+Oct 2025 début: 26 items (baseline)
+Oct 2025 nettoyage: 26 → 18 items (-31% cleanup)
+Oct 2025 migration: 18 → 14 items (-22% completion)
+Target Nov 2025: 14 items → 8 items (implémenter 6 items)
+Target Dec 2025: 8 items → <5 items (dette sous contrôle)
 ```
 
 ---
