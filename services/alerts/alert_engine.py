@@ -904,7 +904,30 @@ class AlertEngine:
                         if not portfolio_weights:
                             logger.debug("Advanced risk analysis skipped: no portfolio targets available")
                             return
-                        portfolio_value = 100000  # TODO: Récupérer valeur réelle
+
+                        # Récupérer la valeur réelle du portfolio
+                        try:
+                            # Import dynamique pour éviter circular dependency
+                            from api.main import resolve_current_balances
+
+                            # Récupérer user_id et source depuis le contexte (ou défauts)
+                            user_id = getattr(current_state, 'user_id', 'demo')
+                            source = getattr(current_state, 'source', 'cointracking_api')
+
+                            balance_result = await resolve_current_balances(source=source, user_id=user_id)
+                            balances = balance_result.get('items', []) if isinstance(balance_result, dict) else []
+
+                            if balances:
+                                portfolio_value = sum(float(b.get('value_usd', 0)) for b in balances)
+                                logger.debug(f"Real portfolio value retrieved: ${portfolio_value:,.2f}")
+                            else:
+                                # Fallback si pas de balances disponibles
+                                portfolio_value = 100000
+                                logger.warning("No balances available, using fallback portfolio value: $100,000")
+                        except Exception as e:
+                            # Fallback robuste en cas d'erreur
+                            portfolio_value = 100000
+                            logger.warning(f"Failed to retrieve real portfolio value ({e}), using fallback: $100,000")
 
                         if alert_type == AlertType.VAR_BREACH:
                             # Calculer VaR et vérifier limites

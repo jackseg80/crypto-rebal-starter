@@ -1119,14 +1119,26 @@ async def unified_approval_endpoint(resource_id: str, request: UnifiedApprovalRe
             }
         
         elif request.resource_type == "plan":
-            # Approbation de plan (ancien comportement /governance/approve/{plan_id})
+            # Approbation ou rejet de plan (ancien comportement /governance/approve/{plan_id})
             if not request.approved:
-                # TODO: Implémenter le rejet de plan
+                # Rejet de plan
+                success = await governance_engine.reject_plan(
+                    resource_id,
+                    request.approved_by,  # renamed to rejected_by internally
+                    request.notes or request.reason or "Rejected via API"
+                )
+
+                if not success:
+                    raise HTTPException(status_code=404, detail="Plan not found or not in rejectable state (must be DRAFT or REVIEWED)")
+
                 return {
-                    "success": False,
-                    "message": "Plan rejection not yet implemented",
+                    "success": True,
                     "resource_type": "plan",
-                    "resource_id": resource_id
+                    "resource_id": resource_id,
+                    "action": "rejected",
+                    "message": f"Plan {resource_id} rejected",
+                    "rejected_by": request.approved_by,
+                    "timestamp": datetime.now().isoformat()
                 }
             
             success = await governance_engine.approve_plan(

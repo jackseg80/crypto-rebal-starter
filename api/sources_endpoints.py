@@ -573,26 +573,70 @@ def _estimate_csv_records(file_path: str, sample_bytes: int = 1024*1024) -> Opti
 async def _create_snapshot(module: str, user_fs: UserScopedFS, source_dir: str) -> bool:
     """
     Crée un snapshot consolidé pour un module depuis un répertoire source.
+    Consolidation réelle: merge multiple CSV si disponibles, avec déduplication.
     """
     try:
+        import csv
+
         # Créer le répertoire snapshots
         snapshots_dir = user_fs.get_path(f"{module}/snapshots")
         Path(snapshots_dir).mkdir(parents=True, exist_ok=True)
-
-        # Pour l'instant, copier simplement le fichier le plus récent
-        # TODO: Implémenter la consolidation réelle selon le module
 
         source_files = list(Path(source_dir).glob("*.csv"))
         if not source_files:
             return False
 
-        # Prendre le plus récent
-        latest_file = max(source_files, key=lambda f: f.stat().st_mtime)
-
         snapshot_name = f"snapshot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         snapshot_path = Path(snapshots_dir) / snapshot_name
 
-        shutil.copy2(str(latest_file), str(snapshot_path))
+        # Si un seul fichier : copie simple
+        if len(source_files) == 1:
+            shutil.copy2(str(source_files[0]), str(snapshot_path))
+            logger.debug(f"Snapshot created from single file: {source_files[0].name}")
+        else:
+            # Multiple fichiers : consolidation réelle avec déduplication
+            logger.info(f"Consolidating {len(source_files)} CSV files for {module}...")
+
+            # Trier par date de modification (plus récent = prioritaire)
+            source_files = sorted(source_files, key=lambda f: f.stat().st_mtime, reverse=True)
+
+            # Lire et merger les données (dict keyed by symbol/unique identifier)
+            consolidated_data = {}
+            header = None
+
+            for source_file in source_files:
+                try:
+                    with open(source_file, 'r', encoding='utf-8') as f:
+                        reader = csv.DictReader(f)
+                        if header is None:
+                            header = reader.fieldnames
+
+                        for row in reader:
+                            # Clé de déduplication (symbol/asset/position ID selon module)
+                            key = row.get('symbol') or row.get('Symbol') or row.get('asset') or row.get('Asset')
+                            if not key:
+                                # Fallback: utiliser toute la ligne comme clé (cas rare)
+                                key = str(row)
+
+                            # Garder la version la plus récente (fichier déjà trié)
+                            if key not in consolidated_data:
+                                consolidated_data[key] = row
+
+                except Exception as e:
+                    logger.warning(f"Error reading {source_file.name}: {e}, skipping...")
+                    continue
+
+            # Écrire le snapshot consolidé
+            if consolidated_data and header:
+                with open(snapshot_path, 'w', encoding='utf-8', newline='') as f:
+                    writer = csv.DictWriter(f, fieldnames=header)
+                    writer.writeheader()
+                    writer.writerows(consolidated_data.values())
+
+                logger.info(f"Consolidated snapshot created: {len(consolidated_data)} unique entries from {len(source_files)} files")
+            else:
+                logger.error("No data to consolidate, falling back to latest file copy")
+                shutil.copy2(str(source_files[0]), str(snapshot_path))
 
         # Créer aussi un lien "latest" pour un accès facile
         latest_link = Path(snapshots_dir) / "latest.csv"

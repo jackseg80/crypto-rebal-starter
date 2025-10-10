@@ -1250,6 +1250,51 @@ class GovernanceEngine:
             logger.error(f"Error approving plan {plan_id}: {e}")
             return False
 
+    async def reject_plan(self, plan_id: str, rejected_by: str, notes: Optional[str] = None, expected_etag: Optional[str] = None) -> bool:
+        """
+        Reject a plan in DRAFT or REVIEWED state
+
+        Args:
+            plan_id: ID of the plan to reject
+            rejected_by: User/system rejecting the plan
+            notes: Optional rejection reason/notes
+            expected_etag: Optional ETag for optimistic locking
+
+        Returns:
+            bool: True if plan was successfully rejected, False otherwise
+        """
+        try:
+            plan = self._find_plan_by_id(plan_id)
+            if not plan:
+                logger.error(f"Plan {plan_id} not found")
+                return False
+
+            # ETag validation if provided
+            if expected_etag and not self.validate_etag(plan_id, expected_etag):
+                logger.error(f"ETag validation failed for plan {plan_id}")
+                return False
+
+            # Plans can be rejected from DRAFT or REVIEWED states
+            if plan.status not in ["DRAFT", "REVIEWED"]:
+                logger.error(f"Plan {plan_id} cannot be rejected from {plan.status} state")
+                return False
+
+            # Update plan state to rejected
+            plan.status = "REJECTED"
+            plan.rejected_at = datetime.now()
+            plan.rejected_by = rejected_by
+            plan.rejection_notes = notes or "Plan rejected"
+            plan.version += 1
+            plan.etag = f"etag_{datetime.now().timestamp()}"
+
+            self.current_state.last_update = datetime.now()
+            logger.info(f"Plan {plan_id} rejected by {rejected_by}: {notes}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error rejecting plan {plan_id}: {e}")
+            return False
+
     async def activate_plan(self, plan_id: str, expected_etag: Optional[str] = None) -> bool:
         """Transition APPROVED → ACTIVE with optional ETag validation"""
         try:
