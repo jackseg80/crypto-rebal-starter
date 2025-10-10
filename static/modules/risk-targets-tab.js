@@ -397,18 +397,17 @@ window.applyStrategy = async function (mode) {
     // Instead of direct applyTargets, create governance decision
     const currentAllocation = await getCurrentPortfolioAllocation();
 
-    // Convert proposal targets to Target format for governance
+    // Convert proposal targets to format expected by /execution/governance/propose
+    // API expects: [{ symbol: "BTC", weight: 0.35 }] where weight is 0-1 fraction
     const targets = Object.entries(proposal.targets)
       .filter(([key]) => key !== 'model_version')
       .map(([symbol, target_pct]) => ({
         symbol: symbol,
-        alias: symbol,
-        current_pct: currentAllocation[symbol] || 0,
-        target_pct: target_pct,
-        group: symbol // Simplified for now
+        weight: target_pct / 100 // Convert percentage to fraction (35% -> 0.35)
       }));
 
     console.log('🔍 Creating governance decision with targets:', targets);
+    console.log('🔍 Proposal strategy:', proposal.strategy);
 
     // Sync governance state first
     await window.store.syncGovernanceState();
