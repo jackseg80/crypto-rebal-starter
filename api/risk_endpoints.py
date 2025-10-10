@@ -1546,8 +1546,8 @@ def _generate_risk_alerts(risk_metrics: RiskMetrics, correlation_matrix: Correla
                 "message": f"Faible diversification: ratio {dr:.2f}",
                 "recommendation": "Ajouter des assets moins corrélés"
             })
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to calculate diversification alert: {e}")
     
     # Alert Sharpe ratio négatif
     if risk_metrics.sharpe_ratio < 0:

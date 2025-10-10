@@ -1727,8 +1727,8 @@ async def recompute_ml_signals(
                 logger.info(f"METRICS: recompute_ok_total=1 user={audit_data['user']} backend_status={backend_status}")
                 if audit_data['idempotency_hit']:
                     logger.info(f"METRICS: recompute_idempotency_hit_total=1 user={audit_data['user']}")
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to log recompute metrics: {e}")
 
             response_payload = {
                 "success": True,
@@ -1741,8 +1741,8 @@ async def recompute_ml_signals(
             if idempotency_key:
                 try:
                     _RECOMPUTE_CACHE[idempotency_key] = {"response": response_payload, "ts": calc_timestamp.timestamp()}
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to cache idempotent response for key {idempotency_key}: {e}")
 
             return response_payload
         except Exception as e:
