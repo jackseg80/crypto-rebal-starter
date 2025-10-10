@@ -946,23 +946,23 @@
       console.debug('🔍 syncCCSTargets - Raw localStorage data:', storedTargets);
 
       if (!storedTargets) {
-        console.log('🔍 syncCCSTargets - No localStorage data found');
+        debugLogger.debug('🔍 syncCCSTargets - No localStorage data found');
         return null;
       }
 
       try {
         const targetsData = JSON.parse(storedTargets);
-        console.log('🔍 syncCCSTargets - Parsed targets data:', targetsData);
-        console.log('🔍 syncCCSTargets - Source:', targetsData.source);
-        console.log('🔍 syncCCSTargets - BTC value:', targetsData.targets?.BTC);
-        console.log('🔍 syncCCSTargets - ETH value:', targetsData.targets?.ETH);
+        debugLogger.debug('🔍 syncCCSTargets - Parsed targets data:', targetsData);
+        debugLogger.debug('🔍 syncCCSTargets - Source:', targetsData.source);
+        debugLogger.debug('🔍 syncCCSTargets - BTC value:', targetsData.targets?.BTC);
+        debugLogger.debug('🔍 syncCCSTargets - ETH value:', targetsData.targets?.ETH);
 
         if (targetsData.source === 'risk-dashboard-ccs' && targetsData.targets && targetsData.timestamp) {
           // Vérifier que les données ne sont pas trop anciennes (2 heures)
           const dataAge = Date.now() - new Date(targetsData.timestamp).getTime();
           const maxAge = 2 * 60 * 60 * 1000; // 2 heures
 
-          console.log('🔍 syncCCSTargets - Data age (minutes):', Math.round(dataAge / 60000));
+          debugLogger.debug('🔍 syncCCSTargets - Data age (minutes):', Math.round(dataAge / 60000));
 
           if (dataAge < maxAge) {
             // Filtrer les targets pour ne garder que les valeurs numériques
@@ -970,26 +970,26 @@
             Object.entries(targetsData.targets).forEach(([key, value]) => {
               if (typeof value === 'number' && key !== 'model_version') {
                 cleanTargets[key] = value;
-                console.log(`🔍 syncCCSTargets - Adding ${key}: ${value}%`);
+                debugLogger.debug(`🔍 syncCCSTargets - Adding ${key}: ${value}%`);
               } else {
-                console.log(`🔍 syncCSSTargets - Skipping ${key}: ${value} (${typeof value})`);
+                debugLogger.debug(`🔍 syncCSSTargets - Skipping ${key}: ${value} (${typeof value})`);
               }
             });
 
-            console.log('🔍 syncCCSTargets - Final clean targets:', cleanTargets);
+            debugLogger.debug('🔍 syncCCSTargets - Final clean targets:', cleanTargets);
             return {
               targets: cleanTargets,
               strategy: targetsData.strategy,
               timestamp: targetsData.timestamp
             };
           } else {
-            console.log('🔍 syncCCSTargets - Data too old, ignoring');
+            debugLogger.debug('🔍 syncCCSTargets - Data too old, ignoring');
           }
         } else {
-          console.log('🔍 syncCCSTargets - Invalid data structure or wrong source');
+          debugLogger.debug('🔍 syncCCSTargets - Invalid data structure or wrong source');
         }
       } catch (error) {
-        console.error('🔍 syncCCSTargets - Error parsing stored targets:', error);
+        debugLogger.error('🔍 syncCCSTargets - Error parsing stored targets:', error);
       }
 
       return null;
@@ -1058,7 +1058,7 @@
           }
         };
 
-        console.log('✅ Unified targets synchronized from analytics:', {
+        debugLogger.debug('✅ Unified targets synchronized from analytics:', {
           strategy: strategyName,
           targets_count: Object.keys(cleanTargets).length,
           stables_pct: cleanTargets.Stablecoins,
@@ -1075,7 +1075,7 @@
 
         return result;
       } catch (e) {
-        console.warn('syncUnifiedSuggestedTargets - parse error:', e);
+        debugLogger.warn('syncUnifiedSuggestedTargets - parse error:', e);
         return null;
       }
     }
@@ -1088,7 +1088,7 @@
         try {
           response = await globalConfig.apiRequest('/api/strategies/list');
         } catch (apiError) {
-          console.log('API strategies not available, using built-in strategies:', apiError.message);
+          debugLogger.debug('API strategies not available, using built-in strategies:', apiError.message);
         }
 
         // Utiliser les stratégies de l'API si disponibles, sinon utiliser des stratégies par défaut
@@ -1212,7 +1212,7 @@
                 _isUnified: true,
                 _unifiedData: unified
               };
-              console.log('Added Unified Suggested allocation:', unified);
+              debugLogger.debug('Added Unified Suggested allocation:', unified);
               console.debug('🔍 DEBUG availableStrategies[unified-suggested]:', availableStrategies['unified-suggested']);
               console.debug('🔍 DEBUG unified.targets structure:', unified.targets);
               console.debug('🔍 DEBUG allocations in strategy:', availableStrategies['unified-suggested'].allocations);
@@ -1227,7 +1227,7 @@
               };
             }
           } catch (e) {
-            console.warn('Unified Suggested allocation not available:', e);
+            debugLogger.warn('Unified Suggested allocation not available:', e);
           }
 
           // Ajouter la stratégie dynamique CCS en deuxième
@@ -1242,7 +1242,7 @@
               _isDynamic: true,
               _ccsData: ccsTargets
             };
-            console.log('Added dynamic CCS strategy:', ccsTargets);
+            debugLogger.debug('Added dynamic CCS strategy:', ccsTargets);
           } else {
             // Ajouter une stratégie placeholder pour indiquer qu'il faut sync
             availableStrategies['ccs-dynamic-placeholder'] = {
@@ -1256,7 +1256,7 @@
           }
 
         } catch (syncError) {
-          console.warn('Erreur synchronisation stratégies dynamiques (non bloquante):', syncError);
+          debugLogger.warn('Erreur synchronisation stratégies dynamiques (non bloquante):', syncError);
           // Ajouter une stratégie d'erreur pour informer l'utilisateur
           availableStrategies['ccs-dynamic-error'] = {
             name: 'Strategic (Dynamic)',
@@ -1298,7 +1298,7 @@
         renderStrategiesUI();
 
       } catch (error) {
-        console.error('Erreur chargement stratégies:', error);
+        debugLogger.error('Erreur chargement stratégies:', error);
 
         // En cas d'erreur critique, utiliser au minimum la stratégie par défaut
         if (Object.keys(availableStrategies).length === 0) {
@@ -1483,10 +1483,10 @@
             });
             strategy.allocations = alloc;
           } else {
-            console.warn('Preview did not return targets, keeping empty allocations');
+            debugLogger.warn('Preview did not return targets, keeping empty allocations');
           }
         } catch (err) {
-          console.warn('Failed to fetch strategy preview:', err);
+          debugLogger.warn('Failed to fetch strategy preview:', err);
           showNotification("Impossible de récupérer l'allocation du template (preview)", 'warning');
         }
       }
@@ -1512,7 +1512,7 @@
         }
 
       } catch (error) {
-        console.warn('Governance check failed:', error);
+        debugLogger.warn('Governance check failed:', error);
         // Continue with strategy application even if governance check fails
       }
 
@@ -1582,17 +1582,17 @@
     const fmt2 = n => (n == null || isNaN(n)) ? "—" : Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
 
     function renderPriorityMeta(plan) {
-      console.log('🔍 renderPriorityMeta called with plan:', plan);
+      debugLogger.debug('🔍 renderPriorityMeta called with plan:', plan);
 
       const priorityMeta = plan?.priority_meta;
-      console.log('🔍 priorityMeta found:', priorityMeta);
+      debugLogger.debug('🔍 priorityMeta found:', priorityMeta);
 
       const priorityStatus = document.getElementById('priority-status');
       const universeSource = document.getElementById('universe-source');
       const universeTimestamp = document.getElementById('universe-timestamp');
       const priorityGroupsInfo = document.getElementById('priority-groups-info');
 
-      console.log('🔍 DOM elements found:', {
+      debugLogger.debug('🔍 DOM elements found:', {
         priorityStatus: !!priorityStatus,
         universeSource: !!universeSource,
         universeTimestamp: !!universeTimestamp,
@@ -1600,7 +1600,7 @@
       });
 
       if (!priorityStatus || !priorityMeta) {
-        console.log('🔍 No priority status or meta, hiding');
+        debugLogger.debug('🔍 No priority status or meta, hiding');
         if (priorityStatus) priorityStatus.style.display = 'none';
         return;
       }
@@ -1665,7 +1665,7 @@
       setDynamicTargets: function (targets, metadata = {}) {
         dynamicTargets = targets;
         useDynamicTargets = true;
-        console.log('Dynamic targets set:', targets, metadata);
+        debugLogger.debug('Dynamic targets set:', targets, metadata);
 
         // Update UI to show dynamic mode
         const indicator = el("dynamicTargetsIndicator");
@@ -1713,15 +1713,15 @@
     // Load real portfolio data using configured source
     async function loadRealPortfolioData() {
       try {
-        console.log('🔍 Loading real portfolio data using configured source...');
+        debugLogger.debug('🔍 Loading real portfolio data using configured source...');
         const balanceResult = await window.loadBalanceData();
 
         // DEBUG A - Vérification parité Rebalance ↔ Analytics
-        console.log('[whoami]', {
+        debugLogger.debug('[whoami]', {
           currentUser: localStorage.getItem('activeUser') || 'demo',
           currentSource: window.globalConfig?.get('data_source') || 'unknown'
         });
-        console.log('[balances]', {
+        debugLogger.debug('[balances]', {
           balanceData: balanceResult?.data?.items?.slice?.(0, 5),
           balanceTotal: balanceResult?.data?.total,
           source: balanceResult?.source
@@ -1755,13 +1755,13 @@
         const totalDisp = totalValue * rate;
         try {
           const dec = (cur === 'BTC') ? 8 : 2;
-          console.log(`🔍 Loaded ${balances.length} assets from CSV, total: ` + new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, minimumFractionDigits: dec, maximumFractionDigits: dec }).format(totalDisp));
+          debugLogger.debug(`🔍 Loaded ${balances.length} assets from CSV, total: ` + new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, minimumFractionDigits: dec, maximumFractionDigits: dec }).format(totalDisp));
         } catch (_) {
-          console.log(`🔍 Loaded ${balances.length} assets from CSV, total: ${totalDisp.toFixed(cur === 'BTC' ? 8 : 2)} ${cur}`);
+          debugLogger.debug(`🔍 Loaded ${balances.length} assets from CSV, total: ${totalDisp.toFixed(cur === 'BTC' ? 8 : 2)} ${cur}`);
         }
 
         // Group assets by ASSET_GROUPS
-        const groupedData = groupAssetsByAliases(balances);
+        const groupedData = await groupAssetsByAliases(balances);
 
         // Convert to format expected by rebalancing logic
         const currentByGroup = {};
@@ -1780,7 +1780,7 @@
         };
 
       } catch (error) {
-        console.error('Failed to load real portfolio data:', error);
+        debugLogger.error('Failed to load real portfolio data:', error);
         return null;
       }
     }
@@ -1812,7 +1812,7 @@
             }
           }
         } catch (error) {
-          console.warn('Error parsing CSV line:', error);
+          debugLogger.warn('Error parsing CSV line:', error);
         }
       }
 
@@ -1845,40 +1845,54 @@
     }
 
     // Asset grouping function (same as other dashboards)
-    // Import du système unifié de classification des assets
+    // Import du système unifié de classification des assets avec forced taxonomy reload
     let ASSET_GROUPS = {};
     let getAssetGroup, groupAssetsByClassification;
+    let taxonomyReady = false;
 
     // Charger le système unifié au runtime avec protection taxonomie
-    import('./shared-asset-groups.js').then(async module => {
-      // TAXONOMIE SÉCURISÉE: Force reload pour éviter fallback "Others"
+    async function initAssetGroupsSystem() {
       try {
+        console.debug('🔄 [Rebalance] Force reloading taxonomy for proper asset classification...');
+        const module = await import('./shared-asset-groups.js');
+
+        // TAXONOMIE SÉCURISÉE: Force reload pour éviter fallback "Others"
         await module.forceReloadTaxonomy();
+
         ASSET_GROUPS = module.UNIFIED_ASSET_GROUPS;
         getAssetGroup = module.getAssetGroup;
         groupAssetsByClassification = module.groupAssetsByClassification;
 
         if (!Object.keys(ASSET_GROUPS || {}).length) {
-          console.warn('⚠️ [rebalance] Taxonomy non chargée – risque de "Others" gonflé');
+          debugLogger.warn('⚠️ [Rebalance] Taxonomy non chargée – risque de "Others" gonflé');
         } else {
-          console.log('✅ Unified asset groups loaded in rebalance:', Object.keys(ASSET_GROUPS).length, 'groupes');
+          debugLogger.debug('✅ [Rebalance] Taxonomy loaded:', Object.keys(ASSET_GROUPS).length, 'groupes');
         }
-      } catch (taxonomyError) {
-        console.warn('❌ [rebalance] Force reload taxonomy failed:', taxonomyError.message);
-        // Fallback vers l'import simple
-        ASSET_GROUPS = module.UNIFIED_ASSET_GROUPS;
-        getAssetGroup = module.getAssetGroup;
-        groupAssetsByClassification = module.groupAssetsByClassification;
-      }
-    });
 
-    function groupAssetsByAliases(items) {
-      // Utiliser la fonction unifiée si disponible, sinon fallback
+        taxonomyReady = true;
+      } catch (taxonomyError) {
+        debugLogger.error('❌ [Rebalance] Failed to load taxonomy:', taxonomyError);
+        taxonomyReady = false;
+      }
+    }
+
+    // Initialize taxonomy on page load
+    initAssetGroupsSystem();
+
+    async function groupAssetsByAliases(items) {
+      // Attendre que la taxonomy soit chargée si nécessaire
+      if (!taxonomyReady) {
+        console.debug('⏳ [Rebalance] Taxonomy not ready yet, waiting...');
+        await initAssetGroupsSystem();
+      }
+
+      // Utiliser la fonction unifiée si disponible
       if (groupAssetsByClassification) {
         return groupAssetsByClassification(items);
       }
 
       // Fallback temporaire si le module n'est pas encore chargé
+      debugLogger.warn('⚠️ [Rebalance] Taxonomy failed to load, using fallback classification');
       const groups = new Map();
       const ungrouped = [];
 
@@ -1927,12 +1941,12 @@
           currentByGroup = realPortfolioData.currentByGroup;
           currentWeights = realPortfolioData.currentWeights;
           totalUsd = realPortfolioData.totalValue;
-          console.log('✅ Using real data for rebalancing plan:', { totalUsd, groups: Object.keys(currentByGroup).length });
+          debugLogger.debug('✅ Using real data for rebalancing plan:', { totalUsd, groups: Object.keys(currentByGroup).length });
         } else {
           throw new Error('No portfolio data available from configured source');
         }
       } catch (error) {
-        console.error('❌ Failed to load portfolio data:', error);
+        debugLogger.error('❌ Failed to load portfolio data:', error);
         throw new Error(`Portfolio data unavailable: ${error.message}. Please configure data source in settings.`);
       }
 
@@ -1940,7 +1954,7 @@
       let groupTargetWeights;
       if (useDynamicTargets && dynamicTargets) {
         groupTargetWeights = { ...dynamicTargets };
-        console.log('Using dynamic group targets:', groupTargetWeights);
+        debugLogger.debug('Using dynamic group targets:', groupTargetWeights);
       } else {
         groupTargetWeights = {
           BTC: 35,
@@ -1957,7 +1971,7 @@
 
       // Generate actions for INDIVIDUAL ASSETS (not groups)
       const actions = await generateIndividualAssetActions(groupTargetWeights, totalUsd);
-      console.log('🔍 Generated', actions.length, 'individual asset actions');
+      debugLogger.debug('🔍 Generated', actions.length, 'individual asset actions');
 
       // Still calculate group deltas for the summary display
       const deltasByGroup = {};
@@ -2063,7 +2077,7 @@
 
       try {
         // Load balance data using configured source
-        console.log('🔍 Loading balance data for rebalancing using configured source...');
+        debugLogger.debug('🔍 Loading balance data for rebalancing using configured source...');
         const balanceResult = await window.loadBalanceData();
 
         if (!balanceResult.success) {
@@ -2086,11 +2100,11 @@
           throw new Error('Invalid data format received');
         }
 
-        console.log('🔍 Rebalancing', individualBalances.length, 'individual assets using source:', balanceResult.source);
+        debugLogger.debug('🔍 Rebalancing', individualBalances.length, 'individual assets using source:', balanceResult.source);
 
         // Load exchange data for smart location selection
         const exchangeData = await loadExchangeData();
-        console.log('🔍 Exchange data loaded for smart location selection');
+        debugLogger.debug('🔍 Exchange data loaded for smart location selection');
 
         // Calculate individual asset targets based on group targets
         const individualTargets = calculateIndividualAssetTargets(individualBalances, groupTargetWeights, totalUsd);
@@ -2133,7 +2147,7 @@
         actions.sort((a, b) => b.usd - a.usd);
 
       } catch (error) {
-        console.error('Error generating individual asset actions:', error);
+        debugLogger.error('Error generating individual asset actions:', error);
         return []; // Return empty array on error
       }
 
@@ -2215,7 +2229,7 @@
           try {
             exchangeResponse = await fetch(filename);
             if (exchangeResponse.ok) {
-              console.log('🔍 Found exchange data at:', filename);
+              debugLogger.debug('🔍 Found exchange data at:', filename);
               break;
             }
           } catch (error) {
@@ -2230,17 +2244,17 @@
         const csvText = await exchangeResponse.text();
         const exchangeData = parseExchangeCSV(csvText);
 
-        console.log('🔍 Loaded exchange data for', Object.keys(exchangeData).length, 'coins across exchanges');
+        debugLogger.debug('🔍 Loaded exchange data for', Object.keys(exchangeData).length, 'coins across exchanges');
 
         // Show sample of loaded data
         const sampleCoins = Object.keys(exchangeData).slice(0, 3);
         sampleCoins.forEach(coin => {
-          console.log(`📊 ${coin} exchanges:`, Object.keys(exchangeData[coin]));
+          debugLogger.debug(`📊 ${coin} exchanges:`, Object.keys(exchangeData[coin]));
         });
         return exchangeData;
 
       } catch (error) {
-        console.warn('Could not load exchange data:', error);
+        debugLogger.warn('Could not load exchange data:', error);
         return {};
       }
     }
@@ -2286,7 +2300,7 @@
             }
           }
         } catch (error) {
-          console.warn('Error parsing exchange CSV line:', error);
+          debugLogger.warn('Error parsing exchange CSV line:', error);
         }
       }
 
@@ -2298,11 +2312,11 @@
       const coinExchanges = exchangeData[coinSymbol] || {};
 
       if (Object.keys(coinExchanges).length === 0) {
-        console.log(`💡 No exchange data for ${coinSymbol}, using default`);
+        debugLogger.debug(`💡 No exchange data for ${coinSymbol}, using default`);
         return action === 'BUY' ? 'Binance (Recommended)' : 'Current Holdings';
       }
 
-      console.log(`💡 Found exchanges for ${coinSymbol}:`, Object.keys(coinExchanges));
+      debugLogger.debug(`💡 Found exchanges for ${coinSymbol}:`, Object.keys(coinExchanges));
 
       // Sort exchanges by value (descending)
       const sortedExchanges = Object.entries(coinExchanges)
@@ -2454,7 +2468,7 @@
       const isPriorityMode = document.getElementById('sub-allocation-toggle')?.checked || false;
       const minTradeUsd = parseFloat(document.getElementById('min-trade-input')?.value || 25);
 
-      console.log('🔍 buildPayload - Priority mode:', isPriorityMode, 'Min trade USD:', minTradeUsd);
+      debugLogger.debug('🔍 buildPayload - Priority mode:', isPriorityMode, 'Min trade USD:', minTradeUsd);
 
       // Base payload
       const payload = {
@@ -2467,11 +2481,11 @@
         min_trade_usd: minTradeUsd
       };
 
-      console.log('🔍 buildPayload - Final payload sub_allocation:', payload.sub_allocation);
+      debugLogger.debug('🔍 buildPayload - Final payload sub_allocation:', payload.sub_allocation);
 
       // Use dynamic targets if available, otherwise default manual targets
       if (useDynamicTargets && dynamicTargets) {
-        console.log('🔍 Sending dynamic targets to server:', dynamicTargets);
+        debugLogger.debug('🔍 Sending dynamic targets to server:', dynamicTargets);
         payload.dynamic_targets_pct = dynamicTargets;
       } else {
         payload.group_targets_pct = { BTC: 35, ETH: 25, Stablecoins: 10, SOL: 10, "L1/L0 majors": 10, Others: 10 };
@@ -2692,7 +2706,7 @@
               throw new Error(error.detail || `Erreur HTTP ${response.status}`);
             }
           } catch (apiError) {
-            console.warn('Taxonomy API unavailable for individual alias:', apiError);
+            debugLogger.warn('Taxonomy API unavailable for individual alias:', apiError);
             // Simulate successful addition
           }
 
@@ -2700,7 +2714,7 @@
           showNotification(`✅ ${alias} assigné à ${group}`, 'success');
 
         } catch (error) {
-          console.error('Erreur:', error);
+          debugLogger.error('Erreur:', error);
           showNotification(`❌ ${error.message}`, 'error', 5000);
         } finally {
           btn.disabled = false;
@@ -2718,7 +2732,7 @@
         setStatus(`OK (${res?.written || Object.keys(map || {}).length} alias)`);
         return res;
       } catch (error) {
-        console.warn('Taxonomy API unavailable:', error);
+        debugLogger.warn('Taxonomy API unavailable:', error);
         setStatus(`Simulation - ${Object.keys(map || {}).length} alias ajoutés (mode hors ligne)`);
         showNotification(`📝 Aliases sauvegardés localement (mode hors ligne)`, 'info');
         return { written: Object.keys(map || {}).length, mode: 'mock' };
@@ -2795,7 +2809,7 @@
         setStatus(`Plan restauré (généré il y a ${ageMin}min)`);
         return true;
       } catch (error) {
-        console.error('Erreur restauration plan:', error);
+        debugLogger.error('Erreur restauration plan:', error);
         return false;
       }
     }
@@ -2816,19 +2830,19 @@
         const isPriorityMode = document.getElementById('sub-allocation-toggle')?.checked || false;
 
         if (isPriorityMode) {
-          console.log('🔄 Priority mode activated - using API call with buildPayload');
+          debugLogger.debug('🔄 Priority mode activated - using API call with buildPayload');
           try {
             plan = await postJson(url, buildPayload());
-            console.log('🔍 Server returned plan with priority_meta:', plan.priority_meta);
-            console.log('🔍 Server plan total_usd:', plan.total_usd);
-            console.log('🔍 Server plan source:', plan.meta?.source_used);
+            debugLogger.debug('🔍 Server returned plan with priority_meta:', plan.priority_meta);
+            debugLogger.debug('🔍 Server plan total_usd:', plan.total_usd);
+            debugLogger.debug('🔍 Server plan source:', plan.meta?.source_used);
           } catch (apiError) {
-            console.warn('❌ API call failed for priority mode, falling back to local data:', apiError);
+            debugLogger.warn('❌ API call failed for priority mode, falling back to local data:', apiError);
             plan = await generateRealPlan(); // Fallback to local data
           }
         } else {
           // Mode proportionnel - utiliser les données locales comme avant
-          console.log('🔄 Using real data for rebalancing plan from configured source (proportional mode)');
+          debugLogger.debug('🔄 Using real data for rebalancing plan from configured source (proportional mode)');
           plan = await generateRealPlan(); // Use real configured data only
         }
         renderDonuts(plan);
@@ -2877,7 +2891,7 @@
         el("btnJson").disabled = false;
         el("btnCopyJson").disabled = false;
       } catch (e) {
-        console.error(e);
+        debugLogger.error(e);
         setStatus("Erreur: " + (e?.message || e));
 
         // Afficher interface d'erreur si données non disponibles
@@ -2901,7 +2915,7 @@
         try {
           blob = await postCsv(`${api}/rebalance/plan.csv?${qs}`, buildPayload());
         } catch (apiError) {
-          console.warn('CSV API unavailable, generating mock CSV:', apiError);
+          debugLogger.warn('CSV API unavailable, generating mock CSV:', apiError);
           blob = await generateRealCsv(); // Use real data only
         }
         const url = URL.createObjectURL(blob);
@@ -2915,7 +2929,7 @@
         URL.revokeObjectURL(url);
         setStatus("CSV téléchargé.");
       } catch (e) {
-        console.error(e);
+        debugLogger.error(e);
         setStatus("Erreur CSV: " + (e?.message || e));
       } finally {
         el("btnCsv").disabled = false;
@@ -2949,7 +2963,7 @@
         showNotification(`✅ Plan d'exécution JSON téléchargé (${lastPlanActions.length} actions)`, 'success');
 
       } catch (error) {
-        console.error('Erreur export JSON:', error);
+        debugLogger.error('Erreur export JSON:', error);
         showNotification('❌ Erreur lors de l\'export JSON: ' + error.message, 'error');
       }
     }
@@ -2976,7 +2990,7 @@
         }
 
       } catch (error) {
-        console.error('Erreur copie JSON:', error);
+        debugLogger.error('Erreur copie JSON:', error);
         showNotification('❌ Erreur lors de la copie JSON: ' + error.message, 'error');
       }
     }
@@ -3036,11 +3050,11 @@
     };
 
     function initWealthContextIntegration() {
-      console.log('🏛️ Initializing WealthContextBar integration in rebalance...');
+      debugLogger.debug('🏛️ Initializing WealthContextBar integration in rebalance...');
 
       // Écouter les changements de contexte wealth
       window.addEventListener('wealth:change', (event) => {
-        console.log('💰 Wealth context changed:', event.detail);
+        debugLogger.debug('💰 Wealth context changed:', event.detail);
         currentWealthContext = { ...event.detail };
 
         // Recharger les données avec le nouveau contexte
@@ -3053,7 +3067,7 @@
       // Récupérer le contexte initial
       if (window.wealthContextBar) {
         currentWealthContext = window.wealthContextBar.getContext();
-        console.log('📊 Initial wealth context:', currentWealthContext);
+        debugLogger.debug('📊 Initial wealth context:', currentWealthContext);
 
         // Appliquer le contexte initial
         updateUIForModule(currentWealthContext.module);
@@ -3061,7 +3075,7 @@
     }
 
     function reloadDataWithContext() {
-      console.log('🔄 Reloading data with context:', currentWealthContext);
+      debugLogger.debug('🔄 Reloading data with context:', currentWealthContext);
 
       // Recharger les données filtrées
       if (currentWealthContext.module === 'crypto' || currentWealthContext.module === 'all') {
@@ -3074,7 +3088,7 @@
     }
 
     function updateUIForModule(module) {
-      console.log('🎨 Updating UI for module:', module);
+      debugLogger.debug('🎨 Updating UI for module:', module);
 
       // Badge module si différent de 'all' ou 'crypto'
       updateModuleBadge(module);
@@ -3144,28 +3158,28 @@
       // Navigation thématique initialisée automatiquement
 
       // Appliquer le thème immédiatement
-      console.log('Initializing theme for rebalance page...');
+      debugLogger.debug('Initializing theme for rebalance page...');
       if (window.globalConfig && window.globalConfig.applyTheme) {
         window.globalConfig.applyTheme();
       }
       if (window.applyAppearance) {
         window.applyAppearance();
       }
-      console.log('Current theme after rebalance init:', document.documentElement.getAttribute('data-theme'));
+      debugLogger.debug('Current theme after rebalance init:', document.documentElement.getAttribute('data-theme'));
 
       // Initialize governance system
       setTimeout(async () => {
         try {
-          console.log('🏛️ Initializing governance system in rebalance dashboard...');
+          debugLogger.debug('🏛️ Initializing governance system in rebalance dashboard...');
           await window.riskStore.syncGovernanceState();
           await window.riskStore.syncMLSignals();
-          console.log('✅ Governance system initialized in rebalance dashboard');
+          debugLogger.debug('✅ Governance system initialized in rebalance dashboard');
 
           // Display governance status in UI (if we add a status area later)
           const governanceStatus = window.riskStore.getGovernanceStatus();
-          console.log('Governance status:', governanceStatus);
+          debugLogger.debug('Governance status:', governanceStatus);
         } catch (error) {
-          console.warn('⚠️ Failed to initialize governance in rebalance:', error);
+          debugLogger.warn('⚠️ Failed to initialize governance in rebalance:', error);
         }
       }, 500);
 
@@ -3179,22 +3193,22 @@
 
       // Test exchange data loading
       setTimeout(async () => {
-        console.log('🧪 Testing exchange data loading...');
+        debugLogger.debug('🧪 Testing exchange data loading...');
         try {
           const exchangeData = await loadExchangeData();
-          console.log('✅ Exchange data loaded successfully');
+          debugLogger.debug('✅ Exchange data loaded successfully');
 
           // Test specific coins
           const testCoins = ['BTC', 'ETH', 'ADA', 'AAVE'];
           testCoins.forEach(coin => {
             if (exchangeData[coin]) {
-              console.log(`✅ ${coin}: Found on`, Object.keys(exchangeData[coin]).join(', '));
+              debugLogger.debug(`✅ ${coin}: Found on`, Object.keys(exchangeData[coin]).join(', '));
             } else {
-              console.log(`❌ ${coin}: Not found in exchange data`);
+              debugLogger.debug(`❌ ${coin}: Not found in exchange data`);
             }
           });
         } catch (error) {
-          console.error('❌ Exchange data test failed:', error);
+          debugLogger.error('❌ Exchange data test failed:', error);
         }
       }, 2000);
 
@@ -3216,7 +3230,7 @@
       window.addEventListener('storage', function (e) {
         const expectedKey = (window.globalConfig?.getStorageKey && window.globalConfig.getStorageKey()) || 'crypto_rebal_settings_v1';
         if (e.key === expectedKey) {
-          console.log('Settings changed in another tab, checking for theme and data source changes...');
+          debugLogger.debug('Settings changed in another tab, checking for theme and data source changes...');
 
           // Check if data source changed
           const currentSource = globalConfig.get('data_source');
@@ -3259,10 +3273,10 @@
       const priorityStatus = document.getElementById('priority-status');
 
       if (subAllocationToggle && subAllocationLabel) {
-        console.log('🔍 Setting up sub-allocation toggle listeners');
+        debugLogger.debug('🔍 Setting up sub-allocation toggle listeners');
         subAllocationToggle.addEventListener('change', function () {
           const isPriority = this.checked;
-          console.log('🔍 Toggle changed to:', isPriority ? 'priority' : 'proportional');
+          debugLogger.debug('🔍 Toggle changed to:', isPriority ? 'priority' : 'proportional');
 
           subAllocationLabel.textContent = isPriority ? 'Priorité' : 'Proportionnel';
           subAllocationLabel.style.color = isPriority ? 'var(--warning)' : 'var(--brand-primary)';
@@ -3273,12 +3287,12 @@
 
           // Auto-régénérer le plan si on a déjà des données
           if (window.lastPlanData) {
-            console.log('🔍 Auto-regenerating plan with new mode');
+            debugLogger.debug('🔍 Auto-regenerating plan with new mode');
             setTimeout(() => runPlan(), 300);
           }
         });
       } else {
-        console.log('❌ Could not find sub-allocation toggle elements:', {
+        debugLogger.debug('❌ Could not find sub-allocation toggle elements:', {
           subAllocationToggle: !!subAllocationToggle,
           subAllocationLabel: !!subAllocationLabel
         });
@@ -3300,7 +3314,7 @@
           const th = e.target.closest('th.sortable');
           const column = th.getAttribute('data-sort');
           if (column) {
-            console.log('🔍 Sorting actions by column:', column);
+            debugLogger.debug('🔍 Sorting actions by column:', column);
             sortActions(column);
           }
         }
@@ -3329,7 +3343,7 @@
               key.includes('ccs') || key.includes('target') || key.includes('risk-dashboard')
             );
 
-            console.log('Found CCS-related localStorage keys:', ccsKeys);
+            debugLogger.debug('Found CCS-related localStorage keys:', ccsKeys);
 
             showNotification(
               '📭 Aucune donnée CCS récente trouvée.\n\n' +
@@ -3383,12 +3397,12 @@
 
             renderStrategiesUI();
             showNotification('🎯 Stratégie dynamique mise à jour!', 'success');
-            console.log('Dynamic strategy refreshed:', ccsTargets);
+            debugLogger.debug('Dynamic strategy refreshed:', ccsTargets);
           } else {
             showNotification('📭 Aucune donnée CCS récente trouvée. Générez des targets dans Risk Dashboard.', 'info', 4000);
           }
         } catch (error) {
-          console.error('Error refreshing dynamic strategy:', error);
+          debugLogger.error('Error refreshing dynamic strategy:', error);
           showNotification('❌ Erreur lors du rafraîchissement: ' + error.message, 'error');
 
           // Ajouter stratégie d'erreur

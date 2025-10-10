@@ -63,7 +63,7 @@
         const unifiedState = await getUnifiedState();
 
         if (!unifiedState || !unifiedState.targets_by_group) {
-          console.warn('⚠️ No unified targets available to save');
+          debugLogger.warn('⚠️ No unified targets available to save');
           return;
         }
 
@@ -86,7 +86,7 @@
         // Sauvegarder dans localStorage avec l'ancienne clé pour compatibilité
         localStorage.setItem('unified_suggested_allocation', JSON.stringify(unifiedData));
 
-        console.log('✅ Unified data saved for rebalance.html:', {
+        debugLogger.debug('✅ Unified data saved for rebalance.html:', {
           targets_keys: Object.keys(unifiedData.targets),
           stables_pct: unifiedData.targets.Stablecoins,
           has_execution_plan: !!unifiedData.execution_plan,
@@ -94,7 +94,7 @@
         });
 
       } catch (error) {
-        console.error('❌ Failed to save unified data:', error);
+        debugLogger.error('❌ Failed to save unified data:', error);
       }
     }
 
@@ -146,7 +146,7 @@
         const originalFunction = window.buildTheoreticalTargets;
 
         window.buildTheoreticalTargets = async function(blendedScore, currentPortfolio, riskScore) {
-          console.log('🎯 TARGETS RÉELS (Fix Sources System):', { blendedScore, riskScore, hasCurrentPortfolio: !!currentPortfolio });
+          debugLogger.debug('🎯 TARGETS RÉELS (Fix Sources System):', { blendedScore, riskScore, hasCurrentPortfolio: !!currentPortfolio });
 
           try {
             // 1) Récupérer les vraies données de balance depuis le store ou recharger
@@ -155,7 +155,7 @@
 
             // Si pas de données dans le store, essayer de les recharger
             if (!realBalances || !totalValue) {
-              console.log('🔄 No balance data in store, attempting to reload...');
+              debugLogger.debug('🔄 No balance data in store, attempting to reload...');
               if (typeof window.loadBalanceData === 'function') {
                 try {
                   const balanceResult = await window.loadBalanceData();
@@ -167,10 +167,10 @@
                     store.set('wallet.balances', realBalances);
                     store.set('wallet.total', totalValue);
 
-                    console.log('✅ Balance data reloaded successfully');
+                    debugLogger.debug('✅ Balance data reloaded successfully');
                   }
                 } catch (e) {
-                  console.warn('Failed to reload balance data:', e.message);
+                  debugLogger.warn('Failed to reload balance data:', e.message);
                 }
               }
             }
@@ -186,7 +186,7 @@
                 realTargets[group.label] = group.value; // Valeur USD réelle
               });
 
-              console.log('🎯 REAL TARGETS (from grouped data):', {
+              debugLogger.debug('🎯 REAL TARGETS (from grouped data):', {
                 targets: realTargets,
                 totalValue,
                 groupsCount: groupedData.length,
@@ -198,12 +198,12 @@
 
             // 4) Fallback: utiliser le currentPortfolio si fourni
             if (currentPortfolio && typeof currentPortfolio === 'object') {
-              console.log('🎯 Using currentPortfolio as fallback');
+              debugLogger.debug('🎯 Using currentPortfolio as fallback');
               return currentPortfolio;
             }
 
             // 5) Dernier fallback: logique artificielle mais basée sur un scoring réaliste
-            console.warn('⚠️ Falling back to artificial targets (no real data available)');
+            debugLogger.warn('⚠️ Falling back to artificial targets (no real data available)');
 
             let stablesTarget, btcTarget, ethTarget, altsTarget;
             if (blendedScore >= 70) {
@@ -228,11 +228,11 @@
               'Others': 0
             };
 
-            console.log('🎯 FALLBACK TARGETS:', artificialTargets);
+            debugLogger.debug('🎯 FALLBACK TARGETS:', artificialTargets);
             return artificialTargets;
 
           } catch (error) {
-            console.error('❌ Error in buildTheoreticalTargets:', error);
+            debugLogger.error('❌ Error in buildTheoreticalTargets:', error);
 
             // Fallback d'urgence
             return {
@@ -404,7 +404,7 @@
         // NOUVEAU: Sauvegarder les données unified pour rebalance.html
         await saveUnifiedDataForRebalance();
       } catch (error) {
-        console.error('❌ Failed to load corrected UnifiedInsights:', error);
+        debugLogger.error('❌ Failed to load corrected UnifiedInsights:', error);
         el.innerHTML = `
           <div style="background: var(--theme-surface); border: 1px solid var(--theme-border); border-radius: var(--radius-md); padding: var(--space-md);">
             <div style="color: var(--danger); text-align: center;">
@@ -478,7 +478,7 @@
         const cached = localStorage.getItem(cacheKey);
 
         if (!cached) {
-          console.log('⏭️ No risk-dashboard cache found');
+          debugLogger.debug('⏭️ No risk-dashboard cache found');
           return null;
         }
 
@@ -487,12 +487,12 @@
         const ttl = 6 * 60 * 60 * 1000; // 6 heures (même TTL que risk-dashboard)
 
         if (age > ttl) {
-          console.log(`⏰ Risk dashboard cache expired (age: ${Math.round(age / 60000)} min > 360 min)`);
+          debugLogger.debug(`⏰ Risk dashboard cache expired (age: ${Math.round(age / 60000)} min > 360 min)`);
           return null;
         }
 
         const ageMin = Math.round(age / 60000);
-        console.log(`✅ CROSS-PAGE CACHE HIT: Using risk-dashboard cache (age: ${ageMin} min, TTL: 6h)`);
+        debugLogger.debug(`✅ CROSS-PAGE CACHE HIT: Using risk-dashboard cache (age: ${ageMin} min, TTL: 6h)`);
 
         return {
           onchainScore: parsed.data?.onchainScore,
@@ -503,7 +503,7 @@
           source: 'risk_dashboard_6h_cache'
         };
       } catch (e) {
-        console.warn('❌ Failed to read risk-dashboard cache:', e.message);
+        debugLogger.warn('❌ Failed to read risk-dashboard cache:', e.message);
         return null;
       }
     }
@@ -552,9 +552,9 @@
           });
         }
 
-        console.log('🏷️ Analytics badges updated');
+        debugLogger.debug('🏷️ Analytics badges updated');
       } catch (error) {
-        console.warn('Badge update failed:', error);
+        debugLogger.warn('Badge update failed:', error);
       }
     }
 
@@ -613,9 +613,9 @@
           onchainElement.textContent = '--/100';
         }
 
-        console.log('📊 Risk metrics updated with dynamic data');
+        debugLogger.debug('📊 Risk metrics updated with dynamic data');
       } catch (error) {
-        console.warn('Risk metrics update failed:', error);
+        debugLogger.warn('Risk metrics update failed:', error);
       }
     }
 
@@ -731,7 +731,7 @@
 
     // Lightweight unified data loader with INTELLIGENT CACHING
     async function loadUnifiedData(force = false) {
-      console.log('🧠 Loading unified data with intelligent caching...', { force });
+      debugLogger.debug('🧠 Loading unified data with intelligent caching...', { force });
       let loadedFromCache = 0;
 
       try {
@@ -741,33 +741,33 @@
         if (!force) {
           const dashboardCache = readRiskDashboardCache();
           if (dashboardCache) {
-            console.log('🎯 CROSS-PAGE CACHE FOUND - Hydrating store with cached scores...');
+            debugLogger.debug('🎯 CROSS-PAGE CACHE FOUND - Hydrating store with cached scores...');
             // Hydrate store immediately with cached scores
             if (typeof dashboardCache.onchainScore === 'number') {
               store.set('scores.onchain', dashboardCache.onchainScore);
-              console.log(`⚡ FAST: On-Chain from cache: ${dashboardCache.onchainScore}`);
+              debugLogger.debug(`⚡ FAST: On-Chain from cache: ${dashboardCache.onchainScore}`);
               loadedFromCache++;
             }
             if (typeof dashboardCache.riskScore === 'number') {
               store.set('scores.risk', dashboardCache.riskScore);
-              console.log(`⚡ FAST: Risk from cache: ${dashboardCache.riskScore}`);
+              debugLogger.debug(`⚡ FAST: Risk from cache: ${dashboardCache.riskScore}`);
               loadedFromCache++;
             }
             if (typeof dashboardCache.blendedScore === 'number') {
               store.set('scores.blended', dashboardCache.blendedScore);
-              console.log(`⚡ FAST: Blended from cache: ${dashboardCache.blendedScore}`);
+              debugLogger.debug(`⚡ FAST: Blended from cache: ${dashboardCache.blendedScore}`);
             }
 
             // Skip slow API calls if cache is fresh
             const cacheAge = Math.round((Date.now() - dashboardCache.timestamp) / 60000);
-            console.log(`✅ Skipping slow Risk/On-Chain API calls - using ${cacheAge}min old cache (TTL: 6h)`);
-            console.log('📊 Store now has scores:', {
+            debugLogger.debug(`✅ Skipping slow Risk/On-Chain API calls - using ${cacheAge}min old cache (TTL: 6h)`);
+            debugLogger.debug('📊 Store now has scores:', {
               onchain: store.get('scores.onchain'),
               risk: store.get('scores.risk'),
               blended: store.get('scores.blended')
             });
           } else {
-            console.warn('⚠️ No cross-page cache - will use slower API calls');
+            debugLogger.warn('⚠️ No cross-page cache - will use slower API calls');
           }
         }
 
@@ -775,15 +775,15 @@
         // Orchestrator already loaded risk score via risk-data-orchestrator.js
         const existingRiskScore = store.get('scores.risk');
         if (typeof existingRiskScore === 'number') {
-          console.log(`✅ Risk score already hydrated by orchestrator: ${existingRiskScore}`);
+          debugLogger.debug(`✅ Risk score already hydrated by orchestrator: ${existingRiskScore}`);
           loadedFromCache++;
         } else {
-          console.log('⚠️ Risk score not yet hydrated, waiting for orchestrator...');
+          debugLogger.debug('⚠️ Risk score not yet hydrated, waiting for orchestrator...');
           // Wait for orchestrator hydration if not ready
           await new Promise(resolve => {
             const handler = (e) => {
               if (e.detail?.hydrated) {
-                console.log('✅ Orchestrator hydrated, risk score available');
+                debugLogger.debug('✅ Orchestrator hydrated, risk score available');
                 resolve();
               }
             };
@@ -794,7 +794,7 @@
 
         // 2) Cycle (client-side) - With cache
         if (isCacheValid(CACHE_CONFIG.cycle.key, CACHE_CONFIG.cycle.ttl)) {
-          console.log('✅ Cycle data loaded from cache');
+          debugLogger.debug('✅ Cycle data loaded from cache');
           const cycleData = getCache(CACHE_CONFIG.cycle.key);
           store.set('cycle.months', cycleData.months);
           store.set('cycle.score', cycleData.score);
@@ -811,8 +811,8 @@
             store.set('cycle.months', c.months);
             store.set('cycle.score', score);
             store.set('cycle.phase', phase);
-            console.log('✅ Cycle data calculated and cached');
-          } catch (e) { console.warn('Cycle data load failed:', e.message); }
+            debugLogger.debug('✅ Cycle data calculated and cached');
+          } catch (e) { debugLogger.warn('Cycle data load failed:', e.message); }
         }
 
         // 3) On-Chain (via scraper/proxy) - SWR Cache with hard refresh detection
@@ -823,10 +823,10 @@
         // Check if already loaded from dashboard cache
         const existingOnchainScore = store.get('scores.onchain');
         if (!manualRefresh && typeof existingOnchainScore === 'number') {
-          console.log('✅ On-Chain already in store from dashboard cache, skipping API');
+          debugLogger.debug('✅ On-Chain already in store from dashboard cache, skipping API');
           loadedFromCache++;
         } else if (!manualRefresh && isCacheValid(CACHE_CONFIG.onchain.key, CACHE_CONFIG.onchain.ttl)) {
-          console.log('✅ On-Chain data loaded from legacy cache');
+          debugLogger.debug('✅ On-Chain data loaded from legacy cache');
           const onchainData = getCache(CACHE_CONFIG.onchain.key);
           if (typeof onchainData.score === 'number') {
             store.set('scores.onchain', onchainData.score);
@@ -836,7 +836,7 @@
           store.set('ui.apiStatus.signals', 'healthy');
           loadedFromCache++;
         } else {
-          console.log('🔄 On-Chain refresh - Using SWR cache for optimal performance...');
+          debugLogger.debug('🔄 On-Chain refresh - Using SWR cache for optimal performance...');
           try {
             const onchain = await import('./modules/onchain-indicators.js');
             const v2 = await import('./modules/composite-score-v2.js');
@@ -859,10 +859,10 @@
                       _metadata: { available_count: 1 }
                     };
                     finalComposite = v2.calculateCompositeScoreV2(minimal, true);
-                    console.log('✅ On-Chain fallback (Fear & Greed) used in unified loader');
+                    debugLogger.debug('✅ On-Chain fallback (Fear & Greed) used in unified loader');
                   }
                 }
-              } catch (fe) { console.warn('On-chain FG fallback failed:', fe.message); }
+              } catch (fe) { debugLogger.warn('On-chain FG fallback failed:', fe.message); }
             }
 
             const onchainData = {
@@ -883,9 +883,9 @@
             store.set('scores.onchain_metadata', onchainData.metadata);
             store.set('scores.contradictory_signals', onchainData.contradictory_signals);
             store.set('ui.apiStatus.signals', 'healthy');
-            console.log('✅ On-Chain data calculated and cached');
+            debugLogger.debug('✅ On-Chain data calculated and cached');
           } catch (e) {
-            console.warn('On-chain load failed:', e.message);
+            debugLogger.warn('On-chain load failed:', e.message);
             store.set('ui.apiStatus.signals', 'error');
           }
         }
@@ -893,7 +893,7 @@
         // PATCH B - TOUJOURS exécuter l'injection de données (même avec cache)
         try {
           // DEBUG A - Vérification parité Rebalance ↔ Analytics
-          console.log('[whoami]', {
+          debugLogger.debug('[whoami]', {
             currentUser: localStorage.getItem('activeUser') || 'demo',
             currentSource: window.globalConfig?.get('data_source') || 'unknown'
           });
@@ -910,7 +910,7 @@
                 store.set('wallet.balances', realBalances);
                 store.set('wallet.total', totalValue);
 
-                console.log('🔧 PATCH: Analytics FORCE injection même avec cache:', {
+                debugLogger.debug('🔧 PATCH: Analytics FORCE injection même avec cache:', {
                   items: realBalances.length,
                   first5: realBalances.slice(0,5),
                   total: totalValue,
@@ -923,7 +923,7 @@
                 try {
                   const { groupAssetsByClassification } = await import('./shared-asset-groups.js');
                   const groupedData = groupAssetsByClassification(realBalances);
-                  console.log('🔍 POST-INJECTION GROUPING (Analytics):', {
+                  debugLogger.debug('🔍 POST-INJECTION GROUPING (Analytics):', {
                     groups: groupedData.map(g => ({
                       label: g.label,
                       value: g.value,
@@ -932,20 +932,20 @@
                     totalGrouped: groupedData.reduce((sum, g) => sum + g.value, 0)
                   });
                 } catch (e) {
-                  console.warn('Post-injection grouping test failed:', e.message);
+                  debugLogger.warn('Post-injection grouping test failed:', e.message);
                 }
               }
             } catch (e) {
-              console.warn('🔧 PATCH failed, but continuing:', e.message);
+              debugLogger.warn('🔧 PATCH failed, but continuing:', e.message);
             }
           }
         } catch (e) {
-          console.warn('Patch injection error:', e.message);
+          debugLogger.warn('Patch injection error:', e.message);
         }
 
         // 4) Compute blended (decision index) - With cache
         if (isCacheValid(CACHE_CONFIG.blended.key, CACHE_CONFIG.blended.ttl)) {
-          console.log('✅ Blended score loaded from cache');
+          debugLogger.debug('✅ Blended score loaded from cache');
           const blendedData = getCache(CACHE_CONFIG.blended.key);
           store.set('scores.blended', blendedData.score);
           store.set('market.regime', blendedData.regime);
@@ -955,11 +955,11 @@
             const s = store.snapshot();
 
             // DEBUG A - Vérification parité Rebalance ↔ Analytics
-            console.log('[whoami]', {
+            debugLogger.debug('[whoami]', {
               currentUser: localStorage.getItem('activeUser') || 'demo',
               currentSource: window.globalConfig?.get('data_source') || 'unknown'
             });
-            console.log('[balances]', {
+            debugLogger.debug('[balances]', {
               storeBalances: s?.wallet?.balances?.slice?.(0,5),
               storeTotal: s?.wallet?.total,
               hasLoadBalanceData: typeof window.loadBalanceData === 'function'
@@ -983,14 +983,14 @@
                     const { groupAssetsByClassification, getAssetGroup } = await import('./shared-asset-groups.js');
                     const groupedData = groupAssetsByClassification(realBalances);
 
-                    console.log('🔧 PATCH: Analytics now using same data as Rebalance:', {
+                    debugLogger.debug('🔧 PATCH: Analytics now using same data as Rebalance:', {
                       items: realBalances.length,
                       first5: realBalances.slice(0,5),
                       total: totalValue,
                       source: balanceResult.source
                     });
 
-                    console.log('🔍 GROUPING TEST (même fonction que Rebalance):', {
+                    debugLogger.debug('🔍 GROUPING TEST (même fonction que Rebalance):', {
                       groups: groupedData.map(g => ({
                         label: g.label,
                         value: g.value,
@@ -1002,18 +1002,18 @@
                     });
 
                     // DEBUG - Asset par asset avec classification
-                    console.log('🔍 ASSET CLASSIFICATION:', realBalances.slice(0,10).map(item => ({
+                    debugLogger.debug('🔍 ASSET CLASSIFICATION:', realBalances.slice(0,10).map(item => ({
                       symbol: item.symbol,
                       value: item.value_usd,
                       group: getAssetGroup(item.symbol)
                     })));
 
                   } catch (e) {
-                    console.warn('Failed to test grouping:', e.message);
+                    debugLogger.warn('Failed to test grouping:', e.message);
                   }
                 }
               } catch (e) {
-                console.warn('🔧 PATCH failed, fallback to store data:', e.message);
+                debugLogger.warn('🔧 PATCH failed, fallback to store data:', e.message);
               }
             }
 
@@ -1063,20 +1063,20 @@
             try {
               const { getRegimeDisplayData } = await import('./modules/market-regimes.js');
               regimeData = getRegimeDisplayData(blendedScore, onchainScore, riskScore);
-            } catch (e) { console.warn('Market regime compute failed:', e.message); }
+            } catch (e) { debugLogger.warn('Market regime compute failed:', e.message); }
 
             const blendedData = { score: blendedScore, regime: regimeData };
             setCache(CACHE_CONFIG.blended.key, blendedData);
 
             store.set('scores.blended', blendedScore);
             store.set('market.regime', regimeData);
-            console.log('✅ Blended score calculated and cached');
-          } catch (e) { console.warn('Blended compute failed:', e.message); }
+            debugLogger.debug('✅ Blended score calculated and cached');
+          } catch (e) { debugLogger.warn('Blended compute failed:', e.message); }
         }
 
         const cacheEfficiency = loadedFromCache > 0 ? `${loadedFromCache}/4 from cache` : 'full calculation';
         const crossPageUsed = store.get('scores.onchain') && store.get('scores.risk') ? ' (6h cross-page cache)' : '';
-        console.log(`🎯 Unified data loading completed - ${cacheEfficiency}${crossPageUsed}${loadedFromCache > 0 ? ' ⚡ FAST' : ''}`);
+        debugLogger.debug(`🎯 Unified data loading completed - ${cacheEfficiency}${crossPageUsed}${loadedFromCache > 0 ? ' ⚡ FAST' : ''}`);
 
         // CONTRÔLES D - Invariants obligatoires (3 assertions critiques)
         try {
@@ -1138,7 +1138,7 @@
           });
 
         } catch (assertError) {
-          console.error('❌ ASSERTION FAILED:', assertError.message);
+          debugLogger.error('❌ ASSERTION FAILED:', assertError.message);
         }
 
         // Update badges with latest data
@@ -1148,12 +1148,12 @@
         updateRiskMetrics();
 
       } catch (e) {
-        console.error('Unified loader fatal:', e);
+        debugLogger.error('Unified loader fatal:', e);
       }
     }
     // Track data source changes for cache invalidation
     let lastKnownDataSource = globalConfig.get('data_source');
-    console.log(`📊 Analytics Unified initialized with data source: ${lastKnownDataSource}`);
+    debugLogger.debug(`📊 Analytics Unified initialized with data source: ${lastKnownDataSource}`);
 
     // Listen for data source changes
     window.addEventListener('storage', function (e) {
@@ -1188,12 +1188,12 @@
     });
 
     // OVERRIDE PRÉCOCE - Avant même le DOMContentLoaded
-    console.log('🔥 EARLY OVERRIDE: Setting renderUnifiedInsights before any other imports');
+    debugLogger.debug('🔥 EARLY OVERRIDE: Setting renderUnifiedInsights before any other imports');
     delete window.renderUnifiedInsights;
     window.renderUnifiedInsights = renderUnifiedInsights;
 
     // FORCE CACHE BUST: Ajouter timestamp pour forcer le rechargement
-    console.log('🆘 CACHE BUST ANALYTICS UNIFIED:', new Date().toISOString());
+    debugLogger.debug('🆘 CACHE BUST ANALYTICS UNIFIED:', new Date().toISOString());
 
     // Suppress chrome extension errors
     window.addEventListener('error', function(e) {
@@ -1208,46 +1208,46 @@
       // Initialize governance panel
       const governanceContainer = document.getElementById('governance-container');
       if (governanceContainer) {
-        console.log('🏛️ Initializing Governance Panel in analytics dashboard...');
+        debugLogger.debug('🏛️ Initializing Governance Panel in analytics dashboard...');
         const governancePanel = new GovernancePanel(governanceContainer);
         window.governancePanel = governancePanel; // For debugging
       }
 
 
       // OVERRIDE FINAL AVANT INITIAL PAINT
-      console.log('🆘 DOM READY - FINAL OVERRIDE:', new Date().toISOString());
+      debugLogger.debug('🆘 DOM READY - FINAL OVERRIDE:', new Date().toISOString());
 
       // FORCE OVERRIDE - Supprimer toute fonction existante d'abord
       delete window.renderUnifiedInsights;
       window.renderUnifiedInsights = renderUnifiedInsights;
 
       // VERIFICATION de l'override
-      console.log('🔍 VERIFICATION OVERRIDE:', {
+      debugLogger.debug('🔍 VERIFICATION OVERRIDE:', {
         isLocalFunction: window.renderUnifiedInsights === renderUnifiedInsights,
         functionSource: window.renderUnifiedInsights.toString().includes('🔥 LOCAL FUNCTION UNIFIED')
       });
 
       // CORRECTION TIMING: Charger les données AVANT le rendu initial
-      console.log('🔄 LOADING DATA FIRST, THEN RENDERING...');
+      debugLogger.debug('🔄 LOADING DATA FIRST, THEN RENDERING...');
 
       // 0) Force reload taxonomie pour éviter fallback "Others"
       try {
         const { forceReloadTaxonomy, UNIFIED_ASSET_GROUPS } = await import('./shared-asset-groups.js');
         await forceReloadTaxonomy();
         if (!Object.keys(UNIFIED_ASSET_GROUPS || {}).length) {
-          console.warn('⚠️ Taxonomy non chargée – risque de "Others" gonflé. Vérifie API base_url.');
+          debugLogger.warn('⚠️ Taxonomy non chargée – risque de "Others" gonflé. Vérifie API base_url.');
         } else {
-          console.log('✅ Taxonomy forcée:', Object.keys(UNIFIED_ASSET_GROUPS).length, 'groupes chargés');
+          debugLogger.debug('✅ Taxonomy forcée:', Object.keys(UNIFIED_ASSET_GROUPS).length, 'groupes chargés');
         }
       } catch (taxonomyError) {
-        console.warn('❌ Force reload taxonomy failed:', taxonomyError.message);
+        debugLogger.warn('❌ Force reload taxonomy failed:', taxonomyError.message);
       }
 
       // 1) Charger les données d'abord (detect hard refresh)
       const isHardRefresh = performance.navigation?.type === 1 ||
                             performance.getEntriesByType?.('navigation')?.[0]?.type === 'reload';
       if (isHardRefresh) {
-        console.log('🔄 Hard refresh detected, forcing cache refresh for all data');
+        debugLogger.debug('🔄 Hard refresh detected, forcing cache refresh for all data');
       }
       await loadUnifiedData(isHardRefresh);
 
@@ -1294,7 +1294,7 @@
         }
 
         if (!hasScores) {
-          console.warn('⚠️ Rendering with incomplete scores:', {
+          debugLogger.warn('⚠️ Rendering with incomplete scores:', {
             cycle: storeSnapshot?.scores?.cycle,
             onchain: storeSnapshot?.scores?.onchain,
             risk: storeSnapshot?.scores?.risk,
@@ -1325,10 +1325,10 @@
       // 2) Initialize governance system BEFORE first render
       setTimeout(async () => {
         try {
-          console.log('🏛️ Initializing governance system in analytics dashboard...');
+          debugLogger.debug('🏛️ Initializing governance system in analytics dashboard...');
           await store.syncGovernanceState();
           await store.syncMLSignals();
-          console.log('✅ Governance system initialized in analytics dashboard');
+          debugLogger.debug('✅ Governance system initialized in analytics dashboard');
 
           // 3) Premier rendu avec données fraîches ET governance synchronisée
           // IMPORTANT: Attendre que le rendu soit terminé pour éviter race condition
@@ -1339,13 +1339,13 @@
             window.governancePanel.refreshState();
           }
         } catch (error) {
-          console.warn('⚠️ Failed to initialize governance in analytics:', error);
+          debugLogger.warn('⚠️ Failed to initialize governance in analytics:', error);
         }
       }, 500);
 
       // Manual refresh button handler
       document.getElementById('manual-refresh-onchain')?.addEventListener('click', async function() {
-        console.log('🔄 Manual refresh triggered by user');
+        debugLogger.debug('🔄 Manual refresh triggered by user');
         this.disabled = true;
         this.textContent = '⏳ Actualisation...';
 
@@ -1360,7 +1360,7 @@
             this.disabled = false;
           }, 2000);
         } catch (error) {
-          console.error('Manual refresh failed:', error);
+          debugLogger.error('Manual refresh failed:', error);
           this.textContent = '❌ Erreur';
           setTimeout(() => {
             this.textContent = '🔄 Actualiser';
@@ -1396,7 +1396,7 @@
       // ✅ CRITIQUE: Attendre hydratation orchestrator avant 1er updateRiskMetrics
       window.addEventListener('riskStoreReady', (e) => {
         if (e.detail?.hydrated) {
-          console.log('✅ Orchestrator hydrated, refreshing risk metrics');
+          debugLogger.debug('✅ Orchestrator hydrated, refreshing risk metrics');
           updateRiskMetrics();
         }
       }, { once: true });
@@ -1413,11 +1413,11 @@
     });
 
     // DERNIÈRE CHANCE - Override après TOUS les imports et définitions
-    console.log('🔥 FINAL FINAL OVERRIDE - After all scripts loaded');
+    debugLogger.debug('🔥 FINAL FINAL OVERRIDE - After all scripts loaded');
     setTimeout(() => {
       delete window.renderUnifiedInsights;
       window.renderUnifiedInsights = renderUnifiedInsights;
-      console.log('🔥 LATE OVERRIDE APPLIED:', {
+      debugLogger.debug('🔥 LATE OVERRIDE APPLIED:', {
         isOurFunction: window.renderUnifiedInsights === renderUnifiedInsights,
         hasOurMarker: window.renderUnifiedInsights.toString().includes('🔥 LOCAL FUNCTION UNIFIED')
       });
@@ -1896,7 +1896,7 @@
 
     // Initialisation quand l'onglet ML est sélectionné
     function initializeMLTab() {
-      console.log('🤖 Initializing Intelligence ML tab...');
+      debugLogger.debug('🤖 Initializing Intelligence ML tab...');
 
       try {
         // Démarrer les prédictions temps réel
@@ -1908,10 +1908,10 @@
         setInterval(loadMLPipelineStatus, 120000); // 2 minutes
 
         mlTabInitialized = true;
-        console.log('✅ Intelligence ML tab initialized');
+        debugLogger.debug('✅ Intelligence ML tab initialized');
 
       } catch (error) {
-        console.error('❌ ML tab initialization failed:', error);
+        debugLogger.error('❌ ML tab initialization failed:', error);
         showMLError('Initialization failed: ' + error.message);
       }
     }
@@ -1981,9 +1981,9 @@
             sentDetailsEl.textContent = individual.sentiment.available ? 'API composite disponible' : 'Non disponible';
           }
 
-          console.log(`✅ ML Status chargé depuis source centralisée: ${mlStatus.source}`);
+          debugLogger.debug(`✅ ML Status chargé depuis source centralisée: ${mlStatus.source}`);
         } else {
-          console.warn('⚠️ Impossible de charger le statut ML unifié, utilisation des API individuelles...');
+          debugLogger.warn('⚠️ Impossible de charger le statut ML unifié, utilisation des API individuelles...');
           // Fallback vers l'ancien système si source centralisée échoue
           await loadMLPredictionsFallback();
         }
@@ -2030,7 +2030,7 @@
         }
 
       } catch (error) {
-        console.warn('ML predictions update failed:', error);
+        debugLogger.warn('ML predictions update failed:', error);
       }
     }
 
@@ -2053,10 +2053,10 @@
           document.getElementById('ml-last-update').textContent =
             lastUpdate ? new Date(lastUpdate).toLocaleTimeString('fr-FR') : '--';
 
-          console.log('⚠️ Using ML fallback system');
+          debugLogger.debug('⚠️ Using ML fallback system');
         }
       } catch (error) {
-        console.error('ML fallback also failed:', error);
+        debugLogger.error('ML fallback also failed:', error);
       }
     }
 
@@ -2084,7 +2084,7 @@
         }
 
       } catch (error) {
-        console.warn('Pipeline status update failed:', error);
+        debugLogger.warn('Pipeline status update failed:', error);
         document.getElementById('ml-pipeline-container').innerHTML =
           '<div style="color: var(--danger);">❌ Connection error</div>';
       }
@@ -2195,7 +2195,7 @@
       // Initialisation préventive des données ML (même si l'onglet n'est pas actif)
       // Cela permet d'avoir les données prêtes quand l'utilisateur clique sur l'onglet
       setTimeout(() => {
-        console.log('🤖 Pre-loading ML data for Intelligence tab...');
+        debugLogger.debug('🤖 Pre-loading ML data for Intelligence tab...');
         loadMLPredictions();
         loadMLPipelineStatus();
         mlTabInitialized = true;

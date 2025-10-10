@@ -192,14 +192,14 @@
           if (window.Chart) {
             await createBitcoinCycleChart('bitcoin-cycle-chart', true);
           } else {
-            console.log('📊 Chart.js not loaded, skipping chart refresh');
+            debugLogger.debug('📊 Chart.js not loaded, skipping chart refresh');
           }
           // Also clear cycle content cache as calibration affects data
           const cycleContentConfig = CACHE_CONFIG.CYCLE_CONTENT;
           if (cycleContentConfig) localStorage.removeItem(cycleContentConfig.key);
           window.showToast?.('Cycle calibré sur historiques', 'success');
         } catch (e) {
-          console.error(e);
+          debugLogger.error(e);
           window.showToast?.('Échec calibration', 'error');
         }
         return;
@@ -361,7 +361,7 @@
           }
         }
       } catch (error) {
-        console.error('❌ Erreur chargement paramètres:', error);
+        debugLogger.error('❌ Erreur chargement paramètres:', error);
       }
       return null;
     }
@@ -408,7 +408,7 @@
       setTimeout(() => {
         if (document.querySelector('.advanced-risk-panel') && typeof loadPhase3AData === 'function') {
           console.debug('🔄 Reloading Phase 3A data after source change...');
-          loadPhase3AData().catch(e => console.warn('Phase 3A reload failed:', e.message));
+          loadPhase3AData().catch(e => debugLogger.warn('Phase 3A reload failed:', e.message));
         }
       }, 1000);
     });
@@ -420,7 +420,7 @@
       setTimeout(() => {
         if (document.querySelector('.advanced-risk-panel') && typeof loadPhase3AData === 'function') {
           console.debug('🔄 Reloading Phase 3A data after user change...');
-          loadPhase3AData().catch(e => console.warn('Phase 3A reload failed:', e.message));
+          loadPhase3AData().catch(e => debugLogger.warn('Phase 3A reload failed:', e.message));
         }
       }, 500);
     });
@@ -447,7 +447,7 @@
           renderCyclesContent();
           break;
         case 'targets':
-          renderTargetsContent().catch(err => console.error('Failed to render targets:', err));
+          renderTargetsContent().catch(err => debugLogger.error('Failed to render targets:', err));
           break;
         case 'alerts':
           initializeAlertsTab();
@@ -547,7 +547,7 @@
 
         // Vérifier que apiResult est valide avant de l'utiliser
         if (!apiResult || !apiResult.risk_metrics) {
-          console.error('❌ Invalid API response structure:', {
+          debugLogger.error('❌ Invalid API response structure:', {
             hasApiResult: !!apiResult,
             hasRiskMetrics: !!apiResult?.risk_metrics,
             responseType: typeof apiResult,
@@ -581,12 +581,12 @@
         } catch (_) { /* ignore */ }
 
         const m = apiResult.risk_metrics;
-        console.log(`🧪 SHADOW V2 - Risk metrics from API: VaR 95%: ${(m.var_95_1d * 100).toFixed(2)}%, Sharpe: ${m.sharpe_ratio.toFixed(2)}, Risk Score: ${m.risk_score} (authoritative), Structural: ${m.risk_score_structural || 'N/A'}, Window: ${m.window_used?.actual_data_points || '?'} pts, risk_version_info: ${m.risk_version_info ? 'PRESENT ✅' : 'MISSING ❌'}`);
+        debugLogger.debug(`🧪 SHADOW V2 - Risk metrics from API: VaR 95%: ${(m.var_95_1d * 100).toFixed(2)}%, Sharpe: ${m.sharpe_ratio.toFixed(2)}, Risk Score: ${m.risk_score} (authoritative), Structural: ${m.risk_score_structural || 'N/A'}, Window: ${m.window_used?.actual_data_points || '?'} pts, risk_version_info: ${m.risk_version_info ? 'PRESENT ✅' : 'MISSING ❌'}`);
 
         // The backend already provides the correct structure, just return it
         return apiResult;
       } catch (error) {
-        console.error('❌ Risk API call failed:', {
+        debugLogger.error('❌ Risk API call failed:', {
           errorMessage: error.message,
           errorStack: error.stack,
           errorType: error.constructor.name,
@@ -876,12 +876,12 @@
         getAssetGroup = module.getAssetGroup;
 
         if (!Object.keys(module.UNIFIED_ASSET_GROUPS || {}).length) {
-          console.warn('⚠️ [Risk Dashboard] Taxonomy non chargée – risque de "Others" gonflé');
+          debugLogger.warn('⚠️ [Risk Dashboard] Taxonomy non chargée – risque de "Others" gonflé');
         } else {
-          console.log('✅ [Risk Dashboard] Taxonomy loaded:', Object.keys(module.UNIFIED_ASSET_GROUPS).length, 'groupes');
+          debugLogger.debug('✅ [Risk Dashboard] Taxonomy loaded:', Object.keys(module.UNIFIED_ASSET_GROUPS).length, 'groupes');
         }
       } catch (error) {
-        console.error('❌ [Risk Dashboard] Failed to load taxonomy:', error);
+        debugLogger.error('❌ [Risk Dashboard] Failed to load taxonomy:', error);
       }
     }
 
@@ -906,7 +906,7 @@
         return groupAssetsByClassification(items);
       } catch (error) {
         // Fallback simple si le module n'est pas encore chargé
-        console.warn('⚠️ [Risk Dashboard] Unified groups failed to load, using simple fallback:', error);
+        debugLogger.warn('⚠️ [Risk Dashboard] Unified groups failed to load, using simple fallback:', error);
         return items.map(item => ({
           label: item.symbol,
           value: parseFloat(item.value_usd || 0),
@@ -948,7 +948,7 @@
         return { ccs: ccsResult, cycle: cycleData };
 
       } catch (error) {
-        console.error('Failed to load CCS data:', error);
+        debugLogger.error('Failed to load CCS data:', error);
         store.set('ui.apiStatus.signals', 'error');
         throw error;
       }
@@ -969,7 +969,7 @@
 
         return null;
       } catch (error) {
-        console.error('Failed to blend CCS:', error);
+        debugLogger.error('Failed to blend CCS:', error);
         return null;
       }
     }
@@ -987,7 +987,7 @@
         return alertsData;
 
       } catch (error) {
-        console.error('Failed to load alerts data:', error);
+        debugLogger.error('Failed to load alerts data:', error);
         throw error;
       }
     }
@@ -1186,12 +1186,12 @@
           // Refresh alerts display
           const alertsData = await fetchAlertsData();
           updateAlertsDisplay(alertsData);
-          console.log(`Alert ${alertId} acknowledged`);
+          debugLogger.debug(`Alert ${alertId} acknowledged`);
         } else {
-          console.error('Failed to acknowledge alert:', response.status);
+          debugLogger.error('Failed to acknowledge alert:', response.status);
         }
       } catch (error) {
-        console.error('Error acknowledging alert:', error);
+        debugLogger.error('Error acknowledging alert:', error);
       }
     }
 
@@ -1206,12 +1206,12 @@
           // Refresh alerts display
           const alertsData = await fetchAlertsData();
           updateAlertsDisplay(alertsData);
-          console.log(`Alert ${alertId} snoozed for ${minutes} minutes`);
+          debugLogger.debug(`Alert ${alertId} snoozed for ${minutes} minutes`);
         } else {
-          console.error('Failed to snooze alert:', response.status);
+          debugLogger.error('Failed to snooze alert:', response.status);
         }
       } catch (error) {
-        console.error('Error snoozing alert:', error);
+        debugLogger.error('Error snoozing alert:', error);
       }
     }
 
@@ -1248,7 +1248,7 @@
         return alerts || [];
 
       } catch (error) {
-        console.error('Failed to load alerts history:', error);
+        debugLogger.error('Failed to load alerts history:', error);
         throw error;
       }
     }
@@ -1296,7 +1296,7 @@
         updateAlertsStats(alerts);
 
       } catch (error) {
-        console.error('Error loading alerts history:', error);
+        debugLogger.error('Error loading alerts history:', error);
         document.getElementById('alerts-history-content').innerHTML =
           '<div class="error">Failed to load alerts history. Please try again.</div>';
       }
@@ -1506,7 +1506,7 @@
         container.insertAdjacentHTML('afterbegin', statsHtml);
         console.debug('Stats HTML inserted into container');
       } else {
-        console.warn('alerts-history-content container not found');
+        debugLogger.warn('alerts-history-content container not found');
       }
     }
 
@@ -1611,7 +1611,7 @@
         }
 
         if (composite.score === null) {
-          console.warn('⚠️ No real on-chain data available - returning null score');
+          debugLogger.warn('⚠️ No real on-chain data available - returning null score');
           return null;
         }
 
@@ -1637,17 +1637,17 @@
         // Analyze contradictory signals V2
         const contradictions = analyzeContradictorySignals(composite.categoryBreakdown);
         if (contradictions.length > 0) {
-          console.warn(`⚠️ ${contradictions.length} signaux contradictoires détectés:`, contradictions);
+          debugLogger.warn(`⚠️ ${contradictions.length} signaux contradictoires détectés:`, contradictions);
           store.set('scores.contradictory_signals', contradictions);
         }
 
         // Log des alertes critiques
         if (composite.criticalZoneCount > 0) {
-          console.warn(`🚨 ${composite.criticalZoneCount} indicateur(s) en zone critique!`);
+          debugLogger.warn(`🚨 ${composite.criticalZoneCount} indicateur(s) en zone critique!`);
 
           const criticalIndicators = composite.contributors.filter(c => c.inCriticalZone);
           criticalIndicators.forEach(indicator => {
-            console.warn(`  ⚠️ ${indicator.name}: ${indicator.originalValue}% (seuil: ${indicator.raw_threshold})`);
+            debugLogger.warn(`  ⚠️ ${indicator.name}: ${indicator.originalValue}% (seuil: ${indicator.raw_threshold})`);
           });
         }
 
@@ -1659,12 +1659,12 @@
         });
 
         if (indicators._metadata?.missing_apis?.length > 0) {
-          console.warn('⚠️ Missing APIs:', indicators._metadata.missing_apis);
+          debugLogger.warn('⚠️ Missing APIs:', indicators._metadata.missing_apis);
         }
 
         return composite.score;
       } catch (error) {
-        console.error('❌ Erreur calcul On-Chain Score:', error);
+        debugLogger.error('❌ Erreur calcul On-Chain Score:', error);
         return null; // Retourner null au lieu de fallback trompeur
       }
     }
@@ -1701,7 +1701,7 @@
         totalWeight += 0.30;
         console.debug('  → On-Chain contribution:', onchainScore * 0.30);
       } else {
-        console.warn('  ⚠️ On-Chain Score non disponible (APIs payantes requises) - poids redistribué');
+        debugLogger.warn('  ⚠️ On-Chain Score non disponible (APIs payantes requises) - poids redistribué');
       }
 
       // Risk contribution : 20% (score direct, plus haut = plus robuste)
@@ -1741,7 +1741,7 @@
           await new Promise(resolve => {
             const handler = (e) => {
               if (e.detail?.hydrated) {
-                console.log('✅ Store hydrated by orchestrator, source:', e.detail.source);
+                debugLogger.debug('✅ Store hydrated by orchestrator, source:', e.detail.source);
                 resolve();
               }
             };
@@ -1787,7 +1787,7 @@
         return { onchainScore, riskScore, blendedScore, ccsScore, ccsMixteScore };
 
       } catch (error) {
-        console.error('❌ Erreur chargement scores depuis store:', error);
+        debugLogger.error('❌ Erreur chargement scores depuis store:', error);
         // ✅ Fallback: Use partial data if available
         const state = store.snapshot();
         return {
@@ -1835,7 +1835,7 @@
         }
 
       } catch (error) {
-        console.error('❌ Error updating market regime:', error);
+        debugLogger.error('❌ Error updating market regime:', error);
 
         const regimeText = document.getElementById('regime-text');
         if (regimeText) {
@@ -1877,7 +1877,7 @@
         // Observe lazy elements; only force-load if they are near viewport
         setTimeout(() => {
           const lazyElements = content.querySelectorAll('[data-lazy-load]');
-          console.log(`🔍 Section ${sectionId} expanded, checking ${lazyElements.length} lazy elements`);
+          debugLogger.debug(`🔍 Section ${sectionId} expanded, checking ${lazyElements.length} lazy elements`);
 
           const isNearViewport = (el, margin = 150) => {
             try {
@@ -1890,10 +1890,10 @@
           lazyElements.forEach(element => {
             if (!element.classList.contains('lazy-loaded') && !element.classList.contains('lazy-error')) {
               if (isNearViewport(element)) {
-                console.log(`📊 Element near viewport; loading now in section ${sectionId}`);
+                debugLogger.debug(`📊 Element near viewport; loading now in section ${sectionId}`);
                 window.lazyLoader?.loadVisibleElement(element);
               } else {
-                console.log(`👁️ Element not near viewport; ensuring observer is attached`);
+                debugLogger.debug(`👁️ Element not near viewport; ensuring observer is attached`);
                 if (window.lazyLoader?.intersectionObserver) {
                   try { window.lazyLoader.intersectionObserver.observe(element); } catch (_) { }
                 }
@@ -1929,7 +1929,7 @@
             setTimeout(() => {
               const lazyElements = content.querySelectorAll('[data-lazy-load]');
               if (lazyElements.length > 0) {
-                console.log(`🔍 Section ${sectionId} is open by default, checking ${lazyElements.length} lazy elements`);
+                debugLogger.debug(`🔍 Section ${sectionId} is open by default, checking ${lazyElements.length} lazy elements`);
 
                 lazyElements.forEach(element => {
                   if (!element.classList.contains('lazy-loaded') && !element.classList.contains('lazy-error')) {
@@ -1942,10 +1942,10 @@
                     };
 
                     if (isNearViewport(element)) {
-                      console.log(`📊 Element near viewport; loading now in open section ${sectionId}`);
+                      debugLogger.debug(`📊 Element near viewport; loading now in open section ${sectionId}`);
                       setTimeout(() => { window.lazyLoader?.loadVisibleElement(element); }, 300);
                     } else {
-                      console.log(`👁️ Element not near viewport; ensuring observer is attached`);
+                      debugLogger.debug(`👁️ Element not near viewport; ensuring observer is attached`);
                       if (window.lazyLoader?.intersectionObserver) {
                         try { window.lazyLoader.intersectionObserver.observe(element); } catch (_) { }
                       }
@@ -1982,7 +1982,7 @@
       // Clear cache if force refresh is requested
       if (forceRefresh) {
         clearAllPersistentCache();
-        console.log('🧹 Force refresh: all cache cleared');
+        debugLogger.debug('🧹 Force refresh: all cache cleared');
       }
 
       // Update loading state
@@ -1994,11 +1994,11 @@
         const [riskData, ccsData, alertsData] = await Promise.all([
           fetchRiskData(),
           loadCCSData().catch(err => {
-            console.warn('CCS data failed, continuing with risk only:', err);
+            debugLogger.warn('CCS data failed, continuing with risk only:', err);
             return null;
           }),
           fetchAlertsData().catch(err => {
-            console.warn('Alerts data failed, continuing without alerts:', err);
+            debugLogger.warn('Alerts data failed, continuing without alerts:', err);
             return null;
           })
         ]);
@@ -2043,7 +2043,7 @@
             console.debug('🔄 Cycles content updated with latest data');
           }
 
-          console.log('Risk dashboard refreshed successfully');
+          debugLogger.debug('Risk dashboard refreshed successfully');
 
         } else {
           // Handle API error with informative message, but still compute partial scores (on-chain + defaults)
@@ -2064,13 +2064,13 @@
             }
             await loadScoresFromStore();
           } catch (e) {
-            console.warn('Partial score calculation failed:', e);
+            debugLogger.warn('Partial score calculation failed:', e);
           }
           return; // Don't throw, just render error state
         }
 
       } catch (err) {
-        console.error('Dashboard error:', err);
+        debugLogger.error('Dashboard error:', err);
         store.set('ui.apiStatus.backend', 'error');
         renderBackendUnavailable('Erreur de connexion au backend de risque');
       } finally {
@@ -2127,9 +2127,9 @@
           });
         }
 
-        console.log('🏷️ Risk dashboard badges updated');
+        debugLogger.debug('🏷️ Risk dashboard badges updated');
       } catch (error) {
-        console.warn('Risk badge update failed:', error);
+        debugLogger.warn('Risk badge update failed:', error);
       }
     }
 
@@ -3128,7 +3128,7 @@ dans les 10 000 scénarios.`;
         renderCyclesContent();
       }
       if (activeTab === 'targets') {
-        renderTargetsContent().catch(err => console.error('Failed to render targets on store change:', err));
+        renderTargetsContent().catch(err => debugLogger.error('Failed to render targets on store change:', err));
       }
     });
 
@@ -3173,7 +3173,7 @@ dans les 10 000 scénarios.`;
       const toastContainer = document.getElementById('toast-container');
 
       if (!toastContainer) {
-        console.error('Toast container not found');
+        debugLogger.error('Toast container not found');
         return;
       }
 
@@ -3245,10 +3245,10 @@ dans les 10 000 scénarios.`;
         if (stored) {
           const alertIds = JSON.parse(stored);
           alertIds.forEach(id => dismissedToasts.add(id));
-          console.log('Loaded dismissed alerts:', alertIds.length);
+          debugLogger.debug('Loaded dismissed alerts:', alertIds.length);
         }
       } catch (e) {
-        console.warn('Failed to load dismissed alerts:', e);
+        debugLogger.warn('Failed to load dismissed alerts:', e);
       }
     }
 
@@ -3259,60 +3259,60 @@ dans les 10 000 scénarios.`;
 
     // DEFINE GLOBALLY
     window.hideToast = function (toastId) {
-      console.log('Hiding toast:', toastId);
+      debugLogger.debug('Hiding toast:', toastId);
       const toast = document.getElementById(toastId);
       if (!toast) {
-        console.warn('Toast not found:', toastId);
+        debugLogger.warn('Toast not found:', toastId);
         return;
       }
 
       // Extract alert ID from toast ID (format: toast-{alertId})
       const alertId = toastId.replace('toast-', '');
       dismissedToasts.add(alertId);
-      console.log('Added to dismissed list:', alertId);
+      debugLogger.debug('Added to dismissed list:', alertId);
       localStorage.setItem('dismissedAlerts', JSON.stringify([...dismissedToasts]));
 
-      console.log('Adding hide class to toast:', toastId);
+      debugLogger.debug('Adding hide class to toast:', toastId);
       toast.classList.add('hide');
-      console.log('Toast classes after adding hide:', toast.className);
+      debugLogger.debug('Toast classes after adding hide:', toast.className);
 
       setTimeout(() => {
         if (toast && toast.parentNode) {
           toast.remove();
-          console.log('Toast removed:', toastId);
+          debugLogger.debug('Toast removed:', toastId);
         }
       }, 300);
     };
 
     // Function to hide all toasts - DEFINE GLOBALLY
     window.hideAllToasts = function () {
-      console.log('Hiding all toasts...');
+      debugLogger.debug('Hiding all toasts...');
       const toastContainer = document.getElementById('toast-container');
       if (!toastContainer) {
-        console.log('Toast container not found');
+        debugLogger.debug('Toast container not found');
         return;
       }
 
       const toasts = toastContainer.querySelectorAll('.toast');
-      console.log(`Found ${toasts.length} toasts to hide in container`);
+      debugLogger.debug(`Found ${toasts.length} toasts to hide in container`);
 
       if (toasts.length === 0) {
         // Try fallback - look for toasts anywhere in document
         const allToasts = document.querySelectorAll('.toast');
-        console.log(`Fallback: Found ${allToasts.length} toasts in entire document`);
+        debugLogger.debug(`Fallback: Found ${allToasts.length} toasts in entire document`);
         allToasts.forEach((toast, index) => {
-          console.log(`Force removing toast ${index}:`, toast.id || 'no-id');
+          debugLogger.debug(`Force removing toast ${index}:`, toast.id || 'no-id');
           toast.remove();
         });
       } else {
         // Normal path
         toasts.forEach((toast, index) => {
-          console.log(`Hiding toast ${index}:`, toast.id || 'no-id');
+          debugLogger.debug(`Hiding toast ${index}:`, toast.id || 'no-id');
           toast.classList.add('hide');
           setTimeout(() => {
             if (toast && toast.parentNode) {
               toast.remove();
-              console.log(`Removed toast ${index}`);
+              debugLogger.debug(`Removed toast ${index}`);
             }
           }, 300);
         });
@@ -3322,19 +3322,19 @@ dans les 10 000 scénarios.`;
       setTimeout(() => {
         const remainingToasts = toastContainer.querySelectorAll('.toast');
         if (remainingToasts.length > 0) {
-          console.log(`Force clearing ${remainingToasts.length} remaining toasts`);
+          debugLogger.debug(`Force clearing ${remainingToasts.length} remaining toasts`);
           toastContainer.innerHTML = '';
         }
       }, 500);
 
-      console.log('All toasts cleared');
+      debugLogger.debug('All toasts cleared');
     };
 
     // Show toast for S3 alerts specifically
     function showS3AlertToast(alert) {
       // Check if this alert has already been dismissed
       if (!shouldShowAlert(alert.id)) {
-        console.log('Skipping already dismissed alert:', alert.id);
+        debugLogger.debug('Skipping already dismissed alert:', alert.id);
         return;
       }
 
@@ -3376,27 +3376,27 @@ dans les 10 000 scénarios.`;
     let currentAlert = null;
 
     async function openAlertModal(alertId) {
-      console.log('Opening modal for alert:', alertId);
+      debugLogger.debug('Opening modal for alert:', alertId);
 
       // Try to find alert in current data first
       let alert = findAlertById(alertId);
 
       // If not found, fetch from API
       if (!alert) {
-        console.log('Alert not found in cache, fetching from API...');
+        debugLogger.debug('Alert not found in cache, fetching from API...');
         try {
           const alerts = await window.globalConfig.apiRequest('/api/alerts/active');
           if (Array.isArray(alerts)) {
             alert = alerts.find(a => a.id === alertId);
-            console.log('Found alert in API:', !!alert);
+            debugLogger.debug('Found alert in API:', !!alert);
           }
         } catch (error) {
-          console.error('Failed to fetch alert from API:', error);
+          debugLogger.error('Failed to fetch alert from API:', error);
         }
       }
 
       if (!alert) {
-        console.error('Alert not found anywhere:', alertId);
+        debugLogger.error('Alert not found anywhere:', alertId);
         showToast('Alert not found', 'error');
         return;
       }
@@ -3577,7 +3577,7 @@ dans les 10 000 scénarios.`;
           throw new Error(`HTTP ${response.status}`);
         }
       } catch (error) {
-        console.error('Failed to acknowledge alert:', error);
+        debugLogger.error('Failed to acknowledge alert:', error);
         showToast('Failed to acknowledge alert', 'error');
       }
     }
@@ -3604,7 +3604,7 @@ dans les 10 000 scénarios.`;
           throw new Error(`HTTP ${response.status}`);
         }
       } catch (error) {
-        console.error('Failed to snooze alert:', error);
+        debugLogger.error('Failed to snooze alert:', error);
         showToast('Failed to snooze alert', 'error');
       }
     }
@@ -3644,7 +3644,7 @@ dans les 10 000 scénarios.`;
           throw new Error(`HTTP ${response.status}`);
         }
       } catch (error) {
-        console.error('Failed to apply action:', error);
+        debugLogger.error('Failed to apply action:', error);
         showToast('Failed to apply action', 'error');
       }
     }
@@ -3714,7 +3714,7 @@ dans les 10 000 scénarios.`;
           lastKnownAlerts = currentAlerts;
         }
       } catch (error) {
-        console.error('Failed to check for new S3 alerts:', error);
+        debugLogger.error('Failed to check for new S3 alerts:', error);
       }
     }
 
@@ -3744,7 +3744,7 @@ dans les 10 000 scénarios.`;
           if (event.target.classList.contains('toast-close')) {
             const toast = event.target.closest('.toast');
             if (toast) {
-              console.log('Toast close button clicked:', toast.id);
+              debugLogger.debug('Toast close button clicked:', toast.id);
               hideToast(toast.id);
             }
           }
@@ -3757,7 +3757,7 @@ dans les 10 000 scénarios.`;
               try {
                 eval(onclickAttr);
               } catch (error) {
-                console.error('Error executing toast action:', error);
+                debugLogger.error('Error executing toast action:', error);
               }
             }
           }
@@ -3811,13 +3811,13 @@ dans les 10 000 scénarios.`;
     };
 
     function initPersistentCache() {
-      console.log('🗄️ Initializing persistent cache system...');
+      debugLogger.debug('🗄️ Initializing persistent cache system...');
 
       // Check existing cached scores
       const cachedScores = getCachedData('SCORES');
       if (cachedScores) {
         const age = Math.round((Date.now() - cachedScores.timestamp) / (1000 * 60));
-        console.log(`✅ Found cached scores (${age} minutes old)`);
+        debugLogger.debug(`✅ Found cached scores (${age} minutes old)`);
 
         // Restore scores in localStorage for compatibility  
         const dataSource = globalConfig.get('data_source') || 'unknown';
@@ -3833,11 +3833,11 @@ dans les 10 000 scénarios.`;
       window.originalClearCache = window.clearCache;
       window.clearCache = function (force = false) {
         if (force) {
-          console.log('🧹 Force clearing all cache');
+          debugLogger.debug('🧹 Force clearing all cache');
           clearAllPersistentCache();
           window.originalClearCache?.();
         } else {
-          console.log('⏭️ Selective cache clear - keeping valid cached data');
+          debugLogger.debug('⏭️ Selective cache clear - keeping valid cached data');
           cleanExpiredCache();
         }
       };
@@ -3860,10 +3860,10 @@ dans les 10 000 scénarios.`;
 
       try {
         localStorage.setItem(sourceAwareKey, JSON.stringify(cacheEntry));
-        console.log(`💾 Cached ${type} data for source ${dataSource} (TTL: ${Math.round(config.ttl / (1000 * 60 * 60))}h)`);
+        debugLogger.debug(`💾 Cached ${type} data for source ${dataSource} (TTL: ${Math.round(config.ttl / (1000 * 60 * 60))}h)`);
         return true;
       } catch (error) {
-        console.warn(`Failed to cache ${type}:`, error);
+        debugLogger.warn(`Failed to cache ${type}:`, error);
         return false;
       }
     }
@@ -3885,13 +3885,13 @@ dans les 10 000 scénarios.`;
 
         if (isExpired) {
           localStorage.removeItem(sourceAwareKey);
-          console.log(`⏰ Expired cache removed: ${type} for source ${dataSource}`);
+          debugLogger.debug(`⏰ Expired cache removed: ${type} for source ${dataSource}`);
           return null;
         }
 
         return cacheEntry;
       } catch (error) {
-        console.warn(`Failed to read cache ${type}:`, error);
+        debugLogger.warn(`Failed to read cache ${type}:`, error);
         localStorage.removeItem(sourceAwareKey);
         return null;
       }
@@ -3918,7 +3918,7 @@ dans les 10 000 scénarios.`;
           localStorage.removeItem(`${config.key}_${source}`);
         });
       });
-      console.log(`🧹 All persistent cache cleared for source ${dataSource}`);
+      debugLogger.debug(`🧹 All persistent cache cleared for source ${dataSource}`);
     }
 
     // ===== CYCLE CACHE SYSTEM =====
@@ -3968,27 +3968,27 @@ dans les 10 000 scénarios.`;
           riskDisplayEl.textContent = `${riskScore.toFixed(1)}/100`;
         }
 
-        console.log('📊 Score displays updated from cache');
+        debugLogger.debug('📊 Score displays updated from cache');
       } catch (error) {
-        console.warn('Error updating score displays:', error);
+        debugLogger.warn('Error updating score displays:', error);
       }
     }
 
     // Initialize on DOM ready
     document.addEventListener('DOMContentLoaded', function () {
-      console.log('Risk Dashboard CCS MVP initializing...');
+      debugLogger.debug('Risk Dashboard CCS MVP initializing...');
 
       // Initialize data source tracking for cross-tab synchronization
       window.lastKnownDataSource = globalConfig.get('data_source');
-      console.log(`🔗 Risk Dashboard initialized with data source: ${window.lastKnownDataSource}`);
+      debugLogger.debug(`🔗 Risk Dashboard initialized with data source: ${window.lastKnownDataSource}`);
 
       // Initialize persistent cache system
       initPersistentCache();
-      console.log('Persistent cache system initialized');
+      debugLogger.debug('Persistent cache system initialized');
 
       // Listen for data source changes and clear cache
       window.addEventListener('dataSourceChanged', (event) => {
-        console.log('🔄 Data source changed, clearing cache and reloading...', event.detail);
+        debugLogger.debug('🔄 Data source changed, clearing cache and reloading...', event.detail);
         clearCache();
         // Reload the dashboard after source change
         setTimeout(() => refreshDashboard(true), 100);
@@ -3998,14 +3998,14 @@ dans les 10 000 scénarios.`;
       // Navigation thématique initialisée automatiquement
 
       // Appliquer le thème immédiatement
-      console.log('Initializing theme for risk-dashboard page...');
+      debugLogger.debug('Initializing theme for risk-dashboard page...');
       if (window.globalConfig && window.globalConfig.applyTheme) {
         window.globalConfig.applyTheme();
       }
       if (window.applyAppearance) {
         window.applyAppearance();
       }
-      console.log('Current theme after risk-dashboard init:', document.documentElement.getAttribute('data-theme'));
+      debugLogger.debug('Current theme after risk-dashboard init:', document.documentElement.getAttribute('data-theme'));
 
       // Hydrate store from localStorage
       store.hydrate();
@@ -4021,12 +4021,12 @@ dans les 10 000 scénarios.`;
       // Initialize governance system
       setTimeout(async () => {
         try {
-          console.log('🏛️ Initializing governance system...');
+          debugLogger.debug('🏛️ Initializing governance system...');
           await store.syncGovernanceState();
           await store.syncMLSignals();
-          console.log('✅ Governance system initialized');
+          debugLogger.debug('✅ Governance system initialized');
         } catch (error) {
-          console.warn('⚠️ Failed to initialize governance:', error);
+          debugLogger.warn('⚠️ Failed to initialize governance:', error);
         }
       }, 500);
 
@@ -4034,7 +4034,7 @@ dans les 10 000 scénarios.`;
       setTimeout(() => {
         const currentStrategy = store.get('targets.strategy');
         if (!currentStrategy) {
-          console.log('No strategy found, applying Blended as default...');
+          debugLogger.debug('No strategy found, applying Blended as default...');
           applyStrategy('blend');
         }
       }, 1000);
@@ -4043,14 +4043,14 @@ dans les 10 000 scénarios.`;
       window.addEventListener('storage', function (e) {
         const expectedKey = (window.globalConfig?.getStorageKey && window.globalConfig.getStorageKey()) || 'crypto_rebal_settings_v1';
         if (e.key === expectedKey) {
-          console.log('Settings changed in another tab, checking for theme and data source changes...');
+          debugLogger.debug('Settings changed in another tab, checking for theme and data source changes...');
 
           // Check if data source changed
           const currentSource = globalConfig.get('data_source');
           const previousSource = window.lastKnownDataSource;
 
           if (currentSource && currentSource !== previousSource) {
-            console.log(`🔄 Data source changed from ${previousSource} to ${currentSource}, clearing cache and reloading...`);
+            debugLogger.debug(`🔄 Data source changed from ${previousSource} to ${currentSource}, clearing cache and reloading...`);
             window.lastKnownDataSource = currentSource;
             clearCache();
             // Reload the risk dashboard after source change
@@ -4071,7 +4071,7 @@ dans les 10 000 scénarios.`;
         }
       });
 
-      console.log('Risk Dashboard CCS MVP initialized');
+      debugLogger.debug('Risk Dashboard CCS MVP initialized');
     });
 
     // Note: Sidebar toggle now handled by flyout-panel Web Component with integrated pin button
@@ -4088,7 +4088,7 @@ dans les 10 000 scénarios.`;
       // Initialize governance panel
       const governanceContainer = document.getElementById('governance-container');
       if (governanceContainer) {
-        console.log('🏛️ Initializing Governance Panel...');
+        debugLogger.debug('🏛️ Initializing Governance Panel...');
         const governancePanel = new GovernancePanel(governanceContainer);
 
         // Auto-refresh initial state
@@ -4098,7 +4098,7 @@ dans les 10 000 scénarios.`;
 
         // Store reference globally for debugging
         window.governancePanel = governancePanel;
-        console.log('✅ Governance Panel initialized');
+        debugLogger.debug('✅ Governance Panel initialized');
       }
 
 
@@ -4169,7 +4169,7 @@ dans les 10 000 scénarios.`;
           await loadPhase3AData();
 
         } catch (error) {
-          console.error('Error loading advanced risk components:', error);
+          debugLogger.error('Error loading advanced risk components:', error);
           showToast('Failed to load advanced risk analysis', 'error');
         }
       }
@@ -4193,7 +4193,7 @@ dans les 10 000 scénarios.`;
               '<div class="warning">Advanced Risk Engine not available</div>';
           }
         } catch (error) {
-          console.error('Error loading Phase 3A data:', error);
+          debugLogger.error('Error loading Phase 3A data:', error);
         }
       }
 
@@ -4338,7 +4338,7 @@ dans les 10 000 scénarios.`;
 
                   // Debug si fallback 5/10 utilisé
                   if (!(group.name in GROUP_RISK_LEVELS)) {
-                    console.warn('⚠️ Group name not in risk levels:', group.name, '(using fallback 5/10)');
+                    debugLogger.warn('⚠️ Group name not in risk levels:', group.name, '(using fallback 5/10)');
                   }
 
                   return `
@@ -4375,7 +4375,7 @@ dans les 10 000 scénarios.`;
           }, 100);
 
         } catch (error) {
-          console.error('Error loading GRI Analysis:', error);
+          debugLogger.error('Error loading GRI Analysis:', error);
           document.getElementById('gri-analysis-content').innerHTML =
             '<div class="error">Failed to load GRI analysis from API</div>';
         }
@@ -4485,7 +4485,7 @@ dans les 10 000 scénarios.`;
           window.stressScenarios = scenarios;
 
         } catch (error) {
-          console.error('Error loading stress test scenarios:', error);
+          debugLogger.error('Error loading stress test scenarios:', error);
           document.getElementById('stress-test-content').innerHTML = `
               <div class="error">Erreur de chargement des scénarios de stress</div>
             `;
@@ -4593,7 +4593,7 @@ dans les 10 000 scénarios.`;
           }, 100);
 
         } catch (e) {
-          console.warn('Risk attribution load failed:', e);
+          debugLogger.warn('Risk attribution load failed:', e);
           el.innerHTML = `<div class="warning">Erreur lors du calcul d'attribution: ${e.message}</div>`;
         }
       }
@@ -4695,16 +4695,16 @@ dans les 10 000 scénarios.`;
     // Composant pour le chargement lazy de Chart.js et du graphique Bitcoin Cycle
     class BitcoinCycleChart {
       constructor(element) {
-        console.log('🔧 BitcoinCycleChart constructor called with element:', element);
+        debugLogger.debug('🔧 BitcoinCycleChart constructor called with element:', element);
         this.element = element;
         this.chartLoaded = false;
         this.placeholder = element.querySelector('.chart-lazy-placeholder');
         this.canvas = element.querySelector('#bitcoin-cycle-chart');
-        console.log('🔍 Placeholder found:', !!this.placeholder, 'Canvas found:', !!this.canvas);
+        debugLogger.debug('🔍 Placeholder found:', !!this.placeholder, 'Canvas found:', !!this.canvas);
       }
 
       async init() {
-        console.log('🚀 BitcoinCycleChart init() called');
+        debugLogger.debug('🚀 BitcoinCycleChart init() called');
 
         // Guard: prevent re-initialization
         if (this.chartLoaded) {
@@ -4715,7 +4715,7 @@ dans les 10 000 scénarios.`;
         try {
           // Afficher un indicateur de chargement
           if (this.placeholder) {
-            console.log('✅ Showing loading indicator');
+            debugLogger.debug('✅ Showing loading indicator');
             this.placeholder.innerHTML = `
               <div style="text-align: center;">
                 <div style="font-size: 2rem; margin-bottom: 0.5rem;">📊</div>
@@ -4724,41 +4724,41 @@ dans les 10 000 scénarios.`;
               </div>
             `;
           } else {
-            console.warn('⚠️ No placeholder found for loading indicator');
+            debugLogger.warn('⚠️ No placeholder found for loading indicator');
           }
 
           // Charger Chart.js de manière asynchrone
-          console.log('📊 Starting to load Chart.js...');
+          debugLogger.debug('📊 Starting to load Chart.js...');
           await this.loadChartJS();
-          console.log('✅ Chart.js loaded successfully');
+          debugLogger.debug('✅ Chart.js loaded successfully');
 
           // Masquer le placeholder et afficher le canvas
-          console.log('🔄 Switching from placeholder to canvas...');
+          debugLogger.debug('🔄 Switching from placeholder to canvas...');
           if (this.placeholder) {
             this.placeholder.style.display = 'none';
-            console.log('✅ Placeholder hidden');
+            debugLogger.debug('✅ Placeholder hidden');
           }
           if (this.canvas) {
             this.canvas.style.display = 'block';
-            console.log('✅ Canvas shown');
+            debugLogger.debug('✅ Canvas shown');
           } else {
-            console.warn('⚠️ No canvas found to show');
+            debugLogger.warn('⚠️ No canvas found to show');
           }
 
           // Créer le graphique Bitcoin Cycle
           if (typeof createBitcoinCycleChart === 'function') {
-            console.log('📊 Calling createBitcoinCycleChart...');
+            debugLogger.debug('📊 Calling createBitcoinCycleChart...');
             await createBitcoinCycleChart('bitcoin-cycle-chart');
-            console.log('✅ createBitcoinCycleChart completed');
+            debugLogger.debug('✅ createBitcoinCycleChart completed');
           } else {
-            console.error('❌ createBitcoinCycleChart function not found');
+            debugLogger.error('❌ createBitcoinCycleChart function not found');
           }
 
           this.chartLoaded = true;
-          console.log('✅ Bitcoin Cycle Chart loaded successfully via lazy loading');
+          debugLogger.debug('✅ Bitcoin Cycle Chart loaded successfully via lazy loading');
 
         } catch (error) {
-          console.error('❌ Failed to lazy load Bitcoin Cycle Chart:', error);
+          debugLogger.error('❌ Failed to lazy load Bitcoin Cycle Chart:', error);
 
           // Afficher l'erreur dans le placeholder
           if (this.placeholder) {
@@ -4776,11 +4776,11 @@ dans les 10 000 scénarios.`;
       async loadChartJS() {
         // Vérifier si Chart.js est déjà chargé
         if (window.Chart) {
-          console.log('📊 Chart.js already loaded');
+          debugLogger.debug('📊 Chart.js already loaded');
           return Promise.resolve();
         }
 
-        console.log('📊 Loading Chart.js...');
+        debugLogger.debug('📊 Loading Chart.js...');
 
         // Charger Chart.js principal
         const chartPromise = new Promise((resolve, reject) => {
@@ -4811,7 +4811,7 @@ dans les 10 000 scénarios.`;
           throw new Error('Chart.js failed to initialize');
         }
 
-        console.log('✅ Chart.js loaded successfully');
+        debugLogger.debug('✅ Chart.js loaded successfully');
       }
     }
 
