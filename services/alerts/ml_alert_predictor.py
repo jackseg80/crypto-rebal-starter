@@ -391,13 +391,16 @@ class MLAlertPredictor:
             if ensemble_prob >= threshold:
                 # Estimer sévérité basée sur probabilité
                 severity = "S3" if ensemble_prob >= 0.9 else ("S2" if ensemble_prob >= 0.75 else "S1")
-                
+
+                # Déduire assets concernés depuis features
+                affected_assets = self._deduce_affected_assets(features_array, alert_type)
+
                 return AlertPrediction(
                     alert_type=alert_type,
                     probability=ensemble_prob,
                     confidence=confidence,
                     horizon=horizon,
-                    assets=["BTC", "ETH"],  # TODO: déduire des features
+                    assets=affected_assets,
                     features=self._array_to_features_dict(features_array),
                     model_version=f"ensemble_v1.0_{model_key}",
                     predicted_at=datetime.now(),
@@ -521,37 +524,239 @@ class MLAlertPredictor:
         return 0.0
     
     def _calculate_large_alt_spread(self, correlation_data: Dict) -> float:
-        """Calcule spread corrélation entre large caps et alt coins"""
-        # TODO: Implémenter logique spécifique
-        return 0.0
+        """Calcule spread performance entre large caps (BTC/ETH) et altcoins"""
+        from services.price_history import get_cached_history
+
+        try:
+            # Large caps: BTC + ETH
+            large_cap_returns = []
+            for symbol in ["BTC", "ETH"]:
+                history = get_cached_history(symbol, days=30)
+                if history and len(history) >= 30:
+                    prices = np.array([p for _, p in history])
+                    # Return sur 30 jours
+                    ret_30d = np.log(prices[-1] / prices[0])
+                    large_cap_returns.append(ret_30d)
+
+            # Altcoins représentatifs (large cap alts)
+            alt_symbols = ["SOL", "ADA", "DOT", "AVAX", "LINK"]
+            alt_returns = []
+            for symbol in alt_symbols:
+                history = get_cached_history(symbol, days=30)
+                if history and len(history) >= 30:
+                    prices = np.array([p for _, p in history])
+                    ret_30d = np.log(prices[-1] / prices[0])
+                    alt_returns.append(ret_30d)
+
+            # Spread = moyenne alts - moyenne large caps
+            # Positif = alts surperforment (altseason signal)
+            # Négatif = BTC/ETH dominent (risk-off)
+            if large_cap_returns and alt_returns:
+                avg_large = np.mean(large_cap_returns)
+                avg_alt = np.mean(alt_returns)
+                spread = avg_alt - avg_large
+                return float(spread)
+            else:
+                return 0.0
+
+        except Exception as e:
+            logger.warning(f"Large alt spread calculation error: {e}")
+            return 0.0
     
     def _calculate_cluster_stability(self, correlation_data: Dict) -> float:
-        """Mesure stabilité des clusters de corrélation"""
-        clusters = correlation_data.get("concentration", {}).get("clusters", [])
-        if not clusters:
-            return 1.0  # Stable si pas de clusters
-        
-        # TODO: Implémenter métrique de stabilité
-        return 0.5
+        """Mesure stabilité des clusters de corrélation (0=instable, 1=stable)"""
+        try:
+            # Stratégie: comparer la variance des corrélations récentes
+            # Une corrélation stable = peu de changement dans le temps
+
+            # Extraire matrices de corrélation temporelles si disponibles
+            matrices = correlation_data.get("correlation_matrices", {})
+            matrix_1h = matrices.get("1h", np.array([]))
+            matrix_4h = matrices.get("4h", np.array([]))
+            matrix_1d = matrices.get("1d", np.array([]))
+
+            # Calculer moyennes des corrélations pour chaque fenêtre
+            corr_values = []
+            for matrix in [matrix_1h, matrix_4h, matrix_1d]:
+                if matrix.size > 0:
+                    # Upper triangle uniquement (pas de diagonale)
+                    triu_indices = np.triu_indices_from(matrix, k=1)
+                    corr_subset = matrix[triu_indices]
+                    if len(corr_subset) > 0:
+                        corr_values.append(np.mean(corr_subset))
+
+            # Stabilité = faible variance entre fenêtres temporelles
+            # Variance faible → corrélations constantes → stabilité élevée
+            if len(corr_values) >= 2:
+                variance = np.var(corr_values)
+                # Transformer variance [0, ~0.1] vers stabilité [1, 0]
+                # variance < 0.01 → très stable (1.0)
+                # variance > 0.1 → instable (0.0)
+                stability = np.exp(-10 * variance)  # Décroissance exponentielle
+                return float(np.clip(stability, 0.0, 1.0))
+
+            # Fallback: utiliser les clusters si disponibles
+            clusters = correlation_data.get("concentration", {}).get("clusters", [])
+            if not clusters:
+                return 1.0  # Stable si pas de clusters (corrélations faibles partout)
+
+            # Nombre de clusters élevé = fragmentation = instabilité
+            # 1-2 clusters = stable, 5+ clusters = instable
+            num_clusters = len(clusters)
+            if num_clusters <= 2:
+                return 0.9
+            elif num_clusters <= 4:
+                return 0.6
+            else:
+                return 0.3
+
+        except Exception as e:
+            logger.warning(f"Cluster stability calculation error: {e}")
+            return 0.7  # Neutre en cas d'erreur
     
     def _extract_volatility_features(self, price_data: Dict) -> Dict[str, float]:
-        """Extrait features de volatilité"""
-        # TODO: Implémenter avec données prix réelles
-        return {
-            "vol_1h": 0.02,
-            "vol_4h": 0.04,
-            "vol_of_vol": 0.001,
-            "vol_skew": 0.0
-        }
+        """Extrait features de volatilité depuis données de prix réelles"""
+        from services.price_history import get_cached_history
+
+        try:
+            # Récupérer prix historiques pour assets principaux
+            all_vols_1h = []
+            all_vols_4h = []
+
+            # Assets clés pour vol aggregée (BTC, ETH, SOL comme proxy marché)
+            key_assets = ["BTC", "ETH", "SOL"]
+
+            for symbol in key_assets:
+                history = get_cached_history(symbol, days=7)  # 7 jours = 168h
+                if not history or len(history) < 10:
+                    continue
+
+                prices = [p for _, p in history]
+
+                # Volatilité 1h (dernières 24 heures = derniers 24 points)
+                if len(prices) >= 24:
+                    returns_1h = np.diff(np.log(prices[-24:]))
+                    vol_1h = np.std(returns_1h) * np.sqrt(24 * 365)  # Annualisé
+                    all_vols_1h.append(vol_1h)
+
+                # Volatilité 4h (dernières 96 heures = 4 jours)
+                if len(prices) >= 96:
+                    returns_4h = np.diff(np.log(prices[-96:]))
+                    vol_4h = np.std(returns_4h) * np.sqrt(6 * 365)  # 6 periods per day
+                    all_vols_4h.append(vol_4h)
+
+            # Aggreger les volatilités
+            avg_vol_1h = np.mean(all_vols_1h) if all_vols_1h else 0.02
+            avg_vol_4h = np.mean(all_vols_4h) if all_vols_4h else 0.04
+
+            # Vol of vol: volatilité des volatilités rolling (instabilité)
+            if len(all_vols_1h) >= 2:
+                vol_of_vol = np.std(all_vols_1h)
+            else:
+                vol_of_vol = 0.001
+
+            # Vol skew: asymétrie entre hausse/baisse (upside vs downside vol)
+            btc_history = get_cached_history("BTC", days=30)
+            if btc_history and len(btc_history) >= 30:
+                prices = np.array([p for _, p in btc_history])
+                returns = np.diff(np.log(prices))
+
+                # Séparer returns positifs/négatifs
+                up_returns = returns[returns > 0]
+                down_returns = returns[returns < 0]
+
+                if len(up_returns) > 2 and len(down_returns) > 2:
+                    up_vol = np.std(up_returns)
+                    down_vol = np.std(down_returns)
+                    vol_skew = (down_vol - up_vol) / (down_vol + up_vol + 1e-10)  # -1 à +1
+                else:
+                    vol_skew = 0.0
+            else:
+                vol_skew = 0.0
+
+            return {
+                "vol_1h": float(avg_vol_1h),
+                "vol_4h": float(avg_vol_4h),
+                "vol_of_vol": float(vol_of_vol),
+                "vol_skew": float(vol_skew)
+            }
+
+        except Exception as e:
+            logger.warning(f"Volatility features extraction error: {e}")
+            # Fallback to safe defaults
+            return {
+                "vol_1h": 0.02,
+                "vol_4h": 0.04,
+                "vol_of_vol": 0.001,
+                "vol_skew": 0.0
+            }
     
     def _extract_momentum_features(self, price_data: Dict) -> Dict[str, float]:
-        """Extrait features de momentum"""
-        # TODO: Implémenter avec données prix réelles  
-        return {
-            "momentum_1h": 0.01,
-            "momentum_4h": 0.02,
-            "volume_momentum": 0.0
-        }
+        """Extrait features de momentum depuis données de prix réelles"""
+        from services.price_history import get_cached_history
+
+        try:
+            # Récupérer prix BTC comme proxy marché principal
+            btc_history = get_cached_history("BTC", days=30)
+            if not btc_history or len(btc_history) < 30:
+                # Fallback to defaults
+                return {
+                    "momentum_1h": 0.01,
+                    "momentum_4h": 0.02,
+                    "volume_momentum": 0.0
+                }
+
+            prices = np.array([p for _, p in btc_history])
+
+            # Momentum 1h: return moyen des dernières 24h
+            if len(prices) >= 25:
+                returns_24h = np.diff(np.log(prices[-25:]))
+                momentum_1h = np.mean(returns_24h)
+            else:
+                momentum_1h = 0.0
+
+            # Momentum 4h: return moyen des derniers 4 jours (96h)
+            if len(prices) >= 5:
+                # Comparer prix actuel vs 4 jours avant
+                momentum_4h = np.log(prices[-1] / prices[-5]) / 4  # Return quotidien moyen
+            else:
+                momentum_4h = 0.0
+
+            # Volume momentum: RSI-14 comme proxy de momentum de volume
+            # (Simplified RSI: ratio gains/pertes sur 14 périodes)
+            if len(prices) >= 15:
+                returns = np.diff(np.log(prices[-15:]))
+                gains = returns[returns > 0]
+                losses = -returns[returns < 0]
+
+                avg_gain = np.mean(gains) if len(gains) > 0 else 0.0
+                avg_loss = np.mean(losses) if len(losses) > 0 else 0.0
+
+                if avg_loss == 0:
+                    rsi = 100.0
+                else:
+                    rs = avg_gain / avg_loss
+                    rsi = 100 - (100 / (1 + rs))
+
+                # Normaliser RSI 0-100 vers -1 à +1 (50 = neutre)
+                volume_momentum = (rsi - 50) / 50.0
+            else:
+                volume_momentum = 0.0
+
+            return {
+                "momentum_1h": float(momentum_1h),
+                "momentum_4h": float(momentum_4h),
+                "volume_momentum": float(np.clip(volume_momentum, -1, 1))
+            }
+
+        except Exception as e:
+            logger.warning(f"Momentum features extraction error: {e}")
+            # Fallback to safe defaults
+            return {
+                "momentum_1h": 0.01,
+                "momentum_4h": 0.02,
+                "volume_momentum": 0.0
+            }
     
     def _get_default_features(self) -> FeatureSet:
         """Features par défaut en cas d'erreur"""
@@ -568,6 +773,48 @@ class MLAlertPredictor:
         """Convertit array de features en dict pour storage"""
         feature_names = self._get_feature_names()
         return dict(zip(feature_names, features_array))
+
+    def _deduce_affected_assets(self, features_array: np.ndarray, alert_type: PredictiveAlertType) -> List[str]:
+        """Déduit les assets concernés depuis features et type d'alerte"""
+        try:
+            features_dict = self._array_to_features_dict(features_array)
+
+            # Logique de déduction selon type d'alerte
+            if alert_type == PredictiveAlertType.VOLATILITY_SPIKE_IMMINENT:
+                # Volatilité spike: impacte large caps d'abord (BTC/ETH)
+                # Si vol élevée, ajouter alts également
+                vol_1h = features_dict.get("realized_vol_1h", 0)
+                if vol_1h > 0.6:  # Très haute volatilité
+                    return ["BTC", "ETH", "SOL", "AVAX"]
+                else:
+                    return ["BTC", "ETH"]
+
+            elif alert_type == PredictiveAlertType.REGIME_CHANGE_PENDING:
+                # Changement régime: impacte tout le marché
+                return ["BTC", "ETH", "SOL", "ADA", "DOT"]
+
+            elif alert_type == PredictiveAlertType.CORRELATION_BREAKDOWN:
+                # Décorrélation: impacte surtout les alts (perdent corrélation à BTC)
+                spread = features_dict.get("large_alt_spread", 0)
+                if spread > 0.05:  # Alts surperforment
+                    return ["SOL", "ADA", "AVAX", "LINK"]
+                else:
+                    return ["BTC", "ETH", "SOL"]
+
+            elif alert_type == PredictiveAlertType.SPIKE_LIKELY:
+                # Spike corrélation: impacte les pairs corrélés
+                btc_eth_corr = features_dict.get("btc_eth_correlation", 0)
+                if btc_eth_corr > 0.8:  # Haute corrélation BTC/ETH
+                    return ["BTC", "ETH"]
+                else:
+                    return ["BTC", "ETH", "SOL"]
+
+            # Fallback: BTC + ETH comme défaut
+            return ["BTC", "ETH"]
+
+        except Exception as e:
+            logger.warning(f"Asset deduction error: {e}")
+            return ["BTC", "ETH"]  # Fallback sûr
     
     def _save_models(self):
         """Sauvegarde modèles sur disque"""
