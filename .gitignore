@@ -60,6 +60,16 @@ data/*_backup_*.json
 tests/fixtures/temp_*.json
 tests/fixtures/diagnostic_*.html
 
+# Playwright E2E tests
+node_modules/
+package-lock.json
+test-results/
+test-results-latest.json/
+tests/e2e-report/
+tests/e2e-results.json
+playwright-report/
+.cache/
+
 # Debug output (keep tools, exclude output)
 debug_output/
 *.debug

@@ -17,9 +17,12 @@ let isRefreshing = false;
 export async function switchTab(tabName) {
   console.log(`🔄 Switching to tab: ${tabName}`);
 
-  // Update tab buttons
+  // Update tab buttons (classes + ARIA attributes)
   document.querySelectorAll('.tab-button').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.tab === tabName);
+    const isActive = btn.dataset.tab === tabName;
+    btn.classList.toggle('active', isActive);
+    // Update ARIA attributes for accessibility
+    btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
   });
 
   // Update tab panes
