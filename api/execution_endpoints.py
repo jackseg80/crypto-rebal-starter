@@ -892,6 +892,7 @@ async def get_ml_signals():
         # Derive policy recommendation from ML signals
         derived_policy = None
         try:
+            logger.debug(f"Deriving policy from signals: contradiction={signals.contradiction_index}, confidence={signals.confidence}")
             contradiction = signals.contradiction_index
             confidence = signals.confidence
 
@@ -907,7 +908,7 @@ async def get_ml_signals():
                 cap_daily = 0.08  # 8% cap default
 
             # Adjust cap based on volatility if available
-            if hasattr(signals, 'volatility') and signals.volatility:
+            if hasattr(signals, 'volatility') and signals.volatility and len(signals.volatility) > 0:
                 avg_vol = sum(signals.volatility.values()) / len(signals.volatility)
                 if avg_vol > 0.15:  # High volatility
                     cap_daily = max(0.02, cap_daily * 0.5)  # Reduce cap by 50%
@@ -919,8 +920,9 @@ async def get_ml_signals():
                 "rationale": f"Derived from contradiction={contradiction:.2f}, confidence={confidence:.2f}",
                 "confidence": confidence
             }
+            logger.info(f"Derived policy successfully: mode={mode}, cap={cap_daily:.2%}")
         except Exception as e:
-            logger.warning(f"Error deriving policy: {e}")
+            logger.warning(f"Error deriving policy: {e}", exc_info=True)
 
         return {
             "signals": {
@@ -933,7 +935,7 @@ async def get_ml_signals():
                 "contradiction_index": signals.contradiction_index,
                 "blended_score": getattr(signals, 'blended_score', None),
                 "sources_used": signals.sources_used,
-                "timestamp": signals.timestamp.isoformat() if hasattr(signals, 'timestamp') and signals.timestamp else None
+                "timestamp": signals.as_of.isoformat() if hasattr(signals, 'as_of') and signals.as_of else None
             },
             "derived_policy": derived_policy,
             "timestamp": datetime.now().isoformat()

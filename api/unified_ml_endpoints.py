@@ -1326,45 +1326,109 @@ async def get_ml_system_health():
         gating_system = get_gating_system()
         models_status = []
 
-        # Modèles disponibles (basé sur l'historique du gating)
-        for model_key in gating_system.prediction_history.keys():
-            health_report = gating_system.get_model_health_report(model_key)
+        # Collecter modèles depuis 2 sources : gating history + loaded models
+        model_keys_to_check = set()
 
-            if "error" not in health_report:
-                # Calculer drift score depuis l'historique de prédictions
-                drift_score = None
-                if model_key in gating_system.prediction_history:
-                    history = gating_system.prediction_history[model_key]
-                    # Prendre les 30 dernières prédictions valides (non-erreur)
-                    valid_predictions = [
-                        h['prediction'] for h in history[-30:]
-                        if not h.get('error', False) and 'prediction' in h
-                    ]
+        # 1. Modèles avec historique de prédictions (gating)
+        history_keys = list(gating_system.prediction_history.keys())
+        model_keys_to_check.update(history_keys)
+        logger.info(f"Found {len(history_keys)} models with prediction history")
 
-                    if len(valid_predictions) >= 5:  # Minimum 5 prédictions pour drift
-                        # Calculer coefficient de variation (std / mean)
-                        mean_pred = float(np.mean(valid_predictions))
-                        std_pred = float(np.std(valid_predictions))
+        # 2. Modèles chargés dans le pipeline (même sans prédictions récentes)
+        try:
+            # Accéder au cache LRU pour voir les modèles chargés
+            if hasattr(pipeline_manager, 'model_cache') and hasattr(pipeline_manager.model_cache, 'cache'):
+                cached_keys = list(pipeline_manager.model_cache.cache.keys())
+                model_keys_to_check.update(cached_keys)
+                logger.info(f"Found {len(cached_keys)} models in cache: {cached_keys}")
+        except Exception as e:
+            logger.warning(f"Could not access model cache: {e}")
 
-                        # Drift score basé sur CV (normalisé à [0, 1])
-                        # CV > 0.3 → drift élevé (1.0), CV < 0.05 → pas de drift (0.0)
-                        if abs(mean_pred) > 1e-6:  # Éviter division par zéro
-                            cv = std_pred / abs(mean_pred)
-                            # Normaliser : 0.05 → 0.0, 0.30 → 1.0
-                            drift_score = min(1.0, max(0.0, (cv - 0.05) / 0.25))
-                            drift_score = round(float(drift_score), 3)
-                            logger.debug(f"Drift score for {model_key}: {drift_score} (CV={cv:.3f}, n={len(valid_predictions)})")
+        # 3. Si aucun modèle trouvé, chercher les modèles disponibles sur disque
+        if not model_keys_to_check:
+            logger.info("No models in cache or history, checking available models on disk")
+            try:
+                pipeline_status = pipeline_manager.get_pipeline_status()
+                vol_symbols = pipeline_status.get('volatility_models', {}).get('available_symbols', [])
+                logger.info(f"Found {len(vol_symbols)} volatility models on disk: {vol_symbols[:5]}")
 
-                model_health = ModelHealth(
-                    model_name=model_key.split('_')[0],
-                    version="1.0.0",
-                    is_healthy=health_report["health_score"] > 0.5,
-                    last_prediction=health_report.get("last_prediction"),
-                    error_rate_24h=health_report["error_rate"],
-                    avg_confidence=health_report["avg_confidence"],
-                    drift_score=drift_score
-                )
-                models_status.append(model_health)
+                for symbol in vol_symbols[:3]:  # Limiter à 3 premiers symboles pour éviter overhead
+                    model_key = f'volatility_{symbol}'
+                    model_keys_to_check.add(model_key)
+                    logger.info(f"Added model from disk: {model_key}")
+
+                # Ajouter modèle régime si disponible
+                if pipeline_status.get('regime_models', {}).get('model_exists', False):
+                    model_keys_to_check.add('regime_model')
+                    logger.info("Added regime_model from disk")
+            except Exception as e:
+                logger.error(f"Error checking models on disk: {e}", exc_info=True)
+
+        logger.info(f"Total models to check: {len(model_keys_to_check)} - {list(model_keys_to_check)}")
+
+        # Parcourir tous les modèles identifiés
+        for model_key in model_keys_to_check:
+            try:
+                logger.info(f"Processing model: {model_key}")
+                health_report = gating_system.get_model_health_report(model_key)
+                logger.debug(f"Health report for {model_key}: {health_report}")
+
+                # Gérer les modèles sans historique de prédictions
+                model_is_loaded = (hasattr(pipeline_manager, 'model_cache') and
+                                 hasattr(pipeline_manager.model_cache, 'cache') and
+                                 model_key in pipeline_manager.model_cache.cache)
+
+                # Si le modèle n'a pas d'historique (pas dans gating_system), créer un rapport par défaut
+                if "error" in health_report:
+                    # Créer un health_report par défaut pour modèles disponibles/chargés sans historique
+                    health_report = {
+                        "health_score": 0.8,  # Assume healthy par défaut
+                        "error_rate": 0.0,
+                        "avg_confidence": 0.7 if model_is_loaded else 0.5,  # Confiance plus faible si pas chargé
+                        "total_predictions_24h": 0,
+                        "last_prediction": None
+                    }
+                    logger.info(f"Created default health report for {model_key} (loaded={model_is_loaded})")
+
+                if "error" not in health_report:
+                    logger.info(f"Creating ModelHealth for {model_key}")
+                    # Calculer drift score depuis l'historique de prédictions
+                    drift_score = None
+                    if model_key in gating_system.prediction_history:
+                        history = gating_system.prediction_history[model_key]
+                        # Prendre les 30 dernières prédictions valides (non-erreur)
+                        valid_predictions = [
+                            h['prediction'] for h in history[-30:]
+                            if not h.get('error', False) and 'prediction' in h
+                        ]
+
+                        if len(valid_predictions) >= 5:  # Minimum 5 prédictions pour drift
+                            # Calculer coefficient de variation (std / mean)
+                            mean_pred = float(np.mean(valid_predictions))
+                            std_pred = float(np.std(valid_predictions))
+
+                            # Drift score basé sur CV (normalisé à [0, 1])
+                            # CV > 0.3 → drift élevé (1.0), CV < 0.05 → pas de drift (0.0)
+                            if abs(mean_pred) > 1e-6:  # Éviter division par zéro
+                                cv = std_pred / abs(mean_pred)
+                                # Normaliser : 0.05 → 0.0, 0.30 → 1.0
+                                drift_score = min(1.0, max(0.0, (cv - 0.05) / 0.25))
+                                drift_score = round(float(drift_score), 3)
+                                logger.debug(f"Drift score for {model_key}: {drift_score} (CV={cv:.3f}, n={len(valid_predictions)})")
+
+                    model_health = ModelHealth(
+                        model_name=model_key.split('_')[0],
+                        version="1.0.0",
+                        is_healthy=health_report.get("health_score", 0.5) > 0.5,
+                        last_prediction=health_report.get("last_prediction"),
+                        error_rate_24h=health_report.get("error_rate", 0.0),
+                        avg_confidence=health_report.get("avg_confidence", 0.7),
+                        drift_score=drift_score
+                    )
+                    models_status.append(model_health)
+                    logger.info(f"Added ModelHealth for {model_key} to status list")
+            except Exception as e:
+                logger.error(f"Error processing model {model_key}: {e}", exc_info=True)
 
         # Calcul de la santé globale
         if models_status:
@@ -1377,13 +1441,17 @@ async def get_ml_system_health():
             overall_health = 0.8  # Santé par défaut si pas d'historique
 
         # Métriques système
+        # Calculer total_predictions_24h depuis les modèles répertoriés
+        total_predictions = 0
+        for model_key in model_keys_to_check:
+            if model_key in gating_system.prediction_history:
+                report = gating_system.get_model_health_report(model_key)
+                total_predictions += report.get("total_predictions_24h", 0)
+
         system_metrics = {
             "active_models": len(models_status),
             "healthy_models": sum(1 for m in models_status if m.is_healthy),
-            "total_predictions_24h": sum(
-                gating_system.get_model_health_report(key).get("total_predictions_24h", 0)
-                for key in gating_system.prediction_history.keys()
-            )
+            "total_predictions_24h": total_predictions
         }
 
         return MLSystemHealth(
