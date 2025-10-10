@@ -136,7 +136,7 @@
                 updateGlobalInsightMeta();
 
             } catch (error) {
-                console.warn('⚠️ Global Insight fallback to simple calculation:', error);
+                debugLogger.warn('⚠️ Global Insight fallback to simple calculation:', error);
                 console.debug('Error details:', error.stack || error);
 
                 // Fallback to simple calculation if intelligent system fails
@@ -168,7 +168,7 @@
         // SMART LOADING - Load data directly if not available in store
         async function loadUnifiedDataForDashboard() {
             try {
-                console.log('🔄 Loading unified data for dashboard...');
+                debugLogger.debug('🔄 Loading unified data for dashboard...');
 
                 // Import and run the same cache-intelligent loader from analytics-unified
                 const { getCurrentCycleMonths, cycleScoreFromMonths, getCyclePhase } = await import('./modules/cycle-navigator.js');
@@ -185,7 +185,7 @@
                     await store.syncGovernanceState();
                     await store.syncMLSignals();
                 } catch { }
-                console.log('✅ Cycle data loaded for dashboard');
+                debugLogger.debug('✅ Cycle data loaded for dashboard');
 
                 // 2. Try to get cached scores from localStorage (from analytics-unified cache)
                 const getCachedScore = (key) => {
@@ -210,7 +210,7 @@
                 if (cachedOnchain && typeof cachedOnchain.score === 'number') {
                     store.set('scores.onchain', cachedOnchain.score);
                     store.set('scores.onchain_metadata', cachedOnchain.metadata);
-                    console.log('✅ On-chain data loaded from cache for dashboard');
+                    debugLogger.debug('✅ On-chain data loaded from cache for dashboard');
                 }
 
                 // Try cached risk data
@@ -218,14 +218,14 @@
                 if (cachedRisk && cachedRisk.risk_metrics?.risk_score) {
                     store.set('scores.risk', cachedRisk.risk_metrics.risk_score);
                     store.set('risk.risk_metrics', cachedRisk.risk_metrics); // Full risk metrics for sophisticated analysis
-                    console.log('✅ Risk data loaded from cache for dashboard');
+                    debugLogger.debug('✅ Risk data loaded from cache for dashboard');
                 }
 
                 // Try cached blended data
                 const cachedBlended = getCachedScore('analytics_unified_blended');
                 if (cachedBlended && typeof cachedBlended.score === 'number') {
                     store.set('scores.blended', cachedBlended.score);
-                    console.log('✅ Blended score loaded from cache for dashboard');
+                    debugLogger.debug('✅ Blended score loaded from cache for dashboard');
                 } else {
                     // Calculate blended if we have component scores
                     // ✅ Respecte docs/RISK_SEMANTICS.md - Risk Score utilisé directement (pas d'inversion)
@@ -236,7 +236,7 @@
                     const blended = (cycleScore * 0.50) + (onchainScore * 0.30) + (riskScore * 0.20);
                     const blendedScore = Math.round(Math.max(0, Math.min(100, blended)));
                     store.set('scores.blended', blendedScore);
-                    console.log('✅ Blended score calculated for dashboard');
+                    debugLogger.debug('✅ Blended score calculated for dashboard');
                 }
 
                 // Ensure basic CCS signals data is available for sophisticated modules
@@ -247,14 +247,14 @@
                         btc_dominance: { value: 57.5 },
                         funding_rate: { value: 0.0001 }
                     });
-                    console.log('✅ Basic CCS signals data initialized for dashboard');
+                    debugLogger.debug('✅ Basic CCS signals data initialized for dashboard');
                 }
 
-                console.log('🎯 Dashboard data loading completed');
+                debugLogger.debug('🎯 Dashboard data loading completed');
                 refreshGI();
 
             } catch (error) {
-                console.error('❌ Error loading dashboard data:', error);
+                debugLogger.error('❌ Error loading dashboard data:', error);
                 // Fallback to basic calculation
                 refreshGI();
             }
@@ -266,7 +266,7 @@
             const hasPartialScores = state.cycle?.score != null && state.scores?.onchain != null && state.scores?.risk != null;
 
             if (hasBlended) {
-                console.log('🎯 Store ready with blended data, refreshing Global Insight');
+                debugLogger.debug('🎯 Store ready with blended data, refreshing Global Insight');
                 if (typeof state.risk?.risk_budget?.target_stables_pct !== 'number') {
                     try {
                         const { calculateRiskBudget } = await import('./modules/market-regimes.js');
@@ -274,7 +274,7 @@
                         store.set('risk.risk_budget', riskBudget);
                         console.debug('✅ Synthesized risk budget fallback:', { target_stables_pct: riskBudget.target_stables_pct });
                     } catch (fallbackError) {
-                        console.warn('⚠️ Unable to synthesize risk budget fallback:', fallbackError);
+                        debugLogger.warn('⚠️ Unable to synthesize risk budget fallback:', fallbackError);
                     }
                 }
                 refreshGI();
@@ -282,12 +282,12 @@
             }
 
             if (hasPartialScores) {
-                console.log('🔁 Partial store data, running unified loader to compute blended score...');
+                debugLogger.debug('🔁 Partial store data, running unified loader to compute blended score...');
                 await loadUnifiedDataForDashboard();
                 return;
             }
 
-            console.log('⏳ No store data, loading directly for dashboard...');
+            debugLogger.debug('⏳ No store data, loading directly for dashboard...');
             await loadUnifiedDataForDashboard();
         }
 
@@ -338,7 +338,7 @@
                 });
 
             } catch (error) {
-                console.warn('Failed to update Global Insight meta:', error);
+                debugLogger.warn('Failed to update Global Insight meta:', error);
             }
         }
 
@@ -968,7 +968,7 @@
                         }
                     }
                 } catch (e) {
-                    console.warn('Currency change re-render failed:', e);
+                    debugLogger.warn('Currency change re-render failed:', e);
                 }
                 // Update meta badge (Updated / Contrad / Cap)
                 updateGlobalInsightMeta();
@@ -980,7 +980,7 @@
                     if (dashboardData && dashboardData.portfolio) updatePortfolioDisplay(dashboardData.portfolio);
                     if (dashboardData && dashboardData.recentActivity) updateRecentActivity(dashboardData.recentActivity);
                     if (dashboardData && dashboardData.executionStats) updateExecutionStatus(dashboardData.executionStats);
-                } catch (e) { console.warn('Re-render on rate update failed:', e); }
+                } catch (e) { debugLogger.warn('Re-render on rate update failed:', e); }
             });
         });
 
@@ -1049,11 +1049,11 @@
 
                 for (const csvFile of csvFiles) {
                     try {
-                        console.log(`📄 Attempting to load: ${csvFile}`);
+                        debugLogger.debug(`📄 Attempting to load: ${csvFile}`);
                         const response = await fetch(csvFile);
                         if (response.ok) {
                             const csvText = await response.text();
-                            console.log(`✅ Successfully loaded ${csvFile} (${csvText.length} characters)`);
+                            debugLogger.debug(`✅ Successfully loaded ${csvFile} (${csvText.length} characters)`);
                             return {
                                 success: true,
                                 csvText: csvText,
@@ -1062,7 +1062,7 @@
                             };
                         }
                     } catch (fileError) {
-                        console.log(`⚠️ Could not load ${csvFile}:`, fileError.message);
+                        debugLogger.debug(`⚠️ Could not load ${csvFile}:`, fileError.message);
                     }
                 }
             } else {
@@ -1154,7 +1154,7 @@
                     dataItemsCount: balanceResult?.data?.items?.length || 0
                 });
             } catch (error) {
-                console.warn('📊 API not available, trying direct CSV access...', error.message);
+                debugLogger.warn('📊 API not available, trying direct CSV access...', error.message);
                 // Fallback: try direct CSV access since API is not available
                 balanceResult = await loadDirectCSV();
             }
@@ -1210,14 +1210,14 @@
                     const pnlData = await pnlResponse.json();
                     if (pnlData.ok && pnlData.performance && pnlData.performance.performance_available) {
                         performance = pnlData.performance;
-                        console.log('✅ [PNL] P&L loaded from API:', {
+                        debugLogger.debug('✅ [PNL] P&L loaded from API:', {
                             pnl: performance.absolute_change_usd,
                             pnlPct: performance.percentage_change
                         });
                     }
                 }
             } catch (e) {
-                console.warn('⚠️ Could not fetch P&L from API:', e.message);
+                debugLogger.warn('⚠️ Could not fetch P&L from API:', e.message);
             }
 
             return {
@@ -1331,7 +1331,7 @@
                         }
                     }
                 } catch (cacheErr) {
-                    console.warn('Failed to read persistent risk scores cache:', cacheErr);
+                    debugLogger.warn('Failed to read persistent risk scores cache:', cacheErr);
                 }
 
                 // Si pas de scores disponibles, retourner null
@@ -1366,7 +1366,7 @@
 
             const dailyPnl = performance?.absolute_change_usd || 0;
             const dailyPnlPct = performance?.percentage_change || 0;
-            console.log('🔍 [PNL Display] Values:', {
+            debugLogger.debug('🔍 [PNL Display] Values:', {
                 raw_performance: performance,
                 absolute_change_usd: performance?.absolute_change_usd,
                 percentage_change: performance?.percentage_change,
@@ -1673,12 +1673,12 @@
                 await forceReloadTaxonomy();
 
                 if (!Object.keys(UNIFIED_ASSET_GROUPS || {}).length) {
-                    console.warn('⚠️ [Dashboard] Taxonomy non chargée – risque de "Others" gonflé');
+                    debugLogger.warn('⚠️ [Dashboard] Taxonomy non chargée – risque de "Others" gonflé');
                 } else {
-                    console.log('✅ [Dashboard] Taxonomy loaded:', Object.keys(UNIFIED_ASSET_GROUPS).length, 'groupes');
+                    debugLogger.debug('✅ [Dashboard] Taxonomy loaded:', Object.keys(UNIFIED_ASSET_GROUPS).length, 'groupes');
                 }
             } catch (error) {
-                console.error('❌ [Dashboard] Failed to load taxonomy:', error);
+                debugLogger.error('❌ [Dashboard] Failed to load taxonomy:', error);
             }
         }
 
@@ -1718,7 +1718,7 @@
                         }
                     }
                 } catch (error) {
-                    console.warn('Erreur parsing ligne CSV:', error.message);
+                    debugLogger.warn('Erreur parsing ligne CSV:', error.message);
                 }
             }
 
@@ -1753,7 +1753,7 @@
         async function groupAssetsByAliases(items) {
             // Utiliser la fonction unifiée de groupement directement depuis le module
             try {
-                console.log('🔄 [Dashboard] Classifying', items.length, 'assets with unified taxonomy');
+                debugLogger.debug('🔄 [Dashboard] Classifying', items.length, 'assets with unified taxonomy');
                 const { groupAssetsByClassification } = await import('./shared-asset-groups.js');
 
                 if (!groupAssetsByClassification) {
@@ -1761,10 +1761,10 @@
                 }
 
                 const result = groupAssetsByClassification(items);
-                console.log('✅ [Dashboard] Unified grouping succeeded, found', result.length, 'groups');
+                debugLogger.debug('✅ [Dashboard] Unified grouping succeeded, found', result.length, 'groups');
                 return result;
             } catch (error) {
-                console.warn('⚠️ [Dashboard] Unified grouping failed, using fallback:', error);
+                debugLogger.warn('⚠️ [Dashboard] Unified grouping failed, using fallback:', error);
                 // Fallback qui utilise aussi le groupement par classification
                 const groups = new Map();
                 const resolveGroup = (typeof window !== 'undefined' && typeof window.getAssetGroup === 'function')
@@ -1792,7 +1792,7 @@
 
                     // Debug temporaire pour voir les classifications
                     if (parseFloat(item.value_usd || 0) > 100) { // Seulement pour les assets significatifs
-                        console.log(`🔍 ${symbol} → ${group} ($${parseFloat(item.value_usd || 0).toFixed(2)})`);
+                        debugLogger.debug(`🔍 ${symbol} → ${group} ($${parseFloat(item.value_usd || 0).toFixed(2)})`);
                     }
 
                     if (!groups.has(group)) {
@@ -1826,10 +1826,10 @@
                     if (xhr.status === 200) {
                         const data = JSON.parse(xhr.responseText);
                         taxonomyAPICache = data.aliases || {};
-                        console.log('✅ Taxonomy API loaded synchronously for dashboard fallback');
+                        debugLogger.debug('✅ Taxonomy API loaded synchronously for dashboard fallback');
                     }
                 } catch (e) {
-                    console.warn('Failed to load taxonomy API for fallback:', e);
+                    debugLogger.warn('Failed to load taxonomy API for fallback:', e);
                     taxonomyAPICache = {};
                 }
             }
@@ -2062,22 +2062,22 @@
             console.group('🔍 Portfolio Data Debug');
 
             const currentSource = globalConfig.get('data_source');
-            console.log('Current configured source:', currentSource);
+            debugLogger.debug('Current configured source:', currentSource);
 
-            console.log('Testing direct API calls...');
+            debugLogger.debug('Testing direct API calls...');
 
             // Test stub source
             try {
                 const stubResponse = await fetch(`${globalConfig.get('api_base_url')}/balances/current?source=stub&_t=${Date.now()}`);
                 const stubData = await stubResponse.json();
                 const stubTotal = stubData.items?.reduce((sum, item) => sum + (item.value_usd || 0), 0) || 0;
-                console.log('✅ Stub source API response:', {
+                debugLogger.debug('✅ Stub source API response:', {
                     success: stubResponse.ok,
                     itemCount: stubData.items?.length,
                     totalValue: stubTotal
                 });
             } catch (e) {
-                console.error('❌ Stub source failed:', e);
+                debugLogger.error('❌ Stub source failed:', e);
             }
 
             // Test cointracking source
@@ -2085,20 +2085,20 @@
                 const csvResponse = await fetch(`${globalConfig.get('api_base_url')}/balances/current?source=cointracking&_t=${Date.now()}`);
                 const csvData = await csvResponse.json();
                 const csvTotal = csvData.items?.reduce((sum, item) => sum + (item.value_usd || 0), 0) || 0;
-                console.log('✅ CoinTracking source API response:', {
+                debugLogger.debug('✅ CoinTracking source API response:', {
                     success: csvResponse.ok,
                     itemCount: csvData.items?.length,
                     totalValue: csvTotal
                 });
             } catch (e) {
-                console.error('❌ CoinTracking source failed:', e);
+                debugLogger.error('❌ CoinTracking source failed:', e);
             }
 
             // Test current configured source
-            console.log(`Testing current configured source: ${currentSource}`);
+            debugLogger.debug(`Testing current configured source: ${currentSource}`);
             try {
                 const currentResponse = await window.loadBalanceData();
-                console.log('✅ Current source via loadBalanceData():', {
+                debugLogger.debug('✅ Current source via loadBalanceData():', {
                     success: currentResponse?.success,
                     source: currentResponse?.source,
                     hasData: !!currentResponse?.data,
@@ -2108,10 +2108,10 @@
 
                 if (currentResponse?.data?.items) {
                     const total = currentResponse.data.items.reduce((sum, item) => sum + (item.value_usd || 0), 0);
-                    console.log('Calculated total from current source:', total);
+                    debugLogger.debug('Calculated total from current source:', total);
                 }
             } catch (e) {
-                console.error('❌ Current source failed:', e);
+                debugLogger.error('❌ Current source failed:', e);
             }
 
             console.groupEnd();
@@ -2249,7 +2249,7 @@
 
         // === SAXO TILE FUNCTIONS ===
         async function refreshSaxoTile() {
-            console.log('🏦 Refreshing Saxo tile...');
+            debugLogger.debug('🏦 Refreshing Saxo tile...');
 
             const statusEl = document.getElementById('saxo-status');
             const totalValueEl = document.getElementById('saxo-total-value');
@@ -2278,7 +2278,7 @@
                         statusEl.className = 'status-badge status-warning';
                     }
 
-                    console.warn('[Saxo Tile] Empty state or error:', summary.error || 'No positions');
+                    debugLogger.warn('[Saxo Tile] Empty state or error:', summary.error || 'No positions');
                 } else {
                     // Success with data
                     if (totalValueEl) {
@@ -2294,7 +2294,7 @@
                         statusEl.className = 'status-badge status-active';
                     }
 
-                    console.log('✅ Saxo tile updated:', {
+                    debugLogger.debug('✅ Saxo tile updated:', {
                         total_value: summary.total_value,
                         positions_count: summary.positions_count,
                         asof: summary.asof
@@ -2308,7 +2308,7 @@
                 );
 
             } catch (error) {
-                console.error('[Saxo Tile] Error refreshing:', error);
+                debugLogger.error('[Saxo Tile] Error refreshing:', error);
 
                 if (totalValueEl) totalValueEl.textContent = '--';
                 if (positionsCountEl) positionsCountEl.textContent = '--';
@@ -2335,7 +2335,7 @@
                     if (typeof loadScoresData === 'function' && typeof updateScoresDisplay === 'function') {
                         loadScoresData()
                             .then(data => updateScoresDisplay(data))
-                            .catch(err => console.warn('Failed to refresh scores from storage event:', err));
+                            .catch(err => debugLogger.warn('Failed to refresh scores from storage event:', err));
                     }
                 }
             } catch (_) { /* ignore */ }
@@ -2349,7 +2349,7 @@
                 if (typeof loadScoresData === 'function' && typeof updateScoresDisplay === 'function') {
                     loadScoresData()
                         .then(data => updateScoresDisplay(data))
-                        .catch(err => console.warn('Failed to refresh scores on focus:', err));
+                        .catch(err => debugLogger.warn('Failed to refresh scores on focus:', err));
                 }
             } catch (_) { /* ignore */ }
         }
