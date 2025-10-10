@@ -241,7 +241,17 @@ class GlobalConfig {
    */
   getApiUrl(endpoint, additionalParams = {}) {
     const base = this.settings.api_base_url;
-    const url = new URL(endpoint, base.endsWith('/') ? base : base + '/');
+
+    // Normalize endpoint to avoid /api/api duplication
+    let normalizedEndpoint = endpoint;
+    if (base.endsWith('/api') && /^\/+api(\/|$)/i.test(endpoint)) {
+      normalizedEndpoint = endpoint.replace(/^\/+api/, '');
+      if (!normalizedEndpoint.startsWith('/')) {
+        normalizedEndpoint = '/' + normalizedEndpoint;
+      }
+    }
+
+    const url = new URL(normalizedEndpoint, base.endsWith('/') ? base : base + '/');
 
     const defaults = {
       source: this.settings.data_source,

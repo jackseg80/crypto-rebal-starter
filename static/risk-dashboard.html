@@ -2903,7 +2903,8 @@
     // Test endpoint (identique à ta version)
     async function testEndpoint() {
       try {
-        const r = await fetch('http://localhost:8000/api/risk/dashboard');
+        const url = window.globalConfig.getApiUrl('/api/risk/dashboard');
+        const r = await fetch(url);
         const t = await r.text();
         try { JSON.parse(t); alert('API Response received. Check console for details.'); }
         catch { alert('API returned non-JSON response: ' + t.substring(0, 200)); }
