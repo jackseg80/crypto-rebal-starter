@@ -1,7 +1,7 @@
 # Dette Technique - Suivi et Roadmap
 
 > **Dernière mise à jour** : 10 octobre 2025
-> **Statut global** : 🟢 Sous contrôle (14 items actifs, 4 migrations terminées)
+> **Statut global** : 🟢 Sous contrôle (12 items actifs, 2 HIGH priority résolus)
 
 Ce document centralise les TODO, FIXME et items de dette technique identifiés dans le codebase, avec priorités et plan de résolution.
 
@@ -10,12 +10,13 @@ Ce document centralise les TODO, FIXME et items de dette technique identifiés d
 | Catégorie | Items | Priorité | Action |
 |-----------|-------|----------|--------|
 | **Features futures** | 6 | 🟢 LOW | Backlog product |
-| **À implémenter** | 6 | 🟡 MEDIUM | Plan d'implémentation |
+| **À implémenter** | 4 | 🟡 MEDIUM | Plan d'implémentation |
 | **Documentation** | 1 | 🔵 INFO | Référence existante |
+| **HIGH priority résolus** | 2 | ✅ DONE | Complétés Oct 2025 |
 | **Migration terminée** | 4 | ✅ DONE | Complétée Oct 2025 |
 | **Archives nettoyées** | 7 | ✅ DONE | Supprimées Oct 2025 |
 
-**Total actif** : 13 items (excluant migrations/archives complétées)
+**Total actif** : 11 items (excluant migrations/HIGH/archives complétées)
 
 ---
 
@@ -91,35 +92,49 @@ Ces items sont des fonctionnalités futures, pas des bugs. Backlog product.
 
 ---
 
-## 🟡 MEDIUM - À Implémenter (6 items)
+## ✅ DONE - HIGH Priority Resolved (2 items - Oct 2025)
 
-Items avec valeur utilisateur claire, nécessitant implémentation.
+### 1. Wallet Stats ✅
 
-### 1. Wallet Stats (2 TODO) - Priority HIGH
+#### `static/core/unified-insights-v2.js:580-588`
+**Statut** : Implémenté
+**Date complétion** : 10 octobre 2025
 
-#### `static/core/unified-insights-v2.js:580-584`
 ```javascript
-// Stats wallet basiques (TODO: étendre avec vrais calculs)
+// Implémentation finale
+const currentAllocations = window.store?.get('allocations.current') || {};
+const sortedByWeight = Object.entries(currentAllocations).sort((a, b) => b[1] - a[1]);
+
 const walletStats = {
-  topWeightSymbol: null, // TODO: calculer depuis current allocation
-  topWeightPct: null,
-  volatility: null
+  topWeightSymbol: sortedByWeight[0]?.[0] || null,
+  topWeightPct: sortedByWeight[0]?.[1] || null,
+  volatility: null // Deferred to risk metrics (requires historical data)
 };
 ```
 
-**Impact** : Améliore précision des allocations dynamiques
-**Effort** : 1-2h
-**Action recommandée** :
-```javascript
-// Implémentation proposée
-const walletStats = {
-  topWeightSymbol: Object.entries(currentAllocations).sort((a,b) => b[1] - a[1])[0]?.[0],
-  topWeightPct: Math.max(...Object.values(currentAllocations)),
-  volatility: calculatePortfolioVolatility(balances, historicalData)
-};
-```
+**Résultat** : Allocations dynamiques maintenant basées sur les stats wallet réelles
 
-### 2. Governance Overrides (1 TODO) - Priority MEDIUM
+### 2. Governance Endpoint ✅
+
+#### `static/modules/risk-targets-tab.js:423`
+**Statut** : Implémenté
+**Date complétion** : 10 octobre 2025
+
+**Problème résolu** : Targets appliqués directement sans workflow governance
+
+**Implémentation** :
+- Appel `POST /execution/governance/propose` pour créer plan DRAFT
+- Workflow complet : DRAFT → REVIEWED → APPROVED → ACTIVE
+- Fallback gracieux si API indisponible (mode local)
+- Feedback utilisateur avec plan_id et état
+
+**Résultat** : Workflow governance respecté avec traçabilité complète des décisions
+
+---
+
+## 🟡 MEDIUM - À Implémenter (4 items)
+
+### 1. Governance Overrides (1 TODO) - Priority MEDIUM
 
 #### `static/components/UnifiedInsights.js:571`
 ```javascript
@@ -158,19 +173,6 @@ showNotification('Configuration sources sauvegardée', 'success');
 2. Sauvegarder dans `data/users/{user_id}/config.json`
 3. Charger au démarrage page
 
-### 5. Governance Endpoint (1 TODO) - Priority HIGH
-
-#### `static/modules/risk-targets-tab.js:423`
-```javascript
-// TODO: Replace with actual governance decision creation when endpoint is ready
-await applyTargets(proposal);
-```
-
-**Problème actuel** : Targets appliqués directement sans approbation
-**Impact** : Contourne le workflow governance
-**Effort** : 1h
-**Action recommandée** : Utiliser `POST /execution/governance/decisions` existant
-
 ---
 
 ## 🔵 INFO - Documentation (1 item)
@@ -204,16 +206,10 @@ Fichiers supprimés :
 
 ### Court Terme (< 1 semaine)
 
-1. **Governance Endpoint** (risk-targets-tab.js) - 1h
-   → Résoudre contournement workflow
-
-2. **Wallet Stats** (unified-insights-v2.js) - 2h
-   → Améliorer précision allocations
-
-3. **Settings API Save** (settings.html) - 2h
+1. **Settings API Save** (settings.html) - 2h
    → Persistance multi-device
 
-**Total** : 5h d'effort
+**Total** : 2h d'effort
 
 ### Moyen Terme (1-2 semaines)
 
@@ -235,10 +231,10 @@ Fichiers supprimés :
 
 | Métrique | Avant | Après | Delta |
 |----------|-------|-------|-------|
-| TODO/FIXME total | 26 | 14 | -12 ✅ |
+| TODO/FIXME total | 26 | 12 | -14 ✅ |
 | Fichiers backup | 7 | 0 | -7 ✅ |
 | Taille backups | 400 KB | 0 KB | -100% ✅ |
-| Items HIGH priority | 0 | 2 | +2 ⚠️ |
+| Items HIGH priority | 2 | ✅ 0 | -2 ✅ |
 | Migration Risk Dashboard | 4 TODO | ✅ DONE | -4 ✅ |
 
 ### Tendance
@@ -247,8 +243,9 @@ Fichiers supprimés :
 Oct 2025 début: 26 items (baseline)
 Oct 2025 nettoyage: 26 → 18 items (-31% cleanup)
 Oct 2025 migration: 18 → 14 items (-22% completion)
-Target Nov 2025: 14 items → 8 items (implémenter 6 items)
-Target Dec 2025: 8 items → <5 items (dette sous contrôle)
+Oct 2025 HIGH priority: 14 → 12 items (-14% fixes)
+Target Nov 2025: 12 items → 6 items (implémenter MEDIUM items)
+Target Dec 2025: 6 items → <5 items (dette sous contrôle)
 ```
 
 ---

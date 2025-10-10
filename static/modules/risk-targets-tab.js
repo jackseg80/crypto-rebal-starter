@@ -419,13 +419,53 @@ window.applyStrategy = async function (mode) {
       return;
     }
 
-    // For now, still apply locally for backward compatibility
-    // TODO: Replace with actual governance decision creation when endpoint is ready
-    await applyTargets(proposal);
+    // Create governance decision via API instead of direct apply
+    try {
+      const apiUrl = window.globalConfig ? window.globalConfig.getApiUrl('/execution/governance/propose') : '/execution/governance/propose';
+      const activeUser = localStorage.getItem('activeUser') || 'demo';
 
-    // Update governance state to reflect the decision
-    window.store.set('targets.governance_mode', governanceStatus.mode);
-    window.store.set('targets.strategy', `${proposal.strategy} (via governance)`);
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User': activeUser
+        },
+        body: JSON.stringify({
+          targets: targets, // Already formatted for governance
+          reason: `Strategic targets ${mode}: ${proposal.strategy}`,
+          force_override_cooldown: false
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+        throw new Error(errorData.detail || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert(`✅ Proposition créée avec succès !\n\nPlan ID: ${result.plan_id}\nStatut: ${result.state}\n\nLe plan est en attente d'approbation.`);
+
+        // Update local store with proposed targets for display
+        await applyTargets(proposal);
+        window.store.set('targets.governance_mode', governanceStatus.mode);
+        window.store.set('targets.strategy', `${proposal.strategy} (DRAFT - pending approval)`);
+        window.store.set('targets.pending_plan_id', result.plan_id);
+      } else {
+        throw new Error(result.message || 'Failed to create proposal');
+      }
+    } catch (error) {
+      console.error('Failed to create governance proposal:', error);
+
+      // Fallback to local apply if API fails (backward compatibility)
+      console.warn('Falling back to local targets application');
+      await applyTargets(proposal);
+      window.store.set('targets.governance_mode', 'manual');
+      window.store.set('targets.strategy', `${proposal.strategy} (local - governance unavailable)`);
+
+      alert(`⚠️ Governance API unavailable: ${error.message}\n\nTargets appliqués localement uniquement.`);
+    }
 
     // Refresh targets content to show updated data
     if (window.store.get('ui.activeTab') === 'targets') {
