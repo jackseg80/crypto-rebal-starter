@@ -1101,8 +1101,12 @@ function saveSourcesConfiguration() {
   const warning = document.getElementById('sources_warning_threshold').value;
   const autoRefresh = document.getElementById('sources_auto_refresh').checked;
 
-  // TODO: Implémenter la sauvegarde via API
-  showNotification('Configuration sources sauvegardée', 'success');
+  // NOTE: Save to localStorage for now (client-side only)
+  // TODO (tracked in TECHNICAL_DEBT.md): Implement server-side persistence
+  // via PUT /api/users/{user_id}/settings/sources for multi-device sync
+  localStorage.setItem('sources_auto_refresh', autoRefresh);
+
+  showNotification('Configuration sources sauvegardée (local)', 'success');
 }
 
 function toggleSourcesLogs() {

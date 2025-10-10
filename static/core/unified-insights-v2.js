@@ -577,11 +577,14 @@ export async function getUnifiedState() {
       // Risk budget (SOURCE DE VÉRITÉ pour stables)
       const rb = regimeData.risk_budget;
 
-      // Stats wallet basiques (TODO: étendre avec vrais calculs)
+      // Stats wallet basiques (calculés depuis allocations réelles)
+      const currentAllocations = window.store?.get('allocations.current') || {};
+      const sortedByWeight = Object.entries(currentAllocations).sort((a, b) => b[1] - a[1]);
+
       const walletStats = {
-        topWeightSymbol: null, // TODO: calculer depuis current allocation
-        topWeightPct: null,
-        volatility: null
+        topWeightSymbol: sortedByWeight[0]?.[0] || null,
+        topWeightPct: sortedByWeight[0]?.[1] || null,
+        volatility: null // Requires historical data, defer to risk metrics
       };
 
       // CALCUL DYNAMIQUE: remplace les presets hardcodés

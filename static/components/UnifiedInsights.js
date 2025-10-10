@@ -567,8 +567,8 @@ export async function renderUnifiedInsights(containerId = 'unified-root', option
               }
             }
 
-            // Overrides count (simulate for now)
-            const overrides = 0; // TODO: Get from governance state
+            // Overrides count (from governance state)
+            const overrides = window.store?.get('governance.overrides_count') || 0;
             if (overrides > 0) badges.push(`Overrides ${overrides}`);
 
             // Status indicators
