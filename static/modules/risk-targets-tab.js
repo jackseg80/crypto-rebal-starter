@@ -415,7 +415,7 @@ window.applyStrategy = async function (mode) {
     const governanceStatus = window.store.getGovernanceStatus();
 
     if (governanceStatus.state === 'FROZEN') {
-      alert('❄️ System is frozen. Cannot create new decisions.');
+      console.warn('❄️ System is frozen. Cannot create new decisions.');
       return;
     }
 
@@ -423,6 +423,9 @@ window.applyStrategy = async function (mode) {
     try {
       const apiUrl = window.globalConfig ? window.globalConfig.getApiUrl('/execution/governance/propose') : '/execution/governance/propose';
       const activeUser = localStorage.getItem('activeUser') || 'demo';
+
+      // Auto-bypass cooldown in localhost for dev convenience
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -433,7 +436,7 @@ window.applyStrategy = async function (mode) {
         body: JSON.stringify({
           targets: targets, // Already formatted for governance
           reason: `Strategic targets ${mode}: ${proposal.strategy}`,
-          force_override_cooldown: false
+          force_override_cooldown: isLocalhost // Auto-bypass cooldown in dev
         })
       });
 
@@ -445,7 +448,7 @@ window.applyStrategy = async function (mode) {
       const result = await response.json();
 
       if (result.success) {
-        alert(`✅ Proposition créée avec succès !\n\nPlan ID: ${result.plan_id}\nStatut: ${result.state}\n\nLe plan est en attente d'approbation.`);
+        console.log(`✅ Proposition créée avec succès - Plan ID: ${result.plan_id}, Statut: ${result.state}`);
 
         // Update local store with proposed targets for display
         await applyTargets(proposal);
@@ -459,12 +462,10 @@ window.applyStrategy = async function (mode) {
       console.error('Failed to create governance proposal:', error);
 
       // Fallback to local apply if API fails (backward compatibility)
-      console.warn('Falling back to local targets application');
+      console.warn('⚠️ Governance API unavailable, falling back to local targets:', error.message);
       await applyTargets(proposal);
       window.store.set('targets.governance_mode', 'manual');
       window.store.set('targets.strategy', `${proposal.strategy} (local - governance unavailable)`);
-
-      alert(`⚠️ Governance API unavailable: ${error.message}\n\nTargets appliqués localement uniquement.`);
     }
 
     // Refresh targets content to show updated data
@@ -476,7 +477,6 @@ window.applyStrategy = async function (mode) {
     console.log(`Governance mode: ${governanceStatus.mode}, state: ${governanceStatus.state}`);
 
   } catch (error) {
-    console.error('Failed to apply strategy:', error);
-    alert('Failed to apply strategy: ' + error.message);
+    console.error('❌ Failed to apply strategy:', error.message, error);
   }
 };

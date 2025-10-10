@@ -540,16 +540,33 @@
           }
         });
 
-        // 🔍 DEBUG: Log la réponse brute avec nouveaux champs V2
-        console.debug('🔍 Raw API response (Shadow Mode V2):', JSON.stringify({
+        // 🔍 DEBUG: Log la réponse brute COMPLÈTE pour diagnostiquer les erreurs
+        console.debug('🔍 Raw API response (full object):', apiResult);
+        console.debug('🔍 Has risk_metrics?', !!apiResult?.risk_metrics);
+        console.debug('🔍 Response keys:', apiResult ? Object.keys(apiResult) : 'null');
+
+        // Vérifier que apiResult est valide avant de l'utiliser
+        if (!apiResult || !apiResult.risk_metrics) {
+          console.error('❌ Invalid API response structure:', {
+            hasApiResult: !!apiResult,
+            hasRiskMetrics: !!apiResult?.risk_metrics,
+            responseType: typeof apiResult,
+            responseKeys: apiResult ? Object.keys(apiResult) : null,
+            fullResponse: apiResult
+          });
+          throw new Error(`Invalid API response: ${apiResult ? 'missing risk_metrics' : 'null response'} - Check backend logs`);
+        }
+
+        // 🔍 DEBUG: Log la réponse brute avec nouveaux champs V2 (seulement si valide)
+        console.debug('🔍 Parsed API response (Shadow Mode V2):', JSON.stringify({
           // Legacy scores
-          sharpe_legacy: apiResult?.risk_metrics?.sharpe_ratio,
-          var95: apiResult?.risk_metrics?.var_95_1d,
-          risk_score_legacy: apiResult?.risk_metrics?.risk_score,
-          structural_legacy: apiResult?.risk_metrics?.risk_score_structural,
-          window_used: apiResult?.risk_metrics?.window_used,
+          sharpe_legacy: apiResult.risk_metrics.sharpe_ratio,
+          var95: apiResult.risk_metrics.var_95_1d,
+          risk_score_legacy: apiResult.risk_metrics.risk_score,
+          structural_legacy: apiResult.risk_metrics.risk_score_structural,
+          window_used: apiResult.risk_metrics.window_used,
           // V2 Shadow Mode info (🔧 FIX: Chemin correct!)
-          risk_version_info: apiResult?.risk_metrics?.risk_version_info ? {
+          risk_version_info: apiResult.risk_metrics.risk_version_info ? {
             active_version: apiResult.risk_metrics.risk_version_info.active_version,
             risk_score_v2: apiResult.risk_metrics.risk_version_info.risk_score_v2,
             sharpe_v2: apiResult.risk_metrics.risk_version_info.sharpe_v2,
@@ -557,11 +574,6 @@
             integrated_structural_legacy: apiResult.risk_metrics.risk_version_info.integrated_structural_legacy
           } : null
         }));
-
-        // Vérifier que apiResult est valide avant de l'utiliser
-        if (!apiResult || !apiResult.risk_metrics) {
-          throw new Error('Invalid API response structure');
-        }
 
         // Inclure les balances pour calculer concentration/stablecoins côté UI
         try {
@@ -574,11 +586,18 @@
         // The backend already provides the correct structure, just return it
         return apiResult;
       } catch (error) {
-        console.warn('Risk API unavailable:', error);
+        console.error('❌ Risk API call failed:', {
+          errorMessage: error.message,
+          errorStack: error.stack,
+          errorType: error.constructor.name,
+          dataSource: globalConfig.get('data_source'),
+          apiBaseUrl: globalConfig.get('api_base_url')
+        });
         return {
           success: false,
-          message: 'Backend de risque indisponible. Assurez-vous que le serveur backend est démarré.',
-          error_type: 'connection_error'
+          message: `Backend de risque indisponible: ${error.message}. Vérifiez que le serveur backend est démarré et les APIs externes (CoinGecko) ne sont pas rate-limitées.`,
+          error_type: 'connection_error',
+          error_details: error.message
         };
       }
     }
