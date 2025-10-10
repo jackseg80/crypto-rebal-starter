@@ -1624,18 +1624,32 @@ async def recompute_ml_signals(
 
             # Phase 2A: Enriched structured audit logging with unique calc_timestamp
             policy = state.execution_policy
-            backend_status = "ok"  # TODO: derive from actual backend health check
             calc_timestamp = datetime.now()
 
+            # Real backend health check (replaces TODO)
+            backend_status = "ok"
             try:
-                # Check if components are fresh (simulate backend status)
+                # 1. Check signals freshness
                 signals_age = (calc_timestamp - signals.as_of).total_seconds() if signals.as_of else 0
-                if signals_age > 3600:  # 1h stale
-                    backend_status = "stale"
-                if signals_age > 7200:  # 2h error
+
+                # 2. Check governance engine state
+                if not state or not signals:
                     backend_status = "error"
-            except:
-                pass
+                elif signals_age > 7200:  # > 2h : critical
+                    backend_status = "error"
+                elif signals_age > 3600:  # 1-2h : warning
+                    backend_status = "stale"
+
+                # 3. Check policy validity
+                if backend_status == "ok" and policy:
+                    # Validate policy has required fields
+                    if not hasattr(policy, 'mode') or not hasattr(policy, 'cap_daily'):
+                        backend_status = "stale"
+
+                logger.debug(f"Backend health check: status={backend_status}, signals_age={signals_age}s")
+            except Exception as e:
+                logger.warning(f"Backend health check failed: {e}")
+                backend_status = "error"
 
             audit_data = {
                 "event": "recompute_blended",

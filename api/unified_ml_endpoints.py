@@ -1331,6 +1331,30 @@ async def get_ml_system_health():
             health_report = gating_system.get_model_health_report(model_key)
 
             if "error" not in health_report:
+                # Calculer drift score depuis l'historique de prédictions
+                drift_score = None
+                if model_key in gating_system.prediction_history:
+                    history = gating_system.prediction_history[model_key]
+                    # Prendre les 30 dernières prédictions valides (non-erreur)
+                    valid_predictions = [
+                        h['prediction'] for h in history[-30:]
+                        if not h.get('error', False) and 'prediction' in h
+                    ]
+
+                    if len(valid_predictions) >= 5:  # Minimum 5 prédictions pour drift
+                        # Calculer coefficient de variation (std / mean)
+                        mean_pred = float(np.mean(valid_predictions))
+                        std_pred = float(np.std(valid_predictions))
+
+                        # Drift score basé sur CV (normalisé à [0, 1])
+                        # CV > 0.3 → drift élevé (1.0), CV < 0.05 → pas de drift (0.0)
+                        if abs(mean_pred) > 1e-6:  # Éviter division par zéro
+                            cv = std_pred / abs(mean_pred)
+                            # Normaliser : 0.05 → 0.0, 0.30 → 1.0
+                            drift_score = min(1.0, max(0.0, (cv - 0.05) / 0.25))
+                            drift_score = round(float(drift_score), 3)
+                            logger.debug(f"Drift score for {model_key}: {drift_score} (CV={cv:.3f}, n={len(valid_predictions)})")
+
                 model_health = ModelHealth(
                     model_name=model_key.split('_')[0],
                     version="1.0.0",
@@ -1338,7 +1362,7 @@ async def get_ml_system_health():
                     last_prediction=health_report.get("last_prediction"),
                     error_rate_24h=health_report["error_rate"],
                     avg_confidence=health_report["avg_confidence"],
-                    drift_score=None  # TODO: calculer drift
+                    drift_score=drift_score
                 )
                 models_status.append(model_health)
 
