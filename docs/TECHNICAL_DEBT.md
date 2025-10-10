@@ -1,7 +1,7 @@
 # Dette Technique - Suivi et Roadmap
 
-> **Dernière mise à jour** : 10 octobre 2025
-> **Statut global** : 🟢 Sous contrôle (12 items actifs, 2 HIGH priority résolus)
+> **Dernière mise à jour** : 10 octobre 2025 (soir - session technical debt)
+> **Statut global** : 🟢 Excellent progrès (8 items actifs, 5 items résolus aujourd'hui)
 
 Ce document centralise les TODO, FIXME et items de dette technique identifiés dans le codebase, avec priorités et plan de résolution.
 
@@ -10,13 +10,15 @@ Ce document centralise les TODO, FIXME et items de dette technique identifiés d
 | Catégorie | Items | Priorité | Action |
 |-----------|-------|----------|--------|
 | **Features futures** | 6 | 🟢 LOW | Backlog product |
-| **À implémenter** | 4 | 🟡 MEDIUM | Plan d'implémentation |
-| **Documentation** | 1 | 🔵 INFO | Référence existante |
+| **À implémenter** | 2 | 🟡 MEDIUM | Plan d'implémentation |
+| **Documentation** | 0 | 🔵 INFO | N/A |
 | **HIGH priority résolus** | 2 | ✅ DONE | Complétés Oct 2025 |
+| **MEDIUM priority résolus** | 3 | ✅ DONE | Complétés Oct 2025 |
 | **Migration terminée** | 4 | ✅ DONE | Complétée Oct 2025 |
 | **Archives nettoyées** | 7 | ✅ DONE | Supprimées Oct 2025 |
 
-**Total actif** : 11 items (excluant migrations/HIGH/archives complétées)
+**Total actif** : 8 items (excluant migrations/MEDIUM/HIGH/archives complétées)
+**Réduction dette** : 11 → 8 items (-27%) en 1 session
 
 ---
 
@@ -132,21 +134,78 @@ const walletStats = {
 
 ---
 
-## 🟡 MEDIUM - À Implémenter (4 items)
+## ✅ DONE - MEDIUM Priority Resolved (3 items - Oct 2025)
 
-### 1. Governance Overrides (1 TODO) - Priority MEDIUM
+### 1. Governance Overrides Display ✅
 
 #### `static/components/UnifiedInsights.js:571`
+**Statut** : Déjà implémenté (découvert lors de l'audit)
+**Date vérification** : 10 octobre 2025
+
 ```javascript
-// TODO: Get from governance state
-const overrides = 0;
+// Implémentation existante
+const overrides = window.store?.get('governance.overrides_count') || 0;
+if (overrides > 0) badges.push(`Overrides ${overrides}`);
 ```
 
-**Impact** : Visibilité sur ajustements manuels
-**Effort** : 30 min
-**Action recommandée** : Lire `window.store.get('governance.overrides_count')`
+**Résultat** : Display badges avec count des overrides manuels dans UnifiedInsights header
 
-### 3. Modules Additionnels (1 TODO) - Priority LOW
+### 2. Fix getApiUrl() Duplication Bug ✅
+
+#### `static/global-config.js:242-252`
+**Statut** : Implémenté
+**Date complétion** : 10 octobre 2025
+
+**Problème résolu** : `/api/api` duplication quand base termine par `/api` et endpoint commence par `/api`
+
+**Implémentation** :
+```javascript
+getApiUrl(endpoint, additionalParams = {}) {
+  const base = this.settings.api_base_url;
+
+  // Normalize endpoint to avoid /api/api duplication
+  let normalizedEndpoint = endpoint;
+  if (base.endsWith('/api') && /^\/+api(\/|$)/i.test(endpoint)) {
+    normalizedEndpoint = endpoint.replace(/^\/+api/, '');
+    if (!normalizedEndpoint.startsWith('/')) {
+      normalizedEndpoint = '/' + normalizedEndpoint;
+    }
+  }
+
+  const url = new URL(normalizedEndpoint, base.endsWith('/') ? base : base + '/');
+  // ...
+}
+```
+
+**Résultat** : API URLs correctes indépendamment de la configuration base URL
+
+### 3. Replace Hardcoded URLs ✅
+
+#### `static/risk-dashboard.html:2906`
+**Statut** : Implémenté
+**Date complétion** : 10 octobre 2025
+
+**Analyse complète** : 35 URLs hardcodées trouvées, 1 seule nécessitait correction
+
+**Implémentation** :
+```javascript
+// Avant
+const r = await fetch('http://localhost:8000/api/risk/dashboard');
+
+// Après
+const url = window.globalConfig.getApiUrl('/api/risk/dashboard');
+const r = await fetch(url);
+```
+
+**Résultat** : Portabilité localhost → production sans modification code
+
+**Note** : 34 autres URLs hardcodées conservées (fallbacks légitimes, placeholders formulaires, services externes)
+
+---
+
+## 🟡 MEDIUM - À Implémenter (2 items)
+
+### 1. Modules Additionnels (1 TODO) - Priority LOW
 
 #### `static/rebalance.html:3087`
 ```javascript
@@ -157,7 +216,7 @@ const overrides = 0;
 **Effort** : 4-6h
 **Action recommandée** : Voir [TODO_WEALTH_MERGE.md](TODO_WEALTH_MERGE.md) pour roadmap complète
 
-### 4. Save Settings via API (2 TODO) - Priority MEDIUM
+### 2. Save Settings via API (2 TODO) - Priority MEDIUM
 
 #### `static/settings.html:1104` + `static/sources-unified-section.html:250`
 ```javascript
@@ -172,16 +231,6 @@ showNotification('Configuration sources sauvegardée', 'success');
 1. Créer endpoint `PUT /api/users/{user_id}/settings/sources`
 2. Sauvegarder dans `data/users/{user_id}/config.json`
 3. Charger au démarrage page
-
----
-
-## 🔵 INFO - Documentation (1 item)
-
-### `static/FIXME_getApiUrl.md`
-
-**Statut** : ✅ Documenté
-**Description** : Document explicatif sur risque de duplication `/api/api`
-**Action** : Aucune (référence existante)
 
 ---
 
@@ -207,21 +256,24 @@ Fichiers supprimés :
 ### Court Terme (< 1 semaine)
 
 1. **Settings API Save** (settings.html) - 2h
-   → Persistance multi-device
+   → Persistance multi-device des paramètres utilisateur
 
 **Total** : 2h d'effort
 
 ### Moyen Terme (1-2 semaines)
 
-4. **Governance Overrides** (UnifiedInsights.js) - 30 min
+2. **Modules Additionnels Wealth** (rebalance.html) - 6h
+   → Unification cross-asset (crypto + bourse + banque)
 
-**Total** : 30 min d'effort
+**Total** : 6h d'effort
 
 ### Long Terme (> 1 mois)
 
-7. **Wealth Merge Phase 3** (rebalance.html) - 6h
-8. **Backtesting Comparison** (backtesting.html) - 8h
-9. **Supprimer InteractiveDashboard.js** - 30 min (si non utilisé)
+3. **Backtesting Comparison** (backtesting.html) - 8h
+4. **Supprimer InteractiveDashboard.js** - 30 min (si non utilisé)
+5. **Admin Dashboard Features** (ai-dashboard.html) - backlog
+
+**Total** : 8.5h d'effort
 
 ---
 
@@ -231,11 +283,13 @@ Fichiers supprimés :
 
 | Métrique | Avant | Après | Delta |
 |----------|-------|-------|-------|
-| TODO/FIXME total | 26 | 12 | -14 ✅ |
+| TODO/FIXME total | 26 | 8 | -18 ✅ |
 | Fichiers backup | 7 | 0 | -7 ✅ |
 | Taille backups | 400 KB | 0 KB | -100% ✅ |
 | Items HIGH priority | 2 | ✅ 0 | -2 ✅ |
+| Items MEDIUM priority | 4 | ✅ 1 | -3 ✅ |
 | Migration Risk Dashboard | 4 TODO | ✅ DONE | -4 ✅ |
+| Technical Debt Oct 2025 | 3 TODO | ✅ DONE | -3 ✅ |
 
 ### Tendance
 
@@ -244,9 +298,12 @@ Oct 2025 début: 26 items (baseline)
 Oct 2025 nettoyage: 26 → 18 items (-31% cleanup)
 Oct 2025 migration: 18 → 14 items (-22% completion)
 Oct 2025 HIGH priority: 14 → 12 items (-14% fixes)
-Target Nov 2025: 12 items → 6 items (implémenter MEDIUM items)
-Target Dec 2025: 6 items → <5 items (dette sous contrôle)
+Oct 2025 MEDIUM fixes: 12 → 8 items (-33% fixes) ⬅ NEW
+Target Nov 2025: 8 items → 4 items (implémenter Settings API)
+Target Dec 2025: 4 items → <3 items (dette sous contrôle)
 ```
+
+**Progrès Session 10 Oct 2025** : -3 items (Governance Overrides, getApiUrl, URLs hardcodées) ✅
 
 ---
 
