@@ -24,7 +24,7 @@ test.describe('Rebalance - Page Loading', () => {
     await expect(page.locator('nav')).toBeVisible();
 
     // Vérifier que les sections principales sont présentes
-    const portfolioSection = page.locator('[data-section="portfolio"], .portfolio-section, text=/portfolio|current/i');
+    const portfolioSection = page.locator('[data-section=portfolio], .portfolio-section').or(page.locator('text=/portfolio|current/i'));
     await expect(portfolioSection.first()).toBeVisible({ timeout: 10000 });
   });
 
@@ -39,7 +39,7 @@ test.describe('Rebalance - Page Loading', () => {
     await page.waitForTimeout(3000);
 
     // Vérifier qu'une valeur totale est affichée
-    const totalValue = page.locator('[data-value="total"], .total-value, text=/total.*usd/i');
+    const totalValue = page.locator('[data-value=total], .total-value').or(page.locator('text=/total.*usd/i'));
     const count = await totalValue.count();
     expect(count).toBeGreaterThan(0);
   });
@@ -55,7 +55,7 @@ test.describe('Rebalance - Strategy Selection', () => {
 
   test('should display 5 strategy options', async ({ page }) => {
     // Chercher dropdown stratégies
-    const strategySelect = page.locator('select[name*="strategy"], [data-select="strategy"]');
+    const strategySelect = page.locator('select[name*=strategy], [data-select=strategy]');
 
     if (await strategySelect.count() > 0) {
       await expect(strategySelect.first()).toBeVisible();
@@ -75,7 +75,7 @@ test.describe('Rebalance - Strategy Selection', () => {
   });
 
   test('should allow switching between strategies', async ({ page }) => {
-    const strategySelect = page.locator('select[name*="strategy"], [data-select="strategy"]').first();
+    const strategySelect = page.locator('select[name*=strategy], [data-select=strategy]').first();
 
     if (await strategySelect.isVisible()) {
       // Sélectionner "SMART"
@@ -106,8 +106,8 @@ test.describe('Rebalance - Mode Selection (Priority vs Proportional)', () => {
 
   test('should toggle between Priority and Proportional modes', async ({ page }) => {
     // Chercher boutons/radio mode
-    const priorityMode = page.locator('input[value="priority"], [data-mode="priority"], text=/priority/i');
-    const proportionalMode = page.locator('input[value="proportional"], [data-mode="proportional"], text=/proportional/i');
+    const priorityMode = page.locator('input[value=priority], [data-mode=priority]').or(page.locator('text=/priority/i'));
+    const proportionalMode = page.locator('input[value=proportional], [data-mode=proportional]').or(page.locator('text=/proportional/i'));
 
     if (await priorityMode.count() > 0 && await proportionalMode.count() > 0) {
       // Sélectionner Priority
@@ -148,7 +148,7 @@ test.describe('Rebalance - Plan Calculation', () => {
       await page.waitForTimeout(3000);
 
       // Vérifier que le plan est affiché
-      const planSection = page.locator('[data-section="plan"], .rebalance-plan, text=/action|buy|sell/i');
+      const planSection = page.locator('[data-section=plan], .rebalance-plan').or(page.locator('text=/action|buy|sell/i'));
       const count = await planSection.count();
       expect(count).toBeGreaterThan(0);
     }
@@ -256,7 +256,7 @@ test.describe('Rebalance - Edge Cases', () => {
     await page.waitForTimeout(2000);
 
     // Chercher input threshold (ex: 5% minimum)
-    const thresholdInput = page.locator('input[name*="threshold"], [data-input="threshold"]');
+    const thresholdInput = page.locator('input[name*=threshold], [data-input=threshold]');
 
     if (await thresholdInput.count() > 0) {
       // Essayer de mettre un seuil invalide (ex: -10%)
@@ -319,7 +319,7 @@ test.describe('Rebalance - Performance', () => {
       await calculateButton.first().click();
 
       // Attendre que le plan soit affiché
-      await page.locator('[data-section="plan"], text=/action|buy|sell/i').first().waitFor({ timeout: 10000 });
+      await page.locator('[data-section=plan]').or(page.locator('text=/action|buy|sell/i')).first().waitFor({ timeout: 10000 });
 
       const calcTime = Date.now() - startTime;
 
@@ -337,7 +337,7 @@ test.describe('Rebalance - Integration with Execution', () => {
     await page.waitForTimeout(2000);
 
     // Chercher lien vers historique d'exécution
-    const historyLink = page.locator('a[href*="execution"], text=/history|historique|exécution/i');
+    const historyLink = page.locator('a[href*=execution]').or(page.locator('text=/history|historique|exécution/i'));
 
     if (await historyLink.count() > 0) {
       await expect(historyLink.first()).toBeVisible();

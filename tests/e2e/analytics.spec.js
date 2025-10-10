@@ -23,7 +23,7 @@ test.describe('Analytics - Page Loading', () => {
     await expect(page.locator('nav')).toBeVisible();
 
     // Vérifier sections principales
-    const mlSection = page.locator('[data-section="ml"], text=/ml|machine learning|predictions/i');
+    const mlSection = page.locator('[data-section=ml]').or(page.locator('text=/ml|machine learning|predictions/i'));
     await expect(mlSection.first()).toBeVisible({ timeout: 10000 });
   });
 
@@ -54,7 +54,7 @@ test.describe('Analytics - ML Predictions', () => {
     await page.waitForTimeout(3000);
 
     // Chercher statut ML (actif/inactif)
-    const mlStatus = page.locator('[data-status="ml"], .ml-status, text=/ml.*status|pipeline/i');
+    const mlStatus = page.locator('[data-status=ml], .ml-status').or(page.locator('text=/ml.*status|pipeline/i'));
     const count = await mlStatus.count();
     expect(count).toBeGreaterThan(0);
   });
@@ -63,7 +63,7 @@ test.describe('Analytics - ML Predictions', () => {
     await page.waitForTimeout(3000);
 
     // Chercher section volatilité
-    const volSection = page.locator('[data-section="volatility"], text=/volatil/i');
+    const volSection = page.locator('[data-section=volatility]').or(page.locator('text=/volatil/i'));
     if (await volSection.count() > 0) {
       await expect(volSection.first()).toBeVisible();
 
@@ -87,7 +87,7 @@ test.describe('Analytics - ML Predictions', () => {
     await page.waitForTimeout(3000);
 
     // Chercher scores de sentiment
-    const sentimentSection = page.locator('[data-section="sentiment"], text=/sentiment/i');
+    const sentimentSection = page.locator('[data-section=sentiment]').or(page.locator('text=/sentiment/i'));
     if (await sentimentSection.count() > 0) {
       await expect(sentimentSection.first()).toBeVisible();
     }
@@ -104,7 +104,7 @@ test.describe('Analytics - Decision Index Panel', () => {
 
   test('should display Decision Index value (0-100)', async ({ page }) => {
     // Chercher Decision Index
-    const diValue = page.locator('[data-metric="decision-index"], .decision-index-value, text=/decision.*index/i');
+    const diValue = page.locator('[data-metric=decision-index], .decision-index-value').or(page.locator('text=/decision.*index/i'));
 
     if (await diValue.count() > 0) {
       await expect(diValue.first()).toBeVisible();
@@ -143,7 +143,7 @@ test.describe('Analytics - Decision Index Panel', () => {
 
   test('should display Trend Chip with Δ7d/Δ30d', async ({ page }) => {
     // Chercher Trend Chip (Δ7j, Δ30j, σ_7j)
-    const trendChip = page.locator('[data-component="trend-chip"], .trend-chip, text=/Δ7|Δ30|stable|agité/i');
+    const trendChip = page.locator('[data-component=trend-chip], .trend-chip').or(page.locator('text=/Δ7|Δ30|stable|agité/i'));
 
     if (await trendChip.count() > 0) {
       await expect(trendChip.first()).toBeVisible();
@@ -269,7 +269,7 @@ test.describe('Analytics - Sources Injection & Fallback', () => {
     await page.waitForTimeout(5000);
 
     // Vérifier que les données sont quand même chargées via API
-    const totalValue = page.locator('[data-value="total"], .total-value, text=/total/i');
+    const totalValue = page.locator('[data-value=total], .total-value').or(page.locator('text=/total/i'));
     const count = await totalValue.count();
 
     // Devrait avoir réussi à charger via API fallback
@@ -305,7 +305,7 @@ test.describe('Analytics - Unified Insights Integration', () => {
     await page.waitForTimeout(3000);
 
     // Chercher poids adaptatifs (ex: wCycle=0.65, wOnchain=0.25)
-    const weightsDisplay = page.locator('[data-component="weights"], text=/weight|poids|w.*cycle/i');
+    const weightsDisplay = page.locator('[data-component=weights]').or(page.locator('text=/weight|poids|w.*cycle/i'));
 
     if (await weightsDisplay.count() > 0) {
       await expect(weightsDisplay.first()).toBeVisible();
@@ -338,7 +338,7 @@ test.describe('Analytics - Performance', () => {
     await page.goto('/static/analytics-unified.html');
 
     // Attendre que les prédictions ML soient visibles
-    await page.locator('[data-section="ml"], text=/prediction/i').first().waitFor({ timeout: 15000 });
+    await page.locator('[data-section=ml]').or(page.locator('text=/prediction/i')).first().waitFor({ timeout: 15000 });
 
     const loadTime = Date.now() - startTime;
 

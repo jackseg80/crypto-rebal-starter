@@ -123,11 +123,11 @@ test.describe('Risk Overview Tab', () => {
     await page.waitForTimeout(3000);
 
     // Chercher Risk Score (0-100)
-    const riskScore = page.locator('[data-metric="risk-score"], .risk-score, text=/risk score/i');
+    const riskScore = page.locator('[data-metric=risk-score], .risk-score').or(page.locator('text=/risk score/i'));
     await expect(riskScore.first()).toBeVisible({ timeout: 10000 });
 
     // Vérifier qu'un nombre est affiché
-    const scoreValue = page.locator('[data-value="risk-score"], .risk-score-value');
+    const scoreValue = page.locator('[data-value=risk-score], .risk-score-value');
     if (await scoreValue.count() > 0) {
       const text = await scoreValue.first().textContent();
       const num = parseFloat(text);
@@ -196,7 +196,7 @@ test.describe('Risk Cycles Tab', () => {
     await page.waitForTimeout(3000);
 
     // Chercher section on-chain
-    const onchainSection = page.locator('[data-section="onchain"], text=/on-chain|onchain/i');
+    const onchainSection = page.locator('[data-section=onchain]').or(page.locator('text=/on-chain|onchain/i'));
 
     // Doit être présent
     const count = await onchainSection.count();
@@ -218,7 +218,7 @@ test.describe('Risk Targets Tab', () => {
     await page.waitForTimeout(2000);
 
     // Chercher dropdown stratégies (5 stratégies: macro, ccs, cycle, blend, smart)
-    const strategySelector = page.locator('select[name*="strategy"], [data-select="strategy"]');
+    const strategySelector = page.locator('select[name*=strategy], [data-select=strategy]');
 
     if (await strategySelector.count() > 0) {
       await expect(strategySelector.first()).toBeVisible();
@@ -235,7 +235,7 @@ test.describe('Risk Targets Tab', () => {
     await page.waitForTimeout(3000);
 
     // Chercher tableau ou graphique allocations
-    const allocTable = page.locator('[data-table="allocations"], .allocation-table, text=/allocation|current|target/i');
+    const allocTable = page.locator('[data-table=allocations], .allocation-table').or(page.locator('text=/allocation|current|target/i'));
 
     // Doit être présent
     const count = await allocTable.count();
@@ -257,7 +257,7 @@ test.describe('Risk Targets Tab', () => {
       await page.waitForTimeout(2000);
 
       // Vérifier que le plan est affiché
-      const actionPlan = page.locator('[data-section="action-plan"], .action-plan, text=/buy|sell|hold/i');
+      const actionPlan = page.locator('[data-section=action-plan], .action-plan').or(page.locator('text=/buy|sell|hold/i'));
       const count = await actionPlan.count();
       expect(count).toBeGreaterThan(0);
     }

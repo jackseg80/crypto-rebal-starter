@@ -86,16 +86,16 @@
     <div class="dashboard-layout">
       <!-- Main Content avec Onglets -->
       <div class="main-content">
-        <div class="tabs">
-          <button class="tab-button active" data-tab="risk" onclick="switchTab('risk')">Risk Overview</button>
-          <button class="tab-button" data-tab="cycles" onclick="switchTab('cycles')">Market Cycles</button>
-          <button class="tab-button" data-tab="targets" onclick="switchTab('targets')">Strategic Targets</button>
-          <button class="tab-button" data-tab="alerts" onclick="switchTab('alerts')">Alerts History</button>
+        <div class="tabs" role="tablist">
+          <button class="tab-button active" data-tab="risk" onclick="switchTab('risk')" role="tab" aria-selected="true" aria-controls="risk-tab">Risk Overview</button>
+          <button class="tab-button" data-tab="cycles" onclick="switchTab('cycles')" role="tab" aria-selected="false" aria-controls="cycles-tab">Market Cycles</button>
+          <button class="tab-button" data-tab="targets" onclick="switchTab('targets')" role="tab" aria-selected="false" aria-controls="targets-tab">Strategic Targets</button>
+          <button class="tab-button" data-tab="alerts" onclick="switchTab('alerts')" role="tab" aria-selected="false" aria-controls="alerts-tab">Alerts History</button>
         </div>
 
         <div class="tab-content">
           <!-- Risk Overview Tab -->
-          <div class="tab-pane active" id="risk-tab">
+          <div class="tab-pane active" id="risk-tab" role="tabpanel" aria-labelledby="risk-overview">
             <div id="risk-overview-badge-container" style="float: right; margin-bottom: 1rem;"></div>
 
             <!-- Persistent Controls (do not get replaced by dynamic render) -->
@@ -105,7 +105,7 @@
           </div>
 
           <!-- Market Cycles Tab -->
-          <div class="tab-pane" id="cycles-tab">
+          <div class="tab-pane" id="cycles-tab" role="tabpanel" aria-labelledby="cycles">
             <div id="cycles-badge-container" style="float: right; margin-bottom: 1rem;"></div>
             <div id="cycles-content">
               <div class="loading">Loading cycle analysis...</div>
@@ -113,7 +113,7 @@
           </div>
 
           <!-- Strategic Targets Tab -->
-          <div class="tab-pane" id="targets-tab">
+          <div class="tab-pane" id="targets-tab" role="tabpanel" aria-labelledby="targets">
             <div id="targets-badge-container" style="float: right; margin-bottom: 1rem;"></div>
             <div id="targets-content">
               <h3>🎯 Strategic Targets</h3>
@@ -122,7 +122,7 @@
           </div>
 
           <!-- Alerts History Tab -->
-          <div class="tab-pane" id="alerts-tab">
+          <div class="tab-pane" id="alerts-tab" role="tabpanel" aria-labelledby="alerts">
             <div id="alerts-content">
               <div class="alerts-header">
                 <h3>🚨 Alerts History</h3>

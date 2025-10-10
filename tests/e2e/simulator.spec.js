@@ -24,7 +24,7 @@ test.describe('Simulator - Page Loading', () => {
     await expect(page.locator('nav')).toBeVisible();
 
     // Vérifier que les presets sont chargés
-    const presetsSection = page.locator('[data-section="presets"], .presets-list, text=/preset|scénario/i');
+    const presetsSection = page.locator('[data-section=presets], .presets-list').or(page.locator('text=/preset|scénario/i'));
     await expect(presetsSection.first()).toBeVisible({ timeout: 10000 });
   });
 
@@ -112,7 +112,7 @@ test.describe('Simulator - Simulation Execution', () => {
       await page.waitForTimeout(3000);
 
       // Vérifier que les résultats sont affichés
-      const resultsSection = page.locator('[data-section="results"], .simulation-results, text=/résultat|result/i');
+      const resultsSection = page.locator('[data-section=results], .simulation-results').or(page.locator('text=/résultat|result/i'));
       const count = await resultsSection.count();
       expect(count).toBeGreaterThan(0);
     }
@@ -132,7 +132,7 @@ test.describe('Simulator - Simulation Execution', () => {
       await page.waitForTimeout(3000);
 
       // Chercher Decision Index
-      const diValue = page.locator('[data-metric="decision-index"], .decision-index-value, text=/decision.*index/i');
+      const diValue = page.locator('[data-metric=decision-index], .decision-index-value').or(page.locator('text=/decision.*index/i'));
       if (await diValue.count() > 0) {
         const text = await diValue.first().textContent();
         const num = parseFloat(text);
@@ -158,7 +158,7 @@ test.describe('Simulator - Simulation Execution', () => {
       await page.waitForTimeout(3000);
 
       // Chercher allocations par groupe (BTC, ETH, Stables, etc.)
-      const allocations = page.locator('[data-section="allocations"], .allocation-item, text=/btc|eth|stable/i');
+      const allocations = page.locator('[data-section=allocations], .allocation-item').or(page.locator('text=/btc|eth|stable/i'));
       const count = await allocations.count();
       expect(count).toBeGreaterThan(0);
     }
@@ -415,7 +415,7 @@ test.describe('Simulator - Edge Cases', () => {
     await page.waitForTimeout(2000);
 
     // Chercher inputs custom (si présents)
-    const btcPriceInput = page.locator('input[name*="btc"], [data-input="btc-price"]');
+    const btcPriceInput = page.locator('input[name*=btc], [data-input=btc-price]');
 
     if (await btcPriceInput.count() > 0) {
       // Essayer de mettre un prix invalide (négatif)
