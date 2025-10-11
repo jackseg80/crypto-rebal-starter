@@ -538,7 +538,7 @@
 
     async function loadData() {
       try {
-        const apiBase = globalConfig?.get('api_base_url') || 'http://localhost:8765';
+        const apiBase = globalConfig?.get('api_base_url') || window.location.origin;
         let data;
         
         try {
@@ -650,7 +650,7 @@
     async function changeGroup(alias, newGroup) {
       if (!newGroup || allAliases[alias] === newGroup) return;
       try {
-        const apiBase = globalConfig?.get('api_base_url') || 'http://localhost:8765';
+        const apiBase = globalConfig?.get('api_base_url') || window.location.origin;
         const resp = await fetch(`${apiBase}/taxonomy/aliases`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ aliases: { [alias]: newGroup } })
@@ -669,7 +669,7 @@
     async function deleteAlias(alias) {
       if (!confirm(`Supprimer l'alias "${alias}" ?`)) return;
       try {
-        const apiBase = globalConfig?.get('api_base_url') || 'http://localhost:8765';
+        const apiBase = globalConfig?.get('api_base_url') || window.location.origin;
         const resp = await fetch(`${apiBase}/taxonomy/aliases/${alias}`, { method: 'DELETE' });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         delete allAliases[alias]; filterAliases();
@@ -689,7 +689,7 @@
       if (aliases.length === 0) return alert('Aucun alias à assigner');
       if (!confirm(`Assigner ${aliases.length} aliases au groupe "${group}" ?`)) return;
       try {
-        const apiBase = globalConfig?.get('api_base_url') || 'http://localhost:8765';
+        const apiBase = globalConfig?.get('api_base_url') || window.location.origin;
         const payload = {}; aliases.forEach(a => payload[a] = group);
         const resp = await fetch(`${apiBase}/taxonomy/aliases`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ aliases: payload }) });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -707,7 +707,7 @@
       const aliases = Object.keys(allAliases);
       if (!confirm(`Assigner TOUS les ${aliases.length} aliases au groupe "Others" ?`)) return;
       try {
-        const apiBase = globalConfig?.get('api_base_url') || 'http://localhost:8765';
+        const apiBase = globalConfig?.get('api_base_url') || window.location.origin;
         const payload = {}; aliases.forEach(a => payload[a] = 'Others');
         const resp = await fetch(`${apiBase}/taxonomy/aliases`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ aliases: payload }) });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -739,7 +739,7 @@
     // Suggestions & auto-classify
     async function getSuggestions() {
       try {
-        const apiBase = globalConfig?.get('api_base_url') || 'http://localhost:8765';
+        const apiBase = globalConfig?.get('api_base_url') || window.location.origin;
         const useCG = document.getElementById('coingecko-enabled').checked;
         const ep = useCG ? '/taxonomy/suggestions-enhanced' : '/taxonomy/suggestions';
         const resp = await fetch(`${apiBase}${ep}`); if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -759,7 +759,7 @@
     async function autoClassify() {
       if (!confirm('Appliquer automatiquement la classification intelligente aux symboles inconnus ?')) return;
       try {
-        const apiBase = globalConfig?.get('api_base_url') || 'http://localhost:8765';
+        const apiBase = globalConfig?.get('api_base_url') || window.location.origin;
         const useCG = document.getElementById('coingecko-enabled').checked;
         const ep = useCG ? '/taxonomy/auto-classify-enhanced' : '/taxonomy/auto-classify';
         const resp = await fetch(`${apiBase}${ep}`, { method: 'POST' }); if (!resp.ok) throw new Error(`HTTP ${resp.status}`);

@@ -47,6 +47,9 @@ temp_*.json
 *.log
 *.bak
 rebalance-actions.csv
+test_ml_predictor.py
+migration-report.json
+data/scheduler.lock
 
 # Data files (keep raw data, exclude generated/temp)
 data/monitoring/metrics_*.json
