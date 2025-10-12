@@ -5,14 +5,15 @@ class WealthContextBar {
   constructor() {
     this.storageKey = 'wealthCtx';
     this.defaults = {
-      household: 'all',
       account: 'all',
+      bourse: 'all',
       module: 'all',
       currency: 'USD'
     };
     this.context = this.loadContext();
     this.isInitialized = false;
     this.abortController = null; // Pour annuler fetch en cours lors du switch user
+    this.bourseAbortController = null; // Pour annuler fetch Bourse
 
     // Anti-PUT rafale + idempotence
     this.settingsPutController = null; // AbortController pour PUT /api/users/settings
@@ -24,6 +25,7 @@ class WealthContextBar {
     // Debounce pour changement de source
     this.accountChangeDebounceTimer = null;
     this.accountChangeDebounceDelay = 250; // 250ms
+    this.bourseChangeDebounceTimer = null;
   }
 
   loadContext() {
@@ -35,8 +37,8 @@ class WealthContextBar {
       const stored = JSON.parse(localStorage.getItem(userKey) || '{}');
 
       return {
-        household: params.get('household') || stored.household || this.defaults.household,
         account: params.get('account') || stored.account || this.defaults.account,
+        bourse: params.get('bourse') || stored.bourse || this.defaults.bourse,
         module: params.get('module') || stored.module || this.defaults.module,
         currency: params.get('ccy') || stored.currency || this.defaults.currency
       };
@@ -189,6 +191,80 @@ class WealthContextBar {
 
   buildFallbackAccountOptions() {
     return '<option value="all">Tous</option>';
+  }
+
+  async loadBourseSources() {
+    const activeUser = localStorage.getItem('activeUser') || 'demo';
+    const now = Date.now();
+
+    // Utiliser cache si valide
+    if (this.sourcesCache &&
+        this.sourcesCacheTime > 0 &&
+        (now - this.sourcesCacheTime) < this.sourcesCacheTTL &&
+        this.sourcesCache.user === activeUser) {
+      console.debug('WealthContextBar: Using cached bourse sources');
+      return this.buildBourseOptions(this.sourcesCache.sources || []);
+    }
+
+    // Annuler fetch précédent si en cours
+    if (this.bourseAbortController) {
+      this.bourseAbortController.abort();
+    }
+
+    this.bourseAbortController = new AbortController();
+
+    try {
+      const response = await fetch('/api/users/sources', {
+        headers: { 'X-User': activeUser },
+        signal: this.bourseAbortController.signal
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      // Cache partagé avec account sources
+      if (!this.sourcesCache || this.sourcesCache.user !== activeUser) {
+        this.sourcesCache = {
+          user: activeUser,
+          sources: data.sources || []
+        };
+        this.sourcesCacheTime = now;
+      }
+
+      return this.buildBourseOptions(data.sources || []);
+
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        console.debug('Bourse sources fetch aborted (user switch)');
+        return null;
+      }
+      debugLogger.warn('Failed to load bourse sources, using fallback:', error);
+      return '<option value="all">Tous</option>';
+    } finally {
+      this.bourseAbortController = null;
+    }
+  }
+
+  buildBourseOptions(sources) {
+    // Filtrer uniquement les CSV Saxo (module saxobank)
+    const saxoCSVs = sources
+      .filter(s => s.type === 'csv' && s.module === 'saxobank')
+      .sort((a, b) => a.label.localeCompare(b.label));
+
+    let html = '<option value="all">Tous</option>';
+
+    if (saxoCSVs.length > 0) {
+      html += '<option disabled>──── CSV Saxo ────</option>';
+      saxoCSVs.forEach(s => {
+        const value = `saxo:${s.key}`;
+        html += `<option value="${value}" data-type="saxo">${s.label}</option>`;
+      });
+    }
+
+    return html;
   }
 
   async persistSettingsSafely(settings, source) {
@@ -451,6 +527,78 @@ class WealthContextBar {
     }
   }
 
+  async handleBourseChange(selectedValue, options = {}) {
+    const { skipSave = false, skipNotification = false } = options;
+
+    console.debug(`WealthContextBar: Bourse changed to "${selectedValue}" (skipSave=${skipSave})`);
+
+    // Si "all", ne rien faire de spécial
+    if (selectedValue === 'all') {
+      this.context.bourse = 'all';
+      if (!skipSave) {
+        this.saveContext();
+      }
+      return;
+    }
+
+    // Parse la valeur : saxo:key (ex: saxo:saxo_latest)
+    const parts = selectedValue.split(':');
+    if (parts.length !== 2 || parts[0] !== 'saxo') {
+      debugLogger.warn(`WealthContextBar: Invalid bourse value format: ${selectedValue}`);
+      return;
+    }
+
+    const [, key] = parts;
+
+    // Charger les sources disponibles si pas déjà chargé
+    if (!window.availableSources) {
+      try {
+        const activeUser = localStorage.getItem('activeUser') || 'demo';
+        const response = await fetch('/api/users/sources', {
+          headers: { 'X-User': activeUser }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          window.availableSources = data.sources || [];
+        }
+      } catch (error) {
+        debugLogger.error('Failed to load sources:', error);
+        return;
+      }
+    }
+
+    // Trouver la source correspondante
+    const source = window.availableSources.find(s => s.key === key && s.module === 'saxobank');
+    if (!source) {
+      debugLogger.warn(`WealthContextBar: Saxo source not found for key=${key}`);
+      return;
+    }
+
+    // Pour Bourse/Saxo, mettre à jour le contexte seulement (pas de globalConfig)
+    // car c'est géré séparément par le module Wealth
+    this.context.bourse = selectedValue;
+
+    // Sauvegarder dans localStorage seulement si pas skipSave
+    if (!skipSave) {
+      this.saveContext();
+    }
+
+    // Émettre événement pour que les pages Bourse rechargent
+    console.debug(`WealthContextBar: Emitting bourseSourceChanged event`);
+    window.dispatchEvent(new CustomEvent('bourseSourceChanged', {
+      detail: {
+        source: source,
+        key: key,
+        value: selectedValue
+      }
+    }));
+
+    // Notification visuelle
+    if (!skipNotification && typeof window.showNotification === 'function') {
+      window.showNotification(`✅ Source Bourse changée: ${source.label}`, 'success');
+    }
+  }
+
   scheduleSmartReload() {
     // Feature flag dev: ?noReload=1
     if (/[?&]noReload=1/.test(location.search)) {
@@ -486,39 +634,68 @@ class WealthContextBar {
       if (this.abortController) {
         this.abortController.abort();
       }
+      if (this.bourseAbortController) {
+        this.bourseAbortController.abort();
+      }
 
-      // Recharger les sources pour le nouvel utilisateur
+      // Recharger les sources Account pour le nouvel utilisateur
       const accountSelect = document.getElementById('wealth-account');
-      if (!accountSelect) return;
+      if (accountSelect) {
+        // Afficher état de chargement
+        accountSelect.setAttribute('aria-busy', 'true');
+        accountSelect.innerHTML = '<option>Chargement…</option>';
 
-      // Afficher état de chargement
-      accountSelect.setAttribute('aria-busy', 'true');
-      accountSelect.innerHTML = '<option>Chargement…</option>';
+        const accountHTML = await this.loadAccountSources();
 
-      const accountHTML = await this.loadAccountSources();
+        // Si le fetch a été aborté (null), ne rien faire
+        if (accountHTML !== null) {
+          accountSelect.innerHTML = accountHTML;
+          accountSelect.removeAttribute('aria-busy');
 
-      // Si le fetch a été aborté (null), ne rien faire
-      if (accountHTML === null) return;
+          // Restaurer sélection depuis localStorage namespacé du nouveau user
+          const newUserKey = `wealth_ctx:${e.detail.newUser}`;
+          const storedCtx = JSON.parse(localStorage.getItem(newUserKey) || '{}');
+          const restoredValue = storedCtx.account || 'all';
+          accountSelect.value = restoredValue;
 
-      accountSelect.innerHTML = accountHTML;
-      accountSelect.removeAttribute('aria-busy');
+          // Mettre à jour le contexte interne
+          this.context.account = restoredValue;
 
-      // Restaurer sélection depuis localStorage namespacé du nouveau user
-      const newUserKey = `wealth_ctx:${e.detail.newUser}`;
-      const storedCtx = JSON.parse(localStorage.getItem(newUserKey) || '{}');
-      const restoredValue = storedCtx.account || 'all';
-      accountSelect.value = restoredValue;
+          console.debug(`WealthContextBar: Account restored to "${restoredValue}" for user ${e.detail.newUser}`);
 
-      // Mettre à jour le contexte interne
-      this.context.account = restoredValue;
+          // Appeler handleAccountChange pour synchroniser globalConfig/userSettings
+          if (restoredValue && restoredValue !== 'all') {
+            await this.handleAccountChange(restoredValue, { skipSave: true, skipNotification: true });
+          }
+        }
+      }
 
-      console.debug(`WealthContextBar: Account restored to "${restoredValue}" for user ${e.detail.newUser}`);
+      // Recharger les sources Bourse pour le nouvel utilisateur
+      const bourseSelect = document.getElementById('wealth-bourse');
+      if (bourseSelect) {
+        bourseSelect.setAttribute('aria-busy', 'true');
+        bourseSelect.innerHTML = '<option>Chargement…</option>';
 
-      // Appeler handleAccountChange pour synchroniser globalConfig/userSettings
-      // skipSave=true car déjà sauvegardé dans localStorage
-      // skipNotification=true car c'est une restauration après switch user
-      if (restoredValue && restoredValue !== 'all') {
-        await this.handleAccountChange(restoredValue, { skipSave: true, skipNotification: true });
+        const bourseHTML = await this.loadBourseSources();
+
+        if (bourseHTML !== null) {
+          bourseSelect.innerHTML = bourseHTML;
+          bourseSelect.removeAttribute('aria-busy');
+
+          // Restaurer sélection Bourse
+          const newUserKey = `wealth_ctx:${e.detail.newUser}`;
+          const storedCtx = JSON.parse(localStorage.getItem(newUserKey) || '{}');
+          const restoredBourse = storedCtx.bourse || 'all';
+          bourseSelect.value = restoredBourse;
+
+          this.context.bourse = restoredBourse;
+
+          console.debug(`WealthContextBar: Bourse restored to "${restoredBourse}" for user ${e.detail.newUser}`);
+
+          if (restoredBourse && restoredBourse !== 'all') {
+            await this.handleBourseChange(restoredBourse, { skipSave: true, skipNotification: true });
+          }
+        }
       }
     });
   }
@@ -557,6 +734,16 @@ class WealthContextBar {
         color: var(--theme-text);
         font-size: 0.85rem;
         min-width: 100px;
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      /* Dropdown (options) affiche le nom complet */
+      .wealth-context-bar select option {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
       }
       .wealth-context-bar select:focus {
         outline: none;
@@ -587,17 +774,15 @@ class WealthContextBar {
     bar.className = 'wealth-context-bar';
     bar.innerHTML = `
       <div class="context-group">
-        <span class="context-label">Household:</span>
-        <select id="wealth-household">
-          <option value="all">Tous</option>
-          <option value="main">Principal</option>
-          <option value="secondary">Secondaire</option>
+        <span class="context-label">Cointracking:</span>
+        <select id="wealth-account" aria-busy="true">
+          <option>Chargement…</option>
         </select>
       </div>
 
       <div class="context-group">
-        <span class="context-label">Compte:</span>
-        <select id="wealth-account" aria-busy="true">
+        <span class="context-label">Bourse:</span>
+        <select id="wealth-bourse" aria-busy="true">
           <option>Chargement…</option>
         </select>
       </div>
@@ -645,11 +830,12 @@ class WealthContextBar {
 
     // Charger les sources de comptes de manière asynchrone
     this.loadAndPopulateAccountSources();
+    this.loadAndPopulateBourseSources();
 
     // Setup listener pour changement d'utilisateur
     this.setupUserSwitchListener();
 
-    // Mettre à jour les autres selects (household, module, currency)
+    // Mettre à jour les autres selects (module, currency)
     this.updateSelects();
 
     // Initialize global status badge
@@ -691,9 +877,36 @@ class WealthContextBar {
     }
   }
 
+  async loadAndPopulateBourseSources() {
+    const bourseSelect = document.getElementById('wealth-bourse');
+    if (!bourseSelect) return;
+
+    const bourseHTML = await this.loadBourseSources();
+
+    // Si le fetch a été aborté (null), ne rien faire
+    if (bourseHTML === null) return;
+
+    bourseSelect.innerHTML = bourseHTML;
+    bourseSelect.removeAttribute('aria-busy');
+
+    // Restaurer sélection depuis localStorage namespacé
+    const activeUser = localStorage.getItem('activeUser') || 'demo';
+    const userKey = `wealth_ctx:${activeUser}`;
+    const stored = JSON.parse(localStorage.getItem(userKey) || '{}');
+    const restoredValue = stored.bourse || 'all';
+    bourseSelect.value = restoredValue;
+
+    console.debug(`WealthContextBar: Bourse sources loaded, restored to "${restoredValue}"`);
+
+    // Appeler handleBourseChange pour synchroniser
+    if (restoredValue && restoredValue !== 'all') {
+      await this.handleBourseChange(restoredValue, { skipSave: true, skipNotification: true });
+    }
+  }
+
   bindEvents() {
     // Gestion des changements
-    ['household', 'module', 'currency'].forEach(key => {
+    ['module', 'currency'].forEach(key => {
       const select = document.getElementById(`wealth-${key}`);
       if (select) {
         select.addEventListener('change', (e) => {
@@ -723,6 +936,26 @@ class WealthContextBar {
       });
     }
 
+    // Gestion spéciale pour 'bourse' qui doit changer la source Saxo
+    // Avec debounce 250ms identique
+    const bourseSelect = document.getElementById('wealth-bourse');
+    if (bourseSelect) {
+      bourseSelect.addEventListener('change', (e) => {
+        const selectedValue = e.target.value;
+
+        // Annuler timer précédent
+        if (this.bourseChangeDebounceTimer) {
+          clearTimeout(this.bourseChangeDebounceTimer);
+        }
+
+        // Debounce 250ms
+        this.bourseChangeDebounceTimer = setTimeout(async () => {
+          await this.handleBourseChange(selectedValue);
+          this.bourseChangeDebounceTimer = null;
+        }, this.accountChangeDebounceDelay);
+      });
+    }
+
     // Reset button
     const resetBtn = document.getElementById('wealth-reset');
     if (resetBtn) {
@@ -742,7 +975,7 @@ class WealthContextBar {
   }
 
   updateSelects() {
-    ['household', 'account', 'module', 'currency'].forEach(key => {
+    ['account', 'bourse', 'module', 'currency'].forEach(key => {
       const select = document.getElementById(`wealth-${key}`);
       if (select) {
         select.value = this.context[key];
