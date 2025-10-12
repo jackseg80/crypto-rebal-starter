@@ -53,8 +53,15 @@ data/scheduler.lock
 
 # Data files (keep raw data, exclude generated/temp)
 data/monitoring/metrics_*.json
+data/monitoring/portfolio_metrics.json
 data/execution_history/sessions_*.json
 data/*_backup_*.json
+data/alerts.json
+data/portfolio_history.json
+data/users/*/banks/
+data/catalogs/
+data/wealth/saxo_snapshot.json
+data/users/*/config/sources.json
 *.csv
 !data/raw/*.csv
 !docs/*.csv
