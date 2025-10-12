@@ -13,9 +13,10 @@ import logging
 from datetime import datetime
 
 from services.streaming.realtime_engine import (
-    get_realtime_engine, RealtimeEngine, SubscriptionType, 
+    get_realtime_engine, RealtimeEngine, SubscriptionType,
     StreamEventType, StreamEvent
 )
+from api.dependencies.dev_guards import require_simulation, require_dev_mode, validate_websocket_token
 
 router = APIRouter(prefix="/api/realtime", tags=["realtime"])
 DEBUG_SIM = os.getenv("DEBUG_SIMULATION", "false").lower() == "true"
@@ -52,27 +53,35 @@ class PublishEventRequest(BaseModel):
 async def websocket_endpoint(
     websocket: WebSocket,
     client_id: Optional[str] = Query(None, description="Identifiant client"),
-    subscriptions: Optional[str] = Query("all", description="Souscriptions (comma-separated)")
+    subscriptions: Optional[str] = Query("all", description="Souscriptions (comma-separated)"),
+    token: Optional[str] = Query(None, description="Auth token (required in production)")
 ):
     """
     WebSocket endpoint principal pour streaming temps réel
-    
+
     Paramètres:
     - client_id: Identifiant unique du client (optionnel)
     - subscriptions: Types de souscriptions séparées par virgule (all, risk_alerts, price_feeds, portfolio, system)
-    
+    - token: Token d'authentification (optionnel en dev, requis en production)
+
     Événements reçus:
     - subscribe: Changer les souscriptions
     - ping: Heartbeat du client
-    
+
     Événements envoyés:
     - Événements de risque (VAR_BREACH, STRESS_TEST, etc.)
     - Données de marché
     - Mises à jour de portfolio
     - Status système
     """
+    # Validation auth (optionnelle en dev, requise en prod)
+    if not validate_websocket_token(token):
+        await websocket.close(code=1008)  # Policy Violation
+        log.warning(f"WebSocket connection rejected for client_id={client_id} - invalid or missing token")
+        return
+
     engine = await get_realtime_engine()
-    
+
     try:
         # Connecter le client
         await engine.connect_websocket(websocket, client_id)
@@ -233,19 +242,19 @@ async def get_stream_info(
 # These operations should only be performed by internal system components,
 # not exposed via public API endpoints.
 
-@router.get("/demo")
-@router.post("/dev/simulate", response_model=WsStatusResponse)
+@router.post("/dev/simulate", response_model=WsStatusResponse, dependencies=[Depends(require_simulation)])
 async def dev_simulate_event(kind: str = "risk_alert"):
     """
-    Endpoint DEV-ONLY pour simuler un évènement. Protégé par DEBUG_SIM.
+    Endpoint DEV-ONLY pour simuler un évènement.
+    Protégé par DEBUG_SIMULATION via require_simulation dependency.
     """
-    if not DEBUG_SIM:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=403, detail="Simulation disabled")
+    # Note: Protection déjà assurée par require_simulation dependency
+    # Pas besoin de vérification redondante ici
     # TODO: brancher ici le vrai broadcaster si disponible
     log.info(f"[DEV] Simulated event published: kind={kind}")
     return WsStatusResponse(status=f"simulated:{kind}")
 
+@router.get("/demo", dependencies=[Depends(require_dev_mode)])
 async def get_demo_page():
     """Page de démonstration WebSocket pour tester le streaming"""
     html_content = """
@@ -466,11 +475,11 @@ async def get_demo_page():
     """
     return HTMLResponse(content=html_content)
 
-@router.post("/start")
+@router.post("/start", dependencies=[Depends(require_dev_mode)])
 async def start_realtime_engine(
     engine: RealtimeEngine = Depends(get_realtime_engine)
 ):
-    """Démarrer le moteur de streaming (pour tests/management)"""
+    """Démarrer le moteur de streaming (DEV ONLY - pour tests/management)"""
     try:
         if not engine.running:
             await engine.start()
@@ -481,11 +490,11 @@ async def start_realtime_engine(
         log.error(f"Failed to start realtime engine: {e}")
         raise HTTPException(500, "failed_to_start_engine")
 
-@router.post("/stop")
+@router.post("/stop", dependencies=[Depends(require_dev_mode)])
 async def stop_realtime_engine(
     engine: RealtimeEngine = Depends(get_realtime_engine)
 ):
-    """Arrêter le moteur de streaming (pour tests/management)"""
+    """Arrêter le moteur de streaming (DEV ONLY - pour tests/management)"""
     try:
         if engine.running:
             await engine.stop()

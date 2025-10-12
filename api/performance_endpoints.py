@@ -3,13 +3,14 @@ Performance Management API Endpoints
 Cache management, optimization metrics, and system performance monitoring
 """
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import Dict, List, Optional
 import logging
 from datetime import datetime
 import time
 
 from services.performance_optimizer import performance_optimizer
+from api.dependencies.dev_guards import require_dev_mode
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/performance", tags=["Performance"])
@@ -44,12 +45,12 @@ async def get_cache_stats():
         "cache_stats": cache_stats
     }
 
-@router.post("/cache/clear")
+@router.post("/cache/clear", dependencies=[Depends(require_dev_mode)])
 async def clear_cache(
     older_than_days: int = Query(7, description="Clear cache files older than N days"),
     clear_memory: bool = Query(True, description="Also clear memory cache")
 ):
-    """Clear optimization cache"""
+    """Clear optimization cache (DEV ONLY - disabled in production)"""
     
     try:
         performance_optimizer.clear_cache(older_than_days=older_than_days)
@@ -67,13 +68,13 @@ async def clear_cache(
         logger.error(f"Failed to clear cache: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to clear cache: {str(e)}")
 
-@router.get("/optimization/benchmark")
+@router.get("/optimization/benchmark", dependencies=[Depends(require_dev_mode)])
 async def benchmark_optimization_methods(
     n_assets: int = Query(100, description="Number of assets to benchmark"),
     n_periods: int = Query(252, description="Number of time periods"),
     seed: int = Query(42, description="Random seed for reproducibility")
 ):
-    """Benchmark different optimization methods for performance comparison"""
+    """Benchmark different optimization methods (DEV ONLY - heavy computation)"""
     
     if n_assets > 1000:
         raise HTTPException(status_code=400, detail="Maximum 1000 assets for benchmarking")
@@ -208,12 +209,12 @@ async def get_memory_usage():
         logger.error(f"Memory usage check failed: {e}")
         raise HTTPException(status_code=500, detail=f"Memory check failed: {str(e)}")
 
-@router.post("/optimization/precompute")
+@router.post("/optimization/precompute", dependencies=[Depends(require_dev_mode)])
 async def precompute_matrices(
     n_assets: int = Query(100, description="Number of top assets to precompute"),
     source: str = Query("cointracking", description="Data source")
 ):
-    """Precompute optimization matrices for faster subsequent optimizations"""
+    """Precompute optimization matrices (DEV ONLY - disabled in production)"""
     
     try:
         from connectors.cointracking_api import get_current_balances
