@@ -6,9 +6,10 @@ import tempfile
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, Body, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, UploadFile
 
 from adapters.saxo_adapter import ingest_file, get_portfolio_detail, list_portfolios_overview
+from api.deps import get_active_user
 from connectors.saxo_import import SaxoImportConnector
 from api.wealth_endpoints import (
     get_accounts as wealth_get_accounts,
@@ -125,18 +126,18 @@ async def import_portfolio(
 
 
 @router.get("/portfolios")
-async def list_portfolios() -> dict:
+async def list_portfolios(user: str = Depends(get_active_user)) -> dict:
     """Return lightweight overview of stored Saxo portfolios."""
     _legacy_log("/portfolios")
-    portfolios = list_portfolios_overview()
+    portfolios = list_portfolios_overview(user_id=user)
     return {"portfolios": portfolios}
 
 
 @router.get("/portfolios/{portfolio_id}")
-async def get_portfolio(portfolio_id: str) -> dict:
+async def get_portfolio(portfolio_id: str, user: str = Depends(get_active_user)) -> dict:
     """Return full detail for a given Saxo portfolio."""
     _legacy_log(f"/portfolios/{portfolio_id}")
-    portfolio = get_portfolio_detail(portfolio_id)
+    portfolio = get_portfolio_detail(portfolio_id, user_id=user)
     if not portfolio:
         raise HTTPException(status_code=404, detail="portfolio_not_found")
     return portfolio
@@ -198,3 +199,4 @@ async def list_prices(ids: List[str], granularity: str = "daily") -> List[PriceP
 async def preview_rebalance(payload: Optional[dict] = Body(default=None)) -> List[ProposedTrade]:
     _legacy_log("/rebalance/preview")
     return await wealth_preview_rebalance(module=_MODULE, payload=payload)
+

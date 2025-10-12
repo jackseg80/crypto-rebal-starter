@@ -205,12 +205,14 @@ PUT  /api/users/settings    # Sauvegarde configuration utilisateur
 
 ## 🚀 Nouvelles Fonctionnalités (v3.0)
 
-### 🏦 Intégration Bourse (Saxo) - Phase 2 (NOUVEAU)
-- **Tuile Dashboard** : Vue d'ensemble Saxo dans le dashboard principal (valeur totale, positions, dernière MAJ)
-- **Upload Settings** : Import direct CSV/XLSX dans Settings avec progress et statut temps réel
-- **Store partagé** : `wealth-saxo-summary.js` évite la duplication entre Dashboard/Settings
-- **Lecture legacy** : utilise `/api/saxo/positions` (transition sécurisée vers wealth endpoints)
-- **Stabilisation** : corrections error handling saxo-dashboard.html, empty states, bandeau d'état
+### 🏦 Intégration Bourse (Saxo) - Phase 2.5 Complétée (Oct 2025) ✅
+- **Registry Instruments** : Lazy-loading optimisé (1 seul I/O pour 100 appels), enrichissement noms lisibles (ex: "iShares Core MSCI World UCITS ETF" au lieu de "IE00B4L5Y983")
+- **Risk Dashboard Bourse** : Endpoint `/api/risk/bourse/dashboard` avec métriques complètes (VaR, CVaR, Sharpe, Sortino, DD, Volatilité), score canonique 0-100
+- **Onglet Risk & Analytics** : Lazy-load dans `saxo-dashboard.html` avec affichage score jauge + tableaux métriques
+- **Global Overview** : Nouvelle tuile dashboard (🌐) agrège crypto + saxo + banks avec breakdown visuel
+- **Multi-tenant strict** : user_id obligatoire partout, isolation complète
+- **Tests**: 6/6 tests registry passent, structure tests intégration créée
+- **📖 Docs complètes** : [docs/SAXO_INTEGRATION_SUMMARY.md](docs/SAXO_INTEGRATION_SUMMARY.md)
 
 ### 🔧 Production Stabilization
 - **Hystérésis & EMA Anti-Flickering** : Deadband ±2%, persistence 3 ticks pour prévenir les oscillations

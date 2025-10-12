@@ -213,6 +213,7 @@ const initUnifiedNav = () => {
             <li><a href="rebalance.html" data-route="rebalance.html">Rebalance</a></li>
             <li><a href="execution.html" data-route="execution.html">Execution</a></li>
             <li><a href="saxo-dashboard.html" data-route="saxo-dashboard.html">Bourse</a></li>
+            <li><a href="banks-manager.html" data-route="banks-manager.html">Banque</a></li>
             <li><a href="settings.html" data-route="settings.html">Settings</a></li>
           </ul>
         </nav>
