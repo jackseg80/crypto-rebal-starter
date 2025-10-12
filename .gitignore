@@ -51,6 +51,9 @@ test_ml_predictor.py
 migration-report.json
 data/scheduler.lock
 
+# Log files (text dumps moved to data/logs/)
+data/logs/*.txt
+
 # Data files (keep raw data, exclude generated/temp)
 data/monitoring/metrics_*.json
 data/monitoring/portfolio_metrics.json
