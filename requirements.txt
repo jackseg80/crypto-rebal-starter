@@ -34,6 +34,12 @@ redis>=5.0.0
 rq>=1.15.0
 APScheduler==3.10.4  # In-process periodic task scheduling
 
+# File System & Concurrency
+filelock>=3.19.0  # File locking for alert storage
+
+# Testing & Browser Automation
+selenium>=4.35.0  # E2E browser testing
+
 # Monitoring & Logging (Development)
 # Note: These are optional for basic usage
 # structlog>=23.0.0  # Structured logging

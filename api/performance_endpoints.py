@@ -3,11 +3,14 @@ Performance Management API Endpoints
 Cache management, optimization metrics, and system performance monitoring
 """
 
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, HTTPException, Query, Depends, Request, Response
+from fastapi.responses import JSONResponse
 from typing import Dict, List, Optional
 import logging
 from datetime import datetime
 import time
+from hashlib import sha256
+import json
 
 from services.performance_optimizer import performance_optimizer
 from api.dependencies.dev_guards import require_dev_mode
@@ -271,3 +274,127 @@ async def precompute_matrices(
     except Exception as e:
         logger.error(f"Matrix precomputation failed: {e}")
         raise HTTPException(status_code=500, detail=f"Precomputation failed: {str(e)}")
+
+@router.get("/summary")
+async def get_performance_summary(
+    request: Request,
+    anchor: str = Query(default="prev_close", description="Point de référence temporel (prev_close, midnight, session)"),
+    user_id: str = Query(default="demo", description="User ID"),
+    source: str = Query(default="cointracking", description="Data source")
+):
+    """
+    P&L Summary endpoint pour performance tracking intraday
+
+    Calcule le P&L (Profit & Loss) depuis un point d'ancrage temporel.
+    Intègre avec les snapshots portfolio pour calculs réels.
+
+    Supporte ETag et If-None-Match pour optimisation cache HTTP.
+
+    Anchor points supportés:
+    - "prev_close": Début du jour actuel (midnight pour crypto 24/7)
+    - "midnight": Début du jour actuel à 00:00 (même comportement)
+    - "session": Dernier snapshot disponible (alias pour prev_snapshot)
+    """
+    try:
+        from api.unified_data import get_unified_filtered_balances
+        from services.portfolio import portfolio_analytics
+
+        # Récupérer les données actuelles du portfolio
+        balances = await get_unified_filtered_balances(
+            source=source,
+            user_id=user_id
+        )
+
+        # Calculer métriques actuelles
+        if isinstance(balances, dict):
+            current_metrics = portfolio_analytics.calculate_portfolio_metrics(balances)
+        else:
+            # Fallback si balances est déjà une liste
+            current_metrics = portfolio_analytics.calculate_portfolio_metrics({"items": balances})
+
+        current_value_usd = current_metrics.get("total_value_usd", 0.0)
+
+        # Mapper l'anchor vers la convention du service portfolio
+        # prev_close/midnight → midnight, session → prev_snapshot
+        portfolio_anchor = "midnight" if anchor in ["prev_close", "midnight"] else "prev_snapshot"
+
+        # Calculer la performance vs anchor point
+        perf_metrics = portfolio_analytics.calculate_performance_metrics(
+            current_data=current_metrics,
+            user_id=user_id,
+            source=source,
+            anchor=portfolio_anchor,
+            window="24h"
+        )
+
+        # Extraire les valeurs de P&L (avec fallback si pas de données historiques)
+        if perf_metrics.get("performance_available", False):
+            absolute_change_usd = perf_metrics.get("absolute_change_usd", 0.0)
+            percent_change = perf_metrics.get("percentage_change", 0.0)
+            comparison_info = perf_metrics.get("comparison", {})
+            base_snapshot_at = comparison_info.get("base_snapshot_at")
+        else:
+            # Pas de données historiques → P&L à 0
+            absolute_change_usd = 0.0
+            percent_change = 0.0
+            base_snapshot_at = None
+            logger.warning(f"No historical data for P&L calculation (user={user_id}, source={source}, anchor={anchor})")
+
+        # Structure de réponse compatible avec les tests
+        response_data = {
+            "ok": True,
+            "performance": {
+                "as_of": datetime.now().isoformat(),
+                "anchor": anchor,
+                "base_snapshot_at": base_snapshot_at,
+                "total": {
+                    "current_value_usd": round(current_value_usd, 2),
+                    "absolute_change_usd": round(absolute_change_usd, 2),
+                    "percent_change": round(percent_change, 4)
+                },
+                "by_account": {
+                    "main": {
+                        "current_value_usd": round(current_value_usd, 2),
+                        "absolute_change_usd": round(absolute_change_usd, 2),
+                        "percent_change": round(percent_change, 4)
+                    }
+                },
+                "by_source": {
+                    source: {
+                        "current_value_usd": round(current_value_usd, 2),
+                        "absolute_change_usd": round(absolute_change_usd, 2),
+                        "percent_change": round(percent_change, 4)
+                    }
+                }
+            }
+        }
+
+        # Générer ETag basé sur le contenu (exclure timestamp pour stabilité cache)
+        # Le timestamp change à chaque appel mais les données peuvent être identiques
+        etag_data = {
+            "total": response_data["performance"]["total"],
+            "by_account": response_data["performance"]["by_account"],
+            "by_source": response_data["performance"]["by_source"],
+            "anchor": response_data["performance"]["anchor"]
+        }
+        content_str = json.dumps(etag_data, sort_keys=True)
+        etag = f'"{sha256(content_str.encode()).hexdigest()}"'
+
+        # Vérifier If-None-Match header pour cache validation
+        if_none_match = request.headers.get("if-none-match")
+        if if_none_match and if_none_match == etag:
+            # Le client a la version à jour, retourner 304 Not Modified
+            return Response(status_code=304, headers={"etag": etag})
+
+        # Retourner une Response avec headers ETag
+        return JSONResponse(
+            content=response_data,
+            headers={
+                "etag": etag,
+                "cache-control": "private, max-age=60"  # Cache 60s pour perfs
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error calculating performance summary: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Performance summary failed: {str(e)}")

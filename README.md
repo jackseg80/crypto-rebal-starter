@@ -12,6 +12,7 @@ Plateforme de gestion de patrimoine cross‑asset (Crypto, Bourse, Banque, Diver
 - **Risk management v2**: corrélations, stress testing, alertes, circuit breakers, GRI (Group Risk Index)
 - **Risk Scoring centralisé** : Dual score system (quantitatif + structurel) avec architecture anti-duplication
 - **🆕 Dual-Window Metrics** : Système dual-view (long-term + full intersection) pour métriques stables même avec assets récents
+- **🆕 P&L Today** : Calcul Profit & Loss en temps réel avec anchor points (midnight, session), support ETag, multi-tenant strict
 - **Strategy API v3**: calculs dynamiques remplaçant les presets hardcodés
 - **Classification unifiée** des assets via taxonomy_aliases.json (source unique de vérité)
 - **Synchronisation parfaite** Analytics ↔ Rebalance via u.targets_by_group
@@ -337,18 +338,20 @@ createFlyoutPanel({
 - Governance: `docs/governance.md`
 - Risk Dashboard: `docs/risk-dashboard.md`
 - **Performance Monitoring**: `docs/PERFORMANCE_MONITORING.md` ⭐ NEW
+- **P&L Today**: `docs/P&L_TODAY_USAGE.md` ⭐ NEW (Oct 2025)
 - Télémétrie: `docs/telemetry.md`
 - Runbooks: `docs/runbooks.md`
 - Intégrations: `docs/integrations.md`
 - Refactoring & migration: `docs/refactoring.md`
-- P&L System: `docs/PNL_TODAY.md`
 
 Endpoints utiles:
 ```
 GET  /healthz
-GET  /balances/current?source=cointracking       # CSV
-GET  /balances/current?source=cointracking_api   # API CT
-GET  /debug/ctapi                                # Sonde CoinTracking API
+GET  /balances/current?source=cointracking        # CSV
+GET  /balances/current?source=cointracking_api    # API CT
+GET  /debug/ctapi                                 # Sonde CoinTracking API
+GET  /api/performance/summary                     # P&L Today (anchor: midnight/session)
+POST /portfolio/snapshot                          # Créer snapshot pour P&L
 ```
 
 Changelog: `CHANGELOG.md`

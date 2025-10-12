@@ -792,7 +792,9 @@ const weights = {
 - Polling automatique 60s sur toutes les pages Bourse/Analytics
 - Fallback gracieux en cas d'échec API
 
-### 9.4) P&L Today - Tracking par (user_id, source)
+### 9.4) P&L Today - Tracking par (user_id, source) ✅
+
+**STATUT** : Production Ready (Oct 2025)
 
 **Objectif** : Calculer le P&L (Profit & Loss) Today en comparant la valeur actuelle du portfolio avec le dernier snapshot historique.
 
@@ -839,13 +841,37 @@ curl "http://localhost:8000/portfolio/metrics?source=cointracking&user_id=jack"
 - Sources différentes (CSV vs API) ont des P&L indépendants
 - Exemple : `jack + cointracking` (CSV 5 assets) ≠ `jack + cointracking_api` (API 190 assets)
 
-**Fichiers modifiés** :
-- `services/portfolio.py:96` : `calculate_performance_metrics()` accepte `user_id` et `source`
-- `services/portfolio.py:165` : `save_portfolio_snapshot()` sauvegarde avec `user_id` et `source`
-- `services/portfolio.py:350` : `_load_historical_data()` filtre par `user_id` et `source`
-- `api/main.py:1857` : `/portfolio/metrics` passe `user_id` à `calculate_performance_metrics()`
-- `api/main.py:1881` : `/portfolio/snapshot` accepte `user_id` et `source`
-- `static/dashboard.html:1186` : Appel API avec `user_id` et `source` depuis localStorage
+**Endpoint P&L Summary** (Oct 2025) :
+```http
+GET /api/performance/summary?user_id={user}&source={source}&anchor={anchor}
+```
+
+**Anchor Points Supportés** :
+- `prev_close` : Début du jour actuel (00:00 Europe/Zurich)
+- `midnight` : Identique à prev_close
+- `session` : Dernier snapshot disponible (plus flexible)
+
+**Fonctionnalités** :
+- ✅ Calcul P&L réel depuis snapshots historiques
+- ✅ Support ETag pour cache HTTP (304 Not Modified)
+- ✅ Multi-tenant strict par (user_id, source)
+- ✅ Fallback gracieux si pas de snapshots (P&L=0)
+- ✅ Logging détaillé avec `exc_info=True`
+
+**Fichiers principaux** :
+- `api/performance_endpoints.py:278-400` : Endpoint `/summary` avec intégration snapshots
+- `services/portfolio.py:213-330` : `calculate_performance_metrics()` avec anchor points
+- `services/portfolio.py:87-128` : `_compute_anchor_ts()` - calcul timestamps d'ancrage
+- `services/portfolio.py:52-84` : `_upsert_daily_snapshot()` - gestion upsert journalier
+- `tests/test_performance_endpoints.py` : 5 tests de contrat (tous passent ✅)
+- `tests/manual/test_pnl_integration.py` : Test manuel end-to-end
+- `docs/P&L_TODAY_USAGE.md` : Guide complet d'utilisation
+
+**Tests** :
+```bash
+pytest tests/test_performance_endpoints.py -v  # 5/5 passent
+python tests/manual/test_pnl_integration.py    # Test complet
+```
 
 ### 9.5) WealthContextBar - Menu Secondaire Dynamique (Oct 2025) 🆕
 
