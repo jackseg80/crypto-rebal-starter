@@ -56,14 +56,14 @@ def _load_from_sources_fallback(user_id: Optional[str] = None) -> Optional[Dict[
 
             if not staleness["is_stale"]:
                 logger.debug(f"Using fresh Saxo snapshot for user {user_id}")
-                return _parse_saxo_csv(snapshot_path, "saxo_snapshot")
+                return _parse_saxo_csv(snapshot_path, "saxo_snapshot", user_id=user_id)
 
         # 2. Essayer imports récents
         imports_files = user_fs.glob_files("saxobank/imports/*.csv")
         if imports_files:
             latest_import = max(imports_files, key=lambda f: os.path.getmtime(f))
             logger.debug(f"Using Saxo imports for user {user_id}")
-            return _parse_saxo_csv(latest_import, "saxo_imports")
+            return _parse_saxo_csv(latest_import, "saxo_imports", user_id=user_id)
 
         # 3. Legacy fallback
         legacy_patterns = ["csv/saxo*.csv", "csv/positions*.csv"]
@@ -72,7 +72,7 @@ def _load_from_sources_fallback(user_id: Optional[str] = None) -> Optional[Dict[
             if legacy_files:
                 latest_legacy = max(legacy_files, key=lambda f: os.path.getmtime(f))
                 logger.warning(f"Using legacy Saxo CSV for user {user_id}")
-                return _parse_saxo_csv(latest_legacy, "saxo_legacy")
+                return _parse_saxo_csv(latest_legacy, "saxo_legacy", user_id=user_id)
 
         logger.debug(f"No Saxo sources data found for user {user_id}")
         return None
@@ -81,12 +81,12 @@ def _load_from_sources_fallback(user_id: Optional[str] = None) -> Optional[Dict[
         logger.error(f"Error loading from sources for user {user_id}: {e}")
         return None
 
-def _parse_saxo_csv(csv_path: str, source_type: str) -> Dict[str, Any]:
+def _parse_saxo_csv(csv_path: str, source_type: str, user_id: Optional[str] = None) -> Dict[str, Any]:
     """Parse un fichier CSV Saxo vers le format portfolio normalisé"""
     try:
         connector = SaxoImportConnector()
-        # Utiliser la méthode existante
-        result = connector.process_csv_file(csv_path)
+        # Utiliser la méthode existante avec user_id pour enrichissement
+        result = connector.process_saxo_file(csv_path, user_id=user_id)
 
         if not result or "positions" not in result:
             return {"portfolios": []}
@@ -97,7 +97,7 @@ def _parse_saxo_csv(csv_path: str, source_type: str) -> Dict[str, Any]:
         # Normaliser au format attendu
         normalized_data = {
             "portfolios": [{
-                "id": portfolio_id,
+                "portfolio_id": portfolio_id,  # Fix: Utiliser 'portfolio_id' pour cohérence
                 "name": f"Saxo Portfolio ({source_type})",
                 "positions": positions,
                 "summary": result.get("summary", {}),
@@ -135,8 +135,11 @@ def _load_snapshot(user_id: Optional[str] = None) -> Dict[str, Any]:
         sources_data = _load_from_sources_fallback(user_id)
         if sources_data:
             return sources_data
+        # Si user_id fourni mais pas de données → retourner vide (pas de fallback vers legacy partagé!)
+        logger.debug(f"[saxo_adapter] No Saxo data found for user {user_id}, returning empty snapshot")
+        return {"portfolios": []}
 
-    # Fallback vers l'ancien système
+    # Fallback vers l'ancien système SEULEMENT si user_id est None (mode compatibilité)
     _ensure_storage()
     try:
         with _STORAGE_PATH.open("r", encoding="utf-8") as handle:
@@ -272,9 +275,9 @@ def ingest_file(file_path: str, portfolio_name: Optional[str] = None) -> Dict[st
         'errors': errors,
     }
 
-def list_portfolios_overview() -> List[Dict[str, Any]]:
+def list_portfolios_overview(user_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """Return lightweight metadata for stored Saxo portfolios."""
-    snapshot = _load_snapshot()
+    snapshot = _load_snapshot(user_id)
     portfolios: List[Dict[str, Any]] = []
     connector = None
     mutated = False
@@ -309,9 +312,9 @@ def list_portfolios_overview() -> List[Dict[str, Any]]:
     return portfolios
 
 
-def get_portfolio_detail(portfolio_id: str) -> Dict[str, Any]:
+def get_portfolio_detail(portfolio_id: str, user_id: Optional[str] = None) -> Dict[str, Any]:
     """Return full detail for a stored Saxo portfolio."""
-    snapshot = _load_snapshot()
+    snapshot = _load_snapshot(user_id)
     connector = None
     mutated = False
 
@@ -358,13 +361,13 @@ def _iter_positions(user_id: Optional[str] = None) -> Iterable[Dict[str, Any]]:
             yield position
 
 
-def _total_value() -> float:
-    snapshot = _load_snapshot()
+def _total_value(user_id: Optional[str] = None) -> float:
+    snapshot = _load_snapshot(user_id)
     return sum(float(p.get("total_value_usd") or 0.0) for p in snapshot.get("portfolios", []))
 
 
-async def list_accounts() -> List[AccountModel]:
-    snapshot = _load_snapshot()
+async def list_accounts(user_id: Optional[str] = None) -> List[AccountModel]:
+    snapshot = _load_snapshot(user_id)
     accounts: List[AccountModel] = []
     for portfolio in snapshot.get("portfolios", []):
         accounts.append(
@@ -381,33 +384,59 @@ async def list_accounts() -> List[AccountModel]:
     return accounts
 
 
-async def list_instruments() -> List[InstrumentModel]:
+async def list_instruments(user_id: Optional[str] = None) -> List[InstrumentModel]:
+    """
+    List all instruments with enrichment via registry.
+
+    Args:
+        user_id: Optional user ID for per-user catalog lookup
+
+    Returns:
+        List of enriched InstrumentModel instances
+    """
+    from services.instruments_registry import resolve
+
     instruments: Dict[str, InstrumentModel] = {}
-    for position in _iter_positions():
+    seen_ids = set()
+
+    for position in _iter_positions(user_id):
         symbol = position.get("symbol")
-        if not symbol:
+        instrument_raw = position.get("instrument") or symbol
+        if not instrument_raw or instrument_raw in seen_ids:
             continue
-        instrument_id = symbol
-        if instrument_id in instruments:
+
+        # Enrichissement via registry
+        enriched = resolve(instrument_raw, fallback_symbol=symbol, user_id=user_id)
+
+        instrument_id = enriched.get("id") or instrument_raw
+        if instrument_id in seen_ids:
             continue
+
+        seen_ids.add(instrument_id)
+
+        # Mapping asset_class pour compatibilité modèle
+        asset_class_raw = enriched.get("asset_class") or position.get("asset_class") or "EQUITY"
+        asset_class_normalized = _normalize_asset_class(asset_class_raw)
+
         instruments[instrument_id] = InstrumentModel(
             id=instrument_id,
-            symbol=symbol,
-            isin=symbol if symbol.startswith("ISIN") and len(symbol) > 5 else None,
-            name=position.get("name") or symbol,
-            asset_class=position.get("asset_class") or "EQUITY",
-            sector=None,
-            region=None,
+            symbol=enriched.get("symbol") or symbol,
+            isin=enriched.get("isin"),
+            name=enriched.get("name") or position.get("name") or symbol,
+            asset_class=asset_class_normalized,
+            sector=None,  # TODO: Could be enriched from registry later
+            region=None,  # TODO: Could be enriched from registry later
         )
+
     instrument_list = sorted(instruments.values(), key=lambda inst: inst.symbol)
-    logger.info("[wealth][saxo] instruments normalized=%s", len(instrument_list))
+    logger.info("[wealth][saxo] instruments normalized=%s (enriched via registry)", len(instrument_list))
     return instrument_list
 
 
-async def list_positions() -> List[PositionModel]:
-    total = _total_value() or 1.0
+async def list_positions(user_id: Optional[str] = None) -> List[PositionModel]:
+    total = _total_value(user_id) or 1.0
     positions: List[PositionModel] = []
-    for position in _iter_positions():
+    for position in _iter_positions(user_id):
         symbol = position.get("symbol")
         quantity = float(position.get("quantity") or 0.0)
         if not symbol or quantity == 0:

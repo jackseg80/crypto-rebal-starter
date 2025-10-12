@@ -397,10 +397,11 @@
         <div id="dashboardContent" style="display: none;">
             <!-- Tabs -->
             <div class="tabs">
-                <button class="tab-btn active" onclick="switchTab('overview')">Vue d'ensemble</button>
-                <button class="tab-btn" onclick="switchTab('positions')">Positions</button>
-                <button class="tab-btn" onclick="switchTab('allocation')">Allocation</button>
-                <button class="tab-btn" onclick="switchTab('currencies')">Devises</button>
+                <button class="tab-btn active" onclick="switchTab('overview', event)">Vue d'ensemble</button>
+                <button class="tab-btn" onclick="switchTab('positions', event)">Positions</button>
+                <button class="tab-btn" onclick="switchTab('allocation', event)">Allocation</button>
+                <button class="tab-btn" onclick="switchTab('currencies', event)">Devises</button>
+                <button class="tab-btn" onclick="switchTab('risk', event)">Risk & Analytics</button>
             </div>
 
             <!-- Overview Tab -->
@@ -486,6 +487,26 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Risk Tab -->
+            <div id="risk" class="tab-content">
+                <div class="dashboard-card">
+                    <div class="card-header">
+                        <h3 class="card-title">Risk Score (Bourse)</h3>
+                    </div>
+                    <div id="riskSummary"><div class="loading">Calcul en cours…</div></div>
+                </div>
+                <div class="dashboard-grid">
+                    <div class="dashboard-card">
+                        <div class="card-header"><h3 class="card-title">Métriques principales</h3></div>
+                        <div id="riskMetrics" class="table-wrapper"><div class="loading">…</div></div>
+                    </div>
+                    <div class="dashboard-card">
+                        <div class="card-header"><h3 class="card-title">Concentration & Diversification</h3></div>
+                        <div id="riskStructure" class="table-wrapper"><div class="loading">…</div></div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -532,12 +553,24 @@
         }
 
         // Tab switching
-        function switchTab(tabName) {
+        function switchTab(tabName, event) {
             // Update tab buttons
             document.querySelectorAll('.tab-btn').forEach(btn => {
                 btn.classList.remove('active');
             });
-            event.target.classList.add('active');
+
+            // Find and activate the clicked button
+            if (event && event.target) {
+                event.target.classList.add('active');
+            } else {
+                // Fallback: find button by data attribute or text content
+                const buttons = document.querySelectorAll('.tab-btn');
+                buttons.forEach(btn => {
+                    if (btn.getAttribute('onclick')?.includes(`'${tabName}'`)) {
+                        btn.classList.add('active');
+                    }
+                });
+            }
 
             // Update tab content
             document.querySelectorAll('.tab-content').forEach(content => {
@@ -557,14 +590,72 @@
                     case 'currencies':
                         loadCurrencyDetails();
                         break;
+                    case 'risk':
+                        loadRiskAnalytics();
+                        break;
                 }
+            }
+        }
+
+        // Load Risk & Analytics (lazy-loaded when tab is clicked)
+        async function loadRiskAnalytics() {
+            const activeUser = localStorage.getItem('activeUser') || 'demo';
+            try {
+                document.getElementById('riskSummary').innerHTML = '<div class="loading">Calcul des métriques de risque…</div>';
+                document.getElementById('riskMetrics').innerHTML = '<div class="loading">…</div>';
+                document.getElementById('riskStructure').innerHTML = '<div class="loading">…</div>';
+
+                const res = await safeFetch(globalConfig.getApiUrl(`/api/risk/bourse/dashboard?user_id=${activeUser}`));
+                if (!res?.ok) throw new Error('risk endpoint failed');
+
+                const { risk, coverage } = res;
+                const s = risk?.score ?? 0;
+                const lvl = risk?.level ?? 'N/A';
+                document.getElementById('riskSummary').innerHTML = `
+                  <div style="display:flex;gap:1rem;align-items:center">
+                    <div class="metric-large">${s.toFixed(0)}</div>
+                    <div>
+                      <div style="font-weight:600;">Niveau: ${lvl}</div>
+                      <div>Couverture: ${(coverage*100).toFixed(0)}%</div>
+                    </div>
+                  </div>`;
+
+                const m = risk?.metrics || {};
+                document.getElementById('riskMetrics').innerHTML = `
+                  <table class="positions-table">
+                    <tbody>
+                      <tr><td>VaR (95%)</td><td>${(m.var_95_1d??0).toFixed(2)}%</td></tr>
+                      <tr><td>CVaR (95%)</td><td>${(m.cvar_95_1d??0).toFixed(2)}%</td></tr>
+                      <tr><td>Volatilité (ann.)</td><td>${(m.volatility_annualized??0).toFixed(2)}%</td></tr>
+                      <tr><td>Max Drawdown</td><td>${(m.max_drawdown??0).toFixed(2)}%</td></tr>
+                      <tr><td>Sharpe Ratio</td><td>${(m.sharpe_ratio??0).toFixed(2)}</td></tr>
+                      <tr><td>Sortino Ratio</td><td>${(m.sortino_ratio??0).toFixed(2)}</td></tr>
+                    </tbody>
+                  </table>`;
+
+                document.getElementById('riskStructure').innerHTML = `
+                  <table class="positions-table">
+                    <tbody>
+                      <tr><td>Skewness</td><td>${(m.skewness??0).toFixed(3)}</td></tr>
+                      <tr><td>Kurtosis</td><td>${(m.kurtosis??0).toFixed(3)}</td></tr>
+                      <tr><td>Ulcer Index</td><td>${(m.ulcer_index??0).toFixed(2)}</td></tr>
+                      <tr><td>Data Points</td><td>${m.data_points??0}</td></tr>
+                      <tr><td>Confidence</td><td>${((m.confidence_level??0)*100).toFixed(0)}%</td></tr>
+                    </tbody>
+                  </table>`;
+            } catch (e) {
+                debugLogger.error('Risk analytics load failed', e);
+                document.getElementById('riskSummary').innerHTML = '<div class="error-message">Erreur: ' + e.message + '</div>';
             }
         }
 
         // Portfolio management
         async function refreshPortfolios() {
             try {
-                const { ok, data } = await safeFetch(globalConfig.getApiUrl('/api/saxo/portfolios'));
+                const activeUser = localStorage.getItem('activeUser') || 'demo';
+                const { ok, data } = await safeFetch(globalConfig.getApiUrl('/api/saxo/portfolios'), {
+                    headers: { 'X-User': activeUser }
+                });
                 if (!ok) {
                     debugLogger.warn('API Saxo indisponible ou erreur HTTP.');
                     showNoDataState('Aucun portfolio Saxo disponible - API indisponible');
@@ -634,7 +725,10 @@
                 // Show loading state
                 document.getElementById('mainContent').innerHTML = '<div class="loading">Loading portfolio data...</div>';
 
-                const { ok, data } = await safeFetch(globalConfig.getApiUrl(`/api/saxo/portfolios/${portfolioId}`));
+                const activeUser = localStorage.getItem('activeUser') || 'demo';
+                const { ok, data } = await safeFetch(globalConfig.getApiUrl(`/api/saxo/portfolios/${portfolioId}`), {
+                    headers: { 'X-User': activeUser }
+                });
                 if (!ok) {
                     throw new Error('Failed to load portfolio');
                 }
@@ -709,6 +803,7 @@
                 <table class="positions-table">
                     <thead>
                         <tr>
+                            <th>Instrument</th>
                             <th>Symbol</th>
                             <th>Market Value</th>
                             <th>Asset Class</th>
@@ -716,9 +811,14 @@
                         </tr>
                     </thead>
                     <tbody>
-                        ${topHoldings.map(position => `
+                        ${topHoldings.map(position => {
+                            const name = position.name || position.instrument || position.symbol || 'Unknown';
+                            const symbol = position.symbol || 'N/A';
+                            const displayName = name !== symbol ? name : (position.isin || name);
+                            return `
                             <tr>
-                                <td><strong>${position.symbol || 'N/A'}</strong></td>
+                                <td><strong>${displayName}</strong></td>
+                                <td><code style="font-size: 0.85rem; color: var(--theme-text-muted);">${symbol}</code></td>
                                 <td>$${Number(position.market_value_usd || position.market_value || 0).toLocaleString()}</td>
                                 <td>
                                     <span class="asset-class-badge asset-class-${(position.asset_class || 'other').toLowerCase()}">
@@ -727,7 +827,7 @@
                                 </td>
                                 <td>${totalValue > 0 ? (((position.market_value_usd || position.market_value || 0) / totalValue) * 100).toFixed(1) : 0}%</td>
                             </tr>
-                        `).join('')}
+                        `}).join('')}
                     </tbody>
                 </table>
             ` : '<div class="no-data">Aucune position trouvée</div>';
@@ -738,13 +838,12 @@
             if (!currentPortfolioData) return;
 
             const positionsHtml = `
-                <div class="card-badge" style="float: right;">${currentPortfolioData.positions.length} positions</div>
                 <div class="table-container">
                     <table class="positions-table">
                         <thead>
                             <tr>
-                                <th>Symbol</th>
                                 <th>Instrument</th>
+                                <th>Symbol</th>
                                 <th>Quantity</th>
                                 <th>Market Value</th>
                                 <th>Currency</th>
@@ -755,12 +854,19 @@
                         <tbody>
                             ${currentPortfolioData.positions
                     .sort((a, b) => b.market_value_usd - a.market_value_usd)
-                    .map(position => `
+                    .map(position => {
+                        const name = position.name || position.instrument || position.symbol || 'Unknown';
+                        const symbol = position.symbol || 'N/A';
+                        const displayName = name !== symbol ? name : (position.isin || name);
+                        return `
                                 <tr>
-                                    <td><strong>${position.symbol}</strong></td>
-                                    <td>${position.instrument}</td>
+                                    <td>
+                                        <strong>${displayName}</strong>
+                                        ${position.isin ? `<div style="font-size: 0.75rem; color: var(--theme-text-muted); margin-top: 0.25rem;">ISIN: ${position.isin}</div>` : ''}
+                                    </td>
+                                    <td><code style="font-size: 0.85rem;">${symbol}</code></td>
                                     <td>${position.quantity.toLocaleString()}</td>
-                                    <td>$${position.market_value_usd.toLocaleString()}</td>
+                                    <td><strong>$${position.market_value_usd.toLocaleString()}</strong></td>
                                     <td>${position.currency}</td>
                                     <td>
                                         <span class="asset-class-badge asset-class-${position.asset_class.toLowerCase()}">
@@ -769,7 +875,7 @@
                                     </td>
                                     <td>${((position.market_value_usd / currentPortfolioData.summary.total_value_usd) * 100).toFixed(1)}%</td>
                                 </tr>
-                            `).join('')}
+                        `}).join('')}
                         </tbody>
                     </table>
                 </div>
@@ -803,11 +909,17 @@
             // Holdings by value
             const holdingsByValueHtml = `
                 <div style="max-height: 400px; overflow-y: auto;">
-                    ${currentPortfolioData.summary.top_holdings.map((position, index) => `
+                    ${currentPortfolioData.summary.top_holdings.map((position, index) => {
+                        const name = position.name || position.instrument || position.symbol || 'Unknown';
+                        const symbol = position.symbol || 'N/A';
+                        const displayName = name !== symbol ? name : (position.isin || name);
+                        return `
                         <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0; border-bottom: 1px solid var(--theme-border);">
                             <div>
-                                <div style="font-weight: 600;">${index + 1}. ${position.symbol}</div>
-                                <div style="font-size: 0.8rem; color: var(--theme-text-muted);">${position.asset_class}</div>
+                                <div style="font-weight: 600;">${index + 1}. ${displayName}</div>
+                                <div style="font-size: 0.75rem; color: var(--theme-text-muted);">
+                                    ${symbol} • ${position.asset_class}
+                                </div>
                             </div>
                             <div style="text-align: right;">
                                 <div style="font-weight: 600;">$${position.market_value_usd.toLocaleString()}</div>
@@ -816,7 +928,7 @@
                                 </div>
                             </div>
                         </div>
-                    `).join('')}
+                    `}).join('')}
                 </div>
             `;
             document.getElementById('holdingsByValue').innerHTML = holdingsByValueHtml;
@@ -919,18 +1031,22 @@
 
                 element.innerHTML = '<span class="spinner" style="opacity: 0.7;">⏳</span> Vérification...';
 
-                const response = await window.globalConfig.apiRequest('/sources/list');
+                const response = await fetch(window.globalConfig.getApiUrl('/api/sources/list'), {
+                    headers: { 'X-User': localStorage.getItem('activeUser') || 'demo' }
+                }).then(r => r.json());
                 const saxo = response.modules?.find(m => m.name === 'saxobank');
 
                 if (saxo) {
-                    const staleness = saxo.staleness || 'Inconnu';
-                    element.textContent = staleness;
+                    // staleness est un objet {state, age_hours, is_stale, message}
+                    const stalenessObj = saxo.staleness || {};
+                    const stalenessMessage = stalenessObj.message || 'Inconnu';
+                    element.textContent = stalenessMessage;
 
-                    // Add visual indicator based on staleness
-                    if (staleness.includes('jour') || staleness.includes('heure')) {
-                        element.style.color = 'var(--warning)';
-                    } else if (staleness.includes('minute')) {
+                    // Add visual indicator based on staleness state
+                    if (stalenessObj.state === 'fresh') {
                         element.style.color = 'var(--success)';
+                    } else if (stalenessObj.state === 'stale' || stalenessObj.state === 'very_stale') {
+                        element.style.color = 'var(--warning)';
                     } else {
                         element.style.color = 'var(--theme-text-muted)';
                     }
