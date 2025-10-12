@@ -55,6 +55,34 @@
 - Phase 3 à venir : `risk-equities.html`, `rebalance-equities.html`
 - Roadmap complète : voir `docs/TODO_WEALTH_MERGE.md`
 
+**Endpoints Banks CRUD** (Oct 2025 - Multi-tenant ✅) :
+- `GET /api/wealth/banks/accounts` : Liste comptes bancaires user avec conversion USD
+- `POST /api/wealth/banks/accounts` : Créer compte bancaire (UBS, CS, etc.)
+- `PUT /api/wealth/banks/accounts/{id}` : Modifier compte bancaire existant
+- `DELETE /api/wealth/banks/accounts/{id}` : Supprimer compte bancaire
+- **Isolation** : Chaque user a son propre snapshot `data/users/{user_id}/banks/snapshot.json`
+- **Conversion FX** : Calcul automatique `balance_usd` via `services/fx_service`
+- **Modèles** : `BankAccountInput`, `BankAccountOutput` dans `models/wealth.py`
+
+**Exemple utilisation** :
+```bash
+# Créer compte UBS 5000 CHF pour user jack
+curl -X POST "http://localhost:8000/api/wealth/banks/accounts" \
+  -H "Content-Type: application/json" \
+  -H "X-User: jack" \
+  -d '{"bank_name": "UBS", "account_type": "current", "balance": 5000.0, "currency": "CHF"}'
+
+# Lister comptes user jack (avec USD conversion)
+curl "http://localhost:8000/api/wealth/banks/accounts" -H "X-User: jack"
+# → Retourne balance=5000 CHF + balance_usd=5432.10 (conversion automatique)
+```
+
+**Architecture multi-tenant** :
+- `adapters/banks_adapter.py` : Migration vers storage user-scoped
+- Ancien : `data/wealth/banks_snapshot.json` (global) → Nouveau : `data/users/{user_id}/banks/snapshot.json`
+- Propagation `user_id` dans `list_accounts()`, `list_positions()`, `_load_snapshot()`, `_save_snapshot()`
+- Isolation complète : user demo ne voit PAS les comptes de user jack
+
 ## 3) Système Multi-Utilisateurs (CRITIQUE ⚠️)
 
 **LE PROJET EST MULTI-TENANT** — Ne JAMAIS coder comme s'il n'y avait qu'un seul utilisateur !
@@ -865,7 +893,61 @@ setTimeout(() => window.location.reload(), 1000);
 - Les snapshots automatiques (dans `snapshots/`) ne sont **jamais** affichés dans les menus
 - Workflow : `uploads/` → validation → `imports/` → affichage dans menus
 
+**UI/UX - Troncature noms longs** (Oct 2025) :
+- Menus **Cointracking:** et **Bourse:** : `max-width: 200px` + `text-overflow: ellipsis`
+- **Menu fermé** : Affiche début du nom + "..." (ex: "Positions 23 sept. 2...")
+- **Menu ouvert** (dropdown) : Affiche nom **complet** de chaque fichier
+- CSS : `WealthContextBar.js:737-747` (select avec overflow hidden, option avec white-space normal)
+- Évite que les noms de fichiers longs prennent toute la largeur de l'écran
+
 **Documentation complète** : [docs/WEALTH_CONTEXT_BAR_DYNAMIC_SOURCES.md](docs/WEALTH_CONTEXT_BAR_DYNAMIC_SOURCES.md)
+
+### 9.6) Fix Discrepancy Global Overview vs Crypto Overview (Oct 2025) 🆕
+
+**Problème résolu** : Différence de $1,742 entre "Global Overview" (413,521$) et "Crypto Overview" (415,263$) dans `dashboard.html` pour l'utilisateur jack avec source cointracking_api.
+
+**Cause** :
+- Global Overview n'envoyait pas le paramètre `source` à l'API → utilisait source par défaut "auto"
+- Backend `crypto_adapter.list_positions()` ne filtrait pas les assets < `min_usd_threshold`
+- Résultat : Global Overview comptait assets dust (< 1 USD), pas Crypto Overview
+
+**Solution** (Oct 2025) :
+1. **Frontend** : `dashboard.html:2386` passe maintenant `source` + `min_usd_threshold` à `/api/wealth/global/summary`
+2. **Backend** : `crypto_adapter.py:110-138` ajoute paramètre `min_usd_threshold` (défaut 1.0) et filtre assets
+3. **API** : `wealth_endpoints.py:323,448,457` propage `min_usd_threshold` à tous les adapters
+
+**Technique** :
+```javascript
+// dashboard.html - Global Overview (AVANT)
+const response = await fetch(`/api/wealth/global/summary?user_id=${activeUser}`);
+
+// dashboard.html - Global Overview (APRÈS)
+const currentSource = window.globalConfig?.get('data_source') || 'auto';
+const minThreshold = window.globalConfig?.get('min_usd_threshold') || 1.0;
+const response = await fetch(
+  `/api/wealth/global/summary?user_id=${activeUser}&source=${currentSource}&min_usd_threshold=${minThreshold}`
+);
+```
+
+```python
+# crypto_adapter.py - list_positions (APRÈS)
+async def list_positions(
+    user_id: str = "demo",
+    source: str = "auto",
+    min_usd_threshold: float = 1.0  # ← NOUVEAU
+) -> List[PositionModel]:
+    # ... existing code ...
+    market_value = float(item.get("value_usd") or 0.0) or None
+
+    # Filtrer assets dust < min_usd_threshold
+    if market_value is not None and market_value < min_usd_threshold:
+        continue  # Skip asset
+```
+
+**Impact** :
+- Les 2 tuiles affichent maintenant **exactement** la même valeur (cohérence)
+- Filtrage dust assets (< 1 USD) appliqué uniformément partout
+- User jack cointracking_api : 415,263$ → 413,521$ (correct, cohérent)
 
 ---
 
