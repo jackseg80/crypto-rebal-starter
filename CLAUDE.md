@@ -856,7 +856,14 @@ setTimeout(() => window.location.reload(), 1000);
 **Backend** :
 - Endpoint : `GET /api/users/sources?X-User={user}` → Liste CSV + API
 - Persistence : `PUT /api/users/settings` → Sauvegarde `data_source` et `csv_selected_file`
-- Isolation : Chaque user a ses propres sources dans `data/users/{user}/cointracking/`
+- Isolation : Chaque user a ses propres sources dans `data/users/{user}/cointracking/` et `saxobank/`
+
+**⚠️ IMPORTANT - Workflow fichiers validés** (Oct 2025) :
+- Les menus déroulants **Cointracking:** et **Bourse:** ne montrent que les fichiers **validés** (dans `imports/`)
+- Les fichiers uploadés arrivent dans `uploads/` (zone de dépôt)
+- Après validation, ils sont copiés/déplacés dans `imports/` (fichiers validés)
+- Les snapshots automatiques (dans `snapshots/`) ne sont **jamais** affichés dans les menus
+- Workflow : `uploads/` → validation → `imports/` → affichage dans menus
 
 **Documentation complète** : [docs/WEALTH_CONTEXT_BAR_DYNAMIC_SOURCES.md](docs/WEALTH_CONTEXT_BAR_DYNAMIC_SOURCES.md)
 

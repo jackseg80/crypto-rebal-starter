@@ -1,6 +1,7 @@
 """
 Endpoints pour la gestion des settings utilisateur.
 Chaque utilisateur a ses propres settings dans data/users/{user_id}/config.json
+Supports: CoinTracking CSV/API + Saxo CSV sources
 """
 from __future__ import annotations
 from typing import Dict, Any
@@ -180,36 +181,36 @@ async def get_user_data_sources(user: str = Depends(get_active_user)) -> Dict[st
 
         sources = []
 
-        # CSV: lister TOUS les fichiers CSV disponibles dans uploads/ et imports/
-        # (pas seulement celui résolu par effective_path)
+        # CSV CoinTracking et Saxo: lister uniquement les fichiers validés (imports/)
         csv_files = []
 
-        # Scanner uploads/
-        uploads_dir = data_router.user_fs.get_path("cointracking/uploads")
-        if Path(uploads_dir).exists():
-            csv_files.extend(list(Path(uploads_dir).glob("*.csv")))
+        # Scanner imports/ CoinTracking
+        ct_imports_dir = data_router.user_fs.get_path("cointracking/imports")
+        if Path(ct_imports_dir).exists():
+            csv_files.extend([(p, "cointracking") for p in Path(ct_imports_dir).glob("*.csv")])
 
-        # Scanner imports/
-        imports_dir = data_router.user_fs.get_path("cointracking/imports")
-        if Path(imports_dir).exists():
-            csv_files.extend(list(Path(imports_dir).glob("*.csv")))
-
-        # Scanner snapshots/ (latest.csv)
-        snapshots_dir = data_router.user_fs.get_path("cointracking/snapshots")
-        if Path(snapshots_dir).exists():
-            csv_files.extend(list(Path(snapshots_dir).glob("*.csv")))
+        # Scanner imports/ Saxo
+        saxo_imports_dir = data_router.user_fs.get_path("saxobank/imports")
+        if Path(saxo_imports_dir).exists():
+            csv_files.extend([(p, "saxobank") for p in Path(saxo_imports_dir).glob("*.csv")])
 
         # Trier par nom et dédupliquer
-        csv_files = sorted(set(csv_files), key=lambda p: p.name.lower())
+        csv_files = sorted(set(csv_files), key=lambda item: item[0].name.lower())
 
-        for i, csv_path in enumerate(csv_files[:50]):  # Max 50 fichiers
+        for i, (csv_path, module) in enumerate(csv_files[:100]):  # Max 100 fichiers (50 cointracking + 50 saxo)
             file_name = csv_path.name
             # Générer une clé unique basée sur le nom du fichier (slug-friendly)
             file_slug = file_name.replace('.csv', '').lower().replace(' ', '_').replace('-', '_')
+
+            # Préfixe selon le module
+            key_prefix = "saxo" if module == "saxobank" else "csv"
+            icon = "🏦" if module == "saxobank" else "📄"
+
             sources.append({
-                "key": f"csv_{file_slug}",
-                "label": f"📄 {file_name}",
+                "key": f"{key_prefix}_{file_slug}",
+                "label": f"{icon} {file_name}",
                 "type": "csv",
+                "module": module,
                 "file_path": str(csv_path)
             })
 
@@ -228,11 +229,17 @@ async def get_user_data_sources(user: str = Depends(get_active_user)) -> Dict[st
                 "file_path": None
             })
 
+        # Compter le nombre de fichiers par module
+        cointracking_count = sum(1 for _, m in csv_files if m == "cointracking")
+        saxo_count = sum(1 for _, m in csv_files if m == "saxobank")
+
         return {
             "user": user,
             "sources": sources,
             "current_source": user_settings.get("data_source", "csv"),
-            "total_csv_files": len(csv_files) if csv_files else 0
+            "total_csv_files": len(csv_files) if csv_files else 0,
+            "cointracking_files": cointracking_count,
+            "saxo_files": saxo_count
         }
 
     except Exception as e:
