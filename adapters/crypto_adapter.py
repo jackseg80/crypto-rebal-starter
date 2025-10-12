@@ -107,7 +107,18 @@ def _compute_weights(rows: Iterable[Dict[str, Any]]) -> Dict[str, float]:
     return {sym: val / portfolio_total for sym, val in totals.items()}
 
 
-async def list_positions(user_id: str = _DEFAULT_USER, source: str = _DEFAULT_SOURCE) -> List[PositionModel]:
+async def list_positions(user_id: str = _DEFAULT_USER, source: str = _DEFAULT_SOURCE, min_usd_threshold: float = 1.0) -> List[PositionModel]:
+    """
+    List crypto positions avec filtrage assets dust.
+
+    Args:
+        user_id: User ID pour isolation multi-tenant
+        source: Source resolver (auto/cointracking/cointracking_api)
+        min_usd_threshold: Seuil minimum USD pour filtrer assets dust (défaut: 1.0)
+
+    Returns:
+        List de PositionModel filtrés
+    """
     balances = await _fetch_balances(user_id=user_id, source=source)
     taxonomy = Taxonomy.load()
     items = balances.get("items", [])
@@ -121,6 +132,10 @@ async def list_positions(user_id: str = _DEFAULT_USER, source: str = _DEFAULT_SO
         if quantity == 0:
             continue
         market_value = float(item.get("value_usd") or 0.0) or None
+
+        # Filtrer assets dust < min_usd_threshold (cohérence avec frontend)
+        if market_value is not None and market_value < min_usd_threshold:
+            continue
         group = _group_for(symbol, taxonomy)
         location = str(item.get("location") or "Portfolio")
         tags = [f"group:{group}"]

@@ -15,6 +15,8 @@ from models.wealth import (
     TransactionModel,
     PricePoint,
     ProposedTrade,
+    BankAccountInput,
+    BankAccountOutput,
 )
 
 logger = logging.getLogger(__name__)
@@ -41,6 +43,221 @@ async def _module_available(module: str, user_id: Optional[str] = None) -> bool:
 def _ensure_module(module: str) -> None:
     if module not in _SUPPORTED_MODULES:
         raise HTTPException(status_code=404, detail="unknown_module")
+
+
+# ===== Banks CRUD Endpoints (MUST be before generic /{module} routes) =====
+
+
+@router.get("/banks/accounts", response_model=list[BankAccountOutput])
+async def list_bank_accounts(
+    user: str = Depends(get_active_user)
+) -> list[BankAccountOutput]:
+    """
+    List all bank accounts for user with balance_usd calculated.
+
+    Args:
+        user: Active user ID (injected via Depends)
+
+    Returns:
+        List of BankAccountOutput with USD conversions
+    """
+    from services.fx_service import convert as fx_convert
+
+    # Load snapshot
+    snapshot = banks_adapter.load_snapshot(user)
+    accounts = snapshot.get("accounts", [])
+
+    # Build output with USD conversions
+    result = []
+    for account in accounts:
+        balance = account.get("balance", 0)
+        currency = account.get("currency", "USD").upper()
+        balance_usd = fx_convert(balance, currency, "USD")
+
+        result.append(BankAccountOutput(
+            id=account.get("id"),
+            bank_name=account.get("bank_name"),
+            account_type=account.get("account_type"),
+            balance=balance,
+            currency=currency,
+            balance_usd=balance_usd
+        ))
+
+    logger.info("[wealth][banks] listed %s accounts for user=%s", len(result), user)
+    return result
+
+
+@router.post("/banks/accounts", response_model=BankAccountOutput, status_code=201)
+async def create_bank_account(
+    account: BankAccountInput,
+    user: str = Depends(get_active_user)
+) -> BankAccountOutput:
+    """
+    Create a new bank account for the user.
+
+    Args:
+        account: Bank account data (bank_name, account_type, balance, currency)
+        user: Active user ID (injected via Depends)
+
+    Returns:
+        BankAccountOutput with generated ID and USD conversion
+
+    Example:
+        POST /api/wealth/banks/accounts
+        {
+            "bank_name": "UBS",
+            "account_type": "current",
+            "balance": 5000.0,
+            "currency": "CHF"
+        }
+    """
+    import uuid
+    from services.fx_service import convert as fx_convert
+
+    # Load current snapshot
+    snapshot = banks_adapter.load_snapshot(user)
+    accounts = snapshot.get("accounts", [])
+
+    # Generate unique ID
+    account_id = str(uuid.uuid4())
+
+    # Create new account dict
+    new_account = {
+        "id": account_id,
+        "bank_name": account.bank_name,
+        "account_type": account.account_type,
+        "balance": account.balance,
+        "currency": account.currency.upper(),
+    }
+
+    # Append and save
+    accounts.append(new_account)
+    banks_adapter.save_snapshot({"accounts": accounts}, user)
+
+    # Calculate USD value for response
+    balance_usd = fx_convert(account.balance, account.currency.upper(), "USD")
+
+    logger.info(
+        "[wealth][banks] account created id=%s user=%s bank=%s",
+        account_id,
+        user,
+        account.bank_name
+    )
+
+    return BankAccountOutput(
+        id=account_id,
+        bank_name=account.bank_name,
+        account_type=account.account_type,
+        balance=account.balance,
+        currency=account.currency.upper(),
+        balance_usd=balance_usd,
+    )
+
+
+@router.put("/banks/accounts/{account_id}", response_model=BankAccountOutput)
+async def update_bank_account(
+    account_id: str,
+    account: BankAccountInput,
+    user: str = Depends(get_active_user)
+) -> BankAccountOutput:
+    """
+    Update an existing bank account.
+
+    Args:
+        account_id: Account ID to update
+        account: Updated account data
+        user: Active user ID (injected via Depends)
+
+    Returns:
+        Updated BankAccountOutput
+
+    Raises:
+        HTTPException 404 if account not found
+    """
+    from services.fx_service import convert as fx_convert
+
+    # Load current snapshot
+    snapshot = banks_adapter.load_snapshot(user)
+    accounts = snapshot.get("accounts", [])
+
+    # Find and update account
+    found = False
+    for i, acc in enumerate(accounts):
+        if acc.get("id") == account_id:
+            accounts[i] = {
+                "id": account_id,
+                "bank_name": account.bank_name,
+                "account_type": account.account_type,
+                "balance": account.balance,
+                "currency": account.currency.upper(),
+            }
+            found = True
+            break
+
+    if not found:
+        logger.warning("[wealth][banks] account not found id=%s user=%s", account_id, user)
+        raise HTTPException(status_code=404, detail="account_not_found")
+
+    # Save updated snapshot
+    banks_adapter.save_snapshot({"accounts": accounts}, user)
+
+    # Calculate USD value for response
+    balance_usd = fx_convert(account.balance, account.currency.upper(), "USD")
+
+    logger.info(
+        "[wealth][banks] account updated id=%s user=%s bank=%s",
+        account_id,
+        user,
+        account.bank_name
+    )
+
+    return BankAccountOutput(
+        id=account_id,
+        bank_name=account.bank_name,
+        account_type=account.account_type,
+        balance=account.balance,
+        currency=account.currency.upper(),
+        balance_usd=balance_usd,
+    )
+
+
+@router.delete("/banks/accounts/{account_id}", status_code=204)
+async def delete_bank_account(
+    account_id: str,
+    user: str = Depends(get_active_user)
+):
+    """
+    Delete a bank account.
+
+    Args:
+        account_id: Account ID to delete
+        user: Active user ID (injected via Depends)
+
+    Returns:
+        204 No Content on success
+
+    Raises:
+        HTTPException 404 if account not found
+    """
+    # Load current snapshot
+    snapshot = banks_adapter.load_snapshot(user)
+    accounts = snapshot.get("accounts", [])
+
+    # Filter out account to delete
+    initial_count = len(accounts)
+    filtered_accounts = [acc for acc in accounts if acc.get("id") != account_id]
+
+    if len(filtered_accounts) == initial_count:
+        logger.warning("[wealth][banks] account not found for deletion id=%s user=%s", account_id, user)
+        raise HTTPException(status_code=404, detail="account_not_found")
+
+    # Save updated snapshot
+    banks_adapter.save_snapshot({"accounts": filtered_accounts}, user)
+
+    logger.info("[wealth][banks] account deleted id=%s user=%s", account_id, user)
+
+
+# ===== Generic Wealth Endpoints =====
 
 
 @router.get("/modules", response_model=List[str])
@@ -93,7 +310,7 @@ async def get_instruments(
     elif module == "saxo":
         instruments = await saxo_adapter.list_instruments()
     else:
-        instruments = await banks_adapter.list_instruments()
+        instruments = await banks_adapter.list_instruments(user_id=user_id)
     logger.info("[wealth] served %s instruments for module=%s", len(instruments), module)
     return instruments
 
@@ -103,15 +320,16 @@ async def get_positions(
     module: str,
     user_id: str = Query("demo"),
     source: str = Query("auto"),
+    min_usd_threshold: float = Query(1.0, description="Minimum USD value to filter dust assets"),
     asof: Optional[str] = Query(None, description="Date override (yyyy-mm-dd)")
 ) -> List[PositionModel]:
     _ensure_module(module)
     if module == "crypto":
-        positions = await crypto_adapter.list_positions(user_id=user_id, source=source)
+        positions = await crypto_adapter.list_positions(user_id=user_id, source=source, min_usd_threshold=min_usd_threshold)
     elif module == "saxo":
         positions = await saxo_adapter.list_positions()
     else:
-        positions = await banks_adapter.list_positions()
+        positions = await banks_adapter.list_positions(user_id=user_id)
     logger.info("[wealth] served %s positions for module=%s asof=%s", len(positions), module, asof or "latest")
     return positions
 
@@ -130,7 +348,7 @@ async def get_transactions(
     elif module == "saxo":
         transactions = await saxo_adapter.list_transactions(start=start, end=end)
     else:
-        transactions = await banks_adapter.list_transactions(start=start, end=end)
+        transactions = await banks_adapter.list_transactions(start=start, end=end, user_id=user_id)
     logger.info(
         "[wealth] served %s transactions for module=%s window=%s/%s",
         len(transactions),
@@ -157,7 +375,7 @@ async def get_prices(
     elif module == "saxo":
         prices = await saxo_adapter.get_prices(ids, granularity=granularity)
     else:
-        prices = await banks_adapter.get_prices(ids, granularity=granularity)
+        prices = await banks_adapter.get_prices(ids, granularity=granularity, user_id=user_id)
     logger.info("[wealth] served %s price points for module=%s", len(prices), module)
     return prices
 
@@ -175,7 +393,7 @@ async def preview_rebalance(
     elif module == "saxo":
         trades = await saxo_adapter.preview_rebalance()
     else:
-        trades = await banks_adapter.preview_rebalance()
+        trades = await banks_adapter.preview_rebalance(user_id=user_id)
     logger.info(
         "[wealth] rebalance preview module=%s payload_keys=%s returned=%s",
         module,
@@ -183,3 +401,79 @@ async def preview_rebalance(
         len(trades),
     )
     return trades
+
+
+@router.get("/global/summary")
+async def global_summary(
+    user_id: str = Query("demo", description="User ID for multi-tenant isolation"),
+    source: str = Query("auto", description="Crypto source resolver"),
+    min_usd_threshold: float = Query(1.0, description="Minimum USD value to filter dust assets")
+) -> dict:
+    """
+    Agrégation globale de tous les modules wealth (crypto + saxo + banks).
+
+    Retourne un summary unifié avec total_value_usd et breakdown par module.
+
+    Args:
+        user_id: ID utilisateur (isolation multi-tenant)
+        source: Source resolver pour crypto
+
+    Returns:
+        Dict avec total_value_usd, breakdown, et metadata
+
+    Example:
+        GET /api/wealth/global/summary?user_id=jack&source=auto
+        {
+            "total_value_usd": 556100.0,
+            "breakdown": {
+                "crypto": 133100.0,
+                "saxo": 423000.0,
+                "banks": 0.0
+            },
+            "user_id": "jack",
+            "timestamp": "2025-10-12T..."
+        }
+    """
+    from datetime import datetime
+
+    breakdown = {
+        "crypto": 0.0,
+        "saxo": 0.0,
+        "banks": 0.0
+    }
+
+    # 1) Crypto
+    try:
+        if await _module_available("crypto", user_id):
+            crypto_positions = await crypto_adapter.list_positions(user_id=user_id, source=source, min_usd_threshold=min_usd_threshold)
+            breakdown["crypto"] = sum((p.market_value or 0.0) for p in crypto_positions)
+            logger.info(f"[wealth][global] crypto={breakdown['crypto']:.2f} USD for user={user_id} (threshold={min_usd_threshold})")
+    except Exception as e:
+        logger.warning(f"[wealth][global] crypto failed for user={user_id}: {e}")
+
+    # 2) Saxo
+    try:
+        if await _module_available("saxo", user_id):
+            saxo_positions = await saxo_adapter.list_positions(user_id=user_id)
+            breakdown["saxo"] = sum((p.market_value or 0.0) for p in saxo_positions)
+            logger.info(f"[wealth][global] saxo={breakdown['saxo']:.2f} USD for user={user_id}")
+    except Exception as e:
+        logger.warning(f"[wealth][global] saxo failed for user={user_id}: {e}")
+
+    # 3) Banks
+    try:
+        if await _module_available("banks", user_id):
+            banks_positions = await banks_adapter.list_positions(user_id=user_id)
+            breakdown["banks"] = sum((p.market_value or 0.0) for p in banks_positions)
+            logger.info(f"[wealth][global] banks={breakdown['banks']:.2f} USD for user={user_id}")
+    except Exception as e:
+        logger.warning(f"[wealth][global] banks failed for user={user_id}: {e}")
+
+    total_value_usd = sum(breakdown.values())
+
+    return {
+        "total_value_usd": total_value_usd,
+        "breakdown": breakdown,
+        "user_id": user_id,
+        "timestamp": datetime.utcnow().isoformat(),
+    }

@@ -630,12 +630,12 @@
                 </div>
             </div>
 
-            <!-- Portfolio Overview - Disposition améliorée pour gagner de la place -->
+            <!-- Crypto Overview - Disposition améliorée pour gagner de la place -->
             <div class="card" id="crypto" draggable="true" style="grid-column: span 2;"
                 data-tooltip="Vue d'ensemble complète de votre portefeuille crypto avec répartition, métriques de performance et graphiques en temps réel."
                 data-source="API /balances/current + prix CoinGecko/CoinGlass">
                 <div class="card-header">
-                    <div class="card-title">Portfolio Overview</div>
+                    <div class="card-title"><span class="card-icon">₿</span>Crypto Overview</div>
                     <div style="display:flex;gap:8px;align-items:center;">
                         <span id="portfolio-source-display"
                             style="font-size:11px;color:var(--theme-text-muted);padding:2px 6px;background:var(--theme-bg);border-radius:4px;border:1px solid var(--theme-border);">--</span>
@@ -673,12 +673,12 @@
                 </div>
             </div>
 
-            <!-- Bourse (Saxo) - Lecture legacy -->
+            <!-- Bourse (Saxo) Overview - Lecture legacy -->
             <div class="card" id="bourse" draggable="true"
                 data-tooltip="Vue d'ensemble de votre portefeuille d'actions et ETF via Saxo Bank en lecture seule."
                 data-source="API /api/saxo/positions (legacy)">
                 <div class="card-header">
-                    <div class="card-title"><span class="card-icon">🏦</span>Bourse (Saxo)</div>
+                    <div class="card-title"><span class="card-icon">🏦</span>Bourse (Saxo) Overview</div>
                     <div style="display:flex;gap:8px;align-items:center;">
                         <button class="action-btn secondary" style="padding:4px 8px;font-size:12px;"
                             onclick="refreshSaxoTile()">🔄</button>
@@ -716,6 +716,103 @@
                         <div id="saxo-empty-state" style="display:none;text-align:center;color:var(--theme-text-muted);font-size:0.85rem;">
                             Aucune position Saxo.<br>
                             <a href="settings.html#sources" style="color:var(--theme-accent);">Importez un fichier dans Settings</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Banque (Banks) Overview -->
+            <div class="card" id="banque" draggable="true"
+                data-tooltip="Vue d'ensemble de vos comptes bancaires (comptes courants, épargne)."
+                data-source="API /api/wealth/banks/positions">
+                <div class="card-header">
+                    <div class="card-title"><span class="card-icon">💰</span>Banque Overview</div>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <button class="action-btn secondary" style="padding:4px 8px;font-size:12px;"
+                            onclick="refreshBanksTile()">🔄</button>
+                        <span class="status-badge" id="banks-status">Loading</span>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg);">
+                    <!-- Colonne gauche : Métriques -->
+                    <div>
+                        <div class="metric">
+                            <span class="metric-label">Valeur Totale</span>
+                            <span class="metric-value" id="banks-total-value">--</span>
+                        </div>
+
+                        <div class="metric">
+                            <span class="metric-label">Comptes</span>
+                            <span class="metric-value" id="banks-accounts-count">--</span>
+                        </div>
+
+                        <div class="metric">
+                            <span class="metric-label">Devises</span>
+                            <span class="metric-value" id="banks-currencies-count">--</span>
+                        </div>
+                    </div>
+
+                    <!-- Colonne droite : Actions -->
+                    <div style="display:flex;flex-direction:column;justify-content:center;gap:12px;">
+                        <a href="banks-manager.html"
+                           class="action-btn primary"
+                           style="text-decoration:none;text-align:center;padding:12px;font-weight:600;">
+                            💰 Gérer les comptes
+                        </a>
+
+                        <div id="banks-empty-state" style="display:none;text-align:center;color:var(--theme-text-muted);font-size:0.85rem;">
+                            Aucun compte bancaire.<br>
+                            <a href="banks-manager.html" style="color:var(--theme-accent);">Ajoutez-en un maintenant</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Global Overview - Agrégation Crypto + Saxo + Banks -->
+            <div class="card" id="global" draggable="true"
+                data-tooltip="Vue d'ensemble globale de votre patrimoine (Crypto + Bourse + Banques)"
+                data-source="API /api/wealth/global/summary">
+                <div class="card-header">
+                    <div class="card-title"><span class="card-icon">🌐</span>Global Overview</div>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <button class="action-btn secondary" style="padding:4px 8px;font-size:12px;"
+                            onclick="refreshGlobalTile()">🔄</button>
+                        <span class="status-badge" id="global-status">Loading</span>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg);">
+                    <!-- Colonne gauche : Métriques -->
+                    <div>
+                        <div class="metric">
+                            <span class="metric-label">Total Global</span>
+                            <span class="metric-value" id="global-total-value">--</span>
+                        </div>
+
+                        <div class="metric">
+                            <span class="metric-label">Crypto</span>
+                            <span class="metric-value" id="global-crypto-value" style="font-size:1.1rem;">--</span>
+                        </div>
+
+                        <div class="metric">
+                            <span class="metric-label">Bourse</span>
+                            <span class="metric-value" id="global-saxo-value" style="font-size:1.1rem;">--</span>
+                        </div>
+
+                        <div class="metric">
+                            <span class="metric-label">Banque</span>
+                            <span class="metric-value" id="global-banks-value" style="font-size:1.1rem;">--</span>
+                        </div>
+                    </div>
+
+                    <!-- Colonne droite : Breakdown visuel -->
+                    <div style="display:flex;flex-direction:column;justify-content:center;gap:8px;">
+                        <div style="font-size:0.85rem;color:var(--theme-text-muted);margin-bottom:4px;">
+                            Répartition modules:
+                        </div>
+                        <div id="global-breakdown" style="display:flex;flex-direction:column;gap:4px;">
+                            <!-- Breakdown bars will be added here by JS -->
                         </div>
                     </div>
                 </div>
@@ -877,6 +974,9 @@
             // Initialize Saxo tile
             await refreshSaxoTile();
             setInterval(refreshSaxoTile, 120000); // Refresh every 2 minutes
+
+            await refreshBanksTile();
+            setInterval(refreshBanksTile, 120000); // Refresh every 2 minutes
 
             // Also check for data source changes more frequently (every 5 seconds)
             setInterval(() => {
@@ -2322,8 +2422,176 @@
             }
         }
 
-        // Make function globally available for onclick
+        async function refreshBanksTile() {
+            debugLogger.debug('💰 Refreshing Banks tile...');
+
+            const statusEl = document.getElementById('banks-status');
+            const totalValueEl = document.getElementById('banks-total-value');
+            const accountsCountEl = document.getElementById('banks-accounts-count');
+            const currenciesCountEl = document.getElementById('banks-currencies-count');
+            const emptyStateEl = document.getElementById('banks-empty-state');
+
+            // Set loading state
+            if (statusEl) statusEl.textContent = 'Loading';
+            if (statusEl) statusEl.className = 'status-badge status-loading';
+
+            try {
+                const activeUser = localStorage.getItem('activeUser') || 'demo';
+                const response = await fetch(`${window.location.origin}/api/wealth/banks/positions?user_id=${activeUser}`, {
+                    headers: {
+                        'X-User': activeUser
+                    }
+                });
+
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const positions = await response.json();
+                const formatCurrency = (val) => `$${Math.round(val).toLocaleString()}`;
+
+                // Calculate metrics (market_value is already in USD from backend)
+                const totalValueUSD = positions.reduce((sum, pos) => {
+                    return sum + (pos.market_value || 0);
+                }, 0);
+
+                const accountsCount = positions.length;
+                const currencies = new Set(positions.map(p => p.currency));
+                const currenciesCount = currencies.size;
+
+                // Update UI
+                if (positions.length === 0) {
+                    // Empty state
+                    if (totalValueEl) totalValueEl.textContent = formatCurrency(0);
+                    if (accountsCountEl) accountsCountEl.textContent = '0';
+                    if (currenciesCountEl) currenciesCountEl.textContent = '0';
+
+                    if (emptyStateEl) emptyStateEl.style.display = 'block';
+                    if (statusEl) {
+                        statusEl.textContent = 'Vide';
+                        statusEl.className = 'status-badge status-warning';
+                    }
+
+                    debugLogger.warn('[Banks Tile] Empty state - no bank accounts');
+                } else {
+                    // Success with data
+                    if (totalValueEl) {
+                        totalValueEl.textContent = formatCurrency(totalValueUSD);
+                        totalValueEl.style.color = totalValueUSD > 0 ? 'var(--success)' : 'var(--theme-text)';
+                    }
+                    if (accountsCountEl) accountsCountEl.textContent = accountsCount.toString();
+                    if (currenciesCountEl) currenciesCountEl.textContent = currenciesCount.toString();
+
+                    if (emptyStateEl) emptyStateEl.style.display = 'none';
+                    if (statusEl) {
+                        statusEl.textContent = 'OK';
+                        statusEl.className = 'status-badge status-active';
+                    }
+
+                    debugLogger.debug('✅ Banks tile updated:', {
+                        total_value_usd: totalValueUSD,
+                        accounts_count: accountsCount,
+                        currencies_count: currenciesCount
+                    });
+                }
+
+            } catch (error) {
+                debugLogger.error('[Banks Tile] Error refreshing:', error);
+
+                if (totalValueEl) totalValueEl.textContent = '--';
+                if (accountsCountEl) accountsCountEl.textContent = '--';
+                if (currenciesCountEl) currenciesCountEl.textContent = '--';
+
+                if (emptyStateEl) emptyStateEl.style.display = 'block';
+                if (statusEl) {
+                    statusEl.textContent = 'Erreur';
+                    statusEl.className = 'status-badge status-error';
+                }
+            }
+        }
+
+        async function refreshGlobalTile() {
+            debugLogger.debug('🌐 Refreshing Global tile...');
+
+            const statusEl = document.getElementById('global-status');
+            const totalValueEl = document.getElementById('global-total-value');
+            const cryptoValueEl = document.getElementById('global-crypto-value');
+            const saxoValueEl = document.getElementById('global-saxo-value');
+            const banksValueEl = document.getElementById('global-banks-value');
+            const breakdownEl = document.getElementById('global-breakdown');
+
+            // Set loading state
+            if (statusEl) statusEl.textContent = 'Loading';
+            if (statusEl) statusEl.className = 'status-badge status-loading';
+
+            try {
+                const activeUser = localStorage.getItem('activeUser') || 'demo';
+                const currentSource = (window.globalConfig && window.globalConfig.get('data_source')) || 'auto';
+                const minThreshold = (window.globalConfig && window.globalConfig.get('min_usd_threshold')) || 1.0;
+                const response = await fetch(`${window.location.origin}/api/wealth/global/summary?user_id=${activeUser}&source=${currentSource}&min_usd_threshold=${minThreshold}`);
+
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const data = await response.json();
+                const formatCurrency = (val) => `$${Math.round(val).toLocaleString()}`;
+
+                // Update values
+                if (totalValueEl) totalValueEl.textContent = formatCurrency(data.total_value_usd);
+                if (cryptoValueEl) cryptoValueEl.textContent = formatCurrency(data.breakdown.crypto);
+                if (saxoValueEl) saxoValueEl.textContent = formatCurrency(data.breakdown.saxo);
+                if (banksValueEl) banksValueEl.textContent = formatCurrency(data.breakdown.banks);
+
+                // Breakdown bars
+                if (breakdownEl && data.total_value_usd > 0) {
+                    const modules = [
+                        { name: 'Crypto', value: data.breakdown.crypto, color: 'var(--brand-primary)' },
+                        { name: 'Bourse', value: data.breakdown.saxo, color: 'var(--success)' },
+                        { name: 'Banks', value: data.breakdown.banks, color: 'var(--info)' }
+                    ].filter(m => m.value > 0);
+
+                    breakdownEl.innerHTML = modules.map(m => {
+                        const pct = (m.value / data.total_value_usd) * 100;
+                        return `
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <div style="flex:0 0 60px;font-size:0.75rem;color:var(--theme-text-muted);">${m.name}</div>
+                                <div style="flex:1;height:16px;background:var(--theme-bg);border-radius:4px;overflow:hidden;">
+                                    <div style="height:100%;width:${pct}%;background:${m.color};"></div>
+                                </div>
+                                <div style="flex:0 0 40px;font-size:0.75rem;text-align:right;">${pct.toFixed(0)}%</div>
+                            </div>`;
+                    }).join('');
+                }
+
+                if (statusEl) {
+                    statusEl.textContent = 'OK';
+                    statusEl.className = 'status-badge status-active';
+                }
+
+                debugLogger.debug('✅ Global tile updated:', data);
+
+            } catch (error) {
+                debugLogger.error('[Global Tile] Error refreshing:', error);
+
+                if (totalValueEl) totalValueEl.textContent = '--';
+                if (cryptoValueEl) cryptoValueEl.textContent = '--';
+                if (saxoValueEl) saxoValueEl.textContent = '--';
+                if (banksValueEl) banksValueEl.textContent = '--';
+                if (breakdownEl) breakdownEl.innerHTML = '<div style="text-align:center;color:var(--danger);font-size:0.85rem;">Erreur de chargement</div>';
+
+                if (statusEl) {
+                    statusEl.textContent = 'Erreur';
+                    statusEl.className = 'status-badge status-error';
+                }
+            }
+        }
+
+        // Make functions globally available for onclick
         window.refreshSaxoTile = refreshSaxoTile;
+        window.refreshBanksTile = refreshBanksTile;
+        window.refreshGlobalTile = refreshGlobalTile;
+
+        // Auto-refresh Global tile on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            refreshGlobalTile();
+        });
 
     </script>
 
