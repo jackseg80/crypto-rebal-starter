@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>🧹 Nettoyage Cache Saxo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            font-size: 2.5rem;
+            margin: 0 0 20px 0;
+        }
+        .status {
+            font-size: 1.2rem;
+            margin: 20px 0;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            border-left: 4px solid #4ade80;
+        }
+        .log {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 15px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            max-height: 200px;
+            overflow-y: auto;
+            margin: 20px 0;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #60a5fa;
+            padding-left: 10px;
+        }
+        .actions {
+            display: flex;
+            gap: 15px;
+            margin-top: 30px;
+        }
+        button {
+            flex: 1;
+            padding: 15px 30px;
+            font-size: 1.1rem;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+        }
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+        .success {
+            color: #4ade80;
+        }
+        .warning {
+            color: #fbbf24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧹 Nettoyage Cache Saxo</h1>
+
+        <div class="status" id="status">
+            ⏳ Nettoyage en cours...
+        </div>
+
+        <div class="log" id="log"></div>
+
+        <div class="actions">
+            <button class="btn-primary" onclick="goToSources()">
+                📊 Aller sur Sources
+            </button>
+            <button class="btn-secondary" onclick="goToDashboard()">
+                📈 Aller sur Dashboard
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const log = document.getElementById('log');
+        const status = document.getElementById('status');
+        let cleaned = 0;
+
+        function addLog(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = message;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function cleanStorage() {
+            addLog('🔍 Scan du localStorage...');
+
+            // Patterns à supprimer
+            const patterns = [
+                'saxo',
+                'wealth',
+                'csv_selected_file',
+                'risk_score',
+                'balance_',
+                'cache:',
+                'portfolio_',
+                'wealth_ctx'
+            ];
+
+            // Supprimer les clés correspondantes
+            const keys = Object.keys(localStorage);
+            addLog(`📦 Trouvé ${keys.length} clés au total`);
+
+            keys.forEach(key => {
+                for (const pattern of patterns) {
+                    if (key.includes(pattern)) {
+                        localStorage.removeItem(key);
+                        cleaned++;
+                        addLog(`<span class="success">✅ Supprimé: ${key}</span>`);
+                        break;
+                    }
+                }
+            });
+
+            // Vider aussi sessionStorage
+            const sessionKeys = Object.keys(sessionStorage);
+            sessionKeys.forEach(key => {
+                for (const pattern of patterns) {
+                    if (key.includes(pattern)) {
+                        sessionStorage.removeItem(key);
+                        cleaned++;
+                        addLog(`<span class="success">✅ Session supprimée: ${key}</span>`);
+                        break;
+                    }
+                }
+            });
+
+            // Résultat final
+            if (cleaned > 0) {
+                status.innerHTML = `<span class="success">✅ Nettoyage terminé ! ${cleaned} entrées supprimées</span>`;
+                addLog('');
+                addLog(`<span class="success">🎉 Succès ! ${cleaned} entrées supprimées</span>`);
+            } else {
+                status.innerHTML = `<span class="warning">⚠️ Aucune donnée Saxo trouvée (déjà propre)</span>`;
+                addLog('<span class="warning">ℹ️ Aucune donnée à nettoyer</span>');
+            }
+        }
+
+        function goToSources() {
+            window.location.href = '/static/settings.html#tab-sources';
+        }
+
+        function goToDashboard() {
+            window.location.href = '/static/saxo-dashboard.html';
+        }
+
+        // Lancer le nettoyage automatiquement au chargement
+        setTimeout(cleanStorage, 500);
+    </script>
+</body>
+</html>

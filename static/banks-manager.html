@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>💰 Gestion Comptes Bancaires - Crypto Rebalancer</title>
+    <link rel="stylesheet" href="shared-theme.css">
+    <link rel="stylesheet" href="theme-compat.css">
+    <script type="module" src="components/nav.js"></script>
+    <script src="global-config.js"></script>
+    <script src="appearance.js"></script>
+
+    <style>
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        .header-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .summary-card {
+            background: var(--theme-surface);
+            border: 1px solid var(--theme-border);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            text-align: center;
+        }
+
+        .summary-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--brand-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .summary-label {
+            font-size: 0.875rem;
+            color: var(--theme-text-muted);
+        }
+
+        .form-section {
+            background: var(--theme-surface);
+            border: 1px solid var(--theme-border);
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--theme-text);
+        }
+
+        .form-group input,
+        .form-group select {
+            padding: 0.75rem;
+            border: 1px solid var(--theme-border);
+            border-radius: var(--radius-md);
+            background: var(--theme-bg);
+            color: var(--theme-text);
+            font-size: 1rem;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--brand-primary);
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .btn-primary {
+            background: var(--brand-primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: color-mix(in oklab, var(--brand-primary) 80%, black);
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: var(--theme-border);
+            color: var(--theme-text);
+        }
+
+        .btn-secondary:hover {
+            background: color-mix(in oklab, var(--theme-border) 80%, black);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: color-mix(in oklab, var(--danger) 80%, black);
+        }
+
+        .accounts-table {
+            width: 100%;
+            background: var(--theme-surface);
+            border: 1px solid var(--theme-border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+
+        .accounts-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .accounts-table th,
+        .accounts-table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--theme-border);
+        }
+
+        .accounts-table th {
+            background: var(--theme-bg);
+            font-weight: 600;
+            font-size: 0.875rem;
+            color: var(--theme-text-muted);
+            text-transform: uppercase;
+        }
+
+        .accounts-table tbody tr:hover {
+            background: var(--theme-bg);
+        }
+
+        .accounts-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .account-type-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: var(--radius-full);
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: color-mix(in oklab, var(--brand-primary) 10%, transparent);
+            color: var(--brand-primary);
+        }
+
+        .actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .action-icon {
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 0.25rem;
+            transition: transform var(--transition-fast);
+        }
+
+        .action-icon:hover {
+            transform: scale(1.2);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--theme-text-muted);
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .toast {
+            position: fixed;
+            top: 2rem;
+            right: 2rem;
+            padding: 1rem 1.5rem;
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-lg);
+            z-index: 9999;
+            animation: slideIn 0.3s ease;
+        }
+
+        .toast-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .toast-error {
+            background: var(--danger);
+            color: white;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .currency-group {
+            margin-bottom: 0.5rem;
+            padding: 0.5rem;
+            background: var(--theme-bg);
+            border-radius: var(--radius-sm);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .currency-label {
+            font-weight: 600;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header-actions">
+            <h1>💰 Gestion Comptes Bancaires</h1>
+            <a href="dashboard.html#global" class="btn btn-secondary" style="text-decoration: none;">
+                Voir Global Overview
+            </a>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="summary-cards">
+            <div class="summary-card">
+                <div class="summary-value" id="summary-total">$0.00</div>
+                <div class="summary-label">Total USD</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value" id="summary-count">0</div>
+                <div class="summary-label">Comptes</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value" id="summary-currencies">0</div>
+                <div class="summary-label">Devises</div>
+            </div>
+        </div>
+
+        <!-- Form Section -->
+        <div class="form-section">
+            <h2 id="form-title">Ajouter un compte</h2>
+            <form id="accountForm">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="bank_name">Banque *</label>
+                        <input type="text" id="bank_name" name="bank_name" required
+                               placeholder="ex: UBS, Credit Suisse" maxlength="100">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="account_type">Type de compte *</label>
+                        <select id="account_type" name="account_type" required>
+                            <option value="">Sélectionner...</option>
+                            <option value="current">Compte Courant</option>
+                            <option value="savings">Épargne</option>
+                            <option value="pel">PEL</option>
+                            <option value="livret_a">Livret A</option>
+                            <option value="other">Autre</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="balance">Solde *</label>
+                        <input type="number" id="balance" name="balance" required
+                               min="0" step="0.01" placeholder="0.00">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="currency">Devise *</label>
+                        <select id="currency" name="currency" required>
+                            <option value="">Sélectionner...</option>
+                            <option value="CHF">CHF - Franc suisse</option>
+                            <option value="EUR">EUR - Euro</option>
+                            <option value="USD">USD - Dollar américain</option>
+                            <option value="GBP">GBP - Livre sterling</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelBtn" style="display: none;">
+                        Annuler
+                    </button>
+                    <button type="submit" class="btn btn-primary" id="submitBtn">
+                        Ajouter le compte
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Totals by Currency -->
+        <div class="form-section" id="currency-totals-section" style="display: none;">
+            <h3>Totaux par devise</h3>
+            <div id="currency-totals"></div>
+        </div>
+
+        <!-- Accounts Table -->
+        <div class="accounts-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Banque</th>
+                        <th>Type</th>
+                        <th>Solde</th>
+                        <th>Devise</th>
+                        <th>Solde USD</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="accountsTableBody">
+                    <tr>
+                        <td colspan="6" class="empty-state">
+                            <div class="empty-state-icon">💰</div>
+                            <div>Aucun compte bancaire. Utilisez le formulaire ci-dessus pour en ajouter un.</div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // State management
+        let accounts = [];
+        let editingAccountId = null;
+        const activeUser = localStorage.getItem('activeUser') || 'demo';
+
+        // Account type labels
+        const accountTypeLabels = {
+            'current': 'Compte Courant',
+            'savings': 'Épargne',
+            'pel': 'PEL',
+            'livret_a': 'Livret A',
+            'other': 'Autre'
+        };
+
+        // Toast notifications
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+
+        // Fetch accounts with multi-tenant header
+        async function fetchAccounts() {
+            try {
+                const response = await fetch('/api/wealth/banks/accounts', {
+                    headers: {
+                        'X-User': activeUser
+                    }
+                });
+
+                if (!response.ok) throw new Error('Failed to fetch accounts');
+
+                // API returns BankAccountOutput[] with balance_usd already calculated
+                accounts = await response.json();
+                console.debug('[banks] Fetched accounts:', accounts);
+
+                updateUI();
+            } catch (error) {
+                console.error('[banks] Error fetching accounts:', error);
+                showToast('Erreur de chargement des comptes', 'error');
+            }
+        }
+
+        // Create account
+        async function createAccount(accountData) {
+            try {
+                const response = await fetch('/api/wealth/banks/accounts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User': activeUser
+                    },
+                    body: JSON.stringify(accountData)
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to create account');
+                }
+
+                const result = await response.json();
+                console.debug('[banks] Account created:', result);
+                showToast(`Compte créé: ${result.bank_name}`, 'success');
+                await fetchAccounts();
+            } catch (error) {
+                console.error('[banks] Error creating account:', error);
+                showToast('Erreur de création: ' + error.message, 'error');
+            }
+        }
+
+        // Update account
+        async function updateAccount(accountId, accountData) {
+            try {
+                const response = await fetch(`/api/wealth/banks/accounts/${accountId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User': activeUser
+                    },
+                    body: JSON.stringify(accountData)
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to update account');
+                }
+
+                const result = await response.json();
+                console.debug('[banks] Account updated:', result);
+                showToast(`Compte modifié: ${result.bank_name}`, 'success');
+                await fetchAccounts();
+            } catch (error) {
+                console.error('[banks] Error updating account:', error);
+                showToast('Erreur de modification: ' + error.message, 'error');
+            }
+        }
+
+        // Delete account
+        async function deleteAccount(accountId) {
+            if (!confirm('Êtes-vous sûr de vouloir supprimer ce compte ?')) return;
+
+            try {
+                const response = await fetch(`/api/wealth/banks/accounts/${accountId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-User': activeUser
+                    }
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to delete account');
+                }
+
+                console.debug('[banks] Account deleted:', accountId);
+                showToast('Compte supprimé', 'success');
+                await fetchAccounts();
+            } catch (error) {
+                console.error('[banks] Error deleting account:', error);
+                showToast('Erreur de suppression: ' + error.message, 'error');
+            }
+        }
+
+        // Update UI
+        function updateUI() {
+            updateSummary();
+            updateTable();
+            updateCurrencyTotals();
+        }
+
+        // Update summary cards
+        function updateSummary() {
+            const totalUSD = accounts.reduce((sum, acc) => sum + (parseFloat(acc.balance_usd) || 0), 0);
+            const currencies = new Set(accounts.map(acc => acc.currency).filter(c => c)).size;
+
+            document.getElementById('summary-total').textContent = `$${totalUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            document.getElementById('summary-count').textContent = accounts.length;
+            document.getElementById('summary-currencies').textContent = currencies;
+        }
+
+        // Update accounts table
+        function updateTable() {
+            const tbody = document.getElementById('accountsTableBody');
+
+            if (accounts.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="empty-state">
+                            <div class="empty-state-icon">💰</div>
+                            <div>Aucun compte bancaire. Utilisez le formulaire ci-dessus pour en ajouter un.</div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = accounts.map(acc => {
+                const balance = parseFloat(acc.balance) || 0;
+                const balanceUSD = parseFloat(acc.balance_usd) || 0;
+                return `
+                    <tr>
+                        <td><strong>${acc.bank_name || 'N/A'}</strong></td>
+                        <td>
+                            <span class="account-type-badge">
+                                ${accountTypeLabels[acc.account_type] || acc.account_type || 'other'}
+                            </span>
+                        </td>
+                        <td>${balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td><strong>${acc.currency || 'USD'}</strong></td>
+                        <td>$${balanceUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td>
+                            <div class="actions">
+                                <span class="action-icon" onclick="editAccount('${acc.id}')" title="Modifier">✏️</span>
+                                <span class="action-icon" onclick="deleteAccount('${acc.id}')" title="Supprimer">🗑️</span>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Update currency totals
+        function updateCurrencyTotals() {
+            const totalsSection = document.getElementById('currency-totals-section');
+            const totalsDiv = document.getElementById('currency-totals');
+
+            if (accounts.length === 0) {
+                totalsSection.style.display = 'none';
+                return;
+            }
+
+            const byCurrency = {};
+            accounts.forEach(acc => {
+                const currency = acc.currency || 'USD';
+                const balance = parseFloat(acc.balance) || 0;
+                if (!byCurrency[currency]) {
+                    byCurrency[currency] = 0;
+                }
+                byCurrency[currency] += balance;
+            });
+
+            totalsDiv.innerHTML = Object.entries(byCurrency)
+                .sort((a, b) => b[1] - a[1])
+                .map(([currency, total]) => `
+                    <div class="currency-group">
+                        <span class="currency-label">${currency}</span>
+                        <span>${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}</span>
+                    </div>
+                `).join('');
+
+            totalsSection.style.display = 'block';
+        }
+
+        // Edit account - populate form
+        window.editAccount = function(accountId) {
+            const account = accounts.find(acc => acc.id === accountId);
+            if (!account) return;
+
+            editingAccountId = accountId;
+
+            document.getElementById('bank_name').value = account.bank_name;
+            document.getElementById('account_type').value = account.account_type;
+            document.getElementById('balance').value = account.balance;
+            document.getElementById('currency').value = account.currency;
+
+            document.getElementById('form-title').textContent = 'Modifier le compte';
+            document.getElementById('submitBtn').textContent = 'Enregistrer les modifications';
+            document.getElementById('cancelBtn').style.display = 'inline-block';
+
+            document.getElementById('accountForm').scrollIntoView({ behavior: 'smooth' });
+        };
+
+        // Cancel edit
+        document.getElementById('cancelBtn').addEventListener('click', () => {
+            resetForm();
+        });
+
+        // Reset form
+        function resetForm() {
+            editingAccountId = null;
+            document.getElementById('accountForm').reset();
+            document.getElementById('form-title').textContent = 'Ajouter un compte';
+            document.getElementById('submitBtn').textContent = 'Ajouter le compte';
+            document.getElementById('cancelBtn').style.display = 'none';
+        }
+
+        // Form submit
+        document.getElementById('accountForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const formData = {
+                bank_name: document.getElementById('bank_name').value.trim(),
+                account_type: document.getElementById('account_type').value,
+                balance: parseFloat(document.getElementById('balance').value),
+                currency: document.getElementById('currency').value
+            };
+
+            if (editingAccountId) {
+                await updateAccount(editingAccountId, formData);
+            } else {
+                await createAccount(formData);
+            }
+
+            resetForm();
+        });
+
+        // Initial load
+        document.addEventListener('DOMContentLoaded', () => {
+            console.debug('[banks] Banks Manager initialized for user:', activeUser);
+            fetchAccounts();
+        });
+    </script>
+</body>
+</html>
