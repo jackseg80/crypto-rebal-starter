@@ -38,6 +38,7 @@ class SaxoImportConnector:
             'valeur actuelle eur': 'Market Value',
             'valeur actuelle usd': 'Market Value',
             'valeur actuelle devise': 'Market Value',
+            'val actuelle': 'Market Value',
             'currency': 'Currency',
             'devise': 'Currency',
             'monnaie': 'Currency',
@@ -51,6 +52,9 @@ class SaxoImportConnector:
             'numero de position': 'Position ID',
             'no de position': 'Position ID',
             'n de position': 'Position ID',
+            'isin': 'ISIN',
+            'statut': 'Status',
+            'etat': 'Status',
         }
 
     def _canonical_column_name(self, name: str) -> str:
@@ -126,11 +130,22 @@ class SaxoImportConnector:
         """Load file into DataFrame"""
         if file_path.suffix.lower() == '.csv':
             # Try different encodings and separators
-            for encoding in ['utf-8', 'iso-8859-1', 'cp1252']:
+            # Use csv module for robust handling of newlines in quoted fields
+            import csv
+            for encoding in ['utf-8', 'utf-8-sig', 'iso-8859-1', 'cp1252']:
                 for sep in [',', ';', '\t']:
                     try:
-                        df = pd.read_csv(file_path, encoding=encoding, sep=sep)
-                        if len(df.columns) > 1:  # Valid CSV should have multiple columns
+                        rows = []
+                        with open(file_path, 'r', encoding=encoding, newline='') as f:
+                            reader = csv.DictReader(f, delimiter=sep)
+                            for row in reader:
+                                # Clean newlines in all values
+                                cleaned_row = {k: str(v).replace('\n', ' ').replace('\r', ' ').strip() if v else v
+                                              for k, v in row.items()}
+                                rows.append(cleaned_row)
+
+                        if rows and len(rows[0].keys()) > 1:  # Valid CSV should have multiple columns
+                            df = pd.DataFrame(rows)
                             return self._normalize_dataframe(df)
                     except:
                         continue
@@ -139,16 +154,27 @@ class SaxoImportConnector:
             df = pd.read_excel(file_path)
             return self._normalize_dataframe(df)
 
-    def process_saxo_file(self, file_path: Union[str, Path]) -> Dict[str, Union[List, Dict, str]]:
+    def process_saxo_file(self, file_path: Union[str, Path], user_id: Optional[str] = None) -> Dict[str, Union[List, Dict, str]]:
         """
         Process Saxo Bank export file and return standardized data
+
+        Args:
+            file_path: Path to Saxo CSV/XLSX file
+            user_id: Optional user ID for per-user catalog enrichment
 
         Returns:
             Dict with processed positions and metadata
         """
         try:
             df = self._load_file(Path(file_path))
-            logger.info(f"Processing Saxo file with {len(df)} positions")
+            logger.info(f"Processing Saxo file with {len(df)} positions for user {user_id or 'global'}")
+            logger.debug(f"Columns after normalization: {list(df.columns)[:10]}")
+
+            # Debug: afficher premières lignes
+            if len(df) > 0:
+                logger.debug(f"First row Instrument column: {df.iloc[0].get('Instrument')}")
+                logger.debug(f"First row Status column: {df.iloc[0].get('Status')}")
+                logger.debug(f"First row Quantity column: {df.iloc[0].get('Quantity')}")
 
             # Clean and standardize data
             positions = []
@@ -156,7 +182,7 @@ class SaxoImportConnector:
 
             for idx, row in df.iterrows():
                 try:
-                    position = self._process_position(row)
+                    position = self._process_position(row, user_id=user_id)
                     if position:
                         positions.append(position)
                 except Exception as e:
@@ -183,37 +209,91 @@ class SaxoImportConnector:
                 "source": "saxo_bank"
             }
 
-    def _process_position(self, row: pd.Series) -> Optional[Dict]:
-        """Process a single position row"""
+    def _process_position(self, row: pd.Series, user_id: Optional[str] = None) -> Optional[Dict]:
+        """
+        Process a single position row with enrichment via instruments registry.
+
+        Args:
+            row: DataFrame row with position data
+            user_id: Optional user ID for per-user catalog lookup
+
+        Returns:
+            Enriched position dict or None if invalid
+        """
         try:
-            position_id = str(row.get('Position ID', '') or '').strip()
-            instrument = str(row.get('Instrument', '') or '').strip()
+            # Clean all string values (remove newlines, extra spaces)
+            def clean_str(val):
+                if pd.isna(val):
+                    return ''
+                return str(val).replace('\n', ' ').replace('\r', ' ').strip()
+
+            position_id = clean_str(row.get('Position ID', ''))
+            instrument_raw = clean_str(row.get('Instrument', ''))
+            symbol_raw = clean_str(row.get('Symbol', ''))
+            isin_raw = clean_str(row.get('ISIN', ''))
+            status = clean_str(row.get('Status', ''))
             quantity = self._to_float(row.get('Quantity', 0))
             market_value = self._to_float(row.get('Market Value', 0))
-            currency = str(row.get('Currency', 'USD') or 'USD').strip().upper()
-            asset_class_raw = str(row.get('Asset Class', 'Unknown') or 'Unknown')
+            currency = clean_str(row.get('Currency', 'USD')).upper() or 'USD'
+            asset_class_raw = clean_str(row.get('Asset Class', 'Unknown')) or 'Unknown'
 
-            if not instrument or quantity == 0:
+            # Skip summary rows (e.g., "Actions (95)")
+            if instrument_raw and ('(' in instrument_raw and ')' in instrument_raw and instrument_raw.split('(')[0].strip().lower() in ['actions', 'obligations', 'etf', 'etfs']):
+                logger.debug(f"Skipping summary row: {instrument_raw}")
                 return None
 
-            symbol = self._standardize_symbol(instrument)
+            # Skip rows with "Ouvert" as instrument (status leaked into instrument column)
+            if instrument_raw.lower() in ['ouvert', 'ferme', 'clos', 'open', 'closed']:
+                logger.debug(f"Skipping status row: {instrument_raw}")
+                return None
+
+            # Must have valid instrument name and quantity
+            if not instrument_raw or quantity == 0:
+                return None
+
+            # Use Symbol column if available, otherwise extract from instrument
+            symbol = symbol_raw if symbol_raw else self._standardize_symbol(instrument_raw)
+
+            # Clean symbol (remove exchange suffix like :xnas)
+            if ':' in symbol:
+                symbol = symbol.split(':')[0].strip()
+
             market_value_usd = self._convert_to_usd(market_value, currency)
 
+            # Enrichissement via registry (nom lisible, exchange, etc.)
+            # Priority: ISIN > Symbol > Instrument name
+            lookup_key = isin_raw if isin_raw else (symbol if symbol else instrument_raw)
+
+            from services.instruments_registry import resolve
+            enriched = resolve(lookup_key, fallback_symbol=symbol, user_id=user_id)
+
+            # Use original instrument name if registry doesn't have a better name
+            display_name = instrument_raw  # Always use the nice name from CSV
+            enriched_symbol = symbol or enriched.get("symbol") or instrument_raw
+            enriched_isin = isin_raw or enriched.get("isin")
+            enriched_currency = currency
+            enriched_asset_class = self._standardize_asset_class(asset_class_raw)
+
+            logger.debug(f"Processed: {instrument_raw} → symbol={enriched_symbol}, isin={enriched_isin}")
+
             return {
-                "position_id": position_id or symbol,
-                "symbol": symbol,
-                "instrument": instrument,
-                "name": instrument or symbol,
+                "position_id": position_id or enriched_symbol,
+                "symbol": enriched_symbol,
+                "instrument": instrument_raw,  # Keep original nice name
+                "name": display_name,  # Keep original nice name
                 "quantity": quantity,
                 "market_value": market_value,
                 "market_value_usd": market_value_usd,
-                "currency": currency,
-                "asset_class": self._standardize_asset_class(asset_class_raw),
+                "currency": enriched_currency,
+                "asset_class": enriched_asset_class,
+                "exchange": enriched.get("exchange"),
+                "isin": enriched_isin,
                 "source": "saxo_bank",
                 "import_timestamp": datetime.now().isoformat()
             }
 
         except Exception as e:
+            logger.error(f"Error processing position row: {e}")
             raise ValueError(f"Invalid position data: {e}")
 
     def _standardize_symbol(self, instrument: str) -> str:

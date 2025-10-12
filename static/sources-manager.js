@@ -845,7 +845,8 @@ async function selectActiveSource(moduleName, sourceValue, fileName) {
         return;
       }
 
-      updateData.data_source = 'cointracking';
+      // FIX: Utiliser le module name au lieu de hardcoder 'cointracking'
+      updateData.data_source = moduleName; // saxobank, cointracking, etc.
       updateData.csv_glob = `*${safeFile}*`;
       updateData.csv_selected_file = safeFile; // ⚠️ CRITIQUE: Ajouter csv_selected_file pour sources_resolver.py
     }
