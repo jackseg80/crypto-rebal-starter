@@ -91,6 +91,30 @@ class ProposedTrade(WealthBaseModel):
     est_cost: Optional[float] = Field(default=None, description="Estimated trade cost in account currency")
 
 
+class BankAccountInput(BaseModel):
+    """Input model for creating/updating bank accounts (mutable for forms)."""
+
+    model_config = ConfigDict(strict=True, extra="forbid")
+
+    bank_name: str = Field(..., min_length=1, max_length=100, description="Bank institution name")
+    account_type: Literal["current", "savings", "pel", "livret_a", "other"] = Field(
+        ..., description="Account type classification"
+    )
+    balance: float = Field(..., ge=0, description="Current account balance")
+    currency: str = Field(..., pattern="^(CHF|EUR|USD|GBP)$", description="Account currency (ISO 4217)")
+
+
+class BankAccountOutput(WealthBaseModel):
+    """Output model for bank accounts with computed fields."""
+
+    id: str = Field(..., description="Unique account identifier")
+    bank_name: str = Field(..., description="Bank institution name")
+    account_type: str = Field(..., description="Account type classification")
+    balance: float = Field(..., description="Current account balance")
+    currency: str = Field(..., description="Account currency (ISO 4217)")
+    balance_usd: Optional[float] = Field(default=None, description="Balance converted to USD")
+
+
 __all__ = [
     "AccountModel",
     "InstrumentModel",
@@ -98,4 +122,6 @@ __all__ = [
     "TransactionModel",
     "PricePoint",
     "ProposedTrade",
+    "BankAccountInput",
+    "BankAccountOutput",
 ]

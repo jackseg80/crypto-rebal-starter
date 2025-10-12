@@ -74,6 +74,7 @@ from api.smart_taxonomy_endpoints import router as smart_taxonomy_router  # FIXE
 from api.advanced_rebalancing_endpoints import router as advanced_rebalancing_router
 from api.risk_endpoints import router as risk_router
 from api.risk_dashboard_endpoints import router as risk_dashboard_router
+from api.risk_bourse_endpoints import router as risk_bourse_router
 from api.execution_history import router as execution_history_router
 from api.monitoring_advanced import router as monitoring_advanced_router
 from api.portfolio_monitoring import router as portfolio_monitoring_router
@@ -1760,6 +1761,7 @@ app.include_router(monitoring_advanced_router)
 app.include_router(portfolio_monitoring_router)
 app.include_router(csv_router)
 app.include_router(saxo_router)
+app.include_router(risk_bourse_router)  # Risk management pour Bourse/Saxo
 app.include_router(portfolio_optimization_router)
 app.include_router(performance_router)
 app.include_router(alerts_router)
