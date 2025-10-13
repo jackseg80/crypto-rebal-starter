@@ -165,7 +165,7 @@ class WealthContextBar {
       .sort((a, b) => a.label.localeCompare(b.label));
 
     const csvs = sources
-      .filter(s => s.type === 'csv')
+      .filter(s => s.type === 'csv' && s.module === 'cointracking')
       .sort((a, b) => a.label.localeCompare(b.label));
 
     let html = '<option value="all">Tous</option>';
@@ -656,16 +656,23 @@ class WealthContextBar {
           const newUserKey = `wealth_ctx:${e.detail.newUser}`;
           const storedCtx = JSON.parse(localStorage.getItem(newUserKey) || '{}');
           const restoredValue = storedCtx.account || 'all';
-          accountSelect.value = restoredValue;
 
-          // Mettre à jour le contexte interne
-          this.context.account = restoredValue;
+          // Vérifier que l'option existe avant de la définir
+          const optionExists = Array.from(accountSelect.options).some(opt => opt.value === restoredValue);
 
-          console.debug(`WealthContextBar: Account restored to "${restoredValue}" for user ${e.detail.newUser}`);
+          if (optionExists) {
+            accountSelect.value = restoredValue;
+            this.context.account = restoredValue;
+            console.debug(`WealthContextBar: Account restored to "${restoredValue}" for user ${e.detail.newUser}`);
 
-          // Appeler handleAccountChange pour synchroniser globalConfig/userSettings
-          if (restoredValue && restoredValue !== 'all') {
-            await this.handleAccountChange(restoredValue, { skipSave: true, skipNotification: true });
+            // Appeler handleAccountChange pour synchroniser globalConfig/userSettings
+            if (restoredValue !== 'all') {
+              await this.handleAccountChange(restoredValue, { skipSave: true, skipNotification: true });
+            }
+          } else {
+            console.warn(`WealthContextBar: Saved account "${restoredValue}" not found for user ${e.detail.newUser}, using "all"`);
+            accountSelect.value = 'all';
+            this.context.account = 'all';
           }
         }
       }
@@ -686,14 +693,22 @@ class WealthContextBar {
           const newUserKey = `wealth_ctx:${e.detail.newUser}`;
           const storedCtx = JSON.parse(localStorage.getItem(newUserKey) || '{}');
           const restoredBourse = storedCtx.bourse || 'all';
-          bourseSelect.value = restoredBourse;
 
-          this.context.bourse = restoredBourse;
+          // Vérifier que l'option existe avant de la définir
+          const optionExists = Array.from(bourseSelect.options).some(opt => opt.value === restoredBourse);
 
-          console.debug(`WealthContextBar: Bourse restored to "${restoredBourse}" for user ${e.detail.newUser}`);
+          if (optionExists) {
+            bourseSelect.value = restoredBourse;
+            this.context.bourse = restoredBourse;
+            console.debug(`WealthContextBar: Bourse restored to "${restoredBourse}" for user ${e.detail.newUser}`);
 
-          if (restoredBourse && restoredBourse !== 'all') {
-            await this.handleBourseChange(restoredBourse, { skipSave: true, skipNotification: true });
+            if (restoredBourse !== 'all') {
+              await this.handleBourseChange(restoredBourse, { skipSave: true, skipNotification: true });
+            }
+          } else {
+            console.warn(`WealthContextBar: Saved bourse "${restoredBourse}" not found for user ${e.detail.newUser}, using "all"`);
+            bourseSelect.value = 'all';
+            this.context.bourse = 'all';
           }
         }
       }
@@ -864,16 +879,27 @@ class WealthContextBar {
     const userKey = `wealth_ctx:${activeUser}`;
     const stored = JSON.parse(localStorage.getItem(userKey) || '{}');
     const restoredValue = stored.account || 'all';
-    accountSelect.value = restoredValue;
 
-    console.debug(`WealthContextBar: Account sources loaded, restored to "${restoredValue}"`);
+    // Vérifier que la valeur existe dans les options avant de la définir
+    const optionExists = Array.from(accountSelect.options).some(opt => opt.value === restoredValue);
 
-    // IMPORTANT: Appeler handleAccountChange pour synchroniser globalConfig/userSettings
-    // Cela garantit que la source restaurée est bien appliquée dans tout le projet
-    // skipSave=true car la valeur vient du localStorage (évite boucle)
-    // skipNotification=true car c'est une restauration, pas un changement utilisateur
-    if (restoredValue && restoredValue !== 'all') {
-      await this.handleAccountChange(restoredValue, { skipSave: true, skipNotification: true });
+    if (optionExists) {
+      accountSelect.value = restoredValue;
+      console.debug(`WealthContextBar: Account restored to "${restoredValue}"`);
+
+      // IMPORTANT: Appeler handleAccountChange pour synchroniser globalConfig/userSettings
+      // Cela garantit que la source restaurée est bien appliquée dans tout le projet
+      // skipSave=true car la valeur vient du localStorage (évite boucle)
+      // skipNotification=true car c'est une restauration, pas un changement utilisateur
+      if (restoredValue !== 'all') {
+        await this.handleAccountChange(restoredValue, { skipSave: true, skipNotification: true });
+      }
+    } else {
+      // Si l'option n'existe plus (ex: API key supprimée), réinitialiser à "all"
+      console.warn(`WealthContextBar: Saved value "${restoredValue}" not found in options, resetting to "all"`);
+      accountSelect.value = 'all';
+      this.context.account = 'all';
+      this.saveContext(); // Mettre à jour localStorage pour éviter de répéter cette erreur
     }
   }
 
@@ -894,13 +920,24 @@ class WealthContextBar {
     const userKey = `wealth_ctx:${activeUser}`;
     const stored = JSON.parse(localStorage.getItem(userKey) || '{}');
     const restoredValue = stored.bourse || 'all';
-    bourseSelect.value = restoredValue;
 
-    console.debug(`WealthContextBar: Bourse sources loaded, restored to "${restoredValue}"`);
+    // Vérifier que la valeur existe dans les options avant de la définir
+    const optionExists = Array.from(bourseSelect.options).some(opt => opt.value === restoredValue);
 
-    // Appeler handleBourseChange pour synchroniser
-    if (restoredValue && restoredValue !== 'all') {
-      await this.handleBourseChange(restoredValue, { skipSave: true, skipNotification: true });
+    if (optionExists) {
+      bourseSelect.value = restoredValue;
+      console.debug(`WealthContextBar: Bourse restored to "${restoredValue}"`);
+
+      // Appeler handleBourseChange pour synchroniser
+      if (restoredValue !== 'all') {
+        await this.handleBourseChange(restoredValue, { skipSave: true, skipNotification: true });
+      }
+    } else {
+      // Si l'option n'existe plus, réinitialiser à "all"
+      console.warn(`WealthContextBar: Saved bourse value "${restoredValue}" not found in options, resetting to "all"`);
+      bourseSelect.value = 'all';
+      this.context.bourse = 'all';
+      this.saveContext(); // Mettre à jour localStorage pour éviter de répéter cette erreur
     }
   }
 

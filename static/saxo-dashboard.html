@@ -493,10 +493,7 @@
     <script>
         let currentPortfolioData = null;
         let currentWealthContext = {
-            household: 'Household 1',
-            account: 'All Accounts',
-            module: 'bourse',
-            currency: 'USD'
+            module: 'bourse'
         };
 
         // Initialize wealth context integration
@@ -508,8 +505,7 @@
                 return;
             }
 
-            // Set initial context to bourse module
-            currentWealthContext.module = 'bourse';
+            // Set initial context to bourse module only (preserve other context values)
             window.wealthContextBar.setContext(currentWealthContext);
 
             // Listen for context changes
@@ -645,11 +641,43 @@
                 const bourseSource = window.wealthContextBar?.getContext()?.bourse || 'all';
                 debugLogger.debug(`Active Bourse source: ${bourseSource}`);
 
+                // Extract file_key from bourseSource
+                let fileKey = null;
+                if (bourseSource !== 'all' && bourseSource.startsWith('saxo:')) {
+                    const key = bourseSource.substring(5); // Remove 'saxo:' prefix
+
+                    // Load available sources if not cached
+                    if (!window.availableSources) {
+                        const response = await fetch('/api/users/sources', {
+                            headers: { 'X-User': activeUser }
+                        });
+                        if (response.ok) {
+                            const data = await response.json();
+                            window.availableSources = data.sources || [];
+                        }
+                    }
+
+                    // Find the matching source and extract filename
+                    const source = window.availableSources?.find(s => s.key === key);
+                    if (source && source.file_path) {
+                        // Extract basename from file_path
+                        fileKey = source.file_path.split(/[/\\]/).pop();
+                        debugLogger.debug(`Resolved file_key from source: ${fileKey}`);
+                    }
+                }
+
                 // Update current source name in header
                 updateCurrentSourceName(bourseSource);
 
+                // Build API URL with file_key if available
+                let portfoliosUrl = '/api/saxo/portfolios';
+                if (fileKey) {
+                    portfoliosUrl += `?file_key=${encodeURIComponent(fileKey)}`;
+                    debugLogger.debug(`Using file-specific URL: ${portfoliosUrl}`);
+                }
+
                 // Step 1: List available portfolios
-                const { ok: listOk, data: listData } = await safeFetch(globalConfig.getApiUrl('/api/saxo/portfolios'), {
+                const { ok: listOk, data: listData } = await safeFetch(globalConfig.getApiUrl(portfoliosUrl), {
                     headers: { 'X-User': activeUser }
                 });
 
@@ -670,7 +698,12 @@
                 }
 
                 // Step 3: Load full portfolio details
-                const { ok: detailOk, data: portfolioData } = await safeFetch(globalConfig.getApiUrl(`/api/saxo/portfolios/${portfolioId}`), {
+                let portfolioDetailUrl = `/api/saxo/portfolios/${portfolioId}`;
+                if (fileKey) {
+                    portfolioDetailUrl += `?file_key=${encodeURIComponent(fileKey)}`;
+                }
+
+                const { ok: detailOk, data: portfolioData } = await safeFetch(globalConfig.getApiUrl(portfolioDetailUrl), {
                     headers: { 'X-User': activeUser }
                 });
 

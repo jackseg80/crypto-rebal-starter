@@ -24,12 +24,13 @@ _MODULE = "saxo"
 _STORAGE_PATH = Path("data/wealth/saxo_snapshot.json")
 _ISIN_MAP = Path("data/mappings/isin_ticker.json")
 
-def _load_from_sources_fallback(user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+def _load_from_sources_fallback(user_id: Optional[str] = None, file_key: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """
     Charge les données Saxo depuis le système sources unifié.
 
     Args:
         user_id: ID utilisateur (None pour mode compatibilité)
+        file_key: Clé du fichier spécifique (nom de fichier dans data/), optionnel
 
     Returns:
         Optional[Dict]: Données normalisées ou None
@@ -49,9 +50,23 @@ def _load_from_sources_fallback(user_id: Optional[str] = None) -> Optional[Dict[
         # 1. Essayer data/ (nouveau système unifié)
         data_files = user_fs.glob_files("saxobank/data/*.csv")
         if data_files:
-            # Prendre le plus récent
+            # Si file_key fourni, chercher le fichier correspondant
+            if file_key:
+                target_file = None
+                for f in data_files:
+                    if Path(f).name == file_key or file_key in Path(f).name:
+                        target_file = f
+                        break
+
+                if target_file:
+                    logger.debug(f"Using Saxo file (user choice) for user {user_id}: {target_file}")
+                    return _parse_saxo_csv(target_file, "saxo_data", user_id=user_id)
+                else:
+                    logger.warning(f"Requested file_key '{file_key}' not found, falling back to latest")
+
+            # Prendre le plus récent (comportement par défaut)
             latest_data = max(data_files, key=lambda f: os.path.getmtime(f))
-            logger.debug(f"Using Saxo data/ for user {user_id}: {latest_data}")
+            logger.debug(f"Using Saxo data/ (latest) for user {user_id}: {latest_data}")
             return _parse_saxo_csv(latest_data, "saxo_data", user_id=user_id)
 
         logger.debug(f"No Saxo data found for user {user_id}")
@@ -100,19 +115,20 @@ def _ensure_storage() -> None:
         _STORAGE_PATH.write_text(json.dumps({"portfolios": []}), encoding="utf-8")
 
 
-def _load_snapshot(user_id: Optional[str] = None) -> Dict[str, Any]:
+def _load_snapshot(user_id: Optional[str] = None, file_key: Optional[str] = None) -> Dict[str, Any]:
     """
     Charge le snapshot Saxo avec support du système sources unifié.
 
     Args:
         user_id: ID utilisateur (None pour mode legacy)
+        file_key: Clé du fichier spécifique, optionnel
 
     Returns:
         Dict[str, Any]: Données de snapshot
     """
     # Essayer d'abord le nouveau système sources
     if user_id:
-        sources_data = _load_from_sources_fallback(user_id)
+        sources_data = _load_from_sources_fallback(user_id, file_key=file_key)
         if sources_data:
             return sources_data
         # Si user_id fourni mais pas de données → retourner vide (pas de fallback vers legacy partagé!)
@@ -255,9 +271,9 @@ def ingest_file(file_path: str, portfolio_name: Optional[str] = None) -> Dict[st
         'errors': errors,
     }
 
-def list_portfolios_overview(user_id: Optional[str] = None) -> List[Dict[str, Any]]:
+def list_portfolios_overview(user_id: Optional[str] = None, file_key: Optional[str] = None) -> List[Dict[str, Any]]:
     """Return lightweight metadata for stored Saxo portfolios."""
-    snapshot = _load_snapshot(user_id)
+    snapshot = _load_snapshot(user_id, file_key=file_key)
     portfolios: List[Dict[str, Any]] = []
     connector = None
     mutated = False
@@ -292,9 +308,9 @@ def list_portfolios_overview(user_id: Optional[str] = None) -> List[Dict[str, An
     return portfolios
 
 
-def get_portfolio_detail(portfolio_id: str, user_id: Optional[str] = None) -> Dict[str, Any]:
+def get_portfolio_detail(portfolio_id: str, user_id: Optional[str] = None, file_key: Optional[str] = None) -> Dict[str, Any]:
     """Return full detail for a stored Saxo portfolio."""
-    snapshot = _load_snapshot(user_id)
+    snapshot = _load_snapshot(user_id, file_key=file_key)
     connector = None
     mutated = False
 

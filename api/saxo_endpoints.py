@@ -126,18 +126,25 @@ async def import_portfolio(
 
 
 @router.get("/portfolios")
-async def list_portfolios(user: str = Depends(get_active_user)) -> dict:
+async def list_portfolios(
+    user: str = Depends(get_active_user),
+    file_key: Optional[str] = Query(None, description="Specific Saxo CSV file to load")
+) -> dict:
     """Return lightweight overview of stored Saxo portfolios."""
     _legacy_log("/portfolios")
-    portfolios = list_portfolios_overview(user_id=user)
+    portfolios = list_portfolios_overview(user_id=user, file_key=file_key)
     return {"portfolios": portfolios}
 
 
 @router.get("/portfolios/{portfolio_id}")
-async def get_portfolio(portfolio_id: str, user: str = Depends(get_active_user)) -> dict:
+async def get_portfolio(
+    portfolio_id: str,
+    user: str = Depends(get_active_user),
+    file_key: Optional[str] = Query(None, description="Specific Saxo CSV file to load")
+) -> dict:
     """Return full detail for a given Saxo portfolio."""
     _legacy_log(f"/portfolios/{portfolio_id}")
-    portfolio = get_portfolio_detail(portfolio_id, user_id=user)
+    portfolio = get_portfolio_detail(portfolio_id, user_id=user, file_key=file_key)
     if not portfolio:
         raise HTTPException(status_code=404, detail="portfolio_not_found")
     return portfolio
