@@ -1252,14 +1252,43 @@ document.addEventListener('DOMContentLoaded', function() {
     // Construit le dropdown de sélection rapide dans l'onglet Résumé
     async function buildQuickSourceDropdown() {
       try {
-        const response = await fetch('/api/users/sources', {
+        // Utiliser le nouveau système sources qui lit depuis data/
+        const response = await fetch('/api/sources/list', {
           headers: { 'X-User': getActiveUser() }
         });
 
         if (!response.ok) return;
 
         const data = await response.json();
-        const sources = data.sources || [];
+        const sources = [];
+
+        // Construire la liste des sources depuis les modules
+        for (const module of (data.modules || [])) {
+          // Ajouter l'option API si disponible
+          if (module.modes.includes('api')) {
+            sources.push({
+              key: `${module.name}_api`,
+              label: `${module.name === 'cointracking' ? 'CoinTracking' : 'Saxo'} API`,
+              type: 'api',
+              module: module.name
+            });
+          }
+
+          // Ajouter chaque fichier CSV détecté
+          if (module.detected_files && module.detected_files.length > 0) {
+            module.detected_files.forEach((file, index) => {
+              sources.push({
+                key: `csv_${module.name}_${index}`,
+                label: `${module.name === 'cointracking' ? 'CoinTracking' : 'Saxo'}: ${file.name}`,
+                type: 'csv',
+                module: module.name,
+                file_name: file.name,
+                file_path: file.relative_path
+              });
+            });
+          }
+        }
+
         window.availableSources = sources; // Pour lookup lors de la sélection
 
         const quickSelect = document.getElementById('quick_data_source');
@@ -1289,8 +1318,11 @@ document.addEventListener('DOMContentLoaded', function() {
         // Si un CSV spécifique a été choisi, refléter la clé correspondante
         try {
           const list = window.availableSources || [];
-          if ((s.data_source === 'csv' || s.data_source === 'cointracking') && s.csv_selected_file) {
-            const match = list.find(src => src.type === 'csv' && (src.file_path || '').split(/[/\\\\]/).pop() === s.csv_selected_file);
+          if ((s.data_source === 'csv' || s.data_source === 'cointracking' || s.data_source === 'saxobank') && s.csv_selected_file) {
+            const match = list.find(src => src.type === 'csv' && src.file_name === s.csv_selected_file);
+            if (match) quickEl.value = match.key;
+          } else if (s.data_source && s.data_source.endsWith('_api')) {
+            const match = list.find(src => src.key === s.data_source);
             if (match) quickEl.value = match.key;
           }
         } catch (_) { }
@@ -1312,14 +1344,34 @@ document.addEventListener('DOMContentLoaded', function() {
           try {
             const src = (window.availableSources || []).find(s => s.key === key);
             if (src && src.type === 'csv') {
-              const fname = (src.file_path || '').split(/[/\\\\]/).pop();
+              const fname = src.file_name;  // Utiliser directement file_name
               if (!window.userSettings) window.userSettings = getDefaultSettings();
+              window.userSettings.data_source = src.module;  // cointracking ou saxobank
               window.userSettings.csv_selected_file = fname || null;
-              await selectDataSource(key);
+              if (window.globalConfig) {
+                window.globalConfig.set('data_source', src.module);
+                window.globalConfig.set('csv_selected_file', fname);
+              }
               try { await saveSettings(); } catch (_) { }
+              updateStatusSummary();
+              return;
+            } else if (src && src.type === 'api') {
+              // Mode API sélectionné
+              if (!window.userSettings) window.userSettings = getDefaultSettings();
+              window.userSettings.data_source = src.key;  // cointracking_api ou saxobank_api
+              window.userSettings.csv_selected_file = null;
+              if (window.globalConfig) {
+                window.globalConfig.set('data_source', src.key);
+                window.globalConfig.set('csv_selected_file', null);
+              }
+              try { await saveSettings(); } catch (_) { }
+              updateStatusSummary();
               return;
             }
-          } catch (_) { }
+          } catch (err) {
+            console.error('Error selecting source:', err);
+          }
+          // Fallback sur l'ancien système
           await selectDataSource(key);
         });
       }

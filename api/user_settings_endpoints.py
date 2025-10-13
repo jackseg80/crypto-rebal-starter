@@ -168,7 +168,7 @@ async def reset_user_settings(user: str = Depends(get_active_user)) -> Dict[str,
 @router.get("/sources")
 async def get_user_data_sources(user: str = Depends(get_active_user)) -> Dict[str, Any]:
     """
-    Récupère les sources de données disponibles pour l'utilisateur.
+    Récupère les sources de données disponibles pour l'utilisateur depuis data/ (nouveau système).
 
     Returns:
         Dict[str, Any]: Sources disponibles (CSV + API conditionnelle)
@@ -181,18 +181,18 @@ async def get_user_data_sources(user: str = Depends(get_active_user)) -> Dict[st
 
         sources = []
 
-        # CSV CoinTracking et Saxo: lister uniquement les fichiers validés (imports/)
+        # CSV CoinTracking et Saxo: lister les fichiers depuis data/
         csv_files = []
 
-        # Scanner imports/ CoinTracking
-        ct_imports_dir = data_router.user_fs.get_path("cointracking/imports")
-        if Path(ct_imports_dir).exists():
-            csv_files.extend([(p, "cointracking") for p in Path(ct_imports_dir).glob("*.csv")])
+        # Scanner data/ CoinTracking
+        ct_data_dir = data_router.user_fs.get_path("cointracking/data")
+        if Path(ct_data_dir).exists():
+            csv_files.extend([(p, "cointracking") for p in Path(ct_data_dir).glob("*.csv")])
 
-        # Scanner imports/ Saxo
-        saxo_imports_dir = data_router.user_fs.get_path("saxobank/imports")
-        if Path(saxo_imports_dir).exists():
-            csv_files.extend([(p, "saxobank") for p in Path(saxo_imports_dir).glob("*.csv")])
+        # Scanner data/ Saxo
+        saxo_data_dir = data_router.user_fs.get_path("saxobank/data")
+        if Path(saxo_data_dir).exists():
+            csv_files.extend([(p, "saxobank") for p in Path(saxo_data_dir).glob("*.csv")])
 
         # Trier par nom et dédupliquer
         csv_files = sorted(set(csv_files), key=lambda item: item[0].name.lower())
@@ -284,3 +284,30 @@ async def get_user_settings_info(user: str = Depends(get_active_user)) -> Dict[s
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error getting user settings info: {str(e)}"
         )
+
+@router.get("/sources/debug")
+async def debug_user_sources(user: str = Depends(get_active_user)) -> Dict[str, Any]:
+    """DEBUG: Vérifie directement les fichiers dans data/ vs imports/"""
+    try:
+        project_root = str(Path(__file__).parent.parent)
+        user_fs = UserScopedFS(project_root, user)
+
+        # Scanner tous les dossiers
+        ct_data = list(Path(user_fs.get_path("cointracking/data")).glob("*.csv")) if Path(user_fs.get_path("cointracking/data")).exists() else []
+        ct_imports = list(Path(user_fs.get_path("cointracking/imports")).glob("*.csv")) if Path(user_fs.get_path("cointracking/imports")).exists() else []
+        saxo_data = list(Path(user_fs.get_path("saxobank/data")).glob("*.csv")) if Path(user_fs.get_path("saxobank/data")).exists() else []
+        saxo_imports = list(Path(user_fs.get_path("saxobank/imports")).glob("*.csv")) if Path(user_fs.get_path("saxobank/imports")).exists() else []
+
+        return {
+            "cointracking": {
+                "data": [str(p.name) for p in ct_data],
+                "imports": [str(p.name) for p in ct_imports]
+            },
+            "saxobank": {
+                "data": [str(p.name) for p in saxo_data],
+                "imports": [str(p.name) for p in saxo_imports]
+            },
+            "timestamp": "2025-10-13T18:50:00Z"  # Force reload marker
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

@@ -76,21 +76,26 @@ static/core/unified-insights-v2.js # Phase Engine
 
 ## 💾 Système de Données
 
-### Sources (priorité décroissante)
-1. `snapshots/` - Dernière version active
-2. `imports/` - Fichiers validés
-3. `uploads/` - Zone de dépôt
-4. API externe (cointracking_api)
+### Sources Unifiées (Système data/)
+1. **`data/`** - Dossier unique avec versioning automatique
+2. **API externe** (cointracking_api)
+
+**Principe**: Upload direct → disponible immédiatement
+- Versioning automatique: `YYYYMMDD_HHMMSS_{filename}.csv`
+- Sélection du plus récent par défaut
+- Historique complet préservé
 
 ### Structure User
 ```
 data/users/{user_id}/
   cointracking/
-    uploads/      # CSV uploadés
-    imports/      # CSV validés
-    snapshots/    # Version active
-  saxobank/       # Idem structure
-  config.json     # Config user
+    data/         # Tous les CSV (versionnés automatiquement)
+    api_cache/    # Cache API
+  saxobank/
+    data/         # Tous les CSV (versionnés automatiquement)
+  config/
+    config.json   # Config utilisateur
+    sources.json  # Configuration modules
 ```
 
 ### P&L Today
@@ -239,6 +244,7 @@ EOF
 - P&L: `docs/P&L_TODAY_USAGE.md`
 - Multi-tenant: `docs/SIMULATOR_USER_ISOLATION_FIX.md`
 - Wealth: `docs/TODO_WEALTH_MERGE.md`
+- Sources: `docs/SOURCES_MIGRATION_DATA_FOLDER.md`
 
 ---
 

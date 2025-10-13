@@ -782,39 +782,15 @@
                     </div>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg);">
-                    <!-- Colonne gauche : Métriques -->
-                    <div>
-                        <div class="metric">
-                            <span class="metric-label">Total Global</span>
-                            <span class="metric-value" id="global-total-value">--</span>
-                        </div>
+                <!-- Total Global en tête -->
+                <div style="text-align:center;padding:8px 0;border-bottom:1px solid var(--theme-border);">
+                    <div style="font-size:0.75rem;color:var(--theme-text-muted);margin-bottom:2px;">Total</div>
+                    <div id="global-total-value" style="font-size:1.3rem;font-weight:700;color:var(--theme-text);">--</div>
+                </div>
 
-                        <div class="metric">
-                            <span class="metric-label">Crypto</span>
-                            <span class="metric-value" id="global-crypto-value" style="font-size:1.1rem;">--</span>
-                        </div>
-
-                        <div class="metric">
-                            <span class="metric-label">Bourse</span>
-                            <span class="metric-value" id="global-saxo-value" style="font-size:1.1rem;">--</span>
-                        </div>
-
-                        <div class="metric">
-                            <span class="metric-label">Banque</span>
-                            <span class="metric-value" id="global-banks-value" style="font-size:1.1rem;">--</span>
-                        </div>
-                    </div>
-
-                    <!-- Colonne droite : Breakdown visuel -->
-                    <div style="display:flex;flex-direction:column;justify-content:center;gap:8px;">
-                        <div style="font-size:0.85rem;color:var(--theme-text-muted);margin-bottom:4px;">
-                            Répartition modules:
-                        </div>
-                        <div id="global-breakdown" style="display:flex;flex-direction:column;gap:4px;">
-                            <!-- Breakdown bars will be added here by JS -->
-                        </div>
-                    </div>
+                <!-- Modules avec graphiques intégrés -->
+                <div id="global-breakdown" style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">
+                    <!-- Module cards will be added here by JS -->
                 </div>
             </div>
 
@@ -2513,9 +2489,6 @@
 
             const statusEl = document.getElementById('global-status');
             const totalValueEl = document.getElementById('global-total-value');
-            const cryptoValueEl = document.getElementById('global-crypto-value');
-            const saxoValueEl = document.getElementById('global-saxo-value');
-            const banksValueEl = document.getElementById('global-banks-value');
             const breakdownEl = document.getElementById('global-breakdown');
 
             // Set loading state
@@ -2533,29 +2506,69 @@
                 const data = await response.json();
                 const formatCurrency = (val) => `$${Math.round(val).toLocaleString()}`;
 
-                // Update values
+                // Update total value
                 if (totalValueEl) totalValueEl.textContent = formatCurrency(data.total_value_usd);
-                if (cryptoValueEl) cryptoValueEl.textContent = formatCurrency(data.breakdown.crypto);
-                if (saxoValueEl) saxoValueEl.textContent = formatCurrency(data.breakdown.saxo);
-                if (banksValueEl) banksValueEl.textContent = formatCurrency(data.breakdown.banks);
 
-                // Breakdown bars
+                // Build module cards with integrated charts
                 if (breakdownEl && data.total_value_usd > 0) {
                     const modules = [
-                        { name: 'Crypto', value: data.breakdown.crypto, color: 'var(--brand-primary)' },
-                        { name: 'Bourse', value: data.breakdown.saxo, color: 'var(--success)' },
-                        { name: 'Banks', value: data.breakdown.banks, color: 'var(--info)' }
+                        { name: 'Crypto', icon: '₿', value: data.breakdown.crypto, color: '#3b82f6', bgColor: 'rgba(59, 130, 246, 0.1)' },
+                        { name: 'Bourse', icon: '📈', value: data.breakdown.saxo, color: '#10b981', bgColor: 'rgba(16, 185, 129, 0.1)' },
+                        { name: 'Banque', icon: '💰', value: data.breakdown.banks, color: '#8b5cf6', bgColor: 'rgba(139, 92, 246, 0.1)' }
                     ].filter(m => m.value > 0);
 
                     breakdownEl.innerHTML = modules.map(m => {
                         const pct = (m.value / data.total_value_usd) * 100;
                         return `
-                            <div style="display:flex;align-items:center;gap:8px;">
-                                <div style="flex:0 0 60px;font-size:0.75rem;color:var(--theme-text-muted);">${m.name}</div>
-                                <div style="flex:1;height:16px;background:var(--theme-bg);border-radius:4px;overflow:hidden;">
-                                    <div style="height:100%;width:${pct}%;background:${m.color};"></div>
+                            <div style="
+                                padding:8px;
+                                border-radius:6px;
+                                background:${m.bgColor};
+                                border:1px solid ${m.color}33;
+                                transition:all 0.2s ease;
+                            "
+                            onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)';"
+                            onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='none';">
+                                <!-- Header: Icon + Name + Value inline -->
+                                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                                    <div style="display:flex;align-items:center;gap:6px;">
+                                        <span style="font-size:1.1rem;">${m.icon}</span>
+                                        <span style="font-size:0.8rem;font-weight:600;color:var(--theme-text);">${m.name}</span>
+                                    </div>
+                                    <span style="font-size:1rem;font-weight:700;color:${m.color};">
+                                        ${formatCurrency(m.value)}
+                                    </span>
                                 </div>
-                                <div style="flex:0 0 40px;font-size:0.75rem;text-align:right;">${pct.toFixed(0)}%</div>
+
+                                <!-- Progress bar compact -->
+                                <div style="position:relative;height:16px;background:var(--theme-bg);border-radius:8px;overflow:hidden;">
+                                    <div style="
+                                        position:absolute;
+                                        top:0;
+                                        left:0;
+                                        height:100%;
+                                        width:${pct}%;
+                                        background:linear-gradient(90deg, ${m.color}, ${m.color}dd);
+                                        border-radius:8px;
+                                        transition:width 0.5s ease;
+                                    "></div>
+                                    <div style="
+                                        position:absolute;
+                                        top:0;
+                                        left:0;
+                                        right:0;
+                                        bottom:0;
+                                        display:flex;
+                                        align-items:center;
+                                        justify-content:center;
+                                        font-size:0.7rem;
+                                        font-weight:600;
+                                        color:${pct > 50 ? 'white' : 'var(--theme-text)'};
+                                        text-shadow:${pct > 50 ? '0 1px 2px rgba(0,0,0,0.2)' : 'none'};
+                                    ">
+                                        ${pct.toFixed(0)}%
+                                    </div>
+                                </div>
                             </div>`;
                     }).join('');
                 }
@@ -2571,10 +2584,7 @@
                 debugLogger.error('[Global Tile] Error refreshing:', error);
 
                 if (totalValueEl) totalValueEl.textContent = '--';
-                if (cryptoValueEl) cryptoValueEl.textContent = '--';
-                if (saxoValueEl) saxoValueEl.textContent = '--';
-                if (banksValueEl) banksValueEl.textContent = '--';
-                if (breakdownEl) breakdownEl.innerHTML = '<div style="text-align:center;color:var(--danger);font-size:0.85rem;">Erreur de chargement</div>';
+                if (breakdownEl) breakdownEl.innerHTML = '<div style="text-align:center;color:var(--danger);font-size:0.85rem;padding:var(--space-lg);">❌ Erreur de chargement</div>';
 
                 if (statusEl) {
                     statusEl.textContent = 'Erreur';

@@ -375,30 +375,31 @@ function createModuleActions(module) {
     </button>
   `);
 
-  // Bouton Import unifié (si sources disponibles)
-  if ((module.detected_files && module.detected_files.length > 0) || module.modes.includes('api')) {
-    actions.push(`
-      <button class="btn primary btn-sm" onclick="importSelectedSource('${module.name}')">
-        📥 Importer
-      </button>
-    `);
-  }
-
-  // Bouton Tester la source (si API disponible)
-  if (module.modes.includes('api')) {
-    actions.push(`
-      <button class="btn warning btn-sm" onclick="testActiveSource('${module.name}')">
-        🧪 Tester la source
-      </button>
-    `);
-  }
-
   // Bouton Upload (pour modules supportant les fichiers)
+  // Nouveau système: Upload sauvegarde directement dans data/, plus besoin d'import séparé!
   const modulesWithUpload = ['cointracking', 'saxobank', 'banks'];
   if (modulesWithUpload.includes(module.name)) {
     actions.push(`
-      <button class="btn secondary btn-sm" onclick="showUploadDialog('${module.name}')">
+      <button class="btn primary btn-sm" onclick="showUploadDialog('${module.name}')">
         📁 Uploader
+      </button>
+    `);
+  }
+
+  // Bouton Refresh API (si API disponible)
+  if (module.modes.includes('api')) {
+    actions.push(`
+      <button class="btn primary btn-sm" onclick="refreshModuleApi('${module.name}')">
+        🔄 Rafraîchir API
+      </button>
+    `);
+  }
+
+  // Bouton Tester la source (si fichiers disponibles ou API)
+  if ((module.detected_files && module.detected_files.length > 0) || module.modes.includes('api')) {
+    actions.push(`
+      <button class="btn warning btn-sm" onclick="testActiveSource('${module.name}')">
+        🧪 Tester la source
       </button>
     `);
   }

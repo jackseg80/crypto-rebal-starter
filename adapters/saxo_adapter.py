@@ -26,7 +26,7 @@ _ISIN_MAP = Path("data/mappings/isin_ticker.json")
 
 def _load_from_sources_fallback(user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """
-    Charge les données Saxo depuis le système sources avec fallback vers legacy.
+    Charge les données Saxo depuis le système sources unifié.
 
     Args:
         user_id: ID utilisateur (None pour mode compatibilité)
@@ -46,35 +46,15 @@ def _load_from_sources_fallback(user_id: Optional[str] = None) -> Optional[Dict[
         project_root = str(Path(__file__).parent.parent)
         user_fs = UserScopedFS(project_root, user_id)
 
-        # 1. Essayer snapshot récent
-        snapshot_path = user_fs.get_path("saxobank/snapshots/latest.csv")
-        if os.path.exists(snapshot_path):
-            staleness = get_staleness_state(
-                datetime.fromtimestamp(os.path.getmtime(snapshot_path)).isoformat(),
-                24, 12  # TTL par défaut
-            )
+        # 1. Essayer data/ (nouveau système unifié)
+        data_files = user_fs.glob_files("saxobank/data/*.csv")
+        if data_files:
+            # Prendre le plus récent
+            latest_data = max(data_files, key=lambda f: os.path.getmtime(f))
+            logger.debug(f"Using Saxo data/ for user {user_id}: {latest_data}")
+            return _parse_saxo_csv(latest_data, "saxo_data", user_id=user_id)
 
-            if not staleness["is_stale"]:
-                logger.debug(f"Using fresh Saxo snapshot for user {user_id}")
-                return _parse_saxo_csv(snapshot_path, "saxo_snapshot", user_id=user_id)
-
-        # 2. Essayer imports récents
-        imports_files = user_fs.glob_files("saxobank/imports/*.csv")
-        if imports_files:
-            latest_import = max(imports_files, key=lambda f: os.path.getmtime(f))
-            logger.debug(f"Using Saxo imports for user {user_id}")
-            return _parse_saxo_csv(latest_import, "saxo_imports", user_id=user_id)
-
-        # 3. Legacy fallback
-        legacy_patterns = ["csv/saxo*.csv", "csv/positions*.csv"]
-        for pattern in legacy_patterns:
-            legacy_files = user_fs.glob_files(pattern)
-            if legacy_files:
-                latest_legacy = max(legacy_files, key=lambda f: os.path.getmtime(f))
-                logger.warning(f"Using legacy Saxo CSV for user {user_id}")
-                return _parse_saxo_csv(latest_legacy, "saxo_legacy", user_id=user_id)
-
-        logger.debug(f"No Saxo sources data found for user {user_id}")
+        logger.debug(f"No Saxo data found for user {user_id}")
         return None
 
     except Exception as e:

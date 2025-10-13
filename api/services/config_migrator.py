@@ -89,10 +89,9 @@ class ConfigMigrator:
         """Crée la configuration du module CoinTracking"""
         module = {
             "enabled": True,
-            "modes": ["uploads"],  # Par défaut uploads uniquement
+            "modes": ["data"],
             "patterns": [
-                "cointracking/uploads/*.csv",
-                "cointracking/imports/*.csv"
+                "cointracking/data/*.csv"
             ],
             "snapshot_ttl_hours": 24,
             "warning_threshold_hours": 12,
@@ -121,10 +120,9 @@ class ConfigMigrator:
         """Crée la configuration du module Saxobank"""
         module = {
             "enabled": True,
-            "modes": ["uploads"],  # Saxo est principalement upload de fichiers
+            "modes": ["data"],
             "patterns": [
-                "saxobank/uploads/*.csv",
-                "saxobank/imports/*.csv"
+                "saxobank/data/*.csv"
             ],
             "snapshot_ttl_hours": 24,
             "warning_threshold_hours": 12,
@@ -162,7 +160,7 @@ class ConfigMigrator:
         """Valide et complète la configuration d'un module"""
         defaults = {
             "enabled": True,
-            "modes": ["uploads"],
+            "modes": ["data"],
             "patterns": [],
             "snapshot_ttl_hours": 24,
             "warning_threshold_hours": 12,
@@ -175,11 +173,11 @@ class ConfigMigrator:
                 module_config[key] = default_value
 
         # Valider modes
-        valid_modes = ["uploads", "api"]
+        valid_modes = ["data", "api"]
         module_config["modes"] = [m for m in module_config["modes"] if m in valid_modes]
 
         if not module_config["modes"]:
-            module_config["modes"] = ["uploads"]
+            module_config["modes"] = ["data"]
 
     def detect_modules_from_files(self) -> Dict[str, Dict[str, Any]]:
         """
@@ -191,34 +189,20 @@ class ConfigMigrator:
         detected = {}
 
         # Détecter CoinTracking
-        ct_patterns = [
-            "cointracking/uploads/*.csv",
-            "cointracking/imports/*.csv"
-        ]
-
-        for pattern in ct_patterns:
-            if self.user_fs.glob_files(pattern):
-                detected["cointracking"] = {
-                    "enabled": True,
-                    "modes": ["uploads"],
-                    "detected_reason": f"Found files matching {pattern}"
-                }
-                break
+        if self.user_fs.glob_files("cointracking/data/*.csv"):
+            detected["cointracking"] = {
+                "enabled": True,
+                "modes": ["data"],
+                "detected_reason": "Found files in cointracking/data/"
+            }
 
         # Détecter Saxo
-        saxo_patterns = [
-            "saxobank/uploads/*.csv",
-            "saxobank/imports/*.csv"
-        ]
-
-        for pattern in saxo_patterns:
-            if self.user_fs.glob_files(pattern):
-                detected["saxobank"] = {
-                    "enabled": True,
-                    "modes": ["uploads"],
-                    "detected_reason": f"Found files matching {pattern}"
-                }
-                break
+        if self.user_fs.glob_files("saxobank/data/*.csv"):
+            detected["saxobank"] = {
+                "enabled": True,
+                "modes": ["data"],
+                "detected_reason": "Found files in saxobank/data/"
+            }
 
         logger.debug(f"Auto-detected modules: {list(detected.keys())}")
         return detected

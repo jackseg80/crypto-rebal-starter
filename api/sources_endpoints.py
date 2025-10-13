@@ -121,59 +121,27 @@ async def list_sources(
             from pathlib import Path
             from api.services.config_migrator import resolve_secret_ref
 
-            for pattern in module_config.get("patterns", []):
-                files = user_fs.glob_files(pattern)
-                for file_path in files:
-                    try:
-                        file_stat = os.stat(file_path)
-                        path_obj = Path(file_path)
-                        relative_path = str(path_obj.relative_to(user_fs.get_user_root()))
+            # NOUVEAU SYSTÈME SIMPLIFIÉ: Chercher uniquement dans data/
+            data_pattern = f"{module_name}/data/*.csv"
+            files = user_fs.glob_files(data_pattern)
 
-                        # Déterminer si c'est un fichier legacy
-                        is_legacy = "csv/" in pattern or "/csv/" in relative_path
+            for file_path in files:
+                try:
+                    file_stat = os.stat(file_path)
+                    path_obj = Path(file_path)
+                    relative_path = str(path_obj.relative_to(user_fs.get_user_root()))
 
-                        detected_file = DetectedFile(
-                            name=path_obj.name,
-                            relative_path=relative_path,
-                            size_bytes=file_stat.st_size,
-                            modified_at=datetime.fromtimestamp(file_stat.st_mtime).isoformat(),
-                            is_legacy=is_legacy
-                        )
-                        detected_files.append(detected_file)
-                    except (OSError, ValueError) as e:
-                        logger.warning(f"Could not get file details for {file_path}: {e}")
-                        continue
-
-            # ✨ DÉTECTION ÉLARGIE: Ajouter patterns legacy pour compatibilité
-            legacy_patterns = []
-            if module_name == "cointracking":
-                legacy_patterns = ["csv/CoinTracking*.csv", "csv/Current Balance*.csv", "csv/balance*.csv"]
-            elif module_name == "saxobank":
-                legacy_patterns = ["csv/saxo*.csv", "csv/positions*.csv", "csv/Portfolio*.csv"]
-
-            for pattern in legacy_patterns:
-                files = user_fs.glob_files(pattern)
-                for file_path in files:
-                    try:
-                        file_stat = os.stat(file_path)
-                        path_obj = Path(file_path)
-                        relative_path = str(path_obj.relative_to(user_fs.get_user_root()))
-
-                        # Éviter doublons si déjà dans detected_files
-                        if any(df.relative_path == relative_path for df in detected_files):
-                            continue
-
-                        detected_file = DetectedFile(
-                            name=path_obj.name,
-                            relative_path=relative_path,
-                            size_bytes=file_stat.st_size,
-                            modified_at=datetime.fromtimestamp(file_stat.st_mtime).isoformat(),
-                            is_legacy=True  # Marquer explicitement comme legacy
-                        )
-                        detected_files.append(detected_file)
-                    except (OSError, ValueError) as e:
-                        logger.warning(f"Could not get legacy file details for {file_path}: {e}")
-                        continue
+                    detected_file = DetectedFile(
+                        name=path_obj.name,
+                        relative_path=relative_path,
+                        size_bytes=file_stat.st_size,
+                        modified_at=datetime.fromtimestamp(file_stat.st_mtime).isoformat(),
+                        is_legacy=False  # Plus de fichiers legacy dans le nouveau système
+                    )
+                    detected_files.append(detected_file)
+                except (OSError, ValueError) as e:
+                    logger.warning(f"Could not get file details for {file_path}: {e}")
+                    continue
 
             # Trier par date de modification (plus récent en premier)
             detected_files.sort(key=lambda f: f.modified_at, reverse=True)
@@ -186,34 +154,19 @@ async def list_sources(
                 module_config.get("warning_threshold_hours", 12)
             )
 
-            # Déterminer effective_read et effective_path
+            # Déterminer effective_read et effective_path (système simplifié)
             effective_read = "none"
             effective_path = None
 
-            # 1. Vérifier snapshot récent
-            snapshot_path = f"{module_name}/snapshots/latest.csv"
-            if user_fs.exists(snapshot_path):
-                effective_read = "snapshot"
-                effective_path = snapshot_path
-            # 2. Vérifier imports
-            elif user_fs.glob_files(f"{module_name}/imports/*.csv"):
-                imports_files = user_fs.glob_files(f"{module_name}/imports/*.csv")
-                effective_read = "imports"
-                effective_path = str(Path(imports_files[0]).relative_to(user_fs.get_user_root())) if imports_files else None
-            # 3. Vérifier legacy - prioriser les vrais legacy puis les autres
-            elif detected_files:
-                # Prioriser les fichiers explicitement legacy
-                legacy_files = [f for f in detected_files if f.is_legacy]
-                if legacy_files:
-                    effective_read = "legacy"
-                    effective_path = legacy_files[0].relative_path
-                else:
-                    # Fallback sur le premier fichier détecté
-                    effective_read = "legacy"
-                    effective_path = detected_files[0].relative_path
+            # Lecture directe depuis data/ (fichier le plus récent)
+            if detected_files:
+                effective_read = "data"
+                effective_path = detected_files[0].relative_path  # Déjà trié par date (plus récent d'abord)
 
             # Ajuster modes dynamiquement selon les credentials API
-            modes = list(module_config.get("modes", ["uploads"]))
+            modes = list(module_config.get("modes", ["data"]))
+            # Convertir ancien mode "uploads" vers "data" pour compatibilité
+            modes = ["data" if m == "uploads" else m for m in modes]
             if "api" in modes:
                 # Vérifier si les credentials API sont résolubles
                 api_config = module_config.get("api", {})
@@ -271,18 +224,9 @@ async def scan_sources(
             if not module_config.get("enabled", True):
                 continue
 
-            patterns = module_config.get("patterns", [])
-            all_files = []
-            is_legacy = False
-
-            # Chercher des fichiers pour ce module
-            for pattern in patterns:
-                files = user_fs.glob_files(pattern)
-                all_files.extend(files)
-
-                # Détecter si c'est des fichiers legacy (csv/*)
-                if pattern.startswith("csv/") and files:
-                    is_legacy = True
+            # NOUVEAU SYSTÈME SIMPLIFIÉ: Chercher uniquement dans data/
+            data_pattern = f"{module_name}/data/*.csv"
+            all_files = user_fs.glob_files(data_pattern)
 
             # Supprimer les doublons tout en préservant l'ordre
             seen = set()
@@ -293,36 +237,32 @@ async def scan_sources(
                     unique_files.append(f)
 
             if unique_files:
-                # Déterminer où les fichiers iraient
-                target_dir = f"{module_name}/imports/"
-
                 # Estimer le nombre d'enregistrements du fichier le plus récent
                 estimated_records = None
                 last_modified = None
 
-                if unique_files:
-                    # Trier par date de modification
-                    try:
-                        unique_files.sort(key=lambda f: os.path.getmtime(f), reverse=True)
-                        most_recent = unique_files[0]
+                # Trier par date de modification (plus récent en premier)
+                try:
+                    unique_files.sort(key=lambda f: os.path.getmtime(f), reverse=True)
+                    most_recent = unique_files[0]
 
-                        # Timestamp de modification
-                        mtime = datetime.fromtimestamp(os.path.getmtime(most_recent))
-                        last_modified = mtime.isoformat()
+                    # Timestamp de modification
+                    mtime = datetime.fromtimestamp(os.path.getmtime(most_recent))
+                    last_modified = mtime.isoformat()
 
-                        # Estimation rapide du nombre de lignes (première MB)
-                        estimated_records = _estimate_csv_records(most_recent)
+                    # Estimation rapide du nombre de lignes (première MB)
+                    estimated_records = _estimate_csv_records(most_recent)
 
-                    except Exception as e:
-                        logger.warning(f"Could not analyze file {most_recent}: {e}")
+                except Exception as e:
+                    logger.warning(f"Could not analyze file {most_recent}: {e}")
 
                 scan_results[module_name] = SourcesScanResult(
                     module=module_name,
                     files_detected=[Path(f).name for f in unique_files],  # Juste les noms
-                    would_move_to=target_dir,
+                    would_move_to=f"{module_name}/data/",  # Les fichiers restent dans data/
                     estimated_records=estimated_records,
                     last_modified=last_modified,
-                    is_legacy=is_legacy
+                    is_legacy=False  # Plus de fichiers legacy
                 )
 
         return SourcesScanResponse(
@@ -512,9 +452,14 @@ async def refresh_api(
                 error="NOT_SUPPORTED"
             )
 
-        # Créer le snapshot depuis le cache API
-        api_cache_dir = user_fs.get_path(f"{request.module}/api_cache")
-        snapshot_updated = await _create_snapshot(request.module, user_fs, api_cache_dir)
+        if records_fetched is None:
+            return RefreshApiResponse(
+                success=False,
+                module=request.module,
+                snapshot_updated=False,
+                message="Échec du refresh API",
+                error="API_ERROR"
+            )
 
         # Mettre à jour la configuration
         module_config["last_import_at"] = datetime.utcnow().isoformat()
@@ -524,8 +469,8 @@ async def refresh_api(
             success=True,
             module=request.module,
             records_fetched=records_fetched,
-            snapshot_updated=snapshot_updated,
-            message=f"API rafraîchie, {records_fetched or 0} enregistrements"
+            snapshot_updated=True,  # Les données sont directement dans data/
+            message=f"API rafraîchie, {records_fetched} enregistrements sauvegardés dans data/"
         )
 
     except HTTPException:
@@ -655,6 +600,7 @@ async def _create_snapshot(module: str, user_fs: UserScopedFS, source_dir: str) 
 async def _refresh_cointracking_api(api_key: str, api_secret: str, user_fs: UserScopedFS) -> Optional[int]:
     """
     Rafraîchit les données CoinTracking via API.
+    Sauvegarde directement dans data/ avec versioning automatique.
 
     Returns:
         Optional[int]: Nombre d'enregistrements récupérés ou None si erreur
@@ -664,9 +610,9 @@ async def _refresh_cointracking_api(api_key: str, api_secret: str, user_fs: User
         from api.csv_endpoints import get_csv_export_url
         import aiohttp
 
-        # Créer le répertoire api_cache
-        cache_dir = user_fs.get_path("cointracking/api_cache")
-        Path(cache_dir).mkdir(parents=True, exist_ok=True)
+        # Créer le répertoire data (nouveau système simplifié)
+        data_dir = user_fs.get_path("cointracking/data")
+        Path(data_dir).mkdir(parents=True, exist_ok=True)
 
         # Télécharger le fichier current_balance
         export_url = get_csv_export_url("current_balance")
@@ -687,17 +633,17 @@ async def _refresh_cointracking_api(api_key: str, api_secret: str, user_fs: User
                     if content_str.startswith('<!DOCTYPE') or 'error' in content_str.lower():
                         raise ValueError("API returned error or HTML instead of CSV")
 
-                    # Sauvegarder dans api_cache
+                    # Sauvegarder directement dans data/ avec timestamp
                     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                    cache_file = Path(cache_dir) / f"cointracking_balance_{timestamp}.csv"
+                    data_file = Path(data_dir) / f"{timestamp}_cointracking_api.csv"
 
-                    with open(cache_file, 'wb') as f:
+                    with open(data_file, 'wb') as f:
                         f.write(content)
 
                     # Estimer le nombre d'enregistrements
-                    records = _estimate_csv_records(str(cache_file))
+                    records = _estimate_csv_records(str(data_file))
 
-                    logger.info(f"Downloaded CoinTracking data: {records} records estimated")
+                    logger.info(f"Downloaded CoinTracking data to data/: {records} records estimated")
                     return records
                 else:
                     raise ValueError(f"API returned status {response.status}")
@@ -720,11 +666,12 @@ async def upload_files(
     module: str = Form(...),
     files: List[UploadFile] = File(...),
     user: str = Depends(get_active_user),
-    user_fs: UserScopedFS = Depends(get_user_fs)
+    user_fs: UserScopedFS = Depends(get_user_fs),
+    config_migrator: ConfigMigrator = Depends(get_config_migrator)
 ) -> UploadResponse:
     """
     Upload de fichiers pour un module spécifique.
-    Les fichiers sont stockés dans {module}/uploads/ pour traitement ultérieur.
+    Les fichiers sont stockés directement dans {module}/data/ avec versioning automatique.
     """
     try:
         logger.info(f"Uploading {len(files)} files for module '{module}' (user: {user})")
@@ -738,9 +685,9 @@ async def upload_files(
                 error="INVALID_MODULE"
             )
 
-        # Créer le répertoire uploads
-        uploads_dir = user_fs.get_path(f"{module}/uploads")
-        Path(uploads_dir).mkdir(parents=True, exist_ok=True)
+        # Créer le répertoire data (nouveau système simplifié)
+        data_dir = user_fs.get_path(f"{module}/data")
+        Path(data_dir).mkdir(parents=True, exist_ok=True)
 
         uploaded_files = []
         total_size = 0
@@ -778,18 +725,18 @@ async def upload_files(
 
             total_size += len(content)
 
-            # Générer un nom unique avec timestamp
+            # Générer un nom unique avec timestamp pour versioning
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             safe_filename = "".join(c for c in file.filename if c.isalnum() or c in "._-")
             unique_filename = f"{timestamp}_{safe_filename}"
 
-            # Sauvegarder le fichier
-            file_path = Path(uploads_dir) / unique_filename
+            # Sauvegarder le fichier directement dans data/
+            file_path = Path(data_dir) / unique_filename
             with open(file_path, 'wb') as f:
                 f.write(content)
 
             uploaded_files.append(unique_filename)
-            logger.info(f"Uploaded: {unique_filename} ({len(content)} bytes)")
+            logger.info(f"Uploaded to data/: {unique_filename} ({len(content)} bytes)")
 
         # Limitation de taille totale (50MB par batch)
         if total_size > 50 * 1024 * 1024:  # 50MB
@@ -806,9 +753,18 @@ async def upload_files(
                 error="NO_FILES"
             )
 
+        # Mettre à jour le timestamp dans la configuration
+        try:
+            config = config_migrator.load_sources_config()
+            if module in config["modules"]:
+                config["modules"][module]["last_import_at"] = datetime.utcnow().isoformat()
+                config_migrator.save_sources_config(config)
+        except Exception as e:
+            logger.warning(f"Could not update config timestamp: {e}")
+
         return UploadResponse(
             success=True,
-            message=f"{len(uploaded_files)} fichier(s) uploadé(s) avec succès",
+            message=f"{len(uploaded_files)} fichier(s) uploadé(s) avec succès dans data/",
             uploaded_files=uploaded_files
         )
 
