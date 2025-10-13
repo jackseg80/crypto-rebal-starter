@@ -383,20 +383,34 @@
             cycle_confidence: cycleConf,           // pour badge bas
             updated: updatedISO,                   // pour horodatage
             signals_status: s.ui?.apiStatus?.signals || 'limited',
-            alpha: alpha                           // ✅ alpha si dispo [0..1]
+            alpha: alpha,                          // ✅ alpha si dispo [0..1]
+
+            // Données pour tuiles
+            cycle_phase: u.cycle?.phase?.description || u.cycle?.phase?.phase || actualPhase,
+            cycle_months: u.cycle?.months,
+            onchain_critiques: u.onchain?.criticalCount || 0,
+            onchain_confidence: u.onchain?.confidence,
+            risk_var95: u.risk?.var95_1d,
+            risk_budget: u.risk?.budget?.percentages ? {
+              risky: u.risk.budget.percentages.risky,
+              stables: u.risk.budget.percentages.stables
+            } : null,
+            regime_emoji: u.regime?.emoji,
+            sentiment_fg: u.sentiment?.fearGreed,
+            sentiment_interpretation: u.sentiment?.interpretation
           },
           history: diHistory.map(h => h.di),                                       // ✅ di history (array de scores)
           regimeHistory: (s?.regime?.history || s?.regime_history || [])           // ✅ regime history (2 clés possibles)
         };
 
-        // Créer conteneur pour le nouveau panneau AU-DESSUS du contenu UnifiedInsights
+        // Créer conteneur pour le Decision Index Panel (inclut maintenant les tuiles)
         const existingContent = el.innerHTML;
-        el.innerHTML = `<div id="new-di-panel" style="margin-bottom: 0.5rem;"></div>${existingContent}`;
+        el.innerHTML = `<div id="new-di-panel" style="margin-bottom: 1rem;"></div>${existingContent}`;
 
         const newPanelEl = document.getElementById('new-di-panel');
         if (newPanelEl) {
           renderDecisionIndexPanel(newPanelEl, panelData, { showFooter: true });
-          console.debug('✅ New Decision Index panel v5 injected at top with footer');
+          console.debug('✅ New Decision Index panel v5 injected with integrated tiles');
         }
 
         console.debug('🔥 LOCAL: Unified rendering completed with fixes');

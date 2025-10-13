@@ -648,43 +648,45 @@ export async function renderUnifiedInsights(containerId = 'unified-root', option
     </div>
   `, { accentLeft: colorPositive(u.decision.score) });
 
-  // INTELLIGENT QUADRANT with sophisticated data
+  // INTELLIGENT QUADRANT with sophisticated data - TUILES VERTICALES COMPACTES
+  const compactCard = (inner) => `
+    <div class="unified-card" style="background: var(--theme-surface); border: 1px solid var(--theme-border); border-radius: var(--radius-md); padding: .6rem;">
+      ${inner}
+    </div>
+  `;
+
   const quad = `
-    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-md);">
-      ${card(`
-        <div style="font-weight:700; display: flex; align-items: center; gap: .5rem;">🔄 Cycle 
-          ${u.cycle.confidence ? `<span style="background: var(--info); color: white; padding: 1px 4px; border-radius: 3px; font-size: .7rem;">${Math.round(u.cycle.confidence * 100)}%</span>` : ''}
+    <div style="display: flex; flex-direction: column; gap: .5rem;">
+      ${compactCard(`
+        <div style="font-weight:700; display: flex; align-items: center; gap: .4rem; font-size: .85rem;">🔄 Cycle
+          ${u.cycle.confidence ? `<span style="background: var(--info); color: white; padding: 1px 4px; border-radius: 3px; font-size: .65rem;">${Math.round(u.cycle.confidence * 100)}%</span>` : ''}
         </div>
-        <div style="font-size:1.6rem; font-weight:800; color:${colorRisk(u.cycle.score)};">${u.cycle.score || '—'}</div>
-        <div style="font-size:.85rem; color: var(--theme-text-muted);">${u.cycle?.phase?.description || u.cycle?.phase?.phase?.replace('_',' ') || '—'}</div>
-        <div style="font-size:.75rem; color: var(--theme-text-muted); margin-top: .25rem;">${u.cycle.months ? Math.round(u.cycle.months)+'m post-halving' : '—'}</div>
-        ${u.regime?.strategy ? `<div style="font-size:.75rem; color: var(--theme-text); margin-top: .5rem; padding: .25rem; background: var(--theme-bg); border-radius: var(--radius-sm);">💡 ${u.regime.strategy}</div>` : ''}
+        <div style="font-size:1.5rem; font-weight:800; color:${colorRisk(u.cycle.score)}; line-height: 1.1;">${u.cycle.score || '—'}</div>
+        <div style="font-size:.75rem; color: var(--theme-text-muted); margin-top: .25rem;">${u.cycle?.phase?.description || u.cycle?.phase?.phase?.replace('_',' ') || '—'}</div>
+        <div style="font-size:.7rem; color: var(--theme-text-muted); margin-top: .15rem;">${u.cycle.months ? Math.round(u.cycle.months)+'m post-halving' : '—'}</div>
       `)}
-      ${card(`
-        <div style="font-weight:700; display:flex; align-items:center; gap:.5rem;">🔗 On-Chain
-          ${Number.isFinite(u.onchain.confidence) ? `<span data-tooltip=\"Confiance du module en %\" title=\"Confiance du module en %\" style=\"background: var(--info); color: white; padding: 1px 4px; border-radius: 3px; font-size: .7rem;\">${Math.round((u.onchain.confidence || 0) * 100)}%</span>` : ''}
+      ${compactCard(`
+        <div style="font-weight:700; display:flex; align-items:center; gap:.4rem; font-size: .85rem;">🔗 On-Chain
+          ${Number.isFinite(u.onchain.confidence) ? `<span style=\"background: var(--info); color: white; padding: 1px 4px; border-radius: 3px; font-size: .65rem;\">${Math.round((u.onchain.confidence || 0) * 100)}%</span>` : ''}
         </div>
-        <div style="font-size:1.6rem; font-weight:800; color:${colorRisk(u.onchain.score ?? 50)};">${u.onchain.score ?? '—'}</div>
-        <div style="font-size:.85rem; color: var(--theme-text-muted);">Critiques: ${u.onchain.criticalCount}</div>
-        ${u.onchain.drivers && u.onchain.drivers.length ? `<div style="margin-top:.5rem; font-size:.75rem; color: var(--theme-text-muted);">Top Drivers: ${u.onchain.drivers.slice(0,2).map(d => `${d.key} (${d.score})`).join(', ')}</div>` : ''}
-        ${u.onchain.drivers && u.onchain.drivers.some(d => d.consensus) ? `<div style="font-size:.75rem; color: var(--theme-text-muted); margin-top: .25rem;">Consensus: ${u.onchain.drivers.filter(d => d.consensus?.consensus).map(d => d.consensus.consensus).join(', ')}</div>` : ''}
+        <div style="font-size:1.5rem; font-weight:800; color:${colorRisk(u.onchain.score ?? 50)}; line-height: 1.1;">${u.onchain.score ?? '—'}</div>
+        <div style="font-size:.75rem; color: var(--theme-text-muted); margin-top: .25rem;">Critiques: ${u.onchain.criticalCount}</div>
+        ${u.onchain.drivers && u.onchain.drivers.length ? `<div style="margin-top:.2rem; font-size:.7rem; color: var(--theme-text-muted);">Top: ${u.onchain.drivers.slice(0,1).map(d => `${d.key} (${d.score})`).join(', ')}</div>` : ''}
       `)}
-      ${card(`
-        <div style="font-weight:700;">🛡️ Risque & Budget</div>
-        <div style="font-size:1.6rem; font-weight:800; color:${colorRisk(u.risk.score ?? 50)};">${u.risk.score ?? '—'}</div>
-        <div style="font-size:.85rem; color: var(--theme-text-muted);">VaR95: ${u.risk.var95_1d != null ? (Math.round(Math.abs(u.risk.var95_1d)*1000)/10)+'%' : '—'} • Vol: ${u.risk.volatility != null ? (Math.round(Math.abs(u.risk.volatility)*100)/10)+'%' : '—'}</div>
-        ${u.risk.budget ? `<div style="font-size:.75rem; color: var(--theme-text); margin-top: .5rem; padding: .25rem; background: var(--theme-bg); border-radius: var(--radius-sm);">💰 Risky: ${u.risk.budget.percentages?.risky}% • Stables: ${u.risk.budget.percentages?.stables}%</div>` : ''}
-        ${u.risk.sharpe != null ? `<div style="font-size:.75rem; color: var(--theme-text-muted); margin-top: .25rem;">Sharpe: ${u.risk.sharpe.toFixed(2)}</div>` : ''}
+      ${compactCard(`
+        <div style="font-weight:700; font-size: .85rem;">🛡️ Risque & Budget</div>
+        <div style="font-size:1.5rem; font-weight:800; color:${colorRisk(u.risk.score ?? 50)}; line-height: 1.1;">${u.risk.score ?? '—'}</div>
+        <div style="font-size:.75rem; color: var(--theme-text-muted); margin-top: .25rem;">VaR95: ${u.risk.var95_1d != null ? (Math.round(Math.abs(u.risk.var95_1d)*1000)/10)+'%' : '—'}</div>
+        ${u.risk.budget ? `<div style="font-size:.7rem; color: var(--theme-text); margin-top: .25rem; padding: .2rem; background: var(--theme-bg); border-radius: var(--radius-sm);">Risky: ${u.risk.budget.percentages?.risky}% • Stables: ${u.risk.budget.percentages?.stables}%</div>` : ''}
       `)}
-      ${card(`
-        <div style="font-weight:700;">🤖 Régime & Sentiment</div>
-        <div style="font-size:1.2rem; font-weight:800; display: flex; align-items: center; gap: .5rem;">
+      ${compactCard(`
+        <div style="font-weight:700; font-size: .85rem;">🤖 Régime & Sentiment</div>
+        <div style="font-size:1.1rem; font-weight:800; display: flex; align-items: center; gap: .4rem; line-height: 1.1;">
           ${u.regime?.emoji || '🤖'} ${u.regime?.name || u.sentiment?.regime || '—'}
-          ${u.regime?.confidence ? `<span style="background: var(--info); color: white; padding: 1px 4px; border-radius: 3px; font-size: .7rem;">${Math.round(u.regime.confidence * 100)}%</span>` : ''}
+          ${u.regime?.confidence ? `<span style="background: var(--info); color: white; padding: 1px 4px; border-radius: 3px; font-size: .65rem;">${Math.round(u.regime.confidence * 100)}%</span>` : ''}
         </div>
-        <div style="font-size:.85rem; color: var(--theme-text-muted);">${u.sentiment?.sources && u.sentiment.sources.length > 1 ? `Sentiment (${u.sentiment.sources.length} sources): ${u.sentiment.fearGreed ?? '—'}` : `Fear & Greed: ${u.sentiment?.fearGreed ?? '—'}`} • ${u.sentiment?.interpretation || 'Neutre'}</div>
-        ${u.sentiment?.sources && u.sentiment.sources.length > 1 ? `<div style="font-size:.75rem; color: var(--theme-text-muted); margin-top: .25rem;">${u.sentiment.sources.map(s => s.replace('_', ' ')).join(', ')}</div>` : ''}
-        ${u.regime?.overrides && u.regime.overrides.length > 0 ? `<div style="font-size:.75rem; color: var(--warning); margin-top: .5rem;">⚡ ${u.regime.overrides.length} override(s) actif(s)</div>` : ''}
+        <div style="font-size:.75rem; color: var(--theme-text-muted); margin-top: .25rem;">F&G: ${u.sentiment?.fearGreed ?? '—'}</div>
+        <div style="font-size:.7rem; color: var(--theme-text-muted); margin-top: .15rem;">${u.sentiment?.interpretation || 'Neutre'}</div>
       `)}
     </div>
   `;
@@ -1147,10 +1149,6 @@ export async function renderUnifiedInsights(containerId = 'unified-root', option
   const _header = options.hideHeader ? '' : header;
 
   el.innerHTML = `
-    ${_header}
-    ${_header ? '<div style="height: .5rem;"></div>' : ''}
-    ${quad}
-    <div style="height: .5rem;"></div>
     ${recBlock}
     <div style="height: .5rem;"></div>
     ${contraBlock}

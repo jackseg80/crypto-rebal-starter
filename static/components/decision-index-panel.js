@@ -837,6 +837,134 @@ function renderTextFallback(container, data) {
 }
 
 /**
+ * Génère les badges Décision et Système (colonne verticale)
+ */
+function renderDecisionSystemBadges(data) {
+  const m = data.meta || {};
+
+  // Tones pour badges
+  const contrad01 = _safe(m.contradiction || 0);
+  const contradPct = Math.round(contrad01 * 100);
+  const toneContrad = contrad01 >= 0.70 ? 'danger' : contrad01 >= 0.45 ? 'warn' : 'ok';
+
+  const capPct = Math.round(_safe(m.cap || 0));
+  const toneCap = capPct >= 10 ? 'danger' : capPct >= 5 ? 'warn' : capPct > 0 ? 'info' : 'muted';
+
+  const modeStr = String(m?.mode || 'Normal');
+  const toneMode = /slow/i.test(modeStr) ? 'warn'
+                   : /manual/i.test(modeStr) ? 'info'
+                   : /auto|normal/i.test(modeStr) ? 'ok'
+                   : 'muted';
+
+  const phaseStr = String(m?.phase || 'neutral').toLowerCase();
+  const tonePhase = phaseStr.includes('euphor') || phaseStr.includes('bull') ? 'ok'
+                   : phaseStr.includes('bear') || phaseStr.includes('risk-off') ? 'danger'
+                   : 'warn';
+
+  return `
+    <div style="display: flex; flex-direction: column; gap: .5rem;">
+      <div class="di-tile" style="padding: .5rem;">
+        <div style="font-weight: 600; font-size: .75rem; margin-bottom: .4rem; color: var(--theme-text-muted);">⚡ Décision</div>
+        <div class="kv" style="margin: 2px 0; font-size: .75rem;">
+          <span style="color: var(--theme-text-muted);">Phase</span>
+          <span class="pill pill--${tonePhase}">${m.phase || 'Neutral'}</span>
+        </div>
+        <div class="kv" style="margin: 2px 0; font-size: .75rem;">
+          <span style="color: var(--theme-text-muted);">Contradiction</span>
+          <span class="pill pill--${toneContrad}">${contradPct}%</span>
+        </div>
+        <div class="kv" style="margin: 2px 0; font-size: .75rem;">
+          <span style="color: var(--theme-text-muted);">Cap actif</span>
+          <span class="pill pill--${toneCap}">${capPct}%</span>
+        </div>
+        <div class="kv" style="margin: 2px 0; font-size: .75rem;">
+          <span style="color: var(--theme-text-muted);">Mode</span>
+          <span class="pill pill--${toneMode}">${m.mode || 'Normal'}</span>
+        </div>
+      </div>
+
+      <div class="di-tile" style="padding: .5rem;">
+        <div style="font-weight: 600; font-size: .75rem; margin-bottom: .4rem; color: var(--theme-text-muted);">🖥️ Système</div>
+        <div class="kv" style="margin: 2px 0; font-size: .75rem;">
+          <span style="color: var(--theme-text-muted);">Backend</span>
+          <span class="pill pill--${m.backend ? 'ok':'danger'}">${m.backend ? 'healthy':'down'}</span>
+        </div>
+        <div class="kv" style="margin: 2px 0; font-size: .75rem;">
+          <span style="color: var(--theme-text-muted);">Signals</span>
+          <span class="pill pill--${m.signals ? 'ok':'warn'}">${m.signals ? 'healthy' : (m.signals_status || 'limited')}</span>
+        </div>
+        <div class="kv" style="margin: 2px 0; font-size: .75rem;">
+          <span style="color: var(--theme-text-muted);">Governance</span>
+          <span class="pill pill--info">${m.governance_mode || '—'}</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Génère la colonne des 4 tuiles compactes (sans les badges)
+ */
+function renderTilesColumn(data) {
+  const s = data.scores || {};
+  const m = data.meta || {};
+
+  // Fonction helper pour score color
+  const scoreColor = (score) => {
+    if (score >= 70) return 'var(--success)';
+    if (score >= 40) return 'var(--warning)';
+    return 'var(--danger)';
+  };
+
+  // Récupérer les données supplémentaires si disponibles
+  const cyclePhase = m.cycle_phase || m.phase || '—';
+  const cycleMonths = m.cycle_months || null;
+  const cycleConf = m.cycle_confidence ? Math.round(m.cycle_confidence * 100) : null;
+
+  const onchainCritiques = m.onchain_critiques || 0;
+  const onchainConf = m.onchain_confidence ? Math.round(m.onchain_confidence * 100) : null;
+
+  const riskVar = m.risk_var95 || null;
+  const riskBudget = m.risk_budget || null;
+
+  const regimeName = m.phase || 'Neutral';
+  const regimeEmoji = m.regime_emoji || '🤖';
+  const sentimentFG = m.sentiment_fg || '—';
+  const sentimentInterpretation = m.sentiment_interpretation || 'Neutre';
+
+  return `
+    <div style="display: flex; flex-direction: column; gap: .5rem;">
+      <div class="di-tile">
+        <div class="di-tile-header">🔄 Cycle ${cycleConf ? `<span class="di-tile-badge">${cycleConf}%</span>` : ''}</div>
+        <div class="di-tile-score" style="color: ${scoreColor(s.cycle || 0)};">${Math.round(s.cycle || 0)}</div>
+        <div class="di-tile-text">${cyclePhase}</div>
+        ${cycleMonths ? `<div class="di-tile-subtext">${Math.round(cycleMonths)}m post-halving</div>` : ''}
+      </div>
+
+      <div class="di-tile">
+        <div class="di-tile-header">🔗 On-Chain ${onchainConf ? `<span class="di-tile-badge">${onchainConf}%</span>` : ''}</div>
+        <div class="di-tile-score" style="color: ${scoreColor(s.onchain || 0)};">${Math.round(s.onchain || 0)}</div>
+        <div class="di-tile-text">Critiques: ${onchainCritiques}</div>
+      </div>
+
+      <div class="di-tile">
+        <div class="di-tile-header">🛡️ Risque & Budget</div>
+        <div class="di-tile-score" style="color: ${scoreColor(s.risk || 0)};">${Math.round(s.risk || 0)}</div>
+        ${riskVar ? `<div class="di-tile-text">VaR95: ${Math.round(Math.abs(riskVar) * 1000) / 10}%</div>` : '<div class="di-tile-text">—</div>'}
+        ${riskBudget ? `<div class="di-tile-subtext">Risky: ${riskBudget.risky}% • Stables: ${riskBudget.stables}%</div>` : ''}
+      </div>
+
+      <div class="di-tile">
+        <div class="di-tile-header">🤖 Régime & Sentiment</div>
+        <div class="di-tile-score" style="font-size: 1rem;">${regimeEmoji} ${regimeName}</div>
+        <div class="di-tile-text">F&G: ${sentimentFG}</div>
+        <div class="di-tile-subtext">${sentimentInterpretation}</div>
+      </div>
+    </div>
+  `;
+}
+
+/**
  * Render interne (sans debounce)
  */
 function _renderDIPanelInternal(container, data, opts = {}) {
@@ -947,7 +1075,7 @@ function _renderDIPanelInternal(container, data, opts = {}) {
 
   container.innerHTML = `
     <div class="di-panel">
-      <div class="di-grid">
+      <div class="di-grid-3col">
         <div class="di-left">
           <div class="di-title-row">
             <div class="di-title">DECISION INDEX</div>
@@ -976,22 +1104,12 @@ function _renderDIPanelInternal(container, data, opts = {}) {
           ${regimeRibbon}
         </div>
 
+        <div class="di-middle">
+          ${renderDecisionSystemBadges(data)}
+        </div>
+
         <div class="di-right">
-          <div class="di-rightgrid">
-            <div class="box box-decision">
-              <div class="box-title">Décision</div>
-              <div class="kv"><span>Phase</span><span class="pill pill--${tonePhase}">${m.phase || 'Neutral'}</span></div>
-              <div class="kv"><span>Contradiction</span><span class="pill pill--${toneContrad}">${contradPct}%</span></div>
-              <div class="kv"><span>Cap actif</span><span class="pill pill--${toneCap}">${capPct}%</span></div>
-              <div class="kv"><span>Mode</span><span class="pill pill--${toneMode}">${modeStr}</span></div>
-            </div>
-            <div class="box box-system">
-              <div class="box-title">Système</div>
-              <div class="kv"><span>Backend</span><span class="pill pill--${m.backend ? 'ok':'danger'}">${m.backend ? 'healthy':'down'}</span></div>
-              <div class="kv"><span>Signals</span><span class="pill pill--${m.signals ? 'ok':'warn'}">${m.signals ? 'healthy' : (m.signals_status || 'limited')}</span></div>
-              <div class="kv"><span>Governance</span><span class="pill pill--info">${m.governance_mode || '—'}</span></div>
-            </div>
-          </div>
+          ${renderTilesColumn(data)}
         </div>
       </div>
 

@@ -49,6 +49,8 @@
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .di-right {
@@ -196,11 +198,14 @@
   border-radius: 10px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.08);
+  width: 100%;
+  max-width: 100%;
 }
 
 .di-stack-canvas {
   height: 100%;
   width: 100%;
+  max-width: 100%;
 }
 
 /* Trend Row (métriques + sparkbar) */
@@ -468,6 +473,9 @@
 .trend-section {
   margin-top: 10px;
   margin-bottom: 10px;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .trend-title {
@@ -483,13 +491,16 @@
 /* Trend grid avec sparkline + badges */
 .trend-grid {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
+  width: 100%;
+  max-width: 100%;
 }
 
 .trend-left {
-  min-width: 220px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .spark {
@@ -572,10 +583,14 @@
   gap: 8px;
   margin: 3px 0;
   font-size: 0.8rem;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
 .kv > span:first-child {
   color: var(--theme-text-muted);
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 /* Pills de statut */
@@ -587,6 +602,11 @@
   border: 1px solid transparent;
   background: rgba(255, 255, 255, 0.06);
   color: var(--theme-text);
+  white-space: nowrap;
+  flex-shrink: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .pill--muted {
@@ -636,6 +656,9 @@
 /* Section Regime avec titre séparé */
 .regime-section {
   margin-top: 10px;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .reg-title {
@@ -803,6 +826,9 @@
   gap: 0.4rem;
   justify-content: center;
   align-items: center;
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: 100%;
 }
 
 .lbl {
@@ -1045,4 +1071,161 @@
 /* Fallback mode texte */
 .di-panel-fallback {
   gap: var(--space-xs, 4px);
+}
+
+/* Tuiles compactes dans la colonne de droite */
+.di-tile {
+  background: var(--theme-surface, #1a1b26);
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-md, 8px);
+  padding: .6rem;
+  transition: all 0.2s ease;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.di-tile:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.di-tile-header {
+  font-weight: 700;
+  font-size: .85rem;
+  color: var(--theme-text-muted, #9aa5ce);
+  margin-bottom: .3rem;
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  flex-wrap: wrap;
+  word-break: break-word;
+}
+
+.di-tile-badge {
+  background: var(--info, #2ac3de);
+  color: white;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: .65rem;
+  font-weight: 600;
+}
+
+.di-tile-score {
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1.1;
+  margin: .2rem 0;
+}
+
+.di-tile-text {
+  font-size: .75rem;
+  color: var(--theme-text-muted, #9aa5ce);
+  margin-top: .25rem;
+}
+
+.di-tile-subtext {
+  font-size: .7rem;
+  color: var(--theme-text-muted, #9aa5ce);
+  margin-top: .15rem;
+  opacity: 0.8;
+}
+
+/* Grid 3 colonnes (gauche=DI, milieu=badges, droite=tuiles) */
+.di-grid-3col {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto) minmax(0, auto);
+  gap: 1rem;
+}
+
+/* Colonne milieu (badges Décision/Système) */
+.di-middle {
+  min-width: 180px;
+  max-width: 250px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Colonne droite dans grille 3 colonnes (override des styles 2-col) */
+.di-grid-3col .di-right {
+  min-width: 180px;
+  max-width: 250px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: stretch;
+  justify-content: flex-start;
+  font-size: 1rem;
+}
+
+/* Responsive: 2 colonnes sur tablette */
+@media (max-width: 1200px) {
+  .di-grid-3col {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 1rem;
+  }
+
+  .di-left {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+
+  .di-middle {
+    grid-column: 2;
+    grid-row: 1;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .di-right {
+    grid-column: 2;
+    grid-row: 2;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .di-grid-3col .di-right {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .di-middle {
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+
+/* Responsive: 1 colonne sur mobile */
+@media (max-width: 768px) {
+  .di-grid-3col {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
+  }
+
+  .di-left,
+  .di-middle,
+  .di-right {
+    grid-column: 1;
+    grid-row: auto;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .di-grid-3col .di-right {
+    align-items: stretch;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .di-middle {
+    min-width: 0;
+    max-width: 100%;
+  }
 }
