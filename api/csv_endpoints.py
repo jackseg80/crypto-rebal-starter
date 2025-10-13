@@ -43,7 +43,7 @@ async def _delegate_to_sources(action: str, user: str, **kwargs):
                     success=True,
                     filename="cointracking_via_sources.csv",
                     size=response.records_fetched or 0,
-                    path="cointracking/snapshots/latest.csv"
+                    path="cointracking/data/"  # Nouveau système: données dans data/
                 )
             else:
                 return CSVDownloadResponse(
