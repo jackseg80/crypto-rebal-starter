@@ -46,20 +46,6 @@
             border: 1px solid var(--theme-border);
         }
 
-        .portfolio-selector {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-
-        .portfolio-select {
-            padding: 0.5rem;
-            border: 1px solid var(--theme-border);
-            border-radius: var(--radius-md);
-            background: var(--theme-bg);
-            color: var(--theme-text);
-        }
-
         .dashboard-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -368,29 +354,23 @@
                     </span>
                 </p>
             </div>
-            <div class="portfolio-selector">
-                <label for="portfolioSelect" style="color: var(--theme-text-muted);">Portfolio:</label>
-                <select id="portfolioSelect" class="portfolio-select" onchange="loadPortfolio()">
-                    <option value="">Select a portfolio...</option>
-                </select>
-                <button class="refresh-btn" onclick="refreshPortfolios()">🔄</button>
+            <div style="display: flex; align-items: center; gap: 1rem;">
                 <div class="sources-banner">
-                    <span>📊 Données Saxo — <span id="saxo-staleness-main">
+                    <span>📊 Source active: <strong id="current-source-name">Chargement...</strong></span>
+                    <a href="settings.html#tab-sources" class="sources-link">Gérer Sources →</a>
+                </div>
+                <div class="sources-banner">
+                    <span>📊 Fraîcheur — <span id="saxo-staleness-main">
                         <span class="spinner" style="opacity: 0.7;">⏳</span> Chargement...
                     </span></span>
-                    <a href="settings.html#tab-sources" class="sources-link">Gérer Sources →</a>
                 </div>
             </div>
         </div>
 
 
-        <!-- Main Content -->
+        <!-- Main Content (initially empty, filled by loadCurrentSaxoData) -->
         <div id="mainContent">
-            <div class="no-data">
-                <h3>No Portfolio Selected</h3>
-                <p>Please select a portfolio from the dropdown above or <a href="settings.html#tab-sources">configure your sources</a>.
-                </p>
-            </div>
+            <div class="loading">📊 Chargement initial...</div>
         </div>
 
         <!-- Dashboard Content (hidden by default) -->
@@ -649,107 +629,94 @@
             }
         }
 
-        // Portfolio management
-        async function refreshPortfolios() {
-            try {
-                const activeUser = localStorage.getItem('activeUser') || 'demo';
-                const { ok, data } = await safeFetch(globalConfig.getApiUrl('/api/saxo/portfolios'), {
-                    headers: { 'X-User': activeUser }
-                });
-                if (!ok) {
-                    debugLogger.warn('API Saxo indisponible ou erreur HTTP.');
-                    showNoDataState('Aucun portfolio Saxo disponible - API indisponible');
-                    return;
-                }
-
-                const select = document.getElementById('portfolioSelect');
-                select.innerHTML = '<option value="">Select a portfolio...</option>';
-
-                const portfolios = Array.isArray(data?.portfolios) ? data.portfolios : [];
-                if (portfolios.length === 0) {
-                    debugLogger.warn('Aucun portfolio Saxo disponible (data.portfolios est vide ou non défini).');
-                    showNoDataState('Aucun portfolio trouvé - Veuillez importer un snapshot Saxo');
-                    return;
-                }
-
-                portfolios.forEach(portfolio => {
-                    const option = document.createElement('option');
-                    option.value = portfolio.portfolio_id || '';
-                    const pos = portfolio?.positions_count ?? portfolio?.positions?.length ?? 0;
-                    const tv = Number(portfolio?.total_value_usd ?? 0);
-                    option.textContent = `${portfolio.name || 'Portfolio'} (${pos} positions, $${tv.toLocaleString()})`;
-                    select.appendChild(option);
-                });
-
-                // Update status banner
-                updateStatusBanner(portfolios[0]);
-
-                // Auto-select if there's a portfolio in URL
-                const urlParams = new URLSearchParams(window.location.search);
-                const portfolioParam = urlParams.get('portfolio');
-                if (portfolioParam && data?.portfolios?.find(p => p.portfolio_id === portfolioParam)) {
-                    select.value = portfolioParam;
-                    loadPortfolio();
-                }
-
-            } catch (error) {
-                debugLogger.error('Error loading portfolios:', error);
-                showError('Failed to load portfolios: ' + error.message);
-            }
-        }
-
-        async function loadPortfolio() {
-            const portfolioId = document.getElementById('portfolioSelect').value;
-
-            if (!portfolioId) {
-                document.getElementById('mainContent').innerHTML = `
-                    <div class="no-data">
-                        <h3>No Portfolio Selected</h3>
-                        <p>Please select a portfolio from the dropdown above.</p>
-                        <div class="info-banner" style="margin-top: 1rem; padding: 12px; background: var(--theme-surface-elevated); border: 1px solid var(--theme-border); border-radius: 6px;">
-                            📊 Données Saxo — <span id="saxo-staleness-nodata">
-                                <span class="spinner" style="opacity: 0.7;">⏳</span> Chargement...
-                            </span><br>
-                            <a href="settings.html#tab-sources" class="btn-link" style="font-size: 0.9rem; margin-top: 8px; display: inline-block;">Gérer les Sources</a>
-                        </div>
-                    </div>
-                `;
-                document.getElementById('dashboardContent').style.display = 'none';
-
-                // Charger le staleness immédiatement pour la section no-data
-                refreshSaxoStaleness('saxo-staleness-nodata');
-                return;
-            }
+        // Load current Saxo data from active source (via WealthContextBar)
+        async function loadCurrentSaxoData() {
+            debugLogger.debug('🏦 Loading Saxo data from active source...');
 
             try {
                 // Show loading state
-                document.getElementById('mainContent').innerHTML = '<div class="loading">Loading portfolio data...</div>';
+                document.getElementById('mainContent').style.display = 'block';
+                document.getElementById('mainContent').innerHTML = '<div class="loading">📊 Chargement des données Bourse...</div>';
+                document.getElementById('dashboardContent').style.display = 'none';
 
                 const activeUser = localStorage.getItem('activeUser') || 'demo';
-                const { ok, data } = await safeFetch(globalConfig.getApiUrl(`/api/saxo/portfolios/${portfolioId}`), {
+
+                // Get current source from WealthContextBar
+                const bourseSource = window.wealthContextBar?.getContext()?.bourse || 'all';
+                debugLogger.debug(`Active Bourse source: ${bourseSource}`);
+
+                // Update current source name in header
+                updateCurrentSourceName(bourseSource);
+
+                // Step 1: List available portfolios
+                const { ok: listOk, data: listData } = await safeFetch(globalConfig.getApiUrl('/api/saxo/portfolios'), {
                     headers: { 'X-User': activeUser }
                 });
-                if (!ok) {
-                    throw new Error('Failed to load portfolio');
+
+                if (!listOk || !listData?.portfolios || listData.portfolios.length === 0) {
+                    debugLogger.warn('Aucun portfolio Saxo disponible.');
+                    showNoDataState('📂 Aucune donnée Saxo disponible - Importez un fichier Saxo depuis <a href="settings.html#tab-sources">Sources</a>');
+                    return;
                 }
 
-                currentPortfolioData = data;
+                // Step 2: Load the first portfolio (or find the one matching the source)
+                const portfolio = listData.portfolios[0];
+                const portfolioId = portfolio.portfolio_id;
+
+                if (!portfolioId) {
+                    debugLogger.warn('Portfolio ID manquant.');
+                    showNoDataState('❌ Erreur: Portfolio ID manquant');
+                    return;
+                }
+
+                // Step 3: Load full portfolio details
+                const { ok: detailOk, data: portfolioData } = await safeFetch(globalConfig.getApiUrl(`/api/saxo/portfolios/${portfolioId}`), {
+                    headers: { 'X-User': activeUser }
+                });
+
+                if (!detailOk || !portfolioData) {
+                    debugLogger.warn('Erreur lors du chargement du portfolio.');
+                    showNoDataState('❌ Erreur lors du chargement du portfolio');
+                    return;
+                }
+
+                // Store portfolio data
+                currentPortfolioData = portfolioData;
 
                 // Hide main content and show dashboard
                 document.getElementById('mainContent').style.display = 'none';
                 document.getElementById('dashboardContent').style.display = 'block';
 
-                // Update URL
-                const url = new URL(window.location);
-                url.searchParams.set('portfolio', portfolioId);
-                window.history.pushState(null, '', url.toString());
-
                 // Load all sections
-                loadOverviewData(data);
+                loadOverviewData(currentPortfolioData);
+
+                debugLogger.debug('✅ Saxo data loaded successfully');
 
             } catch (error) {
-                debugLogger.error('Error loading portfolio:', error);
-                showError('Failed to load portfolio: ' + error.message);
+                debugLogger.error('Error loading Saxo data:', error);
+                showError('❌ Erreur lors du chargement des données: ' + error.message);
+            }
+        }
+
+        // Update current source name in header
+        function updateCurrentSourceName(bourseSource) {
+            const nameEl = document.getElementById('current-source-name');
+            if (!nameEl) return;
+
+            if (bourseSource === 'all') {
+                nameEl.textContent = 'Toutes les sources';
+            } else if (bourseSource.startsWith('saxo:')) {
+                // Extract key from saxo:key format
+                const key = bourseSource.substring(5);
+                // Try to get label from availableSources
+                if (window.availableSources) {
+                    const source = window.availableSources.find(s => s.key === key);
+                    nameEl.textContent = source?.label || key;
+                } else {
+                    nameEl.textContent = key;
+                }
+            } else {
+                nameEl.textContent = bourseSource;
             }
         }
 
@@ -979,44 +946,22 @@
             document.getElementById('dashboardContent').style.display = 'none';
         }
 
-        function updateStatusBanner(portfolio) {
-            if (!portfolio) return;
-
-            const headerDiv = document.querySelector('.dashboard-header div:first-child');
-            let statusBanner = document.getElementById('statusBanner');
-
-            if (!statusBanner) {
-                statusBanner = document.createElement('div');
-                statusBanner.id = 'statusBanner';
-                statusBanner.style.cssText = `
-                    margin-top: 0.5rem;
-                    padding: 0.5rem;
-                    background: var(--info-bg);
-                    border: 1px solid var(--info);
-                    border-radius: var(--radius-sm);
-                    font-size: 0.875rem;
-                    color: var(--info);
-                `;
-                headerDiv.appendChild(statusBanner);
-            }
-
-            const posCount = portfolio?.positions_count ?? portfolio?.positions?.length ?? 0;
-            const importDate = portfolio?.portfolio_id?.includes('25-09-2025') ? '25/09/2025 18:40' : 'Date inconnue';
-
-            statusBanner.innerHTML = `
-                📊 Dernier import : ${importDate} • ${posCount} positions
-            `;
-        }
-
         // Initialize page
         document.addEventListener('DOMContentLoaded', async () => {
-            debugLogger.debug('Saxo Dashboard initialized');
+            debugLogger.debug('🏦 Saxo Dashboard initialized');
 
             // Initialize wealth context integration
             initWealthContextIntegration();
 
-            // Load available portfolios
-            await refreshPortfolios();
+            // Listen for Bourse source changes from WealthContextBar
+            window.addEventListener('bourseSourceChanged', (event) => {
+                debugLogger.debug('🔄 Bourse source changed:', event.detail);
+                // Reload data with new source
+                loadCurrentSaxoData();
+            });
+
+            // Load current Saxo data from active source
+            await loadCurrentSaxoData();
 
             // Initialize staleness monitoring
             refreshSaxoStaleness('saxo-staleness-main');

@@ -431,6 +431,21 @@ async def request_logger(request: Request, call_next):
                 duration_ms,
             )
 
+# Middleware no-cache en développement (pour éviter le cache navigateur des fichiers HTML)
+@app.middleware("http")
+async def no_cache_dev_middleware(request: Request, call_next):
+    response = await call_next(request)
+
+    # En mode DEBUG, désactiver le cache pour les fichiers HTML/CSS/JS
+    if DEBUG and request.url.path.startswith("/static"):
+        # Vérifier si c'est un fichier HTML, CSS ou JS
+        if any(request.url.path.endswith(ext) for ext in [".html", ".css", ".js"]):
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+
+    return response
+
 @app.get("/debug/paths")
 async def debug_paths():
     """Endpoint de diagnostic pour vérifier les chemins"""
