@@ -35,7 +35,8 @@
         import { selectCapPercent, selectPolicyCapPercent, selectEngineCapPercent } from './selectors/governance.js';
         // Note: fetchSaxoSummary imported dynamically in refreshSaxoTile() to avoid scope issues
 
-        const colorForScore = (s) => s > 70 ? 'var(--danger)' : s >= 40 ? 'var(--warning)' : 'var(--success)';
+        // ✅ Couleur conforme CLAUDE.md: Plus haut = plus robuste = VERT
+        const colorForScore = (s) => s > 70 ? 'var(--success)' : s >= 40 ? 'var(--warning)' : 'var(--danger)';
 
         async function refreshGI() {
             try {
@@ -1384,8 +1385,9 @@
                     debugLogger.warn('Failed to read persistent risk scores cache:', cacheErr);
                 }
 
-                // Dernier fallback: appeler directement l'API risk dashboard
-                console.debug('⚠️ No scores in localStorage, trying API direct call...');
+                // Dernier fallback: appeler l'API risk dashboard pour obtenir AU MOINS le risk score
+                // Note: onchain/ccs/blended ne sont PAS dans l'API, ils sont calculés côté frontend
+                console.debug('⚠️ No scores in localStorage, trying API for risk score only...');
                 try {
                     const activeUser = localStorage.getItem('activeUser') || 'demo';
                     const currentSource = globalConfig.get('data_source') || 'cointracking';
@@ -1396,27 +1398,27 @@
                         const riskMetrics = data.risk_metrics;
 
                         if (riskMetrics) {
-                            const out = {
-                                risk: riskMetrics.risk_score_v2 || riskMetrics.risk_score,
-                                onchain: riskMetrics.onchain_score,
-                                blended: riskMetrics.blended_score,
-                                ccs: riskMetrics.ccs_score,
-                                timestamp: Date.now()
-                            };
+                            // L'API ne fournit QUE le risk_score, pas onchain/ccs/blended
+                            const riskScore = riskMetrics.risk_version_info?.risk_score_v2 || riskMetrics.risk_score;
 
-                            // Stocker dans localStorage pour la prochaine fois
-                            try {
-                                localStorage.setItem(`risk_score_risk:${activeUser}`, out.risk?.toString() || '');
-                                localStorage.setItem(`risk_score_onchain:${activeUser}`, out.onchain?.toString() || '');
-                                localStorage.setItem(`risk_score_blended:${activeUser}`, out.blended?.toString() || '');
-                                localStorage.setItem(`risk_score_ccs:${activeUser}`, out.ccs?.toString() || '');
-                                localStorage.setItem(`risk_score_timestamp:${activeUser}`, out.timestamp.toString());
-                            } catch (storageErr) {
-                                debugLogger.warn('Could not store scores in localStorage:', storageErr);
+                            if (riskScore !== null && riskScore !== undefined) {
+                                const out = {
+                                    risk: riskScore,
+                                    // onchain/ccs/blended restent undefined - ils viennent du localStorage uniquement
+                                    timestamp: Date.now()
+                                };
+
+                                // Stocker SEULEMENT le risk score dans localStorage
+                                try {
+                                    localStorage.setItem(`risk_score_risk:${activeUser}`, out.risk.toString());
+                                    localStorage.setItem(`risk_score_timestamp:${activeUser}`, out.timestamp.toString());
+                                } catch (storageErr) {
+                                    debugLogger.warn('Could not store risk score in localStorage:', storageErr);
+                                }
+
+                                console.debug('✅ Risk score loaded from API (onchain/ccs/blended require frontend calculation):', out);
+                                return out;
                             }
-
-                            console.debug('✅ Scores loaded from API direct call:', out);
-                            return out;
                         }
                     }
                 } catch (apiErr) {
@@ -1586,17 +1588,20 @@
             const ageMin = timestamp ? Math.round((Date.now() - timestamp) / 60000) : null;
             const isStale = ageMin != null && ageMin >= STALE_MINUTES;
 
-            // Déterminer les couleurs en fonction des scores (rouge >70, orange 40-70, vert <40)
+            // Compter combien de scores sont disponibles
+            const availableScores = [risk, onchain, blended, ccs].filter(s => s !== null && s !== undefined).length;
+
+            // ✅ Couleurs conformes CLAUDE.md: Plus haut = plus robuste = VERT
             const getScoreColor = (score) => {
-                if (score > 70) return 'var(--danger)';
-                if (score >= 40) return 'var(--warning)';
-                return 'var(--success)';
+                if (score > 70) return 'var(--success)';  // Robuste = vert
+                if (score >= 40) return 'var(--warning)';  // Moyen = orange
+                return 'var(--danger)';  // Faible = rouge
             };
 
             const getScoreLabel = (score) => {
-                if (score > 70) return 'Élevé';
+                if (score > 70) return 'Robuste';  // Positif
                 if (score >= 40) return 'Moyen';
-                return 'Faible';
+                return 'Risqué';  // Négatif
             };
 
             let scoresHTML = '';
@@ -1665,7 +1670,14 @@
             container.innerHTML = `
                 <div style="display: grid; gap: 2px;">
                     ${scoresHTML}
-                    
+
+                    <!-- Message informatif si scores partiels -->
+                    ${availableScores > 0 && availableScores < 4 ? `
+                    <div style="text-align: center; font-size: 0.75em; color: var(--theme-text-muted); margin-top: 6px; padding: 4px; background: var(--theme-surface-elevated); border-radius: 4px;">
+                        💡 Visitez <a href="risk-dashboard.html" style="color: var(--brand-primary);">Risk Dashboard</a> pour calculer tous les scores
+                    </div>
+                    ` : ''}
+
                     <!-- Timestamp -->
                     ${timestamp ? `
                     <div style="text-align: center; font-size: 0.8em; color: var(--theme-text-muted); margin-top: 6px;">
