@@ -133,11 +133,11 @@ export async function renderTargetsContent() {
   const currentAllocation = await getCurrentPortfolioAllocation();
 
   container.innerHTML = `
-    <div class="risk-grid">
+    <div style="max-width: 1400px; margin: 0 auto; width: 100%;">
       <!-- Strategy Selection -->
-      <div class="risk-card" style="grid-column: 1 / -1;">
+      <div class="risk-card" style="margin-bottom: var(--space-lg);">
         <h3>🎯 Strategic Targeting</h3>
-        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--space-sm); margin: var(--space-lg) 0;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-sm); margin: var(--space-lg) 0;">
           <button class="refresh-btn" onclick="applyStrategy('macro')" style="background: #6b7280;">
             📊 Macro Only<br>
             <small>${macroProposal.strategy}</small>
@@ -161,33 +161,28 @@ export async function renderTargetsContent() {
         </div>
       </div>
 
-      <!-- Current vs Proposed -->
-      <div class="risk-card">
-        <h3>📋 Current Allocation</h3>
-        ${renderTargetsTable(currentAllocation, 'Portfolio Actuel')}
-      </div>
+      <!-- Current vs Proposed (Responsive Grid) -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 500px), 1fr)); gap: var(--space-lg); margin-bottom: var(--space-lg);">
+        <!-- Current Allocation -->
+        <div class="risk-card">
+          <h3>📋 Current Allocation</h3>
+          ${renderTargetsTable(currentAllocation, 'Portfolio Actuel')}
+        </div>
 
-      <div class="risk-card">
-        <h3>🎯 Proposed Targets</h3>
-        ${renderTargetsTable(appliedTargets, appliedStrategy)}
-        ${renderExposureDelta(smartProposal)}
-        <div style="margin-top: var(--space-lg); text-align: center; padding: var(--space-sm); background: var(--info-bg); border-radius: var(--radius-md); border: 1px solid var(--info);">
-          <div style="font-size: 0.875rem; color: var(--info); font-weight: 600; margin-bottom: var(--space-xs);">
-            💡 Nouvelle méthode d'application
-          </div>
-          <div style="font-size: 0.75rem; color: var(--theme-text-muted);">
-            Les targets sont maintenant synchronisés via <strong>rebalance.html</strong><br>
-            Utilisez le bouton "🎯 Sync CCS" dans les stratégies prédéfinies
-          </div>
+        <!-- Proposed Targets -->
+        <div class="risk-card">
+          <h3>🎯 Proposed Targets</h3>
+          ${renderTargetsTable(appliedTargets, appliedStrategy)}
+          ${renderExposureDelta(smartProposal)}
         </div>
       </div>
+
+      <!-- Action Plan -->
+      ${renderActionPlan(currentAllocation, appliedTargets)}
+
+      <!-- Decision History -->
+      ${renderDecisionHistory()}
     </div>
-
-    <!-- Action Plan -->
-    ${renderActionPlan(currentAllocation, appliedTargets)}
-
-    <!-- Decision History -->
-    ${renderDecisionHistory()}
   `;
 
   // Update badges with current data
@@ -202,7 +197,7 @@ export async function renderTargetsContent() {
 
 // ====== Targets Table Renderer ======
 /**
- * Render allocation table for a given strategy
+ * Render allocation table for a given strategy (2-column compact layout)
  * @param {Object} targets - Allocation targets by group
  * @param {string} strategy - Strategy name
  * @returns {string} HTML for the table
@@ -236,17 +231,55 @@ export function renderTargetsTable(targets, strategy) {
     `;
   }
 
+  // Helper to get color based on allocation percentage
+  const getAllocationColor = (pct) => {
+    if (pct >= 30) return 'var(--success)';
+    if (pct >= 10) return 'var(--theme-text)';
+    if (pct >= 1) return 'var(--theme-text-muted)';
+    return 'color-mix(in oklab, var(--theme-text-muted) 50%, transparent)';
+  };
+
+  // Helper to get icon based on asset category
+  const getCategoryIcon = (asset) => {
+    const icons = {
+      'BTC': '₿',
+      'ETH': 'Ξ',
+      'STABLES': '💵',
+      'L1': '🔷',
+      'L2': '⚡',
+      'DEFI': '🔄',
+      'MEMES': '🐸',
+      'GAMING': '🎮',
+      'AI': '🤖',
+      'REAL_WORLD_ASSETS': '🏛️',
+      'PRIVACY': '🔒',
+      'INFRA': '🛠️'
+    };
+    return icons[asset] || '●';
+  };
+
   return `
-    <div style="font-size: 0.75rem; color: var(--theme-text-muted); margin-bottom: var(--space-sm);">
-      ${strategy} (${model_version || 'unknown'})
-    </div>
-    <div class="risk-grid">
-      ${validEntries.map(([asset, allocation]) => `
-          <div class="metric-row">
-            <span class="metric-label">${asset}:</span>
-            <span class="metric-value">${allocation.toFixed(1)}%</span>
+    <div style="margin-bottom: var(--space-lg); width: 100%;">
+      <!-- Header -->
+      <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: var(--space-md); padding-bottom: var(--space-xs); border-bottom: 1px solid var(--theme-border);">
+        <span style="font-size: 0.95rem; font-weight: 600; color: var(--theme-text);">${strategy}</span>
+        <span style="font-size: 0.75rem; color: var(--theme-text-muted); font-family: monospace;">${model_version || 'unknown'}</span>
+      </div>
+
+      <!-- Responsive 2-Column Table (1 column on mobile) -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: var(--space-xs) var(--space-md);">
+        ${validEntries.map(([asset, allocation]) => `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.65rem 0.85rem; border-radius: var(--radius-sm); background: var(--theme-bg); border: 1px solid var(--theme-border); transition: all 0.2s;">
+            <span style="display: flex; align-items: center; gap: 0.6rem; color: var(--theme-text);">
+              <span style="opacity: 0.5; font-size: 1.1rem;">${getCategoryIcon(asset)}</span>
+              <span style="font-weight: 500; font-size: 1rem;">${asset}</span>
+            </span>
+            <span style="font-weight: 700; font-family: monospace; font-size: 1.05rem; color: ${getAllocationColor(allocation)};">
+              ${allocation.toFixed(1)}%
+            </span>
           </div>
         `).join('')}
+      </div>
     </div>
   `;
 }
@@ -266,15 +299,39 @@ export function renderExposureDelta(smart) {
     const backendStatus = smart.backend_status || 'unknown';
     const delta = Math.round((base - fin) * 10) / 10;
     const hasOverflow = delta > 0.05; // >0.05% considered meaningful
-    const capText = cap != null ? `${Math.round(cap)}%` : (backendStatus === 'error' ? '5% (fallback)' : 'n/a');
+
+    // Only show if we have meaningful data (cap exists OR backend error OR overflow)
+    const hasData = cap != null || backendStatus === 'error' || hasOverflow;
+    if (!hasData) return '';
+
+    const capText = cap != null ? `${Math.round(cap)}%` : '5% (fallback)';
+    const capColor = cap != null && cap >= 70 ? 'var(--success)' : cap != null && cap >= 50 ? 'var(--warning)' : 'var(--danger)';
 
     return `
-      <div style="margin-top: .75rem; padding: .6rem; border-radius: 6px; border: 1px solid var(--theme-border); background: var(--theme-bg);">
-        <div style="font-size:.85rem; color: var(--theme-text-muted);">
-          Cap d'exposition: <b>${capText}</b>
-          ${backendStatus === 'error' ? `<span style="margin-left:.5rem; color: var(--warning);">Backend indisponible — mode prudent</span>` : ''}
+      <div style="margin-top: var(--space-lg); padding: var(--space-md); border-radius: var(--radius-md); border: 2px solid ${cap != null ? 'var(--theme-border)' : 'var(--warning)'}; background: var(--theme-bg);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: ${hasOverflow ? 'var(--space-sm)' : '0'};">
+          <span style="font-size: 0.95rem; font-weight: 600; color: var(--theme-text);">
+            🛡️ Cap d'exposition risky
+          </span>
+          <span style="font-size: 1.1rem; font-weight: 700; font-family: monospace; color: ${capColor};">
+            ${capText}
+          </span>
         </div>
-        ${hasOverflow ? `<div style="margin-top:.25rem; font-size:.85rem; color: var(--warning);">Cible risky ${Math.round(base)}% → Cap ${Math.round(fin)}% (<b>−${delta} pts non exécutables</b>)</div>` : ''}
+        ${backendStatus === 'error' ? `
+          <div style="margin-top: var(--space-xs); font-size: 0.85rem; color: var(--warning);">
+            ⚠️ Backend risk budget indisponible — mode prudent (cap conservateur)
+          </div>
+        ` : ''}
+        ${hasOverflow ? `
+          <div style="margin-top: var(--space-xs); padding: var(--space-xs) var(--space-sm); border-radius: var(--radius-sm); background: color-mix(in oklab, var(--warning) 10%, transparent); border: 1px solid color-mix(in oklab, var(--warning) 30%, transparent);">
+            <div style="font-size: 0.9rem; color: var(--warning); font-weight: 600;">
+              ⚠️ Cap appliqué : ${Math.round(base)}% → ${Math.round(fin)}%
+            </div>
+            <div style="font-size: 0.85rem; color: var(--theme-text-muted); margin-top: 0.2rem;">
+              −${delta}% d'exposition non exécutable (protection contre surrisque)
+            </div>
+          </div>
+        ` : ''}
       </div>
     `;
   } catch { return ''; }
@@ -282,7 +339,7 @@ export function renderExposureDelta(smart) {
 
 // ====== Action Plan Renderer ======
 /**
- * Render action plan showing differences between current and proposed
+ * Render action plan showing differences between current and proposed (2-column compact layout)
  * @param {Object} current - Current allocation
  * @param {Object} proposed - Proposed allocation
  * @returns {string} HTML for action plan
@@ -302,36 +359,96 @@ export function renderActionPlan(current, proposed) {
       `;
     }
 
+    // Separate buy and sell actions
+    const buyActions = plan.actions.filter(a => a.action === 'buy');
+    const sellActions = plan.actions.filter(a => a.action === 'sell');
+
     return `
-      <div class="risk-card">
+      <div class="risk-card" style="margin-bottom: var(--space-lg);">
         <h3>📝 Action Plan</h3>
-        <div style="font-size: 0.875rem; color: var(--theme-text-muted); margin-bottom: var(--space-lg);">
-          ${plan.num_changes} changes needed • ${plan.total_reallocation.toFixed(1)}% to reallocate • Complexity: ${plan.complexity}
+
+        <!-- Summary Stats (Responsive) -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space-md); margin-bottom: var(--space-lg); padding: var(--space-md); background: var(--theme-bg); border-radius: var(--radius-md); border: 1px solid var(--theme-border);">
+          <div style="text-align: center;">
+            <div style="font-size: 1.75rem; font-weight: 700; color: var(--theme-text);">${plan.num_changes}</div>
+            <div style="font-size: 0.85rem; color: var(--theme-text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Changes</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-size: 1.75rem; font-weight: 700; color: var(--info);">${plan.total_reallocation.toFixed(1)}%</div>
+            <div style="font-size: 0.85rem; color: var(--theme-text-muted); text-transform: uppercase; letter-spacing: 0.05em;">To Reallocate</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-size: 1.75rem; font-weight: 700; color: ${plan.complexity === 'low' ? 'var(--success)' : plan.complexity === 'medium' ? 'var(--warning)' : 'var(--danger)'};">${plan.complexity}</div>
+            <div style="font-size: 0.85rem; color: var(--theme-text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Complexity</div>
+          </div>
         </div>
-        <div class="risk-grid">
-          ${plan.actions.map(action => {
-            // Validate action has required properties (support both formats: _pct and non-_pct)
-            const amount = action.change_pct ?? action.amount;
-            const current = action.current_pct ?? action.current;
-            const target = action.target_pct ?? action.target;
 
-            if (!action || !action.asset || amount == null || current == null || target == null) {
-              debugLogger.warn('[renderActionPlan] Invalid action (missing required fields):', action);
-              return '';
-            }
+        <!-- Actions Grid (Responsive: 2 columns on desktop, 1 on mobile) -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 350px), 1fr)); gap: var(--space-lg);">
 
-            const color = action.action === 'buy' ? 'var(--success)' : 'var(--danger)';
-            const icon = action.action === 'buy' ? '🟢' : '🔴';
+          <!-- Buy Actions -->
+          <div>
+            <div style="display: flex; align-items: center; gap: var(--space-xs); margin-bottom: var(--space-md); padding-bottom: var(--space-xs); border-bottom: 2px solid var(--success);">
+              <span style="font-size: 1.1rem;">🟢</span>
+              <span style="font-size: 0.95rem; font-weight: 700; color: var(--success); text-transform: uppercase; letter-spacing: 0.05em;">Buy (${buyActions.length})</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: var(--space-xs);">
+              ${buyActions.length === 0 ? '<div style="text-align: center; color: var(--theme-text-muted); font-size: 0.75rem; padding: var(--space-md);">No buy actions</div>' : ''}
+              ${buyActions.map(action => {
+                const amount = action.change_pct ?? action.amount;
+                const current = action.current_pct ?? action.current;
+                const target = action.target_pct ?? action.target;
 
-            return `
-              <div class="metric-row">
-                <span class="metric-label">${icon} ${action.asset}:</span>
-                <span class="metric-value" style="color: ${color};">
-                  ${action.action === 'buy' ? '+' : ''}${amount.toFixed(1)}% (${current.toFixed(1)}% → ${target.toFixed(1)}%)
-                </span>
-              </div>
-            `;
-          }).join('')}
+                if (!action || !action.asset || amount == null || current == null || target == null) {
+                  return '';
+                }
+
+                return `
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.7rem 0.9rem; border-radius: var(--radius-sm); background: color-mix(in oklab, var(--success) 5%, transparent); border: 1px solid color-mix(in oklab, var(--success) 20%, transparent); transition: all 0.2s;">
+                    <div style="display: flex; flex-direction: column; gap: 0.2rem;">
+                      <span style="font-weight: 600; color: var(--theme-text); font-size: 1rem;">${action.asset}</span>
+                      <span style="font-size: 0.85rem; color: var(--theme-text-muted); font-family: monospace;">${current.toFixed(1)}% → ${target.toFixed(1)}%</span>
+                    </div>
+                    <span style="font-weight: 700; font-family: monospace; color: var(--success); font-size: 1.1rem;">
+                      +${amount.toFixed(1)}%
+                    </span>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+
+          <!-- Sell Actions -->
+          <div>
+            <div style="display: flex; align-items: center; gap: var(--space-xs); margin-bottom: var(--space-md); padding-bottom: var(--space-xs); border-bottom: 2px solid var(--danger);">
+              <span style="font-size: 1.1rem;">🔴</span>
+              <span style="font-size: 0.95rem; font-weight: 700; color: var(--danger); text-transform: uppercase; letter-spacing: 0.05em;">Sell (${sellActions.length})</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: var(--space-xs);">
+              ${sellActions.length === 0 ? '<div style="text-align: center; color: var(--theme-text-muted); font-size: 0.75rem; padding: var(--space-md);">No sell actions</div>' : ''}
+              ${sellActions.map(action => {
+                const amount = action.change_pct ?? action.amount;
+                const current = action.current_pct ?? action.current;
+                const target = action.target_pct ?? action.target;
+
+                if (!action || !action.asset || amount == null || current == null || target == null) {
+                  return '';
+                }
+
+                return `
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.7rem 0.9rem; border-radius: var(--radius-sm); background: color-mix(in oklab, var(--danger) 5%, transparent); border: 1px solid color-mix(in oklab, var(--danger) 20%, transparent); transition: all 0.2s;">
+                    <div style="display: flex; flex-direction: column; gap: 0.2rem;">
+                      <span style="font-weight: 600; color: var(--theme-text); font-size: 1rem;">${action.asset}</span>
+                      <span style="font-size: 0.85rem; color: var(--theme-text-muted); font-family: monospace;">${current.toFixed(1)}% → ${target.toFixed(1)}%</span>
+                    </div>
+                    <span style="font-weight: 700; font-family: monospace; color: var(--danger); font-size: 1.1rem;">
+                      ${amount.toFixed(1)}%
+                    </span>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
         </div>
       </div>
     `;
@@ -351,7 +468,7 @@ export function renderDecisionHistory() {
 
   if (history.length === 0) {
     return `
-      <div class="risk-card">
+      <div class="risk-card" style="margin-bottom: var(--space-lg);">
         <h3>📚 Decision History</h3>
         <p style="text-align: center; color: var(--theme-text-muted);">No previous decisions</p>
       </div>
@@ -359,23 +476,25 @@ export function renderDecisionHistory() {
   }
 
   return `
-    <div class="risk-card">
+    <div class="risk-card" style="margin-bottom: var(--space-lg);">
       <h3>📚 Decision History</h3>
-      <div style="font-size: 0.75rem; color: var(--theme-text-muted); margin-bottom: var(--space-sm);">
+      <div style="font-size: 0.85rem; color: var(--theme-text-muted); margin-bottom: var(--space-md);">
         Last ${history.length} decisions
       </div>
-      ${history.map(entry => `
-        <div class="metric-row" style="border-bottom: 1px solid var(--theme-border); padding: var(--space-sm) 0;">
-          <div>
-            <div style="font-weight: 500;">${entry.strategy}</div>
-            <div style="font-size: 0.75rem; opacity: 0.7;">
-              ${new Date(entry.timestamp).toLocaleString()} •
-              CCS: ${Math.round(entry.ccs_score || 0)} •
-              Confidence: ${Math.round((entry.confidence || 0) * 100)}%
+      <div style="display: flex; flex-direction: column; gap: var(--space-sm);">
+        ${history.map(entry => `
+          <div style="border-bottom: 1px solid var(--theme-border); padding: var(--space-sm) 0;">
+            <div style="font-size: 0.95rem; font-weight: 500; margin-bottom: var(--space-xs);">${entry.strategy}</div>
+            <div style="font-size: 0.8rem; color: var(--theme-text-muted); display: flex; flex-wrap: wrap; gap: var(--space-xs);">
+              <span>${new Date(entry.timestamp).toLocaleString()}</span>
+              <span>•</span>
+              <span>CCS: ${Math.round(entry.ccs_score || 0)}</span>
+              <span>•</span>
+              <span>Confidence: ${Math.round((entry.confidence || 0) * 100)}%</span>
             </div>
           </div>
-        </div>
-      `).join('')}
+        `).join('')}
+      </div>
     </div>
   `;
 }
