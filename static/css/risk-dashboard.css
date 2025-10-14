@@ -295,34 +295,64 @@
   color: var(--theme-text-muted);
 }
 
-/* ===== Onglets ===== */
+/* ===== Onglets - Modern Styled Tabs ===== */
 .tabs {
   display: flex;
-  border-bottom: 1px solid var(--theme-border);
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md) 0;
   background: var(--theme-bg);
+  border-bottom: 2px solid var(--theme-border);
+  position: relative;
 }
 
 .tab-button {
   flex: 1;
-  padding: var(--space-lg);
-  background: none;
-  border: none;
+  padding: var(--space-md) var(--space-lg);
+  background: var(--theme-bg);
+  border: 1px solid var(--theme-border);
+  border-bottom: none;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
   color: var(--theme-text-muted);
-  font-weight: 500;
+  font-size: 0.95rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: all var(--transition-normal);
-  border-bottom: 3px solid transparent;
+  transition: all var(--transition-fast);
+  position: relative;
+  transform: translateY(0);
+}
+
+.tab-button::before {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: transparent;
+  transition: all var(--transition-fast);
 }
 
 .tab-button:hover {
   color: var(--theme-text);
-  background: var(--theme-surface);
+  background: color-mix(in oklab, var(--theme-surface) 80%, var(--brand-primary) 5%);
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--theme-border) 50%, var(--brand-primary) 30%);
 }
 
 .tab-button.active {
   color: var(--brand-primary);
-  border-bottom-color: var(--brand-primary);
   background: var(--theme-surface);
+  border-color: var(--theme-border);
+  border-bottom-color: transparent;
+  transform: translateY(2px);
+  box-shadow:
+    0 -2px 8px color-mix(in oklab, var(--brand-primary) 10%, transparent),
+    inset 0 1px 0 color-mix(in oklab, var(--brand-primary) 15%, transparent);
+}
+
+.tab-button.active::before {
+  background: var(--brand-primary);
+  box-shadow: 0 0 8px var(--brand-primary);
 }
 
 .tab-content {
