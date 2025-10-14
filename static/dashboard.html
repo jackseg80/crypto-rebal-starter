@@ -145,7 +145,8 @@
                 const cycle = Math.round(st.cycle?.ccsStar ?? st.cycle?.score ?? 0);
                 const onch = st.scores?.onchain ?? null;
                 const risk = st.scores?.risk ?? null;
-                const score = blended != null ? Math.round(blended) : Math.round(((cycle || 50) * 0.5) + ((onch ?? 50) * 0.3) + ((100 - (risk ?? 50)) * 0.2));
+                // ✅ Risk Score utilisé directement (pas d'inversion) - conforme CLAUDE.md
+                const score = blended != null ? Math.round(blended) : Math.round(((cycle || 50) * 0.5) + ((onch ?? 50) * 0.3) + ((risk ?? 50) * 0.2));
 
                 const el = document.getElementById('gi-score');
                 if (el) { el.textContent = score; el.style.color = colorForScore(score); }
@@ -1111,78 +1112,15 @@
             }
         }
 
-        // Fallback function to load CSV directly when API is not available
+        // Fallback: API should always be available with new architecture
         async function loadDirectCSV() {
             const configuredSource = globalConfig.get('data_source');
-            console.debug(`📄 Loading CSV files directly for source: ${configuredSource}`);
-
-            // Only use direct CSV access for cointracking source
-            if (configuredSource === 'cointracking') {
-                const csvFiles = [
-                    'data/raw/CoinTracking - Current Balance.csv',
-                    'data/raw/CoinTracking - Balance by Exchange - 26.08.2025.csv'
-                ];
-
-                for (const csvFile of csvFiles) {
-                    try {
-                        debugLogger.debug(`📄 Attempting to load: ${csvFile}`);
-                        const response = await fetch(csvFile);
-                        if (response.ok) {
-                            const csvText = await response.text();
-                            debugLogger.debug(`✅ Successfully loaded ${csvFile} (${csvText.length} characters)`);
-                            return {
-                                success: true,
-                                csvText: csvText,
-                                source: 'csv_direct',
-                                file: csvFile
-                            };
-                        }
-                    } catch (fileError) {
-                        debugLogger.debug(`⚠️ Could not load ${csvFile}:`, fileError.message);
-                    }
-                }
-            } else {
-                // For stub sources or others, create fallback stub data
-                console.debug(`📊 Creating fallback stub data for source: ${configuredSource}`);
-                return createStubBalanceData(configuredSource);
-            }
+            console.warn(`⚠️ API not available, cannot load data for source: ${configuredSource}`);
 
             return {
                 success: false,
-                error: `No data accessible for source: ${configuredSource}`,
+                error: `API not available - please ensure backend is running`,
                 source: configuredSource
-            };
-        }
-
-        // Create fallback stub data based on configured source
-        function createStubBalanceData(source) {
-            const stubData = {
-                stub_conservative: [
-                    { symbol: 'BTC', balance: 0.5, value_usd: 50000, price_change_percentage_24h: 2.1 },
-                    { symbol: 'ETH', balance: 5, value_usd: 20000, price_change_percentage_24h: 1.8 },
-                    { symbol: 'USDC', balance: 10000, value_usd: 10000, price_change_percentage_24h: 0.1 }
-                ],
-                stub_balanced: [
-                    { symbol: 'BTC', balance: 1.5, value_usd: 150000, price_change_percentage_24h: -1.2 },
-                    { symbol: 'ETH', balance: 10, value_usd: 40000, price_change_percentage_24h: -2.5 },
-                    { symbol: 'SOL', balance: 100, value_usd: 15000, price_change_percentage_24h: 3.2 },
-                    { symbol: 'LINK', balance: 500, value_usd: 12000, price_change_percentage_24h: 1.5 },
-                    { symbol: 'USDT', balance: 8000, value_usd: 8000, price_change_percentage_24h: 0.0 }
-                ],
-                stub_shitcoins: [
-                    { symbol: 'DOGE', balance: 100000, value_usd: 20000, price_change_percentage_24h: 15.2 },
-                    { symbol: 'SHIB', balance: 50000000, value_usd: 15000, price_change_percentage_24h: -8.5 },
-                    { symbol: 'PEPE', balance: 1000000000, value_usd: 10000, price_change_percentage_24h: 25.7 },
-                    { symbol: 'BONK', balance: 2000000, value_usd: 5000, price_change_percentage_24h: -12.3 }
-                ]
-            };
-
-            const balances = stubData[source] || stubData['stub_balanced'];
-
-            return {
-                success: true,
-                data: { items: balances, source_used: source + '_fallback' },
-                source: source + '_fallback'
             };
         }
 
@@ -1315,26 +1253,62 @@
 
         async function loadConnectionsStatus() {
             try {
-                return { binance: { name: "Binance", connected: true }, kraken: { name: "Kraken", connected: true }, coinbase: { name: "Coinbase", connected: false } };
-            } catch (e) { log.error('Erreur connexions:', e); return null; }
-        }
+                // TODO: Implement real API endpoint /api/exchanges/status
+                // For now, check if exchanges are configured via API keys in backend
+                debugLogger.debug('📡 Loading exchange connections status...');
 
+                // Temporary: Return mock data based on actual exchange adapter registrations
+                // The exchange_adapter.py registers exchanges: simulator, binance, kraken
+                return {
+                    binance: {
+                        name: "Binance",
+                        connected: false,  // Will be true when API keys are configured
+                        type: "centralized"
+                    },
+                    kraken: {
+                        name: "Kraken",
+                        connected: false,  // Will be true when API keys are configured
+                        type: "centralized"
+                    },
+                    simulator: {
+                        name: "Simulator",
+                        connected: true,  // Always available
+                        type: "simulator"
+                    }
+                };
+            } catch (e) {
+                debugLogger.warn('Exchange status check failed:', e);
+                return null;
+            }
+        }
 
         async function loadRecentHistory() {
             try {
-                return {
-                    sessions: [
-                        { exchange: "Binance", total_orders: 3, successful_orders: 3, total_volume_usd: 1250.50, timestamp: new Date(Date.now() - 3600000).toISOString() },
-                        { exchange: "Kraken", total_orders: 2, successful_orders: 2, total_volume_usd: 890.25, timestamp: new Date(Date.now() - 7200000).toISOString() }
-                    ]
-                };
-            } catch (e) { log.error('Erreur historique:', e); return null; }
+                // Load from execution history API
+                const response = await fetch(`${window.location.origin}/api/execution/history/recent?limit=5`);
+                if (response.ok) {
+                    const data = await response.json();
+                    return { sessions: data.sessions || [] };
+                }
+                return { sessions: [] };
+            } catch (e) {
+                debugLogger.warn('Execution history not available:', e);
+                return { sessions: [] };
+            }
         }
 
         async function loadExecutionStatus() {
             try {
-                return { recent_24h: { total_orders: 5, success_rate: 96.5, total_volume: 2140.75 } };
-            } catch (e) { log.error('Erreur statut exécution:', e); return null; }
+                // Load from execution status API
+                const response = await fetch(`${window.location.origin}/api/execution/status/24h`);
+                if (response.ok) {
+                    return await response.json();
+                }
+                return null;
+            } catch (e) {
+                debugLogger.warn('Execution status not available:', e);
+                return null;
+            }
         }
 
         // Charger les données de score depuis le risk dashboard
@@ -1410,8 +1384,47 @@
                     debugLogger.warn('Failed to read persistent risk scores cache:', cacheErr);
                 }
 
-                // Si pas de scores disponibles, retourner null
-                console.debug('⚠️ No scores available (localStorage or cache)');
+                // Dernier fallback: appeler directement l'API risk dashboard
+                console.debug('⚠️ No scores in localStorage, trying API direct call...');
+                try {
+                    const activeUser = localStorage.getItem('activeUser') || 'demo';
+                    const currentSource = globalConfig.get('data_source') || 'cointracking';
+                    const response = await fetch(`${window.location.origin}/api/risk/dashboard?user_id=${activeUser}&source=${currentSource}&use_dual_window=true&risk_version=v2_active`);
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        const riskMetrics = data.risk_metrics;
+
+                        if (riskMetrics) {
+                            const out = {
+                                risk: riskMetrics.risk_score_v2 || riskMetrics.risk_score,
+                                onchain: riskMetrics.onchain_score,
+                                blended: riskMetrics.blended_score,
+                                ccs: riskMetrics.ccs_score,
+                                timestamp: Date.now()
+                            };
+
+                            // Stocker dans localStorage pour la prochaine fois
+                            try {
+                                localStorage.setItem(`risk_score_risk:${activeUser}`, out.risk?.toString() || '');
+                                localStorage.setItem(`risk_score_onchain:${activeUser}`, out.onchain?.toString() || '');
+                                localStorage.setItem(`risk_score_blended:${activeUser}`, out.blended?.toString() || '');
+                                localStorage.setItem(`risk_score_ccs:${activeUser}`, out.ccs?.toString() || '');
+                                localStorage.setItem(`risk_score_timestamp:${activeUser}`, out.timestamp.toString());
+                            } catch (storageErr) {
+                                debugLogger.warn('Could not store scores in localStorage:', storageErr);
+                            }
+
+                            console.debug('✅ Scores loaded from API direct call:', out);
+                            return out;
+                        }
+                    }
+                } catch (apiErr) {
+                    debugLogger.warn('API direct call failed:', apiErr);
+                }
+
+                // Si vraiment rien n'est disponible, retourner null
+                console.debug('⚠️ No scores available from any source');
                 return null;
 
             } catch (e) {
@@ -1887,30 +1900,27 @@
             }
         }
 
-        // Cache local pour l'API taxonomy
+        // Cache local pour l'API taxonomy - chargé de manière asynchrone au démarrage
         let taxonomyAPICache = null;
 
-        // Fonction pour récupérer directement depuis l'API taxonomy (synchrone)
-        function getGroupFromTaxonomyAPI(symbol) {
-            if (!taxonomyAPICache) {
-                try {
-                    // Chargement synchrone de la taxonomy
-                    const xhr = new XMLHttpRequest();
-                    xhr.open('GET', '/taxonomy', false); // false = synchrone
-                    xhr.send();
-
-                    if (xhr.status === 200) {
-                        const data = JSON.parse(xhr.responseText);
-                        taxonomyAPICache = data.aliases || {};
-                        debugLogger.debug('✅ Taxonomy API loaded synchronously for dashboard fallback');
-                    }
-                } catch (e) {
-                    debugLogger.warn('Failed to load taxonomy API for fallback:', e);
-                    taxonomyAPICache = {};
+        // Chargement asynchrone de la taxonomy au démarrage de la page
+        (async function loadTaxonomyCache() {
+            try {
+                const response = await fetch('/taxonomy');
+                if (response.ok) {
+                    const data = await response.json();
+                    taxonomyAPICache = data.aliases || {};
+                    debugLogger.debug('✅ Taxonomy cache loaded asynchronously');
                 }
+            } catch (e) {
+                debugLogger.warn('Could not preload taxonomy cache:', e);
             }
+        })();
 
-            return taxonomyAPICache[symbol] || null;
+        // Fonction pour récupérer depuis le cache taxonomy (pas de chargement synchrone)
+        function getGroupFromTaxonomyAPI(symbol) {
+            // Utilise seulement le cache si déjà chargé - pas de XHR synchrone bloquant
+            return taxonomyAPICache ? (taxonomyAPICache[symbol] || null) : null;
         }
 
         // Fonction de classification basique en cas d'urgence
