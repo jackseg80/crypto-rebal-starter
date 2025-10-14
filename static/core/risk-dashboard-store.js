@@ -57,6 +57,15 @@ const initialStateFactory = () => ({
     multiplier: 1.0
   },
 
+  // ✅ FIX: Scores data (must be persisted to survive F5)
+  scores: {
+    onchain: null,
+    risk: null,
+    blended: null,
+    onchain_metadata: null,
+    contradictory_signals: null
+  },
+
   // Targets
   targets: {
     current: null,
@@ -143,6 +152,7 @@ const storeActions = {
     const toSave = {
       ccs: state.ccs,
       cycle: state.cycle,
+      scores: state.scores,  // ✅ FIX: Persist scores to survive F5
       targets: state.targets,
       governance: state.governance,
       timestamp: Date.now()
@@ -150,6 +160,11 @@ const storeActions = {
 
     try {
       localStorage.setItem(key, JSON.stringify(toSave));
+      console.debug('✅ Store persisted with scores:', {
+        onchain: state.scores?.onchain,
+        risk: state.scores?.risk,
+        blended: state.scores?.blended
+      });
     } catch (error) {
       (window.debugLogger?.warn || console.warn)('Failed to persist state:', error);
     }
@@ -160,7 +175,7 @@ const storeActions = {
     try {
       const saved = localStorage.getItem(key);
       if (saved) {
-        const { ccs, cycle, targets, governance, timestamp } = JSON.parse(saved);
+        const { ccs, cycle, scores, targets, governance, timestamp } = JSON.parse(saved);
 
         // Only restore if not too old (1 hour max)
         if (Date.now() - timestamp < 60 * 60 * 1000) {
@@ -168,11 +183,20 @@ const storeActions = {
             ...prevState,
             ccs: { ...prevState.ccs, ...ccs },
             cycle: { ...prevState.cycle, ...cycle },
+            scores: { ...prevState.scores, ...scores },  // ✅ FIX: Restore scores after F5
             targets: { ...prevState.targets, ...targets },
             governance: { ...prevState.governance, ...governance },
+            _hydration_timestamp: timestamp  // ✅ FIX: Add timestamp for dashboard.html compatibility
           }), 'hydrate');
 
-          console.debug('State hydrated from localStorage');
+          console.debug('✅ Store hydrated from localStorage with scores:', {
+            onchain: scores?.onchain,
+            risk: scores?.risk,
+            blended: scores?.blended,
+            timestamp: new Date(timestamp).toLocaleString()
+          });
+        } else {
+          console.debug('⚠️ Persisted state too old, skipping hydration');
         }
       }
     } catch (error) {
@@ -663,6 +687,9 @@ subscribe(() => {
   clearTimeout(persistTimeout);
   persistTimeout = setTimeout(() => storeActions.persist(), 1000);
 });
+
+// ✅ FIX: Auto-hydrate on module load to restore scores after F5
+storeActions.hydrate();
 
 export function selectFreshness(s) {
   const ts = s?.governance?.ml_signals_timestamp;
