@@ -130,8 +130,7 @@
           <div class="tab-pane" id="targets-tab" role="tabpanel" aria-labelledby="targets">
             <div id="targets-badge-container" style="float: right; margin-bottom: 1rem;"></div>
             <div id="targets-content">
-              <h3>🎯 Strategic Targets</h3>
-              <p>Target management will be implemented here...</p>
+              <div class="loading">Loading strategic targets...</div>
             </div>
           </div>
 
@@ -2889,51 +2888,11 @@
     // Expose for modules
     window.BITCOIN_HALVINGS = BITCOIN_HALVINGS;
 
-    // ----------- Fetch historique BTC fiable (sans mock) -----------
-    // fetchBitcoinHistoricalData() moved to modules/risk-cycles-tab.js or risk-targets-tab.js
-
-    // Create Bitcoin cycle chart
-    // createBitcoinCycleChart() moved to modules/risk-cycles-tab.js or risk-targets-tab.js
-
-    // Make chart creator available to lazy-loaded component
-    // Ensures BitcoinCycleChart.init() can call it after Chart.js loads
-    if (!window.createBitcoinCycleChart) {
-      window.createBitcoinCycleChart = createBitcoinCycleChart;
-    }
-
-    // ====== On-Chain Indicators (version themée) ======
-    // loadOnChainIndicators() moved to modules/risk-cycles-tab.js or risk-targets-tab.js
-
-    // ====== Cycles Content ======
-
-    /**
-     * Cached version of renderCyclesContent - checks cache before rendering
-     */
-    // renderCyclesContent() moved to modules/risk-cycles-tab.js or risk-targets-tab.js
-
-    /**
-     * Original renderCyclesContent function - always renders fresh content
-     */
-    // renderCyclesContentUncached() moved to modules/risk-cycles-tab.js or risk-targets-tab.js
-
-    /**
-     * Recreate cached chart - called when using cached HTML content
-     */
-    // recreateCachedChart() moved to modules/risk-cycles-tab.js or risk-targets-tab.js
-
-    // ====== Portfolio Allocation Helper ======
-    // getCurrentPortfolioAllocation() moved to modules/risk-cycles-tab.js or risk-targets-tab.js
-
-    // ====== Targets Content ======
-    // renderTargetsContent() moved to modules/risk-cycles-tab.js or risk-targets-tab.js
-
-    // renderTargetsTable() moved to modules/risk-cycles-tab.js or risk-targets-tab.js
-
-    // renderExposureDelta() moved to modules/risk-cycles-tab.js or risk-targets-tab.js
-
-    // renderActionPlan() moved to modules/risk-cycles-tab.js or risk-targets-tab.js
-
-    // renderDecisionHistory() moved to modules/risk-cycles-tab.js or risk-targets-tab.js
+    // ====== Tab-specific rendering functions ======
+    // All tab-specific rendering functions have been moved to dedicated modules:
+    // - Cycles tab: modules/risk-cycles-tab.js (Bitcoin chart, on-chain indicators, cycle analysis)
+    // - Targets tab: modules/risk-targets-tab.js (allocation tables, action plans, decision history)
+    // These modules are imported at the top of the file and called via switchTab()
 
     function renderError(message) {
       document.getElementById('risk-dashboard-content').innerHTML = `
@@ -3240,15 +3199,6 @@ dans les 10 000 scénarios.`;
     });
 
     // ====== Global Functions for UI Interaction ======
-
-    // Apply specific strategy - NOW USES GOVERNANCE
-    // window.applyStrategy() moved to modules/risk-cycles-tab.js or risk-targets-tab.js
-
-
-    // ====== Force Cycle Refresh ======
-    // window.forceCycleRefresh() moved to modules/risk-cycles-tab.js or risk-targets-tab.js
-
-    // Global functions for backwards compatibility
     window.refreshDashboard = refreshDashboard;
     window.testEndpoint = testEndpoint;
     // Expose options menu helpers
