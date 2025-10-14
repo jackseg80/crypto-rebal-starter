@@ -1319,6 +1319,24 @@
 
                 // Essayer de récupérer les scores depuis localStorage (stockés par risk-dashboard)
                 const __user = localStorage.getItem('activeUser') || 'demo';
+
+                // ⚠️ MIGRATION: Nettoyer les anciennes clés avec strings vides (bug pré-correction)
+                // Ces clés corrompues empêchent la lecture correcte des scores
+                const keysToClean = ['risk_score_onchain', 'risk_score_risk', 'risk_score_blended', 'risk_score_ccs'];
+                keysToClean.forEach(k => {
+                    const withPrefix = localStorage.getItem(`${k}:${__user}`);
+                    const withoutPrefix = localStorage.getItem(k);
+                    // Si la valeur est '' (string vide), la supprimer
+                    if (withPrefix === '') {
+                        console.debug(`🧹 Cleaning corrupted key: ${k}:${__user}`);
+                        localStorage.removeItem(`${k}:${__user}`);
+                    }
+                    if (withoutPrefix === '') {
+                        console.debug(`🧹 Cleaning corrupted key: ${k}`);
+                        localStorage.removeItem(k);
+                    }
+                });
+
                 // ✅ FIX: Ne pas utiliser || pour éviter les strings vides de polluer la lecture
                 // Lire SEULEMENT la valeur avec prefix pour éviter les incohérences multi-user
                 const get = (k) => {
