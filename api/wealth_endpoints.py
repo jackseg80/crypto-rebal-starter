@@ -455,12 +455,20 @@ async def global_summary(
 
     # 2) Saxo (with file_key support)
     try:
-        if await _module_available("saxo", user_id):
+        logger.info(f"[wealth][global] 🔍 Checking Saxo availability for user={user_id}")
+        saxo_available = await _module_available("saxo", user_id)
+        logger.info(f"[wealth][global] 📊 Saxo available: {saxo_available}")
+
+        if saxo_available:
+            logger.info(f"[wealth][global] 📂 Loading Saxo positions with file_key={bourse_file_key}")
             saxo_positions = await saxo_adapter.list_positions(user_id=user_id, file_key=bourse_file_key)
+            logger.info(f"[wealth][global] 📋 Got {len(saxo_positions)} Saxo positions")
             breakdown["saxo"] = sum((p.market_value or 0.0) for p in saxo_positions)
-            logger.info(f"[wealth][global] saxo={breakdown['saxo']:.2f} USD for user={user_id} file_key={bourse_file_key}")
+            logger.info(f"[wealth][global] ✅ saxo={breakdown['saxo']:.2f} USD for user={user_id} file_key={bourse_file_key}")
+        else:
+            logger.warning(f"[wealth][global] ⚠️ Saxo module not available for user={user_id}")
     except Exception as e:
-        logger.warning(f"[wealth][global] saxo failed for user={user_id}: {e}")
+        logger.error(f"[wealth][global] ❌ saxo failed for user={user_id}: {e}", exc_info=True)
 
     # 3) Banks
     try:

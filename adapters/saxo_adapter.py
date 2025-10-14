@@ -49,18 +49,30 @@ def _load_from_sources_fallback(user_id: Optional[str] = None, file_key: Optiona
 
         # 1. Essayer data/ (nouveau système unifié)
         data_files = user_fs.glob_files("saxobank/data/*.csv")
+        logger.info(f"[saxo_adapter] Found {len(data_files)} CSV files for user {user_id}: {[Path(f).name for f in data_files]}")
+
         if data_files:
             # Si file_key fourni, chercher le fichier correspondant
             if file_key:
+                logger.info(f"[saxo_adapter] Searching for file_key: {file_key}")
                 target_file = None
                 for f in data_files:
                     if Path(f).name == file_key or file_key in Path(f).name:
                         target_file = f
+                        logger.info(f"[saxo_adapter] MATCH FOUND: {Path(f).name}")
                         break
 
                 if target_file:
-                    logger.debug(f"Using Saxo file (user choice) for user {user_id}: {target_file}")
-                    return _parse_saxo_csv(target_file, "saxo_data", user_id=user_id)
+                    logger.info(f"[saxo_adapter] ✅ Using Saxo file (user choice) for user {user_id}: {target_file}")
+                    parsed = _parse_saxo_csv(target_file, "saxo_data", user_id=user_id)
+                    # Calculate total from positions, not portfolios
+                    total_from_positions = 0.0
+                    for portfolio in parsed.get("portfolios", []):
+                        for position in portfolio.get("positions", []):
+                            total_from_positions += float(position.get("market_value_usd", 0) or 0.0)
+                    logger.info(f"[saxo_adapter] ✅ Loaded file total from positions: ${total_from_positions:.2f}")
+                    logger.info(f"[saxo_adapter] 📊 Portfolio summary total: ${portfolio.get('summary', {}).get('total_value_usd', 0):.2f}")
+                    return parsed
                 else:
                     logger.warning(f"Requested file_key '{file_key}' not found, falling back to latest")
 
@@ -358,8 +370,13 @@ def _iter_positions(user_id: Optional[str] = None, file_key: Optional[str] = Non
 
 
 def _total_value(user_id: Optional[str] = None, file_key: Optional[str] = None) -> float:
+    """Calculate total portfolio value in USD from all positions."""
     snapshot = _load_snapshot(user_id, file_key=file_key)
-    return sum(float(p.get("total_value_usd") or 0.0) for p in snapshot.get("portfolios", []))
+    total = 0.0
+    for portfolio in snapshot.get("portfolios", []):
+        for position in portfolio.get("positions", []):
+            total += float(position.get("market_value_usd", 0) or 0.0)
+    return total
 
 
 async def list_accounts(user_id: Optional[str] = None) -> List[AccountModel]:
@@ -438,23 +455,19 @@ async def list_positions(user_id: Optional[str] = None, file_key: Optional[str] 
         quantity = float(position.get("quantity") or 0.0)
         if not symbol or quantity == 0:
             continue
-        market_value = float(position.get("market_value") or 0.0) or None
-        weight = (market_value or 0.0) / total if total else None
+        # ✅ FIX: Use market_value_usd instead of market_value (which is in local currency EUR/CHF/etc)
+        # The PositionModel.market_value field should contain USD values for aggregation
+        market_value_usd = float(position.get("market_value_usd") or 0.0) or None
+        weight = (market_value_usd or 0.0) / total if total else None
         tags = [f"asset_class:{position.get('asset_class')}"]
-
-        # Fix: Validate currency field - exclude ISINs and other long codes
-        raw_currency = position.get("currency")
-        currency = "USD"  # Default
-        if raw_currency and len(raw_currency) <= 3 and raw_currency.isalpha():
-            currency = raw_currency.upper()
 
         positions.append(
             PositionModel(
                 instrument_id=symbol,
                 quantity=quantity,
                 avg_price=None,
-                currency=currency,
-                market_value=market_value,
+                currency="USD",  # ✅ FIX: Always USD since market_value is now in USD
+                market_value=market_value_usd,  # ✅ FIX: Use USD value
                 pnl=None,
                 weight=weight,
                 tags=tags,
