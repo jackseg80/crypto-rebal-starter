@@ -246,6 +246,9 @@ export async function hydrateRiskStore() {
         divergence: null
       },
 
+      // Risk metrics complets (pour analytics-unified.html: var_95_1d, max_drawdown, etc.)
+      risk: riskData || currentState.risk || null,
+
       // Scores unifiés
       scores: {
         ...(currentState.scores || {}),
