@@ -350,15 +350,15 @@ def get_portfolio_detail(portfolio_id: str, user_id: Optional[str] = None, file_
 
 
 
-def _iter_positions(user_id: Optional[str] = None) -> Iterable[Dict[str, Any]]:
-    snapshot = _load_snapshot(user_id)
+def _iter_positions(user_id: Optional[str] = None, file_key: Optional[str] = None) -> Iterable[Dict[str, Any]]:
+    snapshot = _load_snapshot(user_id, file_key=file_key)
     for portfolio in snapshot.get("portfolios", []):
         for position in portfolio.get("positions", []):
             yield position
 
 
-def _total_value(user_id: Optional[str] = None) -> float:
-    snapshot = _load_snapshot(user_id)
+def _total_value(user_id: Optional[str] = None, file_key: Optional[str] = None) -> float:
+    snapshot = _load_snapshot(user_id, file_key=file_key)
     return sum(float(p.get("total_value_usd") or 0.0) for p in snapshot.get("portfolios", []))
 
 
@@ -380,12 +380,13 @@ async def list_accounts(user_id: Optional[str] = None) -> List[AccountModel]:
     return accounts
 
 
-async def list_instruments(user_id: Optional[str] = None) -> List[InstrumentModel]:
+async def list_instruments(user_id: Optional[str] = None, file_key: Optional[str] = None) -> List[InstrumentModel]:
     """
     List all instruments with enrichment via registry.
 
     Args:
         user_id: Optional user ID for per-user catalog lookup
+        file_key: Optional file key for specific CSV selection
 
     Returns:
         List of enriched InstrumentModel instances
@@ -395,7 +396,7 @@ async def list_instruments(user_id: Optional[str] = None) -> List[InstrumentMode
     instruments: Dict[str, InstrumentModel] = {}
     seen_ids = set()
 
-    for position in _iter_positions(user_id):
+    for position in _iter_positions(user_id, file_key=file_key):
         symbol = position.get("symbol")
         instrument_raw = position.get("instrument") or symbol
         if not instrument_raw or instrument_raw in seen_ids:
@@ -429,10 +430,10 @@ async def list_instruments(user_id: Optional[str] = None) -> List[InstrumentMode
     return instrument_list
 
 
-async def list_positions(user_id: Optional[str] = None) -> List[PositionModel]:
-    total = _total_value(user_id) or 1.0
+async def list_positions(user_id: Optional[str] = None, file_key: Optional[str] = None) -> List[PositionModel]:
+    total = _total_value(user_id, file_key=file_key) or 1.0
     positions: List[PositionModel] = []
-    for position in _iter_positions(user_id):
+    for position in _iter_positions(user_id, file_key=file_key):
         symbol = position.get("symbol")
         quantity = float(position.get("quantity") or 0.0)
         if not symbol or quantity == 0:
@@ -479,6 +480,6 @@ async def preview_rebalance() -> List[ProposedTrade]:
     return []
 
 
-async def has_data(user_id: Optional[str] = None) -> bool:
+async def has_data(user_id: Optional[str] = None, file_key: Optional[str] = None) -> bool:
     """Vérifie si des données Saxo sont disponibles pour l'utilisateur."""
-    return any(True for _ in _iter_positions(user_id))
+    return any(True for _ in _iter_positions(user_id, file_key=file_key))

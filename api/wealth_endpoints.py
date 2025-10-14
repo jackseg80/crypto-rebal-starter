@@ -407,7 +407,8 @@ async def preview_rebalance(
 async def global_summary(
     user_id: str = Query("demo", description="User ID for multi-tenant isolation"),
     source: str = Query("auto", description="Crypto source resolver"),
-    min_usd_threshold: float = Query(1.0, description="Minimum USD value to filter dust assets")
+    min_usd_threshold: float = Query(1.0, description="Minimum USD value to filter dust assets"),
+    bourse_file_key: Optional[str] = Query(None, description="Bourse file key for specific CSV selection")
 ) -> dict:
     """
     Agrégation globale de tous les modules wealth (crypto + saxo + banks).
@@ -417,12 +418,13 @@ async def global_summary(
     Args:
         user_id: ID utilisateur (isolation multi-tenant)
         source: Source resolver pour crypto
+        bourse_file_key: Optional file key for specific Bourse CSV selection
 
     Returns:
         Dict avec total_value_usd, breakdown, et metadata
 
     Example:
-        GET /api/wealth/global/summary?user_id=jack&source=auto
+        GET /api/wealth/global/summary?user_id=jack&source=auto&bourse_file_key=saxo_25-09-2025.csv
         {
             "total_value_usd": 556100.0,
             "breakdown": {
@@ -451,12 +453,12 @@ async def global_summary(
     except Exception as e:
         logger.warning(f"[wealth][global] crypto failed for user={user_id}: {e}")
 
-    # 2) Saxo
+    # 2) Saxo (with file_key support)
     try:
         if await _module_available("saxo", user_id):
-            saxo_positions = await saxo_adapter.list_positions(user_id=user_id)
+            saxo_positions = await saxo_adapter.list_positions(user_id=user_id, file_key=bourse_file_key)
             breakdown["saxo"] = sum((p.market_value or 0.0) for p in saxo_positions)
-            logger.info(f"[wealth][global] saxo={breakdown['saxo']:.2f} USD for user={user_id}")
+            logger.info(f"[wealth][global] saxo={breakdown['saxo']:.2f} USD for user={user_id} file_key={bourse_file_key}")
     except Exception as e:
         logger.warning(f"[wealth][global] saxo failed for user={user_id}: {e}")
 

@@ -2550,7 +2550,38 @@
                 const activeUser = localStorage.getItem('activeUser') || 'demo';
                 const currentSource = (window.globalConfig && window.globalConfig.get('data_source')) || 'auto';
                 const minThreshold = (window.globalConfig && window.globalConfig.get('min_usd_threshold')) || 1.0;
-                const response = await fetch(`${window.location.origin}/api/wealth/global/summary?user_id=${activeUser}&source=${currentSource}&min_usd_threshold=${minThreshold}`);
+
+                // ✅ FIX: Get Bourse source from WealthContextBar and extract file_key
+                let bourseFileKey = null;
+                const bourseSource = window.wealthContextBar?.getContext()?.bourse;
+                if (bourseSource && bourseSource !== 'all' && bourseSource.startsWith('saxo:')) {
+                    const key = bourseSource.substring(5); // Remove 'saxo:' prefix
+
+                    // Resolve file_key from source (same logic as wealth-saxo-summary.js)
+                    if (!window.availableSources) {
+                        const sourcesResponse = await fetch('/api/users/sources', {
+                            headers: { 'X-User': activeUser }
+                        });
+                        if (sourcesResponse.ok) {
+                            const data = await sourcesResponse.json();
+                            window.availableSources = data.sources || [];
+                        }
+                    }
+
+                    const source = window.availableSources?.find(s => s.key === key);
+                    if (source?.file_path) {
+                        bourseFileKey = source.file_path.split(/[/\\]/).pop();
+                        debugLogger.debug(`[Global Tile] Using Bourse file_key: ${bourseFileKey}`);
+                    }
+                }
+
+                // Build API URL with bourse_file_key if available
+                let apiUrl = `${window.location.origin}/api/wealth/global/summary?user_id=${activeUser}&source=${currentSource}&min_usd_threshold=${minThreshold}`;
+                if (bourseFileKey) {
+                    apiUrl += `&bourse_file_key=${encodeURIComponent(bourseFileKey)}`;
+                }
+
+                const response = await fetch(apiUrl);
 
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
