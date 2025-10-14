@@ -1004,6 +1004,20 @@
                     window.portfolioChart = null;
                 }
 
+                // ✅ FIX: Clear scores from store when source changes
+                // Scores are source-specific, so we need to invalidate them
+                console.debug('🧹 Clearing scores from store (source changed)');
+                store.set('scores.onchain', null);
+                store.set('scores.risk', null);
+                store.set('scores.blended', null);
+                store.set('ccs.score', null);
+
+                // Also clear localStorage scores for the old source
+                const oldUser = localStorage.getItem('activeUser') || 'demo';
+                ['risk_score_onchain', 'risk_score_risk', 'risk_score_blended', 'risk_score_ccs'].forEach(key => {
+                    localStorage.removeItem(`${key}:${oldUser}`);
+                });
+
                 // Update the known source immediately
                 window.lastKnownDataSource = event.detail.newSource;
 
@@ -1544,6 +1558,10 @@
                         <div style="font-size: 2rem; margin-bottom: var(--space-md);">📊</div>
                         <div style="margin-bottom: var(--space-md);">Aucun score de risque disponible</div>
                         <a href="risk-dashboard.html"
+                           class="action-btn"
+                           style="text-decoration: none; display: inline-block; padding: 8px 16px; margin-top: 8px;">
+                            Calculer les scores
+                        </a>
                     </div>
                 `;
                 if (statusEl) {
