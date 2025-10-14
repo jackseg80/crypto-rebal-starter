@@ -2318,23 +2318,77 @@
           </div>
           </div>
         </details>
-        <!-- Portfolio Summary -->
-        <div class="risk-card">
-          <h3>📊 Portfolio Summary</h3>
-          <div class="metric-row">
-            <span class="metric-label">Total Value:</span>
-            <span class="metric-value">${formatMoney(p.total_value)}</span>
+
+        <!-- Portfolio Summary - Compact KPI Cards -->
+        <div class="portfolio-summary-compact">
+          <div class="kpi-card kpi-primary">
+            <div class="kpi-icon">💰</div>
+            <div class="kpi-content">
+              <div class="kpi-label">Total Value</div>
+              <div class="kpi-value">${formatMoney(p.total_value)}</div>
+            </div>
           </div>
-          <div class="metric-row">
-            <span class="metric-label">Number of Assets:</span>
-            <span class="metric-value">${p.num_assets}</span>
+
+          <div class="kpi-card">
+            <div class="kpi-icon">🎯</div>
+            <div class="kpi-content">
+              <div class="kpi-label">Assets</div>
+              <div class="kpi-value">${p.num_assets}</div>
+              <div class="kpi-subtext">${(() => {
+                const effective = c.effective_assets;
+                return effective ? `${safeFixed(effective, 1)} effective` : '';
+              })()}</div>
+            </div>
           </div>
-          <div class="metric-row">
-            <span class="metric-label">Data Confidence</span>
-            <span class="metric-value">${safeFixed((p.confidence_level || 0) * 100, 1)}%</span>
+
+          <div class="kpi-card">
+            <div class="kpi-icon">📊</div>
+            <div class="kpi-content">
+              <div class="kpi-label">Diversification</div>
+              <div class="kpi-value">${safeFixed(c.diversification_ratio, 2)}</div>
+              <div class="kpi-subtext">${(() => {
+                const div = c.diversification_ratio || 0;
+                if (div > 0.7) return 'Excellent';
+                if (div > 0.4) return 'Modéré';
+                return 'Faible';
+              })()}</div>
+            </div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-icon">🔝</div>
+            <div class="kpi-content">
+              <div class="kpi-label">Top 5 Share</div>
+              <div class="kpi-value">${(() => {
+                const t5 = insights.top5Share;
+                return t5 != null ? `${(t5 * 100).toFixed(1)}%` : 'N/A';
+              })()}</div>
+              <div class="kpi-subtext">Concentration</div>
+            </div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-icon">💵</div>
+            <div class="kpi-content">
+              <div class="kpi-label">Stablecoins</div>
+              <div class="kpi-value">${(() => {
+                const s = insights.stableShare;
+                return s != null ? `${(s * 100).toFixed(1)}%` : 'N/A';
+              })()}</div>
+              <div class="kpi-subtext">Protection</div>
+            </div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-icon">✅</div>
+            <div class="kpi-content">
+              <div class="kpi-label">Data Quality</div>
+              <div class="kpi-value">${safeFixed((p.confidence_level || 0) * 100, 1)}%</div>
+              <div class="kpi-subtext">Confidence</div>
+            </div>
           </div>
         </div>
-        
+
         <!-- Key Insights moved to Top Summary -->
 
         <div class="risk-grid">

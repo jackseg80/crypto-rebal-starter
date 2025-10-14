@@ -384,6 +384,144 @@
   display: block;
 }
 
+/* ===== Portfolio Summary Compact KPI Cards ===== */
+.portfolio-summary-compact {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-md);
+  margin: var(--space-xl) 0;
+}
+
+.kpi-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  background: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-normal);
+  position: relative;
+  overflow: hidden;
+}
+
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background: var(--theme-border);
+  transition: all var(--transition-normal);
+}
+
+.kpi-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+  border-color: var(--brand-primary);
+}
+
+.kpi-card:hover::before {
+  width: 4px;
+  background: var(--brand-primary);
+}
+
+.kpi-card.kpi-primary {
+  background: linear-gradient(135deg, var(--theme-surface) 0%, color-mix(in oklab, var(--brand-primary) 5%, var(--theme-surface)) 100%);
+  border-color: color-mix(in oklab, var(--brand-primary) 30%, var(--theme-border));
+}
+
+.kpi-card.kpi-primary::before {
+  background: var(--brand-primary);
+  width: 4px;
+}
+
+.kpi-icon {
+  font-size: 2rem;
+  line-height: 1;
+  opacity: 0.9;
+  flex-shrink: 0;
+}
+
+.kpi-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.kpi-label {
+  font-size: 0.75rem;
+  color: var(--theme-text-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  margin-bottom: 0.25rem;
+}
+
+.kpi-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--theme-text);
+  font-family: 'Monaco', 'Consolas', monospace;
+  line-height: 1.2;
+  margin-bottom: 0.125rem;
+}
+
+.kpi-subtext {
+  font-size: 0.7rem;
+  color: var(--theme-text-muted);
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+/* Responsive KPI cards */
+@media (max-width: 1200px) {
+  .portfolio-summary-compact {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+
+  .kpi-icon {
+    font-size: 1.75rem;
+  }
+
+  .kpi-value {
+    font-size: 1.1rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .portfolio-summary-compact {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .kpi-card {
+    flex-direction: column;
+    text-align: center;
+    padding: var(--space-md);
+  }
+
+  .kpi-icon {
+    font-size: 2rem;
+    margin-bottom: var(--space-xs);
+  }
+}
+
+@media (max-width: 480px) {
+  .portfolio-summary-compact {
+    grid-template-columns: 1fr;
+  }
+
+  .kpi-card {
+    flex-direction: row;
+    text-align: left;
+  }
+
+  .kpi-icon {
+    margin-bottom: 0;
+  }
+}
+
 /* ===== Risk Components (existants) ===== */
 /* Top summary grid for key points + alerts + recommendations */
 .top-summary {
@@ -468,9 +606,9 @@
 
 .risk-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: var(--space-lg);
-  margin: var(--space-lg) 0;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-xl);
+  margin: var(--space-xl) 0;
 }
 
 .risk-card {
@@ -480,20 +618,61 @@
   padding: var(--space-xl);
   box-shadow: var(--shadow-sm);
   transition: all var(--transition-normal);
+  position: relative;
+  overflow: hidden;
+}
+
+.risk-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, var(--brand-primary) 0%, transparent 100%);
+  opacity: 0;
+  transition: all var(--transition-normal);
 }
 
 .risk-card:hover {
   box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
+  transform: translateY(-3px);
+  border-color: color-mix(in oklab, var(--brand-primary) 40%, var(--theme-border));
+}
+
+.risk-card:hover::before {
+  opacity: 1;
 }
 
 .risk-card h3 {
   margin-top: 0;
   color: var(--theme-text);
-  border-bottom: 2px solid var(--brand-primary);
-  padding-bottom: var(--space-sm);
-  font-size: 1.25rem;
+  border-bottom: 2px solid color-mix(in oklab, var(--brand-primary) 20%, var(--theme-border));
+  padding-bottom: var(--space-md);
+  margin-bottom: var(--space-lg);
+  font-size: 1.1rem;
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.risk-card h3::before {
+  content: '';
+  display: inline-block;
+  width: 4px;
+  height: 1.2em;
+  background: var(--brand-primary);
+  border-radius: 2px;
+}
+
+/* Spacing improvements for risk cards */
+.risk-card .metric-row:first-of-type {
+  margin-top: var(--space-sm);
+}
+
+.risk-card .metric-row:last-of-type {
+  margin-bottom: var(--space-sm);
 }
 
 .metric-row {
