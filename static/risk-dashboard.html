@@ -1816,10 +1816,29 @@
         const __user = (localStorage.getItem('activeUser') || 'demo');
         const __prefix = (k) => `${k}:${__user}`;
         try {
-          localStorage.setItem(__prefix('risk_score_onchain'), onchainScore !== null ? onchainScore.toString() : '');
-          localStorage.setItem(__prefix('risk_score_risk'), riskScore !== null ? riskScore.toString() : '');
-          localStorage.setItem(__prefix('risk_score_blended'), blendedScore !== null ? blendedScore.toString() : '');
-          localStorage.setItem(__prefix('risk_score_ccs'), ccsScore !== null ? ccsScore.toString() : '');
+          // ✅ FIX: Ne pas stocker de strings vides - seulement stocker si la valeur existe
+          // ⚠️ IMPORTANT: Toujours stocker le timestamp, même si certains scores sont null
+          if (onchainScore !== null && onchainScore !== undefined) {
+            localStorage.setItem(__prefix('risk_score_onchain'), onchainScore.toString());
+          } else {
+            localStorage.removeItem(__prefix('risk_score_onchain'));
+          }
+          if (riskScore !== null && riskScore !== undefined) {
+            localStorage.setItem(__prefix('risk_score_risk'), riskScore.toString());
+          } else {
+            localStorage.removeItem(__prefix('risk_score_risk'));
+          }
+          if (blendedScore !== null && blendedScore !== undefined) {
+            localStorage.setItem(__prefix('risk_score_blended'), blendedScore.toString());
+          } else {
+            localStorage.removeItem(__prefix('risk_score_blended'));
+          }
+          if (ccsScore !== null && ccsScore !== undefined) {
+            localStorage.setItem(__prefix('risk_score_ccs'), ccsScore.toString());
+          } else {
+            localStorage.removeItem(__prefix('risk_score_ccs'));
+          }
+          // Toujours stocker le timestamp pour marquer la fraîcheur des données
           localStorage.setItem(__prefix('risk_score_timestamp'), Date.now().toString());
           localStorage.setItem(__prefix('risk_score_data_source'), dataSource);
         } catch (_) { }
@@ -3871,13 +3890,24 @@ dans les 10 000 scénarios.`;
         const age = Math.round((Date.now() - cachedScores.timestamp) / (1000 * 60));
         debugLogger.debug(`✅ Found cached scores (${age} minutes old)`);
 
-        // Restore scores in localStorage for compatibility  
+        // Restore scores in localStorage for compatibility
         const dataSource = globalConfig.get('data_source') || 'unknown';
-        localStorage.setItem('risk_score_onchain', cachedScores.data.onchainScore?.toString() || '');
-        localStorage.setItem('risk_score_risk', cachedScores.data.riskScore?.toString() || '');
-        localStorage.setItem('risk_score_blended', cachedScores.data.blendedScore?.toString() || '');
-        localStorage.setItem('risk_score_ccs', cachedScores.data.ccsScore?.toString() || '');
-        localStorage.setItem('risk_score_timestamp', cachedScores.timestamp?.toString() || '');
+        // ✅ FIX: Ne pas stocker de strings vides - seulement stocker si la valeur existe
+        if (cachedScores.data.onchainScore !== null && cachedScores.data.onchainScore !== undefined) {
+          localStorage.setItem('risk_score_onchain', cachedScores.data.onchainScore.toString());
+        }
+        if (cachedScores.data.riskScore !== null && cachedScores.data.riskScore !== undefined) {
+          localStorage.setItem('risk_score_risk', cachedScores.data.riskScore.toString());
+        }
+        if (cachedScores.data.blendedScore !== null && cachedScores.data.blendedScore !== undefined) {
+          localStorage.setItem('risk_score_blended', cachedScores.data.blendedScore.toString());
+        }
+        if (cachedScores.data.ccsScore !== null && cachedScores.data.ccsScore !== undefined) {
+          localStorage.setItem('risk_score_ccs', cachedScores.data.ccsScore.toString());
+        }
+        if (cachedScores.timestamp) {
+          localStorage.setItem('risk_score_timestamp', cachedScores.timestamp.toString());
+        }
         localStorage.setItem('risk_score_data_source', dataSource);
       }
 

@@ -1319,7 +1319,18 @@
 
                 // Essayer de récupérer les scores depuis localStorage (stockés par risk-dashboard)
                 const __user = localStorage.getItem('activeUser') || 'demo';
-                const get = (k) => localStorage.getItem(`${k}:${__user}`) || localStorage.getItem(k);
+                // ✅ FIX: Ne pas utiliser || pour éviter les strings vides de polluer la lecture
+                // Lire SEULEMENT la valeur avec prefix pour éviter les incohérences multi-user
+                const get = (k) => {
+                    const withPrefix = localStorage.getItem(`${k}:${__user}`);
+                    // Si la valeur avec prefix n'existe pas (null), essayer sans prefix comme fallback
+                    // Mais NE PAS utiliser le fallback si la valeur est '' (string vide = score null pour cet user)
+                    if (withPrefix !== null) {
+                        return withPrefix;
+                    }
+                    return localStorage.getItem(k);
+                };
+
                 const scores = {
                     onchain: get('risk_score_onchain'),
                     risk: get('risk_score_risk'),
@@ -1328,34 +1339,43 @@
                     timestamp: get('risk_score_timestamp')
                 };
 
-                // Vérifier si au moins un score est disponible et récent (moins de 5 minutes)
+                console.debug('📊 Raw scores from localStorage:', scores);
+
+                // Vérifier si au moins un score est disponible et récent
                 let hasValidScores = false;
                 const result = {};
 
-                if (scores.timestamp) {
+                // ✅ FIX: Vérifier que timestamp est une string non-vide avec un nombre valide
+                if (scores.timestamp && scores.timestamp !== '' && !isNaN(parseInt(scores.timestamp))) {
                     const age = Date.now() - parseInt(scores.timestamp);
-                    // Accepter les scores jusqu'à 12 heures, marquer "stale" plus tard si besoin
+                    console.debug(`📊 Scores age: ${Math.round(age / 60000)} minutes`);
+
+                    // Accepter les scores jusqu'à 12 heures
                     if (age < 12 * 60 * 60 * 1000) { // 12 heures
                         result.timestamp = parseInt(scores.timestamp);
 
-                        // Ajouter chaque score disponible
-                        if (scores.onchain && scores.onchain !== '') {
+                        // Ajouter chaque score disponible (ignorer les strings vides = null)
+                        if (scores.onchain && scores.onchain !== '' && !isNaN(parseFloat(scores.onchain))) {
                             result.onchain = parseFloat(scores.onchain);
                             hasValidScores = true;
                         }
-                        if (scores.risk && scores.risk !== '') {
+                        if (scores.risk && scores.risk !== '' && !isNaN(parseFloat(scores.risk))) {
                             result.risk = parseFloat(scores.risk);
                             hasValidScores = true;
                         }
-                        if (scores.blended && scores.blended !== '') {
+                        if (scores.blended && scores.blended !== '' && !isNaN(parseFloat(scores.blended))) {
                             result.blended = parseFloat(scores.blended);
                             hasValidScores = true;
                         }
-                        if (scores.ccs && scores.ccs !== '') {
+                        if (scores.ccs && scores.ccs !== '' && !isNaN(parseFloat(scores.ccs))) {
                             result.ccs = parseFloat(scores.ccs);
                             hasValidScores = true;
                         }
+                    } else {
+                        console.debug('⚠️ Scores are expired (> 12h)');
                     }
+                } else {
+                    console.debug('⚠️ No valid timestamp found in localStorage');
                 }
 
                 if (hasValidScores) {
