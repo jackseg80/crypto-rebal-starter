@@ -1012,7 +1012,32 @@
                 store.set('scores.blended', null);
                 store.set('ccs.score', null);
 
-                // Also clear localStorage scores for the old source
+                // CRITICAL: Force immediate persist (no debounce) to ensure scores are cleared before page reload
+                store.persist();
+
+                // Also clear the persisted store in localStorage directly to be extra safe
+                try {
+                    const persistedState = localStorage.getItem('risk-dashboard-state');
+                    if (persistedState) {
+                        const state = JSON.parse(persistedState);
+                        // Clear all scores from persisted state
+                        if (state.scores) {
+                            state.scores.onchain = null;
+                            state.scores.risk = null;
+                            state.scores.blended = null;
+                        }
+                        if (state.ccs) {
+                            state.ccs.score = null;
+                        }
+                        state.timestamp = Date.now();
+                        localStorage.setItem('risk-dashboard-state', JSON.stringify(state));
+                        console.debug('✅ Persisted store cleared from scores');
+                    }
+                } catch (e) {
+                    console.warn('Failed to clear persisted store:', e);
+                }
+
+                // Also clear localStorage scores for the old source (legacy keys)
                 const oldUser = localStorage.getItem('activeUser') || 'demo';
                 ['risk_score_onchain', 'risk_score_risk', 'risk_score_blended', 'risk_score_ccs'].forEach(key => {
                     localStorage.removeItem(`${key}:${oldUser}`);
