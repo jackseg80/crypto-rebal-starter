@@ -694,7 +694,7 @@ export async function renderUnifiedInsights(containerId = 'unified-root', option
   // INTELLIGENT RECOMMENDATIONS with source attribution
   const recBlock = card(`
     <div style="font-weight:700; margin-bottom:.5rem;">💡 Recommandations Intelligentes</div>
-    <div style="display:grid; gap:.5rem;">
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:.5rem;">
       ${recos.length > 0 ? recos.map(r => `
         <div style="padding:.6rem; background: var(--theme-bg); border: 1px solid var(--theme-border); border-radius: var(--radius-sm); border-left: 3px solid ${r.priority==='critical'?'var(--danger)':r.priority==='high'?'var(--danger)':r.priority==='medium'?'var(--warning)':'var(--info)'};">
           <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:.5rem;">
