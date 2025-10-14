@@ -1050,6 +1050,21 @@
                 loadDashboardData();
             });
 
+            // ✅ FIX: Listen for Bourse source changes and refresh Saxo tiles
+            window.addEventListener('bourseSourceChanged', async (event) => {
+                console.debug('🏦 Bourse source changed:', event.detail);
+
+                // Invalidate Saxo summary cache to force reload with new source
+                const { invalidateSaxoCache } = await import('./modules/wealth-saxo-summary.js');
+                invalidateSaxoCache();
+
+                // Refresh both Saxo tile and Global Overview
+                await refreshSaxoTile();
+                await refreshGlobalTile();
+
+                console.debug('✅ Saxo tiles refreshed with new source');
+            });
+
             // Reformat values when display currency changes
             window.addEventListener('configChanged', (ev) => {
                 try {

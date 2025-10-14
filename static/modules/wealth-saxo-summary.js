@@ -21,8 +21,41 @@ export async function fetchSaxoSummary() {
     }
 
     try {
+        // ✅ FIX: Get Bourse source from WealthContextBar to load correct CSV
+        let apiUrl = '/api/saxo/positions';
+        const bourseSource = window.wealthContextBar?.getContext()?.bourse;
+
+        if (bourseSource && bourseSource !== 'all' && bourseSource.startsWith('saxo:')) {
+            // Extract file_key from source (same logic as saxo-dashboard.html)
+            const key = bourseSource.substring(5); // Remove 'saxo:' prefix
+            const activeUser = localStorage.getItem('activeUser') || 'demo';
+
+            try {
+                // Load available sources to resolve file_key
+                if (!window.availableSources) {
+                    const response = await fetch('/api/users/sources', {
+                        headers: { 'X-User': activeUser }
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        window.availableSources = data.sources || [];
+                    }
+                }
+
+                // Find matching source and extract filename
+                const source = window.availableSources?.find(s => s.key === key);
+                if (source?.file_path) {
+                    const fileKey = source.file_path.split(/[/\\]/).pop();
+                    apiUrl += `?file_key=${encodeURIComponent(fileKey)}`;
+                    (window.debugLogger?.debug || console.log)(`[Saxo Summary] Using source-specific file: ${fileKey}`);
+                }
+            } catch (err) {
+                (window.debugLogger?.warn || console.warn)('[Saxo Summary] Failed to resolve file_key:', err);
+            }
+        }
+
         const { ok, data } = await safeFetch(
-            window.globalConfig?.getApiUrl('/api/saxo/positions') || '/api/saxo/positions',
+            window.globalConfig?.getApiUrl(apiUrl) || apiUrl,
             { timeout: 8000 }
         );
 
