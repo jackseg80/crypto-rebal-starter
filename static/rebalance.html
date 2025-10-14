@@ -7,6 +7,7 @@
   <title>Crypto Rebalancer</title>
   <link rel="stylesheet" href="shared-theme.css">
   <link rel="stylesheet" href="theme-compat.css">
+  <link rel="stylesheet" href="components/governance-panel.css">
   <script src="global-config.js"></script>
   <script type="module" src="components/nav.js"></script>
   <script type="module" src="core/risk-dashboard-store.js"></script>
@@ -619,6 +620,9 @@
   </flyout-panel>
 
   <div class="wrap" style="padding-top: var(--space-lg);">
+    <!-- Governance Panel (Decision Engine) -->
+    <div id="governance-container"></div>
+
     <!-- Stratégies de Rebalancing -->
     <div id="proposed-targets" class="card" style="margin-bottom: 16px;">
       <h3 style="display:flex; align-items:center; justify-content:space-between;">
@@ -3436,6 +3440,28 @@
     document.addEventListener('DOMContentLoaded', function () {
       // Auto-détecter la page courante pour la navigation thématique
       /* unified nav enabled via components/nav.js; legacy init removed */
+    });
+  </script>
+
+  <script type="module">
+    import { GovernancePanel } from './components/GovernancePanel.js';
+
+    // Initialize Governance Panel (Decision Engine) for rebalance page
+    document.addEventListener('DOMContentLoaded', async function () {
+      const governanceContainer = document.getElementById('governance-container');
+      if (governanceContainer) {
+        debugLogger.debug('🏛️ Initializing Governance Panel for rebalance...');
+        const governancePanel = new GovernancePanel(governanceContainer);
+
+        // Auto-refresh initial state
+        setTimeout(() => {
+          governancePanel.refreshState();
+        }, 1000);
+
+        // Store reference globally for debugging
+        window.governancePanel = governancePanel;
+        debugLogger.debug('✅ Governance Panel initialized');
+      }
     });
   </script>
 

@@ -7,6 +7,7 @@
   <title>🚀 Exécution - Crypto Rebalancer</title>
   <link rel="stylesheet" href="shared-theme.css">
   <link rel="stylesheet" href="theme-compat.css">
+  <link rel="stylesheet" href="components/governance-panel.css">
   <script type="module" src="components/nav.js"></script>
   <script type="module">
     import { initDeepLinks } from './components/deep-links.js';
@@ -240,6 +241,8 @@
   </flyout-panel>
 
   <div class="wrap">
+    <!-- Governance Panel (Decision Engine) -->
+    <div id="governance-container"></div>
 
     <!-- Navigation par onglets -->
     <div class="section">
@@ -1157,6 +1160,28 @@
     document.addEventListener('DOMContentLoaded', function () {
       // Auto-détecter la page courante pour la navigation thématique
       /* unified nav enabled via components/nav.js; legacy init removed */
+    });
+  </script>
+
+  <script type="module">
+    import { GovernancePanel } from './components/GovernancePanel.js';
+
+    // Initialize Governance Panel (Decision Engine) for execution page
+    document.addEventListener('DOMContentLoaded', async function () {
+      const governanceContainer = document.getElementById('governance-container');
+      if (governanceContainer) {
+        debugLogger.debug('🏛️ Initializing Governance Panel for execution...');
+        const governancePanel = new GovernancePanel(governanceContainer);
+
+        // Auto-refresh initial state
+        setTimeout(() => {
+          governancePanel.refreshState();
+        }, 1000);
+
+        // Store reference globally for debugging
+        window.governancePanel = governancePanel;
+        debugLogger.debug('✅ Governance Panel initialized');
+      }
     });
   </script>
 </body>

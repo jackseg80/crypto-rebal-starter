@@ -1680,11 +1680,11 @@
             const val = (v == null || isNaN(v)) ? 0 : (v * rate);
             try {
                 // BTC is not a standard ISO code; Intl may throw
-                const decimals = (cur === 'BTC') ? 8 : 2;
+                const decimals = (cur === 'BTC') ? 8 : 0;
                 const out = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(val);
                 return (cur === 'USD') ? out.replace(/\s?US$/, '') : out;
             } catch (_) {
-                const decimals = (cur === 'BTC') ? 8 : 2;
+                const decimals = (cur === 'BTC') ? 8 : 0;
                 return `${val.toFixed(decimals)} ${cur}`;
             }
         }

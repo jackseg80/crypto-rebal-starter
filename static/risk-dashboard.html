@@ -9,7 +9,6 @@
   <!-- Thème/compat identiques à ta page actuelle -->
   <link rel="stylesheet" href="shared-theme.css">
   <link rel="stylesheet" href="theme-compat.css">
-  <link rel="stylesheet" href="components/governance-panel.css">
 
   <!-- Scripts partagés existants -->
   <script src="debug-logger.js"></script>
@@ -96,10 +95,6 @@
         </div>
       </div>
     </div>
-
-    <!-- Governance Panel (positioned before main layout) -->
-    <div id="governance-container"></div>
-
 
     <!-- Layout Simple: Main Content uniquement (sidebar remplacée par Web Component flyout-panel) -->
     <div class="dashboard-layout">
@@ -275,11 +270,11 @@
       if (cur !== 'USD' && (!rate || rate <= 0)) return '—';
       const v = (usd == null || isNaN(usd)) ? 0 : (usd * rate);
       try {
-        const dec = (cur === 'BTC') ? 8 : 2;
+        const dec = (cur === 'BTC') ? 8 : 0;
         const out = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, minimumFractionDigits: dec, maximumFractionDigits: dec }).format(v);
         return (cur === 'USD') ? out.replace(/\s?US$/, '') : out;
       } catch (_) {
-        return `${v.toFixed(cur === 'BTC' ? 8 : 2)} ${cur}`;
+        return `${v.toFixed(cur === 'BTC' ? 8 : 0)} ${cur}`;
       }
     }
     // 🆕 Oct 2025: Score → Risk Level mapping (canonical from docs/RISK_SEMANTICS.md)
@@ -3748,9 +3743,8 @@ dans les 10 000 scénarios.`;
           currentAlert.applied_by = 'user';
           closeAlertModal();
 
-          // Refresh alerts and governance
+          // Refresh alerts
           refreshAlertsHistory();
-          refreshGovernancePanel();
         } else {
           throw new Error(`HTTP ${response.status}`);
         }
@@ -4110,15 +4104,15 @@ dans les 10 000 scénarios.`;
       // controls removed
       refreshDashboard();
 
-      // Initialize governance system
+      // Initialize store state synchronization
       setTimeout(async () => {
         try {
-          debugLogger.debug('🏛️ Initializing governance system...');
+          debugLogger.debug('🔄 Syncing store state...');
           await store.syncGovernanceState();
           await store.syncMLSignals();
-          debugLogger.debug('✅ Governance system initialized');
+          debugLogger.debug('✅ Store state synced');
         } catch (error) {
-          debugLogger.warn('⚠️ Failed to initialize governance:', error);
+          debugLogger.warn('⚠️ Failed to sync store state:', error);
         }
       }, 500);
 
@@ -4170,29 +4164,10 @@ dans les 10 000 scénarios.`;
   </script>
 
   <script type="module">
-    import { GovernancePanel } from './components/GovernancePanel.js';
-
-    // Initialisation automatique de la navigation thématique et governance
+    // Initialisation automatique de la navigation thématique
     document.addEventListener('DOMContentLoaded', async function () {
       // Auto-détecter la page courante pour la navigation thématique
       /* unified nav enabled via components/nav.js; legacy init removed */
-
-      // Initialize governance panel
-      const governanceContainer = document.getElementById('governance-container');
-      if (governanceContainer) {
-        debugLogger.debug('🏛️ Initializing Governance Panel...');
-        const governancePanel = new GovernancePanel(governanceContainer);
-
-        // Auto-refresh initial state
-        setTimeout(() => {
-          governancePanel.refreshState();
-        }, 1000);
-
-        // Store reference globally for debugging
-        window.governancePanel = governancePanel;
-        debugLogger.debug('✅ Governance Panel initialized');
-      }
-
 
       // ===== Toggle Basic/Advanced Mode =====
 
