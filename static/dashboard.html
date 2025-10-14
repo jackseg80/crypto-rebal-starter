@@ -1312,41 +1312,60 @@
             }
         }
 
-        // Charger les données de score depuis le risk dashboard
+        // ✅ FIX: Charger les scores depuis le STORE au lieu de localStorage
+        // Cela synchronise avec les autres pages (analytics-unified, rebalance) qui utilisent le store
         async function loadScoresData() {
             try {
-                console.debug('📊 Loading scores data...');
+                console.debug('📊 Loading scores data from store...');
 
-                // Essayer de récupérer les scores depuis localStorage (stockés par risk-dashboard)
+                // Lire directement depuis le store (comme Global Insight)
+                const state = store.snapshot();
+                const result = {};
+                let hasValidScores = false;
+
+                // Extraire les scores du store
+                if (state.scores) {
+                    if (typeof state.scores.onchain === 'number') {
+                        result.onchain = state.scores.onchain;
+                        hasValidScores = true;
+                    }
+                    if (typeof state.scores.risk === 'number') {
+                        result.risk = state.scores.risk;
+                        hasValidScores = true;
+                    }
+                    if (typeof state.scores.blended === 'number') {
+                        result.blended = state.scores.blended;
+                        hasValidScores = true;
+                    }
+                }
+
+                // CCS score est stocké différemment dans le store
+                if (state.ccs?.score && typeof state.ccs.score === 'number') {
+                    result.ccs = state.ccs.score;
+                    hasValidScores = true;
+                }
+
+                // Timestamp du store
+                if (state._hydration_timestamp) {
+                    result.timestamp = state._hydration_timestamp;
+                }
+
+                if (hasValidScores) {
+                    console.debug('✅ Scores loaded from store:', result);
+                    return result;
+                }
+
+                // Fallback: Si le store est vide, essayer localStorage COMME BEFORE
+                // (pour compatibilité si risk-dashboard n'a pas encore chargé le store)
+                console.debug('⚠️ Store empty, trying localStorage fallback...');
                 const __user = localStorage.getItem('activeUser') || 'demo';
-
-                // ⚠️ MIGRATION: Nettoyer les anciennes clés avec strings vides (bug pré-correction)
-                // Ces clés corrompues empêchent la lecture correcte des scores
-                const keysToClean = ['risk_score_onchain', 'risk_score_risk', 'risk_score_blended', 'risk_score_ccs'];
-                keysToClean.forEach(k => {
-                    const withPrefix = localStorage.getItem(`${k}:${__user}`);
-                    const withoutPrefix = localStorage.getItem(k);
-                    // Si la valeur est '' (string vide), la supprimer
-                    if (withPrefix === '') {
-                        console.debug(`🧹 Cleaning corrupted key: ${k}:${__user}`);
-                        localStorage.removeItem(`${k}:${__user}`);
-                    }
-                    if (withoutPrefix === '') {
-                        console.debug(`🧹 Cleaning corrupted key: ${k}`);
-                        localStorage.removeItem(k);
-                    }
-                });
-
-                // ✅ FIX: Ne pas utiliser || pour éviter les strings vides de polluer la lecture
-                // Lire SEULEMENT la valeur avec prefix pour éviter les incohérences multi-user
                 const get = (k) => {
                     const withPrefix = localStorage.getItem(`${k}:${__user}`);
-                    // Si la valeur avec prefix n'existe pas (null), essayer sans prefix comme fallback
-                    // Mais NE PAS utiliser le fallback si la valeur est '' (string vide = score null pour cet user)
-                    if (withPrefix !== null) {
+                    if (withPrefix !== null && withPrefix !== '') {
                         return withPrefix;
                     }
-                    return localStorage.getItem(k);
+                    const withoutPrefix = localStorage.getItem(k);
+                    return (withoutPrefix !== null && withoutPrefix !== '') ? withoutPrefix : null;
                 };
 
                 const scores = {
@@ -1357,118 +1376,42 @@
                     timestamp: get('risk_score_timestamp')
                 };
 
-                console.debug('📊 Raw scores from localStorage:', scores);
+                const fallbackResult = {};
+                let hasFallbackScores = false;
 
-                // Vérifier si au moins un score est disponible et récent
-                let hasValidScores = false;
-                const result = {};
-
-                // ✅ FIX: Vérifier que timestamp est une string non-vide avec un nombre valide
-                if (scores.timestamp && scores.timestamp !== '' && !isNaN(parseInt(scores.timestamp))) {
+                if (scores.timestamp && !isNaN(parseInt(scores.timestamp))) {
                     const age = Date.now() - parseInt(scores.timestamp);
-                    console.debug(`📊 Scores age: ${Math.round(age / 60000)} minutes`);
-
-                    // Accepter les scores jusqu'à 12 heures
                     if (age < 12 * 60 * 60 * 1000) { // 12 heures
-                        result.timestamp = parseInt(scores.timestamp);
-
-                        // Ajouter chaque score disponible (ignorer les strings vides = null)
-                        if (scores.onchain && scores.onchain !== '' && !isNaN(parseFloat(scores.onchain))) {
-                            result.onchain = parseFloat(scores.onchain);
-                            hasValidScores = true;
+                        fallbackResult.timestamp = parseInt(scores.timestamp);
+                        if (scores.onchain && !isNaN(parseFloat(scores.onchain))) {
+                            fallbackResult.onchain = parseFloat(scores.onchain);
+                            hasFallbackScores = true;
                         }
-                        if (scores.risk && scores.risk !== '' && !isNaN(parseFloat(scores.risk))) {
-                            result.risk = parseFloat(scores.risk);
-                            hasValidScores = true;
+                        if (scores.risk && !isNaN(parseFloat(scores.risk))) {
+                            fallbackResult.risk = parseFloat(scores.risk);
+                            hasFallbackScores = true;
                         }
-                        if (scores.blended && scores.blended !== '' && !isNaN(parseFloat(scores.blended))) {
-                            result.blended = parseFloat(scores.blended);
-                            hasValidScores = true;
+                        if (scores.blended && !isNaN(parseFloat(scores.blended))) {
+                            fallbackResult.blended = parseFloat(scores.blended);
+                            hasFallbackScores = true;
                         }
-                        if (scores.ccs && scores.ccs !== '' && !isNaN(parseFloat(scores.ccs))) {
-                            result.ccs = parseFloat(scores.ccs);
-                            hasValidScores = true;
-                        }
-                    } else {
-                        console.debug('⚠️ Scores are expired (> 12h)');
-                    }
-                } else {
-                    console.debug('⚠️ No valid timestamp found in localStorage');
-                }
-
-                if (hasValidScores) {
-                    console.debug('✅ Scores loaded from localStorage:', result);
-                    return result;
-                }
-
-                // Fallback: utiliser le cache persistant du risk-dashboard (12h TTL)
-                try {
-                    const cached = localStorage.getItem('risk_scores_cache');
-                    if (cached) {
-                        const entry = JSON.parse(cached);
-                        const data = entry?.data || {};
-                        const ts = entry?.timestamp;
-                        const out = {};
-                        if (typeof data.onchainScore === 'number') out.onchain = data.onchainScore;
-                        if (typeof data.riskScore === 'number') out.risk = data.riskScore;
-                        if (typeof data.blendedScore === 'number') out.blended = data.blendedScore;
-                        if (typeof data.ccsScore === 'number') out.ccs = data.ccsScore;
-                        if (typeof ts === 'number') out.timestamp = ts;
-                        if (Object.keys(out).length > 0) {
-                            console.debug('✅ Scores loaded from persistent cache:', out);
-                            return out;
+                        if (scores.ccs && !isNaN(parseFloat(scores.ccs))) {
+                            fallbackResult.ccs = parseFloat(scores.ccs);
+                            hasFallbackScores = true;
                         }
                     }
-                } catch (cacheErr) {
-                    debugLogger.warn('Failed to read persistent risk scores cache:', cacheErr);
                 }
 
-                // Dernier fallback: appeler l'API risk dashboard pour obtenir AU MOINS le risk score
-                // Note: onchain/ccs/blended ne sont PAS dans l'API, ils sont calculés côté frontend
-                console.debug('⚠️ No scores in localStorage, trying API for risk score only...');
-                try {
-                    const activeUser = localStorage.getItem('activeUser') || 'demo';
-                    const currentSource = globalConfig.get('data_source') || 'cointracking';
-                    const response = await fetch(`${window.location.origin}/api/risk/dashboard?user_id=${activeUser}&source=${currentSource}&use_dual_window=true&risk_version=v2_active`);
-
-                    if (response.ok) {
-                        const data = await response.json();
-                        const riskMetrics = data.risk_metrics;
-
-                        if (riskMetrics) {
-                            // L'API ne fournit QUE le risk_score, pas onchain/ccs/blended
-                            const riskScore = riskMetrics.risk_version_info?.risk_score_v2 || riskMetrics.risk_score;
-
-                            if (riskScore !== null && riskScore !== undefined) {
-                                const out = {
-                                    risk: riskScore,
-                                    // onchain/ccs/blended restent undefined - ils viennent du localStorage uniquement
-                                    timestamp: Date.now()
-                                };
-
-                                // Stocker SEULEMENT le risk score dans localStorage
-                                try {
-                                    localStorage.setItem(`risk_score_risk:${activeUser}`, out.risk.toString());
-                                    localStorage.setItem(`risk_score_timestamp:${activeUser}`, out.timestamp.toString());
-                                } catch (storageErr) {
-                                    debugLogger.warn('Could not store risk score in localStorage:', storageErr);
-                                }
-
-                                console.debug('✅ Risk score loaded from API (onchain/ccs/blended require frontend calculation):', out);
-                                return out;
-                            }
-                        }
-                    }
-                } catch (apiErr) {
-                    debugLogger.warn('API direct call failed:', apiErr);
+                if (hasFallbackScores) {
+                    console.debug('✅ Scores loaded from localStorage fallback:', fallbackResult);
+                    return fallbackResult;
                 }
 
-                // Si vraiment rien n'est disponible, retourner null
-                console.debug('⚠️ No scores available from any source');
+                console.debug('⚠️ No scores available from store or localStorage');
                 return null;
 
             } catch (e) {
-                log.error('Erreur chargement scores:', e);
+                debugLogger.error('Erreur chargement scores:', e);
                 return null;
             }
         }
