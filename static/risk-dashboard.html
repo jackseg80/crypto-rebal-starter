@@ -58,24 +58,43 @@
   </div>
 
   <div class="wrap">
-    <!-- Controls Header -->
-    <div class="controls">
-      <!-- Split refresh button with dropdown -->
-      <div class="refresh-group">
-        <button class="refresh-btn" id="refresh-btn" title="Actualiser les données">🔄 Refresh</button>
-        <button class="refresh-btn refresh-menu-btn" id="refresh-menu-btn" aria-haspopup="true" aria-expanded="false"
-          title="Options de rafraîchissement">▾</button>
-        <div id="refresh-menu" class="refresh-menu">
-          <button class="refresh-menu-item" id="force-refresh-btn"
-            title="Ignorer le cache et recalculer tous les scores">🧹 Force Refresh</button>
-          <button class="refresh-menu-item" id="force-cycle-refresh-btn"
-            title="Vider le cache cycles et recharger uniquement les cycles">🔄 Refresh Cycles</button>
+    <!-- Compact Header Controls -->
+    <div class="page-header">
+      <div class="page-title">
+        <h1>Risk Dashboard</h1>
+      </div>
+      <div class="header-controls">
+        <div class="timestamp" id="last-update">Loading...</div>
+        <button class="icon-btn" id="refresh-btn" title="Refresh data" aria-label="Refresh data">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M13.65 2.35C12.2 0.9 10.21 0 8 0 3.58 0 0.01 3.58 0.01 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L9 7h7V0l-2.35 2.35z" fill="currentColor"/>
+          </svg>
+        </button>
+        <div class="dropdown">
+          <button class="icon-btn" id="options-menu-btn" title="Options" aria-label="More options" aria-haspopup="true" aria-expanded="false">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="8" cy="3" r="1.5" fill="currentColor"/>
+              <circle cx="8" cy="8" r="1.5" fill="currentColor"/>
+              <circle cx="8" cy="13" r="1.5" fill="currentColor"/>
+            </svg>
+          </button>
+          <div class="dropdown-menu" id="options-menu">
+            <button class="dropdown-item" id="force-refresh-btn" title="Clear cache and recalculate all scores">
+              <span class="item-icon">🧹</span>
+              <span class="item-text">Force Refresh</span>
+            </button>
+            <button class="dropdown-item" id="force-cycle-refresh-btn" title="Clear cycle cache and reload cycles only">
+              <span class="item-icon">🔄</span>
+              <span class="item-text">Refresh Cycles</span>
+            </button>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item" id="test-endpoint-btn" title="Test API connection (dev only)">
+              <span class="item-icon">🧪</span>
+              <span class="item-text">Test API</span>
+            </button>
+          </div>
         </div>
       </div>
-
-      <button class="refresh-btn" id="auto-refresh-btn">⏱️ Enable Auto-Refresh (30s)</button>
-      <button class="refresh-btn test-api-btn" id="test-endpoint-btn">🧪 Test API</button>
-      <div class="timestamp" id="last-update"></div>
     </div>
 
     <!-- Governance Panel (positioned before main layout) -->
@@ -205,35 +224,33 @@
         return;
       }
 
-      // Refresh buttons
+      // Refresh button
       if (e.target?.closest('#refresh-btn')) {
         refreshDashboard();
         return;
       }
 
-      if (e.target?.closest('#refresh-menu-btn')) {
-        toggleRefreshMenu(e);
+      // Options menu toggle
+      if (e.target?.closest('#options-menu-btn')) {
+        toggleOptionsMenu(e);
         return;
       }
 
+      // Menu items
       if (e.target?.closest('#force-refresh-btn')) {
-        closeRefreshMenu();
+        closeOptionsMenu();
         refreshDashboard(true);
         return;
       }
 
       if (e.target?.closest('#force-cycle-refresh-btn')) {
-        closeRefreshMenu();
+        closeOptionsMenu();
         forceCycleRefresh();
         return;
       }
 
-      if (e.target?.closest('#auto-refresh-btn')) {
-        enableAutoRefresh();
-        return;
-      }
-
       if (e.target?.closest('#test-endpoint-btn')) {
+        closeOptionsMenu();
         testEndpoint();
         return;
       }
@@ -2956,18 +2973,13 @@
 
     function updateTimestamp(ts, calcTime) {
       const d = new Date(ts);
-      document.getElementById('last-update').textContent = `Last updated: ${d.toLocaleString()} (${calcTime})`;
-    }
-
-    function enableAutoRefresh() {
-      const btn = document.getElementById('auto-refresh-btn');
-      if (autoRefreshInterval) {
-        clearInterval(autoRefreshInterval); autoRefreshInterval = null;
-        btn.textContent = '⏱️ Enable Auto-Refresh (30s)'; btn.style.background = '';
-      } else {
-        autoRefreshInterval = setInterval(refreshDashboard, 30000);
-        btn.textContent = '⏹️ Disable Auto-Refresh'; btn.style.background = '#28a745';
-      }
+      const formattedDate = d.toLocaleString('fr-FR', {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      document.getElementById('last-update').textContent = `Updated ${formattedDate}`;
     }
 
     // Test endpoint (identique à ta version)
@@ -3841,34 +3853,39 @@ dans les 10 000 scénarios.`;
       // Debug logging removed - system ready for production
     });
 
-    // ===== Refresh menu helpers =====
-    function toggleRefreshMenu(event) {
+    // ===== Options menu helpers =====
+    function toggleOptionsMenu(event) {
       event.stopPropagation?.();
-      const menu = document.getElementById('refresh-menu');
-      const btn = document.getElementById('refresh-menu-btn');
+      const menu = document.getElementById('options-menu');
+      const btn = document.getElementById('options-menu-btn');
       if (!menu || !btn) return;
-      const isOpen = menu.style.display === 'block';
-      menu.style.display = isOpen ? 'none' : 'block';
-      btn.setAttribute('aria-expanded', String(!isOpen));
+      const isOpen = menu.classList.contains('show');
+      if (isOpen) {
+        menu.classList.remove('show');
+        btn.setAttribute('aria-expanded', 'false');
+      } else {
+        menu.classList.add('show');
+        btn.setAttribute('aria-expanded', 'true');
+      }
     }
 
-    function closeRefreshMenu() {
-      const menu = document.getElementById('refresh-menu');
-      const btn = document.getElementById('refresh-menu-btn');
-      if (menu) menu.style.display = 'none';
+    function closeOptionsMenu() {
+      const menu = document.getElementById('options-menu');
+      const btn = document.getElementById('options-menu-btn');
+      if (menu) menu.classList.remove('show');
       if (btn) btn.setAttribute('aria-expanded', 'false');
     }
 
     // Close the menu when clicking outside or pressing Escape
     document.addEventListener('click', (e) => {
-      const menu = document.getElementById('refresh-menu');
-      const btn = document.getElementById('refresh-menu-btn');
+      const menu = document.getElementById('options-menu');
+      const btn = document.getElementById('options-menu-btn');
       if (!menu || !btn) return;
-      if (!menu.contains(e.target) && e.target !== btn) {
-        closeRefreshMenu();
+      if (!menu.contains(e.target) && !e.target.closest('#options-menu-btn')) {
+        closeOptionsMenu();
       }
     });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeRefreshMenu(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeOptionsMenu(); });
 
     // ===== PERSISTENT CACHE SYSTEM =====
     const CACHE_CONFIG = {
