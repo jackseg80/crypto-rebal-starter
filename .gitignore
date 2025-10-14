@@ -62,6 +62,7 @@ data/*_backup_*.json
 data/alerts.json
 data/portfolio_history.json
 data/users/*/banks/
+data/users/*/config.json
 data/catalogs/
 data/wealth/saxo_snapshot.json
 data/users/*/config/sources.json
