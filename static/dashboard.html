@@ -75,12 +75,7 @@
 
                 const onchainEl = document.getElementById('gi-onchain');
                 if (onchainEl) {
-                    let onchainScore = unifiedState.onchain?.score;
-                    if (onchainScore == null) {
-                        const user = localStorage.getItem('activeUser') || 'demo';
-                        const lsOn = Number(localStorage.getItem(`risk_score_onchain:${user}`) || localStorage.getItem('risk_score_onchain'));
-                        if (Number.isFinite(lsOn)) onchainScore = Math.round(lsOn);
-                    }
+                    const onchainScore = unifiedState.onchain?.score;
                     onchainEl.textContent = (onchainScore != null) ? onchainScore : '--';
                     if (unifiedState.onchain?.criticalCount > 0) {
                         onchainEl.title = `${unifiedState.onchain.criticalCount} indicateur(s) critique(s) détecté(s)`;
@@ -90,12 +85,7 @@
 
                 const riskEl = document.getElementById('gi-risk');
                 if (riskEl) {
-                    let riskScore = unifiedState.risk?.score;
-                    if (riskScore == null) {
-                        const user = localStorage.getItem('activeUser') || 'demo';
-                        const lsRisk = Number(localStorage.getItem(`risk_score_risk:${user}`) || localStorage.getItem('risk_score_risk'));
-                        if (Number.isFinite(lsRisk)) riskScore = Math.round(lsRisk);
-                    }
+                    const riskScore = unifiedState.risk?.score;
                     riskEl.textContent = (riskScore != null) ? riskScore : '--';
                     if (unifiedState.risk?.budget?.percentages?.stables) {
                         riskEl.title = `Budget recommandé - Stables: ${unifiedState.risk.budget.percentages.stables}%`;
@@ -2608,37 +2598,7 @@
 
     </script>
 
-    <script>
-        // Keep the Scores tile in sync when risk-dashboard updates localStorage from another tab
-        window.addEventListener('storage', function (e) {
-            try {
-                if (e.key && e.key.startsWith('risk_score_')) {
-                    if (typeof loadScoresData === 'function' && typeof updateScoresDisplay === 'function') {
-                        loadScoresData()
-                            .then(data => updateScoresDisplay(data))
-                            .catch(err => debugLogger.warn('Failed to refresh scores from storage event:', err));
-                    }
-                }
-            } catch (_) { /* ignore */ }
-        });
-    </script>
-
-    <script>
-        // Also refresh the Scores tile when returning to this tab
-        function refreshScoresFromLocalStorage() {
-            try {
-                if (typeof loadScoresData === 'function' && typeof updateScoresDisplay === 'function') {
-                    loadScoresData()
-                        .then(data => updateScoresDisplay(data))
-                        .catch(err => debugLogger.warn('Failed to refresh scores on focus:', err));
-                }
-            } catch (_) { /* ignore */ }
-        }
-        window.addEventListener('focus', refreshScoresFromLocalStorage);
-        document.addEventListener('visibilitychange', function () {
-            if (!document.hidden) refreshScoresFromLocalStorage();
-        });
-    </script>
+    <!-- ✅ Scores sync removed: store auto-hydrates and subscribes automatically -->
 
 </body>
 
