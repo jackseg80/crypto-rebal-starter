@@ -2678,37 +2678,74 @@
             </div>
           </div>
 
-          <!-- VaR/CVaR -->
+          <!-- Loss & Drawdown Analysis (Fusion VaR + Drawdown) -->
           <div class="risk-card">
-            <h3>📉 Value at Risk (VaR) <span style="font-size:.8rem; color: var(--theme-text); opacity:.7; font-weight:500; margin-left:.5rem;"><br>lookback 30j (VaR), 60j (CVaR)</span></h3>
-            <div class="metric-row">
-              <span class="metric-label">VaR 95% (1 day)</span>
-              <span class="metric-value hinted" data-key="var95_1d" data-value="${m.var_95_1d}" style="color: ${getMetricHealth('var_95_1d', m.var_95_1d).color}">
-                ${formatPercent(m.var_95_1d)}
-              </span>
+            <h3>📉 Loss & Drawdown Analysis <span style="font-size:.8rem; color: var(--theme-text); opacity:.7; font-weight:500; margin-left:.5rem;"><br>VaR 30j • CVaR 60j • DD 180j</span></h3>
+
+            <!-- Short-term Loss Risk (VaR) -->
+            <div class="risk-subsection">
+              <div class="subsection-title">Short-term Loss (1 day)</div>
+
+              <div class="metric-row">
+                <span class="metric-label">VaR 95%</span>
+                <span class="metric-value hinted" data-key="var95_1d" data-value="${m.var_95_1d}" style="color: ${getMetricHealth('var_95_1d', m.var_95_1d).color}">
+                  ${formatPercent(m.var_95_1d)}
+                </span>
+              </div>
+              <div class="metric-interpretation">
+                💡 ${getMetricHealth('var_95_1d', m.var_95_1d).interpretation}
+              </div>
+
+              <div class="metric-row">
+                <span class="metric-label">VaR 99% (extrême)</span>
+                <span class="metric-value hinted" data-key="var99_1d" data-value="${m.var_99_1d}" style="color: ${getMetricHealth('var_99_1d', m.var_99_1d).color}">
+                  ${formatPercent(m.var_99_1d)}
+                </span>
+              </div>
             </div>
-            <div class="metric-interpretation">
-              💡 ${getMetricHealth('var_95_1d', m.var_95_1d).interpretation}
+
+            <!-- Tail Risk (CVaR) - Collapsible -->
+            <details class="risk-details" style="margin: var(--space-md) 0;">
+              <summary style="cursor: pointer; color: var(--theme-text-muted); font-size: 0.85rem; padding: var(--space-xs) 0;">
+                <span style="color: var(--brand-primary);">▸</span> Tail Risk (CVaR)
+              </summary>
+              <div style="margin-top: var(--space-sm); padding-left: var(--space-md);">
+                <div class="metric-row" style="font-size: 0.9rem;">
+                  <span class="metric-label">CVaR 95%</span>
+                  <span class="metric-value hinted" data-key="cvar95_1d" data-value="${m.cvar_95_1d}">${formatPercent(m.cvar_95_1d)}</span>
+                </div>
+                <div class="metric-row" style="font-size: 0.9rem;">
+                  <span class="metric-label">CVaR 99%</span>
+                  <span class="metric-value hinted" data-key="cvar99_1d" data-value="${m.cvar_99_1d}">${formatPercent(m.cvar_99_1d)}</span>
+                </div>
+                <div style="font-size: 0.75rem; color: var(--theme-text-muted); font-style: italic; margin-top: var(--space-xs);">
+                  ℹ️ Perte moyenne au-delà du VaR
+                </div>
+              </div>
+            </details>
+
+            <!-- Historical Drawdown -->
+            <div class="risk-subsection">
+              <div class="subsection-title">Historical Drawdown</div>
+
+              <div class="metric-row">
+                <span class="metric-label">Max Drawdown</span>
+                <span class="metric-value hinted" data-key="max_drawdown" data-value="${m.max_drawdown}" style="color: ${getMetricHealth('max_drawdown', m.max_drawdown).color}">
+                  ${formatPercent(m.max_drawdown)}
+                </span>
+              </div>
+              <div class="metric-interpretation">
+                💡 ${getMetricHealth('max_drawdown', m.max_drawdown).interpretation}
+              </div>
+
+              <div class="metric-row">
+                <span class="metric-label">Current Drawdown</span>
+                <span class="metric-value hinted" data-key="current_drawdown" data-value="${m.current_drawdown}">${formatPercent(m.current_drawdown)}</span>
+              </div>
             </div>
-            <div class="metric-row">
-              <span class="metric-label">VaR 99% (1 day)</span>
-              <span class="metric-value hinted" data-key="var99_1d" data-value="${m.var_99_1d}" style="color: ${getMetricHealth('var_99_1d', m.var_99_1d).color}">
-                ${formatPercent(m.var_99_1d)}
-              </span>
-            </div>
-            <div class="metric-interpretation">
-              💡 ${getMetricHealth('var_99_1d', m.var_99_1d).interpretation}
-            </div>
-            <div class="metric-row">
-              <span class="metric-label">CVaR 95% (1 day)</span>
-              <span class="metric-value hinted" data-key="cvar95_1d" data-value="${m.cvar_95_1d}">${formatPercent(m.cvar_95_1d)}</span>
-            </div>
-            <div class="metric-row">
-              <span class="metric-label">CVaR 99% (1 day)</span>
-              <span class="metric-value hinted" data-key="cvar99_1d" data-value="${m.cvar_99_1d}">${formatPercent(m.cvar_99_1d)}</span>
-            </div>
+
             <div class="metric-benchmark">
-              📊 <strong>Benchmarks crypto:</strong> Conservateur: -4%, Typique: -7%, Agressif: -12%
+              📊 <strong>VaR:</strong> Conservateur: -4%, Typique: -7%, Agressif: -12% • <strong>Drawdown:</strong> Bon: -30%, Typique: -50%, Extrême: -70%+
             </div>
           </div>
 
@@ -2748,27 +2785,6 @@
             </div>
             <div class="metric-benchmark">
               📊 <strong>Benchmarks crypto:</strong> Excellent: >1.5, Bon: >1.0, Acceptable: >0.5 (Sharpe)
-            </div>
-          </div>
-
-          <!-- Drawdowns -->
-          <div class="risk-card">
-            <h3>📊 Drawdown Analysis <span style="font-size:.8rem; color: var(--theme-text); opacity:.7; font-weight:500; margin-left:.5rem;"><br>lookback 180j</span></h3>
-            <div class="metric-row">
-              <span class="metric-label">Max Drawdown</span>
-              <span class="metric-value hinted" data-key="max_drawdown" data-value="${m.max_drawdown}" style="color: ${getMetricHealth('max_drawdown', m.max_drawdown).color}">
-                ${formatPercent(m.max_drawdown)}
-              </span>
-            </div>
-            <div class="metric-interpretation">
-              💡 ${getMetricHealth('max_drawdown', m.max_drawdown).interpretation}
-            </div>
-            <div class="metric-row">
-              <span class="metric-label">Current Drawdown</span>
-              <span class="metric-value hinted" data-key="current_drawdown" data-value="${m.current_drawdown}">${formatPercent(m.current_drawdown)}</span>
-            </div>
-            <div class="metric-benchmark">
-              📊 <strong>Crypto historique:</strong> Bon: -30%, Typique: -50%, Extrême: -70%+
             </div>
           </div>
 

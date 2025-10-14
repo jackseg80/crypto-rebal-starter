@@ -675,6 +675,46 @@
   margin-bottom: var(--space-sm);
 }
 
+/* Risk card subsections (for grouped metrics) */
+.risk-subsection {
+  margin: var(--space-lg) 0;
+  padding: var(--space-md);
+  background: color-mix(in oklab, var(--theme-bg) 50%, var(--theme-surface));
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--brand-primary);
+}
+
+.risk-subsection:first-of-type {
+  margin-top: var(--space-md);
+}
+
+.subsection-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--brand-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-xs);
+  border-bottom: 1px solid color-mix(in oklab, var(--brand-primary) 20%, transparent);
+}
+
+/* Collapsible details styling */
+.risk-details summary {
+  transition: all var(--transition-fast);
+  user-select: none;
+}
+
+.risk-details summary:hover {
+  color: var(--brand-primary) !important;
+}
+
+.risk-details[open] summary span:first-child {
+  transform: rotate(90deg);
+  display: inline-block;
+  transition: transform var(--transition-fast);
+}
+
 .metric-row {
   display: flex;
   justify-content: space-between;
