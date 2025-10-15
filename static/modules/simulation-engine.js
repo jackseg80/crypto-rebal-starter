@@ -486,10 +486,11 @@ export function computeDecisionIndex(context) {
   wRisk /= sum;
 
   // Calcul DI final
+  // ✅ Risk est positif (0-100, plus haut = mieux) - pas d'inversion
   const di = Math.round(
     (scores.cycle * wCycle) +
     (scores.onchain * wOnchain) +
-    ((100 - scores.risk) * wRisk)
+    (scores.risk * wRisk)
   );
 
   const confidence = Math.min(1, (confidences.cycle + confidences.onchain + confidences.regime) / 3);
@@ -503,7 +504,7 @@ export function computeDecisionIndex(context) {
       contradiction: contradictionCount,
       contradictionFactor: contraFactor
     },
-    reasoning: `CCS mixte: Cycle(${scores.cycle}×${wCycle.toFixed(2)}) + OnChain(${scores.onchain}×${wOnchain.toFixed(2)}) + Risk(${100-scores.risk}×${wRisk.toFixed(2)})`
+    reasoning: `CCS mixte: Cycle(${scores.cycle}×${wCycle.toFixed(2)}) + OnChain(${scores.onchain}×${wOnchain.toFixed(2)}) + Risk(${scores.risk}×${wRisk.toFixed(2)})`
   };
 
   (window.debugLogger?.debug || console.log)('🎭 SIM: diComputed -', result);

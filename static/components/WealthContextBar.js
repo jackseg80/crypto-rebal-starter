@@ -1079,14 +1079,17 @@ class WealthContextBar {
   async fetchAndUpdateRealData() {
     try {
       // Parallel fetch of all available APIs
+      // ✅ Utilise window.loadBalanceData() au lieu de fetch direct (règle CLAUDE.md)
       const [riskData, balancesData] = await Promise.allSettled([
         fetch('/api/risk/dashboard').then(r => r.json()),
-        fetch('/balances/current').then(r => r.json())
+        window.loadBalanceData ? window.loadBalanceData(false) : fetch('/balances/current').then(r => r.json())
       ]);
 
       // Extract successful responses
       const risk = riskData.status === 'fulfilled' ? riskData.value : null;
-      const balances = balancesData.status === 'fulfilled' ? balancesData.value : null;
+      // Adapter le format de loadBalanceData si nécessaire
+      const balancesRaw = balancesData.status === 'fulfilled' ? balancesData.value : null;
+      const balances = balancesRaw?.data || balancesRaw;
 
       // Get ML status separately to avoid breaking main flow
       let mlStatus = null;

@@ -5,7 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - 2025-10-08
+## [Unreleased] - 2025-10-15
+
+### 🐛 Code Quality & Compliance Fixes (Oct 2025)
+
+#### Fixed
+- **Risk Score inversion in simulation engine** ([simulation-engine.js:489-493, :507](static/modules/simulation-engine.js#L489-L507))
+  - **Problem**: Decision Index calculation was inverting Risk Score with `(100 - scores.risk)`
+  - **Impact**: Violated critical CLAUDE.md rule "Risk Score = Positif (0-100), Ne jamais inverser"
+  - **Root cause**: Copy-paste error from legacy code using inverted risk semantics
+  - **Fix**: Removed inversion, now correctly uses `scores.risk * wRisk` in DI formula
+  - **Reasoning updated**: Display now shows actual risk values without inversion
+  - **Result**: DI calculation now respects canonical risk semantics (high score = high robustness) ✅
+
+- **Direct fetch bypassing loadBalanceData** ([WealthContextBar.js:1083-1092](static/components/WealthContextBar.js#L1083-L1092))
+  - **Problem**: Badge data fetching used direct `fetch('/balances/current')` call
+  - **Impact**: Bypassed centralized data management system required by CLAUDE.md
+  - **Root cause**: Legacy code pattern before `window.loadBalanceData()` standardization
+  - **Fix**: Replaced with `window.loadBalanceData()` with fallback for compatibility
+  - **Format adaptation**: Added `.data` unwrapping to handle loadBalanceData response format
+  - **Result**: Unified data loading pattern across entire frontend ✅
+
+#### Documentation
+- **CHANGELOG.md** - Added comprehensive entry documenting both fixes
+  - Before/after code examples with line references
+  - Impact analysis and root cause identification
+  - Verification that fixes respect CLAUDE.md critical rules
+
+---
 
 ### 🔧 Cap Stability Fix (Oct 2025)
 
