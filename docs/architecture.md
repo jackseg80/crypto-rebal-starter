@@ -10,6 +10,47 @@
 - **Connectors (`connectors/`)** : Intégrations CoinTracking, Saxo, exchanges
 - **UI Consolidée (`static/`)** : 6 pages canoniques avec navigation unifiée
 
+### Structure API Modulaire
+
+L'API FastAPI (`api/main.py`) utilise une **architecture modulaire par routers** pour une meilleure maintenabilité :
+
+#### Routers Principaux
+
+| Router | Fichier | Endpoints | Responsabilité |
+|--------|---------|-----------|----------------|
+| **Health** | `api/health_router.py` | 7 | Health checks, statut scheduler, favicon |
+| **Debug** | `api/debug_router.py` | 5 | Diagnostics, snapshots exchanges, gestion clés API |
+| **Config** | `api/config_router.py` | 2 | Configuration data source (GET/POST) |
+| **Pricing** | `api/pricing_router.py` | 2 | Diagnostics pricing, âge données |
+| **Strategies** | `api/rebalancing_strategy_router.py` | 5 | Presets stratégies (conservative, balanced, growth, etc.) |
+| **Strategy Registry** | `api/strategy_endpoints.py` | 6 | Templates stratégie, preview, comparaison |
+| **Risk** | `api/risk_endpoints.py` | Multiple | Risk management, VaR, métriques portfolio |
+| **Backtesting** | `api/backtesting_router.py` | Multiple | Simulations historiques, analyse performance |
+| **Wealth** | `api/wealth_router.py` | Multiple | Gestion cross-asset (banque, divers, global) |
+
+#### Pattern de Configuration
+
+```python
+# api/main.py
+from api.health_router import router as health_router
+from api.debug_router import router as debug_router
+from api.config_router import router as config_router
+from api.pricing_router import router as pricing_router
+from api.rebalancing_strategy_router import router as rebalancing_strategy_router
+
+app.include_router(health_router)
+app.include_router(debug_router)
+app.include_router(config_router)
+app.include_router(pricing_router)
+app.include_router(rebalancing_strategy_router)
+```
+
+**Avantages** :
+- 📉 Réduction taille `main.py` : 2,118 → 1,561 lignes (-26.3%)
+- 🔍 Meilleure lisibilité et découvrabilité des endpoints
+- 🧪 Tests isolés par domaine fonctionnel
+- 🔄 Maintenabilité accrue pour évolutions futures
+
 ## Hiérarchie Décisionnelle
 
 **SMART System** (quoi) → **Decision Engine** (combien/tempo) → **Execution** (comment)
