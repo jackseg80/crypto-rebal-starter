@@ -95,6 +95,7 @@ from api.user_settings_endpoints import router as user_settings_router
 from api.wealth_endpoints import router as wealth_router
 from api.sources_endpoints import router as sources_router
 from api.debug_router import router as debug_router
+from api.health_router import router as health_router
 ## NOTE: market_endpoints est désactivé tant que le client prix n'est pas réimplémenté
 from api.market_endpoints import router as market_router
 from api.exceptions import (
@@ -1005,110 +1006,6 @@ def _assign_locations_to_actions(plan: dict, rows: list[dict], min_trade_usd: fl
 
     return plan
 
-# ---------- health ----------
-@app.get("/health")
-async def health():
-    """Simple health check endpoint for containers"""
-    return {"status": "healthy", "timestamp": datetime.now().isoformat(), "environment": ENVIRONMENT}
-
-@app.get("/healthz")
-async def healthz():
-    return {"ok": True}
-
-@app.get("/favicon.ico")
-async def favicon():
-    """Serve a tiny placeholder favicon to avoid 404s in the browser console."""
-    try:
-        import base64
-        # 1x1 transparent PNG
-        b64 = (
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO1iYl8AAAAASUVORK5CYII="
-        )
-        data = base64.b64decode(b64)
-        return Response(content=data, media_type="image/png")
-    except Exception as e:
-        # Fallback to no-content if decoding somehow fails
-        logger.warning(f"Failed to decode favicon data: {e}")
-        return Response(status_code=204)
-
-@app.get("/test-simple")
-async def test_simple():
-    return {"test": "working", "endpoints_loaded": True}
-
-@app.get("/health/detailed")
-async def health_detailed():
-    """Endpoint de santé détaillé avec métriques complètes"""
-    return {
-        "ok": True,
-        "message": "Health detailed endpoint working!",
-        "server_running": True
-    }
-
-
-@app.get("/api/scheduler/health")
-async def scheduler_health():
-    """
-    Scheduler health check endpoint - shows status of all scheduled jobs.
-
-    Returns:
-        dict: Job status with last run time, duration, and errors
-    """
-    try:
-        from api.scheduler import get_scheduler, get_job_status
-
-        scheduler = get_scheduler()
-
-        if scheduler is None:
-            return {
-                "ok": False,
-                "enabled": False,
-                "message": "Scheduler not running (RUN_SCHEDULER != 1)",
-                "jobs": {}
-            }
-
-        # Get job status
-        job_status = get_job_status()
-
-        # Get next run times
-        jobs = scheduler.get_jobs()
-        next_runs = {}
-        for job in jobs:
-            next_runs[job.id] = {
-                "name": job.name,
-                "next_run": job.next_run_time.isoformat() if job.next_run_time else None
-            }
-
-        # Merge status with next runs
-        for job_id, status in job_status.items():
-            if job_id in next_runs:
-                status["next_run"] = next_runs[job_id]["next_run"]
-                status["name"] = next_runs[job_id]["name"]
-
-        return {
-            "ok": True,
-            "enabled": True,
-            "jobs_count": len(jobs),
-            "jobs": job_status,
-            "next_runs": next_runs
-        }
-
-    except Exception as e:
-        logger.exception("Failed to get scheduler health")
-        return {
-            "ok": False,
-            "error": str(e)
-        }
-
-
-@app.get("/schema")
-async def schema():
-    """Fallback endpoint to expose OpenAPI schema if /openapi.json isn't reachable in your env."""
-    try:
-        return app.openapi()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"OpenAPI generation failed: {e}")
-
-
 # Helper function moved to unified_data.py to avoid circular imports
 
 # Debug endpoint removed
@@ -1703,6 +1600,7 @@ app.include_router(user_settings_router)
 app.include_router(sources_router)
 app.include_router(wealth_router)
 app.include_router(debug_router)
+app.include_router(health_router)
 # Phase 3 Unified Orchestration
 from api.unified_phase3_endpoints import router as unified_phase3_router
 app.include_router(unified_phase3_router)
