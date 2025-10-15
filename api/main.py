@@ -94,6 +94,7 @@ from api.intelligence_endpoints import router as intelligence_router
 from api.user_settings_endpoints import router as user_settings_router
 from api.wealth_endpoints import router as wealth_router
 from api.sources_endpoints import router as sources_router
+from api.debug_router import router as debug_router
 ## NOTE: market_endpoints est désactivé tant que le client prix n'est pas réimplémenté
 from api.market_endpoints import router as market_router
 from api.exceptions import (
@@ -445,24 +446,6 @@ async def no_cache_dev_middleware(request: Request, call_next):
             response.headers["Expires"] = "0"
 
     return response
-
-@app.get("/debug/paths")
-async def debug_paths():
-    """Endpoint de diagnostic pour vérifier les chemins"""
-    if not DEBUG:
-        raise HTTPException(status_code=404, detail="Debug endpoint not available")
-    
-    csv_file = DATA_DIR / "raw" / "CoinTracking - Current Balance.csv"
-    return {
-        "BASE_DIR": str(BASE_DIR),
-        "STATIC_DIR": str(STATIC_DIR),
-        "DATA_DIR": str(DATA_DIR),
-        "static_exists": STATIC_DIR.exists(),
-        "data_exists": DATA_DIR.exists(),
-        "csv_file": str(csv_file),
-        "csv_exists": csv_file.exists(),
-        "csv_size": csv_file.stat().st_size if csv_file.exists() else 0
-    }
 
 # Cache prix unifié utilisant le système centralisé
 _PRICE_CACHE: Dict[str, tuple] = {}  # symbol -> (ts, price)
@@ -1019,25 +1002,8 @@ def _assign_locations_to_actions(plan: dict, rows: list[dict], min_trade_usd: fl
             out_actions.append(a)
 
     plan["actions"] = out_actions
-    
+
     return plan
-
-
-# DEBUG: introspection rapide de la répartition par exchange (cointracking_api)
-@app.get("/debug/exchanges-snapshot")
-async def debug_exchanges_snapshot(source: str = "cointracking_api"):
-    if not DEBUG:
-        raise HTTPException(status_code=404, detail="Debug endpoint not available")
-    
-    from connectors.cointracking import get_unified_balances_by_exchange
-    data = await get_unified_balances_by_exchange(source=source)
-    return {
-        "has_exchanges": bool(data.get("exchanges")),
-        "exchanges_count": len(data.get("exchanges") or []),
-        "sample_exchanges": [e.get("location") for e in (data.get("exchanges") or [])[:5]],
-        "has_holdings": bool(data.get("detailed_holdings")),
-        "holdings_keys": list((data.get("detailed_holdings") or {}).keys())[:5]
-    }
 
 # ---------- health ----------
 @app.get("/health")
@@ -1600,42 +1566,6 @@ def _to_csv(actions: List[Dict[str, Any]]) -> str:
         ))
     return "\n".join(lines)
 
-# ---------- debug ----------
-@app.get("/debug/ctapi")
-async def debug_ctapi():
-    """Endpoint de debug pour CoinTracking API"""
-    if not DEBUG:
-        raise HTTPException(status_code=404, detail="Debug endpoint not available")
-    # Utilise la façade ct_api importée dynamiquement plus haut
-    if ct_api is None:
-        raise HTTPException(status_code=503, detail="cointracking_api module not available")
-    try:
-        return ct_api._debug_probe()
-    except Exception as e:
-        # Encapsuler proprement les erreurs pour le frontend de test
-        return {"ok": False, "error": str(e), "env": {
-            "has_key": bool(os.getenv("COINTRACKING_API_KEY") or os.getenv("CT_API_KEY") or os.getenv("API_COINTRACKING_API_KEY")),
-            "has_secret": bool(os.getenv("COINTRACKING_API_SECRET") or os.getenv("CT_API_SECRET") or os.getenv("API_COINTRACKING_API_SECRET")),
-        }}
-
-@app.get("/debug/api-keys")
-async def debug_api_keys(debug_token: str = None):
-    """Expose les clés API depuis .env pour auto-configuration (sécurisé)"""
-    if not DEBUG:
-        raise HTTPException(status_code=404, detail="Debug endpoint not available")
-    
-    # Simple protection pour développement
-    expected_token = os.getenv("DEBUG_TOKEN")
-    if not expected_token or debug_token != expected_token:
-        raise HTTPException(status_code=403, detail="Debug token required")
-    
-    return {
-        "coingecko_api_key": os.getenv("COINGECKO_API_KEY", "")[:8] + "...",  # Masquer partiellement
-        "cointracking_api_key": os.getenv("COINTRACKING_API_KEY", "")[:8] + "...",
-        "cointracking_api_secret": "***masked***",
-        "fred_api_key": os.getenv("FRED_API_KEY", "")[:8] + "..."
-    }
-
 @app.get("/proxy/fred/bitcoin")
 async def proxy_fred_bitcoin(start_date: str = "2014-01-01", limit: int = None, user: str = Depends(get_active_user)):
     """Proxy pour récupérer les données Bitcoin historiques via FRED API (user-scoped)"""
@@ -1703,62 +1633,6 @@ async def proxy_fred_bitcoin(start_date: str = "2014-01-01", limit: int = None, 
             "error": f"Proxy error: {str(e)}",
             "data": []
         }
-
-@app.post("/debug/api-keys")
-async def update_api_keys(payload: APIKeysRequest, debug_token: str = None):
-    """Met à jour les clés API dans le fichier .env (sécurisé)"""
-    if not DEBUG:
-        raise HTTPException(status_code=404, detail="Debug endpoint not available")
-    
-    # Simple protection pour développement
-    expected_token = os.getenv("DEBUG_TOKEN")
-    if not expected_token or debug_token != expected_token:
-        raise HTTPException(status_code=403, detail="Debug token required")
-    
-    import re
-    from pathlib import Path
-    
-    env_file = Path(".env")
-    if not env_file.exists():
-        # Créer le fichier .env s'il n'existe pas
-        env_file.write_text("# Clés API générées automatiquement\n")
-    
-    content = env_file.read_text()
-    
-    # Définir les mappings clé -> nom dans .env
-    key_mappings = {
-        "coingecko_api_key": "COINGECKO_API_KEY",
-        "cointracking_api_key": "COINTRACKING_API_KEY", 
-        "cointracking_api_secret": "COINTRACKING_API_SECRET",
-        "fred_api_key": "FRED_API_KEY"
-    }
-    
-    updated = False
-    payload_dict = payload.model_dump(exclude_none=True)  # Convertir le modèle Pydantic en dict
-    for field_key, env_key in key_mappings.items():
-        if field_key in payload_dict and payload_dict[field_key]:
-            # Chercher si la clé existe déjà
-            pattern = rf"^{env_key}=.*$"
-            new_line = f"{env_key}={payload_dict[field_key]}"
-            
-            if re.search(pattern, content, re.MULTILINE):
-                # Remplacer la ligne existante
-                content = re.sub(pattern, new_line, content, flags=re.MULTILINE)
-            else:
-                # Ajouter la nouvelle clé
-                content += f"\n{new_line}"
-            updated = True
-    
-    if updated:
-        env_file.write_text(content)
-        # Recharger les variables d'environnement dans le process courant
-        import os
-        for field_key, env_key in key_mappings.items():
-            val = payload_dict.get(field_key)
-            if val:
-                os.environ[env_key] = val
-    
-    return {"success": True, "updated": updated}
 
 # inclure les routes taxonomie, execution, monitoring et analytics
 app.include_router(taxonomy_router)
@@ -1828,6 +1702,7 @@ app.include_router(intelligence_router)
 app.include_router(user_settings_router)
 app.include_router(sources_router)
 app.include_router(wealth_router)
+app.include_router(debug_router)
 # Phase 3 Unified Orchestration
 from api.unified_phase3_endpoints import router as unified_phase3_router
 app.include_router(unified_phase3_router)
