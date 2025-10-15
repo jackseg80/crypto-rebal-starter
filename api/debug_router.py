@@ -12,7 +12,7 @@ from fastapi import APIRouter, HTTPException, Query, Depends
 from fastapi.responses import Response
 
 from api.models import APIKeysRequest
-from api.dependencies import get_active_user
+from api.deps import get_active_user
 
 # Import debug flag and paths from config
 from config import get_settings
