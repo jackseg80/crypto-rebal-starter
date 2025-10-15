@@ -98,6 +98,7 @@ from api.debug_router import router as debug_router
 from api.health_router import router as health_router
 from api.pricing_router import router as pricing_router
 from api.rebalancing_strategy_router import router as rebalancing_strategy_router
+from api.config_router import router as config_router
 ## NOTE: market_endpoints est désactivé tant que le client prix n'est pas réimplémenté
 from api.market_endpoints import router as market_router
 from api.exceptions import (
@@ -1476,6 +1477,7 @@ app.include_router(wealth_router)
 app.include_router(debug_router)
 app.include_router(health_router)
 app.include_router(pricing_router)
+app.include_router(config_router)
 # Phase 3 Unified Orchestration
 from api.unified_phase3_endpoints import router as unified_phase3_router
 app.include_router(unified_phase3_router)
@@ -1556,51 +1558,4 @@ async def portfolio_breakdown_locations(
     }
 
 # /portfolio/alerts migrated to api/portfolio_endpoints.py
-
-# ---------- Configuration Endpoints ----------
-
-# In-memory storage for frontend configuration
-_frontend_config = {"data_source": None}
-
-@app.post("/api/config/data-source")
-async def set_data_source(request: dict):
-    """
-    Set the data source configuration from frontend
-    """
-    try:
-        data_source = request.get("data_source")
-        if data_source in ["stub", "stub_balanced", "stub_conservative", "stub_shitcoins", "cointracking", "cointracking_api"]:
-            _frontend_config["data_source"] = data_source
-            logger.info(f"Data source updated to: {data_source}")
-            return {"ok": True, "data_source": data_source}
-        else:
-            return {"ok": False, "error": "Invalid data source"}
-    except Exception as e:
-        logger.error(f"Error setting data source: {e}")
-        return {"ok": False, "error": str(e)}
-
-@app.get("/api/config/data-source")
-async def get_configured_data_source():
-    """
-    Get the currently configured data source
-    This endpoint respects frontend configuration first, then falls back to detection
-    """
-    try:
-        # First, check if frontend has explicitly set a data source
-        if _frontend_config["data_source"]:
-            return {"data_source": _frontend_config["data_source"]}
-        
-        # Fallback to smart detection if no explicit config
-        api_key = os.getenv("COINTRACKING_API_KEY")
-        api_secret = os.getenv("COINTRACKING_API_SECRET")
-        
-        if api_key and api_secret:
-            return {"data_source": "cointracking_api"}
-        elif Path("data/raw").exists() and any(Path("data/raw").glob("*.csv")):
-            return {"data_source": "cointracking"}
-        else:
-            return {"data_source": "stub"}
-            
-    except Exception as e:
-        logger.error(f"Error getting data source config: {e}")
-        return {"data_source": "stub"}  # Safe fallback
+# /api/config/* endpoints migrated to api/config_router.py

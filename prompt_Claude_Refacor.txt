@@ -1493,4 +1493,131 @@ fonctionne pas.
   - Identifier les "quick wins"
 
 
+  Parfait! Je vois l'état actuel. Récapitulons:
+
+  📊 État Actuel du Refactoring
+
+  Travail terminé:
+  - ✅ Phase 1: debug_router.py - Commit 932b79b (-125 lignes)
+  - ✅ Phase 2A: health_router.py - Commit 7bef69b (-102 lignes)
+  - ✅ Phase 2B: pricing_router.py - Commit b5baa6f (-127 lignes)
+
+  Progression:
+  - api/main.py: 2,118 → 1,765 lignes (-353 lignes, -16.7%)
+  - Objectif: ~1,500 lignes (30% réduction)
+  - Reste: ~265 lignes à extraire
+
+  🎯 Endpoints Restants dans main.py
+
+  J'ai analysé le code et identifié ces candidats:
+
+  | Endpoints                     | Lignes | Risque         | Priorité |    
+  |-------------------------------|--------|----------------|----------|    
+  | Strategy endpoints (5 routes) | ~30    | 🟢 Très faible | P1       |    
+  | Config endpoints (2 routes)   | ~40    | 🟢 Faible      | P2       |    
+  | Fred proxy (1 route)          | ~67    | 🟡 Moyen       | P3       |    
+  | Portfolio breakdown (1 route) | ~54    | 🟡 Moyen       | P3       |    
+  | Rebalance plan (3 routes)     | ~115   | 🔴 Élevé       | P4       |    
+
+  💡 Recommandation: Phase 2C - Strategy Router
+
+● Je recommande d'extraire les Strategy endpoints car:
+
+  ✅ Très faible risque:
+  - Endpoints simples avec constantes statiques (REBALANCING_STRATEGIES)    
+  - Pas de logique métier complexe
+  - Pas d'appels externes
+
+  ✅ Tests faciles:
+  - Pas besoin d'API keys ou données externes
+  - Simple GET requests avec JSON responses
+
+  ✅ Gain immédiat: 30 lignes + constantes (80 lignes de
+  REBALANCING_STRATEGIES)
+
+  Endpoints à extraire:
+  1. GET /strategies/list
+  2. GET /api/strategies/list (alias)
+  3. GET /api/backtesting/strategies (alias)
+  4. GET /strategies/{strategy_id}
+  5. GET /api/strategies/{strategy_id} (alias)
+
+
+
+  Phase 2C Terminée! Commit 9db41be
+
+  ---
+  📊 Bilan Phase 2C - Rebalancing Strategy Router
+
+  Fichiers créés:
+  - ✨ api/rebalancing_strategy_router.py (+195 lignes)
+    - 5 endpoints extraits
+    - Constantes REBALANCING_STRATEGIES (5 stratégies)
+    - Modèles Pydantic (Strategy, StrategyListResponse,
+  StrategyDetailResponse)
+    - Cache ETag pour optimisation
+
+  Fichiers modifiés:
+  - 📉 api/main.py (1,765 → 1,606 lignes, -159 lignes, -9.0%)
+
+  Tests validés:
+  - ✅ GET /strategies/list → 5 stratégies
+  - ✅ GET /api/strategies/list → Alias fonctionne
+  - ✅ GET /strategies/{id} → Détails stratégie
+  - ✅ GET /api/strategies/{id} → Alias fonctionne
+
+  ---
+  📈 Progression Totale Backend Refactoring
+
+  | Phase | Router                         | Lignes      | Commit  |        
+  |-------|--------------------------------|-------------|---------|        
+  | 1     | debug_router.py                | -125        | 932b79b |        
+  | 2A    | health_router.py               | -102        | 7bef69b |        
+  | 2B    | pricing_router.py              | -127        | b5baa6f |        
+  | 2C    | rebalancing_strategy_router.py | -159        | 9db41be |        
+  | TOTAL | api/main.py                    | -512 lignes | -24.2%  |        
+
+  État actuel:
+  - api/main.py: 2,118 → 1,606 lignes
+  - Objectif: ~1,500 lignes (30% réduction)
+  - Reste: ~106 lignes à extraire pour atteindre l'objectif! 🎯
+
+  ---
+  🎯 Prochaines Options
+
+  Option A: Config Endpoints (recommandé - simple)
+
+  Gain: ~40 lignes | Risque: 🟢 Très faible
+
+  Extraire vers api/config_router.py:
+  - POST /api/config/data-source (set data source)
+  - GET /api/config/data-source (get data source)
+
+  Avantage: Endpoints isolés, aucune dépendance complexe
+
+  ---
+  Option B: Fred Proxy + Portfolio Breakdown
+
+  Gain: ~120 lignes | Risque: 🟡 Moyen
+
+  Extraire vers api/proxy_router.py + api/portfolio_locations_router.py:    
+  - GET /proxy/fred/bitcoin (~67 lignes)
+  - GET /portfolio/breakdown-locations (~54 lignes)
+
+  Avantage: Atteindrait l'objectif de 1,500 lignes
+
+  ---
+  Option C: Documenter et Arrêter
+
+  Gain: Documentation | Risque: 🟢 Aucun
+
+  - Mettre à jour docs/ARCHITECTURE.md
+  - Déclarer le refactoring terminé (-24.2%)
+
+  ---
+  Recommandation: Option A (config_router) pour terminer proprement et      
+  atteindre ~1,566 lignes, très proche de l'objectif!
+
+
+
   
