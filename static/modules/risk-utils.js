@@ -45,11 +45,11 @@ export function formatMoney(usd) {
   if (cur !== 'USD' && (!rate || rate <= 0)) return '—';
   const v = (usd == null || isNaN(usd)) ? 0 : (usd * rate);
   try {
-    const dec = (cur === 'BTC') ? 8 : 2;
+    const dec = (cur === 'BTC') ? 8 : 0;
     const out = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, minimumFractionDigits: dec, maximumFractionDigits: dec }).format(v);
     return (cur === 'USD') ? out.replace(/\s?US$/, '') : out;
   } catch (_) {
-    return `${v.toFixed(cur === 'BTC' ? 8 : 2)} ${cur}`;
+    return `${v.toFixed(cur === 'BTC' ? 8 : 0)} ${cur}`;
   }
 }
 

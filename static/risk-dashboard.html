@@ -256,60 +256,6 @@
       }
     });
 
-    // Helper functions (must be defined first)
-    function safeFixed(v, d = 2) { return (v == null || isNaN(v)) ? 'N/A' : Number(v).toFixed(d); }
-    function formatPercent(v) { return (v == null || isNaN(v)) ? 'N/A' : (v * 100).toFixed(2) + '%'; }
-    function formatNumber(v) {
-      if (v == null || isNaN(v)) return 'N/A';
-      return new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v);
-    }
-    function formatMoney(usd) {
-      const cur = (window.globalConfig && window.globalConfig.get('display_currency')) || 'USD';
-      const rate = (window.currencyManager && window.currencyManager.getRateSync(cur)) || 1;
-      if (cur !== 'USD' && (!rate || rate <= 0)) return '—';
-      const v = (usd == null || isNaN(usd)) ? 0 : (usd * rate);
-      try {
-        const dec = (cur === 'BTC') ? 8 : 0;
-        const out = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, minimumFractionDigits: dec, maximumFractionDigits: dec }).format(v);
-        return (cur === 'USD') ? out.replace(/\s?US$/, '') : out;
-      } catch (_) {
-        return `${v.toFixed(cur === 'BTC' ? 8 : 0)} ${cur}`;
-      }
-    }
-    // 🆕 Oct 2025: Score → Risk Level mapping (canonical from docs/RISK_SEMANTICS.md)
-    function scoreToRiskLevel(score) {
-      if (score == null) return 'unknown';
-      if (score >= 80) return 'very-low';     // Très robuste
-      if (score >= 65) return 'low';          // Robuste
-      if (score >= 50) return 'medium';       // Modéré
-      if (score >= 35) return 'high';         // Fragile
-      if (score >= 20) return 'very-high';    // Très fragile
-      return 'critical';                      // Critique (<20)
-    }
-
-    // Score color utility (IMPORTANT: positive semantics - higher = better/more robust)
-    // 🔧 Oct 2025: Granularité alignée sur les thresholds canoniques
-    function pickScoreColor(score) {
-      if (score == null) return 'var(--theme-text)';
-      if (score >= 80) return '#9ece6a';      // Vert foncé (very_low risk)
-      if (score >= 65) return '#73daca';      // Vert clair (low risk)
-      if (score >= 50) return '#ff9e64';      // Jaune/Orange (medium)
-      if (score >= 35) return '#e0af68';      // Orange clair (high)
-      if (score >= 20) return '#f7768e';      // Rouge clair (very_high)
-      return '#db4b4b';                       // Rouge foncé (critical)
-    }
-
-    // Score interpretation utility
-    function getScoreInterpretation(score) {
-      if (score == null) return 'Métrique non disponible';
-      if (score >= 80) return 'Portfolio très robuste - excellent';
-      if (score >= 65) return 'Portfolio robuste - bien protégé';
-      if (score >= 50) return 'Robustesse modérée - surveiller';
-      if (score >= 35) return 'Portfolio fragile - attention requise';
-      if (score >= 20) return 'Portfolio très fragile - risque élevé';
-      return 'Portfolio critique - danger immédiat';
-    }
-
     // 🆕 Oct 2025: Toggle breakdown panel (expose globally for onclick handlers)
     window.toggleBreakdown = function(panelId) {
       const panel = document.getElementById(panelId);
@@ -336,6 +282,10 @@
     import { renderCyclesContent, renderCyclesContentUncached, createBitcoinCycleChart, loadOnChainIndicators, fetchBitcoinHistoricalData } from './modules/risk-cycles-tab.js';
     import { renderTargetsContent, getCurrentPortfolioAllocation } from './modules/risk-targets-tab.js';
 
+    // Import utilities and constants (Oct 2025 refactoring - ultra-conservative)
+    import { safeFixed, formatPercent, formatNumber, formatMoney, scoreToRiskLevel, pickScoreColor, getScoreInterpretation } from './modules/risk-utils.js';
+    import { CACHE_CONFIG } from './modules/risk-constants.js';
+
     // Global state
     let autoRefreshInterval = null;
     let isRefreshing = false;
@@ -345,16 +295,8 @@
     let riskScore = null;
     let blendedScore = null;
 
-    // ===== PERSISTENT CACHE SYSTEM (must be defined early) =====
-    const CACHE_CONFIG = {
-      SCORES: { key: 'risk_scores_cache', ttl: 6 * 60 * 60 * 1000 }, // 6 heures (peut changer avec trades)
-      CCS_DATA: { key: 'ccs_data_cache', ttl: 6 * 60 * 60 * 1000 },  // 6 heures
-      ONCHAIN: { key: 'onchain_data_cache', ttl: 6 * 60 * 60 * 1000 }, // 6 heures (blockchain metrics)
-      RISK_METRICS: { key: 'risk_metrics_cache', ttl: 6 * 60 * 60 * 1000 }, // 6 heures
-      CYCLE_CONTENT: { key: 'cycle_content_cache', ttl: 24 * 60 * 60 * 1000 }, // 24 heures HTML (macro)
-      CYCLE_DATA: { key: 'cycle_data_cache', ttl: 24 * 60 * 60 * 1000 }, // 24 heures données (macro)
-      CYCLE_CHART: { key: 'cycle_chart_cache', ttl: 24 * 60 * 60 * 1000 } // 24 heures graphique
-    };
+    // ===== PERSISTENT CACHE SYSTEM =====
+    // Note: CACHE_CONFIG now imported from risk-constants.js
 
     function clearAllPersistentCache() {
       // Clear both old format and new data-source-aware format cache entries
