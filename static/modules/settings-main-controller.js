@@ -155,8 +155,7 @@ async function initQuickSettings() {
   }
   document.getElementById('quick_pricing').addEventListener('change', async (e) => {
     await selectPricing(e.target.value);
-    if (window.globalConfig) window.globalConfig.set('pricing', e.target.value);
-    window.debouncedSaveSettings();
+    // selectPricing() already calls debouncedSaveSettings()
   });
   document.getElementById('quick_min_usd').addEventListener('change', (e) => {
     if (!window.userSettings) window.userSettings = getDefaultSettings();
@@ -181,8 +180,7 @@ async function initQuickSettings() {
   });
   document.getElementById('quick_theme').addEventListener('change', async (e) => {
     await selectTheme(e.target.value);
-    if (window.globalConfig) window.globalConfig.set('theme', e.target.value);
-    window.debouncedSaveSettings();
+    // selectTheme() already calls debouncedSaveSettings()
   });
   document.getElementById('quick_api_base_url').addEventListener('change', (e) => {
     if (!window.userSettings) window.userSettings = getDefaultSettings();
@@ -697,8 +695,8 @@ async function selectPricing(pricing) {
   if (window.globalConfig) window.globalConfig.set('pricing', pricing);
   document.getElementById(`pricing_${pricing}`).checked = true;
   document.querySelector(`.radio-option input[value="${pricing}"]`).parentElement.classList.add('selected');
-  // updateStatusSummary() is slow - defer it or skip if not visible
-  // await updateStatusSummary();
+  // Auto-save backend
+  if (window.debouncedSaveSettings) window.debouncedSaveSettings();
 }
 
 // Sélection de thème (optimized - no blocking API calls)
@@ -715,12 +713,14 @@ async function selectTheme(theme) {
   // Mettre à jour l'interface
   document.getElementById(`theme_${theme}`).checked = true;
   document.querySelector(`.radio-option input[value="${theme}"]`).parentElement.classList.add('selected');
-  // Skip slow updateStatusSummary() - not needed for theme changes
 
   // Appliquer immédiatement le thème
   if (window.applyAppearance) {
     window.applyAppearance();
   }
+
+  // Auto-save backend
+  if (window.debouncedSaveSettings) window.debouncedSaveSettings();
 
   console.debug('Theme applied, current userSettings theme:', (window.userSettings || getDefaultSettings()).theme);
 }
