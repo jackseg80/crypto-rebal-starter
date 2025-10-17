@@ -65,6 +65,23 @@ async function buildQuickSourceDropdown() {
   }
 }
 
+// Système de debounce unique et global pour toutes les sauvegardes
+if (!window.settingsSaveTimeout) {
+  window.settingsSaveTimeout = null;
+}
+window.debouncedSaveSettings = function() {
+  if (window.settingsSaveTimeout) clearTimeout(window.settingsSaveTimeout);
+  window.settingsSaveTimeout = setTimeout(async () => {
+    try {
+      await saveSettings();
+      showNotification('✓ Sauvegardé', 'success', 1500);
+    } catch (err) {
+      debugLogger.error('Auto-save failed:', err);
+      showNotification('✗ Erreur sauvegarde', 'error', 2500);
+    }
+  }, 800);
+};
+
 // Initialisation des réglages rapides (onglet Résumé)
 async function initQuickSettings() {
   const s = window.userSettings || getDefaultSettings();
@@ -95,7 +112,7 @@ async function initQuickSettings() {
   // Note: Le cochage des radios est maintenant géré par updateUI() qui est appelé APRÈS
   // buildDataSourceControls(), donc les radios existent déjà quand updateUI() s'exécute
 
-  // Listeners: appliquent immédiatement dans globalConfig
+  // Listeners: appliquent immédiatement + auto-save vers backend
   if (document.getElementById('quick_data_source')) {
     document.getElementById('quick_data_source').addEventListener('change', async (e) => {
       const key = e.target.value;
@@ -111,8 +128,9 @@ async function initQuickSettings() {
             window.globalConfig.set('data_source', src.module);
             window.globalConfig.set('csv_selected_file', fname);
           }
-          try { await saveSettings(); } catch (_) { }
+          await saveSettings(); // Auto-save immédiat pour changement de source
           updateStatusSummary();
+          showNotification('✓ Source changée et sauvegardée', 'success');
           return;
         } else if (src && src.type === 'api') {
           // Mode API sélectionné
@@ -123,8 +141,9 @@ async function initQuickSettings() {
             window.globalConfig.set('data_source', src.key);
             window.globalConfig.set('csv_selected_file', null);
           }
-          try { await saveSettings(); } catch (_) { }
+          await saveSettings(); // Auto-save immédiat pour changement de source
           updateStatusSummary();
+          showNotification('✓ Source changée et sauvegardée', 'success');
           return;
         }
       } catch (err) {
@@ -137,46 +156,42 @@ async function initQuickSettings() {
   document.getElementById('quick_pricing').addEventListener('change', async (e) => {
     await selectPricing(e.target.value);
     if (window.globalConfig) window.globalConfig.set('pricing', e.target.value);
+    window.debouncedSaveSettings();
   });
   document.getElementById('quick_min_usd').addEventListener('change', (e) => {
     if (!window.userSettings) window.userSettings = getDefaultSettings();
     const val = parseFloat(e.target.value) || 0;
-    window.userSettings.min_usd_threshold = val; // Sauvegarde pour persistance
+    window.userSettings.min_usd_threshold = val;
     if (window.globalConfig) window.globalConfig.set('min_usd_threshold', val);
     // Synchroniser l'autre champ
     const mainInput = document.getElementById('min_usd_threshold');
     if (mainInput) mainInput.value = val;
+    window.debouncedSaveSettings();
   });
   document.getElementById('quick_currency').addEventListener('change', async (e) => {
     const val = e.target.value;
-    // Mettre à jour la config et synchroniser le select détaillé
     if (!window.userSettings) window.userSettings = getDefaultSettings();
     window.userSettings.display_currency = val;
     if (window.globalConfig) window.globalConfig.set('display_currency', val);
     const mainSel = document.getElementById('display_currency');
     if (mainSel) mainSel.value = val;
     try { if (window.currencyManager && val !== 'USD') await window.currencyManager.ensureRate(val); } catch (_) { }
-    updateStatusSummary();
+    updateStatusSummarySync();
+    window.debouncedSaveSettings();
   });
   document.getElementById('quick_theme').addEventListener('change', async (e) => {
     await selectTheme(e.target.value);
     if (window.globalConfig) window.globalConfig.set('theme', e.target.value);
+    window.debouncedSaveSettings();
   });
   document.getElementById('quick_api_base_url').addEventListener('change', (e) => {
     if (!window.userSettings) window.userSettings = getDefaultSettings();
     window.userSettings.api_base_url = e.target.value;
+    window.debouncedSaveSettings();
   });
 
-  // Actions
-  document.getElementById('quick_save_btn').addEventListener('click', async () => {
-    // Rien de plus: tout est déjà écrit dans userSettings par les listeners
-    await saveSettings();
-    showNotification('✅ Réglages rapides sauvegardés', 'success');
-  });
-  document.getElementById('quick_apply_btn').addEventListener('click', async () => {
-    await updateStatusSummary();
-    showNotification('⚡ Réglages rapides appliqués', 'info');
-  });
+  // Actions - Boutons supprimés (sauvegarde automatique active)
+  // Les paramètres sont sauvegardés via window.debouncedSaveSettings() (système unique)
 }
 
 // Fonction helper pour obtenir les settings par défaut
@@ -202,21 +217,36 @@ function getDefaultSettings() {
   };
 }
 
-// Charger les settings depuis l'API utilisateur
+// Charger les settings depuis l'API utilisateur ET localStorage
 async function loadSettings() {
+  // D'abord, charger depuis localStorage (globalConfig) comme fallback immédiat
+  const localSettings = window.globalConfig ? window.globalConfig.getAll() : {};
+
   try {
     const response = await fetch('/api/users/settings', {
       headers: { 'X-User': getActiveUser() }
     });
     if (response.ok) {
-      window.userSettings = await response.json();
+      const backendSettings = await response.json();
+      // Fusionner: localStorage a priorité sur les valeurs récentes non sync
+      window.userSettings = { ...getDefaultSettings(), ...backendSettings, ...localSettings };
+      debugLogger.info('✓ Settings loaded from backend + localStorage');
     } else {
-      debugLogger.warn('Failed to load user settings, using defaults');
-      window.userSettings = getDefaultSettings();
+      debugLogger.warn('Failed to load user settings from backend, using localStorage');
+      window.userSettings = { ...getDefaultSettings(), ...localSettings };
     }
   } catch (error) {
-    debugLogger.error('Error loading user settings:', error);
-    window.userSettings = getDefaultSettings();
+    debugLogger.error('Error loading user settings from backend:', error);
+    window.userSettings = { ...getDefaultSettings(), ...localSettings };
+  }
+
+  // Synchroniser globalConfig avec les settings chargés
+  if (window.globalConfig) {
+    Object.keys(window.userSettings).forEach(key => {
+      if (window.userSettings[key] !== undefined) {
+        window.globalConfig.settings[key] = window.userSettings[key];
+      }
+    });
   }
 
   // Mettre à jour l'interface
@@ -227,10 +257,21 @@ async function loadSettings() {
   await updateStatusSummary();
 }
 
-// Sauvegarder les settings via l'API utilisateur
+// Sauvegarder les settings via l'API utilisateur ET localStorage
 async function saveSettings() {
-  try {
+  // 1. Sauvegarder dans localStorage immédiatement (pour ne jamais perdre de données)
+  if (window.globalConfig && window.userSettings) {
+    Object.keys(window.userSettings).forEach(key => {
+      if (window.userSettings[key] !== undefined) {
+        window.globalConfig.settings[key] = window.userSettings[key];
+      }
+    });
+    window.globalConfig.save(); // Force immediate save to localStorage
+    debugLogger.debug('✓ Settings saved to localStorage');
+  }
 
+  // 2. Sauvegarder vers le backend (pour sync multi-device)
+  try {
     const response = await fetch('/api/users/settings', {
       method: 'PUT',
       headers: {
@@ -240,16 +281,17 @@ async function saveSettings() {
       body: JSON.stringify(window.userSettings)
     });
 
-    if (!response.ok) {
+    if (response.ok) {
+      debugLogger.info('✓ Settings saved to backend');
+    } else {
       const error = await response.json();
-      debugLogger.error('Failed to save user settings:', error);
-      showNotification('❌ Erreur lors de la sauvegarde', 'error');
+      debugLogger.error('Failed to save user settings to backend:', error);
+      showNotification('⚠️ Sauvegardé localement uniquement', 'warning', 2000);
     }
   } catch (error) {
-    debugLogger.error('Error saving user settings:', error);
-    showNotification('❌ Erreur lors de la sauvegarde', 'error');
+    debugLogger.error('Error saving user settings to backend:', error);
+    showNotification('⚠️ Sauvegardé localement uniquement', 'warning', 2000);
   }
-  await updateStatusSummary();
 }
 
 // Mettre à jour l'interface avec les valeurs actuelles
@@ -320,8 +362,9 @@ function updateUI() {
   document.getElementById('enable_performance_tracking').checked = globalSettings.enable_performance_tracking;
 }
 
-// Écouteur pour le select détaillé de devise afin de synchroniser avec le quick-select
+// Auto-save pour TOUS les champs de settings (tous les onglets)
 document.addEventListener('DOMContentLoaded', () => {
+  // === PRICING TAB ===
   const mainCurrency = document.getElementById('display_currency');
   if (mainCurrency) {
     mainCurrency.addEventListener('change', async (e) => {
@@ -332,7 +375,76 @@ document.addEventListener('DOMContentLoaded', () => {
       const quick = document.getElementById('quick_currency');
       if (quick) quick.value = val;
       try { if (window.currencyManager && val !== 'USD') await window.currencyManager.ensureRate(val); } catch (_) { }
-      await updateStatusSummary();
+      updateStatusSummarySync();
+      window.debouncedSaveSettings();
+    });
+  }
+
+  const minUsdThreshold = document.getElementById('min_usd_threshold');
+  if (minUsdThreshold) {
+    minUsdThreshold.addEventListener('change', (e) => {
+      const val = parseFloat(e.target.value) || 0;
+      if (!window.userSettings) window.userSettings = getDefaultSettings();
+      window.userSettings.min_usd_threshold = val;
+      if (window.globalConfig) window.globalConfig.set('min_usd_threshold', val);
+      const quickMinUsd = document.getElementById('quick_min_usd');
+      if (quickMinUsd) quickMinUsd.value = val;
+      window.debouncedSaveSettings();
+    });
+  }
+
+  // === INTERFACE TAB ===
+  const apiBaseUrl = document.getElementById('api_base_url');
+  if (apiBaseUrl) {
+    apiBaseUrl.addEventListener('change', (e) => {
+      if (!window.userSettings) window.userSettings = getDefaultSettings();
+      window.userSettings.api_base_url = e.target.value;
+      if (window.globalConfig) window.globalConfig.set('api_base_url', e.target.value);
+      const quickApiUrl = document.getElementById('quick_api_base_url');
+      if (quickApiUrl) quickApiUrl.value = e.target.value;
+      window.debouncedSaveSettings();
+    });
+  }
+
+  const refreshInterval = document.getElementById('refresh_interval');
+  if (refreshInterval) {
+    refreshInterval.addEventListener('change', (e) => {
+      const val = parseInt(e.target.value) || 5;
+      if (!window.userSettings) window.userSettings = getDefaultSettings();
+      window.userSettings.refresh_interval = val;
+      if (window.globalConfig) window.globalConfig.set('refresh_interval', val);
+      window.debouncedSaveSettings();
+    });
+  }
+
+  // Checkboxes Interface tab
+  const coingeckoCheck = document.getElementById('enable_coingecko_classification');
+  if (coingeckoCheck) {
+    coingeckoCheck.addEventListener('change', (e) => {
+      if (!window.userSettings) window.userSettings = getDefaultSettings();
+      window.userSettings.enable_coingecko_classification = e.target.checked;
+      if (window.globalConfig) window.globalConfig.set('enable_coingecko_classification', e.target.checked);
+      window.debouncedSaveSettings();
+    });
+  }
+
+  const snapshotsCheck = document.getElementById('enable_portfolio_snapshots');
+  if (snapshotsCheck) {
+    snapshotsCheck.addEventListener('change', (e) => {
+      if (!window.userSettings) window.userSettings = getDefaultSettings();
+      window.userSettings.enable_portfolio_snapshots = e.target.checked;
+      if (window.globalConfig) window.globalConfig.set('enable_portfolio_snapshots', e.target.checked);
+      window.debouncedSaveSettings();
+    });
+  }
+
+  const perfCheck = document.getElementById('enable_performance_tracking');
+  if (perfCheck) {
+    perfCheck.addEventListener('change', (e) => {
+      if (!window.userSettings) window.userSettings = getDefaultSettings();
+      window.userSettings.enable_performance_tracking = e.target.checked;
+      if (window.globalConfig) window.globalConfig.set('enable_performance_tracking', e.target.checked);
+      window.debouncedSaveSettings();
     });
   }
 });
@@ -388,6 +500,45 @@ async function updateStatusSummary() {
     </span>
     <span class="status-indicator status-ok">
       ${themeLabels[globalSettings.theme]}
+    </span>
+    <span class="status-indicator status-ok">
+      ${globalSettings.display_currency}
+    </span>
+  </div>
+  `;
+}
+
+// Version synchrone rapide sans requête API (pour quick updates)
+function updateStatusSummarySync() {
+  const summary = document.getElementById('status-summary');
+  if (!summary) return;
+
+  const globalSettings = window.userSettings || getDefaultSettings();
+
+  const pricingLabels = {
+    'local': '🏠 Prix locaux',
+    'auto': '🚀 Prix automatiques'
+  };
+
+  const themeLabels = {
+    'auto': '🌓 Auto',
+    'light': '☀️ Clair',
+    'dark': '🌙 Sombre'
+  };
+
+  // Use current data source label without API call
+  const sourceLabel = globalSettings.data_source || 'Non configurée';
+
+  summary.innerHTML = `
+  <div style="display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px;">
+    <span class="status-indicator status-ok">
+      ${sourceLabel}
+    </span>
+    <span class="status-indicator status-ok">
+      ${pricingLabels[globalSettings.pricing] || globalSettings.pricing}
+    </span>
+    <span class="status-indicator status-ok">
+      ${themeLabels[globalSettings.theme] || globalSettings.theme}
     </span>
     <span class="status-indicator status-ok">
       ${globalSettings.display_currency}
@@ -546,10 +697,11 @@ async function selectPricing(pricing) {
   if (window.globalConfig) window.globalConfig.set('pricing', pricing);
   document.getElementById(`pricing_${pricing}`).checked = true;
   document.querySelector(`.radio-option input[value="${pricing}"]`).parentElement.classList.add('selected');
-  await updateStatusSummary();
+  // updateStatusSummary() is slow - defer it or skip if not visible
+  // await updateStatusSummary();
 }
 
-// Sélection de thème
+// Sélection de thème (optimized - no blocking API calls)
 async function selectTheme(theme) {
   console.debug('Setting theme to:', theme);
   document.querySelectorAll('.radio-option').forEach(el => el.classList.remove('selected'));
@@ -563,7 +715,7 @@ async function selectTheme(theme) {
   // Mettre à jour l'interface
   document.getElementById(`theme_${theme}`).checked = true;
   document.querySelector(`.radio-option input[value="${theme}"]`).parentElement.classList.add('selected');
-  await updateStatusSummary();
+  // Skip slow updateStatusSummary() - not needed for theme changes
 
   // Appliquer immédiatement le thème
   if (window.applyAppearance) {
@@ -1137,16 +1289,33 @@ function resetAllData() {
   }
 }
 
-function showNotification(message, type = 'info') {
+function showNotification(message, type = 'info', duration = 2000) {
+  // Remove existing notification if any
+  const existing = document.querySelector('.settings-notification');
+  if (existing) existing.remove();
+
   const notification = document.createElement('div');
+  notification.className = 'settings-notification';
   notification.textContent = message;
   notification.style.cssText = `
             position: fixed; bottom: 20px; right: 20px; z-index: 1000;
-            padding: 12px 16px; border-radius: 8px; color: white; font-weight: 600;
-            background: ${type === 'success' ? 'var(--pos)' : type === 'warning' ? 'var(--warning)' : 'var(--accent)'};
+            padding: 8px 12px; border-radius: 6px; font-size: 13px;
+            color: white; font-weight: 500;
+            background: ${type === 'success' ? 'var(--pos)' : type === 'warning' ? 'var(--warning)' : type === 'error' ? 'var(--danger)' : 'var(--accent)'};
+            opacity: 0; transition: opacity 0.2s ease;
             `;
   document.body.appendChild(notification);
-  setTimeout(() => notification.remove(), 3000);
+
+  // Fade in
+  requestAnimationFrame(() => {
+    notification.style.opacity = '1';
+  });
+
+  // Fade out and remove
+  setTimeout(() => {
+    notification.style.opacity = '0';
+    setTimeout(() => notification.remove(), 200);
+  }, duration);
 }
 
 // Appliquer le thème dès que possible
