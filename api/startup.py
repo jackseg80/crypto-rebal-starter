@@ -78,14 +78,19 @@ async def initialize_alert_engine():
         bool: True if initialized successfully
     """
     try:
+        import os
         from services.alerts.alert_engine import AlertEngine
         from services.execution.governance import governance_engine
         from api.alerts_endpoints import initialize_alert_engine as init_alert_api
 
-        # Create AlertEngine instance with governance engine reference
+        # Get Redis URL from environment
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
+        # Create AlertEngine instance with governance engine reference and Redis
         alert_engine = AlertEngine(
             governance_engine=governance_engine,
-            config_file_path="config/alerts_rules.json"
+            config_file_path="config/alerts_rules.json",
+            redis_url=redis_url
         )
 
         # Initialize AlertEngine for API endpoints

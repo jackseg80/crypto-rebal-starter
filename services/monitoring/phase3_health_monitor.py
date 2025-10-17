@@ -22,7 +22,7 @@ import psutil
 # Optional Redis import to handle compatibility issues
 REDIS_AVAILABLE = False
 try:
-    import aioredis
+    import redis.asyncio as aioredis
     REDIS_AVAILABLE = True
 except (ImportError, TypeError) as e:
     # Handle both ImportError and TypeError (Python 3.13 compatibility issue)
@@ -778,12 +778,12 @@ class Phase3HealthMonitor:
         try:
             # Store in Redis if available
             if self.redis_url and REDIS_AVAILABLE:
-                redis_client = aioredis.from_url(self.redis_url)
+                redis_client = await aioredis.from_url(self.redis_url, decode_responses=True)
                 health_data = json.dumps(asdict(health_status), default=str)
                 await redis_client.setex("phase3:health_status", 300, health_data)  # 5 min TTL
-                await redis_client.close()
+                await redis_client.aclose()
             elif self.redis_url and not REDIS_AVAILABLE:
-                logger.debug("Redis storage requested but aioredis not available")
+                logger.debug("Redis storage requested but redis.asyncio not available")
         except Exception as e:
             logger.warning(f"Failed to store health status in Redis: {e}")
     

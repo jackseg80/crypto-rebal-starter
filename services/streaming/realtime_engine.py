@@ -494,7 +494,13 @@ class RealtimeEngine:
     async def update_subscriptions(self, websocket: WebSocket, subscriptions: List[SubscriptionType]):
         """Mettre à jour les souscriptions d'un client"""
         await self.websocket_manager.subscribe(websocket, subscriptions)
-    
+
+    async def broadcast_event(self, event: StreamEvent, target_subscription: SubscriptionType = None):
+        """Diffuser un événement à toutes les connexions concernées (délégation au WebSocketManager)"""
+        await self.websocket_manager.broadcast_event(event, target_subscription)
+        self.metrics["websocket_messages_sent"] += len(self.websocket_manager.active_connections)
+        self.metrics["last_activity"] = datetime.now()
+
     async def _handle_risk_event(self, event: StreamEvent):
         """Handler pour les événements de risque"""
         log.debug(f"Processing risk event: {event.event_type}")
