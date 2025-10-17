@@ -50,6 +50,41 @@ param(
     [int]$Workers = 1
 )
 
+# Check and start Redis
+Write-Host "🔍 Checking Redis..." -ForegroundColor Cyan
+
+$redisRunning = Test-NetConnection -ComputerName localhost -Port 6379 -InformationLevel Quiet -WarningAction SilentlyContinue
+
+if ($redisRunning) {
+    Write-Host "✅ Redis is running" -ForegroundColor Green
+} else {
+    Write-Host "⚠️  Redis not detected, attempting to start..." -ForegroundColor Yellow
+
+    # Try to start Redis via WSL2
+    try {
+        $wslCheck = wsl --status 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "   Starting Redis via WSL2..." -ForegroundColor Gray
+            wsl -d Ubuntu bash -c "sudo service redis-server start" 2>$null
+            Start-Sleep -Seconds 2
+
+            $redisRunning = Test-NetConnection -ComputerName localhost -Port 6379 -InformationLevel Quiet -WarningAction SilentlyContinue
+
+            if ($redisRunning) {
+                Write-Host "✅ Redis started successfully" -ForegroundColor Green
+            } else {
+                Write-Host "⚠️  Redis not available - server will run in degraded mode" -ForegroundColor Yellow
+                Write-Host "   See docs/REDIS_SETUP.md for installation" -ForegroundColor Gray
+            }
+        } else {
+            Write-Host "⚠️  WSL2 not available - Redis not started" -ForegroundColor Yellow
+            Write-Host "   Server will run in degraded mode (memory-only alerts)" -ForegroundColor Gray
+        }
+    } catch {
+        Write-Host "⚠️  Could not start Redis - continuing without it" -ForegroundColor Yellow
+    }
+}
+
 # Validate Playwright installation if using new mode
 if ($CryptoToolboxMode -eq 1) {
     Write-Host "🎭 Checking Playwright installation..." -ForegroundColor Cyan
