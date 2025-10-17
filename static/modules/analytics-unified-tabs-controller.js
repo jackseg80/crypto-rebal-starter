@@ -28,7 +28,7 @@ function initializeMLTab() {
 async function loadMLPredictions() {
   try {
     // 1) Statut ML global depuis source unifiée
-    const { getUnifiedMLStatus } = await import('./shared-ml-functions.js');
+    const { getUnifiedMLStatus } = await import('../shared-ml-functions.js');
     const mlStatus = await getUnifiedMLStatus();
 
     if (mlStatus && mlStatus.individual) {

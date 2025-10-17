@@ -7,7 +7,7 @@ async function saveUnifiedDataForRebalance() {
     console.debug('💾 Saving unified data for rebalance.html...');
 
     // Import du système unified-insights-v2
-    const { getUnifiedState } = await import('./core/unified-insights-v2.js');
+    const { getUnifiedState } = await import('../core/unified-insights-v2.js');
     const unifiedState = await getUnifiedState();
 
     if (!unifiedState || !unifiedState.targets_by_group) {
@@ -87,8 +87,8 @@ async function renderUnifiedInsights(containerId = 'unified-root') {
 
     // Import des modules nécessaires - CACHE BUST pour forcer rechargement
     const cacheBust = new Date().toISOString();
-    const { renderUnifiedInsights: originalRender } = await import(`./components/UnifiedInsights.js?v=${cacheBust}`);
-    const { getRegimeDisplayData, getMarketRegime } = await import('./modules/market-regimes.js');
+    const { renderUnifiedInsights: originalRender } = await import(`../components/UnifiedInsights.js?v=${cacheBust}`);
+    const { getRegimeDisplayData, getMarketRegime } = await import('../modules/market-regimes.js');
 
     // OVERRIDE CRITIQUE: Modifier la fonction globale pour corriger le problème
     const originalFunction = window.buildTheoreticalTargets;
@@ -125,7 +125,7 @@ async function renderUnifiedInsights(containerId = 'unified-root') {
 
         // 2) Si on a des vraies données, les grouper
         if (realBalances && realBalances.length > 0 && totalValue > 0) {
-          const { groupAssetsByClassification } = await import('./shared-asset-groups.js');
+          const { groupAssetsByClassification } = await import('../shared-asset-groups.js');
           const groupedData = groupAssetsByClassification(realBalances);
 
           // 3) Convertir les groupes en format attendu avec valeurs USD réelles
@@ -204,9 +204,9 @@ async function renderUnifiedInsights(containerId = 'unified-root') {
     // 2) APRÈS le rendu UnifiedInsights, injecter le nouveau Decision Index Panel v5 EN HAUT
     // (maintenant on peut récupérer les vraies données via getUnifiedState)
     const cacheBust2 = Date.now();
-    const { renderDecisionIndexPanel } = await import(`./components/decision-index-panel.js?v=${cacheBust2}`);
-    const { getUnifiedState } = await import(`./core/unified-insights-v2.js?v=${cacheBust2}`);
-    const diHistoryModule = await import(`./utils/di-history.js?v=${cacheBust2}`);
+    const { renderDecisionIndexPanel } = await import(`../components/decision-index-panel.js?v=${cacheBust2}`);
+    const { getUnifiedState } = await import(`../core/unified-insights-v2.js?v=${cacheBust2}`);
+    const diHistoryModule = await import(`../utils/di-history.js?v=${cacheBust2}`);
 
     // Exposer API DI history dans window pour debug/réutilisation
     window.__DI_HISTORY__ = diHistoryModule;
@@ -389,8 +389,8 @@ async function renderUnifiedInsights(containerId = 'unified-root') {
 // OVERRIDE supprimé d'ici - déplacé plus bas
 
 // Import des autres composants sans UnifiedInsights pour l'instant
-import { store } from './core/risk-dashboard-store.js';
-import { GovernancePanel } from './components/GovernancePanel.js';
+import { store } from '../core/risk-dashboard-store.js';
+import { GovernancePanel } from '../components/GovernancePanel.js';
 
 // INTELLIGENT CACHE SYSTEM - Avoid constant recalculations
 const CACHE_CONFIG = {
@@ -764,7 +764,7 @@ async function loadUnifiedData(force = false) {
       loadedFromCache++;
     } else {
       try {
-        const { getCurrentCycleMonths, cycleScoreFromMonths, getCyclePhase } = await import('./modules/cycle-navigator.js');
+        const { getCurrentCycleMonths, cycleScoreFromMonths, getCyclePhase } = await import('../modules/cycle-navigator.js');
         const c = getCurrentCycleMonths();
         const score = Math.round(cycleScoreFromMonths(c.months));
         const phase = getCyclePhase(c.months);
@@ -800,8 +800,8 @@ async function loadUnifiedData(force = false) {
     } else {
       debugLogger.debug('🔄 On-Chain refresh - Using SWR cache for optimal performance...');
       try {
-        const onchain = await import('./modules/onchain-indicators.js');
-        const v2 = await import('./modules/composite-score-v2.js');
+        const onchain = await import('../modules/onchain-indicators.js');
+        const v2 = await import('../modules/composite-score-v2.js');
         // Use SWR-cached version by default (no force unless manual)
         const indicators = await onchain.fetchAllIndicators({ force: manualRefresh });
         // Dynamic weighting always enabled (V2 production mode)
@@ -883,7 +883,7 @@ async function loadUnifiedData(force = false) {
 
             // DEBUG: Vérifier les groupes immédiatement après injection
             try {
-              const { groupAssetsByClassification } = await import('./shared-asset-groups.js');
+              const { groupAssetsByClassification } = await import('../shared-asset-groups.js');
               const groupedData = groupAssetsByClassification(realBalances);
               debugLogger.debug('🔍 POST-INJECTION GROUPING (Analytics):', {
                 groups: groupedData.map(g => ({
@@ -942,7 +942,7 @@ async function loadUnifiedData(force = false) {
 
               // DEBUG B - Test grouping avec vraies données comme Rebalance
               try {
-                const { groupAssetsByClassification, getAssetGroup } = await import('./shared-asset-groups.js');
+                const { groupAssetsByClassification, getAssetGroup } = await import('../shared-asset-groups.js');
                 const groupedData = groupAssetsByClassification(realBalances);
 
                 debugLogger.debug('🔧 PATCH: Analytics now using same data as Rebalance:', {
@@ -1023,7 +1023,7 @@ async function loadUnifiedData(force = false) {
         // 5) Market Regime (sentiment/régime agrégé)  
         let regimeData = null;
         try {
-          const { getRegimeDisplayData } = await import('./modules/market-regimes.js');
+          const { getRegimeDisplayData } = await import('../modules/market-regimes.js');
           regimeData = getRegimeDisplayData(blendedScore, onchainScore, riskScore);
         } catch (e) { debugLogger.warn('Market regime compute failed:', e.message); }
 
@@ -1194,7 +1194,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 0) Force reload taxonomie pour éviter fallback "Others"
   try {
-    const { forceReloadTaxonomy, UNIFIED_ASSET_GROUPS } = await import('./shared-asset-groups.js');
+    const { forceReloadTaxonomy, UNIFIED_ASSET_GROUPS } = await import('../shared-asset-groups.js');
     await forceReloadTaxonomy();
     if (!Object.keys(UNIFIED_ASSET_GROUPS || {}).length) {
       debugLogger.warn('⚠️ Taxonomy non chargée – risque de "Others" gonflé. Vérifie API base_url.');
