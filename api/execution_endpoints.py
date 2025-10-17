@@ -945,65 +945,6 @@ async def get_ml_signals():
         logger.error(f"Error getting ML signals: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/governance/decisions")
-async def list_decisions(
-    limit: int = Query(default=20, le=100),
-    offset: int = Query(default=0, ge=0),
-    state_filter: Optional[str] = Query(default=None)
-):
-    """
-    Lister les décisions de gouvernance
-    
-    Retourne l'historique des décisions avec leur état, métadonnées,
-    et résultats d'exécution.
-    """
-    try:
-        decisions_data = []
-        decisions_store = getattr(governance_engine, 'decisions', {}) or {}
-        if not isinstance(decisions_store, dict):
-            decisions_store = {}
-
-        
-        # Filtrer et paginer les décisions
-        all_decisions = list(decisions_store.values())
-        
-        if state_filter:
-            all_decisions = [
-                d for d in all_decisions
-                if getattr(getattr(getattr(d, 'state', None), 'state', None), 'value', '') == state_filter.upper()
-            ]
-        
-        paginated_decisions = all_decisions[offset:offset + limit]
-        
-        for decision in paginated_decisions:
-            decision_data = {
-                "id": decision.id,
-                "plan_id": decision.plan_id,
-                "state": decision.state.state.value,
-                "mode": decision.state.mode.value,
-                "contradiction_index": decision.state.contradiction_index,
-                "created_at": decision.created_at.isoformat(),
-                "approved_at": decision.approved_at.isoformat() if decision.approved_at else None,
-                "executed_at": decision.executed_at.isoformat() if decision.executed_at else None,
-                "targets": [target.dict() for target in decision.targets],
-                "active_policy": decision.state.active_policy.dict() if decision.state.active_policy else None,
-                "approval_reason": decision.approval_reason,
-                "execution_stats": decision.execution_stats
-            }
-            decisions_data.append(decision_data)
-        
-        return {
-            "decisions": decisions_data,
-            "total": len(all_decisions),
-            "limit": limit,
-            "offset": offset,
-            "state_filter": state_filter
-        }
-        
-    except Exception as e:
-        logger.error(f"Error listing decisions: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 @router.post("/governance/mode")
 async def set_governance_mode(request: dict):
     """
