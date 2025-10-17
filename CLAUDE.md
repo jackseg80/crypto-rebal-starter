@@ -176,6 +176,20 @@ pytest -q tests/unit
 pytest -q tests/integration
 ```
 
+### Redis (Cache & Streaming)
+```bash
+# Vérifier si Redis tourne
+redis-cli ping  # Doit répondre PONG
+
+# Démarrer Redis (WSL2)
+wsl -d Ubuntu bash -c "sudo service redis-server start"
+
+# Config dans .env
+REDIS_URL=redis://localhost:6379/0
+```
+
+**Utilisation:** Cache haute performance, alertes persistantes, streaming temps réel (4 streams: risk_events, alerts, market_data, portfolio_updates). Voir `docs/REDIS_SETUP.md` pour installation complète.
+
 ### Logs Serveur (Debug)
 ```bash
 # Lire les logs en temps réel
@@ -266,6 +280,7 @@ EOF
 - Wealth: `docs/TODO_WEALTH_MERGE.md`
 - Sources: `docs/SOURCES_MIGRATION_DATA_FOLDER.md`
 - Logging: `docs/LOGGING.md` (système de logs rotatifs pour debug/IA)
+- Redis: `docs/REDIS_SETUP.md` (installation, config, cache & streaming)
 
 ---
 
