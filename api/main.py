@@ -67,7 +67,14 @@ except Exception as e:
     logger.warning(f"Portfolio analytics not available: {e}")
     PORTFOLIO_AVAILABLE = False
 from api.taxonomy_endpoints import router as taxonomy_router
-from api.execution_endpoints import router as execution_router
+# Execution endpoints - modular routers (Phase 2.1)
+from api.execution import (
+    validation_router,
+    execution_router,
+    monitoring_router,
+    governance_router,
+    signals_router
+)
 from api.analytics_endpoints import router as analytics_router
 from api.kraken_endpoints import router as kraken_router
 from api.smart_taxonomy_endpoints import router as smart_taxonomy_router  # FIXED - aiohttp mocké
@@ -1407,7 +1414,12 @@ async def proxy_fred_bitcoin(start_date: str = "2014-01-01", limit: int = None, 
 
 # inclure les routes taxonomie, execution, monitoring et analytics
 app.include_router(taxonomy_router)
+# Execution routers - modular structure (Phase 2.1)
+app.include_router(validation_router)
 app.include_router(execution_router)
+app.include_router(monitoring_router)
+app.include_router(governance_router)
+app.include_router(signals_router)
 # Analytics router monté une seule fois avec prefix=/api/analytics
 app.include_router(analytics_router, prefix="/api")
 app.include_router(market_router)

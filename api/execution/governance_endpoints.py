@@ -1,27 +1,28 @@
 """
-API Endpoints pour le système d'exécution
+Endpoints de gouvernance
 
-Ces endpoints gèrent la validation, l'exécution et le monitoring 
-des plans de rebalancement.
+Ces endpoints gerent l'etat de gouvernance, les modes, les plans et les politiques d'execution.
 """
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Query, Header, Depends
-from pydantic import BaseModel, Field, validator
-from typing import Dict, List, Any, Optional
+from fastapi import APIRouter, HTTPException, Header, Depends
+from typing import Optional, List, Dict, Any
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from services.execution.execution_engine import execution_engine
-from services.execution.exchange_adapter import exchange_registry
 from services.execution.governance import Policy, governance_engine
 from services.execution.score_registry import get_score_registry
 from services.execution.phase_engine import get_phase_engine
+from .models import (
+    GovernanceStateResponse, ScoreComponents, CanonicalScores,
+    PhaseInfo, ExecutionPressure, MarketSignals, CycleSignals,
+    UnifiedSignals, PortfolioMetrics, SuggestionIA,
+    UnifiedApprovalRequest, FreezeRequest, ApplyPolicyRequest
+)
 
 # Import RBAC from alerts (shared dependency)
 try:
     from api.alerts_endpoints import User, get_current_user, require_role
 except ImportError:
-    # Fallback si alerts_endpoints pas encore disponible
     class User:
         def __init__(self, username: str = "system", roles: List[str] = None):
             self.username = username
@@ -37,513 +38,9 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/execution", tags=["execution"])
+router = APIRouter(prefix="/execution/governance", tags=["governance"])
 
-# Models pour les requêtes/réponses
-class ExecutionRequest(BaseModel):
-    """Requête d'exécution d'un plan"""
-    rebalance_actions: List[Dict[str, Any]] = Field(..., description="Actions de rebalancement")
-    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Métadonnées (CCS, etc.)")
-    dry_run: bool = Field(default=True, description="Mode simulation")
-    max_parallel: int = Field(default=3, description="Ordres en parallèle max")
-
-class ValidationResponse(BaseModel):
-    """Réponse de validation"""
-    valid: bool
-    errors: List[str] = []
-    warnings: List[str] = []
-    plan_id: str
-    total_orders: int
-    total_volume: float
-    large_orders_count: int
-
-class ExecutionResponse(BaseModel):
-    """Réponse d'exécution"""
-    success: bool
-    plan_id: str
-    execution_id: str
-    message: str
-    estimated_duration_seconds: Optional[float] = None
-
-class ExecutionStatus(BaseModel):
-    """Statut d'exécution"""
-    plan_id: str
-    status: str
-    is_active: bool
-    total_orders: int
-    completed_orders: int
-    failed_orders: int
-    success_rate: float
-    volume_planned: float
-    volume_executed: float
-    total_fees: float
-    execution_time: float
-    completion_percentage: float
-    start_time: Optional[str] = None
-    end_time: Optional[str] = None
-
-# Nouveaux modèles pour l'unification score/phase
-class ScoreComponents(BaseModel):
-    """Sous-scores explicatifs du score de décision"""
-    trend_regime: float = Field(..., ge=0.0, le=100.0, description="Tendance et régime")
-    risk: float = Field(..., ge=0.0, le=100.0, description="Métriques de risque")
-    breadth_rotation: float = Field(..., ge=0.0, le=100.0, description="Largeur de marché et rotation")
-    sentiment: float = Field(..., ge=0.0, le=100.0, description="Sentiment de marché")
-
-class CanonicalScores(BaseModel):
-    """Scores canoniques unifiés"""
-    decision: float = Field(..., ge=0.0, le=100.0, description="Score décisionnel principal 0-100")
-    confidence: float = Field(..., ge=0.0, le=1.0, description="Confiance dans la décision")
-    contradiction: float = Field(..., ge=0.0, le=1.0, description="Index de contradiction")
-    components: ScoreComponents = Field(..., description="Sous-scores explicatifs")
-    as_of: str = Field(..., description="Timestamp de calcul")
-
-class PhaseInfo(BaseModel):
-    """Information sur la phase de rotation"""
-    phase_now: str = Field(..., description="Phase actuelle (btc/eth/large/alt)")
-    phase_probs: Dict[str, float] = Field(..., description="Probabilités de chaque phase")
-    confidence: float = Field(..., ge=0.0, le=1.0, description="Confiance dans la détection")
-    explain: List[str] = Field(..., description="2-3 explications principales")
-    next_likely: Optional[str] = Field(None, description="Phase suivante probable")
-
-class ExecutionPressure(BaseModel):
-    """Pression d'exécution court-terme"""
-    pressure: float = Field(..., ge=0.0, le=100.0, description="Pression d'exécution 0-100")
-    cost_estimate_bps: float = Field(..., description="Coût d'exécution estimé en bps")
-    market_impact: str = Field(..., description="Impact marché estimé (low/medium/high)")
-    optimal_window_hours: int = Field(..., description="Fenêtre optimale d'exécution")
-
-class MarketSignals(BaseModel):
-    """Signaux de marché agrégés"""
-    volatility: Dict[str, float] = Field(default_factory=dict, description="Volatilité par asset")
-    regime: Dict[str, float] = Field(default_factory=dict, description="Probabilités de régime")
-    correlation: Dict[str, float] = Field(default_factory=dict, description="Corrélations clés")
-    sentiment: Dict[str, float] = Field(default_factory=dict, description="Sentiment indicators")
-
-class CycleSignals(BaseModel):
-    """Signaux de cycle et rotation"""
-    btc_cycle: Dict[str, float] = Field(default_factory=dict, description="Position cycle BTC")
-    rotation: Dict[str, float] = Field(default_factory=dict, description="Signaux de rotation")
-
-class UnifiedSignals(BaseModel):
-    """Bus de signaux unifié"""
-    market: MarketSignals = Field(default_factory=MarketSignals, description="Signaux de marché")
-    cycle: CycleSignals = Field(default_factory=CycleSignals, description="Signaux de cycle")
-    as_of: str = Field(..., description="Timestamp des signaux")
-
-class PortfolioMetrics(BaseModel):
-    """Métriques de portefeuille actuelles"""
-    var_95_pct: Optional[float] = Field(None, description="VaR 95% en %")
-    sharpe_ratio: Optional[float] = Field(None, description="Ratio de Sharpe")
-    hhi_concentration: Optional[float] = Field(None, description="Index HHI de concentration")
-    avg_correlation: Optional[float] = Field(None, description="Corrélation moyenne pondérée")
-    beta_btc: Optional[float] = Field(None, description="Bêta vs BTC")
-    exposures: Dict[str, float] = Field(default_factory=dict, description="Expositions par groupe")
-
-class SuggestionIA(BaseModel):
-    """Proposition IA canonique (lecture seule)"""
-    targets: List[Dict[str, Any]] = Field(..., description="Cibles suggérées")
-    rationale: str = Field(..., description="Logique de la suggestion")
-    policy_hint: str = Field(..., description="Suggestion de policy (Slow/Normal/Aggressive)")
-    confidence: float = Field(..., ge=0.0, le=1.0, description="Confiance dans la suggestion")
-    generated_at: str = Field(..., description="Timestamp de génération")
-
-class GovernanceStateResponse(BaseModel):
-    """État du système de gouvernance étendu"""
-    # Champs existants (compatibilité)
-    current_state: str
-    mode: str
-    last_decision_id: Optional[str] = None
-    contradiction_index: float
-    ml_signals_timestamp: Optional[str] = None
-    active_policy: Optional[Dict[str, Any]] = None
-    pending_approvals: int
-    next_update_time: Optional[str] = None
-    etag: Optional[str] = None  # ETag pour concurrency control
-    auto_unfreeze_at: Optional[str] = None  # TTL auto-unfreeze timestamp
-    
-    # NOUVEAUX CHAMPS - Unification
-    scores: Optional[CanonicalScores] = Field(None, description="Scores canoniques unifiés")
-    phase: Optional[PhaseInfo] = Field(None, description="Phase de rotation actuelle")
-    exec: Optional[ExecutionPressure] = Field(None, description="Pression d'exécution")
-    signals: Optional[UnifiedSignals] = Field(None, description="Bus de signaux unifié")
-    portfolio: Optional[Dict[str, Any]] = Field(None, description="État du portefeuille")
-    suggestion: Optional[SuggestionIA] = Field(None, description="Suggestion IA canonique")
-
-class ApprovalRequest(BaseModel):
-    """Requête d'approbation d'une décision"""
-    decision_id: str
-    approved: bool
-    reason: Optional[str] = None
-
-class UnifiedApprovalRequest(BaseModel):
-    """Requête d'approbation unifiée pour décisions et plans"""
-    resource_type: str = Field(..., pattern="^(decision|plan)$", description="Type: decision ou plan")
-    approved: bool = Field(..., description="Approuver (true) ou rejeter (false)")
-    approved_by: str = Field(default="system", description="Identifiant de l'approbateur")
-    reason: Optional[str] = Field(None, max_length=500, description="Raison de l'approbation/rejet")
-    notes: Optional[str] = Field(None, max_length=500, description="Notes additionnelles")
-
-class FreezeRequest(BaseModel):
-    """Requête de gel du système avec TTL"""
-    reason: str = Field(..., max_length=140, description="Raison du freeze")
-    ttl_minutes: int = Field(default=360, ge=15, le=1440, description="TTL auto-unfreeze [15min-24h]")
-    source_alert_id: Optional[str] = Field(None, description="ID alerte source si applicable")
-
-class ApplyPolicyRequest(BaseModel):
-    """Requete d'application de policy depuis alerte - NOUVEAU"""
-    mode: str = Field(..., description="Mode de policy")
-    cap_daily: float = Field(..., ge=-1.0, le=1.0, description="Cap quotidien brut (sera clampe +/-20%)")
-    ramp_hours: int = Field(..., ge=1, le=72, description="Ramping [1-72h]")
-    reason: str = Field(..., max_length=140, description="Raison du changement")
-    source_alert_id: Optional[str] = Field(None, description="ID de l'alerte source")
-    min_trade: float = Field(default=100.0, ge=10.0, description="Trade minimum en USD")
-    slippage_limit_bps: int = Field(default=50, ge=1, le=500, description="Limite slippage [1-500 bps]")
-    signals_ttl_seconds: int = Field(default=1800, ge=60, le=7200, description="TTL signaux [60-7200s]")
-    plan_cooldown_hours: int = Field(default=24, ge=1, le=168, description="Cooldown plans [1-168h]")
-    no_trade_threshold_pct: float = Field(default=0.02, description="No-trade zone brute (sera clampee)")
-    execution_cost_bps: int = Field(default=15, ge=-1000, le=1000, description="Cout brut en bps (sera clampe [0-100])")
-    notes: Optional[str] = Field(default=None, max_length=280, description="Notes additionnelles")
-
-    @validator('mode')
-    def validate_mode(cls, v):
-        allowed_modes = ["Slow", "Normal", "Aggressive"]
-        if v not in allowed_modes:
-            raise ValueError(f"Mode must be one of {allowed_modes}. Use freeze endpoint for Freeze mode.")
-        return v
-
-# Instance locale du gestionnaire d'ordres pour les endpoints
-order_manager = execution_engine.order_manager
-
-@router.post("/validate-plan", response_model=ValidationResponse)
-async def validate_execution_plan(request: ExecutionRequest):
-    """
-    Valider un plan d'exécution avant lancement
-    
-    Vérifie:
-    - Équilibrage des montants
-    - Cohérence des données
-    - Disponibilité des pairs de trading
-    - Limites de taille d'ordre
-    """
-    try:
-        # Créer le plan d'exécution
-        plan = order_manager.create_execution_plan(
-            rebalance_actions=request.rebalance_actions,
-            metadata=request.metadata
-        )
-        
-        # Valider le plan
-        validation = order_manager.validate_plan(plan.id)
-        
-        return ValidationResponse(
-            valid=validation["valid"],
-            errors=validation["errors"],
-            warnings=validation["warnings"],
-            plan_id=plan.id,
-            total_orders=validation["total_orders"],
-            total_volume=validation["total_volume"],
-            large_orders_count=validation["large_orders_count"]
-        )
-        
-    except Exception as e:
-        logger.error(f"Error validating plan: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-
-@router.post("/execute-plan", response_model=ExecutionResponse)
-async def execute_plan(
-    plan_id: str = Query(..., description="ID du plan à exécuter"),
-    dry_run: bool = Query(default=True, description="Mode simulation"),
-    max_parallel: int = Query(default=3, description="Ordres en parallèle max"),
-    background_tasks: BackgroundTasks = None
-):
-    """
-    Exécuter un plan de rebalancement
-    
-    L'exécution se fait en arrière-plan. Utilisez /execution/status/{plan_id}
-    pour suivre le progrès.
-    """
-    try:
-        # Vérifier que le plan existe
-        if plan_id not in order_manager.execution_plans:
-            raise HTTPException(status_code=404, detail="Plan not found")
-        
-        plan = order_manager.execution_plans[plan_id]
-        
-        # Estimer la durée d'exécution
-        estimated_duration = len(plan.orders) * 2.0  # 2 secondes par ordre environ
-        
-        # Lancer l'exécution en arrière-plan
-        async def execute_in_background():
-            try:
-                stats = await execution_engine.execute_plan(
-                    plan_id=plan_id,
-                    dry_run=dry_run,
-                    max_parallel=max_parallel
-                )
-                logger.info(f"Plan {plan_id} execution completed with {stats.success_rate:.1f}% success rate")
-            except Exception as e:
-                logger.error(f"Background execution failed for plan {plan_id}: {e}")
-        
-        background_tasks.add_task(execute_in_background)
-        
-        return ExecutionResponse(
-            success=True,
-            plan_id=plan_id,
-            execution_id=plan_id,  # Pour l'instant, utiliser le même ID
-            message=f"Execution started for {len(plan.orders)} orders",
-            estimated_duration_seconds=estimated_duration
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error starting execution: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/status/{plan_id}", response_model=ExecutionStatus)
-async def get_execution_status(plan_id: str):
-    """
-    Obtenir le statut d'exécution d'un plan
-    
-    Retourne le progrès en temps réel, les statistiques d'exécution,
-    et le statut de chaque ordre.
-    """
-    try:
-        progress = execution_engine.get_execution_progress(plan_id)
-        
-        if "error" in progress:
-            raise HTTPException(status_code=404, detail=progress["error"])
-        
-        return ExecutionStatus(**progress)
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting execution status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/cancel/{plan_id}")
-async def cancel_execution(plan_id: str):
-    """
-    Annuler l'exécution d'un plan
-    
-    Les ordres déjà en cours vont se terminer, mais aucun nouvel ordre
-    ne sera lancé.
-    """
-    try:
-        success = await execution_engine.cancel_execution(plan_id)
-        
-        if not success:
-            raise HTTPException(status_code=404, detail="Execution not found or not active")
-        
-        return {
-            "success": True,
-            "message": f"Execution {plan_id} cancelled successfully"
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error cancelling execution: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/plans")
-async def list_execution_plans(
-    limit: int = Query(default=50, le=100),
-    offset: int = Query(default=0, ge=0)
-):
-    """
-    Lister les plans d'exécution
-    
-    Retourne la liste des plans avec leur statut actuel.
-    """
-    try:
-        plans_data = []
-        
-        # Obtenir tous les plans du gestionnaire d'ordres
-        all_plans = list(order_manager.execution_plans.values())
-        
-        # Pagination
-        paginated_plans = all_plans[offset:offset + limit]
-        
-        for plan in paginated_plans:
-            plan_status = order_manager.get_plan_status(plan.id)
-            plans_data.append(plan_status)
-        
-        return {
-            "plans": plans_data,
-            "total": len(all_plans),
-            "limit": limit,
-            "offset": offset
-        }
-        
-    except Exception as e:
-        logger.error(f"Error listing plans: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/exchanges")
-async def list_exchanges():
-    """
-    Lister les exchanges disponibles
-    
-    Retourne la liste des adaptateurs d'exchange configurés
-    et leur statut de connexion.
-    """
-    try:
-        exchanges = []
-        
-        for name in exchange_registry.list_exchanges():
-            adapter = exchange_registry.get_adapter(name)
-            if adapter:
-                exchanges.append({
-                    "name": name,
-                    "type": adapter.type.value,
-                    "connected": adapter.connected,
-                    "config": {
-                        "fee_rate": adapter.config.fee_rate,
-                        "min_order_size": adapter.config.min_order_size,
-                        "sandbox": adapter.config.sandbox
-                    }
-                })
-        
-        return {"exchanges": exchanges}
-        
-    except Exception as e:
-        logger.error(f"Error listing exchanges: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/exchanges/connect")
-async def connect_exchanges():
-    """
-    Connecter tous les exchanges configurés
-    
-    Tente de se connecter à tous les adaptateurs d'exchange.
-    Utile pour initialiser les connexions avant exécution.
-    """
-    try:
-        results = await exchange_registry.connect_all()
-        
-        success_count = sum(1 for connected in results.values() if connected)
-        total_count = len(results)
-        
-        return {
-            "success": True,
-            "message": f"Connected to {success_count}/{total_count} exchanges",
-            "results": results
-        }
-        
-    except Exception as e:
-        logger.error(f"Error connecting exchanges: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/orders/{plan_id}")
-async def get_plan_orders(plan_id: str):
-    """
-    Obtenir la liste détaillée des ordres d'un plan
-    
-    Retourne tous les ordres avec leur statut, résultats d'exécution,
-    et détails techniques.
-    """
-    try:
-        if plan_id not in order_manager.execution_plans:
-            raise HTTPException(status_code=404, detail="Plan not found")
-        
-        plan = order_manager.execution_plans[plan_id]
-        
-        orders_data = []
-        for order in plan.orders:
-            order_data = {
-                "id": order.id,
-                "symbol": order.symbol,
-                "alias": order.alias,
-                "group": order.group,
-                "action": order.action,
-                "quantity": order.quantity,
-                "usd_amount": order.usd_amount,
-                "target_price": order.target_price,
-                "platform": order.platform,
-                "exec_hint": order.exec_hint,
-                "priority": order.priority,
-                "status": order.status.value,
-                "order_type": order.order_type.value,
-                "created_at": order.created_at.isoformat(),
-                "updated_at": order.updated_at.isoformat(),
-                
-                # Résultats d'exécution
-                "filled_quantity": order.filled_quantity,
-                "filled_usd": order.filled_usd,
-                "avg_fill_price": order.avg_fill_price,
-                "fees": order.fees,
-                "error_message": order.error_message
-            }
-            orders_data.append(order_data)
-        
-        return {
-            "plan_id": plan_id,
-            "orders": orders_data,
-            "total_orders": len(orders_data)
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting plan orders: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/pipeline-status")
-async def get_pipeline_status():
-    """
-    Obtenir le statut global du pipeline d'exécution
-    
-    Vue d'ensemble de tous les plans actifs, statistiques globales,
-    et santé des exchanges.
-    """
-    try:
-        # Plans actifs
-        active_plans = [
-            plan_id for plan_id, is_active in execution_engine.active_executions.items()
-            if is_active
-        ]
-        
-        # Statistiques globales
-        all_plans = order_manager.execution_plans
-        total_plans = len(all_plans)
-        
-        completed_plans = sum(1 for plan in all_plans.values() if plan.status == "completed")
-        failed_plans = sum(1 for plan in all_plans.values() if plan.status == "failed")
-        
-        # Santé des exchanges
-        exchange_health = []
-        for name in exchange_registry.list_exchanges():
-            adapter = exchange_registry.get_adapter(name)
-            if adapter:
-                exchange_health.append({
-                    "name": name,
-                    "connected": adapter.connected,
-                    "type": adapter.type.value
-                })
-        
-        return {
-            "pipeline_status": "active" if active_plans else "idle",
-            "active_executions": len(active_plans),
-            "active_plan_ids": active_plans,
-            "statistics": {
-                "total_plans": total_plans,
-                "completed_plans": completed_plans,
-                "failed_plans": failed_plans,
-                "success_rate": (completed_plans / max(total_plans, 1)) * 100
-            },
-            "exchange_health": exchange_health,
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Error getting pipeline status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-# Endpoints de Gouvernance
-@router.get("/governance/state", response_model=GovernanceStateResponse)
+@router.get("/state", response_model=GovernanceStateResponse)
 async def get_governance_state():
     """
     Obtenir l'état actuel du système de gouvernance - VERSION UNIFIÉE
@@ -806,7 +303,7 @@ async def get_governance_state():
 # REMOVED: Old /governance/approve endpoint - replaced by unified /governance/approve/{resource_id}
 # Former functionality available with resource_type="decision"
 
-@router.post("/governance/init-ml")
+@router.post("/init-ml")
 async def init_ml_models():
     """
     Force l'initialisation des modèles ML pour la gouvernance
@@ -848,7 +345,7 @@ async def init_ml_models():
         logger.error(f"Error initializing ML models: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/governance/unfreeze")
+@router.post("/unfreeze")
 async def unfreeze_system():
     """
     Dégeler le système de gouvernance
@@ -871,7 +368,7 @@ async def unfreeze_system():
         logger.error(f"Error unfreezing system: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/governance/signals")
+@router.get("/signals")
 async def get_ml_signals():
     """
     Obtenir les signaux ML actuels
@@ -945,7 +442,7 @@ async def get_ml_signals():
         logger.error(f"Error getting ML signals: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/governance/mode")
+@router.post("/mode")
 async def set_governance_mode(request: dict):
     """
     Changer le mode de gouvernance
@@ -986,7 +483,7 @@ async def set_governance_mode(request: dict):
         logger.error(f"Error changing governance mode: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/governance/propose")
+@router.post("/propose")
 async def propose_decision(request: dict):
     """
     Proposer une nouvelle décision avec respect du cooldown
@@ -1028,7 +525,7 @@ async def propose_decision(request: dict):
         logger.error(f"Error proposing decision: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/governance/review/{plan_id}")
+@router.post("/review/{plan_id}")
 async def review_plan(plan_id: str, request: dict, if_match: Optional[str] = Header(None)):
     """
     Review un plan DRAFT → REVIEWED with ETag-based concurrency control
@@ -1070,7 +567,7 @@ async def review_plan(plan_id: str, request: dict, if_match: Optional[str] = Hea
         logger.error(f"Error reviewing plan: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/governance/approve/{resource_id}")
+@router.post("/approve/{resource_id}")
 async def unified_approval_endpoint(resource_id: str, request: UnifiedApprovalRequest):
     """
     Endpoint unifié pour approuver/rejeter des décisions ou des plans
@@ -1151,7 +648,7 @@ async def unified_approval_endpoint(resource_id: str, request: UnifiedApprovalRe
         logger.error(f"Error in unified approval for {request.resource_type} {resource_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/governance/activate/{plan_id}")
+@router.post("/activate/{plan_id}")
 async def activate_plan_endpoint(plan_id: str):
     """
     Activer un plan APPROVED → ACTIVE
@@ -1178,7 +675,7 @@ async def activate_plan_endpoint(plan_id: str):
         logger.error(f"Error activating plan: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/governance/execute/{plan_id}")
+@router.post("/execute/{plan_id}")
 async def execute_plan_endpoint(plan_id: str):
     """
     Marquer un plan comme exécuté ACTIVE → EXECUTED
@@ -1205,7 +702,7 @@ async def execute_plan_endpoint(plan_id: str):
         logger.error(f"Error marking plan as executed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/governance/cancel/{plan_id}")
+@router.post("/cancel/{plan_id}")
 async def cancel_plan_endpoint(plan_id: str, request: dict):
     """
     Annuler un plan ANY_STATE → CANCELLED
@@ -1237,7 +734,7 @@ async def cancel_plan_endpoint(plan_id: str, request: dict):
         logger.error(f"Error cancelling plan: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/governance/cooldown-status")
+@router.get("/cooldown-status")
 async def get_cooldown_status():
     """
     Vérifier le statut du cooldown de publication des plans
@@ -1266,7 +763,7 @@ async def get_cooldown_status():
         logger.error(f"Error getting cooldown status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/governance/apply_policy")
+@router.post("/apply_policy")
 async def apply_policy_from_alert(
     request: ApplyPolicyRequest,
     idempotency_key: str = Header(..., alias="Idempotency-Key", description="Cle idempotency UUID"),
@@ -1365,7 +862,7 @@ async def apply_policy_from_alert(
     except Exception as exc:
         logger.error(f"Error applying policy from alert: {exc}")
         raise HTTPException(status_code=500, detail=str(exc))
-@router.post("/governance/freeze")
+@router.post("/freeze")
 async def freeze_system_with_ttl(
     request: FreezeRequest,
     idempotency_key: str = Header(..., alias="Idempotency-Key", description="Clé idempotency UUID"),
@@ -1426,7 +923,7 @@ async def freeze_system_with_ttl(
         logger.error(f"Error freezing system: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/governance/validate-allocation")
+@router.post("/validate-allocation")
 async def validate_allocation_change(request: dict):
     """
     Valide un changement d'allocation avant exécution
@@ -1471,221 +968,3 @@ async def validate_allocation_change(request: dict):
     except Exception as e:
         logger.error(f"Error validating allocation: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-class UpdateSignalsRequest(BaseModel):
-    """Payload pour mise à jour partielle des signaux ML (ex: blended score issu du front)"""
-    blended_score: Optional[float] = Field(default=None, ge=0.0, le=100.0, description="Blended Decision Score 0-100")
-
-@router.post("/governance/signals/update")
-async def update_ml_signals(request: UpdateSignalsRequest):
-    """
-    Mettre à jour des champs de signaux ML maintenus côté gouvernance.
-    Actuellement: accepte `blended_score` (0-100) pour activer les garde-fous backend.
-    """
-    try:
-        # Ensure we have a current state
-        state = await governance_engine.get_current_state()
-        signals = state.signals
-
-        # Update blended score if provided
-        if request.blended_score is not None:
-            try:
-                # Attach blended score directly to signals model
-                setattr(signals, 'blended_score', float(request.blended_score))
-            except Exception:
-                # Graceful fallback if assignment fails
-                pass
-
-        return {
-            "success": True,
-            "updated": {
-                "blended_score": getattr(signals, 'blended_score', None)
-            },
-            "timestamp": datetime.now().isoformat()
-        }
-    except Exception as e:
-        logger.error(f"Error updating ML signals: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-class RecomputeSignalsRequest(BaseModel):
-    """Optionally provide components for blended recomputation.
-    If omitted, backend falls back to neutral values.
-    """
-    ccs_mixte: Optional[float] = Field(default=None, ge=0.0, le=100.0)
-    onchain_score: Optional[float] = Field(default=None, ge=0.0, le=100.0)
-    risk_score: Optional[float] = Field(default=None, ge=0.0, le=100.0)
-
-_LAST_RECOMPUTE_TS = 0.0
-_RECOMPUTE_WINDOW = []  # timestamps for burst control (last 10s)
-_RECOMPUTE_CACHE = {}   # idempotency cache: key -> {response, ts}
-
-# Phase 2B: Concurrency safety
-import asyncio
-_RECOMPUTE_LOCK = asyncio.Lock()  # Mutex pour éviter recompute concurrent
-
-@router.post("/governance/signals/recompute")
-async def recompute_ml_signals(
-    request: RecomputeSignalsRequest,
-    current_user: User = Depends(require_role("governance_admin")),
-    idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key"),
-    x_csrf_token: Optional[str] = Header(default=None, alias="X-CSRF-Token"),
-):
-    """
-    Recompute blended score server-side from components and attach to governance signals.
-    Phase 2B: With concurrency safety mutex
-    """
-    # Phase 2B: Acquire lock to prevent concurrent recompute
-    async with _RECOMPUTE_LOCK:
-        try:
-            global _LAST_RECOMPUTE_TS, _RECOMPUTE_WINDOW, _RECOMPUTE_CACHE
-
-            # CSRF basic check
-            if not x_csrf_token:
-                raise HTTPException(status_code=403, detail="missing_csrf_token")
-
-            # Idempotency check
-            if idempotency_key and idempotency_key in _RECOMPUTE_CACHE:
-                return _RECOMPUTE_CACHE[idempotency_key]["response"]
-
-            # Simple in-process rate-limit: 1 call/sec + burst 5/10s
-            now_ts = datetime.now().timestamp()
-            user_id = getattr(current_user, 'username', 'unknown')
-
-            if (now_ts - _LAST_RECOMPUTE_TS) < 1.0:
-                # Phase 2A: Log rate limit metric
-                logger.warning(f"METRICS: recompute_429_total=1 user={user_id} reason=rate_limit")
-                raise HTTPException(status_code=429, detail="too_many_requests")
-            _LAST_RECOMPUTE_TS = now_ts
-
-            # Burst window
-            _RECOMPUTE_WINDOW = [t for t in _RECOMPUTE_WINDOW if (now_ts - t) < 10.0]
-            if len(_RECOMPUTE_WINDOW) >= 5:
-                # Phase 2A: Log burst limit metric
-                logger.warning(f"METRICS: recompute_429_total=1 user={user_id} reason=burst_limit window_size={len(_RECOMPUTE_WINDOW)}")
-                raise HTTPException(status_code=429, detail="too_many_requests_burst")
-            _RECOMPUTE_WINDOW.append(now_ts)
-
-            state = await governance_engine.get_current_state()
-            signals = state.signals
-
-            # Phase 2B: Validate component freshness for 409 NeedsRefresh
-            missing_components = []
-            if request.ccs_mixte is None:
-                missing_components.append("ccs_mixte")
-            if request.onchain_score is None:
-                missing_components.append("onchain_score")
-            if request.risk_score is None:
-                missing_components.append("risk_score")
-
-            if missing_components:
-                # Phase 2B: 409 si composantes manquantes/non-fraîches
-                logger.warning(f"AUDIT_RECOMPUTE_409: user={user_id} missing_components={missing_components}")
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"NeedsRefresh: missing components {missing_components}"
-                )
-
-            # Pull components if provided; otherwise fall back to safe neutrals
-            ccs_mixte = request.ccs_mixte if request.ccs_mixte is not None else 50.0
-            onchain = request.onchain_score if request.onchain_score is not None else 50.0
-            risk = request.risk_score if request.risk_score is not None else 50.0
-
-            # Get previous blended score for audit trail
-            blended_old = getattr(signals, 'blended_score', None)
-
-            # Strategic blended: 50% CCS Mixte + 30% On-Chain + 20% (100-Risk)
-            blended = (ccs_mixte * 0.50) + (onchain * 0.30) + ((100.0 - risk) * 0.20)
-            blended = max(0.0, min(100.0, blended))
-
-            try:
-                setattr(signals, 'blended_score', float(blended))
-                setattr(signals, 'as_of', datetime.now())
-            except Exception:
-                pass
-
-            # Phase 2A: Enriched structured audit logging with unique calc_timestamp
-            policy = state.execution_policy
-            calc_timestamp = datetime.now()
-
-            # Real backend health check (replaces TODO)
-            backend_status = "ok"
-            try:
-                # 1. Check signals freshness
-                signals_age = (calc_timestamp - signals.as_of).total_seconds() if signals.as_of else 0
-
-                # 2. Check governance engine state
-                if not state or not signals:
-                    backend_status = "error"
-                elif signals_age > 7200:  # > 2h : critical
-                    backend_status = "error"
-                elif signals_age > 3600:  # 1-2h : warning
-                    backend_status = "stale"
-
-                # 3. Check policy validity
-                if backend_status == "ok" and policy:
-                    # Validate policy has required fields
-                    if not hasattr(policy, 'mode') or not hasattr(policy, 'cap_daily'):
-                        backend_status = "stale"
-
-                logger.debug(f"Backend health check: status={backend_status}, signals_age={signals_age}s")
-            except Exception as e:
-                logger.warning(f"Backend health check failed: {e}")
-                backend_status = "error"
-
-            audit_data = {
-                "event": "recompute_blended",
-                "user": getattr(current_user, 'username', 'unknown'),
-                "timestamp": calc_timestamp.isoformat(),
-                "calc_timestamp": calc_timestamp.isoformat(),  # Phase 2B: Unique timestamp
-                "blended_old": blended_old,
-                "blended_new": round(blended, 1),
-                "inputs": {
-                    "ccs_mixte": ccs_mixte,
-                    "onchain": onchain,
-                    "risk": risk
-                },
-                "policy_cap_before": round(policy.cap_daily * 100, 1) if policy else None,
-                "policy_cap_after": round(policy.cap_daily * 100, 1) if policy else None,  # Will be updated after policy refresh
-                "idempotency_hit": idempotency_key in _RECOMPUTE_CACHE if idempotency_key else False,
-                "backend_status": backend_status,
-                "rate_limit_window": len(_RECOMPUTE_WINDOW),
-                "session_id": idempotency_key[:8] if idempotency_key else "none"
-            }
-
-            # Log structured audit entry (JSON for easier parsing)
-            logger.info(f"AUDIT_RECOMPUTE: {audit_data}")
-
-            # Also log readable summary
-            logger.info(f"recompute_blended user={audit_data['user']} "
-                       f"blended={audit_data['blended_old']}→{audit_data['blended_new']} "
-                       f"inputs=({ccs_mixte},{onchain},{risk}) "
-                       f"backend={backend_status} "
-                       f"idempotency={'HIT' if audit_data['idempotency_hit'] else 'NEW'}")
-
-            # Phase 2A: Simple metrics tracking (logs-analytics pattern)
-            try:
-                # Log metrics for downstream analytics
-                logger.info(f"METRICS: recompute_ok_total=1 user={audit_data['user']} backend_status={backend_status}")
-                if audit_data['idempotency_hit']:
-                    logger.info(f"METRICS: recompute_idempotency_hit_total=1 user={audit_data['user']}")
-            except Exception as e:
-                logger.debug(f"Failed to log recompute metrics: {e}")
-
-            response_payload = {
-                "success": True,
-                "blended_score": blended,
-                "blended_formula_version": "1.0",
-                "timestamp": calc_timestamp.isoformat(),
-                "calc_timestamp": calc_timestamp.isoformat()  # Phase 2B: Unique timestamp
-            }
-            # Idempotency cache
-            if idempotency_key:
-                try:
-                    _RECOMPUTE_CACHE[idempotency_key] = {"response": response_payload, "ts": calc_timestamp.timestamp()}
-                except Exception as e:
-                    logger.warning(f"Failed to cache idempotent response for key {idempotency_key}: {e}")
-
-            return response_payload
-        except Exception as e:
-            logger.error(f"Error recomputing ML signals: {e}")
-            raise HTTPException(status_code=500, detail=str(e))

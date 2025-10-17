@@ -1,0 +1,43 @@
+"""
+Endpoints de gouvernance
+
+Ces endpoints gèrent l'état de gouvernance, les modes, les plans et les politiques d'exécution.
+"""
+
+from fastapi import APIRouter, HTTPException, Header, Depends
+from typing import Optional, List
+from typing import Dict, Any
+import logging
+from datetime import datetime, timedelta
+
+from services.execution.governance import Policy, governance_engine
+from services.execution.score_registry import get_score_registry
+from services.execution.phase_engine import get_phase_engine
+from .models import (
+    GovernanceStateResponse, ScoreComponents, CanonicalScores,
+    PhaseInfo, ExecutionPressure, MarketSignals, CycleSignals,
+    UnifiedSignals, PortfolioMetrics, SuggestionIA,
+    UnifiedApprovalRequest, FreezeRequest, ApplyPolicyRequest
+)
+
+# Import RBAC from alerts (shared dependency)
+try:
+    from api.alerts_endpoints import User, get_current_user, require_role
+except ImportError:
+    class User:
+        def __init__(self, username: str = "system", roles: List[str] = None):
+            self.username = username
+            self.roles = roles or ["approver"]
+    
+    def get_current_user() -> User:
+        return User("system_user", ["approver", "viewer"])
+    
+    def require_role(required_role: str):
+        def dependency(current_user: User = Depends(get_current_user)):
+            return current_user
+        return dependency
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/execution/governance", tags=["governance"])
+
