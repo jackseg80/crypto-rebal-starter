@@ -50,6 +50,16 @@ param(
     [int]$Workers = 1
 )
 
+# Check virtual environment exists
+if (-not (Test-Path ".venv\Scripts\python.exe")) {
+    Write-Host "`n❌ Virtual environment not found!" -ForegroundColor Red
+    Write-Host "   Please create it first:" -ForegroundColor Yellow
+    Write-Host "   1. python -m venv .venv" -ForegroundColor Gray
+    Write-Host "   2. .venv\Scripts\Activate.ps1" -ForegroundColor Gray
+    Write-Host "   3. pip install -r requirements.txt`n" -ForegroundColor Gray
+    exit 1
+}
+
 # Check and start Redis
 Write-Host "🔍 Checking Redis..." -ForegroundColor Cyan
 
@@ -66,9 +76,18 @@ if ($redisRunning) {
         if ($LASTEXITCODE -eq 0) {
             Write-Host "   Starting Redis via WSL2..." -ForegroundColor Gray
             wsl -d Ubuntu bash -c "sudo service redis-server start" 2>$null
-            Start-Sleep -Seconds 2
 
-            $redisRunning = Test-NetConnection -ComputerName localhost -Port 6379 -InformationLevel Quiet -WarningAction SilentlyContinue
+            # Retry logic: wait up to 5 seconds for Redis to start
+            $retries = 0
+            $maxRetries = 5
+            while (-not $redisRunning -and $retries -lt $maxRetries) {
+                Start-Sleep -Seconds 1
+                $redisRunning = Test-NetConnection -ComputerName localhost -Port 6379 -InformationLevel Quiet -WarningAction SilentlyContinue
+                $retries++
+                if (-not $redisRunning -and $retries -lt $maxRetries) {
+                    Write-Host "   Waiting for Redis... ($retries/$maxRetries)" -ForegroundColor Gray
+                }
+            }
 
             if ($redisRunning) {
                 Write-Host "✅ Redis started successfully" -ForegroundColor Green
@@ -142,6 +161,21 @@ if ($UseReload) {
     } elseif ($CryptoToolboxMode -eq 1) {
         Write-Host "   (auto-disabled: required for Playwright on Windows)" -ForegroundColor Gray
     }
+}
+
+# Check if port is already in use
+$portInUse = $null
+try {
+    $portInUse = Test-NetConnection -ComputerName localhost -Port $Port -InformationLevel Quiet -WarningAction SilentlyContinue 2>$null
+} catch {
+    # Ignore errors, assume port is free
+}
+
+if ($portInUse) {
+    Write-Host "`n❌ Port $Port is already in use!" -ForegroundColor Red
+    Write-Host "   Kill the existing process or use a different port:" -ForegroundColor Yellow
+    Write-Host "   .\start_dev.ps1 -Port 8001`n" -ForegroundColor Gray
+    exit 1
 }
 
 Write-Host "`n🌐 Server: http://localhost:$Port" -ForegroundColor Cyan
