@@ -1,22 +1,15 @@
 /**
- * Decision Index Panel v5 - Split View Design avec Glassmorphism léger
+ * Decision Index Panel v6.1 - Health Bar Gaming Design (Compact 2-Column)
  *
- * Layout: 2 colonnes
- * - Gauche: Score DI + barre contributions + trend + regime
- * - Droite: Mini-cards Cycle/OnChain/Risk + gouvernance
+ * Layout 2 colonnes compact avec barres de progression gaming
+ * - Colonne gauche: Score DI principal + trend
+ * - Colonne droite: 3 barres piliers + stats
+ * - Design gaming compact et moderne
+ * - Performance optimisée
  *
- * Performance: Optimisé pour systèmes moins performants
- * - Animations GPU-accelerated uniquement (transform, opacity)
- * - Backdrop-filter léger (10px blur)
- * - Pas d'animations continues
- *
- * ⚠️ Chart.js + chartjs-plugin-datalabels doivent être chargés AVANT
+ * @version 6.1.0
+ * @date 2025-01-15
  */
-
-// Instances Chart.js (cleanup)
-let chartInstances = {
-  stacked: null
-};
 
 // Debounce timeout
 let refreshTimeout = null;
@@ -41,20 +34,34 @@ function getScoreLevel(score) {
 }
 
 /**
- * Palette couleurs - Lire depuis CSS (avec fallback)
+ * Détermine la couleur en format CSS
  */
-function getColors() {
-  const root = document.documentElement;
-  const getVar = (name, fallback) => {
-    const value = getComputedStyle(root).getPropertyValue(name)?.trim();
-    return (value && value !== '') ? value : fallback;
-  };
+function getScoreColor(score) {
+  const level = getScoreLevel(score);
+  switch(level) {
+    case 'excellent': return '#10b981'; // green
+    case 'good': return '#3b82f6'; // blue
+    case 'medium': return '#f59e0b'; // amber
+    case 'warning': return '#ef4444'; // red
+    case 'danger': return '#991b1b'; // dark red
+    default: return '#6b7280'; // gray
+  }
+}
 
-  return {
-    cycle: getVar('--di-color-cycle', '#7aa2f7'),
-    onchain: getVar('--di-color-onchain', '#2ac3de'),
-    risk: getVar('--di-color-risk', '#f7768e')
-  };
+/**
+ * Génère un gradient pour la barre principale
+ */
+function getGradientForScore(score) {
+  if (score >= 75) {
+    return 'linear-gradient(90deg, #059669 0%, #10b981 50%, #34d399 100%)';
+  } else if (score >= 60) {
+    return 'linear-gradient(90deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%)';
+  } else if (score >= 45) {
+    return 'linear-gradient(90deg, #d97706 0%, #f59e0b 50%, #fbbf24 100%)';
+  } else if (score >= 30) {
+    return 'linear-gradient(90deg, #dc2626 0%, #ef4444 50%, #f87171 100%)';
+  }
+  return 'linear-gradient(90deg, #7f1d1d 0%, #991b1b 50%, #dc2626 100%)';
 }
 
 /**
@@ -73,22 +80,59 @@ function _round(val, decimals = 1) {
 }
 
 /**
- * Calcule contributions relatives (formule: (w×s)/Σ)
- * ⚠️ PAS d'inversion Risk
+ * Calcule le texte du niveau
+ */
+function getLevelText(score) {
+  const level = getScoreLevel(score);
+  switch(level) {
+    case 'excellent': return 'Excellent';
+    case 'good': return 'Bon';
+    case 'medium': return 'Moyen';
+    case 'warning': return 'Faible';
+    case 'danger': return 'Critique';
+    default: return 'N/A';
+  }
+}
+
+/**
+ * Calcule la trend pour affichage avec sigma
+ */
+function computeTrendInfo(history) {
+  const arr = Array.isArray(history) ? history.map(h => (h?.di ?? h) ?? 0) : [];
+  if (arr.length < 2) return { delta: 0, trend: '→', color: 'neutral', sigma: 0, state: 'N/A' };
+
+  const recent = arr.slice(-7);
+  const delta = recent[recent.length - 1] - recent[0];
+
+  // Calcul sigma (volatilité)
+  const avg = recent.reduce((a, b) => a + b, 0) / recent.length;
+  const variance = recent.reduce((a, b) => a + (b - avg) ** 2, 0) / recent.length;
+  const sigma = Math.sqrt(variance);
+
+  // État
+  let state = 'Stable';
+  if (delta > 1) state = 'Haussier';
+  else if (delta < -1) state = 'Baissier';
+
+  return {
+    delta: _round(delta, 1),
+    trend: delta > 0 ? '↗' : delta < 0 ? '↘' : '→',
+    color: delta > 1 ? 'positive' : delta < -1 ? 'negative' : 'neutral',
+    sigma: _round(sigma, 1),
+    state
+  };
+}
+
+/**
+ * Calcule les contributions relatives (w×s)/Σ
  */
 function calculateRelativeContributions(weights, scores) {
   const epsilon = 1e-6;
 
-  const clampedScores = {
-    cycle: Math.max(0, Math.min(100, scores.cycle || 0)),
-    onchain: Math.max(0, Math.min(100, scores.onchain || 0)),
-    risk: Math.max(0, Math.min(100, scores.risk || 0))
-  };
-
   const raw = {
-    cycle: (weights.cycle || 0) * clampedScores.cycle,
-    onchain: (weights.onchain || 0) * clampedScores.onchain,
-    risk: (weights.risk || 0) * clampedScores.risk
+    cycle: (weights.cycle || 0) * (scores.cycle || 0),
+    onchain: (weights.onchain || 0) * (scores.onchain || 0),
+    risk: (weights.risk || 0) * (scores.risk || 0)
   };
 
   const sum = Object.values(raw).reduce((a, b) => a + b, 0) || epsilon;
@@ -102,40 +146,16 @@ function calculateRelativeContributions(weights, scores) {
 }
 
 /**
- * Calcule fenêtre de trend (Δ, σ, état) sur historique DI
+ * Génère mini sparkline SVG compact
  */
-function computeTrendWindow(history, win = 7) {
-  const arr = Array.isArray(history) ? history.map(h => (h?.di ?? h) ?? 0) : [];
-  const n = Math.min(win, arr.length);
-  if (n < 2) return { ok: false, n, delta: 0, sigma: 0, state: 'Insuffisant', series: arr.slice(-n) };
-  const series = arr.slice(-n);
-  const first = series[0];
-  const last = series[series.length - 1];
-  const delta = last - first;
-  const avg = series.reduce((a, b) => a + b, 0) / series.length;
-  const varg = series.reduce((a, b) => a + (b - avg) ** 2, 0) / series.length;
-  const sigma = Math.sqrt(varg);
-  let state = 'Stable';
-  if (delta > 1) state = 'Haussier';
-  else if (delta < -1) state = 'Baissier';
-  return { ok: true, n, delta, sigma, state, series };
-}
-
-/**
- * Génère SVG sparkline
- */
-function renderSparkline(series, width = 260, height = 36, dashed = false, delta = 0) {
-  if (!Array.isArray(series) || series.length === 0) {
-    return `<div class="spark-placeholder">—</div>`;
-  }
-  const n = series.length;
-  if (n === 1) {
-    return `<div class="spark-placeholder" title="1 point (min 2 requis)">●</div>`;
+function renderMiniSparkline(series, width = 60, height = 16) {
+  if (!Array.isArray(series) || series.length < 2) {
+    return '<span class="no-data">—</span>';
   }
 
   const validSeries = series.filter(v => typeof v === 'number' && Number.isFinite(v));
   if (validSeries.length < 2) {
-    return `<div class="spark-placeholder" title="Données invalides">—</div>`;
+    return '<span class="no-data">—</span>';
   }
 
   const min = Math.min(...validSeries);
@@ -145,250 +165,147 @@ function renderSparkline(series, width = 260, height = 36, dashed = false, delta
   const py = (v) => height - ((v - min) / span) * (height - 2) - 1;
   const d = validSeries.map((v, i) => `${i === 0 ? 'M' : 'L'} ${px(i).toFixed(1)} ${py(v).toFixed(1)}`).join(' ');
 
-  let colorClass = 'neutral';
-  if (delta > 0.5) colorClass = 'up';
-  else if (delta < -0.5) colorClass = 'down';
-
-  const cls = dashed ? `spark-line dashed ${colorClass}` : `spark-line ${colorClass}`;
   return `
-    <svg class="spark" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
-      <path d="${d}" class="${cls}"/>
-    </svg>`;
+    <svg class="mini-spark" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+      <path d="${d}" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.6"/>
+    </svg>
+  `;
 }
 
 /**
- * Render barre empilée Chart.js (SANS axes/grilles)
+ * Génère la barre de contributions empilée (CSS pur)
  */
-function renderStackedBar(canvas, contributions, weights, scores, opts = {}) {
-  const ctx = canvas.getContext('2d');
-  const colors = getColors();
-
-  const config = {
-    type: 'bar',
-    data: {
-      labels: ['Contributions'],
-      datasets: [
-        {
-          label: 'Cycle',
-          data: [contributions.cycle],
-          backgroundColor: colors.cycle,
-          borderWidth: 0,
-          _meta: {
-            score: Math.round(scores.cycle || 0),
-            weight: weights.cycle || 0,
-            wxs: contributions.raw.cycle
-          }
-        },
-        {
-          label: 'On-Chain',
-          data: [contributions.onchain],
-          backgroundColor: colors.onchain,
-          borderWidth: 0,
-          _meta: {
-            score: Math.round(scores.onchain || 0),
-            weight: weights.onchain || 0,
-            wxs: contributions.raw.onchain
-          }
-        },
-        {
-          label: 'Risk',
-          data: [contributions.risk],
-          backgroundColor: colors.risk,
-          borderWidth: 0,
-          _meta: {
-            score: Math.round(scores.risk || 0),
-            weight: weights.risk || 0,
-            wxs: contributions.raw.risk
-          }
-        }
-      ]
-    },
-    options: {
-      indexAxis: 'y',
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        x: {
-          stacked: true,
-          display: false,
-          min: 0,
-          max: 100,
-          grid: { display: false }
-        },
-        y: {
-          stacked: true,
-          display: false,
-          grid: { display: false }
-        }
-      },
-      plugins: {
-        legend: {
-          display: false
-        },
-        datalabels: {
-          display: (context) => {
-            if (!context.parsed || typeof context.parsed.x !== 'number') {
-              return false;
-            }
-            const value = context.parsed.x;
-            const chart = context.chart;
-            const meta = chart.getDatasetMeta(context.datasetIndex);
-            const bar = meta.data[context.dataIndex];
-            const segmentWidth = bar ? bar.width : 0;
-            return value >= 10 && segmentWidth >= 52;
-          },
-          color: '#ffffff',
-          font: { weight: 600, size: 11 },
-          textShadowColor: 'rgba(0, 0, 0, 0.5)',
-          textShadowBlur: 4,
-          formatter: (value, context) => {
-            return `${context.dataset.label} ${value.toFixed(1)}%`;
-          },
-          anchor: 'center',
-          align: 'center',
-          clamp: true,
-          offset: 0
-        },
-        tooltip: {
-          callbacks: {
-            title: () => '',
-            label: (context) => {
-              const pillar = context.dataset.label;
-              const pct = (context.parsed.x ?? 0).toFixed(1);
-              const m = context.dataset._meta || {};
-              const score = m.score != null ? m.score : '?';
-              const weight = m.weight != null ? m.weight.toFixed(2) : '?';
-              const wxs = m.wxs != null ? m.wxs.toFixed(1) : '?';
-              return `${pillar} — ${pct}% (score ${score}, w ${weight}, w×s ${wxs})`;
-            }
-          }
-        }
-      },
-      animation: {
-        duration: 300
-      }
-    }
-  };
-
-  return new Chart(ctx, config);
-}
-
-/**
- * Génère breakdown line (scores avec typographie uniforme)
- */
-function renderBreakdown(weights, scores) {
-  const s = scores || {};
-
+function renderContributionBar(contributions) {
+  const c = contributions;
   return `
-    <div class="di-breakdown">
-      <span class="lbl lbl-cycle">Cycle <b>${_round(s.cycle || 0)}</b></span>
-      <span class="dot">·</span>
-      <span class="lbl lbl-oc">On-Chain <b>${_round(s.onchain || 0, 1)}</b></span>
-      <span class="dot">·</span>
-      <span class="lbl lbl-risk">Risk <b>${_round(s.risk || 0)}</b></span>
-    </div>`;
+    <div class="contribution-bar">
+      <div class="contribution-seg cycle" style="width: ${c.cycle}%;" title="Cycle: ${c.cycle.toFixed(1)}%"></div>
+      <div class="contribution-seg onchain" style="width: ${c.onchain}%;" title="On-Chain: ${c.onchain.toFixed(1)}%"></div>
+      <div class="contribution-seg risk" style="width: ${c.risk}%;" title="Risk: ${c.risk.toFixed(1)}%"></div>
+    </div>
+  `;
 }
 
 /**
- * Mapping phase name → index (0=Bull, 1=Neutral, 2=Bear)
+ * Génère le breakdown des scores (ligne compacte)
  */
-function phaseToIndex(name) {
-  const n = String(name || '').toLowerCase();
-  if (n.includes('euphor') || n.includes('bull') || n.includes('risk-on') || n.includes('expansion')) return 0;
-  if (n.includes('bear') || n.includes('risk-off') || n.includes('prudence')) return 2;
-  return 1;
+function renderScoresBreakdown(scores) {
+  return `
+    <div class="scores-breakdown">
+      <span class="score-item cycle">🔄 <b>${Math.round(scores.cycle || 0)}</b></span>
+      <span class="sep">·</span>
+      <span class="score-item onchain">🔗 <b>${Math.round(scores.onchain || 0)}</b></span>
+      <span class="sep">·</span>
+      <span class="score-item risk">🛡️ <b>${Math.round(scores.risk || 0)}</b></span>
+    </div>
+  `;
 }
 
 /**
- * Génère regime ribbon (3 barres: Euphorie/Neutral/Bearish)
+ * Génère le régime ribbon compact (3 barres)
  */
-function renderRegimeRibbon(meta, regimeHistoryRaw) {
-  const rHist = Array.isArray(regimeHistoryRaw) ? regimeHistoryRaw.slice(-5) : [];
-  let activeIdx = phaseToIndex(meta?.phase);
+function renderRegimeRibbon(meta, regimeHistory) {
+  const rHist = Array.isArray(regimeHistory) ? regimeHistory.slice(-5) : [];
+  const phaseName = (meta?.phase || 'Neutral').toLowerCase();
 
-  if (rHist.length > 0) {
-    const actives = rHist.filter(x => (x?.active ?? x?.bull ?? x?.risk_on ?? false)).length;
-    const level = actives >= 4 ? 0 : (actives <= 1 ? 2 : 1);
-    activeIdx = level;
+  let activeIdx = 1; // Neutral par défaut
+  if (phaseName.includes('euphor') || phaseName.includes('bull') || phaseName.includes('risk-on')) {
+    activeIdx = 0;
+  } else if (phaseName.includes('bear') || phaseName.includes('risk-off') || phaseName.includes('prudence')) {
+    activeIdx = 2;
   }
 
-  const labels = ['Euphorie', 'Neutral', 'Bearish'];
+  // Override avec historique si disponible
+  if (rHist.length > 0) {
+    const actives = rHist.filter(x => (x?.active ?? x?.bull ?? x?.risk_on ?? false)).length;
+    activeIdx = actives >= 4 ? 0 : (actives <= 1 ? 2 : 1);
+  }
+
+  const labels = ['🚀 Bull', '⚖️ Neutral', '🐻 Bear'];
   const bars = labels.map((lab, idx) => {
-    const on = idx === activeIdx ? 'on' : '';
-    return `
-      <div class="rg-item">
-        <div class="rg-label ${on}">${lab}</div>
-        <div class="rg-bar ${on}"></div>
-      </div>`;
+    const isActive = idx === activeIdx;
+    return `<div class="regime-bar ${isActive ? 'active' : ''}" title="${lab}">${lab}</div>`;
   }).join('');
 
   return `
-    <div class="regime-section">
-      <div class="reg-title">REGIME</div>
-      <div class="rg-row">${bars}</div>
-    </div>`;
+    <div class="regime-ribbon">
+      <div class="regime-title">RÉGIME</div>
+      <div class="regime-bars">${bars}</div>
+    </div>
+  `;
 }
 
 /**
- * Génère la colonne GAUCHE (DI + barre + trend + regime)
+ * Génère la colonne gauche avec score principal
  */
-function renderLeftColumn(data, contribs, tw, trendDelta) {
-  const breakdown = renderBreakdown(data.weights, data.scores);
-  const dashed = !tw.ok;
-  const trendSpark = renderSparkline(tw.series, 280, 40, dashed, trendDelta);
+function renderLeftColumn(data) {
+  const score = Math.round(data.di);
+  const gradient = getGradientForScore(score);
+  const levelText = getLevelText(score);
+  const trendInfo = computeTrendInfo(data.history);
+  const sparkline = renderMiniSparkline(data.history?.slice(-7));
+  const m = data.meta || {};
 
-  const deltaBadge = `${trendDelta === 0 ? '→' : (trendDelta > 0 ? '↗' : '↘')} ${trendDelta > 0 ? '+' : ''}${trendDelta} pts`;
-  const toneSigma = tw.sigma < 1 ? 'ok' : tw.sigma <= 2 ? 'warn' : 'danger';
+  // Calculer contributions
+  const contributions = calculateRelativeContributions(data.weights || {}, data.scores || {});
+  const contributionBar = renderContributionBar(contributions);
+  const scoresBreakdown = renderScoresBreakdown(data.scores || {});
+  const regimeRibbon = renderRegimeRibbon(m, data.regimeHistory);
 
-  const trendRight = tw.ok
-    ? `
-        <span class="pill pill--${trendDelta > 1 ? 'ok' : (trendDelta < -1 ? 'danger' : 'warn')}">${deltaBadge}</span>
-        <span class="pill pill--${toneSigma}">σ ${tw.sigma}</span>
-        <span class="pill pill--${tw.state === 'Haussier' ? 'ok' : (tw.state === 'Baissier' ? 'danger' : 'warn')}">${tw.state}</span>
-      `
-    : '';
-
-  const trendLeft = tw.ok
-    ? trendSpark
-    : `
-        <div style="display: flex; align-items: center; gap: 12px;">
-          ${trendSpark}
-          <span class="pill pill--muted pill--ellipsis" style="margin-left: 8px;">… Historique insuffisant</span>
-        </div>
-      `;
-
-  const regimeRibbon = renderRegimeRibbon(data.meta, data.regimeHistory);
+  // Sigma color
+  const sigmaColor = trendInfo.sigma < 1 ? 'ok' : trendInfo.sigma <= 2 ? 'warn' : 'danger';
 
   return `
-    <div class="di-left">
-      <div class="di-header">
+    <div class="di-left-col">
+      <div class="di-header-compact">
         <div class="di-title-row">
-          <div class="di-title">DECISION INDEX</div>
-          <button class="di-help-trigger" aria-label="Aide Decision Index" aria-expanded="false" type="button">ℹ️</button>
-        </div>
-        <div class="di-status-badges">
-          <span class="status-badge status-badge--${data.meta.live ? 'live' : 'muted'}">${data.meta.live ? '● LIVE' : '○ OFF'}</span>
-          <span class="status-badge status-badge--muted">${data.meta.source || 'N/A'}</span>
+          <span class="di-title">DECISION INDEX</span>
+          <button class="di-help-btn" aria-label="Aide" type="button">?</button>
         </div>
       </div>
 
-      <div class="di-score-container">
-        <div class="di-score" data-score-level="${getScoreLevel(data.di)}">${Math.round(data.di)}</div>
-        <div class="di-score-label">${getScoreLevel(data.di) === 'excellent' ? 'Excellent ✨' : getScoreLevel(data.di) === 'good' ? 'Bon' : getScoreLevel(data.di) === 'medium' ? 'Moyen' : getScoreLevel(data.di) === 'warning' ? 'Attention' : 'Critique'}</div>
+      <div class="di-score-section">
+        <div class="di-score-big">${score}</div>
+        <div class="di-score-label">${levelText}</div>
       </div>
 
-      <div class="di-progress">
-        <canvas id="${data.containerId}-stack-chart" class="di-stack-canvas"></canvas>
-      </div>
-
-      ${breakdown}
-
-      <div class="trend-section">
-        <div class="trend-title">TREND (${tw.n}j)</div>
-        <div class="trend-grid">
-          <div class="trend-left">${trendLeft}</div>
-          <div class="trend-right">${trendRight}</div>
+      <div class="di-main-bar-compact">
+        <div class="di-bar-track">
+          <div class="di-bar-fill" style="width: ${score}%; background: ${gradient};">
+            <div class="di-bar-glow"></div>
+          </div>
+          <div class="di-bar-segments">
+            ${Array(10).fill(0).map((_, i) =>
+              `<div class="seg ${(i+1)*10 <= score ? 'on' : ''}"></div>`
+            ).join('')}
+          </div>
         </div>
+        <div class="di-bar-labels">
+          <span>0</span>
+          <span>25</span>
+          <span>50</span>
+          <span>75</span>
+          <span>100</span>
+        </div>
+      </div>
+
+      ${scoresBreakdown}
+
+      <div class="contribution-section">
+        <div class="contribution-title">CONTRIBUTIONS</div>
+        ${contributionBar}
+      </div>
+
+      <div class="di-trend-compact">
+        <div class="trend-header">
+          <span class="trend-title">TREND (7j)</span>
+          <div class="trend-badges">
+            <span class="trend-badge ${trendInfo.color}">${trendInfo.trend} ${trendInfo.delta > 0 ? '+' : ''}${trendInfo.delta}</span>
+            <span class="trend-badge ${sigmaColor}">σ ${trendInfo.sigma}</span>
+            <span class="trend-badge state">${trendInfo.state}</span>
+          </div>
+        </div>
+        <div class="trend-spark">${sparkline}</div>
       </div>
 
       ${regimeRibbon}
@@ -397,80 +314,95 @@ function renderLeftColumn(data, contribs, tw, trendDelta) {
 }
 
 /**
- * Génère la colonne DROITE (mini-cards piliers + gouvernance)
+ * Génère une barre de pilier compacte
+ */
+function renderCompactPillarBar(label, icon, value, subtext, confidence, color) {
+  const percentage = Math.min(100, Math.max(0, value));
+  const barColor = color || getScoreColor(value);
+
+  return `
+    <div class="pillar-bar-compact">
+      <div class="pillar-header">
+        <div class="pillar-label">
+          <span class="pillar-icon">${icon}</span>
+          <span class="pillar-name">${label}</span>
+          ${confidence ? `<span class="conf-chip">${confidence}%</span>` : ''}
+        </div>
+        <div class="pillar-score">${Math.round(value)}</div>
+      </div>
+      <div class="pillar-track">
+        <div class="pillar-fill" style="width: ${percentage}%; background: ${barColor};"></div>
+      </div>
+      ${subtext ? `<div class="pillar-sub">${subtext}</div>` : ''}
+    </div>
+  `;
+}
+
+/**
+ * Génère la colonne droite avec les piliers
  */
 function renderRightColumn(data) {
   const s = data.scores || {};
   const m = data.meta || {};
 
-  const scoreColor = (score) => {
-    if (score >= 70) return 'var(--success)';
-    if (score >= 40) return 'var(--warning)';
-    return 'var(--danger)';
-  };
-
-  const cyclePhase = m.cycle_phase || m.phase || '—';
-  const cycleMonths = m.cycle_months || null;
+  // Préparer les données pour chaque pilier
   const cycleConf = m.cycle_confidence ? Math.round(m.cycle_confidence * 100) : null;
+  const cyclePhase = m.cycle_phase || m.phase || 'Unknown';
+  const cycleMonths = m.cycle_months;
 
-  const onchainCritiques = m.onchain_critiques || 0;
   const onchainConf = m.onchain_confidence ? Math.round(m.onchain_confidence * 100) : null;
+  const onchainCritiques = m.onchain_critiques || 0;
 
-  const riskVar = m.risk_var95 || null;
-  const riskBudget = m.risk_budget || null;
+  const riskVar = m.risk_var95;
+  const riskBudget = m.risk_budget;
 
-  // Sentiment & Régime
-  const regimeName = m.phase || 'Neutral';
-  const regimeEmoji = m.regime_emoji || '🤖';
+  const cycleBar = renderCompactPillarBar(
+    'Cycle', '🔄', s.cycle || 0,
+    cycleMonths ? `${cyclePhase} • ${Math.round(cycleMonths)}m` : cyclePhase,
+    cycleConf,
+    '#3b82f6'
+  );
+
+  const onchainBar = renderCompactPillarBar(
+    'On-Chain', '🔗', s.onchain || 0,
+    `${onchainCritiques} signaux critiques`,
+    onchainConf,
+    '#8b5cf6'
+  );
+
+  const riskBar = renderCompactPillarBar(
+    'Risk', '🛡️', s.risk || 0,
+    riskVar ? `VaR: ${Math.round(Math.abs(riskVar) * 1000) / 10}%` :
+    (riskBudget ? `R: ${riskBudget.risky}% • S: ${riskBudget.stables}%` : null),
+    null,
+    '#ef4444'
+  );
+
+  // Fear & Greed compact
   const sentimentFG = m.sentiment_fg || '—';
-  const sentimentInterpretation = m.sentiment_interpretation || 'Neutre';
-
-  // Déterminer la couleur du sentiment selon sa valeur
-  const sentimentValue = typeof m.sentiment_fg === 'number' ? m.sentiment_fg :
-                         (typeof sentimentFG === 'string' && !isNaN(parseInt(sentimentFG)) ? parseInt(sentimentFG) : 50);
-  const sentimentColor = sentimentValue >= 75 ? 'var(--danger)' :
-                         sentimentValue >= 55 ? 'var(--warning)' :
-                         sentimentValue >= 45 ? 'var(--info)' :
-                         'var(--success)';
+  const sentimentColor = typeof sentimentFG === 'number' ?
+    (sentimentFG >= 70 ? '#ef4444' : sentimentFG >= 30 ? '#f59e0b' : '#10b981') : '#6b7280';
 
   return `
-    <div class="di-right">
-      <div class="pillar-card pillar-card--cycle">
-        <div class="pillar-icon">🔄</div>
-        <div class="pillar-content">
-          <div class="pillar-name">Cycle ${cycleConf ? `<span class="conf-badge">${cycleConf}%</span>` : ''}</div>
-          <div class="pillar-score" style="color: ${scoreColor(s.cycle || 0)};">${Math.round(s.cycle || 0)}</div>
-          <div class="pillar-detail">${cyclePhase}</div>
-          ${cycleMonths ? `<div class="pillar-subdetail">${Math.round(cycleMonths)}m post-halving</div>` : ''}
-        </div>
+    <div class="di-right-col">
+      <div class="pillars-container">
+        ${cycleBar}
+        ${onchainBar}
+        ${riskBar}
       </div>
 
-      <div class="pillar-card pillar-card--onchain">
-        <div class="pillar-icon">🔗</div>
-        <div class="pillar-content">
-          <div class="pillar-name">On-Chain ${onchainConf ? `<span class="conf-badge">${onchainConf}%</span>` : ''}</div>
-          <div class="pillar-score" style="color: ${scoreColor(s.onchain || 0)};">${Math.round(s.onchain || 0)}</div>
-          <div class="pillar-detail">Critiques: ${onchainCritiques}</div>
+      <div class="di-footer-stats">
+        <div class="footer-stat">
+          <span class="footer-label">Fear & Greed</span>
+          <span class="footer-value" style="color: ${sentimentColor}">${sentimentFG}</span>
         </div>
-      </div>
-
-      <div class="pillar-card pillar-card--risk">
-        <div class="pillar-icon">🛡️</div>
-        <div class="pillar-content">
-          <div class="pillar-name">Risk</div>
-          <div class="pillar-score" style="color: ${scoreColor(s.risk || 0)};">${Math.round(s.risk || 0)}</div>
-          ${riskVar ? `<div class="pillar-detail">VaR95: ${Math.round(Math.abs(riskVar) * 1000) / 10}%</div>` : '<div class="pillar-detail">—</div>'}
-          ${riskBudget ? `<div class="pillar-subdetail">Risky: ${riskBudget.risky}% • Stables: ${riskBudget.stables}%</div>` : ''}
+        <div class="footer-stat">
+          <span class="footer-label">Status</span>
+          <span class="footer-value ${m.live ? 'live' : 'offline'}">${m.live ? '● Live' : '○ Off'}</span>
         </div>
-      </div>
-
-      <div class="pillar-card pillar-card--sentiment">
-        <div class="pillar-icon">${regimeEmoji}</div>
-        <div class="pillar-content">
-          <div class="pillar-name">Sentiment & Régime</div>
-          <div class="pillar-score" style="color: ${sentimentColor}; font-size: clamp(1.2rem, 2.5vw, 1.5rem);">${regimeName}</div>
-          <div class="pillar-detail">Fear & Greed: ${sentimentFG}</div>
-          <div class="pillar-subdetail">${sentimentInterpretation}</div>
+        <div class="footer-stat">
+          <span class="footer-label">Source</span>
+          <span class="footer-value">${m.source || 'N/A'}</span>
         </div>
       </div>
     </div>
@@ -478,228 +410,830 @@ function renderRightColumn(data) {
 }
 
 /**
- * Génère contenu du popover d'aide
+ * Génère le contenu d'aide
  */
 function renderHelpContent() {
   return `
-    <div class="di-help" style="display: none;" role="dialog" aria-labelledby="di-help-title" aria-modal="true">
-      <div class="di-help-header">
-        <h3 id="di-help-title">Comment lire le Decision Index</h3>
-        <button class="di-help-close" aria-label="Fermer l'aide" type="button">×</button>
-      </div>
-      <div class="di-help-body">
-        <section>
-          <h4>📊 Score DI (0-100)</h4>
-          <p>Composite des 3 piliers (Cycle, On-Chain, Risk). Plus le score est élevé, plus le contexte est favorable pour augmenter l'exposition risquée.</p>
-        </section>
-        <section>
-          <h4>📈 Barre de contributions</h4>
-          <p>Montre la part relative de chaque pilier dans le calcul du DI. La largeur reflète (poids × score).</p>
-        </section>
-        <section>
-          <h4>🔄 Piliers</h4>
-          <p><b>Cycle:</b> Phase du marché (halving, expansion, contraction).<br>
-          <b>On-Chain:</b> Signaux blockchain (metrics critiques).<br>
-          <b>Risk:</b> Volatilité, VaR, budget allocation.</p>
-        </section>
-        <section>
-          <h4>📉 Trend</h4>
-          <p>Évolution récente du DI. Δ = variation 7j, σ = volatilité.</p>
-        </section>
-        <section>
-          <h4>⚙️ Gouvernance</h4>
-          <p><b>Cap actif:</b> Limite de mouvement quotidien.<br>
-          <b>Contradiction:</b> Divergence entre signaux (élevé = incertitude).</p>
-        </section>
+    <div class="di-help-popup" style="display: none;" role="dialog" aria-labelledby="di-help-title" aria-modal="true">
+      <div class="di-help-content">
+        <div class="di-help-header">
+          <h3 id="di-help-title">📊 Decision Index</h3>
+          <button class="di-help-close" aria-label="Fermer" type="button">×</button>
+        </div>
+        <div class="di-help-body">
+          <p><strong>Score DI (0-100)</strong><br>
+          Indicateur composite des conditions de marché.<br>
+          75+ Excellent | 60+ Bon | 45+ Moyen | 30+ Faible | <30 Critique</p>
+
+          <p><strong>Piliers</strong><br>
+          🔄 Cycle: Position dans le cycle de marché<br>
+          🔗 On-Chain: Métriques blockchain<br>
+          🛡️ Risk: Gestion du risque et volatilité</p>
+
+          <p><strong>Indicateurs</strong><br>
+          Trend: Évolution sur 7 jours<br>
+          Régime: Phase de marché actuelle<br>
+          F&G: Sentiment Fear & Greed</p>
+        </div>
       </div>
     </div>
   `;
 }
 
 /**
- * Monte le popover d'aide
+ * Monte le système d'aide
  */
-function mountHelpPopover(rootEl) {
-  const trigger = rootEl.querySelector('.di-help-trigger');
-  const popover = rootEl.querySelector('.di-help');
+function mountHelpSystem(container) {
+  const trigger = container.querySelector('.di-help-btn');
+  const popup = container.querySelector('.di-help-popup');
+  const closeBtn = container.querySelector('.di-help-close');
 
-  if (!trigger || !popover) return;
+  if (!trigger || !popup) return;
 
-  const togglePopover = (show) => {
+  const toggleHelp = (show) => {
     if (show) {
       helpPopoverState.isOpen = true;
       helpPopoverState.lastFocusedElement = document.activeElement;
-      popover.style.display = 'block';
+      popup.style.display = 'block';
       trigger.setAttribute('aria-expanded', 'true');
-
-      setTimeout(() => {
-        const firstFocusable = popover.querySelector('button, [href], [tabindex]:not([tabindex="-1"])');
-        if (firstFocusable) firstFocusable.focus();
-      }, 50);
+      setTimeout(() => popup.classList.add('show'), 10);
     } else {
       helpPopoverState.isOpen = false;
-      popover.style.display = 'none';
+      popup.classList.remove('show');
       trigger.setAttribute('aria-expanded', 'false');
-
-      if (helpPopoverState.lastFocusedElement) {
-        helpPopoverState.lastFocusedElement.focus();
-      }
+      setTimeout(() => popup.style.display = 'none', 300);
     }
   };
 
   trigger.addEventListener('click', (e) => {
     e.stopPropagation();
-    togglePopover(!helpPopoverState.isOpen);
+    toggleHelp(!helpPopoverState.isOpen);
   });
 
-  const closeBtn = popover.querySelector('.di-help-close');
   if (closeBtn) {
-    closeBtn.addEventListener('click', () => togglePopover(false));
+    closeBtn.addEventListener('click', () => toggleHelp(false));
   }
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && helpPopoverState.isOpen) {
-      togglePopover(false);
+      toggleHelp(false);
     }
   });
 
   document.addEventListener('click', (e) => {
-    if (helpPopoverState.isOpen && !popover.contains(e.target) && e.target !== trigger) {
-      togglePopover(false);
-    }
-  });
-
-  popover.addEventListener('keydown', (e) => {
-    if (e.key === 'Tab') {
-      const focusables = Array.from(popover.querySelectorAll(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      ));
-
-      if (focusables.length === 0) return;
-
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-
-      if (e.shiftKey) {
-        if (document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        }
-      } else {
-        if (document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
+    if (helpPopoverState.isOpen && !popup.contains(e.target) && e.target !== trigger) {
+      toggleHelp(false);
     }
   });
 }
 
 /**
- * Render interne (sans debounce)
+ * Ajoute les styles CSS
+ */
+function injectStyles() {
+  const styleId = 'di-gaming-styles';
+  if (document.getElementById(styleId)) return;
+
+  const styles = document.createElement('style');
+  styles.id = styleId;
+  styles.textContent = `
+    /* Container principal 2 colonnes */
+    .di-panel-gaming {
+      background: linear-gradient(135deg,
+        rgba(15, 23, 42, 0.95) 0%,
+        rgba(30, 41, 59, 0.95) 100%);
+      border: 1px solid rgba(148, 163, 184, 0.1);
+      border-radius: 12px;
+      padding: 1.25rem;
+      backdrop-filter: blur(10px);
+      box-shadow:
+        0 10px 25px -5px rgba(0, 0, 0, 0.1),
+        0 8px 10px -6px rgba(0, 0, 0, 0.1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Layout 2 colonnes */
+    .di-layout-2col {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr;
+      gap: 2rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Colonne gauche */
+    .di-left-col {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .di-header-compact {
+      margin-bottom: 0.25rem;
+    }
+
+    .di-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .di-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: rgba(148, 163, 184, 0.8);
+    }
+
+    .di-help-btn {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: rgba(59, 130, 246, 0.2);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      color: #60a5fa;
+      font-size: 0.75rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .di-help-btn:hover {
+      background: rgba(59, 130, 246, 0.3);
+      transform: scale(1.1);
+    }
+
+    .di-score-section {
+      display: flex;
+      align-items: baseline;
+      gap: 1rem;
+      margin: 0.5rem 0;
+    }
+
+    .di-score-big {
+      font-size: 3.5rem;
+      font-weight: 800;
+      line-height: 1;
+      background: linear-gradient(135deg, #fff 0%, #cbd5e1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .di-score-label {
+      font-size: 1rem;
+      font-weight: 600;
+      color: rgba(148, 163, 184, 0.8);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Barre principale compacte */
+    .di-main-bar-compact {
+      margin: 0.75rem 0;
+    }
+
+    .di-bar-track {
+      position: relative;
+      height: 24px;
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 999px;
+      overflow: hidden;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .di-bar-fill {
+      height: 100%;
+      position: relative;
+      border-radius: 999px;
+      transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .di-bar-glow {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 40%;
+      background: linear-gradient(180deg,
+        rgba(255, 255, 255, 0.3) 0%,
+        transparent 100%);
+    }
+
+    .di-bar-segments {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      right: 2px;
+      bottom: 2px;
+      display: flex;
+      gap: 2px;
+      pointer-events: none;
+    }
+
+    .di-bar-segments .seg {
+      flex: 1;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 2px;
+      transition: all 0.3s;
+    }
+
+    .di-bar-segments .seg.on {
+      background: transparent;
+    }
+
+    .di-bar-labels {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 0.25rem;
+      font-size: 0.625rem;
+      color: rgba(148, 163, 184, 0.5);
+    }
+
+    /* Scores breakdown */
+    .scores-breakdown {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.375rem 0;
+      font-size: 0.75rem;
+      color: rgba(226, 232, 240, 0.8);
+    }
+
+    .score-item {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .score-item b {
+      font-weight: 700;
+      color: rgba(226, 232, 240, 1);
+    }
+
+    .scores-breakdown .sep {
+      color: rgba(148, 163, 184, 0.4);
+      font-weight: 300;
+    }
+
+    /* Contribution bar */
+    .contribution-section {
+      margin: 0.75rem 0;
+    }
+
+    .contribution-title {
+      font-size: 0.625rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: rgba(148, 163, 184, 0.6);
+      margin-bottom: 0.375rem;
+    }
+
+    .contribution-bar {
+      display: flex;
+      height: 16px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: rgba(15, 23, 42, 0.5);
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+    }
+
+    .contribution-seg {
+      height: 100%;
+      transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      cursor: help;
+    }
+
+    .contribution-seg.cycle {
+      background: linear-gradient(90deg, #2563eb 0%, #3b82f6 100%);
+    }
+
+    .contribution-seg.onchain {
+      background: linear-gradient(90deg, #7c3aed 0%, #8b5cf6 100%);
+    }
+
+    .contribution-seg.risk {
+      background: linear-gradient(90deg, #dc2626 0%, #ef4444 100%);
+    }
+
+    .contribution-seg::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 40%;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, transparent 100%);
+    }
+
+    /* Trend compact amélioré */
+    .di-trend-compact {
+      background: rgba(30, 41, 59, 0.3);
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid rgba(148, 163, 184, 0.05);
+    }
+
+    .trend-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.375rem;
+    }
+
+    .trend-title {
+      font-size: 0.625rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: rgba(148, 163, 184, 0.6);
+    }
+
+    .trend-badges {
+      display: flex;
+      gap: 0.25rem;
+    }
+
+    .trend-badge {
+      background: rgba(15, 23, 42, 0.5);
+      padding: 0.125rem 0.375rem;
+      border-radius: 999px;
+      font-size: 0.625rem;
+      font-weight: 600;
+      border: 1px solid rgba(148, 163, 184, 0.1);
+    }
+
+    .trend-badge.positive {
+      color: #10b981;
+      background: rgba(16, 185, 129, 0.1);
+      border-color: rgba(16, 185, 129, 0.3);
+    }
+
+    .trend-badge.negative {
+      color: #ef4444;
+      background: rgba(239, 68, 68, 0.1);
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+
+    .trend-badge.neutral {
+      color: #f59e0b;
+      background: rgba(245, 158, 11, 0.1);
+      border-color: rgba(245, 158, 11, 0.3);
+    }
+
+    .trend-badge.ok {
+      color: #10b981;
+    }
+
+    .trend-badge.warn {
+      color: #f59e0b;
+    }
+
+    .trend-badge.danger {
+      color: #ef4444;
+    }
+
+    .trend-badge.state {
+      color: rgba(226, 232, 240, 0.8);
+    }
+
+    .trend-spark {
+      display: flex;
+      justify-content: center;
+      margin-top: 0.25rem;
+    }
+
+    /* Regime ribbon */
+    .regime-ribbon {
+      background: rgba(30, 41, 59, 0.3);
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid rgba(148, 163, 184, 0.05);
+    }
+
+    .regime-title {
+      font-size: 0.625rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: rgba(148, 163, 184, 0.6);
+      margin-bottom: 0.375rem;
+    }
+
+    .regime-bars {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.375rem;
+    }
+
+    .regime-bar {
+      text-align: center;
+      padding: 0.25rem 0.375rem;
+      border-radius: 4px;
+      font-size: 0.625rem;
+      font-weight: 600;
+      background: rgba(15, 23, 42, 0.3);
+      color: rgba(148, 163, 184, 0.5);
+      border: 1px solid rgba(148, 163, 184, 0.1);
+      transition: all 0.3s;
+    }
+
+    .regime-bar.active {
+      background: rgba(59, 130, 246, 0.2);
+      color: #60a5fa;
+      border-color: rgba(59, 130, 246, 0.4);
+      box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
+    }
+
+    /* Meta info compact */
+    .di-meta-compact {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+
+    .meta-item {
+      background: rgba(30, 41, 59, 0.3);
+      border-radius: 6px;
+      padding: 0.5rem;
+      border: 1px solid rgba(148, 163, 184, 0.05);
+    }
+
+    .meta-label {
+      display: block;
+      font-size: 0.625rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: rgba(148, 163, 184, 0.6);
+      margin-bottom: 0.125rem;
+    }
+
+    .meta-value {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: rgba(226, 232, 240, 0.9);
+    }
+
+    /* Colonne droite */
+    .di-right-col {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .pillars-container {
+      display: flex;
+      flex-direction: column;
+      gap: 0.875rem;
+    }
+
+    /* Barres de piliers compactes */
+    .pillar-bar-compact {
+      background: rgba(30, 41, 59, 0.3);
+      border-radius: 6px;
+      padding: 0.625rem 0.75rem;
+      border: 1px solid rgba(148, 163, 184, 0.05);
+      transition: all 0.3s;
+    }
+
+    .pillar-bar-compact:hover {
+      background: rgba(30, 41, 59, 0.5);
+      transform: translateX(2px);
+    }
+
+    .pillar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.375rem;
+    }
+
+    .pillar-label {
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+    }
+
+    .pillar-icon {
+      font-size: 0.875rem;
+    }
+
+    .pillar-name {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: rgba(226, 232, 240, 0.9);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .conf-chip {
+      background: rgba(59, 130, 246, 0.2);
+      color: #60a5fa;
+      padding: 0.125rem 0.25rem;
+      border-radius: 999px;
+      font-size: 0.5rem;
+      font-weight: 600;
+    }
+
+    .pillar-score {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: rgba(226, 232, 240, 1);
+    }
+
+    .pillar-track {
+      position: relative;
+      height: 12px;
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 999px;
+      overflow: hidden;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+    }
+
+    .pillar-fill {
+      height: 100%;
+      position: relative;
+      border-radius: 999px;
+      transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 0 8px currentColor;
+    }
+
+    .pillar-sub {
+      margin-top: 0.25rem;
+      font-size: 0.625rem;
+      color: rgba(148, 163, 184, 0.7);
+    }
+
+    /* Footer stats */
+    .di-footer-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.5rem;
+      margin-top: auto;
+      padding-top: 0.75rem;
+      border-top: 1px solid rgba(148, 163, 184, 0.1);
+    }
+
+    .footer-stat {
+      text-align: center;
+    }
+
+    .footer-label {
+      display: block;
+      font-size: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: rgba(148, 163, 184, 0.5);
+      margin-bottom: 0.125rem;
+    }
+
+    .footer-value {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: rgba(226, 232, 240, 0.8);
+    }
+
+    .footer-value.live {
+      color: #10b981;
+    }
+
+    .footer-value.offline {
+      color: #ef4444;
+    }
+
+    /* Sparkline */
+    .mini-spark {
+      display: block;
+      color: rgba(148, 163, 184, 0.5);
+    }
+
+    .no-data {
+      color: rgba(148, 163, 184, 0.3);
+      font-size: 0.75rem;
+    }
+
+    /* Popup d'aide compact */
+    .di-help-popup {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.95);
+      width: min(400px, 90vw);
+      max-height: 70vh;
+      background: linear-gradient(135deg,
+        rgba(15, 23, 42, 0.98) 0%,
+        rgba(30, 41, 59, 0.98) 100%);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 12px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      backdrop-filter: blur(20px);
+    }
+
+    .di-help-popup.show {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+
+    .di-help-content {
+      padding: 1.25rem;
+      overflow-y: auto;
+      max-height: 70vh;
+    }
+
+    .di-help-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+    }
+
+    .di-help-header h3 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 700;
+      color: rgba(226, 232, 240, 1);
+    }
+
+    .di-help-close {
+      background: none;
+      border: none;
+      font-size: 1.25rem;
+      color: rgba(148, 163, 184, 0.5);
+      cursor: pointer;
+      padding: 0.25rem;
+      transition: all 0.2s;
+      border-radius: 4px;
+    }
+
+    .di-help-close:hover {
+      color: rgba(226, 232, 240, 1);
+      background: rgba(239, 68, 68, 0.1);
+    }
+
+    .di-help-body {
+      color: rgba(203, 213, 225, 0.9);
+      line-height: 1.5;
+      font-size: 0.75rem;
+    }
+
+    .di-help-body p {
+      margin: 0 0 0.75rem 0;
+    }
+
+    .di-help-body p:last-child {
+      margin-bottom: 0;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .di-layout-2col {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+      }
+
+      .di-score-big {
+        font-size: 3rem;
+      }
+
+      .di-footer-stats {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    @media (max-width: 480px) {
+      .di-panel-gaming {
+        padding: 1rem;
+      }
+
+      .di-score-big {
+        font-size: 2.5rem;
+      }
+
+      .di-meta-compact {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Light mode */
+    @media (prefers-color-scheme: light) {
+      .di-panel-gaming {
+        background: linear-gradient(135deg,
+          rgba(255, 255, 255, 0.95) 0%,
+          rgba(248, 250, 252, 0.95) 100%);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+      }
+
+      .di-bar-track,
+      .pillar-track {
+        background: rgba(226, 232, 240, 0.5);
+      }
+
+      .pillar-bar-compact,
+      .di-trend-compact,
+      .meta-item {
+        background: rgba(248, 250, 252, 0.5);
+      }
+
+      .di-score-big {
+        background: linear-gradient(135deg, #1e293b 0%, #475569 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .pillar-name,
+      .pillar-score,
+      .meta-value {
+        color: #1e293b;
+      }
+
+      .di-title,
+      .trend-title,
+      .meta-label {
+        color: #64748b;
+      }
+    }
+  `;
+
+  document.head.appendChild(styles);
+}
+
+/**
+ * Render principal du panneau
  */
 function _renderDIPanelInternal(container, data, opts = {}) {
   if (!container) {
-    debugLogger.error('❌ DI Panel: container element not found');
+    console.error('❌ DI Panel: container element not found');
     return;
   }
 
-  // Vérifier Chart.js
-  if (!window.Chart) {
-    debugLogger.error('❌ Chart.js not loaded');
-    return;
-  }
+  // Injecter les styles si nécessaire
+  injectStyles();
 
-  // Cleanup Chart.js
-  if (chartInstances.stacked) {
-    chartInstances.stacked.destroy();
-    chartInstances.stacked = null;
-  }
-
-  // Calculer contributions
-  const contribs = calculateRelativeContributions(data.weights, data.scores);
-
-  // Calculer trend
-  const tw = computeTrendWindow(data.history, 7);
-  const trendDelta = _round(tw.delta, 1);
-
-  // Ajouter containerId pour canvas ID
-  data.containerId = container.id;
-
-  // Render HTML
-  const leftCol = renderLeftColumn(data, contribs, tw, trendDelta);
+  // Générer les colonnes
+  const leftCol = renderLeftColumn(data);
   const rightCol = renderRightColumn(data);
 
-  const timeStr = (() => {
-    try { return data.meta.updated ? new Date(data.meta.updated).toLocaleTimeString() : ''; } catch { return ''; }
-  })();
-
+  // Construire le panneau complet
   container.innerHTML = `
-    <div class="di-panel-v5">
-      <div class="di-split-layout">
+    <div class="di-panel-gaming">
+      <div class="di-layout-2col">
         ${leftCol}
         ${rightCol}
       </div>
-
-      <div class="di-footer-compact">
-        ${timeStr ? `Dernière mise à jour: ${timeStr}` : ''}
-      </div>
-
       ${renderHelpContent()}
     </div>
   `;
 
-  // Render chart
-  const stackCanvas = document.getElementById(`${container.id}-stack-chart`);
-  if (stackCanvas) {
-    chartInstances.stacked = renderStackedBar(stackCanvas, contribs, data.weights, data.scores, opts);
-  }
-
-  // Monter popover
-  mountHelpPopover(container);
+  // Monter le système d'aide
+  mountHelpSystem(container);
 }
 
 /**
- * Fonction principale - Render le panneau Decision Index
+ * Fonction publique principale avec debounce
  */
 export function renderDecisionIndexPanel(container, data, opts = {}) {
   clearTimeout(refreshTimeout);
   refreshTimeout = setTimeout(() => {
     _renderDIPanelInternal(container, data, opts);
-  }, 150);
+  }, 100);
 }
 
 /**
- * Cleanup global
+ * Cleanup
  */
 export function destroyDIPanelCharts() {
-  if (chartInstances.stacked) {
-    chartInstances.stacked.destroy();
-    chartInstances.stacked = null;
-  }
+  // Plus de charts à détruire dans cette version
+  // Gardé pour compatibilité
 }
 
 /**
- * Helper pour initialiser Chart.js (idempotent)
+ * Helper pour s'assurer que les dépendances sont chargées
  */
 export async function ensureChartJSLoaded() {
-  if (window.Chart) {
-    return true;
-  }
+  // Plus besoin de Chart.js dans cette version
+  // Gardé pour compatibilité
+  return true;
+}
 
-  debugLogger.warn('⚠️ Chart.js not found - attempting to load from CDN...');
+// Logger minimal
+const debugLogger = {
+  debug: (...args) => console.debug('[DI Panel]', ...args),
+  error: (...args) => console.error('[DI Panel]', ...args),
+  warn: (...args) => console.warn('[DI Panel]', ...args)
+};
 
-  return new Promise((resolve) => {
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
-    script.onload = () => {
-      debugLogger.debug('✅ Chart.js loaded dynamically');
-      resolve(true);
-    };
-    script.onerror = () => {
-      debugLogger.error('❌ Failed to load Chart.js from CDN');
-      resolve(false);
-    };
-    document.head.appendChild(script);
-  });
+if (typeof window !== 'undefined') {
+  window.debugLogger = debugLogger;
 }

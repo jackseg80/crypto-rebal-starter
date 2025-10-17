@@ -1,8 +1,8 @@
         // INTELLIGENT GLOBAL INSIGHT - Using sophisticated unified intelligence
-        import { getUnifiedState, deriveRecommendations } from './core/unified-insights-v2.js';
-        import { store } from './core/risk-dashboard-store.js';
-        import { UNIFIED_ASSET_GROUPS, getAssetGroup, groupAssetsByClassification } from './shared-asset-groups.js';
-        import { selectCapPercent, selectPolicyCapPercent, selectEngineCapPercent } from './selectors/governance.js';
+        import { getUnifiedState, deriveRecommendations } from '../core/unified-insights-v2.js';
+        import { store } from '../core/risk-dashboard-store.js';
+        import { UNIFIED_ASSET_GROUPS, getAssetGroup, groupAssetsByClassification } from '../shared-asset-groups.js';
+        import { selectCapPercent, selectPolicyCapPercent, selectEngineCapPercent } from '../selectors/governance.js';
         // Note: fetchSaxoSummary imported dynamically in refreshSaxoTile() to avoid scope issues
 
         // ✅ Couleur conforme CLAUDE.md: Plus haut = plus robuste = VERT
@@ -133,7 +133,7 @@
                 debugLogger.debug('🔄 Loading unified data for dashboard...');
 
                 // Import and run the same cache-intelligent loader from analytics-unified
-                const { getCurrentCycleMonths, cycleScoreFromMonths, getCyclePhase } = await import('./modules/cycle-navigator.js');
+                const { getCurrentCycleMonths, cycleScoreFromMonths, getCyclePhase } = await import('../modules/cycle-navigator.js');
 
                 // 1. Cycle data (quick calculation)
                 const c = getCurrentCycleMonths();
@@ -231,7 +231,7 @@
                 debugLogger.debug('🎯 Store ready with blended data, refreshing Global Insight');
                 if (typeof state.risk?.risk_budget?.target_stables_pct !== 'number') {
                     try {
-                        const { calculateRiskBudget } = await import('./modules/market-regimes.js');
+                        const { calculateRiskBudget } = await import('../modules/market-regimes.js');
                         const riskBudget = calculateRiskBudget(state.scores.blended, state.scores.risk ?? null);
                         store.set('risk.risk_budget', riskBudget);
                         console.debug('✅ Synthesized risk budget fallback:', { target_stables_pct: riskBudget.target_stables_pct });
@@ -462,7 +462,7 @@
                 console.debug('🏦 Bourse source changed:', event.detail);
 
                 // Invalidate Saxo summary cache to force reload with new source
-                const { invalidateSaxoCache } = await import('./modules/wealth-saxo-summary.js');
+                const { invalidateSaxoCache } = await import('../modules/wealth-saxo-summary.js');
                 invalidateSaxoCache();
 
                 // Refresh both Saxo tile and Global Overview
@@ -1206,7 +1206,7 @@
         async function loadAssetGroups() {
             try {
                 console.debug('🔄 [Dashboard] Force reloading taxonomy for proper asset classification...');
-                const { forceReloadTaxonomy, UNIFIED_ASSET_GROUPS } = await import('./shared-asset-groups.js');
+                const { forceReloadTaxonomy, UNIFIED_ASSET_GROUPS } = await import('../shared-asset-groups.js');
                 await forceReloadTaxonomy();
 
                 if (!Object.keys(UNIFIED_ASSET_GROUPS || {}).length) {
@@ -1291,7 +1291,7 @@
             // Utiliser la fonction unifiée de groupement directement depuis le module
             try {
                 debugLogger.debug('🔄 [Dashboard] Classifying', items.length, 'assets with unified taxonomy');
-                const { groupAssetsByClassification } = await import('./shared-asset-groups.js');
+                const { groupAssetsByClassification } = await import('../shared-asset-groups.js');
 
                 if (!groupAssetsByClassification) {
                     throw new ReferenceError('groupAssetsByClassification not available');
@@ -1797,7 +1797,7 @@
 
             try {
                 // Dynamic import to access module functions
-                const { fetchSaxoSummary, formatCurrency, getMetricColor } = await import('./modules/wealth-saxo-summary.js');
+                const { fetchSaxoSummary, formatCurrency, getMetricColor } = await import('../modules/wealth-saxo-summary.js');
                 const summary = await fetchSaxoSummary();
 
                 if (summary.isEmpty || summary.error) {
