@@ -6,6 +6,7 @@ from datetime import datetime
 import httpx
 from fastapi import FastAPI, Query, Body, Response, HTTPException, Request, APIRouter, Depends, Header, Path
 import logging
+from logging.handlers import RotatingFileHandler
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -35,11 +36,33 @@ ALLOW_STUB_SOURCES = (os.getenv("ALLOW_STUB_SOURCES", "false").strip().lower() =
 COMPUTE_ON_STUB_SOURCES = (os.getenv("COMPUTE_ON_STUB_SOURCES", "false").strip().lower() == "true")
 
 # Config logger (dev-friendly by default) — initialize early so it's available in imports below
+# Créer le dossier logs s'il n'existe pas
+LOG_DIR = Path(__file__).parent.parent / "logs"
+LOG_DIR.mkdir(exist_ok=True)
+
+# Configuration du logging avec handlers multiples (console + fichier rotatif)
+log_level = getattr(logging, LOG_LEVEL, logging.INFO)
+log_format = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+
+# Configuration avec RotatingFileHandler pour limiter la taille des logs
 logging.basicConfig(
-    level=getattr(logging, LOG_LEVEL, logging.INFO),
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    level=log_level,
+    format=log_format,
+    handlers=[
+        # Console (stdout) - pour le terminal
+        logging.StreamHandler(),
+        # Fichier rotatif - 5 MB par fichier, 3 backups (15 MB total)
+        # Adapté pour Claude Code: fichiers de taille raisonnable
+        RotatingFileHandler(
+            LOG_DIR / "app.log",
+            maxBytes=5*1024*1024,  # 5 MB par fichier (facile à lire pour une IA)
+            backupCount=3,          # Garder 3 fichiers de backup (15 MB total max)
+            encoding="utf-8"
+        )
+    ]
 )
 logger = logging.getLogger("crypto-rebalancer")
+logger.info(f"📝 Logging initialized: console + file (rotating 5MB x3 backups) -> {LOG_DIR / 'app.log'}")
 
 # Import différé des connecteurs pour éviter les blocages réseau au démarrage
 # from connectors import cointracking as ct_file

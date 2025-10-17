@@ -47,6 +47,10 @@ temp_*.json
 *.log
 *.bak
 rebalance-actions.csv
+
+# Server logs (rotating logs for debugging)
+logs/
+logs/*.log
 test_ml_predictor.py
 migration-report.json
 data/scheduler.lock

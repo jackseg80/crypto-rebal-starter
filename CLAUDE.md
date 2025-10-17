@@ -176,6 +176,26 @@ pytest -q tests/unit
 pytest -q tests/integration
 ```
 
+### Logs Serveur (Debug)
+```bash
+# Lire les logs en temps réel
+Get-Content logs\app.log -Wait -Tail 20
+
+# Chercher des erreurs
+Select-String -Path "logs\app.log" -Pattern "ERROR|WARNING" | Select-Object -Last 20
+
+# Analyser avec Claude Code
+@logs/app.log  # Lire fichier complet (max 5 MB)
+```
+
+**Configuration:**
+- **5 MB par fichier** (rotation automatique, optimisé pour IA)
+- **3 backups** (15 MB total: app.log, app.log.1, app.log.2, app.log.3)
+- Format: `YYYY-MM-DD HH:MM:SS,mmm LEVEL module: message`
+- Sorties: Console + Fichier (UTF-8)
+
+**Usage IA:** Les agents peuvent lire `logs/app.log` pour débugger erreurs, analyser performance, identifier patterns. Fichiers < 5 MB = facilement traitable.
+
 ---
 
 ## 🚨 Pièges Fréquents
@@ -245,6 +265,7 @@ EOF
 - Multi-tenant: `docs/SIMULATOR_USER_ISOLATION_FIX.md`
 - Wealth: `docs/TODO_WEALTH_MERGE.md`
 - Sources: `docs/SOURCES_MIGRATION_DATA_FOLDER.md`
+- Logging: `docs/LOGGING.md` (système de logs rotatifs pour debug/IA)
 
 ---
 
