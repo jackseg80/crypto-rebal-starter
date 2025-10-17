@@ -1090,14 +1090,23 @@
 
       } catch (error) {
         debugLogger.error('Error loading alerts history:', error);
-        document.getElementById('alerts-history-content').innerHTML =
-          '<div class="error">Failed to load alerts history. Please try again.</div>';
+        const errorContainer = document.getElementById('alerts-history-content');
+        if (errorContainer) {
+          errorContainer.innerHTML =
+            '<div class="error">Failed to load alerts history. Please try again.</div>';
+        }
       }
     }
 
     function renderAlertsHistoryPage() {
       const container = document.getElementById('alerts-history-content');
       const paginationContainer = document.getElementById('alerts-pagination');
+
+      // Guard: Check if elements exist
+      if (!container || !paginationContainer) {
+        debugLogger.warn('⚠️ Alerts DOM elements not found, skipping render');
+        return;
+      }
 
       if (!alertsHistoryData.length) {
         container.innerHTML = '<div class="no-data">No alerts found for the selected criteria.</div>';
@@ -1308,6 +1317,12 @@
       const prevBtn = document.getElementById('alerts-prev-btn');
       const nextBtn = document.getElementById('alerts-next-btn');
       const pageInfo = document.getElementById('alerts-page-info');
+
+      // Guard: Check if pagination elements exist
+      if (!paginationContainer || !prevBtn || !nextBtn || !pageInfo) {
+        debugLogger.warn('⚠️ Pagination DOM elements not found, skipping update');
+        return;
+      }
 
       if (totalAlertsPages <= 1) {
         paginationContainer.style.display = 'none';

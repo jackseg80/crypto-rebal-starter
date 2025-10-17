@@ -329,7 +329,9 @@ export function calculateRiskBudget(blendedScore, riskScore) {
  * Répartit l'allocation "risky" selon le régime de marché
  */
 export function allocateRiskyBudget(riskyPercentage, regime) {
-  debugLogger.debug('🚨 [allocateRiskyBudget] CALLED - riskyPercentage:', riskyPercentage, 'regime:', regime?.name, 'bias:', regime?.allocation_bias);
+  if (window.__DEBUG_MARKET_REGIMES_VERBOSE__) {
+    debugLogger.debug('🚨 [allocateRiskyBudget] CALLED - riskyPercentage:', riskyPercentage, 'regime:', regime?.name, 'bias:', regime?.allocation_bias);
+  }
 
   // Base par défaut : BTC 50% / ETH 30% / Midcaps 20%
   let allocation = {
@@ -339,21 +341,27 @@ export function allocateRiskyBudget(riskyPercentage, regime) {
     meme: 5
   };
 
-  debugLogger.debug('🚨 [allocateRiskyBudget] BEFORE bias - allocation:', {...allocation});
+  if (window.__DEBUG_MARKET_REGIMES_VERBOSE__) {
+    debugLogger.debug('🚨 [allocateRiskyBudget] BEFORE bias - allocation:', {...allocation});
+  }
 
   // Ajustements selon le régime
   const bias = regime.allocation_bias;
-  
+
   allocation.btc += bias.btc_boost || 0;
   allocation.eth += bias.eth_boost || 0;
   allocation.midcaps += (bias.alts_reduction || 0);
   allocation.meme = Math.min(allocation.meme, bias.meme_cap || 5);
 
-  debugLogger.debug('🚨 [allocateRiskyBudget] AFTER bias - allocation:', {...allocation});
+  if (window.__DEBUG_MARKET_REGIMES_VERBOSE__) {
+    debugLogger.debug('🚨 [allocateRiskyBudget] AFTER bias - allocation:', {...allocation});
+  }
 
   // Normaliser à 100% (déterministe: arrondir puis ajuster le reste sur BTC)
   const total = allocation.btc + allocation.eth + allocation.midcaps + allocation.meme;
-  debugLogger.debug('🚨 [allocateRiskyBudget] Total before normalization:', total);
+  if (window.__DEBUG_MARKET_REGIMES_VERBOSE__) {
+    debugLogger.debug('🚨 [allocateRiskyBudget] Total before normalization:', total);
+  }
   if (total !== 100) {
     const factor = 100 / total;
     allocation.btc = Math.floor(allocation.btc * factor);
@@ -386,14 +394,16 @@ export function allocateRiskyBudget(riskyPercentage, regime) {
   // Ajuster stables pour garantir 100% exact
   const stablesAlloc = 100 - totalRisky;
 
-  debugLogger.debug('🚨 [allocateRiskyBudget] FINAL RESULT:', {
-    riskyPercentage,
-    BTC: btcAlloc.toFixed(2),
-    ETH: ethAlloc.toFixed(2),
-    totalRisky: totalRisky.toFixed(2),
-    stables: stablesAlloc.toFixed(2),
-    sum: (totalRisky + stablesAlloc).toFixed(2)
-  });
+  if (window.__DEBUG_MARKET_REGIMES_VERBOSE__) {
+    debugLogger.debug('🚨 [allocateRiskyBudget] FINAL RESULT:', {
+      riskyPercentage,
+      BTC: btcAlloc.toFixed(2),
+      ETH: ethAlloc.toFixed(2),
+      totalRisky: totalRisky.toFixed(2),
+      stables: stablesAlloc.toFixed(2),
+      sum: (totalRisky + stablesAlloc).toFixed(2)
+    });
+  }
 
   return {
     BTC: btcAlloc,

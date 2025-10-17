@@ -78,9 +78,11 @@ export function selectPolicyCapPercent(state) {
     const raw = state?.governance?.active_policy?.cap_daily ??
                 state?.governance?.policy?.cap_daily;
     const result = normalizeCapToPercent(raw);
-    console.debug('[CAP-SELECTOR] selectPolicyCapPercent:', { raw, result,
-      active_policy: state?.governance?.active_policy?.cap_daily,
-      policy: state?.governance?.policy?.cap_daily });
+    if (window.__DEBUG_GOVERNANCE_VERBOSE__) {
+      console.debug('[CAP-SELECTOR] selectPolicyCapPercent:', { raw, result,
+        active_policy: state?.governance?.active_policy?.cap_daily,
+        policy: state?.governance?.policy?.cap_daily });
+    }
     return result;
   } catch (error) {
     console.debug('selectPolicyCapPercent failed', error);
@@ -96,11 +98,13 @@ export function selectEngineCapPercent(state) {
                 state?.governance?.caps?.engine_cap ??
                 state?.governance?.computed_cap;
     const result = normalizeCapToPercent(raw);
-    console.debug('[CAP-SELECTOR] selectEngineCapPercent:', { raw, result,
-      execution_policy: state?.governance?.execution_policy?.cap_daily,
-      engine_cap_daily: state?.governance?.engine_cap_daily,
-      caps_engine_cap: state?.governance?.caps?.engine_cap,
-      computed_cap: state?.governance?.computed_cap });
+    if (window.__DEBUG_GOVERNANCE_VERBOSE__) {
+      console.debug('[CAP-SELECTOR] selectEngineCapPercent:', { raw, result,
+        execution_policy: state?.governance?.execution_policy?.cap_daily,
+        engine_cap_daily: state?.governance?.engine_cap_daily,
+        caps_engine_cap: state?.governance?.caps?.engine_cap,
+        computed_cap: state?.governance?.computed_cap });
+    }
     return result;
   } catch (error) {
     console.debug('selectEngineCapPercent failed', error);
@@ -112,19 +116,25 @@ export function selectCapPercent(state) {
   try {
     const policyCap = selectPolicyCapPercent(state);
     if (policyCap != null) {
-      console.debug('[CAP-SELECTOR] selectCapPercent -> POLICY:', policyCap);
+      if (window.__DEBUG_GOVERNANCE_VERBOSE__) {
+        console.debug('[CAP-SELECTOR] selectCapPercent -> POLICY:', policyCap);
+      }
       return policyCap;
     }
 
     const engineCap = selectEngineCapPercent(state);
     if (engineCap != null) {
-      console.debug('[CAP-SELECTOR] selectCapPercent -> ENGINE:', engineCap);
+      if (window.__DEBUG_GOVERNANCE_VERBOSE__) {
+        console.debug('[CAP-SELECTOR] selectCapPercent -> ENGINE:', engineCap);
+      }
       return engineCap;
     }
   } catch (error) {
     console.debug('selectCapPercent failed', error);
   }
-  console.debug('[CAP-SELECTOR] selectCapPercent -> NULL');
+  if (window.__DEBUG_GOVERNANCE_VERBOSE__) {
+    console.debug('[CAP-SELECTOR] selectCapPercent -> NULL');
+  }
   return null;
 }
 
@@ -137,7 +147,9 @@ export function selectEffectiveCap(state) {
   try {
     const backendStatus = state?.ui?.apiStatus?.backend;
     if (backendStatus === 'error' || backendStatus === 'failed') {
-      console.debug('[CAP-SELECTOR] selectEffectiveCap -> BACKEND ERROR FALLBACK:', 5);
+      if (window.__DEBUG_GOVERNANCE_VERBOSE__) {
+        console.debug('[CAP-SELECTOR] selectEffectiveCap -> BACKEND ERROR FALLBACK:', 5);
+      }
       return 5;
     }
 
@@ -149,31 +161,41 @@ export function selectEffectiveCap(state) {
       return Date.now() - ts.getTime() > 30 * 60 * 1000;
     })();
     if (backendStatus === 'stale' || stale) {
-      console.debug('[CAP-SELECTOR] selectEffectiveCap -> STALE FALLBACK:', 8);
+      if (window.__DEBUG_GOVERNANCE_VERBOSE__) {
+        console.debug('[CAP-SELECTOR] selectEffectiveCap -> STALE FALLBACK:', 8);
+      }
       return 8;
     }
 
     const alertCap = normalizeCapToPercent(state?.governance?.caps?.alert_cap ?? state?.alerts?.active_cap);
     if (alertCap != null) {
-      console.debug('[CAP-SELECTOR] selectEffectiveCap -> ALERT CAP:', alertCap);
+      if (window.__DEBUG_GOVERNANCE_VERBOSE__) {
+        console.debug('[CAP-SELECTOR] selectEffectiveCap -> ALERT CAP:', alertCap);
+      }
       return alertCap;
     }
 
     const policyCap = selectCapPercent(state);
     if (policyCap != null) {
-      console.debug('[CAP-SELECTOR] selectEffectiveCap -> POLICY CAP:', policyCap);
+      if (window.__DEBUG_GOVERNANCE_VERBOSE__) {
+        console.debug('[CAP-SELECTOR] selectEffectiveCap -> POLICY CAP:', policyCap);
+      }
       return policyCap;
     }
 
     const engineCap = selectEngineCapPercent(state);
     if (engineCap != null) {
-      console.debug('[CAP-SELECTOR] selectEffectiveCap -> ENGINE CAP:', engineCap);
+      if (window.__DEBUG_GOVERNANCE_VERBOSE__) {
+        console.debug('[CAP-SELECTOR] selectEffectiveCap -> ENGINE CAP:', engineCap);
+      }
       return engineCap;
     }
   } catch (error) {
     console.debug('selectEffectiveCap failed', error);
   }
-  console.debug('[CAP-SELECTOR] selectEffectiveCap -> NULL');
+  if (window.__DEBUG_GOVERNANCE_VERBOSE__) {
+    console.debug('[CAP-SELECTOR] selectEffectiveCap -> NULL');
+  }
   return null;
 }
 

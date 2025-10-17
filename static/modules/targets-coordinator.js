@@ -672,14 +672,18 @@ export function proposeTargets(mode = 'blend', options = {}) {
         break;
     }
 
-    // DEBUG: Log before normalization
-    console.debug('🔍 DEBUG proposeTargets - before normalization BTC:', proposedTargets.BTC);
+    // DEBUG: Log before normalization (only if verbose debug enabled)
+    if (window.__DEBUG_TARGETS_VERBOSE__) {
+      console.debug('🔍 DEBUG proposeTargets - before normalization BTC:', proposedTargets.BTC);
+    }
 
     // Final normalization
     proposedTargets = normalizeTargets(proposedTargets);
 
-    // DEBUG: Log after normalization
-    console.debug('🔍 DEBUG proposeTargets - after normalization BTC:', proposedTargets.BTC);
+    // DEBUG: Log after normalization (only if verbose debug enabled)
+    if (window.__DEBUG_TARGETS_VERBOSE__) {
+      console.debug('🔍 DEBUG proposeTargets - after normalization BTC:', proposedTargets.BTC);
+    }
 
     return {
       targets: proposedTargets,
@@ -764,9 +768,11 @@ export async function applyTargets(proposalResult) {
   }
 
   try {
-    // DEBUG: Log what we're about to save
-    console.debug('🔍 DEBUG applyTargets - proposalResult.targets:', proposalResult.targets);
-    console.debug('🔍 DEBUG applyTargets - BTC allocation:', proposalResult.targets.BTC);
+    // DEBUG: Log what we're about to save (only if verbose debug enabled)
+    if (window.__DEBUG_TARGETS_VERBOSE__) {
+      console.debug('🔍 DEBUG applyTargets - proposalResult.targets:', proposalResult.targets);
+      console.debug('🔍 DEBUG applyTargets - BTC allocation:', proposalResult.targets.BTC);
+    }
 
     // Update store with new targets (normalized version for display)
     store.set('targets.proposed', proposalResult.targets);
@@ -797,16 +803,22 @@ export async function applyTargets(proposalResult) {
       source: 'risk-dashboard-ccs'
     };
 
-    console.debug('🔍 DEBUG applyTargets - Full proposal result:', proposalResult);
-    console.debug('🔍 DEBUG applyTargets - Targets being saved:', proposalResult.targets);
-    console.debug('🔍 DEBUG applyTargets - BTC before save:', dataToSave.targets.BTC);
-    console.debug('🔍 DEBUG applyTargets - ETH before save:', dataToSave.targets.ETH);
+    // DEBUG: Log save operations (only if verbose debug enabled)
+    if (window.__DEBUG_TARGETS_VERBOSE__) {
+      console.debug('🔍 DEBUG applyTargets - Full proposal result:', proposalResult);
+      console.debug('🔍 DEBUG applyTargets - Targets being saved:', proposalResult.targets);
+      console.debug('🔍 DEBUG applyTargets - BTC before save:', dataToSave.targets.BTC);
+      console.debug('🔍 DEBUG applyTargets - ETH before save:', dataToSave.targets.ETH);
+    }
+
     localStorage.setItem('last_targets', JSON.stringify(dataToSave));
 
-    // Verify what was actually saved
-    const savedData = JSON.parse(localStorage.getItem('last_targets'));
-    console.debug('🔍 DEBUG applyTargets - BTC after save:', savedData.targets.BTC);
-    console.debug('🔍 DEBUG applyTargets - ETH after save:', savedData.targets.ETH);
+    // DEBUG: Verify what was actually saved (only if verbose debug enabled)
+    if (window.__DEBUG_TARGETS_VERBOSE__) {
+      const savedData = JSON.parse(localStorage.getItem('last_targets'));
+      console.debug('🔍 DEBUG applyTargets - BTC after save:', savedData.targets.BTC);
+      console.debug('🔍 DEBUG applyTargets - ETH after save:', savedData.targets.ETH);
+    }
 
     // Dispatch event for external listeners (rebalance.html)
     window.dispatchEvent(new CustomEvent('targetsUpdated', {

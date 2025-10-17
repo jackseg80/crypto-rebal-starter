@@ -79,6 +79,8 @@ class RiskSidebarFull extends HTMLElement {
     this.pollMs = Number(this.getAttribute('poll-ms') || 30000); // 0 => pas de polling
     this._unsub = null;
     this._poll = null;
+    this._updateDebounceTimer = null;
+    this._lastState = null; // Pour comparer les changements
   }
 
   connectedCallback() {
@@ -94,6 +96,10 @@ class RiskSidebarFull extends HTMLElement {
     if (this._poll) {
       clearInterval(this._poll);
       this._poll = null;
+    }
+    if (this._updateDebounceTimer) {
+      clearTimeout(this._updateDebounceTimer);
+      this._updateDebounceTimer = null;
     }
   }
 
@@ -174,12 +180,16 @@ class RiskSidebarFull extends HTMLElement {
 
       // ✅ Vérifier hydratation complète avant affichage
       if (!state._hydrated) {
-        debugLogger.debug('[risk-sidebar-full] Store not hydrated yet, waiting...');
+        // Only log once per session
+        if (!this._loggedWaiting) {
+          debugLogger.debug('[risk-sidebar-full] Store not hydrated yet, waiting...');
+          this._loggedWaiting = true;
+        }
         return;
       }
 
-      debugLogger.debug('[risk-sidebar-full] Store hydrated, source:', state._hydration_source || 'unknown');
-      this._updateFromState(state);
+      // Debounce les updates pour éviter les rafraîchissements excessifs
+      this._debouncedUpdate(state);
     };
 
     push();
@@ -195,6 +205,39 @@ class RiskSidebarFull extends HTMLElement {
       };
       window.addEventListener('riskStoreReady', handler, { once: true });
     }
+  }
+
+  /**
+   * Debounce update to prevent excessive re-renders
+   * @param {Object} state - New state
+   */
+  _debouncedUpdate(state) {
+    // Vérifier si le state a réellement changé (shallow comparison des scores)
+    if (this._lastState) {
+      const sameScores =
+        this._lastState.scores?.onchain === state.scores?.onchain &&
+        this._lastState.scores?.risk === state.scores?.risk &&
+        this._lastState.scores?.blended === state.scores?.blended &&
+        this._lastState.ccs?.score === state.ccs?.score;
+
+      if (sameScores) {
+        // Pas de changement significatif, skip update
+        return;
+      }
+    }
+
+    // Clear previous debounce timer
+    if (this._updateDebounceTimer) {
+      clearTimeout(this._updateDebounceTimer);
+    }
+
+    // Schedule update after 150ms of inactivity
+    this._updateDebounceTimer = setTimeout(() => {
+      debugLogger.debug('[risk-sidebar-full] Store hydrated, source:', state._hydration_source || 'unknown');
+      this._updateFromState(state);
+      this._lastState = state;
+      this._updateDebounceTimer = null;
+    }, 150);
   }
 
   async _pollOnce() {
