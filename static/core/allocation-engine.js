@@ -371,51 +371,42 @@ function calculateCoinAllocation(sectorAllocation, currentPositions, floors, mem
     // Ensure sectorWeight is a valid number
     const validSectorWeight = isNaN(sectorWeight) || sectorWeight == null ? 0 : sectorWeight;
 
-    if (['BTC', 'ETH', 'Stablecoins'].includes(sector)) {
-      // Pas de subdivision pour ces secteurs majeurs
+    // Tous les secteurs peuvent avoir des subdivisions si des coins sont détenus
+    const sectorAssets = UNIFIED_ASSET_GROUPS[sector] || [];
+    const heldInSector = sectorAssets.filter(asset => heldAssets.has(asset));
+
+    if (heldInSector.length === 0) {
+      // Pas d'assets détenus dans ce secteur → allocation au groupe
       coinAllocation[sector] = validSectorWeight;
     } else {
-      // Secteurs avec subdivision possible
-      const sectorAssets = UNIFIED_ASSET_GROUPS[sector] || [];
-      const heldInSector = sectorAssets.filter(asset => heldAssets.has(asset));
+      // INCUMBENCY BORNÉ: si n*3% > secteur, répartir secteur/n, reste = 0
+      const desiredIncumbencyFloor = floors.incumbency || 0.03;
+      const desiredIncumbencyTotal = heldInSector.length * desiredIncumbencyFloor;
 
-      if (heldInSector.length === 0) {
-        // Pas d'assets détenus dans ce secteur
-        coinAllocation[sector] = validSectorWeight;
+      let actualIncumbencyFloor, remainingWeight;
+      if (desiredIncumbencyTotal > validSectorWeight) {
+        // Cas: incumbency dépasserait le secteur → répartir équitablement
+        actualIncumbencyFloor = validSectorWeight / heldInSector.length;
+        remainingWeight = 0;
+        console.debug(`⚠️ Incumbency capped for ${sector}: ${heldInSector.length} × ${desiredIncumbencyFloor.toFixed(3)} → ${actualIncumbencyFloor.toFixed(3)} each`);
       } else {
-        // INCUMBENCY BORNÉ: si n*3% > secteur, répartir secteur/n, reste = 0
-        const desiredIncumbencyFloor = floors.incumbency || 0.03;
-        const desiredIncumbencyTotal = heldInSector.length * desiredIncumbencyFloor;
+        // Cas normal: incumbency + reste
+        actualIncumbencyFloor = desiredIncumbencyFloor;
+        remainingWeight = validSectorWeight - desiredIncumbencyTotal;
+      }
 
-        let actualIncumbencyFloor, remainingWeight;
-        if (desiredIncumbencyTotal > validSectorWeight) {
-          // Cas: incumbency dépasserait le secteur → répartir équitablement
-          actualIncumbencyFloor = validSectorWeight / heldInSector.length;
-          remainingWeight = 0;
-          console.debug(`⚠️ Incumbency capped for ${sector}: ${heldInSector.length} × ${desiredIncumbencyFloor.toFixed(3)} → ${actualIncumbencyFloor.toFixed(3)} each`);
-        } else {
-          // Cas normal: incumbency + reste
-          actualIncumbencyFloor = desiredIncumbencyFloor;
-          remainingWeight = validSectorWeight - desiredIncumbencyTotal;
-        }
-
-        // HIERARCHIE STRICTE: soit secteur global, soit coins individuels, jamais les deux
-        if (heldInSector.length === 1 && validSectorWeight > 0.05) {
-          // Un seul coin détenu avec allocation significative → l'exposer directement
-          const assetWeight = validSectorWeight;
-          coinAllocation[heldInSector[0]] = assetWeight;
-          // NE PAS ajouter le secteur global pour éviter double-comptage
-        } else if (heldInSector.length > 1) {
-          // Plusieurs coins détenus → distribution avec incumbency borné
-          heldInSector.forEach(asset => {
-            const assetWeight = actualIncumbencyFloor + (remainingWeight / heldInSector.length);
-            coinAllocation[asset] = isNaN(assetWeight) ? actualIncumbencyFloor : assetWeight;
-          });
-          // NE PAS ajouter le secteur global
-        } else {
-          // Aucun coin détenu → allocation au secteur global uniquement
-          coinAllocation[sector] = validSectorWeight;
-        }
+      // HIERARCHIE STRICTE: soit secteur global, soit coins individuels, jamais les deux
+      if (heldInSector.length === 1) {
+        // Un seul coin détenu → l'exposer directement (quelle que soit l'allocation)
+        coinAllocation[heldInSector[0]] = validSectorWeight;
+        // NE PAS ajouter le secteur global pour éviter double-comptage
+      } else if (heldInSector.length > 1) {
+        // Plusieurs coins détenus → distribution avec incumbency borné
+        heldInSector.forEach(asset => {
+          const assetWeight = actualIncumbencyFloor + (remainingWeight / heldInSector.length);
+          coinAllocation[asset] = isNaN(assetWeight) ? actualIncumbencyFloor : assetWeight;
+        });
+        // NE PAS ajouter le secteur global
       }
     }
   });
@@ -451,14 +442,38 @@ function calculateCoinAllocation(sectorAllocation, currentPositions, floors, mem
         }
       });
 
-      // Redistribuer l'excédent vers BTC/ETH (safe assets)
+      // Redistribuer l'excédent vers BTC/ETH COINS (pas les groupes!)
       const btcShare = 0.6;
       const ethShare = 0.4;
-      coinAllocation['BTC'] = (coinAllocation['BTC'] || 0) + excess * btcShare;
-      coinAllocation['ETH'] = (coinAllocation['ETH'] || 0) + excess * ethShare;
+
+      // Distribuer aux coins détenus dans BTC group
+      const btcGroup = UNIFIED_ASSET_GROUPS['BTC'] || [];
+      const heldBtc = btcGroup.filter(asset => heldAssets.has(asset));
+      if (heldBtc.length > 0) {
+        const btcExcessPerCoin = (excess * btcShare) / heldBtc.length;
+        heldBtc.forEach(asset => {
+          coinAllocation[asset] = (coinAllocation[asset] || 0) + btcExcessPerCoin;
+        });
+      } else {
+        // Si aucun BTC coin détenu, allouer au groupe
+        coinAllocation['BTC'] = (coinAllocation['BTC'] || 0) + excess * btcShare;
+      }
+
+      // Distribuer aux coins détenus dans ETH group
+      const ethGroup = UNIFIED_ASSET_GROUPS['ETH'] || [];
+      const heldEth = ethGroup.filter(asset => heldAssets.has(asset));
+      if (heldEth.length > 0) {
+        const ethExcessPerCoin = (excess * ethShare) / heldEth.length;
+        heldEth.forEach(asset => {
+          coinAllocation[asset] = (coinAllocation[asset] || 0) + ethExcessPerCoin;
+        });
+      } else {
+        // Si aucun ETH coin détenu, allouer au groupe
+        coinAllocation['ETH'] = (coinAllocation['ETH'] || 0) + excess * ethShare;
+      }
 
       memeCapApplied = true;
-      console.debug(`🎭 Meme cap applied: ${(totalMemecoins * 100).toFixed(1)}% → ${meme_cap}% (excess ${(excess * 100).toFixed(2)}% → BTC/ETH)`);
+      console.debug(`🎭 Meme cap applied: ${(totalMemecoins * 100).toFixed(1)}% → ${meme_cap}% (excess ${(excess * 100).toFixed(2)}% → BTC/ETH coins: ${[...heldBtc, ...heldEth].join(', ')})`);
     }
   }
 
@@ -611,10 +626,27 @@ function validateHierarchy(allocation, currentPositions) {
   const issues = [];
   const allocationKeys = Object.keys(allocation);
 
+  // 🔍 ÉTAPE 0: Identifier en amont les groupes avec coins éponymes (BTC, ETH, SOL, Stablecoins)
+  const topLevelGroups = ['BTC', 'ETH', 'Stablecoins', 'SOL', 'L1/L0 majors', 'L2/Scaling', 'DeFi', 'AI/Data', 'Gaming/NFT', 'Memecoins', 'Others'];
+  const eponymousGroups = new Set();
+  topLevelGroups.forEach(group => {
+    const groupAssets = UNIFIED_ASSET_GROUPS[group] || [];
+    if (groupAssets.includes(group)) {
+      eponymousGroups.add(group);
+    }
+  });
+
   // Vérifier double-comptage: un coin ne doit pas coexister avec son groupe parent
+  // ✅ FIX: Skip validation si le groupe parent est éponyme
   currentPositions.forEach(pos => {
     const symbol = pos.symbol?.toUpperCase();
     const group = getAssetGroup(symbol);
+
+    // Skip si le groupe parent est éponyme (BTC, ETH, SOL, Stablecoins)
+    // car allocation[group] représente alors le coin éponyme, pas un groupe parent
+    if (eponymousGroups.has(group)) {
+      return; // Skip - pas de double-comptage dans ce cas
+    }
 
     if (allocation[symbol] && allocation[group] && symbol !== group) {
       issues.push(`Double-comptage: ${symbol} (${allocation[symbol].toFixed(3)}) + ${group} (${allocation[group].toFixed(3)})`);
@@ -622,17 +654,32 @@ function validateHierarchy(allocation, currentPositions) {
   });
 
   // Vérifier cohérence des groupes vs sous-éléments avec GROUP_ORDER (synchrone)
-  const topLevelGroups = ['BTC', 'ETH', 'Stablecoins', 'SOL', 'L1/L0 majors', 'L2/Scaling', 'DeFi', 'AI/Data', 'Gaming/NFT', 'Memecoins', 'Others'];
+  // (eponymousGroups déjà calculé ci-dessus)
 
   topLevelGroups.forEach(group => {
     const groupWeight = allocation[group] || 0;
     const groupAssets = UNIFIED_ASSET_GROUPS[group] || [];
+
+    // SPECIAL CASE: Si le groupe contient un enfant avec le même nom (ex: coin "BTC" dans groupe "BTC"),
+    // alors allocation[group] représente le COIN éponyme, pas le groupe parent.
+    // On doit skip la validation hiérarchique pour ce groupe ET tous ses enfants.
+    const hasEponymousChild = eponymousGroups.has(group);
+    if (hasEponymousChild && groupWeight > 0) {
+      console.debug(`🔍 group_eponymous: ${group} contains child with same name, allocation[${group}]=${(groupWeight * 100).toFixed(1)}% is treated as coin, not parent group`);
+      return; // Skip validation for this group
+    }
+
+    // IMPORTANT: Exclure les coins qui ont le même nom que le groupe (déjà géré ci-dessus)
     const childrenWeights = groupAssets
+      .filter(asset => asset !== group)  // Exclure le coin éponyme
       .filter(asset => allocation[asset])
       .reduce((sum, asset) => sum + (allocation[asset] || 0), 0);
 
     if (groupWeight > 0 && childrenWeights > 0) {
-      issues.push(`Groupe ${group} (${groupWeight.toFixed(3)}) coexiste avec enfants (${childrenWeights.toFixed(3)})`);
+      const childrenList = groupAssets.filter(asset => asset !== group && allocation[asset]).map(asset => `${asset}=${(allocation[asset] * 100).toFixed(2)}%`).join(', ');
+      const issue = `Groupe ${group} (${(groupWeight * 100).toFixed(2)}%) coexiste avec enfants (${(childrenWeights * 100).toFixed(2)}%: ${childrenList})`;
+      (window.debugLogger?.warn || console.warn)(`⚠️ HIERARCHY: ${issue}`);
+      issues.push(issue);
     }
 
     // GUARD: group_without_descent - affiné selon la demande
@@ -647,10 +694,19 @@ function validateHierarchy(allocation, currentPositions) {
   });
 
   // GUARD: child_at_top_level - WARN seulement si parent a poids > 0 (vrai double-comptage)
+  // ✅ FIX: Skip validation pour les enfants de groupes éponymes (BTC, ETH)
   allocationKeys.forEach(key => {
     if (!topLevelGroups.includes(key) && allocation[key] > 0.001) {
       const parentGroup = getAssetGroup(key);
       const parentWeight = allocation[parentGroup] || 0;
+
+      // 🔍 NOUVEAU: Si le parent est un groupe éponyme, skip la validation
+      // car tous les coins du groupe (BTC, TBTC, WBTC / ETH, STETH, RETH, WSTETH)
+      // sont des allocations individuelles, pas des double-comptages
+      if (eponymousGroups.has(parentGroup)) {
+        console.debug(`🔍 child_in_eponymous_group: ${key} belongs to eponymous group ${parentGroup} - skip validation`);
+        return;
+      }
 
       if (parentGroup !== key && parentGroup !== 'Others' && parentWeight > 0.001) {
         (window.debugLogger?.warn || console.warn)(`⚠️ child_at_top_level: ${key} (${allocation[key].toFixed(3)}) + parent ${parentGroup} (${parentWeight.toFixed(3)}) = vrai double-comptage`);

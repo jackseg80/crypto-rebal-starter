@@ -41,13 +41,13 @@ export function calculateZeroSumCappedMoves(entries, cap) {
 
   console.debug('🔄 Zero-sum check:', {
     total_suggested: totalSuggested.toFixed(1) + '%',
-    needs_adjustment: Math.abs(totalSuggested) > 0.1
+    needs_adjustment: Math.abs(totalSuggested) > 0.05
   });
 
-  if (Math.abs(totalSuggested) > 0.1) {
+  if (Math.abs(totalSuggested) > 0.05) {
     // Ajustement zéro-somme INTELLIGENT qui respecte les caps individuels
     let remaining = totalSuggested;
-    const maxIterations = 5;
+    const maxIterations = 10;
     let iteration = 0;
 
     console.debug('🔄 Zero-sum adjustment needed:', {
@@ -55,7 +55,7 @@ export function calculateZeroSumCappedMoves(entries, cap) {
       starting_adjustment: 'intelligent cap-respecting'
     });
 
-    while (Math.abs(remaining) > 0.1 && iteration < maxIterations) {
+    while (Math.abs(remaining) > 0.05 && iteration < maxIterations) {
       iteration++;
       const adjustableEntries = result.filter(r => {
         const currentSuggested = r.suggested;
@@ -91,7 +91,7 @@ export function calculateZeroSumCappedMoves(entries, cap) {
     console.debug('🔄 Zero-sum adjustment completed:', {
       iterations: iteration,
       final_total: remaining.toFixed(1) + '%',
-      converged: Math.abs(remaining) <= 0.1,
+      converged: Math.abs(remaining) <= 0.05,
       final_moves: result.map(r => `${r.k}: ${r.suggested.toFixed(1)}%`)
     });
   }
