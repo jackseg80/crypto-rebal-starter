@@ -306,12 +306,13 @@ function updateGlobalInsightMeta() {
 
 document.addEventListener('DOMContentLoaded', () => {
     // Subscribe to store changes for reactive updates
+    // ✅ Debounce augmenté de 300ms à 500ms pour réduire les appels
     store.subscribe(() => {
         clearTimeout(window.giRefreshTimer);
         window.giRefreshTimer = setTimeout(() => {
             refreshGI();
             updateGlobalInsightMeta();
-        }, 300);
+        }, 500);
     });
 
     // Smart initial load - wait for data to be ready
@@ -321,6 +322,12 @@ document.addEventListener('DOMContentLoaded', () => {
 // État global
 let dashboardData = { portfolio: null, connections: null, recentActivity: null, executionStats: null };
 let portfolioChart = null;
+
+// ✅ Guards pour éviter les appels concurrents
+let isLoadingDashboard = false;
+let isRefreshingSaxo = false;
+let isRefreshingBanks = false;
+let isRefreshingGlobal = false;
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.debug('📊 Dashboard unifié initialisé');
@@ -346,12 +353,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadDashboardData();
     setInterval(loadDashboardData, 60000);
 
-    // Initialize Saxo tile
+    // ✅ Initialize wealth tiles sequentially to avoid race conditions
     await refreshSaxoTile();
-    setInterval(refreshSaxoTile, 120000); // Refresh every 2 minutes
-
     await refreshBanksTile();
+    await refreshGlobalTile();
+
+    // Set up periodic refresh intervals
+    setInterval(refreshSaxoTile, 120000); // Refresh every 2 minutes
     setInterval(refreshBanksTile, 120000); // Refresh every 2 minutes
+    setInterval(refreshGlobalTile, 120000); // Refresh every 2 minutes
 
     // Also check for data source changes more frequently (every 5 seconds)
     setInterval(() => {
@@ -514,6 +524,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function loadDashboardData() {
+    // ✅ Guard: éviter appels concurrents
+    if (isLoadingDashboard) {
+        console.debug('⏭️ loadDashboardData already in progress, skipping...');
+        return;
+    }
+
+    isLoadingDashboard = true;
     try {
         // Clear any potential cached data
         const currentTimestamp = Date.now();
@@ -549,6 +566,8 @@ async function loadDashboardData() {
         log.error('Erreur chargement dashboard:', e);
         showError('Impossible de charger les données du dashboard. Vérifiez votre connexion.');
         showError('Erreur lors du chargement des données');
+    } finally {
+        isLoadingDashboard = false;
     }
 }
 
@@ -1797,6 +1816,13 @@ window.debugPortfolioData = async function () {
 
 // === SAXO TILE FUNCTIONS ===
 async function refreshSaxoTile() {
+    // ✅ Guard: éviter appels concurrents
+    if (isRefreshingSaxo) {
+        console.debug('⏭️ refreshSaxoTile already in progress, skipping...');
+        return;
+    }
+
+    isRefreshingSaxo = true;
     debugLogger.debug('🏦 Refreshing Saxo tile...');
 
     const statusEl = document.getElementById('saxo-status');
@@ -1867,10 +1893,19 @@ async function refreshSaxoTile() {
             statusEl.textContent = 'Erreur';
             statusEl.className = 'status-badge status-error';
         }
+    } finally {
+        isRefreshingSaxo = false;
     }
 }
 
 async function refreshBanksTile() {
+    // ✅ Guard: éviter appels concurrents
+    if (isRefreshingBanks) {
+        console.debug('⏭️ refreshBanksTile already in progress, skipping...');
+        return;
+    }
+
+    isRefreshingBanks = true;
     debugLogger.debug('💰 Refreshing Banks tile...');
 
     const statusEl = document.getElementById('banks-status');
@@ -1953,10 +1988,19 @@ async function refreshBanksTile() {
             statusEl.textContent = 'Erreur';
             statusEl.className = 'status-badge status-error';
         }
+    } finally {
+        isRefreshingBanks = false;
     }
 }
 
 async function refreshGlobalTile() {
+    // ✅ Guard: éviter appels concurrents
+    if (isRefreshingGlobal) {
+        console.debug('⏭️ refreshGlobalTile already in progress, skipping...');
+        return;
+    }
+
+    isRefreshingGlobal = true;
     debugLogger.debug('🌐 Refreshing Global tile...');
 
     const statusEl = document.getElementById('global-status');
@@ -2093,6 +2137,8 @@ async function refreshGlobalTile() {
             statusEl.textContent = 'Erreur';
             statusEl.className = 'status-badge status-error';
         }
+    } finally {
+        isRefreshingGlobal = false;
     }
 }
 
@@ -2101,8 +2147,5 @@ window.refreshSaxoTile = refreshSaxoTile;
 window.refreshBanksTile = refreshBanksTile;
 window.refreshGlobalTile = refreshGlobalTile;
 
-// Auto-refresh Global tile on page load
-document.addEventListener('DOMContentLoaded', () => {
-    refreshGlobalTile();
-});
+// ✅ REMOVED: Auto-refresh Global tile moved to main DOMContentLoaded listener to avoid duplicates
 

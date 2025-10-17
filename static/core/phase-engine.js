@@ -554,7 +554,7 @@ export function getCurrentForce() {
  * @returns {Promise<Object>} Adjusted targets with metadata
  */
 export async function applyPhaseTilts(targets, phase, ctx = {}) {
-  debugLogger.error('🚀🚀🚀 NEW RISKY-ONLY FUNCTION CALLED - CACHE_BUST_TIMESTAMP_2025-09-17T18:26:00Z:', {
+  debugLogger.debug('🚀 Phase tilts - risky-only architecture:', {
     phase,
     targetsCount: Object.keys(targets).length,
     stablesPreserved: (targets['Stablecoins'] || 0).toFixed(2) + '%',
@@ -615,20 +615,20 @@ export async function applyPhaseTilts(targets, phase, ctx = {}) {
 
   try {
     // Apply phase-specific tilts with zero-sum compensation
-    debugLogger.error('🔧 BEFORE TILTS - Stables check:', {
+    debugLogger.debug('🔧 BEFORE TILTS - Stables check:', {
       originalStables: (targets['Stablecoins'] || 0).toFixed(4) + '%',
       workingStables: (T['Stablecoins'] || 0).toFixed(4) + '%'
     });
 
     switch (phase) {
       case 'eth_expansion':
-        debugLogger.error('🎯 Applying ETH expansion tilts...');
+        debugLogger.debug('🎯 Applying ETH expansion tilts...');
         T = tiltRiskyZeroSum(T, {
           'ETH': 1.05,        // +5%
           'L2/Scaling': 1.03  // +3%
         }, ['BTC']); // Compensate from BTC only
 
-        debugLogger.error('🔧 AFTER ETH_EXPANSION TILTS - Stables check:', {
+        debugLogger.debug('🔧 AFTER ETH_EXPANSION TILTS - Stables check:', {
           stablesAfterTilts: (T['Stablecoins'] || 0).toFixed(4) + '%'
         });
         break;
