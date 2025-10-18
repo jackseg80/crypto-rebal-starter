@@ -274,7 +274,7 @@ class SaxoImportConnector:
             enriched_currency = currency
             enriched_asset_class = self._standardize_asset_class(asset_class_raw)
 
-            logger.debug(f"Processed: {instrument_raw} → symbol={enriched_symbol}, isin={enriched_isin}")
+            logger.debug(f"Processed: {instrument_raw} → symbol={enriched_symbol}, isin={enriched_isin}, asset_class={asset_class_raw} → {enriched_asset_class}")
 
             return {
                 "position_id": position_id or enriched_symbol,
@@ -286,6 +286,7 @@ class SaxoImportConnector:
                 "market_value_usd": market_value_usd,
                 "currency": enriched_currency,
                 "asset_class": enriched_asset_class,
+                "_raw_asset_class": asset_class_raw,  # For debugging
                 "exchange": enriched.get("exchange"),
                 "isin": enriched_isin,
                 "source": "saxo_bank",
@@ -318,13 +319,18 @@ class SaxoImportConnector:
         """Standardize asset class names"""
         asset_class = asset_class.lower().strip()
 
+        # Check for partial matches (e.g., "Exchange Traded Fund (ETF)" contains "etf")
+        if 'etf' in asset_class or 'exchange traded fund' in asset_class:
+            return 'ETF'
+        if 'action' in asset_class or 'equity' in asset_class or 'stock' in asset_class:
+            return 'Stock'
+        if 'bond' in asset_class or 'obligation' in asset_class or 'fixed income' in asset_class:
+            return 'Bond'
+        if 'cfd' in asset_class or 'contract for difference' in asset_class:
+            return 'CFD'
+
+        # Exact mapping for other types
         mapping = {
-            'equity': 'Stock',
-            'stock': 'Stock',
-            'etf': 'ETF',
-            'exchange traded fund': 'ETF',
-            'bond': 'Bond',
-            'fixed income': 'Bond',
             'option': 'Option',
             'warrant': 'Warrant',
             'fund': 'Fund',

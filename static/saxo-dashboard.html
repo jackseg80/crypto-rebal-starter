@@ -180,6 +180,11 @@
             color: var(--warning);
         }
 
+        .asset-class-cfd {
+            background: color-mix(in oklab, #FF6B6B 10%, transparent);
+            color: #FF6B6B;
+        }
+
         .asset-class-other {
             background: color-mix(in oklab, var(--info) 10%, transparent);
             color: var(--info);
@@ -247,45 +252,6 @@
             background: color-mix(in oklab, var(--brand-primary) 80%, black);
         }
 
-        .sources-banner {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background: var(--info-bg);
-            border: 1px solid var(--info);
-            border-radius: var(--radius-md);
-            padding: 0.5rem 0.75rem;
-            font-size: 0.875rem;
-            color: var(--info);
-            margin-left: 0.5rem;
-            min-width: 140px;
-        }
-
-        .sources-link {
-            color: var(--info);
-            text-decoration: none;
-            font-weight: 500;
-            font-size: 0.8rem;
-        }
-
-        .sources-link:hover {
-            text-decoration: underline;
-        }
-
-        .sources-btn {
-            display: inline-block;
-            background: var(--info);
-            color: white;
-            text-decoration: none;
-            border-radius: var(--radius-md);
-            padding: 0.5rem 1rem;
-            font-size: 0.875rem;
-            transition: all var(--transition-fast);
-        }
-
-        .sources-btn:hover {
-            background: color-mix(in oklab, var(--info) 80%, black);
-        }
 
         .tabs {
             display: flex;
@@ -326,44 +292,12 @@
 </head>
 
 <body>
-    <!-- Info Banner - Sources System -->
-    <div class="info-banner" style="background: var(--info-bg); border: 1px solid var(--info); color: var(--info); padding: 12px 16px; margin: 16px auto; max-width: 1200px; border-radius: var(--radius-md); display: flex; align-items: center; gap: 12px;">
-        <span style="font-size: 18px;">ℹ️</span>
-        <span>
-            <strong>Nouveau système Sources :</strong>
-            Les imports de données se font maintenant depuis
-            <a href="settings.html#tab-sources" style="color: var(--info); text-decoration: underline;">Configuration → Sources</a>.
-            Cette page affiche les données déjà importées.
-        </span>
-    </div>
-
     <div class="container">
         <!-- Dashboard Header -->
         <div class="dashboard-header">
             <div>
                 <h1>📈 Dashboard Bourse (Saxo Bank)</h1>
-                <p style="color: var(--theme-text-muted); margin: 0;">Analyse en lecture seule de votre portefeuille
-                    actions</p>
-                <p style="margin: 0.5rem 0 0 0;">
-                    <a href="analytics-equities.html"
-                       style="color: var(--primary); text-decoration: none; font-size: 0.85rem; font-weight: 500;">
-                        🚀 Voir Analytics Bourse (beta)
-                    </a>
-                    <span style="color: var(--theme-text-muted); font-size: 0.75rem; margin-left: 0.5rem;">
-                        - Version expérimentale avec analyse détaillée
-                    </span>
-                </p>
-            </div>
-            <div style="display: flex; align-items: center; gap: 1rem;">
-                <div class="sources-banner">
-                    <span>📊 Source active: <strong id="current-source-name">Chargement...</strong></span>
-                    <a href="settings.html#tab-sources" class="sources-link">Gérer Sources →</a>
-                </div>
-                <div class="sources-banner">
-                    <span>📊 Fraîcheur — <span id="saxo-staleness-main">
-                        <span class="spinner" style="opacity: 0.7;">⏳</span> Chargement...
-                    </span></span>
-                </div>
+                <p style="color: var(--theme-text-muted); margin: 0;">Analyse de votre portefeuille actions</p>
             </div>
         </div>
 
@@ -637,53 +571,14 @@
 
                 const activeUser = localStorage.getItem('activeUser') || 'demo';
 
-                // Get current source from WealthContextBar
-                const bourseSource = window.wealthContextBar?.getContext()?.bourse || 'all';
-                debugLogger.debug(`Active Bourse source: ${bourseSource}`);
-
-                // Extract file_key from bourseSource
-                let fileKey = null;
-                if (bourseSource !== 'all' && bourseSource.startsWith('saxo:')) {
-                    const key = bourseSource.substring(5); // Remove 'saxo:' prefix
-
-                    // Load available sources if not cached
-                    if (!window.availableSources) {
-                        const response = await fetch('/api/users/sources', {
-                            headers: { 'X-User': activeUser }
-                        });
-                        if (response.ok) {
-                            const data = await response.json();
-                            window.availableSources = data.sources || [];
-                        }
-                    }
-
-                    // Find the matching source and extract filename
-                    const source = window.availableSources?.find(s => s.key === key);
-                    if (source && source.file_path) {
-                        // Extract basename from file_path
-                        fileKey = source.file_path.split(/[/\\]/).pop();
-                        debugLogger.debug(`Resolved file_key from source: ${fileKey}`);
-                    }
-                }
-
-                // Update current source name in header
-                updateCurrentSourceName(bourseSource);
-
-                // Build API URL with file_key if available
-                let portfoliosUrl = '/api/saxo/portfolios';
-                if (fileKey) {
-                    portfoliosUrl += `?file_key=${encodeURIComponent(fileKey)}`;
-                    debugLogger.debug(`Using file-specific URL: ${portfoliosUrl}`);
-                }
-
                 // Step 1: List available portfolios
-                const { ok: listOk, data: listData } = await safeFetch(globalConfig.getApiUrl(portfoliosUrl), {
+                const { ok: listOk, data: listData } = await safeFetch(globalConfig.getApiUrl('/api/saxo/portfolios'), {
                     headers: { 'X-User': activeUser }
                 });
 
                 if (!listOk || !listData?.portfolios || listData.portfolios.length === 0) {
                     debugLogger.warn('Aucun portfolio Saxo disponible.');
-                    showNoDataState('📂 Aucune donnée Saxo disponible - Importez un fichier Saxo depuis <a href="settings.html#tab-sources">Sources</a>');
+                    showNoDataState('📂 Aucune donnée Saxo disponible');
                     return;
                 }
 
@@ -698,12 +593,7 @@
                 }
 
                 // Step 3: Load full portfolio details
-                let portfolioDetailUrl = `/api/saxo/portfolios/${portfolioId}`;
-                if (fileKey) {
-                    portfolioDetailUrl += `?file_key=${encodeURIComponent(fileKey)}`;
-                }
-
-                const { ok: detailOk, data: portfolioData } = await safeFetch(globalConfig.getApiUrl(portfolioDetailUrl), {
+                const { ok: detailOk, data: portfolioData } = await safeFetch(globalConfig.getApiUrl(`/api/saxo/portfolios/${portfolioId}`), {
                     headers: { 'X-User': activeUser }
                 });
 
@@ -728,28 +618,6 @@
             } catch (error) {
                 debugLogger.error('Error loading Saxo data:', error);
                 showError('❌ Erreur lors du chargement des données: ' + error.message);
-            }
-        }
-
-        // Update current source name in header
-        function updateCurrentSourceName(bourseSource) {
-            const nameEl = document.getElementById('current-source-name');
-            if (!nameEl) return;
-
-            if (bourseSource === 'all') {
-                nameEl.textContent = 'Toutes les sources';
-            } else if (bourseSource.startsWith('saxo:')) {
-                // Extract key from saxo:key format
-                const key = bourseSource.substring(5);
-                // Try to get label from availableSources
-                if (window.availableSources) {
-                    const source = window.availableSources.find(s => s.key === key);
-                    nameEl.textContent = source?.label || key;
-                } else {
-                    nameEl.textContent = key;
-                }
-            } else {
-                nameEl.textContent = bourseSource;
             }
         }
 
@@ -973,7 +841,6 @@
                 <div class="no-data">
                     <h3>📂 Aucune donnée disponible</h3>
                     <p>${message}</p>
-                    <a href="settings.html#tab-sources" class="sources-btn">📁 Configurer Sources</a>
                 </div>
             `;
             document.getElementById('dashboardContent').style.display = 'none';
@@ -995,52 +862,7 @@
 
             // Load current Saxo data from active source
             await loadCurrentSaxoData();
-
-            // Initialize staleness monitoring
-            refreshSaxoStaleness('saxo-staleness-main');
-            setInterval(() => refreshSaxoStaleness('saxo-staleness-main'), 60000);
         });
-
-        // Function to refresh Saxo sources staleness
-        async function refreshSaxoStaleness(elementId) {
-            try {
-                const element = document.getElementById(elementId);
-                if (!element) return;
-
-                element.innerHTML = '<span class="spinner" style="opacity: 0.7;">⏳</span> Vérification...';
-
-                const response = await fetch(window.globalConfig.getApiUrl('/api/sources/list'), {
-                    headers: { 'X-User': localStorage.getItem('activeUser') || 'demo' }
-                }).then(r => r.json());
-                const saxo = response.modules?.find(m => m.name === 'saxobank');
-
-                if (saxo) {
-                    // staleness est un objet {state, age_hours, is_stale, message}
-                    const stalenessObj = saxo.staleness || {};
-                    const stalenessMessage = stalenessObj.message || 'Inconnu';
-                    element.textContent = stalenessMessage;
-
-                    // Add visual indicator based on staleness state
-                    if (stalenessObj.state === 'fresh') {
-                        element.style.color = 'var(--success)';
-                    } else if (stalenessObj.state === 'stale' || stalenessObj.state === 'very_stale') {
-                        element.style.color = 'var(--warning)';
-                    } else {
-                        element.style.color = 'var(--theme-text-muted)';
-                    }
-                } else {
-                    element.textContent = 'Module non trouvé';
-                    element.style.color = 'var(--danger)';
-                }
-            } catch (e) {
-                const element = document.getElementById(elementId);
-                if (element) {
-                    element.textContent = 'Erreur de connexion';
-                    element.style.color = 'var(--danger)';
-                }
-                debugLogger.warn('Failed to refresh Saxo staleness:', e);
-            }
-        }
     </script>
 </body>
 
