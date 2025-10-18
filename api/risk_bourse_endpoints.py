@@ -36,6 +36,7 @@ class RiskDashboardResponse(BaseModel):
 @router.get("/dashboard", response_model=RiskDashboardResponse)
 async def bourse_risk_dashboard(
     user_id: str = Depends(get_active_user),
+    file_key: Optional[str] = Query(None, description="Specific Saxo file to use"),
     min_usd: float = Query(1.0, ge=0.0, description="Minimum position value in USD"),
     lookback_days: int = Query(252, ge=30, le=730, description="Days of price history for metrics"),
     risk_free_rate: float = Query(0.03, ge=0.0, le=0.20, description="Annual risk-free rate"),
@@ -48,6 +49,7 @@ async def bourse_risk_dashboard(
 
     Args:
         user_id: ID utilisateur (isolation multi-tenant)
+        file_key: Clé du fichier Saxo spécifique (optionnel)
         min_usd: Valeur minimum position USD à inclure
         lookback_days: Jours d'historique prix pour calculs
         risk_free_rate: Taux sans risque annuel pour Sharpe/Sortino
@@ -57,7 +59,7 @@ async def bourse_risk_dashboard(
         RiskDashboardResponse avec score + métriques complètes
 
     Example:
-        GET /api/risk/bourse/dashboard?user_id=jack&min_usd=100&lookback_days=252
+        GET /api/risk/bourse/dashboard?user_id=jack&file_key=portfolio.csv&min_usd=100&lookback_days=252
     """
     try:
         logger.info(f"[risk-bourse] Computing risk dashboard for user {user_id}")
@@ -67,7 +69,7 @@ async def bourse_risk_dashboard(
         from adapters.saxo_adapter import list_portfolios_overview, get_portfolio_detail
 
         # Lister les portfolios de l'utilisateur
-        portfolios = list_portfolios_overview(user_id=user_id)
+        portfolios = list_portfolios_overview(user_id=user_id, file_key=file_key)
 
         if not portfolios:
             return RiskDashboardResponse(
@@ -87,7 +89,7 @@ async def bourse_risk_dashboard(
 
         # Prendre le premier portfolio (ou filtrer selon besoin)
         portfolio_id = portfolios[0].get("portfolio_id")
-        portfolio_data = get_portfolio_detail(portfolio_id=portfolio_id, user_id=user_id)
+        portfolio_data = get_portfolio_detail(portfolio_id=portfolio_id, user_id=user_id, file_key=file_key)
 
         positions = portfolio_data.get("positions", [])
 

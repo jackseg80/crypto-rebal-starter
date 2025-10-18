@@ -463,6 +463,36 @@
             }
         }
 
+        // Refresh active tab content (called after data reload)
+        function refreshActiveTab() {
+            const activeTab = document.querySelector('.tab-content.active');
+            if (!activeTab) return;
+
+            const tabId = activeTab.id;
+            debugLogger.debug(`🔄 Refreshing active tab: ${tabId}`);
+
+            // Reload data for the active tab
+            if (currentPortfolioData) {
+                switch (tabId) {
+                    case 'overview':
+                        loadOverviewData(currentPortfolioData);
+                        break;
+                    case 'positions':
+                        loadAllPositions();
+                        break;
+                    case 'allocation':
+                        loadAllocationDetails();
+                        break;
+                    case 'currencies':
+                        loadCurrencyDetails();
+                        break;
+                    case 'risk':
+                        loadRiskAnalytics();
+                        break;
+                }
+            }
+        }
+
         // Tab switching
         function switchTab(tabName, event) {
             // Update tab buttons
@@ -516,7 +546,14 @@
                 document.getElementById('riskMetrics').innerHTML = '<div class="loading">…</div>';
                 document.getElementById('riskStructure').innerHTML = '<div class="loading">…</div>';
 
-                const response = await safeFetch(globalConfig.getApiUrl(`/api/risk/bourse/dashboard?user_id=${activeUser}`));
+                // Build URL with file_key if available
+                let riskUrl = `/api/risk/bourse/dashboard?user_id=${activeUser}`;
+                if (currentFileKey) {
+                    riskUrl += `&file_key=${encodeURIComponent(currentFileKey)}`;
+                    debugLogger.debug(`🔍 Loading risk with file_key: ${currentFileKey}`);
+                }
+
+                const response = await safeFetch(globalConfig.getApiUrl(riskUrl));
                 if (!response?.ok) throw new Error('risk endpoint failed');
 
                 const { risk, coverage, positions_count, total_value_usd } = response.data || response;
@@ -694,6 +731,9 @@
 
                 // Load all sections
                 loadOverviewData(currentPortfolioData);
+
+                // Refresh active tab content after data load
+                refreshActiveTab();
 
                 debugLogger.debug('✅ Saxo data loaded successfully');
 

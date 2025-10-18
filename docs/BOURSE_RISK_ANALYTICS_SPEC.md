@@ -1099,6 +1099,26 @@ Modifiés:
 - **Testé en production** avec données réelles
 - Prêt pour utilisation (yfinance requis)
 
+#### Phase 1: Multi-File Support ✅
+- **2025-10-18 14:00**: Support sélection fichier source Saxo
+  - ✅ Ajout paramètre `file_key` à l'endpoint `/api/risk/bourse/dashboard`
+  - ✅ Propagation `file_key` aux fonctions de l'adaptateur Saxo
+  - ✅ Modification frontend `loadRiskAnalytics()` pour passer `file_key`
+  - ✅ Fix fonction `refreshActiveTab()` pour rafraîchir l'onglet Risk après changement source
+  - ✅ Integration complète avec WealthContextBar pour changement source dynamique
+
+**Comportement**:
+- L'utilisateur peut changer de fichier CSV Saxo via le menu WealthContextBar
+- Tous les onglets (Vue d'ensemble, Positions, Allocation, Devises, **Risk & Analytics**) se rafraîchissent automatiquement
+- Les métriques de risque sont calculées sur le bon fichier portfolio sélectionné
+
+**Fichiers modifiés**:
+```
+api/risk_bourse_endpoints.py (+1 paramètre file_key, propagation à adapter)
+static/saxo-dashboard.html (loadRiskAnalytics + refreshActiveTab)
+docs/BOURSE_RISK_ANALYTICS_SPEC.md (changelog update)
+```
+
 #### Phase 2: Intelligence ML
 - TODO: À planifier
 
