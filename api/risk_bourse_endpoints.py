@@ -460,3 +460,318 @@ async def get_fx_exposure(
     except Exception as e:
         logger.exception(f"[fx-exposure] Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== SPECIALIZED ANALYTICS ENDPOINTS ====================
+
+@router.get("/specialized/earnings")
+async def get_earnings_prediction(
+    user_id: str = Depends(get_active_user),
+    file_key: Optional[str] = Query(None),
+    ticker: str = Query(..., description="Ticker to analyze"),
+    lookback_days: int = Query(365, ge=30, le=1825)
+):
+    """
+    Predict earnings impact on volatility
+
+    Returns earnings predictions with alerts for upcoming earnings dates.
+
+    Example:
+        GET /api/risk/bourse/specialized/earnings?user_id=jack&ticker=AAPL
+    """
+    try:
+        from services.risk.bourse.data_fetcher import BourseDataFetcher
+        from services.risk.bourse.specialized_analytics import SpecializedBourseAnalytics
+        from datetime import datetime, timedelta
+
+        logger.info(f"[earnings] Analyzing {ticker} for user {user_id}")
+
+        # Fetch historical price data
+        data_fetcher = BourseDataFetcher()
+        end_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        start_date = end_date - timedelta(days=lookback_days + 30)
+
+        price_data = await data_fetcher.fetch_historical_prices(
+            ticker=ticker,
+            start_date=start_date,
+            end_date=end_date
+        )
+
+        if len(price_data) < 60:
+            raise HTTPException(status_code=400, detail=f"Insufficient data for {ticker}")
+
+        # Analyze earnings impact
+        # Note: earnings_dates would come from an API (e.g., yfinance, Financial Modeling Prep)
+        # For now, we'll use None and the analyzer will provide generic estimates
+        analytics = SpecializedBourseAnalytics()
+        result = analytics.predict_earnings_impact(
+            ticker=ticker,
+            price_history=price_data,
+            earnings_dates=None  # TODO: Integrate earnings calendar API
+        )
+
+        return {
+            "ok": True,
+            "user_id": user_id,
+            **result
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"[earnings] Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/specialized/sector-rotation")
+async def get_sector_rotation(
+    user_id: str = Depends(get_active_user),
+    file_key: Optional[str] = Query(None),
+    lookback_days: int = Query(60, ge=30, le=180)
+):
+    """
+    Detect sector rotation patterns
+
+    Returns sector performance metrics with rotation signals.
+
+    Example:
+        GET /api/risk/bourse/specialized/sector-rotation?user_id=jack&lookback_days=60
+    """
+    try:
+        from adapters.saxo_adapter import list_portfolios_overview, get_portfolio_detail
+        from services.risk.bourse.data_fetcher import BourseDataFetcher
+        from services.risk.bourse.specialized_analytics import SpecializedBourseAnalytics
+        from datetime import datetime, timedelta
+
+        logger.info(f"[sector-rotation] Analyzing for user {user_id}")
+
+        # Get portfolio positions
+        portfolios = list_portfolios_overview(user_id=user_id, file_key=file_key)
+        if not portfolios:
+            raise HTTPException(status_code=404, detail="No portfolios found")
+
+        portfolio_id = portfolios[0].get("portfolio_id")
+        portfolio_data = get_portfolio_detail(portfolio_id=portfolio_id, user_id=user_id, file_key=file_key)
+        positions = portfolio_data.get("positions", [])
+
+        # Fetch returns for all positions
+        data_fetcher = BourseDataFetcher()
+        end_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        start_date = end_date - timedelta(days=lookback_days + 30)
+
+        positions_returns = {}
+        for pos in positions:
+            ticker = pos.get('ticker') or pos.get('symbol')
+            if not ticker:
+                continue
+
+            try:
+                price_data = await data_fetcher.fetch_historical_prices(ticker, start_date, end_date)
+                if len(price_data) >= 30:
+                    returns = price_data['close'].pct_change().dropna()
+                    positions_returns[ticker] = returns
+            except Exception as e:
+                logger.warning(f"Failed to fetch {ticker}: {e}")
+
+        if len(positions_returns) < 2:
+            raise HTTPException(status_code=400, detail="Need at least 2 positions")
+
+        # Detect sector rotation
+        analytics = SpecializedBourseAnalytics()
+        result = analytics.detect_sector_rotation(
+            positions_returns=positions_returns,
+            lookback_days=lookback_days
+        )
+
+        return {
+            "ok": True,
+            "user_id": user_id,
+            **result
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"[sector-rotation] Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/specialized/beta-forecast")
+async def get_beta_forecast(
+    user_id: str = Depends(get_active_user),
+    file_key: Optional[str] = Query(None),
+    ticker: str = Query(..., description="Ticker to analyze"),
+    benchmark: str = Query("SPY", description="Benchmark ticker"),
+    forecast_method: str = Query("ewma", description="Forecast method"),
+    lookback_days: int = Query(252, ge=60, le=730)
+):
+    """
+    Forecast dynamic beta vs benchmark
+
+    Returns beta forecast with trend analysis.
+
+    Example:
+        GET /api/risk/bourse/specialized/beta-forecast?user_id=jack&ticker=AAPL&benchmark=SPY
+    """
+    try:
+        from services.risk.bourse.data_fetcher import BourseDataFetcher
+        from services.risk.bourse.specialized_analytics import SpecializedBourseAnalytics
+        from datetime import datetime, timedelta
+
+        logger.info(f"[beta-forecast] Analyzing {ticker} vs {benchmark} for user {user_id}")
+
+        # Fetch historical data
+        data_fetcher = BourseDataFetcher()
+        end_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        start_date = end_date - timedelta(days=lookback_days + 30)
+
+        # Get position and benchmark data
+        position_data = await data_fetcher.fetch_historical_prices(ticker, start_date, end_date)
+        benchmark_data = await data_fetcher.fetch_benchmark_prices(benchmark, start_date, end_date)
+
+        if len(position_data) < 60 or len(benchmark_data) < 60:
+            raise HTTPException(status_code=400, detail="Insufficient data")
+
+        # Calculate returns
+        position_returns = position_data['close'].pct_change().dropna()
+        benchmark_returns = benchmark_data['close'].pct_change().dropna()
+
+        # Forecast beta
+        analytics = SpecializedBourseAnalytics()
+        result = analytics.forecast_beta(
+            position_returns=position_returns,
+            benchmark_returns=benchmark_returns,
+            forecast_method=forecast_method
+        )
+
+        return {
+            "ok": True,
+            "user_id": user_id,
+            "ticker": ticker,
+            "benchmark": benchmark,
+            **result
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"[beta-forecast] Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/specialized/dividends")
+async def get_dividend_analysis(
+    user_id: str = Depends(get_active_user),
+    file_key: Optional[str] = Query(None),
+    ticker: str = Query(..., description="Ticker to analyze")
+):
+    """
+    Analyze dividend impact and yield
+
+    Returns dividend analysis with yield and ex-dividend dates.
+
+    Example:
+        GET /api/risk/bourse/specialized/dividends?user_id=jack&ticker=AAPL
+    """
+    try:
+        from services.risk.bourse.data_fetcher import BourseDataFetcher
+        from services.risk.bourse.specialized_analytics import SpecializedBourseAnalytics
+        from datetime import datetime, timedelta
+
+        logger.info(f"[dividends] Analyzing {ticker} for user {user_id}")
+
+        # Fetch historical price data
+        data_fetcher = BourseDataFetcher()
+        end_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        start_date = end_date - timedelta(days=730)  # 2 years for dividend analysis
+
+        price_data = await data_fetcher.fetch_historical_prices(ticker, start_date, end_date)
+
+        if len(price_data) < 30:
+            raise HTTPException(status_code=400, detail=f"Insufficient data for {ticker}")
+
+        # Get dividend data (if available from yfinance)
+        dividends = None
+        try:
+            import yfinance as yf
+            ticker_obj = yf.Ticker(ticker)
+            dividends = ticker_obj.dividends
+        except Exception as e:
+            logger.warning(f"Could not fetch dividends for {ticker}: {e}")
+
+        # Analyze dividends
+        analytics = SpecializedBourseAnalytics()
+        result = analytics.analyze_dividends(
+            ticker=ticker,
+            price_history=price_data,
+            dividends=dividends
+        )
+
+        return {
+            "ok": True,
+            "user_id": user_id,
+            **result
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"[dividends] Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/specialized/margin")
+async def get_margin_monitoring(
+    user_id: str = Depends(get_active_user),
+    file_key: Optional[str] = Query(None),
+    account_equity: Optional[float] = Query(None, description="Override account equity"),
+    maintenance_margin_pct: float = Query(0.25, ge=0.10, le=0.50),
+    initial_margin_pct: float = Query(0.50, ge=0.25, le=1.0)
+):
+    """
+    Monitor margin requirements for leveraged positions
+
+    Returns margin analysis with warnings and recommendations.
+
+    Example:
+        GET /api/risk/bourse/specialized/margin?user_id=jack&account_equity=100000
+    """
+    try:
+        from adapters.saxo_adapter import list_portfolios_overview, get_portfolio_detail
+        from services.risk.bourse.specialized_analytics import SpecializedBourseAnalytics
+
+        logger.info(f"[margin] Monitoring for user {user_id}")
+
+        # Get portfolio positions
+        portfolios = list_portfolios_overview(user_id=user_id, file_key=file_key)
+        if not portfolios:
+            raise HTTPException(status_code=404, detail="No portfolios found")
+
+        portfolio_id = portfolios[0].get("portfolio_id")
+        portfolio_data = get_portfolio_detail(portfolio_id=portfolio_id, user_id=user_id, file_key=file_key)
+        positions = portfolio_data.get("positions", [])
+
+        # Calculate account equity if not provided
+        if account_equity is None:
+            account_equity = sum(pos.get('market_value_usd', 0) for pos in positions)
+
+        # Monitor margin
+        analytics = SpecializedBourseAnalytics()
+        result = analytics.monitor_margin(
+            positions=positions,
+            account_equity=account_equity,
+            maintenance_margin_pct=maintenance_margin_pct,
+            initial_margin_pct=initial_margin_pct
+        )
+
+        return {
+            "ok": True,
+            "user_id": user_id,
+            **result
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"[margin] Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
