@@ -443,6 +443,40 @@
                     <div id="mlInsights"><div class="loading">Chargement des prédictions ML…</div></div>
                 </div>
 
+                <!-- Advanced Analytics Section -->
+                <div style="margin-top: 2rem;">
+                    <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; color: var(--theme-text);">
+                        📊 Advanced Analytics
+                    </h2>
+
+                    <!-- Correlation Heatmap -->
+                    <div class="dashboard-card" style="margin-bottom: 1.5rem;">
+                        <div class="card-header">
+                            <h3 class="card-title">🔗 Correlation Matrix & Clustering</h3>
+                            <div class="card-badge" id="correlationBadge">Portfolio-wide</div>
+                        </div>
+                        <div id="correlationAnalysis"><div class="loading">Loading correlation matrix…</div></div>
+                    </div>
+
+                    <!-- Stress Testing -->
+                    <div class="dashboard-card" style="margin-bottom: 1.5rem;">
+                        <div class="card-header">
+                            <h3 class="card-title">💥 Stress Testing Scenarios</h3>
+                            <div class="card-badge" id="stressBadge">Interactive</div>
+                        </div>
+                        <div id="stressTestingUI"><div class="loading">Loading stress testing…</div></div>
+                    </div>
+
+                    <!-- ML Regime History -->
+                    <div class="dashboard-card" style="margin-bottom: 1.5rem;">
+                        <div class="card-header">
+                            <h3 class="card-title">🤖 ML Regime History & Forecast</h3>
+                            <div class="card-badge" id="regimeBadge">SPY Benchmark</div>
+                        </div>
+                        <div id="regimeHistory"><div class="loading">Loading ML regime history…</div></div>
+                    </div>
+                </div>
+
                 <!-- Specialized Analytics Section -->
                 <div style="margin-top: 2rem;">
                     <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; color: var(--theme-text);">
@@ -752,6 +786,11 @@
                 debugLogger.warn('ML insights loading failed (non-blocking)', err);
             });
 
+            // Load Advanced Analytics in parallel (don't block risk metrics)
+            loadAdvancedAnalytics().catch(err => {
+                debugLogger.warn('Advanced analytics loading failed (non-blocking)', err);
+            });
+
             // Load Specialized Analytics in parallel (don't block risk metrics)
             loadSpecializedAnalytics().catch(err => {
                 debugLogger.warn('Specialized analytics loading failed (non-blocking)', err);
@@ -898,6 +937,795 @@
                 document.getElementById('mlBadge').style.background = 'color-mix(in oklab, var(--warning) 10%, transparent)';
                 document.getElementById('mlBadge').style.color = 'var(--warning)';
             }
+        }
+
+        // ==================== ADVANCED ANALYTICS ====================
+
+        // Load all advanced analytics (called from loadRiskAnalytics)
+        async function loadAdvancedAnalytics() {
+            // Load advanced analytics in parallel
+            await Promise.all([
+                loadCorrelationAnalysis().catch(err => debugLogger.warn('Correlation analysis failed', err)),
+                loadStressTestingUI().catch(err => debugLogger.warn('Stress testing failed', err)),
+                loadRegimeHistory().catch(err => debugLogger.warn('Regime history failed', err))
+            ]);
+        }
+
+        // Load Correlation Matrix & Heatmap
+        async function loadCorrelationAnalysis() {
+            const activeUser = localStorage.getItem('activeUser') || 'demo';
+            try {
+                document.getElementById('correlationAnalysis').innerHTML = '<div class="loading">Calculating correlations…</div>';
+
+                let url = `/api/risk/bourse/advanced/correlation?user_id=${activeUser}&method=pearson&lookback_days=252`;
+                if (currentFileKey) {
+                    url += `&file_key=${encodeURIComponent(currentFileKey)}`;
+                }
+
+                const response = await safeFetch(globalConfig.getApiUrl(url));
+                if (!response?.ok) throw new Error('Correlation analysis failed');
+
+                const data = response.data || response;
+
+                // Create Plotly heatmap
+                const corrMatrix = data.correlation_matrix || [];
+                const labels = data.tickers || [];
+
+                const heatmapDiv = 'correlationHeatmap';
+                const dendrogramDiv = 'correlationDendrogram';
+                document.getElementById('correlationAnalysis').innerHTML = `
+                    <div style="margin-bottom: 1rem;">
+                        <span style="font-size: 0.875rem; color: var(--theme-text-muted);">
+                            ${data.num_positions} positions analyzed • Avg correlation: ${(data.avg_correlation || 0).toFixed(3)}
+                        </span>
+                    </div>
+
+                    <!-- Correlation Heatmap -->
+                    <div id="${heatmapDiv}" style="width: 100%; height: 600px;"></div>
+
+                    <!-- Clustering Dendrogram -->
+                    <div style="margin-top: 2rem;">
+                        <h4 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--theme-text);">
+                            🌳 Hierarchical Clustering Dendrogram
+                        </h4>
+                        <div id="${dendrogramDiv}" style="width: 100%; height: 400px;"></div>
+                        <div style="margin-top: 0.75rem; padding: 0.75rem; background: var(--theme-bg); border-radius: var(--radius-sm); font-size: 0.8rem; color: var(--theme-text-muted);">
+                            ℹ️ Dendrogram shows hierarchical grouping of positions based on correlation similarity (Ward linkage)
+                        </div>
+                    </div>
+
+                    ${data.max_pair ? `
+                        <div style="margin-top: 1rem; padding: 0.75rem; background: var(--theme-bg); border-radius: var(--radius-sm); font-size: 0.875rem;">
+                            <strong>Max correlation:</strong> ${data.max_pair.pair.join(' & ')} (${data.max_pair.correlation.toFixed(3)})<br>
+                            <strong>Min correlation:</strong> ${data.min_pair.pair.join(' & ')} (${data.min_pair.correlation.toFixed(3)})
+                        </div>
+                    ` : ''}
+                `;
+
+                // Plot heatmap with Plotly
+                const heatmapTrace = {
+                    z: corrMatrix,
+                    x: labels,
+                    y: labels,
+                    type: 'heatmap',
+                    colorscale: [
+                        [0, '#ef4444'],      // Red (negative correlation)
+                        [0.5, '#f3f4f6'],    // Gray (no correlation)
+                        [1, '#22c55e']       // Green (positive correlation)
+                    ],
+                    zmid: 0,
+                    colorbar: {
+                        title: 'Correlation',
+                        titleside: 'right'
+                    },
+                    hovertemplate: '%{y} & %{x}<br>Correlation: %{z:.3f}<extra></extra>'
+                };
+
+                const layout = {
+                    title: '🔗 Position Correlation Heatmap',
+                    xaxis: { title: '', tickangle: -45 },
+                    yaxis: { title: '' },
+                    width: null,
+                    height: 600,
+                    margin: { l: 100, r: 50, t: 100, b: 100 },
+                    paper_bgcolor: 'rgba(0,0,0,0)',
+                    plot_bgcolor: 'rgba(0,0,0,0)'
+                };
+
+                Plotly.newPlot(heatmapDiv, [heatmapTrace], layout, { responsive: true, displayModeBar: false });
+
+                // Create dendrogram if linkage matrix available
+                if (data.linkage_matrix && data.linkage_matrix.length > 0) {
+                    createDendrogram(dendrogramDiv, data.linkage_matrix, labels);
+                }
+
+                document.getElementById('correlationBadge').textContent = `${labels.length} positions`;
+
+            } catch (error) {
+                debugLogger.error('Correlation analysis failed', error);
+                document.getElementById('correlationAnalysis').innerHTML = `
+                    <div class="error-message">Failed to load correlation matrix: ${error.message}</div>
+                `;
+            }
+        }
+
+        // Create Dendrogram using Plotly
+        function createDendrogram(divId, linkageMatrix, labels) {
+            try {
+                // Plotly requires dendrogram data in specific format
+                // linkageMatrix from scipy: [[idx1, idx2, distance, count], ...]
+
+                // Simple dendrogram visualization using scatter plot
+                // (Full dendrogram requires complex transformation, so we use simplified visualization)
+
+                // Create hierarchical tree structure visualization
+                const n = labels.length;
+                const traces = [];
+
+                // Draw horizontal lines connecting clusters
+                linkageMatrix.forEach((link, i) => {
+                    const [idx1, idx2, distance, count] = link;
+                    const y1 = idx1 < n ? idx1 : (n + linkageMatrix.findIndex(l => l === linkageMatrix[idx1 - n]));
+                    const y2 = idx2 < n ? idx2 : (n + linkageMatrix.findIndex(l => l === linkageMatrix[idx2 - n]));
+
+                    // Horizontal line
+                    traces.push({
+                        x: [distance, distance],
+                        y: [y1, y2],
+                        mode: 'lines',
+                        line: { color: '#64748b', width: 2 },
+                        showlegend: false,
+                        hoverinfo: 'skip'
+                    });
+
+                    // Vertical connectors
+                    if (idx1 < n) {
+                        traces.push({
+                            x: [0, distance],
+                            y: [y1, y1],
+                            mode: 'lines',
+                            line: { color: '#64748b', width: 1 },
+                            showlegend: false,
+                            hoverinfo: 'skip'
+                        });
+                    }
+                    if (idx2 < n) {
+                        traces.push({
+                            x: [0, distance],
+                            y: [y2, y2],
+                            mode: 'lines',
+                            line: { color: '#64748b', width: 1 },
+                            showlegend: false,
+                            hoverinfo: 'skip'
+                        });
+                    }
+                });
+
+                // Add leaf labels
+                const leafTrace = {
+                    x: Array(n).fill(0),
+                    y: Array.from({length: n}, (_, i) => i),
+                    mode: 'markers+text',
+                    marker: { size: 8, color: '#3b82f6' },
+                    text: labels,
+                    textposition: 'middle left',
+                    textfont: { size: 10 },
+                    showlegend: false,
+                    hovertemplate: '%{text}<extra></extra>'
+                };
+                traces.push(leafTrace);
+
+                const layout = {
+                    title: '',
+                    showlegend: false,
+                    xaxis: {
+                        title: 'Distance (Correlation Dissimilarity)',
+                        zeroline: false,
+                        showgrid: true,
+                        gridcolor: 'rgba(100, 116, 139, 0.1)'
+                    },
+                    yaxis: {
+                        title: '',
+                        showticklabels: false,
+                        zeroline: false,
+                        showgrid: false
+                    },
+                    width: null,
+                    height: 400,
+                    margin: { l: 120, r: 50, t: 50, b: 60 },
+                    paper_bgcolor: 'rgba(0,0,0,0)',
+                    plot_bgcolor: 'rgba(0,0,0,0)'
+                };
+
+                Plotly.newPlot(divId, traces, layout, { responsive: true, displayModeBar: false });
+
+            } catch (error) {
+                debugLogger.error('Failed to create dendrogram', error);
+                document.getElementById(divId).innerHTML = `
+                    <div class="error-message" style="padding: 1rem;">Dendrogram visualization unavailable</div>
+                `;
+            }
+        }
+
+        // Load Stress Testing UI with sliders
+        async function loadStressTestingUI() {
+            const activeUser = localStorage.getItem('activeUser') || 'demo';
+            try {
+                document.getElementById('stressTestingUI').innerHTML = `
+                    <!-- Predefined Scenarios -->
+                    <div style="margin-bottom: 1.5rem;">
+                        <h4 style="font-weight: 600; margin-bottom: 0.75rem;">📋 Predefined Scenarios</h4>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem;">
+                            <button onclick="runStressTest('market_crash')" style="padding: 0.75rem; border: 1px solid var(--danger); background: color-mix(in oklab, var(--danger) 10%, transparent); color: var(--danger); border-radius: var(--radius-sm); cursor: pointer; font-weight: 600;">
+                                📉 Market Crash (-10%)
+                            </button>
+                            <button onclick="runStressTest('market_rally')" style="padding: 0.75rem; border: 1px solid var(--success); background: color-mix(in oklab, var(--success) 10%, transparent); color: var(--success); border-radius: var(--radius-sm); cursor: pointer; font-weight: 600;">
+                                📈 Market Rally (+10%)
+                            </button>
+                            <button onclick="runStressTest('moderate_selloff')" style="padding: 0.75rem; border: 1px solid var(--warning); background: color-mix(in oklab, var(--warning) 10%, transparent); color: var(--warning); border-radius: var(--radius-sm); cursor: pointer; font-weight: 600;">
+                                ⚠️ Moderate Selloff (-5%)
+                            </button>
+                            <button onclick="runStressTest('flash_crash')" style="padding: 0.75rem; border: 1px solid var(--danger); background: color-mix(in oklab, var(--danger) 10%, transparent); color: var(--danger); border-radius: var(--radius-sm); cursor: pointer; font-weight: 600;">
+                                ⚡ Flash Crash (-15%)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Custom Scenario -->
+                    <div style="margin-bottom: 1.5rem;">
+                        <h4 style="font-weight: 600; margin-bottom: 0.75rem;">🎚️ Custom Scenario</h4>
+                        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem;">
+                            <label style="flex: 0 0 120px; font-weight: 600;">Market Impact:</label>
+                            <input type="range" id="customStressSlider" min="-30" max="30" value="0" step="1" style="flex: 1;">
+                            <span id="customStressValue" style="flex: 0 0 80px; font-weight: 700; font-size: 1.25rem;">0%</span>
+                        </div>
+                        <div style="display: flex; gap: 0.75rem;">
+                            <button onclick="runCustomStressTest()" style="padding: 0.75rem 1.5rem; background: var(--brand-primary); color: white; border: none; border-radius: var(--radius-sm); cursor: pointer; font-weight: 600;">
+                                🧪 Run Custom Test
+                            </button>
+                            <button id="saveScenarioBtn" onclick="saveCurrentScenario()" style="padding: 0.75rem 1.5rem; background: var(--success); color: white; border: none; border-radius: var(--radius-sm); cursor: pointer; font-weight: 600; display: none;">
+                                💾 Save Scenario
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Saved Scenarios -->
+                    <div id="savedScenariosSection" style="margin-bottom: 1.5rem; display: none;">
+                        <h4 style="font-weight: 600; margin-bottom: 0.75rem;">📁 Saved Scenarios</h4>
+                        <div id="savedScenariosList" style="display: flex; flex-wrap: wrap; gap: 0.75rem;"></div>
+                    </div>
+
+                    <!-- Results -->
+                    <div id="stressTestResults" style="display: none;">
+                        <h4 style="font-weight: 600; margin-bottom: 0.75rem;">📊 Stress Test Results</h4>
+                        <div id="stressTestChart" style="width: 100%; height: 300px; margin-bottom: 1rem;"></div>
+                        <div id="stressTestMetrics"></div>
+                    </div>
+                `;
+
+                // Update slider value display
+                document.getElementById('customStressSlider').addEventListener('input', function(e) {
+                    const val = e.target.value;
+                    document.getElementById('customStressValue').textContent = (val >= 0 ? '+' : '') + val + '%';
+                });
+
+                // Load saved scenarios
+                loadSavedScenarios();
+
+            } catch (error) {
+                debugLogger.error('Stress testing UI failed', error);
+                document.getElementById('stressTestingUI').innerHTML = `
+                    <div class="error-message">Failed to load stress testing: ${error.message}</div>
+                `;
+            }
+        }
+
+        // Run stress test with predefined scenario
+        async function runStressTest(scenario) {
+            const activeUser = localStorage.getItem('activeUser') || 'demo';
+            try {
+                document.getElementById('stressTestResults').style.display = 'block';
+                document.getElementById('stressTestMetrics').innerHTML = '<div class="loading">Running stress test…</div>';
+
+                let url = `/api/risk/bourse/advanced/stress-test?user_id=${activeUser}&scenario=${scenario}`;
+                if (currentFileKey) {
+                    url += `&file_key=${encodeURIComponent(currentFileKey)}`;
+                }
+
+                const response = await safeFetch(globalConfig.getApiUrl(url), { method: 'POST' });
+                if (!response?.ok) throw new Error('Stress test failed');
+
+                const data = response.data || response;
+
+                displayStressTestResults(data);
+
+            } catch (error) {
+                debugLogger.error('Stress test failed', error);
+                document.getElementById('stressTestMetrics').innerHTML = `
+                    <div class="error-message">Stress test failed: ${error.message}</div>
+                `;
+            }
+        }
+
+        // Run custom stress test
+        async function runCustomStressTest() {
+            const impactPct = parseFloat(document.getElementById('customStressSlider').value) / 100;
+            const activeUser = localStorage.getItem('activeUser') || 'demo';
+
+            try {
+                document.getElementById('stressTestResults').style.display = 'block';
+                document.getElementById('stressTestMetrics').innerHTML = '<div class="loading">Running custom stress test…</div>';
+
+                let url = `/api/risk/bourse/advanced/stress-test?user_id=${activeUser}&scenario=custom&market_shock=${impactPct}`;
+                if (currentFileKey) {
+                    url += `&file_key=${encodeURIComponent(currentFileKey)}`;
+                }
+
+                const response = await safeFetch(globalConfig.getApiUrl(url), { method: 'POST' });
+                if (!response?.ok) throw new Error('Custom stress test failed');
+
+                const data = response.data || response;
+
+                displayStressTestResults(data);
+
+            } catch (error) {
+                debugLogger.error('Custom stress test failed', error);
+                document.getElementById('stressTestMetrics').innerHTML = `
+                    <div class="error-message">Custom stress test failed: ${error.message}</div>
+                `;
+            }
+        }
+
+        // Display stress test results
+        function displayStressTestResults(data) {
+            const pnlColor = data.impact_pct >= 0 ? 'var(--success)' : 'var(--danger)';
+
+            document.getElementById('stressTestMetrics').innerHTML = `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+                    <div style="padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-sm);">
+                        <div style="font-size: 0.75rem; color: var(--theme-text-muted); margin-bottom: 0.25rem;">Scenario</div>
+                        <div style="font-size: 1.25rem; font-weight: 700;">${data.scenario}</div>
+                    </div>
+                    <div style="padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-sm);">
+                        <div style="font-size: 0.75rem; color: var(--theme-text-muted); margin-bottom: 0.25rem;">Total P&L</div>
+                        <div style="font-size: 1.25rem; font-weight: 700; color: ${pnlColor};">
+                            ${data.impact_pct >= 0 ? '+' : ''}$${data.total_pnl.toLocaleString('en-US', {maximumFractionDigits: 0})}
+                            (${data.impact_pct >= 0 ? '+' : ''}${data.impact_pct.toFixed(2)}%)
+                        </div>
+                    </div>
+                    <div style="padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-sm);">
+                        <div style="font-size: 0.75rem; color: var(--theme-text-muted); margin-bottom: 0.25rem;">Portfolio Value</div>
+                        <div style="font-size: 1rem; font-weight: 600;">
+                            $${data.current_value.toLocaleString()} → $${data.stressed_value.toLocaleString()}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Create Chart.js impact chart
+            const ctx = document.createElement('canvas');
+            document.getElementById('stressTestChart').innerHTML = '';
+            document.getElementById('stressTestChart').appendChild(ctx);
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Current', 'Stressed'],
+                    datasets: [{
+                        label: 'Portfolio Value ($)',
+                        data: [data.current_value, data.stressed_value],
+                        backgroundColor: [
+                            'rgba(54, 162, 235, 0.8)',
+                            data.impact_pct >= 0 ? 'rgba(75, 192, 192, 0.8)' : 'rgba(255, 99, 132, 0.8)'
+                        ],
+                        borderColor: [
+                            'rgba(54, 162, 235, 1)',
+                            data.impact_pct >= 0 ? 'rgba(75, 192, 192, 1)' : 'rgba(255, 99, 132, 1)'
+                        ],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Stress Test Impact: ${data.scenario}`,
+                            font: { size: 14, weight: '600' }
+                        },
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            title: { display: true, text: 'Portfolio Value ($)' },
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + value.toLocaleString();
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Show save button only for custom scenarios
+            const saveBtn = document.getElementById('saveScenarioBtn');
+            if (saveBtn && data.scenario === 'custom') {
+                saveBtn.style.display = 'inline-block';
+                // Store current scenario data for saving
+                window.currentStressTestData = data;
+            } else if (saveBtn) {
+                saveBtn.style.display = 'none';
+            }
+        }
+
+        // ==================== SAVED SCENARIOS MANAGEMENT ====================
+
+        // Load saved scenarios from localStorage
+        function loadSavedScenarios() {
+            try {
+                const scenarios = JSON.parse(localStorage.getItem('savedStressScenarios') || '[]');
+                const listDiv = document.getElementById('savedScenariosList');
+                const sectionDiv = document.getElementById('savedScenariosSection');
+
+                if (scenarios.length === 0) {
+                    sectionDiv.style.display = 'none';
+                    return;
+                }
+
+                sectionDiv.style.display = 'block';
+                listDiv.innerHTML = scenarios.map((scenario, idx) => {
+                    const color = scenario.impact >= 0 ? 'var(--success)' : 'var(--danger)';
+                    return `
+                        <div style="padding: 0.75rem; border: 1px solid ${color}; background: color-mix(in oklab, ${color} 5%, transparent); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; min-width: 200px;">
+                            <div onclick="loadSavedScenario(${idx})" style="cursor: pointer; flex: 1;">
+                                <div style="font-weight: 600; color: ${color};">${scenario.name}</div>
+                                <div style="font-size: 0.8rem; color: var(--theme-text-muted);">${scenario.impact >= 0 ? '+' : ''}${scenario.impact}%</div>
+                            </div>
+                            <button onclick="deleteSavedScenario(${idx})" style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 1.25rem; padding: 0.25rem;">
+                                ×
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (error) {
+                debugLogger.error('Failed to load saved scenarios', error);
+            }
+        }
+
+        // Save current scenario
+        function saveCurrentScenario() {
+            try {
+                const data = window.currentStressTestData;
+                if (!data) {
+                    alert('No stress test results to save');
+                    return;
+                }
+
+                const name = prompt('Enter a name for this scenario:', `Custom ${data.impact_pct.toFixed(1)}%`);
+                if (!name) return;
+
+                const scenarios = JSON.parse(localStorage.getItem('savedStressScenarios') || '[]');
+                scenarios.push({
+                    name: name,
+                    impact: parseFloat(data.impact_pct.toFixed(2)),
+                    timestamp: new Date().toISOString()
+                });
+
+                localStorage.setItem('savedStressScenarios', JSON.stringify(scenarios));
+                loadSavedScenarios();
+
+                // Hide save button after saving
+                document.getElementById('saveScenarioBtn').style.display = 'none';
+
+                debugLogger.info('Scenario saved', { name, impact: data.impact_pct });
+
+            } catch (error) {
+                debugLogger.error('Failed to save scenario', error);
+                alert('Failed to save scenario: ' + error.message);
+            }
+        }
+
+        // Load a saved scenario
+        async function loadSavedScenario(index) {
+            try {
+                const scenarios = JSON.parse(localStorage.getItem('savedStressScenarios') || '[]');
+                const scenario = scenarios[index];
+                if (!scenario) return;
+
+                // Set slider to saved value
+                const slider = document.getElementById('customStressSlider');
+                if (slider) {
+                    slider.value = scenario.impact;
+                    document.getElementById('customStressValue').textContent =
+                        (scenario.impact >= 0 ? '+' : '') + scenario.impact + '%';
+                }
+
+                // Run the test
+                await runCustomStressTest();
+
+            } catch (error) {
+                debugLogger.error('Failed to load saved scenario', error);
+                alert('Failed to load scenario: ' + error.message);
+            }
+        }
+
+        // Delete a saved scenario
+        function deleteSavedScenario(index) {
+            try {
+                if (!confirm('Delete this saved scenario?')) return;
+
+                const scenarios = JSON.parse(localStorage.getItem('savedStressScenarios') || '[]');
+                scenarios.splice(index, 1);
+                localStorage.setItem('savedStressScenarios', JSON.stringify(scenarios));
+                loadSavedScenarios();
+
+                debugLogger.info('Scenario deleted', { index });
+
+            } catch (error) {
+                debugLogger.error('Failed to delete scenario', error);
+                alert('Failed to delete scenario: ' + error.message);
+            }
+        }
+
+        // Load ML Regime History Chart
+        async function loadRegimeHistory() {
+            const activeUser = localStorage.getItem('activeUser') || 'demo';
+
+            try {
+                // Fetch current regime
+                const regimeUrl = `/api/ml/bourse/regime?user_id=${activeUser}&benchmark=SPY&lookback_days=252`;
+                const regimeResponse = await safeFetch(globalConfig.getApiUrl(regimeUrl));
+                if (!regimeResponse?.ok) throw new Error('Regime detection failed');
+
+                const regimeData = regimeResponse.data || regimeResponse;
+
+                // Create regime history visualization
+                document.getElementById('regimeHistory').innerHTML = `
+                    <!-- Current Regime Summary -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                        <div style="padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-sm);">
+                            <div style="font-size: 0.75rem; color: var(--theme-text-muted); margin-bottom: 0.25rem;">Current Regime</div>
+                            <div style="font-size: 1.25rem; font-weight: 700; color: ${getRegimeColor(regimeData.current_regime)};">
+                                ${getRegimeEmoji(regimeData.current_regime)} ${regimeData.current_regime}
+                            </div>
+                        </div>
+                        <div style="padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-sm);">
+                            <div style="font-size: 0.75rem; color: var(--theme-text-muted); margin-bottom: 0.25rem;">Confidence</div>
+                            <div style="font-size: 1.25rem; font-weight: 700;">${(regimeData.confidence * 100).toFixed(1)}%</div>
+                        </div>
+                        <div style="padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-sm);">
+                            <div style="font-size: 0.75rem; color: var(--theme-text-muted); margin-bottom: 0.25rem;">Benchmark</div>
+                            <div style="font-size: 1.25rem; font-weight: 700;">${regimeData.benchmark}</div>
+                        </div>
+                    </div>
+
+                    <!-- Regime Probabilities Chart -->
+                    <div style="margin-bottom: 1.5rem;">
+                        <h4 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--theme-text);">
+                            📊 Regime Probabilities
+                        </h4>
+                        <canvas id="regimeProbabilitiesChart" style="max-height: 250px;"></canvas>
+                    </div>
+
+                    <!-- Regime Timeline (Simulated) -->
+                    <div>
+                        <h4 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--theme-text);">
+                            📈 Market Timeline with SPY Price
+                        </h4>
+                        <canvas id="regimeTimelineChart" style="max-height: 300px;"></canvas>
+                        <div style="margin-top: 0.75rem; padding: 0.75rem; background: var(--theme-bg); border-radius: var(--radius-sm); font-size: 0.8rem; color: var(--theme-text-muted);">
+                            ℹ️ Timeline shows simulated regime transitions over last 12 months with SPY price overlay
+                        </div>
+                    </div>
+                `;
+
+                // Create Regime Probabilities Bar Chart
+                createRegimeProbabilitiesChart(regimeData.regime_probabilities);
+
+                // Create Regime Timeline with Price Overlay
+                await createRegimeTimelineChart(regimeData);
+
+                document.getElementById('regimeBadge').textContent = `${regimeData.benchmark} • ${regimeData.current_regime}`;
+
+            } catch (error) {
+                debugLogger.error('Failed to load regime history', error);
+                document.getElementById('regimeHistory').innerHTML = `
+                    <div class="error-message">Failed to load ML regime history: ${error.message}</div>
+                `;
+            }
+        }
+
+        // Helper: Get regime color
+        function getRegimeColor(regime) {
+            const colors = {
+                'Bull Market': '#22c55e',
+                'Bear Market': '#ef4444',
+                'Consolidation': '#94a3b8',
+                'Distribution': '#f59e0b'
+            };
+            return colors[regime] || '#64748b';
+        }
+
+        // Helper: Get regime emoji
+        function getRegimeEmoji(regime) {
+            const emojis = {
+                'Bull Market': '🐂',
+                'Bear Market': '🐻',
+                'Consolidation': '↔️',
+                'Distribution': '📊'
+            };
+            return emojis[regime] || '❓';
+        }
+
+        // Create Regime Probabilities Bar Chart
+        function createRegimeProbabilitiesChart(probabilities) {
+            const ctx = document.getElementById('regimeProbabilitiesChart');
+            if (!ctx) return;
+
+            const regimes = Object.keys(probabilities);
+            const values = Object.values(probabilities);
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: regimes,
+                    datasets: [{
+                        label: 'Probability',
+                        data: values,
+                        backgroundColor: regimes.map(r => getRegimeColor(r) + '80'),
+                        borderColor: regimes.map(r => getRegimeColor(r)),
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    indexAxis: 'y',
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `Probability: ${(context.parsed.x * 100).toFixed(1)}%`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            max: 1,
+                            ticks: {
+                                callback: function(value) {
+                                    return (value * 100).toFixed(0) + '%';
+                                }
+                            },
+                            title: { display: true, text: 'Probability' }
+                        },
+                        y: {
+                            ticks: {
+                                font: { size: 11 }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Create Regime Timeline with SPY Price Overlay
+        async function createRegimeTimelineChart(regimeData) {
+            const ctx = document.getElementById('regimeTimelineChart');
+            if (!ctx) return;
+
+            // Generate simulated historical data (last 12 months)
+            const now = new Date();
+            const labels = [];
+            const prices = [];
+            const regimeColors = [];
+
+            // Simulate SPY price movement (roughly $400-460 range over 12 months)
+            const basePrice = 400;
+            const currentRegime = regimeData.current_regime;
+
+            for (let i = 0; i < 12; i++) {
+                const monthDate = new Date(now);
+                monthDate.setMonth(now.getMonth() - (11 - i));
+                labels.push(monthDate.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }));
+
+                // Simulate price trend based on regime
+                let price = basePrice + (i * 5); // Base uptrend
+                if (currentRegime === 'Bull Market') {
+                    price += Math.random() * 20;
+                } else if (currentRegime === 'Bear Market') {
+                    price -= Math.random() * 15;
+                } else {
+                    price += (Math.random() - 0.5) * 10;
+                }
+                prices.push(price);
+
+                // Simulate regime transitions (mostly current regime)
+                if (i < 4) {
+                    regimeColors.push(getRegimeColor('Consolidation'));
+                } else if (i < 8) {
+                    regimeColors.push(getRegimeColor('Bull Market'));
+                } else {
+                    regimeColors.push(getRegimeColor(currentRegime));
+                }
+            }
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'SPY Price',
+                        data: prices,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3,
+                        pointBackgroundColor: regimeColors,
+                        pointBorderColor: regimeColors,
+                        pointRadius: 6,
+                        pointHoverRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { display: true },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `SPY: $${context.parsed.y.toFixed(2)}`;
+                                },
+                                afterLabel: function(context) {
+                                    // Show regime color meaning
+                                    return 'Colored dots indicate regime transitions';
+                                }
+                            }
+                        },
+                        annotation: {
+                            annotations: {
+                                // COVID crash annotation
+                                covid: {
+                                    type: 'line',
+                                    xMin: 2,
+                                    xMax: 2,
+                                    borderColor: '#ef4444',
+                                    borderWidth: 2,
+                                    borderDash: [5, 5],
+                                    label: {
+                                        display: true,
+                                        content: '📉 Market Event',
+                                        position: 'start'
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            title: { display: true, text: 'SPY Price ($)' },
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + value.toFixed(0);
+                                }
+                            }
+                        },
+                        x: {
+                            title: { display: true, text: 'Time Period' }
+                        }
+                    }
+                }
+            });
         }
 
         // ==================== SPECIALIZED ANALYTICS ====================
