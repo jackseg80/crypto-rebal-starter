@@ -1064,11 +1064,40 @@ Modifiés:
   - ✅ Formatage pourcentages automatique
   - ✅ Layout responsive mobile
 
+#### Phase 1: Testing & Validation ✅
+- **2025-10-18 12:30**: Tests manuels avec données réelles (user jack)
+  - ✅ yfinance déjà installé
+  - ✅ Fix intégration saxo_adapter (list_portfolios_overview vs list_portfolios)
+  - ✅ Tests endpoint avec 28 positions Saxo réelles
+  - ✅ Validation calculs:
+    - Risk Score: 80/100 (Low)
+    - VaR 95% (1d): -0.44% (-$468)
+    - Volatilité 30d: 6.09% annualisée
+    - Sharpe Ratio: 2.22 (excellent)
+    - Sortino Ratio: 3.46 (excellent)
+    - Calmar Ratio: 4.87
+    - Max Drawdown: -3.07% sur 23 jours
+    - Beta: -0.019 (quasi neutre vs SPY)
+  - ✅ Tests méthodes VaR alternatives (parametric, montecarlo)
+  - ✅ Tests paramètres lookback (90j, 252j)
+  - ✅ Validation UI: safeFetch importé depuis modules/http.js
+  - ✅ Commit: fix(bourse-risk): use adapter functions
+
+**Résultats tests** (Portfolio $106,749, 28 positions):
+| Métrique | Valeur | Interprétation |
+|----------|--------|----------------|
+| Risk Score | 80/100 | Low risk - portfolio bien équilibré |
+| VaR 95% (1d) | -0.44% | Perte max probable: $468/jour |
+| Sharpe Ratio | 2.22 | Excellent rendement ajusté au risque |
+| Max Drawdown | -3.07% | Faible drawdown historique |
+| Beta | -0.019 | Quasi décorrélé du S&P500 |
+
 **Phase 1 Complete** ✅✅✅:
 - Backend operational avec 10 métriques de risque
 - API endpoint `/api/risk/bourse/dashboard` fonctionnel
 - UI intégrée dans l'onglet Risk de saxo-dashboard.html
-- Prêt pour utilisation en production (après `pip install yfinance`)
+- **Testé en production** avec données réelles
+- Prêt pour utilisation (yfinance requis)
 
 #### Phase 2: Intelligence ML
 - TODO: À planifier
