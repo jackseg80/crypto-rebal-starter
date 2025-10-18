@@ -968,8 +968,13 @@
                 const data = response.data || response;
 
                 // Create Plotly heatmap
-                const corrMatrix = data.correlation_matrix || [];
-                const labels = data.tickers || [];
+                const corrMatrix = data.correlation_matrix || {};
+                const labels = data.clustering?.labels || Object.keys(corrMatrix);
+
+                // Convert corrMatrix object to 2D array for Plotly
+                const corrArray = labels.map(row =>
+                    labels.map(col => corrMatrix[row]?.[col] || 0)
+                );
 
                 const heatmapDiv = 'correlationHeatmap';
                 const dendrogramDiv = 'correlationDendrogram';
@@ -1004,7 +1009,7 @@
 
                 // Plot heatmap with Plotly
                 const heatmapTrace = {
-                    z: corrMatrix,
+                    z: corrArray,
                     x: labels,
                     y: labels,
                     type: 'heatmap',
@@ -1035,8 +1040,9 @@
                 Plotly.newPlot(heatmapDiv, [heatmapTrace], layout, { responsive: true, displayModeBar: false });
 
                 // Create dendrogram if linkage matrix available
-                if (data.linkage_matrix && data.linkage_matrix.length > 0) {
-                    createDendrogram(dendrogramDiv, data.linkage_matrix, labels);
+                const linkageMatrix = data.clustering?.linkage_matrix || [];
+                if (linkageMatrix && linkageMatrix.length > 0) {
+                    createDendrogram(dendrogramDiv, linkageMatrix, labels);
                 }
 
                 document.getElementById('correlationBadge').textContent = `${labels.length} positions`;
@@ -1278,7 +1284,13 @@
 
         // Display stress test results
         function displayStressTestResults(data) {
-            const pnlColor = data.impact_pct >= 0 ? 'var(--success)' : 'var(--danger)';
+            // Fix: Use pnl_pct instead of impact_pct
+            const pnlPct = data.pnl_pct || 0;
+            const totalPnl = data.total_pnl || 0;
+            const valueBefore = data.total_value_before || 0;
+            const valueAfter = data.total_value_after || 0;
+
+            const pnlColor = pnlPct >= 0 ? 'var(--success)' : 'var(--danger)';
 
             document.getElementById('stressTestMetrics').innerHTML = `
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
@@ -1289,14 +1301,14 @@
                     <div style="padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-sm);">
                         <div style="font-size: 0.75rem; color: var(--theme-text-muted); margin-bottom: 0.25rem;">Total P&L</div>
                         <div style="font-size: 1.25rem; font-weight: 700; color: ${pnlColor};">
-                            ${data.impact_pct >= 0 ? '+' : ''}$${data.total_pnl.toLocaleString('en-US', {maximumFractionDigits: 0})}
-                            (${data.impact_pct >= 0 ? '+' : ''}${data.impact_pct.toFixed(2)}%)
+                            ${pnlPct >= 0 ? '+' : ''}$${totalPnl.toLocaleString('en-US', {maximumFractionDigits: 0})}
+                            (${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)
                         </div>
                     </div>
                     <div style="padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-sm);">
                         <div style="font-size: 0.75rem; color: var(--theme-text-muted); margin-bottom: 0.25rem;">Portfolio Value</div>
                         <div style="font-size: 1rem; font-weight: 600;">
-                            $${data.current_value.toLocaleString()} → $${data.stressed_value.toLocaleString()}
+                            $${valueBefore.toLocaleString()} → $${valueAfter.toLocaleString()}
                         </div>
                     </div>
                 </div>
@@ -1313,14 +1325,14 @@
                     labels: ['Current', 'Stressed'],
                     datasets: [{
                         label: 'Portfolio Value ($)',
-                        data: [data.current_value, data.stressed_value],
+                        data: [valueBefore, valueAfter],
                         backgroundColor: [
                             'rgba(54, 162, 235, 0.8)',
-                            data.impact_pct >= 0 ? 'rgba(75, 192, 192, 0.8)' : 'rgba(255, 99, 132, 0.8)'
+                            pnlPct >= 0 ? 'rgba(75, 192, 192, 0.8)' : 'rgba(255, 99, 132, 0.8)'
                         ],
                         borderColor: [
                             'rgba(54, 162, 235, 1)',
-                            data.impact_pct >= 0 ? 'rgba(75, 192, 192, 1)' : 'rgba(255, 99, 132, 1)'
+                            pnlPct >= 0 ? 'rgba(75, 192, 192, 1)' : 'rgba(255, 99, 132, 1)'
                         ],
                         borderWidth: 2
                     }]
@@ -1354,8 +1366,11 @@
             const saveBtn = document.getElementById('saveScenarioBtn');
             if (saveBtn && data.scenario === 'custom') {
                 saveBtn.style.display = 'inline-block';
-                // Store current scenario data for saving
-                window.currentStressTestData = data;
+                // Store current scenario data for saving (normalize field names)
+                window.currentStressTestData = {
+                    ...data,
+                    impact_pct: pnlPct  // Add for backwards compatibility with saveCurrentScenario
+                };
             } else if (saveBtn) {
                 saveBtn.style.display = 'none';
             }

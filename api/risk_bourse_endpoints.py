@@ -352,6 +352,7 @@ async def run_stress_test(
     user_id: str = Depends(get_active_user),
     file_key: Optional[str] = Query(None),
     scenario: str = Query("market_crash", description="Stress scenario name"),
+    market_shock: Optional[float] = Query(None, description="Market shock percentage for custom scenario"),
     custom_shocks: Optional[Dict[str, float]] = None
 ):
     """
@@ -361,6 +362,7 @@ async def run_stress_test(
 
     Example:
         POST /api/risk/bourse/advanced/stress-test?scenario=market_crash
+        POST /api/risk/bourse/advanced/stress-test?scenario=custom&market_shock=-0.15
     """
     try:
         from adapters.saxo_adapter import list_portfolios_overview, get_portfolio_detail
@@ -391,6 +393,11 @@ async def run_stress_test(
                 'current_price': 1.0,
                 'quantity': market_value
             }
+
+        # Convert market_shock to custom_shocks if provided
+        if scenario == 'custom' and market_shock is not None and custom_shocks is None:
+            custom_shocks = {ticker: market_shock for ticker in positions_data.keys()}
+            logger.info(f"[stress-test] Using market_shock={market_shock} for all positions")
 
         # Run stress test
         analytics = AdvancedRiskAnalytics()
