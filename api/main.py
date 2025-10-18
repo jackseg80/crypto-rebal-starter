@@ -21,6 +21,11 @@ from fastapi.staticfiles import StaticFiles
 # Charger les variables d'environnement depuis .env
 load_dotenv()
 
+# Fix joblib/loky Windows encoding issue with Python 3.13
+# Set before any scikit-learn imports to avoid wmic auto-detection errors
+if not os.getenv('LOKY_MAX_CPU_COUNT'):
+    os.environ['LOKY_MAX_CPU_COUNT'] = '4'
+
 # Configuration centralisée avec Pydantic
 from config import get_settings
 settings = get_settings()
