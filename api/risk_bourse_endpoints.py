@@ -716,8 +716,24 @@ async def get_dividend_analysis(
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception(f"[dividends] Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception(f"[dividends] Error for {ticker}: {e}")
+        # Return graceful fallback instead of crashing
+        return {
+            "ok": False,
+            "user_id": user_id,
+            "ticker": ticker,
+            "error": str(e),
+            "current_yield": 0.0,
+            "annual_dividend": 0.0,
+            "payout_frequency": "unknown",
+            "next_ex_dividend_date": None,
+            "days_until_ex_dividend": None,
+            "avg_price_drop_ex_div": 0.0,
+            "total_dividends_12m": 0.0,
+            "dividend_growth_rate": 0.0,
+            "has_dividend_data": False,
+            "note": "Dividend data unavailable or error occurred"
+        }
 
 
 @router.get("/specialized/margin")

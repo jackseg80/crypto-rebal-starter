@@ -468,7 +468,13 @@ class SpecializedBourseAnalytics:
             }
         """
         try:
-            current_price = float(price_history['close'].iloc[-1])
+            # Handle case-insensitive column names (yfinance uses 'Close', we use 'close')
+            if 'close' in price_history.columns:
+                current_price = float(price_history['close'].iloc[-1])
+            elif 'Close' in price_history.columns:
+                current_price = float(price_history['Close'].iloc[-1])
+            else:
+                raise ValueError(f"No 'close' or 'Close' column found in price_history. Available columns: {list(price_history.columns)}")
 
             if dividends is not None and len(dividends) > 0:
                 # Real dividend data

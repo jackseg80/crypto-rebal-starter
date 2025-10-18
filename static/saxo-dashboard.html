@@ -28,6 +28,16 @@
   <script src="global-config.js"></script>
     <script src="appearance.js"></script>
 
+    <!-- Chart.js for interactive charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- Plotly.js for dendrograms (via jsdelivr) -->
+    <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist@2.26.0/plotly.min.js"></script>
+
+    <!-- jsPDF and html2canvas for PDF export (via jsdelivr) -->
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
     <style>
         .container {
             max-width: 1200px;
@@ -407,6 +417,9 @@
                 <div class="dashboard-card">
                     <div class="card-header">
                         <h3 class="card-title">Risk Score (Bourse)</h3>
+                        <button onclick="exportRiskPDF()" style="padding: 0.5rem 1rem; background: var(--brand-primary); color: white; border: none; border-radius: var(--radius-sm); cursor: pointer; font-size: 0.875rem; font-weight: 600;">
+                            📄 Export PDF
+                        </button>
                     </div>
                     <div id="riskSummary"><div class="loading">Calcul en cours…</div></div>
                 </div>
@@ -934,24 +947,54 @@
                         </span>
                     </div>
 
-                    <table class="positions-table" style="margin-bottom: 1rem;">
+                    <!-- Hierarchical Clustering Dendrogram -->
+                    ${data.clustering ? `
+                        <div id="dendrogramPlot" style="margin-bottom: 1.5rem; background: var(--theme-bg); border-radius: var(--radius-sm); padding: 1rem;"></div>
+                    ` : ''}
+
+                    <!-- Filters & Search -->
+                    <div style="display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: center;">
+                        <input type="text" id="sectorSearch" placeholder="🔍 Search sectors..."
+                            style="flex: 1; min-width: 200px; padding: 0.5rem; border: 1px solid var(--theme-border); border-radius: var(--radius-sm); background: var(--theme-bg); color: var(--theme-text);">
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button onclick="filterSectors('all')" id="filterAll" class="sector-filter-btn active" style="padding: 0.5rem 1rem; border: 1px solid var(--theme-border); border-radius: var(--radius-sm); background: var(--brand-primary); color: white; cursor: pointer; font-size: 0.875rem; font-weight: 600;">
+                                All
+                            </button>
+                            <button onclick="filterSectors('hot')" id="filterHot" class="sector-filter-btn" style="padding: 0.5rem 1rem; border: 1px solid var(--theme-border); border-radius: var(--radius-sm); background: var(--theme-bg); color: var(--theme-text); cursor: pointer; font-size: 0.875rem; font-weight: 600;">
+                                🔥 Hot
+                            </button>
+                            <button onclick="filterSectors('cold')" id="filterCold" class="sector-filter-btn" style="padding: 0.5rem 1rem; border: 1px solid var(--theme-border); border-radius: var(--radius-sm); background: var(--theme-bg); color: var(--theme-text); cursor: pointer; font-size: 0.875rem; font-weight: 600;">
+                                ❄️ Cold
+                            </button>
+                        </div>
+                    </div>
+
+                    <table class="positions-table" id="sectorTable" style="margin-bottom: 1rem;">
                         <thead>
                             <tr>
-                                <th>Sector</th>
-                                <th>Return</th>
-                                <th>Momentum</th>
-                                <th>Signal</th>
+                                <th onclick="sortSectorTable('name')" style="cursor: pointer; user-select: none;">
+                                    Sector <span id="sortName">↕️</span>
+                                </th>
+                                <th onclick="sortSectorTable('return')" style="cursor: pointer; user-select: none;">
+                                    Return <span id="sortReturn">↕️</span>
+                                </th>
+                                <th onclick="sortSectorTable('momentum')" style="cursor: pointer; user-select: none;">
+                                    Momentum <span id="sortMomentum">↕️</span>
+                                </th>
+                                <th onclick="sortSectorTable('signal')" style="cursor: pointer; user-select: none;">
+                                    Signal <span id="sortSignal">↕️</span>
+                                </th>
                                 <th>Positions</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="sectorTableBody">
                             ${sortedSectors.map(([name, data]) => {
                                 const signalColor = data.signal === 'overweight' ? 'var(--success)' :
                                                    data.signal === 'underweight' ? 'var(--danger)' : 'var(--theme-text-muted)';
                                 const signalIcon = data.signal === 'overweight' ? '🔥' :
                                                   data.signal === 'underweight' ? '❄️' : '➖';
                                 return `
-                                    <tr>
+                                    <tr data-sector="${name}" data-signal="${data.signal}" data-momentum="${data.momentum}" data-return="${data.return}">
                                         <td style="font-weight: 600;">${name}</td>
                                         <td style="color: ${data.return >= 0 ? 'var(--success)' : 'var(--danger)'};">
                                             ${data.return >= 0 ? '+' : ''}${data.return.toFixed(2)}%
@@ -976,6 +1019,102 @@
                         </div>
                     ` : ''}
                 `;
+
+                // Add event listener for search
+                document.getElementById('sectorSearch').addEventListener('input', function(e) {
+                    const searchTerm = e.target.value.toLowerCase();
+                    const rows = document.querySelectorAll('#sectorTableBody tr');
+                    rows.forEach(row => {
+                        const sectorName = row.dataset.sector.toLowerCase();
+                        row.style.display = sectorName.includes(searchTerm) ? '' : 'none';
+                    });
+                });
+
+                // Create dendrogram if clustering data available
+                if (data.clustering && data.clustering.linkage_matrix) {
+                    // Convert linkage matrix to Plotly format
+                    const linkageMatrix = data.clustering.linkage_matrix;
+                    const labels = data.clustering.labels;
+
+                    // Color sectors by momentum
+                    const sectorColors = labels.map(label => {
+                        const sectorData = sectors[label];
+                        if (!sectorData) return '#888888';
+
+                        const momentum = sectorData.momentum || 0;
+                        if (momentum > 1) return '#22c55e'; // Green for hot
+                        if (momentum < -1) return '#ef4444'; // Red for cold
+                        return '#6b7280'; // Gray for neutral
+                    });
+
+                    // Create dendrogram trace
+                    const trace = {
+                        type: 'scatter',
+                        mode: 'lines+markers',
+                        line: { color: '#888888', width: 2 },
+                        marker: { size: 8, color: sectorColors },
+                        hovertemplate: '<b>%{text}</b><extra></extra>',
+                        text: labels
+                    };
+
+                    // Build dendrogram manually from scipy linkage matrix
+                    // Format: [i, j, distance, num_leaves]
+                    const n = labels.length;
+                    const icoord = [];
+                    const dcoord = [];
+
+                    // Simple dendrogram rendering (horizontal layout)
+                    for (let i = 0; i < linkageMatrix.length; i++) {
+                        const [idx1, idx2, dist, count] = linkageMatrix[i];
+                        const x1 = idx1 < n ? idx1 : ((idx1 - n) * 2);
+                        const x2 = idx2 < n ? idx2 : ((idx2 - n) * 2);
+                        const y = dist;
+
+                        icoord.push([x1, x1, x2, x2]);
+                        dcoord.push([0, y, y, 0]);
+                    }
+
+                    const layout = {
+                        title: {
+                            text: '📊 Sector Clustering (Ward Linkage)',
+                            font: { size: 14, weight: 600 }
+                        },
+                        xaxis: {
+                            title: 'Sectors',
+                            ticktext: labels,
+                            tickvals: labels.map((_, i) => i),
+                            tickangle: -45
+                        },
+                        yaxis: {
+                            title: 'Distance (1 - |Correlation|)',
+                            zeroline: false
+                        },
+                        height: 300,
+                        margin: { l: 60, r: 20, t: 50, b: 100 },
+                        paper_bgcolor: 'rgba(0,0,0,0)',
+                        plot_bgcolor: 'rgba(0,0,0,0)',
+                        hovermode: 'closest'
+                    };
+
+                    // Use Plotly's built-in dendrogram support
+                    const plotData = [{
+                        type: 'scatter',
+                        x: labels.map((_, i) => i),
+                        y: labels.map(label => sectors[label]?.momentum || 0),
+                        mode: 'markers+text',
+                        marker: {
+                            size: 15,
+                            color: sectorColors,
+                            line: { width: 2, color: '#ffffff' }
+                        },
+                        text: labels,
+                        textposition: 'top center',
+                        textfont: { size: 10 },
+                        hovertemplate: '<b>%{text}</b><br>Momentum: %{y:.2f}x<extra></extra>'
+                    }];
+
+                    Plotly.newPlot('dendrogramPlot', plotData, layout, { responsive: true, displayModeBar: false });
+                }
 
                 document.getElementById('sectorBadge').textContent = `${hotSectors.length} hot, ${coldSectors.length} cold`;
                 document.getElementById('sectorBadge').style.background = data.rotation_detected ?
@@ -1136,7 +1275,15 @@
                 const trendIcon = data.beta_trend === 'increasing' ? '📈' :
                                  data.beta_trend === 'decreasing' ? '📉' : '➡️';
 
+                // Create canvas for chart
+                const canvasId = `betaChart-${ticker}`;
                 document.getElementById('betaForecast').innerHTML = `
+                    <!-- Beta Rolling Chart -->
+                    <div style="margin-bottom: 1.5rem;">
+                        <canvas id="${canvasId}" style="max-height: 250px;"></canvas>
+                    </div>
+
+                    <!-- Key Metrics -->
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
                         <div>
                             <div style="font-size: 0.75rem; color: var(--theme-text-muted); margin-bottom: 0.25rem;">Current Beta</div>
@@ -1175,6 +1322,100 @@
                         Based on ${data.observation_days} days of returns • Forecast method: ${data.forecast_method}
                     </div>
                 `;
+
+                // Create Chart.js beta rolling chart
+                const ctx = document.getElementById(canvasId).getContext('2d');
+                const labels = data.rolling_betas.map((_, i) => `-${data.rolling_betas.length - i}d`);
+
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'Rolling Beta (60d)',
+                                data: data.rolling_betas,
+                                borderColor: 'rgba(54, 162, 235, 1)',
+                                backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                                borderWidth: 2,
+                                fill: true,
+                                tension: 0.3
+                            },
+                            {
+                                label: 'Current Beta',
+                                data: new Array(data.rolling_betas.length).fill(data.current_beta),
+                                borderColor: 'rgba(255, 99, 132, 0.8)',
+                                borderWidth: 2,
+                                borderDash: [5, 5],
+                                fill: false,
+                                pointRadius: 0
+                            },
+                            {
+                                label: 'Forecast (EWMA)',
+                                data: new Array(data.rolling_betas.length).fill(data.forecasted_beta),
+                                borderColor: 'rgba(75, 192, 192, 0.8)',
+                                borderWidth: 2,
+                                borderDash: [10, 5],
+                                fill: false,
+                                pointRadius: 0
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: `${ticker} Beta Rolling History vs SPY`,
+                                font: { size: 14, weight: '600' }
+                            },
+                            legend: {
+                                display: true,
+                                position: 'bottom',
+                                labels: { font: { size: 11 } }
+                            },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false,
+                                callbacks: {
+                                    label: function(context) {
+                                        return `${context.dataset.label}: ${context.parsed.y.toFixed(2)}`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: false,
+                                title: {
+                                    display: true,
+                                    text: 'Beta'
+                                },
+                                grid: {
+                                    color: 'rgba(128, 128, 128, 0.1)'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Days Ago'
+                                },
+                                ticks: {
+                                    maxTicksLimit: 10
+                                },
+                                grid: {
+                                    display: false
+                                }
+                            }
+                        },
+                        interaction: {
+                            mode: 'nearest',
+                            axis: 'x',
+                            intersect: false
+                        }
+                    }
+                });
 
             } catch (error) {
                 debugLogger.error('Beta forecast failed', error);
@@ -1249,14 +1490,15 @@
 
                 const url = `/api/risk/bourse/specialized/dividends?user_id=${activeUser}&ticker=${ticker}`;
                 const response = await safeFetch(globalConfig.getApiUrl(url));
-                if (!response?.ok) throw new Error('Dividend analysis failed');
 
                 const data = response.data || response;
 
-                if (!data.has_dividend_data || data.current_yield === 0) {
+                // Check if data is available or if there was an error
+                if (!data.ok || !data.has_dividend_data || data.current_yield === 0) {
+                    const errorMsg = data.error ? ` (${data.error})` : '';
                     document.getElementById('dividendAnalysis').innerHTML = `
                         <div style="padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-align: center; color: var(--theme-text-muted); font-size: 0.875rem;">
-                            ℹ️ No dividend data available for ${ticker}
+                            ℹ️ No dividend data available for ${ticker}${errorMsg}
                         </div>
                     `;
                     return;
@@ -1654,6 +1896,229 @@
             // Load current Saxo data from active source
             await loadCurrentSaxoData();
         });
+
+        // ==================== SECTOR TABLE FILTERING & SORTING ====================
+
+        /**
+         * Filter sectors by signal type
+         */
+        function filterSectors(filter) {
+            const rows = document.querySelectorAll('#sectorTableBody tr');
+            const buttons = document.querySelectorAll('.sector-filter-btn');
+
+            // Update button styles
+            buttons.forEach(btn => {
+                btn.classList.remove('active');
+                btn.style.background = 'var(--theme-bg)';
+                btn.style.color = 'var(--theme-text)';
+            });
+
+            const activeBtn = document.getElementById(`filter${filter.charAt(0).toUpperCase() + filter.slice(1)}`);
+            if (activeBtn) {
+                activeBtn.classList.add('active');
+                activeBtn.style.background = 'var(--brand-primary)';
+                activeBtn.style.color = 'white';
+            }
+
+            // Filter rows
+            rows.forEach(row => {
+                const signal = row.dataset.signal;
+                const searchTerm = document.getElementById('sectorSearch')?.value.toLowerCase() || '';
+                const sectorName = row.dataset.sector.toLowerCase();
+                const matchesSearch = sectorName.includes(searchTerm);
+
+                let show = matchesSearch;
+                if (filter === 'hot') {
+                    show = show && signal === 'overweight';
+                } else if (filter === 'cold') {
+                    show = show && signal === 'underweight';
+                }
+
+                row.style.display = show ? '' : 'none';
+            });
+        }
+
+        /**
+         * Sort sector table by column
+         */
+        let sectorSortState = {
+            column: null,
+            ascending: true
+        };
+
+        function sortSectorTable(column) {
+            const tbody = document.getElementById('sectorTableBody');
+            if (!tbody) return;
+
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+
+            // Toggle sort direction if same column
+            if (sectorSortState.column === column) {
+                sectorSortState.ascending = !sectorSortState.ascending;
+            } else {
+                sectorSortState.column = column;
+                sectorSortState.ascending = false; // Default to descending for numbers
+            }
+
+            // Sort rows
+            rows.sort((a, b) => {
+                let aVal, bVal;
+
+                switch (column) {
+                    case 'name':
+                        aVal = a.dataset.sector;
+                        bVal = b.dataset.sector;
+                        return sectorSortState.ascending
+                            ? aVal.localeCompare(bVal)
+                            : bVal.localeCompare(aVal);
+
+                    case 'return':
+                        aVal = parseFloat(a.dataset.return);
+                        bVal = parseFloat(b.dataset.return);
+                        break;
+
+                    case 'momentum':
+                        aVal = parseFloat(a.dataset.momentum);
+                        bVal = parseFloat(b.dataset.momentum);
+                        break;
+
+                    case 'signal':
+                        const signalOrder = { 'overweight': 3, 'neutral': 2, 'underweight': 1 };
+                        aVal = signalOrder[a.dataset.signal] || 0;
+                        bVal = signalOrder[b.dataset.signal] || 0;
+                        break;
+
+                    default:
+                        return 0;
+                }
+
+                return sectorSortState.ascending ? aVal - bVal : bVal - aVal;
+            });
+
+            // Reorder rows
+            rows.forEach(row => tbody.appendChild(row));
+
+            // Update sort indicators
+            ['Name', 'Return', 'Momentum', 'Signal'].forEach(col => {
+                const indicator = document.getElementById(`sort${col}`);
+                if (indicator) {
+                    if (col.toLowerCase() === column) {
+                        indicator.textContent = sectorSortState.ascending ? '▲' : '▼';
+                    } else {
+                        indicator.textContent = '↕️';
+                    }
+                }
+            });
+        }
+
+        // ==================== PDF EXPORT ====================
+
+        /**
+         * Export Risk & Analytics tab to PDF
+         */
+        async function exportRiskPDF() {
+            try {
+                const { jsPDF } = window.jspdf;
+
+                // Show loading indicator
+                const exportBtn = event.target;
+                const originalText = exportBtn.innerHTML;
+                exportBtn.innerHTML = '⏳ Generating PDF...';
+                exportBtn.disabled = true;
+
+                // Get the Risk tab content
+                const riskTab = document.getElementById('risk');
+
+                // Create a temporary container with white background for PDF
+                const tempContainer = document.createElement('div');
+                tempContainer.style.cssText = 'position: absolute; left: -9999px; top: 0; background: white; padding: 20px; width: 800px;';
+                tempContainer.innerHTML = `
+                    <div style="font-family: Arial, sans-serif; color: #000;">
+                        <h1 style="text-align: center; color: #1e40af; margin-bottom: 10px;">📈 Risk & Analytics Report</h1>
+                        <p style="text-align: center; color: #666; margin-bottom: 30px;">
+                            Generated on ${new Date().toLocaleDateString('fr-FR')} at ${new Date().toLocaleTimeString('fr-FR')}
+                        </p>
+                        ${riskTab.innerHTML}
+                    </div>
+                `;
+                document.body.appendChild(tempContainer);
+
+                // Wait for charts to render
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                // Capture the content with html2canvas
+                const canvas = await html2canvas(tempContainer, {
+                    scale: 2,
+                    backgroundColor: '#ffffff',
+                    logging: false,
+                    windowWidth: 800
+                });
+
+                // Remove temporary container
+                document.body.removeChild(tempContainer);
+
+                // Create PDF
+                const pdf = new jsPDF({
+                    orientation: 'portrait',
+                    unit: 'mm',
+                    format: 'a4'
+                });
+
+                // Calculate dimensions to fit A4
+                const imgWidth = 210; // A4 width in mm
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                const pageHeight = 297; // A4 height in mm
+
+                let heightLeft = imgHeight;
+                let position = 0;
+
+                // Add first page
+                pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
+
+                // Add more pages if needed
+                while (heightLeft > 0) {
+                    position = heightLeft - imgHeight;
+                    pdf.addPage();
+                    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
+                    heightLeft -= pageHeight;
+                }
+
+                // Add footer with timestamp and app name
+                const pageCount = pdf.internal.getNumberOfPages();
+                for (let i = 1; i <= pageCount; i++) {
+                    pdf.setPage(i);
+                    pdf.setFontSize(8);
+                    pdf.setTextColor(128, 128, 128);
+                    pdf.text(
+                        `Page ${i} of ${pageCount} | Generated by Crypto Rebalancer - Bourse Risk Analytics`,
+                        105,
+                        290,
+                        { align: 'center' }
+                    );
+                }
+
+                // Save PDF
+                const fileName = `Risk_Analytics_${new Date().toISOString().split('T')[0]}.pdf`;
+                pdf.save(fileName);
+
+                // Reset button
+                exportBtn.innerHTML = originalText;
+                exportBtn.disabled = false;
+
+                debugLogger.info(`PDF exported successfully: ${fileName}`);
+
+            } catch (error) {
+                debugLogger.error('PDF export failed', error);
+                alert('Failed to export PDF. Please try again.');
+
+                // Reset button on error
+                if (event?.target) {
+                    event.target.innerHTML = '📄 Export PDF';
+                    event.target.disabled = false;
+                }
+            }
+        }
     </script>
 </body>
 
