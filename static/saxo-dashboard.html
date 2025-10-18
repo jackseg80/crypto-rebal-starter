@@ -298,6 +298,94 @@
         .tab-content.active {
             display: block;
         }
+
+        /* Alert Styles */
+        .alert {
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            border-radius: var(--radius-md);
+            border-left: 4px solid;
+            background: var(--theme-surface);
+        }
+
+        .alert-critical {
+            border-left-color: var(--danger);
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .alert-warning {
+            border-left-color: var(--warning);
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        .alert-info {
+            border-left-color: var(--info);
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .alert-title {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .alert-value {
+            font-size: 0.875rem;
+            color: var(--theme-text-muted);
+            margin-bottom: 0.25rem;
+        }
+
+        .alert-impact {
+            font-size: 0.875rem;
+            color: var(--theme-text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .alert-recommendation {
+            font-size: 0.875rem;
+            padding: 0.5rem;
+            background: var(--theme-bg);
+            border-radius: var(--radius-sm);
+            margin-top: 0.5rem;
+        }
+
+        .alert-deadline {
+            font-size: 0.75rem;
+            color: var(--theme-text-muted);
+            margin-top: 0.5rem;
+            font-style: italic;
+        }
+
+        .alert-empty {
+            text-align: center;
+            padding: 2rem;
+            color: var(--theme-text-muted);
+        }
+
+        .alert-badge {
+            display: inline-block;
+            padding: 0.125rem 0.5rem;
+            border-radius: var(--radius-sm);
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-critical {
+            background: var(--danger);
+            color: white;
+        }
+
+        .badge-warning {
+            background: var(--warning);
+            color: white;
+        }
+
+        .badge-info {
+            background: var(--info);
+            color: white;
+        }
     </style>
 </head>
 
@@ -810,6 +898,164 @@
                   </div>`;
                 document.getElementById('riskMetrics').innerHTML = '';
                 document.getElementById('riskStructure').innerHTML = '';
+            }
+
+            // Load alerts in parallel (non-blocking)
+            loadCriticalAlerts().catch(err => {
+                debugLogger.warn('Alerts loading failed (non-blocking)', err);
+            });
+        }
+
+        // Load Critical Alerts (async, non-blocking)
+        async function loadCriticalAlerts() {
+            const activeUser = localStorage.getItem('activeUser') || 'demo';
+
+            try {
+                // Build URL with file_key if available
+                let alertsUrl = `/api/risk/bourse/alerts?user_id=${activeUser}`;
+                if (currentFileKey) {
+                    alertsUrl += `&file_key=${encodeURIComponent(currentFileKey)}`;
+                }
+
+                const response = await safeFetch(globalConfig.getApiUrl(alertsUrl));
+                if (!response?.ok) {
+                    throw new Error('Alerts endpoint failed');
+                }
+
+                const data = response.data || response;
+                const { critical, warnings, info, summary } = data;
+
+                // Update badge
+                const totalAlerts = summary?.total || 0;
+                const badge = document.getElementById('alertsBadge');
+                if (totalAlerts === 0) {
+                    badge.textContent = '0 active';
+                    badge.style.background = 'var(--success)';
+                    badge.style.color = 'white';
+                } else if (summary?.critical > 0) {
+                    badge.textContent = `${summary.critical} critical`;
+                    badge.style.background = 'var(--danger)';
+                    badge.style.color = 'white';
+                } else if (summary?.warning > 0) {
+                    badge.textContent = `${summary.warning} warning`;
+                    badge.style.background = 'var(--warning)';
+                    badge.style.color = 'white';
+                } else {
+                    badge.textContent = `${summary?.info || 0} info`;
+                    badge.style.background = 'var(--info)';
+                    badge.style.color = 'white';
+                }
+
+                // Build HTML
+                let html = '';
+
+                // Critical alerts
+                if (critical && critical.length > 0) {
+                    critical.forEach(alert => {
+                        html += `
+                            <div class="alert alert-critical">
+                                <div class="alert-title">
+                                    🔴 ${alert.title}
+                                    <span class="alert-badge badge-critical">CRITICAL</span>
+                                </div>
+                                <div class="alert-value">
+                                    <strong>Valeur:</strong> ${alert.value}
+                                    <span style="color: var(--theme-text-muted);">(seuil: ${alert.threshold})</span>
+                                </div>
+                                <div class="alert-impact">
+                                    <strong>Impact:</strong> ${alert.impact}
+                                </div>
+                                <div class="alert-recommendation">
+                                    <strong>→ Recommandation:</strong> ${alert.recommendation}
+                                </div>
+                                <div class="alert-deadline">
+                                    ⏰ Action requise: ${alert.action_deadline}
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+
+                // Warning alerts
+                if (warnings && warnings.length > 0) {
+                    warnings.forEach(alert => {
+                        html += `
+                            <div class="alert alert-warning">
+                                <div class="alert-title">
+                                    ⚠️ ${alert.title}
+                                    <span class="alert-badge badge-warning">WARNING</span>
+                                </div>
+                                <div class="alert-value">
+                                    <strong>Valeur:</strong> ${alert.value}
+                                    <span style="color: var(--theme-text-muted);">(seuil: ${alert.threshold})</span>
+                                </div>
+                                <div class="alert-impact">
+                                    <strong>Impact:</strong> ${alert.impact || alert.details || 'Surveillance recommandée'}
+                                </div>
+                                <div class="alert-recommendation">
+                                    <strong>→ Recommandation:</strong> ${alert.recommendation}
+                                </div>
+                                <div class="alert-deadline">
+                                    ⏰ Action suggérée: ${alert.action_deadline}
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+
+                // Info alerts
+                if (info && info.length > 0) {
+                    info.forEach(alert => {
+                        html += `
+                            <div class="alert alert-info">
+                                <div class="alert-title">
+                                    ℹ️ ${alert.title}
+                                    <span class="alert-badge badge-info">INFO</span>
+                                </div>
+                                <div class="alert-value">
+                                    <strong>Contexte:</strong> ${alert.value || alert.impact}
+                                </div>
+                                <div class="alert-recommendation">
+                                    <strong>→ Opportunité:</strong> ${alert.recommendation}
+                                </div>
+                                <div class="alert-deadline">
+                                    📅 Horizon: ${alert.action_deadline}
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+
+                // If no alerts, show success message
+                if (totalAlerts === 0) {
+                    html = `
+                        <div class="alert-empty">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">✅</div>
+                            <div style="font-weight: 600; font-size: 1.125rem; margin-bottom: 0.5rem;">
+                                Portfolio Sain
+                            </div>
+                            <div style="font-size: 0.875rem;">
+                                Aucune alerte détectée. Toutes les métriques sont dans les zones sûres.
+                            </div>
+                            <div style="font-size: 0.75rem; margin-top: 1rem; opacity: 0.7;">
+                                Calibré pour profil modéré • Gestion active hebdomadaire
+                            </div>
+                        </div>
+                    `;
+                }
+
+                document.getElementById('criticalAlerts').innerHTML = html;
+
+            } catch (e) {
+                debugLogger.error('Critical alerts load failed', e);
+                document.getElementById('criticalAlerts').innerHTML = `
+                    <div class="alert-empty" style="color: var(--danger);">
+                        ⚠️ Erreur de chargement des alertes<br>
+                        <small>${e.message}</small>
+                    </div>
+                `;
+                document.getElementById('alertsBadge').textContent = 'Error';
+                document.getElementById('alertsBadge').style.background = 'var(--danger)';
             }
         }
 

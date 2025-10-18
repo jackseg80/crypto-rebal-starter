@@ -15,6 +15,7 @@ from fastapi import APIRouter, Query, HTTPException, Depends
 from pydantic import BaseModel, Field
 
 from services.risk.bourse.calculator import BourseRiskCalculator
+from services.risk.bourse.alerts import BourseAlertsDetector
 from api.deps import get_active_user
 
 logger = logging.getLogger(__name__)
@@ -797,4 +798,125 @@ async def get_margin_monitoring(
         raise
     except Exception as e:
         logger.exception(f"[margin] Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# ALERTS SYSTEM
+# ============================================================================
+
+@router.get("/alerts")
+async def get_risk_alerts(
+    user_id: str = Query("demo", description="User ID for multi-tenant support"),
+    file_key: Optional[str] = Query(None, description="Saxo file key for multi-file support")
+):
+    """
+    Get risk alerts for bourse portfolio based on moderate risk profile.
+
+    Calibrated for:
+    - Horizon: Medium-Long term (6+ months)
+    - Risk Profile: Moderate (balanced growth/risk)
+    - Management: Active weekly (sector rotation, rebalancing)
+
+    Returns 3 levels of alerts:
+    - CRITICAL: Immediate action required (this week)
+    - WARNING: Monitor and plan action (2-4 weeks)
+    - INFO: Opportunities and context (1-3 months)
+    """
+    try:
+        logger.info(f"[alerts] Generating alerts for user={user_id}, file_key={file_key}")
+
+        # Initialize alerts detector
+        detector = BourseAlertsDetector()
+
+        # Gather data from existing endpoints (reuse logic)
+        from adapters.saxo_adapter import list_portfolios_overview, get_portfolio_detail
+
+        # Get positions
+        if file_key:
+            portfolios = list_portfolios_overview(user_id=user_id, file_key=file_key)
+        else:
+            portfolios = list_portfolios_overview(user_id=user_id)
+
+        if not portfolios:
+            return {
+                "ok": False,
+                "error": "No portfolios found",
+                "critical": [],
+                "warnings": [],
+                "info": [],
+                "summary": {"total": 0, "critical": 0, "warning": 0, "info": 0}
+            }
+
+        portfolio_id = portfolios[0].get("portfolio_id")
+        portfolio_data = get_portfolio_detail(portfolio_id=portfolio_id, user_id=user_id, file_key=file_key)
+        positions = portfolio_data.get("positions", [])
+
+        if not positions:
+            return {
+                "ok": False,
+                "error": "No positions in portfolio",
+                "critical": [],
+                "warnings": [],
+                "info": [],
+                "summary": {"total": 0, "critical": 0, "warning": 0, "info": 0}
+            }
+
+        # 1. Get risk dashboard data
+        calculator = BourseRiskCalculator()
+        risk_data = await calculator.calculate_portfolio_risk(
+            positions=positions,
+            lookback_days=252,
+            risk_free_rate=0.03
+        )
+
+        # 2. Try to get ML data (optional, may fail if models not trained)
+        ml_data = None
+        try:
+            from services.ml.bourse.stocks_adapter import StocksMLAdapter
+            ml_adapter = StocksMLAdapter()
+            regime_data = await ml_adapter.get_regime_detection(benchmark="SPY", lookback_days=365)
+            if regime_data:
+                ml_data = {"regime": regime_data}
+        except Exception as e:
+            logger.warning(f"[alerts] ML data not available: {e}")
+
+        # 3. Try to get specialized data (optional)
+        specialized_data = {}
+        try:
+            from services.risk.bourse.specialized_analytics import SpecializedBourseAnalytics
+            analytics = SpecializedBourseAnalytics()
+
+            # Get margin data
+            account_equity = risk_data.get('total_value_usd', 100000)
+            margin_result = analytics.monitor_margin(
+                positions=positions,
+                account_equity=account_equity
+            )
+            specialized_data['margin'] = margin_result
+
+            # Get sector rotation data
+            sector_result = await analytics.analyze_sector_rotation(positions=positions, lookback_days=60)
+            if sector_result and 'sectors' in sector_result:
+                specialized_data['sectors'] = sector_result['sectors']
+        except Exception as e:
+            logger.warning(f"[alerts] Specialized data not available: {e}")
+
+        # Generate alerts
+        alerts = detector.detect_alerts(
+            risk_data=risk_data,
+            ml_data=ml_data,
+            specialized_data=specialized_data
+        )
+
+        return {
+            "ok": True,
+            "user_id": user_id,
+            **alerts
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"[alerts] Error generating alerts: {e}")
         raise HTTPException(status_code=500, detail=str(e))

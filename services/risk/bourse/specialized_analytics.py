@@ -605,22 +605,29 @@ class SpecializedBourseAnalytics:
                 leverage = pos.get('leverage', 1.0)  # Default 1x (no leverage)
 
                 exposure = market_value * leverage
-                margin_required = market_value * initial_margin_pct / leverage
+
+                # Margin calculation:
+                # - Cash account (leverage = 1.0): no margin used
+                # - Leveraged account (leverage > 1.0): margin = value * (1 - 1/leverage)
+                if leverage > 1.0:
+                    margin_required = market_value * (1 - 1/leverage)
+                else:
+                    margin_required = 0.0  # No margin for cash accounts
 
                 total_exposure += exposure
                 total_margin_used += margin_required
 
-            # Margin utilization
-            margin_utilization = (total_margin_used / account_equity * 100) if account_equity > 0 else 0
+            # Margin utilization (as ratio 0.0-1.0, not percentage)
+            margin_utilization = (total_margin_used / account_equity) if account_equity > 0 else 0
             available_margin = max(0, account_equity - total_margin_used)
 
             # Current leverage
             current_leverage = (total_exposure / account_equity) if account_equity > 0 else 0
 
-            # Margin call distance
+            # Margin call distance (as ratio 0.0-1.0, not percentage)
             # Margin call occurs when equity falls below maintenance margin
             maintenance_margin_required = total_exposure * maintenance_margin_pct
-            margin_call_distance = ((account_equity - maintenance_margin_required) / account_equity * 100) if account_equity > 0 else 0
+            margin_call_distance = ((account_equity - maintenance_margin_required) / account_equity) if account_equity > 0 else 0
 
             # Optimal leverage (conservative: target 50% margin utilization)
             target_margin_utilization = 0.50
@@ -631,17 +638,17 @@ class SpecializedBourseAnalytics:
             warnings = []
             recommendations = []
 
-            if margin_utilization > 80:
+            if margin_utilization > 0.80:
                 warnings.append("CRITICAL: Margin utilization above 80% - high risk of margin call")
                 recommendations.append("Reduce position sizes or add equity immediately")
-            elif margin_utilization > 60:
+            elif margin_utilization > 0.60:
                 warnings.append("WARNING: Margin utilization above 60% - moderate risk")
                 recommendations.append("Consider reducing leverage or adding equity")
 
-            if margin_call_distance < 10:
+            if margin_call_distance < 0.10:
                 warnings.append("CRITICAL: Margin call distance below 10% - extremely high risk")
                 recommendations.append("Close positions or add equity immediately")
-            elif margin_call_distance < 20:
+            elif margin_call_distance < 0.20:
                 warnings.append("WARNING: Margin call distance below 20% - high risk")
                 recommendations.append("Monitor closely and prepare to reduce exposure")
 
