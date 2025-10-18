@@ -429,6 +429,7 @@
         let currentWealthContext = {
             module: 'bourse'
         };
+        let currentFileKey = null;  // Track selected Saxo file
 
         // Initialize wealth context integration
         function initWealthContextIntegration() {
@@ -640,8 +641,15 @@
 
                 const activeUser = localStorage.getItem('activeUser') || 'demo';
 
+                // Build URL with file_key if available
+                let portfoliosUrl = '/api/saxo/portfolios';
+                if (currentFileKey) {
+                    portfoliosUrl += `?file_key=${encodeURIComponent(currentFileKey)}`;
+                    debugLogger.debug(`🔍 Loading portfolio with file_key: ${currentFileKey}`);
+                }
+
                 // Step 1: List available portfolios
-                const { ok: listOk, data: listData } = await safeFetch(globalConfig.getApiUrl('/api/saxo/portfolios'), {
+                const { ok: listOk, data: listData } = await safeFetch(globalConfig.getApiUrl(portfoliosUrl), {
                     headers: { 'X-User': activeUser }
                 });
 
@@ -662,7 +670,12 @@
                 }
 
                 // Step 3: Load full portfolio details
-                const { ok: detailOk, data: portfolioData } = await safeFetch(globalConfig.getApiUrl(`/api/saxo/portfolios/${portfolioId}`), {
+                let detailUrl = `/api/saxo/portfolios/${portfolioId}`;
+                if (currentFileKey) {
+                    detailUrl += `?file_key=${encodeURIComponent(currentFileKey)}`;
+                }
+
+                const { ok: detailOk, data: portfolioData } = await safeFetch(globalConfig.getApiUrl(detailUrl), {
                     headers: { 'X-User': activeUser }
                 });
 
@@ -925,6 +938,9 @@
             // Listen for Bourse source changes from WealthContextBar
             window.addEventListener('bourseSourceChanged', (event) => {
                 debugLogger.debug('🔄 Bourse source changed:', event.detail);
+                // Extract file_key from event detail
+                currentFileKey = event.detail?.file_key || null;
+                debugLogger.debug(`📄 Selected file_key: ${currentFileKey}`);
                 // Reload data with new source
                 loadCurrentSaxoData();
             });
