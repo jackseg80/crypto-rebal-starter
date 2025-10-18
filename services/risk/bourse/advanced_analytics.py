@@ -274,14 +274,21 @@ class AdvancedRiskAnalytics:
             }
         """
         try:
-            # Predefined scenarios
+            # Predefined scenarios (generic + historical)
             scenarios = {
+                # Generic scenarios
                 'market_crash': -0.10,      # -10% across all positions
                 'market_rally': 0.10,       # +10% across all positions
                 'moderate_selloff': -0.05,  # -5% selloff
                 'rate_hike': -0.03,         # -3% (typical rate hike impact)
-                'flash_crash': -0.15,       # -15% sudden drop
-                'covid_crash': -0.30,       # -30% extreme scenario
+
+                # Historical crisis scenarios
+                'covid_crash': -0.34,       # COVID-19 Crash (Mars 2020): -34% S&P500
+                'financial_crisis_2008': -0.57,  # 2008 Financial Crisis: -57% peak-to-trough
+                'dotcom_bubble': -0.78,     # Dot-com Bubble (2000-2002): -78% NASDAQ
+                'black_monday_1987': -0.22, # Black Monday (Oct 1987): -22% in 1 day
+                'flash_crash_2010': -0.09,  # Flash Crash (May 2010): -9% in minutes
+                'brexit_2016': -0.12,       # Brexit Vote (June 2016): -12% FTSE
             }
 
             # Determine shocks

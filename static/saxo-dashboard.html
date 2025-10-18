@@ -1450,7 +1450,7 @@
                 document.getElementById('stressTestingUI').innerHTML = `
                     <!-- Predefined Scenarios -->
                     <div style="margin-bottom: 1.5rem;">
-                        <h4 style="font-weight: 600; margin-bottom: 0.75rem;">📋 Predefined Scenarios</h4>
+                        <h4 style="font-weight: 600; margin-bottom: 0.75rem;">📋 Generic Scenarios</h4>
                         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem;">
                             <button onclick="runStressTest('market_crash')" style="padding: 0.75rem; border: 1px solid var(--danger); background: color-mix(in oklab, var(--danger) 10%, transparent); color: var(--danger); border-radius: var(--radius-sm); cursor: pointer; font-weight: 600;">
                                 📉 Market Crash (-10%)
@@ -1461,8 +1461,39 @@
                             <button onclick="runStressTest('moderate_selloff')" style="padding: 0.75rem; border: 1px solid var(--warning); background: color-mix(in oklab, var(--warning) 10%, transparent); color: var(--warning); border-radius: var(--radius-sm); cursor: pointer; font-weight: 600;">
                                 ⚠️ Moderate Selloff (-5%)
                             </button>
-                            <button onclick="runStressTest('flash_crash')" style="padding: 0.75rem; border: 1px solid var(--danger); background: color-mix(in oklab, var(--danger) 10%, transparent); color: var(--danger); border-radius: var(--radius-sm); cursor: pointer; font-weight: 600;">
-                                ⚡ Flash Crash (-15%)
+                            <button onclick="runStressTest('rate_hike')" style="padding: 0.75rem; border: 1px solid var(--warning); background: color-mix(in oklab, var(--warning) 10%, transparent); color: var(--warning); border-radius: var(--radius-sm); cursor: pointer; font-weight: 600;">
+                                📊 Rate Hike (-3%)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Historical Crisis Scenarios -->
+                    <div style="margin-bottom: 1.5rem;">
+                        <h4 style="font-weight: 600; margin-bottom: 0.75rem;">📜 Historical Crisis Scenarios</h4>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem;">
+                            <button onclick="runStressTest('covid_crash')" style="padding: 0.75rem; border: 1px solid #DC143C; background: color-mix(in oklab, #DC143C 10%, transparent); color: #DC143C; border-radius: var(--radius-sm); cursor: pointer; font-weight: 600; text-align: left;">
+                                <div style="font-size: 0.875rem; font-weight: 700;">🦠 COVID-19 (2020)</div>
+                                <div style="font-size: 0.75rem; opacity: 0.8;">-34% S&P 500</div>
+                            </button>
+                            <button onclick="runStressTest('financial_crisis_2008')" style="padding: 0.75rem; border: 1px solid #8B0000; background: color-mix(in oklab, #8B0000 10%, transparent); color: #8B0000; border-radius: var(--radius-sm); cursor: pointer; font-weight: 600; text-align: left;">
+                                <div style="font-size: 0.875rem; font-weight: 700;">🏦 Financial Crisis (2008)</div>
+                                <div style="font-size: 0.75rem; opacity: 0.8;">-57% peak-to-trough</div>
+                            </button>
+                            <button onclick="runStressTest('dotcom_bubble')" style="padding: 0.75rem; border: 1px solid #4B0082; background: color-mix(in oklab, #4B0082 10%, transparent); color: #4B0082; border-radius: var(--radius-sm); cursor: pointer; font-weight: 600; text-align: left;">
+                                <div style="font-size: 0.875rem; font-weight: 700;">💻 Dot-com Bubble (2000)</div>
+                                <div style="font-size: 0.75rem; opacity: 0.8;">-78% NASDAQ</div>
+                            </button>
+                            <button onclick="runStressTest('black_monday_1987')" style="padding: 0.75rem; border: 1px solid #DC143C; background: color-mix(in oklab, #DC143C 10%, transparent); color: #DC143C; border-radius: var(--radius-sm); cursor: pointer; font-weight: 600; text-align: left;">
+                                <div style="font-size: 0.875rem; font-weight: 700;">📉 Black Monday (1987)</div>
+                                <div style="font-size: 0.75rem; opacity: 0.8;">-22% in 1 day</div>
+                            </button>
+                            <button onclick="runStressTest('flash_crash_2010')" style="padding: 0.75rem; border: 1px solid #FF6347; background: color-mix(in oklab, #FF6347 10%, transparent); color: #FF6347; border-radius: var(--radius-sm); cursor: pointer; font-weight: 600; text-align: left;">
+                                <div style="font-size: 0.875rem; font-weight: 700;">⚡ Flash Crash (2010)</div>
+                                <div style="font-size: 0.75rem; opacity: 0.8;">-9% in minutes</div>
+                            </button>
+                            <button onclick="runStressTest('brexit_2016')" style="padding: 0.75rem; border: 1px solid #FF8C00; background: color-mix(in oklab, #FF8C00 10%, transparent); color: #FF8C00; border-radius: var(--radius-sm); cursor: pointer; font-weight: 600; text-align: left;">
+                                <div style="font-size: 0.875rem; font-weight: 700;">🇬🇧 Brexit (2016)</div>
+                                <div style="font-size: 0.75rem; opacity: 0.8;">-12% FTSE</div>
                             </button>
                         </div>
                     </div>
