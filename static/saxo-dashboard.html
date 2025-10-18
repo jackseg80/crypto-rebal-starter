@@ -936,11 +936,40 @@
             initWealthContextIntegration();
 
             // Listen for Bourse source changes from WealthContextBar
-            window.addEventListener('bourseSourceChanged', (event) => {
+            window.addEventListener('bourseSourceChanged', async (event) => {
                 debugLogger.debug('🔄 Bourse source changed:', event.detail);
-                // Extract file_key from event detail
-                currentFileKey = event.detail?.file_key || null;
-                debugLogger.debug(`📄 Selected file_key: ${currentFileKey}`);
+
+                // Resolve file_key from source (same logic as wealth-saxo-summary.js)
+                const bourseSource = window.wealthContextBar?.getContext()?.bourse;
+                currentFileKey = null; // Reset
+
+                if (bourseSource && bourseSource !== 'all' && bourseSource.startsWith('saxo:')) {
+                    const key = bourseSource.substring(5); // Remove 'saxo:' prefix
+                    const activeUser = localStorage.getItem('activeUser') || 'demo';
+
+                    try {
+                        // Load available sources to resolve file_key
+                        if (!window.availableSources) {
+                            const response = await fetch('/api/users/sources', {
+                                headers: { 'X-User': activeUser }
+                            });
+                            if (response.ok) {
+                                const data = await response.json();
+                                window.availableSources = data.sources || [];
+                            }
+                        }
+
+                        // Find matching source and extract filename
+                        const source = window.availableSources?.find(s => s.key === key);
+                        if (source?.file_path) {
+                            currentFileKey = source.file_path.split(/[/\\]/).pop();
+                            debugLogger.debug(`📄 Resolved file_key: ${currentFileKey}`);
+                        }
+                    } catch (err) {
+                        debugLogger.warn('[Saxo Dashboard] Failed to resolve file_key:', err);
+                    }
+                }
+
                 // Reload data with new source
                 loadCurrentSaxoData();
             });
