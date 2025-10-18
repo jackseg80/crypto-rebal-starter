@@ -515,47 +515,116 @@
                 document.getElementById('riskMetrics').innerHTML = '<div class="loading">…</div>';
                 document.getElementById('riskStructure').innerHTML = '<div class="loading">…</div>';
 
-                const res = await safeFetch(globalConfig.getApiUrl(`/api/risk/bourse/dashboard?user_id=${activeUser}`));
-                if (!res?.ok) throw new Error('risk endpoint failed');
+                const response = await safeFetch(globalConfig.getApiUrl(`/api/risk/bourse/dashboard?user_id=${activeUser}`));
+                if (!response?.ok) throw new Error('risk endpoint failed');
 
-                const { risk, coverage } = res;
-                const s = risk?.score ?? 0;
-                const lvl = risk?.level ?? 'N/A';
+                const { risk, coverage, positions_count, total_value_usd } = response.data || response;
+                const score = risk?.score ?? 0;
+                const level = risk?.level ?? 'N/A';
+
+                // Get risk level color
+                const getRiskColor = (lvl) => {
+                    const levelUpper = String(lvl).toUpperCase();
+                    if (levelUpper === 'LOW' || levelUpper === 'VERY_LOW') return 'var(--success)';
+                    if (levelUpper === 'MEDIUM' || levelUpper === 'MODERATE') return 'var(--warning)';
+                    if (levelUpper === 'HIGH' || levelUpper === 'VERY_HIGH') return 'var(--danger)';
+                    if (levelUpper === 'CRITICAL') return '#8B0000';
+                    return 'var(--theme-text-muted)';
+                };
+
+                const riskColor = getRiskColor(level);
+
+                // Risk Summary with enhanced UI
                 document.getElementById('riskSummary').innerHTML = `
-                  <div style="display:flex;gap:1rem;align-items:center">
-                    <div class="metric-large">${s.toFixed(0)}</div>
-                    <div>
-                      <div style="font-weight:600;">Niveau: ${lvl}</div>
-                      <div>Couverture: ${(coverage*100).toFixed(0)}%</div>
+                  <div style="display:flex;gap:1.5rem;align-items:center;flex-wrap:wrap;">
+                    <div style="flex:1;min-width:200px;">
+                      <div class="metric-large" style="color:${riskColor}">${score.toFixed(0)}<span style="font-size:1rem;color:var(--theme-text-muted);">/100</span></div>
+                      <div class="metric-label">Risk Score (higher = safer)</div>
+                    </div>
+                    <div style="flex:1;min-width:200px;">
+                      <div style="font-weight:600;font-size:1.25rem;color:${riskColor};margin-bottom:0.5rem;">${level}</div>
+                      <div style="color:var(--theme-text-muted);font-size:0.875rem;">
+                        ${positions_count || 0} positions • $${(total_value_usd || 0).toLocaleString()}
+                      </div>
+                      <div style="margin-top:0.5rem;color:var(--theme-text-muted);font-size:0.875rem;">
+                        Coverage: ${(coverage*100).toFixed(0)}%
+                      </div>
                     </div>
                   </div>`;
 
                 const m = risk?.metrics || {};
+
+                // Format percentage values (convert to %)
+                const formatPct = (val) => ((val ?? 0) * 100).toFixed(2);
+
+                // Key Metrics Table
                 document.getElementById('riskMetrics').innerHTML = `
                   <table class="positions-table">
                     <tbody>
-                      <tr><td>VaR (95%)</td><td>${(m.var_95_1d??0).toFixed(2)}%</td></tr>
-                      <tr><td>CVaR (95%)</td><td>${(m.cvar_95_1d??0).toFixed(2)}%</td></tr>
-                      <tr><td>Volatilité (ann.)</td><td>${(m.volatility_annualized??0).toFixed(2)}%</td></tr>
-                      <tr><td>Max Drawdown</td><td>${(m.max_drawdown??0).toFixed(2)}%</td></tr>
-                      <tr><td>Sharpe Ratio</td><td>${(m.sharpe_ratio??0).toFixed(2)}</td></tr>
-                      <tr><td>Sortino Ratio</td><td>${(m.sortino_ratio??0).toFixed(2)}</td></tr>
+                      <tr>
+                        <td><strong>VaR (95%, 1d)</strong></td>
+                        <td style="color:var(--danger)">${formatPct(m.var_95_1d)}%</td>
+                      </tr>
+                      <tr>
+                        <td><strong>Volatility (30d)</strong></td>
+                        <td>${formatPct(m.volatility_30d)}%</td>
+                      </tr>
+                      <tr>
+                        <td><strong>Volatility (252d)</strong></td>
+                        <td>${formatPct(m.volatility_252d)}%</td>
+                      </tr>
+                      <tr>
+                        <td><strong>Max Drawdown</strong></td>
+                        <td style="color:var(--danger)">${formatPct(m.max_drawdown)}%</td>
+                      </tr>
+                      <tr>
+                        <td><strong>Sharpe Ratio</strong></td>
+                        <td style="color:${(m.sharpe_ratio??0) > 1 ? 'var(--success)' : 'var(--theme-text)'}">${(m.sharpe_ratio??0).toFixed(2)}</td>
+                      </tr>
+                      <tr>
+                        <td><strong>Sortino Ratio</strong></td>
+                        <td>${(m.sortino_ratio??0).toFixed(2)}</td>
+                      </tr>
                     </tbody>
                   </table>`;
 
+                // Additional Metrics
                 document.getElementById('riskStructure').innerHTML = `
                   <table class="positions-table">
                     <tbody>
-                      <tr><td>Skewness</td><td>${(m.skewness??0).toFixed(3)}</td></tr>
-                      <tr><td>Kurtosis</td><td>${(m.kurtosis??0).toFixed(3)}</td></tr>
-                      <tr><td>Ulcer Index</td><td>${(m.ulcer_index??0).toFixed(2)}</td></tr>
-                      <tr><td>Data Points</td><td>${m.data_points??0}</td></tr>
-                      <tr><td>Confidence</td><td>${((m.confidence_level??0)*100).toFixed(0)}%</td></tr>
+                      <tr>
+                        <td><strong>Beta (Portfolio)</strong></td>
+                        <td>${(m.beta_portfolio??1.0).toFixed(2)}</td>
+                      </tr>
+                      <tr>
+                        <td><strong>Calmar Ratio</strong></td>
+                        <td>${(m.calmar_ratio??0).toFixed(2)}</td>
+                      </tr>
+                      <tr>
+                        <td><strong>Volatility (90d)</strong></td>
+                        <td>${formatPct(m.volatility_90d)}%</td>
+                      </tr>
+                      <tr>
+                        <td><strong>VaR Method</strong></td>
+                        <td style="text-transform:capitalize;">${m.var_method || 'historical'}</td>
+                      </tr>
+                      <tr>
+                        <td><strong>Drawdown Days</strong></td>
+                        <td>${m.drawdown_days ?? 'N/A'}</td>
+                      </tr>
                     </tbody>
                   </table>`;
+
             } catch (e) {
                 debugLogger.error('Risk analytics load failed', e);
-                document.getElementById('riskSummary').innerHTML = '<div class="error-message">Erreur: ' + e.message + '</div>';
+                document.getElementById('riskSummary').innerHTML = `
+                  <div class="error-message">
+                    <strong>Erreur de chargement</strong><br>
+                    ${e.message}<br>
+                    <small style="opacity:0.8;">Vérifiez que yfinance est installé et que les données sont disponibles.</small>
+                  </div>`;
+                document.getElementById('riskMetrics').innerHTML = '';
+                document.getElementById('riskStructure').innerHTML = '';
             }
         }
 
