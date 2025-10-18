@@ -1233,8 +1233,68 @@ start_dev.ps1 (WSL2 password automation)
 docs/BOURSE_RISK_ANALYTICS_SPEC.md (changelog)
 ```
 
-#### Phase 3: Advanced Analytics
-- TODO: À planifier
+#### Phase 3: Advanced Analytics ✅
+- **2025-10-18 20:00**: Advanced risk analytics implémentés
+  - ✅ **Position-level VaR** (advanced_analytics.py):
+    - Marginal VaR (impact d'augmentation position)
+    - Component VaR (contribution réelle au risque)
+    - Diversification benefit (réduction risque)
+    - Endpoint: `/api/risk/bourse/advanced/position-var`
+  - ✅ **Correlation Matrix**:
+    - Pearson/Spearman/Kendall correlation
+    - Hierarchical clustering (Ward linkage)
+    - Min/Max correlation pairs identification
+    - Endpoint: `/api/risk/bourse/advanced/correlation`
+  - ✅ **Stress Testing** (6 scénarios):
+    - market_crash (-10%), market_rally (+10%)
+    - moderate_selloff (-5%), rate_hike (-3%)
+    - flash_crash (-15%), covid_crash (-30%)
+    - Custom scenarios support
+    - Endpoint: `POST /api/risk/bourse/advanced/stress-test`
+  - ✅ **FX Exposure Analysis**:
+    - Breakdown par devise (USD, EUR, CHF, etc.)
+    - Diversification score (Herfindahl index)
+    - Hedging suggestions automatiques
+    - Endpoint: `/api/risk/bourse/advanced/fx-exposure`
+
+**Résultats validés** (Portfolio: $106,749):
+- **Position-level VaR**:
+  ```
+  Portfolio VaR: -1.89%
+  Diversification Benefit: 1.52%
+  Top Contributors: NVDA (-0.59%), IWDA (0.31%)
+  ```
+- **Correlation Matrix**:
+  ```
+  Avg Correlation: 0.115
+  Max Pair: AMZN/META (0.762)
+  Min Pair: NVDA/KO (-0.224)
+  ```
+- **Stress Test** (market_crash):
+  ```
+  Total P&L: -$10,675 (-10.00%)
+  Portfolio: $106,749 → $96,075
+  ```
+- **FX Exposure**:
+  ```
+  4 currencies
+  Dominant: USD (63.6%)
+  Diversification Score: 52.8/100
+  Suggestions: Hedge EUR (21.5%), diversify USD
+  ```
+
+**Fichiers créés**:
+```
+services/risk/bourse/advanced_analytics.py (530 lignes)
+api/risk_bourse_endpoints.py (+280 lignes - 4 endpoints)
+```
+
+**Tests effectués**:
+- ✅ All 4 endpoints functional with real data
+- ✅ Position-level VaR: 28 positions analyzed
+- ✅ Correlation: 378 pairs (28×27/2)
+- ✅ Stress testing: All 6 scenarios tested
+- ✅ FX exposure: Multi-currency detection working
 
 #### Phase 4: Spécialisation Bourse
 - TODO: À planifier

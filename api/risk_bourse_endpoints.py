@@ -174,3 +174,289 @@ async def bourse_risk_dashboard(
 
 
 # Helper functions removed - now handled by BourseRiskCalculator
+
+
+# ==================== ADVANCED ANALYTICS ENDPOINTS ====================
+
+@router.get("/advanced/position-var")
+async def get_position_var(
+    user_id: str = Depends(get_active_user),
+    file_key: Optional[str] = Query(None, description="Specific Saxo file to use"),
+    confidence_level: float = Query(0.95, ge=0.8, le=0.99),
+    lookback_days: int = Query(252, ge=30, le=730)
+):
+    """
+    Calculate position-level VaR (marginal & component VaR)
+
+    Returns VaR contribution for each position in the portfolio.
+
+    Example:
+        GET /api/risk/bourse/advanced/position-var?user_id=jack&confidence_level=0.95
+    """
+    try:
+        from adapters.saxo_adapter import list_portfolios_overview, get_portfolio_detail
+        from services.risk.bourse.data_fetcher import BourseDataFetcher
+        from services.risk.bourse.advanced_analytics import AdvancedRiskAnalytics
+        from datetime import datetime, timedelta
+
+        logger.info(f"[position-var] Computing for user {user_id}")
+
+        # Get portfolio data
+        portfolios = list_portfolios_overview(user_id=user_id, file_key=file_key)
+        if not portfolios:
+            raise HTTPException(status_code=404, detail="No portfolios found")
+
+        portfolio_id = portfolios[0].get("portfolio_id")
+        portfolio_data = get_portfolio_detail(portfolio_id=portfolio_id, user_id=user_id, file_key=file_key)
+        positions = portfolio_data.get("positions", [])
+
+        if len(positions) < 2:
+            raise HTTPException(status_code=400, detail="Need at least 2 positions for VaR decomposition")
+
+        # Fetch historical returns for all positions
+        data_fetcher = BourseDataFetcher()
+        end_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        start_date = end_date - timedelta(days=lookback_days + 30)
+
+        positions_returns = {}
+        portfolio_weights = {}
+        total_value = sum(pos.get('market_value_usd', 0) for pos in positions)
+
+        for pos in positions:
+            ticker = pos.get('ticker') or pos.get('symbol')
+            if not ticker:
+                continue
+
+            try:
+                price_data = await data_fetcher.fetch_historical_prices(
+                    ticker=ticker,
+                    start_date=start_date,
+                    end_date=end_date
+                )
+
+                if len(price_data) < 30:
+                    continue
+
+                # Calculate returns
+                returns = price_data['close'].pct_change().dropna()
+                positions_returns[ticker] = returns
+
+                # Weight in portfolio
+                weight = pos.get('market_value_usd', 0) / total_value if total_value > 0 else 0
+                portfolio_weights[ticker] = weight
+
+            except Exception as e:
+                logger.warning(f"Failed to fetch data for {ticker}: {e}")
+                continue
+
+        if len(positions_returns) < 2:
+            raise HTTPException(status_code=400, detail="Insufficient data for position VaR")
+
+        # Calculate position-level VaR
+        analytics = AdvancedRiskAnalytics()
+        result = analytics.calculate_position_var(
+            positions_returns=positions_returns,
+            portfolio_weights=portfolio_weights,
+            confidence_level=confidence_level
+        )
+
+        return {
+            "ok": True,
+            "user_id": user_id,
+            **result
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"[position-var] Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/advanced/correlation")
+async def get_correlation_matrix(
+    user_id: str = Depends(get_active_user),
+    file_key: Optional[str] = Query(None),
+    method: str = Query("pearson", description="Correlation method"),
+    lookback_days: int = Query(252, ge=30, le=730)
+):
+    """
+    Calculate correlation matrix between positions
+
+    Returns correlation matrix with hierarchical clustering.
+
+    Example:
+        GET /api/risk/bourse/advanced/correlation?user_id=jack&method=pearson
+    """
+    try:
+        from adapters.saxo_adapter import list_portfolios_overview, get_portfolio_detail
+        from services.risk.bourse.data_fetcher import BourseDataFetcher
+        from services.risk.bourse.advanced_analytics import AdvancedRiskAnalytics
+        from datetime import datetime, timedelta
+
+        logger.info(f"[correlation] Computing for user {user_id}")
+
+        # Get positions (similar to position-var)
+        portfolios = list_portfolios_overview(user_id=user_id, file_key=file_key)
+        if not portfolios:
+            raise HTTPException(status_code=404, detail="No portfolios found")
+
+        portfolio_id = portfolios[0].get("portfolio_id")
+        portfolio_data = get_portfolio_detail(portfolio_id=portfolio_id, user_id=user_id, file_key=file_key)
+        positions = portfolio_data.get("positions", [])
+
+        # Fetch returns
+        data_fetcher = BourseDataFetcher()
+        end_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        start_date = end_date - timedelta(days=lookback_days + 30)
+
+        positions_returns = {}
+        for pos in positions:
+            ticker = pos.get('ticker') or pos.get('symbol')
+            if not ticker:
+                continue
+
+            try:
+                price_data = await data_fetcher.fetch_historical_prices(ticker, start_date, end_date)
+                if len(price_data) >= 30:
+                    returns = price_data['close'].pct_change().dropna()
+                    positions_returns[ticker] = returns
+            except Exception as e:
+                logger.warning(f"Failed to fetch {ticker}: {e}")
+
+        if len(positions_returns) < 2:
+            raise HTTPException(status_code=400, detail="Need at least 2 positions")
+
+        # Calculate correlation
+        analytics = AdvancedRiskAnalytics()
+        result = analytics.calculate_correlation_matrix(
+            positions_returns=positions_returns,
+            method=method
+        )
+
+        return {
+            "ok": True,
+            "user_id": user_id,
+            **result
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"[correlation] Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/advanced/stress-test")
+async def run_stress_test(
+    user_id: str = Depends(get_active_user),
+    file_key: Optional[str] = Query(None),
+    scenario: str = Query("market_crash", description="Stress scenario name"),
+    custom_shocks: Optional[Dict[str, float]] = None
+):
+    """
+    Run stress test on portfolio
+
+    Scenarios: market_crash, market_rally, moderate_selloff, rate_hike, flash_crash, covid_crash, custom
+
+    Example:
+        POST /api/risk/bourse/advanced/stress-test?scenario=market_crash
+    """
+    try:
+        from adapters.saxo_adapter import list_portfolios_overview, get_portfolio_detail
+        from services.risk.bourse.advanced_analytics import AdvancedRiskAnalytics
+
+        logger.info(f"[stress-test] Running scenario '{scenario}' for user {user_id}")
+
+        # Get positions
+        portfolios = list_portfolios_overview(user_id=user_id, file_key=file_key)
+        if not portfolios:
+            raise HTTPException(status_code=404, detail="No portfolios found")
+
+        portfolio_id = portfolios[0].get("portfolio_id")
+        portfolio_data = get_portfolio_detail(portfolio_id=portfolio_id, user_id=user_id, file_key=file_key)
+        positions = portfolio_data.get("positions", [])
+
+        # Prepare positions data
+        # Use market_value directly since Saxo positions don't separate price/quantity
+        positions_data = {}
+        for pos in positions:
+            ticker = pos.get('ticker') or pos.get('symbol')
+            if not ticker:
+                continue
+
+            market_value = pos.get('market_value_usd', 0)
+            # Simulate price=1, quantity=market_value for stress test
+            positions_data[ticker] = {
+                'current_price': 1.0,
+                'quantity': market_value
+            }
+
+        # Run stress test
+        analytics = AdvancedRiskAnalytics()
+        result = analytics.run_stress_test(
+            positions_data=positions_data,
+            scenario=scenario,
+            custom_shocks=custom_shocks
+        )
+
+        return {
+            "ok": True,
+            "user_id": user_id,
+            **result
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"[stress-test] Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/advanced/fx-exposure")
+async def get_fx_exposure(
+    user_id: str = Depends(get_active_user),
+    file_key: Optional[str] = Query(None),
+    base_currency: str = Query("USD", description="Base currency for reporting")
+):
+    """
+    Analyze currency exposure in portfolio
+
+    Returns FX exposure breakdown with hedging suggestions.
+
+    Example:
+        GET /api/risk/bourse/advanced/fx-exposure?user_id=jack&base_currency=USD
+    """
+    try:
+        from adapters.saxo_adapter import list_portfolios_overview, get_portfolio_detail
+        from services.risk.bourse.advanced_analytics import AdvancedRiskAnalytics
+
+        logger.info(f"[fx-exposure] Analyzing for user {user_id}")
+
+        # Get positions
+        portfolios = list_portfolios_overview(user_id=user_id, file_key=file_key)
+        if not portfolios:
+            raise HTTPException(status_code=404, detail="No portfolios found")
+
+        portfolio_id = portfolios[0].get("portfolio_id")
+        portfolio_data = get_portfolio_detail(portfolio_id=portfolio_id, user_id=user_id, file_key=file_key)
+        positions = portfolio_data.get("positions", [])
+
+        # Analyze FX exposure
+        analytics = AdvancedRiskAnalytics()
+        result = analytics.analyze_fx_exposure(
+            positions=positions,
+            base_currency=base_currency
+        )
+
+        return {
+            "ok": True,
+            "user_id": user_id,
+            **result
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"[fx-exposure] Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
