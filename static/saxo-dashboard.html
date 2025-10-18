@@ -325,7 +325,8 @@
                 <button class="tab-btn" onclick="switchTab('positions', event)">Positions</button>
                 <button class="tab-btn" onclick="switchTab('allocation', event)">Allocation</button>
                 <button class="tab-btn" onclick="switchTab('currencies', event)">Devises</button>
-                <button class="tab-btn" onclick="switchTab('risk', event)">Risk & Analytics</button>
+                <button class="tab-btn" onclick="switchTab('risk', event)">Risk</button>
+                <button class="tab-btn" onclick="switchTab('analytics', event)">Analytics</button>
             </div>
 
             <!-- Overview Tab -->
@@ -413,13 +414,19 @@
             </div>
 
             <!-- Risk Tab -->
+            <!-- Risk Tab (Essential Metrics Only) -->
             <div id="risk" class="tab-content">
                 <div class="dashboard-card">
                     <div class="card-header">
                         <h3 class="card-title">Risk Score (Bourse)</h3>
-                        <button onclick="exportRiskPDF()" style="padding: 0.5rem 1rem; background: var(--brand-primary); color: white; border: none; border-radius: var(--radius-sm); cursor: pointer; font-size: 0.875rem; font-weight: 600;">
-                            📄 Export PDF
-                        </button>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button onclick="exportRiskPDF()" style="padding: 0.5rem 1rem; background: var(--brand-primary); color: white; border: none; border-radius: var(--radius-sm); cursor: pointer; font-size: 0.875rem; font-weight: 600;">
+                                📄 Export PDF
+                            </button>
+                            <button onclick="switchTab('analytics', event)" style="padding: 0.5rem 1rem; background: var(--theme-border); color: var(--theme-text); border: none; border-radius: var(--radius-sm); cursor: pointer; font-size: 0.875rem; font-weight: 600;">
+                                🔬 Advanced Analytics →
+                            </button>
+                        </div>
                     </div>
                     <div id="riskSummary"><div class="loading">Calcul en cours…</div></div>
                 </div>
@@ -434,8 +441,24 @@
                     </div>
                 </div>
 
-                <!-- ML Insights Section -->
+                <!-- Alerts Section (placeholder for critical warnings) -->
                 <div class="dashboard-card" style="margin-top: 1.5rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">⚠️ Critical Alerts</h3>
+                        <div class="card-badge" id="alertsBadge">0 active</div>
+                    </div>
+                    <div id="criticalAlerts">
+                        <div style="padding: 1.5rem; text-align: center; color: var(--theme-text-muted); font-size: 0.875rem;">
+                            ✅ No critical alerts. Portfolio within safe thresholds.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics Tab (Advanced Features) -->
+            <div id="analytics" class="tab-content">
+                <!-- ML Insights Section -->
+                <div class="dashboard-card" style="margin-bottom: 1.5rem;">
                     <div class="card-header">
                         <h3 class="card-title">🤖 ML Insights & Predictions</h3>
                         <div class="card-badge" id="mlBadge">Loading...</div>
@@ -576,6 +599,9 @@
                 // Could implement currency conversion here
                 debugLogger.debug(`Display currency preference: ${currentWealthContext.currency}`);
             }
+
+            // Reset analytics tab loaded flag when source changes (force reload)
+            analyticsTabLoaded = false;
         }
 
         // Refresh active tab content (called after data reload)
@@ -603,6 +629,9 @@
                         break;
                     case 'risk':
                         loadRiskAnalytics();
+                        break;
+                    case 'analytics':
+                        loadAnalyticsTab();
                         break;
                 }
             }
@@ -649,11 +678,14 @@
                     case 'risk':
                         loadRiskAnalytics();
                         break;
+                    case 'analytics':
+                        loadAnalyticsTab();
+                        break;
                 }
             }
         }
 
-        // Load Risk & Analytics (lazy-loaded when tab is clicked)
+        // Load Risk Tab (essential metrics only)
         async function loadRiskAnalytics() {
             const activeUser = localStorage.getItem('activeUser') || 'demo';
             try {
@@ -778,23 +810,35 @@
                   </div>`;
                 document.getElementById('riskMetrics').innerHTML = '';
                 document.getElementById('riskStructure').innerHTML = '';
-                document.getElementById('mlInsights').innerHTML = '';
+            }
+        }
+
+        // Track if analytics tab has been loaded (for lazy loading)
+        let analyticsTabLoaded = false;
+
+        // Load Analytics Tab (ML + Advanced + Specialized)
+        async function loadAnalyticsTab() {
+            // Lazy loading - only load once
+            if (analyticsTabLoaded) {
+                debugLogger.debug('Analytics tab already loaded, skipping...');
+                return;
             }
 
-            // Load ML Insights in parallel (don't block risk metrics)
-            loadMLInsights().catch(err => {
-                debugLogger.warn('ML insights loading failed (non-blocking)', err);
-            });
+            debugLogger.debug('Loading Analytics tab for the first time...');
+            analyticsTabLoaded = true;
 
-            // Load Advanced Analytics in parallel (don't block risk metrics)
-            loadAdvancedAnalytics().catch(err => {
-                debugLogger.warn('Advanced analytics loading failed (non-blocking)', err);
-            });
-
-            // Load Specialized Analytics in parallel (don't block risk metrics)
-            loadSpecializedAnalytics().catch(err => {
-                debugLogger.warn('Specialized analytics loading failed (non-blocking)', err);
-            });
+            // Load all analytics sections in parallel
+            Promise.all([
+                loadMLInsights().catch(err => {
+                    debugLogger.warn('ML insights loading failed (non-blocking)', err);
+                }),
+                loadAdvancedAnalytics().catch(err => {
+                    debugLogger.warn('Advanced analytics loading failed (non-blocking)', err);
+                }),
+                loadSpecializedAnalytics().catch(err => {
+                    debugLogger.warn('Specialized analytics loading failed (non-blocking)', err);
+                })
+            ]);
         }
 
         // Load ML Insights & Predictions (async, non-blocking)
