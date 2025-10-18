@@ -62,13 +62,12 @@ async def bourse_risk_dashboard(
     try:
         logger.info(f"[risk-bourse] Computing risk dashboard for user {user_id}")
 
-        # 1) Récupérer positions Saxo via l'API endpoint existant
+        # 1) Récupérer positions Saxo via l'adaptateur
         # Importer ici pour éviter circulaire
-        from api.saxo_endpoints import list_portfolios, get_portfolio
+        from adapters.saxo_adapter import list_portfolios_overview, get_portfolio_detail
 
         # Lister les portfolios de l'utilisateur
-        portfolios_response = await list_portfolios(user_id=user_id)
-        portfolios = portfolios_response.get("portfolios", [])
+        portfolios = list_portfolios_overview(user_id=user_id)
 
         if not portfolios:
             return RiskDashboardResponse(
@@ -88,7 +87,7 @@ async def bourse_risk_dashboard(
 
         # Prendre le premier portfolio (ou filtrer selon besoin)
         portfolio_id = portfolios[0].get("portfolio_id")
-        portfolio_data = await get_portfolio(portfolio_id=portfolio_id, user_id=user_id)
+        portfolio_data = get_portfolio_detail(portfolio_id=portfolio_id, user_id=user_id)
 
         positions = portfolio_data.get("positions", [])
 
