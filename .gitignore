@@ -23,6 +23,7 @@ models/regime/*.pth
 models/regime/*.pkl
 models/volatility/*.pth
 models/volatility/*.pkl
+models/stocks/
 cache/ml_pipeline/
 cache/portfolio_optimization/
 data/monitoring/portfolio_alerts.json
@@ -47,6 +48,9 @@ temp_*.json
 *.log
 *.bak
 rebalance-actions.csv
+risk*.txt
+test*.json
+promp_claude.txt
 
 # Server logs (rotating logs for debugging)
 logs/
@@ -93,7 +97,8 @@ debug_output/
 *.debug
 nul
 
-# Generated price history: never commit
+# Generated price history & cache: never commit
 # Keep the folder (via .gitkeep), ignore contents
 !data/price_history/.gitkeep
 data/price_history/
+data/cache/
