@@ -1054,9 +1054,21 @@ Modifiés:
   docs/BOURSE_RISK_ANALYTICS_SPEC.md (maj statuts + changelog)
 ```
 
-#### Phase 1: UI Integration ⏳
-- TODO: Intégration appels API dans saxo-dashboard.html
-- TODO: Affichage score + métriques dans l'onglet Risk existant
+#### Phase 1: UI Integration ✅
+- **2025-10-18 12:15**: Intégration appels API dans saxo-dashboard.html
+  - ✅ Fonction `loadRiskAnalytics()` mise à jour
+  - ✅ Affichage score avec couleurs dynamiques
+  - ✅ Tableau métriques clés (VaR, Vol, Sharpe, Sortino)
+  - ✅ Tableau métriques additionnelles (Beta, Calmar, Drawdown)
+  - ✅ Gestion erreurs avec message yfinance
+  - ✅ Formatage pourcentages automatique
+  - ✅ Layout responsive mobile
+
+**Phase 1 Complete** ✅✅✅:
+- Backend operational avec 10 métriques de risque
+- API endpoint `/api/risk/bourse/dashboard` fonctionnel
+- UI intégrée dans l'onglet Risk de saxo-dashboard.html
+- Prêt pour utilisation en production (après `pip install yfinance`)
 
 #### Phase 2: Intelligence ML
 - TODO: À planifier
