@@ -358,6 +358,37 @@
             font-style: italic;
         }
 
+        .acknowledge-btn {
+            margin-top: 0.75rem;
+            padding: 0.5rem 1rem;
+            background: var(--theme-bg-secondary);
+            border: 1px solid var(--theme-border);
+            border-radius: 4px;
+            color: var(--theme-text);
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+            width: 100%;
+        }
+
+        .acknowledge-btn:hover {
+            background: var(--theme-bg-tertiary);
+            border-color: var(--success);
+            color: var(--success);
+        }
+
+        .acknowledge-btn:active {
+            transform: scale(0.98);
+        }
+
+        .acknowledge-btn.acknowledged {
+            background: var(--success);
+            color: white;
+            border-color: var(--success);
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
         .alert-empty {
             text-align: center;
             padding: 2rem;
@@ -952,8 +983,13 @@
                 // Critical alerts
                 if (critical && critical.length > 0) {
                     critical.forEach(alert => {
+                        const isAcknowledged = alert.acknowledged || false;
+                        const acknowledgeBtn = isAcknowledged
+                            ? `<button class="acknowledge-btn acknowledged" disabled>✓ Alerte vue</button>`
+                            : `<button class="acknowledge-btn" onclick="acknowledgeAlert('${alert.id}', this)">Marquer comme vu</button>`;
+
                         html += `
-                            <div class="alert alert-critical">
+                            <div class="alert alert-critical" data-alert-id="${alert.id || ''}">
                                 <div class="alert-title">
                                     🔴 ${alert.title}
                                     <span class="alert-badge badge-critical">CRITICAL</span>
@@ -971,6 +1007,7 @@
                                 <div class="alert-deadline">
                                     ⏰ Action requise: ${alert.action_deadline}
                                 </div>
+                                ${acknowledgeBtn}
                             </div>
                         `;
                     });
@@ -979,8 +1016,13 @@
                 // Warning alerts
                 if (warnings && warnings.length > 0) {
                     warnings.forEach(alert => {
+                        const isAcknowledged = alert.acknowledged || false;
+                        const acknowledgeBtn = isAcknowledged
+                            ? `<button class="acknowledge-btn acknowledged" disabled>✓ Alerte vue</button>`
+                            : `<button class="acknowledge-btn" onclick="acknowledgeAlert('${alert.id}', this)">Marquer comme vu</button>`;
+
                         html += `
-                            <div class="alert alert-warning">
+                            <div class="alert alert-warning" data-alert-id="${alert.id || ''}">
                                 <div class="alert-title">
                                     ⚠️ ${alert.title}
                                     <span class="alert-badge badge-warning">WARNING</span>
@@ -998,6 +1040,7 @@
                                 <div class="alert-deadline">
                                     ⏰ Action suggérée: ${alert.action_deadline}
                                 </div>
+                                ${acknowledgeBtn}
                             </div>
                         `;
                     });
@@ -1006,8 +1049,13 @@
                 // Info alerts
                 if (info && info.length > 0) {
                     info.forEach(alert => {
+                        const isAcknowledged = alert.acknowledged || false;
+                        const acknowledgeBtn = isAcknowledged
+                            ? `<button class="acknowledge-btn acknowledged" disabled>✓ Alerte vue</button>`
+                            : `<button class="acknowledge-btn" onclick="acknowledgeAlert('${alert.id}', this)">Marquer comme vu</button>`;
+
                         html += `
-                            <div class="alert alert-info">
+                            <div class="alert alert-info" data-alert-id="${alert.id || ''}">
                                 <div class="alert-title">
                                     ℹ️ ${alert.title}
                                     <span class="alert-badge badge-info">INFO</span>
@@ -1021,6 +1069,7 @@
                                 <div class="alert-deadline">
                                     📅 Horizon: ${alert.action_deadline}
                                 </div>
+                                ${acknowledgeBtn}
                             </div>
                         `;
                     });
@@ -1056,6 +1105,88 @@
                 `;
                 document.getElementById('alertsBadge').textContent = 'Error';
                 document.getElementById('alertsBadge').style.background = 'var(--danger)';
+            }
+        }
+
+        // Acknowledge Alert Function
+        async function acknowledgeAlert(alertId, buttonElement) {
+            if (!alertId) {
+                console.error('No alert ID provided');
+                return;
+            }
+
+            const activeUser = localStorage.getItem('activeUser') || 'demo';
+
+            try {
+                // Update button state immediately (optimistic UI)
+                buttonElement.textContent = 'En cours...';
+                buttonElement.disabled = true;
+
+                // Call acknowledge endpoint
+                const acknowledgeUrl = `/api/risk/bourse/alerts/${alertId}/acknowledge?user_id=${activeUser}`;
+                const response = await safeFetch(globalConfig.getApiUrl(acknowledgeUrl), {
+                    method: 'POST'
+                });
+
+                if (!response?.ok) {
+                    throw new Error('Acknowledge failed');
+                }
+
+                // Update button to acknowledged state
+                buttonElement.classList.add('acknowledged');
+                buttonElement.textContent = '✓ Alerte vue';
+
+                // Remove alert from DOM after short delay
+                setTimeout(() => {
+                    const alertCard = buttonElement.closest('.alert');
+                    if (alertCard) {
+                        alertCard.style.transition = 'opacity 0.3s, transform 0.3s';
+                        alertCard.style.opacity = '0';
+                        alertCard.style.transform = 'scale(0.95)';
+
+                        setTimeout(() => {
+                            alertCard.remove();
+
+                            // Update badge count
+                            const remainingAlerts = document.querySelectorAll('.alert:not(.alert-empty)').length;
+                            const badge = document.getElementById('alertsBadge');
+                            if (remainingAlerts === 0) {
+                                badge.textContent = '0 active';
+                                badge.style.background = 'var(--success)';
+                                badge.style.color = 'white';
+
+                                // Show success message
+                                document.getElementById('criticalAlerts').innerHTML = `
+                                    <div class="alert-empty">
+                                        <div style="font-size: 2.5rem;">✅</div>
+                                        <div style="font-size: 1.25rem; font-weight: 600; margin: 1rem 0;">Portfolio Sain</div>
+                                        <p style="max-width: 600px; margin: 0 auto; line-height: 1.6;">
+                                            Aucune alerte active pour votre profil modéré (moyen-long terme, gestion active hebdomadaire).
+                                        </p>
+                                    </div>
+                                `;
+                            }
+                        }, 300);
+                    }
+                }, 500);
+
+                debugLogger.info(`Alert ${alertId} acknowledged successfully`);
+
+            } catch (e) {
+                debugLogger.error('Failed to acknowledge alert', e);
+
+                // Restore button state on error
+                buttonElement.textContent = 'Erreur - Réessayer';
+                buttonElement.disabled = false;
+                buttonElement.style.background = 'var(--danger)';
+                buttonElement.style.color = 'white';
+
+                // Reset after 2 seconds
+                setTimeout(() => {
+                    buttonElement.textContent = 'Marquer comme vu';
+                    buttonElement.style.background = '';
+                    buttonElement.style.color = '';
+                }, 2000);
             }
         }
 

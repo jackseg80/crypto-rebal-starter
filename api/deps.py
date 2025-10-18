@@ -1,6 +1,7 @@
 """
 Dépendances FastAPI réutilisables.
 Gestion des utilisateurs avec header X-User.
+Redis client pour caching et persistence.
 """
 from __future__ import annotations
 from typing import Optional
@@ -16,6 +17,9 @@ from api.config.users import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Redis client singleton
+_redis_client = None
 
 def get_active_user(x_user: Optional[str] = Header(None)) -> str:
     """
@@ -92,3 +96,48 @@ def get_active_user_info(current_user: str = None) -> dict:
         )
 
     return user_info
+
+
+def get_redis_client() -> Optional[any]:
+    """
+    Dépendance FastAPI pour obtenir le client Redis.
+
+    Retourne un client Redis singleton partagé entre toutes les requêtes.
+    Si Redis n'est pas disponible, retourne None (graceful degradation).
+
+    Returns:
+        Redis client ou None si indisponible
+
+    Usage:
+        @app.get("/endpoint")
+        async def endpoint(redis = Depends(get_redis_client)):
+            if redis:
+                # Utiliser Redis
+                redis.set(key, value)
+    """
+    global _redis_client
+
+    # Return existing client if available
+    if _redis_client is not None:
+        try:
+            # Test connection
+            _redis_client.ping()
+            return _redis_client
+        except Exception as e:
+            logger.warning(f"Redis client lost connection: {e}")
+            _redis_client = None
+
+    # Try to create new client
+    try:
+        from redis import Redis
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        _redis_client = Redis.from_url(redis_url, decode_responses=False)
+
+        # Test connection
+        _redis_client.ping()
+        logger.info(f"Redis client connected: {redis_url}")
+        return _redis_client
+
+    except Exception as e:
+        logger.warning(f"Redis not available: {e}")
+        return None

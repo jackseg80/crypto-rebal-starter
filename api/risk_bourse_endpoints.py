@@ -16,7 +16,9 @@ from pydantic import BaseModel, Field
 
 from services.risk.bourse.calculator import BourseRiskCalculator
 from services.risk.bourse.alerts import BourseAlertsDetector
+from services.risk.bourse.alerts_persistence import AlertsPersistenceService
 from api.deps import get_active_user
+from api.deps import get_redis_client
 
 logger = logging.getLogger(__name__)
 
@@ -808,7 +810,9 @@ async def get_margin_monitoring(
 @router.get("/alerts")
 async def get_risk_alerts(
     user_id: str = Query("demo", description="User ID for multi-tenant support"),
-    file_key: Optional[str] = Query(None, description="Saxo file key for multi-file support")
+    file_key: Optional[str] = Query(None, description="Saxo file key for multi-file support"),
+    use_cache: bool = Query(True, description="Use cached alerts if available"),
+    redis: Optional[Any] = Depends(get_redis_client)
 ):
     """
     Get risk alerts for bourse portfolio based on moderate risk profile.
@@ -822,9 +826,28 @@ async def get_risk_alerts(
     - CRITICAL: Immediate action required (this week)
     - WARNING: Monitor and plan action (2-4 weeks)
     - INFO: Opportunities and context (1-3 months)
+
+    Features:
+    - Auto-saves alerts to Redis with 7-day TTL
+    - Returns cached alerts if available (use_cache=True)
+    - Filters out acknowledged alerts by default
     """
     try:
         logger.info(f"[alerts] Generating alerts for user={user_id}, file_key={file_key}")
+
+        # Initialize persistence service
+        persistence = AlertsPersistenceService(redis_client=redis)
+
+        # Try to get cached alerts first
+        if use_cache:
+            cached_alerts = persistence.get_current_alerts(user_id=user_id, include_acknowledged=False)
+            if cached_alerts:
+                logger.info(f"[alerts] Returning cached alerts for user={user_id}")
+                return {
+                    "ok": True,
+                    "user_id": user_id,
+                    **cached_alerts
+                }
 
         # Initialize alerts detector
         detector = BourseAlertsDetector()
@@ -909,9 +932,20 @@ async def get_risk_alerts(
             specialized_data=specialized_data
         )
 
+        # Save alerts to Redis with TTL
+        persistence_result = persistence.save_alerts(
+            user_id=user_id,
+            alerts=alerts,
+            ttl=7 * 24 * 60 * 60  # 7 days
+        )
+
+        if persistence_result.get('persisted'):
+            logger.info(f"[alerts] Saved {persistence_result.get('count')} alerts to Redis for user={user_id}")
+
         return {
             "ok": True,
             "user_id": user_id,
+            "persisted": persistence_result.get('persisted', False),
             **alerts
         }
 
@@ -919,4 +953,120 @@ async def get_risk_alerts(
         raise
     except Exception as e:
         logger.exception(f"[alerts] Error generating alerts: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/alerts/{alert_id}/acknowledge")
+async def acknowledge_alert(
+    alert_id: str,
+    user_id: str = Query("demo", description="User ID for multi-tenant support"),
+    redis: Optional[Any] = Depends(get_redis_client)
+):
+    """
+    Mark an alert as acknowledged (seen/handled by user).
+
+    Args:
+        alert_id: Alert identifier (UUID)
+        user_id: User identifier
+        redis: Redis client dependency
+
+    Returns:
+        Acknowledgment status and timestamp
+
+    Example:
+        POST /api/risk/bourse/alerts/abc123/acknowledge?user_id=jack
+    """
+    try:
+        logger.info(f"[alerts] Acknowledging alert {alert_id} for user={user_id}")
+
+        # Initialize persistence service
+        persistence = AlertsPersistenceService(redis_client=redis)
+
+        # Acknowledge the alert
+        result = persistence.acknowledge_alert(user_id=user_id, alert_id=alert_id)
+
+        if not result.get('acknowledged'):
+            reason = result.get('reason', 'unknown')
+            if reason == 'alert_not_found':
+                raise HTTPException(status_code=404, detail=f"Alert {alert_id} not found")
+            elif reason == 'redis_unavailable':
+                raise HTTPException(status_code=503, detail="Redis unavailable")
+            else:
+                raise HTTPException(status_code=500, detail=f"Failed to acknowledge alert: {reason}")
+
+        logger.info(f"[alerts] Alert {alert_id} acknowledged at {result.get('acknowledged_at')}")
+
+        return {
+            "ok": True,
+            "user_id": user_id,
+            **result
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"[alerts] Error acknowledging alert: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/alerts/history")
+async def get_alerts_history(
+    user_id: str = Query("demo", description="User ID for multi-tenant support"),
+    limit: int = Query(50, ge=1, le=100, description="Maximum number of alerts to return"),
+    days_back: int = Query(7, ge=1, le=30, description="Number of days to look back"),
+    redis: Optional[Any] = Depends(get_redis_client)
+):
+    """
+    Get historical alerts for user (last N days).
+
+    Args:
+        user_id: User identifier
+        limit: Maximum alerts to return (1-100)
+        days_back: Days to look back (1-30)
+        redis: Redis client dependency
+
+    Returns:
+        List of historical alerts with acknowledgment status
+
+    Example:
+        GET /api/risk/bourse/alerts/history?user_id=jack&limit=20&days_back=7
+    """
+    try:
+        logger.info(f"[alerts] Fetching history for user={user_id}, limit={limit}, days_back={days_back}")
+
+        # Initialize persistence service
+        persistence = AlertsPersistenceService(redis_client=redis)
+
+        # Get historical alerts
+        alerts = persistence.get_historical_alerts(
+            user_id=user_id,
+            limit=limit,
+            days_back=days_back
+        )
+
+        # Categorize by severity for frontend compatibility
+        critical = [a for a in alerts if a.get('severity') == 'critical']
+        warnings = [a for a in alerts if a.get('severity') == 'warning']
+        info = [a for a in alerts if a.get('severity') == 'info']
+
+        return {
+            "ok": True,
+            "user_id": user_id,
+            "critical": critical,
+            "warnings": warnings,
+            "info": info,
+            "summary": {
+                "total": len(alerts),
+                "critical": len(critical),
+                "warning": len(warnings),
+                "info": len(info)
+            },
+            "limit": limit,
+            "days_back": days_back
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"[alerts] Error fetching alerts history: {e}")
         raise HTTPException(status_code=500, detail=str(e))
