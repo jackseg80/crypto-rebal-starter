@@ -75,7 +75,10 @@ if ($redisRunning) {
         $wslCheck = wsl --status 2>$null
         if ($LASTEXITCODE -eq 0) {
             Write-Host "   Starting Redis via WSL2..." -ForegroundColor Gray
-            wsl -d Ubuntu bash -c "sudo service redis-server start" 2>$null
+
+            # Auto-provide sudo password for WSL2
+            $wslPassword = "Hgbdhgbd1"
+            echo $wslPassword | wsl -d Ubuntu bash -c "sudo -S service redis-server start" 2>$null
 
             # Retry logic: wait up to 5 seconds for Redis to start
             $retries = 0

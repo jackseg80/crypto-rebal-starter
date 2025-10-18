@@ -68,7 +68,8 @@ class BourseRiskCalculator:
                 raise ValueError("Portfolio value is zero")
 
             # Fetch historical data for all positions
-            end_date = datetime.now()
+            # Round to start of day for cache consistency (same window all day)
+            end_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
             start_date = end_date - timedelta(days=lookback_days + 30)  # Extra buffer
 
             position_data = {}

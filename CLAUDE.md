@@ -169,7 +169,11 @@ curl "localhost:8000/portfolio/metrics?user_id=jack&source=cointracking_api"
 ```bash
 # Windows
 .venv\Scripts\Activate.ps1
-python -m uvicorn api.main:app --reload --port 8000
+python -m uvicorn api.main:app --port 8000
+
+# ⚠️ IMPORTANT: PAS de --reload flag!
+# Après modifications backend → TOUJOURS demander à l'utilisateur de redémarrer manuellement
+# "Veuillez redémarrer le serveur pour appliquer les changements"
 
 # Tests
 pytest -q tests/unit
@@ -219,6 +223,7 @@ Select-String -Path "logs\app.log" -Pattern "ERROR|WARNING" | Select-Object -Las
 ❌ **fetch() direct** au lieu de window.loadBalanceData()
 ❌ **Mélanger données users** dans caches/fichiers
 ❌ **Inverser Risk Score** dans Decision Index
+❌ **Oublier de demander restart serveur** → Pas de --reload, toujours demander à l'utilisateur après modifs backend
 
 ---
 

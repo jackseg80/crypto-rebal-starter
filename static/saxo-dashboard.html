@@ -420,6 +420,15 @@
                         <div id="riskStructure" class="table-wrapper"><div class="loading">…</div></div>
                     </div>
                 </div>
+
+                <!-- ML Insights Section -->
+                <div class="dashboard-card" style="margin-top: 1.5rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">🤖 ML Insights & Predictions</h3>
+                        <div class="card-badge" id="mlBadge">Loading...</div>
+                    </div>
+                    <div id="mlInsights"><div class="loading">Chargement des prédictions ML…</div></div>
+                </div>
             </div>
         </div>
     </div>
@@ -663,6 +672,154 @@
                   </div>`;
                 document.getElementById('riskMetrics').innerHTML = '';
                 document.getElementById('riskStructure').innerHTML = '';
+                document.getElementById('mlInsights').innerHTML = '';
+            }
+
+            // Load ML Insights in parallel (don't block risk metrics)
+            loadMLInsights().catch(err => {
+                debugLogger.warn('ML insights loading failed (non-blocking)', err);
+            });
+        }
+
+        // Load ML Insights & Predictions (async, non-blocking)
+        async function loadMLInsights() {
+            const activeUser = localStorage.getItem('activeUser') || 'demo';
+
+            try {
+                document.getElementById('mlBadge').textContent = 'Analyzing...';
+
+                // Get top 3 stocks from portfolio for predictions
+                const topStocks = currentPortfolioData?.summary?.top_holdings?.slice(0, 3) || [];
+                if (topStocks.length === 0) {
+                    document.getElementById('mlInsights').innerHTML = '<div class="no-data">Aucune position disponible pour ML</div>';
+                    document.getElementById('mlBadge').textContent = 'No data';
+                    return;
+                }
+
+                const benchmark = 'SPY'; // S&P500 as default benchmark
+                const firstStock = topStocks[0]?.symbol || 'AAPL';
+
+                // Fetch ML predictions in parallel (direct URLs, no globalConfig params)
+                const baseUrl = window.location.origin;
+                const [regimeRes, volatilityRes] = await Promise.all([
+                    safeFetch(`${baseUrl}/api/ml/bourse/regime?benchmark=${benchmark}&lookback_days=365`),
+                    safeFetch(`${baseUrl}/api/ml/bourse/forecast?symbol=${firstStock}&lookback_days=365`)
+                ]);
+
+                const regime = regimeRes?.data || regimeRes || {};
+                const volatility = volatilityRes?.data || volatilityRes || {};
+
+                // Get regime color
+                const getRegimeColor = (reg) => {
+                    const r = String(reg).toLowerCase();
+                    if (r.includes('bull')) return 'var(--success)';
+                    if (r.includes('bear')) return 'var(--danger)';
+                    if (r.includes('consolidation')) return 'var(--warning)';
+                    return 'var(--info)';
+                };
+
+                const regimeColor = getRegimeColor(regime.current_regime);
+                const regimeConfidence = ((regime.confidence || 0) * 100).toFixed(0);
+
+                // Extract volatility predictions
+                const vol1d = volatility.predictions?.['1d']?.predicted_volatility;
+                const vol7d = volatility.predictions?.['7d']?.predicted_volatility;
+                const vol30d = volatility.predictions?.['30d']?.predicted_volatility;
+
+                // Build ML Insights HTML
+                document.getElementById('mlInsights').innerHTML = `
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1.5rem;margin-bottom:1.5rem;">
+                        <!-- Market Regime -->
+                        <div style="padding:1rem;background:var(--theme-bg);border-radius:var(--radius-md);border:1px solid var(--theme-border);">
+                            <div style="font-size:0.875rem;color:var(--theme-text-muted);margin-bottom:0.5rem;">Market Regime</div>
+                            <div style="font-size:1.25rem;font-weight:700;color:${regimeColor};margin-bottom:0.25rem;">
+                                ${regime.current_regime || 'Unknown'}
+                            </div>
+                            <div style="font-size:0.75rem;color:var(--theme-text-muted);">
+                                Confidence: ${regimeConfidence}% • ${regime.benchmark || benchmark}
+                            </div>
+                        </div>
+
+                        <!-- Volatility Forecast -->
+                        <div style="padding:1rem;background:var(--theme-bg);border-radius:var(--radius-md);border:1px solid var(--theme-border);">
+                            <div style="font-size:0.875rem;color:var(--theme-text-muted);margin-bottom:0.5rem;">Volatility Forecast (${firstStock})</div>
+                            <div style="display:flex;gap:1rem;align-items:baseline;">
+                                <div>
+                                    <div style="font-size:0.7rem;color:var(--theme-text-muted);">1d</div>
+                                    <div style="font-weight:600;">${vol1d ? (vol1d * 100).toFixed(2) : 'N/A'}%</div>
+                                </div>
+                                <div>
+                                    <div style="font-size:0.7rem;color:var(--theme-text-muted);">7d</div>
+                                    <div style="font-weight:600;">${vol7d ? (vol7d * 100).toFixed(2) : 'N/A'}%</div>
+                                </div>
+                                <div>
+                                    <div style="font-size:0.7rem;color:var(--theme-text-muted);">30d</div>
+                                    <div style="font-weight:600;">${vol30d ? (vol30d * 100).toFixed(2) : 'N/A'}%</div>
+                                </div>
+                            </div>
+                            <div style="font-size:0.75rem;color:var(--theme-text-muted);margin-top:0.5rem;">
+                                Model: ${volatility.model_type || 'Historical'}
+                            </div>
+                        </div>
+
+                        <!-- Regime Characteristics -->
+                        <div style="padding:1rem;background:var(--theme-bg);border-radius:var(--radius-md);border:1px solid var(--theme-border);">
+                            <div style="font-size:0.875rem;color:var(--theme-text-muted);margin-bottom:0.5rem;">Regime Characteristics</div>
+                            ${Object.entries(regime.characteristics || {})
+                                .map(([key, value]) => `
+                                    <div style="display:flex;justify-content:space-between;margin:0.25rem 0;">
+                                        <span style="font-size:0.8rem;text-transform:capitalize;">${key}:</span>
+                                        <span style="font-size:0.8rem;font-weight:600;color:var(--theme-text);">${value}</span>
+                                    </div>
+                                `).join('')}
+                        </div>
+                    </div>
+
+                    <!-- Additional Regime Probabilities -->
+                    ${Object.keys(regime.regime_probabilities || {}).length > 0 ? `
+                        <div style="padding:1rem;background:var(--theme-bg);border-radius:var(--radius-md);border:1px solid var(--theme-border);">
+                            <div style="font-size:0.875rem;color:var(--theme-text-muted);margin-bottom:0.75rem;">Regime Probabilities</div>
+                            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:0.75rem;">
+                                ${Object.entries(regime.regime_probabilities || {})
+                                    .sort(([,a], [,b]) => b - a)
+                                    .map(([regimeName, prob]) => `
+                                        <div style="text-align:center;">
+                                            <div style="font-weight:700;font-size:1.1rem;color:${getRegimeColor(regimeName)};">
+                                                ${(prob * 100).toFixed(0)}%
+                                            </div>
+                                            <div style="font-size:0.7rem;color:var(--theme-text-muted);margin-top:0.25rem;">
+                                                ${regimeName}
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    <div style="margin-top:1rem;padding:0.75rem;background:var(--info-bg);border-radius:var(--radius-sm);border:1px solid var(--info);font-size:0.875rem;color:var(--info);">
+                        <strong>Note:</strong> ML predictions are based on ${volatility.lookback_days || 365} days of historical data.
+                        ${volatility.note || regime.note ? `<br><em>${volatility.note || regime.note}</em>` : ''}
+                    </div>
+                `;
+
+                document.getElementById('mlBadge').textContent = `${regime.model_type || 'ML'} Active`;
+                document.getElementById('mlBadge').style.background = 'color-mix(in oklab, var(--success) 10%, transparent)';
+                document.getElementById('mlBadge').style.color = 'var(--success)';
+
+            } catch (error) {
+                debugLogger.error('ML insights load failed', error);
+                document.getElementById('mlInsights').innerHTML = `
+                    <div style="padding:1rem;background:var(--warning-bg);border:1px solid var(--warning);border-radius:var(--radius-md);">
+                        <div style="color:var(--warning);margin-bottom:0.5rem;"><strong>⚠️ ML Predictions Unavailable</strong></div>
+                        <div style="font-size:0.875rem;color:var(--theme-text-muted);">
+                            ${error.message || 'Failed to load ML predictions'}
+                            <br><small>Models may need training or data may be insufficient.</small>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('mlBadge').textContent = 'Fallback';
+                document.getElementById('mlBadge').style.background = 'color-mix(in oklab, var(--warning) 10%, transparent)';
+                document.getElementById('mlBadge').style.color = 'var(--warning)';
             }
         }
 

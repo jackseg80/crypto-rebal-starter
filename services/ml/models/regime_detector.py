@@ -25,6 +25,19 @@ from ..data_pipeline import MLDataPipeline
 
 logger = logging.getLogger(__name__)
 
+
+def _set_reproducible_seeds(seed: int = 42):
+    """Fix all random seeds for reproducibility across training runs"""
+    import random
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    # Make PyTorch deterministic
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+
 # Alias de compatibilité pour charger les anciens modèles
 RegimeClassifier = None  # Sera défini après RegimeClassificationNetwork
 
@@ -224,12 +237,25 @@ class RegimeDetector:
             raise ValueError("No asset data provided")
         
         # Get market-wide features by averaging across major assets
-        major_assets = ['BTC', 'ETH', 'SOL', 'ADA', 'AVAX']  # Major market leaders
-        available_major = [asset for asset in major_assets if asset in multi_asset_data]
-        
-        if not available_major:
-            available_major = list(multi_asset_data.keys())[:5]  # Use first 5 as fallback
-        
+        # Support both crypto and stock market tickers
+        crypto_majors = ['BTC', 'ETH', 'SOL', 'ADA', 'AVAX']
+        stock_majors = ['SPY', 'QQQ', 'IWM', 'DIA', 'EFA', 'EEM', 'VTI', 'AGG']
+
+        # Detect if we're analyzing crypto or stocks
+        available_crypto = [asset for asset in crypto_majors if asset in multi_asset_data]
+        available_stocks = [asset for asset in stock_majors if asset in multi_asset_data]
+
+        if available_crypto:
+            available_major = available_crypto
+            logger.info(f"Detected crypto market - using {len(available_major)} crypto assets")
+        elif available_stocks:
+            available_major = available_stocks
+            logger.info(f"Detected stock market - using {len(available_major)} stock assets")
+        else:
+            # Use all available assets (up to 5 for performance)
+            available_major = list(multi_asset_data.keys())[:5]
+            logger.info(f"Using all available assets: {available_major}")
+
         logger.info(f"Using assets for market features: {available_major}")
         
         # Collect features from each asset - use simple approach for reliability
@@ -449,26 +475,29 @@ class RegimeDetector:
         logger.info(f"HMM regime distribution: {np.bincount(mapped_labels)}")
         return mapped_labels
     
-    def train_model(self, multi_asset_data: Dict[str, pd.DataFrame], 
+    def train_model(self, multi_asset_data: Dict[str, pd.DataFrame],
                    validation_split: float = 0.2) -> Dict[str, Any]:
         """
         Train hybrid regime detection model
-        
+
         Args:
             multi_asset_data: Dictionary of asset price data
             validation_split: Validation data fraction
-            
+
         Returns:
             Training metadata
         """
+        # Fix random seeds for reproducibility
+        _set_reproducible_seeds(42)
+
         logger.info("Training hybrid regime detection model")
-        
+
         try:
             # Prepare features
             features_df = self.prepare_regime_features(multi_asset_data)
-            
-            if len(features_df) < 200:
-                raise ValueError(f"Insufficient data: {len(features_df)} samples")
+
+            if len(features_df) < 100:
+                raise ValueError(f"Insufficient data: {len(features_df)} samples (minimum 100 required)")
             
             # Create regime labels using HMM
             regime_labels = self._create_hmm_regime_labels(features_df)
@@ -556,7 +585,8 @@ class RegimeDetector:
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss.item()
                     patience_counter = 0
-                    # Save best model
+                    # Save best model (ensure directory exists)
+                    self.model_dir.mkdir(parents=True, exist_ok=True)
                     torch.save(self.neural_model.state_dict(), self.model_dir / 'regime_neural_best.pth')
                 else:
                     patience_counter += 1
@@ -568,10 +598,13 @@ class RegimeDetector:
                 if patience_counter >= self.early_stopping_patience:
                     logger.info(f"Early stopping at epoch {epoch}")
                     break
-            
+
             # Load best model
             self.neural_model.load_state_dict(torch.load(self.model_dir / 'regime_neural_best.pth', weights_only=False))
-            
+
+            # Ensure model directory exists before saving
+            self.model_dir.mkdir(parents=True, exist_ok=True)
+
             # Save all components
             joblib.dump(self.scaler, self.model_dir / 'regime_scaler.pkl')
             joblib.dump(self.feature_columns, self.model_dir / 'regime_features.pkl')

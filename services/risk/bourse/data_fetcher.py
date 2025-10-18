@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 import logging
 import aiohttp
 import asyncio
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ class BourseDataFetcher:
 
     def __init__(self, cache_dir: str = "data/cache/bourse"):
         self.cache_dir = cache_dir
+        os.makedirs(cache_dir, exist_ok=True)
         self.cache = {}  # In-memory cache
 
     async def fetch_historical_prices(
@@ -49,10 +51,21 @@ class BourseDataFetcher:
 
         cache_key = f"{ticker}_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}_{source}"
 
-        # Check cache
+        # Check in-memory cache first
         if cache_key in self.cache:
-            logger.debug(f"Using cached data for {ticker}")
+            logger.debug(f"Using in-memory cached data for {ticker}")
             return self.cache[cache_key]
+
+        # Check file cache (persistent across restarts)
+        cache_file = f"{self.cache_dir}/{cache_key}.parquet"
+        if os.path.exists(cache_file):
+            try:
+                df = pd.read_parquet(cache_file)
+                self.cache[cache_key] = df  # Load into memory cache
+                logger.debug(f"Using file-cached data for {ticker}")
+                return df
+            except Exception as e:
+                logger.warning(f"Failed to load cache file for {ticker}: {e}")
 
         # Fetch from source
         if source == "yahoo":
@@ -64,8 +77,15 @@ class BourseDataFetcher:
         else:
             raise ValueError(f"Unknown data source: {source}")
 
-        # Cache result
+        # Cache result (in-memory + file)
         self.cache[cache_key] = df
+
+        # Save to file cache for persistence
+        try:
+            df.to_parquet(cache_file)
+            logger.debug(f"Saved {ticker} to file cache")
+        except Exception as e:
+            logger.warning(f"Failed to save cache file for {ticker}: {e}")
 
         logger.info(f"Fetched {len(df)} days of data for {ticker} from {source}")
         return df
@@ -95,15 +115,26 @@ class BourseDataFetcher:
             if data.empty:
                 raise ValueError(f"No data found for {ticker}")
 
+            # Handle MultiIndex columns (yfinance sometimes returns MultiIndex)
+            if isinstance(data.columns, pd.MultiIndex):
+                data.columns = data.columns.droplevel(1)
+
             # Standardize column names
             df = pd.DataFrame({
-                'open': data['Open'],
-                'high': data['High'],
-                'low': data['Low'],
-                'close': data['Close'],
-                'volume': data['Volume'],
-                'adjusted_close': data['Adj Close']
-            })
+                'open': data['Open'].values if 'Open' in data.columns else data['open'].values,
+                'high': data['High'].values if 'High' in data.columns else data['high'].values,
+                'low': data['Low'].values if 'Low' in data.columns else data['low'].values,
+                'close': data['Close'].values if 'Close' in data.columns else data['close'].values,
+                'volume': data['Volume'].values if 'Volume' in data.columns else data['volume'].values,
+                'adjusted_close': data['Adj Close'].values if 'Adj Close' in data.columns else data['Close'].values
+            }, index=data.index)
+
+            # Ensure index is timezone-naive and normalized for consistency
+            if df.index.tz is not None:
+                df.index = df.index.tz_localize(None)
+
+            # Normalize to remove time component (keep only date)
+            df.index = pd.DatetimeIndex([d.normalize() for d in df.index])
 
             return df
 
@@ -142,8 +173,11 @@ class BourseDataFetcher:
         """
         logger.info(f"Generating manual data for {ticker}")
 
-        # Generate date range
-        dates = pd.date_range(start=start_date, end=end_date, freq='D')
+        # Generate date range (business days only, like yfinance)
+        dates = pd.date_range(start=start_date, end=end_date, freq='B')  # B = business days
+
+        # Normalize to match yfinance format (no time component, tz-naive)
+        dates = pd.DatetimeIndex([d.normalize() for d in dates])
 
         # Simulate prices with random walk
         np.random.seed(hash(ticker) % (2**32))  # Consistent seed per ticker

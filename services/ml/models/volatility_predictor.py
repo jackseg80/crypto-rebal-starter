@@ -21,6 +21,19 @@ from ..data_pipeline import MLDataPipeline
 
 logger = logging.getLogger(__name__)
 
+
+def _set_reproducible_seeds(seed: int = 42):
+    """Fix all random seeds for reproducibility across training runs"""
+    import random
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    # Make PyTorch deterministic
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+
 class VolatilityLSTM(nn.Module):
     """
     LSTM Neural Network for volatility prediction
@@ -309,21 +322,24 @@ class VolatilityPredictor:
         logger.info(f"Created sequences for {symbol}: X shape {X.shape}, y shape {y.shape}")
         return X, y
     
-    def train_model(self, symbol: str, price_data: pd.DataFrame, 
+    def train_model(self, symbol: str, price_data: pd.DataFrame,
                    validation_split: float = 0.2) -> Dict[str, Any]:
         """
         Train volatility prediction model for a specific asset
-        
+
         Args:
             symbol: Asset symbol
             price_data: Historical price data
             validation_split: Fraction for validation
-            
+
         Returns:
             Training results and metadata
         """
+        # Fix random seeds for reproducibility
+        _set_reproducible_seeds(42)
+
         logger.info(f"Training volatility model for {symbol}")
-        
+
         try:
             # Prepare features
             features_df = self.prepare_features(price_data, symbol)

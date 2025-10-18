@@ -21,6 +21,19 @@ warnings.filterwarnings('ignore')
 
 logger = logging.getLogger(__name__)
 
+
+def _set_reproducible_seeds(seed: int = 42):
+    """Fix all random seeds for reproducibility across training runs"""
+    import random
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    # Make PyTorch deterministic
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+
 class MultiAssetTransformer(nn.Module):
     """
     Transformer architecture for multi-asset correlation forecasting
@@ -337,20 +350,23 @@ class CorrelationForecaster:
         
         return np.array(X_sequences), np.array(y_sequences)
     
-    def train_model(self, price_data: Dict[str, pd.DataFrame], 
+    def train_model(self, price_data: Dict[str, pd.DataFrame],
                    validation_split: float = 0.2) -> Dict[str, Any]:
         """
         Train correlation forecasting models for different horizons
-        
+
         Args:
             price_data: Multi-asset price data
             validation_split: Fraction of data for validation
-            
+
         Returns:
             Training metadata
         """
+        # Fix random seeds for reproducibility
+        _set_reproducible_seeds(42)
+
         logger.info("Starting correlation forecaster training")
-        
+
         # Prepare features
         features, targets, asset_symbols = self.prepare_multi_asset_features(price_data)
         

@@ -112,7 +112,8 @@ def calculate_var_montecarlo(
     returns: np.ndarray,
     confidence_level: float = 0.95,
     portfolio_value: Optional[float] = None,
-    num_simulations: int = 10000
+    num_simulations: int = 10000,
+    random_seed: Optional[int] = 42
 ) -> Dict[str, float]:
     """
     Calculate Value at Risk using Monte Carlo simulation
@@ -122,6 +123,7 @@ def calculate_var_montecarlo(
         confidence_level: Confidence level
         portfolio_value: Optional portfolio value
         num_simulations: Number of Monte Carlo simulations
+        random_seed: Random seed for reproducibility (default: 42, None for random)
 
     Returns:
         Dictionary with VaR metrics
@@ -137,6 +139,10 @@ def calculate_var_montecarlo(
     # Fit distribution parameters
     mean_return = np.mean(returns_clean)
     std_return = np.std(returns_clean)
+
+    # Set random seed for reproducibility
+    if random_seed is not None:
+        np.random.seed(random_seed)
 
     # Generate random returns
     simulated_returns = np.random.normal(mean_return, std_return, num_simulations)
