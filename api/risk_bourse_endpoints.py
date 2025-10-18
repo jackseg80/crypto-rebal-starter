@@ -1,8 +1,8 @@
 """
 Risk Management Endpoints pour Bourse/Saxo
 
-Fournit les mêmes métriques de risque que crypto (VaR, CVaR, Sharpe, DD, etc.)
-mais pour les portfolios actions/ETF/obligations.
+Fournit les métriques de risque pour portfolios actions/ETF/obligations.
+Utilise le nouveau BourseRiskCalculator avec support yfinance.
 
 IMPORTANT: Multi-tenant strict - tous les endpoints acceptent user_id obligatoire.
 """
@@ -11,12 +11,11 @@ from __future__ import annotations
 import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Depends
 from pydantic import BaseModel, Field
 
-from adapters import saxo_adapter
-from services.risk_management import risk_manager
-from services.pricing_service import get_prices
+from services.risk.bourse.calculator import BourseRiskCalculator
+from api.deps import get_active_user
 
 logger = logging.getLogger(__name__)
 
@@ -36,31 +35,62 @@ class RiskDashboardResponse(BaseModel):
 
 @router.get("/dashboard", response_model=RiskDashboardResponse)
 async def bourse_risk_dashboard(
-    user_id: str = Query("demo", description="User ID for multi-tenant isolation"),
+    user_id: str = Depends(get_active_user),
     min_usd: float = Query(1.0, ge=0.0, description="Minimum position value in USD"),
-    price_history_days: int = Query(365, ge=30, le=730, description="Days of price history for metrics")
+    lookback_days: int = Query(252, ge=30, le=730, description="Days of price history for metrics"),
+    risk_free_rate: float = Query(0.03, ge=0.0, le=0.20, description="Annual risk-free rate"),
+    var_method: str = Query("historical", description="VaR calculation method")
 ) -> RiskDashboardResponse:
     """
     Calculer les métriques de risque pour un portfolio Bourse/Saxo.
 
-    Réutilise le pipeline risque existant (VaR, CVaR, Sharpe, DD, etc.) avec des prix d'instruments bourse.
+    Utilise le nouveau BourseRiskCalculator avec support yfinance pour données historiques.
 
     Args:
         user_id: ID utilisateur (isolation multi-tenant)
         min_usd: Valeur minimum position USD à inclure
-        price_history_days: Jours d'historique prix pour calculs
+        lookback_days: Jours d'historique prix pour calculs
+        risk_free_rate: Taux sans risque annuel pour Sharpe/Sortino
+        var_method: Méthode VaR (historical|parametric|montecarlo)
 
     Returns:
         RiskDashboardResponse avec score + métriques complètes
 
     Example:
-        GET /api/risk/bourse/dashboard?user_id=jack&min_usd=100&price_history_days=365
+        GET /api/risk/bourse/dashboard?user_id=jack&min_usd=100&lookback_days=252
     """
     try:
         logger.info(f"[risk-bourse] Computing risk dashboard for user {user_id}")
 
-        # 1) Positions bourse pour cet utilisateur
-        positions = await saxo_adapter.list_positions(user_id=user_id)
+        # 1) Récupérer positions Saxo via l'API endpoint existant
+        # Importer ici pour éviter circulaire
+        from api.saxo_endpoints import list_portfolios, get_portfolio
+
+        # Lister les portfolios de l'utilisateur
+        portfolios_response = await list_portfolios(user_id=user_id)
+        portfolios = portfolios_response.get("portfolios", [])
+
+        if not portfolios:
+            return RiskDashboardResponse(
+                ok=True,
+                coverage=0.0,
+                positions_count=0,
+                total_value_usd=0.0,
+                risk={
+                    "score": 0,
+                    "level": "N/A",
+                    "metrics": {},
+                    "message": "No Saxo portfolios found for this user"
+                },
+                asof=datetime.utcnow().isoformat(),
+                user_id=user_id
+            )
+
+        # Prendre le premier portfolio (ou filtrer selon besoin)
+        portfolio_id = portfolios[0].get("portfolio_id")
+        portfolio_data = await get_portfolio(portfolio_id=portfolio_id, user_id=user_id)
+
+        positions = portfolio_data.get("positions", [])
 
         if not positions:
             return RiskDashboardResponse(
@@ -72,21 +102,22 @@ async def bourse_risk_dashboard(
                     "score": 0,
                     "level": "N/A",
                     "metrics": {},
-                    "message": "No positions found for this user"
+                    "message": "No positions found in portfolio"
                 },
                 asof=datetime.utcnow().isoformat(),
                 user_id=user_id
             )
 
         # Filtrer par seuil minimum
-        positions_filtered = [p for p in positions if (p.market_value or 0.0) >= min_usd]
+        positions_filtered = [p for p in positions if p.get("market_value_usd", 0.0) >= min_usd]
 
         if not positions_filtered:
+            total_value = sum(p.get("market_value_usd", 0.0) for p in positions)
             return RiskDashboardResponse(
                 ok=True,
                 coverage=0.0,
                 positions_count=len(positions),
-                total_value_usd=sum((p.market_value or 0.0) for p in positions),
+                total_value_usd=total_value,
                 risk={
                     "score": 0,
                     "level": "N/A",
@@ -97,41 +128,27 @@ async def bourse_risk_dashboard(
                 user_id=user_id
             )
 
-        total_value = sum((p.market_value or 0.0) for p in positions_filtered)
+        # 2) Calculer risque avec BourseRiskCalculator
+        calculator = BourseRiskCalculator(data_source="yahoo")
 
-        # 2) Convertir positions vers format holdings pour risk_manager
-        holdings = _positions_to_holdings(positions_filtered, total_value)
-
-        # 3) Calcul métriques risque (réutilise le risk_manager existant)
-        risk_metrics_obj = await risk_manager.calculate_portfolio_risk_metrics(
-            holdings=holdings,
-            price_history_days=price_history_days
+        risk_result = await calculator.calculate_portfolio_risk(
+            positions=positions_filtered,
+            benchmark="SPY",  # S&P500 par défaut
+            lookback_days=lookback_days,
+            risk_free_rate=risk_free_rate,
+            var_method=var_method
         )
 
-        # 4) Extraire métriques clés
-        risk_metrics_dict = {
-            "var_95_1d": risk_metrics_obj.var_95_1d,
-            "cvar_95_1d": risk_metrics_obj.cvar_95_1d,
-            "var_99_1d": risk_metrics_obj.var_99_1d,
-            "cvar_99_1d": risk_metrics_obj.cvar_99_1d,
-            "volatility_annualized": risk_metrics_obj.volatility_annualized,
-            "sharpe_ratio": risk_metrics_obj.sharpe_ratio,
-            "sortino_ratio": risk_metrics_obj.sortino_ratio,
-            "calmar_ratio": risk_metrics_obj.calmar_ratio,
-            "max_drawdown": risk_metrics_obj.max_drawdown,
-            "current_drawdown": risk_metrics_obj.current_drawdown,
-            "ulcer_index": risk_metrics_obj.ulcer_index,
-            "skewness": risk_metrics_obj.skewness,
-            "kurtosis": risk_metrics_obj.kurtosis,
-            "data_points": risk_metrics_obj.data_points,
-            "confidence_level": risk_metrics_obj.confidence_level,
-        }
+        # 3) Formater réponse
+        total_value = risk_result["metadata"]["portfolio_value"]
+        risk_score = risk_result["risk_score"]["risk_score"]
+        risk_level = risk_result["risk_score"]["risk_level"]
 
-        # 5) Score risque canonique (0-100, plus haut = plus robuste)
-        risk_score = _compute_risk_score(risk_metrics_dict)
-        risk_level = _risk_score_to_level(risk_score)
+        # Métriques détaillées
+        metrics = risk_result["traditional_risk"]
 
-        coverage = risk_metrics_obj.confidence_level  # Utiliser confidence_level comme proxy de coverage
+        # Coverage (proxy basé sur disponibilité données)
+        coverage = min(1.0, len(positions_filtered) / max(1, len(positions)))
 
         return RiskDashboardResponse(
             ok=True,
@@ -141,7 +158,7 @@ async def bourse_risk_dashboard(
             risk={
                 "score": risk_score,
                 "level": risk_level,
-                "metrics": risk_metrics_dict
+                "metrics": metrics
             },
             asof=datetime.utcnow().isoformat(),
             user_id=user_id
@@ -155,82 +172,4 @@ async def bourse_risk_dashboard(
         )
 
 
-def _positions_to_holdings(positions: List[Any], total_value: float) -> List[Dict[str, Any]]:
-    """
-    Convertir positions Saxo vers format holdings pour risk_manager.
-
-    Args:
-        positions: Liste de PositionModel Saxo
-        total_value: Valeur totale du portfolio
-
-    Returns:
-        Liste de dicts au format holdings (symbol, value_usd, weight, asset_class)
-    """
-    holdings = []
-    for pos in positions:
-        value_usd = pos.market_value or 0.0
-        weight = (value_usd / total_value) if total_value > 0 else 0.0
-
-        holdings.append({
-            "symbol": pos.instrument_id,
-            "value_usd": value_usd,
-            "weight": weight,
-            "quantity": pos.quantity,
-            "asset_class": pos.tags[0].split(":")[-1] if pos.tags else "EQUITY",  # Extract from tags
-        })
-
-    return holdings
-
-
-def _compute_risk_score(metrics: Dict[str, float]) -> float:
-    """
-    Calculer score de risque canonique (0-100, plus haut = plus robuste).
-
-    Formule inspirée de la sémantique Risk canonique (voir docs/RISK_SEMANTICS.md).
-
-    Args:
-        metrics: Dict avec VaR, CVaR, Sharpe, DD, volatilité
-
-    Returns:
-        Score 0-100 (100 = très robuste, 0 = très risqué)
-    """
-    # Pénalités basées sur métriques négatives
-    var_penalty = min(abs(metrics.get("var_95_1d", 0.0)), 20.0)  # Max -20 points
-    cvar_penalty = min(abs(metrics.get("cvar_95_1d", 0.0)), 25.0)  # Max -25 points
-    dd_penalty = min(abs(metrics.get("max_drawdown", 0.0)) / 2.0, 30.0)  # Max -30 points
-    vol_penalty = min(metrics.get("volatility_annualized", 0.0) / 5.0, 15.0)  # Max -15 points
-
-    # Bonus pour Sharpe positif
-    sharpe = metrics.get("sharpe_ratio", 0.0)
-    sharpe_bonus = min(max(sharpe * 5, 0.0), 20.0)  # Max +20 points
-
-    # Score de base 70 (neutre)
-    base_score = 70.0
-    score = base_score - var_penalty - cvar_penalty - dd_penalty - vol_penalty + sharpe_bonus
-
-    # Clamp [0, 100]
-    return max(0.0, min(100.0, score))
-
-
-def _risk_score_to_level(score: float) -> str:
-    """
-    Convertir score numérique en niveau textuel.
-
-    Args:
-        score: Score 0-100
-
-    Returns:
-        Niveau: VERY_LOW / LOW / MEDIUM / HIGH / VERY_HIGH / CRITICAL
-    """
-    if score >= 80:
-        return "VERY_LOW"
-    elif score >= 60:
-        return "LOW"
-    elif score >= 40:
-        return "MEDIUM"
-    elif score >= 20:
-        return "HIGH"
-    elif score >= 10:
-        return "VERY_HIGH"
-    else:
-        return "CRITICAL"
+# Helper functions removed - now handled by BourseRiskCalculator
