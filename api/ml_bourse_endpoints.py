@@ -108,15 +108,16 @@ async def forecast_volatility(
 @router.get("/api/ml/bourse/regime", response_model=RegimeDetectionResponse)
 async def detect_regime(
     benchmark: str = Query("SPY", description="Market benchmark ticker"),
-    lookback_days: int = Query(365, ge=60, le=1825, description="Days of history")
+    lookback_days: int = Query(1825, ge=60, le=3650, description="Days of history (5 years default for full market cycles)")
 ):
     """
     Detect current market regime (Bull/Bear/Consolidation/Distribution).
 
     Uses HMM + Neural Network hybrid model trained on market data.
+    Default 5 years (1825 days) to capture full bull/bear cycles.
 
     Example:
-        GET /api/ml/bourse/regime?benchmark=SPY&lookback_days=365
+        GET /api/ml/bourse/regime?benchmark=SPY&lookback_days=1825
     """
     try:
         logger.info(f"Market regime detection requested (benchmark={benchmark}, lookback={lookback_days}d)")

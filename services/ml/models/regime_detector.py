@@ -509,13 +509,19 @@ class RegimeDetector:
             # Scale features
             self.scaler = StandardScaler()
             X_scaled = self.scaler.fit_transform(X)
-            
-            # Train-validation split
-            split_idx = int(len(X_scaled) * (1 - validation_split))
-            X_train, X_val = X_scaled[:split_idx], X_scaled[split_idx:]
-            y_train, y_val = y[:split_idx], y[split_idx:]
-            
+
+            # Train-validation split (stratified to preserve class distribution)
+            # Temporal split can lead to validation set with only one class!
+            from sklearn.model_selection import train_test_split
+            X_train, X_val, y_train, y_val = train_test_split(
+                X_scaled, y,
+                test_size=validation_split,
+                stratify=y,  # Preserve class distribution in both sets
+                random_state=42  # Reproducibility
+            )
+
             logger.info(f"Training samples: {len(X_train)}, Validation samples: {len(X_val)}")
+            logger.info(f"Validation class distribution: {np.bincount(y_val).tolist()}")
 
             # Calculate class weights to handle imbalance
             class_counts = np.bincount(y_train)

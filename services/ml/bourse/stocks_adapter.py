@@ -193,7 +193,7 @@ class StocksMLAdapter:
     async def detect_market_regime(
         self,
         benchmark: str = "SPY",
-        lookback_days: int = 365
+        lookback_days: int = 1825  # 5 years for full market cycles
     ) -> Dict[str, Any]:
         """
         Detect current market regime (Bull/Bear/Consolidation/Distribution).
