@@ -746,15 +746,10 @@
                 switch (tabId) {
                     case 'overview':
                         loadOverviewData(currentPortfolioData);
+                        loadCurrencyDetails(); // Also load currency exposure in overview
                         break;
                     case 'positions':
                         loadAllPositions();
-                        break;
-                    case 'allocation':
-                        loadAllocationDetails();
-                        break;
-                    case 'currencies':
-                        loadCurrencyDetails();
                         break;
                     case 'risk':
                         loadRiskAnalytics();
@@ -795,14 +790,12 @@
             // Load data for specific tab if needed
             if (currentPortfolioData) {
                 switch (tabName) {
+                    case 'overview':
+                        loadOverviewData(currentPortfolioData);
+                        loadCurrencyDetails(); // Also load currency exposure in overview
+                        break;
                     case 'positions':
                         loadAllPositions();
-                        break;
-                    case 'allocation':
-                        loadAllocationDetails();
-                        break;
-                    case 'currencies':
-                        loadCurrencyDetails();
                         break;
                     case 'risk':
                         loadRiskAnalytics();
