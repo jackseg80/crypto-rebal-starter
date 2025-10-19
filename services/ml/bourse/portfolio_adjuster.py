@@ -60,11 +60,14 @@ class PortfolioAdjuster:
         # Step 1: Apply sector concentration limits
         adjusted = self._apply_sector_limits(recommendations, sector_weights)
 
-        # Step 2: Apply correlation limits (if data available)
+        # Step 2: Apply Risk/Reward filter (downgrade BUY if R/R < 1.5)
+        adjusted = self._apply_risk_reward_filter(adjusted, min_rr_ratio=1.5)
+
+        # Step 3: Apply correlation limits (if data available)
         if correlations:
             adjusted = self._apply_correlation_limits(adjusted, correlations)
 
-        # Step 3: Add adjustment notes
+        # Step 4: Add adjustment notes
         for rec in adjusted:
             if rec.get("adjusted"):
                 rec["adjustment_note"] = self._get_adjustment_note(rec)
@@ -140,6 +143,53 @@ class PortfolioAdjuster:
             else:
                 # Sector OK, no adjustment
                 adjusted.extend(recs)
+
+        return adjusted
+
+    def _apply_risk_reward_filter(
+        self,
+        recommendations: List[Dict[str, Any]],
+        min_rr_ratio: float = 1.5
+    ) -> List[Dict[str, Any]]:
+        """
+        Downgrade BUY signals with insufficient Risk/Reward ratio
+
+        Strategy:
+        - BUY or STRONG BUY with R/R < 1.5 → downgrade to HOLD
+        - Rationale: Don't recommend buying if risk > reward
+
+        Args:
+            recommendations: List of recommendations
+            min_rr_ratio: Minimum acceptable R/R ratio (default 1.5)
+
+        Returns:
+            Adjusted recommendations
+        """
+        adjusted = []
+
+        for rec in recommendations:
+            action = rec.get("action", "HOLD")
+
+            # Only check BUY signals
+            if action in ["STRONG BUY", "BUY"]:
+                price_targets = rec.get("price_targets", {})
+                rr_tp1 = price_targets.get("risk_reward_tp1", 0)
+
+                # If R/R insufficient, downgrade to HOLD
+                if rr_tp1 < min_rr_ratio:
+                    original_action = rec["action"]
+                    rec["action"] = "HOLD"
+                    rec["adjusted"] = True
+                    rec["adjustment_reason"] = "insufficient_risk_reward"
+                    rec["original_action"] = original_action
+                    rec["risk_reward_tp1"] = rr_tp1
+
+                    logger.info(
+                        f"{rec.get('symbol')}: Downgraded {original_action} → HOLD "
+                        f"(R/R {rr_tp1:.2f} < {min_rr_ratio})"
+                    )
+
+            adjusted.append(rec)
 
         return adjusted
 
@@ -253,6 +303,10 @@ class PortfolioAdjuster:
         if reason == "sector_concentration":
             sector_weight = rec.get("sector_weight", 0) * 100
             return f"Downgraded from {original} due to sector concentration ({sector_weight:.0f}% > {self.max_sector_pct*100:.0f}%)"
+
+        elif reason == "insufficient_risk_reward":
+            rr_ratio = rec.get("risk_reward_tp1", 0)
+            return f"Downgraded from {original} due to insufficient Risk/Reward ratio ({rr_ratio:.2f} < 1.5)"
 
         elif reason == "correlation_limit":
             return f"Downgraded from {original} due to high correlation with other BUY signals"
