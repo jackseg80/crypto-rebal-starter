@@ -157,29 +157,29 @@ class RegimeDetector:
                 'risk_level': 'High',
                 'allocation_bias': 'Significantly reduce risky assets'
             },
-            1: {  # Consolidation (stocks) / Expansion (crypto)
+            1: {  # Consolidation - sideways, near-zero returns
                 'name': 'Consolidation',
-                'description': 'Market in consolidation - sideways action after decline or before breakout',
-                'characteristics': ['Range-bound prices', 'Moderate volatility', 'Mixed signals'],
-                'strategy': 'Balanced approach, wait for confirmation',
+                'description': 'Sideways market with near-zero returns, indecision phase',
+                'characteristics': ['Range-bound', 'Low/no momentum', 'Neutral sentiment'],
+                'strategy': 'Wait for breakout, selective positions only, preserve capital',
                 'risk_level': 'Moderate',
-                'allocation_bias': 'Neutral allocation'
+                'allocation_bias': 'Neutral - reduce to 50-60% allocation'
             },
-            2: {  # Bull Market (stocks) / Euphoria (crypto)
+            2: {  # Bull Market - healthy uptrend, moderate gains
                 'name': 'Bull Market',
-                'description': 'Market in sustained uptrend - risk-on phase with positive returns',
-                'characteristics': ['Rising prices', 'Controlled volatility', 'Positive momentum'],
-                'strategy': 'Maintain positions, selective additions, ride the trend',
+                'description': 'Healthy uptrend with moderate gains (~10-15%/yr), sustainable growth',
+                'characteristics': ['Steady gains', 'Moderate momentum', 'Disciplined growth'],
+                'strategy': 'DCA consistently, follow trend, maintain long-term holds',
                 'risk_level': 'Low to Moderate',
-                'allocation_bias': 'Increase risky assets allocation'
+                'allocation_bias': 'Increase to 70-75% allocation'
             },
-            3: {  # Strong Bull Market (stocks) - sustained uptrend with low volatility
+            3: {  # Strong Bull Market - explosive growth, high intensity
                 'name': 'Strong Bull Market',
-                'description': 'Sustained bull market with strong returns and low volatility (e.g., QE era)',
-                'characteristics': ['Strong positive returns', 'Low volatility', 'Fed/policy support'],
-                'strategy': 'Stay invested, dollar-cost average, avoid fighting the Fed',
-                'risk_level': 'Low',
-                'allocation_bias': 'Maximum risk asset allocation'
+                'description': 'Explosive growth (>20%/yr), strong momentum, euphoric phase',
+                'characteristics': ['Rapid gains', 'High momentum', 'FOMO sentiment', 'Potential excess'],
+                'strategy': 'Ride the wave but prepare exit, tight stops, take profits progressively',
+                'risk_level': 'Moderate to High',  # Changed from Low
+                'allocation_bias': 'Maximum allocation (80%+) but watch for reversal'
             }
         }
         
@@ -471,8 +471,9 @@ class RegimeDetector:
                 avg_volatility = np.mean(features.loc[regime_mask, 'market_volatility'])
                 avg_momentum = np.mean(features.loc[regime_mask, 'market_momentum'])
 
-                # Score for ordering: combine return, -volatility, momentum
-                score = avg_return * 0.4 - avg_volatility * 0.3 + avg_momentum * 0.3
+                # Score for ordering: prioritize INTENSITY (returns + momentum)
+                # Small vol penalty to distinguish panic (Bear) from confidence (Bull)
+                score = avg_return * 0.6 + avg_momentum * 0.3 - avg_volatility * 0.1
                 regime_characteristics.append({
                     'id': regime,
                     'return': avg_return,

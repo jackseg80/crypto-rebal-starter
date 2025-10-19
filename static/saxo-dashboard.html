@@ -2308,9 +2308,19 @@
                                     label: function(context) {
                                         const idx = context.dataIndex * sampleRate;
                                         const regime = regimes[idx] || 'Unknown';
+
+                                        // Add historical examples for each regime
+                                        const regimeExamples = {
+                                            'Bear Market': '(e.g., 2008 crisis, COVID crash 2020, 2022 bear)',
+                                            'Consolidation': '(e.g., 2015-2016 range, 2018 volatility)',
+                                            'Bull Market': '(e.g., 2005-2007, 2012-2013, 2023-2024)',
+                                            'Strong Bull Market': '(e.g., 2009-2010 recovery, 2017 euphoria, 2020 post-COVID rally)'
+                                        };
+
                                         return [
                                             `Price: $${context.parsed.y.toFixed(2)}`,
-                                            `Regime: ${regime}`
+                                            `Regime: ${regime}`,
+                                            regimeExamples[regime] || ''
                                         ];
                                     }
                                 }
