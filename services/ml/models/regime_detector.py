@@ -130,42 +130,52 @@ class RegimeDetector:
     def __init__(self, model_dir: str = "models/regime"):
         self.model_dir = Path(model_dir)
         self.model_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Model parameters
         self.num_regimes = 4
-        self.regime_names = ['Accumulation', 'Expansion', 'Euphoria', 'Distribution']
+
+        # IMPORTANT: Regime names depend on market type
+        # For STOCKS (SPY, QQQ, etc.): Score-based ordering is INVERTED from crypto
+        #   - Regime 0 (lowest score) = Bear Market (negative returns, high vol)
+        #   - Regime 3 (highest score) = Bull Market (positive returns, low vol)
+        # For CRYPTO: Original names apply
+        #   - Regime 0 = Accumulation, Regime 3 = Distribution
+
+        # Default to stock market regime names (since we're using stocks primarily)
+        self.regime_names = ['Bear Market', 'Consolidation', 'Bull Market', 'Distribution']
+
         self.regime_descriptions = {
-            0: {  # Accumulation
-                'name': 'Accumulation',
-                'description': 'Market in accumulation phase - consolidation after decline',
-                'characteristics': ['Low volatility', 'Sideways price action', 'Decreasing volume'],
-                'strategy': 'Accumulate quality assets, build positions gradually',
-                'risk_level': 'Low to Moderate',
-                'allocation_bias': 'Increase risky assets'
+            0: {  # Bear Market (stocks) / Accumulation (crypto)
+                'name': 'Bear Market',
+                'description': 'Market in decline - risk-off phase with negative returns',
+                'characteristics': ['Declining prices', 'High volatility', 'Negative momentum'],
+                'strategy': 'Defensive positioning, increase cash/bonds, hedge risk',
+                'risk_level': 'High',
+                'allocation_bias': 'Significantly reduce risky assets'
             },
-            1: {  # Expansion  
-                'name': 'Expansion',
-                'description': 'Market in expansion phase - sustained upward trend',
-                'characteristics': ['Rising prices', 'Increasing volume', 'Positive momentum'],
-                'strategy': 'Maintain positions, selective additions',
+            1: {  # Consolidation (stocks) / Expansion (crypto)
+                'name': 'Consolidation',
+                'description': 'Market in consolidation - sideways action after decline or before breakout',
+                'characteristics': ['Range-bound prices', 'Moderate volatility', 'Mixed signals'],
+                'strategy': 'Balanced approach, wait for confirmation',
                 'risk_level': 'Moderate',
-                'allocation_bias': 'Balanced allocation'
+                'allocation_bias': 'Neutral allocation'
             },
-            2: {  # Euphoria
-                'name': 'Euphoria', 
-                'description': 'Market in euphoria phase - speculative excess',
-                'characteristics': ['Parabolic price moves', 'High volatility', 'FOMO behavior'],
-                'strategy': 'Reduce risk, take profits on speculative positions',
-                'risk_level': 'High',
-                'allocation_bias': 'Reduce risky assets, increase stables'
+            2: {  # Bull Market (stocks) / Euphoria (crypto)
+                'name': 'Bull Market',
+                'description': 'Market in sustained uptrend - risk-on phase with positive returns',
+                'characteristics': ['Rising prices', 'Controlled volatility', 'Positive momentum'],
+                'strategy': 'Maintain positions, selective additions, ride the trend',
+                'risk_level': 'Low to Moderate',
+                'allocation_bias': 'Increase risky assets allocation'
             },
-            3: {  # Distribution
+            3: {  # Distribution (stocks - strongest bull) / Distribution (crypto - topping)
                 'name': 'Distribution',
-                'description': 'Market in distribution phase - smart money exits',
-                'characteristics': ['Topping patterns', 'Declining momentum', 'Institutional selling'],
-                'strategy': 'Defensive positioning, cash reserves',
-                'risk_level': 'High',
-                'allocation_bias': 'Significantly reduce risk'
+                'description': 'Market at extremes - either strong bull continuation or topping pattern',
+                'characteristics': ['Extreme momentum', 'Variable volatility', 'Sentiment extremes'],
+                'strategy': 'Monitor closely for reversal signs, consider profit-taking',
+                'risk_level': 'Moderate to High',
+                'allocation_bias': 'Cautious - watch for regime change'
             }
         }
         
