@@ -468,10 +468,11 @@ async def get_regime_history(
 
         # After feature calculation, we lose ~60-100 days due to rolling windows
         # So we need raw data length check before features, not after
-        if len(data) < 250:
+        # Lowered to 200 to allow 1Y timeframe to work (365 days - ~100 warmup = ~265 samples)
+        if len(data) < 200:
             raise HTTPException(
                 status_code=400,
-                detail=f"Insufficient data: only {len(data)} days available (minimum 250 days required for HMM regime detection with feature windows)"
+                detail=f"Insufficient data: only {len(data)} days available (minimum 200 days required for regime detection with feature windows)"
             )
 
         # Load the trained regime detector

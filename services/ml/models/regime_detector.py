@@ -141,8 +141,12 @@ class RegimeDetector:
         # For CRYPTO: Original names apply
         #   - Regime 0 = Accumulation, Regime 3 = Distribution
 
-        # Default to stock market regime names (since we're using stocks primarily)
-        self.regime_names = ['Bear Market', 'Consolidation', 'Bull Market', 'Distribution']
+        # Stock market regime names (ordered by score: low to high)
+        # Regime 0 (lowest score): Negative returns + high volatility = Bear Market
+        # Regime 1 (low-mid score): Low returns + medium volatility = Consolidation
+        # Regime 2 (mid-high score): Positive returns + medium volatility = Bull Market
+        # Regime 3 (highest score): Strong returns + LOW volatility = Strong Bull / Low Vol Expansion
+        self.regime_names = ['Bear Market', 'Consolidation', 'Bull Market', 'Strong Bull Market']
 
         self.regime_descriptions = {
             0: {  # Bear Market (stocks) / Accumulation (crypto)
@@ -169,13 +173,13 @@ class RegimeDetector:
                 'risk_level': 'Low to Moderate',
                 'allocation_bias': 'Increase risky assets allocation'
             },
-            3: {  # Distribution (stocks - strongest bull) / Distribution (crypto - topping)
-                'name': 'Distribution',
-                'description': 'Market at extremes - either strong bull continuation or topping pattern',
-                'characteristics': ['Extreme momentum', 'Variable volatility', 'Sentiment extremes'],
-                'strategy': 'Monitor closely for reversal signs, consider profit-taking',
-                'risk_level': 'Moderate to High',
-                'allocation_bias': 'Cautious - watch for regime change'
+            3: {  # Strong Bull Market (stocks) - sustained uptrend with low volatility
+                'name': 'Strong Bull Market',
+                'description': 'Sustained bull market with strong returns and low volatility (e.g., QE era)',
+                'characteristics': ['Strong positive returns', 'Low volatility', 'Fed/policy support'],
+                'strategy': 'Stay invested, dollar-cost average, avoid fighting the Fed',
+                'risk_level': 'Low',
+                'allocation_bias': 'Maximum risk asset allocation'
             }
         }
         

@@ -2042,8 +2042,8 @@
                                 📈 Market Regime History with SPY Price
                             </h4>
                             <div id="timeframeSelector" style="display: flex; gap: 0.25rem;">
-                                <button class="timeframe-btn" data-days="365">1Y</button>
-                                <button class="timeframe-btn active" data-days="730">2Y</button>
+                                <button class="timeframe-btn active" data-days="365">1Y</button>
+                                <button class="timeframe-btn" data-days="730">2Y</button>
                                 <button class="timeframe-btn" data-days="1825">5Y</button>
                                 <button class="timeframe-btn" data-days="3650">10Y</button>
                                 <button class="timeframe-btn" data-days="7300">20Y</button>
@@ -2060,7 +2060,7 @@
                 createRegimeProbabilitiesChart(regimeData.regime_probabilities);
 
                 // Create Regime Timeline with Price Overlay
-                await createRegimeTimelineChart(regimeData, 730); // Default: 2 years
+                await createRegimeTimelineChart(regimeData, 365); // Default: 1 year
 
                 // Setup timeframe selector buttons
                 setupTimeframeSelector(regimeData);
@@ -2078,10 +2078,10 @@
         // Helper: Get regime color
         function getRegimeColor(regime) {
             const colors = {
-                'Bull Market': '#22c55e',
-                'Bear Market': '#ef4444',
-                'Consolidation': '#94a3b8',
-                'Distribution': '#f59e0b'
+                'Bear Market': '#ef4444',          // Red
+                'Consolidation': '#94a3b8',        // Gray
+                'Bull Market': '#22c55e',          // Green
+                'Strong Bull Market': '#f59e0b'    // Orange (QE era, low-vol bull)
             };
             return colors[regime] || '#64748b';
         }
@@ -2089,10 +2089,10 @@
         // Helper: Get regime emoji
         function getRegimeEmoji(regime) {
             const emojis = {
-                'Bull Market': '🐂',
                 'Bear Market': '🐻',
                 'Consolidation': '↔️',
-                'Distribution': '📊'
+                'Bull Market': '🐂',
+                'Strong Bull Market': '🚀'  // Rocket for strong bull
             };
             return emojis[regime] || '❓';
         }
@@ -2295,7 +2295,7 @@
                                             { text: 'Bear Market', fillStyle: '#ef4444', fontColor: textColor },
                                             { text: 'Consolidation', fillStyle: '#94a3b8', fontColor: textColor },
                                             { text: 'Bull Market', fillStyle: '#22c55e', fontColor: textColor },
-                                            { text: 'Distribution', fillStyle: '#f59e0b', fontColor: textColor }
+                                            { text: 'Strong Bull Market', fillStyle: '#f59e0b', fontColor: textColor }
                                         ];
                                     }
                                 }
