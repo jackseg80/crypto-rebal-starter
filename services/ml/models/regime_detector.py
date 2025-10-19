@@ -424,13 +424,14 @@ class RegimeDetector:
     def _create_hmm_regime_labels(self, features: pd.DataFrame) -> np.ndarray:
         """
         Create initial regime labels using HMM for neural network training
-        
+
         Args:
             features: Feature DataFrame
-            
+
         Returns:
             Regime labels array
         """
+        logger.info("🚀🚀🚀 PHASE 2.5 - NEW SCORING FORMULA ACTIVE (v2025-10-19-15:51) 🚀🚀🚀")
         logger.info("Creating initial regime labels using HMM")
         
         # Select key features for HMM
@@ -474,6 +475,9 @@ class RegimeDetector:
                 # Score for ordering: prioritize INTENSITY (returns + momentum)
                 # Small vol penalty to distinguish panic (Bear) from confidence (Bull)
                 score = avg_return * 0.6 + avg_momentum * 0.3 - avg_volatility * 0.1
+
+                # DEBUG: Vérifier que le nouveau code est utilisé
+                logger.info(f"🔥 NEW FORMULA USED: return={avg_return:.4f}*0.6 + momentum={avg_momentum:.4f}*0.3 - vol={avg_volatility:.4f}*0.1 = score={score:.4f}")
                 regime_characteristics.append({
                     'id': regime,
                     'return': avg_return,

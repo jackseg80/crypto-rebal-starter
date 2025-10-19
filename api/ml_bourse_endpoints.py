@@ -108,7 +108,8 @@ async def forecast_volatility(
 @router.get("/api/ml/bourse/regime", response_model=RegimeDetectionResponse)
 async def detect_regime(
     benchmark: str = Query("SPY", description="Market benchmark ticker"),
-    lookback_days: int = Query(7300, ge=60, le=10950, description="Days of history (20 years default to capture 4-5 full market cycles, max 30 years)")
+    lookback_days: int = Query(7300, ge=60, le=10950, description="Days of history (20 years default to capture 4-5 full market cycles, max 30 years)"),
+    force_retrain: bool = Query(False, description="Force model retraining (bypass 7-day cache)")
 ):
     """
     Detect current market regime (Bull/Bear/Consolidation/Distribution).
@@ -124,7 +125,8 @@ async def detect_regime(
 
         result = await stocks_ml_adapter.detect_market_regime(
             benchmark=benchmark,
-            lookback_days=lookback_days
+            lookback_days=lookback_days,
+            force_retrain=force_retrain
         )
 
         return RegimeDetectionResponse(**result)
