@@ -421,3 +421,133 @@ async def get_model_info(model_type: str = Query("regime", description="Model ty
     except Exception as e:
         logger.error(f"Error getting model info for {model_type}: {e}")
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@router.get("/api/ml/bourse/regime-history")
+async def get_regime_history(
+    benchmark: str = Query("SPY", description="Market benchmark ticker"),
+    lookback_days: int = Query(365, ge=30, le=7300, description="Days of history to return (30 days to 20 years)")
+):
+    """
+    Retourne l'historique des régimes ML avec les prix réels du benchmark.
+
+    Utilise le modèle HMM pour identifier les régimes historiques sur la période demandée.
+    Permet de visualiser les transitions de régimes et valider le modèle.
+
+    Args:
+        benchmark: Ticker du benchmark (default: SPY)
+        lookback_days: Jours d'historique (30-7300, default: 365)
+
+    Returns:
+        {
+            "dates": ["2024-01-01", ...],
+            "prices": [450.5, ...],
+            "regimes": ["Bull Market", ...],
+            "regime_ids": [2, ...],
+            "benchmark": "SPY",
+            "lookback_days": 365,
+            "events": [
+                {"date": "2020-03-15", "label": "COVID Crash", "type": "crisis"},
+                ...
+            ]
+        }
+
+    Example:
+        GET /api/ml/bourse/regime-history?benchmark=SPY&lookback_days=7300
+    """
+    try:
+        logger.info(f"Regime history requested (benchmark={benchmark}, lookback={lookback_days}d)")
+
+        adapter = StocksMLAdapter()
+
+        # Fetch historical data for the benchmark
+        data = await adapter.data_source.get_benchmark_data_cached(
+            benchmark=benchmark,
+            lookback_days=lookback_days
+        )
+
+        if len(data) < 30:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Insufficient data: only {len(data)} days available (minimum 30 required)"
+            )
+
+        # Load the trained regime detector
+        from services.ml.models.regime_detector import RegimeDetector
+        detector = RegimeDetector(model_dir="models/stocks/regime")
+
+        # Check if model exists
+        model_file = detector.model_dir / "regime_neural_best.pth"
+        if not model_file.exists():
+            raise HTTPException(
+                status_code=503,
+                detail="Regime model not trained yet. Please call /api/ml/bourse/regime first to train the model."
+            )
+
+        # Prepare features for all historical data
+        multi_asset_data = {benchmark: data}
+        features_df = detector.prepare_regime_features(multi_asset_data)
+
+        if len(features_df) == 0:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to prepare features from historical data"
+            )
+
+        # Use HMM to label historical regimes
+        regime_labels = detector._create_hmm_regime_labels(features_df)
+
+        # Map regime IDs to names
+        regime_names = [detector.regime_names[label] for label in regime_labels]
+
+        # Get dates and prices aligned with features
+        # Features are calculated with some lag, so we need to align properly
+        dates = features_df.index.strftime('%Y-%m-%d').tolist()
+        prices = data.loc[features_df.index, 'close'].tolist()
+
+        # Define key market events for annotations (last 20 years)
+        events = []
+        if lookback_days >= 5000:  # 14+ years
+            events.append({"date": "2008-09-15", "label": "Lehman Crisis", "type": "crisis"})
+            events.append({"date": "2009-03-09", "label": "QE1 Start", "type": "policy"})
+        if lookback_days >= 3650:  # 10+ years
+            events.append({"date": "2015-08-24", "label": "Flash Crash", "type": "volatility"})
+            events.append({"date": "2018-12-24", "label": "Vol Spike", "type": "volatility"})
+        if lookback_days >= 1825:  # 5+ years
+            events.append({"date": "2020-03-23", "label": "COVID Bottom", "type": "crisis"})
+            events.append({"date": "2020-03-15", "label": "Fed QE", "type": "policy"})
+            events.append({"date": "2022-01-01", "label": "Fed Hikes Start", "type": "policy"})
+            events.append({"date": "2022-10-13", "label": "2022 Bottom", "type": "bottom"})
+
+        # Calculate regime statistics
+        regime_counts = {}
+        for name in detector.regime_names:
+            regime_counts[name] = regime_names.count(name)
+
+        total_samples = len(regime_names)
+        regime_distribution = {
+            name: {
+                "count": count,
+                "percentage": round(count / total_samples * 100, 1)
+            }
+            for name, count in regime_counts.items()
+        }
+
+        return {
+            "dates": dates,
+            "prices": prices,
+            "regimes": regime_names,
+            "regime_ids": regime_labels.tolist(),
+            "benchmark": benchmark,
+            "lookback_days": lookback_days,
+            "total_samples": total_samples,
+            "regime_distribution": regime_distribution,
+            "events": events,
+            "timestamp": datetime.now().isoformat()
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting regime history: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")

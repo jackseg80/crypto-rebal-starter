@@ -417,6 +417,31 @@
             background: var(--info);
             color: white;
         }
+
+        /* Timeframe selector buttons */
+        .timeframe-btn {
+            padding: 0.35rem 0.75rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border: 1px solid var(--theme-border);
+            background: var(--theme-bg);
+            color: var(--theme-text-muted);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .timeframe-btn:hover {
+            background: var(--theme-bg-hover);
+            color: var(--theme-text);
+            border-color: var(--primary);
+        }
+
+        .timeframe-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
     </style>
 </head>
 
@@ -1997,14 +2022,26 @@
                         <canvas id="regimeProbabilitiesChart" style="max-height: 250px;"></canvas>
                     </div>
 
-                    <!-- Regime Timeline (Simulated) -->
+                    <!-- Regime Timeline (Real Historical Data) -->
                     <div>
-                        <h4 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--theme-text);">
-                            📈 Market Timeline with SPY Price
-                        </h4>
-                        <canvas id="regimeTimelineChart" style="max-height: 300px;"></canvas>
-                        <div style="margin-top: 0.75rem; padding: 0.75rem; background: var(--theme-bg); border-radius: var(--radius-sm); font-size: 0.8rem; color: var(--theme-text-muted);">
-                            ℹ️ Timeline shows simulated regime transitions over last 12 months with SPY price overlay
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                            <h4 style="font-size: 0.9rem; font-weight: 600; margin: 0; color: var(--theme-text);">
+                                📈 Market Regime History with SPY Price
+                            </h4>
+                            <div id="timeframeSelector" style="display: flex; gap: 0.25rem;">
+                                <button class="timeframe-btn" data-days="30">1M</button>
+                                <button class="timeframe-btn" data-days="90">3M</button>
+                                <button class="timeframe-btn" data-days="180">6M</button>
+                                <button class="timeframe-btn active" data-days="365">1Y</button>
+                                <button class="timeframe-btn" data-days="730">2Y</button>
+                                <button class="timeframe-btn" data-days="1825">5Y</button>
+                                <button class="timeframe-btn" data-days="3650">10Y</button>
+                                <button class="timeframe-btn" data-days="7300">20Y</button>
+                            </div>
+                        </div>
+                        <canvas id="regimeTimelineChart" style="max-height: 350px;"></canvas>
+                        <div id="regimeTimelineInfo" style="margin-top: 0.75rem; padding: 0.75rem; background: var(--theme-bg); border-radius: var(--radius-sm); font-size: 0.8rem; color: var(--theme-text-muted);">
+                            ℹ️ Loading historical regime data...
                         </div>
                     </div>
                 `;
@@ -2013,7 +2050,10 @@
                 createRegimeProbabilitiesChart(regimeData.regime_probabilities);
 
                 // Create Regime Timeline with Price Overlay
-                await createRegimeTimelineChart(regimeData);
+                await createRegimeTimelineChart(regimeData, 365); // Default: 1 year
+
+                // Setup timeframe selector buttons
+                setupTimeframeSelector(regimeData);
 
                 document.getElementById('regimeBadge').textContent = `${regimeData.benchmark} • ${regimeData.current_regime}`;
 
@@ -2102,115 +2142,203 @@
             });
         }
 
-        // Create Regime Timeline with SPY Price Overlay
-        async function createRegimeTimelineChart(regimeData) {
+        // Global variable to store current chart instance
+        let regimeTimelineChartInstance = null;
+
+        // Create Regime Timeline with Real Historical Data
+        async function createRegimeTimelineChart(regimeData, lookback_days = 365) {
             const ctx = document.getElementById('regimeTimelineChart');
             if (!ctx) return;
 
-            // Generate simulated historical data (last 12 months)
-            const now = new Date();
-            const labels = [];
-            const prices = [];
-            const regimeColors = [];
+            try {
+                // Fetch real historical regime data from API
+                const baseUrl = window.location.origin;
+                const historyUrl = `${baseUrl}/api/ml/bourse/regime-history?benchmark=${regimeData.benchmark || 'SPY'}&lookback_days=${lookback_days}`;
 
-            // Simulate SPY price movement (roughly $400-460 range over 12 months)
-            const basePrice = 400;
-            const currentRegime = regimeData.current_regime;
+                document.getElementById('regimeTimelineInfo').innerHTML = '⏳ Loading historical data...';
 
-            for (let i = 0; i < 12; i++) {
-                const monthDate = new Date(now);
-                monthDate.setMonth(now.getMonth() - (11 - i));
-                labels.push(monthDate.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }));
+                const response = await safeFetch(historyUrl);
+                if (!response?.ok) throw new Error('Failed to fetch regime history');
 
-                // Simulate price trend based on regime
-                let price = basePrice + (i * 5); // Base uptrend
-                if (currentRegime === 'Bull Market') {
-                    price += Math.random() * 20;
-                } else if (currentRegime === 'Bear Market') {
-                    price -= Math.random() * 15;
-                } else {
-                    price += (Math.random() - 0.5) * 10;
-                }
-                prices.push(price);
+                const historyData = response.data || response;
 
-                // Simulate regime transitions (mostly current regime)
-                if (i < 4) {
-                    regimeColors.push(getRegimeColor('Consolidation'));
-                } else if (i < 8) {
-                    regimeColors.push(getRegimeColor('Bull Market'));
-                } else {
-                    regimeColors.push(getRegimeColor(currentRegime));
-                }
-            }
+                // Prepare data for chart
+                const labels = historyData.dates;
+                const prices = historyData.prices;
+                const regimes = historyData.regimes;
 
-            new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'SPY Price',
-                        data: prices,
-                        borderColor: '#3b82f6',
-                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                        borderWidth: 2,
-                        fill: true,
-                        tension: 0.3,
-                        pointBackgroundColor: regimeColors,
-                        pointBorderColor: regimeColors,
-                        pointRadius: 6,
-                        pointHoverRadius: 8
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    plugins: {
-                        legend: { display: true },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return `SPY: $${context.parsed.y.toFixed(2)}`;
-                                },
-                                afterLabel: function(context) {
-                                    // Show regime color meaning
-                                    return 'Colored dots indicate regime transitions';
+                // Map regimes to colors
+                const regimeColors = regimes.map(regime => getRegimeColor(regime));
+
+                // Prepare annotations for key events
+                const annotations = {};
+                if (historyData.events && historyData.events.length > 0) {
+                    historyData.events.forEach((event, idx) => {
+                        // Find index of event date in labels
+                        const eventIndex = labels.findIndex(date => date === event.date);
+                        if (eventIndex >= 0) {
+                            const annotationKey = `event_${idx}`;
+                            const colors = {
+                                'crisis': '#ef4444',
+                                'policy': '#3b82f6',
+                                'volatility': '#f59e0b',
+                                'bottom': '#22c55e'
+                            };
+                            annotations[annotationKey] = {
+                                type: 'line',
+                                xMin: eventIndex,
+                                xMax: eventIndex,
+                                borderColor: colors[event.type] || '#64748b',
+                                borderWidth: 2,
+                                borderDash: [5, 5],
+                                label: {
+                                    display: true,
+                                    content: event.label,
+                                    position: 'start',
+                                    backgroundColor: 'rgba(0,0,0,0.7)',
+                                    color: 'white',
+                                    font: { size: 10 }
                                 }
-                            }
-                        },
-                        annotation: {
-                            annotations: {
-                                // COVID crash annotation
-                                covid: {
-                                    type: 'line',
-                                    xMin: 2,
-                                    xMax: 2,
-                                    borderColor: '#ef4444',
-                                    borderWidth: 2,
-                                    borderDash: [5, 5],
-                                    label: {
-                                        display: true,
-                                        content: '📉 Market Event',
-                                        position: 'start'
+                            };
+                        }
+                    });
+                }
+
+                // Destroy previous chart if exists
+                if (regimeTimelineChartInstance) {
+                    regimeTimelineChartInstance.destroy();
+                }
+
+                // Subsample data for better performance if > 500 points
+                let displayLabels = labels;
+                let displayPrices = prices;
+                let displayColors = regimeColors;
+                let sampleRate = 1;
+
+                if (labels.length > 500) {
+                    sampleRate = Math.ceil(labels.length / 500);
+                    displayLabels = labels.filter((_, i) => i % sampleRate === 0);
+                    displayPrices = prices.filter((_, i) => i % sampleRate === 0);
+                    displayColors = regimeColors.filter((_, i) => i % sampleRate === 0);
+                }
+
+                // Create new chart
+                regimeTimelineChartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: displayLabels,
+                        datasets: [{
+                            label: `${historyData.benchmark} Price`,
+                            data: displayPrices,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.05)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.1,
+                            pointBackgroundColor: displayColors,
+                            pointBorderColor: displayColors,
+                            pointRadius: lookback_days > 1825 ? 3 : 5, // Smaller points for long periods
+                            pointHoverRadius: 7
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                labels: {
+                                    generateLabels: function(chart) {
+                                        // Add custom legend for regimes
+                                        return [
+                                            { text: `${historyData.benchmark} Price`, fillStyle: '#3b82f6', strokeStyle: '#3b82f6' },
+                                            { text: 'Bear Market', fillStyle: '#ef4444' },
+                                            { text: 'Consolidation', fillStyle: '#94a3b8' },
+                                            { text: 'Bull Market', fillStyle: '#22c55e' },
+                                            { text: 'Distribution', fillStyle: '#f59e0b' }
+                                        ];
                                     }
                                 }
-                            }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: false,
-                            title: { display: true, text: 'SPY Price ($)' },
-                            ticks: {
-                                callback: function(value) {
-                                    return '$' + value.toFixed(0);
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    title: function(context) {
+                                        return context[0].label;
+                                    },
+                                    label: function(context) {
+                                        const idx = context.dataIndex * sampleRate;
+                                        const regime = regimes[idx] || 'Unknown';
+                                        return [
+                                            `Price: $${context.parsed.y.toFixed(2)}`,
+                                            `Regime: ${regime}`
+                                        ];
+                                    }
                                 }
+                            },
+                            annotation: {
+                                annotations: annotations
                             }
                         },
-                        x: {
-                            title: { display: true, text: 'Time Period' }
+                        scales: {
+                            y: {
+                                beginAtZero: false,
+                                title: { display: true, text: 'Price ($)' },
+                                ticks: {
+                                    callback: function(value) {
+                                        return '$' + value.toFixed(0);
+                                    }
+                                }
+                            },
+                            x: {
+                                title: { display: true, text: 'Date' },
+                                ticks: {
+                                    maxRotation: 45,
+                                    minRotation: 45,
+                                    autoSkip: true,
+                                    maxTicksLimit: 20
+                                }
+                            }
                         }
                     }
+                });
+
+                // Update info panel
+                const dist = historyData.regime_distribution;
+                let distText = '<strong>Regime Distribution:</strong><br>';
+                for (const [regime, stats] of Object.entries(dist)) {
+                    distText += `${getRegimeEmoji(regime)} ${regime}: ${stats.percentage}% (${stats.count} days)<br>`;
                 }
+
+                document.getElementById('regimeTimelineInfo').innerHTML = `
+                    ℹ️ <strong>${lookback_days} days</strong> of real historical data with ${historyData.total_samples} regime predictions<br>
+                    ${distText}
+                    <em>Colored points show detected market regime. Click timeframe buttons to change period.</em>
+                `;
+
+            } catch (error) {
+                debugLogger.error('Failed to load regime timeline', error);
+                document.getElementById('regimeTimelineInfo').innerHTML = `
+                    ❌ Failed to load historical data: ${error.message}
+                `;
+            }
+        }
+
+        // Setup timeframe selector buttons
+        function setupTimeframeSelector(regimeData) {
+            const buttons = document.querySelectorAll('.timeframe-btn');
+            buttons.forEach(btn => {
+                btn.addEventListener('click', async function() {
+                    // Remove active class from all buttons
+                    buttons.forEach(b => b.classList.remove('active'));
+                    // Add active class to clicked button
+                    this.classList.add('active');
+
+                    // Get lookback days from button
+                    const lookback = parseInt(this.dataset.days);
+
+                    // Reload chart with new timeframe
+                    await createRegimeTimelineChart(regimeData, lookback);
+                });
             });
         }
 
