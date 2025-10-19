@@ -496,22 +496,8 @@ async def get_regime_history(
                 detail="Failed to prepare features from historical data"
             )
 
-        # Use the TRAINED neural network model to predict regimes
-        # (instead of creating a new HMM which gives different results)
-        import torch
-        import numpy as np
-        from sklearn.preprocessing import StandardScaler
-
-        X = features_df.values
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X)
-        X_tensor = torch.FloatTensor(X_scaled).to(detector.device)
-
-        detector.model.eval()
-        with torch.no_grad():
-            outputs = detector.model(X_tensor)
-            _, regime_labels_tensor = torch.max(outputs, 1)
-            regime_labels = regime_labels_tensor.cpu().numpy()
+        # Use HMM to label historical regimes
+        regime_labels = detector._create_hmm_regime_labels(features_df)
 
         # Map regime IDs to names
         regime_names = [detector.regime_names[label] for label in regime_labels]
