@@ -3228,3 +3228,176 @@ Documentation:
 
 ---
 
+## Phase 2.6: ML Regime Detection - Feature Normalization ✅
+
+**Date:** 19 Oct 2025
+**Status:** ✅ Completed
+**Commit:** `a9a7458` (included in Phase 2.7)
+
+### 🎯 Problème Identifié
+
+Après Phase 2.5, la nouvelle formule de scoring **n'a PAS changé la distribution** :
+
+```
+Bear Market:        7.3% (362 jours)   - Identique
+Consolidation:     26.4% (1311 jours)  - Identique
+Bull Market:       17.2% (855 jours)   - Identique
+Strong Bull:       49.1% (2441 jours)  - Identique (attendu ~25-30%)
+```
+
+### 🔍 Root Cause Analysis
+
+**Scores calculés par le HMM:**
+```
+Cluster 0 (Bull):        score = -0.0106  (return=0.0030, vol=0.2946)
+Cluster 1 (Bear):        score = -0.0784  (return=-0.0025, vol=0.4879)
+Cluster 2 (Consolidation): score = -0.0309  (return=-0.0020, vol=0.2183)
+Cluster 3 (Strong Bull):   score = -0.0055  (return=0.0014, vol=0.1467) ← Score le "moins pire"
+```
+
+**TOUS les scores sont NÉGATIFS !**
+
+**Problème fondamental : Échelles incomparables**
+```python
+# Formule Phase 2.5
+score = avg_return * 0.6 + avg_momentum * 0.3 - avg_volatility * 0.1
+
+# Valeurs réelles
+return:     0.001 - 0.003  (très petit)
+volatility: 0.15 - 0.50    (100x plus grand!)
+momentum:   0.001 - 0.05   (variable)
+
+# Résultat
+score = 0.003*0.6 + 0.01*0.3 - 0.30*0.1
+      = 0.0018 + 0.003 - 0.03
+      = -0.0252  ← NÉGATIF! Volatilité domine encore!
+```
+
+### ✅ Solution : Z-Score Normalization
+
+**Normaliser toutes les features sur la même échelle avant le scoring:**
+
+```python
+# PHASE 1: Collecter les stats brutes de tous les clusters
+returns = [cluster0.return, cluster1.return, ...]
+vols = [cluster0.vol, cluster1.vol, ...]
+momentums = [cluster0.momentum, cluster1.momentum, ...]
+
+# PHASE 2: Calculer mean/std pour normalisation
+return_mean, return_std = returns.mean(), returns.std()
+vol_mean, vol_std = vols.mean(), vols.std()
+momentum_mean, momentum_std = momentums.mean(), momentums.std()
+
+# PHASE 3: Normaliser chaque feature (z-score)
+for cluster in clusters:
+    return_norm = (cluster.return - return_mean) / (return_std + 1e-8)
+    vol_norm = (cluster.vol - vol_mean) / (vol_std + 1e-8)
+    momentum_norm = (cluster.momentum - momentum_mean) / (momentum_std + 1e-8)
+
+    # Score normalisé - toutes les features sur échelle [-2, +2]
+    score = return_norm * 0.6 + momentum_norm * 0.3 - vol_norm * 0.1
+```
+
+### 📊 Résultats Après Normalisation
+
+**Nouveau mapping (tri par score):**
+```
+Cluster 1 → Bear Market (score -1.246)
+Cluster 2 → Consolidation (score -0.552)
+Cluster 3 → Bull Market (score +0.673)
+Cluster 0 → Strong Bull Market (score +1.126)
+```
+
+**Distribution après normalisation:**
+```
+Bear Market:        7.3% (362 jours)
+Consolidation:     26.4% (1311 jours)
+Bull Market:       49.1% (2441 jours)  ← INVERSÉ!
+Strong Bull:       17.2% (855 jours)   ← INVERSÉ!
+```
+
+### ⚠️ Problème Résiduel
+
+Cluster 0 (Strong Bull, 17.2%) correspond aux **rebonds violents POST-CRASH** (2009, 2020), PAS aux fins de cycle !
+
+→ Phase 2.7 corrigera ce problème sémantique avec **smart mapping**.
+
+---
+
+## Phase 2.7: ML Regime Detection - Smart Mapping & Semantic Renaming ✅
+
+**Date:** 19 Oct 2025
+**Status:** ✅ Completed
+**Commits:**
+- `a9a7458` - Smart mapping + renaming
+- `a071bfb` - Color palette fix
+
+### 🎯 Problème Identifié
+
+**Validation sur événements historiques:**
+
+❌ **Mars 2009 (QE1 Start - BOTTOM après Lehman):**
+- **Attendu**: Expansion/Recovery (violent rebound POST-CRASH)
+- **Détecté**: Strong Bull Market (topping pattern) → **FAUX**
+
+❌ **Avril 2020 (COVID Recovery - BOTTOM après crash):**
+- **Attendu**: Expansion/Recovery (rebond post-crash)
+- **Détecté**: Strong Bull Market (euphoric top) → **FAUX**
+
+### 🔍 Root Cause
+
+Le scoring confond **rebonds post-crash** avec **euphories** car les deux ont :
+- Hauts retours + fort momentum
+
+Impossible de distinguer sans contexte temporel !
+
+### ✅ Solution : Smart Mapping
+
+**Mapper les clusters basé sur caractéristiques réelles :**
+
+```python
+if ret < -0.001 and vol > vol_mean:
+    → Bear Market (crashes, capitulation)
+elif ret > 0.002 and momentum > 0.03:
+    → Expansion (violent rebounds post-crash)
+elif ret > 0 and vol < vol_mean:
+    → Bull Market (stable uptrend, low vol, QE era)
+else:
+    → Correction (pullbacks, sideways, slow bears)
+```
+
+### 🏷️ Renommage Sémantique
+
+| Old Name | New Name | Description | % |
+|----------|----------|-------------|---|
+| Bear Market | **Bear Market** | Crashes (2008, COVID) | 7.3% |
+| Consolidation | **Correction** | Pullbacks, slow bears | 26.4% |
+| Bull Market | **Bull Market** | Stable uptrend (QE era) | 49.1% |
+| Strong Bull Market | **Expansion** | Violent rebounds post-crash | 17.2% |
+
+### 📊 Validation Résultats
+
+✅ **Lehman Crisis (Sep-Oct 2008)**: Bear Market 87%
+✅ **Post-crisis Recovery (Mar-Jun 2009)**: **Expansion 81%**
+✅ **QE Era (2015-2018)**: Bull Market 65%
+✅ **COVID Crash (March 2020)**: Bear Market 86%
+✅ **COVID Recovery (Apr-Jun 2020)**: **Expansion 83%**
+✅ **2023 Rally**: Bull Market 66%
+
+### 🎨 Color Palette (Phase 2.7.1)
+
+**Option 1 - Intensity-Based:**
+
+| Regime | Color | Hex |
+|--------|-------|-----|
+| 🔴 Bear Market | Dark red | `#dc2626` |
+| 🟠 Correction | Orange | `#f97316` |
+| 🟢 Bull Market | Green | `#22c55e` |
+| 🔵 Expansion | Blue | `#3b82f6` |
+
+### 🔗 Commits Associés
+
+- `a9a7458` - feat(bourse-ml): Phase 2.7 - Smart regime mapping
+- `a071bfb` - fix(bourse-ml): Option 1 color palette
+
+---
