@@ -80,12 +80,15 @@ class PortfolioAdjuster:
         sector_weights: Dict[str, float]
     ) -> List[Dict[str, Any]]:
         """
-        Downgrade BUY signals if sector concentration >40%
+        Apply sector concentration limits to BUY and HOLD signals
 
         Strategy:
         - If sector >40% AND multiple BUY signals:
           - Keep only the highest-score BUY as is
           - Downgrade others: STRONG BUY → BUY, BUY → HOLD
+        - If sector >40% with HOLD signals:
+          - Add concentration warning flag
+          - Downgrade lowest-score HOLDs to SELL if sector >45%
         """
         adjusted = []
 
@@ -109,6 +112,13 @@ class PortfolioAdjuster:
                     if r.get("action") in ["STRONG BUY", "BUY"]
                 ]
 
+                # Find HOLD signals in this sector
+                hold_signals = [
+                    r for r in recs
+                    if r.get("action") == "HOLD"
+                ]
+
+                # Handle BUY signals (existing logic)
                 if len(buy_signals) > 1:
                     # Sort by score (keep best)
                     buy_signals.sort(key=lambda x: x.get("score", 0), reverse=True)
@@ -127,19 +137,54 @@ class PortfolioAdjuster:
                                 rec["action"] = "HOLD"
 
                             rec["adjusted"] = True
-                            rec["adjustment_reason"] = f"sector_concentration"
+                            rec["adjustment_reason"] = "sector_concentration"
                             rec["original_action"] = original_action
                             rec["sector_weight"] = sector_weight
 
                             adjusted.append(rec)
+                elif len(buy_signals) == 1:
+                    # Single BUY, keep as is
+                    adjusted.extend(buy_signals)
 
-                    # Add non-BUY positions as is
-                    for rec in recs:
-                        if rec not in buy_signals:
+                # Handle HOLD signals in overweight sector (NEW)
+                if len(hold_signals) > 0:
+                    # If sector >45%, downgrade weakest HOLDs to SELL
+                    if sector_weight > 0.45:
+                        # Sort HOLD by score (ascending, weakest first)
+                        hold_signals.sort(key=lambda x: x.get("score", 0))
+
+                        # Downgrade bottom 30% of HOLDs to SELL
+                        num_to_downgrade = max(1, int(len(hold_signals) * 0.3))
+
+                        for i, rec in enumerate(hold_signals):
+                            if i < num_to_downgrade:
+                                # Downgrade weakest to SELL
+                                rec["action"] = "SELL"
+                                rec["adjusted"] = True
+                                rec["adjustment_reason"] = "sector_concentration_high"
+                                rec["original_action"] = "HOLD"
+                                rec["sector_weight"] = sector_weight
+                                logger.info(
+                                    f"{rec.get('symbol')}: Downgraded HOLD → SELL "
+                                    f"(sector {sector} at {sector_weight*100:.0f}% > 45%)"
+                                )
+                            else:
+                                # Add concentration warning to other HOLDs
+                                rec["concentration_warning"] = True
+                                rec["sector_weight"] = sector_weight
+
                             adjusted.append(rec)
-                else:
-                    # No need to adjust
-                    adjusted.extend(recs)
+                    else:
+                        # Sector >40% but <45%, just add warning
+                        for rec in hold_signals:
+                            rec["concentration_warning"] = True
+                            rec["sector_weight"] = sector_weight
+                            adjusted.append(rec)
+
+                # Add non-BUY/HOLD positions (SELL, STRONG SELL) as is
+                for rec in recs:
+                    if rec not in buy_signals and rec not in hold_signals:
+                        adjusted.append(rec)
             else:
                 # Sector OK, no adjustment
                 adjusted.extend(recs)
@@ -303,6 +348,10 @@ class PortfolioAdjuster:
         if reason == "sector_concentration":
             sector_weight = rec.get("sector_weight", 0) * 100
             return f"Downgraded from {original} due to sector concentration ({sector_weight:.0f}% > {self.max_sector_pct*100:.0f}%)"
+
+        elif reason == "sector_concentration_high":
+            sector_weight = rec.get("sector_weight", 0) * 100
+            return f"Downgraded from {original} due to high sector concentration ({sector_weight:.0f}% > 45%)"
 
         elif reason == "insufficient_risk_reward":
             rr_ratio = rec.get("risk_reward_tp1", 0)
