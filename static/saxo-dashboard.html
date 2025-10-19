@@ -30,6 +30,7 @@
 
     <!-- Chart.js for interactive charts -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
 
     <!-- Plotly.js for dendrograms (via jsdelivr) -->
     <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist@2.26.0/plotly.min.js"></script>
@@ -2179,14 +2180,22 @@
                 // Map regimes to colors
                 const regimeColors = regimes.map(regime => getRegimeColor(regime));
 
+                // Debug: Log regime distribution
+                const regimeCount = {};
+                regimes.forEach(r => {
+                    regimeCount[r] = (regimeCount[r] || 0) + 1;
+                });
+                console.log('Regime distribution in data:', regimeCount);
+                console.log('Sample regimes:', regimes.slice(0, 10));
+                console.log('Sample colors:', regimeColors.slice(0, 10));
+
                 // Prepare annotations for key events
-                const annotations = {};
+                const annotations = [];
                 if (historyData.events && historyData.events.length > 0) {
                     historyData.events.forEach((event, idx) => {
                         // Find index of event date in labels
                         const eventIndex = labels.findIndex(date => date === event.date);
                         if (eventIndex >= 0) {
-                            const annotationKey = `event_${idx}`;
                             const colors = {
                                 'crisis': '#ef4444',
                                 'policy': '#3b82f6',
@@ -2195,10 +2204,10 @@
                             };
                             const eventColor = colors[event.type] || '#64748b';
 
-                            annotations[annotationKey] = {
+                            annotations.push({
                                 type: 'line',
-                                scaleID: 'x',
-                                value: eventIndex,
+                                xMin: eventIndex,
+                                xMax: eventIndex,
                                 borderColor: eventColor,
                                 borderWidth: 3,
                                 borderDash: [6, 4],
@@ -2213,12 +2222,16 @@
                                         weight: 'bold'
                                     },
                                     padding: 6,
-                                    borderRadius: 4
+                                    borderRadius: 4,
+                                    rotation: 0
                                 }
-                            };
+                            });
                         }
                     });
                 }
+
+                // Debug: Log events for troubleshooting
+                console.log(`Found ${historyData.events?.length || 0} events, created ${annotations.length} annotations`);
 
                 // Destroy previous chart if exists
                 if (regimeTimelineChartInstance) {
