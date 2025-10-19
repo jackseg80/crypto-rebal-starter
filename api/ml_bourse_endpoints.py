@@ -478,9 +478,8 @@ async def get_regime_history(
         from services.ml.models.regime_detector import RegimeDetector
         detector = RegimeDetector(model_dir="models/stocks/regime")
 
-        # Check if model exists
-        model_file = detector.model_dir / "regime_neural_best.pth"
-        if not model_file.exists():
+        # Load the trained model (neural network + scaler)
+        if not detector.load_model():
             raise HTTPException(
                 status_code=503,
                 detail="Regime model not trained yet. Please call /api/ml/bourse/regime first to train the model."
@@ -496,8 +495,19 @@ async def get_regime_history(
                 detail="Failed to prepare features from historical data"
             )
 
-        # Use HMM to label historical regimes
-        regime_labels = detector._create_hmm_regime_labels(features_df)
+        # Use trained neural network to predict regimes for ALL historical data
+        # Scale features using the trained scaler
+        features_scaled = detector.scaler.transform(features_df.values)
+
+        # Convert to tensor
+        import torch
+        X_tensor = torch.FloatTensor(features_scaled).to(detector.device)
+
+        # Predict with trained model
+        detector.neural_model.eval()
+        with torch.no_grad():
+            logits, _ = detector.neural_model(X_tensor)
+            regime_labels = torch.argmax(logits, dim=1).cpu().numpy()
 
         # Map regime IDs to names
         regime_names = [detector.regime_names[label] for label in regime_labels]
