@@ -1237,10 +1237,10 @@
                 const firstStock = topStocks[0]?.symbol || 'AAPL';
 
                 // Fetch ML predictions in parallel (direct URLs, no globalConfig params)
-                // Use 5 years (1825 days) for regime to capture full market cycles
+                // Use 20 years (7300 days) for regime to capture 4-5 full market cycles (dot-com, 2008, COVID, 2022)
                 const baseUrl = window.location.origin;
                 const [regimeRes, volatilityRes] = await Promise.all([
-                    safeFetch(`${baseUrl}/api/ml/bourse/regime?benchmark=${benchmark}&lookback_days=1825`),
+                    safeFetch(`${baseUrl}/api/ml/bourse/regime?benchmark=${benchmark}&lookback_days=7300`),
                     safeFetch(`${baseUrl}/api/ml/bourse/forecast?symbol=${firstStock}&lookback_days=365`)
                 ]);
 
@@ -1944,8 +1944,8 @@
             const activeUser = localStorage.getItem('activeUser') || 'demo';
 
             try {
-                // Fetch current regime (5 years for full market cycles)
-                const regimeUrl = `/api/ml/bourse/regime?user_id=${activeUser}&benchmark=SPY&lookback_days=1825`;
+                // Fetch current regime (20 years for 4-5 full market cycles: dot-com, 2008, COVID, 2022)
+                const regimeUrl = `/api/ml/bourse/regime?user_id=${activeUser}&benchmark=SPY&lookback_days=7300`;
                 const regimeResponse = await safeFetch(globalConfig.getApiUrl(regimeUrl));
                 if (!regimeResponse?.ok) throw new Error('Regime detection failed');
 

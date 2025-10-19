@@ -8,10 +8,15 @@ import numpy as np
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 import logging
+from pathlib import Path
 
 from services.risk.bourse.data_fetcher import BourseDataFetcher
 
 logger = logging.getLogger(__name__)
+
+# Parquet cache configuration
+PARQUET_CACHE_DIR = Path("data/cache/bourse/ml")
+PARQUET_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class StocksDataSource:
@@ -103,6 +108,52 @@ class StocksDataSource:
             OHLCV DataFrame for benchmark
         """
         return await self.get_ohlcv_data(benchmark, lookback_days, end_date)
+
+    async def get_benchmark_data_cached(
+        self,
+        benchmark: str,
+        lookback_days: int
+    ) -> pd.DataFrame:
+        """
+        Récupère données benchmark depuis cache Parquet ou yfinance.
+
+        Cache structure:
+        - data/cache/bourse/ml/SPY_7300d.parquet
+        - TTL: 24 heures (refresh quotidien dernier jour seulement)
+
+        Bénéfice: 20 ans téléchargés 1x/jour au lieu de chaque appel
+
+        Args:
+            benchmark: Ticker du benchmark (SPY, QQQ, etc.)
+            lookback_days: Nombre de jours d'historique
+
+        Returns:
+            DataFrame OHLCV du benchmark
+        """
+        cache_file = PARQUET_CACHE_DIR / f"{benchmark}_{lookback_days}d.parquet"
+
+        # Cache hit - vérifier âge
+        if cache_file.exists():
+            cache_age = datetime.now() - datetime.fromtimestamp(cache_file.stat().st_mtime)
+            if cache_age < timedelta(hours=24):
+                age_hours = cache_age.seconds // 3600
+                logger.info(f"📦 Cache hit for {benchmark} ({lookback_days}d, age={age_hours}h)")
+                return pd.read_parquet(cache_file)
+            else:
+                logger.info(f"⏰ Cache expired for {benchmark} ({cache_age.days}d old), refreshing...")
+
+        # Cache miss - télécharger depuis yfinance (60-90s pour 20 ans)
+        logger.info(f"⬇️ Downloading {benchmark} ({lookback_days}d, ~60-90s)...")
+        data = await self.get_benchmark_data(benchmark, lookback_days)
+
+        # Sauvegarder dans cache
+        try:
+            data.to_parquet(cache_file)
+            logger.info(f"💾 Cached {benchmark} to {cache_file} ({len(data)} rows)")
+        except Exception as e:
+            logger.warning(f"Failed to cache {benchmark}: {e}")
+
+        return data
 
     def calculate_returns(
         self,

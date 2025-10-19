@@ -11,7 +11,7 @@ Provides ML-powered predictions:
 from fastapi import APIRouter, Query, HTTPException
 from typing import Dict, List, Optional, Any
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 
 from services.ml.bourse.stocks_adapter import StocksMLAdapter
@@ -108,7 +108,7 @@ async def forecast_volatility(
 @router.get("/api/ml/bourse/regime", response_model=RegimeDetectionResponse)
 async def detect_regime(
     benchmark: str = Query("SPY", description="Market benchmark ticker"),
-    lookback_days: int = Query(1825, ge=60, le=3650, description="Days of history (5 years default for full market cycles)")
+    lookback_days: int = Query(7300, ge=60, le=10950, description="Days of history (20 years default to capture 4-5 full market cycles, max 30 years)")
 ):
     """
     Detect current market regime (Bull/Bear/Consolidation/Distribution).
@@ -367,4 +367,57 @@ async def train_models(
 
     except Exception as e:
         logger.error(f"Error training models: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@router.get("/api/ml/bourse/model-info")
+async def get_model_info(model_type: str = Query("regime", description="Model type (regime, volatility, correlation)")):
+    """
+    Retourne infos sur l'état d'un modèle ML.
+
+    Utile pour debug et monitoring:
+    - Âge du modèle
+    - Dernière mise à jour
+    - Besoin de réentraînement
+    - Intervalle de réentraînement configuré
+
+    Example:
+        GET /api/ml/bourse/model-info?model_type=regime
+    """
+    try:
+        from services.ml.bourse.training_scheduler import MLTrainingScheduler
+        from pathlib import Path
+
+        # Model paths configuration
+        model_paths = {
+            "regime": "models/stocks/regime/regime_neural_best.pth",
+            "volatility": "models/stocks/volatility/volatility_model.pkl",
+            "correlation": "models/stocks/correlation/correlation_model.pkl"
+        }
+
+        if model_type not in model_paths:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid model_type. Must be one of: {', '.join(model_paths.keys())}"
+            )
+
+        model_path = Path(model_paths[model_type])
+        info = MLTrainingScheduler.get_model_info(model_path)
+
+        # Add training interval info
+        interval = MLTrainingScheduler.TRAINING_INTERVALS.get(model_type, timedelta(days=7))
+
+        return {
+            "model_type": model_type,
+            "model_path": str(model_path),
+            "training_interval_days": interval.days,
+            "training_interval_hours": interval.total_seconds() / 3600,
+            **info,
+            "timestamp": datetime.now().isoformat()
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting model info for {model_type}: {e}")
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")

@@ -313,6 +313,49 @@ async def job_api_warmers():
         await _update_job_status(job_id, "error", duration_ms, str(e))
 
 
+async def job_weekly_ml_training():
+    """
+    Entraîne les modèles ML lourds chaque dimanche à 3h du matin.
+
+    - Regime detection (20 ans, ~60-90s)
+    - Correlation forecaster (20 ans, ~30-40s)
+
+    Total: ~2 minutes par semaine
+    """
+    job_id = "weekly_ml_training"
+    start = datetime.now()
+
+    try:
+        logger.info(f"🤖 [{job_id}] Starting weekly ML training (20 years data)...")
+
+        from services.ml.bourse.stocks_adapter import StocksMLAdapter
+
+        adapter = StocksMLAdapter()
+
+        # Force retrain regime detection with 20 years of data
+        regime_result = await adapter.detect_market_regime(
+            benchmark="SPY",
+            lookback_days=7300,  # 20 ans
+            force_retrain=True   # Ignore cache age
+        )
+
+        duration_ms = (datetime.now() - start).total_seconds() * 1000
+
+        logger.info(f"✅ [{job_id}] Regime model trained: {regime_result['current_regime']} "
+                   f"({regime_result['confidence']:.1%} confidence) in {duration_ms:.0f}ms")
+
+        await _update_job_status(job_id, "success", duration_ms)
+
+        # TODO: Ajouter correlation forecaster si nécessaire
+        # await adapter.forecast_correlation([...], force_retrain=True)
+
+    except Exception as e:
+        duration_ms = (datetime.now() - start).total_seconds() * 1000
+        logger.exception(f"❌ [{job_id}] Weekly ML training failed")
+        await _update_job_status(job_id, "error", duration_ms, str(e))
+        # Ne pas lever exception - retry next week
+
+
 # ============================================================================
 # SCHEDULER LIFECYCLE
 # ============================================================================
@@ -401,6 +444,15 @@ async def initialize_scheduler() -> bool:
             IntervalTrigger(minutes=10, jitter=60),
             id="api_warmers",
             name="API Warmers",
+            **job_defaults
+        )
+
+        # Weekly ML training: every Sunday at 03:00
+        _scheduler.add_job(
+            job_weekly_ml_training,
+            CronTrigger(day_of_week='sun', hour=3, minute=0, timezone="Europe/Zurich", jitter=300),
+            id="weekly_ml_training",
+            name="Weekly ML Training (20y data)",
             **job_defaults
         )
 

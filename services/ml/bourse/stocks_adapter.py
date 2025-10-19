@@ -13,8 +13,10 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 import logging
 import os
+from pathlib import Path
 
 from services.ml.bourse.data_sources import StocksDataSource
+from services.ml.bourse.training_scheduler import MLTrainingScheduler
 
 
 def convert_numpy_types(obj: Any) -> Any:
@@ -193,7 +195,8 @@ class StocksMLAdapter:
     async def detect_market_regime(
         self,
         benchmark: str = "SPY",
-        lookback_days: int = 1825  # 5 years for full market cycles
+        lookback_days: int = 7300,  # 20 years to capture 4-5 full market cycles (dot-com, 2008, COVID, 2022)
+        force_retrain: bool = False  # NEW: Bypass cache age check (for scheduled training)
     ) -> Dict[str, Any]:
         """
         Detect current market regime (Bull/Bear/Consolidation/Distribution).
@@ -201,6 +204,7 @@ class StocksMLAdapter:
         Args:
             benchmark: Market benchmark ticker (default: SPY)
             lookback_days: Days of history
+            force_retrain: Bypass cache age check and force model retraining
 
         Returns:
             Dict with regime prediction and probabilities
@@ -213,7 +217,8 @@ class StocksMLAdapter:
 
             for ticker in benchmarks_to_fetch:
                 try:
-                    data = await self.data_source.get_benchmark_data(
+                    # Use cached version for faster loading (24h TTL)
+                    data = await self.data_source.get_benchmark_data_cached(
                         benchmark=ticker,
                         lookback_days=lookback_days
                     )
@@ -229,14 +234,22 @@ class StocksMLAdapter:
             if len(multi_asset_data) < 2:
                 logger.warning(f"Only {len(multi_asset_data)} benchmarks available, using single-asset mode")
 
-            # Check if model exists, train if needed
+            # Check if model exists and needs training (based on scheduler or force_retrain flag)
             model_file = os.path.join(self.models_dir, "regime", "regime_neural_best.pth")
-            model_needs_training = not os.path.exists(model_file)
+            model_needs_training = (
+                force_retrain or  # Forced retrain (e.g., scheduled training)
+                MLTrainingScheduler.should_retrain("regime", Path(model_file))
+            )
 
             if model_needs_training:
-                logger.info(f"Training regime detection model with {len(multi_asset_data)} assets...")
+                if force_retrain:
+                    logger.info(f"Training regime model with 20 years data (forced retrain)...")
+                else:
+                    logger.info(f"Training regime model with 20 years data (model >7 days old)...")
                 training_metadata = self.regime_detector.train_model(multi_asset_data)
                 logger.info(f"Regime model trained. Val accuracy: {training_metadata.get('final_val_accuracy', 'N/A')}")
+            else:
+                logger.info(f"Using cached regime model (< 7 days old)")
 
             # Predict regime (with auto-retry if model fails to load)
             try:
