@@ -343,10 +343,12 @@ class RecommendationsOrchestrator:
             return {}
 
         sector_weights = {}
-        for sector_data in sector_analysis.get('sectors', []):
-            sector = sector_data.get('sector')
-            weight_pct = sector_data.get('weight_pct', 0)
-            sector_weights[sector] = weight_pct / 100.0
+        sectors = sector_analysis.get('sectors', {})
+
+        # sectors is a dict {sector_name: {metrics}}
+        for sector_name, sector_data in sectors.items():
+            weight = sector_data.get('weight', 0)  # Already in percentage
+            sector_weights[sector_name] = weight / 100.0
 
         return sector_weights
 
@@ -400,6 +402,13 @@ class RecommendationsOrchestrator:
                 positions_values=positions_values
             )
 
+            # Add symbol_to_sector mapping for easier lookup
+            symbol_to_sector = {}
+            for symbol in positions_returns.keys():
+                symbol_to_sector[symbol] = analytics.sector_map.get(symbol, 'Unknown')
+
+            result['symbol_to_sector'] = symbol_to_sector
+
             return result
 
         except Exception as e:
@@ -416,21 +425,20 @@ class RecommendationsOrchestrator:
             return None
 
         # Find which sector this symbol belongs to
-        sectors = sector_analysis.get('sectors', [])
+        sectors = sector_analysis.get('sectors', {})  # Dict, not list!
         symbol_to_sector = sector_analysis.get('symbol_to_sector', {})
 
         # Try to find the sector for this symbol
         sector_name = symbol_to_sector.get(symbol)
 
-        if sector_name:
-            # Find the sector data
-            for sector_data in sectors:
-                if sector_data.get('sector') == sector_name:
-                    return {
-                        'sector': sector_name,
-                        'momentum': sector_data.get('momentum', 1.0),
-                        'weight': sector_data.get('weight_pct', 0) / 100.0,
-                        'target_weight': 0.20  # Default target
-                    }
+        if sector_name and sector_name in sectors:
+            # Get sector data directly from dict
+            sector_data = sectors[sector_name]
+            return {
+                'sector': sector_name,
+                'momentum': sector_data.get('momentum', 1.0),
+                'weight': sector_data.get('weight', 0) / 100.0,  # weight is already in %
+                'target_weight': 0.20  # Default target
+            }
 
         return None
