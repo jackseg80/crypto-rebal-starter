@@ -2429,6 +2429,45 @@
                         </span>
                     </div>
 
+                    <!-- Portfolio Analysis - Automatic Insights -->
+                    ${data.portfolio_analysis ? `
+                        ${data.portfolio_analysis.alerts && data.portfolio_analysis.alerts.length > 0 ? `
+                            <div style="margin-bottom: 1rem; padding: 0.75rem; background: color-mix(in oklab, var(--danger) 10%, transparent); border-left: 3px solid var(--danger); border-radius: var(--radius-sm);">
+                                <strong style="color: var(--danger); font-size: 0.875rem; display: block; margin-bottom: 0.5rem;">⚠️ ALERTS</strong>
+                                ${data.portfolio_analysis.alerts.map(alert => `
+                                    <div style="font-size: 0.875rem; margin-bottom: 0.25rem;">
+                                        <div style="font-weight: 600; color: var(--theme-text);">${alert.message}</div>
+                                        <div style="color: var(--theme-text-muted); margin-top: 0.25rem;">→ ${alert.suggestion}</div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+
+                        ${data.portfolio_analysis.warnings && data.portfolio_analysis.warnings.length > 0 ? `
+                            <div style="margin-bottom: 1rem; padding: 0.75rem; background: color-mix(in oklab, var(--warning) 10%, transparent); border-left: 3px solid var(--warning); border-radius: var(--radius-sm);">
+                                <strong style="color: var(--warning); font-size: 0.875rem; display: block; margin-bottom: 0.5rem;">⚡ WARNINGS</strong>
+                                ${data.portfolio_analysis.warnings.map(warning => `
+                                    <div style="font-size: 0.875rem; margin-bottom: 0.25rem;">
+                                        <div style="font-weight: 600; color: var(--theme-text);">${warning.message}</div>
+                                        <div style="color: var(--theme-text-muted); margin-top: 0.25rem;">→ ${warning.suggestion}</div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+
+                        ${data.portfolio_analysis.opportunities && data.portfolio_analysis.opportunities.length > 0 ? `
+                            <div style="margin-bottom: 1rem; padding: 0.75rem; background: color-mix(in oklab, var(--success) 10%, transparent); border-left: 3px solid var(--success); border-radius: var(--radius-sm);">
+                                <strong style="color: var(--success); font-size: 0.875rem; display: block; margin-bottom: 0.5rem;">💡 OPPORTUNITIES</strong>
+                                ${data.portfolio_analysis.opportunities.map(opp => `
+                                    <div style="font-size: 0.875rem; margin-bottom: 0.25rem;">
+                                        <div style="font-weight: 600; color: var(--theme-text);">${opp.message}</div>
+                                        <div style="color: var(--theme-text-muted); margin-top: 0.25rem;">→ ${opp.suggestion}</div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+                    ` : ''}
+
                     <!-- Hierarchical Clustering Dendrogram -->
                     ${data.clustering ? `
                         <div id="dendrogramPlot" style="margin-bottom: 1.5rem; background: var(--theme-bg); border-radius: var(--radius-sm); padding: 1rem;"></div>

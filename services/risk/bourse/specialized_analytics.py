@@ -77,6 +77,103 @@ class SpecializedBourseAnalytics:
             'XGDU': 'ETF-Commodities',  # Xtrackers Physical Gold ETC
         }
 
+    def _analyze_portfolio_allocation(
+        self,
+        sector_metrics: Dict[str, Dict],
+        hot_sectors: List[str],
+        cold_sectors: List[str],
+        sector_momentum: Dict[str, float]
+    ) -> Dict[str, Any]:
+        """
+        Analyze portfolio allocation and generate actionable insights
+
+        Detects:
+        - Concentration risk (sector >40%)
+        - Missed opportunities (OVERWEIGHT signal but <5% allocation)
+        - Overallocated weak sectors (UNDERWEIGHT signal but >5% allocation)
+        - Momentum vs weight mismatches
+
+        Returns:
+            Dict with insights categorized by severity
+        """
+        insights = {
+            'alerts': [],      # Critical issues
+            'warnings': [],    # Important notices
+            'opportunities': [] # Actionable opportunities
+        }
+
+        # 1. Concentration Risk Detection
+        CONCENTRATION_THRESHOLD = 40.0  # %
+        for sector, metrics in sector_metrics.items():
+            weight = metrics.get('weight', 0)
+            if weight > CONCENTRATION_THRESHOLD:
+                insights['alerts'].append({
+                    'type': 'concentration_risk',
+                    'sector': sector,
+                    'weight': weight,
+                    'message': f"⚠️ High concentration: {sector} represents {weight:.1f}% of portfolio (>{CONCENTRATION_THRESHOLD}%)",
+                    'suggestion': f"Consider reducing {sector} to 35-40% and diversifying into other sectors"
+                })
+
+        # 2. Missed Opportunities (Strong signal but low allocation)
+        OPPORTUNITY_THRESHOLD = 5.0  # %
+        for sector in hot_sectors:
+            metrics = sector_metrics.get(sector, {})
+            weight = metrics.get('weight', 0)
+            momentum = metrics.get('momentum', 1.0)
+            ret = metrics.get('return', 0)
+
+            if weight < OPPORTUNITY_THRESHOLD:
+                insights['opportunities'].append({
+                    'type': 'missed_opportunity',
+                    'sector': sector,
+                    'weight': weight,
+                    'momentum': momentum,
+                    'return': ret,
+                    'message': f"🔥 {sector}: Strong momentum ({momentum:.2f}x) but only {weight:.1f}% allocated",
+                    'suggestion': f"Consider increasing {sector} to 5-8% to capitalize on momentum"
+                })
+
+        # 3. Overallocated Weak Sectors
+        OVERALLOCATION_THRESHOLD = 5.0  # %
+        for sector in cold_sectors:
+            metrics = sector_metrics.get(sector, {})
+            weight = metrics.get('weight', 0)
+            momentum = metrics.get('momentum', 1.0)
+            ret = metrics.get('return', 0)
+
+            if weight > OVERALLOCATION_THRESHOLD:
+                insights['warnings'].append({
+                    'type': 'overallocated_weak',
+                    'sector': sector,
+                    'weight': weight,
+                    'momentum': momentum,
+                    'return': ret,
+                    'message': f"❄️ {sector}: Weak momentum ({momentum:.2f}x) but {weight:.1f}% allocated",
+                    'suggestion': f"Consider reducing {sector} to 2-3% and reallocating to stronger sectors"
+                })
+
+        # 4. Momentum vs Weight Mismatch (High weight but slowing momentum)
+        WEIGHT_THRESHOLD = 20.0
+        MOMENTUM_NEUTRAL_LOW = 0.95
+        for sector, metrics in sector_metrics.items():
+            weight = metrics.get('weight', 0)
+            momentum = metrics.get('momentum', 1.0)
+            signal = metrics.get('signal', 'neutral')
+
+            # High weight + slowing momentum (even if neutral signal)
+            if weight > WEIGHT_THRESHOLD and momentum < MOMENTUM_NEUTRAL_LOW and signal == 'neutral':
+                insights['warnings'].append({
+                    'type': 'momentum_slowdown',
+                    'sector': sector,
+                    'weight': weight,
+                    'momentum': momentum,
+                    'message': f"📉 {sector}: Large position ({weight:.1f}%) but momentum slowing ({momentum:.2f}x)",
+                    'suggestion': f"Monitor closely - consider partial profit-taking if momentum continues to weaken"
+                })
+
+        return insights
+
     # ==================== Earnings Predictor ====================
 
     def predict_earnings_impact(
@@ -323,7 +420,15 @@ class SpecializedBourseAnalytics:
                     sector_metrics[sector]['signal'] = 'neutral'
                     sector_metrics[sector]['momentum'] = float(momentum)
 
-            # Recommendations
+            # Portfolio Analysis - Automatic insights
+            portfolio_analysis = self._analyze_portfolio_allocation(
+                sector_metrics,
+                hot_sectors,
+                cold_sectors,
+                sector_momentum
+            )
+
+            # Legacy recommendations for backward compatibility
             recommendations = []
             for sector in hot_sectors:
                 recommendations.append(f"Consider overweighting {sector} (strong momentum)")
@@ -354,6 +459,7 @@ class SpecializedBourseAnalytics:
                 'hot_sectors': hot_sectors,
                 'cold_sectors': cold_sectors,
                 'recommendations': recommendations,
+                'portfolio_analysis': portfolio_analysis,  # NEW: Automatic insights
                 'clustering': clustering,
                 'lookback_days': lookback_days,
                 'num_sectors': len(sector_metrics),
