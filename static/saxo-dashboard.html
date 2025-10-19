@@ -442,6 +442,18 @@
             color: white;
             border-color: var(--primary);
         }
+
+        .timeframe-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            background: var(--theme-bg);
+            color: var(--theme-text-muted);
+        }
+
+        .timeframe-btn:disabled:hover {
+            background: var(--theme-bg);
+            border-color: var(--theme-border);
+        }
     </style>
 </head>
 
@@ -2029,8 +2041,8 @@
                                 📈 Market Regime History with SPY Price
                             </h4>
                             <div id="timeframeSelector" style="display: flex; gap: 0.25rem;">
-                                <button class="timeframe-btn" data-days="30">1M</button>
-                                <button class="timeframe-btn" data-days="90">3M</button>
+                                <button class="timeframe-btn" data-days="30" disabled title="Not enough data for HMM (min 6 months)">1M</button>
+                                <button class="timeframe-btn" data-days="90" disabled title="Not enough data for HMM (min 6 months)">3M</button>
                                 <button class="timeframe-btn" data-days="180">6M</button>
                                 <button class="timeframe-btn active" data-days="365">1Y</button>
                                 <button class="timeframe-btn" data-days="730">2Y</button>
