@@ -2460,6 +2460,9 @@
                                 <th onclick="sortSectorTable('return')" style="cursor: pointer; user-select: none;">
                                     Return <span id="sortReturn">↕️</span>
                                 </th>
+                                <th onclick="sortSectorTable('weight')" style="cursor: pointer; user-select: none;">
+                                    Weight <span id="sortWeight">↕️</span>
+                                </th>
                                 <th onclick="sortSectorTable('momentum')" style="cursor: pointer; user-select: none;">
                                     Momentum <span id="sortMomentum">↕️</span>
                                 </th>
@@ -2475,12 +2478,14 @@
                                                    data.signal === 'underweight' ? 'var(--danger)' : 'var(--theme-text-muted)';
                                 const signalIcon = data.signal === 'overweight' ? '🔥' :
                                                   data.signal === 'underweight' ? '❄️' : '➖';
+                                const weight = data.weight !== undefined ? data.weight.toFixed(1) : '—';
                                 return `
-                                    <tr data-sector="${name}" data-signal="${data.signal}" data-momentum="${data.momentum}" data-return="${data.return}">
+                                    <tr data-sector="${name}" data-signal="${data.signal}" data-momentum="${data.momentum}" data-return="${data.return}" data-weight="${data.weight || 0}">
                                         <td style="font-weight: 600;">${name}</td>
                                         <td style="color: ${data.return >= 0 ? 'var(--success)' : 'var(--danger)'};">
                                             ${data.return >= 0 ? '+' : ''}${data.return.toFixed(2)}%
                                         </td>
+                                        <td style="font-weight: 600; color: var(--theme-text-muted);">${weight}%</td>
                                         <td>${data.momentum.toFixed(2)}x</td>
                                         <td style="color: ${signalColor}; font-weight: 600;">
                                             ${signalIcon} ${data.signal.toUpperCase()}
@@ -3459,6 +3464,11 @@
                         bVal = parseFloat(b.dataset.return);
                         break;
 
+                    case 'weight':
+                        aVal = parseFloat(a.dataset.weight) || 0;
+                        bVal = parseFloat(b.dataset.weight) || 0;
+                        break;
+
                     case 'momentum':
                         aVal = parseFloat(a.dataset.momentum);
                         bVal = parseFloat(b.dataset.momentum);
@@ -3481,7 +3491,7 @@
             rows.forEach(row => tbody.appendChild(row));
 
             // Update sort indicators
-            ['Name', 'Return', 'Momentum', 'Signal'].forEach(col => {
+            ['Name', 'Return', 'Weight', 'Momentum', 'Signal'].forEach(col => {
                 const indicator = document.getElementById(`sort${col}`);
                 if (indicator) {
                     if (col.toLowerCase() === column) {

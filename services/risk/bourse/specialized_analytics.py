@@ -199,7 +199,8 @@ class SpecializedBourseAnalytics:
     def detect_sector_rotation(
         self,
         positions_returns: Dict[str, pd.Series],
-        lookback_days: int = 60
+        lookback_days: int = 60,
+        positions_values: Optional[Dict[str, float]] = None
     ) -> Dict[str, Any]:
         """
         Detect sector rotation patterns
@@ -207,6 +208,7 @@ class SpecializedBourseAnalytics:
         Args:
             positions_returns: Dict of {ticker: returns_series}
             lookback_days: Days to analyze for rotation
+            positions_values: Optional dict of {ticker: current_value_eur} for weight calculation
 
         Returns:
             Dict with sector rotation analysis:
@@ -233,6 +235,11 @@ class SpecializedBourseAnalytics:
             if len(returns_df) > lookback_days:
                 returns_df = returns_df.tail(lookback_days)
 
+            # Calculate total portfolio value for weight calculation
+            total_portfolio_value = 0.0
+            if positions_values:
+                total_portfolio_value = sum(positions_values.values())
+
             # Calculate sector-level metrics
             sector_metrics = {}
             sector_returns = {}
@@ -253,12 +260,19 @@ class SpecializedBourseAnalytics:
                 volatility = sector_ret.std() * np.sqrt(252)
                 sharpe = (sector_ret.mean() * 252) / volatility if volatility > 0 else 0
 
+                # Calculate sector weight (% of total portfolio value)
+                sector_value = 0.0
+                if positions_values:
+                    sector_value = sum(positions_values.get(t, 0.0) for t in sector_tickers)
+                sector_weight = (sector_value / total_portfolio_value * 100) if total_portfolio_value > 0 else 0.0
+
                 sector_metrics[sector] = {
                     'return': float(total_return * 100),  # Percentage
                     'annualized_return': float(sector_ret.mean() * 252 * 100),
                     'volatility': float(volatility * 100),
                     'sharpe_ratio': float(sharpe),
-                    'num_positions': len(sector_tickers)
+                    'num_positions': len(sector_tickers),
+                    'weight': float(sector_weight)  # Percentage of portfolio
                 }
 
             # Detect rotation (compare recent vs full period)

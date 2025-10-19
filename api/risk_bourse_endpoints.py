@@ -570,10 +570,17 @@ async def get_sector_rotation(
         start_date = end_date - timedelta(days=lookback_days + 30)
 
         positions_returns = {}
+        positions_values = {}  # For weight calculation
+
         for pos in positions:
             ticker = pos.get('ticker') or pos.get('symbol')
             if not ticker:
                 continue
+
+            # Store position value for weight calculation
+            value_eur = pos.get('value_eur') or pos.get('value_usd', 0.0)
+            if value_eur > 0:
+                positions_values[ticker] = float(value_eur)
 
             try:
                 price_data = await data_fetcher.fetch_historical_prices(ticker, start_date, end_date)
@@ -590,7 +597,8 @@ async def get_sector_rotation(
         analytics = SpecializedBourseAnalytics()
         result = analytics.detect_sector_rotation(
             positions_returns=positions_returns,
-            lookback_days=lookback_days
+            lookback_days=lookback_days,
+            positions_values=positions_values
         )
 
         return {
