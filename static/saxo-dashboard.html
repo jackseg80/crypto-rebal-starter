@@ -517,7 +517,7 @@
                     <!-- Currency Exposure -->
                     <div class="dashboard-card">
                         <div class="card-header">
-                            <h3 class="card-title">Currency Exposure</h3>
+                            <h3 class="card-title" title="Based on original currency of each position. USD values converted using estimated exchange rates.">Currency Exposure</h3>
                         </div>
                         <div id="currencyExposure">
                             <div class="loading">Loading...</div>
@@ -3445,12 +3445,6 @@
                                 </div>
                             </div>
                         `).join('')}
-                </div>
-                <div style="margin-top: 2rem; padding: 1rem; background: var(--info-bg); border-radius: var(--radius-md); border: 1px solid var(--info);">
-                    <div style="font-size: 0.875rem; color: var(--info);">
-                        <strong>Note:</strong> Currency exposure is calculated based on the original currency of each position.
-                        USD values are converted using estimated exchange rates.
-                    </div>
                 </div>
             `;
             document.getElementById('currencyExposure').innerHTML = currencyHtml;
