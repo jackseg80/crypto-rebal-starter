@@ -75,7 +75,7 @@ class RecommendationsOrchestrator:
             benchmark_return = self._calculate_return(benchmark_data['close'], 30) if benchmark_data is not None else 0
 
             # Calculate total portfolio value
-            total_value = sum(pos.get('value_eur', 0) for pos in positions)
+            total_value = sum(pos.get('market_value', 0) for pos in positions)
 
             # Calculate sector weights
             sector_weights = self._calculate_sector_weights(positions, sector_analysis)
@@ -148,7 +148,8 @@ class RecommendationsOrchestrator:
         Returns:
             Dict with recommendation details or None if error
         """
-        symbol = position.get('symbol', position.get('ticker', 'UNKNOWN'))
+        # Get symbol from instrument_id (Saxo positions use this field)
+        symbol = position.get('instrument_id', position.get('symbol', position.get('ticker', 'UNKNOWN')))
 
         # Get historical data
         hist_data = await self.data_source.get_ohlcv_data(
@@ -163,8 +164,14 @@ class RecommendationsOrchestrator:
         # Technical analysis
         tech_analysis = technical.analyze_stock(hist_data, symbol)
 
-        # Asset type detection
-        asset_type = self._detect_asset_type(symbol, position.get('asset_class', ''))
+        # Asset type detection (extract from tags if present)
+        asset_class = ''
+        tags = position.get('tags', [])
+        for tag in tags:
+            if tag.startswith('asset_class:'):
+                asset_class = tag.split(':')[1]
+                break
+        asset_type = self._detect_asset_type(symbol, asset_class)
 
         # Regime score
         regime_score = scoring.calculate_regime_score(
@@ -233,7 +240,8 @@ class RecommendationsOrchestrator:
         )
 
         # Calculate position sizing
-        current_weight = position.get('value_eur', 0) / total_portfolio_value if total_portfolio_value > 0 else 0
+        current_value = position.get('market_value', 0)
+        current_weight = current_value / total_portfolio_value if total_portfolio_value > 0 else 0
         sector_weight = sector_data.get('weight', 0) if sector_data else 0
 
         position_sizing = targets.calculate_position_size(
@@ -247,8 +255,8 @@ class RecommendationsOrchestrator:
         # Compile recommendation
         return {
             "symbol": symbol,
-            "name": position.get('name', symbol),
-            "current_value": position.get('value_eur', 0),
+            "name": position.get('name', symbol),  # Saxo doesn't have name, will use symbol
+            "current_value": current_value,
             "weight_pct": round(current_weight * 100, 1),
             "sector": sector_data.get('sector', 'Unknown') if sector_data else 'Unknown',
             "action": decision_result['action'],
@@ -323,7 +331,7 @@ class RecommendationsOrchestrator:
         if not sector_analysis or 'sectors' not in sector_analysis:
             return {}
 
-        total_value = sum(pos.get('value_eur', 0) for pos in positions)
+        total_value = sum(pos.get('market_value', 0) for pos in positions)
         if total_value == 0:
             return {}
 
