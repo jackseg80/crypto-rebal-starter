@@ -41,18 +41,23 @@ class SpecializedBourseAnalytics:
             'AAPL': 'Technology', 'MSFT': 'Technology', 'GOOGL': 'Technology', 'GOOG': 'Technology',
             'META': 'Technology', 'NVDA': 'Technology', 'TSLA': 'Technology', 'AMZN': 'Technology',
             'NFLX': 'Technology', 'AMD': 'Technology', 'INTC': 'Technology', 'CRM': 'Technology',
+            'PLTR': 'Technology', 'COIN': 'Technology', 'CDR': 'Technology',  # Palantir, Coinbase, CD Projekt
+            'IFX': 'Technology',  # Infineon (semiconductors)
 
             # Finance
             'JPM': 'Finance', 'BAC': 'Finance', 'WFC': 'Finance', 'GS': 'Finance',
             'MS': 'Finance', 'C': 'Finance', 'BLK': 'Finance', 'SCHW': 'Finance',
+            'UBSG': 'Finance', 'BRKb': 'Finance', 'SLHn': 'Finance',  # UBS, Berkshire, Swiss Life (insurance)
 
             # Healthcare
             'JNJ': 'Healthcare', 'UNH': 'Healthcare', 'PFE': 'Healthcare', 'ABBV': 'Healthcare',
             'TMO': 'Healthcare', 'ABT': 'Healthcare', 'LLY': 'Healthcare', 'MRK': 'Healthcare',
+            'BAX': 'Healthcare', 'ROG': 'Healthcare',  # Baxter, Roche
 
             # Consumer
             'WMT': 'Consumer', 'PG': 'Consumer', 'KO': 'Consumer', 'PEP': 'Consumer',
             'MCD': 'Consumer', 'NKE': 'Consumer', 'COST': 'Consumer', 'SBUX': 'Consumer',
+            'UHRN': 'Consumer',  # Swatch Group (luxury goods)
 
             # Energy
             'XOM': 'Energy', 'CVX': 'Energy', 'COP': 'Energy', 'SLB': 'Energy',
@@ -64,6 +69,7 @@ class SpecializedBourseAnalytics:
             'SPY': 'ETF-Broad', 'QQQ': 'ETF-Tech', 'IWM': 'ETF-SmallCap', 'DIA': 'ETF-Industrial',
             'VTI': 'ETF-Broad', 'VOO': 'ETF-Broad', 'EFA': 'ETF-International', 'EEM': 'ETF-Emerging',
             'AGG': 'ETF-Bonds', 'TLT': 'ETF-Bonds', 'IWDA': 'ETF-International', 'CSPX': 'ETF-Broad',
+            'ITEK': 'ETF-Tech',  # HAN-GINS Tech Megatrend
         }
 
     # ==================== Earnings Predictor ====================
