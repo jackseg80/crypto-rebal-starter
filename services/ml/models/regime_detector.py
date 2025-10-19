@@ -516,13 +516,22 @@ class RegimeDetector:
             y_train, y_val = y[:split_idx], y[split_idx:]
             
             logger.info(f"Training samples: {len(X_train)}, Validation samples: {len(X_val)}")
-            
+
+            # Calculate class weights to handle imbalance
+            class_counts = np.bincount(y_train)
+            total_samples = len(y_train)
+            class_weights = total_samples / (len(class_counts) * class_counts)
+            class_weights = torch.FloatTensor(class_weights).to(self.device)
+
+            logger.info(f"Class distribution: {class_counts.tolist()}")
+            logger.info(f"Class weights (for balancing): {class_weights.cpu().numpy()}")
+
             # Convert to tensors
             X_train = torch.FloatTensor(X_train).to(self.device)
             y_train = torch.LongTensor(y_train).to(self.device)
             X_val = torch.FloatTensor(X_val).to(self.device)
             y_val = torch.LongTensor(y_val).to(self.device)
-            
+
             # Initialize neural network
             self.neural_model = RegimeClassificationNetwork(
                 input_size=len(self.feature_columns),
@@ -530,9 +539,9 @@ class RegimeDetector:
                 num_regimes=self.num_regimes,
                 dropout=self.dropout
             ).to(self.device)
-            
-            # Training setup
-            criterion = nn.CrossEntropyLoss()
+
+            # Training setup with class weights to handle imbalance
+            criterion = nn.CrossEntropyLoss(weight=class_weights)
             optimizer = optim.Adam(
                 self.neural_model.parameters(),
                 lr=self.learning_rate,

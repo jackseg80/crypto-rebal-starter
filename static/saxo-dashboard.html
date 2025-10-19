@@ -1950,8 +1950,26 @@
 
                 const regimeData = regimeResponse.data || regimeResponse;
 
+                // Detect absurd probabilities (one regime at 100%, others at 0%)
+                const probabilities = regimeData.regime_probabilities || {};
+                const probValues = Object.values(probabilities);
+                const hasAbsurdProbs = probValues.some(p => p === 1.0) && probValues.filter(p => p === 0).length >= 3;
+
+                // Fallback message if model is overconfident
+                const fallbackWarning = hasAbsurdProbs ? `
+                    <div style="margin-bottom: 1.5rem; padding: 1rem; background: var(--warning-bg); border: 1px solid var(--warning); border-radius: var(--radius-md);">
+                        <div style="color: var(--warning); font-weight: 600; margin-bottom: 0.5rem;">⚠️ Model Confidence Issue Detected</div>
+                        <div style="font-size: 0.875rem; color: var(--theme-text-muted);">
+                            Le modèle ML affiche une confiance anormale (100%). Cela indique un problème de calibration.
+                            Le modèle sera réentraîné automatiquement au prochain appel.<br>
+                            <strong>Note:</strong> ${regimeData.note || regimeData.model_type === 'moving_average_fallback' ? 'Utilisation du fallback MA-based pour le moment.' : 'Les probabilités peuvent être peu fiables.'}
+                        </div>
+                    </div>
+                ` : '';
+
                 // Create regime history visualization
                 document.getElementById('regimeHistory').innerHTML = `
+                    ${fallbackWarning}
                     <!-- Current Regime Summary -->
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
                         <div style="padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-sm);">
