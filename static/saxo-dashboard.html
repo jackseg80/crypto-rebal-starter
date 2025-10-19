@@ -4024,6 +4024,49 @@
         /**
          * Show recommendation modal (drill-down)
          */
+        /**
+         * Get adjusted tactical advice for positions that were downgraded
+         */
+        function getAdjustedTacticalAdvice(rec) {
+            // If position was adjusted, provide specific advice for the adjusted action
+            if (rec.adjusted) {
+                const reason = rec.adjustment_reason;
+                const action = rec.action;
+                const sector = rec.sector || 'Unknown';
+                const sectorWeight = rec.sector_weight ? (rec.sector_weight * 100).toFixed(0) : 'N/A';
+
+                if (action === 'SELL') {
+                    if (reason === 'sector_concentration_high') {
+                        return `Reduce position by 30-50% to rebalance ${sector} sector (currently ${sectorWeight}% of portfolio, target 40%). ` +
+                               `Rotate capital to underweight sectors (Finance, Healthcare) or diversified ETFs. ` +
+                               `This is a weaker performer in an overweight sector.`;
+                    } else if (reason === 'insufficient_risk_reward') {
+                        return `Risk/Reward ratio unfavorable (${rec.risk_reward_tp1?.toFixed(2) || 'N/A'}:1 < 1.5). ` +
+                               `Consider reducing position by 30-50%. Wait for better entry if you want to rebuy later.`;
+                    }
+                } else if (action === 'HOLD') {
+                    if (reason === 'sector_concentration') {
+                        return `Hold current position. Sector concentration prevents adding (${sector} at ${sectorWeight}%). ` +
+                               `Monitor for rebalancing opportunities. Consider trimming if sector weight increases further.`;
+                    } else if (reason === 'insufficient_risk_reward') {
+                        return `Hold current position. Risk/Reward ratio improved but still below threshold for new entries. ` +
+                               `Monitor for better setup. Don't add to position until R/R > 1.5.`;
+                    }
+                }
+            }
+
+            // If concentration warning (not adjusted but flagged)
+            if (rec.concentration_warning) {
+                const sector = rec.sector || 'Unknown';
+                const sectorWeight = rec.sector_weight ? (rec.sector_weight * 100).toFixed(0) : 'N/A';
+                return `⚠️ Sector concentration warning: ${sector} at ${sectorWeight}% (target 40%). ` +
+                       `${rec.tactical_advice} Do not add to this position.`;
+            }
+
+            // Default: use original tactical advice
+            return rec.tactical_advice;
+        }
+
         function showRecommendationModal(symbol) {
             const rec = currentRecommendations.find(r => r.symbol === symbol);
             if (!rec) return;
@@ -4059,6 +4102,23 @@
                                 </div>
                             </div>
 
+                            ${rec.adjusted ? `
+                            <!-- Adjustment Note -->
+                            <div style="background: #fef3c7; border: 2px solid #f59e0b; padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1.5rem;">
+                                <div style="display: flex; align-items: start; gap: 0.75rem;">
+                                    <div style="font-size: 1.5rem;">⚠️</div>
+                                    <div style="flex: 1;">
+                                        <h3 style="font-size: 1rem; font-weight: 700; margin: 0 0 0.5rem 0; color: #92400e;">Action Adjusted</h3>
+                                        <p style="margin: 0; font-size: 0.875rem; color: #78350f;">
+                                            <strong>Original:</strong> ${rec.original_action || 'N/A'}<br>
+                                            <strong>Adjusted to:</strong> ${rec.action}<br>
+                                            <strong>Reason:</strong> ${rec.adjustment_note || 'Portfolio constraints applied'}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            ` : ''}
+
                             <!-- Price Targets -->
                             <div style="background: var(--theme-bg); padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1.5rem;">
                                 <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem;">📊 Price Information</h3>
@@ -4076,7 +4136,7 @@
                             <!-- Tactical Advice -->
                             <div style="background: var(--theme-bg-subtle); padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1.5rem; border-left: 4px solid var(--primary);">
                                 <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem;">🎯 Tactical Advice</h3>
-                                <p style="margin: 0; font-size: 0.875rem; color: var(--theme-text);">${rec.tactical_advice}</p>
+                                <p style="margin: 0; font-size: 0.875rem; color: var(--theme-text);">${getAdjustedTacticalAdvice(rec)}</p>
                             </div>
 
                             <!-- Technical Details (Collapsible) -->
