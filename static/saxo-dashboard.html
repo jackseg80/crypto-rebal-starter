@@ -2042,6 +2042,7 @@
                                 📈 Market Regime History with SPY Price
                             </h4>
                             <div id="timeframeSelector" style="display: flex; gap: 0.25rem;">
+                                <button class="timeframe-btn" data-days="365">1Y</button>
                                 <button class="timeframe-btn active" data-days="730">2Y</button>
                                 <button class="timeframe-btn" data-days="1825">5Y</button>
                                 <button class="timeframe-btn" data-days="3650">10Y</button>
@@ -2179,14 +2180,20 @@
                 // Map regimes to colors
                 const regimeColors = regimes.map(regime => getRegimeColor(regime));
 
-                // Debug: Log regime distribution
+                // Debug: Log regime distribution and mapping
                 const regimeCount = {};
                 regimes.forEach(r => {
                     regimeCount[r] = (regimeCount[r] || 0) + 1;
                 });
+                console.log('=== REGIME TIMELINE DEBUG ===');
+                console.log(`Timeframe: ${lookbackDays} days (${lookbackDays/365} years)`);
                 console.log('Regime distribution in data:', regimeCount);
-                console.log('Sample regimes:', regimes.slice(0, 10));
-                console.log('Sample colors:', regimeColors.slice(0, 10));
+                if (historyData.regime_id_mapping) {
+                    console.log('Regime ID → Name mapping:', historyData.regime_id_mapping);
+                }
+                console.log('Sample regimes (first 10):', regimes.slice(0, 10));
+                console.log('Sample regime IDs (first 10):', historyData.regime_ids?.slice(0, 10));
+                console.log('Sample colors (first 10):', regimeColors.slice(0, 10));
 
                 // Prepare annotations for key events
                 const annotations = [];

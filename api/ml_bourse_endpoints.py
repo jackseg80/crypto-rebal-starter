@@ -535,6 +535,12 @@ async def get_regime_history(
             for name, count in regime_counts.items()
         }
 
+        # Add debug info: regime ID distribution
+        regime_id_counts = {}
+        for i, name in enumerate(detector.regime_names):
+            count = (regime_labels == i).sum()
+            regime_id_counts[i] = {"name": name, "count": int(count)}
+
         return {
             "dates": dates,
             "prices": prices,
@@ -544,6 +550,7 @@ async def get_regime_history(
             "lookback_days": lookback_days,
             "total_samples": total_samples,
             "regime_distribution": regime_distribution,
+            "regime_id_mapping": regime_id_counts,  # Debug: see which IDs map to which names
             "events": events,
             "timestamp": datetime.now().isoformat()
         }

@@ -458,7 +458,7 @@ class RegimeDetector:
         regime_labels = model.predict(X_scaled)
         
         # Map regimes to meaningful order based on characteristics
-        regime_means = []
+        regime_characteristics = []
         for regime in range(self.hmm_n_components):
             regime_mask = regime_labels == regime
             if np.sum(regime_mask) > 0:
@@ -466,22 +466,37 @@ class RegimeDetector:
                 avg_return = np.mean(features.loc[regime_mask, 'market_return'])
                 avg_volatility = np.mean(features.loc[regime_mask, 'market_volatility'])
                 avg_momentum = np.mean(features.loc[regime_mask, 'market_momentum'])
-                
+
                 # Score for ordering: combine return, -volatility, momentum
                 score = avg_return * 0.4 - avg_volatility * 0.3 + avg_momentum * 0.3
-                regime_means.append((regime, score))
-        
-        # Sort regimes by score
-        regime_means.sort(key=lambda x: x[1])
-        
-        # Create mapping to ordered regimes (0=Accumulation, 1=Expansion, 2=Euphoria, 3=Distribution)
+                regime_characteristics.append({
+                    'id': regime,
+                    'return': avg_return,
+                    'volatility': avg_volatility,
+                    'momentum': avg_momentum,
+                    'score': score,
+                    'count': np.sum(regime_mask)
+                })
+
+        # Log detailed characteristics for debugging
+        logger.info("=== HMM Regime Characteristics ===")
+        for char in regime_characteristics:
+            logger.info(f"  Cluster {char['id']}: return={char['return']:.4f}, vol={char['volatility']:.4f}, "
+                       f"momentum={char['momentum']:.4f}, score={char['score']:.4f}, count={char['count']}")
+
+        # Sort by score to create ordered regimes
+        regime_characteristics.sort(key=lambda x: x['score'])
+
+        # Create mapping: 0=Bear Market (lowest score), 1=Consolidation, 2=Bull Market, 3=Distribution (highest score)
         regime_mapping = {}
-        for new_regime, (old_regime, score) in enumerate(regime_means):
-            regime_mapping[old_regime] = new_regime
-        
+        for new_regime, char in enumerate(regime_characteristics):
+            regime_mapping[char['id']] = new_regime
+            regime_name = self.regime_names[new_regime] if new_regime < len(self.regime_names) else f"Regime {new_regime}"
+            logger.info(f"  Cluster {char['id']} → {new_regime} ({regime_name})")
+
         # Apply mapping
         mapped_labels = np.array([regime_mapping[label] for label in regime_labels])
-        
+
         logger.info(f"HMM regime distribution: {np.bincount(mapped_labels)}")
         return mapped_labels
     
