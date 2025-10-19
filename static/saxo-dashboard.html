@@ -2042,8 +2042,7 @@
                                 📈 Market Regime History with SPY Price
                             </h4>
                             <div id="timeframeSelector" style="display: flex; gap: 0.25rem;">
-                                <button class="timeframe-btn active" data-days="365">1Y</button>
-                                <button class="timeframe-btn" data-days="730">2Y</button>
+                                <button class="timeframe-btn active" data-days="730">2Y</button>
                                 <button class="timeframe-btn" data-days="1825">5Y</button>
                                 <button class="timeframe-btn" data-days="3650">10Y</button>
                                 <button class="timeframe-btn" data-days="7300">20Y</button>
@@ -2060,7 +2059,7 @@
                 createRegimeProbabilitiesChart(regimeData.regime_probabilities);
 
                 // Create Regime Timeline with Price Overlay
-                await createRegimeTimelineChart(regimeData, 365); // Default: 1 year
+                await createRegimeTimelineChart(regimeData, 730); // Default: 2 years
 
                 // Setup timeframe selector buttons
                 setupTimeframeSelector(regimeData);
