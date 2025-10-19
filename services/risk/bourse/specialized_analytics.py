@@ -70,6 +70,11 @@ class SpecializedBourseAnalytics:
             'VTI': 'ETF-Broad', 'VOO': 'ETF-Broad', 'EFA': 'ETF-International', 'EEM': 'ETF-Emerging',
             'AGG': 'ETF-Bonds', 'TLT': 'ETF-Bonds', 'IWDA': 'ETF-International', 'CSPX': 'ETF-Broad',
             'ITEK': 'ETF-Tech',  # HAN-GINS Tech Megatrend
+            'WORLD': 'ETF-International',  # UBS Core MSCI World
+            'ACWI': 'ETF-International',  # iShares MSCI ACWI (All Country World Index)
+            'AGGS': 'ETF-Bonds',  # iShares Global Aggregate Bond
+            'BTEC': 'ETF-Healthcare',  # iShares NASDAQ Biotech
+            'XGDU': 'ETF-Commodities',  # Xtrackers Physical Gold ETC
         }
 
     # ==================== Earnings Predictor ====================
