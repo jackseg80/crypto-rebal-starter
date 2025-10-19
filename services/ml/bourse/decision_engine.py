@@ -42,7 +42,8 @@ class DecisionEngine:
         breakdown: Dict[str, float],
         technical_data: Dict[str, Any],
         sector_data: Optional[Dict[str, Any]] = None,
-        risk_data: Optional[Dict[str, Any]] = None
+        risk_data: Optional[Dict[str, Any]] = None,
+        position_sizing: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Generate recommendation with rationale
@@ -54,6 +55,7 @@ class DecisionEngine:
             technical_data: Technical indicators
             sector_data: Sector analysis (optional)
             risk_data: Risk metrics (optional)
+            position_sizing: Position sizing info (optional)
 
         Returns:
             Dict with action, rationale, and tactical advice
@@ -75,7 +77,8 @@ class DecisionEngine:
             action,
             score,
             technical_data,
-            sector_data
+            sector_data,
+            position_sizing
         )
 
         return {
@@ -202,10 +205,14 @@ class DecisionEngine:
         action: str,
         score: float,
         technical_data: Dict[str, Any],
-        sector_data: Optional[Dict[str, Any]]
+        sector_data: Optional[Dict[str, Any]],
+        position_sizing: Optional[Dict[str, Any]] = None
     ) -> str:
         """
         Generate actionable tactical advice
+
+        Args:
+            position_sizing: Optional position sizing info with guidance
 
         Returns:
             Tactical advice string
@@ -213,26 +220,38 @@ class DecisionEngine:
         rsi = technical_data.get("rsi_14d", 50)
         vs_ma50 = technical_data.get("vs_ma50_pct", 0)
 
-        if action == "STRONG BUY":
-            advice = "Strong buy signal. "
-            if rsi < 40:
-                advice += f"Consider adding 3-5% to position on current weakness (RSI {rsi:.0f}). "
-            else:
-                advice += "Consider adding 2-3% to position on dips. "
+        # Check if sector/position limits are reached
+        sizing_guidance = position_sizing.get("guidance", "") if position_sizing else ""
+        sector_limit_reached = "sector limit reached" in sizing_guidance.lower() or "no room to add" in sizing_guidance.lower()
 
-            if sector_data and sector_data.get("weight_current", 0) > 0.35:
-                advice += "Monitor sector concentration risk."
+        if action == "STRONG BUY":
+            if sector_limit_reached:
+                advice = "Strong buy signal, BUT sector/position limit reached. "
+                advice += "Hold current position. Consider rotating from weaker positions in same sector if conviction is high."
             else:
-                advice += "Good opportunity to increase allocation."
+                advice = "Strong buy signal. "
+                if rsi < 40:
+                    advice += f"Consider adding 3-5% to position on current weakness (RSI {rsi:.0f}). "
+                else:
+                    advice += "Consider adding 2-3% to position on dips. "
+
+                if sector_data and sector_data.get("weight_current", 0) > 0.35:
+                    advice += "Monitor sector concentration risk."
+                else:
+                    advice += "Good opportunity to increase allocation."
 
         elif action == "BUY":
-            advice = "Buy signal with moderate confidence. "
-            if rsi < 50:
-                advice += f"Enter on current levels or wait for slight pullback (RSI {rsi:.0f}). "
+            if sector_limit_reached:
+                advice = "Buy signal with moderate confidence, BUT sector/position limit reached. "
+                advice += "Hold current position. Monitor for sector rotation opportunities."
             else:
-                advice += f"Wait for pullback before entering (RSI {rsi:.0f} elevated). "
+                advice = "Buy signal with moderate confidence. "
+                if rsi < 50:
+                    advice += f"Enter on current levels or wait for slight pullback (RSI {rsi:.0f}). "
+                else:
+                    advice += f"Wait for pullback before entering (RSI {rsi:.0f} elevated). "
 
-            advice += "Consider adding 1-2% to position."
+                advice += "Consider adding 1-2% to position."
 
         elif action == "HOLD":
             advice = "Hold current position. "
@@ -269,6 +288,38 @@ class DecisionEngine:
                 advice += "Multiple negative signals, protect capital."
 
         return advice
+
+    def update_tactical_advice(
+        self,
+        action: str,
+        score: float,
+        technical_data: Dict[str, Any],
+        sector_data: Optional[Dict[str, Any]],
+        position_sizing: Dict[str, Any]
+    ) -> str:
+        """
+        Update tactical advice with position sizing information
+
+        This method regenerates tactical advice after position sizing is calculated,
+        to ensure consistency between sizing guidance and tactical recommendations.
+
+        Args:
+            action: Recommendation action (BUY, SELL, etc.)
+            score: Final score
+            technical_data: Technical indicators
+            sector_data: Sector info
+            position_sizing: Position sizing with guidance
+
+        Returns:
+            Updated tactical advice string
+        """
+        return self._generate_tactical_advice(
+            action,
+            score,
+            technical_data,
+            sector_data,
+            position_sizing
+        )
 
     def generate_summary(
         self,

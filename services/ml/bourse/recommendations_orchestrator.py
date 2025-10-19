@@ -259,6 +259,15 @@ class RecommendationsOrchestrator:
             sector_weight=sector_weight
         )
 
+        # Update tactical advice with position sizing info
+        decision_result['tactical_advice'] = decision.update_tactical_advice(
+            action=decision_result['action'],
+            score=score_result['final_score'],
+            technical_data=tech_analysis,
+            sector_data=sector_data,
+            position_sizing=position_sizing
+        )
+
         # Compile recommendation
         return {
             "symbol": symbol,
