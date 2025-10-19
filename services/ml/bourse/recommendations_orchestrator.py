@@ -72,7 +72,7 @@ class RecommendationsOrchestrator:
 
             # Get benchmark data
             benchmark_data = await self._get_benchmark_data(benchmark, lookback_days)
-            benchmark_return = self._calculate_return(benchmark_data['Close'], 30) if benchmark_data is not None else 0
+            benchmark_return = self._calculate_return(benchmark_data['close'], 30) if benchmark_data is not None else 0
 
             # Calculate total portfolio value
             total_value = sum(pos.get('value_eur', 0) for pos in positions)
@@ -174,15 +174,15 @@ class RecommendationsOrchestrator:
         )
 
         # Relative strength
-        asset_return = self._calculate_return(hist_data['Close'], 30)
+        asset_return = self._calculate_return(hist_data['close'], 30)
         rel_strength_score = scoring.calculate_relative_strength_score(
             asset_return=asset_return,
             benchmark_return=benchmark_return
         )
 
         # Risk score
-        volatility = hist_data['Close'].pct_change().std() * np.sqrt(252)
-        drawdown = self._calculate_current_drawdown(hist_data['Close'])
+        volatility = hist_data['close'].pct_change().std() * np.sqrt(252)
+        drawdown = self._calculate_current_drawdown(hist_data['close'])
         risk_score = scoring.calculate_risk_score(
             volatility=volatility,
             drawdown_current=drawdown
@@ -226,7 +226,7 @@ class RecommendationsOrchestrator:
         # Calculate price targets
         sr_levels = tech_analysis.get('support_resistance', {})
         price_targets = targets.calculate_targets(
-            current_price=hist_data['Close'].iloc[-1],
+            current_price=hist_data['close'].iloc[-1],
             action=decision_result['action'],
             support_resistance=sr_levels,
             volatility=volatility

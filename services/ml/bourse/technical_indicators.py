@@ -236,14 +236,14 @@ class TechnicalIndicators:
         Comprehensive technical analysis for a stock
 
         Args:
-            df: DataFrame with at least 'Close' column (optionally 'Volume')
+            df: DataFrame with at least 'close' column (optionally 'volume')
             symbol: Stock symbol
 
         Returns:
             Dict with all technical indicators and scores
         """
         try:
-            prices = df['Close']
+            prices = df['close']
 
             # RSI
             rsi = self.calculate_rsi(prices)
@@ -270,8 +270,8 @@ class TechnicalIndicators:
 
             # Volume (if available)
             volume_metrics = {}
-            if 'Volume' in df.columns:
-                volume_metrics = self.calculate_volume_metrics(df['Volume'])
+            if 'volume' in df.columns:
+                volume_metrics = self.calculate_volume_metrics(df['volume'])
 
             # Technical Score (0-1)
             technical_score = self._calculate_technical_score(
