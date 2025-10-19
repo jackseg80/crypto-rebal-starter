@@ -24,6 +24,8 @@ from services.ml.bourse.decision_engine import DecisionEngine
 from services.ml.bourse.price_targets import PriceTargets
 from services.ml.bourse.portfolio_adjuster import PortfolioAdjuster
 from services.ml.bourse.data_sources import StocksDataSource
+from services.risk.bourse.specialized_analytics import SpecializedBourseAnalytics
+from services.risk.bourse.data_fetcher import BourseDataFetcher
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +78,11 @@ class RecommendationsOrchestrator:
 
             # Calculate total portfolio value
             total_value = sum(pos.get('market_value', 0) for pos in positions)
+
+            # Generate sector analysis directly if not provided
+            if sector_analysis is None:
+                logger.info("Computing sector analysis directly from positions...")
+                sector_analysis = await self._compute_sector_analysis(positions, lookback_days)
 
             # Calculate sector weights
             sector_weights = self._calculate_sector_weights(positions, sector_analysis)
@@ -343,27 +350,87 @@ class RecommendationsOrchestrator:
 
         return sector_weights
 
+    async def _compute_sector_analysis(
+        self,
+        positions: List[Dict[str, Any]],
+        lookback_days: int
+    ) -> Dict[str, Any]:
+        """
+        Compute sector analysis directly from positions
+
+        Returns:
+            Dict with sector rotation analysis
+        """
+        try:
+            data_fetcher = BourseDataFetcher()
+            end_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            start_date = end_date - timedelta(days=lookback_days + 30)
+
+            positions_returns = {}
+            positions_values = {}
+
+            for pos in positions:
+                symbol = pos.get('instrument_id', pos.get('symbol', pos.get('ticker')))
+                if not symbol:
+                    continue
+
+                # Store position value
+                value = pos.get('market_value', 0)
+                if value > 0:
+                    positions_values[symbol] = float(value)
+
+                # Fetch historical data
+                try:
+                    price_data = await data_fetcher.fetch_historical_prices(symbol, start_date, end_date)
+                    if len(price_data) >= 30:
+                        returns = price_data['close'].pct_change().dropna()
+                        positions_returns[symbol] = returns
+                except Exception as e:
+                    logger.warning(f"Failed to fetch {symbol}: {e}")
+
+            if len(positions_returns) < 2:
+                logger.warning("Not enough positions with data for sector analysis")
+                return {}
+
+            # Compute sector rotation using existing service
+            analytics = SpecializedBourseAnalytics()
+            result = analytics.detect_sector_rotation(
+                positions_returns=positions_returns,
+                lookback_days=lookback_days,
+                positions_values=positions_values
+            )
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error computing sector analysis: {e}")
+            return {}
+
     def _get_sector_info(
         self,
         symbol: str,
         sector_analysis: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
-        """Get sector info for a symbol"""
+        """Get sector info for a symbol from sector analysis"""
         if not sector_analysis or 'sectors' not in sector_analysis:
             return None
 
         # Find which sector this symbol belongs to
-        # This would ideally come from sector_analysis
-        # For now, return a default or lookup from sector_analysis
-
-        # Placeholder: return first sector as example
         sectors = sector_analysis.get('sectors', [])
-        if sectors:
-            return {
-                'sector': sectors[0].get('sector', 'Unknown'),
-                'momentum': sectors[0].get('momentum', 1.0),
-                'weight': sectors[0].get('weight_pct', 0) / 100.0,
-                'target_weight': 0.20  # Default target
-            }
+        symbol_to_sector = sector_analysis.get('symbol_to_sector', {})
+
+        # Try to find the sector for this symbol
+        sector_name = symbol_to_sector.get(symbol)
+
+        if sector_name:
+            # Find the sector data
+            for sector_data in sectors:
+                if sector_data.get('sector') == sector_name:
+                    return {
+                        'sector': sector_name,
+                        'momentum': sector_data.get('momentum', 1.0),
+                        'weight': sector_data.get('weight_pct', 0) / 100.0,
+                        'target_weight': 0.20  # Default target
+                    }
 
         return None

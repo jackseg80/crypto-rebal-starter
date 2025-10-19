@@ -677,16 +677,9 @@ async def get_portfolio_recommendations(
             market_regime = regime_data.get("current_regime", "Bull Market")
             regime_probabilities = regime_data.get("regime_probabilities", {})
 
-        # Get sector rotation analysis
+        # Sector analysis will be computed directly by orchestrator
+        # (no need to call HTTP endpoint, it will use the same service internally)
         sector_analysis = None
-        try:
-            async with httpx.AsyncClient() as client:
-                sector_url = f"http://localhost:8000/api/risk/bourse/specialized/sector-rotation?user_id={user_id}&lookback_days=60"
-                sector_response = await client.get(sector_url)
-                if sector_response.status_code == 200:
-                    sector_analysis = sector_response.json()
-        except Exception as e:
-            logger.warning(f"Could not fetch sector analysis: {e}")
 
         # Generate recommendations
         result = await recommendations_orchestrator.generate_recommendations(
