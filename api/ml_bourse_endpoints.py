@@ -426,7 +426,7 @@ async def get_model_info(model_type: str = Query("regime", description="Model ty
 @router.get("/api/ml/bourse/regime-history")
 async def get_regime_history(
     benchmark: str = Query("SPY", description="Market benchmark ticker"),
-    lookback_days: int = Query(365, ge=180, le=7300, description="Days of history to return (6 months to 20 years minimum)")
+    lookback_days: int = Query(365, ge=365, le=7300, description="Days of history to return (1 year to 20 years)")
 ):
     """
     Retourne l'historique des régimes ML avec les prix réels du benchmark.
@@ -436,7 +436,7 @@ async def get_regime_history(
 
     Args:
         benchmark: Ticker du benchmark (default: SPY)
-        lookback_days: Jours d'historique (180-7300, default: 365, minimum 6 months for HMM)
+        lookback_days: Jours d'historique (365-7300, default: 365, minimum 1 year for reliable regime detection)
 
     Returns:
         {
@@ -466,10 +466,10 @@ async def get_regime_history(
             lookback_days=lookback_days
         )
 
-        if len(data) < 180:
+        if len(data) < 365:
             raise HTTPException(
                 status_code=400,
-                detail=f"Insufficient data: only {len(data)} days available (minimum 180 days / 6 months required for HMM feature calculation)"
+                detail=f"Insufficient data: only {len(data)} days available (minimum 365 days / 1 year required for reliable HMM regime detection)"
             )
 
         # Load the trained regime detector

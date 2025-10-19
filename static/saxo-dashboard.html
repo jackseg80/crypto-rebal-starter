@@ -2041,9 +2041,6 @@
                                 📈 Market Regime History with SPY Price
                             </h4>
                             <div id="timeframeSelector" style="display: flex; gap: 0.25rem;">
-                                <button class="timeframe-btn" data-days="30" disabled title="Not enough data for HMM (min 6 months)">1M</button>
-                                <button class="timeframe-btn" data-days="90" disabled title="Not enough data for HMM (min 6 months)">3M</button>
-                                <button class="timeframe-btn" data-days="180">6M</button>
                                 <button class="timeframe-btn active" data-days="365">1Y</button>
                                 <button class="timeframe-btn" data-days="730">2Y</button>
                                 <button class="timeframe-btn" data-days="1825">5Y</button>
@@ -2196,20 +2193,27 @@
                                 'volatility': '#f59e0b',
                                 'bottom': '#22c55e'
                             };
+                            const eventColor = colors[event.type] || '#64748b';
+
                             annotations[annotationKey] = {
                                 type: 'line',
-                                xMin: eventIndex,
-                                xMax: eventIndex,
-                                borderColor: colors[event.type] || '#64748b',
-                                borderWidth: 2,
-                                borderDash: [5, 5],
+                                scaleID: 'x',
+                                value: eventIndex,
+                                borderColor: eventColor,
+                                borderWidth: 3,
+                                borderDash: [6, 4],
                                 label: {
                                     display: true,
                                     content: event.label,
                                     position: 'start',
-                                    backgroundColor: 'rgba(0,0,0,0.7)',
-                                    color: 'white',
-                                    font: { size: 10 }
+                                    backgroundColor: eventColor,
+                                    color: '#ffffff',
+                                    font: {
+                                        size: 11,
+                                        weight: 'bold'
+                                    },
+                                    padding: 6,
+                                    borderRadius: 4
                                 }
                             };
                         }
@@ -2260,14 +2264,19 @@
                             legend: {
                                 display: true,
                                 labels: {
+                                    color: 'var(--theme-text)',
+                                    font: {
+                                        size: 12
+                                    },
                                     generateLabels: function(chart) {
                                         // Add custom legend for regimes
+                                        const textColor = getComputedStyle(document.documentElement).getPropertyValue('--theme-text').trim() || '#e2e8f0';
                                         return [
-                                            { text: `${historyData.benchmark} Price`, fillStyle: '#3b82f6', strokeStyle: '#3b82f6' },
-                                            { text: 'Bear Market', fillStyle: '#ef4444' },
-                                            { text: 'Consolidation', fillStyle: '#94a3b8' },
-                                            { text: 'Bull Market', fillStyle: '#22c55e' },
-                                            { text: 'Distribution', fillStyle: '#f59e0b' }
+                                            { text: `${historyData.benchmark} Price`, fillStyle: '#3b82f6', strokeStyle: '#3b82f6', fontColor: textColor },
+                                            { text: 'Bear Market', fillStyle: '#ef4444', fontColor: textColor },
+                                            { text: 'Consolidation', fillStyle: '#94a3b8', fontColor: textColor },
+                                            { text: 'Bull Market', fillStyle: '#22c55e', fontColor: textColor },
+                                            { text: 'Distribution', fillStyle: '#f59e0b', fontColor: textColor }
                                         ];
                                     }
                                 }
@@ -2294,20 +2303,38 @@
                         scales: {
                             y: {
                                 beginAtZero: false,
-                                title: { display: true, text: 'Price ($)' },
+                                title: {
+                                    display: true,
+                                    text: 'Price ($)',
+                                    color: 'var(--theme-text)',
+                                    font: { size: 12 }
+                                },
                                 ticks: {
+                                    color: 'var(--theme-text-muted)',
                                     callback: function(value) {
                                         return '$' + value.toFixed(0);
                                     }
+                                },
+                                grid: {
+                                    color: 'var(--theme-border)'
                                 }
                             },
                             x: {
-                                title: { display: true, text: 'Date' },
+                                title: {
+                                    display: true,
+                                    text: 'Date',
+                                    color: 'var(--theme-text)',
+                                    font: { size: 12 }
+                                },
                                 ticks: {
+                                    color: 'var(--theme-text-muted)',
                                     maxRotation: 45,
                                     minRotation: 45,
                                     autoSkip: true,
                                     maxTicksLimit: 20
+                                },
+                                grid: {
+                                    color: 'var(--theme-border)'
                                 }
                             }
                         }
