@@ -163,7 +163,6 @@
         }
 
         .table-container {
-            max-height: 500px;
             overflow-y: auto;
             border: 1px solid var(--theme-border);
             border-radius: var(--radius-md);
@@ -480,8 +479,6 @@
             <div class="tabs">
                 <button class="tab-btn active" onclick="switchTab('overview', event)">Vue d'ensemble</button>
                 <button class="tab-btn" onclick="switchTab('positions', event)">Positions</button>
-                <button class="tab-btn" onclick="switchTab('allocation', event)">Allocation</button>
-                <button class="tab-btn" onclick="switchTab('currencies', event)">Devises</button>
                 <button class="tab-btn" onclick="switchTab('risk', event)">Risk</button>
                 <button class="tab-btn" onclick="switchTab('analytics', event)">Analytics</button>
             </div>
@@ -509,6 +506,16 @@
                             <div class="loading">Loading...</div>
                         </div>
                     </div>
+
+                    <!-- Currency Exposure -->
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Currency Exposure</h3>
+                        </div>
+                        <div id="currencyExposure">
+                            <div class="loading">Loading...</div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Top Holdings -->
@@ -530,41 +537,6 @@
                         <div class="card-badge" id="positionsCount">0 positions</div>
                     </div>
                     <div id="allPositions">
-                        <div class="loading">Loading...</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Allocation Tab -->
-            <div id="allocation" class="tab-content">
-                <div class="dashboard-grid">
-                    <div class="dashboard-card">
-                        <div class="card-header">
-                            <h3 class="card-title">By Asset Class</h3>
-                        </div>
-                        <div id="assetClassBreakdown">
-                            <div class="loading">Loading...</div>
-                        </div>
-                    </div>
-
-                    <div class="dashboard-card">
-                        <div class="card-header">
-                            <h3 class="card-title">Top Holdings by Value</h3>
-                        </div>
-                        <div id="holdingsByValue">
-                            <div class="loading">Loading...</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Currencies Tab -->
-            <div id="currencies" class="tab-content">
-                <div class="dashboard-card">
-                    <div class="card-header">
-                        <h3 class="card-title">Currency Exposure</h3>
-                    </div>
-                    <div id="currencyExposure">
                         <div class="loading">Loading...</div>
                     </div>
                 </div>
