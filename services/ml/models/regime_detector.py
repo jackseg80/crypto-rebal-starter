@@ -141,12 +141,12 @@ class RegimeDetector:
         # For CRYPTO: Original names apply
         #   - Regime 0 = Accumulation, Regime 3 = Distribution
 
-        # Stock market regime names (ordered by score: low to high)
-        # Regime 0 (lowest score): Negative returns + high volatility = Bear Market
-        # Regime 1 (low-mid score): Low returns + medium volatility = Consolidation
-        # Regime 2 (mid-high score): Positive returns + medium volatility = Bull Market
-        # Regime 3 (highest score): Strong returns + LOW volatility = Strong Bull / Low Vol Expansion
-        self.regime_names = ['Bear Market', 'Consolidation', 'Bull Market', 'Strong Bull Market']
+        # Stock market regime names (based on market cycle phases)
+        # Regime 0: Negative returns + high volatility = Bear Market (crash, capitulation)
+        # Regime 1: Negative/flat returns + medium vol = Correction (pullbacks, sideways)
+        # Regime 2: Positive returns + low volatility = Bull Market (stable uptrend)
+        # Regime 3: High returns + strong momentum = Expansion (violent rebounds post-crash)
+        self.regime_names = ['Bear Market', 'Correction', 'Bull Market', 'Expansion']
 
         self.regime_descriptions = {
             0: {  # Bear Market (stocks) / Accumulation (crypto)
@@ -157,29 +157,29 @@ class RegimeDetector:
                 'risk_level': 'High',
                 'allocation_bias': 'Significantly reduce risky assets'
             },
-            1: {  # Consolidation - sideways, near-zero returns
-                'name': 'Consolidation',
-                'description': 'Sideways market with near-zero returns, indecision phase',
-                'characteristics': ['Range-bound', 'Low/no momentum', 'Neutral sentiment'],
-                'strategy': 'Wait for breakout, selective positions only, preserve capital',
+            1: {  # Correction - pullbacks, negative/flat returns
+                'name': 'Correction',
+                'description': 'Market pullback or consolidation - negative/flat returns, sideways action',
+                'characteristics': ['Pullbacks', 'Low momentum', 'Neutral to cautious sentiment'],
+                'strategy': 'Wait for confirmation, selective accumulation on dips',
                 'risk_level': 'Moderate',
-                'allocation_bias': 'Neutral - reduce to 50-60% allocation'
+                'allocation_bias': 'Reduce to 50-60% allocation'
             },
-            2: {  # Bull Market - healthy uptrend, moderate gains
+            2: {  # Bull Market - stable uptrend, low volatility (QE era 2009-2020)
                 'name': 'Bull Market',
-                'description': 'Healthy uptrend with moderate gains (~10-15%/yr), sustainable growth',
-                'characteristics': ['Steady gains', 'Moderate momentum', 'Disciplined growth'],
-                'strategy': 'DCA consistently, follow trend, maintain long-term holds',
-                'risk_level': 'Low to Moderate',
-                'allocation_bias': 'Increase to 70-75% allocation'
+                'description': 'Stable uptrend with low volatility - sustainable growth phase',
+                'characteristics': ['Steady gains', 'LOW volatility', 'Institutional support', 'QE era'],
+                'strategy': 'DCA consistently, follow trend, hold long-term positions',
+                'risk_level': 'Low',
+                'allocation_bias': 'Increase to 70-80% allocation'
             },
-            3: {  # Strong Bull Market - explosive growth, high intensity
-                'name': 'Strong Bull Market',
-                'description': 'Explosive growth (>20%/yr), strong momentum, euphoric phase',
-                'characteristics': ['Rapid gains', 'High momentum', 'FOMO sentiment', 'Potential excess'],
-                'strategy': 'Ride the wave but prepare exit, tight stops, take profits progressively',
-                'risk_level': 'Moderate to High',  # Changed from Low
-                'allocation_bias': 'Maximum allocation (80%+) but watch for reversal'
+            3: {  # Expansion - violent rebounds post-crash (2009, 2020)
+                'name': 'Expansion',
+                'description': 'Violent rebound post-crash - explosive gains, strong momentum',
+                'characteristics': ['Rapid recovery', 'High momentum', 'Post-crisis bounce', 'V-shaped recovery'],
+                'strategy': 'Ride the momentum early, but be ready for consolidation',
+                'risk_level': 'Moderate',
+                'allocation_bias': 'Increase to 75-80% but expect volatility'
             }
         }
         
@@ -463,6 +463,7 @@ class RegimeDetector:
         regime_labels = model.predict(X_scaled)
         
         # Map regimes to meaningful order based on characteristics
+        # PHASE 1: Collect raw statistics for all regimes
         regime_characteristics = []
         for regime in range(self.hmm_n_components):
             regime_mask = regime_labels == regime
@@ -472,36 +473,87 @@ class RegimeDetector:
                 avg_volatility = np.mean(features.loc[regime_mask, 'market_volatility'])
                 avg_momentum = np.mean(features.loc[regime_mask, 'market_momentum'])
 
-                # Score for ordering: prioritize INTENSITY (returns + momentum)
-                # Small vol penalty to distinguish panic (Bear) from confidence (Bull)
-                score = avg_return * 0.6 + avg_momentum * 0.3 - avg_volatility * 0.1
-
-                # DEBUG: Vérifier que le nouveau code est utilisé
-                logger.info(f"🔥 NEW FORMULA USED: return={avg_return:.4f}*0.6 + momentum={avg_momentum:.4f}*0.3 - vol={avg_volatility:.4f}*0.1 = score={score:.4f}")
                 regime_characteristics.append({
                     'id': regime,
                     'return': avg_return,
                     'volatility': avg_volatility,
                     'momentum': avg_momentum,
-                    'score': score,
                     'count': np.sum(regime_mask)
                 })
 
-        # Log detailed characteristics for debugging
-        logger.info("=== HMM Regime Characteristics ===")
+        # PHASE 2: Normalize features using z-score (CRITICAL for comparable scoring)
+        # Problem: Return (0.001-0.003) vs Volatility (0.15-0.50) → Vol dominates!
+        # Solution: Normalize to same scale before weighting
+        returns = np.array([r['return'] for r in regime_characteristics])
+        vols = np.array([r['volatility'] for r in regime_characteristics])
+        momentums = np.array([r['momentum'] for r in regime_characteristics])
+
+        return_mean, return_std = returns.mean(), returns.std()
+        vol_mean, vol_std = vols.mean(), vols.std()
+        momentum_mean, momentum_std = momentums.mean(), momentums.std()
+
+        logger.info("=== Feature Normalization Stats (Phase 2.6) ===")
+        logger.info(f"  Return:    mean={return_mean:.6f}, std={return_std:.6f}")
+        logger.info(f"  Volatility: mean={vol_mean:.4f}, std={vol_std:.4f}")
+        logger.info(f"  Momentum:   mean={momentum_mean:.6f}, std={momentum_std:.6f}")
+
+        # PHASE 3: Calculate normalized scores
         for char in regime_characteristics:
-            logger.info(f"  Cluster {char['id']}: return={char['return']:.4f}, vol={char['volatility']:.4f}, "
-                       f"momentum={char['momentum']:.4f}, score={char['score']:.4f}, count={char['count']}")
+            # Z-score normalization: (x - mean) / std
+            return_norm = (char['return'] - return_mean) / (return_std + 1e-8)
+            vol_norm = (char['volatility'] - vol_mean) / (vol_std + 1e-8)
+            momentum_norm = (char['momentum'] - momentum_mean) / (momentum_std + 1e-8)
 
-        # Sort by score to create ordered regimes
-        regime_characteristics.sort(key=lambda x: x['score'])
+            # Normalized score: prioritize returns + momentum, penalize volatility
+            # All features now on same scale [-2, +2] approximately
+            score = return_norm * 0.6 + momentum_norm * 0.3 - vol_norm * 0.1
 
-        # Create mapping: 0=Bear Market (lowest score), 1=Consolidation, 2=Bull Market, 3=Distribution (highest score)
+            char['return_norm'] = return_norm
+            char['vol_norm'] = vol_norm
+            char['momentum_norm'] = momentum_norm
+            char['score'] = score
+
+        # Log detailed characteristics for debugging
+        logger.info("=== HMM Regime Characteristics (Normalized Scoring) ===")
+        for char in regime_characteristics:
+            logger.info(f"  Cluster {char['id']}: return={char['return']:.4f} (norm={char['return_norm']:+.2f}), "
+                       f"vol={char['volatility']:.4f} (norm={char['vol_norm']:+.2f}), "
+                       f"momentum={char['momentum']:.4f} (norm={char['momentum_norm']:+.2f}), "
+                       f"score={char['score']:+.3f}, count={char['count']}")
+
+        # PHASE 2.7: Smart mapping based on market cycle characteristics
+        # Instead of sorting by score, map clusters based on actual return/vol/momentum patterns
+        logger.info("=== Smart Regime Mapping (Phase 2.7) ===")
+
         regime_mapping = {}
-        for new_regime, char in enumerate(regime_characteristics):
-            regime_mapping[char['id']] = new_regime
-            regime_name = self.regime_names[new_regime] if new_regime < len(self.regime_names) else f"Regime {new_regime}"
-            logger.info(f"  Cluster {char['id']} → {new_regime} ({regime_name})")
+        for char in regime_characteristics:
+            ret = char['return']
+            vol = char['volatility']
+            momentum = char['momentum']
+            cluster_id = char['id']
+
+            # Classification logic based on professional market cycles:
+            # 1. Bear Market: Negative returns + High volatility (crashes)
+            # 2. Correction: Negative/flat returns + Medium vol (pullbacks, sideways)
+            # 3. Bull Market: Positive returns + LOW volatility (stable uptrend, QE era)
+            # 4. Expansion: High positive returns + Strong momentum (violent rebounds post-crash)
+
+            if ret < -0.001 and vol > vol_mean:  # Negative returns + high vol
+                new_regime = 0  # Bear Market
+                reason = "negative returns + high vol"
+            elif ret > 0.002 and momentum > 0.03:  # Strong returns + strong momentum
+                new_regime = 3  # Expansion (violent rebounds)
+                reason = "strong returns + strong momentum"
+            elif ret > 0 and vol < vol_mean:  # Positive returns + low vol
+                new_regime = 2  # Bull Market (stable uptrend)
+                reason = "positive returns + low vol"
+            else:  # Everything else (flat/negative with medium vol)
+                new_regime = 1  # Correction (pullbacks, sideways)
+                reason = "flat/negative returns or medium vol"
+
+            regime_mapping[cluster_id] = new_regime
+            regime_name = self.regime_names[new_regime]
+            logger.info(f"  Cluster {cluster_id} → {new_regime} ({regime_name}) | {reason}")
 
         # Apply mapping
         mapped_labels = np.array([regime_mapping[label] for label in regime_labels])

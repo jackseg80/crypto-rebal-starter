@@ -2079,9 +2079,11 @@
         function getRegimeColor(regime) {
             const colors = {
                 'Bear Market': '#ef4444',          // Red (danger, selling)
-                'Consolidation': '#94a3b8',        // Gray (neutral, sideways)
-                'Bull Market': '#22c55e',          // Green (organic growth)
-                'Strong Bull Market': '#3b82f6'    // Blue (stability, Fed support, QE era)
+                'Correction': '#94a3b8',           // Gray (pullbacks, sideways)
+                'Consolidation': '#94a3b8',        // Alias for backward compatibility
+                'Bull Market': '#22c55e',          // Green (stable uptrend, low vol)
+                'Expansion': '#3b82f6',            // Blue (violent rebounds post-crash)
+                'Strong Bull Market': '#3b82f6'    // Alias for backward compatibility
             };
             return colors[regime] || '#64748b';
         }
@@ -2090,9 +2092,11 @@
         function getRegimeEmoji(regime) {
             const emojis = {
                 'Bear Market': '🐻',
-                'Consolidation': '↔️',
+                'Correction': '📉',                // Down chart for pullbacks
+                'Consolidation': '↔️',             // Alias for backward compatibility
                 'Bull Market': '🐂',
-                'Strong Bull Market': '🚀'  // Rocket for strong bull
+                'Expansion': '🚀',                 // Rocket for violent rebounds
+                'Strong Bull Market': '🚀'         // Alias for backward compatibility
             };
             return emojis[regime] || '❓';
         }
@@ -2288,14 +2292,14 @@
                                         size: 12
                                     },
                                     generateLabels: function(chart) {
-                                        // Add custom legend for regimes
+                                        // Add custom legend for regimes (Phase 2.7)
                                         const textColor = getComputedStyle(document.documentElement).getPropertyValue('--theme-text').trim() || '#e2e8f0';
                                         return [
                                             { text: `${historyData.benchmark} Price`, fillStyle: '#8b5cf6', strokeStyle: '#8b5cf6', fontColor: textColor },
                                             { text: 'Bear Market', fillStyle: '#ef4444', fontColor: textColor },
-                                            { text: 'Consolidation', fillStyle: '#94a3b8', fontColor: textColor },
+                                            { text: 'Correction', fillStyle: '#94a3b8', fontColor: textColor },
                                             { text: 'Bull Market', fillStyle: '#22c55e', fontColor: textColor },
-                                            { text: 'Strong Bull Market', fillStyle: '#3b82f6', fontColor: textColor }
+                                            { text: 'Expansion', fillStyle: '#3b82f6', fontColor: textColor }
                                         ];
                                     }
                                 }
@@ -2309,12 +2313,15 @@
                                         const idx = context.dataIndex * sampleRate;
                                         const regime = regimes[idx] || 'Unknown';
 
-                                        // Add historical examples for each regime
+                                        // Add historical examples for each regime (Phase 2.7)
                                         const regimeExamples = {
-                                            'Bear Market': '(e.g., 2008 crisis, COVID crash 2020, 2022 bear)',
+                                            'Bear Market': '(e.g., 2008 Lehman crisis, COVID crash Mar 2020)',
+                                            'Correction': '(e.g., 2022 Fed hikes bear, pullbacks, sideways periods)',
+                                            'Bull Market': '(e.g., QE era 2009-2020 stable uptrend, 2023-2024 AI rally)',
+                                            'Expansion': '(e.g., Mar-Jun 2009 recovery, Apr-Jun 2020 post-COVID rebound)',
+                                            // Backward compatibility aliases
                                             'Consolidation': '(e.g., 2015-2016 range, 2018 volatility)',
-                                            'Bull Market': '(e.g., 2005-2007, 2012-2013, 2023-2024)',
-                                            'Strong Bull Market': '(e.g., 2009-2010 recovery, 2017 euphoria, 2020 post-COVID rally)'
+                                            'Strong Bull Market': '(e.g., 2009-2010 recovery, 2020 post-COVID rally)'
                                         };
 
                                         return [
