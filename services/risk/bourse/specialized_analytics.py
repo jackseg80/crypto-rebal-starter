@@ -262,7 +262,19 @@ class SpecializedBourseAnalytics:
                 recent_return = sector_returns[sector].tail(recent_window).mean()
 
                 # Momentum = recent return / full period return
-                momentum = (recent_return / full_return) if full_return != 0 else 1.0
+                # FIX: Avoid division by very small numbers (< 0.1% daily return = 25% annualized)
+                MIN_RETURN_THRESHOLD = 0.001  # 0.1% daily = 25% annualized
+
+                if abs(full_return) < MIN_RETURN_THRESHOLD:
+                    # For sectors with near-zero returns, use absolute difference instead of ratio
+                    momentum = 1.0 + (recent_return - full_return) * 100  # Scale by 100 to match ratio scale
+                else:
+                    # Normal case: ratio of recent vs full period
+                    momentum = (recent_return / full_return) if full_return != 0 else 1.0
+
+                # Cap momentum to prevent extreme values
+                momentum = max(-5.0, min(5.0, momentum))
+
                 sector_momentum[sector] = momentum
 
             # Classify sectors
