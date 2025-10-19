@@ -573,12 +573,26 @@ async def get_sector_rotation(
         positions_values = {}  # For weight calculation
 
         for pos in positions:
-            ticker = pos.get('ticker') or pos.get('symbol')
+            ticker = pos.get('ticker') or pos.get('symbol') or pos.get('Symbol')
             if not ticker:
                 continue
 
             # Store position value for weight calculation
-            value_eur = pos.get('value_eur') or pos.get('value_usd', 0.0)
+            # Try multiple possible keys for position value
+            value_eur = (
+                pos.get('value_eur') or
+                pos.get('value_usd') or
+                pos.get('market_value') or
+                pos.get('Market Value') or
+                pos.get('current_value_eur') or
+                pos.get('current_value_usd') or
+                0.0
+            )
+
+            # Debug: Log first position to identify correct key
+            if not positions_values and value_eur == 0.0:
+                logger.warning(f"[sector-rotation] Position {ticker} has 0 value. Available keys: {list(pos.keys())[:10]}")
+
             if value_eur > 0:
                 positions_values[ticker] = float(value_eur)
 
