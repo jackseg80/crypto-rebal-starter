@@ -648,10 +648,14 @@ async def get_portfolio_recommendations(
                 detail=f"Invalid timeframe '{timeframe}'. Must be: short, medium, or long"
             )
 
-        # Get user positions
-        from api.saxo_endpoints import get_saxo_positions
-        positions_response = await get_saxo_positions(user_id=user_id)
-        positions = positions_response.get("positions", [])
+        # Get user positions from Saxo
+        import httpx
+        async with httpx.AsyncClient() as client:
+            positions_url = f"http://localhost:8000/api/saxo/positions?user_id={user_id}"
+            pos_response = await client.get(positions_url)
+            pos_response.raise_for_status()
+            positions_data = pos_response.json()
+            positions = positions_data.get("positions", [])
 
         if not positions:
             return {
@@ -665,22 +669,22 @@ async def get_portfolio_recommendations(
             }
 
         # Get current market regime
-        regime_response = await get_regime_detection(
-            benchmark=benchmark,
-            lookback_days=max(lookback_days, 365)  # Need at least 1 year for regime
-        )
-        market_regime = regime_response.current_regime
-        regime_probabilities = regime_response.regime_probabilities
+        async with httpx.AsyncClient() as client:
+            regime_url = f"http://localhost:8000/api/ml/bourse/regime?benchmark={benchmark}&lookback_days={max(lookback_days, 365)}"
+            regime_response = await client.get(regime_url)
+            regime_response.raise_for_status()
+            regime_data = regime_response.json()
+            market_regime = regime_data.get("current_regime", "Bull Market")
+            regime_probabilities = regime_data.get("regime_probabilities", {})
 
         # Get sector rotation analysis
         sector_analysis = None
         try:
-            from api.risk_bourse_endpoints import get_sector_rotation_analysis
-            sector_response = await get_sector_rotation_analysis(
-                user_id=user_id,
-                lookback_days=60
-            )
-            sector_analysis = sector_response
+            async with httpx.AsyncClient() as client:
+                sector_url = f"http://localhost:8000/api/risk/bourse/specialized/sector-rotation?user_id={user_id}&lookback_days=60"
+                sector_response = await client.get(sector_url)
+                if sector_response.status_code == 200:
+                    sector_analysis = sector_response.json()
         except Exception as e:
             logger.warning(f"Could not fetch sector analysis: {e}")
 
