@@ -3401,3 +3401,102 @@ else:
 - `a071bfb` - fix(bourse-ml): Option 1 color palette
 
 ---
+
+## Phase 2.8: Sector Mapping Completion - Zero "Other" ✅
+
+**Date:** 19 Oct 2025
+**Status:** ✅ Completed
+**Commits:**
+- `5bfd797` - First enrichment (11 tickers)
+- `8871101` - Complete mapping (5 ETFs)
+
+### 🎯 Problème Identifié
+
+**Après Phase 2.8.0 (commit 5bfd797):**
+
+Sector Rotation Analysis affichait **18% "Other"** (5 positions non classifiées sur 28 total) :
+
+```
+Technology:         13 positions (46%)
+Finance:            3 positions
+Healthcare:         3 positions
+Consumer:           2 positions
+ETF-Tech:           1 position
+ETF-International:  1 position
+Other:              5 positions (18%) ❌
+```
+
+### 🔍 Analyse des 5 Tickers Manquants
+
+Identification via CSV portfolio `jack` (Oct 13, 2025):
+
+| Ticker | Nom Complet | Type | Secteur Logique |
+|--------|-------------|------|-----------------|
+| **WORLD** | UBS Core MSCI World UCITS ETF | ETF | ETF-International |
+| **ACWI** | iShares MSCI ACWI ETF | ETF | ETF-International |
+| **AGGS** | iShares Global Aggregate Bond UCITS ETF | ETF | ETF-Bonds |
+| **BTEC** | iShares NASDAQ US Biotechnology UCITS ETF | ETF | ETF-Healthcare |
+| **XGDU** | Xtrackers IE Physical Gold ETC | ETC | ETF-Commodities |
+
+**Raison de l'absence:**
+- Ces tickers n'existaient pas dans le `sector_map` initial (conçu pour actions US)
+- Tickers spécifiques Europe (XETR, XVTX, XWAR, XMIL)
+
+### ✅ Solution : Ajout des 5 ETFs au sector_map
+
+**Fichier:** `services/risk/bourse/specialized_analytics.py` (lignes 73-77)
+
+```python
+# ETFs (phase 2.8 completion)
+'WORLD': 'ETF-International',  # UBS Core MSCI World
+'ACWI': 'ETF-International',   # iShares MSCI ACWI (All Country World Index)
+'AGGS': 'ETF-Bonds',           # iShares Global Aggregate Bond
+'BTEC': 'ETF-Healthcare',      # iShares NASDAQ Biotech
+'XGDU': 'ETF-Commodities',     # Xtrackers Physical Gold ETC
+```
+
+### 📊 Résultats de Production
+
+**Distribution Finale (28 positions, 9 secteurs):**
+
+| Secteur | Positions | % | Performance | Momentum | Signal |
+|---------|-----------|---|-------------|----------|--------|
+| **Technology** | 13 | 46% | +14.43% | 0.95x | ➖ NEUTRAL |
+| **Finance** | 3 | 11% | -3.35% | 1.13x | ➖ NEUTRAL |
+| **Healthcare** | 3 | 11% | +1.85% | 1.06x | ➖ NEUTRAL |
+| **ETF-International** | 3 | 11% | -3.68% | 0.94x | ➖ NEUTRAL |
+| **Consumer** | 2 | 7% | +4.89% | 1.11x | ➖ NEUTRAL |
+| **ETF-Tech** | 1 | 4% | -6.12% | 0.74x | ❄️ UNDERWEIGHT |
+| **ETF-Bonds** | 1 | 4% | +4.18% | 0.99x | ➖ NEUTRAL |
+| **ETF-Healthcare** | 1 | 4% | -5.09% | 1.10x | ➖ NEUTRAL |
+| **ETF-Commodities** | 1 | 4% | +16.81% | 1.39x | 🔥 OVERWEIGHT |
+| **Other** | **0** | **0%** | — | — | — |
+
+**Total : 28 positions classifiées à 100%** ✅
+
+### 🎁 Bénéfices
+
+1. **Classification complète** - Zero "Other", tous les actifs contribuent aux signaux
+2. **Visibilité diversification ETF** - Bonds, International, Healthcare, Commodities apparaissent
+3. **Précision rotation sectorielle** - Signaux basés sur 100% du portfolio
+4. **Insight commodités** - Or détecté en OVERWEIGHT (+16.81%, momentum 1.39x)
+5. **Risk insights** - Vraie exposition sectorielle (pas cachée dans "Other")
+
+### 🔢 Évolution du Mapping
+
+**Phase 2.8.0 (commit 5bfd797):**
+- Ajout 11 tickers actions (PLTR, COIN, META, UBSG, BAX, ROG, etc.)
+- "Other" : 57% → 18%
+
+**Phase 2.8.1 (commit 8871101):**
+- Ajout 5 tickers ETF (WORLD, ACWI, AGGS, BTEC, XGDU)
+- "Other" : 18% → **0%** ✅
+
+**Total enrichi : 16 tickers ajoutés**
+
+### 🔗 Commits Associés
+
+- `5bfd797` - feat(bourse-risk): enrich sector mapping with portfolio tickers
+- `8871101` - feat(bourse-risk): complete sector mapping with 5 missing ETFs
+
+---
