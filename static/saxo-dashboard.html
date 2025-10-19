@@ -4003,8 +4003,8 @@
             const color = percentage > 70 ? '#22c55e' : percentage > 50 ? '#fbbf24' : '#ef4444';
 
             return `
-                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                    <div style="flex: 1; height: 8px; background: var(--theme-bg-subtle); border-radius: var(--radius-full); overflow: hidden;">
+                <div style="display: flex; align-items: center; gap: 0.5rem; min-width: 120px;">
+                    <div style="flex: 1; height: 8px; background: var(--theme-bg-subtle); border-radius: var(--radius-full); overflow: hidden; min-width: 80px;">
                         <div style="height: 100%; width: ${percentage}%; background: ${color};"></div>
                     </div>
                     <span style="font-size: 0.75rem; font-weight: 600; min-width: 2.5rem;">${percentage}%</span>
