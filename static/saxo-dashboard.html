@@ -2078,10 +2078,10 @@
         // Helper: Get regime color
         function getRegimeColor(regime) {
             const colors = {
-                'Bear Market': '#ef4444',          // Red
-                'Consolidation': '#94a3b8',        // Gray
-                'Bull Market': '#22c55e',          // Green
-                'Strong Bull Market': '#f59e0b'    // Orange (QE era, low-vol bull)
+                'Bear Market': '#ef4444',          // Red (danger, selling)
+                'Consolidation': '#94a3b8',        // Gray (neutral, sideways)
+                'Bull Market': '#22c55e',          // Green (organic growth)
+                'Strong Bull Market': '#3b82f6'    // Blue (stability, Fed support, QE era)
             };
             return colors[regime] || '#64748b';
         }
@@ -2291,11 +2291,11 @@
                                         // Add custom legend for regimes
                                         const textColor = getComputedStyle(document.documentElement).getPropertyValue('--theme-text').trim() || '#e2e8f0';
                                         return [
-                                            { text: `${historyData.benchmark} Price`, fillStyle: '#3b82f6', strokeStyle: '#3b82f6', fontColor: textColor },
+                                            { text: `${historyData.benchmark} Price`, fillStyle: '#8b5cf6', strokeStyle: '#8b5cf6', fontColor: textColor },
                                             { text: 'Bear Market', fillStyle: '#ef4444', fontColor: textColor },
                                             { text: 'Consolidation', fillStyle: '#94a3b8', fontColor: textColor },
                                             { text: 'Bull Market', fillStyle: '#22c55e', fontColor: textColor },
-                                            { text: 'Strong Bull Market', fillStyle: '#f59e0b', fontColor: textColor }
+                                            { text: 'Strong Bull Market', fillStyle: '#3b82f6', fontColor: textColor }
                                         ];
                                     }
                                 }
