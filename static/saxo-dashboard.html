@@ -2075,13 +2075,13 @@
             }
         }
 
-        // Helper: Get regime color
+        // Helper: Get regime color (Option 1: Intensité de tendance)
         function getRegimeColor(regime) {
             const colors = {
-                'Bear Market': '#ef4444',          // Red (danger, selling)
-                'Correction': '#94a3b8',           // Gray (pullbacks, sideways)
+                'Bear Market': '#dc2626',          // Dark red (violent crashes)
+                'Correction': '#f97316',           // Orange (pullbacks, slow bears)
                 'Consolidation': '#94a3b8',        // Alias for backward compatibility
-                'Bull Market': '#22c55e',          // Green (stable uptrend, low vol)
+                'Bull Market': '#22c55e',          // Green (stable uptrend)
                 'Expansion': '#3b82f6',            // Blue (violent rebounds post-crash)
                 'Strong Bull Market': '#3b82f6'    // Alias for backward compatibility
             };
@@ -2091,11 +2091,11 @@
         // Helper: Get regime emoji
         function getRegimeEmoji(regime) {
             const emojis = {
-                'Bear Market': '🐻',
-                'Correction': '📉',                // Down chart for pullbacks
+                'Bear Market': '🔴',               // Red circle for crashes
+                'Correction': '🟠',                // Orange circle for pullbacks
                 'Consolidation': '↔️',             // Alias for backward compatibility
-                'Bull Market': '🐂',
-                'Expansion': '🚀',                 // Rocket for violent rebounds
+                'Bull Market': '🟢',               // Green circle for stable uptrend
+                'Expansion': '🔵',                 // Blue circle for violent rebounds
                 'Strong Bull Market': '🚀'         // Alias for backward compatibility
             };
             return emojis[regime] || '❓';
@@ -2292,12 +2292,12 @@
                                         size: 12
                                     },
                                     generateLabels: function(chart) {
-                                        // Add custom legend for regimes (Phase 2.7)
+                                        // Add custom legend for regimes (Phase 2.7 + Option 1 colors)
                                         const textColor = getComputedStyle(document.documentElement).getPropertyValue('--theme-text').trim() || '#e2e8f0';
                                         return [
                                             { text: `${historyData.benchmark} Price`, fillStyle: '#8b5cf6', strokeStyle: '#8b5cf6', fontColor: textColor },
-                                            { text: 'Bear Market', fillStyle: '#ef4444', fontColor: textColor },
-                                            { text: 'Correction', fillStyle: '#94a3b8', fontColor: textColor },
+                                            { text: 'Bear Market', fillStyle: '#dc2626', fontColor: textColor },
+                                            { text: 'Correction', fillStyle: '#f97316', fontColor: textColor },
                                             { text: 'Bull Market', fillStyle: '#22c55e', fontColor: textColor },
                                             { text: 'Expansion', fillStyle: '#3b82f6', fontColor: textColor }
                                         ];
