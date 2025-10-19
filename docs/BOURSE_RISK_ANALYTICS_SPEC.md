@@ -2,8 +2,8 @@
 
 > **Document vivant** - Mis à jour à chaque étape importante
 > **Créé**: 2025-10-18
-> **Dernière mise à jour**: 2025-10-18
-> **Statut**: ✅ Phase 5.3 Complete - Production Ready
+> **Dernière mise à jour**: 2025-10-19
+> **Statut**: ✅ Phase 2.9 Complete - Portfolio Recommendations System
 
 ---
 
@@ -3498,5 +3498,412 @@ Identification via CSV portfolio `jack` (Oct 13, 2025):
 
 - `5bfd797` - feat(bourse-risk): enrich sector mapping with portfolio tickers
 - `8871101` - feat(bourse-risk): complete sector mapping with 5 missing ETFs
+
+---
+
+## Phase 2.9 : Portfolio Recommendations - BUY/HOLD/SELL Signals
+
+> **Statut**: ✅ Complete
+> **Date**: 2025-10-19
+> **Commits**: c642eca, 29bac96, b48889a, c38bd33, eed0ec8
+
+### 🎯 Objectif
+
+Créer un système complet de **recommendations de portfolio** qui génère des signaux BUY/HOLD/SELL pour toutes les positions Saxo, en combinant :
+- Indicateurs techniques (RSI, MACD, MA, Volume)
+- Détection de régimes de marché (Bull/Bear/Expansion/Correction)
+- Analyse de rotation sectorielle
+- Métriques de risque (volatilité, drawdown, Sharpe)
+- Contraintes de portfolio (concentration sectorielle, correlation)
+
+### 📐 Architecture
+
+#### 6 Modules Backend
+
+```
+services/ml/bourse/
+  ├── technical_indicators.py     # RSI, MACD, MA, Support/Resistance, Volume
+  ├── scoring_engine.py           # Scoring adaptatif par timeframe
+  ├── decision_engine.py          # Scores → Actions (BUY/SELL/HOLD)
+  ├── price_targets.py            # Entry/SL/TP, R/R ratios, position sizing
+  ├── portfolio_adjuster.py       # Contraintes sectorielles/correlation
+  └── recommendations_orchestrator.py  # Orchestration complète
+```
+
+#### API Endpoint
+
+```python
+GET /api/ml/bourse/portfolio-recommendations
+Parameters:
+  - user_id: str = "demo"
+  - source: str = "saxobank"
+  - timeframe: str = "medium"  # short/medium/long
+  - lookback_days: int = 90
+  - benchmark: str = "SPY"
+
+Response:
+{
+  "recommendations": [
+    {
+      "symbol": "AAPL",
+      "action": "BUY",
+      "confidence": 0.68,
+      "score": 0.58,
+      "rationale": [...],
+      "tactical_advice": "...",
+      "price_targets": {...},
+      "position_sizing": {...}
+    }
+  ],
+  "summary": {
+    "action_counts": {"BUY": 3, "HOLD": 20, "SELL": 5},
+    "market_regime": "Bull Market",
+    "overall_posture": "Risk-On"
+  }
+}
+```
+
+#### Frontend
+
+Nouvel onglet **"Recommendations"** dans saxo-dashboard.html avec :
+- Sélecteur de timeframe (1-2w / 1m / 3-6m)
+- Tableau des recommendations avec search/filter
+- Modal détaillé pour chaque position
+- Affichage des adjustment notes (positions downgradées)
+
+### 🧮 Logique de Scoring
+
+#### Poids Adaptatifs par Timeframe
+
+```python
+WEIGHTS = {
+    "short": {   # 1-2 semaines (Trading)
+        "technical": 0.35,
+        "regime": 0.25,
+        "relative_strength": 0.20,
+        "risk": 0.10,
+        "sector": 0.10
+    },
+    "medium": {  # 1 mois (Tactical)
+        "technical": 0.25,
+        "regime": 0.25,
+        "sector": 0.20,
+        "risk": 0.15,
+        "relative_strength": 0.15
+    },
+    "long": {    # 3-6 mois (Strategic)
+        "regime": 0.30,
+        "risk": 0.20,
+        "technical": 0.15,
+        "relative_strength": 0.15,
+        "sector": 0.20
+    }
+}
+```
+
+#### Seuils de Décision
+
+```python
+THRESHOLDS = {
+    "strong_buy": {"score": 0.65, "confidence": 0.70},
+    "buy": {"score": 0.55, "confidence": 0.60},
+    "hold_upper": 0.55,
+    "hold_lower": 0.45,
+    "sell": {"score": 0.45, "confidence": 0.60},
+    "strong_sell": {"score": 0.35, "confidence": 0.70}
+}
+```
+
+### ⚖️ Contraintes de Portfolio
+
+#### 1. Concentration Sectorielle (2-Pass Algorithm)
+
+**Pass 1: BUY Signals**
+- Si secteur >40% ET plusieurs BUY :
+  - Garde meilleur BUY
+  - Downgrade autres : STRONG BUY → BUY, BUY → HOLD
+
+**Pass 2: HOLD Signals**
+- Si secteur >45% :
+  - Downgrade bottom 30% des HOLDs → SELL
+  - Autres HOLDs : concentration warning
+- Si secteur 40-45% :
+  - Tous les HOLDs : concentration warning
+
+**Exemple (Technology 52%):**
+```
+Pass 1: Downgrade BUYs → HOLDs
+Pass 2: Downgrade 30% HOLDs → SELL
+Résultat: 3-4 SELLs, 9 HOLDs avec warning
+```
+
+#### 2. Risk/Reward Minimum
+
+- BUY ou STRONG BUY avec R/R < 1.5 → HOLD
+- Rationale : Ne pas recommander d'achat si risque > récompense
+
+#### 3. Limites de Corrélation
+
+- Max 3 positions corrélées (>0.80) avec signal BUY
+- Garde meilleur score, downgrade autres → HOLD
+
+### 🎯 Price Targets par Timeframe
+
+| Timeframe | Stop-Loss | TP1 | TP2 | R/R Min |
+|-----------|-----------|-----|-----|---------|
+| **Short (1-2w)** | -5% | +5% | +10% | 1.5 |
+| **Medium (1m)** | -8% | +8% | +15% | 1.5 |
+| **Long (3-6m)** | -12% | +12% | +25% | 1.5 |
+
+### 🐛 Issues Résolues (3 Fixes Critiques)
+
+#### Fix 1: Position Sizing Contradiction (commit c642eca)
+
+**Problème :**
+```
+TSLA:
+  Tactical advice: "Consider adding 1-2% to position"
+  Position sizing: "Sector limit reached, no room to add"
+```
+
+**Solution :**
+- Tactical advice généré APRÈS position sizing
+- Méthode `update_tactical_advice()` dans decision_engine.py
+- Check sector/position limits avant de suggérer d'ajouter
+
+**Résultat :**
+```
+TSLA:
+  Tactical advice: "Strong buy signal, BUT sector/position limit reached.
+                    Hold current position. Consider rotating from weaker
+                    positions in same sector if conviction is high."
+```
+
+#### Fix 2: R/R Minimum pour BUY (commit 29bac96)
+
+**Problème :**
+```
+TSLA:
+  Action: BUY
+  Score: 0.67 (>0.55, devrait être BUY)
+  R/R: 1:0.58 (risque > gain) ❌
+```
+
+**Solution :**
+- Nouvelle méthode `_apply_risk_reward_filter()` dans portfolio_adjuster.py
+- Downgrade BUY → HOLD si R/R < 1.5
+- Ajout de adjustment_note
+
+**Résultat :**
+```
+TSLA:
+  Action: HOLD (downgradé de BUY)
+  Adjustment note: "Downgraded from BUY due to insufficient
+                    Risk/Reward ratio (0.58 < 1.5)"
+```
+
+#### Fix 3: Concentration Technology (commit b48889a)
+
+**Problème :**
+- Technology 52% du portfolio (13/28 positions)
+- Limite : 40%
+- Seuls les BUY étaient downgradés, pas les HOLD
+- Résultat : Secteur restait surpondéré
+
+**Solution :**
+- Extension de `_apply_sector_limits()` pour traiter les HOLD
+- Si secteur >45% : Downgrade bottom 30% des HOLDs → SELL
+- Si secteur 40-45% : Concentration warning
+
+**Résultat :**
+```
+Technology (52%, 13 positions):
+  - 3 SELL (bottom 30%): AMZN, CDR, META
+  - 10 HOLD avec warning
+  - Réduction portfolio : 52% → ~45%
+```
+
+#### Option 2: Rebalancing Immédiat (commit c38bd33)
+
+**Problème :**
+- Single-pass logic ne downgradait que les HOLDs originaux
+- Positions BUY→HOLD du Pass 1 n'étaient pas re-évaluées
+- Résultat : 1 seul SELL au lieu de 3-4
+
+**Solution :**
+- 2-pass algorithm explicite
+- Pass 1 : Downgrade BUY signals
+- Pass 2 : Re-scan TOUS les HOLDs (incluant freshly downgraded)
+
+**Résultat :**
+```
+Avant : 1 SELL (AMZN uniquement)
+Après : 3 SELL (AMZN, CDR, META)
+Réduction : 52% → 45.8%
+```
+
+### 🎨 UI Enhancements (commit eed0ec8)
+
+#### Adjustment Note Banner
+
+Affichage visuel dans le modal pour positions ajustées :
+
+```html
+⚠️ Action Adjusted
+Original: HOLD
+Adjusted to: SELL
+Reason: Downgraded from HOLD due to high sector concentration (52% > 45%)
+```
+
+**Styling :**
+- Background jaune (#fef3c7)
+- Bordure orange (#f59e0b)
+- Impossible à rater
+
+#### Tactical Advice Adapté
+
+Function `getAdjustedTacticalAdvice(rec)` génère des conseils spécifiques :
+
+**SELL (concentration) :**
+```
+"Reduce position by 30-50% to rebalance Technology sector
+(currently 52% of portfolio, target 40%). Rotate capital to
+underweight sectors (Finance, Healthcare) or diversified ETFs.
+This is a weaker performer in an overweight sector."
+```
+
+**HOLD (concentration) :**
+```
+"Hold current position. Sector concentration prevents adding
+(Technology at 52%). Monitor for rebalancing opportunities.
+Consider trimming if sector weight increases further."
+```
+
+**Concentration warning :**
+```
+"⚠️ Sector concentration warning: Technology at 52% (target 40%).
+[original advice] Do not add to this position."
+```
+
+### 📊 Résultats de Production
+
+#### Distribution des Actions (Timeframe: 1 mois)
+
+| Action | Count | % | Description |
+|--------|-------|---|-------------|
+| **HOLD** | 24 | 86% | Portfolio globalement stable |
+| **SELL** | 3 | 11% | Rebalancing Technology |
+| **BUY** | 1 | 3% | AGGS (ETF-Bonds sous-pondéré) |
+
+#### Concentration Technology Réduite
+
+**Avant recommendations :**
+```
+Technology: 52.3% (13 positions) 🚨
+  - TSLA: 10%
+  - NVDA: 7.6%
+  - AMD: 5.3%
+  - GOOGL: 4.5%
+  - MSFT: 4.1%
+  - AAPL: 3.6%
+  - AMZN: 3.6% → SELL
+  - PLTR: 3.7%
+  - INTC: 3.2%
+  - META: 2.3% → SELL
+  - COIN: 2%
+  - IFX: 1.8%
+  - CDR: 0.6% → SELL
+```
+
+**Après vente des 3 SELL :**
+```
+Technology: ~45.8% (10 positions) ✅
+Réduction: -6.5%
+Diversification: Meilleure exposition Finance/Healthcare
+```
+
+#### Exemples de Recommendations
+
+**AGGS (ETF-Bonds) - BUY :**
+```json
+{
+  "action": "BUY",
+  "confidence": 94%,
+  "score": 0.62,
+  "rationale": [
+    "✅ Technical: RSI neutral, MACD neutral",
+    "✅ Bull Market regime supports this asset",
+    "✅ Bonds sector underweight, rebalancing opportunity"
+  ],
+  "tactical_advice": "Add 1-2% to position. Bonds underweight at 4.6% vs target 10-15%.",
+  "price_targets": {
+    "entry_zone": "$102-$106",
+    "stop_loss": "$94 (-8%)",
+    "take_profit_1": "$111 (+8%)",
+    "risk_reward_tp1": 1.8
+  }
+}
+```
+
+**AMZN - SELL (ajusté) :**
+```json
+{
+  "action": "SELL",
+  "original_action": "HOLD",
+  "adjusted": true,
+  "confidence": 91%,
+  "score": 0.50,
+  "adjustment_note": "Downgraded from HOLD due to high sector concentration (52% > 45%)",
+  "rationale": [
+    "⚠️ Technical: RSI 38 (neutral), MACD bearish",
+    "❌ Below MA50 by 5.5%, downtrend active",
+    "❌ Underperforming market benchmark by 12.3%"
+  ],
+  "tactical_advice": "Reduce position by 30-50% to rebalance Technology sector
+                      (currently 52% of portfolio, target 40%). Rotate capital
+                      to underweight sectors or diversified ETFs. This is a
+                      weaker performer in an overweight sector."
+}
+```
+
+**TSLA - HOLD (R/R insufficient) :**
+```json
+{
+  "action": "HOLD",
+  "original_action": "BUY",
+  "adjusted": true,
+  "confidence": 94%,
+  "score": 0.67,
+  "adjustment_note": "Downgraded from BUY due to insufficient Risk/Reward ratio (0.58 < 1.5)",
+  "rationale": [
+    "⚠️ Technical: RSI 49 (neutral), MACD bearish",
+    "✅ Above MA50 by 13.4%, uptrend intact",
+    "✅ Outperforming market benchmark by 24.1%"
+  ],
+  "tactical_advice": "Strong buy signal, BUT sector/position limit reached.
+                      Hold current position. Consider rotating from weaker
+                      positions in same sector if conviction is high.",
+  "price_targets": {
+    "risk_reward_tp1": 0.58
+  }
+}
+```
+
+### 🎁 Bénéfices
+
+1. **Signaux actionnables** - BUY/HOLD/SELL clairs avec rationale détaillée
+2. **Protection du capital** - Contraintes de concentration et R/R
+3. **Multi-timeframe** - Adapté au trading (1-2w), tactical (1m), strategic (3-6m)
+4. **Transparence** - Adjustment notes expliquent tous les changements
+5. **Rebalancing forcé** - Réduit automatiquement les surconcentrations
+6. **Professional-grade** - Aligne avec standards institutionnels
+
+### 🔗 Commits Associés
+
+- `c642eca` - fix(bourse-ml): resolve position sizing contradiction
+- `29bac96` - fix(bourse-ml): add R/R minimum threshold for BUY signals
+- `b48889a` - fix(bourse-ml): apply concentration limits to HOLD signals
+- `c38bd33` - feat(bourse-ml): implement 2-pass concentration limits
+- `eed0ec8` - feat(bourse-ml): display adjustment notes and custom tactical advice
 
 ---
