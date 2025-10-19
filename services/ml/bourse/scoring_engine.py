@@ -97,7 +97,10 @@ class ScoringEngine:
             sector_score
         ]
         variance = sum((s - final_score) ** 2 for s in scores) / len(scores)
-        confidence = 1.0 - min(variance * 2, 0.4)  # Cap confidence reduction at 40%
+
+        # More realistic confidence: min 40%, more sensitive to variance
+        # variance * 4 gives more spread in confidence values
+        confidence = 1.0 - min(variance * 4, 0.6)  # Cap confidence reduction at 60%
 
         return {
             "final_score": round(final_score, 3),

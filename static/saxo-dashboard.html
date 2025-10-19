@@ -3929,6 +3929,7 @@
                         <thead>
                             <tr style="border-bottom: 2px solid var(--theme-border); background: var(--theme-bg-subtle);">
                                 <th style="padding: 0.75rem; text-align: left; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Symbol</th>
+                                <th style="padding: 0.75rem; text-align: left; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Name</th>
                                 <th style="padding: 0.75rem; text-align: left; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Action</th>
                                 <th style="padding: 0.75rem; text-align: center; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Confidence</th>
                                 <th style="padding: 0.75rem; text-align: left; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Sector</th>
@@ -3944,11 +3945,18 @@
                 const actionBadge = getActionBadge(rec.action);
                 const confidenceBar = getConfidenceBar(rec.confidence);
 
+                // Get full name from mapping
+                const fullName = getDisplayName(rec.symbol, rec.name);
+                // Shorten name if too long
+                const displayName = fullName.length > 25 ? fullName.substring(0, 22) + '...' : fullName;
+
                 tableHTML += `
                     <tr class="rec-row" data-symbol="${rec.symbol}" style="border-bottom: 1px solid var(--theme-border); cursor: pointer;" onclick="showRecommendationModal('${rec.symbol}')">
                         <td style="padding: 0.75rem;">
                             <div style="font-weight: 600; color: var(--theme-text);">${rec.symbol}</div>
-                            <div style="font-size: 0.75rem; color: var(--theme-text-muted);">${rec.name}</div>
+                        </td>
+                        <td style="padding: 0.75rem;">
+                            <div style="font-size: 0.875rem; color: var(--theme-text-muted);" title="${fullName}">${displayName}</div>
                         </td>
                         <td style="padding: 0.75rem;">${actionBadge}</td>
                         <td style="padding: 0.75rem; text-align: center;">${confidenceBar}</td>
@@ -4024,6 +4032,56 @@
         /**
          * Show recommendation modal (drill-down)
          */
+        /**
+         * Symbol to name mapping
+         */
+        const SYMBOL_NAMES = {
+            // Tech
+            'AAPL': 'Apple',
+            'MSFT': 'Microsoft',
+            'GOOGL': 'Alphabet (Google)',
+            'AMZN': 'Amazon',
+            'META': 'Meta (Facebook)',
+            'NVDA': 'NVIDIA',
+            'TSLA': 'Tesla',
+            'AMD': 'AMD',
+            'INTC': 'Intel',
+            'PLTR': 'Palantir',
+            'COIN': 'Coinbase',
+            'IFX': 'Infineon Technologies',
+            'CDR': 'Cedar Realty Trust',
+
+            // Finance
+            'BRKb': 'Berkshire Hathaway',
+            'UBSG': 'UBS Group',
+            'SLHn': 'Sandvik AB',
+
+            // Consumer
+            'KO': 'Coca-Cola',
+            'UHRN': 'Richemont',
+
+            // Healthcare
+            'PFE': 'Pfizer',
+            'BAX': 'Baxter',
+            'ROG': 'Roche',
+
+            // ETFs
+            'IWDA': 'iShares MSCI World',
+            'WORLD': 'UBS MSCI World',
+            'ACWI': 'iShares MSCI ACWI',
+            'ITEK': 'iShares S&P Tech',
+            'AGGS': 'iShares Aggregate Bond',
+            'BTEC': 'iShares Biotech',
+            'XGDU': 'Xtrackers Gold ETC'
+        };
+
+        /**
+         * Get display name for symbol
+         */
+        function getDisplayName(symbol, fallbackName) {
+            return SYMBOL_NAMES[symbol] || fallbackName || symbol;
+        }
+
         /**
          * Get adjusted tactical advice for positions that were downgraded
          */
