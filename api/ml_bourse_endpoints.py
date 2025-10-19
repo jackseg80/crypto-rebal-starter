@@ -15,12 +15,14 @@ from datetime import datetime, timedelta
 import logging
 
 from services.ml.bourse.stocks_adapter import StocksMLAdapter
+from services.ml.bourse.recommendations_orchestrator import RecommendationsOrchestrator
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Global adapter instance (shared across requests for performance)
 stocks_ml_adapter = StocksMLAdapter(models_dir="models/stocks")
+recommendations_orchestrator = RecommendationsOrchestrator()
 
 
 # Response Models
@@ -572,4 +574,131 @@ async def get_regime_history(
         raise
     except Exception as e:
         logger.error(f"Error getting regime history: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@router.get("/api/ml/bourse/portfolio-recommendations")
+async def get_portfolio_recommendations(
+    user_id: str = Query("demo", description="User ID for portfolio positions"),
+    source: str = Query("saxobank", description="Data source (saxobank, cointracking, etc.)"),
+    timeframe: str = Query("medium", description="Timeframe: short (1-2w), medium (1m), long (3-6m)"),
+    lookback_days: int = Query(90, ge=60, le=365, description="Days of historical data to analyze"),
+    benchmark: str = Query("SPY", description="Benchmark symbol for relative strength")
+):
+    """
+    Generate BUY/HOLD/SELL recommendations for all portfolio positions.
+
+    Combines:
+    - Technical indicators (RSI, MACD, MA, Volume)
+    - Market regime detection
+    - Sector rotation analysis
+    - Risk metrics
+    - Relative strength vs benchmark
+
+    Returns recommendations with:
+    - Action (STRONG BUY, BUY, HOLD, SELL, STRONG SELL)
+    - Confidence level
+    - Detailed rationale
+    - Tactical advice
+    - Price targets (entry, stop-loss, take-profit)
+    - Position sizing suggestions
+
+    Args:
+        user_id: User ID
+        source: Data source for positions
+        timeframe: short/medium/long (affects scoring weights)
+        lookback_days: Historical data window
+        benchmark: Benchmark for relative strength
+
+    Returns:
+        {
+            "recommendations": [
+                {
+                    "symbol": "AAPL",
+                    "action": "BUY",
+                    "confidence": 0.68,
+                    "score": 0.58,
+                    "rationale": ["✅ Technical...", "⚠️ RSI..."],
+                    "tactical_advice": "Enter on pullback...",
+                    "price_targets": {...},
+                    "position_sizing": {...}
+                },
+                ...
+            ],
+            "summary": {
+                "total_positions": 15,
+                "buy_signals": 4,
+                "hold_signals": 8,
+                "sell_signals": 3,
+                "market_regime": "Bull Market",
+                "overall_posture": "Risk-On"
+            }
+        }
+
+    Example:
+        GET /api/ml/bourse/portfolio-recommendations?user_id=jack&timeframe=medium&lookback_days=90
+    """
+    try:
+        logger.info(f"Portfolio recommendations requested (user={user_id}, source={source}, timeframe={timeframe})")
+
+        # Validate timeframe
+        if timeframe not in ["short", "medium", "long"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid timeframe '{timeframe}'. Must be: short, medium, or long"
+            )
+
+        # Get user positions
+        from api.saxo_endpoints import get_saxo_positions
+        positions_response = await get_saxo_positions(user_id=user_id)
+        positions = positions_response.get("positions", [])
+
+        if not positions:
+            return {
+                "recommendations": [],
+                "summary": {
+                    "total_positions": 0,
+                    "message": "No positions found"
+                },
+                "timeframe": timeframe,
+                "generated_at": datetime.now().isoformat()
+            }
+
+        # Get current market regime
+        regime_response = await get_regime_detection(
+            benchmark=benchmark,
+            lookback_days=max(lookback_days, 365)  # Need at least 1 year for regime
+        )
+        market_regime = regime_response.current_regime
+        regime_probabilities = regime_response.regime_probabilities
+
+        # Get sector rotation analysis
+        sector_analysis = None
+        try:
+            from api.risk_bourse_endpoints import get_sector_rotation_analysis
+            sector_response = await get_sector_rotation_analysis(
+                user_id=user_id,
+                lookback_days=60
+            )
+            sector_analysis = sector_response
+        except Exception as e:
+            logger.warning(f"Could not fetch sector analysis: {e}")
+
+        # Generate recommendations
+        result = await recommendations_orchestrator.generate_recommendations(
+            positions=positions,
+            market_regime=market_regime,
+            regime_probabilities=regime_probabilities,
+            sector_analysis=sector_analysis,
+            benchmark=benchmark,
+            timeframe=timeframe,
+            lookback_days=lookback_days
+        )
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating recommendations: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")

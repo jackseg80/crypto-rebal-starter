@@ -1,0 +1,299 @@
+"""
+Price Targets Calculator for Portfolio Recommendations
+
+Calculates:
+- Entry zones (for BUY signals)
+- Stop-loss levels
+- Take-profit targets (TP1, TP2)
+- Risk/Reward ratios
+"""
+
+from typing import Dict, Any, Optional, Tuple
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class PriceTargets:
+    """Calculate price targets based on technical levels and timeframe"""
+
+    # Target percentages by timeframe
+    TARGETS = {
+        "short": {  # 1-2 weeks
+            "entry_buffer": 0.02,  # 2% above current for entry zone
+            "stop_loss": 0.05,     # 5% below support
+            "tp1": 0.05,           # 5% above current
+            "tp2": 0.10            # 10% above current
+        },
+        "medium": {  # 1 month
+            "entry_buffer": 0.03,  # 3%
+            "stop_loss": 0.08,     # 8%
+            "tp1": 0.08,           # 8%
+            "tp2": 0.15            # 15%
+        },
+        "long": {  # 3-6 months
+            "entry_buffer": 0.05,  # 5%
+            "stop_loss": 0.12,     # 12%
+            "tp1": 0.12,           # 12%
+            "tp2": 0.25            # 25%
+        }
+    }
+
+    def __init__(self, timeframe: str = "medium"):
+        """
+        Initialize price targets calculator
+
+        Args:
+            timeframe: "short", "medium", or "long"
+        """
+        if timeframe not in self.TARGETS:
+            logger.warning(f"Invalid timeframe '{timeframe}', defaulting to 'medium'")
+            timeframe = "medium"
+
+        self.timeframe = timeframe
+        self.params = self.TARGETS[timeframe]
+
+    def calculate_targets(
+        self,
+        current_price: float,
+        action: str,
+        support_resistance: Optional[Dict[str, float]] = None,
+        volatility: Optional[float] = None
+    ) -> Dict[str, Any]:
+        """
+        Calculate all price targets
+
+        Args:
+            current_price: Current market price
+            action: Recommendation action (STRONG BUY, BUY, HOLD, etc.)
+            support_resistance: Optional S/R levels from technical analysis
+            volatility: Optional volatility for adaptive sizing
+
+        Returns:
+            Dict with entry zone, stop-loss, take-profits, and risk/reward
+        """
+        if action in ["STRONG BUY", "BUY"]:
+            return self._calculate_buy_targets(
+                current_price,
+                support_resistance,
+                volatility
+            )
+        elif action in ["STRONG SELL", "SELL"]:
+            return self._calculate_sell_targets(
+                current_price,
+                support_resistance,
+                volatility
+            )
+        else:  # HOLD
+            return self._calculate_hold_targets(current_price)
+
+    def _calculate_buy_targets(
+        self,
+        current_price: float,
+        sr_levels: Optional[Dict[str, float]],
+        volatility: Optional[float]
+    ) -> Dict[str, Any]:
+        """Calculate targets for BUY recommendations"""
+
+        # Entry zone: between support and slight premium
+        entry_low = current_price * (1 - self.params["entry_buffer"] / 2)
+        entry_high = current_price * (1 + self.params["entry_buffer"])
+
+        # Adjust entry zone with support if available
+        if sr_levels and "support1" in sr_levels:
+            support = sr_levels["support1"]
+            if support < current_price:
+                entry_low = max(entry_low, support)
+
+        # Stop-loss: below support with buffer
+        if sr_levels and "support1" in sr_levels:
+            stop_loss = sr_levels["support1"] * (1 - self.params["stop_loss"] / 2)
+        else:
+            stop_loss = current_price * (1 - self.params["stop_loss"])
+
+        # Adjust for volatility if available (higher vol = wider stops)
+        if volatility is not None and volatility > 0.30:  # High vol
+            stop_loss *= 0.95  # Widen stop by 5%
+
+        # Take-profit levels
+        # TP1: First resistance or calculated target
+        if sr_levels and "resistance1" in sr_levels:
+            tp1 = max(
+                sr_levels["resistance1"],
+                current_price * (1 + self.params["tp1"])
+            )
+        else:
+            tp1 = current_price * (1 + self.params["tp1"])
+
+        # TP2: Second resistance or extended target
+        if sr_levels and "resistance2" in sr_levels:
+            tp2 = max(
+                sr_levels["resistance2"],
+                current_price * (1 + self.params["tp2"])
+            )
+        else:
+            tp2 = current_price * (1 + self.params["tp2"])
+
+        # Risk/Reward calculation
+        risk = current_price - stop_loss
+        reward_tp1 = tp1 - current_price
+        reward_tp2 = tp2 - current_price
+
+        rr_tp1 = reward_tp1 / risk if risk > 0 else 0
+        rr_tp2 = reward_tp2 / risk if risk > 0 else 0
+
+        return {
+            "current_price": round(current_price, 2),
+            "entry_zone": {
+                "low": round(entry_low, 2),
+                "high": round(entry_high, 2)
+            },
+            "stop_loss": round(stop_loss, 2),
+            "stop_loss_pct": round((stop_loss / current_price - 1) * 100, 1),
+            "take_profit_1": round(tp1, 2),
+            "take_profit_1_pct": round((tp1 / current_price - 1) * 100, 1),
+            "take_profit_2": round(tp2, 2),
+            "take_profit_2_pct": round((tp2 / current_price - 1) * 100, 1),
+            "risk_reward_tp1": round(rr_tp1, 2),
+            "risk_reward_tp2": round(rr_tp2, 2),
+            "position_sizing": "50% at TP1, 50% at TP2",
+            "timeframe": self.timeframe
+        }
+
+    def _calculate_sell_targets(
+        self,
+        current_price: float,
+        sr_levels: Optional[Dict[str, float]],
+        volatility: Optional[float]
+    ) -> Dict[str, Any]:
+        """Calculate targets for SELL recommendations"""
+
+        # For SELL, we want to exit at good price
+        # Exit zone: between current and slight discount
+        exit_low = current_price * (1 - self.params["entry_buffer"])
+        exit_high = current_price * (1 + self.params["entry_buffer"] / 2)
+
+        # Adjust exit zone with resistance if available
+        if sr_levels and "resistance1" in sr_levels:
+            resistance = sr_levels["resistance1"]
+            if resistance > current_price:
+                exit_high = min(exit_high, resistance)
+
+        # For sells, we don't have traditional SL/TP
+        # But we can suggest "stop-buy" if price recovers strongly
+        stop_buy = current_price * (1 + self.params["stop_loss"])  # Re-entry if wrong
+
+        return {
+            "current_price": round(current_price, 2),
+            "exit_zone": {
+                "low": round(exit_low, 2),
+                "high": round(exit_high, 2)
+            },
+            "target_exit": round(exit_high, 2),  # Exit near resistance
+            "stop_buy": round(stop_buy, 2),  # Re-enter if price recovers
+            "stop_buy_pct": round((stop_buy / current_price - 1) * 100, 1),
+            "position_sizing": "Reduce 50-75% on rallies",
+            "timeframe": self.timeframe
+        }
+
+    def _calculate_hold_targets(self, current_price: float) -> Dict[str, Any]:
+        """Calculate monitoring levels for HOLD positions"""
+
+        # For HOLD, just provide monitoring levels
+        upper_watch = current_price * (1 + self.params["tp1"])
+        lower_watch = current_price * (1 - self.params["stop_loss"])
+
+        return {
+            "current_price": round(current_price, 2),
+            "action": "HOLD - Monitor position",
+            "upper_watch": round(upper_watch, 2),
+            "upper_watch_pct": round(self.params["tp1"] * 100, 1),
+            "lower_watch": round(lower_watch, 2),
+            "lower_watch_pct": round(-self.params["stop_loss"] * 100, 1),
+            "guidance": f"Re-evaluate if price breaks above ${upper_watch:.2f} (upgrade to BUY) or below ${lower_watch:.2f} (downgrade to SELL)",
+            "timeframe": self.timeframe
+        }
+
+    def calculate_position_size(
+        self,
+        action: str,
+        confidence: float,
+        portfolio_value: float,
+        current_allocation: float,
+        sector_weight: float,
+        max_position_pct: float = 0.05,  # 5% default max
+        max_sector_pct: float = 0.40     # 40% default max sector
+    ) -> Dict[str, Any]:
+        """
+        Calculate suggested position size
+
+        Args:
+            action: Recommendation action
+            confidence: Confidence level (0-1)
+            portfolio_value: Total portfolio value
+            current_allocation: Current position size (as % of portfolio)
+            sector_weight: Current sector weight
+            max_position_pct: Max single position size
+            max_sector_pct: Max sector concentration
+
+        Returns:
+            Dict with position sizing guidance
+        """
+        if action in ["STRONG BUY", "BUY"]:
+            # Base allocation on confidence
+            if action == "STRONG BUY" and confidence > 0.75:
+                target_pct = 0.05  # 5% for strong conviction
+            elif action == "STRONG BUY":
+                target_pct = 0.04  # 4%
+            elif confidence > 0.65:
+                target_pct = 0.03  # 3%
+            else:
+                target_pct = 0.02  # 2%
+
+            # Limit by max position size
+            target_pct = min(target_pct, max_position_pct)
+
+            # Limit by sector concentration
+            sector_remaining = max_sector_pct - sector_weight
+            if sector_remaining < target_pct:
+                target_pct = max(0, sector_remaining)
+
+            # Calculate dollar amount
+            increment_pct = target_pct - current_allocation
+            increment_dollars = portfolio_value * increment_pct
+
+            return {
+                "action": "ADD",
+                "current_allocation_pct": round(current_allocation * 100, 1),
+                "target_allocation_pct": round(target_pct * 100, 1),
+                "increment_pct": round(increment_pct * 100, 1),
+                "increment_dollars": round(increment_dollars, 0),
+                "sector_weight": round(sector_weight * 100, 1),
+                "sector_limit": round(max_sector_pct * 100, 1),
+                "guidance": f"Add ${increment_dollars:.0f} ({increment_pct*100:.1f}% of portfolio)" if increment_dollars > 0 else "Sector limit reached, no room to add"
+            }
+
+        elif action in ["STRONG SELL", "SELL"]:
+            # Reduce position
+            if action == "STRONG SELL":
+                reduction_pct = 0.75  # Reduce 75%
+            else:
+                reduction_pct = 0.50  # Reduce 50%
+
+            reduction_dollars = portfolio_value * current_allocation * reduction_pct
+
+            return {
+                "action": "REDUCE",
+                "current_allocation_pct": round(current_allocation * 100, 1),
+                "reduction_pct": round(reduction_pct * 100, 0),
+                "reduction_dollars": round(reduction_dollars, 0),
+                "remaining_pct": round(current_allocation * (1 - reduction_pct) * 100, 1),
+                "guidance": f"Reduce by ${reduction_dollars:.0f} ({reduction_pct*100:.0f}% of position)"
+            }
+
+        else:  # HOLD
+            return {
+                "action": "HOLD",
+                "current_allocation_pct": round(current_allocation * 100, 1),
+                "guidance": "Maintain current position size"
+            }

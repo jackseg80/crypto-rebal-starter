@@ -481,6 +481,7 @@
                 <button class="tab-btn" onclick="switchTab('positions', event)">Positions</button>
                 <button class="tab-btn" onclick="switchTab('risk', event)">Risk</button>
                 <button class="tab-btn" onclick="switchTab('analytics', event)">Analytics</button>
+                <button class="tab-btn" onclick="switchTab('recommendations', event)">Recommendations</button>
             </div>
 
             <!-- Overview Tab -->
@@ -688,6 +689,96 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Recommendations Tab -->
+            <div id="recommendations" class="tab-content">
+                <!-- Market Context Banner -->
+                <div class="dashboard-card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark, #1e40af) 100%); color: white;">
+                    <div style="padding: 1.5rem;">
+                        <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; color: white;">
+                            📊 Portfolio Recommendations
+                        </h2>
+                        <div id="marketContext" style="display: flex; gap: 2rem; margin-top: 1rem; flex-wrap: wrap;">
+                            <div>
+                                <div style="font-size: 0.75rem; opacity: 0.9;">Market Regime</div>
+                                <div id="contextRegime" style="font-size: 1.125rem; font-weight: 600;">--</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.75rem; opacity: 0.9;">Overall Posture</div>
+                                <div id="contextPosture" style="font-size: 1.125rem; font-weight: 600;">--</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.75rem; opacity: 0.9;">Last Update</div>
+                                <div id="contextUpdate" style="font-size: 1.125rem; font-weight: 600;">--</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Timeframe Selector & Summary -->
+                <div class="dashboard-card" style="margin-bottom: 1.5rem;">
+                    <div class="card-header" style="flex-wrap: wrap; gap: 1rem;">
+                        <div>
+                            <h3 class="card-title">Investment Horizon</h3>
+                            <p style="margin: 0; font-size: 0.875rem; color: var(--theme-text-muted);">Select your timeframe for optimized recommendations</p>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="timeframe-btn" data-timeframe="short">
+                                <div style="font-weight: 600;">1-2 Weeks</div>
+                                <div style="font-size: 0.75rem; opacity: 0.8;">Trading</div>
+                            </button>
+                            <button class="timeframe-btn active" data-timeframe="medium">
+                                <div style="font-weight: 600;">1 Month</div>
+                                <div style="font-size: 0.75rem; opacity: 0.8;">Tactical</div>
+                            </button>
+                            <button class="timeframe-btn" data-timeframe="long">
+                                <div style="font-weight: 600;">3-6 Months</div>
+                                <div style="font-size: 0.75rem; opacity: 0.8;">Strategic</div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Summary Stats -->
+                    <div id="recSummary" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem; padding: 1rem; border-top: 1px solid var(--theme-border);">
+                        <div class="loading">Loading summary...</div>
+                    </div>
+                </div>
+
+                <!-- Filters & Search -->
+                <div class="dashboard-card" style="margin-bottom: 1.5rem;">
+                    <div style="display: flex; gap: 1rem; flex-wrap: wrap; padding: 1rem;">
+                        <input
+                            type="text"
+                            id="recSearch"
+                            placeholder="🔍 Search by symbol or name..."
+                            style="flex: 1; min-width: 200px; padding: 0.5rem 1rem; border-radius: var(--radius-md); border: 1px solid var(--theme-border); background: var(--theme-surface); color: var(--theme-text);"
+                        />
+                        <select
+                            id="recFilter"
+                            style="padding: 0.5rem 1rem; border-radius: var(--radius-md); border: 1px solid var(--theme-border); background: var(--theme-surface); color: var(--theme-text);"
+                        >
+                            <option value="all">All Actions</option>
+                            <option value="STRONG BUY">Strong Buy</option>
+                            <option value="BUY">Buy</option>
+                            <option value="HOLD">Hold</option>
+                            <option value="SELL">Sell</option>
+                            <option value="STRONG SELL">Strong Sell</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Recommendations Table -->
+                <div class="dashboard-card">
+                    <div class="card-header">
+                        <h3 class="card-title">Position Recommendations</h3>
+                        <div class="card-badge" id="recCount">0 positions</div>
+                    </div>
+                    <div id="recommendationsTable">
+                        <div class="loading">Loading recommendations...</div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 
@@ -802,6 +893,9 @@
                         break;
                     case 'analytics':
                         loadAnalyticsTab();
+                        break;
+                    case 'recommendations':
+                        loadRecommendationsTab();
                         break;
                 }
             }
@@ -3650,6 +3744,468 @@
                 }
             }
         }
+
+        // ================================================================================
+        // RECOMMENDATIONS TAB - Portfolio BUY/HOLD/SELL Recommendations
+        // ================================================================================
+
+        let currentRecommendations = [];
+        let currentTimeframe = 'medium';
+        let recommendationsLoaded = false;
+
+        /**
+         * Load recommendations tab
+         */
+        async function loadRecommendationsTab() {
+            if (recommendationsLoaded) {
+                debugLogger.debug('Recommendations tab already loaded, skipping...');
+                return;
+            }
+
+            debugLogger.info('Loading Recommendations tab for the first time...');
+
+            // Setup event listeners
+            setupRecommendationsListeners();
+
+            // Load recommendations
+            await loadRecommendations(currentTimeframe);
+
+            recommendationsLoaded = true;
+        }
+
+        /**
+         * Setup event listeners for recommendations tab
+         */
+        function setupRecommendationsListeners() {
+            // Timeframe buttons
+            document.querySelectorAll('.timeframe-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const timeframe = e.currentTarget.dataset.timeframe;
+
+                    // Update active button
+                    document.querySelectorAll('.timeframe-btn').forEach(b => b.classList.remove('active'));
+                    e.currentTarget.classList.add('active');
+
+                    // Reload recommendations
+                    currentTimeframe = timeframe;
+                    await loadRecommendations(timeframe);
+                });
+            });
+
+            // Search filter
+            const searchInput = document.getElementById('recSearch');
+            if (searchInput) {
+                searchInput.addEventListener('input', (e) => {
+                    filterRecommendations(e.target.value, document.getElementById('recFilter').value);
+                });
+            }
+
+            // Action filter
+            const filterSelect = document.getElementById('recFilter');
+            if (filterSelect) {
+                filterSelect.addEventListener('change', (e) => {
+                    filterRecommendations(document.getElementById('recSearch').value, e.target.value);
+                });
+            }
+        }
+
+        /**
+         * Load recommendations from API
+         */
+        async function loadRecommendations(timeframe = 'medium') {
+            const tableContainer = document.getElementById('recommendationsTable');
+            const activeUser = localStorage.getItem('activeUser') || 'demo';
+
+            try {
+                debugLogger.info(`Fetching ${timeframe} recommendations for user ${activeUser}...`);
+
+                tableContainer.innerHTML = '<div class="loading">Loading recommendations...</div>';
+
+                const response = await fetch(
+                    `/api/ml/bourse/portfolio-recommendations?user_id=${activeUser}&timeframe=${timeframe}&lookback_days=90`
+                );
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                debugLogger.info('Recommendations loaded:', data);
+
+                currentRecommendations = data.recommendations || [];
+
+                // Update market context
+                updateMarketContext(data);
+
+                // Update summary
+                updateRecommendationsSummary(data.summary || {});
+
+                // Render table
+                renderRecommendationsTable(currentRecommendations);
+
+            } catch (error) {
+                debugLogger.error('Failed to load recommendations:', error);
+                tableContainer.innerHTML = `
+                    <div class="error-message">
+                        <strong>Error loading recommendations</strong>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        /**
+         * Update market context banner
+         */
+        function updateMarketContext(data) {
+            const regimeEl = document.getElementById('contextRegime');
+            const postureEl = document.getElementById('contextPosture');
+            const updateEl = document.getElementById('contextUpdate');
+
+            if (regimeEl) regimeEl.textContent = data.market_regime || '--';
+            if (postureEl) postureEl.textContent = data.summary?.overall_posture || '--';
+            if (updateEl) {
+                const date = data.generated_at ? new Date(data.generated_at) : new Date();
+                updateEl.textContent = date.toLocaleTimeString();
+            }
+        }
+
+        /**
+         * Update recommendations summary stats
+         */
+        function updateRecommendationsSummary(summary) {
+            const summaryEl = document.getElementById('recSummary');
+            const counts = summary.action_counts || {};
+
+            summaryEl.innerHTML = `
+                <div style="text-align: center;">
+                    <div style="font-size: 2rem; font-weight: 700; color: var(--success);">${counts['STRONG BUY'] || 0}</div>
+                    <div style="font-size: 0.75rem; color: var(--theme-text-muted); text-transform: uppercase;">Strong Buy</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 2rem; font-weight: 700; color: var(--success);">${counts['BUY'] || 0}</div>
+                    <div style="font-size: 0.75rem; color: var(--theme-text-muted); text-transform: uppercase;">Buy</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 2rem; font-weight: 700; color: var(--theme-text-muted);">${counts['HOLD'] || 0}</div>
+                    <div style="font-size: 0.75rem; color: var(--theme-text-muted); text-transform: uppercase;">Hold</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 2rem; font-weight: 700; color: var(--warning);">${counts['SELL'] || 0}</div>
+                    <div style="font-size: 0.75rem; color: var(--theme-text-muted); text-transform: uppercase;">Sell</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 2rem; font-weight: 700; color: var(--danger);">${counts['STRONG SELL'] || 0}</div>
+                    <div style="font-size: 0.75rem; color: var(--theme-text-muted); text-transform: uppercase;">Strong Sell</div>
+                </div>
+            `;
+        }
+
+        /**
+         * Render recommendations table
+         */
+        function renderRecommendationsTable(recommendations) {
+            const tableContainer = document.getElementById('recommendationsTable');
+            const countBadge = document.getElementById('recCount');
+
+            if (countBadge) {
+                countBadge.textContent = `${recommendations.length} position${recommendations.length !== 1 ? 's' : ''}`;
+            }
+
+            if (recommendations.length === 0) {
+                tableContainer.innerHTML = `
+                    <div style="padding: 2rem; text-align: center; color: var(--theme-text-muted);">
+                        No recommendations available
+                    </div>
+                `;
+                return;
+            }
+
+            // Build table HTML
+            let tableHTML = `
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid var(--theme-border); background: var(--theme-bg-subtle);">
+                                <th style="padding: 0.75rem; text-align: left; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Symbol</th>
+                                <th style="padding: 0.75rem; text-align: left; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Action</th>
+                                <th style="padding: 0.75rem; text-align: center; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Confidence</th>
+                                <th style="padding: 0.75rem; text-align: left; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Sector</th>
+                                <th style="padding: 0.75rem; text-align: right; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Weight</th>
+                                <th style="padding: 0.75rem; text-align: right; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Value</th>
+                                <th style="padding: 0.75rem; text-align: center; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            recommendations.forEach(rec => {
+                const actionBadge = getActionBadge(rec.action);
+                const confidenceBar = getConfidenceBar(rec.confidence);
+
+                tableHTML += `
+                    <tr class="rec-row" data-symbol="${rec.symbol}" style="border-bottom: 1px solid var(--theme-border); cursor: pointer;" onclick="showRecommendationModal('${rec.symbol}')">
+                        <td style="padding: 0.75rem;">
+                            <div style="font-weight: 600; color: var(--theme-text);">${rec.symbol}</div>
+                            <div style="font-size: 0.75rem; color: var(--theme-text-muted);">${rec.name}</div>
+                        </td>
+                        <td style="padding: 0.75rem;">${actionBadge}</td>
+                        <td style="padding: 0.75rem; text-align: center;">${confidenceBar}</td>
+                        <td style="padding: 0.75rem; font-size: 0.875rem; color: var(--theme-text-muted);">${rec.sector}</td>
+                        <td style="padding: 0.75rem; text-align: right; font-weight: 600;">${rec.weight_pct}%</td>
+                        <td style="padding: 0.75rem; text-align: right; font-weight: 600;">${formatCurrency(rec.current_value)}</td>
+                        <td style="padding: 0.75rem; text-align: center;">
+                            <button onclick="event.stopPropagation(); showRecommendationModal('${rec.symbol}')" style="padding: 0.25rem 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--primary); background: transparent; color: var(--primary); cursor: pointer; font-size: 0.875rem;">
+                                👁️ View
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tableHTML += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            tableContainer.innerHTML = tableHTML;
+        }
+
+        /**
+         * Get action badge HTML
+         */
+        function getActionBadge(action) {
+            const badges = {
+                'STRONG BUY': '<span style="padding: 0.25rem 0.75rem; border-radius: var(--radius-full); background: #22c55e; color: white; font-size: 0.75rem; font-weight: 600;">🟢 STRONG BUY</span>',
+                'BUY': '<span style="padding: 0.25rem 0.75rem; border-radius: var(--radius-full); background: #86efac; color: #166534; font-size: 0.75rem; font-weight: 600;">🟢 BUY</span>',
+                'HOLD': '<span style="padding: 0.25rem 0.75rem; border-radius: var(--radius-full); background: var(--theme-bg-subtle); color: var(--theme-text-muted); font-size: 0.75rem; font-weight: 600;">🔵 HOLD</span>',
+                'SELL': '<span style="padding: 0.25rem 0.75rem; border-radius: var(--radius-full); background: #fbbf24; color: #78350f; font-size: 0.75rem; font-weight: 600;">🟠 SELL</span>',
+                'STRONG SELL': '<span style="padding: 0.25rem 0.75rem; border-radius: var(--radius-full); background: #ef4444; color: white; font-size: 0.75rem; font-weight: 600;">🔴 STRONG SELL</span>'
+            };
+            return badges[action] || action;
+        }
+
+        /**
+         * Get confidence bar HTML
+         */
+        function getConfidenceBar(confidence) {
+            const percentage = Math.round(confidence * 100);
+            const color = percentage > 70 ? '#22c55e' : percentage > 50 ? '#fbbf24' : '#ef4444';
+
+            return `
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <div style="flex: 1; height: 8px; background: var(--theme-bg-subtle); border-radius: var(--radius-full); overflow: hidden;">
+                        <div style="height: 100%; width: ${percentage}%; background: ${color};"></div>
+                    </div>
+                    <span style="font-size: 0.75rem; font-weight: 600; min-width: 2.5rem;">${percentage}%</span>
+                </div>
+            `;
+        }
+
+        /**
+         * Filter recommendations
+         */
+        function filterRecommendations(searchTerm, actionFilter) {
+            const filtered = currentRecommendations.filter(rec => {
+                const matchesSearch = !searchTerm ||
+                    rec.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    rec.name.toLowerCase().includes(searchTerm.toLowerCase());
+
+                const matchesAction = actionFilter === 'all' || rec.action === actionFilter;
+
+                return matchesSearch && matchesAction;
+            });
+
+            renderRecommendationsTable(filtered);
+        }
+
+        /**
+         * Show recommendation modal (drill-down)
+         */
+        function showRecommendationModal(symbol) {
+            const rec = currentRecommendations.find(r => r.symbol === symbol);
+            if (!rec) return;
+
+            // Build modal HTML
+            const modalHTML = `
+                <div id="recModal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 1rem;" onclick="closeRecommendationModal(event)">
+                    <div style="background: var(--theme-surface); border-radius: var(--radius-lg); max-width: 800px; width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3);" onclick="event.stopPropagation()">
+                        <!-- Header -->
+                        <div style="padding: 1.5rem; border-bottom: 1px solid var(--theme-border); display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <h2 style="font-size: 1.5rem; font-weight: 700; margin: 0; color: var(--theme-text);">${rec.symbol}</h2>
+                                <p style="margin: 0; color: var(--theme-text-muted); font-size: 0.875rem;">${rec.name}</p>
+                            </div>
+                            <button onclick="closeRecommendationModal()" style="padding: 0.5rem; border: none; background: transparent; cursor: pointer; font-size: 1.5rem; color: var(--theme-text-muted);">×</button>
+                        </div>
+
+                        <!-- Content -->
+                        <div style="padding: 1.5rem;">
+                            <!-- Action Summary -->
+                            <div style="display: flex; gap: 2rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
+                                <div>
+                                    <div style="font-size: 0.75rem; color: var(--theme-text-muted); margin-bottom: 0.25rem;">Action</div>
+                                    <div style="font-size: 1.25rem; font-weight: 700;">${getActionBadge(rec.action)}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 0.75rem; color: var(--theme-text-muted); margin-bottom: 0.25rem;">Confidence</div>
+                                    <div style="font-size: 1.25rem; font-weight: 700;">${Math.round(rec.confidence * 100)}%</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 0.75rem; color: var(--theme-text-muted); margin-bottom: 0.25rem;">Score</div>
+                                    <div style="font-size: 1.25rem; font-weight: 700;">${rec.score.toFixed(2)}</div>
+                                </div>
+                            </div>
+
+                            <!-- Price Targets -->
+                            <div style="background: var(--theme-bg); padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1.5rem;">
+                                <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem;">📊 Price Information</h3>
+                                ${renderPriceTargets(rec.price_targets)}
+                            </div>
+
+                            <!-- Rationale -->
+                            <div style="margin-bottom: 1.5rem;">
+                                <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem;">💡 Rationale</h3>
+                                <ul style="list-style: none; padding: 0; margin: 0;">
+                                    ${rec.rationale.map(r => `<li style="padding: 0.5rem 0; border-bottom: 1px solid var(--theme-border); font-size: 0.875rem;">${r}</li>`).join('')}
+                                </ul>
+                            </div>
+
+                            <!-- Tactical Advice -->
+                            <div style="background: var(--theme-bg-subtle); padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1.5rem; border-left: 4px solid var(--primary);">
+                                <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem;">🎯 Tactical Advice</h3>
+                                <p style="margin: 0; font-size: 0.875rem; color: var(--theme-text);">${rec.tactical_advice}</p>
+                            </div>
+
+                            <!-- Technical Details (Collapsible) -->
+                            <details style="margin-bottom: 1.5rem;">
+                                <summary style="cursor: pointer; font-weight: 600; padding: 0.5rem; background: var(--theme-bg); border-radius: var(--radius-sm);">📈 Technical Indicators</summary>
+                                <div style="padding: 1rem; border: 1px solid var(--theme-border); border-radius: var(--radius-md); margin-top: 0.5rem;">
+                                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+                                        <div>
+                                            <div style="font-size: 0.75rem; color: var(--theme-text-muted);">RSI (14d)</div>
+                                            <div style="font-weight: 600;">${rec.technical.rsi_14d?.toFixed(1) || 'N/A'}</div>
+                                        </div>
+                                        <div>
+                                            <div style="font-size: 0.75rem; color: var(--theme-text-muted);">MACD Signal</div>
+                                            <div style="font-weight: 600;">${rec.technical.macd_signal || 'N/A'}</div>
+                                        </div>
+                                        <div>
+                                            <div style="font-size: 0.75rem; color: var(--theme-text-muted);">vs MA50</div>
+                                            <div style="font-weight: 600;">${rec.technical.vs_ma50_pct ? rec.technical.vs_ma50_pct.toFixed(1) + '%' : 'N/A'}</div>
+                                        </div>
+                                        <div>
+                                            <div style="font-size: 0.75rem; color: var(--theme-text-muted);">vs SPY (30d)</div>
+                                            <div style="font-weight: 600;">${rec.technical.vs_spy_30d ? rec.technical.vs_spy_30d.toFixed(1) + '%' : 'N/A'}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </details>
+
+                            <!-- Position Sizing -->
+                            <div style="background: var(--theme-bg); padding: 1rem; border-radius: var(--radius-md);">
+                                <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem;">⚖️ Position Sizing</h3>
+                                <p style="margin: 0; font-size: 0.875rem; color: var(--theme-text-muted);">${rec.position_sizing.guidance || 'N/A'}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Add modal to body
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+        }
+
+        /**
+         * Render price targets section
+         */
+        function renderPriceTargets(targets) {
+            if (!targets) return '<p style="color: var(--theme-text-muted);">No price targets available</p>';
+
+            if (targets.action === 'HOLD - Monitor position') {
+                return `
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--theme-text-muted);">Current Price</div>
+                            <div style="font-weight: 600;">$${targets.current_price}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--theme-text-muted);">Upper Watch</div>
+                            <div style="font-weight: 600; color: var(--success);">$${targets.upper_watch} <span style="font-size: 0.75rem;">(+${targets.upper_watch_pct}%)</span></div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--theme-text-muted);">Lower Watch</div>
+                            <div style="font-weight: 600; color: var(--danger);">$${targets.lower_watch} <span style="font-size: 0.75rem;">(${targets.lower_watch_pct}%)</span></div>
+                        </div>
+                    </div>
+                    <p style="margin-top: 1rem; font-size: 0.875rem; color: var(--theme-text-muted);">${targets.guidance}</p>
+                `;
+            } else if (targets.entry_zone) {
+                return `
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 1rem;">
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--theme-text-muted);">Current Price</div>
+                            <div style="font-weight: 600;">$${targets.current_price}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--theme-text-muted);">Entry Zone</div>
+                            <div style="font-weight: 600;">$${targets.entry_zone.low} - $${targets.entry_zone.high}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--theme-text-muted);">Stop Loss</div>
+                            <div style="font-weight: 600; color: var(--danger);">$${targets.stop_loss} <span style="font-size: 0.75rem;">(${targets.stop_loss_pct}%)</span></div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--theme-text-muted);">Take Profit 1</div>
+                            <div style="font-weight: 600; color: var(--success);">$${targets.take_profit_1} <span style="font-size: 0.75rem;">(+${targets.take_profit_1_pct}%)</span></div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--theme-text-muted);">Take Profit 2</div>
+                            <div style="font-weight: 600; color: var(--success);">$${targets.take_profit_2} <span style="font-size: 0.75rem;">(+${targets.take_profit_2_pct}%)</span></div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--theme-text-muted);">Risk/Reward</div>
+                            <div style="font-weight: 600;">1:${targets.risk_reward_tp1?.toFixed(2) || 'N/A'}</div>
+                        </div>
+                    </div>
+                    <p style="font-size: 0.875rem; color: var(--theme-text-muted);">${targets.position_sizing || ''}</p>
+                `;
+            } else {
+                return '<p style="color: var(--theme-text-muted);">Price targets not available</p>';
+            }
+        }
+
+        /**
+         * Close recommendation modal
+         */
+        function closeRecommendationModal(event) {
+            if (event && event.target.id !== 'recModal') return;
+
+            const modal = document.getElementById('recModal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+
+        /**
+         * Format currency
+         */
+        function formatCurrency(value) {
+            if (value === undefined || value === null) return 'N/A';
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'EUR',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(value);
+        }
+
+        // ================================================================================
+        // END RECOMMENDATIONS TAB
+        // ================================================================================
+
     </script>
 </body>
 
