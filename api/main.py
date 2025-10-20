@@ -93,21 +93,21 @@ logger.info(f"📝 Logging initialized: console + file (rotating 5MB x3 backups)
 try:
     from services.rebalance import plan_rebalance
     REBALANCE_AVAILABLE = True
-except Exception as e:
+except (ImportError, ModuleNotFoundError) as e:
     logger.warning(f"Rebalance service not available: {e}")
     REBALANCE_AVAILABLE = False
 
 try:
     from services.pricing import get_prices_usd
     PRICING_AVAILABLE = True
-except Exception as e:
-    logger.warning(f"Pricing service not available: {e}")  
+except (ImportError, ModuleNotFoundError) as e:
+    logger.warning(f"Pricing service not available: {e}")
     PRICING_AVAILABLE = False
 
 try:
     from services.portfolio import portfolio_analytics
     PORTFOLIO_AVAILABLE = True
-except Exception as e:
+except (ImportError, ModuleNotFoundError) as e:
     logger.warning(f"Portfolio analytics not available: {e}")
     PORTFOLIO_AVAILABLE = False
 from api.taxonomy_endpoints import router as taxonomy_router
@@ -172,7 +172,7 @@ if os.getenv("ENABLE_METRICS", "0") == "1":
     try:
         from prometheus_fastapi_instrumentator import Instrumentator
         Instrumentator().instrument(app).expose(app, include_in_schema=False)
-    except Exception as e:
+    except (ImportError, ModuleNotFoundError) as e:
         logging.getLogger(__name__).warning("Prometheus non activé: %s", e)
 
 # Startup handlers (refactored to api/startup.py)
@@ -350,7 +350,7 @@ try:
             StaticFiles(directory=str(TESTS_DIR), html=True),
             name="tests",
         )
-except Exception as e:
+except (OSError, RuntimeError) as e:
     logger.warning(f"Could not mount /tests: {e}")
 
 # Cache prix unifié utilisant le système centralisé
@@ -378,7 +378,7 @@ except Exception as e:
 # CSV/API cointracking facade (safe import)
 try:
     from connectors import cointracking as ct_file
-except Exception as e:
+except (ImportError, ModuleNotFoundError) as e:
     logger.warning(f"CoinTracking CSV/API facade not available: {e}")
     ct_file = None
 
@@ -451,13 +451,19 @@ async def resolve_current_balances(source: str = Query("cointracking_api"), user
                         logger.debug(f"API mode successful for user {user_id}: {len(items)} items")
                         return {"source_used": "cointracking_api", "items": items}
 
-                    except Exception as e:
-                        logger.error(f"CoinTracking API error for user {user_id}: {e}")
+                    except httpx.HTTPError as e:
+                        logger.error(f"CoinTracking API HTTP error for user {user_id}: {e}")
+                        # Fallback to CSV will be handled below
+                    except httpx.TimeoutException as e:
+                        logger.error(f"CoinTracking API timeout for user {user_id}: {e}")
+                        # Fallback to CSV will be handled below
+                    except (ValueError, KeyError) as e:
+                        logger.error(f"CoinTracking API data parsing error for user {user_id}: {e}")
                         # Fallback to CSV will be handled below
                 else:
                     logger.warning(f"No CoinTracking API credentials configured for user {user_id}")
 
-            except Exception as e:
+            except (KeyError, ValueError, TypeError) as e:
                 logger.error(f"API mode initialization failed for user {user_id}: {e}")
 
         # --- CSV Mode ---
@@ -471,8 +477,12 @@ async def resolve_current_balances(source: str = Query("cointracking_api"), user
                 else:
                     logger.warning(f"No CSV files found for user {user_id}")
 
-            except Exception as e:
-                logger.error(f"CSV mode failed for user {user_id}: {e}")
+            except FileNotFoundError as e:
+                logger.error(f"CSV file not found for user {user_id}: {e}")
+            except PermissionError as e:
+                logger.error(f"Permission denied reading CSV for user {user_id}: {e}")
+            except (ValueError, UnicodeDecodeError) as e:
+                logger.error(f"CSV parsing error for user {user_id}: {e}")
 
     # --- LEGACY CODE FALLBACK --- (gardé pour compatibilité, mais on n'utilise pas de stubs si non autorisés)
     
@@ -573,8 +583,15 @@ async def resolve_current_balances(source: str = Query("cointracking_api"), user
             if not out:
                 return {"source_used": "cointracking_api", "items": [], "error": "no_items_from_api"}
             return {"source_used": "cointracking_api", "items": out}
-        except Exception as e:
-            return {"source_used": "cointracking_api", "items": [], "error": str(e)}
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP error fetching CoinTracking API data: {e}")
+            return {"source_used": "cointracking_api", "items": [], "error": f"HTTP error: {str(e)}"}
+        except httpx.TimeoutException as e:
+            logger.error(f"Timeout fetching CoinTracking API data: {e}")
+            return {"source_used": "cointracking_api", "items": [], "error": f"Timeout: {str(e)}"}
+        except (ValueError, KeyError) as e:
+            logger.error(f"Data parsing error from CoinTracking API: {e}")
+            return {"source_used": "cointracking_api", "items": [], "error": f"Parsing error: {str(e)}"}
 
     if source == "cointracking":
         # CSV/local uniquement, ne JAMAIS appeler l'API ici
@@ -601,8 +618,12 @@ async def resolve_current_balances(source: str = Query("cointracking_api"), user
                         "value_usd": r.get("value_usd"),
                         "location": r.get("location") or "CoinTracking",
                     })
-        except Exception as e:
-            logger.error(f"Failed to load CoinTracking CSV data (source=cointracking): {e}")
+        except FileNotFoundError as e:
+            logger.error(f"CSV file not found (source=cointracking): {e}")
+        except PermissionError as e:
+            logger.error(f"Permission denied reading CSV (source=cointracking): {e}")
+        except (ValueError, UnicodeDecodeError) as e:
+            logger.error(f"CSV parsing error (source=cointracking): {e}")
         return {"source_used": "cointracking", "items": items}
 
     # --- Fallback CSV/local (ancienne logique) ---
@@ -630,8 +651,12 @@ async def resolve_current_balances(source: str = Query("cointracking_api"), user
                     "value_usd": r.get("value_usd"),
                     "location": r.get("location") or "CoinTracking",
                 })
-    except Exception as e:
-        logger.error(f"Failed to load CoinTracking fallback CSV data: {e}")
+    except FileNotFoundError as e:
+        logger.error(f"CSV file not found (fallback): {e}")
+    except PermissionError as e:
+        logger.error(f"Permission denied reading CSV (fallback): {e}")
+    except (ValueError, UnicodeDecodeError) as e:
+        logger.error(f"CSV parsing error (fallback): {e}")
 
     return {"source_used": "cointracking", "items": items}
 
@@ -695,7 +720,7 @@ async def rebalance_plan(
     if not pricing_diag:
         try:
             pricing_diag = bool(payload.get("pricing_diag", False))
-        except Exception:
+        except (ValueError, TypeError, KeyError):
             pricing_diag = False
 
     plan = plan_rebalance(
@@ -844,15 +869,30 @@ async def proxy_fred_bitcoin(start_date: str = "2014-01-01", limit: int = None, 
                 }
         
         return {
-            "success": False, 
+            "success": False,
             "error": f"FRED API error: HTTP {response.status_code}",
             "data": []
         }
-        
-    except Exception as e:
+
+    except httpx.HTTPError as e:
+        logger.error(f"HTTP error in FRED proxy: {e}")
         return {
             "success": False,
-            "error": f"Proxy error: {str(e)}",
+            "error": f"HTTP error: {str(e)}",
+            "data": []
+        }
+    except httpx.TimeoutException as e:
+        logger.error(f"Timeout in FRED proxy: {e}")
+        return {
+            "success": False,
+            "error": f"Timeout: {str(e)}",
+            "data": []
+        }
+    except (ValueError, KeyError) as e:
+        logger.warning(f"Data parsing error in FRED proxy: {e}")
+        return {
+            "success": False,
+            "error": f"Parsing error: {str(e)}",
             "data": []
         }
 
@@ -897,9 +937,9 @@ async def get_ml_status_lazy():
             "timestamp": datetime.now().isoformat(),
             "loading_mode": "lazy"
         }
-    except Exception as e:
+    except (ImportError, ModuleNotFoundError, RuntimeError, AttributeError) as e:
         return {
-            "error": "ML system not ready", 
+            "error": "ML system not ready",
             "details": str(e),
             "status": "loading",
             "loading_mode": "lazy"
@@ -948,7 +988,7 @@ try:
     from api.crypto_toolbox_endpoints import router as crypto_toolbox_router
     app.include_router(crypto_toolbox_router)
     logger.info("🎭 Crypto-Toolbox: FastAPI native scraper enabled")
-except Exception as e:
+except (ImportError, ModuleNotFoundError) as e:
     logger.error(f"❌ Failed to load crypto_toolbox router: {e}")
     logger.warning("⚠️ Crypto-toolbox endpoints will not be available")
 
@@ -993,8 +1033,12 @@ async def portfolio_breakdown_locations(
                 "fallback": False,
                 "message": "",
             }
-    except Exception as e:
-        logger.error(f"Failed to load CoinTracking API exchanges data: {e}")
+    except httpx.HTTPError as e:
+        logger.error(f"HTTP error loading CoinTracking API exchanges: {e}")
+    except httpx.TimeoutException as e:
+        logger.error(f"Timeout loading CoinTracking API exchanges: {e}")
+    except (ValueError, KeyError) as e:
+        logger.error(f"Data parsing error loading CoinTracking API exchanges: {e}")
 
     # Fallback explicite si VRAIMENT rien
     return {
