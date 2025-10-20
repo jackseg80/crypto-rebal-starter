@@ -180,7 +180,7 @@ def _dig_details_map(payload: dict) -> dict:
 def _to_float(x):
     try:
         return float(x)
-    except Exception:
+    except (ValueError, TypeError):
         return 0.0
 
 def _clean_loc(raw: str) -> str:
@@ -288,8 +288,8 @@ def _post_api(method: str, params: Optional[Dict[str, Any]] = None,
         raise RuntimeError(f"HTTP {e.code}: {e.read().decode('utf-8','replace')}")
     except URLError as e:
         raise RuntimeError(f"URLError: {e}")
-    except Exception as e:
-        raise RuntimeError(f"Erreur CT: {e}")
+    except (OSError, TimeoutError) as e:
+        raise RuntimeError(f"Network error: {e}")
 
 # --- Parsing helpers ---------------------------------------------------------
 def _num(x: Any) -> Optional[float]:
@@ -299,7 +299,7 @@ def _num(x: Any) -> Optional[float]:
         if isinstance(x, str):
             x = x.replace(",", "").strip()
         return float(x)
-    except Exception:
+    except (ValueError, TypeError):
         return None
 
 def _sym(d: Dict[str, Any]) -> Optional[str]:
@@ -381,11 +381,11 @@ def _extract_rows_from_groupedBalance(payload: Dict[str, Any]) -> List[Dict[str,
                  list((payload.get("result") or {}).keys())[:5],
                  isinstance(payload.get("details"), dict))
 
-    
+
     def _num(x):
         try:
             return float(str(x).replace(",", "").strip())
-        except Exception:
+        except (ValueError, TypeError):
             return 0.0
 
     # 👉 lire au bon niveau
@@ -664,7 +664,8 @@ async def get_current_balances(source: str = "cointracking_api",
             rows = _extract_rows_from_getBalance(p["result"]) or []
         # on retourne tel quel (même si value_usd == 0) ; le min_usd est géré par l'API FastAPI
         return {"source_used": "cointracking_api", "items": rows}
-    except Exception:
+    except (RuntimeError, ValueError, KeyError):
+        # API call failed or data parsing error, try fallback
         pass
 
     # 2) fallback: getGroupedBalance + recomposition des valeurs via une price map
@@ -691,7 +692,8 @@ async def get_current_balances(source: str = "cointracking_api",
                             px = val / amt
                     if sym and px and px > 0:
                         price_map[sym] = px
-        except Exception:
+        except (RuntimeError, ValueError, KeyError):
+            # Failed to get price map, continue without it
             pass
 
         # compléter value_usd manquants
@@ -702,7 +704,8 @@ async def get_current_balances(source: str = "cointracking_api",
                     it["value_usd"] = float(it.get("amount") or 0.0) * px
 
         return {"source_used": "cointracking_api", "items": items}
-    except Exception:
+    except (RuntimeError, ValueError, KeyError):
+        # Fallback failed, return empty
         pass
 
     return {"source_used": "cointracking_api", "items": []}
@@ -714,7 +717,7 @@ def _get_coin_value_fiat(d: dict) -> float | None:
         if v is not None:
             try:
                 return float(str(v).replace(",", "").strip())
-            except Exception:
+            except (ValueError, TypeError):
                 pass
     return None
 
@@ -734,7 +737,7 @@ async def get_balances_by_exchange_via_api(api_key: Optional[str] = None, api_se
     def _num(x):
         try:
             return float(str(x).replace(",", "").strip())
-        except Exception:
+        except (ValueError, TypeError):
             return 0.0
 
     # 1) Récupération des données groupées et déduplication intelligente
@@ -950,7 +953,7 @@ def _debug_probe() -> Dict[str, Any]:
             if not out["ok"] and mapped:
                 out["ok"] = True
                 out["first_success"] = {"method": method, "rows": len(mapped)}
-        except Exception as e:
+        except (RuntimeError, ValueError, KeyError) as e:
             entry["error"] = str(e)
         out["tries"].append(entry)
 

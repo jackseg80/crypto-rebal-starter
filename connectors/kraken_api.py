@@ -106,7 +106,7 @@ class KrakenAPI:
             else:
                 logger.error("Failed to get server time from Kraken")
                 return False
-        except Exception as e:
+        except (KrakenAPIError, aiohttp.ClientError, asyncio.TimeoutError) as e:
             logger.error(f"Failed to connect to Kraken: {e}")
             return False
     
@@ -246,7 +246,7 @@ class KrakenAPI:
         try:
             result = await self._make_request('GET', 'public/Time')
             return result.get('unixtime')
-        except Exception as e:
+        except (KrakenAPIError, KrakenRateLimitError) as e:
             logger.error(f"Error getting server time: {e}")
             return None
     
@@ -254,27 +254,27 @@ class KrakenAPI:
         """Obtenir le statut du système Kraken"""
         try:
             return await self._make_request('GET', 'public/SystemStatus')
-        except Exception as e:
+        except (KrakenAPIError, KrakenRateLimitError) as e:
             logger.error(f"Error getting system status: {e}")
             return {'status': 'unknown', 'timestamp': ''}
-    
+
     async def get_asset_info(self) -> Dict[str, Any]:
         """Obtenir les informations sur les assets"""
         try:
             return await self._make_request('GET', 'public/Assets')
-        except Exception as e:
+        except (KrakenAPIError, KrakenRateLimitError) as e:
             logger.error(f"Error getting asset info: {e}")
             return {}
-    
+
     async def get_tradable_asset_pairs(self) -> Dict[str, Any]:
         """Obtenir les paires de trading disponibles"""
         try:
             params = {'info': 'info'}
             return await self._make_request('GET', 'public/AssetPairs', params)
-        except Exception as e:
+        except (KrakenAPIError, KrakenRateLimitError) as e:
             logger.error(f"Error getting asset pairs: {e}")
             return {}
-    
+
     async def get_ticker(self, pairs: Optional[List[str]] = None) -> Dict[str, Any]:
         """Obtenir les informations ticker"""
         try:
@@ -282,7 +282,7 @@ class KrakenAPI:
             if pairs:
                 params['pair'] = ','.join(pairs)
             return await self._make_request('GET', 'public/Ticker', params)
-        except Exception as e:
+        except (KrakenAPIError, KrakenRateLimitError) as e:
             logger.error(f"Error getting ticker: {e}")
             return {}
     
@@ -290,7 +290,7 @@ class KrakenAPI:
         """Obtenir les soldes du compte (endpoint privé)"""
         try:
             result = await self._make_request('POST', 'private/Balance', private=True)
-            
+
             # Normaliser les assets et convertir en float
             normalized_balances = {}
             for kraken_asset, balance_str in result.items():
@@ -298,20 +298,23 @@ class KrakenAPI:
                 balance = float(balance_str)
                 if balance > 0:  # Ne garder que les soldes positifs
                     normalized_balances[standard_asset] = balance
-            
+
             return normalized_balances
-            
-        except Exception as e:
+
+        except (KrakenAPIError, KrakenRateLimitError) as e:
             logger.error(f"Error getting account balance: {e}")
             return {}
-    
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Invalid balance data format: {e}")
+            return {}
+
     async def get_trade_balance(self, asset: str = 'USD') -> Dict[str, Any]:
         """Obtenir le solde de trading"""
         try:
             kraken_asset = self.kraken_asset(asset)
             params = {'asset': kraken_asset}
             return await self._make_request('POST', 'private/TradeBalance', params, private=True)
-        except Exception as e:
+        except (KrakenAPIError, KrakenRateLimitError) as e:
             logger.error(f"Error getting trade balance: {e}")
             return {}
     
@@ -326,29 +329,29 @@ class KrakenAPI:
                 'volume': volume,
                 'validate': validate  # True pour validation seule
             }
-            
+
             if price:
                 params['price'] = price
-                
+
             # Ajouter les paramètres supplémentaires
             params.update(kwargs)
-            
+
             result = await self._make_request('POST', 'private/AddOrder', params, private=True)
             return result
-            
-        except Exception as e:
+
+        except (KrakenAPIError, KrakenRateLimitError) as e:
             logger.error(f"Error adding order: {e}")
             raise
-    
+
     async def cancel_order(self, txid: str) -> Dict[str, Any]:
         """Annuler un ordre"""
         try:
             params = {'txid': txid}
             return await self._make_request('POST', 'private/CancelOrder', params, private=True)
-        except Exception as e:
+        except (KrakenAPIError, KrakenRateLimitError) as e:
             logger.error(f"Error canceling order {txid}: {e}")
             return {}
-    
+
     async def query_orders(self, txid: Optional[str] = None, trades: bool = False) -> Dict[str, Any]:
         """Interroger les ordres"""
         try:
@@ -356,18 +359,18 @@ class KrakenAPI:
             if txid:
                 params['txid'] = txid
             return await self._make_request('POST', 'private/QueryOrders', params, private=True)
-        except Exception as e:
+        except (KrakenAPIError, KrakenRateLimitError) as e:
             logger.error(f"Error querying orders: {e}")
             return {}
-    
+
     async def get_open_orders(self) -> Dict[str, Any]:
         """Obtenir les ordres ouverts"""
         try:
             return await self._make_request('POST', 'private/OpenOrders', private=True)
-        except Exception as e:
+        except (KrakenAPIError, KrakenRateLimitError) as e:
             logger.error(f"Error getting open orders: {e}")
             return {}
-    
+
     async def get_closed_orders(self, start: Optional[int] = None, end: Optional[int] = None) -> Dict[str, Any]:
         """Obtenir l'historique des ordres"""
         try:
@@ -377,7 +380,7 @@ class KrakenAPI:
             if end:
                 params['end'] = end
             return await self._make_request('POST', 'private/ClosedOrders', params, private=True)
-        except Exception as e:
+        except (KrakenAPIError, KrakenRateLimitError) as e:
             logger.error(f"Error getting closed orders: {e}")
             return {}
 
@@ -410,7 +413,7 @@ async def test_kraken_connection():
             try:
                 balance = await client.get_account_balance()
                 print(f"Account balance: {balance}")
-            except Exception as e:
+            except (KrakenAPIError, KrakenRateLimitError) as e:
                 print(f"Private API test failed (normal if no credentials): {e}")
 
 if __name__ == "__main__":

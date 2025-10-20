@@ -9,7 +9,12 @@ try:
         get_current_balances as get_balances_via_api,
         get_balances_by_exchange_via_api,
     )
-except Exception:
+except ImportError:
+    # Module cointracking_api non disponible (installation incomplète)
+    get_balances_via_api = None  # type: ignore
+    get_balances_by_exchange_via_api = None  # type: ignore
+except AttributeError as e:
+    # Fonctions non disponibles dans le module
     get_balances_via_api = None  # type: ignore
     get_balances_by_exchange_via_api = None  # type: ignore
 
@@ -45,7 +50,7 @@ def _norm_float(s: Any) -> float:
         txt = txt.replace(",", "")
     try:
         return float(txt)
-    except Exception:
+    except (ValueError, TypeError):
         return 0.0
 
 
@@ -58,7 +63,8 @@ def _read_csv_safe(path: Optional[str]) -> List[Dict[str, Any]]:
         f.seek(0)
         try:
             dialect = csv.Sniffer().sniff(sample, delimiters=",;")
-        except Exception:
+        except csv.Error:
+            # CSV Sniffer failed, use default comma delimiter
             class _D:
                 delimiter = ","
             dialect = _D()
@@ -461,11 +467,13 @@ async def get_unified_balances_by_exchange(source: str = "cointracking") -> Dict
                     return {"source_used": "cointracking", "exchanges": ex_list, "detailed_holdings": buckets}
                 return {"source_used": "cointracking", "exchanges": [], "detailed_holdings": {}}
             return ex_data
-        except Exception as e:
-            return {"source_used": "cointracking", "exchanges": [], "detailed_holdings": {}, "error": str(e)}
+        except OSError as e:
+            return {"source_used": "cointracking", "exchanges": [], "detailed_holdings": {}, "error": f"File error: {e}"}
+        except (ValueError, KeyError) as e:
+            return {"source_used": "cointracking", "exchanges": [], "detailed_holdings": {}, "error": f"Data parsing error: {e}"}
 
     if s == "cointracking_api":
-        # 1) tenter l’API “by exchange” si dispo
+        # 1) tenter l'API "by exchange" si dispo
         if get_balances_by_exchange_via_api is not None:
             try:
                 raw = await get_balances_by_exchange_via_api()
@@ -490,11 +498,11 @@ async def get_unified_balances_by_exchange(source: str = "cointracking") -> Dict
                     ex_list = _exchanges_from_grouped_rows(rows)
                     if ex_list:
                         return {"source_used": "cointracking_api", "exchanges": ex_list, "detailed_holdings": {}}
-            except Exception as e:
-                # on tombera sur le fallback ci-dessous
+            except (RuntimeError, ValueError, KeyError) as e:
+                # API call failed or data parsing error, fallback to simple balances
                 pass
 
-        # 2) fallback: balances simples (un seul “CoinTracking”)
+        # 2) fallback: balances simples (un seul "CoinTracking")
         try:
             if get_balances_via_api is not None:
                 cur = await get_balances_via_api()
@@ -509,8 +517,10 @@ async def get_unified_balances_by_exchange(source: str = "cointracking") -> Dict
                         "detailed_holdings": {"CoinTracking": items},
                     }
             return {"source_used": "cointracking_api", "exchanges": [], "detailed_holdings": {}, "error": "API connector not available"}
-        except Exception as e:
-            return {"source_used": "cointracking_api", "exchanges": [], "detailed_holdings": {}, "error": str(e)}
+        except RuntimeError as e:
+            return {"source_used": "cointracking_api", "exchanges": [], "detailed_holdings": {}, "error": f"API error: {e}"}
+        except (ValueError, KeyError) as e:
+            return {"source_used": "cointracking_api", "exchanges": [], "detailed_holdings": {}, "error": f"Data parsing error: {e}"}
 
     # fallback CSV
     return await get_unified_balances_by_exchange("cointracking")

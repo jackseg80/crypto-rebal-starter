@@ -59,8 +59,14 @@ class CoinGeckoConnector:
             else:
                 log.warning(f"Aliases file not found: {aliases_path}")
                 self._aliases_map = {}
-        except Exception as e:
-            log.error(f"Failed to load aliases mapping: {e}")
+        except json.JSONDecodeError as e:
+            log.error(f"Invalid JSON in aliases file {aliases_path}: {e}")
+            self._aliases_map = {}
+        except OSError as e:
+            log.error(f"Failed to read aliases file {aliases_path}: {e}")
+            self._aliases_map = {}
+        except KeyError as e:
+            log.warning(f"Missing 'mappings' key in aliases file {aliases_path}: {e}")
             self._aliases_map = {}
 
         return self._aliases_map
@@ -138,8 +144,11 @@ class CoinGeckoConnector:
             else:
                 log.error(f"CoinGecko API error {e.response.status_code} for {endpoint}: {e}")
             return None
-        except Exception as e:
-            log.error(f"CoinGecko API unexpected error for {endpoint}: {e}")
+        except httpx.ConnectError as e:
+            log.error(f"Connection failed to CoinGecko API for {endpoint}: {e}")
+            return None
+        except json.JSONDecodeError as e:
+            log.error(f"Invalid JSON response from CoinGecko for {endpoint}: {e}")
             return None
 
     def get_market_snapshot(self, symbols_or_aliases: List[str]) -> Dict[str, CoinMeta]:

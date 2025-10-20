@@ -123,7 +123,7 @@ class SaxoImportConnector:
 
             return {"valid": True, "rows": len(df), "columns": list(df.columns)}
 
-        except Exception as e:
+        except (OSError, ValueError) as e:
             return {"valid": False, "error": f"Error reading file: {str(e)}"}
 
     def _load_file(self, file_path: Path) -> pd.DataFrame:
@@ -147,7 +147,8 @@ class SaxoImportConnector:
                         if rows and len(rows[0].keys()) > 1:  # Valid CSV should have multiple columns
                             df = pd.DataFrame(rows)
                             return self._normalize_dataframe(df)
-                    except:
+                    except (OSError, UnicodeDecodeError, csv.Error):
+                        # Try next encoding/separator combination
                         continue
             raise ValueError("Could not read CSV file with any common encoding/separator")
         else:
@@ -185,7 +186,7 @@ class SaxoImportConnector:
                     position = self._process_position(row, user_id=user_id)
                     if position:
                         positions.append(position)
-                except Exception as e:
+                except (ValueError, KeyError, TypeError) as e:
                     errors.append(f"Row {idx + 1}: {str(e)}")
                     logger.warning(f"Error processing row {idx + 1}: {e}")
 
@@ -200,7 +201,7 @@ class SaxoImportConnector:
                 "source": "saxo_bank"
             }
 
-        except Exception as e:
+        except (OSError, ValueError, KeyError) as e:
             logger.error(f"Error processing Saxo file: {e}")
             return {
                 "positions": [],
@@ -293,7 +294,7 @@ class SaxoImportConnector:
                 "import_timestamp": datetime.now().isoformat()
             }
 
-        except Exception as e:
+        except (ValueError, KeyError, TypeError) as e:
             logger.error(f"Error processing position row: {e}")
             raise ValueError(f"Invalid position data: {e}")
 
