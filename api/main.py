@@ -12,6 +12,12 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from api.middleware import RateLimitMiddleware
+from api.middlewares import (
+    add_security_headers_middleware,
+    request_timing_middleware,
+    request_logger_middleware,
+    no_cache_dev_middleware,
+)
 from fastapi import middleware
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
@@ -255,141 +261,28 @@ else:
 # Compression GZip pour améliorer les performances
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-# Rate limiting basé sur la configuration (activé uniquement en production)
+# ========== Middleware Registration (Modular) ==========
+# Extracted to api/middlewares/ for maintainability
+# See: api/middlewares/{security,timing,logging,cache}.py
+
+# Rate limiting (production only)
 if ENVIRONMENT == "production" or not DEBUG:
     app.add_middleware(RateLimitMiddleware)
     logger.info("Rate limiting middleware enabled (production mode)")
 else:
     logger.info("Rate limiting middleware disabled (development mode)")
 
-# Middleware pour headers de sécurité (CSP centralisée via config)
-@app.middleware("http")
-async def add_security_headers(request: Request, call_next):
-    response = await call_next(request)
-    
-    # Headers de sécurité essentiels
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "SAMEORIGIN"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    
-    # Headers de sécurité supplémentaires
-    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
-    response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
-    
-    # Cache control pour les APIs
-    if request.url.path.startswith("/api"):
-        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-        response.headers["Pragma"] = "no-cache"
-        response.headers["Expires"] = "0"
-    
-    # HSTS (HTTP Strict Transport Security) - production seulement
-    if not DEBUG and request.url.scheme == "https":
-        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
-    
-    # Content Security Policy via configuration
-    try:
-        sec = settings.security
-        def _join(srcs):
-            return " ".join(srcs or [])
+# Security headers (CSP, HSTS, etc.)
+app.middleware("http")(add_security_headers_middleware)
 
-        default_src = "'self'"
-        script_src_list = list(sec.csp_script_src or [])
-        style_src_list = list(sec.csp_style_src or [])
-        img_src_list = list(sec.csp_img_src or [])
-        connect_src_list = list(sec.csp_connect_src or [])
-        font_src_list = list(getattr(sec, 'csp_font_src', ["'self'"]))
-        media_src_list = list(getattr(sec, 'csp_media_src', ["'self'"]))
+# Request timing and structured logging
+app.middleware("http")(request_timing_middleware)
 
-        # En dev, autoriser schémas http/https génériques pour faciliter tests locaux
-        if DEBUG:
-            for token in ("http:", "https:"):
-                if token not in connect_src_list:
-                    connect_src_list.append(token)
+# Request logger (debug mode)
+app.middleware("http")(request_logger_middleware)
 
-        script_src = _join(script_src_list)
-        style_src = _join(style_src_list)
-        img_src = _join(img_src_list)
-        connect_src = _join(connect_src_list)
-        font_src = _join(font_src_list)
-        media_src = _join(media_src_list)
-
-        # Dev: élargir pour docs/redoc et pages statiques si autorisé par config
-        path = request.url.path
-        is_docs = path in ("/docs", "/redoc", "/openapi.json")
-        is_static = str(path).startswith("/static/")
-        if DEBUG and (is_docs or is_static) and getattr(sec, 'csp_allow_inline_dev', True):
-            if "'unsafe-inline'" not in script_src:
-                script_src = (script_src + " 'unsafe-inline'").strip()
-            if "'unsafe-eval'" not in script_src:
-                script_src = (script_src + " 'unsafe-eval'").strip()
-            if "'unsafe-inline'" not in style_src:
-                style_src = (style_src + " 'unsafe-inline'").strip()
-
-        frame_ancestors = _join(getattr(sec, 'csp_frame_ancestors', ["'self'"]))
-        if not DEBUG and not str(request.url.path).startswith("/static/"):
-            # production: interdire l'embed des non-statiques si non explicitement listé
-            frame_ancestors = "'none'"
-
-        # CSP complète avec toutes les directives
-        csp = (
-            f"default-src {default_src}; "
-            f"script-src {script_src}; "
-            f"style-src {style_src}; "
-            f"img-src {img_src}; "
-            f"connect-src {connect_src}; "
-            f"font-src {font_src}; "
-            f"media-src {media_src}; "
-            f"frame-ancestors {frame_ancestors}; "
-            f"base-uri 'self'; "
-            f"form-action 'self'; "
-            f"object-src 'none'; "
-            f"frame-src 'self'; "
-            f"manifest-src 'self'"
-        )
-        response.headers["Content-Security-Policy"] = csp
-    except Exception as e:
-        # En cas d'erreur de config, ne pas bloquer la réponse
-        logger.warning(f"Failed to set CSP headers: {e}")
-    
-    # Headers d'information pour le debug
-    if DEBUG:
-        response.headers["X-Debug-Mode"] = "enabled"
-        response.headers["X-App-Version"] = "1.0.0"
-    
-    return response
-
-# Middleware de logging structuré JSON avec timing
-@app.middleware("http")
-async def request_timing_middleware(request: Request, call_next):
-    start_time = monotonic()
-    
-    response = await call_next(request)
-    
-    # Calcul du temps de traitement
-    process_time = monotonic() - start_time
-    
-    # Log structuré JSON
-    log_record = {
-        "ts": time.time(),
-        "method": request.method,
-        "path": request.url.path,
-        "status": response.status_code,
-        "duration_ms": round(process_time * 1000, 2),
-        "client_ip": request.client.host if request.client else "unknown",
-        "user_agent": request.headers.get("user-agent", "")
-    }
-    
-    # Utiliser le logger approprié selon le niveau de détail
-    if APP_DEBUG:
-        logger.info(json.dumps(log_record, ensure_ascii=False))
-    else:
-        # En production, logger seulement les requêtes importantes ou erreurs
-        if response.status_code >= 400 or process_time > 1.0:
-            logger.info(json.dumps(log_record, ensure_ascii=False))
-    
-    response.headers["X-Process-Time"] = str(f"{process_time:.3f}")
-    return response
+# No-cache for static files (development only)
+app.middleware("http")(no_cache_dev_middleware)
 
 BASE_DIR = Path(__file__).resolve().parent.parent  # répertoire du repo (niveau au-dessus d'api/)
 STATIC_DIR = BASE_DIR / "static"                    # D:\Python\crypto-rebal-starter\static
@@ -449,43 +342,6 @@ try:
         )
 except Exception as e:
     logger.warning(f"Could not mount /tests: {e}")
-
-# Middleware léger de trace requêtes (dev uniquement)
-@app.middleware("http")
-async def request_logger(request: Request, call_next):
-    trace_header = request.headers.get("x-debug-trace", "0")
-    do_trace = APP_DEBUG or LOG_LEVEL == "DEBUG" or trace_header == "1"
-    start = monotonic() if do_trace else 0
-    response = None
-    try:
-        response = await call_next(request)
-        return response
-    finally:
-        if do_trace:
-            duration_ms = int((monotonic() - start) * 1000)
-            status_code = getattr(response, "status_code", "?") if response else "error"
-            logger.info(
-                "%s %s -> %s (%d ms)",
-                request.method,
-                request.url.path,
-                status_code,
-                duration_ms,
-            )
-
-# Middleware no-cache en développement (pour éviter le cache navigateur des fichiers HTML)
-@app.middleware("http")
-async def no_cache_dev_middleware(request: Request, call_next):
-    response = await call_next(request)
-
-    # En mode DEBUG, désactiver le cache pour les fichiers HTML/CSS/JS
-    if DEBUG and request.url.path.startswith("/static"):
-        # Vérifier si c'est un fichier HTML, CSS ou JS
-        if any(request.url.path.endswith(ext) for ext in [".html", ".css", ".js"]):
-            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-            response.headers["Pragma"] = "no-cache"
-            response.headers["Expires"] = "0"
-
-    return response
 
 # Cache prix unifié utilisant le système centralisé
 _PRICE_CACHE: Dict[str, tuple] = {}  # symbol -> (ts, price)
