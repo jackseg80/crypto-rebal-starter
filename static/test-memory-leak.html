@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Leak Test - Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        .container {
+            background: #1e293b;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #60a5fa;
+            margin-top: 0;
+        }
+        .instructions {
+            background: #334155;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #60a5fa;
+        }
+        .instructions ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .instructions li {
+            margin: 10px 0;
+            line-height: 1.6;
+        }
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin: 30px 0;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-start {
+            background: #10b981;
+            color: white;
+        }
+        .btn-start:hover {
+            background: #059669;
+        }
+        .btn-stop {
+            background: #ef4444;
+            color: white;
+        }
+        .btn-stop:hover {
+            background: #dc2626;
+        }
+        .btn-snapshot {
+            background: #8b5cf6;
+            color: white;
+        }
+        .btn-snapshot:hover {
+            background: #7c3aed;
+        }
+        .btn-gc {
+            background: #f59e0b;
+            color: white;
+        }
+        .btn-gc:hover {
+            background: #d97706;
+        }
+        .results {
+            background: #1e293b;
+            border: 1px solid #475569;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .snapshot {
+            background: #334155;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border-left: 3px solid #60a5fa;
+        }
+        .critical { color: #ef4444; font-weight: bold; }
+        .warning { color: #f59e0b; font-weight: bold; }
+        .success { color: #10b981; font-weight: bold; }
+        .info { color: #60a5fa; }
+        .counter {
+            background: #334155;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
+            color: #60a5fa;
+            margin: 20px 0;
+        }
+        #iframe-container {
+            margin-top: 30px;
+            border: 2px solid #475569;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        iframe {
+            width: 100%;
+            height: 600px;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Memory Leak Test - Dashboard</h1>
+
+        <div class="instructions">
+            <h3>📋 Instructions:</h3>
+            <ol>
+                <li><strong>Cliquer "Start Monitoring"</strong> pour commencer</li>
+                <li><strong>Cliquer "Refresh Dashboard"</strong> 10 fois</li>
+                <li><strong>Attendre 5 secondes</strong></li>
+                <li><strong>Cliquer "Stop & Analyze"</strong> pour voir les résultats</li>
+            </ol>
+            <p style="margin-top: 15px; color: #94a3b8;">
+                💡 <strong>Tip:</strong> Le diagnostic va mesurer la RAM utilisée à chaque refresh et identifier les leaks.
+            </p>
+        </div>
+
+        <div class="controls">
+            <button class="btn-start" onclick="startMonitoring()">▶️ Start Monitoring</button>
+            <button class="btn-stop" onclick="stopAndAnalyze()" disabled id="stopBtn">⏹️ Stop & Analyze</button>
+            <button class="btn-snapshot" onclick="refreshDashboard()">🔄 Refresh Dashboard</button>
+            <button class="btn-gc" onclick="forceGC()">🗑️ Force GC</button>
+        </div>
+
+        <div class="counter" id="counter">
+            Refreshes: <span id="refreshCount">0</span> |
+            Monitoring: <span id="monitorStatus">Stopped</span>
+        </div>
+
+        <div class="results" id="results"></div>
+
+        <div id="iframe-container">
+            <iframe id="dashboardFrame" src="/static/dashboard.html"></iframe>
+        </div>
+    </div>
+
+    <script>
+        let diagnosticData = {
+            snapshots: [],
+            startTime: null,
+            monitorInterval: null,
+            refreshCount: 0
+        };
+
+        function log(message, type = 'info') {
+            const resultsDiv = document.getElementById('results');
+            const colors = {
+                critical: '#ef4444',
+                warning: '#f59e0b',
+                success: '#10b981',
+                info: '#60a5fa'
+            };
+
+            const timestamp = new Date().toLocaleTimeString();
+            resultsDiv.innerHTML += `<div style="color: ${colors[type]};">[${timestamp}] ${message}</div>`;
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+
+        function startMonitoring() {
+            log('🔍 MEMORY DIAGNOSTIC STARTED', 'success');
+
+            diagnosticData.startTime = Date.now();
+            diagnosticData.snapshots = [];
+            diagnosticData.refreshCount = 0;
+
+            document.getElementById('stopBtn').disabled = false;
+            document.getElementById('monitorStatus').textContent = 'Running';
+            document.getElementById('monitorStatus').style.color = '#10b981';
+
+            takeSnapshot('Initial');
+
+            // Monitor every 2 seconds
+            diagnosticData.monitorInterval = setInterval(() => {
+                takeSnapshot('Monitor');
+            }, 2000);
+
+            log('📊 Monitoring every 2 seconds. Click "Refresh Dashboard" 10 times, then "Stop & Analyze"', 'info');
+        }
+
+        function takeSnapshot(label) {
+            if (!performance.memory) {
+                log('⚠️ performance.memory not available', 'warning');
+                return;
+            }
+
+            const iframe = document.getElementById('dashboardFrame');
+            let iframeMemory = 0;
+
+            try {
+                if (iframe.contentWindow.performance && iframe.contentWindow.performance.memory) {
+                    iframeMemory = iframe.contentWindow.performance.memory.usedJSHeapSize;
+                }
+            } catch (e) {
+                // Cross-origin - can't access
+            }
+
+            const snapshot = {
+                timestamp: Date.now() - diagnosticData.startTime,
+                label,
+                usedJSHeapSize: performance.memory.usedJSHeapSize + iframeMemory,
+                totalJSHeapSize: performance.memory.totalJSHeapSize,
+                usedMB: ((performance.memory.usedJSHeapSize + iframeMemory) / 1024 / 1024).toFixed(2),
+                totalMB: (performance.memory.totalJSHeapSize / 1024 / 1024).toFixed(2),
+                refreshCount: diagnosticData.refreshCount
+            };
+
+            diagnosticData.snapshots.push(snapshot);
+
+            if (label === 'After Refresh') {
+                log(`📸 Snapshot: ${snapshot.usedMB} MB used (Refresh #${snapshot.refreshCount})`, 'info');
+            }
+        }
+
+        function refreshDashboard() {
+            const iframe = document.getElementById('dashboardFrame');
+
+            diagnosticData.refreshCount++;
+            document.getElementById('refreshCount').textContent = diagnosticData.refreshCount;
+
+            log(`🔄 Refreshing dashboard (${diagnosticData.refreshCount}/10)...`, 'info');
+
+            // Force hard reload
+            iframe.src = iframe.src;
+
+            // Take snapshot after reload
+            setTimeout(() => {
+                takeSnapshot('After Refresh');
+            }, 1000);
+        }
+
+        function stopAndAnalyze() {
+            if (diagnosticData.monitorInterval) {
+                clearInterval(diagnosticData.monitorInterval);
+            }
+
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('monitorStatus').textContent = 'Stopped';
+            document.getElementById('monitorStatus').style.color = '#ef4444';
+
+            log('🛑 MONITORING STOPPED', 'warning');
+            log('', 'info');
+
+            analyzeSnapshots();
+        }
+
+        function analyzeSnapshots() {
+            const snapshots = diagnosticData.snapshots;
+
+            if (snapshots.length < 2) {
+                log('⚠️ Not enough snapshots to analyze', 'warning');
+                return;
+            }
+
+            const first = snapshots[0];
+            const last = snapshots[snapshots.length - 1];
+
+            const memoryGrowth = parseFloat(last.usedMB) - parseFloat(first.usedMB);
+            const timeElapsed = (last.timestamp) / 1000;
+            const growthRate = (memoryGrowth / timeElapsed).toFixed(2);
+            const growthPerRefresh = (memoryGrowth / diagnosticData.refreshCount).toFixed(2);
+
+            log('═══════════════════════════════════════', 'success');
+            log('📊 ANALYSIS RESULTS', 'success');
+            log('═══════════════════════════════════════', 'success');
+            log('', 'info');
+            log(`⏱️  Time elapsed: ${timeElapsed.toFixed(1)}s`, 'info');
+            log(`🔄 Total refreshes: ${diagnosticData.refreshCount}`, 'info');
+            log(`📈 Memory growth: ${memoryGrowth.toFixed(2)} MB`, memoryGrowth > 100 ? 'critical' : memoryGrowth > 50 ? 'warning' : 'success');
+            log(`📉 Growth per refresh: ${growthPerRefresh} MB/refresh`, parseFloat(growthPerRefresh) > 20 ? 'critical' : parseFloat(growthPerRefresh) > 10 ? 'warning' : 'success');
+            log(`📊 Growth rate: ${growthRate} MB/s`, 'info');
+            log('', 'info');
+            log(`🔢 Initial memory: ${first.usedMB} MB`, 'info');
+            log(`🔢 Final memory: ${last.usedMB} MB`, 'info');
+            log('', 'info');
+
+            // Verdict
+            if (memoryGrowth > 200) {
+                log('═══════════════════════════════════════', 'critical');
+                log('❌ CRITICAL LEAK DETECTED!', 'critical');
+                log('═══════════════════════════════════════', 'critical');
+                log(`Memory grew by ${memoryGrowth.toFixed(2)} MB in ${diagnosticData.refreshCount} refreshes`, 'critical');
+                log(`Average: ${growthPerRefresh} MB per refresh`, 'critical');
+                log('', 'info');
+                log('⚠️  LIKELY CAUSES:', 'warning');
+                log('   • setInterval() not cleared', 'warning');
+                log('   • Event listeners not removed', 'warning');
+                log('   • Charts not destroyed', 'warning');
+                log('   • Global variables accumulating data', 'warning');
+
+            } else if (memoryGrowth > 100) {
+                log('═══════════════════════════════════════', 'warning');
+                log('⚠️  MODERATE LEAK DETECTED', 'warning');
+                log('═══════════════════════════════════════', 'warning');
+                log(`Memory grew by ${memoryGrowth.toFixed(2)} MB - should be investigated`, 'warning');
+
+            } else {
+                log('═══════════════════════════════════════', 'success');
+                log('✅ NO SIGNIFICANT LEAK DETECTED', 'success');
+                log('═══════════════════════════════════════', 'success');
+                log(`Memory growth (${memoryGrowth.toFixed(2)} MB) is acceptable`, 'success');
+            }
+
+            log('', 'info');
+            log('💾 Detailed snapshots:', 'info');
+
+            // Show key snapshots
+            const refreshSnapshots = snapshots.filter(s => s.label === 'After Refresh');
+            refreshSnapshots.forEach((s, i) => {
+                const growth = i === 0 ? 0 : (parseFloat(s.usedMB) - parseFloat(refreshSnapshots[0].usedMB)).toFixed(2);
+                log(`   Refresh ${s.refreshCount}: ${s.usedMB} MB (${growth >= 0 ? '+' : ''}${growth} MB)`, growth > 50 ? 'critical' : growth > 20 ? 'warning' : 'info');
+            });
+        }
+
+        function forceGC() {
+            const iframe = document.getElementById('dashboardFrame');
+
+            log('🗑️  Attempting garbage collection...', 'info');
+
+            // Try to trigger GC in iframe
+            try {
+                if (iframe.contentWindow.gc) {
+                    iframe.contentWindow.gc();
+                    log('✅ GC executed in iframe', 'success');
+                } else {
+                    log('⚠️  window.gc() not available. Start Chrome with: --js-flags="--expose-gc"', 'warning');
+                }
+            } catch (e) {
+                log('⚠️  Cannot access iframe (cross-origin)', 'warning');
+            }
+
+            // Try in parent
+            if (window.gc) {
+                window.gc();
+                log('✅ GC executed in parent', 'success');
+            }
+
+            setTimeout(() => {
+                takeSnapshot('After GC');
+            }, 1000);
+        }
+
+        // Initial log
+        log('🔍 Memory Leak Diagnostic Tool Ready', 'success');
+        log('Click "Start Monitoring" to begin', 'info');
+    </script>
+</body>
+</html>
