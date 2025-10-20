@@ -20,6 +20,14 @@ from api.middlewares import (
 )
 from api.services.location_assigner import assign_locations_to_actions
 from api.services.price_enricher import enrich_actions_with_prices, get_data_age_minutes
+from api.services.cointracking_helpers import (
+    normalize_loc,
+    classify_location,
+    pick_primary_location_for_symbol,
+    load_ctapi_exchanges
+)
+from api.services.csv_helpers import load_csv_balances, to_csv
+from api.services.utils import parse_min_usd, to_rows, norm_primary_symbols
 from fastapi import middleware
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
@@ -374,183 +382,25 @@ except Exception as e:
     logger.warning(f"CoinTracking CSV/API facade not available: {e}")
     ct_file = None
 
-from constants import (
-    FAST_SELL_EXCHANGES, DEFI_HINTS, COLD_HINTS, normalize_exchange_name
-)
-
-def _normalize_loc(label: str) -> str:
-    return normalize_exchange_name(label or "Unknown")
-
-def _classify_location(loc: str) -> int:
-    L = _normalize_loc(loc)
-    if any(L.startswith(x) for x in FAST_SELL_EXCHANGES):
-        return 0  # CEX rapide
-    if any(h in L for h in DEFI_HINTS):
-        return 1  # DeFi
-    if any(h in L for h in COLD_HINTS):
-        return 2  # Cold/Hardware
-    return 3  # reste
-
-def _pick_primary_location_for_symbol(symbol: str, detailed_holdings: dict) -> str:
-    # Retourne l’exchange où ce symbole pèse le plus en USD
-    best_loc, best_val = "CoinTracking", 0.0
-    for loc, assets in (detailed_holdings or {}).items():
-        for a in assets or []:
-            if a.get("symbol") == symbol:
-                v = float(a.get("value_usd") or 0)
-                if v > best_val:
-                    best_val, best_loc = v, loc
-    return best_loc
-
-async def _load_ctapi_exchanges(min_usd: float = 0.0) -> dict:
-    """
-    Appelle la CT-API pour obtenir:
-      - exchanges: [{location, total_value_usd, asset_count, assets:[...]}]
-      - detailed_holdings: { location -> [ {symbol, amount, value_usd, price_usd, location} ] }
-    """
-    payload = await ct_api.get_balances_by_exchange_via_api()  # utilise getGroupedBalance + getBalance
-    exchanges = payload.get("exchanges") or []
-    detailed = payload.get("detailed_holdings") or {}
-
-    # Filtre min_usd si demandé
-    if min_usd and detailed:
-        filtered = {}
-        for loc, assets in detailed.items():
-            keep = [a for a in (assets or []) if float(a.get("value_usd") or 0) >= min_usd]
-            if keep:
-                filtered[loc] = keep
-        detailed = filtered
-        # Recalcule les totaux
-        ex2 = []
-        for loc, assets in detailed.items():
-            tv = sum(float(a.get("value_usd") or 0) for a in assets)
-            if tv >= min_usd:
-                ex2.append({
-                    "location": loc,
-                    "total_value_usd": tv,
-                    "asset_count": len(assets),
-                    "assets": sorted(assets, key=lambda x: float(x.get("value_usd") or 0), reverse=True)
-                })
-        exchanges = sorted(ex2, key=lambda x: x["total_value_usd"], reverse=True)
-
-    return {"exchanges": exchanges, "detailed_holdings": detailed}
-# <<< END: CT-API helpers <<<
+# CoinTracking helpers moved to api/services/cointracking_helpers.py
+# - normalize_loc
+# - classify_location
+# - pick_primary_location_for_symbol
+# - load_ctapi_exchanges
 
 # ---------- utils ----------
-def _parse_min_usd(raw: str | None, default: float = 1.0) -> float:
-    try:
-        return float(raw) if raw is not None else default
-    except Exception as e:
-        logger.debug(f"Failed to parse min_usd value '{raw}', using default {default}: {e}")
-        return default
+# Utility functions moved to api/services/utils.py
+# - parse_min_usd
+# - to_rows
+# - norm_primary_symbols
 
 # _get_data_age_minutes moved to api/services/price_enricher.py
 # _calculate_price_deviation removed (dead code, never called)
 
-def _to_rows(raw: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Normalise les lignes connecteurs -> {symbol, alias, value_usd, location}"""
-    out: List[Dict[str, Any]] = []
-    for r in raw or []:
-        symbol = r.get("symbol") or r.get("coin") or r.get("name")
-        if not symbol:
-            continue
-        out.append({
-            "symbol": str(symbol),
-            "alias": (r.get("alias") or r.get("name") or r.get("symbol")),
-            "value_usd": float(r.get("value_usd") or r.get("value") or 0.0),
-            "amount": float(r.get("amount") or 0.0) if r.get("amount") else None,
-            "location": r.get("location") or r.get("exchange") or "Unknown",
-        })
-    return out
-
-def _norm_primary_symbols(x: Any) -> Dict[str, List[str]]:
-    # accepte { BTC: "BTC,TBTC,WBTC" } ou { BTC: ["BTC","TBTC","WBTC"] }
-    out: Dict[str, List[str]] = {}
-    if isinstance(x, dict):
-        for g, v in x.items():
-            if isinstance(v, str):
-                out[g] = [s.strip() for s in v.split(",") if s.strip()]
-            elif isinstance(v, list):
-                out[g] = [str(s).strip() for s in v if str(s).strip()]
-    return out
-
 
 # ---------- source resolver ----------
-# --- Helper function for CSV parsing ---
-async def _load_csv_balances(csv_file_path: str) -> list[dict]:
-    """Charge et parse un fichier CSV de balances."""
-    import csv
-    import os
-
-    items = []
-    if not os.path.exists(csv_file_path):
-        return items
-
-    try:
-        with open(csv_file_path, 'r', encoding='utf-8-sig', newline='') as f:
-            sample = f.read(4096)
-            f.seek(0)
-            try:
-                dialect = csv.Sniffer().sniff(sample, delimiters=",;")
-            except Exception:
-                class _Dialect:
-                    delimiter = ","
-                dialect = _Dialect()
-
-            reader = csv.DictReader(f, dialect=dialect)
-            for row in reader:
-                # Normaliser les clés et valeurs
-                normalized_row = {
-                    (k.strip() if isinstance(k, str) else k): (v.strip() if isinstance(v, str) else v)
-                    for k, v in row.items()
-                }
-
-                # Extraire les champs nécessaires
-                symbol = None
-                for key in ("Ticker", "Currency", "Coin", "Symbol", "Asset"):
-                    if key in normalized_row and normalized_row[key]:
-                        symbol = normalized_row[key].upper().strip()
-                        break
-
-                amount = 0.0
-                for key in ("Amount", "amount", "Qty", "Quantity", "quantity"):
-                    if key in normalized_row and normalized_row[key]:
-                        try:
-                            amount = float(str(normalized_row[key]).replace(",", "."))
-                            break
-                        except ValueError:
-                            continue
-
-                value_usd = 0.0
-                for key in ("Value in USD", "Value (USD)", "USD Value", "Current Value (USD)", "value_usd", "Value", "value"):
-                    if key in normalized_row and normalized_row[key]:
-                        try:
-                            value_usd = float(str(normalized_row[key]).replace(",", "."))
-                            break
-                        except ValueError:
-                            continue
-
-                location = "CoinTracking"
-                for key in ("Exchange", "exchange", "Location", "location", "Wallet", "wallet"):
-                    if key in normalized_row and normalized_row[key]:
-                        location = normalized_row[key].strip()
-                        break
-
-                if symbol and amount > 0 and value_usd > 0:
-                    items.append({
-                        "symbol": symbol,
-                        "alias": symbol,
-                        "amount": amount,
-                        "value_usd": value_usd,
-                        "location": location
-                    })
-
-    except Exception as e:
-        logger.error(f"Error parsing CSV file {csv_file_path}: {e}")
-
-    return items
-
-# --- REPLACE THIS WHOLE FUNCTION IN main.py ---
+# CSV helper moved to api/services/csv_helpers.py
+# - load_csv_balances
 
 async def resolve_current_balances(source: str = Query("cointracking_api"), user_id: str = "demo") -> Dict[str, Any]:
     """
@@ -615,7 +465,7 @@ async def resolve_current_balances(source: str = Query("cointracking_api"), user
             try:
                 csv_file = data_router.get_most_recent_csv("balance")
                 if csv_file:
-                    items = await _load_csv_balances(csv_file)
+                    items = await load_csv_balances(csv_file)
                     logger.debug(f"CSV mode successful for user {user_id}: {len(items)} items from {csv_file}")
                     return {"source_used": "cointracking", "items": items}
                 else:
@@ -696,7 +546,7 @@ async def resolve_current_balances(source: str = Query("cointracking_api"), user
     if source == "cointracking_api":
         try:
             # 1) On charge le snapshot par exchange via CT-API
-            snap = await _load_ctapi_exchanges(min_usd=0.0)
+            snap = await load_ctapi_exchanges(min_usd=0.0)
             detailed = snap.get("detailed_holdings") or {}
 
             # 2) Vue "par coin" via CT-API
@@ -711,7 +561,7 @@ async def resolve_current_balances(source: str = Query("cointracking_api"), user
             out = []
             for it in items:
                 sym = it.get("symbol")
-                loc = _pick_primary_location_for_symbol(sym, detailed)
+                loc = pick_primary_location_for_symbol(sym, detailed)
                 out.append({
                     "symbol": sym,
                     "alias": it.get("alias") or sym,
@@ -814,7 +664,7 @@ async def rebalance_plan(
     payload: Dict[str, Any] = Body(...),
     pricing_diag: bool = Query(False, description="Include pricing diagnostic details in response meta")
 ):
-    min_usd = _parse_min_usd(min_usd_raw, default=1.0)
+    min_usd = parse_min_usd(min_usd_raw, default=1.0)
 
     # portefeuille - utiliser la fonction helper unifiée
     from api.unified_data import get_unified_filtered_balances
@@ -839,7 +689,7 @@ async def rebalance_plan(
                 if g:
                     group_targets_pct[g] = p
 
-    primary_symbols = _norm_primary_symbols(payload.get("primary_symbols"))
+    primary_symbols = norm_primary_symbols(payload.get("primary_symbols"))
 
     # Permettre un fallback: "pricing_diag" dans le body JSON si non passé en query
     if not pricing_diag:
@@ -929,28 +779,14 @@ async def rebalance_plan_csv(
     # réutilise le JSON pour construire le CSV
     plan = await rebalance_plan(source=source, min_usd_raw=min_usd_raw, pricing=pricing, dynamic_targets=dynamic_targets, payload=payload)
     actions = plan.get("actions") or []
-    csv_text = _to_csv(actions)
+    csv_text = to_csv(actions)
     headers = {"Content-Disposition": 'attachment; filename="rebalance-actions.csv"'}
     return Response(content=csv_text, media_type="text/csv", headers=headers)
 
 
 # ---------- helpers prix + csv ----------
 # _enrich_actions_with_prices moved to api/services/price_enricher.py
-
-def _to_csv(actions: List[Dict[str, Any]]) -> str:
-    lines = ["group,alias,symbol,action,usd,est_quantity,price_used,exec_hint"]
-    for a in actions or []:
-        lines.append("{},{},{},{},{:.2f},{},{},{}".format(
-            a.get("group",""),
-            a.get("alias",""),
-            a.get("symbol",""),
-            a.get("action",""),
-            float(a.get("usd") or 0.0),
-            ("" if a.get("est_quantity") is None else f"{a.get('est_quantity')}"),
-            ("" if a.get("price_used")   is None else f"{a.get('price_used')}"),
-            a.get("exec_hint", "")
-        ))
-    return "\n".join(lines)
+# to_csv moved to api/services/csv_helpers.py
 
 @app.get("/proxy/fred/bitcoin")
 async def proxy_fred_bitcoin(start_date: str = "2014-01-01", limit: int = None, user: str = Depends(get_active_user)):
@@ -1133,7 +969,7 @@ async def portfolio_breakdown_locations(
     Pas de fallback “CoinTracking 100%” sauf si réellement aucune data.
     """
     try:
-        snap = await _load_ctapi_exchanges(min_usd=min_usd)
+        snap = await load_ctapi_exchanges(min_usd=min_usd)
         exchanges = snap.get("exchanges") or []
         if exchanges:
             total = sum(float(x.get("total_value_usd") or 0) for x in exchanges)
