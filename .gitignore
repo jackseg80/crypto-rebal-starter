@@ -102,3 +102,10 @@ nul
 !data/price_history/.gitkeep
 data/price_history/
 data/cache/
+
+# User data files (should not be committed)
+data/users/*/config.json
+data/users/*/config/config.json
+data/users/*/sources.json
+data/users/*/config/sources.json
+
