@@ -44,7 +44,7 @@ def test_risk_dashboard_returns_ok_quality(monkeypatch, client: TestClient):
         return histories.get(symbol.upper(), [])
 
     monkeypatch.setattr("api.main.resolve_current_balances", fake_resolve_current_balances)
-    monkeypatch.setattr("api.main._to_rows", fake_to_rows)
+    monkeypatch.setattr("api.services.utils.to_rows", fake_to_rows)
     monkeypatch.setattr("services.price_history.get_cached_history", fake_get_cached_history)
 
     response = client.get(
@@ -112,7 +112,7 @@ def test_risk_dashboard_degraded_quality(monkeypatch, client: TestClient):
         )
 
     monkeypatch.setattr("api.main.resolve_current_balances", fake_resolve_current_balances)
-    monkeypatch.setattr("api.main._to_rows", fake_to_rows)
+    monkeypatch.setattr("api.services.utils.to_rows", fake_to_rows)
     monkeypatch.setattr("services.price_history.get_cached_history", fake_get_cached_history)
     monkeypatch.setattr("services.risk_management.risk_manager.calculate_portfolio_risk_metrics", fake_risk_metrics)
     monkeypatch.setattr("services.risk_management.risk_manager.calculate_correlation_matrix", fake_correlation_matrix)

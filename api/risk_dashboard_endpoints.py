@@ -32,13 +32,14 @@ async def real_risk_dashboard(
         start_time = datetime.now()
         
         # Lire le vrai portfolio depuis les CSV - éviter import circulaire
-        from api.main import resolve_current_balances, _to_rows
-        
+        from api.main import resolve_current_balances
+        from api.services.utils import to_rows
+
         # Récupérer les données de portfolio selon la source demandée (stub/CSV/CT-API)
         res = await resolve_current_balances(source=source, user_id=user)
         logger.info(f"🔍 resolve_current_balances result: {len(res.get('items', []))} items")
-        rows = _to_rows(res.get("items", []))
-        logger.info(f"🔍 _to_rows result: {len(rows)} rows")
+        rows = to_rows(res.get("items", []))
+        logger.info(f"🔍 to_rows result: {len(rows)} rows")
         # Filtrer selon min_usd demandé
         items = [r for r in rows if float(r.get("value_usd") or 0.0) >= float(min_usd or 0.0)]
         logger.info(f"🔍 After filtering >= 1.0: {len(items)} items")

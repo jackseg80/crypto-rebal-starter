@@ -69,7 +69,8 @@ async def get_real_portfolio_data(source: str = "cointracking", user_id: str = "
     """
     try:
         # Import local pour éviter imports circulaires
-        from api.main import resolve_current_balances, _to_rows
+        from api.main import resolve_current_balances
+        from api.services.utils import to_rows
 
         # 1. Récupérer les balances actuelles
         res = await resolve_current_balances(source=source, user_id=user_id)
