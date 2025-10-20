@@ -321,7 +321,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // État global
 let dashboardData = { portfolio: null, connections: null, recentActivity: null, executionStats: null };
-let portfolioChart = null;
+// ❌ REMOVED: let portfolioChart = null; → Using window.portfolioChart instead to avoid reference mismatch
 
 // ✅ Guards pour éviter les appels concurrents
 let isLoadingDashboard = false;
@@ -1493,9 +1493,10 @@ async function updatePortfolioChart(balancesData) {
         return;
     }
 
-    // Détruire l'ancien graphique s'il existe
-    if (portfolioChart) {
-        portfolioChart.destroy();
+    // Détruire l'ancien graphique s'il existe (FIX: use window.portfolioChart consistently)
+    if (window.portfolioChart) {
+        window.portfolioChart.destroy();
+        window.portfolioChart = null;
     }
 
     // Obtenir les couleurs du thème actuel
@@ -1504,8 +1505,8 @@ async function updatePortfolioChart(balancesData) {
     const tooltipText = isDark ? '#f9fafb' : '#1f2937';
     const tooltipBorder = isDark ? '#6b7280' : '#d1d5db';
 
-    // Créer le nouveau graphique
-    portfolioChart = new Chart(ctx, {
+    // Créer le nouveau graphique (FIX: assign to window.portfolioChart consistently)
+    window.portfolioChart = new Chart(ctx, {
         type: 'doughnut',
         data: {
             labels: labels,

@@ -1,14 +1,27 @@
 /**
- * Decision Index Panel v6.1 - Health Bar Gaming Design (Compact 2-Column)
+ * Decision Index Panel v7.1 - Actionnable Design with Smart Recommendations
  *
- * Layout 2 colonnes compact avec barres de progression gaming
- * - Colonne gauche: Score DI principal + trend
- * - Colonne droite: 3 barres piliers + stats
+ * Layout 2 colonnes équilibré avec recommandations contextuelles
+ * - Colonne gauche: Score DI + Barre + Contributions annotées + Métadonnées
+ * - Colonne droite: Recommandation intelligente + 3 piliers (Cycle, On-Chain, Risk) + Footer stats
  * - Design gaming compact et moderne
- * - Performance optimisée
+ * - Focus sur l'actionnable (suppression trend/régime redondants)
  *
- * @version 6.1.0
- * @date 2025-01-15
+ * Changements v7.1:
+ * - ✅ Recommandations contextuelles intelligentes basées sur DI + piliers
+ * - ✅ Actions spécifiques avec pourcentages d'allocation
+ * - ✅ Alertes adaptatives (On-Chain critique, Risk faible, etc.)
+ * - ✅ Format structuré : Titre + Action + Détails
+ *
+ * Changements v7.0:
+ * - ✅ Contributions annotées (scores alignés avec barres)
+ * - ✅ Recommandation actionnable basée sur le DI (déplacée à droite pour équilibrage)
+ * - ✅ Métadonnées utiles (confiance, mode, freshness)
+ * - ❌ Supprimé: Trend 7j + sparkline (jamais visible)
+ * - ❌ Supprimé: Régime ribbon (redondant avec piliers droite)
+ *
+ * @version 7.1.0
+ * @date 2025-01-20
  */
 
 // Debounce timeout
@@ -19,6 +32,9 @@ let helpPopoverState = {
   isOpen: false,
   lastFocusedElement: null
 };
+
+// AbortController pour nettoyer les event listeners (prévenir memory leaks)
+let helpSystemController = null;
 
 /**
  * Détermine le niveau de couleur d'un score (sémantique positive: plus haut = meilleur)
@@ -49,19 +65,51 @@ function getScoreColor(score) {
 }
 
 /**
- * Génère un gradient pour la barre principale
+ * Génère un gradient progressif rouge → vert pour la barre principale
+ * Utilise un dégradé continu basé sur le score actuel
  */
 function getGradientForScore(score) {
-  if (score >= 75) {
-    return 'linear-gradient(90deg, #059669 0%, #10b981 50%, #34d399 100%)';
-  } else if (score >= 60) {
-    return 'linear-gradient(90deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%)';
-  } else if (score >= 45) {
-    return 'linear-gradient(90deg, #d97706 0%, #f59e0b 50%, #fbbf24 100%)';
-  } else if (score >= 30) {
-    return 'linear-gradient(90deg, #dc2626 0%, #ef4444 50%, #f87171 100%)';
+  // Dégradé global rouge → orange → jaune → vert (fond de la track)
+  const baseGradient = 'linear-gradient(90deg, ' +
+    '#991b1b 0%, ' +      // 0%: Rouge foncé
+    '#dc2626 15%, ' +     // 15%: Rouge
+    '#ef4444 30%, ' +     // 30%: Rouge vif
+    '#f97316 40%, ' +     // 40%: Orange
+    '#f59e0b 50%, ' +     // 50%: Jaune-orange
+    '#fbbf24 60%, ' +     // 60%: Jaune
+    '#84cc16 70%, ' +     // 70%: Vert-jaune
+    '#22c55e 80%, ' +     // 80%: Vert clair
+    '#10b981 90%, ' +     // 90%: Vert
+    '#059669 100%)';      // 100%: Vert vif
+
+  // Calculer la couleur de fin basée sur le score
+  let endColor;
+  if (score <= 30) {
+    endColor = '#dc2626'; // Rouge
+  } else if (score <= 45) {
+    endColor = '#f97316'; // Orange
+  } else if (score <= 60) {
+    endColor = '#fbbf24'; // Jaune
+  } else if (score <= 75) {
+    endColor = '#22c55e'; // Vert clair
+  } else {
+    endColor = '#10b981'; // Vert vif
   }
-  return 'linear-gradient(90deg, #7f1d1d 0%, #991b1b 50%, #dc2626 100%)';
+
+  // Gradient de la barre remplie (du rouge au score actuel)
+  const fillGradient = 'linear-gradient(90deg, ' +
+    '#991b1b 0%, ' +
+    '#dc2626 15%, ' +
+    '#ef4444 30%, ' +
+    '#f97316 40%, ' +
+    '#f59e0b 50%, ' +
+    '#fbbf24 60%, ' +
+    '#84cc16 70%, ' +
+    '#22c55e 80%, ' +
+    '#10b981 90%, ' +
+    `${endColor} 100%)`;
+
+  return fillGradient;
 }
 
 /**
@@ -173,64 +221,190 @@ function renderMiniSparkline(series, width = 60, height = 16) {
 }
 
 /**
- * Génère la barre de contributions empilée (CSS pur)
+ * Génère la section complète Scores + Contributions (Option 2: Barre Annotée)
  */
-function renderContributionBar(contributions) {
-  const c = contributions;
+function renderScoresAndContributions(scores, contributions) {
+  const items = [
+    { key: 'cycle', icon: '🔄', pct: contributions.cycle },
+    { key: 'onchain', icon: '🔗', pct: contributions.onchain },
+    { key: 'risk', icon: '🛡️', pct: contributions.risk }
+  ];
+
   return `
-    <div class="contribution-bar">
-      <div class="contribution-seg cycle" style="width: ${c.cycle}%;" title="Cycle: ${c.cycle.toFixed(1)}%"></div>
-      <div class="contribution-seg onchain" style="width: ${c.onchain}%;" title="On-Chain: ${c.onchain.toFixed(1)}%"></div>
-      <div class="contribution-seg risk" style="width: ${c.risk}%;" title="Risk: ${c.risk.toFixed(1)}%"></div>
+    <div class="scores-contrib-annotated">
+      <div class="contrib-title">CONTRIBUTIONS</div>
+
+      <!-- Ligne 1: Icons + Scores -->
+      <div class="contrib-labels-row">
+        ${items.map(item => `
+          <div class="contrib-label" style="width: ${item.pct}%;">
+            <span class="label-icon">${item.icon}</span>
+            <span class="label-score">${Math.round(scores[item.key] || 0)}</span>
+          </div>
+        `).join('')}
+      </div>
+
+      <!-- Ligne 2: Barre empilée -->
+      <div class="contrib-bar-stacked">
+        <div class="contrib-seg cycle" style="width: ${contributions.cycle}%;"></div>
+        <div class="contrib-seg onchain" style="width: ${contributions.onchain}%;"></div>
+        <div class="contrib-seg risk" style="width: ${contributions.risk}%;"></div>
+      </div>
+
+      <!-- Ligne 3: Pourcentages -->
+      <div class="contrib-pcts-row">
+        ${items.map(item => `
+          <div class="contrib-pct" style="width: ${item.pct}%;">
+            ${item.pct.toFixed(0)}%
+          </div>
+        `).join('')}
+      </div>
     </div>
   `;
 }
 
 /**
- * Génère le breakdown des scores (ligne compacte)
+ * Génère la recommandation actionnable basée sur le DI et les piliers
  */
-function renderScoresBreakdown(scores) {
+function renderRecommendation(score, meta, scores = {}) {
+  let icon = '💡';
+  let title = 'Position neutre';
+  let action = 'Surveillance recommandée';
+  let details = '';
+  let colorClass = 'neutral';
+
+  // Extraire les scores des piliers
+  const cycle = scores.cycle || 0;
+  const onchain = scores.onchain || 0;
+  const risk = scores.risk || 0;
+
+  // Détection d'alertes spécifiques
+  const criticalOnchain = onchain < 30;
+  const lowRisk = risk < 40;
+  const strongCycle = cycle >= 70;
+
+  // Logique de recommandation basée sur le DI global
+  if (score >= 75) {
+    icon = '🚀';
+    title = 'Excellent timing';
+    colorClass = 'bullish';
+
+    if (strongCycle && onchain >= 50) {
+      action = 'Allouer 15-20% vers actifs risqués';
+      details = 'Cycle expansion + On-Chain favorable → Opportunité d\'accumulation';
+    } else if (criticalOnchain) {
+      action = 'Allouer avec prudence (10-15%)';
+      details = 'Malgré DI élevé, signaux on-chain faibles → Vigilance requise';
+    } else {
+      action = 'Augmenter exposition risque progressivement';
+      details = 'Conditions favorables → Réduire stables à 10-15%';
+    }
+
+  } else if (score >= 60) {
+    icon = '✅';
+    title = 'Position favorable';
+    colorClass = 'positive';
+
+    if (cycle >= 60 && risk >= 50) {
+      action = 'Maintenir allocation actuelle';
+      details = `Cycle ${Math.round(cycle)} + Risk ${Math.round(risk)} → Équilibre stable`;
+    } else if (criticalOnchain) {
+      action = 'Conserver mais surveiller on-chain';
+      details = 'Signaux on-chain dégradés → Préparer ajustements si nécessaire';
+    } else {
+      action = 'Maintenir allocation, ajustements mineurs OK';
+      details = 'Position solide → Rééquilibrage opportuniste possible';
+    }
+
+  } else if (score >= 45) {
+    icon = '⚠️';
+    title = 'Position mitigée';
+    colorClass = 'warning';
+
+    if (lowRisk) {
+      action = 'Réduire exposition, sécuriser gains';
+      details = `Risk faible (${Math.round(risk)}) → Augmenter stables à 25-30%`;
+    } else if (criticalOnchain) {
+      action = 'Privilégier la prudence absolue';
+      details = 'Signaux on-chain critiques → Éviter nouvelles positions risquées';
+    } else {
+      action = 'Attente et surveillance renforcée';
+      details = 'Contexte incertain → Éviter changements majeurs';
+    }
+
+  } else if (score >= 30) {
+    icon = '🛡️';
+    title = 'Position défavorable';
+    colorClass = 'defensive';
+
+    if (lowRisk && criticalOnchain) {
+      action = 'Réduire exposition immédiatement';
+      details = 'Risk + On-Chain faibles → Sécuriser 40-50% en stables';
+    } else {
+      action = 'Réduire actifs risqués à 30-40%';
+      details = 'Conditions dégradées → Protéger le capital';
+    }
+
+  } else {
+    icon = '🚨';
+    title = 'ALERTE - Position critique';
+    colorClass = 'critical';
+
+    action = 'Sécuriser le portefeuille immédiatement';
+    details = `DI ${score} → Passer 60-70% en stables, réduire levier`;
+  }
+
   return `
-    <div class="scores-breakdown">
-      <span class="score-item cycle">🔄 <b>${Math.round(scores.cycle || 0)}</b></span>
-      <span class="sep">·</span>
-      <span class="score-item onchain">🔗 <b>${Math.round(scores.onchain || 0)}</b></span>
-      <span class="sep">·</span>
-      <span class="score-item risk">🛡️ <b>${Math.round(scores.risk || 0)}</b></span>
+    <div class="di-recommendation ${colorClass}">
+      <div class="reco-content">
+        <div class="reco-header">
+          <span class="reco-icon">${icon}</span>
+          <span class="reco-title">${title}</span>
+        </div>
+        <div class="reco-action">${action}</div>
+        ${details ? `<div class="reco-details">${details}</div>` : ''}
+      </div>
     </div>
   `;
 }
 
 /**
- * Génère le régime ribbon compact (3 barres)
+ * Génère les métadonnées utiles
  */
-function renderRegimeRibbon(meta, regimeHistory) {
-  const rHist = Array.isArray(regimeHistory) ? regimeHistory.slice(-5) : [];
-  const phaseName = (meta?.phase || 'Neutral').toLowerCase();
+function renderMetadata(meta) {
+  const confidence = meta.confidence ? `${Math.round(meta.confidence * 100)}%` : 'N/A';
+  const mode = meta.mode || 'Standard';
+  const source = meta.source || 'N/A';
+  const timestamp = meta.timestamp || meta.last_update;
 
-  let activeIdx = 1; // Neutral par défaut
-  if (phaseName.includes('euphor') || phaseName.includes('bull') || phaseName.includes('risk-on')) {
-    activeIdx = 0;
-  } else if (phaseName.includes('bear') || phaseName.includes('risk-off') || phaseName.includes('prudence')) {
-    activeIdx = 2;
+  let freshness = 'N/A';
+  if (timestamp) {
+    try {
+      const diff = Date.now() - new Date(timestamp).getTime();
+      const minutes = Math.floor(diff / 60000);
+      if (minutes < 1) freshness = 'À l\'instant';
+      else if (minutes < 60) freshness = `Il y a ${minutes}min`;
+      else if (minutes < 1440) freshness = `Il y a ${Math.floor(minutes / 60)}h`;
+      else freshness = `Il y a ${Math.floor(minutes / 1440)}j`;
+    } catch (e) {
+      freshness = 'Inconnu';
+    }
   }
-
-  // Override avec historique si disponible
-  if (rHist.length > 0) {
-    const actives = rHist.filter(x => (x?.active ?? x?.bull ?? x?.risk_on ?? false)).length;
-    activeIdx = actives >= 4 ? 0 : (actives <= 1 ? 2 : 1);
-  }
-
-  const labels = ['🚀 Bull', '⚖️ Neutral', '🐻 Bear'];
-  const bars = labels.map((lab, idx) => {
-    const isActive = idx === activeIdx;
-    return `<div class="regime-bar ${isActive ? 'active' : ''}" title="${lab}">${lab}</div>`;
-  }).join('');
 
   return `
-    <div class="regime-ribbon">
-      <div class="regime-title">RÉGIME</div>
-      <div class="regime-bars">${bars}</div>
+    <div class="di-metadata">
+      <div class="meta-row">
+        <span class="meta-label">Confiance</span>
+        <span class="meta-value">${confidence}</span>
+      </div>
+      <div class="meta-row">
+        <span class="meta-label">Mode</span>
+        <span class="meta-value">${mode}</span>
+      </div>
+      <div class="meta-row">
+        <span class="meta-label">Mise à jour</span>
+        <span class="meta-value">${freshness}</span>
+      </div>
     </div>
   `;
 }
@@ -242,18 +416,12 @@ function renderLeftColumn(data) {
   const score = Math.round(data.di);
   const gradient = getGradientForScore(score);
   const levelText = getLevelText(score);
-  const trendInfo = computeTrendInfo(data.history);
-  const sparkline = renderMiniSparkline(data.history?.slice(-7));
   const m = data.meta || {};
 
   // Calculer contributions
   const contributions = calculateRelativeContributions(data.weights || {}, data.scores || {});
-  const contributionBar = renderContributionBar(contributions);
-  const scoresBreakdown = renderScoresBreakdown(data.scores || {});
-  const regimeRibbon = renderRegimeRibbon(m, data.regimeHistory);
-
-  // Sigma color
-  const sigmaColor = trendInfo.sigma < 1 ? 'ok' : trendInfo.sigma <= 2 ? 'warn' : 'danger';
+  const scoresAndContributions = renderScoresAndContributions(data.scores || {}, contributions);
+  const metadata = renderMetadata(m);
 
   return `
     <div class="di-left-col">
@@ -289,26 +457,8 @@ function renderLeftColumn(data) {
         </div>
       </div>
 
-      ${scoresBreakdown}
-
-      <div class="contribution-section">
-        <div class="contribution-title">CONTRIBUTIONS</div>
-        ${contributionBar}
-      </div>
-
-      <div class="di-trend-compact">
-        <div class="trend-header">
-          <span class="trend-title">TREND (7j)</span>
-          <div class="trend-badges">
-            <span class="trend-badge ${trendInfo.color}">${trendInfo.trend} ${trendInfo.delta > 0 ? '+' : ''}${trendInfo.delta}</span>
-            <span class="trend-badge ${sigmaColor}">σ ${trendInfo.sigma}</span>
-            <span class="trend-badge state">${trendInfo.state}</span>
-          </div>
-        </div>
-        <div class="trend-spark">${sparkline}</div>
-      </div>
-
-      ${regimeRibbon}
+      ${scoresAndContributions}
+      ${metadata}
     </div>
   `;
 }
@@ -339,11 +489,15 @@ function renderCompactPillarBar(label, icon, value, subtext, confidence, color) 
 }
 
 /**
- * Génère la colonne droite avec les piliers
+ * Génère la colonne droite avec recommandation + piliers
  */
 function renderRightColumn(data) {
+  const score = Math.round(data.di);
   const s = data.scores || {};
   const m = data.meta || {};
+
+  // Recommandation en haut (avec scores pour contexte)
+  const recommendation = renderRecommendation(score, m, s);
 
   // Préparer les données pour chaque pilier
   const cycleConf = m.cycle_confidence ? Math.round(m.cycle_confidence * 100) : null;
@@ -385,6 +539,8 @@ function renderRightColumn(data) {
 
   return `
     <div class="di-right-col">
+      ${recommendation}
+
       <div class="pillars-container">
         ${cycleBar}
         ${onchainBar}
@@ -425,15 +581,32 @@ function renderHelpContent() {
           Indicateur composite des conditions de marché.<br>
           75+ Excellent | 60+ Bon | 45+ Moyen | 30+ Faible | <30 Critique</p>
 
-          <p><strong>Piliers</strong><br>
+          <p><strong>Piliers (colonne droite)</strong><br>
           🔄 Cycle: Position dans le cycle de marché<br>
-          🔗 On-Chain: Métriques blockchain<br>
+          🔗 On-Chain: Métriques blockchain fondamentales<br>
           🛡️ Risk: Gestion du risque et volatilité</p>
 
-          <p><strong>Indicateurs</strong><br>
-          Trend: Évolution sur 7 jours<br>
-          Régime: Phase de marché actuelle<br>
-          F&G: Sentiment Fear & Greed</p>
+          <p><strong>Contributions</strong><br>
+          Pondération relative de chaque pilier dans le score final.<br>
+          Les pourcentages indiquent l'impact de chaque dimension.</p>
+
+          <p><strong>Recommandation</strong><br>
+          Conseil d'action contextuel basé sur le DI + piliers:<br>
+          • 75+ : Allouer vers risque (15-20%)<br>
+          • 60-74 : Maintenir allocation actuelle<br>
+          • 45-59 : Attente et prudence<br>
+          • 30-44 : Réduire exposition (30-40% actifs)<br>
+          • <30 : Sécuriser immédiatement (60-70% stables)<br>
+          <br>
+          La recommandation s'adapte selon les piliers :<br>
+          • Si On-Chain critique : alertes spécifiques<br>
+          • Si Risk faible : augmentation stables recommandée<br>
+          • Si Cycle fort : opportunités d'accumulation</p>
+
+          <p><strong>Métadonnées</strong><br>
+          Confiance : Niveau de certitude du modèle<br>
+          Mode : Type de calcul (Standard/Priority)<br>
+          Mise à jour : Fraîcheur des données</p>
         </div>
       </div>
     </div>
@@ -441,7 +614,7 @@ function renderHelpContent() {
 }
 
 /**
- * Monte le système d'aide
+ * Monte le système d'aide avec cleanup automatique (prévenir memory leaks)
  */
 function mountHelpSystem(container) {
   const trigger = container.querySelector('.di-help-btn');
@@ -449,6 +622,15 @@ function mountHelpSystem(container) {
   const closeBtn = container.querySelector('.di-help-close');
 
   if (!trigger || !popup) return;
+
+  // Cleanup des event listeners précédents
+  if (helpSystemController) {
+    helpSystemController.abort();
+  }
+
+  // Nouveau controller pour gérer tous les listeners de ce panel
+  helpSystemController = new AbortController();
+  const signal = helpSystemController.signal;
 
   const toggleHelp = (show) => {
     if (show) {
@@ -465,26 +647,27 @@ function mountHelpSystem(container) {
     }
   };
 
+  // Tous les listeners utilisent le même signal pour cleanup automatique
   trigger.addEventListener('click', (e) => {
     e.stopPropagation();
     toggleHelp(!helpPopoverState.isOpen);
-  });
+  }, { signal });
 
   if (closeBtn) {
-    closeBtn.addEventListener('click', () => toggleHelp(false));
+    closeBtn.addEventListener('click', () => toggleHelp(false), { signal });
   }
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && helpPopoverState.isOpen) {
       toggleHelp(false);
     }
-  });
+  }, { signal });
 
   document.addEventListener('click', (e) => {
     if (helpPopoverState.isOpen && !popup.contains(e.target) && e.target !== trigger) {
       toggleHelp(false);
     }
-  });
+  }, { signal });
 }
 
 /**
@@ -612,7 +795,11 @@ function injectStyles() {
       position: relative;
       border-radius: 999px;
       transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-      box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+      box-shadow:
+        0 0 20px rgba(0, 0, 0, 0.3),
+        0 0 30px currentColor,
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      overflow: hidden;
     }
 
     .di-bar-glow {
@@ -620,10 +807,33 @@ function injectStyles() {
       top: 0;
       left: 0;
       right: 0;
-      height: 40%;
+      height: 50%;
       background: linear-gradient(180deg,
-        rgba(255, 255, 255, 0.3) 0%,
+        rgba(255, 255, 255, 0.4) 0%,
+        rgba(255, 255, 255, 0.1) 50%,
         transparent 100%);
+      border-radius: 999px 999px 0 0;
+    }
+
+    /* Animation de brillance subtile */
+    @keyframes shine {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+
+    .di-bar-fill::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 30%;
+      height: 100%;
+      background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.3) 50%,
+        transparent 100%);
+      animation: shine 3s ease-in-out infinite;
+      pointer-events: none;
     }
 
     .di-bar-segments {
@@ -639,13 +849,19 @@ function injectStyles() {
 
     .di-bar-segments .seg {
       flex: 1;
-      background: rgba(0, 0, 0, 0.3);
+      background: rgba(0, 0, 0, 0.15);
       border-radius: 2px;
       transition: all 0.3s;
+      border-right: 1px solid rgba(0, 0, 0, 0.1);
+    }
+
+    .di-bar-segments .seg:last-child {
+      border-right: none;
     }
 
     .di-bar-segments .seg.on {
-      background: transparent;
+      background: rgba(255, 255, 255, 0.05);
+      border-right-color: rgba(255, 255, 255, 0.1);
     }
 
     .di-bar-labels {
@@ -656,75 +872,78 @@ function injectStyles() {
       color: rgba(148, 163, 184, 0.5);
     }
 
-    /* Scores breakdown */
-    .scores-breakdown {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      padding: 0.375rem 0;
-      font-size: 0.75rem;
-      color: rgba(226, 232, 240, 0.8);
-    }
-
-    .score-item {
-      display: flex;
-      align-items: center;
-      gap: 0.25rem;
-    }
-
-    .score-item b {
-      font-weight: 700;
-      color: rgba(226, 232, 240, 1);
-    }
-
-    .scores-breakdown .sep {
-      color: rgba(148, 163, 184, 0.4);
-      font-weight: 300;
-    }
-
-    /* Contribution bar */
-    .contribution-section {
+    /* Scores + Contributions Annotées (Option 2) */
+    .scores-contrib-annotated {
+      background: rgba(30, 41, 59, 0.3);
+      border-radius: 6px;
+      padding: 0.75rem;
+      border: 1px solid rgba(148, 163, 184, 0.05);
       margin: 0.75rem 0;
     }
 
-    .contribution-title {
+    .contrib-title {
       font-size: 0.625rem;
       text-transform: uppercase;
       letter-spacing: 0.1em;
       color: rgba(148, 163, 184, 0.6);
+      margin-bottom: 0.5rem;
+      text-align: center;
+    }
+
+    /* Ligne 1: Labels (icons + scores) */
+    .contrib-labels-row {
+      display: flex;
       margin-bottom: 0.375rem;
     }
 
-    .contribution-bar {
+    .contrib-label {
       display: flex;
-      height: 16px;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.125rem;
+      font-size: 0.75rem;
+    }
+
+    .label-icon {
+      font-size: 0.875rem;
+    }
+
+    .label-score {
+      font-weight: 700;
+      color: rgba(226, 232, 240, 1);
+      font-size: 0.875rem;
+    }
+
+    /* Ligne 2: Barre empilée */
+    .contrib-bar-stacked {
+      display: flex;
+      height: 20px;
       border-radius: 999px;
       overflow: hidden;
       background: rgba(15, 23, 42, 0.5);
-      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+      margin-bottom: 0.375rem;
     }
 
-    .contribution-seg {
+    .contrib-seg {
       height: 100%;
       transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
       position: relative;
-      cursor: help;
     }
 
-    .contribution-seg.cycle {
+    .contrib-seg.cycle {
       background: linear-gradient(90deg, #2563eb 0%, #3b82f6 100%);
     }
 
-    .contribution-seg.onchain {
+    .contrib-seg.onchain {
       background: linear-gradient(90deg, #7c3aed 0%, #8b5cf6 100%);
     }
 
-    .contribution-seg.risk {
+    .contrib-seg.risk {
       background: linear-gradient(90deg, #dc2626 0%, #ef4444 100%);
     }
 
-    .contribution-seg::before {
+    .contrib-seg::before {
       content: '';
       position: absolute;
       top: 0;
@@ -734,148 +953,133 @@ function injectStyles() {
       background: linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, transparent 100%);
     }
 
-    /* Trend compact amélioré */
-    .di-trend-compact {
-      background: rgba(30, 41, 59, 0.3);
-      border-radius: 6px;
-      padding: 0.5rem 0.75rem;
-      border: 1px solid rgba(148, 163, 184, 0.05);
-    }
-
-    .trend-header {
+    /* Ligne 3: Pourcentages */
+    .contrib-pcts-row {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 0.375rem;
     }
 
-    .trend-title {
-      font-size: 0.625rem;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: rgba(148, 163, 184, 0.6);
-    }
-
-    .trend-badges {
-      display: flex;
-      gap: 0.25rem;
-    }
-
-    .trend-badge {
-      background: rgba(15, 23, 42, 0.5);
-      padding: 0.125rem 0.375rem;
-      border-radius: 999px;
-      font-size: 0.625rem;
-      font-weight: 600;
-      border: 1px solid rgba(148, 163, 184, 0.1);
-    }
-
-    .trend-badge.positive {
-      color: #10b981;
-      background: rgba(16, 185, 129, 0.1);
-      border-color: rgba(16, 185, 129, 0.3);
-    }
-
-    .trend-badge.negative {
-      color: #ef4444;
-      background: rgba(239, 68, 68, 0.1);
-      border-color: rgba(239, 68, 68, 0.3);
-    }
-
-    .trend-badge.neutral {
-      color: #f59e0b;
-      background: rgba(245, 158, 11, 0.1);
-      border-color: rgba(245, 158, 11, 0.3);
-    }
-
-    .trend-badge.ok {
-      color: #10b981;
-    }
-
-    .trend-badge.warn {
-      color: #f59e0b;
-    }
-
-    .trend-badge.danger {
-      color: #ef4444;
-    }
-
-    .trend-badge.state {
-      color: rgba(226, 232, 240, 0.8);
-    }
-
-    .trend-spark {
+    .contrib-pct {
       display: flex;
       justify-content: center;
-      margin-top: 0.25rem;
-    }
-
-    /* Regime ribbon */
-    .regime-ribbon {
-      background: rgba(30, 41, 59, 0.3);
-      border-radius: 6px;
-      padding: 0.5rem 0.75rem;
-      border: 1px solid rgba(148, 163, 184, 0.05);
-    }
-
-    .regime-title {
-      font-size: 0.625rem;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: rgba(148, 163, 184, 0.6);
-      margin-bottom: 0.375rem;
-    }
-
-    .regime-bars {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 0.375rem;
-    }
-
-    .regime-bar {
-      text-align: center;
-      padding: 0.25rem 0.375rem;
-      border-radius: 4px;
       font-size: 0.625rem;
       font-weight: 600;
-      background: rgba(15, 23, 42, 0.3);
-      color: rgba(148, 163, 184, 0.5);
+      color: rgba(148, 163, 184, 0.8);
+    }
+
+    /* Recommandation actionnable */
+    .di-recommendation {
+      background: rgba(30, 41, 59, 0.3);
+      border-radius: 6px;
+      padding: 0.875rem;
       border: 1px solid rgba(148, 163, 184, 0.1);
-      transition: all 0.3s;
+      margin-bottom: 1rem;
     }
 
-    .regime-bar.active {
-      background: rgba(59, 130, 246, 0.2);
-      color: #60a5fa;
-      border-color: rgba(59, 130, 246, 0.4);
-      box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
+    /* Recommandation dans colonne gauche (si elle y reste) */
+    .di-left-col .di-recommendation {
+      margin: 0.75rem 0;
     }
 
-    /* Meta info compact */
-    .di-meta-compact {
+    /* Recommandation dans colonne droite (en haut) */
+    .di-right-col .di-recommendation {
+      margin: 0 0 1rem 0;
+    }
+
+    .reco-content {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .reco-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+    }
+
+    .reco-icon {
+      font-size: 1.25rem;
+      flex-shrink: 0;
+    }
+
+    .reco-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: rgba(226, 232, 240, 1);
+    }
+
+    .reco-action {
+      font-size: 0.875rem;
+      line-height: 1.4;
+      color: rgba(226, 232, 240, 0.95);
+      font-weight: 600;
+    }
+
+    .reco-details {
+      font-size: 0.75rem;
+      line-height: 1.5;
+      color: rgba(148, 163, 184, 0.8);
+      padding-top: 0.25rem;
+      font-style: italic;
+    }
+
+    /* Variantes de couleur pour recommandation */
+    .di-recommendation.bullish {
+      border-color: rgba(16, 185, 129, 0.3);
+      background: rgba(16, 185, 129, 0.05);
+    }
+
+    .di-recommendation.positive {
+      border-color: rgba(59, 130, 246, 0.3);
+      background: rgba(59, 130, 246, 0.05);
+    }
+
+    .di-recommendation.warning {
+      border-color: rgba(245, 158, 11, 0.3);
+      background: rgba(245, 158, 11, 0.05);
+    }
+
+    .di-recommendation.defensive {
+      border-color: rgba(239, 68, 68, 0.3);
+      background: rgba(239, 68, 68, 0.05);
+    }
+
+    .di-recommendation.critical {
+      border-color: rgba(153, 27, 27, 0.4);
+      background: rgba(153, 27, 27, 0.1);
+    }
+
+    /* Métadonnées */
+    .di-metadata {
+      background: rgba(30, 41, 59, 0.3);
+      border-radius: 6px;
+      padding: 0.75rem;
+      border: 1px solid rgba(148, 163, 184, 0.05);
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(3, 1fr);
       gap: 0.75rem;
     }
 
-    .meta-item {
-      background: rgba(30, 41, 59, 0.3);
-      border-radius: 6px;
-      padding: 0.5rem;
-      border: 1px solid rgba(148, 163, 184, 0.05);
+    .meta-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      text-align: center;
     }
 
     .meta-label {
-      display: block;
       font-size: 0.625rem;
       text-transform: uppercase;
       letter-spacing: 0.05em;
       color: rgba(148, 163, 184, 0.6);
-      margin-bottom: 0.125rem;
     }
 
     .meta-value {
-      font-size: 0.875rem;
+      font-size: 0.75rem;
       font-weight: 600;
       color: rgba(226, 232, 240, 0.9);
     }
@@ -1007,17 +1211,6 @@ function injectStyles() {
       color: #ef4444;
     }
 
-    /* Sparkline */
-    .mini-spark {
-      display: block;
-      color: rgba(148, 163, 184, 0.5);
-    }
-
-    .no-data {
-      color: rgba(148, 163, 184, 0.3);
-      font-size: 0.75rem;
-    }
-
     /* Popup d'aide compact */
     .di-help-popup {
       position: fixed;
@@ -1109,6 +1302,17 @@ function injectStyles() {
       .di-footer-stats {
         grid-template-columns: repeat(3, 1fr);
       }
+
+      .di-metadata {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+      }
+
+      .meta-row {
+        flex-direction: row;
+        justify-content: space-between;
+        text-align: left;
+      }
     }
 
     @media (max-width: 480px) {
@@ -1120,8 +1324,9 @@ function injectStyles() {
         font-size: 2.5rem;
       }
 
-      .di-meta-compact {
-        grid-template-columns: 1fr;
+      .contrib-labels-row,
+      .contrib-pcts-row {
+        font-size: 0.65rem;
       }
     }
 
@@ -1135,13 +1340,15 @@ function injectStyles() {
       }
 
       .di-bar-track,
-      .pillar-track {
+      .pillar-track,
+      .contrib-bar-stacked {
         background: rgba(226, 232, 240, 0.5);
       }
 
       .pillar-bar-compact,
-      .di-trend-compact,
-      .meta-item {
+      .scores-contrib-annotated,
+      .di-recommendation,
+      .di-metadata {
         background: rgba(248, 250, 252, 0.5);
       }
 
@@ -1154,13 +1361,17 @@ function injectStyles() {
 
       .pillar-name,
       .pillar-score,
-      .meta-value {
+      .meta-value,
+      .label-score,
+      .reco-title,
+      .reco-action {
         color: #1e293b;
       }
 
       .di-title,
-      .trend-title,
-      .meta-label {
+      .contrib-title,
+      .meta-label,
+      .reco-details {
         color: #64748b;
       }
     }
@@ -1211,11 +1422,18 @@ export function renderDecisionIndexPanel(container, data, opts = {}) {
 }
 
 /**
- * Cleanup
+ * Cleanup (détruit les event listeners pour prévenir memory leaks)
  */
 export function destroyDIPanelCharts() {
-  // Plus de charts à détruire dans cette version
-  // Gardé pour compatibilité
+  // Cleanup event listeners
+  if (helpSystemController) {
+    helpSystemController.abort();
+    helpSystemController = null;
+  }
+
+  // Reset state
+  helpPopoverState.isOpen = false;
+  helpPopoverState.lastFocusedElement = null;
 }
 
 /**

@@ -32,12 +32,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
 
-    <!-- Plotly.js for dendrograms (via jsdelivr) -->
-    <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist@2.26.0/plotly.min.js"></script>
-
-    <!-- jsPDF and html2canvas for PDF export (via jsdelivr) -->
-    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <!-- Plotly.js: Lazy loaded on demand for heatmaps/dendrograms (saves 3 MB on initial load) -->
+    <!-- jsPDF and html2canvas: Lazy loaded on demand (saves 1 MB initial load) -->
 
     <style>
         .container {
@@ -1476,10 +1472,38 @@
             ]);
         }
 
+        // ==================== PLOTLY LAZY LOADER ====================
+
+        /**
+         * Lazy load Plotly.js library (3 MB) - only when heatmaps/dendrograms needed
+         */
+        let plotlyLoaded = false;
+        async function loadPlotlyLib() {
+            if (plotlyLoaded) return;
+
+            debugLogger.debug('[Plotly] Loading Plotly.js library (3 MB)...');
+
+            await new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/plotly.js-dist@2.26.0/plotly.min.js';
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+
+            plotlyLoaded = true;
+            debugLogger.debug('[Plotly] Library loaded successfully');
+        }
+
         // Load Correlation Matrix & Heatmap
         async function loadCorrelationAnalysis() {
             const activeUser = localStorage.getItem('activeUser') || 'demo';
             try {
+                document.getElementById('correlationAnalysis').innerHTML = '<div class="loading">Loading visualization library…</div>';
+
+                // Lazy load Plotly
+                await loadPlotlyLib();
+
                 document.getElementById('correlationAnalysis').innerHTML = '<div class="loading">Calculating correlations…</div>';
 
                 let url = `/api/risk/bourse/advanced/correlation?user_id=${activeUser}&method=pearson&lookback_days=252`;
@@ -1875,7 +1899,12 @@
             document.getElementById('stressTestChart').innerHTML = '';
             document.getElementById('stressTestChart').appendChild(ctx);
 
-            new Chart(ctx, {
+            // Destroy previous chart to prevent memory leak
+            if (stressTestChartInstance) {
+                stressTestChartInstance.destroy();
+            }
+
+            stressTestChartInstance = new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: ['Current', 'Stressed'],
@@ -2174,7 +2203,12 @@
             const regimes = Object.keys(probabilities);
             const values = Object.values(probabilities);
 
-            new Chart(ctx, {
+            // Destroy previous chart to prevent memory leak
+            if (regimeProbabilitiesChartInstance) {
+                regimeProbabilitiesChartInstance.destroy();
+            }
+
+            regimeProbabilitiesChartInstance = new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: regimes,
@@ -2221,8 +2255,11 @@
             });
         }
 
-        // Global variable to store current chart instance
+        // Global variables to store chart instances (prevent memory leaks)
         let regimeTimelineChartInstance = null;
+        let stressTestChartInstance = null;
+        let regimeProbabilitiesChartInstance = null;
+        let betaForecastChartInstance = null;
 
         // Create Regime Timeline with Real Historical Data
         async function createRegimeTimelineChart(regimeData, lookback_days = 365) {
@@ -2313,14 +2350,14 @@
                     regimeTimelineChartInstance.destroy();
                 }
 
-                // Subsample data for better performance if > 500 points
+                // Subsample data for better performance if > 250 points
                 let displayLabels = labels;
                 let displayPrices = prices;
                 let displayColors = regimeColors;
                 let sampleRate = 1;
 
-                if (labels.length > 500) {
-                    sampleRate = Math.ceil(labels.length / 500);
+                if (labels.length > 250) {
+                    sampleRate = Math.ceil(labels.length / 250);
                     displayLabels = labels.filter((_, i) => i % sampleRate === 0);
                     displayPrices = prices.filter((_, i) => i % sampleRate === 0);
                     displayColors = regimeColors.filter((_, i) => i % sampleRate === 0);
@@ -2465,10 +2502,11 @@
 
         // Setup timeframe selector buttons
         function setupTimeframeSelector(regimeData) {
-            const buttons = document.querySelectorAll('.timeframe-btn');
+            // Only select buttons within the timeframeSelector container (Regime History)
+            const buttons = document.querySelectorAll('#timeframeSelector .timeframe-btn');
             buttons.forEach(btn => {
                 btn.addEventListener('click', async function() {
-                    // Remove active class from all buttons
+                    // Remove active class from all buttons in this group
                     buttons.forEach(b => b.classList.remove('active'));
                     // Add active class to clicked button
                     this.classList.add('active');
@@ -2500,6 +2538,11 @@
         async function loadSectorRotation() {
             const activeUser = localStorage.getItem('activeUser') || 'demo';
             try {
+                document.getElementById('sectorRotation').innerHTML = '<div class="loading">Loading visualization library…</div>';
+
+                // Lazy load Plotly
+                await loadPlotlyLib();
+
                 document.getElementById('sectorRotation').innerHTML = '<div class="loading">Analyzing sectors…</div>';
 
                 let url = `/api/risk/bourse/specialized/sector-rotation?user_id=${activeUser}&lookback_days=60`;
@@ -2953,7 +2996,12 @@
                 const ctx = document.getElementById(canvasId).getContext('2d');
                 const labels = data.rolling_betas.map((_, i) => `-${data.rolling_betas.length - i}d`);
 
-                new Chart(ctx, {
+                // Destroy previous chart to prevent memory leak
+                if (betaForecastChartInstance) {
+                    betaForecastChartInstance.destroy();
+                }
+
+                betaForecastChartInstance = new Chart(ctx, {
                     type: 'line',
                     data: {
                         labels: labels,
@@ -3639,17 +3687,53 @@
         // ==================== PDF EXPORT ====================
 
         /**
+         * Lazy load PDF libraries (jsPDF + html2canvas) - saves 1 MB on initial load
+         */
+        let pdfLibsLoaded = false;
+        async function loadPDFLibraries() {
+            if (pdfLibsLoaded) return;
+
+            debugLogger.debug('[PDF Export] Loading jsPDF and html2canvas...');
+
+            // Load jsPDF
+            await new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+
+            // Load html2canvas
+            await new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+
+            pdfLibsLoaded = true;
+            debugLogger.debug('[PDF Export] Libraries loaded successfully');
+        }
+
+        /**
          * Export Risk & Analytics tab to PDF
          */
         async function exportRiskPDF() {
             try {
-                const { jsPDF } = window.jspdf;
-
-                // Show loading indicator
+                // Show loading indicator first
                 const exportBtn = event.target;
                 const originalText = exportBtn.innerHTML;
-                exportBtn.innerHTML = '⏳ Generating PDF...';
+                exportBtn.innerHTML = '⏳ Loading libraries...';
                 exportBtn.disabled = true;
+
+                // Lazy load PDF libraries
+                await loadPDFLibraries();
+
+                exportBtn.innerHTML = '⏳ Generating PDF...';
+
+                const { jsPDF } = window.jspdf;
 
                 // Get the Risk tab content
                 const riskTab = document.getElementById('risk');
@@ -3777,13 +3861,14 @@
          * Setup event listeners for recommendations tab
          */
         function setupRecommendationsListeners() {
-            // Timeframe buttons
-            document.querySelectorAll('.timeframe-btn').forEach(btn => {
+            // Timeframe buttons - only select buttons within recommendations tab
+            const recButtons = document.querySelectorAll('#recommendations .timeframe-btn');
+            recButtons.forEach(btn => {
                 btn.addEventListener('click', async (e) => {
                     const timeframe = e.currentTarget.dataset.timeframe;
 
-                    // Update active button
-                    document.querySelectorAll('.timeframe-btn').forEach(b => b.classList.remove('active'));
+                    // Update active button (only within recommendations tab)
+                    recButtons.forEach(b => b.classList.remove('active'));
                     e.currentTarget.classList.add('active');
 
                     // Reload recommendations

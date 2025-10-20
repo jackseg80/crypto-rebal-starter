@@ -350,7 +350,9 @@
                 data-tooltip="Vue d'ensemble de votre portefeuille d'actions et ETF via Saxo Bank en lecture seule."
                 data-source="API /api/saxo/positions (legacy)">
                 <div class="card-header">
-                    <div class="card-title"><span class="card-icon">🏦</span>Bourse (Saxo) Overview</div>
+                    <a href="saxo-dashboard.html" class="card-title" style="text-decoration: none; color: inherit;">
+                        <span class="card-icon">🏦</span>Bourse (Saxo) Overview
+                    </a>
                     <div style="display:flex;gap:8px;align-items:center;">
                         <button class="action-btn secondary" style="padding:4px 8px;font-size:12px;"
                             onclick="refreshSaxoTile()">🔄</button>
@@ -358,38 +360,24 @@
                     </div>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg);">
-                    <!-- Colonne gauche : Métriques -->
-                    <div>
-                        <div class="metric">
-                            <span class="metric-label">Valeur Totale</span>
-                            <span class="metric-value" id="saxo-total-value">--</span>
-                        </div>
+                <div class="metric">
+                    <span class="metric-label">Valeur Totale</span>
+                    <span class="metric-value" id="saxo-total-value">--</span>
+                </div>
 
-                        <div class="metric">
-                            <span class="metric-label">Positions</span>
-                            <span class="metric-value" id="saxo-positions-count">--</span>
-                        </div>
+                <div class="metric">
+                    <span class="metric-label">Positions</span>
+                    <span class="metric-value" id="saxo-positions-count">--</span>
+                </div>
 
-                        <div class="metric">
-                            <span class="metric-label">Dernier Import</span>
-                            <span class="metric-value" id="saxo-last-import" style="font-size:0.9rem;">--</span>
-                        </div>
-                    </div>
+                <div class="metric">
+                    <span class="metric-label">Dernier Import</span>
+                    <span class="metric-value" id="saxo-last-import" style="font-size:0.9rem;">--</span>
+                </div>
 
-                    <!-- Colonne droite : Actions -->
-                    <div style="display:flex;flex-direction:column;justify-content:center;gap:12px;">
-                        <a href="saxo-dashboard.html"
-                           class="action-btn primary"
-                           style="text-decoration:none;text-align:center;padding:12px;font-weight:600;">
-                            📊 Voir le détail
-                        </a>
-
-                        <div id="saxo-empty-state" style="display:none;text-align:center;color:var(--theme-text-muted);font-size:0.85rem;">
-                            Aucune position Saxo.<br>
-                            <a href="settings.html#sources" style="color:var(--theme-accent);">Importez un fichier dans Settings</a>
-                        </div>
-                    </div>
+                <div id="saxo-empty-state" style="display:none;text-align:center;color:var(--theme-text-muted);font-size:0.85rem;margin-top:12px;">
+                    Aucune position Saxo.<br>
+                    <a href="settings.html#sources" style="color:var(--theme-accent);">Importez un fichier dans Settings</a>
                 </div>
             </div>
 
@@ -398,7 +386,9 @@
                 data-tooltip="Vue d'ensemble de vos comptes bancaires (comptes courants, épargne)."
                 data-source="API /api/wealth/banks/positions">
                 <div class="card-header">
-                    <div class="card-title"><span class="card-icon">💰</span>Banque Overview</div>
+                    <a href="banks-manager.html" class="card-title" style="text-decoration: none; color: inherit;">
+                        <span class="card-icon">💰</span>Banque Overview
+                    </a>
                     <div style="display:flex;gap:8px;align-items:center;">
                         <button class="action-btn secondary" style="padding:4px 8px;font-size:12px;"
                             onclick="refreshBanksTile()">🔄</button>
@@ -406,38 +396,24 @@
                     </div>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg);">
-                    <!-- Colonne gauche : Métriques -->
-                    <div>
-                        <div class="metric">
-                            <span class="metric-label">Valeur Totale</span>
-                            <span class="metric-value" id="banks-total-value">--</span>
-                        </div>
+                <div class="metric">
+                    <span class="metric-label">Valeur Totale</span>
+                    <span class="metric-value" id="banks-total-value">--</span>
+                </div>
 
-                        <div class="metric">
-                            <span class="metric-label">Comptes</span>
-                            <span class="metric-value" id="banks-accounts-count">--</span>
-                        </div>
+                <div class="metric">
+                    <span class="metric-label">Comptes</span>
+                    <span class="metric-value" id="banks-accounts-count">--</span>
+                </div>
 
-                        <div class="metric">
-                            <span class="metric-label">Devises</span>
-                            <span class="metric-value" id="banks-currencies-count">--</span>
-                        </div>
-                    </div>
+                <div class="metric">
+                    <span class="metric-label">Devises</span>
+                    <span class="metric-value" id="banks-currencies-count">--</span>
+                </div>
 
-                    <!-- Colonne droite : Actions -->
-                    <div style="display:flex;flex-direction:column;justify-content:center;gap:12px;">
-                        <a href="banks-manager.html"
-                           class="action-btn primary"
-                           style="text-decoration:none;text-align:center;padding:12px;font-weight:600;">
-                            💰 Gérer les comptes
-                        </a>
-
-                        <div id="banks-empty-state" style="display:none;text-align:center;color:var(--theme-text-muted);font-size:0.85rem;">
-                            Aucun compte bancaire.<br>
-                            <a href="banks-manager.html" style="color:var(--theme-accent);">Ajoutez-en un maintenant</a>
-                        </div>
-                    </div>
+                <div id="banks-empty-state" style="display:none;text-align:center;color:var(--theme-text-muted);font-size:0.85rem;margin-top:12px;">
+                    Aucun compte bancaire.<br>
+                    <a href="banks-manager.html" style="color:var(--theme-accent);">Ajoutez-en un maintenant</a>
                 </div>
             </div>
 
