@@ -329,6 +329,16 @@ let isRefreshingSaxo = false;
 let isRefreshingBanks = false;
 let isRefreshingGlobal = false;
 
+// ✅ Interval IDs for cleanup (prevent memory leaks on page refresh)
+let dashboardRefreshInterval = null;
+let saxoRefreshInterval = null;
+let banksRefreshInterval = null;
+let globalRefreshInterval = null;
+let giRefreshInterval = null;
+
+// ✅ AbortController for event listeners cleanup
+let eventListenersController = null;
+
 document.addEventListener('DOMContentLoaded', async () => {
     console.debug('📊 Dashboard unifié initialisé');
     // Navigation thématique initialisée automatiquement
@@ -351,20 +361,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.debug(`📊 Dashboard initialized with data source: ${window.lastKnownDataSource}`);
 
     await loadDashboardData();
-    setInterval(loadDashboardData, 60000);
+
+    // ✅ Store interval IDs for proper cleanup
+    dashboardRefreshInterval = setInterval(loadDashboardData, 60000);
 
     // ✅ Initialize wealth tiles sequentially to avoid race conditions
     await refreshSaxoTile();
     await refreshBanksTile();
     await refreshGlobalTile();
 
-    // Set up periodic refresh intervals
-    setInterval(refreshSaxoTile, 120000); // Refresh every 2 minutes
-    setInterval(refreshBanksTile, 120000); // Refresh every 2 minutes
-    setInterval(refreshGlobalTile, 120000); // Refresh every 2 minutes
+    // Set up periodic refresh intervals (store IDs for cleanup)
+    saxoRefreshInterval = setInterval(refreshSaxoTile, 120000); // Refresh every 2 minutes
+    banksRefreshInterval = setInterval(refreshBanksTile, 120000); // Refresh every 2 minutes
+    globalRefreshInterval = setInterval(refreshGlobalTile, 120000); // Refresh every 2 minutes
 
     // Also check for data source changes more frequently (every 5 seconds)
-    setInterval(() => {
+    giRefreshInterval = setInterval(() => {
         const currentSource = globalConfig.get('data_source');
         if (currentSource && currentSource !== window.lastKnownDataSource) {
             console.debug(`🔄 Periodic check: Data source changed from ${window.lastKnownDataSource} to ${currentSource}`);
@@ -372,6 +384,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             loadDashboardData();
         }
     }, 5000);
+
+    // ✅ Setup AbortController for event listeners cleanup
+    eventListenersController = new AbortController();
+    const signal = eventListenersController.signal;
 
     // Écouter les changements de thème et source pour synchronisation cross-tab
     window.addEventListener('storage', function (e) {
@@ -409,7 +425,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 initChartTheme();
             }, 100);
         }
-    });
+    }, { signal });
 
     window.addEventListener('dataSourceChanged', (event) => {
         console.debug(`🔄 Source changée: ${event.detail.oldSource} → ${event.detail.newSource}`);
@@ -465,7 +481,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Force complete reload of dashboard data
         loadDashboardData();
-    });
+    }, { signal });
 
     // ✅ FIX: Listen for Bourse source changes and refresh Saxo tiles
     window.addEventListener('bourseSourceChanged', async (event) => {
@@ -480,7 +496,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         await refreshGlobalTile();
 
         console.debug('✅ Saxo tiles refreshed with new source');
-    });
+    }, { signal });
 
     // Reformat values when display currency changes
     window.addEventListener('configChanged', (ev) => {
@@ -511,7 +527,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         // Update meta badge (Updated / Contrad / Cap)
         updateGlobalInsightMeta();
-    });
+    }, { signal });
 
     // Also re-render when async rate fetch completes
     window.addEventListener('currencyRateUpdated', () => {
@@ -520,8 +536,55 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (dashboardData && dashboardData.recentActivity) updateRecentActivity(dashboardData.recentActivity);
             if (dashboardData && dashboardData.executionStats) updateExecutionStatus(dashboardData.executionStats);
         } catch (e) { debugLogger.warn('Re-render on rate update failed:', e); }
-    });
+    }, { signal });
+
+    // ✅ Setup cleanup on page unload (CRITICAL for preventing memory leaks)
+    window.addEventListener('beforeunload', cleanupDashboard);
 });
+
+/**
+ * Cleanup function to prevent memory leaks on page refresh/unload
+ * Clears all intervals and event listeners
+ */
+function cleanupDashboard() {
+    console.debug('🧹 Cleaning up dashboard resources...');
+
+    // Clear all intervals
+    if (dashboardRefreshInterval) {
+        clearInterval(dashboardRefreshInterval);
+        dashboardRefreshInterval = null;
+    }
+    if (saxoRefreshInterval) {
+        clearInterval(saxoRefreshInterval);
+        saxoRefreshInterval = null;
+    }
+    if (banksRefreshInterval) {
+        clearInterval(banksRefreshInterval);
+        banksRefreshInterval = null;
+    }
+    if (globalRefreshInterval) {
+        clearInterval(globalRefreshInterval);
+        globalRefreshInterval = null;
+    }
+    if (giRefreshInterval) {
+        clearInterval(giRefreshInterval);
+        giRefreshInterval = null;
+    }
+
+    // Abort all event listeners
+    if (eventListenersController) {
+        eventListenersController.abort();
+        eventListenersController = null;
+    }
+
+    // Destroy chart
+    if (window.portfolioChart) {
+        window.portfolioChart.destroy();
+        window.portfolioChart = null;
+    }
+
+    console.debug('✅ Dashboard cleanup complete');
+}
 
 async function loadDashboardData() {
     // ✅ Guard: éviter appels concurrents
