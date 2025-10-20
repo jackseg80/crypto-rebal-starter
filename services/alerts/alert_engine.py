@@ -907,14 +907,15 @@ class AlertEngine:
 
                         # Récupérer la valeur réelle du portfolio
                         try:
-                            # Import dynamique pour éviter circular dependency
-                            from api.main import resolve_current_balances
+                            # Use BalanceService instead of importing from api.main
+                            # This breaks the circular dependency
+                            from services.balance_service import balance_service
 
                             # Récupérer user_id et source depuis le contexte (ou défauts)
                             user_id = getattr(current_state, 'user_id', 'demo')
                             source = getattr(current_state, 'source', 'cointracking_api')
 
-                            balance_result = await resolve_current_balances(source=source, user_id=user_id)
+                            balance_result = await balance_service.resolve_current_balances(source=source, user_id=user_id)
                             balances = balance_result.get('items', []) if isinstance(balance_result, dict) else []
 
                             if balances:

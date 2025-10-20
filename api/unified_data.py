@@ -16,10 +16,10 @@ async def get_unified_filtered_balances(source: str = "cointracking", min_usd: f
     ne le supporte pas, mais on le garde pour compatibilité future.
     """
     # Import local pour éviter les imports circulaires
-    from api.main import resolve_current_balances
+    from services.balance_service import balance_service
     from api.services.utils import to_rows
 
     # Appel direct avec source explicite
-    res = await resolve_current_balances(source, user_id)
+    res = await balance_service.resolve_current_balances(source, user_id)
     rows = [r for r in to_rows(res.get("items", [])) if float(r.get("value_usd") or 0.0) >= float(min_usd)]
     return {"source_used": res.get("source_used"), "items": rows}

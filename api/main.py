@@ -110,6 +110,9 @@ try:
 except (ImportError, ModuleNotFoundError) as e:
     logger.warning(f"Portfolio analytics not available: {e}")
     PORTFOLIO_AVAILABLE = False
+
+# Import BalanceService singleton for resolving balances
+from services.balance_service import balance_service
 from api.taxonomy_endpoints import router as taxonomy_router
 # Execution endpoints - modular routers (Phase 2.1)
 from api.execution import (
@@ -406,261 +409,18 @@ async def resolve_current_balances(source: str = Query("cointracking_api"), user
     """
     Retourne {source_used, items:[{symbol, alias, amount, value_usd, location}]}
     Utilise UserDataRouter pour router les données par utilisateur.
+
+    NOTE: This function now delegates to services.balance_service.BalanceService
+    for better separation of concerns and to break circular dependencies.
+
+    The actual implementation is in services/balance_service.py
     """
-    from api.services.data_router import UserDataRouter
-    import os
-
-    logger.info(f"Resolving balances for user '{user_id}' with source '{source}'")
-
-    # Créer le data router pour cet utilisateur
-    project_root = str(BASE_DIR)
-    data_router = UserDataRouter(project_root, user_id)
-
-    # --- Sources stub: utiliser les stubs par défaut ---
-    if source.startswith("stub"):
-        logger.debug(f"Using stub source: {source}")
-        # Garder les stubs existants pour compatibilité
-    else:
-        # --- Déterminer la source effective selon l'utilisateur ---
-        effective_source = data_router.get_effective_source()
-        logger.info(f"🎯 Effective source for user '{user_id}': {effective_source}")
-
-        # --- API Mode ---
-        if effective_source == "cointracking_api" and source in ("cointracking_api", "auto"):
-            try:
-                credentials = data_router.get_api_credentials()
-                api_key = credentials.get("api_key")
-                api_secret = credentials.get("api_secret")
-
-                if api_key and api_secret:
-                    try:
-                        from connectors.cointracking_api import get_current_balances as _ctapi_bal
-                        # Passer directement les clés API au connecteur
-                        api_result = await _ctapi_bal(api_key=api_key, api_secret=api_secret)
-                        items = []
-
-                        for r in api_result.get("items", []):
-                            items.append({
-                                "symbol": r.get("symbol"),
-                                "alias": r.get("alias") or r.get("symbol"),
-                                "amount": r.get("amount"),
-                                "value_usd": r.get("value_usd"),
-                                "location": r.get("location") or "CoinTracking",
-                            })
-
-                        logger.debug(f"API mode successful for user {user_id}: {len(items)} items")
-                        return {"source_used": "cointracking_api", "items": items}
-
-                    except httpx.HTTPError as e:
-                        logger.error(f"CoinTracking API HTTP error for user {user_id}: {e}")
-                        # Fallback to CSV will be handled below
-                    except httpx.TimeoutException as e:
-                        logger.error(f"CoinTracking API timeout for user {user_id}: {e}")
-                        # Fallback to CSV will be handled below
-                    except (ValueError, KeyError) as e:
-                        logger.error(f"CoinTracking API data parsing error for user {user_id}: {e}")
-                        # Fallback to CSV will be handled below
-                else:
-                    logger.warning(f"No CoinTracking API credentials configured for user {user_id}")
-
-            except (KeyError, ValueError, TypeError) as e:
-                logger.error(f"API mode initialization failed for user {user_id}: {e}")
-
-        # --- CSV Mode ---
-        if effective_source == "cointracking" and source in ("cointracking", "csv", "local", "auto"):
-            try:
-                csv_file = data_router.get_most_recent_csv("balance")
-                if csv_file:
-                    items = await load_csv_balances(csv_file)
-                    logger.debug(f"CSV mode successful for user {user_id}: {len(items)} items from {csv_file}")
-                    return {"source_used": "cointracking", "items": items}
-                else:
-                    logger.warning(f"No CSV files found for user {user_id}")
-
-            except FileNotFoundError as e:
-                logger.error(f"CSV file not found for user {user_id}: {e}")
-            except PermissionError as e:
-                logger.error(f"Permission denied reading CSV for user {user_id}: {e}")
-            except (ValueError, UnicodeDecodeError) as e:
-                logger.error(f"CSV parsing error for user {user_id}: {e}")
-
-    # --- LEGACY CODE FALLBACK --- (gardé pour compatibilité, mais on n'utilise pas de stubs si non autorisés)
-    
-    # --- Sources stub: 3 profils de démo différents ---
-    # Respect strict mode: if ALLOW_STUB_SOURCES is False, do not return mock data
-    if source.startswith("stub"):
-        if source == "stub_conservative":
-            # Portfolio conservateur: 80% BTC, 15% ETH, 5% stables
-            demo_data = [
-                {"symbol": "BTC", "alias": "BTC", "amount": 3.2, "value_usd": 160000.0, "location": "Cold Storage"},
-                {"symbol": "ETH", "alias": "ETH", "amount": 10.0, "value_usd": 30000.0, "location": "Ledger"},
-                {"symbol": "USDC", "alias": "USDC", "amount": 10000.0, "value_usd": 10000.0, "location": "Coinbase"}
-            ]
-            return {"source_used": "stub_conservative", "items": demo_data, "warnings": ["Using demo stub dataset (conservative)."]}
-        
-        elif source == "stub_shitcoins":
-            # Portfolio risqué: beaucoup de memecoins et altcoins
-            demo_data = [
-                {"symbol": "BTC", "alias": "BTC", "amount": 0.1, "value_usd": 5000.0, "location": "Binance"},
-                {"symbol": "ETH", "alias": "ETH", "amount": 2.0, "value_usd": 6000.0, "location": "MetaMask"},
-                {"symbol": "SHIB", "alias": "SHIB", "amount": 50000000.0, "value_usd": 15000.0, "location": "MetaMask"},
-                {"symbol": "DOGE", "alias": "DOGE", "amount": 30000.0, "value_usd": 12000.0, "location": "Robinhood"},
-                {"symbol": "PEPE", "alias": "PEPE", "amount": 100000000.0, "value_usd": 10000.0, "location": "MetaMask"},
-                {"symbol": "BONK", "alias": "BONK", "amount": 5000000.0, "value_usd": 8000.0, "location": "Phantom"},
-                {"symbol": "WIF", "alias": "WIF", "amount": 15000.0, "value_usd": 7500.0, "location": "Phantom"},
-                {"symbol": "FLOKI", "alias": "FLOKI", "amount": 2000000.0, "value_usd": 6000.0, "location": "MetaMask"},
-                {"symbol": "BABYDOGE", "alias": "BABYDOGE", "amount": 10000000000.0, "value_usd": 5000.0, "location": "PancakeSwap"},
-                {"symbol": "SAFEMOON", "alias": "SAFEMOON", "amount": 5000000.0, "value_usd": 4500.0, "location": "Trust Wallet"},
-                {"symbol": "CATGIRL", "alias": "CATGIRL", "amount": 100000000.0, "value_usd": 4000.0, "location": "MetaMask"},
-                {"symbol": "DOGELON", "alias": "DOGELON", "amount": 50000000000.0, "value_usd": 3500.0, "location": "MetaMask"},
-                {"symbol": "KISHU", "alias": "KISHU", "amount": 20000000000.0, "value_usd": 3000.0, "location": "MetaMask"},
-                {"symbol": "AKITA", "alias": "AKITA", "amount": 1000000000.0, "value_usd": 2500.0, "location": "Uniswap"},
-                {"symbol": "HOKK", "alias": "HOKK", "amount": 500000000000.0, "value_usd": 2000.0, "location": "MetaMask"},
-                {"symbol": "FOMO", "alias": "FOMO", "amount": 50000000.0, "value_usd": 1800.0, "location": "PancakeSwap"},
-                {"symbol": "CUMINU", "alias": "CUMINU", "amount": 100000000000.0, "value_usd": 1500.0, "location": "MetaMask"},
-                {"symbol": "ELONGATE", "alias": "ELONGATE", "amount": 20000000000.0, "value_usd": 1200.0, "location": "PancakeSwap"},
-                {"symbol": "MOONSHOT", "alias": "MOONSHOT", "amount": 5000000.0, "value_usd": 1000.0, "location": "DEX"},
-                {"symbol": "USDT", "alias": "USDT", "amount": 5000.0, "value_usd": 5000.0, "location": "Binance"}
-            ]
-            return {"source_used": "stub_shitcoins", "items": demo_data, "warnings": ["Using demo stub dataset (high-risk)."]}
-        
-        else:  # stub ou stub_balanced (par défaut)
-            # Portfolio équilibré: mix de BTC, ETH, alts sérieux
-            demo_data = [
-                {"symbol": "BTC", "alias": "BTC", "amount": 2.5, "value_usd": 105000.0, "location": "Kraken"},
-                {"symbol": "ETH", "alias": "ETH", "amount": 15.75, "value_usd": 47250.0, "location": "Binance"},
-                {"symbol": "USDC", "alias": "USDC", "amount": 25000.0, "value_usd": 25000.0, "location": "Coinbase"},
-                {"symbol": "SOL", "alias": "SOL", "amount": 180.0, "value_usd": 23400.0, "location": "Phantom"},
-                {"symbol": "AVAX", "alias": "AVAX", "amount": 450.0, "value_usd": 13500.0, "location": "Ledger"},
-                {"symbol": "MATIC", "alias": "MATIC", "amount": 12000.0, "value_usd": 9600.0, "location": "MetaMask"},
-                {"symbol": "LINK", "alias": "LINK", "amount": 520.0, "value_usd": 7280.0, "location": "Binance"},
-                {"symbol": "UNI", "alias": "UNI", "amount": 800.0, "value_usd": 6400.0, "location": "Uniswap"},
-                {"symbol": "AAVE", "alias": "AAVE", "amount": 45.0, "value_usd": 5850.0, "location": "Aave"},
-                {"symbol": "WBTC", "alias": "WBTC", "amount": 0.12, "value_usd": 5040.0, "location": "Ledger"},
-                {"symbol": "WETH", "alias": "WETH", "amount": 1.8, "value_usd": 5400.0, "location": "MetaMask"},
-                {"symbol": "USDT", "alias": "USDT", "amount": 8500.0, "value_usd": 8500.0, "location": "Binance"},
-                {"symbol": "ADA", "alias": "ADA", "amount": 15000.0, "value_usd": 6750.0, "location": "Kraken"},
-                {"symbol": "DOT", "alias": "DOT", "amount": 950.0, "value_usd": 4750.0, "location": "Polkadot"},
-                {"symbol": "ATOM", "alias": "ATOM", "amount": 520.0, "value_usd": 4160.0, "location": "Keplr"},
-                {"symbol": "FTM", "alias": "FTM", "amount": 8500.0, "value_usd": 3400.0, "location": "Fantom"},
-                {"symbol": "ALGO", "alias": "ALGO", "amount": 12000.0, "value_usd": 3000.0, "location": "Pera"},
-                {"symbol": "NEAR", "alias": "NEAR", "amount": 1200.0, "value_usd": 2880.0, "location": "Near Wallet"},
-                {"symbol": "ICP", "alias": "ICP", "amount": 350.0, "value_usd": 2450.0, "location": "NNS"},
-                {"symbol": "SAND", "alias": "SAND", "amount": 6000.0, "value_usd": 2400.0, "location": "Binance"},
-                {"symbol": "MANA", "alias": "MANA", "amount": 5500.0, "value_usd": 2200.0, "location": "MetaMask"},
-                {"symbol": "CRV", "alias": "CRV", "amount": 3500.0, "value_usd": 2100.0, "location": "Curve"},
-                {"symbol": "COMP", "alias": "COMP", "amount": 45.0, "value_usd": 1980.0, "location": "Compound"}
-            ]
-            return {"source_used": source, "items": demo_data}
-    
-    if source == "cointracking_api":
-        try:
-            # 1) On charge le snapshot par exchange via CT-API
-            snap = await load_ctapi_exchanges(min_usd=0.0)
-            detailed = snap.get("detailed_holdings") or {}
-
-            # 2) Vue "par coin" via CT-API
-            if ct_file is not None:
-                api_bal = await ct_file.get_current_balances("cointracking_api")
-            else:
-                from connectors.cointracking_api import get_current_balances as _ctapi_bal
-                api_bal = await _ctapi_bal()
-            items = api_bal.get("items") or []
-
-            # 3) Pour CHAQUE coin, on met la location = exchange principal (max value_usd)
-            out = []
-            for it in items:
-                sym = it.get("symbol")
-                loc = pick_primary_location_for_symbol(sym, detailed)
-                out.append({
-                    "symbol": sym,
-                    "alias": it.get("alias") or sym,
-                    "amount": it.get("amount"),
-                    "value_usd": it.get("value_usd"),
-                    "location": loc or "CoinTracking",
-                })
-
-            if not out:
-                return {"source_used": "cointracking_api", "items": [], "error": "no_items_from_api"}
-            return {"source_used": "cointracking_api", "items": out}
-        except httpx.HTTPError as e:
-            logger.error(f"HTTP error fetching CoinTracking API data: {e}")
-            return {"source_used": "cointracking_api", "items": [], "error": f"HTTP error: {str(e)}"}
-        except httpx.TimeoutException as e:
-            logger.error(f"Timeout fetching CoinTracking API data: {e}")
-            return {"source_used": "cointracking_api", "items": [], "error": f"Timeout: {str(e)}"}
-        except (ValueError, KeyError) as e:
-            logger.error(f"Data parsing error from CoinTracking API: {e}")
-            return {"source_used": "cointracking_api", "items": [], "error": f"Parsing error: {str(e)}"}
-
-    if source == "cointracking":
-        # CSV/local uniquement, ne JAMAIS appeler l'API ici
-        items = []
-        try:
-            if ct_file is not None:
-                raw = await ct_file.get_current_balances("cointracking")
-                for r in raw.get("items", []):
-                    items.append({
-                        "symbol": r.get("symbol"),
-                        "alias": r.get("alias") or r.get("symbol"),
-                        "amount": r.get("amount"),
-                        "value_usd": r.get("value_usd"),
-                        "location": r.get("location") or "CoinTracking",
-                    })
-            else:
-                from connectors.cointracking import get_current_balances_from_csv as _csv_bal
-                raw = _csv_bal()  # sync
-                for r in raw.get("items", []):
-                    items.append({
-                        "symbol": r.get("symbol"),
-                        "alias": r.get("alias") or r.get("symbol"),
-                        "amount": r.get("amount"),
-                        "value_usd": r.get("value_usd"),
-                        "location": r.get("location") or "CoinTracking",
-                    })
-        except FileNotFoundError as e:
-            logger.error(f"CSV file not found (source=cointracking): {e}")
-        except PermissionError as e:
-            logger.error(f"Permission denied reading CSV (source=cointracking): {e}")
-        except (ValueError, UnicodeDecodeError) as e:
-            logger.error(f"CSV parsing error (source=cointracking): {e}")
-        return {"source_used": "cointracking", "items": items}
-
-    # --- Fallback CSV/local (ancienne logique) ---
-    items = []
-    try:
-        if ct_file is not None:
-            raw = await ct_file.get_current_balances("cointracking")
-            for r in raw.get("items", []):
-                items.append({
-                    "symbol": r.get("symbol"),
-                    "alias": r.get("alias") or r.get("symbol"),
-                    "amount": r.get("amount"),
-                    "value_usd": r.get("value_usd"),
-                    "location": r.get("location") or "CoinTracking",
-                })
-        else:
-            # Fallback lecture CSV directe si facade indisponible
-            from connectors.cointracking import get_current_balances_from_csv as _csv_bal
-            raw = _csv_bal()  # sync
-            for r in raw.get("items", []):
-                items.append({
-                    "symbol": r.get("symbol"),
-                    "alias": r.get("alias") or r.get("symbol"),
-                    "amount": r.get("amount"),
-                    "value_usd": r.get("value_usd"),
-                    "location": r.get("location") or "CoinTracking",
-                })
-    except FileNotFoundError as e:
-        logger.error(f"CSV file not found (fallback): {e}")
-    except PermissionError as e:
-        logger.error(f"Permission denied reading CSV (fallback): {e}")
-    except (ValueError, UnicodeDecodeError) as e:
-        logger.error(f"CSV parsing error (fallback): {e}")
-
-    return {"source_used": "cointracking", "items": items}
+    # Delegate to BalanceService to break circular dependencies
+    return await balance_service.resolve_current_balances(source=source, user_id=user_id)
 
 
+# Legacy implementation moved to services/balance_service.py for better separation
+# This eliminates circular dependencies with AlertEngine and other modules
 
 # _assign_locations_to_actions moved to api/services/location_assigner.py
 

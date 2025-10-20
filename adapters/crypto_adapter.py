@@ -28,9 +28,9 @@ def _instrument_id(symbol: str) -> str:
 
 
 async def _fetch_balances(user_id: str, source: str) -> Dict[str, Any]:
-    from api.main import resolve_current_balances
+    from services.balance_service import balance_service
 
-    resolved = await resolve_current_balances(source=source, user_id=user_id)
+    resolved = await balance_service.resolve_current_balances(source=source, user_id=user_id)
     items = resolved.get("items", []) if isinstance(resolved, dict) else []
     logger.debug("[wealth][crypto] fetched %s raw balance rows", len(items))
     return {"source_used": resolved.get("source_used", _MODULE), "items": items}
