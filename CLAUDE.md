@@ -7,13 +7,16 @@
 
 ### 1. Multi-Tenant OBLIGATOIRE ⚠️
 ```python
-# Backend: TOUJOURS passer user_id + source
+# Backend: TOUJOURS utiliser les dependencies ou BalanceService
+from api.deps import get_active_user
+from services.balance_service import balance_service
+
 @app.get("/endpoint")
 async def endpoint(
-    source: str = Query("cointracking"),
-    user_id: str = Query("demo")  # OBLIGATOIRE
+    user: str = Depends(get_active_user),
+    source: str = Query("cointracking")
 ):
-    res = await resolve_current_balances(source=source, user_id=user_id)
+    res = await balance_service.resolve_current_balances(source=source, user_id=user)
 ```
 
 ```javascript
@@ -107,18 +110,44 @@ data/users/{user_id}/
 
 ## 🔧 Patterns de Code
 
-### Endpoint API
+### Endpoint API (Nouveau Pattern - Oct 2025)
 ```python
+from api.deps import get_active_user
+from api.utils import success_response, error_response
+from services.balance_service import balance_service
+
 @router.get("/metrics")
 async def get_metrics(
+    user: str = Depends(get_active_user),
     source: str = Query("cointracking"),
-    user_id: str = Query("demo"),
-    min_usd_threshold: float = Query(1.0)
+    min_usd: float = Query(1.0)
 ):
-    # Toujours propager user_id + source
-    data = await service.get_data(user_id, source)
+    # Utiliser BalanceService (pas api.main)
+    res = await balance_service.resolve_current_balances(source=source, user_id=user)
+    items = res.get("items", [])
+
     # Filtrer dust assets
-    return [x for x in data if x.value_usd >= min_usd_threshold]
+    filtered = [x for x in items if x.get("value_usd", 0) >= min_usd]
+
+    # Utiliser response formatters
+    return success_response(filtered, meta={"count": len(filtered)})
+```
+
+### Response Formatting (Nouveau - Oct 2025)
+```python
+from api.utils import success_response, error_response, paginated_response
+
+# Success response
+return success_response(data, meta={"currency": "USD"})
+# → {"ok": true, "data": {...}, "meta": {...}, "timestamp": "..."}
+
+# Error response
+return error_response("Not found", code=404, details={"id": "123"})
+# → {"ok": false, "error": "...", "details": {...}, "timestamp": "..."}
+
+# Paginated response
+return paginated_response(items, total=100, page=1, page_size=50)
+# → {"ok": true, "data": [...], "meta": {"pagination": {...}}, ...}
 ```
 
 ### Frontend Data Loading
@@ -218,12 +247,14 @@ Select-String -Path "logs\app.log" -Pattern "ERROR|WARNING" | Select-Object -Las
 
 ## 🚨 Pièges Fréquents
 
-❌ **Oublier user_id** → Toujours 'demo' par défaut
-❌ **Hardcoder user_id='demo'** dans le code
+❌ **Oublier user_id** → Utiliser `Depends(get_active_user)`
+❌ **Hardcoder user_id='demo'** → Utiliser dependency injection
+❌ **Importer de api.main** → Utiliser `services.balance_service` à la place
 ❌ **fetch() direct** au lieu de window.loadBalanceData()
 ❌ **Mélanger données users** dans caches/fichiers
 ❌ **Inverser Risk Score** dans Decision Index
 ❌ **Oublier de demander restart serveur** → Pas de --reload, toujours demander à l'utilisateur après modifs backend
+❌ **Response format incohérent** → Utiliser success_response() / error_response()
 
 ---
 
@@ -278,7 +309,13 @@ EOF
 
 ## 🔗 Docs Détaillées
 
+### Architecture & Design
 - Architecture: `docs/ARCHITECTURE.md`
+- Code Quality: `AUDIT_REPORT_2025-10-19.md` (audit complet)
+- Refactoring Plans: `GOD_SERVICES_REFACTORING_PLAN.md`
+- Code Consolidation: `DUPLICATE_CODE_CONSOLIDATION.md`
+
+### Features & Systems
 - Risk: `docs/RISK_SEMANTICS.md`, `docs/RISK_SCORE_V2_IMPLEMENTATION.md`
 - P&L: `docs/P&L_TODAY_USAGE.md`
 - Multi-tenant: `docs/SIMULATOR_USER_ISOLATION_FIX.md`
@@ -286,6 +323,9 @@ EOF
 - Sources: `docs/SOURCES_MIGRATION_DATA_FOLDER.md`
 - Logging: `docs/LOGGING.md` (système de logs rotatifs pour debug/IA)
 - Redis: `docs/REDIS_SETUP.md` (installation, config, cache & streaming)
+
+### Session Notes
+- Latest: `SESSION_RESUME_2025-10-20.md` (dependency injection + consolidation)
 
 ---
 
