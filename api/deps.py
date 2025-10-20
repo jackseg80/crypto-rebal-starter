@@ -2,10 +2,11 @@
 Dépendances FastAPI réutilisables.
 Gestion des utilisateurs avec header X-User.
 Redis client pour caching et persistence.
+Common dependency factories for endpoints.
 """
 from __future__ import annotations
-from typing import Optional
-from fastapi import Header, HTTPException, status
+from typing import Optional, Tuple
+from fastapi import Header, HTTPException, status, Query
 import logging
 import os
 
@@ -141,3 +142,107 @@ def get_redis_client() -> Optional[any]:
     except Exception as e:
         logger.warning(f"Redis not available: {e}")
         return None
+
+
+# ============================================================================
+# Common Dependency Factories
+# ============================================================================
+
+def get_user_and_source(
+    user: str = Header(None, alias="X-User"),
+    source: str = Query("auto", description="Data source (auto, cointracking, saxobank)")
+) -> Tuple[str, str]:
+    """
+    Dependency factory for endpoints that need both user_id and source.
+
+    This consolidates the common pattern of extracting user from header
+    and source from query parameters.
+
+    Args:
+        user: User ID from X-User header (optional, defaults to 'demo')
+        source: Data source from query parameter (default: 'auto')
+
+    Returns:
+        Tuple[str, str]: (user_id, source)
+
+    Usage:
+        from api.deps import get_user_and_source
+        from fastapi import Depends
+
+        @app.get("/endpoint")
+        async def endpoint(
+            user_source: Tuple[str, str] = Depends(get_user_and_source)
+        ):
+            user_id, source = user_source
+            # ... use user_id and source
+
+        # Or with unpacking (Python 3.10+)
+        @app.get("/endpoint")
+        async def endpoint(
+            user_id: str = Depends(lambda x=Depends(get_user_and_source): x[0]),
+            source: str = Depends(lambda x=Depends(get_user_and_source): x[1])
+        ):
+            # ... use user_id and source
+
+        # Or simplest (extract from dict):
+        @app.get("/endpoint")
+        async def endpoint(params: dict = Depends(get_user_and_source_dict)):
+            user_id = params["user_id"]
+            source = params["source"]
+    """
+    # Use get_active_user logic for user extraction
+    if not user:
+        user_id = get_default_user()
+        logger.debug(f"No X-User header, using default: {user_id}")
+    else:
+        try:
+            user_id = validate_user_id(user)
+
+            # Dev mode bypass
+            dev_mode = os.getenv("DEV_OPEN_API", "0") == "1"
+            if dev_mode:
+                logger.info(f"DEV MODE: Bypassing authorization for user: {user_id}")
+            elif not is_allowed_user(user_id):
+                logger.warning(f"Unknown user attempted access: {user}")
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Unknown user: {user}"
+                )
+
+            logger.info(f"Active user: {user_id}")
+
+        except ValueError as e:
+            logger.warning(f"Invalid user ID format: {user} - {e}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid user ID format: {e}"
+            )
+
+    return user_id, source
+
+
+def get_user_and_source_dict(
+    user_source: Tuple[str, str] = None
+) -> dict:
+    """
+    Alternative dependency that returns user and source as a dict.
+
+    This is a convenience wrapper around get_user_and_source that returns
+    a dict instead of a tuple for easier unpacking.
+
+    Returns:
+        dict: {"user_id": str, "source": str}
+
+    Usage:
+        @app.get("/endpoint")
+        async def endpoint(params: dict = Depends(get_user_and_source_dict)):
+            user_id = params["user_id"]
+            source = params["source"]
+    """
+    if user_source is None:
+        # This should not happen if used as a dependency
+        user_id, source = get_default_user(), "auto"
+    else:
+        user_id, source = user_source
+
+    return {"user_id": user_id, "source": source}
