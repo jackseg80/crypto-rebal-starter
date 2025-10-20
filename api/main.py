@@ -18,6 +18,8 @@ from api.middlewares import (
     request_logger_middleware,
     no_cache_dev_middleware,
 )
+from api.services.location_assigner import assign_locations_to_actions
+from api.services.price_enricher import enrich_actions_with_prices, get_data_age_minutes
 from fastapi import middleware
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
@@ -442,41 +444,8 @@ def _parse_min_usd(raw: str | None, default: float = 1.0) -> float:
         logger.debug(f"Failed to parse min_usd value '{raw}', using default {default}: {e}")
         return default
 
-def _get_data_age_minutes(source_used: str) -> float:
-    """Retourne l'âge approximatif des données en minutes selon la source"""
-    if source_used == "cointracking":
-        # Pour CSV local, vérifier la date de modification du fichier
-        csv_path = os.getenv("COINTRACKING_CSV")
-        if not csv_path:
-            # Utiliser le même path resolution que dans le connector
-            default_cur = "CoinTracking - Current Balance_mini.csv"
-            candidates = [os.path.join("data", default_cur), default_cur]
-            for candidate in candidates:
-                if candidate and os.path.exists(candidate):
-                    csv_path = candidate
-                    break
-        
-        if csv_path and os.path.exists(csv_path):
-            try:
-                mtime = os.path.getmtime(csv_path)
-                age_seconds = time.time() - mtime
-                return age_seconds / 60.0
-            except Exception as e:
-                logger.warning(f"Failed to get mtime for CSV file {csv_path}: {e}")
-        # Fallback : considérer les données CSV comme récentes pour utiliser prix locaux
-        return 5.0  # 5 minutes par défaut (récent)
-    elif source_used == "cointracking_api":
-        # API données fraîches (cache 60s)
-        return 1.0
-    else:
-        # Stub ou autres sources
-        return 0.0
-
-def _calculate_price_deviation(local_price: float, market_price: float) -> float:
-    """Calcule l'écart en pourcentage entre prix local et marché"""
-    if market_price <= 0:
-        return 0.0
-    return abs(local_price - market_price) / market_price * 100.0
+# _get_data_age_minutes moved to api/services/price_enricher.py
+# _calculate_price_deviation removed (dead code, never called)
 
 def _to_rows(raw: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Normalise les lignes connecteurs -> {symbol, alias, value_usd, location}"""
@@ -818,88 +787,7 @@ async def resolve_current_balances(source: str = Query("cointracking_api"), user
 
 
 
-def _assign_locations_to_actions(plan: dict, rows: list[dict], min_trade_usd: float = 25.0) -> dict:
-    """
-    Ajoute la location aux actions. Pour les SELL, répartit par exchange
-    au prorata des avoirs réels (value_usd) sur chaque exchange.
-    """
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.info(f"🔧 _assign_locations_to_actions CALLED with {len(rows)} rows, {len(plan.get('actions', []))} actions")
-
-    # holdings[symbol][location] -> total value_usd
-    holdings: dict[str, dict[str, float]] = {}
-    locations_seen = set()
-    for r in rows or []:
-        sym = (r.get("symbol") or "").upper()
-        loc = r.get("location") or "Unknown"
-        locations_seen.add(loc)
-        val = float(r.get("value_usd") or 0.0)
-        if sym and val > 0:
-            holdings.setdefault(sym, {}).setdefault(loc, 0.0)
-            holdings[sym][loc] += val
-
-    logger.info(f"📍 _assign_locations_to_actions: {len(locations_seen)} locations found: {sorted(locations_seen)}")
-    logger.info(f"📍 Sample holdings: {dict(list(holdings.items())[:3])}")
-    
-
-    actions = plan.get("actions") or []
-    out_actions: list[dict] = []
-
-    for a in actions:
-        sym = (a.get("symbol") or "").upper()
-        usd = float(a.get("usd") or 0.0)
-        loc = a.get("location")
-
-        # Si la location est déjà définie ET ce n'est pas CoinTracking générique, on garde.
-        if loc and loc not in ["Unknown", "CoinTracking", "Cointracking"]:
-            out_actions.append(a)
-            continue
-
-        # SELL: on découpe par exchanges où le coin est détenu
-        if usd < 0 and sym in holdings and holdings[sym]:
-            to_sell = -usd
-            locs = [(ex, v) for ex, v in holdings[sym].items() if v > 0]
-            total_val = sum(v for _, v in locs)
-
-            # Pas d’avoirs détectés -> laisser 'Unknown'
-            if total_val <= 0:
-                a["location"] = "Unknown"
-                out_actions.append(a)
-                continue
-
-            # Répartition proportionnelle par value_usd
-            alloc_sum = 0.0
-            tmp_parts: list[dict] = []
-            for i, (ex, val) in enumerate(locs):
-                share = to_sell * (val / total_val)
-                if i < len(locs) - 1:
-                    part = round(share, 2)
-                    alloc_sum += part
-                else:
-                    part = round(to_sell - alloc_sum, 2)  # dernier = reste pour somme exacte
-
-                if part >= max(0.01, float(min_trade_usd or 0)):
-                    na = dict(a)
-                    na["usd"] = -part
-                    na["location"] = ex
-                    tmp_parts.append(na)
-
-            # Si tout est sous le min_trade_usd, on regroupe sur le plus gros exchange
-            if not tmp_parts:
-                ex_big = max(locs, key=lambda t: t[1])[0]
-                na = dict(a)
-                na["location"] = ex_big
-                tmp_parts.append(na)
-
-            out_actions.extend(tmp_parts)
-        else:
-            # BUY ou symbole inconnu: on laisse tel quel (UI choisira l’exchange)
-            out_actions.append(a)
-
-    plan["actions"] = out_actions
-
-    return plan
+# _assign_locations_to_actions moved to api/services/location_assigner.py
 
 # Helper function moved to unified_data.py to avoid circular imports
 
@@ -969,13 +857,13 @@ async def rebalance_plan(
         min_trade_usd=float(payload.get("min_trade_usd", 25.0)),
     )
 
-    logger.debug(f"🔧 BEFORE _assign_locations_to_actions: plan has {len(plan.get('actions', []))} actions")
-    plan = _assign_locations_to_actions(plan, rows, min_trade_usd=float(payload.get("min_trade_usd", 25.0)))
-    logger.debug(f"🔧 AFTER _assign_locations_to_actions: plan has {len(plan.get('actions', []))} actions")
+    logger.debug(f"🔧 BEFORE assign_locations_to_actions: plan has {len(plan.get('actions', []))} actions")
+    plan = assign_locations_to_actions(plan, rows, min_trade_usd=float(payload.get("min_trade_usd", 25.0)))
+    logger.debug(f"🔧 AFTER assign_locations_to_actions: plan has {len(plan.get('actions', []))} actions")
 
     # enrichissement prix (selon "pricing")
     source_used = unified_data.get("source_used", source)
-    plan = await _enrich_actions_with_prices(plan, rows, pricing_mode=pricing, source_used=source_used, diagnostic=pricing_diag)
+    plan = await enrich_actions_with_prices(plan, rows, pricing_mode=pricing, source_used=source_used, diagnostic=pricing_diag)
 
     # Mettre à jour les exec_hints basés sur les locations assignées (après enrichissement prix)
     from services.rebalance import _format_hint_for_location, _get_exec_hint
@@ -1047,172 +935,7 @@ async def rebalance_plan_csv(
 
 
 # ---------- helpers prix + csv ----------
-async def _enrich_actions_with_prices(plan: Dict[str, Any], rows: List[Dict[str, Any]], pricing_mode: str = "local", source_used: str = "", diagnostic: bool = False) -> Dict[str, Any]:
-    """
-    Enrichit les actions avec les prix selon 3 modes :
-    - "local" : utilise uniquement les prix dérivés des balances
-    - "auto" : utilise uniquement les prix d'API externes
-    - "hybrid" : commence par local, corrige avec marché si données anciennes ou écart important
-    """
-    # Configuration hybride
-    max_age_min = float(os.getenv("PRICE_HYBRID_MAX_AGE_MIN", "30"))
-    max_deviation_pct = float(os.getenv("PRICE_HYBRID_DEVIATION_PCT", "5.0"))
-    
-    # Calculer les prix locaux (toujours nécessaire pour hybrid)
-    local_price_map: Dict[str, float] = {}
-    for row in rows or []:
-        sym = row.get("symbol")
-        if not sym:
-            continue
-        value_usd = float(row.get("value_usd") or 0.0)
-        amount = float(row.get("amount") or 0.0)
-        if value_usd > 0 and amount > 0:
-            local_price_map[sym.upper()] = value_usd / amount
-
-    # Préparer les prix selon le mode
-    price_map: Dict[str, float] = {}
-    market_price_map: Dict[str, float] = {}
-    
-    original_mode = pricing_mode
-
-    if pricing_mode == "local":
-        price_map = local_price_map.copy()
-    elif pricing_mode == "auto":
-        # Auto se comporte comme l'hybride: préférer local quand frais, sinon marché
-        price_map = local_price_map.copy()
-
-        symbols = set()
-        for a in plan.get("actions", []) or []:
-            sym = a.get("symbol")
-            if sym:
-                symbols.add(sym.upper())
-
-        data_age_min = _get_data_age_minutes(source_used)
-        needs_market_correction = data_age_min > max_age_min
-        missing_local_prices = symbols - set(local_price_map.keys())
-
-        if (needs_market_correction or missing_local_prices) and symbols:
-            try:
-                from services.pricing import aget_prices_usd
-                market_price_map = await aget_prices_usd(list(symbols))
-            except Exception as e:
-                logger.debug(f"Async pricing failed, falling back to sync: {e}")
-                from services.pricing import get_prices_usd
-                market_price_map = get_prices_usd(list(symbols))
-            market_price_map = {k: v for k, v in market_price_map.items() if v is not None}
-
-        # Forcer la logique de sélection hybride pour la suite
-        pricing_mode = "hybrid"
-    elif pricing_mode == "hybrid":
-        # Commencer par prix locaux
-        price_map = local_price_map.copy()
-        
-        # Déterminer si correction nécessaire  
-        data_age_min = _get_data_age_minutes(source_used)
-        needs_market_correction = data_age_min > max_age_min
-        
-        # Récupérer les symboles nécessaires
-        symbols = set()
-        for a in plan.get("actions", []) or []:
-            sym = a.get("symbol")
-            if sym:
-                symbols.add(sym.upper())
-        
-        # Vérifier si on a des prix locaux pour les symboles nécessaires
-        missing_local_prices = symbols - set(local_price_map.keys())
-        needs_market_fallback = bool(missing_local_prices)
-        
-        # Récupérer prix marché si données anciennes OU si prix locaux manquants
-        if (needs_market_correction or needs_market_fallback) and symbols:
-            try:
-                from services.pricing import aget_prices_usd
-                market_price_map = await aget_prices_usd(list(symbols))
-            except Exception as e:
-                logger.debug(f"Async pricing failed, falling back to sync: {e}")
-                from services.pricing import get_prices_usd
-                market_price_map = get_prices_usd(list(symbols))
-            market_price_map = {k: v for k, v in market_price_map.items() if v is not None}
-
-    # Enrichir les actions
-    pricing_details = [] if diagnostic else None
-    for a in plan.get("actions", []) or []:
-        sym = a.get("symbol")
-        if not sym or a.get("usd") is None or a.get("price_used"):
-            continue
-            
-        sym_upper = sym.upper()
-        local_price = local_price_map.get(sym_upper)
-        market_price = market_price_map.get(sym_upper)
-        
-        # Déterminer le prix final et la source
-        final_price = None
-        price_source = "local"
-        
-        if pricing_mode == "local":
-            if local_price:
-                final_price = local_price
-                price_source = "local"
-            # Pas de fallback en mode local pur
-        elif pricing_mode == "auto":
-            if market_price:
-                final_price = market_price
-                price_source = "market"
-        elif pricing_mode == "hybrid":
-            # Logique hybride avec fallback intelligent
-            data_age_min = _get_data_age_minutes(source_used)
-            
-            if data_age_min > max_age_min:
-                # Données anciennes -> privilégier prix marché
-                if market_price:
-                    final_price = market_price
-                    price_source = "market"
-                elif local_price:
-                    final_price = local_price
-                    price_source = "local"
-            else:
-                # Données fraîches -> privilégier prix local, fallback marché
-                if local_price:
-                    final_price = local_price
-                    price_source = "local"
-                elif market_price:
-                    final_price = market_price
-                    price_source = "market"
-        
-        # Appliquer le prix final
-        if final_price and final_price > 0:
-            a["price_used"] = float(final_price)
-            a["price_source"] = price_source
-            try:
-                a["est_quantity"] = round(float(a["usd"]) / float(final_price), 8)
-            except Exception as e:
-                logger.warning(f"Failed to calculate est_quantity for action {a.get('symbol')}: {e}")
-        
-        if diagnostic:
-            pricing_details.append({
-                "symbol": sym_upper,
-                "local_price": local_price,
-                "market_price": market_price,
-                "effective_price": final_price,
-                "price_source": price_source
-            })
-    
-    # Ajouter métadonnées sur le pricing
-    if not plan.get("meta"):
-        plan["meta"] = {}
-    
-    # Reporter le mode externe (UI) et la stratégie interne
-    plan["meta"]["pricing_mode"] = original_mode
-    plan["meta"]["pricing_internal_mode"] = pricing_mode
-    if pricing_mode == "hybrid":
-        plan["meta"]["pricing_hybrid"] = {
-            "max_age_min": max_age_min,
-            "max_deviation_pct": max_deviation_pct,
-            "data_age_min": _get_data_age_minutes(source_used)
-        }
-    if diagnostic and pricing_details is not None:
-        plan["meta"]["pricing_details"] = pricing_details
-    
-    return plan
+# _enrich_actions_with_prices moved to api/services/price_enricher.py
 
 def _to_csv(actions: List[Dict[str, Any]]) -> str:
     lines = ["group,alias,symbol,action,usd,est_quantity,price_used,exec_hint"]
