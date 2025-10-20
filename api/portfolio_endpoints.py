@@ -10,16 +10,13 @@ Endpoints:
 """
 
 from fastapi import APIRouter, Query, HTTPException
-from typing import Dict, Any, TYPE_CHECKING
+from typing import Dict, Any
 import logging
 
 from services.portfolio import PortfolioAnalytics
 
-# Lazy import to avoid circular dependency with api.main
-if TYPE_CHECKING:
-    from api.main import resolve_current_balances
-else:
-    resolve_current_balances = None
+# Use BalanceService instead of importing from api.main to avoid circular dependency
+# No TYPE_CHECKING needed anymore since we use the service directly
 
 logger = logging.getLogger(__name__)
 
