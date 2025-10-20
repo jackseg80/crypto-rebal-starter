@@ -28,13 +28,17 @@ def _load_cache_from_disk():
             with open(_cache_file, 'r', encoding='utf-8') as f:
                 disk_cache = json.load(f)
                 # Filtrer les entrées expirées
-                now = _now()
+                now = time.time()  # Use time.time() directly to avoid circular dependency
                 for symbol, (price, ts) in disk_cache.items():
                     if now - ts <= PRICE_CACHE_TTL:
                         _cache[symbol] = (price, ts)
                 logger.debug(f"Cache chargé depuis le disque: {len(_cache)} entrées")
-    except Exception as e:
-        logger.debug(f"Erreur chargement cache: {e}")
+    except FileNotFoundError as e:
+        logger.debug(f"Fichier cache non trouvé: {e}")
+    except PermissionError as e:
+        logger.debug(f"Permission refusée pour lire le cache: {e}")
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.debug(f"Erreur parsing cache JSON: {e}")
 
 def _save_cache_to_disk():
     """Sauvegarder le cache sur disque"""
@@ -42,8 +46,10 @@ def _save_cache_to_disk():
         os.makedirs(os.path.dirname(_cache_file), exist_ok=True)
         with open(_cache_file, 'w', encoding='utf-8') as f:
             json.dump(_cache, f, indent=2)
-    except Exception as e:
-        logger.debug(f"Erreur sauvegarde cache: {e}")
+    except (OSError, PermissionError) as e:
+        logger.debug(f"Erreur I/O sauvegarde cache: {e}")
+    except (ValueError, TypeError) as e:
+        logger.debug(f"Erreur données sauvegarde cache: {e}")
 
 # Charger le cache au démarrage du module
 _load_cache_from_disk()
@@ -141,7 +147,9 @@ def _from_file(symbol: str):
         val = data.get(symbol.upper())
         if val:
             return float(val)
-    except Exception:
+    except FileNotFoundError:
+        return None
+    except (json.JSONDecodeError, ValueError, KeyError):
         return None
     return None
 
@@ -156,7 +164,7 @@ def _from_binance(symbol: str):
         return float(p) if p else None
     except URLError:
         return None
-    except Exception:
+    except (json.JSONDecodeError, ValueError, KeyError):
         return None
 
 def _from_coingecko(symbol: str):
@@ -171,7 +179,7 @@ def _from_coingecko(symbol: str):
         return float(p) if p else None
     except URLError:
         return None
-    except Exception:
+    except (json.JSONDecodeError, ValueError, KeyError):
         return None
 
 _PROVIDERS = {
@@ -204,8 +212,14 @@ async def _from_binance_async(symbol: str):
             obj = r.json()
             p = obj.get("price")
             return float(p) if p else None
-    except Exception as e:
-        logger.debug("Binance async provider error for %s: %s", symbol, e)
+    except httpx.HTTPError as e:
+        logger.debug("Binance async HTTP error for %s: %s", symbol, e)
+        return None
+    except httpx.TimeoutException as e:
+        logger.debug("Binance async timeout for %s: %s", symbol, e)
+        return None
+    except (json.JSONDecodeError, ValueError, KeyError) as e:
+        logger.debug("Binance async parsing error for %s: %s", symbol, e)
         return None
 
 
@@ -222,8 +236,14 @@ async def _from_coingecko_async(symbol: str):
             obj = r.json()
             p = (obj.get(cid) or {}).get("usd")
             return float(p) if p else None
-    except Exception as e:
-        logger.debug("Coingecko async provider error for %s: %s", symbol, e)
+    except httpx.HTTPError as e:
+        logger.debug("Coingecko async HTTP error for %s: %s", symbol, e)
+        return None
+    except httpx.TimeoutException as e:
+        logger.debug("Coingecko async timeout for %s: %s", symbol, e)
+        return None
+    except (json.JSONDecodeError, ValueError, KeyError) as e:
+        logger.debug("Coingecko async parsing error for %s: %s", symbol, e)
         return None
 
 

@@ -39,12 +39,12 @@ def _atomic_json_dump(data: dict | list, path: Path | str) -> None:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         os.replace(tmp_path, path)  # Atomique sous Windows ≥ 10
-    except Exception:
+    except (OSError, PermissionError, ValueError) as e:
         # Nettoyer le fichier temporaire en cas d'erreur
         if os.path.exists(tmp_path):
             try:
                 os.remove(tmp_path)
-            except:
+            except OSError:
                 pass
         raise
 
@@ -370,8 +370,14 @@ class PortfolioAnalytics:
                         all_historical_data = json.load(f)
                 else:
                     all_historical_data = []
-            except Exception as e:
-                logger.error(f"Erreur chargement historique existant: {e}")
+            except FileNotFoundError as e:
+                logger.error(f"Fichier historique non trouvé: {e}")
+                all_historical_data = []
+            except PermissionError as e:
+                logger.error(f"Permission refusée pour lire l'historique: {e}")
+                all_historical_data = []
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.error(f"Erreur parsing JSON historique: {e}")
                 all_historical_data = []
 
             # Ajouter ou mettre à jour snapshot (upsert journalier)
@@ -399,8 +405,11 @@ class PortfolioAnalytics:
             logger.info(f"Portfolio snapshot sauvé ({metrics['total_value_usd']:.2f} USD) for user={user_id}, source={source}")
             return True
 
-        except Exception as e:
-            logger.error(f"Erreur sauvegarde snapshot: {e}")
+        except (OSError, PermissionError) as e:
+            logger.error(f"Erreur I/O sauvegarde snapshot: {e}")
+            return False
+        except (json.JSONDecodeError, ValueError, TypeError) as e:
+            logger.error(f"Erreur données sauvegarde snapshot: {e}")
             return False
     
     def get_portfolio_trend(self, days: int = 30) -> Dict[str, Any]:
@@ -555,8 +564,12 @@ class PortfolioAnalytics:
                     ]
                     logger.info(f"Loaded {len(filtered)} historical entries for user={user_id}, source={source} (total={len(all_data)})")
                     return filtered
-        except Exception as e:
-            logger.error(f"Erreur chargement données historiques: {e}")
+        except FileNotFoundError as e:
+            logger.error(f"Fichier données historiques non trouvé: {e}")
+        except PermissionError as e:
+            logger.error(f"Permission refusée pour lire les données historiques: {e}")
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.error(f"Erreur parsing données historiques: {e}")
 
         return []
     
@@ -589,9 +602,15 @@ class PortfolioAnalytics:
             
             # Si pas trouvé, retourner "Others"
             return "Others"
-            
-        except Exception as e:
-            logger.error(f"Erreur récupération groupe pour {symbol}: {e}")
+
+        except FileNotFoundError as e:
+            logger.error(f"Fichier taxonomie non trouvé pour {symbol}: {e}")
+            return "Others"
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.error(f"Erreur parsing taxonomie pour {symbol}: {e}")
+            return "Others"
+        except (KeyError, AttributeError) as e:
+            logger.error(f"Erreur structure données taxonomie pour {symbol}: {e}")
             return "Others"
 
 # Instance globale
