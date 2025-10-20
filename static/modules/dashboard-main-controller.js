@@ -583,6 +583,18 @@ function cleanupDashboard() {
         window.portfolioChart = null;
     }
 
+    // ✅ Clear all cached data references
+    dashboardData.portfolio = null;
+    dashboardData.connections = null;
+    dashboardData.recentActivity = null;
+    dashboardData.executionStats = null;
+
+    // ✅ Clear guards
+    isLoadingDashboard = false;
+    isRefreshingSaxo = false;
+    isRefreshingBanks = false;
+    isRefreshingGlobal = false;
+
     console.debug('✅ Dashboard cleanup complete');
 }
 
@@ -595,6 +607,12 @@ async function loadDashboardData() {
 
     isLoadingDashboard = true;
     try {
+        // ✅ CRITICAL: Clear old data to prevent memory leaks
+        dashboardData.portfolio = null;
+        dashboardData.connections = null;
+        dashboardData.recentActivity = null;
+        dashboardData.executionStats = null;
+
         // Clear any potential cached data
         const currentTimestamp = Date.now();
         console.debug(`🔄 loadDashboardData called at ${currentTimestamp} with source: ${globalConfig.get('data_source')}`);
