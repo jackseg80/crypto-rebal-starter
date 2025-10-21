@@ -130,6 +130,7 @@ from api.risk_endpoints import router as risk_router
 from api.risk_dashboard_endpoints import router as risk_dashboard_router
 from api.risk_bourse_endpoints import router as risk_bourse_router
 from api.ml_bourse_endpoints import router as ml_bourse_router
+from api.ml_crypto_endpoints import router as ml_crypto_router
 from api.execution_history import router as execution_history_router
 from api.monitoring_advanced import router as monitoring_advanced_router
 from api.portfolio_monitoring import router as portfolio_monitoring_router
@@ -680,6 +681,7 @@ app.include_router(csv_router)
 app.include_router(saxo_router)
 app.include_router(risk_bourse_router)  # Risk management pour Bourse/Saxo
 app.include_router(ml_bourse_router)  # ML predictions pour Bourse/Saxo
+app.include_router(ml_crypto_router, prefix="/api/ml/crypto", tags=["ML Crypto"])  # ML regime detection pour Bitcoin
 app.include_router(portfolio_optimization_router)
 app.include_router(performance_router)
 app.include_router(alerts_router)
