@@ -433,26 +433,21 @@ class BTCRegimeDetector:
             }
 
         # Rule 4: CORRECTION (fallback before HMM)
-        # Moderate drawdown (-50% < DD < -5%) OR elevated volatility (>40%)
-        # Prevents HMM from incorrectly labeling corrections as "Bear Market"
-        if (-0.50 < drawdown < -0.05) or (volatility > 0.40):
+        # Moderate drawdown (-50% < DD < -5%) AND elevated volatility (>40%)
+        # STRICTER: Both conditions required (changed from OR to AND)
+        # This prevents high-vol bull/expansion periods from being marked as Correction
+        if (-0.50 < drawdown < -0.05) and (volatility > 0.40):
             confidence = 0.85
             # Higher confidence for deeper corrections
             if drawdown < -0.30:
                 confidence = 0.90
-
-            reason_parts = []
-            if -0.50 < drawdown < -0.05:
-                reason_parts.append(f'Moderate drawdown {drawdown:.1%}')
-            if volatility > 0.40:
-                reason_parts.append(f'Elevated volatility {volatility:.1%}')
 
             return {
                 'regime_id': 1,
                 'regime_name': 'Correction',
                 'confidence': confidence,
                 'method': 'rule_based',
-                'reason': ' + '.join(reason_parts)
+                'reason': f'Moderate drawdown {drawdown:.1%} + Elevated volatility {volatility:.1%}'
             }
 
         # No clear rule-based detection → defer to HMM
