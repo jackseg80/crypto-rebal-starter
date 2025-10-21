@@ -187,6 +187,15 @@ function createTimelineChart(historyData) {
         btcRegimeChart.destroy();
     }
 
+    // Ensure canvas retains dimensions after destroy
+    // Canvas has inline style height: 500px; width: 100%
+    // But we also ensure parent container has proper positioning
+    const container = canvas.parentElement;
+    if (container) {
+        container.style.position = 'relative';
+        container.style.minHeight = '550px';
+    }
+
     // Prepare data
     const dates = historyData.dates || [];
     const prices = historyData.prices || [];
