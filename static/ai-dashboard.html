@@ -2039,27 +2039,46 @@
         async function loadStockRegimeData() {
             try {
                 const config = await fetchUserConfig();
+                debugLogger.debug('📡 Fetching stock regime from:', `${config.api_base_url}/api/ml/predict`);
+
                 const response = await fetch(`${config.api_base_url}/api/ml/predict`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ assets: ['BTC'], include_regime: true, include_volatility: false })
                 });
 
+                debugLogger.debug('📡 Stock regime response status:', response.status);
+
                 if (response.ok) {
                     const data = await response.json();
+                    debugLogger.debug('📡 Stock regime data received:', data);
+
                     if (data.regime_prediction) {
                         const regimeName = data.regime_prediction.regime_name || data.regime_prediction.regime || 'Unknown';
                         const confidences = data.regime_prediction.probabilities || {};
 
                         // Find max confidence
-                        const maxConfidence = Math.max(...Object.values(confidences)) * 100;
+                        const maxConfidence = Object.keys(confidences).length > 0
+                            ? Math.max(...Object.values(confidences)) * 100
+                            : 0;
 
                         // Update UI
                         document.getElementById('stock-regime-name').textContent = regimeName;
-                        document.getElementById('stock-regime-confidence').textContent = maxConfidence.toFixed(1) + '%';
+                        document.getElementById('stock-regime-confidence').textContent = maxConfidence > 0
+                            ? maxConfidence.toFixed(1) + '%'
+                            : 'N/A';
 
                         debugLogger.debug('✅ Stock regime loaded:', regimeName, maxConfidence.toFixed(1) + '%');
+                    } else {
+                        debugLogger.warn('⚠️ No regime_prediction in response');
+                        document.getElementById('stock-regime-name').textContent = 'N/A';
+                        document.getElementById('stock-regime-confidence').textContent = 'N/A';
                     }
+                } else {
+                    const errorText = await response.text();
+                    debugLogger.error('❌ Stock regime API error:', response.status, errorText);
+                    document.getElementById('stock-regime-name').textContent = 'API Error';
+                    document.getElementById('stock-regime-confidence').textContent = '--';
                 }
             } catch (error) {
                 debugLogger.error('❌ Failed to load stock regime:', error);
@@ -2072,15 +2091,21 @@
         async function loadCrossAssetComparison() {
             try {
                 const config = await fetchUserConfig();
+                debugLogger.debug('📡 Fetching cross-asset comparison data...');
 
                 // Load Bitcoin regime
+                debugLogger.debug('📡 Fetching BTC regime from:', `${config.api_base_url}/api/ml/crypto/regime?symbol=BTC&lookback_days=365`);
                 const btcResponse = await fetch(`${config.api_base_url}/api/ml/crypto/regime?symbol=BTC&lookback_days=365`);
                 let btcData = null;
                 if (btcResponse.ok) {
                     btcData = await btcResponse.json();
+                    debugLogger.debug('📡 BTC regime data received:', btcData);
+                } else {
+                    debugLogger.error('❌ BTC regime API error:', btcResponse.status);
                 }
 
-                // Load Stock regime (reuse from above)
+                // Load Stock regime
+                debugLogger.debug('📡 Fetching stock regime for comparison...');
                 const stockResponse = await fetch(`${config.api_base_url}/api/ml/predict`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -2089,27 +2114,66 @@
                 let stockData = null;
                 if (stockResponse.ok) {
                     stockData = await stockResponse.json();
+                    debugLogger.debug('📡 Stock regime data received for comparison:', stockData);
+                } else {
+                    debugLogger.error('❌ Stock regime API error:', stockResponse.status);
                 }
 
                 // Update comparison table - Stock
                 if (stockData && stockData.regime_prediction) {
                     const regimeName = stockData.regime_prediction.regime_name || stockData.regime_prediction.regime || 'Unknown';
                     const confidences = stockData.regime_prediction.probabilities || {};
-                    const maxConfidence = Math.max(...Object.values(confidences)) * 100;
+                    const maxConfidence = Object.keys(confidences).length > 0
+                        ? Math.max(...Object.values(confidences)) * 100
+                        : 0;
 
                     document.getElementById('comparison-stock-regime').textContent = regimeName;
-                    document.getElementById('comparison-stock-confidence').textContent = maxConfidence.toFixed(1) + '%';
+                    document.getElementById('comparison-stock-confidence').textContent = maxConfidence > 0
+                        ? maxConfidence.toFixed(1) + '%'
+                        : 'N/A';
+                    debugLogger.debug('✅ Stock comparison updated:', regimeName, maxConfidence.toFixed(1) + '%');
                 } else {
+                    debugLogger.warn('⚠️ No stock regime data for comparison');
                     document.getElementById('comparison-stock-regime').textContent = 'N/A';
                     document.getElementById('comparison-stock-confidence').textContent = '--';
                 }
 
                 // Update comparison table - Bitcoin
-                if (btcData && btcData.current_regime) {
-                    document.getElementById('comparison-btc-regime').textContent = btcData.current_regime;
-                    document.getElementById('comparison-btc-confidence').textContent = (btcData.confidence * 100).toFixed(1) + '%';
-                    document.getElementById('comparison-btc-method').textContent = btcData.detection_method === 'rule_based' ? 'Rule-Based' : 'HMM';
+                // Try different possible response formats
+                let btcRegime = null;
+                let btcConfidence = null;
+                let btcMethod = null;
+
+                if (btcData) {
+                    // Format 1: Direct fields (current_regime, confidence, detection_method)
+                    if (btcData.current_regime) {
+                        btcRegime = btcData.current_regime;
+                        btcConfidence = btcData.confidence;
+                        btcMethod = btcData.detection_method;
+                    }
+                    // Format 2: Nested in data object
+                    else if (btcData.data && btcData.data.current_regime) {
+                        btcRegime = btcData.data.current_regime;
+                        btcConfidence = btcData.data.confidence;
+                        btcMethod = btcData.data.detection_method;
+                    }
+                    // Format 3: regime_name field
+                    else if (btcData.regime_name) {
+                        btcRegime = btcData.regime_name;
+                        btcConfidence = btcData.confidence;
+                        btcMethod = btcData.detection_method;
+                    }
+                }
+
+                if (btcRegime) {
+                    document.getElementById('comparison-btc-regime').textContent = btcRegime;
+                    document.getElementById('comparison-btc-confidence').textContent = btcConfidence
+                        ? (btcConfidence * 100).toFixed(1) + '%'
+                        : 'N/A';
+                    document.getElementById('comparison-btc-method').textContent = btcMethod === 'rule_based' ? 'Rule-Based' : 'HMM';
+                    debugLogger.debug('✅ BTC comparison updated:', btcRegime, btcConfidence);
                 } else {
+                    debugLogger.warn('⚠️ No BTC regime data for comparison, full response:', btcData);
                     document.getElementById('comparison-btc-regime').textContent = 'N/A';
                     document.getElementById('comparison-btc-confidence').textContent = '--';
                     document.getElementById('comparison-btc-method').textContent = '--';
