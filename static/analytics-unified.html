@@ -11,6 +11,8 @@
   <link rel="stylesheet" href="components/governance-panel.css">
   <link rel="stylesheet" href="components/decision-index-panel.css?v=20251015fixed">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
   <script>
     // ✅ Enregistrement datalabels (idempotent)
@@ -20,6 +22,13 @@
       window.Chart.defaults.set('plugins.datalabels', { display: false });
       window.__di_dl_registered__ = true;
       console.debug('✅ chartjs-plugin-datalabels registered (global display: false)');
+    }
+
+    // ✅ Enregistrement annotation plugin pour Bitcoin regime events
+    if (window.Chart && window.ChartAnnotation && !window.__di_annotation_registered__) {
+      window.Chart.register(window.ChartAnnotation);
+      window.__di_annotation_registered__ = true;
+      console.debug('✅ chartjs-plugin-annotation registered');
     }
   </script>
   <script src="debug-logger.js"></script>
@@ -34,11 +43,37 @@
       selectEffectiveCap,
       selectGovernanceTimestamp
     } from './selectors/governance.js';
+    import { initializeBTCRegimeChart } from './modules/btc-regime-chart.js';
 
     // Rendre les sélecteurs accessibles globalement
     window.selectContradiction01 = selectContradiction01;
     window.selectEffectiveCap = selectEffectiveCap;
     window.selectGovernanceTimestamp = selectGovernanceTimestamp;
+
+    // Initialize Bitcoin Regime Chart when DOM is ready
+    document.addEventListener('DOMContentLoaded', () => {
+      // Wait for tab to be visible before initializing chart
+      const intelligenceTab = document.querySelector('[data-tab="intelligence-ml"]');
+      if (intelligenceTab) {
+        const observer = new MutationObserver((mutations) => {
+          mutations.forEach((mutation) => {
+            if (mutation.target.style.display !== 'none') {
+              initializeBTCRegimeChart('btc-regime-section');
+              observer.disconnect();
+            }
+          });
+        });
+
+        // Start observing if tab is not visible yet
+        const tabPanel = document.getElementById('intelligence-ml');
+        if (tabPanel && tabPanel.style.display === 'none') {
+          observer.observe(tabPanel, { attributes: true, attributeFilter: ['style'] });
+        } else {
+          // Tab is already visible, init immediately
+          initializeBTCRegimeChart('btc-regime-section');
+        }
+      }
+    });
 
     // Ancres pour analytics-unified.html - pointent vers le contenu réel
     initDeepLinks({
@@ -514,6 +549,108 @@
           🤖 Ouvrir ML Command Center (Vue Ops)
         </a>
       </div>
+
+      <!-- Bitcoin Regime Detection Section -->
+      <div class="btc-regime-section" style="margin-top: 3rem;" id="btc-regime-section">
+        <h3 style="margin-bottom: 1.5rem;">
+          ₿ Bitcoin Regime Detection (Hybrid System)
+          <small style="font-size: 0.75rem; font-weight: 400; color: var(--theme-text-muted); margin-left: 0.5rem;">
+            Rule-Based + HMM Fusion
+          </small>
+        </h3>
+
+        <!-- Current Regime Summary Cards -->
+        <div class="btc-regime-summary" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+          <!-- Current Regime -->
+          <div class="metric-card">
+            <h5>Current Regime</h5>
+            <div class="metric-value">
+              <span id="btc-current-regime-name" class="regime-chip">Loading...</span>
+            </div>
+            <small>Hybrid Detection</small>
+          </div>
+
+          <!-- Confidence -->
+          <div class="metric-card">
+            <h5>Confidence</h5>
+            <div class="metric-value" id="btc-current-regime-confidence">--</div>
+            <small>Detection Certainty</small>
+          </div>
+
+          <!-- Detection Method -->
+          <div class="metric-card">
+            <h5>Detection Method</h5>
+            <div class="metric-value">
+              <span id="btc-current-regime-method" class="detection-method">--</span>
+            </div>
+            <small>Rule-Based or HMM</small>
+          </div>
+
+          <!-- Rule Reason (conditional) -->
+          <div class="metric-card" id="btc-regime-reason-card" style="display: none;">
+            <h5>Rule Trigger</h5>
+            <div class="metric-value" style="font-size: 0.85rem;" id="btc-current-regime-reason">--</div>
+            <small>Detection Criteria</small>
+          </div>
+        </div>
+
+        <!-- Timeframe Selector -->
+        <div class="btc-regime-timeframe-selector" style="display: flex; gap: 0.5rem; margin-bottom: 1rem; justify-content: center; flex-wrap: wrap;">
+          <button data-days="365" class="timeframe-btn active">1 Year</button>
+          <button data-days="730">2 Years</button>
+          <button data-days="1825">5 Years</button>
+          <button data-days="3650">10 Years</button>
+        </div>
+
+        <!-- Loading/Error Messages -->
+        <div id="btc-regime-loading-message" style="display: none; text-align: center; padding: 2rem; color: var(--theme-text-muted);">
+          ⏳ Loading Bitcoin regime data...
+        </div>
+        <div id="btc-regime-error-message" style="display: none; text-align: center; padding: 2rem; color: var(--danger);">
+          <!-- Error message will be inserted here -->
+        </div>
+
+        <!-- Timeline Chart -->
+        <div id="btc-regime-chart-container" style="background: var(--theme-surface); border-radius: var(--radius-md); padding: 1.5rem; border: 1px solid var(--theme-border); margin-bottom: 2rem;">
+          <canvas id="btc-regime-timeline-chart" style="max-height: 500px;"></canvas>
+        </div>
+
+        <!-- Regime Probabilities Chart -->
+        <div class="btc-regime-probabilities-container" style="background: var(--theme-surface); border-radius: var(--radius-md); padding: 1.5rem; border: 1px solid var(--theme-border);">
+          <canvas id="btc-regime-probabilities-chart" style="max-height: 300px;"></canvas>
+        </div>
+
+        <!-- Regime Legend -->
+        <div class="btc-regime-legend" style="margin-top: 1.5rem; padding: 1rem; background: var(--theme-surface-elevated); border-radius: var(--radius-sm); display: flex; gap: 1.5rem; flex-wrap: wrap; justify-content: center;">
+          <div class="legend-item">
+            <span class="regime-chip bear" style="display: inline-block; padding: 0.25rem 0.75rem; border-radius: var(--radius-sm); font-size: 0.85rem;">Bear Market</span>
+            <small style="display: block; margin-top: 0.25rem; color: var(--theme-text-muted);">DD ≤ -50%, 30d+</small>
+          </div>
+          <div class="legend-item">
+            <span class="regime-chip correction" style="display: inline-block; padding: 0.25rem 0.75rem; border-radius: var(--radius-sm); font-size: 0.85rem;">Correction</span>
+            <small style="display: block; margin-top: 0.25rem; color: var(--theme-text-muted);">DD 10-50% or Vol >60%</small>
+          </div>
+          <div class="legend-item">
+            <span class="regime-chip bull" style="display: inline-block; padding: 0.25rem 0.75rem; border-radius: var(--radius-sm); font-size: 0.85rem;">Bull Market</span>
+            <small style="display: block; margin-top: 0.25rem; color: var(--theme-text-muted);">DD > -20%, Vol <60%</small>
+          </div>
+          <div class="legend-item">
+            <span class="regime-chip expansion" style="display: inline-block; padding: 0.25rem 0.75rem; border-radius: var(--radius-sm); font-size: 0.85rem;">Expansion</span>
+            <small style="display: block; margin-top: 0.25rem; color: var(--theme-text-muted);">Recovery +30%/mo</small>
+          </div>
+        </div>
+
+        <!-- Info Footer -->
+        <div style="margin-top: 1.5rem; padding: 1rem; background: var(--theme-bg); border-left: 3px solid var(--brand-primary); border-radius: var(--radius-sm);">
+          <strong>ℹ️ About Hybrid Detection:</strong>
+          <ul style="margin: 0.5rem 0 0 1.5rem; color: var(--theme-text-muted); font-size: 0.9rem;">
+            <li><strong>Rule-Based (≥85% confidence):</strong> Clear cases using drawdown, duration, and trend thresholds</li>
+            <li><strong>HMM (nuanced):</strong> Statistical model for corrections and consolidations</li>
+            <li><strong>Crypto-Adjusted:</strong> Thresholds adapted for Bitcoin volatility (3x higher than stocks)</li>
+            <li><strong>Events:</strong> Mt.Gox, FTX, COVID crashes annotated for context</li>
+          </ul>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -589,6 +726,125 @@
 
       .admin-actions .btn {
         width: 100%;
+      }
+    }
+
+    /* Bitcoin Regime Detection Styles */
+    .btc-regime-section {
+      background: var(--theme-surface);
+      border-radius: var(--radius-md);
+      padding: 2rem;
+      border: 1px solid var(--theme-border);
+    }
+
+    /* Regime Chips */
+    .regime-chip {
+      display: inline-block;
+      padding: 0.4rem 1rem;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+      font-size: 0.95rem;
+      text-align: center;
+    }
+
+    .regime-chip.bear {
+      background: rgba(220, 38, 38, 0.15);
+      color: #dc2626;
+      border: 1px solid #dc2626;
+    }
+
+    .regime-chip.correction {
+      background: rgba(234, 88, 12, 0.15);
+      color: #ea580c;
+      border: 1px solid #ea580c;
+    }
+
+    .regime-chip.bull {
+      background: rgba(34, 197, 94, 0.15);
+      color: #22c55e;
+      border: 1px solid #22c55e;
+    }
+
+    .regime-chip.expansion {
+      background: rgba(59, 130, 246, 0.15);
+      color: #3b82f6;
+      border: 1px solid #3b82f6;
+    }
+
+    .regime-chip.unknown {
+      background: rgba(107, 114, 128, 0.15);
+      color: #6b7280;
+      border: 1px solid #6b7280;
+    }
+
+    /* Detection Method Badge */
+    .detection-method {
+      display: inline-block;
+      padding: 0.3rem 0.8rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .detection-method.rule_based {
+      background: rgba(139, 92, 246, 0.15);
+      color: #8b5cf6;
+      border: 1px solid #8b5cf6;
+    }
+
+    .detection-method.hmm {
+      background: rgba(6, 182, 212, 0.15);
+      color: #06b6d4;
+      border: 1px solid #06b6d4;
+    }
+
+    /* Timeframe Selector */
+    .btc-regime-timeframe-selector .timeframe-btn {
+      padding: 0.5rem 1rem;
+      border: 1px solid var(--theme-border);
+      background: var(--theme-surface);
+      color: var(--theme-text);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.2s ease;
+    }
+
+    .btc-regime-timeframe-selector .timeframe-btn:hover {
+      background: var(--theme-surface-elevated);
+      border-color: var(--brand-primary);
+    }
+
+    .btc-regime-timeframe-selector .timeframe-btn.active {
+      background: var(--brand-primary);
+      color: white;
+      border-color: var(--brand-primary);
+      font-weight: 600;
+    }
+
+    /* Loading State */
+    #btc-regime-chart-container.loading {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+
+    /* Responsive Bitcoin Section */
+    @media (max-width: 768px) {
+      .btc-regime-summary {
+        grid-template-columns: 1fr !important;
+      }
+
+      .btc-regime-timeframe-selector {
+        flex-direction: column;
+      }
+
+      .btc-regime-timeframe-selector .timeframe-btn {
+        width: 100%;
+      }
+
+      .btc-regime-legend {
+        flex-direction: column;
+        gap: 1rem !important;
       }
     }
   </style>

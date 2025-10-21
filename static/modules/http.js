@@ -3,7 +3,7 @@ const __etagCache = new Map();
 export async function safeFetch(url, options = {}) {
     const maxRetries = options.maxRetries ?? 3;
     const baseDelay = options.baseDelay ?? 1000; // 1s
-    const timeout = options.timeout ?? 10000; // 10s
+    const timeout = options.timeout ?? 60000; // 60s (was 10s - increased for yfinance data fetching)
     const retryStatusCodes = options.retryStatusCodes ?? [408, 429, 500, 502, 503, 504];
 
     let lastError;
