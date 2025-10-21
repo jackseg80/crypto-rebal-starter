@@ -214,7 +214,17 @@ const initUnifiedNav = () => {
             <li><a href="execution.html" data-route="execution.html">Execution</a></li>
             <li><a href="saxo-dashboard.html" data-route="saxo-dashboard.html">Bourse</a></li>
             <li><a href="banks-manager.html" data-route="banks-manager.html">Banque</a></li>
-            <li><a href="settings.html" data-route="settings.html">Settings</a></li>
+            <li class="has-submenu">
+              <a href="#" data-route="">Outils</a>
+              <div class="submenu">
+                <a href="ai-dashboard.html" data-route="ai-dashboard.html">🤖 AI Dashboard</a>
+                <a href="monitoring.html" data-route="monitoring.html">📊 Monitoring</a>
+                <a href="simulations.html" data-route="simulations.html">🧪 Simulations</a>
+                <div class="menu-separator"></div>
+                <a href="alias-manager.html" data-route="alias-manager.html">🔍 Alias Manager</a>
+                <a href="settings.html" data-route="settings.html">⚙️ Settings</a>
+              </div>
+            </li>
           </ul>
         </nav>
         
@@ -468,16 +478,14 @@ const initUnifiedNav = () => {
           <h4 style="color: var(--brand-primary); margin-bottom: 0.5rem;">📊 Pages principales non référencées</h4>
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0.5rem; margin-bottom: 1rem;">
             <a href="portfolio-optimization-advanced.html" style="display: block; padding: 0.5rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text); border-left: 3px solid var(--brand-success);">⚡ Portfolio Optimization Advanced</a>
-            <a href="ai-dashboard.html" style="display: block; padding: 0.5rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text); border-left: 3px solid var(--brand-success);">🤖 AI Dashboard</a>
-            <a href="monitoring-unified.html" style="display: block; padding: 0.5rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text); border-left: 3px solid var(--brand-warning);">📊 Monitoring</a>
             <a href="performance-monitor.html" style="display: block; padding: 0.5rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text); border-left: 3px solid var(--brand-primary);">🚀 Performance Monitor</a>
             <a href="backtesting.html" style="display: block; padding: 0.5rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text); border-left: 3px solid var(--brand-primary);">⏮️ Backtesting</a>
             <a href="cycle-analysis.html" style="display: block; padding: 0.5rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text); border-left: 3px solid var(--brand-primary);">🔄 Cycle Analysis</a>
             <a href="execution_history.html" style="display: block; padding: 0.5rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text); border-left: 3px solid var(--brand-primary);">📋 Execution History</a>
-            <a href="settings.html#tab-sources" style="display: block; padding: 0.5rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-decoration: none; color: var(--theme-text); border-left: 3px solid var(--brand-primary);">📊 Gérer Sources</a>
           </div>
           <div style="background: var(--theme-bg); padding: 0.5rem; border-radius: var(--radius-sm); border-left: 3px solid var(--brand-info); font-size: 0.85em; color: var(--theme-text-muted);">
-            ✅ <strong>Nettoyé :</strong> Pages de redirection supprimées (intelligence-dashboard.html → analytics-unified.html#tab-intelligence-ml, monitoring-unified.html → monitoring.html, portfolio-optimization.html → version avancée)
+            ✅ <strong>Nettoyé :</strong> Pages de redirection supprimées (intelligence-dashboard.html → analytics-unified.html#tab-intelligence-ml, monitoring-unified.html → monitoring.html, portfolio-optimization.html → version avancée)<br>
+            ✅ <strong>Ajouté au menu Outils ▾:</strong> AI Dashboard, Monitoring, Simulations, Alias Manager, Settings
           </div>
         </div>
 
