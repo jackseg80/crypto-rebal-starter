@@ -10,6 +10,8 @@
  * Uses /api/ml/crypto/regime and /api/ml/crypto/regime-history
  */
 
+console.log('[BTC Regime] Module loaded');
+
 const BTC_REGIME_CONFIG = {
     regimeColors: {
         'Bear Market': { bg: 'rgba(220, 38, 38, 0.2)', border: '#dc2626', label: 'Bear' },
@@ -36,16 +38,21 @@ let btcRegimeData = null;
  * @param {string} containerId - Container div ID
  */
 export async function initializeBTCRegimeChart(containerId) {
+    console.log('[BTC Regime] Initializing chart with containerId:', containerId);
+
     const container = document.getElementById(containerId);
     if (!container) {
-        console.error(`Container #${containerId} not found`);
+        console.error(`[BTC Regime] Container #${containerId} not found`);
         return;
     }
+
+    console.log('[BTC Regime] Container found:', container);
 
     // Setup timeframe selector
     setupTimeframeSelector(container);
 
     // Load initial data (1 year)
+    console.log('[BTC Regime] Loading initial data (365 days)');
     await loadBTCRegimeData(BTC_REGIME_CONFIG.defaultTimeframe);
 }
 
@@ -77,12 +84,18 @@ function setupTimeframeSelector(container) {
  */
 async function loadBTCRegimeData(lookbackDays) {
     try {
+        console.log(`[BTC Regime] Loading data for ${lookbackDays} days`);
+
         // Show loading state
         showLoadingState();
 
         // Fetch current regime
-        const currentRegimeResponse = await fetch(`/api/ml/crypto/regime?symbol=BTC&lookback_days=${lookbackDays}`);
+        const url = `/api/ml/crypto/regime?symbol=BTC&lookback_days=${lookbackDays}`;
+        console.log(`[BTC Regime] Fetching current regime from: ${url}`);
+        const currentRegimeResponse = await fetch(url);
         const currentRegimeResult = await currentRegimeResponse.json();
+
+        console.log('[BTC Regime] Current regime response:', currentRegimeResult);
 
         if (!currentRegimeResult.ok) {
             throw new Error(currentRegimeResult.error || 'Failed to fetch current regime');
@@ -415,14 +428,28 @@ function getRegimeClass(regime) {
  * Show loading state
  */
 function showLoadingState() {
+    console.log('[BTC Regime] Showing loading state');
+
     const chartContainer = document.getElementById('btc-regime-chart-container');
     if (chartContainer) {
         chartContainer.classList.add('loading');
+        console.log('[BTC Regime] Chart container set to loading');
+    } else {
+        console.warn('[BTC Regime] Chart container not found');
     }
 
     const loadingMsg = document.getElementById('btc-regime-loading-message');
     if (loadingMsg) {
         loadingMsg.style.display = 'block';
+        console.log('[BTC Regime] Loading message shown');
+    } else {
+        console.warn('[BTC Regime] Loading message element not found');
+    }
+
+    // Hide error message if visible
+    const errorMsg = document.getElementById('btc-regime-error-message');
+    if (errorMsg) {
+        errorMsg.style.display = 'none';
     }
 }
 

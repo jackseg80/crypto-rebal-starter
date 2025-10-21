@@ -51,27 +51,15 @@
     window.selectGovernanceTimestamp = selectGovernanceTimestamp;
 
     // Initialize Bitcoin Regime Chart when DOM is ready
-    document.addEventListener('DOMContentLoaded', () => {
-      // Wait for tab to be visible before initializing chart
-      const intelligenceTab = document.querySelector('[data-tab="intelligence-ml"]');
-      if (intelligenceTab) {
-        const observer = new MutationObserver((mutations) => {
-          mutations.forEach((mutation) => {
-            if (mutation.target.style.display !== 'none') {
-              initializeBTCRegimeChart('btc-regime-section');
-              observer.disconnect();
-            }
-          });
-        });
+    document.addEventListener('DOMContentLoaded', async () => {
+      console.log('[BTC Regime] DOMContentLoaded - initializing chart');
 
-        // Start observing if tab is not visible yet
-        const tabPanel = document.getElementById('intelligence-ml');
-        if (tabPanel && tabPanel.style.display === 'none') {
-          observer.observe(tabPanel, { attributes: true, attributeFilter: ['style'] });
-        } else {
-          // Tab is already visible, init immediately
-          initializeBTCRegimeChart('btc-regime-section');
-        }
+      // Simple initialization - no waiting for tab visibility
+      try {
+        await initializeBTCRegimeChart('btc-regime-section');
+        console.log('[BTC Regime] Chart initialized successfully');
+      } catch (error) {
+        console.error('[BTC Regime] Initialization failed:', error);
       }
     });
 
