@@ -2039,13 +2039,10 @@
         async function loadStockRegimeData() {
             try {
                 const config = await fetchUserConfig();
-                debugLogger.debug('📡 Fetching stock regime from:', `${config.api_base_url}/api/ml/predict`);
+                const endpoint = `${config.api_base_url}/api/ml/bourse/regime?benchmark=SPY&lookback_days=365`;
+                debugLogger.debug('📡 Fetching stock regime from:', endpoint);
 
-                const response = await fetch(`${config.api_base_url}/api/ml/predict`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ assets: ['BTC'], include_regime: true, include_volatility: false })
-                });
+                const response = await fetch(endpoint);
 
                 debugLogger.debug('📡 Stock regime response status:', response.status);
 
@@ -2053,24 +2050,18 @@
                     const data = await response.json();
                     debugLogger.debug('📡 Stock regime data received:', data);
 
-                    if (data.regime_prediction) {
-                        const regimeName = data.regime_prediction.regime_name || data.regime_prediction.regime || 'Unknown';
-                        const confidences = data.regime_prediction.probabilities || {};
-
-                        // Find max confidence
-                        const maxConfidence = Object.keys(confidences).length > 0
-                            ? Math.max(...Object.values(confidences)) * 100
-                            : 0;
+                    // Response format: {current_regime, confidence, regime_probabilities}
+                    if (data.current_regime && data.confidence !== undefined) {
+                        const regimeName = data.current_regime;
+                        const confidencePercent = (data.confidence * 100).toFixed(1);
 
                         // Update UI
                         document.getElementById('stock-regime-name').textContent = regimeName;
-                        document.getElementById('stock-regime-confidence').textContent = maxConfidence > 0
-                            ? maxConfidence.toFixed(1) + '%'
-                            : 'N/A';
+                        document.getElementById('stock-regime-confidence').textContent = confidencePercent + '%';
 
-                        debugLogger.debug('✅ Stock regime loaded:', regimeName, maxConfidence.toFixed(1) + '%');
+                        debugLogger.debug('✅ Stock regime loaded:', regimeName, confidencePercent + '%');
                     } else {
-                        debugLogger.warn('⚠️ No regime_prediction in response');
+                        debugLogger.warn('⚠️ No current_regime in response');
                         document.getElementById('stock-regime-name').textContent = 'N/A';
                         document.getElementById('stock-regime-confidence').textContent = 'N/A';
                     }
@@ -2106,11 +2097,8 @@
 
                 // Load Stock regime
                 debugLogger.debug('📡 Fetching stock regime for comparison...');
-                const stockResponse = await fetch(`${config.api_base_url}/api/ml/predict`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ assets: ['BTC'], include_regime: true, include_volatility: false })
-                });
+                const stockEndpoint = `${config.api_base_url}/api/ml/bourse/regime?benchmark=SPY&lookback_days=365`;
+                const stockResponse = await fetch(stockEndpoint);
                 let stockData = null;
                 if (stockResponse.ok) {
                     stockData = await stockResponse.json();
@@ -2120,18 +2108,14 @@
                 }
 
                 // Update comparison table - Stock
-                if (stockData && stockData.regime_prediction) {
-                    const regimeName = stockData.regime_prediction.regime_name || stockData.regime_prediction.regime || 'Unknown';
-                    const confidences = stockData.regime_prediction.probabilities || {};
-                    const maxConfidence = Object.keys(confidences).length > 0
-                        ? Math.max(...Object.values(confidences)) * 100
-                        : 0;
+                // Response format: {current_regime, confidence, regime_probabilities}
+                if (stockData && stockData.current_regime && stockData.confidence !== undefined) {
+                    const regimeName = stockData.current_regime;
+                    const confidencePercent = (stockData.confidence * 100).toFixed(1);
 
                     document.getElementById('comparison-stock-regime').textContent = regimeName;
-                    document.getElementById('comparison-stock-confidence').textContent = maxConfidence > 0
-                        ? maxConfidence.toFixed(1) + '%'
-                        : 'N/A';
-                    debugLogger.debug('✅ Stock comparison updated:', regimeName, maxConfidence.toFixed(1) + '%');
+                    document.getElementById('comparison-stock-confidence').textContent = confidencePercent + '%';
+                    debugLogger.debug('✅ Stock comparison updated:', regimeName, confidencePercent + '%');
                 } else {
                     debugLogger.warn('⚠️ No stock regime data for comparison');
                     document.getElementById('comparison-stock-regime').textContent = 'N/A';
