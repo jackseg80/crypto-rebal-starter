@@ -42,6 +42,16 @@
         window.initializeBTCRegimeChart = initializeBTCRegimeChart;
     </script>
 
+    <!-- Stock Regime History Modal Module -->
+    <script type="module">
+        import { initializeStockRegimeHistory, openStockRegimeHistory, closeStockRegimeHistory } from './modules/stock-regime-history.js';
+
+        // Expose globally for onclick handlers
+        window.initializeStockRegimeHistory = initializeStockRegimeHistory;
+        window.openStockRegimeHistory = openStockRegimeHistory;
+        window.closeStockRegimeHistory = closeStockRegimeHistory;
+    </script>
+
     <!-- Scripts de base (comme les autres pages) -->
     <script src="debug-logger.js"></script>
     <script src="input-validator.js"></script>
@@ -171,29 +181,29 @@
 
         .overview-stats {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-bottom: 2rem;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
         }
 
         .stat-card {
             background: var(--theme-surface);
             border: 1px solid var(--theme-border);
             border-radius: 8px;
-            padding: 1.5rem;
+            padding: 1rem;
             text-align: center;
         }
 
         .stat-value {
-            font-size: 2rem;
+            font-size: 1.5rem;
             font-weight: 700;
             color: var(--brand-primary);
         }
 
         .stat-label {
             color: var(--theme-text-muted);
-            font-size: 0.9rem;
-            margin-top: 0.5rem;
+            font-size: 0.85rem;
+            margin-top: 0.25rem;
         }
 
         .ml-card {
@@ -805,7 +815,7 @@
                         </div>
                         <div class="card-actions">
                             <button id="refresh-stock-regime" class="btn primary">🔄 Refresh</button>
-                            <button id="view-stock-history" class="btn secondary">📊 View History</button>
+                            <button id="view-stock-history" class="btn secondary">📊 View Probabilities</button>
                         </div>
                     </div>
 
@@ -914,6 +924,64 @@
                         </div>
                     </div>
 
+                    <!-- Section 2.5: Ethereum Regime Detection -->
+                    <div class="ml-card" style="margin-bottom: 2rem;" id="eth-regime-section">
+                        <div class="card-header" style="margin-bottom: 1.5rem;">
+                            <div class="card-title">
+                                <span class="card-icon">⟠</span>
+                                Ethereum Regime Detection (Hybrid System)
+                                <small style="font-size: 0.75rem; font-weight: 400; color: var(--theme-text-muted); margin-left: 0.5rem;">
+                                    Rule-Based + HMM Fusion
+                                </small>
+                            </div>
+                        </div>
+
+                        <!-- Current Regime Summary Cards -->
+                        <div class="eth-regime-summary" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+                            <!-- Current Regime -->
+                            <div class="metric-card">
+                                <h5>Current Regime</h5>
+                                <div class="metric-value">
+                                    <span id="eth-current-regime-name" class="regime-chip">Loading...</span>
+                                </div>
+                                <small>Hybrid Detection</small>
+                            </div>
+
+                            <!-- Confidence -->
+                            <div class="metric-card">
+                                <h5>Confidence</h5>
+                                <div class="metric-value" id="eth-current-regime-confidence">--</div>
+                                <small>Detection Certainty</small>
+                            </div>
+
+                            <!-- Detection Method -->
+                            <div class="metric-card">
+                                <h5>Detection Method</h5>
+                                <div class="metric-value">
+                                    <span id="eth-current-regime-method" class="detection-method">--</span>
+                                </div>
+                                <small>Rule-Based or HMM</small>
+                            </div>
+
+                            <!-- Rule Reason (conditional) -->
+                            <div class="metric-card" id="eth-regime-reason-card" style="display: none;">
+                                <h5>Rule Trigger</h5>
+                                <div class="metric-value" style="font-size: 0.85rem;" id="eth-current-regime-reason">--</div>
+                                <small>Detection Criteria</small>
+                            </div>
+                        </div>
+
+                        <!-- Info Note -->
+                        <div style="margin-bottom: 1rem; padding: 1rem; background: var(--theme-bg); border-left: 3px solid var(--success); border-radius: var(--radius-sm);">
+                            <strong>ℹ️ About Ethereum Detection:</strong>
+                            <ul style="margin: 0.5rem 0 0 1.5rem; color: var(--theme-text-muted); font-size: 0.9rem;">
+                                <li><strong>Same Hybrid System:</strong> Uses identical rule-based + HMM fusion as Bitcoin</li>
+                                <li><strong>Crypto-Adjusted Thresholds:</strong> Bear ≤ -50% (30d+), Bull > -20% (vol <60%), Expansion +30%/mo</li>
+                                <li><strong>Lightweight View:</strong> Summary only (full charts available in Bitcoin section)</li>
+                            </ul>
+                        </div>
+                    </div>
+
                     <!-- Section 3: Cross-Asset Comparison -->
                     <div class="ml-card">
                         <div class="card-header">
@@ -953,6 +1021,15 @@
                                             <td style="padding: 0.75rem; border: 1px solid var(--theme-border);" id="comparison-btc-method">--</td>
                                             <td style="padding: 0.75rem; border: 1px solid var(--theme-border);">DD ≤ -50%, 30d</td>
                                         </tr>
+                                        <tr>
+                                            <td style="padding: 0.75rem; border: 1px solid var(--theme-border); font-weight: 600;">⟠ Ethereum</td>
+                                            <td style="padding: 0.75rem; border: 1px solid var(--theme-border);">
+                                                <span id="comparison-eth-regime" class="regime-chip">--</span>
+                                            </td>
+                                            <td style="padding: 0.75rem; border: 1px solid var(--theme-border);" id="comparison-eth-confidence">--</td>
+                                            <td style="padding: 0.75rem; border: 1px solid var(--theme-border);" id="comparison-eth-method">--</td>
+                                            <td style="padding: 0.75rem; border: 1px solid var(--theme-border);">DD ≤ -50%, 30d</td>
+                                        </tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -961,8 +1038,8 @@
                                 <strong>📌 Key Differences:</strong>
                                 <ul style="margin: 0.5rem 0 0 1.5rem; color: var(--theme-text-muted); font-size: 0.9rem;">
                                     <li><strong>Stock Market:</strong> Pure HMM statistical model, traditional thresholds</li>
-                                    <li><strong>Bitcoin:</strong> Hybrid Rule-Based + HMM, crypto-adjusted thresholds (3x higher volatility)</li>
-                                    <li><strong>Why Different?</strong> Bitcoin's volatility (60-100% annual) vs Stocks (15-25%) requires distinct detection logic</li>
+                                    <li><strong>Bitcoin & Ethereum:</strong> Hybrid Rule-Based + HMM, crypto-adjusted thresholds (3x higher volatility)</li>
+                                    <li><strong>Why Different?</strong> Crypto volatility (60-100% annual) vs Stocks (15-25%) requires distinct detection logic</li>
                                 </ul>
                             </div>
                         </div>
@@ -2078,6 +2155,68 @@
             }
         }
 
+        // Load Ethereum regime data
+        async function loadEthereumRegimeData() {
+            try {
+                const config = await fetchUserConfig();
+                const endpoint = `${config.api_base_url}/api/ml/crypto/regime?symbol=ETH&lookback_days=365`;
+                debugLogger.debug('📡 Fetching ETH regime from:', endpoint);
+
+                const response = await fetch(endpoint);
+                debugLogger.debug('📡 ETH regime response status:', response.status);
+
+                if (response.ok) {
+                    const rawData = await response.json();
+                    debugLogger.debug('📡 ETH regime data received:', rawData);
+
+                    // Handle both response formats: direct or nested in data
+                    const data = rawData.data || rawData;
+
+                    if (data.current_regime && data.confidence !== undefined) {
+                        const regimeName = data.current_regime;
+                        const confidencePercent = (data.confidence * 100).toFixed(1);
+                        const detectionMethod = data.detection_method;
+                        const ruleReason = data.rule_reason;
+
+                        // Update UI
+                        const regimeChip = document.getElementById('eth-current-regime-name');
+                        regimeChip.textContent = regimeName;
+                        regimeChip.className = 'regime-chip ' + regimeName.toLowerCase().replace(' ', '-');
+
+                        document.getElementById('eth-current-regime-confidence').textContent = confidencePercent + '%';
+
+                        const methodBadge = document.getElementById('eth-current-regime-method');
+                        methodBadge.textContent = detectionMethod === 'rule_based' ? 'Rule-Based' : 'HMM';
+                        methodBadge.className = 'detection-method ' + detectionMethod;
+
+                        // Show/hide rule reason card
+                        const reasonCard = document.getElementById('eth-regime-reason-card');
+                        if (ruleReason) {
+                            document.getElementById('eth-current-regime-reason').textContent = ruleReason;
+                            reasonCard.style.display = 'block';
+                        } else {
+                            reasonCard.style.display = 'none';
+                        }
+
+                        debugLogger.debug('✅ ETH regime loaded:', regimeName, confidencePercent + '%', detectionMethod);
+                    } else {
+                        debugLogger.warn('⚠️ No current_regime in ETH response');
+                        document.getElementById('eth-current-regime-name').textContent = 'N/A';
+                        document.getElementById('eth-current-regime-confidence').textContent = 'N/A';
+                    }
+                } else {
+                    const errorText = await response.text();
+                    debugLogger.error('❌ ETH regime API error:', response.status, errorText);
+                    document.getElementById('eth-current-regime-name').textContent = 'API Error';
+                    document.getElementById('eth-current-regime-confidence').textContent = '--';
+                }
+            } catch (error) {
+                debugLogger.error('❌ Failed to load ETH regime:', error);
+                document.getElementById('eth-current-regime-name').textContent = 'Error';
+                document.getElementById('eth-current-regime-confidence').textContent = '--';
+            }
+        }
+
         // Load cross-asset comparison data
         async function loadCrossAssetComparison() {
             try {
@@ -2105,6 +2244,17 @@
                     debugLogger.debug('📡 Stock regime data received for comparison:', stockData);
                 } else {
                     debugLogger.error('❌ Stock regime API error:', stockResponse.status);
+                }
+
+                // Load Ethereum regime
+                debugLogger.debug('📡 Fetching ETH regime from:', `${config.api_base_url}/api/ml/crypto/regime?symbol=ETH&lookback_days=365`);
+                const ethResponse = await fetch(`${config.api_base_url}/api/ml/crypto/regime?symbol=ETH&lookback_days=365`);
+                let ethData = null;
+                if (ethResponse.ok) {
+                    ethData = await ethResponse.json();
+                    debugLogger.debug('📡 ETH regime data received:', ethData);
+                } else {
+                    debugLogger.error('❌ ETH regime API error:', ethResponse.status);
                 }
 
                 // Update comparison table - Stock
@@ -2163,6 +2313,46 @@
                     document.getElementById('comparison-btc-method').textContent = '--';
                 }
 
+                // Update comparison table - Ethereum
+                let ethRegime = null;
+                let ethConfidence = null;
+                let ethMethod = null;
+
+                if (ethData) {
+                    // Format 1: Direct fields (current_regime, confidence, detection_method)
+                    if (ethData.current_regime) {
+                        ethRegime = ethData.current_regime;
+                        ethConfidence = ethData.confidence;
+                        ethMethod = ethData.detection_method;
+                    }
+                    // Format 2: Nested in data object
+                    else if (ethData.data && ethData.data.current_regime) {
+                        ethRegime = ethData.data.current_regime;
+                        ethConfidence = ethData.data.confidence;
+                        ethMethod = ethData.data.detection_method;
+                    }
+                    // Format 3: regime_name field
+                    else if (ethData.regime_name) {
+                        ethRegime = ethData.regime_name;
+                        ethConfidence = ethData.confidence;
+                        ethMethod = ethData.detection_method;
+                    }
+                }
+
+                if (ethRegime) {
+                    document.getElementById('comparison-eth-regime').textContent = ethRegime;
+                    document.getElementById('comparison-eth-confidence').textContent = ethConfidence
+                        ? (ethConfidence * 100).toFixed(1) + '%'
+                        : 'N/A';
+                    document.getElementById('comparison-eth-method').textContent = ethMethod === 'rule_based' ? 'Rule-Based' : 'HMM';
+                    debugLogger.debug('✅ ETH comparison updated:', ethRegime, ethConfidence);
+                } else {
+                    debugLogger.warn('⚠️ No ETH regime data for comparison, full response:', ethData);
+                    document.getElementById('comparison-eth-regime').textContent = 'N/A';
+                    document.getElementById('comparison-eth-confidence').textContent = '--';
+                    document.getElementById('comparison-eth-method').textContent = '--';
+                }
+
                 debugLogger.debug('✅ Cross-asset comparison loaded');
             } catch (error) {
                 debugLogger.error('❌ Failed to load cross-asset comparison:', error);
@@ -2190,7 +2380,11 @@
 
             // View stock history (placeholder)
             document.getElementById('view-stock-history')?.addEventListener('click', () => {
-                showSuccess('Stock regime history view coming soon');
+                if (window.openStockRegimeHistory) {
+                    window.openStockRegimeHistory();
+                } else {
+                    showError('Stock regime history module not loaded');
+                }
             });
         }
 
@@ -2228,6 +2422,9 @@
 
                             // Load Stock Market regime data
                             await loadStockRegimeData();
+
+                            // Load Ethereum regime data
+                            await loadEthereumRegimeData();
 
                             // Load cross-asset comparison
                             await loadCrossAssetComparison();
