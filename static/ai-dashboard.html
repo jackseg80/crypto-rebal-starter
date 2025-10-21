@@ -14,6 +14,26 @@
     <script type="module" src="components/nav.js"></script>
     <script type="module" src="components/tooltips.js"></script>
 
+    <!-- Chart.js for Bitcoin Regime charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <script>
+        // Register Chart.js plugins (required for btc-regime-chart.js)
+        if (window.Chart && window.ChartDataLabels && !window.__di_dl_registered__) {
+            window.Chart.register(window.ChartDataLabels);
+            window.Chart.defaults.set('plugins.datalabels', { display: false });
+            window.__di_dl_registered__ = true;
+            console.debug('✅ chartjs-plugin-datalabels registered');
+        }
+        if (window.Chart && window.ChartAnnotation && !window.__di_annotation_registered__) {
+            window.Chart.register(window.ChartAnnotation);
+            window.__di_annotation_registered__ = true;
+            console.debug('✅ chartjs-plugin-annotation registered');
+        }
+    </script>
+
     <!-- Bitcoin Regime Chart Module -->
     <script type="module">
         import { initializeBTCRegimeChart } from './modules/btc-regime-chart.js';
@@ -331,6 +351,125 @@
             .tab-btn {
                 flex: 1;
                 text-align: center;
+            }
+        }
+
+        /* Bitcoin Regime Detection Styles */
+        .btc-regime-section {
+            background: var(--theme-surface);
+            border-radius: var(--radius-md);
+            padding: 2rem;
+            border: 1px solid var(--theme-border);
+        }
+
+        /* Regime Chips */
+        .regime-chip {
+            display: inline-block;
+            padding: 0.4rem 1rem;
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+            font-size: 0.95rem;
+            text-align: center;
+        }
+
+        .regime-chip.bear {
+            background: rgba(220, 38, 38, 0.15);
+            color: #dc2626;
+            border: 1px solid #dc2626;
+        }
+
+        .regime-chip.correction {
+            background: rgba(234, 88, 12, 0.15);
+            color: #ea580c;
+            border: 1px solid #ea580c;
+        }
+
+        .regime-chip.bull {
+            background: rgba(34, 197, 94, 0.15);
+            color: #22c55e;
+            border: 1px solid #22c55e;
+        }
+
+        .regime-chip.expansion {
+            background: rgba(59, 130, 246, 0.15);
+            color: #3b82f6;
+            border: 1px solid #3b82f6;
+        }
+
+        .regime-chip.unknown {
+            background: rgba(107, 114, 128, 0.15);
+            color: #6b7280;
+            border: 1px solid #6b7280;
+        }
+
+        /* Detection Method Badge */
+        .detection-method {
+            display: inline-block;
+            padding: 0.3rem 0.8rem;
+            border-radius: var(--radius-sm);
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .detection-method.rule_based {
+            background: rgba(139, 92, 246, 0.15);
+            color: #8b5cf6;
+            border: 1px solid #8b5cf6;
+        }
+
+        .detection-method.hmm {
+            background: rgba(6, 182, 212, 0.15);
+            color: #06b6d4;
+            border: 1px solid #06b6d4;
+        }
+
+        /* Timeframe Selector */
+        .btc-regime-timeframe-selector .timeframe-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--theme-border);
+            background: var(--theme-surface);
+            color: var(--theme-text);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+        }
+
+        .btc-regime-timeframe-selector .timeframe-btn:hover {
+            background: var(--theme-surface-elevated);
+            border-color: var(--brand-primary);
+        }
+
+        .btc-regime-timeframe-selector .timeframe-btn.active {
+            background: var(--brand-primary);
+            color: white;
+            border-color: var(--brand-primary);
+            font-weight: 600;
+        }
+
+        /* Loading State */
+        #btc-regime-chart-container.loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        /* Responsive Bitcoin Section */
+        @media (max-width: 768px) {
+            .btc-regime-summary {
+                grid-template-columns: 1fr !important;
+            }
+
+            .btc-regime-timeframe-selector {
+                flex-direction: column;
+            }
+
+            .btc-regime-timeframe-selector .timeframe-btn {
+                width: 100%;
+            }
+
+            .btc-regime-legend {
+                flex-direction: column;
+                gap: 1rem !important;
             }
         }
     </style>
