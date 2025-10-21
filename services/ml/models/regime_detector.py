@@ -26,6 +26,88 @@ from ..data_pipeline import MLDataPipeline
 logger = logging.getLogger(__name__)
 
 
+def create_rule_based_labels(price_data: pd.DataFrame) -> np.ndarray:
+    """
+    Create regime labels using objective economic criteria instead of HMM clustering.
+
+    This addresses critical limitation: HMM doesn't detect bear markets (0% on 30Y data!)
+    even when 2000-2002 crash (-49%) and 2008 crisis (-57%) are included.
+
+    Regime Definitions (Objective):
+    - 0 (Bear Market): Drawdown ≥20% from peak, duration >2 months
+    - 1 (Correction): Drawdown 10-20% OR volatility >30% (60d) OR price <MA200
+    - 2 (Bull Market): Price >MA200, volatility <25%, positive momentum
+    - 3 (Expansion): Recovery from drawdown >20% at rate >15%/month for 3+ months
+
+    Args:
+        price_data: DataFrame with 'close' column and DatetimeIndex
+
+    Returns:
+        Array of regime labels (0-3) matching input length
+    """
+    close = price_data['close'].values
+    labels = np.zeros(len(close), dtype=int)
+
+    # Calculate features
+    returns = pd.Series(close).pct_change()
+    cumulative_max = pd.Series(close).cummax()
+    drawdown = (close - cumulative_max) / cumulative_max
+
+    # 60-day rolling volatility (annualized)
+    volatility_60d = returns.rolling(60).std() * np.sqrt(252)
+
+    # 200-day moving average
+    ma_200 = pd.Series(close).rolling(200).mean()
+
+    # 20-day momentum
+    momentum_20 = pd.Series(close).pct_change(20)
+
+    # PHASE 1: Identify Bear Markets (priority 1)
+    # Drawdown ≥20% from peak AND sustained >2 months (42 trading days)
+    for i in range(42, len(close)):
+        if drawdown[i] <= -0.20:  # 20% drawdown
+            # Check if sustained for at least 2 months
+            if np.all(drawdown[i-42:i+1] <= -0.15):  # At least 15% for 2 months
+                labels[i-42:i+1] = 0  # Bear Market
+
+    # PHASE 2: Identify Expansion (priority 2)
+    # Recovery from drawdown >20% at rate >15%/month for 3+ months
+    for i in range(63, len(close)):  # 3 months = 63 trading days
+        # Check if recovering from major drawdown
+        min_dd_past = np.min(drawdown[i-126:i-63])  # 3-6 months ago
+        if min_dd_past <= -0.20:  # Was in 20%+ drawdown
+            # Check if strong recovery (>15% gain per month)
+            gain_3m = (close[i] - close[i-63]) / close[i-63]
+            if gain_3m >= 0.45:  # 45% in 3 months = 15%/month
+                labels[i-63:i+1] = 3  # Expansion
+
+    # PHASE 3: Identify Corrections (priority 3)
+    # Drawdown 10-20% OR high volatility OR below MA200
+    for i in range(200, len(close)):
+        if labels[i] == 0 or labels[i] == 3:
+            continue  # Already labeled as Bear or Expansion
+
+        is_correction = (
+            (-0.20 < drawdown[i] <= -0.10) or  # 10-20% drawdown
+            (volatility_60d[i] >= 0.30) or  # High vol (30%+)
+            (close[i] < ma_200[i])  # Below 200-day MA
+        )
+
+        if is_correction:
+            labels[i] = 1  # Correction
+
+    # PHASE 4: Rest are Bull Markets (default)
+    # Price >MA200, low volatility, positive trend
+    labels[labels == 0] = 2  # Unlabeled → Bull Market (but avoid overwriting Bear=0!)
+
+    # Fix: Re-apply Bear Market labels (got overwritten)
+    for i in range(42, len(close)):
+        if drawdown[i] <= -0.20 and np.all(drawdown[i-42:i+1] <= -0.15):
+            labels[i-42:i+1] = 0
+
+    return labels
+
+
 def _set_reproducible_seeds(seed: int = 42):
     """Fix all random seeds for reproducibility across training runs"""
     import random
@@ -134,6 +216,11 @@ class RegimeDetector:
         # Model parameters
         self.num_regimes = 4
 
+        # Temperature scaling for probability calibration
+        # Higher temperature = less confident probabilities (more realistic)
+        # Default: 2.5 to avoid overconfidence (softmax too sharp with T=1.0)
+        self.temperature = 2.5
+
         # IMPORTANT: Regime names depend on market type
         # For STOCKS (SPY, QQQ, etc.): Score-based ordering is INVERTED from crypto
         #   - Regime 0 (lowest score) = Bear Market (negative returns, high vol)
@@ -235,17 +322,22 @@ class RegimeDetector:
             
         return self.train_model(filtered_data, validation_split)
     
-    def prepare_regime_features(self, multi_asset_data: Dict[str, pd.DataFrame]) -> pd.DataFrame:
+    def prepare_regime_features(self, multi_asset_data: Dict[str, pd.DataFrame],
+                               include_contextual: bool = True) -> pd.DataFrame:
         """
-        Prepare comprehensive features for regime detection from multiple assets
-        
+        Prepare comprehensive features for regime detection from multiple assets.
+
+        HYBRID SYSTEM: Combines statistical features (for HMM) with contextual features
+        (for rule-based detection) to overcome HMM's temporal blindness.
+
         Args:
             multi_asset_data: Dictionary of asset DataFrames with OHLCV data
-            
+            include_contextual: If True, adds drawdown/temporal features (NEW!)
+
         Returns:
             DataFrame with regime detection features
         """
-        logger.info(f"Preparing regime features from {len(multi_asset_data)} assets")
+        logger.info(f"Preparing regime features from {len(multi_asset_data)} assets (contextual={include_contextual})")
         
         if not multi_asset_data:
             raise ValueError("No asset data provided")
@@ -396,7 +488,38 @@ class RegimeDetector:
             features_df[f'volatility_ma_{window}'] = features_df['market_volatility'].rolling(window=window).mean()
             features_df[f'return_ma_{window}'] = features_df['market_return'].rolling(window=window).mean()
             features_df[f'momentum_ma_{window}'] = features_df['market_momentum'].rolling(window=window).mean()
-        
+
+        # NEW: Add contextual features to overcome HMM's temporal blindness
+        if include_contextual:
+            # Get benchmark price for drawdown calculation
+            benchmark_symbol = list(multi_asset_data.keys())[0]  # Use first asset as proxy
+            benchmark_data = multi_asset_data[benchmark_symbol]
+
+            # Align with features_df index
+            aligned_prices = benchmark_data.loc[features_df.index, 'close'] if 'close' in benchmark_data.columns else None
+
+            if aligned_prices is not None:
+                # Drawdown from peak (cumulative context)
+                cummax = aligned_prices.cummax()
+                drawdown = (aligned_prices - cummax) / cummax
+                features_df['drawdown_from_peak'] = drawdown
+
+                # Days since peak (temporal context)
+                days_since_peak = pd.Series(0, index=aligned_prices.index)
+                peak_idx = 0
+                for i in range(len(aligned_prices)):
+                    if aligned_prices.iloc[i] >= aligned_prices.iloc[:i+1].max():
+                        peak_idx = i
+                        days_since_peak.iloc[i] = 0
+                    else:
+                        days_since_peak.iloc[i] = i - peak_idx
+                features_df['days_since_peak'] = days_since_peak
+
+                # 30-day trend (directional context)
+                features_df['trend_30d'] = aligned_prices.pct_change(30)
+
+                logger.info("Added contextual features: drawdown_from_peak, days_since_peak, trend_30d")
+
         # Remove NaN rows
         features_df = features_df.dropna()
         
@@ -607,12 +730,14 @@ class RegimeDetector:
             )
 
             logger.info(f"Training samples: {len(X_train)}, Validation samples: {len(X_val)}")
-            logger.info(f"Validation class distribution: {np.bincount(y_val).tolist()}")
+            logger.info(f"Validation class distribution: {np.bincount(y_val, minlength=self.num_regimes).tolist()}")
 
             # Calculate class weights to handle imbalance
-            class_counts = np.bincount(y_train)
+            # IMPORTANT: Use minlength to ensure we get weights for ALL 4 classes, even if some are missing
+            class_counts = np.bincount(y_train, minlength=self.num_regimes)
             total_samples = len(y_train)
-            class_weights = total_samples / (len(class_counts) * class_counts)
+            # Avoid division by zero for missing classes
+            class_weights = np.where(class_counts > 0, total_samples / (len(class_counts) * class_counts), 0.0)
             class_weights = torch.FloatTensor(class_weights).to(self.device)
 
             logger.info(f"Class distribution: {class_counts.tolist()}")
@@ -703,6 +828,13 @@ class RegimeDetector:
             # Load best model
             self.neural_model.load_state_dict(torch.load(self.model_dir / 'regime_neural_best.pth', weights_only=False))
 
+            # Temperature calibration on validation set
+            # Find optimal temperature that maximizes log-likelihood on validation data
+            logger.info("Calibrating temperature on validation set...")
+            optimal_temp = self._calibrate_temperature(X_val, y_val)
+            self.temperature = optimal_temp
+            logger.info(f"Optimal temperature found: {optimal_temp:.3f}")
+
             # Ensure model directory exists before saving
             self.model_dir.mkdir(parents=True, exist_ok=True)
 
@@ -720,7 +852,8 @@ class RegimeDetector:
                 'best_val_loss': best_val_loss,
                 'final_val_accuracy': training_history['val_acc'][-1],
                 'regime_distribution': np.bincount(regime_labels).tolist(),
-                'training_history': training_history
+                'training_history': training_history,
+                'optimal_temperature': optimal_temp
             }
             
             self.training_metadata = metadata
@@ -735,7 +868,48 @@ class RegimeDetector:
         except Exception as e:
             logger.error(f"Error training regime detection model: {str(e)}")
             raise
-    
+
+    def _calibrate_temperature(self, X_val: torch.Tensor, y_val: torch.Tensor) -> float:
+        """
+        Find optimal temperature for probability calibration on validation set.
+
+        Uses grid search to maximize negative log-likelihood (NLL) on validation data.
+        Temperature scaling adjusts the "confidence" of predictions without changing
+        the predicted class.
+
+        Args:
+            X_val: Validation features (already scaled)
+            y_val: Validation labels
+
+        Returns:
+            Optimal temperature value (typically 1.0-5.0)
+        """
+        self.neural_model.eval()
+
+        # Get logits for validation set
+        with torch.no_grad():
+            logits, _ = self.neural_model(X_val)
+
+        # Grid search over temperature values
+        temperatures = np.arange(0.5, 5.0, 0.1)
+        best_nll = float('inf')
+        best_temp = 1.0
+
+        for temp in temperatures:
+            # Apply temperature scaling
+            scaled_logits = logits / temp
+            log_probs = torch.nn.functional.log_softmax(scaled_logits, dim=1)
+
+            # Calculate negative log-likelihood (lower is better)
+            nll = torch.nn.functional.nll_loss(log_probs, y_val).item()
+
+            if nll < best_nll:
+                best_nll = nll
+                best_temp = temp
+
+        logger.info(f"Temperature calibration: best_temp={best_temp:.3f}, best_nll={best_nll:.4f}")
+        return best_temp
+
     def predict_regime(self, multi_asset_data: Dict[str, pd.DataFrame], 
                       return_probabilities: bool = True) -> Dict[str, Any]:
         """
@@ -771,7 +945,17 @@ class RegimeDetector:
             self.neural_model.eval()
             with torch.no_grad():
                 logits, attention_weights = self.neural_model(X)
-                probabilities = torch.softmax(logits, dim=1)
+                # Apply temperature scaling to calibrate probabilities
+                # Higher temperature = less overconfident predictions
+                probabilities = torch.softmax(logits / self.temperature, dim=1)
+
+                # CRITICAL: Apply Bayesian prior to enforce uncertainty floor
+                # Prevents dangerous overconfidence (99%+) that misleads users
+                # Model trained on 20Y bull market (66%) can't predict black swans
+                min_uncertainty = 0.15  # Force at least 15% total uncertainty
+                uniform_prior = torch.ones(self.num_regimes, device=self.device) / self.num_regimes
+                probabilities = (1 - min_uncertainty) * probabilities + min_uncertainty * uniform_prior
+
                 predicted_regime = torch.argmax(logits, dim=1).item()
                 regime_confidence = probabilities[0, predicted_regime].item()
             
@@ -789,7 +973,8 @@ class RegimeDetector:
                 reverse=True
             )[:10]
             
-            result = {
+            # HMM prediction (baseline)
+            hmm_result = {
                 'predicted_regime': predicted_regime,
                 'regime_name': regime_info['name'],
                 'confidence': float(regime_confidence),
@@ -800,25 +985,170 @@ class RegimeDetector:
                     'features_used': len(self.feature_columns)
                 }
             }
-            
+
+            # HYBRID SYSTEM: Try rule-based detection first (high confidence cases)
+            rule_based_result = self._detect_regime_rule_based(features_df, multi_asset_data)
+
+            # Fuse predictions: rule-based overrides HMM if confidence >= 85%
+            fused = self._fuse_predictions(rule_based_result, hmm_result)
+
+            # Update result with fused prediction
+            result = hmm_result.copy()
+            if fused.get('method') == 'rule_based':
+                result['predicted_regime'] = fused['regime_id']
+                result['regime_name'] = fused['regime_name']
+                result['confidence'] = fused['confidence']
+                result['regime_info'] = self.regime_descriptions[fused['regime_id']]
+                result['detection_method'] = 'rule_based'
+                result['rule_reason'] = fused['reason']
+            else:
+                result['detection_method'] = 'hmm'
+
             if return_probabilities:
                 result['regime_probabilities'] = {
                     self.regime_names[i]: float(probabilities[0, i].item())
                     for i in range(self.num_regimes)
                 }
-                
+
                 result['feature_importance'] = {
                     'top_features': dict(top_features),
                     'attention_pattern': 'complex_multi_head'  # Simplified description
                 }
-            
-            logger.info(f"Regime prediction: {regime_info['name']} (confidence: {regime_confidence:.3f})")
+
+            logger.info(f"Regime prediction: {result['regime_name']} (confidence: {result['confidence']:.3f}, method: {result['detection_method']})")
+
+            # Log prediction for post-mortem analysis
+            self._log_prediction_for_analysis(result)
+
             return result
             
         except Exception as e:
             logger.error(f"Error predicting regime: {str(e)}")
             raise
-    
+
+    def _detect_regime_rule_based(self, features: pd.DataFrame,
+                                  multi_asset_data: Dict[str, pd.DataFrame]) -> Optional[Dict[str, Any]]:
+        """
+        Detect regime using rule-based criteria for HIGH CONFIDENCE cases only.
+
+        This addresses HMM's temporal blindness by using drawdown and persistence criteria.
+        Only returns a result if confidence >= 85% (clear bear/bull/expansion).
+
+        Returns:
+            Dict with regime prediction + confidence if clear, else None
+        """
+        if 'drawdown_from_peak' not in features.columns:
+            return None  # Need contextual features
+
+        latest = features.iloc[-1]
+        drawdown = latest['drawdown_from_peak']
+        days_since_peak = latest['days_since_peak']
+        trend_30d = latest.get('trend_30d', 0)
+        volatility = latest['market_volatility']
+
+        # Rule 1: BEAR MARKET (highest priority)
+        # Drawdown ≥ 20% sustained > 60 days
+        if drawdown <= -0.20 and days_since_peak >= 60:
+            return {
+                'regime_id': 0,
+                'regime_name': 'Bear Market',
+                'confidence': min(0.95, 0.85 + abs(drawdown) * 0.5),  # More drawdown = more confident
+                'method': 'rule_based',
+                'reason': f'Drawdown {drawdown:.1%} sustained {int(days_since_peak)} days'
+            }
+
+        # Rule 2: EXPANSION (post-crash recovery)
+        # Coming from >20% drawdown + strong recovery (+15%/month for 3mo)
+        if drawdown >= -0.10 and days_since_peak >= 60:  # Recovered
+            # Check if there was a recent deep drawdown
+            lookback_dd = features.tail(126)['drawdown_from_peak'].min()  # Last 6 months
+            if lookback_dd <= -0.20 and trend_30d >= 0.15:  # Was deep + strong recovery
+                return {
+                    'regime_id': 3,
+                    'regime_name': 'Expansion',
+                    'confidence': 0.90,
+                    'method': 'rule_based',
+                    'reason': f'Recovery from {lookback_dd:.1%} at +{trend_30d:.1%}/30d'
+                }
+
+        # Rule 3: BULL MARKET (clear uptrend)
+        # Low drawdown (<5%), low volatility (<20%), positive trend
+        if drawdown >= -0.05 and volatility < 0.20 and trend_30d > 0.05:
+            return {
+                'regime_id': 2,
+                'regime_name': 'Bull Market',
+                'confidence': 0.88,
+                'method': 'rule_based',
+                'reason': f'Stable uptrend: DD={drawdown:.1%}, vol={volatility:.1%}'
+            }
+
+        # No clear rule-based detection → defer to HMM
+        return None
+
+    def _fuse_predictions(self, rule_based: Optional[Dict], hmm_result: Dict) -> Dict[str, Any]:
+        """
+        Fuse rule-based and HMM predictions with adaptive weighting.
+
+        FUSION LOGIC:
+        - If rule_based confidence >= 85% → Use rule-based (clear case)
+        - Else → Use HMM (nuanced case: corrections vs consolidations)
+
+        Args:
+            rule_based: Rule-based prediction (or None)
+            hmm_result: HMM prediction
+
+        Returns:
+            Final fused prediction
+        """
+        if rule_based and rule_based['confidence'] >= 0.85:
+            logger.info(f"Using rule-based: {rule_based['regime_name']} ({rule_based['confidence']:.0%})")
+            return rule_based
+        else:
+            logger.info(f"Using HMM: {hmm_result['regime_name']} (rule-based not confident)")
+            hmm_result['method'] = 'hmm'
+            return hmm_result
+
+    def _log_prediction_for_analysis(self, prediction: Dict[str, Any]) -> None:
+        """
+        Log prediction to file for post-mortem analysis.
+
+        Enables tracking model performance over time and identifying:
+        - When the model failed to anticipate regime changes
+        - Overconfidence patterns before market crashes
+        - Calibration drift over time
+
+        Args:
+            prediction: Full prediction result dict
+        """
+        try:
+            import json
+            from pathlib import Path
+
+            # Create predictions log directory
+            predictions_dir = Path("data/ml_predictions")
+            predictions_dir.mkdir(parents=True, exist_ok=True)
+
+            # Log file: one per month to avoid huge files
+            log_file = predictions_dir / f"regime_predictions_{datetime.now().strftime('%Y-%m')}.jsonl"
+
+            # Compact log entry (JSONL format - one JSON per line)
+            log_entry = {
+                "timestamp": prediction.get("prediction_date"),
+                "regime": prediction.get("regime_name"),
+                "regime_id": prediction.get("predicted_regime"),
+                "confidence": prediction.get("confidence"),
+                "probabilities": prediction.get("regime_probabilities", {}),
+                "model_trained_at": prediction.get("model_metadata", {}).get("trained_at")
+            }
+
+            # Append to JSONL file (easy to parse later)
+            with open(log_file, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(log_entry) + '\n')
+
+        except Exception as e:
+            # Don't crash prediction if logging fails
+            logger.warning(f"Failed to log prediction for analysis: {e}")
+
     def load_model(self) -> bool:
         """Load trained model components"""
         try:
@@ -837,6 +1167,11 @@ class RegimeDetector:
             self.training_metadata = joblib.load(model_files['metadata'])
             self.scaler = joblib.load(model_files['scaler'])
             self.feature_columns = joblib.load(model_files['features'])
+
+            # Load optimal temperature (calibrated on validation set)
+            # Fall back to default if not available (old models)
+            self.temperature = self.training_metadata.get('optimal_temperature', 2.5)
+            logger.info(f"Loaded model with calibrated temperature: {self.temperature:.3f}")
             
             # Initialize and load neural network
             self.neural_model = RegimeClassificationNetwork(

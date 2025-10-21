@@ -430,7 +430,7 @@ async def get_model_info(model_type: str = Query("regime", description="Model ty
 @router.get("/api/ml/bourse/regime-history")
 async def get_regime_history(
     benchmark: str = Query("SPY", description="Market benchmark ticker"),
-    lookback_days: int = Query(365, ge=365, le=7300, description="Days of history to return (1 year to 20 years)")
+    lookback_days: int = Query(365, ge=365, le=10950, description="Days of history to return (1 year to 30 years)")
 ):
     """
     Retourne l'historique des régimes ML avec les prix réels du benchmark.

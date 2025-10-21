@@ -1433,9 +1433,15 @@
                         </div>
                     ` : ''}
 
-                    <div style="margin-top:1rem;padding:0.75rem;background:var(--info-bg);border-radius:var(--radius-sm);border:1px solid var(--info);font-size:0.875rem;color:var(--info);">
-                        <strong>Note:</strong> ML predictions are based on ${volatility.lookback_days || 365} days of historical data.
-                        ${volatility.note || regime.note ? `<br><em>${volatility.note || regime.note}</em>` : ''}
+                    <!-- ML Disclaimer: Critical for user understanding -->
+                    <div style="margin-top:1rem;padding:0.75rem;background:var(--warning-bg);border-radius:var(--radius-sm);border:1px solid var(--warning);font-size:0.875rem;color:var(--theme-text);">
+                        <div style="font-weight:600;color:var(--warning);margin-bottom:0.5rem;">⚠️ Model Limitations</div>
+                        <div style="line-height:1.5;">
+                            • <strong>Historical Pattern Matching:</strong> High confidence indicates strong resemblance to past ${regime.current_regime || 'regime'} periods (20-year dataset: 66% bull, 31% correction, 3% bear)<br>
+                            • <strong>Not Predictive:</strong> Cannot anticipate unprecedented events, black swans, or rapid regime shifts<br>
+                            • <strong>Dataset Bias:</strong> Trained on post-2004 data (QE era) - may underestimate crisis risk<br>
+                            • <strong>Use with Caution:</strong> Combine with fundamental analysis, risk management, and portfolio diversification
+                        </div>
                     </div>
                 `;
 
@@ -2141,6 +2147,7 @@
                                 <button class="timeframe-btn" data-days="1825">5Y</button>
                                 <button class="timeframe-btn" data-days="3650">10Y</button>
                                 <button class="timeframe-btn" data-days="7300">20Y</button>
+                                <button class="timeframe-btn" data-days="10950">30Y</button>
                             </div>
                         </div>
                         <canvas id="regimeTimelineChart" style="max-height: 350px;"></canvas>
