@@ -193,8 +193,8 @@ function createTimelineChart(historyData) {
     const regimes = historyData.regimes || [];
     const events = historyData.events || [];
 
-    // Create regime segments for background colors
-    const regimeSegments = createRegimeSegments(dates, regimes);
+    // Create regime box annotations (background zones)
+    const regimeAnnotations = createRegimeBoxAnnotations(dates, regimes);
 
     // Create chart
     btcRegimeChart = new Chart(ctx, {
@@ -202,20 +202,19 @@ function createTimelineChart(historyData) {
         data: {
             labels: dates,
             datasets: [
-                // Price line
+                // Price line ONLY (no regime segments datasets)
                 {
                     label: 'Bitcoin Price (USD)',
                     data: prices,
                     borderColor: '#f59e0b',
-                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                    borderWidth: 2,
-                    fill: true,
+                    backgroundColor: 'transparent',
+                    borderWidth: 3,
+                    fill: false,
                     tension: 0.1,
                     pointRadius: 0,
-                    pointHoverRadius: 5
-                },
-                // Regime background bands (as separate datasets)
-                ...regimeSegments
+                    pointHoverRadius: 5,
+                    order: 1  // Draw on top of annotations
+                }
             ]
         },
         options: {
@@ -233,14 +232,7 @@ function createTimelineChart(historyData) {
                 },
                 legend: {
                     display: true,
-                    position: 'top',
-                    labels: {
-                        filter: (item) => {
-                            // Only show price and regime labels, not individual segments
-                            return item.text.includes('Price') || item.text.includes('Market') || item.text.includes('Correction') || item.text.includes('Expansion');
-                        },
-                        usePointStyle: true
-                    }
+                    position: 'top'
                 },
                 tooltip: {
                     callbacks: {
@@ -248,19 +240,20 @@ function createTimelineChart(historyData) {
                             return context[0].label;
                         },
                         label: (context) => {
-                            if (context.datasetIndex === 0) {
-                                // Price dataset
-                                return `Price: $${context.parsed.y.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
-                            } else {
-                                // Regime dataset
-                                const regime = regimes[context.dataIndex];
-                                return `Regime: ${regime}`;
-                            }
+                            const price = context.parsed.y;
+                            const regime = regimes[context.dataIndex] || 'Unknown';
+                            return [
+                                `Price: $${price.toLocaleString('en-US', { maximumFractionDigits: 0 })}`,
+                                `Regime: ${regime}`
+                            ];
                         }
                     }
                 },
                 annotation: {
-                    annotations: createEventAnnotations(events, prices)
+                    annotations: {
+                        ...regimeAnnotations,
+                        ...createEventAnnotations(events, prices)
+                    }
                 }
             },
             scales: {
@@ -297,32 +290,48 @@ function createTimelineChart(historyData) {
 }
 
 /**
- * Create regime color segments for chart background
+ * Create regime box annotations for chart background
  */
-function createRegimeSegments(dates, regimes) {
-    const segments = [];
-    const uniqueRegimes = [...new Set(regimes)];
+function createRegimeBoxAnnotations(dates, regimes) {
+    const annotations = {};
 
-    uniqueRegimes.forEach(regime => {
-        const regimeConfig = BTC_REGIME_CONFIG.regimeColors[regime];
-        if (!regimeConfig) return;
+    if (!dates || !regimes || dates.length === 0) return annotations;
 
-        const data = regimes.map((r, i) => r === regime ? 1 : null);
+    // Group consecutive same-regime periods into boxes
+    let currentRegime = regimes[0];
+    let startIndex = 0;
 
-        segments.push({
-            label: regime,
-            data: data,
-            backgroundColor: regimeConfig.bg,
-            borderColor: regimeConfig.border,
-            borderWidth: 0,
-            fill: 'origin',
-            pointRadius: 0,
-            showLine: false,
-            hidden: false
-        });
-    });
+    for (let i = 1; i <= regimes.length; i++) {
+        // When regime changes or we reach the end
+        if (i === regimes.length || regimes[i] !== currentRegime) {
+            const endIndex = i - 1;
+            const regimeConfig = BTC_REGIME_CONFIG.regimeColors[currentRegime];
 
-    return segments;
+            if (regimeConfig && startIndex < dates.length && endIndex < dates.length) {
+                // Create box annotation for this regime period
+                annotations[`regime_${startIndex}_${endIndex}`] = {
+                    type: 'box',
+                    xMin: dates[startIndex],
+                    xMax: dates[endIndex],
+                    yScaleID: 'y',
+                    backgroundColor: regimeConfig.bg,
+                    borderColor: 'transparent',
+                    borderWidth: 0,
+                    drawTime: 'beforeDatasetsDraw',  // Draw behind price line
+                    z: -1  // Ensure it's behind everything
+                };
+            }
+
+            // Start new regime period
+            if (i < regimes.length) {
+                currentRegime = regimes[i];
+                startIndex = i;
+            }
+        }
+    }
+
+    console.log(`[BTC Regime] Created ${Object.keys(annotations).length} regime box annotations`);
+    return annotations;
 }
 
 /**
