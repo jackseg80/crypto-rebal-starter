@@ -55,28 +55,36 @@ export async function fetchSignals() {
       };
     }
 
-    // 2. BTC Dominance (CoinGecko)
+    // 2. BTC Dominance (CoinGecko via proxy)
     try {
-      const dominanceResponse = await fetch('https://api.coingecko.com/api/v3/global', {
+      const apiBase = window.globalConfig?.get('api_base_url') || window.location.origin || 'http://localhost:8000';
+      const proxyUrl = `${apiBase.replace(/\/$/, '')}/api/coingecko-proxy/global`;
+
+      const dominanceResponse = await fetch(proxyUrl, {
         method: 'GET',
         headers: { 'Accept': 'application/json' }
       });
-      
+
       if (dominanceResponse.ok) {
-        const dominanceData = await dominanceResponse.json();
+        const proxyData = await dominanceResponse.json();
+        const dominanceData = proxyData.data; // Unwrap proxy response
         const btcDominance = dominanceData.data.market_cap_percentage.btc;
+
         signals.btc_dominance = {
           value: btcDominance,
           normalized: null,
           timestamp: Date.now(),
-          source: 'coingecko'
+          source: proxyData.cached ? 'coingecko_cached' : 'coingecko'
         };
-        console.debug('✅ BTC Dominance loaded:', btcDominance.toFixed(1) + '%');
+
+        const cacheInfo = proxyData.cached ? ' (cached)' : '';
+        const staleInfo = proxyData.stale ? ' (stale)' : '';
+        console.debug(`✅ BTC Dominance loaded: ${btcDominance.toFixed(1)}%${cacheInfo}${staleInfo}`);
       } else {
-        throw new Error('CoinGecko API failed');
+        throw new Error(`CoinGecko proxy failed: ${dominanceResponse.status}`);
       }
     } catch (error) {
-      (window.debugLogger?.warn || console.warn)('⚠️ BTC Dominance fallback:', error);
+      (window.debugLogger?.warn || console.warn)('⚠️ BTC Dominance fallback (using static value):', error);
       signals.btc_dominance = {
         value: 57.5, // Current approximate value
         normalized: null,
@@ -115,38 +123,45 @@ export async function fetchSignals() {
       };
     }
 
-    // 4. ETH/BTC Ratio (CoinGecko)
+    // 4. ETH/BTC Ratio (CoinGecko via proxy)
     try {
-      const pricesResponse = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd', {
+      const apiBase = window.globalConfig?.get('api_base_url') || window.location.origin || 'http://localhost:8000';
+      const proxyUrl = `${apiBase.replace(/\/$/, '')}/api/coingecko-proxy/simple/price?ids=bitcoin,ethereum&vs_currencies=usd`;
+
+      const pricesResponse = await fetch(proxyUrl, {
         method: 'GET',
         headers: { 'Accept': 'application/json' }
       });
-      
+
       if (pricesResponse.ok) {
-        const pricesData = await pricesResponse.json();
+        const proxyData = await pricesResponse.json();
+        const pricesData = proxyData.data; // Unwrap proxy response
         console.debug('🔍 ETH/BTC API response:', pricesData);
-        
+
         const btcPrice = pricesData.bitcoin?.usd;
         const ethPrice = pricesData.ethereum?.usd;
-        
+
         if (btcPrice && ethPrice && btcPrice > 0 && ethPrice > 0) {
           const ethBtcRatio = ethPrice / btcPrice;
-          
+
           signals.eth_btc_ratio = {
             value: ethBtcRatio,
             normalized: null,
             timestamp: Date.now(),
-            source: 'coingecko'
+            source: proxyData.cached ? 'coingecko_cached' : 'coingecko'
           };
-          console.debug('✅ ETH/BTC Ratio loaded:', ethBtcRatio.toFixed(6));
+
+          const cacheInfo = proxyData.cached ? ' (cached)' : '';
+          const staleInfo = proxyData.stale ? ' (stale)' : '';
+          console.debug(`✅ ETH/BTC Ratio loaded: ${ethBtcRatio.toFixed(6)}${cacheInfo}${staleInfo}`);
         } else {
           throw new Error(`Invalid price data: BTC=${btcPrice}, ETH=${ethPrice}`);
         }
       } else {
-        throw new Error(`CoinGecko prices API failed with status: ${pricesResponse.status}`);
+        throw new Error(`CoinGecko proxy failed: ${pricesResponse.status}`);
       }
     } catch (error) {
-      (window.debugLogger?.warn || console.warn)('⚠️ ETH/BTC Ratio fallback:', error);
+      (window.debugLogger?.warn || console.warn)('⚠️ ETH/BTC Ratio fallback (using static value):', error);
       signals.eth_btc_ratio = {
         value: 0.037, // Approximate current ratio
         normalized: null,
@@ -155,37 +170,44 @@ export async function fetchSignals() {
       };
     }
 
-    // 5. Volatility (calculated from recent BTC price changes)
+    // 5. Volatility (calculated from recent BTC price changes via proxy)
     try {
-      const volatilityResponse = await fetch('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=7&interval=daily', {
+      const apiBase = window.globalConfig?.get('api_base_url') || window.location.origin || 'http://localhost:8000';
+      const proxyUrl = `${apiBase.replace(/\/$/, '')}/api/coingecko-proxy/market_chart?coin_id=bitcoin&vs_currency=usd&days=7&interval=daily`;
+
+      const volatilityResponse = await fetch(proxyUrl, {
         method: 'GET',
         headers: { 'Accept': 'application/json' }
       });
-      
+
       if (volatilityResponse.ok) {
-        const volatilityData = await volatilityResponse.json();
+        const proxyData = await volatilityResponse.json();
+        const volatilityData = proxyData.data; // Unwrap proxy response
         const prices = volatilityData.prices.map(p => p[1]);
-        
+
         // Calculate 7-day volatility
         const returns = [];
         for (let i = 1; i < prices.length; i++) {
           returns.push((prices[i] - prices[i-1]) / prices[i-1]);
         }
-        
+
         const volatility = Math.sqrt(returns.reduce((sum, ret) => sum + ret * ret, 0) / returns.length) * Math.sqrt(365); // Annualized volatility as decimal
-        
+
         signals.volatility = {
           value: volatility,
           normalized: null,
           timestamp: Date.now(),
-          source: 'coingecko_calculated'
+          source: proxyData.cached ? 'coingecko_calculated_cached' : 'coingecko_calculated'
         };
-        console.debug('✅ Volatility loaded:', (volatility * 100).toFixed(1) + '%');
+
+        const cacheInfo = proxyData.cached ? ' (cached)' : '';
+        const staleInfo = proxyData.stale ? ' (stale)' : '';
+        console.debug(`✅ Volatility loaded: ${(volatility * 100).toFixed(1)}%${cacheInfo}${staleInfo}`);
       } else {
-        throw new Error('CoinGecko market chart API failed');
+        throw new Error(`CoinGecko proxy failed: ${volatilityResponse.status}`);
       }
     } catch (error) {
-      (window.debugLogger?.warn || console.warn)('⚠️ Volatility fallback:', error);
+      (window.debugLogger?.warn || console.warn)('⚠️ Volatility fallback (using static value):', error);
       signals.volatility = {
         value: 0.65, // 65% typical crypto volatility
         normalized: null,
@@ -196,27 +218,35 @@ export async function fetchSignals() {
 
     // 6. Trend (7-day price momentum)
     try {
-      const trendResponse = await fetch('https://api.coingecko.com/api/v3/coins/bitcoin?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false', {
+      // Use backend proxy to avoid CORS and rate limiting
+      const apiBase = window.globalConfig?.get('api_base_url') || window.location.origin || 'http://localhost:8000';
+      const proxyUrl = `${apiBase.replace(/\/$/, '')}/api/coingecko-proxy/bitcoin?market_data=true`;
+
+      const trendResponse = await fetch(proxyUrl, {
         method: 'GET',
         headers: { 'Accept': 'application/json' }
       });
-      
+
       if (trendResponse.ok) {
-        const trendData = await trendResponse.json();
+        const proxyData = await trendResponse.json();
+        const trendData = proxyData.data; // Unwrap proxy response
         const priceChange7d = trendData.market_data.price_change_percentage_7d / 100; // Convert to decimal
-        
+
         signals.trend = {
           value: priceChange7d,
           normalized: null,
           timestamp: Date.now(),
-          source: 'coingecko'
+          source: proxyData.cached ? 'coingecko_cached' : 'coingecko'
         };
-        console.debug('✅ Trend loaded:', (priceChange7d * 100).toFixed(2) + '%');
+
+        const cacheInfo = proxyData.cached ? ' (cached)' : '';
+        const staleInfo = proxyData.stale ? ' (stale)' : '';
+        console.debug(`✅ Trend loaded: ${(priceChange7d * 100).toFixed(2)}%${cacheInfo}${staleInfo}`);
       } else {
-        throw new Error('CoinGecko trend API failed');
+        throw new Error(`CoinGecko proxy failed: ${trendResponse.status}`);
       }
     } catch (error) {
-      (window.debugLogger?.warn || console.warn)('⚠️ Trend fallback:', error);
+      (window.debugLogger?.warn || console.warn)('⚠️ Trend fallback (using static value):', error);
       signals.trend = {
         value: 0.025, // 2.5% slight positive trend
         normalized: null,

@@ -846,17 +846,17 @@ export async function fetchCryptoToolboxIndicators({ force = false, silent = fal
   try {
     response = await performanceMonitoredFetch(proxyUrl);
   } catch (err) {
-    (window.debugLogger?.warn || console.warn)(`🌐 Proxy ${proxyUrl} failed (${err?.message || err}). Trying direct fallback...`);
-    // Tentatives fallback direct vers le scraper Flask (peut nécessiter CORS côté Flask)
+    (window.debugLogger?.debug || console.log)(`🌐 Proxy ${proxyUrl} failed (${err?.message || err}). Trying fallback...`);
+
+    // Try only 2 fallbacks: primary FastAPI proxy, then direct Flask
     const fallbacks = [
-      'http://127.0.0.1:8801/api/crypto-toolbox',
-      'http://127.0.0.1:8888/api/crypto-toolbox',
-      'http://127.0.0.1:8001/api/crypto-toolbox',
-      'http://localhost:8801/api/crypto-toolbox',
-      'http://localhost:8888/api/crypto-toolbox',
-      'http://localhost:8001/api/crypto-toolbox'
+      'http://localhost:8000/api/crypto-toolbox',  // FastAPI proxy (most common)
+      'http://localhost:8001/api/crypto-toolbox'   // Direct Flask (if available)
     ];
+
     let lastError = err;
+    let attemptedUrls = [proxyUrl];
+
     for (const url of fallbacks) {
       try {
         response = await performanceMonitoredFetch(url);
@@ -864,10 +864,19 @@ export async function fetchCryptoToolboxIndicators({ force = false, silent = fal
         break;
       } catch (e) {
         lastError = e;
-        (window.debugLogger?.warn || console.warn)(`🌐 Fallback ${url} failed: ${e?.message || e}`);
+        attemptedUrls.push(url);
+        // Use debug instead of warn to reduce noise
+        (window.debugLogger?.debug || console.log)(`🌐 Fallback ${url} failed: ${e?.message || e}`);
       }
     }
+
     if (!response) {
+      // Single warning message instead of multiple
+      if (_logLimiter.limit('crypto_toolbox_unavailable')) {
+        (window.debugLogger?.warn || console.warn)(
+          `⚠️ Crypto-Toolbox service unavailable (tried ${attemptedUrls.length} endpoints). Using cached data or graceful degradation.`
+        );
+      }
       throw lastError || new Error('All endpoints failed');
     }
   }

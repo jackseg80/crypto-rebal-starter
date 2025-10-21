@@ -151,6 +151,7 @@ from api.wealth_endpoints import router as wealth_router
 from api.sources_endpoints import router as sources_router
 from api.debug_router import router as debug_router
 from api.health_router import router as health_router
+from api.coingecko_proxy_router import router as coingecko_proxy_router
 from api.pricing_router import router as pricing_router
 from api.rebalancing_strategy_router import router as rebalancing_strategy_router
 from api.config_router import router as config_router
@@ -733,6 +734,7 @@ app.include_router(sources_router)
 app.include_router(wealth_router)
 app.include_router(debug_router)
 app.include_router(health_router)
+app.include_router(coingecko_proxy_router)  # CoinGecko CORS proxy with caching
 app.include_router(pricing_router)
 app.include_router(config_router)
 # Phase 3 Unified Orchestration

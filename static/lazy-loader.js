@@ -38,12 +38,12 @@ class LazyLoader {
         return new IntersectionObserver((entries) => {
             (window.debugLogger?.debug || console.log)(`📊 IntersectionObserver triggered with ${entries.length} entries`);
             entries.forEach(entry => {
-                (window.debugLogger?.debug || console.log)(`📊 Element ${entry.target.tagName} isIntersecting: ${entry.isIntersecting}, boundingRect:`, entry.boundingClientRect);
                 if (entry.isIntersecting) {
-                    (window.debugLogger?.info || console.log)('✅ Element is intersecting, loading...');
+                    (window.debugLogger?.debug || console.log)(`✅ Element ${entry.target.tagName} is intersecting, loading...`);
                     this.loadVisibleElement(entry.target);
                 } else {
-                    (window.debugLogger?.error || console.error)('❌ Element not intersecting yet');
+                    // Not an error - elements start as not intersecting until scrolled into view
+                    (window.debugLogger?.debug || console.log)(`📊 Element ${entry.target.tagName} not yet visible (normal)`);
                 }
             });
         }, {
