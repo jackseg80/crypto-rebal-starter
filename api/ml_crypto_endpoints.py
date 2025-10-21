@@ -19,6 +19,10 @@ from services.price_history import price_history
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+# Simple in-memory cache for regime history (TTL: 1 hour)
+_regime_history_cache = {}
+_CACHE_TTL = 3600  # 1 hour in seconds
+
 
 def get_btc_events(start_date: pd.Timestamp, end_date: pd.Timestamp) -> List[Dict[str, str]]:
     """
@@ -137,6 +141,23 @@ async def get_crypto_regime_history(
     try:
         logger.info(f"GET /api/ml/crypto/regime-history - symbol={symbol}, lookback_days={lookback_days}")
 
+        # Check cache first (huge performance boost)
+        cache_key = f"{symbol}_{lookback_days}"
+        now = datetime.now().timestamp()
+
+        if cache_key in _regime_history_cache:
+            cached_entry = _regime_history_cache[cache_key]
+            age = now - cached_entry['timestamp']
+
+            if age < _CACHE_TTL:
+                logger.info(f"Cache HIT for {cache_key} (age: {age:.0f}s, TTL: {_CACHE_TTL}s)")
+                return success_response(cached_entry['data'])
+            else:
+                logger.info(f"Cache EXPIRED for {cache_key} (age: {age:.0f}s > TTL: {_CACHE_TTL}s)")
+                del _regime_history_cache[cache_key]
+
+        logger.info(f"Cache MISS for {cache_key}, computing regime timeline...")
+
         # Get historical data from cache
         history = price_history.get_cached_history(symbol, days=lookback_days)
 
@@ -154,34 +175,43 @@ async def get_crypto_regime_history(
         # Create detector
         detector = BTCRegimeDetector()
 
-        # OPTIMIZATION: Train HMM once on full dataset (instead of per-day)
-        # This is MUCH faster than re-training for each day
-        await detector.train_hmm(symbol=symbol, lookback_days=lookback_days + 365)  # Extra buffer for features
+        # OPTIMIZATION V2: Calculate features ONCE for entire series
+        # Instead of 365 calls to prepare_regime_features (very slow),
+        # we calculate all features once and use sliding window on results
+        logger.info(f"Calculating features once for {len(data)} days (optimized)")
 
-        # Apply regime detection to each day using sliding window
+        # Calculate all features at once
+        all_features = await detector.prepare_regime_features(
+            symbol=symbol,
+            lookback_days=lookback_days
+        )
+
+        logger.info(f"Features calculated: {len(all_features)} rows, {len(all_features.columns)} columns")
+
+        # Train HMM once on full dataset
+        await detector.train_hmm(symbol=symbol, lookback_days=lookback_days)
+
+        # Apply regime detection to each day using PRE-CALCULATED features
         regimes = []
         regime_ids = []
 
-        # Use expanding window (each day sees all history up to that point)
+        # Use expanding window on pre-calculated features
         for i in range(len(data)):
             try:
-                # Get data up to current day
-                window_data = data.iloc[:i+1]
-
                 # Skip if window too small (need at least 60 days for features)
-                if len(window_data) < 60:
+                if i < 60:
                     regimes.append('Insufficient Data')
                     regime_ids.append(-1)
                     continue
 
-                # Prepare features for this window
-                features = await detector.prepare_regime_features(
-                    symbol=symbol,
-                    lookback_days=len(window_data)
-                )
+                # Get features up to current day (just slicing, no recalculation!)
+                window_features = all_features.iloc[:i+1]
 
-                # Get rule-based detection (fast, no HMM needed)
-                rule_result = detector._detect_regime_rule_based(features)
+                # Get last row for rule-based detection
+                latest_features = window_features.iloc[[-1]]  # Keep as DataFrame
+
+                # Get rule-based detection (fast, uses latest features only)
+                rule_result = detector._detect_regime_rule_based(latest_features)
 
                 if rule_result and rule_result['confidence'] >= 0.85:
                     # High confidence rule → use it
@@ -189,7 +219,7 @@ async def get_crypto_regime_history(
                     regime_ids.append(rule_result['regime_id'])
                 else:
                     # Use HMM fallback (already trained)
-                    features_scaled = detector.scaler.transform(features[detector.feature_columns])
+                    features_scaled = detector.scaler.transform(window_features[detector.feature_columns])
                     regime_sequence = detector.hmm_model.predict(features_scaled)
                     regime_id = int(regime_sequence[-1])
                     regimes.append(detector.regime_names[regime_id])
@@ -226,6 +256,13 @@ async def get_crypto_regime_history(
             regime_counts[regime] = regime_counts.get(regime, 0) + 1
 
         logger.info(f"Regime timeline built: {len(regimes)} days, distribution={regime_counts}")
+
+        # Store in cache for future requests (huge performance boost)
+        _regime_history_cache[cache_key] = {
+            'data': response_data,
+            'timestamp': now
+        }
+        logger.info(f"Cached regime timeline for {cache_key} (TTL: {_CACHE_TTL}s)")
 
         return success_response(response_data)
 
