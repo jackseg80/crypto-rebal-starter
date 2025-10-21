@@ -120,6 +120,9 @@ async function loadBTCRegimeData(lookbackDays) {
         updateCurrentRegimeSummary(currentRegime);
         createTimelineChart(historyResult.data);
 
+        // Hide loading state
+        hideLoadingState();
+
         console.log(`[BTC Regime] Loaded ${historyResult.data.dates?.length || 0} days of history`);
 
     } catch (error) {
@@ -454,23 +457,45 @@ function showLoadingState() {
 }
 
 /**
- * Show error state
+ * Hide loading state
  */
-function showErrorState(errorMessage) {
+function hideLoadingState() {
+    console.log('[BTC Regime] Hiding loading state');
+
     const chartContainer = document.getElementById('btc-regime-chart-container');
     if (chartContainer) {
         chartContainer.classList.remove('loading');
+        console.log('[BTC Regime] Chart container loading removed');
     }
 
     const loadingMsg = document.getElementById('btc-regime-loading-message');
     if (loadingMsg) {
         loadingMsg.style.display = 'none';
+        console.log('[BTC Regime] Loading message hidden');
     }
 
+    // Hide error message too
+    const errorMsg = document.getElementById('btc-regime-error-message');
+    if (errorMsg) {
+        errorMsg.style.display = 'none';
+    }
+}
+
+/**
+ * Show error state
+ */
+function showErrorState(errorMessage) {
+    console.log('[BTC Regime] Showing error state:', errorMessage);
+
+    // First hide loading state
+    hideLoadingState();
+
+    // Then show error
     const errorMsg = document.getElementById('btc-regime-error-message');
     if (errorMsg) {
         errorMsg.textContent = `Error: ${errorMessage}`;
         errorMsg.style.display = 'block';
+        console.log('[BTC Regime] Error message shown');
     }
 
     console.error('[BTC Regime] Error state:', errorMessage);
