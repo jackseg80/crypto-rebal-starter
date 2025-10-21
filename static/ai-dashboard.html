@@ -14,6 +14,14 @@
     <script type="module" src="components/nav.js"></script>
     <script type="module" src="components/tooltips.js"></script>
 
+    <!-- Bitcoin Regime Chart Module -->
+    <script type="module">
+        import { initializeBTCRegimeChart } from './modules/btc-regime-chart.js';
+
+        // Expose globally for tab switching
+        window.initializeBTCRegimeChart = initializeBTCRegimeChart;
+    </script>
+
     <!-- Scripts de base (comme les autres pages) -->
     <script src="debug-logger.js"></script>
     <script src="input-validator.js"></script>
@@ -384,6 +392,7 @@
                     <button class="tab-btn active" data-tab="overview">📊 Vue d'Ensemble</button>
                     <button class="tab-btn" data-tab="models">🤖 Modèles</button>
                     <button class="tab-btn" data-tab="predictions">🔮 Prédictions</button>
+                    <button class="tab-btn" data-tab="regimes">📈 Régimes de Marché</button>
                     <button class="tab-btn" data-tab="administration">🔧 Administration</button>
                 </div>
 
@@ -615,6 +624,215 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Régimes de Marché -->
+                <div id="regimes-tab" class="tab-content">
+                    <!-- Section 1: Stock Market Regime -->
+                    <div class="ml-card" style="margin-bottom: 2rem;">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <span class="card-icon">📈</span>
+                                Stock Market Regime Detection (HMM)
+                            </div>
+                        </div>
+                        <div class="card-content">
+                            <div class="status-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                                <div class="status-item">
+                                    <span class="status-label">Current Regime</span>
+                                    <span class="status-value" id="stock-regime-name">Loading...</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Confidence</span>
+                                    <span class="status-value" id="stock-regime-confidence">--</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Model</span>
+                                    <span class="status-value">Hidden Markov Model</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Thresholds</span>
+                                    <span class="status-value" style="font-size: 0.85rem;">Bear: DD≤-20% (60d)</span>
+                                </div>
+                            </div>
+
+                            <div style="margin-top: 1rem; padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-sm); border-left: 3px solid var(--info);">
+                                <strong>ℹ️ Stock Market Detection:</strong>
+                                <ul style="margin: 0.5rem 0 0 1.5rem; color: var(--theme-text-muted); font-size: 0.9rem;">
+                                    <li><strong>HMM Model:</strong> Statistical pattern recognition for market regimes</li>
+                                    <li><strong>States:</strong> Bull, Bear, Sideways, Distribution</li>
+                                    <li><strong>Thresholds:</strong> Traditional stock market parameters (DD ≤ -20%, 60 days)</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="card-actions">
+                            <button id="refresh-stock-regime" class="btn primary">🔄 Refresh</button>
+                            <button id="view-stock-history" class="btn secondary">📊 View History</button>
+                        </div>
+                    </div>
+
+                    <!-- Section 2: Bitcoin Regime Detection -->
+                    <div class="btc-regime-section ml-card" style="margin-bottom: 2rem;" id="btc-regime-section">
+                        <div class="card-header" style="margin-bottom: 1.5rem;">
+                            <div class="card-title">
+                                <span class="card-icon">₿</span>
+                                Bitcoin Regime Detection (Hybrid System)
+                                <small style="font-size: 0.75rem; font-weight: 400; color: var(--theme-text-muted); margin-left: 0.5rem;">
+                                    Rule-Based + HMM Fusion
+                                </small>
+                            </div>
+                        </div>
+
+                        <!-- Current Regime Summary Cards -->
+                        <div class="btc-regime-summary" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+                            <!-- Current Regime -->
+                            <div class="metric-card">
+                                <h5>Current Regime</h5>
+                                <div class="metric-value">
+                                    <span id="btc-current-regime-name" class="regime-chip">Loading...</span>
+                                </div>
+                                <small>Hybrid Detection</small>
+                            </div>
+
+                            <!-- Confidence -->
+                            <div class="metric-card">
+                                <h5>Confidence</h5>
+                                <div class="metric-value" id="btc-current-regime-confidence">--</div>
+                                <small>Detection Certainty</small>
+                            </div>
+
+                            <!-- Detection Method -->
+                            <div class="metric-card">
+                                <h5>Detection Method</h5>
+                                <div class="metric-value">
+                                    <span id="btc-current-regime-method" class="detection-method">--</span>
+                                </div>
+                                <small>Rule-Based or HMM</small>
+                            </div>
+
+                            <!-- Rule Reason (conditional) -->
+                            <div class="metric-card" id="btc-regime-reason-card" style="display: none;">
+                                <h5>Rule Trigger</h5>
+                                <div class="metric-value" style="font-size: 0.85rem;" id="btc-current-regime-reason">--</div>
+                                <small>Detection Criteria</small>
+                            </div>
+                        </div>
+
+                        <!-- Timeframe Selector -->
+                        <div class="btc-regime-timeframe-selector" style="display: flex; gap: 0.5rem; margin-bottom: 1rem; justify-content: center; flex-wrap: wrap;">
+                            <button data-days="365" class="timeframe-btn active">1 Year</button>
+                            <button data-days="730" class="timeframe-btn">2 Years</button>
+                            <button data-days="1825" class="timeframe-btn">5 Years</button>
+                            <button data-days="3650" class="timeframe-btn">10 Years</button>
+                        </div>
+
+                        <!-- Loading/Error Messages -->
+                        <div id="btc-regime-loading-message" style="display: none; text-align: center; padding: 2rem; color: var(--theme-text-muted);">
+                            ⏳ Loading Bitcoin regime data...
+                        </div>
+                        <div id="btc-regime-error-message" style="display: none; text-align: center; padding: 2rem; color: var(--danger);">
+                            <!-- Error message will be inserted here -->
+                        </div>
+
+                        <!-- Timeline Chart -->
+                        <div id="btc-regime-chart-container" style="background: var(--theme-surface); border-radius: var(--radius-md); padding: 1.5rem; border: 1px solid var(--theme-border); margin-bottom: 2rem; min-height: 550px;">
+                            <canvas id="btc-regime-timeline-chart" style="height: 500px; width: 100%;"></canvas>
+                        </div>
+
+                        <!-- Regime Probabilities Chart -->
+                        <div class="btc-regime-probabilities-container" style="background: var(--theme-surface); border-radius: var(--radius-md); padding: 1.5rem; border: 1px solid var(--theme-border);">
+                            <canvas id="btc-regime-probabilities-chart" style="max-height: 300px;"></canvas>
+                        </div>
+
+                        <!-- Regime Legend -->
+                        <div class="btc-regime-legend" style="margin-top: 1.5rem; padding: 1rem; background: var(--theme-surface-elevated); border-radius: var(--radius-sm); display: flex; gap: 1.5rem; flex-wrap: wrap; justify-content: center;">
+                            <div class="legend-item">
+                                <span class="regime-chip bear" style="display: inline-block; padding: 0.25rem 0.75rem; border-radius: var(--radius-sm); font-size: 0.85rem;">Bear Market</span>
+                                <small style="display: block; margin-top: 0.25rem; color: var(--theme-text-muted);">DD ≤ -50%, 30d+</small>
+                            </div>
+                            <div class="legend-item">
+                                <span class="regime-chip correction" style="display: inline-block; padding: 0.25rem 0.75rem; border-radius: var(--radius-sm); font-size: 0.85rem;">Correction</span>
+                                <small style="display: block; margin-top: 0.25rem; color: var(--theme-text-muted);">DD 10-50% or Vol >60%</small>
+                            </div>
+                            <div class="legend-item">
+                                <span class="regime-chip bull" style="display: inline-block; padding: 0.25rem 0.75rem; border-radius: var(--radius-sm); font-size: 0.85rem;">Bull Market</span>
+                                <small style="display: block; margin-top: 0.25rem; color: var(--theme-text-muted);">DD > -20%, Vol <60%</small>
+                            </div>
+                            <div class="legend-item">
+                                <span class="regime-chip expansion" style="display: inline-block; padding: 0.25rem 0.75rem; border-radius: var(--radius-sm); font-size: 0.85rem;">Expansion</span>
+                                <small style="display: block; margin-top: 0.25rem; color: var(--theme-text-muted);">Recovery +30%/mo</small>
+                            </div>
+                        </div>
+
+                        <!-- Info Footer -->
+                        <div style="margin-top: 1.5rem; padding: 1rem; background: var(--theme-bg); border-left: 3px solid var(--brand-primary); border-radius: var(--radius-sm);">
+                            <strong>ℹ️ About Hybrid Detection:</strong>
+                            <ul style="margin: 0.5rem 0 0 1.5rem; color: var(--theme-text-muted); font-size: 0.9rem;">
+                                <li><strong>Rule-Based (≥85% confidence):</strong> Clear cases using drawdown, duration, and trend thresholds</li>
+                                <li><strong>HMM (nuanced):</strong> Statistical model for corrections and consolidations</li>
+                                <li><strong>Crypto-Adjusted:</strong> Thresholds adapted for Bitcoin volatility (3x higher than stocks)</li>
+                                <li><strong>Events:</strong> Mt.Gox, FTX, COVID crashes annotated for context</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Section 3: Cross-Asset Comparison -->
+                    <div class="ml-card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <span class="card-icon">📊</span>
+                                Cross-Asset Regime Comparison
+                            </div>
+                        </div>
+                        <div class="card-content">
+                            <div style="overflow-x: auto;">
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    <thead>
+                                        <tr style="background: var(--theme-surface-elevated); text-align: left;">
+                                            <th style="padding: 0.75rem; border: 1px solid var(--theme-border);">Asset</th>
+                                            <th style="padding: 0.75rem; border: 1px solid var(--theme-border);">Current Regime</th>
+                                            <th style="padding: 0.75rem; border: 1px solid var(--theme-border);">Confidence</th>
+                                            <th style="padding: 0.75rem; border: 1px solid var(--theme-border);">Detection Method</th>
+                                            <th style="padding: 0.75rem; border: 1px solid var(--theme-border);">Bear Threshold</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td style="padding: 0.75rem; border: 1px solid var(--theme-border); font-weight: 600;">📈 Stock Market</td>
+                                            <td style="padding: 0.75rem; border: 1px solid var(--theme-border);">
+                                                <span id="comparison-stock-regime" class="regime-chip">--</span>
+                                            </td>
+                                            <td style="padding: 0.75rem; border: 1px solid var(--theme-border);" id="comparison-stock-confidence">--</td>
+                                            <td style="padding: 0.75rem; border: 1px solid var(--theme-border);">HMM Only</td>
+                                            <td style="padding: 0.75rem; border: 1px solid var(--theme-border);">DD ≤ -20%, 60d</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 0.75rem; border: 1px solid var(--theme-border); font-weight: 600;">₿ Bitcoin</td>
+                                            <td style="padding: 0.75rem; border: 1px solid var(--theme-border);">
+                                                <span id="comparison-btc-regime" class="regime-chip">--</span>
+                                            </td>
+                                            <td style="padding: 0.75rem; border: 1px solid var(--theme-border);" id="comparison-btc-confidence">--</td>
+                                            <td style="padding: 0.75rem; border: 1px solid var(--theme-border);" id="comparison-btc-method">--</td>
+                                            <td style="padding: 0.75rem; border: 1px solid var(--theme-border);">DD ≤ -50%, 30d</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div style="margin-top: 1.5rem; padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-sm);">
+                                <strong>📌 Key Differences:</strong>
+                                <ul style="margin: 0.5rem 0 0 1.5rem; color: var(--theme-text-muted); font-size: 0.9rem;">
+                                    <li><strong>Stock Market:</strong> Pure HMM statistical model, traditional thresholds</li>
+                                    <li><strong>Bitcoin:</strong> Hybrid Rule-Based + HMM, crypto-adjusted thresholds (3x higher volatility)</li>
+                                    <li><strong>Why Different?</strong> Bitcoin's volatility (60-100% annual) vs Stocks (15-25%) requires distinct detection logic</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="card-actions">
+                            <button id="refresh-comparison" class="btn primary">🔄 Refresh Comparison</button>
+                            <button id="export-comparison" class="btn secondary">💾 Export Data</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </main>
@@ -677,6 +895,9 @@
 
                 // Configuration des onglets
                 setupTabs();
+
+                // Setup button listeners for Régimes tab
+                setupRegimesTabButtons();
 
                 // Auto-initialiser le système ML
                 debugLogger.debug('⚡ Auto-initialisation du système ML...');
@@ -1675,13 +1896,127 @@
             setTimeout(() => notification.remove(), 4000);
         }
 
+        // Load Stock Market regime data
+        async function loadStockRegimeData() {
+            try {
+                const config = await fetchUserConfig();
+                const response = await fetch(`${config.api_base_url}/api/ml/predict`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ assets: ['BTC'], include_regime: true, include_volatility: false })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.regime_prediction) {
+                        const regimeName = data.regime_prediction.regime_name || data.regime_prediction.regime || 'Unknown';
+                        const confidences = data.regime_prediction.probabilities || {};
+
+                        // Find max confidence
+                        const maxConfidence = Math.max(...Object.values(confidences)) * 100;
+
+                        // Update UI
+                        document.getElementById('stock-regime-name').textContent = regimeName;
+                        document.getElementById('stock-regime-confidence').textContent = maxConfidence.toFixed(1) + '%';
+
+                        debugLogger.debug('✅ Stock regime loaded:', regimeName, maxConfidence.toFixed(1) + '%');
+                    }
+                }
+            } catch (error) {
+                debugLogger.error('❌ Failed to load stock regime:', error);
+                document.getElementById('stock-regime-name').textContent = 'Error';
+                document.getElementById('stock-regime-confidence').textContent = '--';
+            }
+        }
+
+        // Load cross-asset comparison data
+        async function loadCrossAssetComparison() {
+            try {
+                const config = await fetchUserConfig();
+
+                // Load Bitcoin regime
+                const btcResponse = await fetch(`${config.api_base_url}/api/ml/crypto/regime?symbol=BTC&lookback_days=365`);
+                let btcData = null;
+                if (btcResponse.ok) {
+                    btcData = await btcResponse.json();
+                }
+
+                // Load Stock regime (reuse from above)
+                const stockResponse = await fetch(`${config.api_base_url}/api/ml/predict`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ assets: ['BTC'], include_regime: true, include_volatility: false })
+                });
+                let stockData = null;
+                if (stockResponse.ok) {
+                    stockData = await stockResponse.json();
+                }
+
+                // Update comparison table - Stock
+                if (stockData && stockData.regime_prediction) {
+                    const regimeName = stockData.regime_prediction.regime_name || stockData.regime_prediction.regime || 'Unknown';
+                    const confidences = stockData.regime_prediction.probabilities || {};
+                    const maxConfidence = Math.max(...Object.values(confidences)) * 100;
+
+                    document.getElementById('comparison-stock-regime').textContent = regimeName;
+                    document.getElementById('comparison-stock-confidence').textContent = maxConfidence.toFixed(1) + '%';
+                } else {
+                    document.getElementById('comparison-stock-regime').textContent = 'N/A';
+                    document.getElementById('comparison-stock-confidence').textContent = '--';
+                }
+
+                // Update comparison table - Bitcoin
+                if (btcData && btcData.current_regime) {
+                    document.getElementById('comparison-btc-regime').textContent = btcData.current_regime;
+                    document.getElementById('comparison-btc-confidence').textContent = (btcData.confidence * 100).toFixed(1) + '%';
+                    document.getElementById('comparison-btc-method').textContent = btcData.detection_method === 'rule_based' ? 'Rule-Based' : 'HMM';
+                } else {
+                    document.getElementById('comparison-btc-regime').textContent = 'N/A';
+                    document.getElementById('comparison-btc-confidence').textContent = '--';
+                    document.getElementById('comparison-btc-method').textContent = '--';
+                }
+
+                debugLogger.debug('✅ Cross-asset comparison loaded');
+            } catch (error) {
+                debugLogger.error('❌ Failed to load cross-asset comparison:', error);
+            }
+        }
+
+        // Setup button event listeners for Régimes tab
+        function setupRegimesTabButtons() {
+            // Refresh stock regime
+            document.getElementById('refresh-stock-regime')?.addEventListener('click', async () => {
+                await loadStockRegimeData();
+                showSuccess('Stock regime data refreshed');
+            });
+
+            // Refresh comparison
+            document.getElementById('refresh-comparison')?.addEventListener('click', async () => {
+                await loadCrossAssetComparison();
+                showSuccess('Comparison data refreshed');
+            });
+
+            // Export comparison (placeholder)
+            document.getElementById('export-comparison')?.addEventListener('click', () => {
+                showSuccess('Export functionality coming soon');
+            });
+
+            // View stock history (placeholder)
+            document.getElementById('view-stock-history')?.addEventListener('click', () => {
+                showSuccess('Stock regime history view coming soon');
+            });
+        }
+
         // Configuration des onglets
         function setupTabs() {
             const tabButtons = document.querySelectorAll('.tab-btn');
             const tabContents = document.querySelectorAll('.tab-content');
 
+            // Track if regimes tab has been initialized
+            let regimesTabInitialized = false;
+
             tabButtons.forEach(btn => {
-                btn.addEventListener('click', () => {
+                btn.addEventListener('click', async () => {
                     const targetTab = btn.getAttribute('data-tab');
 
                     // Désactiver tous les onglets
@@ -1691,6 +2026,30 @@
                     // Activer l'onglet sélectionné
                     btn.classList.add('active');
                     document.getElementById(`${targetTab}-tab`).classList.add('active');
+
+                    // Initialize Régimes tab on first visit
+                    if (targetTab === 'regimes' && !regimesTabInitialized) {
+                        regimesTabInitialized = true;
+                        debugLogger.debug('🎯 Initializing Régimes de Marché tab...');
+
+                        try {
+                            // Initialize Bitcoin charts
+                            if (window.initializeBTCRegimeChart) {
+                                await window.initializeBTCRegimeChart('btc-regime-section');
+                                debugLogger.debug('✅ Bitcoin regime chart initialized');
+                            }
+
+                            // Load Stock Market regime data
+                            await loadStockRegimeData();
+
+                            // Load cross-asset comparison
+                            await loadCrossAssetComparison();
+
+                            debugLogger.debug('✅ Régimes tab fully initialized');
+                        } catch (error) {
+                            debugLogger.error('❌ Error initializing Régimes tab:', error);
+                        }
+                    }
                 });
             });
         }
