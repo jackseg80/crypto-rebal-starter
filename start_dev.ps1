@@ -149,6 +149,7 @@ if ($EnableScheduler) {
     Write-Host "   • OHLCV updates (daily 03:10, hourly :05)" -ForegroundColor Gray
     Write-Host "   • Staleness monitor (hourly :15)" -ForegroundColor Gray
     Write-Host "   • API warmers (every 10min)" -ForegroundColor Gray
+    Write-Host "   • Crypto-Toolbox indicators (2x daily: 08:00, 20:00)" -ForegroundColor Gray
 } else {
     Write-Host "⏰ Task Scheduler: DISABLED" -ForegroundColor Yellow
     Write-Host "   Run manual scripts for P&L/OHLCV updates" -ForegroundColor Gray

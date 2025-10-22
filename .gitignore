@@ -37,6 +37,7 @@ data/ml_predictions/*_validation*.json
 static/archive/pre-unification/
 mockup_*.html
 *_mockup.html
+*.backup
 
 # IDEs
 .vscode/
