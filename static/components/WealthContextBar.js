@@ -1,5 +1,5 @@
 // WealthContextBar - Barre de contexte patrimoine globale (ES module)
-// Filtres household/account/module/ccy persistés localStorage + querystring
+// Filtres account/bourse/ccy persistés localStorage + querystring
 
 class WealthContextBar {
   constructor() {
@@ -7,7 +7,6 @@ class WealthContextBar {
     this.defaults = {
       account: 'all',
       bourse: 'all',
-      module: 'all',
       currency: 'USD'
     };
     this.context = this.loadContext();
@@ -39,7 +38,6 @@ class WealthContextBar {
       return {
         account: params.get('account') || stored.account || this.defaults.account,
         bourse: params.get('bourse') || stored.bourse || this.defaults.bourse,
-        module: params.get('module') || stored.module || this.defaults.module,
         currency: params.get('ccy') || stored.currency || this.defaults.currency
       };
     } catch (error) {
@@ -803,17 +801,6 @@ class WealthContextBar {
       </div>
 
       <div class="context-group">
-        <span class="context-label">Module:</span>
-        <select id="wealth-module">
-          <option value="all">Tous</option>
-          <option value="crypto">Crypto</option>
-          <option value="bourse">Bourse</option>
-          <option value="banque">Banque</option>
-          <option value="divers">Divers</option>
-        </select>
-      </div>
-
-      <div class="context-group">
         <span class="context-label">Devise:</span>
         <select id="wealth-currency">
           <option value="USD">USD</option>
@@ -943,7 +930,7 @@ class WealthContextBar {
 
   bindEvents() {
     // Gestion des changements
-    ['module', 'currency'].forEach(key => {
+    ['currency'].forEach(key => {
       const select = document.getElementById(`wealth-${key}`);
       if (select) {
         select.addEventListener('change', (e) => {
@@ -1012,7 +999,7 @@ class WealthContextBar {
   }
 
   updateSelects() {
-    ['account', 'bourse', 'module', 'currency'].forEach(key => {
+    ['account', 'bourse', 'currency'].forEach(key => {
       const select = document.getElementById(`wealth-${key}`);
       if (select) {
         select.value = this.context[key];
