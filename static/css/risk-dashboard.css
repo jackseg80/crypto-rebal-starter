@@ -1858,6 +1858,56 @@
   line-height: 1.4;
 }
 
+/* ===== Backend Fallback Banner ===== */
+#backend-fallback-banner {
+  display: none;
+  background: color-mix(in oklab, var(--warning) 20%, transparent);
+  border: 1px solid var(--warning);
+  color: var(--theme-text);
+  padding: 0.6rem;
+  margin: 0.5rem auto;
+  max-width: 95vw;
+  border-radius: 6px;
+}
+
+/* ===== Toast Clear Button ===== */
+.toast-clear-button {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 3000;
+  pointer-events: auto;
+}
+
+.toast-clear-button button {
+  background: var(--danger);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 0.875rem;
+  box-shadow: var(--shadow-md);
+  pointer-events: auto;
+  transition: all var(--transition-fast);
+}
+
+.toast-clear-button button:hover {
+  background: color-mix(in oklab, var(--danger) 80%, black);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
+}
+
+.toast-clear-button button:active {
+  transform: translateY(0);
+}
+
+/* ===== Badge Containers ===== */
+.badge-container {
+  float: right;
+  margin-bottom: 1rem;
+}
+
 .modal-actions {
   padding: var(--space-xl);
   border-top: 1px solid var(--theme-border);

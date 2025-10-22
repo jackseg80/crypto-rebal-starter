@@ -31,8 +31,6 @@
   <!-- Unified asset groups system -->
   <script type="module" src="shared-asset-groups.js"></script>
 
-  <!-- Risk v2 uses API instead of local modules -->
-
   <!-- Chart.js will be lazy-loaded when needed -->
 
   <!-- Risk Dashboard CSS -->
@@ -51,8 +49,7 @@
 </head>
 
 <body>
-  <div id="backend-fallback-banner"
-    style="display:none; background: color-mix(in oklab, var(--warning) 20%, transparent); border: 1px solid var(--warning); color: var(--theme-text); padding: .6rem; margin: .5rem auto; max-width: 95vw; border-radius: 6px;">
+  <div id="backend-fallback-banner">
     ⚠ Backend indisponible — mode prudent (cap réduit).
   </div>
 
@@ -101,16 +98,16 @@
       <!-- Main Content avec Onglets -->
       <div class="main-content">
         <div class="tabs" role="tablist">
-          <button class="tab-button active" data-tab="risk" onclick="switchTab('risk')" role="tab" aria-selected="true" aria-controls="risk-tab">Risk Overview</button>
-          <button class="tab-button" data-tab="cycles" onclick="switchTab('cycles')" role="tab" aria-selected="false" aria-controls="cycles-tab">Market Cycles</button>
-          <button class="tab-button" data-tab="targets" onclick="switchTab('targets')" role="tab" aria-selected="false" aria-controls="targets-tab">Strategic Targets</button>
-          <button class="tab-button" data-tab="alerts" onclick="switchTab('alerts')" role="tab" aria-selected="false" aria-controls="alerts-tab">Alerts History</button>
+          <button class="tab-button active" data-tab="risk" role="tab" aria-selected="true" aria-controls="risk-tab">Risk Overview</button>
+          <button class="tab-button" data-tab="cycles" role="tab" aria-selected="false" aria-controls="cycles-tab">Market Cycles</button>
+          <button class="tab-button" data-tab="targets" role="tab" aria-selected="false" aria-controls="targets-tab">Strategic Targets</button>
+          <button class="tab-button" data-tab="alerts" role="tab" aria-selected="false" aria-controls="alerts-tab">Alerts History</button>
         </div>
 
         <div class="tab-content">
           <!-- Risk Overview Tab -->
           <div class="tab-pane active" id="risk-tab" role="tabpanel" aria-labelledby="risk-overview">
-            <div id="risk-overview-badge-container" style="float: right; margin-bottom: 1rem;"></div>
+            <div id="risk-overview-badge-container" class="badge-container"></div>
 
             <!-- Persistent Controls (do not get replaced by dynamic render) -->
             <div id="risk-dashboard-content">
@@ -120,7 +117,7 @@
 
           <!-- Market Cycles Tab -->
           <div class="tab-pane" id="cycles-tab" role="tabpanel" aria-labelledby="cycles">
-            <div id="cycles-badge-container" style="float: right; margin-bottom: 1rem;"></div>
+            <div id="cycles-badge-container" class="badge-container"></div>
             <div id="cycles-content">
               <div class="loading">Loading cycle analysis...</div>
             </div>
@@ -128,7 +125,7 @@
 
           <!-- Strategic Targets Tab -->
           <div class="tab-pane" id="targets-tab" role="tabpanel" aria-labelledby="targets">
-            <div id="targets-badge-container" style="float: right; margin-bottom: 1rem;"></div>
+            <div id="targets-badge-container" class="badge-container"></div>
             <div id="targets-content">
               <div class="loading">Loading strategic targets...</div>
             </div>
@@ -140,13 +137,13 @@
               <div class="alerts-header">
                 <h3>🚨 Alerts History</h3>
                 <div class="alerts-controls">
-                  <select id="alerts-severity-filter" onchange="filterAlertsHistory()">
+                  <select id="alerts-severity-filter" data-action="filter-alerts">
                     <option value="" selected>All Severities</option>
                     <option value="S1">S1 - Info</option>
                     <option value="S2">S2 - Warning</option>
                     <option value="S3">S3 - Critical</option>
                   </select>
-                  <select id="alerts-type-filter" onchange="filterAlertsHistory()">
+                  <select id="alerts-type-filter" data-action="filter-alerts">
                     <option value="" selected>All Types</option>
                     <option value="VOL_Q90_CROSS">High Volatility</option>
                     <option value="REGIME_FLIP">Regime Change</option>
@@ -155,12 +152,12 @@
                     <option value="DECISION_DROP">Low Confidence</option>
                     <option value="EXEC_COST_SPIKE">High Exec Cost</option>
                   </select>
-                  <select id="alerts-period-filter" onchange="filterAlertsHistory()">
+                  <select id="alerts-period-filter" data-action="filter-alerts">
                     <option value="7">Last 7 days</option>
                     <option value="30">Last 30 days</option>
                     <option value="90">Last 90 days</option>
                   </select>
-                  <button class="refresh-btn" onclick="refreshAlertsHistory()">Refresh</button>
+                  <button class="refresh-btn" data-action="refresh-alerts">Refresh</button>
                 </div>
               </div>
 
@@ -169,9 +166,9 @@
               </div>
 
               <div class="alerts-pagination" id="alerts-pagination" style="display: none;">
-                <button id="alerts-prev-btn" onclick="loadPreviousAlertsPage()" disabled>Previous</button>
+                <button id="alerts-prev-btn" data-action="alerts-prev" disabled>Previous</button>
                 <span id="alerts-page-info">Page 1 of 1</span>
-                <button id="alerts-next-btn" onclick="loadNextAlertsPage()" disabled>Next</button>
+                <button id="alerts-next-btn" data-action="alerts-next" disabled>Next</button>
               </div>
             </div>
           </div>
@@ -196,18 +193,8 @@
   </div>
 
   <!-- Fixed button outside toast container -->
-  <div id="toast-buttons" style="position: fixed; bottom: 20px; right: 20px; z-index: 3000; pointer-events: auto;">
-    <button onclick="hideAllToasts()" style="
-      background: var(--danger); 
-      color: white; 
-      border: none; 
-      padding: 8px 16px; 
-      border-radius: var(--radius-md); 
-      cursor: pointer;
-      font-size: 0.875rem;
-      box-shadow: var(--shadow-md);
-      pointer-events: auto;
-    ">🗑️ Clear All Alerts</button>
+  <div id="toast-buttons" class="toast-clear-button">
+    <button id="clear-all-toasts-btn" data-action="clear-all-toasts">🗑️ Clear All Alerts</button>
   </div>
 
   <!-- PHASE 2A: Alert Detail Modal -->
@@ -218,7 +205,7 @@
           <span class="modal-severity-badge" id="modal-severity-badge">S3</span>
           <span id="modal-alert-type">VOL_Q90_CROSS</span>
         </h2>
-        <button class="modal-close" onclick="closeAlertModal()">&times;</button>
+        <button class="modal-close" data-action="close-alert-modal">&times;</button>
       </div>
 
       <div class="modal-body">
@@ -264,149 +251,21 @@
       </div>
 
       <div class="modal-actions">
-        <button class="modal-action modal-action-secondary" onclick="closeAlertModal()">Close</button>
-        <button class="modal-action modal-action-secondary" onclick="snoozeCurrentAlert()" id="snooze-btn">Snooze
+        <button class="modal-action modal-action-secondary" data-action="close-alert-modal">Close</button>
+        <button class="modal-action modal-action-secondary" data-action="snooze-alert" id="snooze-btn">Snooze
           30m</button>
-        <button class="modal-action modal-action-primary" onclick="acknowledgeCurrentAlert()"
+        <button class="modal-action modal-action-primary" data-action="acknowledge-alert"
           id="ack-btn">Acknowledge</button>
-        <button class="modal-action modal-action-danger" onclick="applyAction()" id="apply-btn"
+        <button class="modal-action modal-action-danger" data-action="apply-action" id="apply-btn"
           style="display:none;">Apply Action</button>
       </div>
     </div>
   </div>
 
   <!-- Bitcoin Cycle Chart Lazy Loading Component -->
-  <script>
-    // Composant pour le chargement lazy de Chart.js et du graphique Bitcoin Cycle
-    class BitcoinCycleChart {
-      constructor(element) {
-        debugLogger.debug('🔧 BitcoinCycleChart constructor called with element:', element);
-        this.element = element;
-        this.chartLoaded = false;
-        this.placeholder = element.querySelector('.chart-lazy-placeholder');
-        this.canvas = element.querySelector('#bitcoin-cycle-chart');
-        debugLogger.debug('🔍 Placeholder found:', !!this.placeholder, 'Canvas found:', !!this.canvas);
-      }
-
-      async init() {
-        debugLogger.debug('🚀 BitcoinCycleChart init() called');
-
-        // Guard: prevent re-initialization
-        if (this.chartLoaded) {
-          console.debug('⚡ Chart already loaded, skipping re-initialization');
-          return;
-        }
-
-        try {
-          // Afficher un indicateur de chargement
-          if (this.placeholder) {
-            debugLogger.debug('✅ Showing loading indicator');
-            this.placeholder.innerHTML = `
-              <div style="text-align: center;">
-                <div style="font-size: 2rem; margin-bottom: 0.5rem;">📊</div>
-                <div>Chargement de Chart.js...</div>
-                <div class="lazy-loading" style="margin-top: 1rem;"></div>
-              </div>
-            `;
-          } else {
-            debugLogger.warn('⚠️ No placeholder found for loading indicator');
-          }
-
-          // Charger Chart.js de manière asynchrone
-          debugLogger.debug('📊 Starting to load Chart.js...');
-          await this.loadChartJS();
-          debugLogger.debug('✅ Chart.js loaded successfully');
-
-          // Masquer le placeholder et afficher le canvas
-          debugLogger.debug('🔄 Switching from placeholder to canvas...');
-          if (this.placeholder) {
-            this.placeholder.style.display = 'none';
-            debugLogger.debug('✅ Placeholder hidden');
-          }
-          if (this.canvas) {
-            this.canvas.style.display = 'block';
-            debugLogger.debug('✅ Canvas shown');
-          } else {
-            debugLogger.warn('⚠️ No canvas found to show');
-          }
-
-          // Créer le graphique Bitcoin Cycle
-          if (typeof createBitcoinCycleChart === 'function') {
-            debugLogger.debug('📊 Calling createBitcoinCycleChart...');
-            await createBitcoinCycleChart('bitcoin-cycle-chart');
-            debugLogger.debug('✅ createBitcoinCycleChart completed');
-          } else {
-            debugLogger.error('❌ createBitcoinCycleChart function not found');
-          }
-
-          this.chartLoaded = true;
-          debugLogger.debug('✅ Bitcoin Cycle Chart loaded successfully via lazy loading');
-
-        } catch (error) {
-          debugLogger.error('❌ Failed to lazy load Bitcoin Cycle Chart:', error);
-
-          // Afficher l'erreur dans le placeholder
-          if (this.placeholder) {
-            this.placeholder.innerHTML = `
-              <div style="text-align: center; color: var(--theme-error, #dc3545);">
-                <div style="font-size: 2rem; margin-bottom: 0.5rem;">⚠️</div>
-                <div>Erreur lors du chargement du graphique</div>
-                <div style="font-size: 0.8rem; margin-top: 0.5rem;">${error.message}</div>
-              </div>
-            `;
-          }
-        }
-      }
-
-      async loadChartJS() {
-        // Vérifier si Chart.js est déjà chargé
-        if (window.Chart) {
-          debugLogger.debug('📊 Chart.js already loaded');
-          return Promise.resolve();
-        }
-
-        debugLogger.debug('📊 Loading Chart.js...');
-
-        // Charger Chart.js principal
-        const chartPromise = new Promise((resolve, reject) => {
-          const script = document.createElement('script');
-          script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js';
-          script.onload = resolve;
-          script.onerror = () => reject(new Error('Failed to load Chart.js'));
-          document.head.appendChild(script);
-        });
-
-        await chartPromise;
-
-        // Charger l'adaptateur de dates
-        const adapterPromise = new Promise((resolve, reject) => {
-          const script = document.createElement('script');
-          script.src = 'https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js';
-          script.onload = resolve;
-          script.onerror = () => reject(new Error('Failed to load Chart.js date adapter'));
-          document.head.appendChild(script);
-        });
-
-        await adapterPromise;
-
-        // Petit délai pour s'assurer que Chart.js est disponible
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        if (!window.Chart) {
-          throw new Error('Chart.js failed to initialize');
-        }
-
-        debugLogger.debug('✅ Chart.js loaded successfully');
-      }
-    }
-
-    // Enregistrer le composant globalement pour le lazy loader
-    window.BitcoinCycleChart = BitcoinCycleChart;
-  </script>
+  <script type="module" src="components/bitcoin-cycle-chart.js"></script>
 
   <!-- Flyout Panel System -->
-  <!-- Risk Dashboard CSS -->
-  <link rel="stylesheet" href="css/risk-dashboard.css">
 
   <!-- Unified Risk Flyout Panel (Full Sidebar) -->
   <script type="module" src="components/flyout-panel.js"></script>
@@ -424,4 +283,4 @@
 
 </body>
 
-</html><!-- Cache bust: 1759493016 -->
+</html>

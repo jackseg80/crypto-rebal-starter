@@ -65,6 +65,83 @@
         switchTab('alerts');
         return;
       }
+
+      // Tab switching (CSP-compliant replacement for onclick)
+      const tabButton = e.target?.closest('.tab-button[data-tab]');
+      if (tabButton) {
+        const tabName = tabButton.getAttribute('data-tab');
+        if (tabName && typeof switchTab === 'function') {
+          switchTab(tabName);
+        }
+        return;
+      }
+
+      // Alerts filters and refresh
+      if (e.target?.closest('[data-action="filter-alerts"]')) {
+        if (typeof filterAlertsHistory === 'function') {
+          filterAlertsHistory();
+        }
+        return;
+      }
+
+      if (e.target?.closest('[data-action="refresh-alerts"]')) {
+        if (typeof refreshAlertsHistory === 'function') {
+          refreshAlertsHistory();
+        }
+        return;
+      }
+
+      // Alerts pagination
+      if (e.target?.closest('[data-action="alerts-prev"]')) {
+        if (typeof loadPreviousAlertsPage === 'function') {
+          loadPreviousAlertsPage();
+        }
+        return;
+      }
+
+      if (e.target?.closest('[data-action="alerts-next"]')) {
+        if (typeof loadNextAlertsPage === 'function') {
+          loadNextAlertsPage();
+        }
+        return;
+      }
+
+      // Clear all toasts
+      if (e.target?.closest('[data-action="clear-all-toasts"]')) {
+        if (typeof hideAllToasts === 'function') {
+          hideAllToasts();
+        }
+        return;
+      }
+
+      // Alert modal actions
+      if (e.target?.closest('[data-action="close-alert-modal"]')) {
+        if (typeof closeAlertModal === 'function') {
+          closeAlertModal();
+        }
+        return;
+      }
+
+      if (e.target?.closest('[data-action="snooze-alert"]')) {
+        if (typeof snoozeCurrentAlert === 'function') {
+          snoozeCurrentAlert();
+        }
+        return;
+      }
+
+      if (e.target?.closest('[data-action="acknowledge-alert"]')) {
+        if (typeof acknowledgeCurrentAlert === 'function') {
+          acknowledgeCurrentAlert();
+        }
+        return;
+      }
+
+      if (e.target?.closest('[data-action="apply-action"]')) {
+        if (typeof applyAction === 'function') {
+          applyAction();
+        }
+        return;
+      }
     });
 
     // 🆕 Oct 2025: Toggle breakdown panel (expose globally for onclick handlers)
