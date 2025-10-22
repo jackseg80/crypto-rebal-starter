@@ -1740,6 +1740,240 @@ async function updatePortfolioChart(balancesData) {
     });
 }
 
+// Créer ou mettre à jour le graphique Saxo (Bourse)
+async function updateSaxoChart(positions) {
+    log.debug('updateSaxoChart - positions:', positions);
+
+    if (!positions || positions.length === 0) {
+        const container = document.getElementById('saxo-chart');
+        if (container) {
+            container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--theme-text-muted);">Aucune position</div>';
+        }
+        return;
+    }
+
+    let canvas = document.getElementById('saxoChartCanvas');
+    if (!canvas) {
+        console.debug('❌ Saxo canvas element not found');
+        return;
+    }
+
+    // Vérifier que Chart.js est chargé
+    if (typeof Chart === 'undefined') {
+        console.debug('❌ Chart.js not loaded');
+        document.getElementById('saxo-chart').innerHTML = '<div style="text-align: center; padding: 20px; color: var(--danger);">❌ Chart.js non chargé</div>';
+        return;
+    }
+
+    const ctx = canvas.getContext('2d');
+
+    // Regrouper par asset_class
+    const grouped = {};
+    positions.forEach(pos => {
+        // Extract asset_class from tags (format: "asset_class:EQUITY")
+        const assetClassTag = pos.tags?.find(t => t.startsWith('asset_class:'));
+        const assetClass = assetClassTag ? assetClassTag.split(':')[1] : 'OTHER';
+        const value = pos.market_value || 0;
+
+        if (!grouped[assetClass]) {
+            grouped[assetClass] = { label: assetClass, value: 0, count: 0 };
+        }
+        grouped[assetClass].value += value;
+        grouped[assetClass].count += 1;
+    });
+
+    // Convertir en tableau et trier
+    const sortedData = Object.values(grouped).sort((a, b) => b.value - a.value);
+    const labels = sortedData.map(item => item.label);
+    const values = sortedData.map(item => item.value);
+    const total = values.reduce((sum, v) => sum + v, 0);
+
+    log.debug('Saxo chart data:', { labels, values, total: total.toFixed(2) });
+
+    if (total === 0) {
+        document.getElementById('saxo-chart').innerHTML = '<div style="text-align: center; padding: 20px; color: var(--theme-text-muted);">Aucune valeur</div>';
+        return;
+    }
+
+    // Détruire l'ancien graphique s'il existe
+    if (window.saxoChart) {
+        window.saxoChart.destroy();
+        window.saxoChart = null;
+    }
+
+    // Obtenir les couleurs du thème actuel
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const tooltipBg = isDark ? '#374151' : '#f9fafb';
+    const tooltipText = isDark ? '#f9fafb' : '#1f2937';
+    const tooltipBorder = isDark ? '#6b7280' : '#d1d5db';
+
+    // Créer le nouveau graphique
+    window.saxoChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                backgroundColor: values.map((_, i) => PORTFOLIO_COLORS[i % PORTFOLIO_COLORS.length]),
+                borderColor: isDark ? '#374151' : '#ffffff',
+                borderWidth: 2,
+                hoverBorderWidth: 3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    backgroundColor: tooltipBg,
+                    titleColor: tooltipText,
+                    bodyColor: tooltipText,
+                    borderColor: tooltipBorder,
+                    borderWidth: 1,
+                    cornerRadius: 8,
+                    padding: 12,
+                    callbacks: {
+                        label: function (context) {
+                            const value = context.parsed;
+                            const percentage = ((value / total) * 100).toFixed(1);
+                            const groupData = sortedData[context.dataIndex];
+                            return `${context.label}: ${formatUSD(value)} (${percentage}%) - ${groupData.count} positions`;
+                        }
+                    }
+                }
+            },
+            cutout: '60%',
+            animation: {
+                animateRotate: true,
+                duration: 1000
+            },
+            interaction: {
+                intersect: false,
+                mode: 'point'
+            }
+        }
+    });
+}
+
+// Créer ou mettre à jour le graphique Banks (Banque)
+async function updateBanksChart(positions) {
+    log.debug('updateBanksChart - positions:', positions);
+
+    if (!positions || positions.length === 0) {
+        const container = document.getElementById('banks-chart');
+        if (container) {
+            container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--theme-text-muted);">Aucun compte</div>';
+        }
+        return;
+    }
+
+    let canvas = document.getElementById('banksChartCanvas');
+    if (!canvas) {
+        console.debug('❌ Banks canvas element not found');
+        return;
+    }
+
+    // Vérifier que Chart.js est chargé
+    if (typeof Chart === 'undefined') {
+        console.debug('❌ Chart.js not loaded');
+        document.getElementById('banks-chart').innerHTML = '<div style="text-align: center; padding: 20px; color: var(--danger);">❌ Chart.js non chargé</div>';
+        return;
+    }
+
+    const ctx = canvas.getContext('2d');
+
+    // Regrouper par banque (bank_name ou account_type)
+    const grouped = {};
+    positions.forEach(pos => {
+        const bankName = pos.bank_name || pos.account_type || 'Autre';
+        const value = pos.market_value || 0;
+
+        if (!grouped[bankName]) {
+            grouped[bankName] = { label: bankName, value: 0, count: 0 };
+        }
+        grouped[bankName].value += value;
+        grouped[bankName].count += 1;
+    });
+
+    // Convertir en tableau et trier
+    const sortedData = Object.values(grouped).sort((a, b) => b.value - a.value);
+    const labels = sortedData.map(item => item.label);
+    const values = sortedData.map(item => item.value);
+    const total = values.reduce((sum, v) => sum + v, 0);
+
+    log.debug('Banks chart data:', { labels, values, total: total.toFixed(2) });
+
+    if (total === 0) {
+        document.getElementById('banks-chart').innerHTML = '<div style="text-align: center; padding: 20px; color: var(--theme-text-muted);">Aucune valeur</div>';
+        return;
+    }
+
+    // Détruire l'ancien graphique s'il existe
+    if (window.banksChart) {
+        window.banksChart.destroy();
+        window.banksChart = null;
+    }
+
+    // Obtenir les couleurs du thème actuel
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const tooltipBg = isDark ? '#374151' : '#f9fafb';
+    const tooltipText = isDark ? '#f9fafb' : '#1f2937';
+    const tooltipBorder = isDark ? '#6b7280' : '#d1d5db';
+
+    // Créer le nouveau graphique
+    window.banksChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                backgroundColor: values.map((_, i) => PORTFOLIO_COLORS[i % PORTFOLIO_COLORS.length]),
+                borderColor: isDark ? '#374151' : '#ffffff',
+                borderWidth: 2,
+                hoverBorderWidth: 3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    backgroundColor: tooltipBg,
+                    titleColor: tooltipText,
+                    bodyColor: tooltipText,
+                    borderColor: tooltipBorder,
+                    borderWidth: 1,
+                    cornerRadius: 8,
+                    padding: 12,
+                    callbacks: {
+                        label: function (context) {
+                            const value = context.parsed;
+                            const percentage = ((value / total) * 100).toFixed(1);
+                            const groupData = sortedData[context.dataIndex];
+                            return `${context.label}: ${formatUSD(value)} (${percentage}%) - ${groupData.count} comptes`;
+                        }
+                    }
+                }
+            },
+            cutout: '60%',
+            animation: {
+                animateRotate: true,
+                duration: 1000
+            },
+            interaction: {
+                intersect: false,
+                mode: 'point'
+            }
+        }
+    });
+}
+
 // Afficher la liste détaillée des allocations
 async function updatePortfolioBreakdown(balancesData) {
     const container = document.getElementById('breakdown-list');
@@ -1863,12 +2097,12 @@ window.debugPortfolioData = async function () {
 };
 
 
-// ---- Drag & Drop des cartes du dashboard ----
+// ---- Drag & Drop des cartes du dashboard (multi-grilles) ----
 (function () {
-    const GRID_SELECTOR = '.dashboard-grid';
-    const STORAGE_KEY = 'dashboard_card_order_v1';
+    const STORAGE_KEY_PREFIX = 'dashboard_card_order_';
 
     let dragEl = null;
+    let dragSourceGrid = null;
     let usingHandle = false;
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -1876,43 +2110,50 @@ window.debugPortfolioData = async function () {
     });
 
     function initCardOrdering() {
-        const grid = document.querySelector(GRID_SELECTOR);
-        if (!grid) return;
+        const grids = document.querySelectorAll('.dashboard-grid');
+        if (!grids.length) return;
 
-        // 1) Restaurer l'ordre sauvegardé
-        restoreOrder(grid);
-
-        // 2) Brancher les events
-        grid.querySelectorAll('.card[draggable="true"]').forEach(card => {
-            // Si tu veux drag uniquement via l'entête:
-            const handle = card.querySelector('.card-header');
-            if (handle) {
-                handle.setAttribute('data-drag-handle', 'true');
-                handle.style.cursor = 'move';
-                handle.addEventListener('mousedown', () => usingHandle = true);
-                handle.addEventListener('mouseup', () => usingHandle = false);
-                handle.addEventListener('mouseleave', () => usingHandle = false);
+        grids.forEach((grid, index) => {
+            // Assigner un ID unique à chaque grille si elle n'en a pas
+            if (!grid.id) {
+                grid.id = `dashboard-grid-${index}`;
             }
 
-            card.addEventListener('dragstart', onDragStart);
-            card.addEventListener('dragend', onDragEnd);
-            card.addEventListener('dragover', onDragOver);
-            card.addEventListener('dragleave', onDragLeave);
-            card.addEventListener('drop', onDrop);
-        });
+            // 1) Restaurer l'ordre sauvegardé
+            restoreOrder(grid);
 
-        // Permettre le drop partout dans la grille
-        grid.addEventListener('dragover', e => e.preventDefault());
-        grid.addEventListener('drop', e => {
-            e.preventDefault();
-            clearDropIndicators(grid);
-            saveOrder(grid);
+            // 2) Brancher les events sur les cartes
+            grid.querySelectorAll('.card[draggable="true"]').forEach(card => {
+                // Drag uniquement via l'entête
+                const handle = card.querySelector('.card-header');
+                if (handle) {
+                    handle.setAttribute('data-drag-handle', 'true');
+                    handle.style.cursor = 'move';
+                    handle.addEventListener('mousedown', () => usingHandle = true);
+                    handle.addEventListener('mouseup', () => usingHandle = false);
+                    handle.addEventListener('mouseleave', () => usingHandle = false);
+                }
+
+                card.addEventListener('dragstart', onDragStart);
+                card.addEventListener('dragend', onDragEnd);
+                card.addEventListener('dragover', onDragOver);
+                card.addEventListener('dragleave', onDragLeave);
+                card.addEventListener('drop', onDrop);
+            });
+
+            // Permettre le drop dans la grille
+            grid.addEventListener('dragover', e => e.preventDefault());
+            grid.addEventListener('drop', e => {
+                e.preventDefault();
+                clearDropIndicators(grid);
+                saveOrder(grid);
+            });
         });
     }
 
     function onDragStart(e) {
         // Si handle requis : empêcher le drag initié ailleurs que sur le handle
-        const wantsHandle = true; // passe à false pour autoriser drag partout
+        const wantsHandle = true;
         if (wantsHandle) {
             const isOnHandle = e.target.closest('[data-drag-handle="true"]');
             if (!isOnHandle && !usingHandle) {
@@ -1921,8 +2162,8 @@ window.debugPortfolioData = async function () {
             }
         }
         dragEl = e.currentTarget;
+        dragSourceGrid = dragEl.parentElement;
         e.dataTransfer.effectAllowed = 'move';
-        // Set data (certains navigateurs exigent une data)
         e.dataTransfer.setData('text/plain', dragEl.id || '');
         dragEl.classList.add('dragging');
     }
@@ -1930,6 +2171,7 @@ window.debugPortfolioData = async function () {
     function onDragEnd() {
         if (dragEl) dragEl.classList.remove('dragging');
         dragEl = null;
+        dragSourceGrid = null;
         usingHandle = false;
     }
 
@@ -1938,14 +2180,20 @@ window.debugPortfolioData = async function () {
         const card = e.currentTarget;
         if (!dragEl || card === dragEl) return;
 
+        // Vérifier que la carte est dans la même grille que celle d'origine
+        const targetGrid = card.parentElement;
+        if (dragSourceGrid !== targetGrid) {
+            // Ne pas autoriser le drop entre les grilles
+            return;
+        }
+
         // Feedback visuel
         card.classList.add('drop-target');
 
         // Insertion live : on calcule si on met avant ou après la carte survolée
-        const grid = card.parentElement;
         const above = shouldInsertBefore(e, card);
-        if (above) grid.insertBefore(dragEl, card);
-        else grid.insertBefore(dragEl, card.nextSibling);
+        if (above) targetGrid.insertBefore(dragEl, card);
+        else targetGrid.insertBefore(dragEl, card.nextSibling);
     }
 
     function onDragLeave(e) {
@@ -1956,25 +2204,30 @@ window.debugPortfolioData = async function () {
         e.preventDefault();
         e.currentTarget.classList.remove('drop-target');
         const grid = e.currentTarget.parentElement;
-        saveOrder(grid);
+
+        // Vérifier qu'on drop bien dans la même grille
+        if (dragSourceGrid === grid) {
+            saveOrder(grid);
+        }
     }
 
     function shouldInsertBefore(e, targetCard) {
         const rect = targetCard.getBoundingClientRect();
-        // Heuristique : si on est sur la moitié supérieure, on insère avant
         return (e.clientY - rect.top) < (rect.height / 2);
     }
 
     function saveOrder(grid) {
         const order = Array.from(grid.querySelectorAll('.card[draggable="true"]')).map(c => c.id);
+        const storageKey = STORAGE_KEY_PREFIX + grid.id;
         try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(order));
+            localStorage.setItem(storageKey, JSON.stringify(order));
         } catch { }
     }
 
     function restoreOrder(grid) {
+        const storageKey = STORAGE_KEY_PREFIX + grid.id;
         let raw = null;
-        try { raw = localStorage.getItem(STORAGE_KEY); } catch { }
+        try { raw = localStorage.getItem(storageKey); } catch { }
         if (!raw) return;
 
         try {
@@ -2051,6 +2304,30 @@ async function refreshSaxoTile() {
                 positions_count: summary.positions_count,
                 asof: summary.asof
             });
+
+            // Fetch detailed positions for chart
+            try {
+                const activeUser = localStorage.getItem('activeUser') || 'demo';
+                const bourseSource = window.wealthContextBar?.getContext()?.bourse;
+                let apiUrl = `/api/saxo/positions?user_id=${activeUser}`;
+
+                if (bourseSource && bourseSource !== 'all' && bourseSource.startsWith('saxo:')) {
+                    const key = bourseSource.substring(5);
+                    apiUrl += `&file_key=${key}`;
+                }
+
+                const positionsResponse = await fetch(apiUrl, {
+                    headers: { 'X-User': activeUser }
+                });
+
+                if (positionsResponse.ok) {
+                    const positionsData = await positionsResponse.json();
+                    const positions = positionsData.positions || [];
+                    await updateSaxoChart(positions);
+                }
+            } catch (chartError) {
+                debugLogger.warn('[Saxo Tile] Could not update chart:', chartError);
+            }
         }
 
         // Console assertion for sanity check
@@ -2152,6 +2429,9 @@ async function refreshBanksTile() {
                 accounts_count: accountsCount,
                 currencies_count: currenciesCount
             });
+
+            // Update chart
+            await updateBanksChart(positions);
         }
 
     } catch (error) {
@@ -2558,36 +2838,43 @@ async function updateSystemStatus() {
             }
         }
 
-        // Exchanges Status
+        // Exchanges Status (optional endpoint - TODO: implement /exchanges/status)
         const exchangesEl = document.getElementById('exchanges-status');
         if (exchangesEl) {
+            // ✅ Temporarily disabled to avoid 404 console errors until endpoint is implemented
+            // TODO: Uncomment when /exchanges/status endpoint is available
+            /*
             try {
-                const connectionsRes = await fetch('/exchanges/status')
-                    .then(r => r.ok ? r.json() : null)
-                    .catch(() => {
-                        debugLogger.debug('⏭️ Exchanges status endpoint not available (404), skipping');
-                        return null;
-                    });
+                const response = await fetch('/exchanges/status');
 
-                if (connectionsRes?.ok && connectionsRes.data) {
-                    const exchanges = connectionsRes.data;
-                    const onlineCount = exchanges.filter(e => e.status === 'connected').length;
-                    const totalCount = exchanges.length;
+                if (response.ok) {
+                    const connectionsRes = await response.json();
+                    if (connectionsRes?.ok && connectionsRes.data) {
+                        const exchanges = connectionsRes.data;
+                        const onlineCount = exchanges.filter(e => e.status === 'connected').length;
+                        const totalCount = exchanges.length;
 
-                    exchangesEl.textContent = `${onlineCount}/${totalCount}`;
-                    exchangesEl.style.color = onlineCount === totalCount ? 'var(--success)' : 'var(--warning)';
-                } else if (connectionsRes === null) {
-                    // Endpoint not available
+                        exchangesEl.textContent = `${onlineCount}/${totalCount}`;
+                        exchangesEl.style.color = onlineCount === totalCount ? 'var(--success)' : 'var(--warning)';
+                    } else {
+                        exchangesEl.textContent = '--';
+                    }
+                } else if (response.status === 404) {
+                    // Endpoint not implemented - this is expected and OK
                     exchangesEl.textContent = 'N/A';
                     exchangesEl.style.color = 'var(--theme-text-muted)';
                 } else {
                     exchangesEl.textContent = '--';
                 }
             } catch (error) {
-                debugLogger.debug('⚠️ Error loading exchanges status:', error);
-                exchangesEl.textContent = '--';
+                // Network error or other issue
+                exchangesEl.textContent = 'N/A';
                 exchangesEl.style.color = 'var(--theme-text-muted)';
             }
+            */
+            // Afficher "N/A" en attendant l'implémentation
+            exchangesEl.textContent = 'N/A';
+            exchangesEl.style.color = 'var(--theme-text-muted)';
         }
 
         // Data Freshness (from existing function)

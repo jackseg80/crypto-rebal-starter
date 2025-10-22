@@ -10,32 +10,8 @@ Le Dashboard V2 introduit une **hiérarchie visuelle en 3 niveaux** pour amélio
 
 ## 📊 Architecture
 
-### Niveau 1 - Décision (4 tuiles)
-**Bordure orange** - Informations critiques pour la prise de décision
-
-1. **Global Insight** (2 colonnes)
-   - Decision Index avec score unifié
-   - Phase Engine (Risk Off / ETH Expansion / Altseason)
-   - Scores détaillés (Cycle, On-Chain, Risk)
-   - Recommandation actionnable
-   - Endpoint: `/api/unified/intelligence`
-
-2. **Market Regime** (NOUVEAU)
-   - Détection régimes Bitcoin (Bull/Bear/Correction)
-   - Détection régimes Ethereum (Expansion/Compression)
-   - Détection régimes Stock Market (Bull/Bear/Consolidation)
-   - Barres de progression avec confidence
-   - Endpoints: `/api/ml/crypto/regime`, `/api/ml/bourse/regime`
-
-3. **Risk & Alerts** (NOUVEAU)
-   - Niveau de risque portfolio (Low/Medium/High)
-   - Alertes actives du système de gouvernance
-   - Portfolio VaR (95% confidence)
-   - Nombre d'alertes actives
-   - Endpoints: `/api/risk/dashboard`, `/api/alerts/active`
-
-### Niveau 2 - Patrimoine (4 tuiles)
-**Bordure bleue** - Vue d'ensemble du patrimoine
+### Niveau 1 - Patrimoine (4 tuiles)
+**Bordure orange** - Vue d'ensemble du patrimoine et actifs
 
 1. **Global Overview** (1 colonne)
    - Total patrimoine (tous actifs)
@@ -47,20 +23,46 @@ Le Dashboard V2 introduit une **hiérarchie visuelle en 3 niveaux** pour amélio
 2. **Crypto Overview** (1 colonne)
    - Total Value + P&L Today
    - Nombre d'actifs
-   - Mini chart portfolio
+   - Mini chart portfolio (graphique camembert)
    - Endpoint: `/balances/current`
 
 3. **Bourse** (1 colonne)
    - Valeur totale positions Saxo
    - Nombre de positions
    - Date dernier import
+   - Graphique camembert par asset_class
    - Endpoint: `/api/saxo/positions`
 
 4. **Banque** (1 colonne)
    - Valeur totale comptes bancaires
    - Nombre de comptes
    - Nombre de devises
+   - Graphique camembert par banque
    - Endpoint: `/api/wealth/banks/positions`
+
+### Niveau 2 - Décision (3 tuiles)
+**Bordure bleue** - Informations critiques pour la prise de décision
+
+1. **Global Insight** (2 colonnes)
+   - Decision Index avec score unifié
+   - Phase Engine (Risk Off / ETH Expansion / Altseason)
+   - Scores détaillés (Cycle, On-Chain, Risk)
+   - Recommandation actionnable
+   - Endpoint: `/api/unified/intelligence`
+
+2. **Market Regime**
+   - Détection régimes Bitcoin (Bull/Bear/Correction)
+   - Détection régimes Ethereum (Expansion/Compression)
+   - Détection régimes Stock Market (Bull/Bear/Consolidation)
+   - Barres de progression avec confidence
+   - Endpoints: `/api/ml/crypto/regime`, `/api/ml/bourse/regime`
+
+3. **Risk & Alerts**
+   - Niveau de risque portfolio (Low/Medium/High)
+   - Alertes actives du système de gouvernance
+   - Portfolio VaR (95% confidence)
+   - Nombre d'alertes actives
+   - Endpoints: `/api/risk/dashboard`, `/api/alerts/active`
 
 ### Niveau 3 - Opérations (4 tuiles)
 **Bordure violette** - Statut système et outils
@@ -105,6 +107,29 @@ Les boutons refresh manuels ont été supprimés car le dashboard se rafraîchit
 
 ## 🔧 Fonctionnalités Techniques
 
+### Graphiques Camembert (Chart.js)
+```javascript
+updateSaxoChart(positions) {
+    // Graphique Bourse: regroupement par asset_class
+    // EQUITY, ETF, BOND, CASH, etc.
+    // Tooltip: valeur, %, nombre de positions
+}
+
+updateBanksChart(positions) {
+    // Graphique Banque: regroupement par banque
+    // UBS, Crédit Suisse, PostFinance, etc.
+    // Tooltip: valeur, %, nombre de comptes
+}
+```
+
+### Drag & Drop Multi-Grilles
+```javascript
+// Drag & drop activé sur 3 grilles indépendantes
+// Contrainte: cartes déplaçables uniquement dans leur niveau
+// Sauvegarde: localStorage par grille (grid-niveau-1/2/3)
+// Handle: drag uniquement via card-header
+```
+
 ### Phase Engine Integration
 ```javascript
 updatePhaseChips(unifiedState) {
@@ -137,6 +162,12 @@ Toutes les tuiles respectent l'isolation multi-utilisateur :
 - Cache invalidé lors du changement d'utilisateur
 - Support `file_key` pour sélection CSV spécifique
 
+### Endpoints Optionnels
+Certains endpoints peuvent retourner 404 sans affecter l'affichage :
+- `/exchanges/status` → Affiche "N/A" (désactivé temporairement)
+- `/api/ml/stock/regime` → Affiche "N/A"
+- `/execution/governance/alerts` → Message informatif
+
 ## 📁 Fichiers Modifiés
 
 ### Frontend
@@ -165,9 +196,11 @@ Les tuiles suivantes ont été supprimées ou fusionnées :
 
 | Aspect | Avant | Après |
 |--------|-------|-------|
-| Nombre de tuiles | 11 | 12 |
-| Hiérarchie | Floue | 3 niveaux clairs (4+4+4) |
-| Nouveautés | - | Market Regime, Risk & Alerts |
+| Nombre de tuiles | 11 | 11 (4+3+4) |
+| Hiérarchie | Floue | 3 niveaux clairs (Patrimoine → Décision → Opérations) |
+| Niveau 1 | Décision (3 tuiles) | Patrimoine (4 tuiles) |
+| Niveau 2 | Patrimoine (4 tuiles) | Décision (3 tuiles) |
+| Graphiques | Crypto uniquement | Crypto + Bourse + Banque |
 | Mode clair/sombre | Couleurs hardcodées | Variables CSS thème |
 | Multi-user Saxo | ❌ Broken | ✅ Fixed |
 | Boutons refresh | 4 manuels | Auto-refresh uniquement |
@@ -232,5 +265,21 @@ Fonctionnalités futures possibles :
 
 ---
 
-**Documentation générée le 2025-10-22**
+## 📝 Changelog
+
+### 2025-10-22 - Inversion Niveaux + Graphiques
+- **Niveau 1** : Maintenant Patrimoine (bordure orange) - 4 tuiles
+- **Niveau 2** : Maintenant Décision (bordure bleue) - 3 tuiles
+- Ajout graphiques camembert dans tuiles Bourse et Banque
+- Regroupement par asset_class (Bourse) et par banque (Banque)
+
+### 2025-10-22 - Version Initiale
+- Architecture 3 niveaux (Décision → Patrimoine → Opérations)
+- Nouvelles tuiles Market Regime et Risk & Alerts
+- Multi-user support pour Saxo
+- Graphique camembert pour Crypto
+
+---
+
+**Documentation mise à jour le 2025-10-22**
 **Dashboard V2 est maintenant en production** ✅

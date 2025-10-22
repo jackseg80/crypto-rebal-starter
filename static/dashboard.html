@@ -319,10 +319,21 @@
             font-weight: 700;
         }
 
-        .regime-status.bull { color: var(--success); }
-        .regime-status.bear { color: var(--danger); }
-        .regime-status.expansion { color: var(--info); }
-        .regime-status.consolidation { color: var(--warning); }
+        .regime-status.bull {
+            color: var(--success);
+        }
+
+        .regime-status.bear {
+            color: var(--danger);
+        }
+
+        .regime-status.expansion {
+            color: var(--info);
+        }
+
+        .regime-status.consolidation {
+            color: var(--warning);
+        }
 
         .regime-progress-bar {
             background: var(--theme-surface-elevated);
@@ -444,10 +455,142 @@
 
 <body>
     <div class="wrap">
-        <!-- NIVEAU 1 : DÉCISION -->
-        <div class="dashboard-grid">
-            <!-- Global Insight ENRICHI -->
-            <div class="card level-1" id="overview" draggable="true" style="grid-column: span 2;"
+        <!-- NIVEAU 1 : PATRIMOINE -->
+        <div class="dashboard-grid" id="grid-niveau-1">
+            <!-- Global Overview ENRICHI -->
+            <div class="card level-1" id="global" draggable="true"
+                data-tooltip="Vue d'ensemble globale de votre patrimoine (Crypto + Bourse + Banques) avec P&L Today total"
+                data-source="API /api/wealth/global/summary">
+                <div class="card-header">
+                    <div class="card-title"><span class="card-icon">🌐</span>Global Overview</div>
+                </div>
+
+                <!-- Total Global + P&L Today en tête -->
+                <div style="text-align:center;padding:12px 0;border-bottom:1px solid var(--theme-border);">
+                    <div style="font-size:0.85rem;color:var(--theme-text-muted);margin-bottom:4px;">Total Patrimoine
+                    </div>
+                    <div id="global-total-value" style="font-size:2rem;font-weight:900;color:var(--theme-text);">--
+                    </div>
+                    <div id="global-pnl-today" style="font-size:0.95rem;font-weight:600;margin-top:4px;">--</div>
+                </div>
+
+                <!-- Modules avec graphiques intégrés -->
+                <div id="global-breakdown" style="display:flex;flex-direction:column;gap:8px;margin-top:12px;">
+                    <!-- Module cards will be added here by JS -->
+                </div>
+            </div>
+
+            <!-- Crypto Overview -->
+            <div class="card level-1" id="crypto" draggable="true"
+                data-tooltip="Vue d'ensemble de votre portefeuille crypto avec métriques de performance"
+                data-source="API /balances/current + prix CoinGecko/CoinGlass">
+                <div class="card-header">
+                    <div class="card-title"><span class="card-icon">₿</span>Crypto</div>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <span id="portfolio-source-display"
+                            style="font-size:11px;color:var(--theme-text-muted);padding:2px 6px;background:var(--theme-bg);border-radius:4px;border:1px solid var(--theme-border);">--</span>
+                        <span class="status-badge status-active" id="portfolio-status">Loading</span>
+                    </div>
+                </div>
+
+                <div class="metric">
+                    <span class="metric-label">Total Value</span>
+                    <span class="metric-value" id="total-value">--</span>
+                </div>
+
+                <div class="metric">
+                    <span class="metric-label">P&L Today</span>
+                    <span class="metric-value" id="daily-pnl">--</span>
+                </div>
+
+                <div class="metric">
+                    <span class="metric-label">Assets Count</span>
+                    <span class="metric-value" id="assets-count">--</span>
+                </div>
+
+                <div class="portfolio-chart" id="portfolio-chart" style="height: 140px; margin-top: 12px;">
+                    <canvas id="portfolioChartCanvas"></canvas>
+                </div>
+            </div>
+
+            <!-- Bourse (Saxo) Overview -->
+            <div class="card level-1" id="bourse" draggable="true"
+                data-tooltip="Vue d'ensemble de votre portefeuille d'actions et ETF via Saxo Bank en lecture seule."
+                data-source="API /api/saxo/positions (legacy)">
+                <div class="card-header">
+                    <a href="saxo-dashboard.html" class="card-title" style="text-decoration: none; color: inherit;">
+                        <span class="card-icon">🏦</span>Bourse
+                    </a>
+                </div>
+
+                <div class="metric">
+                    <span class="metric-label">Valeur Totale</span>
+                    <span class="metric-value" id="saxo-total-value">--</span>
+                </div>
+
+                <div class="metric">
+                    <span class="metric-label">Positions</span>
+                    <span class="metric-value" id="saxo-positions-count">--</span>
+                </div>
+
+                <div class="metric">
+                    <span class="metric-label">Dernier Import</span>
+                    <span class="metric-value" id="saxo-last-import" style="font-size:0.9rem;">--</span>
+                </div>
+
+                <div class="portfolio-chart" id="saxo-chart" style="height: 140px; margin-top: 12px;">
+                    <canvas id="saxoChartCanvas"></canvas>
+                </div>
+
+                <div id="saxo-empty-state"
+                    style="display:none;text-align:center;color:var(--theme-text-muted);font-size:0.85rem;margin-top:12px;">
+                    Aucune position Saxo.<br>
+                    <a href="settings.html#sources" style="color:var(--theme-accent);">Importez un fichier dans
+                        Settings</a>
+                </div>
+            </div>
+
+            <!-- Banque (Banks) Overview -->
+            <div class="card level-1" id="banque" draggable="true"
+                data-tooltip="Vue d'ensemble de vos comptes bancaires (comptes courants, épargne)."
+                data-source="API /api/wealth/banks/positions">
+                <div class="card-header">
+                    <a href="banks-manager.html" class="card-title" style="text-decoration: none; color: inherit;">
+                        <span class="card-icon">💰</span>Banque
+                    </a>
+                </div>
+
+                <div class="metric">
+                    <span class="metric-label">Valeur Totale</span>
+                    <span class="metric-value" id="banks-total-value">--</span>
+                </div>
+
+                <div class="metric">
+                    <span class="metric-label">Comptes</span>
+                    <span class="metric-value" id="banks-accounts-count">--</span>
+                </div>
+
+                <div class="metric">
+                    <span class="metric-label">Devises</span>
+                    <span class="metric-value" id="banks-currencies-count">--</span>
+                </div>
+
+                <div class="portfolio-chart" id="banks-chart" style="height: 140px; margin-top: 12px;">
+                    <canvas id="banksChartCanvas"></canvas>
+                </div>
+
+                <div id="banks-empty-state"
+                    style="display:none;text-align:center;color:var(--theme-text-muted);font-size:0.85rem;margin-top:12px;">
+                    Aucun compte bancaire.<br>
+                    <a href="banks-manager.html" style="color:var(--theme-accent);">Ajoutez-en un maintenant</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- NIVEAU 2 : DÉCISION -->
+        <div class="dashboard-grid" id="grid-niveau-2" style="margin-top: 20px;">
+            <!-- Global Insight -->
+            <div class="card level-2" id="overview" draggable="true" style="grid-column: span 2;"
                 data-tooltip="Vue unifiée: décision, cycle, on-chain, risque + Phase Engine intelligent"
                 data-source="Scores unifiés du Risk Dashboard + Phase Engine">
                 <div class="card-header">
@@ -457,7 +600,8 @@
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                     <div>
-                        <div style="font-size: 0.85rem; color: var(--theme-text-muted); font-weight: 600;">Decision Index</div>
+                        <div style="font-size: 0.85rem; color: var(--theme-text-muted); font-weight: 600;">Decision
+                            Index</div>
                         <div id="gi-score" style="font-size: 2.5rem; font-weight: 900;">--</div>
                         <div class="phase-indicator">
                             <div class="phase-chip inactive" id="phase-risk-off">Risk Off</div>
@@ -480,16 +624,21 @@
                         </div>
                     </div>
                 </div>
-                <div id="gi-reco" style="margin-top: 12px; padding: 10px; background: rgba(59, 130, 246, 0.1); border-radius: 6px; font-size: 0.9em;"></div>
-                <div id="gi-meta" style="text-align: center; font-size: 11px; color: var(--theme-text-muted); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--theme-border);"></div>
+                <div id="gi-reco"
+                    style="margin-top: 12px; padding: 10px; background: rgba(59, 130, 246, 0.1); border-radius: 6px; font-size: 0.9em;">
+                </div>
+                <div id="gi-meta"
+                    style="text-align: center; font-size: 11px; color: var(--theme-text-muted); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--theme-border);">
+                </div>
             </div>
 
-            <!-- Market Regime NOUVEAU -->
-            <div class="card level-1" id="market-regime" draggable="true"
+            <!-- Market Regime -->
+            <div class="card level-2" id="market-regime" draggable="true"
                 data-tooltip="Détection intelligente des régimes de marché pour BTC, ETH et actions"
                 data-source="ML Regime Detection API">
                 <div class="card-header">
-                    <a href="ai-dashboard.html#regimes" class="card-title" style="text-decoration: none; color: inherit;">
+                    <a href="ai-dashboard.html#regimes" class="card-title"
+                        style="text-decoration: none; color: inherit;">
                         <span class="card-icon">📈</span> Market Regime
                     </a>
                 </div>
@@ -522,15 +671,16 @@
                             <span class="regime-status consolidation" id="regime-stock-status">--</span>
                         </div>
                         <div class="regime-progress-bar">
-                            <div class="regime-progress-fill consolidation" id="regime-stock-bar" style="width: 0%;"></div>
+                            <div class="regime-progress-fill consolidation" id="regime-stock-bar" style="width: 0%;">
+                            </div>
                         </div>
                         <div class="regime-confidence" id="regime-stock-conf">--</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Risk & Alerts NOUVEAU -->
-            <div class="card level-1" id="risk-alerts" draggable="true"
+            <!-- Risk & Alerts -->
+            <div class="card level-2" id="risk-alerts" draggable="true"
                 data-tooltip="Alertes de risque actives, niveau de risque portfolio et VaR"
                 data-source="Risk Dashboard + Governance Alerts">
                 <div class="card-header">
@@ -545,135 +695,16 @@
                 <div id="alerts-container" style="max-height: 180px; overflow-y: auto;">
                     <div class="loading" style="padding: 12px; text-align: center;">Loading alerts...</div>
                 </div>
-                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--theme-border); font-size: 0.85em; color: var(--theme-text-muted);">
+                <div
+                    style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--theme-border); font-size: 0.85em; color: var(--theme-text-muted);">
                     <strong>Active Alerts:</strong> <span id="alerts-count">--</span><br>
                     <strong>Portfolio VaR (95%):</strong> <span id="portfolio-var">--</span>
                 </div>
             </div>
         </div>
 
-        <!-- NIVEAU 2 : PATRIMOINE -->
-        <div class="dashboard-grid" style="margin-top: 20px;">
-            <!-- Global Overview ENRICHI -->
-            <div class="card level-2" id="global" draggable="true"
-                data-tooltip="Vue d'ensemble globale de votre patrimoine (Crypto + Bourse + Banques) avec P&L Today total"
-                data-source="API /api/wealth/global/summary">
-                <div class="card-header">
-                    <div class="card-title"><span class="card-icon">🌐</span>Global Overview</div>
-                </div>
-
-                <!-- Total Global + P&L Today en tête -->
-                <div style="text-align:center;padding:12px 0;border-bottom:1px solid var(--theme-border);">
-                    <div style="font-size:0.85rem;color:var(--theme-text-muted);margin-bottom:4px;">Total Patrimoine</div>
-                    <div id="global-total-value" style="font-size:2rem;font-weight:900;color:var(--theme-text);">--</div>
-                    <div id="global-pnl-today" style="font-size:0.95rem;font-weight:600;margin-top:4px;">--</div>
-                </div>
-
-                <!-- Modules avec graphiques intégrés -->
-                <div id="global-breakdown" style="display:flex;flex-direction:column;gap:8px;margin-top:12px;">
-                    <!-- Module cards will be added here by JS -->
-                </div>
-            </div>
-
-            <!-- Crypto Overview RÉDUIT -->
-            <div class="card level-2" id="crypto" draggable="true"
-                data-tooltip="Vue d'ensemble de votre portefeuille crypto avec métriques de performance"
-                data-source="API /balances/current + prix CoinGecko/CoinGlass">
-                <div class="card-header">
-                    <div class="card-title"><span class="card-icon">₿</span>Crypto Overview</div>
-                    <div style="display:flex;gap:8px;align-items:center;">
-                        <span id="portfolio-source-display"
-                            style="font-size:11px;color:var(--theme-text-muted);padding:2px 6px;background:var(--theme-bg);border-radius:4px;border:1px solid var(--theme-border);">--</span>
-                        <span class="status-badge status-active" id="portfolio-status">Loading</span>
-                    </div>
-                </div>
-
-                <div class="metric">
-                    <span class="metric-label">Total Value</span>
-                    <span class="metric-value" id="total-value">--</span>
-                </div>
-
-                <div class="metric">
-                    <span class="metric-label">P&L Today</span>
-                    <span class="metric-value" id="daily-pnl">--</span>
-                </div>
-
-                <div class="metric">
-                    <span class="metric-label">Assets Count</span>
-                    <span class="metric-value" id="assets-count">--</span>
-                </div>
-
-                <div class="portfolio-chart" id="portfolio-chart" style="height: 140px; margin-top: 12px;">
-                    <canvas id="portfolioChartCanvas"></canvas>
-                </div>
-            </div>
-
-            <!-- Bourse (Saxo) Overview -->
-            <div class="card level-2" id="bourse" draggable="true"
-                data-tooltip="Vue d'ensemble de votre portefeuille d'actions et ETF via Saxo Bank en lecture seule."
-                data-source="API /api/saxo/positions (legacy)">
-                <div class="card-header">
-                    <a href="saxo-dashboard.html" class="card-title" style="text-decoration: none; color: inherit;">
-                        <span class="card-icon">🏦</span>Bourse
-                    </a>
-                </div>
-
-                <div class="metric">
-                    <span class="metric-label">Valeur Totale</span>
-                    <span class="metric-value" id="saxo-total-value">--</span>
-                </div>
-
-                <div class="metric">
-                    <span class="metric-label">Positions</span>
-                    <span class="metric-value" id="saxo-positions-count">--</span>
-                </div>
-
-                <div class="metric">
-                    <span class="metric-label">Dernier Import</span>
-                    <span class="metric-value" id="saxo-last-import" style="font-size:0.9rem;">--</span>
-                </div>
-
-                <div id="saxo-empty-state" style="display:none;text-align:center;color:var(--theme-text-muted);font-size:0.85rem;margin-top:12px;">
-                    Aucune position Saxo.<br>
-                    <a href="settings.html#sources" style="color:var(--theme-accent);">Importez un fichier dans Settings</a>
-                </div>
-            </div>
-
-            <!-- Banque (Banks) Overview -->
-            <div class="card level-2" id="banque" draggable="true"
-                data-tooltip="Vue d'ensemble de vos comptes bancaires (comptes courants, épargne)."
-                data-source="API /api/wealth/banks/positions">
-                <div class="card-header">
-                    <a href="banks-manager.html" class="card-title" style="text-decoration: none; color: inherit;">
-                        <span class="card-icon">💰</span>Banque
-                    </a>
-                </div>
-
-                <div class="metric">
-                    <span class="metric-label">Valeur Totale</span>
-                    <span class="metric-value" id="banks-total-value">--</span>
-                </div>
-
-                <div class="metric">
-                    <span class="metric-label">Comptes</span>
-                    <span class="metric-value" id="banks-accounts-count">--</span>
-                </div>
-
-                <div class="metric">
-                    <span class="metric-label">Devises</span>
-                    <span class="metric-value" id="banks-currencies-count">--</span>
-                </div>
-
-                <div id="banks-empty-state" style="display:none;text-align:center;color:var(--theme-text-muted);font-size:0.85rem;margin-top:12px;">
-                    Aucun compte bancaire.<br>
-                    <a href="banks-manager.html" style="color:var(--theme-accent);">Ajoutez-en un maintenant</a>
-                </div>
-            </div>
-
-        </div>
-
         <!-- NIVEAU 3 : OPÉRATIONS & SYSTÈME -->
-        <div class="dashboard-grid" style="margin-top: 20px;">
+        <div class="dashboard-grid" id="grid-niveau-3" style="margin-top: 20px;">
             <!-- Execution Status -->
             <div class="card level-3" id="card-execution" draggable="true"
                 data-tooltip="Statut des exécutions automatiques de trades avec historique des performances et volumes traités."
