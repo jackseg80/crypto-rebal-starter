@@ -198,8 +198,8 @@ async function loadMLPipelineStatus() {
   }
 }
 
-// Actions Admin ML
-window.triggerMLRetraining = async function () {
+// Actions Admin ML - Event Handlers
+async function triggerMLRetraining() {
   if (!confirm('Déclencher le re-entrainement des modèles ML ? (Peut prendre plusieurs minutes)')) return;
 
   try {
@@ -216,9 +216,9 @@ window.triggerMLRetraining = async function () {
   } catch (error) {
     alert('❌ Erreur: ' + error.message);
   }
-};
+}
 
-window.clearMLCache = async function () {
+async function clearMLCache() {
   if (!confirm('Vider le cache ML ?')) return;
 
   try {
@@ -236,13 +236,13 @@ window.clearMLCache = async function () {
   } catch (error) {
     alert('❌ Erreur: ' + error.message);
   }
-};
+}
 
-window.downloadMLLogs = function () {
+function downloadMLLogs() {
   window.open('/api/logs?component=ml&format=txt', '_blank');
-};
+}
 
-window.showMLDebug = async function () {
+async function showMLDebug() {
   try {
     const response = await fetch('/api/ml/debug/pipeline-info', {
       headers: { 'X-Admin-Key': 'crypto-rebal-admin-2024' }
@@ -266,7 +266,7 @@ window.showMLDebug = async function () {
   } catch (error) {
     alert('❌ Erreur: ' + error.message);
   }
-};
+}
 
 function showMLError(message) {
   document.getElementById('tab-intelligence-ml').innerHTML = `
@@ -316,4 +316,15 @@ document.addEventListener('DOMContentLoaded', () => {
       mlTab?.click();
     }, 500);
   }
+
+  // Event listeners pour les boutons admin ML
+  const btnRetrain = document.getElementById('btn-retrain');
+  const btnClearCache = document.getElementById('btn-clear-cache');
+  const btnLogs = document.getElementById('btn-logs');
+  const btnDebug = document.getElementById('btn-debug');
+
+  if (btnRetrain) btnRetrain.addEventListener('click', triggerMLRetraining);
+  if (btnClearCache) btnClearCache.addEventListener('click', clearMLCache);
+  if (btnLogs) btnLogs.addEventListener('click', downloadMLLogs);
+  if (btnDebug) btnDebug.addEventListener('click', showMLDebug);
 });

@@ -60,94 +60,6 @@
     });
   </script>
   <script type="module" src="modules/analytics-unified-main-controller.js"></script>
-  <style>
-    .wrap {
-      max-width: 95vw;
-      margin: 0 auto;
-      padding: var(--space-lg);
-    }
-
-    .tabs {
-      display: flex;
-      gap: .5rem;
-      border-bottom: 1px solid var(--theme-border);
-    }
-
-    .tab-btn {
-      padding: .6rem .9rem;
-      border: 1px solid var(--theme-border);
-      background: var(--theme-surface);
-      color: var(--theme-text);
-      border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-      cursor: pointer;
-    }
-
-    .tab-btn.active {
-      border-color: var(--brand-primary);
-      color: var(--brand-primary);
-      background: color-mix(in oklab, var(--brand-primary) 10%, transparent);
-    }
-
-    .btn-refresh {
-      padding: .6rem .9rem;
-      border: 1px solid var(--theme-border);
-      background: var(--theme-surface);
-      color: var(--theme-text);
-      border-radius: var(--radius-sm);
-      cursor: pointer;
-      margin-left: auto;
-      transition: all 0.2s;
-    }
-
-    .btn-refresh:hover {
-      background: var(--brand-primary);
-      color: white;
-      border-color: var(--brand-primary);
-    }
-
-    .tab-panel {
-      display: none;
-    }
-
-    .tab-panel.active {
-      display: block;
-    }
-
-    .panel-card {
-      background: var(--theme-surface);
-      border: 1px solid var(--theme-border);
-      border-radius: var(--radius-lg);
-      padding: var(--space-md);
-    }
-
-    .metric-card {
-      background: var(--theme-bg);
-      border: 1px solid var(--theme-border);
-      border-radius: var(--radius-md);
-      padding: 1rem;
-      text-align: center;
-    }
-
-    .metric-card h4 {
-      margin: 0 0 0.5rem 0;
-      font-size: 0.9rem;
-      color: var(--theme-text-muted);
-      font-weight: 500;
-    }
-
-    .metric-value {
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: var(--theme-text);
-      margin: 0.5rem 0;
-    }
-
-    .metric-card small {
-      color: var(--theme-text-muted);
-      font-size: 0.8rem;
-    }
-  </style>
-  <script type="module" src="components/tooltips.js"></script>
 
   <!-- Risk Dashboard Store + Calculation Modules (for flyout panel parity) -->
   <!-- global-config.js already loaded in head, don't reload -->
@@ -185,31 +97,28 @@
 
   <section class="wrap tab-panel active" id="tab-risk">
     <div class="panel-card">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-        <h3>🛡️ Risk Dashboard</h3>
-        <div id="risk-badge-container"></div>
-      </div>
+      <h3 style="margin-bottom: 1rem;">🛡️ Risk Dashboard</h3>
       <div
         style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
         <div class="metric-card" data-metric="risk-var">
-          <h4>Portfolio VaR</h4>
+          <h4>VaR Portfolio</h4>
           <div class="metric-value" id="risk-var-value">--</div>
-          <small>95% confidence level</small>
+          <small>Niveau de confiance 95%</small>
         </div>
         <div class="metric-card" data-metric="risk-drawdown">
-          <h4>Max Drawdown</h4>
+          <h4>Drawdown Maximum</h4>
           <div class="metric-value" id="risk-drawdown-value">--</div>
-          <small>Current cycle</small>
+          <small>Cycle actuel</small>
         </div>
         <div class="metric-card" data-metric="risk-volatility">
-          <h4>Volatility</h4>
+          <h4>Volatilité</h4>
           <div class="metric-value" id="risk-volatility-value">--</div>
-          <small>30-day annualized</small>
+          <small>Annualisée 30 jours</small>
         </div>
         <div class="metric-card" data-metric="risk-score">
-          <h4>Risk Score</h4>
+          <h4>Score de Risque</h4>
           <div class="metric-value" id="risk-score-value">--/100</div>
-          <small>Unknown</small>
+          <small>Inconnu</small>
         </div>
       </div>
       <!-- Scores clés du Risk Dashboard (version complète) -->
@@ -237,10 +146,10 @@
         </div>
       </div>
       <div style="margin-top: 2rem; padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-md);">
-        <h4>Risk Alerts</h4>
-        <div style="color: var(--theme-text-muted);">• Portfolio concentration within acceptable limits</div>
-        <div style="color: var(--theme-text-muted);">• Correlation risk moderate for current market conditions</div>
-        <div style="color: var(--theme-text-muted);">• No significant exposure warnings</div>
+        <h4>Alertes Risque</h4>
+        <div style="color: var(--theme-text-muted);">• Concentration du portefeuille dans les limites acceptables</div>
+        <div style="color: var(--theme-text-muted);">• Risque de corrélation modéré pour les conditions actuelles</div>
+        <div style="color: var(--theme-text-muted);">• Aucune alerte d'exposition significative</div>
       </div>
       <div style="text-align: center; margin-top: 1.5rem; display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
         <a href="risk-dashboard.html?nav=off" target="_blank"
@@ -256,41 +165,38 @@
   </section>
   <section class="wrap tab-panel" id="tab-performance">
     <div class="panel-card">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-        <h3>📊 Performance Monitor</h3>
-        <div id="performance-badge-container"></div>
-      </div>
+      <h3 style="margin-bottom: 1rem;">📊 Performance Monitor</h3>
       <div
         style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
         <div class="metric-card" data-metric="perf-cache-size">
-          <h4>Memory Cache Size</h4>
+          <h4>Taille Cache Mémoire</h4>
           <div class="metric-value">--</div>
-          <small>Memory cache entries</small>
+          <small>Entrées en cache</small>
         </div>
         <div class="metric-card" data-metric="perf-disk-cache">
-          <h4>Disk Cache Usage</h4>
+          <h4>Utilisation Cache Disque</h4>
           <div class="metric-value">-- MB</div>
-          <small>Disk cache usage</small>
+          <small>Usage disque</small>
         </div>
         <div class="metric-card" data-metric="perf-memory">
-          <h4>Process Memory</h4>
+          <h4>Mémoire Processus</h4>
           <div class="metric-value">-- MB</div>
-          <small>Process memory</small>
+          <small>Mémoire processus</small>
         </div>
         <div class="metric-card" data-metric="perf-system-memory">
-          <h4>System Memory Usage</h4>
+          <h4>Utilisation Mémoire Système</h4>
           <div class="metric-value">--%</div>
-          <small>System memory usage</small>
+          <small>Mémoire système</small>
         </div>
       </div>
       <div style="margin-top: 2rem; padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-md);">
-        <h4>System Performance</h4>
+        <h4>Performance Système</h4>
         <div style="display: grid; gap: 0.5rem;">
-          <div style="display: flex; justify-content: space-between;"><span>Memory Cache Hit Rate:</span><span
+          <div style="display: flex; justify-content: space-between;"><span>Taux de réussite cache:</span><span
               style="color: var(--success);">--%</span></div>
-          <div style="display: flex; justify-content: space-between;"><span>Available Memory:</span><span>-- GB</span>
+          <div style="display: flex; justify-content: space-between;"><span>Mémoire disponible:</span><span>-- GB</span>
           </div>
-          <div style="display: flex; justify-content: space-between;"><span>Process Efficiency:</span><span>--</span>
+          <div style="display: flex; justify-content: space-between;"><span>Efficacité processus:</span><span>--</span>
           </div>
         </div>
       </div>
@@ -308,35 +214,38 @@
       <div
         style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
         <div class="metric-card" data-metric="cycle-phase">
-          <h4>Current Phase</h4>
+          <h4>Phase Actuelle</h4>
           <div class="metric-value">--</div>
-          <small>Current phase</small>
+          <small>Phase courante</small>
         </div>
         <div class="metric-card" data-metric="cycle-progress">
-          <h4>Post-Halving Progress</h4>
-          <div class="metric-value">-- months</div>
-          <small>Post-halving progress</small>
+          <h4>Progrès Post-Halving</h4>
+          <div class="metric-value">-- mois</div>
+          <small>Progression depuis halving</small>
         </div>
         <div class="metric-card" data-metric="cycle-score">
-          <h4>Cycle Score</h4>
+          <h4>Score de Cycle</h4>
           <div class="metric-value">--</div>
-          <small>Cycle position score</small>
+          <small>Position dans le cycle</small>
         </div>
         <div class="metric-card" data-metric="cycle-confidence">
-          <h4>Confidence</h4>
+          <h4>Confiance</h4>
           <div class="metric-value">--%</div>
-          <small>Model certainty</small>
+          <small>Certitude du modèle</small>
         </div>
       </div>
       <div style="margin-top: 2rem; padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-md);">
         <h4>Market Cycle Indicators</h4>
-        <div style="display: grid; gap: 0.5rem;">
-          <div style="display: flex; justify-content: space-between;"><span>Fear & Greed Index:</span><span>45
-              (Neutral)</span></div>
-          <div style="display: flex; justify-content: space-between;"><span>RSI (Weekly):</span><span>58
-              (Neutral)</span></div>
-          <div style="display: flex; justify-content: space-between;"><span>MVRV Ratio:</span><span>2.1
-              (Accumulation)</span></div>
+        <div style="display: grid; gap: 0.5rem; color: var(--theme-text-muted); font-style: italic;">
+          <div style="text-align: center; padding: 2rem;">
+            📊 Indicateurs disponibles via l'API ML<br>
+            <small>Fear & Greed, RSI, MVRV Ratio</small>
+          </div>
+          <!-- TODO: Connecter aux endpoints ML réels:
+               - Fear & Greed: /api/ml/sentiment/fear-greed
+               - RSI: À implémenter via technical indicators
+               - MVRV: À implémenter via on-chain metrics
+          -->
         </div>
       </div>
       <div style="text-align: center; margin-top: 1.5rem;">
@@ -353,28 +262,28 @@
       <div
         style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
         <div class="metric-card" data-metric="monitor-total-return">
-          <h4>Total Return</h4>
+          <h4>Rendement Total</h4>
           <div class="metric-value">--%</div>
           <small>Sur la période</small>
         </div>
         <div class="metric-card" data-metric="monitor-sharpe">
-          <h4>Sharpe Ratio</h4>
+          <h4>Ratio de Sharpe</h4>
           <div class="metric-value">--</div>
           <small>Risque ajusté</small>
         </div>
         <div class="metric-card" data-metric="monitor-volatility">
-          <h4>Volatility</h4>
+          <h4>Volatilité</h4>
           <div class="metric-value">--%</div>
           <small>Risque de marché</small>
         </div>
         <div class="metric-card" data-metric="monitor-drawdown">
-          <h4>Max Drawdown</h4>
+          <h4>Drawdown Max</h4>
           <div class="metric-value">--%</div>
           <small>Pire baisse</small>
         </div>
       </div>
       <div style="margin-top: 2rem; padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-md);">
-        <h4>Advanced Metrics</h4>
+        <h4>Métriques Avancées</h4>
         <div id="advanced-metrics-breakdown" style="display: grid; gap: 0.5rem;"></div>
       </div>
       <div style="text-align: center; margin-top: 1.5rem;">
@@ -389,10 +298,7 @@
   <!-- Intelligence ML Tab Panel -->
   <section class="wrap tab-panel" id="tab-intelligence-ml">
     <div class="panel-card">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-        <h3>🤖 Intelligence ML - Vue Analyse Complète</h3>
-        <div id="intelligence-badge-container"></div>
-      </div>
+      <h3 style="margin-bottom: 1rem;">🤖 Intelligence ML - Vue Analyse Complète</h3>
       <p style="color: var(--theme-text-muted); margin-bottom: 2rem;">
         Analyse détaillée des modèles ML, prédictions temps réel et administration avancée
       </p>
@@ -491,16 +397,16 @@
 
           <!-- Actions Admin -->
           <div class="admin-actions" style="display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap;">
-            <button class="btn secondary" onclick="triggerMLRetraining()" id="btn-retrain">
+            <button class="btn secondary" id="btn-retrain">
               🔄 Retrain Models
             </button>
-            <button class="btn secondary" onclick="clearMLCache()" id="btn-clear-cache">
+            <button class="btn secondary" id="btn-clear-cache">
               🗑️ Clear Cache
             </button>
-            <button class="btn secondary" onclick="downloadMLLogs()" id="btn-logs">
+            <button class="btn secondary" id="btn-logs">
               📥 Download Logs
             </button>
-            <button class="btn secondary" onclick="showMLDebug()" id="btn-debug">
+            <button class="btn secondary" id="btn-debug">
               🔍 Debug Info
             </button>
           </div>
@@ -524,104 +430,10 @@
         </a>
       </div>
 
-      <!-- Bitcoin Regime Detection - Moved to AI Dashboard -->
-      <div style="margin-top: 3rem; padding: 2rem; background: var(--theme-surface); border-radius: var(--radius-md); border: 2px solid var(--brand-primary); text-align: center;">
-        <h3 style="margin-bottom: 1rem;">
-          ₿ Bitcoin Regime Detection
-        </h3>
-        <p style="color: var(--theme-text-muted); margin-bottom: 1.5rem;">
-          Cette fonctionnalité a été déplacée vers le <strong>Dashboard IA Unifié</strong> pour une meilleure centralisation de toute la détection de régimes (Stock Market + Bitcoin).
-        </p>
-        <a href="ai-dashboard.html" class="btn primary" style="display: inline-block; padding: 0.75rem 1.5rem; background: var(--brand-primary); color: white; text-decoration: none; border-radius: var(--radius-md); font-weight: 600;">
-          📈 Ouvrir Dashboard IA → Régimes de Marché
-        </a>
-        <div style="margin-top: 1rem; padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-sm); text-align: left;">
-          <strong>📌 Nouveau dans le Dashboard IA:</strong>
-          <ul style="margin: 0.5rem 0 0 1.5rem; color: var(--theme-text-muted); font-size: 0.9rem;">
-            <li><strong>Onglet "Régimes de Marché"</strong> - Centralise Stock Market + Bitcoin regime detection</li>
-            <li><strong>Tableau Comparatif</strong> - Compare directement les régimes Bourse vs Crypto</li>
-            <li><strong>Graphiques Complets</strong> - Timeframe selector (1Y/2Y/5Y/10Y) + événements annotés</li>
-          </ul>
-        </div>
-      </div>
     </div>
   </section>
 
   <script type="module" src="modules/analytics-unified-tabs-controller.js"></script>
-
-  <style>
-    /* Styles spécifiques pour l'onglet Intelligence ML */
-    .ml-stats-section,
-    .ml-models-section,
-    .ml-predictions-section,
-    .ml-admin-section {
-      background: var(--theme-surface);
-      border-radius: var(--radius-md);
-      padding: 1.5rem;
-      border: 1px solid var(--theme-border);
-    }
-
-    .prediction-grid .metric-card {
-      transition: all 0.3s ease;
-    }
-
-    .prediction-grid .metric-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    }
-
-    /* Couleurs pour les régimes */
-    .metric-value.regime-bull {
-      color: var(--success);
-    }
-
-    .metric-value.regime-bear {
-      color: var(--danger);
-    }
-
-    .metric-value.regime-neutral {
-      color: var(--warning);
-    }
-
-    /* Couleurs pour le sentiment */
-    .metric-value.sentiment-fear {
-      color: var(--danger);
-    }
-
-    .metric-value.sentiment-greed {
-      color: var(--success);
-    }
-
-    .metric-value.sentiment-neutral {
-      color: var(--theme-text);
-    }
-
-    .admin-actions .btn {
-      font-size: 0.85rem;
-      padding: 0.5rem 1rem;
-    }
-
-    .ml-pipeline-status {
-      background: var(--theme-bg);
-      border-radius: var(--radius-sm);
-      padding: 1rem;
-    }
-
-    /* Responsive pour onglet ML */
-    @media (max-width: 768px) {
-      .prediction-grid {
-        grid-template-columns: 1fr 1fr !important;
-      }
-
-      .admin-actions {
-        flex-direction: column;
-      }
-
-      .admin-actions .btn {
-        width: 100%;
-      }
-    }
-  </style>
 
   <!-- Unified Risk Flyout Panel (Full Sidebar) -->
   <script type="module" src="components/flyout-panel.js"></script>

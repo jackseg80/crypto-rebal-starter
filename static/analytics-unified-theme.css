@@ -13,6 +13,12 @@
    PAGE CONTAINER
    ═══════════════════════════════════════════════════════════ */
 
+.wrap {
+  max-width: 95vw;
+  margin: 0 auto;
+  padding: var(--space-lg);
+}
+
 #unified-root {
   width: 100%;
   max-width: 100%;
@@ -543,4 +549,79 @@ canvas {
 
 .data-table-container::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.15);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   INTELLIGENCE ML TAB - Styles spécifiques
+   ═══════════════════════════════════════════════════════════ */
+
+.ml-stats-section,
+.ml-models-section,
+.ml-predictions-section,
+.ml-admin-section {
+  background: var(--theme-surface);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+  border: 1px solid var(--theme-border);
+}
+
+.prediction-grid .metric-card {
+  transition: all 0.3s ease;
+}
+
+.prediction-grid .metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Couleurs pour les régimes */
+.metric-value.regime-bull {
+  color: var(--success);
+}
+
+.metric-value.regime-bear {
+  color: var(--danger);
+}
+
+.metric-value.regime-neutral {
+  color: var(--warning);
+}
+
+/* Couleurs pour le sentiment */
+.metric-value.sentiment-fear {
+  color: var(--danger);
+}
+
+.metric-value.sentiment-greed {
+  color: var(--success);
+}
+
+.metric-value.sentiment-neutral {
+  color: var(--theme-text);
+}
+
+.admin-actions .btn {
+  font-size: 0.85rem;
+  padding: 0.5rem 1rem;
+}
+
+.ml-pipeline-status {
+  background: var(--theme-bg);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+}
+
+/* Responsive pour onglet ML */
+@media (max-width: 768px) {
+  .prediction-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .admin-actions {
+    flex-direction: column;
+  }
+
+  .admin-actions .btn {
+    width: 100%;
+  }
 }

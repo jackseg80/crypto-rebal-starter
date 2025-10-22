@@ -30,7 +30,7 @@
 - Nouvel onglet "📈 Régimes de Marché" dans `ai-dashboard.html`
 - Centralisation Stock Market + Bitcoin regime detection
 - Tableau comparatif cross-asset
-- Redirect notice dans `analytics-unified.html`
+- ~~Redirect notice dans `analytics-unified.html`~~ (supprimé lors du nettoyage Oct 2025)
 
 **Phase 5 - Extensions Multi-Assets (100%)**
 - Ethereum regime detection ajouté (même système hybride que BTC)
@@ -72,7 +72,7 @@ ai-dashboard.html → Onglet "📈 Régimes de Marché"
 - `static/ai-dashboard.html` - Onglet Régimes de Marché (3 sections)
 - `static/modules/btc-regime-chart.js` - Charts Bitcoin (530 lignes)
 - `static/modules/stock-regime-history.js` - Modal Stock probabilities (296 lignes)
-- `static/analytics-unified.html` - Redirect notice
+- ~~`static/analytics-unified.html` - Redirect notice~~ (section obsolète supprimée)
 
 **Documentation:**
 - `docs/BTC_HYBRID_REGIME_DETECTOR.md` - Documentation technique
