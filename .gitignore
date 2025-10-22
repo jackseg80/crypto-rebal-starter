@@ -28,8 +28,15 @@ cache/ml_pipeline/
 cache/portfolio_optimization/
 data/monitoring/portfolio_alerts.json
 
+# ML Predictions (generated files)
+data/ml_predictions/*.jsonl
+data/ml_predictions/*_report.json
+data/ml_predictions/*_validation*.json
+
 # Temporary files
 static/archive/pre-unification/
+mockup_*.html
+*_mockup.html
 
 # IDEs
 .vscode/
@@ -51,6 +58,12 @@ rebalance-actions.csv
 risk*.txt
 test*.json
 promp_claude.txt
+
+# Cleanup scripts & audits (temporary)
+scripts/cleanup_*.ps1
+scripts/cleanup_*.sh
+docs/*_AUDIT_*.md
+docs/UNUSED_*.md
 
 # Server logs (rotating logs for debugging)
 logs/
