@@ -187,32 +187,110 @@ function computeMacroTargetsDynamic(ctx, rb, walletStats, data = null) {
     Others: 0.00
   };
 
-  // 2) Modulateurs simples par régime/sentiment
-  // IMPORTANT: Désactiver ces modulateurs quand Phase Engine est en mode apply
-  // car le Phase Engine gère déjà les tilts de marché de façon plus sophistiquée
+  // 2) Modulateurs avec HIÉRARCHIE DE PRIORITÉS (Option 1)
+  //
+  // ARCHITECTURE:
+  // 1. Sentiments EXTRÊMES (Fear <25 ou Greed >75) → TOUJOURS actifs (override TOUT)
+  // 2. Phase Engine → Tilts tactiques (ETH expansion, altseason, etc.)
+  // 3. Modulateurs de base (bull/bear) → Désactivés si Phase Engine actif
+  //
+  // RATIONALE:
+  // - Extreme Fear/Greed = situations critiques qui nécessitent action immédiate
+  // - Phase Engine = optimisations tactiques normales
+  // - Les deux peuvent coexister: Phase Engine gère macro, Sentiment gère extrêmes
+
   const phaseEngineActive = ctx?.flags?.phase_engine === 'apply';
-  const bull = !phaseEngineActive && ((ctx?.regime === 'bull') || (ctx?.cycle_score >= 70));
-  const bear = !phaseEngineActive && ((ctx?.regime === 'bear') || (ctx?.cycle_score <= 30));
-  const hedge = !phaseEngineActive && (ctx?.governance_mode === 'Hedge');
-  const fear = !phaseEngineActive && (ctx?.sentiment === 'extreme_fear');
 
-  console.debug('🔍 Market conditions:', { bull, bear, hedge, fear, cycle_score: ctx?.cycle_score });
+  // NIVEAU 1: Sentiments extrêmes (TOUJOURS actifs)
+  const mlSentiment = ctx?.sentiment_value || 50;
+  const extremeFear = mlSentiment < 25;
+  const extremeGreed = mlSentiment > 75;
 
-  if (bull) {
-    // Mode bull: moins BTC, plus ETH/L2/SOL
-    base.BTC *= 0.95;
-    base.ETH *= 1.08;
-    base['L2/Scaling'] *= 1.15;
-    base.SOL *= 1.10;
-    console.debug('🚀 Bull mode: boost ETH/L2/SOL');
+  // NIVEAU 2 & 3: Modulateurs de base (désactivés si Phase Engine actif)
+  const isBull = !phaseEngineActive && ((ctx?.regime === 'bull') || (ctx?.cycle_score >= 70));
+  const isBear = !phaseEngineActive && ((ctx?.regime === 'bear') || (ctx?.cycle_score <= 30));
+  const isHedge = !phaseEngineActive && (ctx?.governance_mode === 'Hedge');
+
+  console.debug('🔍 Market conditions (Hierarchical):', {
+    level1_extremes: { extremeFear, extremeGreed, mlSentiment },
+    level2_phase_engine: { active: phaseEngineActive, mode: ctx?.flags?.phase_engine },
+    level3_base_modulators: { isBull, isBear, isHedge, disabled: phaseEngineActive },
+    context: { cycle_score: ctx?.cycle_score, regime: ctx?.regime }
+  });
+
+  // Variable pour logs d'override
+  let overrideReason = null;
+
+  // NIVEAU 1 - PRIORITÉ ABSOLUE: Sentiments Extrêmes (toujours exécutés en premier)
+  if (extremeFear || extremeGreed) {
+    // Déterminer le régime pour contextualiser
+    const bullContext = (ctx?.regime === 'bull') || (ctx?.cycle_score >= 70);
+    const bearContext = (ctx?.regime === 'bear') || (ctx?.cycle_score <= 30);
+
+    if (extremeFear && bullContext) {
+      // 🐂 Bull + Fear = OPPORTUNITÉ (contrarian buy)
+      base.ETH *= 1.15;
+      base.SOL *= 1.20;
+      base['L2/Scaling'] *= 1.20;
+      base.DeFi *= 1.10;
+      base.Memecoins = Math.max(base.Memecoins * 1.5, 0.02);
+      overrideReason = `🐂 Bull Market + Extreme Fear (${mlSentiment}) → Opportunité d'achat`;
+      console.debug('💎 LEVEL 1 OVERRIDE: Opportunistic allocation (Bull + Fear)');
+    }
+    else if (extremeFear && bearContext) {
+      // 🐻 Bear + Fear = DANGER (capitulation)
+      base.Memecoins *= 0.3;
+      base['Gaming/NFT'] *= 0.5;
+      base.DeFi *= 0.7;
+      base['AI/Data'] *= 0.8;
+      overrideReason = `🐻 Bear Market + Extreme Fear (${mlSentiment}) → Protection`;
+      console.debug('🛡️ LEVEL 1 OVERRIDE: Defensive allocation (Bear + Fear)');
+    }
+    else if (extremeFear) {
+      // 😐 Neutral + Fear = Prudence légère
+      base.Memecoins *= 0.7;
+      base['Gaming/NFT'] *= 0.8;
+      overrideReason = `😐 Neutral + Fear (${mlSentiment}) → Prudence`;
+      console.debug('⚖️ LEVEL 1 OVERRIDE: Cautious allocation (Neutral + Fear)');
+    }
+
+    if (extremeGreed) {
+      // ⚠️ Extreme Greed = TOUJOURS prise de profits
+      base.Memecoins *= 0.3;
+      base['Gaming/NFT'] *= 0.5;
+      base['AI/Data'] *= 0.7;
+      base.DeFi *= 0.8;
+      overrideReason = overrideReason
+        ? `${overrideReason} + Extreme Greed (${mlSentiment}) → Prise de profits`
+        : `⚠️ Extreme Greed (${mlSentiment}) → Prise de profits`;
+      console.debug('⚠️ LEVEL 1 OVERRIDE: Profit-taking (Extreme Greed)');
+    }
+  }
+  // NIVEAU 3: Modulateurs de base (seulement si Phase Engine inactif ET pas d'extrême)
+  else if (!phaseEngineActive) {
+    if (isBull) {
+      // Mode bull: moins BTC, plus ETH/L2/SOL
+      base.BTC *= 0.95;
+      base.ETH *= 1.08;
+      base['L2/Scaling'] *= 1.15;
+      base.SOL *= 1.10;
+      console.debug('🚀 LEVEL 3: Bull mode (standard boost ETH/L2/SOL)');
+    }
+
+    if (isBear || isHedge) {
+      // Mode prudent: réduire long tail
+      base.Memecoins *= 0.5;
+      base['Gaming/NFT'] *= 0.7;
+      base.DeFi *= 0.85;
+      console.debug('🛡️ LEVEL 3: Standard defensive mode');
+    }
+  } else {
+    console.debug('🎯 LEVEL 2: Phase Engine active, delegating tilts to Phase Engine');
   }
 
-  if (bear || hedge || fear) {
-    // Mode prudent: réduire long tail
-    base.Memecoins *= 0.5;
-    base['Gaming/NFT'] *= 0.7;
-    base.DeFi *= 0.85;
-    console.debug('🛡️ Defensive mode: reduce risky assets');
+  // Stocker reason dans ctx pour UI
+  if (overrideReason) {
+    ctx.allocation_override_reason = overrideReason;
   }
 
   // 3) Diversification basée sur concentration wallet
@@ -567,10 +645,11 @@ export async function getUnifiedState() {
         cycle_score: cycleData.score,
         governance_mode: decision.governance_mode || 'Normal',
         sentiment: sentimentData?.interpretation,
+        sentiment_value: sentimentData?.value || 50,  // Valeur numérique 0-100 pour logique contextuelle
         // NOUVEAU: Feature flags pour phase engine
         flags: {
           phase_engine: typeof window !== 'undefined' ?
-            localStorage.getItem('PHASE_ENGINE_ENABLED') || 'shadow' : 'off'
+            localStorage.getItem('PHASE_ENGINE_ENABLED') || 'apply' : 'off'  // Default: 'apply' (Oct 2025)
         }
       };
 
@@ -872,7 +951,7 @@ export async function getUnifiedState() {
         sentiment: sentimentData?.interpretation,
         flags: {
           phase_engine: typeof window !== 'undefined' ?
-            localStorage.getItem('PHASE_ENGINE_ENABLED') || 'shadow' : 'off'
+            localStorage.getItem('PHASE_ENGINE_ENABLED') || 'apply' : 'off'  // Default: 'apply' (Oct 2025)
         }
       };
 

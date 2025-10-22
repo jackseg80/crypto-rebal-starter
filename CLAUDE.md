@@ -32,7 +32,38 @@ const balanceResult = await window.loadBalanceData(true);
 - **DI Formula:** `DI = wCycle·scoreCycle + wOnchain·scoreOnchain + wRisk·scoreRisk`
 - **❌ INTERDIT:** Ne jamais inverser avec `100 - scoreRisk`
 
-### 3. Autres Règles
+### 3. Système Dual de Scoring ⚠️
+**Deux systèmes parallèles avec objectifs différents:**
+
+| Métrique | Formule | Valeur | Usage |
+|----------|---------|--------|-------|
+| **Score de Régime** | `0.5×CCS + 0.3×OnChain + 0.2×Risk` | Variable (0-100) | Régime marché |
+| **Decision Index** | `total_check.isValid ? 65 : 45` | Fixe (65/45) | Qualité allocation |
+
+**Règles:**
+- Score de Régime (ex: 55) → Détermine régime (Accumulation/Expansion/Euphorie)
+- Decision Index (65 ou 45) → Qualité technique de l'allocation V2
+- **Phase != Régime**: Phase basée UNIQUEMENT sur cycle (<70=bearish, 70-90=moderate, ≥90=bullish)
+- Régime "Expansion" (55) + Phase "bearish" (cycle 59<70) est NORMAL!
+- Ne PAS forcer la convergence entre les deux!
+- Voir [`docs/DECISION_INDEX_V2.md`](docs/DECISION_INDEX_V2.md) pour détails
+
+**Phase Detection (allocation-engine.js ligne 180):**
+- Cycle < 70 → Phase "bearish" (allocation conservatrice)
+- Cycle 70-90 → Phase "moderate"
+- Cycle ≥ 90 → Phase "bullish" (floors agressifs)
+
+**Overrides (sur allocation, pas sur DI/Régime):**
+- **ML Sentiment <25** → Force allocation défensive (+10 pts stables)
+  - ⚠️ "ML Sentiment" = Sentiment ML agrégé (`/api/ml/sentiment/symbol/BTC`)
+  - PAS le Fear & Greed Index officiel (alternative.me)
+  - Calcul: `50 + (sentiment_ml × 50)` où sentiment ∈ [-1, 1]
+  - Ex: sentiment 0.6 → 80 (Extreme Greed), sentiment -0.4 → 30 (Fear)
+  - Affiché dans Decision Index Panel et analytics-unified.html
+- Contradiction >50% → Pénalise On-Chain/Risk (×0.9)
+- Structure Score <50 → +10 pts stables
+
+### 4. Autres Règles
 - Ne jamais committer `.env` ou clés
 - Pas d'URL API en dur → `static/global-config.js`
 - Modifications minimales, pas de refonte sans demande
@@ -270,10 +301,31 @@ Select-String -Path "logs\app.log" -Pattern "ERROR|WARNING" | Select-Object -Las
 - `/api/risk/dashboard?risk_version=v2_shadow`
 - Pénalités: -75 pts exclusion, -25 pts memes
 
-### Phase Engine
-- Détection phases market (ETH expansion, altseason, risk-off)
-- `localStorage.setItem('PHASE_ENGINE_ENABLED', 'shadow')`
-- Debug: `window.debugPhaseEngine.forcePhase('risk_off')`
+### Phase Engine + Logique Contextuelle ML Sentiment (Oct 2025)
+**Architecture hiérarchique à 3 niveaux:**
+
+1. **NIVEAU 1 (Priorité Absolue):** Sentiments Extrêmes
+   - `mlSentiment < 25` (Extreme Fear) + Bull → Opportuniste (boost ETH/SOL/DeFi)
+   - `mlSentiment < 25` (Extreme Fear) + Bear → Défensif (réduit risky assets)
+   - `mlSentiment > 75` (Extreme Greed) → Prise profits (toujours)
+
+2. **NIVEAU 2 (Optimisations Tactiques):** Phase Engine
+   - Détecte: ETH expansion, large-cap altseason, full altseason, risk-off
+   - **Active par défaut** (`'apply'` mode)
+   - Persistence: buffers localStorage (TTL 7 jours, 14 samples max)
+   - Fallback intelligent: utilise DI + breadth si données partielles
+
+3. **NIVEAU 3 (Fallback):** Modulateurs bull/bear standard
+   - Désactivés si Phase Engine actif
+   - Utilisés uniquement en dernier recours
+
+**Commandes:**
+- Phase Engine toujours actif (pas besoin de commande)
+- Debug force phase: `window.debugPhaseEngine.forcePhase('risk_off')`
+- Status buffers: `window.debugPhaseBuffers.getStatus()`
+- Désactiver (non recommandé): `localStorage.setItem('PHASE_ENGINE_ENABLED', 'off')`
+
+**Note:** Panneau "Phase Engine Beta" supprimé - système autonome
 
 ### WealthContextBar
 - Change source depuis n'importe quelle page

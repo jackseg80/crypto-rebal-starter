@@ -37,8 +37,39 @@ export function inferPhase(phaseInputs, histWindow = 14) {
     return forcedPhase;
   }
 
-  if (!phaseInputs || phaseInputs.partial) {
-    console.debug('🧘 PhaseEngine: Insufficient data, defaulting to neutral');
+  // Fallback intelligent si données partielles (Oct 2025)
+  // Au lieu de toujours retourner 'neutral', utiliser DI + breadth pour décision partielle
+  if (!phaseInputs) {
+    console.debug('🧘 PhaseEngine: No inputs, defaulting to neutral');
+    return 'neutral';
+  }
+
+  if (phaseInputs.partial) {
+    const { DI, breadth_alts } = phaseInputs;
+
+    console.debug('🔍 PhaseEngine: Partial data detected, using intelligent fallback:', {
+      DI,
+      breadth_alts: breadth_alts ? (breadth_alts * 100).toFixed(1) + '%' : 'N/A',
+      missing: phaseInputs.missing
+    });
+
+    // Règles simples basées sur DI et breadth uniquement
+    if (DI < 35) {
+      console.debug('🛡️ PhaseEngine: Risk-off detected (DI < 35) via fallback');
+      return 'risk_off';
+    }
+
+    if (DI >= 70 && breadth_alts >= 0.7) {
+      console.debug('📈 PhaseEngine: Large-cap altseason detected via fallback (DI >= 70, breadth >= 70%)');
+      return 'largecap_altseason';
+    }
+
+    if (DI >= 60 && breadth_alts >= 0.55) {
+      console.debug('⚡ PhaseEngine: Bull context detected via fallback, assuming ETH expansion');
+      return 'eth_expansion';
+    }
+
+    console.debug('😐 PhaseEngine: Neutral (insufficient confidence with partial data)');
     return 'neutral';
   }
 

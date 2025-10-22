@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Logique Contextuelle ML Sentiment</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        h1, h2 {
+            color: #4fc3f7;
+        }
+        .test-case {
+            background: #2a2a2a;
+            border-left: 4px solid #4fc3f7;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .test-case.pass {
+            border-left-color: #66bb6a;
+        }
+        .test-case.fail {
+            border-left-color: #ef5350;
+        }
+        .input {
+            background: #1e1e1e;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+        }
+        .output {
+            background: #0d1117;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+        }
+        .expected {
+            color: #66bb6a;
+        }
+        .actual {
+            color: #4fc3f7;
+        }
+        .delta {
+            color: #ffa726;
+        }
+        button {
+            background: #4fc3f7;
+            color: #1a1a1a;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #29b6f6;
+        }
+        .summary {
+            background: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .summary.all-pass {
+            border: 2px solid #66bb6a;
+        }
+        .summary.has-fail {
+            border: 2px solid #ef5350;
+        }
+        code {
+            background: #0d1117;
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: #ffa726;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Logique Contextuelle ML Sentiment + Régime (Option 1)</h1>
+    <p>Ce test valide la <strong>hiérarchie de priorités</strong>: Sentiments Extrêmes (Niveau 1) → Phase Engine (Niveau 2) → Modulateurs de base (Niveau 3)</p>
+    <p>5 scénarios testés dont 1 nouveau avec Phase Engine actif.</p>
+
+    <div class="summary" id="summary">
+        <h2>Résultats des Tests</h2>
+        <p>Cliquez sur "Exécuter Tous les Tests" pour commencer</p>
+    </div>
+
+    <button onclick="runAllTests()">Exécuter Tous les Tests</button>
+    <button onclick="clearResults()">Effacer les Résultats</button>
+
+    <div id="results"></div>
+
+    <script type="module">
+        import { computeMacroTargetsDynamic } from '../core/unified-insights-v2.js';
+
+        // Expose pour les tests
+        window.computeMacroTargetsDynamic = computeMacroTargetsDynamic;
+
+        // Helper pour calculer les changements
+        function compareTargets(original, modified, keys) {
+            const deltas = {};
+            keys.forEach(key => {
+                const orig = original[key] || 0;
+                const mod = modified[key] || 0;
+                const delta = mod - orig;
+                deltas[key] = {
+                    original: orig.toFixed(2),
+                    modified: mod.toFixed(2),
+                    delta: delta.toFixed(2),
+                    change: delta > 0 ? '↑' : delta < 0 ? '↓' : '='
+                };
+            });
+            return deltas;
+        }
+
+        // Scénario 1: Bull + Neutral (comportement actuel maintenu)
+        async function testBullNeutral() {
+            const ctx = {
+                regime: 'bull',
+                cycle_score: 75,
+                governance_mode: 'Normal',
+                sentiment: 'neutral',
+                sentiment_value: 55,
+                flags: { phase_engine: 'off' }
+            };
+
+            const rb = {
+                target_stables_pct: 25,
+                min_stables: 10,
+                max_stables: 60
+            };
+
+            const targets = computeMacroTargetsDynamic(ctx, rb, {}, null);
+
+            const riskyAssets = ['ETH', 'SOL', 'L2/Scaling', 'DeFi', 'Memecoins'];
+            const checks = [
+                { name: 'ETH augmenté', pass: targets.ETH > 20 },
+                { name: 'SOL augmenté', pass: targets.SOL > 4 },
+                { name: 'L2/Scaling augmenté', pass: targets['L2/Scaling'] > 4 },
+                { name: 'Memecoins réduit ou stable', pass: targets.Memecoins <= 1 }
+            ];
+
+            return {
+                name: 'Scénario 1: Bull + Neutral',
+                input: ctx,
+                targets,
+                checks,
+                pass: checks.every(c => c.pass),
+                expected: 'Boost ETH/SOL/L2, comportement bull standard'
+            };
+        }
+
+        // Scénario 2: Bear + Fear (défensif maintenu)
+        async function testBearFear() {
+            const ctx = {
+                regime: 'bear',
+                cycle_score: 25,
+                governance_mode: 'Normal',
+                sentiment: 'extreme_fear',
+                sentiment_value: 20,
+                flags: { phase_engine: 'off' }
+            };
+
+            const rb = {
+                target_stables_pct: 25,
+                min_stables: 10,
+                max_stables: 60
+            };
+
+            const targets = computeMacroTargetsDynamic(ctx, rb, {}, null);
+
+            const checks = [
+                { name: 'Memecoins fortement réduit', pass: targets.Memecoins < 0.5 },
+                { name: 'Gaming/NFT réduit', pass: targets['Gaming/NFT'] < 1.5 },
+                { name: 'DeFi réduit', pass: targets.DeFi < 4 },
+                { name: 'Override reason présent', pass: !!ctx.allocation_override_reason }
+            ];
+
+            return {
+                name: 'Scénario 2: Bear + Fear (Défensif)',
+                input: ctx,
+                targets,
+                checks,
+                pass: checks.every(c => c.pass),
+                expected: 'Protection max: réduction agressive des risky assets',
+                overrideReason: ctx.allocation_override_reason
+            };
+        }
+
+        // Scénario 3: Bull + Fear (NOUVEAU - opportuniste)
+        async function testBullFear() {
+            const ctx = {
+                regime: 'bull',
+                cycle_score: 75,
+                governance_mode: 'Normal',
+                sentiment: 'extreme_fear',
+                sentiment_value: 20,
+                flags: { phase_engine: 'off' }
+            };
+
+            const rb = {
+                target_stables_pct: 25,
+                min_stables: 10,
+                max_stables: 60
+            };
+
+            const targets = computeMacroTargetsDynamic(ctx, rb, {}, null);
+
+            const checks = [
+                { name: 'ETH augmenté (opportunité)', pass: targets.ETH > 22 },
+                { name: 'SOL augmenté (opportunité)', pass: targets.SOL > 4.5 },
+                { name: 'L2/Scaling augmenté', pass: targets['L2/Scaling'] > 4.5 },
+                { name: 'DeFi augmenté', pass: targets.DeFi > 3.5 },
+                { name: 'Override reason opportuniste', pass: ctx.allocation_override_reason?.includes('Opportunité') }
+            ];
+
+            return {
+                name: 'Scénario 3: Bull + Fear (OPPORTUNISTE)',
+                input: ctx,
+                targets,
+                checks,
+                pass: checks.every(c => c.pass),
+                expected: 'Opportunité d\'achat: boost risky assets (contrarian)',
+                overrideReason: ctx.allocation_override_reason
+            };
+        }
+
+        // Scénario 4: Extreme Greed (prise de profits)
+        async function testExtremeGreed() {
+            const ctx = {
+                regime: 'bull',
+                cycle_score: 85,
+                governance_mode: 'Normal',
+                sentiment: 'extreme_greed',
+                sentiment_value: 85,
+                flags: { phase_engine: 'off' }
+            };
+
+            const rb = {
+                target_stables_pct: 25,
+                min_stables: 10,
+                max_stables: 60
+            };
+
+            const targets = computeMacroTargetsDynamic(ctx, rb, {}, null);
+
+            const checks = [
+                { name: 'Memecoins fortement réduit', pass: targets.Memecoins < 0.5 },
+                { name: 'Gaming/NFT réduit', pass: targets['Gaming/NFT'] < 1.5 },
+                { name: 'AI/Data réduit', pass: targets['AI/Data'] < 3 },
+                { name: 'Override reason greed', pass: ctx.allocation_override_reason?.includes('Greed') }
+            ];
+
+            return {
+                name: 'Scénario 4: Extreme Greed',
+                input: ctx,
+                targets,
+                checks,
+                pass: checks.every(c => c.pass),
+                expected: 'Prise de profits: réduction risky assets malgré bull',
+                overrideReason: ctx.allocation_override_reason
+            };
+        }
+
+        // Scénario 5: Bull + Fear + Phase Engine (NOUVEAU - hiérarchie)
+        async function testBullFearPhaseEngine() {
+            const ctx = {
+                regime: 'bull',
+                cycle_score: 75,
+                governance_mode: 'Normal',
+                sentiment: 'extreme_fear',
+                sentiment_value: 20,
+                flags: { phase_engine: 'apply' }  // Phase Engine ACTIF
+            };
+
+            const rb = {
+                target_stables_pct: 25,
+                min_stables: 10,
+                max_stables: 60
+            };
+
+            const targets = computeMacroTargetsDynamic(ctx, rb, {}, null);
+
+            const checks = [
+                { name: 'ETH augmenté (opportunité)', pass: targets.ETH > 22 },
+                { name: 'SOL augmenté (opportunité)', pass: targets.SOL > 4.5 },
+                { name: 'L2/Scaling augmenté', pass: targets['L2/Scaling'] > 4.5 },
+                { name: 'Override reason opportuniste', pass: ctx.allocation_override_reason?.includes('Opportunité') },
+                { name: 'Phase Engine respecté', pass: ctx.flags.phase_engine === 'apply' }
+            ];
+
+            return {
+                name: 'Scénario 5: Bull + Fear + Phase Engine (Hiérarchie)',
+                input: ctx,
+                targets,
+                checks,
+                pass: checks.every(c => c.pass),
+                expected: 'Sentiment extrême override Phase Engine (priorité absolue)',
+                overrideReason: ctx.allocation_override_reason
+            };
+        }
+
+        // Exécuter tous les tests
+        window.runAllTests = async function() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<h2>Tests en cours...</h2>';
+
+            const tests = [
+                await testBullNeutral(),
+                await testBearFear(),
+                await testBullFear(),
+                await testExtremeGreed(),
+                await testBullFearPhaseEngine()
+            ];
+
+            let html = '';
+            let passCount = 0;
+            let failCount = 0;
+
+            tests.forEach(test => {
+                if (test.pass) passCount++;
+                else failCount++;
+
+                html += `<div class="test-case ${test.pass ? 'pass' : 'fail'}">
+                    <h3>${test.pass ? '✅' : '❌'} ${test.name}</h3>
+
+                    <div class="input">
+                        <strong>Input:</strong><br>
+                        Regime: ${test.input.regime}<br>
+                        Cycle Score: ${test.input.cycle_score}<br>
+                        Sentiment: ${test.input.sentiment} (${test.input.sentiment_value}/100)
+                    </div>
+
+                    <div class="output">
+                        <strong class="expected">Expected:</strong> ${test.expected}
+                    </div>
+
+                    ${test.overrideReason ? `<div class="output">
+                        <strong class="delta">Override Reason:</strong> ${test.overrideReason}
+                    </div>` : ''}
+
+                    <div class="output">
+                        <strong class="actual">Targets calculés:</strong>
+                        ${Object.entries(test.targets)
+                            .filter(([k, v]) => v > 0.5)
+                            .sort((a, b) => b[1] - a[1])
+                            .map(([k, v]) => `${k}: ${v.toFixed(2)}%`)
+                            .join('\n')}
+                    </div>
+
+                    <div class="output">
+                        <strong>Checks:</strong>
+                        ${test.checks.map(c => `${c.pass ? '✓' : '✗'} ${c.name}`).join('\n')}
+                    </div>
+                </div>`;
+            });
+
+            resultsDiv.innerHTML = html;
+
+            // Update summary
+            const summaryDiv = document.getElementById('summary');
+            summaryDiv.className = `summary ${failCount === 0 ? 'all-pass' : 'has-fail'}`;
+            summaryDiv.innerHTML = `
+                <h2>Résultats des Tests</h2>
+                <p style="font-size: 24px; margin: 20px 0;">
+                    ${passCount === tests.length ? '🎉' : '⚠️'}
+                    <strong>${passCount}/${tests.length}</strong> tests passés
+                </p>
+                ${failCount === 0 ?
+                    '<p style="color: #66bb6a;">✅ Tous les scénarios fonctionnent correctement!</p>' :
+                    '<p style="color: #ef5350;">❌ Certains scénarios ont échoué. Vérifiez les détails ci-dessous.</p>'
+                }
+            `;
+        };
+
+        window.clearResults = function() {
+            document.getElementById('results').innerHTML = '';
+            document.getElementById('summary').className = 'summary';
+            document.getElementById('summary').innerHTML = `
+                <h2>Résultats des Tests</h2>
+                <p>Cliquez sur "Exécuter Tous les Tests" pour commencer</p>
+            `;
+        };
+
+        // Auto-run on load
+        console.log('🧪 Test suite loaded. Click "Exécuter Tous les Tests" to run.');
+    </script>
+</body>
+</html>

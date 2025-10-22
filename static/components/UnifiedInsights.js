@@ -18,7 +18,6 @@ import {
 import { getCurrentAllocationByGroup } from './unified-insights/allocation-calculator.js';
 import { renderRecommendationsBlock, renderContradictionsBlock } from './unified-insights/recommendations-renderer.js';
 import { renderAllocationBlock } from './unified-insights/execution-plan-renderer.js';
-import { renderPhaseEnginePanel } from './unified-insights/phase-engine-panel.js';
 import * as governanceSelectors from '../selectors/governance.js';
 
 /**
@@ -230,14 +229,12 @@ export async function renderUnifiedInsights(containerId = 'unified-root', option
   const recBlock = renderRecommendationsBlock(recos);
   const contraBlock = renderContradictionsBlock(u);
   const allocationBlock = await renderAllocationBlock(u, options);
-  const phaseEngineBlock = renderPhaseEnginePanel();
 
   el.innerHTML = `
     ${recBlock}
     <div style="height: .5rem;"></div>
     ${contraBlock}
     ${allocationBlock}
-    ${phaseEngineBlock}
   `;
 
   console.debug('🧠 INTELLIGENT UNIFIED INSIGHTS rendered:', {

@@ -1,10 +1,79 @@
 /**
  * Phase Buffers - Ring buffer system for time series data
  * Stores timestamped samples for phase detection calculations
+ *
+ * PERSISTENCE STRATEGY (Oct 2025):
+ * - Buffers persisted to localStorage on each update
+ * - Restored on page load
+ * - TTL: 7 days (old samples auto-pruned)
  */
 
 // In-memory ring buffer storage with timestamps
 const timeSeriesBuffers = new Map(); // key -> [{t, v}, ...]
+
+// Persistence configuration
+const STORAGE_KEY = 'phase_buffers_v1';
+const TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+/**
+ * Load buffers from localStorage (called on module init)
+ */
+function loadBuffersFromStorage() {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) {
+      console.debug('📦 PhaseBuffers: No persisted data found');
+      return;
+    }
+
+    const data = JSON.parse(stored);
+    const now = Date.now();
+    let loadedCount = 0;
+    let prunedCount = 0;
+
+    for (const [key, buffer] of Object.entries(data)) {
+      // Prune old samples (> TTL)
+      const validSamples = buffer.filter(sample => (now - sample.t) <= TTL_MS);
+
+      if (validSamples.length > 0) {
+        timeSeriesBuffers.set(key, validSamples);
+        loadedCount++;
+
+        if (validSamples.length < buffer.length) {
+          prunedCount += (buffer.length - validSamples.length);
+        }
+      }
+    }
+
+    console.debug(`📦 PhaseBuffers: Loaded from storage:`, {
+      buffers: loadedCount,
+      pruned: prunedCount,
+      total_samples: Array.from(timeSeriesBuffers.values()).reduce((sum, arr) => sum + arr.length, 0)
+    });
+  } catch (error) {
+    console.warn('⚠️ PhaseBuffers: Failed to load from storage:', error);
+  }
+}
+
+/**
+ * Save buffers to localStorage
+ */
+function saveBuffersToStorage() {
+  try {
+    const data = {};
+    for (const [key, buffer] of timeSeriesBuffers.entries()) {
+      data[key] = buffer;
+    }
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    console.debug('💾 PhaseBuffers: Saved to storage:', Object.keys(data).length, 'buffers');
+  } catch (error) {
+    console.warn('⚠️ PhaseBuffers: Failed to save to storage:', error);
+  }
+}
+
+// Load buffers on module initialization
+loadBuffersFromStorage();
 
 /**
  * Push a new sample to the ring buffer
@@ -39,6 +108,9 @@ export function pushSample(key, value, maxSize = 60) {
 
   timeSeriesBuffers.set(key, arr);
   console.debug(`📈 PhaseBuffers: Pushed ${key} sample:`, { value, bufferSize: arr.length, timestamp: new Date(t).toLocaleTimeString() });
+
+  // Persist to storage after each update
+  saveBuffersToStorage();
 
   return arr;
 }
@@ -166,10 +238,10 @@ if (typeof window !== 'undefined' && window.location?.hostname === 'localhost') 
   console.debug('🔧 Debug: window.debugPhaseBuffers available for inspection');
 }
 
-// Auto-cleanup on page unload (prevent memory leaks)
+// Auto-persist on page unload (preserve data across sessions)
 if (typeof window !== 'undefined') {
   window.addEventListener('beforeunload', () => {
-    console.debug('🔄 PhaseBuffers: Auto-cleanup on page unload');
-    clearAllBuffers();
+    console.debug('💾 PhaseBuffers: Persisting buffers before unload');
+    saveBuffersToStorage();
   });
 }
