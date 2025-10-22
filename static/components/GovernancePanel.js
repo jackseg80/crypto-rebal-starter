@@ -1375,6 +1375,13 @@ class GovernancePanel {
       border-radius: 4px;
       z-index: 10000;
       max-width: 300px;
+      max-height: 150px;
+      height: auto;
+      width: auto;
+      min-height: auto;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
       box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     `;
     

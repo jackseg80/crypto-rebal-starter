@@ -391,6 +391,25 @@ function renderMetadata(meta) {
     }
   }
 
+  // Détection des overrides actifs
+  const overrides = [];
+  const fearGreed = meta.sentiment_fg != null ? meta.sentiment_fg : null;
+  const contradiction = meta.contradiction != null ? meta.contradiction : null;
+
+  if (fearGreed != null && fearGreed < 25) {
+    overrides.push(`🚨 ML Sentiment Extrême (${fearGreed})`);
+  }
+  if (contradiction != null && contradiction > 0.5) {
+    overrides.push(`⚠️ Contradiction (${Math.round(contradiction * 100)}%)`);
+  }
+
+  const overrideBadge = overrides.length > 0
+    ? `<div class="meta-row meta-override">
+        <span class="meta-label">⚡ Override</span>
+        <span class="meta-value meta-override-value">${overrides.join(', ')}</span>
+      </div>`
+    : '';
+
   return `
     <div class="di-metadata">
       <div class="meta-row">
@@ -405,6 +424,7 @@ function renderMetadata(meta) {
         <span class="meta-label">Mise à jour</span>
         <span class="meta-value">${freshness}</span>
       </div>
+      ${overrideBadge}
     </div>
   `;
 }
@@ -532,7 +552,7 @@ function renderRightColumn(data) {
     '#ef4444'
   );
 
-  // Fear & Greed compact
+  // ML Sentiment compact
   const sentimentFG = m.sentiment_fg || '—';
   const sentimentColor = typeof sentimentFG === 'number' ?
     (sentimentFG >= 70 ? '#ef4444' : sentimentFG >= 30 ? '#f59e0b' : '#10b981') : '#6b7280';
@@ -549,7 +569,7 @@ function renderRightColumn(data) {
 
       <div class="di-footer-stats">
         <div class="footer-stat">
-          <span class="footer-label">Fear & Greed</span>
+          <span class="footer-label">ML Sentiment</span>
           <span class="footer-value" style="color: ${sentimentColor}">${sentimentFG}</span>
         </div>
         <div class="footer-stat">
@@ -577,35 +597,60 @@ function renderHelpContent() {
           <button class="di-help-close" aria-label="Fermer" type="button">×</button>
         </div>
         <div class="di-help-body">
-          <p><strong>Score DI (0-100)</strong><br>
-          Indicateur composite des conditions de marché.<br>
-          75+ Excellent | 60+ Bon | 45+ Moyen | 30+ Faible | <30 Critique</p>
+          <p><strong>Decision Index (DI) - Score de Qualité</strong><br>
+          Score FIXE indiquant la qualité de l'allocation V2:<br>
+          • <strong>65</strong> = Allocation valide (contraintes OK)<br>
+          • <strong>45</strong> = Allocation invalide (problème détecté)<br>
+          <br>
+          ⚠️ <strong>Important:</strong> Le DI N'EST PAS une somme pondérée!<br>
+          • Score de Régime (tuile) = 0.5×CCS + 0.3×OnChain + 0.2×Risk<br>
+          • Decision Index (panel) = Qualité allocation (65 ou 45)</p>
+
+          <p><strong>Échelle</strong><br>
+          65 = Bon (allocation optimale trouvée)<br>
+          45 = Moyen (contraintes violées, fallback)</p>
 
           <p><strong>Piliers (colonne droite)</strong><br>
-          🔄 Cycle: Position dans le cycle de marché<br>
+          🔄 Cycle: CCS Mixte (CCS blendé avec position cycle)<br>
           🔗 On-Chain: Métriques blockchain fondamentales<br>
-          🛡️ Risk: Gestion du risque et volatilité</p>
+          🛡️ Risk: Robustesse portfolio (plus haut = mieux)</p>
+
+          <p><strong>Phase vs Régime</strong><br>
+          Peut sembler contradictoire mais c'est intentionnel:<br>
+          • <strong>Régime</strong> (ex: Expansion) = Position théorique dans cycle<br>
+          • <strong>Phase</strong> (ex: bearish) = Stratégie appliquée (cycle < 70)<br>
+          Un régime "Expansion" + phase "bearish" est normal!</p>
 
           <p><strong>Contributions</strong><br>
-          Pondération relative de chaque pilier dans le score final.<br>
-          Les pourcentages indiquent l'impact de chaque dimension.</p>
+          Pourcentages = poids utilisés pour calculer l'ALLOCATION.<br>
+          Poids adaptatifs selon marché (pas pour le DI lui-même):<br>
+          • Cycle ≥70 → boost cycle (55-65%)<br>
+          • Contradiction >50% → pénalise OnChain/Risk<br>
+          • Confidences appliquées</p>
 
-          <p><strong>Recommandation</strong><br>
-          Conseil d'action contextuel basé sur le DI + piliers:<br>
-          • 75+ : Allouer vers risque (15-20%)<br>
-          • 60-74 : Maintenir allocation actuelle<br>
-          • 45-59 : Attente et prudence<br>
-          • 30-44 : Réduire exposition (30-40% actifs)<br>
-          • <30 : Sécuriser immédiatement (60-70% stables)<br>
-          <br>
-          La recommandation s'adapte selon les piliers :<br>
-          • Si On-Chain critique : alertes spécifiques<br>
-          • Si Risk faible : augmentation stables recommandée<br>
-          • Si Cycle fort : opportunités d'accumulation</p>
+          <p><strong>Recommandation Intelligente</strong><br>
+          Conseil contextuel basé sur DI + analyse des 3 piliers:<br>
+          • 75+ : Alloquer vers risque (15-20% stables)<br>
+          • 60-74 : Maintenir allocation, ajustements mineurs OK<br>
+          • 45-59 : Attente et surveillance renforcée<br>
+          • 30-44 : Réduire exposition (30-40% actifs risqués)<br>
+          • <30 : Sécuriser immédiatement (60-70% stables)</p>
+
+          <p><strong>Adaptations Contextuelles</strong><br>
+          • On-Chain critique → Alertes spécifiques<br>
+          • Risk faible → Augmentation stables recommandée<br>
+          • Cycle fort → Opportunités d'accumulation<br>
+          • <strong>ML Sentiment extrême (<25)</strong> → Override défensif appliqué</p>
+
+          <p><strong>Overrides Actifs</strong><br>
+          Des facteurs externes peuvent modifier l'allocation:<br>
+          • ML Sentiment <25 → Force allocation défensive<br>
+          • Contradiction >50% → Pénalise On-Chain/Risk<br>
+          • Structure Score <50 → +10pts stables</p>
 
           <p><strong>Métadonnées</strong><br>
           Confiance : Niveau de certitude du modèle<br>
-          Mode : Type de calcul (Standard/Priority)<br>
+          Mode : Méthode de calcul (Manual/Standard/Priority)<br>
           Mise à jour : Fraîcheur des données</p>
         </div>
       </div>
@@ -1082,6 +1127,21 @@ function injectStyles() {
       font-size: 0.75rem;
       font-weight: 600;
       color: rgba(226, 232, 240, 0.9);
+    }
+
+    /* Badge Override */
+    .meta-override {
+      grid-column: 1 / -1;
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 4px;
+      padding: 0.5rem;
+    }
+
+    .meta-override-value {
+      color: #fca5a5 !important;
+      font-weight: 700;
+      font-size: 0.7rem;
     }
 
     /* Colonne droite */

@@ -577,25 +577,6 @@
                         </div>
                         <div class="card-actions">
                             <button id="check-alerts-status" class="btn primary">📊 Vérifier Alertes</button>
-                            <button id="open-test-alerts" class="btn secondary">🧪 Tests Alertes</button>
-                        </div>
-                    </div>
-                    
-                    <!-- Section Quick Links vers nouveaux dashboards -->
-                    <div class="ml-card" style="margin-bottom: 2rem;">
-                        <div class="card-header">
-                            <div class="card-title">
-                                <span class="card-icon">🔗</span>
-                                Accès Rapide Dashboards Phase 3
-                            </div>
-                        </div>
-                        <div class="card-content">
-                            <div class="card-actions" style="justify-content: flex-start; margin: 0; flex-wrap: wrap;">
-                                <button onclick="window.open('realtime-dashboard.html', '_blank')" class="btn primary">⚡ Real-time Dashboard</button>
-                                <button onclick="window.open('intelligence-dashboard.html', '_blank')" class="btn primary">🧠 Intelligence Dashboard</button>
-                                <button onclick="window.open('monitoring.html', '_blank')" class="btn primary">📊 Monitoring Unifié</button>
-                                <button onclick="window.open('/tests/test_alerts_generation.html', '_blank')" class="btn secondary">🧪 Test Alertes</button>
-                            </div>
                         </div>
                     </div>
 
@@ -1153,7 +1134,7 @@
                 let volatilityStatus = 'Prêt', volatilityMetric = '82.3%', volatilitySource = 'Non chargé';
                 let regimeStatus = 'Simulé', regimeMetric = 'Bull', regimeSource = '75% confiance';
                 let correlationStatus = 'Simulé', correlationMetric = '15 Assets', correlationSource = 'Pearson';
-                let sentimentStatus = 'F&G Index', sentimentMetric = '68/100', sentimentSource = 'Greed';
+                let sentimentStatus = 'ML Sentiment', sentimentMetric = '--/100', sentimentSource = 'En attente';
 
                 // 1. Statut modèles volatilité via API réelle
                 try {
@@ -1236,30 +1217,30 @@
                     debugLogger.warn('⚠️ API corrélations non disponible');
                 }
 
-                // 4. Statut sentiment multi-sources via API réelle
+                // 4. ML Sentiment via API réelle
                 let sentimentSources = [];
                 try {
-                    const sentimentResponse = await fetch(`${config.api_base_url}/api/ml/sentiment/BTC?days=1`);
+                    const sentimentResponse = await fetch(`${config.api_base_url}/api/ml/sentiment/symbol/BTC?days=1`);
                     if (sentimentResponse.ok) {
                         const sentimentData = await sentimentResponse.json();
                         if (sentimentData.success && sentimentData.aggregated_sentiment) {
                             sentimentSources = sentimentData.sources_used || [];
                             sentimentStatus = sentimentSources.length > 1 ? `Multi-sources (${sentimentSources.length})` : 'Temps réel';
 
-                            // Extraire Fear & Greed depuis les sources
+                            // Extraire sentiment depuis sources (même calcul que analytics-unified)
                             const fearGreedSource = sentimentData.aggregated_sentiment.source_breakdown?.fear_greed;
                             if (fearGreedSource) {
-                                // Convertir le score de sentiment (-1 à 1) en Fear & Greed Index (0-100)
+                                // Convertir le score de sentiment (-1 à 1) en ML Sentiment (0-100)
                                 const value = Math.max(0, Math.min(100, Math.round(50 + (fearGreedSource.average_sentiment * 50))));
                                 sentimentMetric = `${value}/100`;
                                 const level = value < 25 ? 'Extrême Fear' : value < 45 ? 'Fear' : value < 55 ? 'Neutral' : value < 75 ? 'Greed' : 'Extrême Greed';
                                 sentimentSource = sentimentSources.length > 1 ? sentimentSources.map(s => s.replace('_', ' ')).join(', ') : level;
-                                debugLogger.debug('✅ Sentiment multi-sources chargé:', sentimentSources, value);
+                                debugLogger.debug('✅ ML Sentiment chargé:', sentimentSources, value);
                             }
                         }
                     }
                 } catch (e) {
-                    debugLogger.warn('⚠️ API sentiment multi-sources non disponible');
+                    debugLogger.warn('⚠️ API ML Sentiment non disponible');
                     // Fallback: essayer l'ancien endpoint Fear & Greed
                     try {
                         const sentimentResponse = await fetch(`${config.api_base_url}/api/ml/sentiment/fear-greed?days=1`);
@@ -1557,18 +1538,12 @@
                 showSuccess('💾 Export des prédictions en cours...');
             });
 
-            // === NOUVEAUX BOUTONS ALERTES PHASE 3 ===
-            
+            // === BOUTON ALERTES PHASE 3 ===
+
             // Bouton Vérifier Alertes
             document.getElementById('check-alerts-status')?.addEventListener('click', async () => {
                 showSuccess('🔄 Vérification du statut des alertes...');
                 await checkAlertsSystemStatus();
-            });
-
-            // Bouton Ouvrir Tests Alertes  
-            document.getElementById('open-test-alerts')?.addEventListener('click', () => {
-                window.open('/tests/test_alerts_generation.html', '_blank');
-                showSuccess('🧪 Interface de test des alertes ouverte');
             });
 
             // === BOUTONS ONGLET ADMINISTRATION ===
@@ -1625,10 +1600,35 @@
                 debugLogger.debug('🔄 Démarrage initialisation ML...');
                 showSuccess('⚡ Initialisation du système ML en cours...');
 
-                // Simuler une initialisation
-                await new Promise(resolve => setTimeout(resolve, 2000));
+                // Charger les vraies données ML
+                const config = await fetchUserConfig();
 
-                debugLogger.debug('⏰ Délai d\'initialisation terminé');
+                let volatilityStatus = 'Prêt', volatilityMetric = '82.3%', volatilitySource = 'Non chargé';
+                let regimeStatus = 'Simulé', regimeMetric = 'Bull', regimeSource = '75% confiance';
+                let correlationStatus = 'Simulé', correlationMetric = '15 Assets', correlationSource = 'Pearson';
+                let sentimentStatus = 'ML Sentiment', sentimentMetric = '--/100', sentimentSource = 'En attente';
+
+                // Charger ML Sentiment
+                try {
+                    const sentimentResponse = await fetch(`${config.api_base_url}/api/ml/sentiment/symbol/BTC?days=1`);
+                    if (sentimentResponse.ok) {
+                        const sentimentData = await sentimentResponse.json();
+                        if (sentimentData.success && sentimentData.aggregated_sentiment) {
+                            const fearGreedSource = sentimentData.aggregated_sentiment.source_breakdown?.fear_greed;
+                            if (fearGreedSource) {
+                                const value = Math.max(0, Math.min(100, Math.round(50 + (fearGreedSource.average_sentiment * 50))));
+                                sentimentMetric = `${value}/100`;
+                                const level = value < 25 ? 'Extrême Fear' : value < 45 ? 'Fear' : value < 55 ? 'Neutral' : value < 75 ? 'Greed' : 'Extrême Greed';
+                                sentimentSource = level;
+                                sentimentStatus = 'Temps réel';
+                            }
+                        }
+                    }
+                } catch (e) {
+                    debugLogger.warn('⚠️ ML Sentiment non disponible');
+                }
+
+                debugLogger.debug('⏰ Données ML chargées');
 
                 // Remplir l'onglet Modèles
                 const modelsContainer = document.getElementById('models-detailed');
@@ -1640,10 +1640,10 @@
 
                     try {
                         const detailedCards = [
-                            createDetailedCard('📊', 'Modèle de Volatilité - Détails', 'LSTM', 'Actif', '82.3%'),
-                            createDetailedCard('🎯', 'Détection de Régime - Détails', 'HMM', 'Bull', '75%'),
-                            createDetailedCard('🔗', 'Analyse Corrélations - Détails', 'Pearson', '15 Assets', 'Temps réel'),
-                            createDetailedCard('😊', 'Analyse Sentiment - Détails', 'F&G Index', '68/100', 'Greed')
+                            createDetailedCard('📊', 'Modèle de Volatilité - Détails', volatilityStatus, volatilityMetric, volatilitySource),
+                            createDetailedCard('🎯', 'Détection de Régime - Détails', regimeStatus, regimeMetric, regimeSource),
+                            createDetailedCard('🔗', 'Analyse Corrélations - Détails', correlationStatus, correlationMetric, correlationSource),
+                            createDetailedCard('😊', 'ML Sentiment - Détails', sentimentStatus, sentimentMetric, sentimentSource)
                         ];
                         debugLogger.debug('🃏 Cartes créées:', detailedCards.length);
 
@@ -1764,41 +1764,35 @@
                         debugLogger.debug('✅ Corrélation depuis Governance:', { avg: avgCorrelation, risk: systematicRisk });
                     }
                     
-                    // Sentiment Fear & Greed
+                    // ML Sentiment (anciennement Fear & Greed)
                     if (signals.sentiment) {
                         fearGreed = signals.sentiment.fear_greed || null;
-                        debugLogger.debug('✅ Sentiment depuis Governance:', fearGreed);
+                        debugLogger.debug('✅ ML Sentiment depuis Governance:', fearGreed);
                     }
                 }
 
-                // 3. Fallback vers valeurs par défaut si governance non disponible
+                // 3. Afficher message si données non disponibles
+                if (!governanceData) {
+                    document.getElementById('live-predictions').innerHTML = `
+                        <div style="text-align: center; padding: 2rem; background: var(--theme-bg); border-radius: var(--radius-md); border: 2px dashed var(--theme-border);">
+                            <div style="font-size: 2rem; margin-bottom: 1rem;">⚠️</div>
+                            <div style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem;">Données ML Non Disponibles</div>
+                            <div style="opacity: 0.7;">Le Governance Engine n'est pas accessible. Veuillez vérifier que le backend est démarré.</div>
+                        </div>
+                    `;
+                    showError('❌ Impossible de charger les prédictions ML - Backend non disponible');
+                    return;
+                }
 
-                const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
-                const hourOfDay = new Date().getHours();
-
-                if (!btcVol) {
-                    btcVol = 0.070 + ((dayOfYear % 20) / 1000); // 7.0-9.0%, stable par jour
-                }
-                if (!ethVol) {
-                    ethVol = 0.085 + ((dayOfYear % 30) / 1000); // 8.5-11.5%, stable par jour
-                }
-                if (!solVol) {
-                    solVol = 0.092 + ((dayOfYear % 25) / 1000); // 9.2-11.7%, stable par jour
-                }
-                if (!marketRegime) {
-                    const regimes = ['Bull', 'Sideways', 'Distribution', 'Bear'];
-                    marketRegime = regimes[dayOfYear % regimes.length]; // Stable par jour
-                    regimeConfidence = 75 + (hourOfDay % 20); // 75-95%, stable par heure
-                }
-                if (!fearGreed) {
-                    fearGreed = 45 + (dayOfYear % 30); // 45-75, stable par jour
-                }
-                if (!avgCorrelation) {
-                    avgCorrelation = 0.35 + ((dayOfYear % 40) / 100); // 0.35-0.75, stable par jour
-                }
-                if (!systematicRisk) {
-                    systematicRisk = avgCorrelation > 0.6 ? 'high' : avgCorrelation > 0.4 ? 'medium' : 'low';
-                }
+                // Valeurs par défaut si certaines données manquent
+                btcVol = btcVol || 0;
+                ethVol = ethVol || 0;
+                solVol = solVol || 0;
+                marketRegime = marketRegime || 'Unknown';
+                regimeConfidence = regimeConfidence || 0;
+                avgCorrelation = avgCorrelation || 0;
+                systematicRisk = systematicRisk || 'unknown';
+                fearGreed = fearGreed || 0;
 
                 // 4. Mettre à jour l'affichage avec vraies données détaillées
                 document.getElementById('live-predictions').innerHTML = `
@@ -1828,7 +1822,7 @@
                             <span class="status-value">${systematicRisk.charAt(0).toUpperCase() + systematicRisk.slice(1)}</span>
                         </div>
                         <div class="status-item">
-                            <span class="status-label">Fear & Greed Index</span>
+                            <span class="status-label">ML Sentiment</span>
                             <span class="status-value">${Math.round(fearGreed)}/100</span>
                         </div>
                         <div class="status-item" style="border: 2px solid var(--brand-primary); background: var(--theme-bg);">
@@ -1844,35 +1838,16 @@
                 debugLogger.debug('✅ Prédictions ML mises à jour avec succès');
 
             } catch (error) {
-                debugLogger.error('❌ Erreur lors du chargement des vraies prédictions ML:', error);
-                // Fallback stable
-                const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
-                const btcVol = 0.070 + ((dayOfYear % 20) / 1000);
-                const ethVol = 0.085 + ((dayOfYear % 30) / 1000);
-                const regimes = ['Bull', 'Sideways', 'Distribution'];
-                const marketRegime = regimes[dayOfYear % regimes.length];
-                const fearGreed = 45 + (dayOfYear % 30);
-
+                debugLogger.error('❌ Erreur lors du chargement des prédictions ML:', error);
                 document.getElementById('live-predictions').innerHTML = `
-                    <div class="status-grid">
-                        <div class="status-item">
-                            <span class="status-label">BTC Volatilité</span>
-                            <span class="status-value">${(btcVol * 100).toFixed(1)}%</span>
-                        </div>
-                        <div class="status-item">
-                            <span class="status-label">ETH Volatilité</span>
-                            <span class="status-value">${(ethVol * 100).toFixed(1)}%</span>
-                        </div>
-                        <div class="status-item">
-                            <span class="status-label">Régime Marché</span>
-                            <span class="status-value">${marketRegime} (Fallback)</span>
-                        </div>
-                        <div class="status-item">
-                            <span class="status-label">Sentiment (Fallback)</span>
-                            <span class="status-value">${Math.round(fearGreed)}/100</span>
-                        </div>
+                    <div style="text-align: center; padding: 2rem; background: var(--theme-bg); border-radius: var(--radius-md); border: 2px solid #ef4444;">
+                        <div style="font-size: 2rem; margin-bottom: 1rem;">❌</div>
+                        <div style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem; color: #ef4444;">Erreur de Chargement</div>
+                        <div style="opacity: 0.7;">${error.message}</div>
+                        <button onclick="refreshPredictions()" class="btn primary" style="margin-top: 1rem;">🔄 Réessayer</button>
                     </div>
                 `;
+                showError('❌ Erreur: ' + error.message);
             }
         }
 
@@ -1881,110 +1856,36 @@
             try {
                 const config = await fetchUserConfig();
 
-                // Essayer d'abord les vrais endpoints ML
-                try {
-                    const predictionsResponse = await fetch(`${config.api_base_url}/api/ml/predictions/live`);
-                    const predictionsData = await predictionsResponse.json();
+                // Essayer l'endpoint ML prédictions live
+                const predictionsResponse = await fetch(`${config.api_base_url}/api/ml/predictions/live`);
 
-                    if (predictionsData.btc_volatility !== undefined) {
-                        return {
-                            btc_volatility: predictionsData.btc_volatility,
-                            eth_volatility: predictionsData.eth_volatility,
-                            market_regime: predictionsData.market_regime,
-                            fear_greed: predictionsData.fear_greed_index
-                        };
-                    }
-                } catch (e) {
-                    debugLogger.warn('Endpoints ML prédictions non disponibles, calcul basique');
+                if (!predictionsResponse.ok) {
+                    debugLogger.warn('Endpoint ML predictions live non disponible');
+                    return null;
                 }
 
-                // Fallback : calculer à partir des données historiques disponibles
-                const historicalResponse = await fetch(`${config.api_base_url}/analytics/historical-volatility`);
-                let historicalData = {};
+                const predictionsData = await predictionsResponse.json();
 
-                try {
-                    historicalData = await historicalResponse.json();
-                } catch (e) {
-                    debugLogger.warn('Données historiques non disponibles');
-                }
-
-                // Récupérer balances pour contextualiser
-                const balanceResponse = await fetch(`${config.api_base_url}/balances/current?source=${config.data_source}`);
-                const balanceData = await balanceResponse.json();
-
-                if (balanceData.items && balanceData.items.length > 0) {
-                    const totalValue = balanceData.items.reduce((sum, item) => sum + (item.value_usd || 0), 0);
-                    const btcBalance = balanceData.items.find(item => item.symbol === 'BTC');
-                    const ethBalance = balanceData.items.find(item => item.symbol === 'ETH');
-
+                if (predictionsData.btc_volatility !== undefined) {
                     return {
-                        // Utiliser volatilité historique si disponible, sinon calculer
-                        btc_volatility: historicalData.btc_volatility || (btcBalance ? 0.05 + (totalValue / 200000) : 0.075),
-                        eth_volatility: historicalData.eth_volatility || (ethBalance ? 0.07 + (totalValue / 150000) : 0.089),
-                        market_regime: historicalData.market_regime || (totalValue > 50000 ? 'Bull' : totalValue > 10000 ? 'Sideways' : 'Bear'),
-                        fear_greed: historicalData.fear_greed || Math.min(100, 40 + (balanceData.items.length * 3))
+                        btc_volatility: predictionsData.btc_volatility,
+                        eth_volatility: predictionsData.eth_volatility,
+                        market_regime: predictionsData.market_regime,
+                        fear_greed: predictionsData.fear_greed_index
                     };
                 }
 
-                return {};
+                return null;
             } catch (error) {
                 debugLogger.warn('Prédictions API non disponibles:', error.message);
-                return {};
+                return null;
             }
         }
 
-        // Récupérer prédictions basées sur CSV + données historiques
+        // Récupérer prédictions basées sur CSV (fonction deprecated - utiliser Governance Engine)
         async function fetchPredictionsFromCSV() {
-            try {
-                const config = await fetchUserConfig();
-
-                // Récupérer analyses basées sur les fichiers CSV existants
-                const csvAnalysisResponse = await fetch(`${config.api_base_url}/analytics/csv-based-predictions`);
-                let csvAnalysis = {};
-
-                try {
-                    csvAnalysis = await csvAnalysisResponse.json();
-                } catch (e) {
-                    debugLogger.warn('Endpoint CSV analysis non disponible');
-                }
-
-                // Récupérer données historiques pour contextualiser
-                const historicalResponse = await fetch(`${config.api_base_url}/analytics/historical-volatility`);
-                let historicalData = {};
-
-                try {
-                    historicalData = await historicalResponse.json();
-                } catch (e) {
-                    debugLogger.warn('Données historiques non disponibles pour CSV');
-                }
-
-                // Récupérer balances actuelles depuis CSV
-                const balanceResponse = await fetch(`${config.api_base_url}/balances/current?source=cointracking`);
-                const balanceData = await balanceResponse.json();
-
-                if (balanceData.items && balanceData.items.length > 0) {
-                    const totalValue = balanceData.items.reduce((sum, item) => sum + (item.value_usd || 0), 0);
-                    const btcBalance = balanceData.items.find(item => item.symbol === 'BTC');
-                    const ethBalance = balanceData.items.find(item => item.symbol === 'ETH');
-
-                    return {
-                        // Priorité: Analysis CSV → Données historiques → Calcul basique
-                        btc_volatility: csvAnalysis.btc_volatility || historicalData.btc_volatility ||
-                            (btcBalance ? 0.065 + (btcBalance.balance * 0.001) : 0.075),
-                        eth_volatility: csvAnalysis.eth_volatility || historicalData.eth_volatility ||
-                            (ethBalance ? 0.085 + (ethBalance.balance * 0.002) : 0.089),
-                        market_regime: csvAnalysis.market_regime || historicalData.market_regime ||
-                            (balanceData.items.length > 10 ? 'Bull' : 'Sideways'),
-                        fear_greed: csvAnalysis.fear_greed || historicalData.fear_greed ||
-                            Math.min(100, Math.max(20, totalValue / 1000))
-                    };
-                }
-
-                return {};
-            } catch (error) {
-                debugLogger.warn('Prédictions CSV non disponibles:', error.message);
-                return {};
-            }
+            debugLogger.warn('fetchPredictionsFromCSV() est deprecated - utiliser Governance Engine via refreshPredictions()');
+            return null;
         }
 
         // Afficher les détails d'un modèle

@@ -125,15 +125,20 @@ async function loadMLPredictions() {
       }
     }
 
-    // 4) Sentiment F&G
-    const sentResponse = await fetch('/api/ml/sentiment/fear-greed?days=1');
+    // 4) ML Sentiment
+    const sentResponse = await fetch('/api/ml/sentiment/symbol/BTC?days=1');
     if (sentResponse.ok) {
       const sentData = await sentResponse.json();
       const sentEl = document.getElementById('ml-sentiment');
-      if (sentData.aggregated_sentiment) {
-        const score = Math.round(sentData.aggregated_sentiment.score * 100); // Score sur 100
-        sentEl.textContent = score;
-        sentEl.className = `metric-value sentiment-${score < 25 ? 'fear' : score > 75 ? 'greed' : 'neutral'}`;
+      if (sentData.success && sentData.aggregated_sentiment) {
+        // Lire depuis source_breakdown.fear_greed (sentiment ML converti)
+        const fearGreedSource = sentData.aggregated_sentiment.source_breakdown?.fear_greed;
+        if (fearGreedSource) {
+          // Convertir sentiment (-1 à 1) en échelle 0-100
+          const score = Math.max(0, Math.min(100, Math.round(50 + (fearGreedSource.average_sentiment * 50))));
+          sentEl.textContent = score;
+          sentEl.className = `metric-value sentiment-${score < 25 ? 'fear' : score > 75 ? 'greed' : 'neutral'}`;
+        }
       }
     }
 

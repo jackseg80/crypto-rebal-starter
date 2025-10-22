@@ -344,8 +344,8 @@ async function renderUnifiedInsights(containerId = 'unified-root') {
           stables: u.risk.budget.percentages.stables
         } : null,
         regime_emoji: u.regime?.emoji,
-        sentiment_fg: u.sentiment?.fearGreed,
-        sentiment_interpretation: u.sentiment?.interpretation
+        sentiment_fg: u.signals?.sentiment?.value,
+        sentiment_interpretation: u.signals?.sentiment?.interpretation
       },
       history: diHistory.map(h => h.di),                                       // ✅ di history (array de scores)
       regimeHistory: (s?.regime?.history || s?.regime_history || [])           // ✅ regime history (2 clés possibles)

@@ -2318,19 +2318,24 @@
         }
       }
 
-      if (module !== 'all' && module !== 'crypto') {
+      // Ne pas afficher le badge si module est 'all', 'crypto', undefined, ou 'undefined'
+      if (module && module !== 'all' && module !== 'crypto' && module !== 'undefined') {
         const moduleNames = {
           'bourse': 'Bourse (Saxo)',
           'banque': 'Banque & Épargne',
           'divers': 'Actifs Divers'
         };
 
-        badgeContainer.innerHTML = `
-          <div style="background: var(--info-bg); color: var(--info); padding: 0.5rem 1rem; border-radius: var(--radius-md); display: inline-block; font-weight: 600;">
-            📊 Module: ${moduleNames[module] || module}
-            ${module !== 'crypto' ? ' • Lecture seule' : ''}
-          </div>
-        `;
+        const moduleName = moduleNames[module];
+        if (moduleName) {
+          badgeContainer.innerHTML = `
+            <div style="background: var(--info-bg); color: var(--info); padding: 0.5rem 1rem; border-radius: var(--radius-md); display: inline-block; font-weight: 600;">
+              📊 Module: ${moduleName} • Lecture seule
+            </div>
+          `;
+        } else {
+          badgeContainer.innerHTML = '';
+        }
       } else {
         badgeContainer.innerHTML = '';
       }

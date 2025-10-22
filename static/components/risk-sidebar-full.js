@@ -687,7 +687,7 @@ class RiskSidebarFull extends HTMLElement {
       <!-- Blended Decision Score -->
       <div class="sidebar-section" id="section-blended" style="margin-top:1.5rem;">
         <div class="sidebar-title" style="font-size:1rem; font-weight:700;">
-          ⚖️ Score Décisionnel
+          ⚖️ Score de Régime
         </div>
         <div class="ccs-gauge decision-card">
           <div class="ccs-score" id="kpi-blended">--</div>
