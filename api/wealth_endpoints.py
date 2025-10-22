@@ -278,6 +278,7 @@ async def get_accounts(
     module: str,
     user: str = Depends(get_active_user),
     source: str = Query("auto", description="Crypto source resolver"),
+    file_key: Optional[str] = Query(None, description="Specific file to load (for Saxo)"),
 ) -> List[AccountModel]:
     """Liste les comptes pour un module (lecture seule depuis sources)."""
     _ensure_module(module)
@@ -290,7 +291,7 @@ async def get_accounts(
     if module == "crypto":
         accounts = await crypto_adapter.list_accounts(user_id=user, source=source)
     elif module == "saxo":
-        accounts = await saxo_adapter.list_accounts(user_id=user)
+        accounts = await saxo_adapter.list_accounts(user_id=user, file_key=file_key)
     else:
         accounts = await banks_adapter.list_accounts(user_id=user)
 
@@ -303,12 +304,13 @@ async def get_instruments(
     module: str,
     user_id: str = Query("demo"),
     source: str = Query("auto"),
+    file_key: Optional[str] = Query(None, description="Specific file to load (for Saxo)"),
 ) -> List[InstrumentModel]:
     _ensure_module(module)
     if module == "crypto":
         instruments = await crypto_adapter.list_instruments(user_id=user_id, source=source)
     elif module == "saxo":
-        instruments = await saxo_adapter.list_instruments()
+        instruments = await saxo_adapter.list_instruments(user_id=user_id, file_key=file_key)
     else:
         instruments = await banks_adapter.list_instruments(user_id=user_id)
     logger.info("[wealth] served %s instruments for module=%s", len(instruments), module)
@@ -320,6 +322,7 @@ async def get_positions(
     module: str,
     user_id: str = Query("demo"),
     source: str = Query("auto"),
+    file_key: Optional[str] = Query(None, description="Specific file to load (for Saxo)"),
     min_usd_threshold: float = Query(1.0, description="Minimum USD value to filter dust assets"),
     asof: Optional[str] = Query(None, description="Date override (yyyy-mm-dd)")
 ) -> List[PositionModel]:
@@ -327,7 +330,7 @@ async def get_positions(
     if module == "crypto":
         positions = await crypto_adapter.list_positions(user_id=user_id, source=source, min_usd_threshold=min_usd_threshold)
     elif module == "saxo":
-        positions = await saxo_adapter.list_positions()
+        positions = await saxo_adapter.list_positions(user_id=user_id, file_key=file_key)
     else:
         positions = await banks_adapter.list_positions(user_id=user_id)
     logger.info("[wealth] served %s positions for module=%s asof=%s", len(positions), module, asof or "latest")
@@ -339,6 +342,7 @@ async def get_transactions(
     module: str,
     user_id: str = Query("demo"),
     source: str = Query("auto"),
+    file_key: Optional[str] = Query(None, description="Specific file to load (for Saxo)"),
     start: Optional[str] = Query(None, alias="from"),
     end: Optional[str] = Query(None, alias="to"),
 ) -> List[TransactionModel]:
@@ -346,7 +350,7 @@ async def get_transactions(
     if module == "crypto":
         transactions = await crypto_adapter.list_transactions(user_id=user_id, source=source, start=start, end=end)
     elif module == "saxo":
-        transactions = await saxo_adapter.list_transactions(start=start, end=end)
+        transactions = await saxo_adapter.list_transactions(user_id=user_id, file_key=file_key, start=start, end=end)
     else:
         transactions = await banks_adapter.list_transactions(start=start, end=end, user_id=user_id)
     logger.info(
@@ -366,6 +370,7 @@ async def get_prices(
     granularity: str = Query("daily", regex="^(daily|intraday)$"),
     user_id: str = Query("demo"),
     source: str = Query("auto"),
+    file_key: Optional[str] = Query(None, description="Specific file to load (for Saxo)"),
 ) -> List[PricePoint]:
     _ensure_module(module)
     if not ids:
@@ -373,7 +378,7 @@ async def get_prices(
     if module == "crypto":
         prices = await crypto_adapter.get_prices(ids, granularity=granularity)
     elif module == "saxo":
-        prices = await saxo_adapter.get_prices(ids, granularity=granularity)
+        prices = await saxo_adapter.get_prices(ids, granularity=granularity, user_id=user_id, file_key=file_key)
     else:
         prices = await banks_adapter.get_prices(ids, granularity=granularity, user_id=user_id)
     logger.info("[wealth] served %s price points for module=%s", len(prices), module)
@@ -386,12 +391,13 @@ async def preview_rebalance(
     payload: Optional[dict] = Body(default=None, description="Module-specific preview payload"),
     user_id: str = Query("demo"),
     source: str = Query("auto"),
+    file_key: Optional[str] = Query(None, description="Specific file to load (for Saxo)"),
 ) -> List[ProposedTrade]:
     _ensure_module(module)
     if module == "crypto":
         trades = await crypto_adapter.preview_rebalance(user_id=user_id, source=source)
     elif module == "saxo":
-        trades = await saxo_adapter.preview_rebalance()
+        trades = await saxo_adapter.preview_rebalance(user_id=user_id, file_key=file_key)
     else:
         trades = await banks_adapter.preview_rebalance(user_id=user_id)
     logger.info(

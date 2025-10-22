@@ -57,6 +57,9 @@ const initUserSwitcher = async () => {
   }
 };
 
+// ✅ Define global getCurrentUser for safeFetch and other modules
+window.getCurrentUser = () => localStorage.getItem('activeUser') || 'demo';
+
 // Fonction pour changer d'utilisateur
 const switchUser = (newUserId) => {
   try {

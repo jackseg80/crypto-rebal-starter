@@ -258,6 +258,170 @@
             margin: var(--space-md) 0;
         }
 
+        /* Hierarchical Levels - Dashboard V2 */
+        .level-1 {
+            border-left: 4px solid var(--warning);
+            background: var(--theme-surface);
+            box-shadow: inset 0 0 0 1px var(--warning-bg);
+        }
+
+        .level-2 {
+            border-left: 4px solid var(--info);
+            background: var(--theme-surface);
+            box-shadow: inset 0 0 0 1px var(--info-bg);
+        }
+
+        .level-3 {
+            border-left: 4px solid var(--brand-primary);
+            background: var(--theme-surface);
+            box-shadow: inset 0 0 0 1px rgba(var(--brand-primary-rgb), 0.1);
+        }
+
+        /* Level Badges */
+        .badge-hero {
+            background: var(--warning);
+            color: var(--theme-bg);
+            font-weight: 700;
+        }
+
+        .badge-primary {
+            background: var(--info);
+            color: var(--theme-bg);
+            font-weight: 700;
+        }
+
+        .badge-secondary {
+            background: var(--brand-primary);
+            color: white;
+            font-weight: 700;
+        }
+
+        /* Market Regime Progress Bars */
+        .regime-item {
+            margin-bottom: 12px;
+        }
+
+        .regime-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .regime-label {
+            font-size: 0.85em;
+            color: var(--theme-text-muted);
+            font-weight: 600;
+        }
+
+        .regime-status {
+            font-size: 0.9em;
+            font-weight: 700;
+        }
+
+        .regime-status.bull { color: var(--success); }
+        .regime-status.bear { color: var(--danger); }
+        .regime-status.expansion { color: var(--info); }
+        .regime-status.consolidation { color: var(--warning); }
+
+        .regime-progress-bar {
+            background: var(--theme-surface-elevated);
+            border: 1px solid var(--theme-border);
+            border-radius: 4px;
+            height: 8px;
+            overflow: hidden;
+        }
+
+        .regime-progress-fill {
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+
+        .regime-progress-fill.bull {
+            background: var(--success);
+        }
+
+        .regime-progress-fill.bear {
+            background: var(--danger);
+        }
+
+        .regime-progress-fill.expansion {
+            background: var(--info);
+        }
+
+        .regime-progress-fill.consolidation {
+            background: var(--warning);
+        }
+
+        .regime-confidence {
+            font-size: 0.75em;
+            color: var(--theme-text-muted);
+            margin-top: 2px;
+        }
+
+        /* Phase Indicators */
+        .phase-indicator {
+            display: flex;
+            gap: 6px;
+            margin: 12px 0;
+            flex-wrap: wrap;
+        }
+
+        .phase-chip {
+            flex: 1;
+            min-width: 80px;
+            padding: 6px 8px;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 0.75em;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .phase-chip.active {
+            background: var(--success);
+            color: white;
+            box-shadow: 0 2px 4px var(--success-bg);
+        }
+
+        .phase-chip.inactive {
+            background: var(--theme-surface-elevated);
+            color: var(--theme-text-muted);
+            border: 1px solid var(--theme-border);
+        }
+
+        /* Alert Items */
+        .alert-item {
+            background: var(--danger-bg);
+            border-left: 3px solid var(--danger);
+            padding: 10px 12px;
+            border-radius: 6px;
+            margin: 8px 0;
+            font-size: 0.9em;
+            line-height: 1.4;
+            color: var(--theme-text);
+        }
+
+        .alert-item.warning {
+            background: var(--warning-bg);
+            border-left-color: var(--warning);
+        }
+
+        .alert-item.info {
+            background: var(--info-bg);
+            border-left-color: var(--info);
+        }
+
+        .alert-item.success {
+            background: var(--success-bg);
+            border-left-color: var(--success);
+        }
+
+        .alert-item.critical {
+            background: var(--danger-bg);
+            border-left-color: var(--danger);
+        }
+
         @media (max-width: 768px) {
             .dashboard-grid {
                 grid-template-columns: 1fr;
@@ -265,6 +429,12 @@
 
             .quick-actions {
                 grid-template-columns: 1fr;
+            }
+
+            .phase-chip {
+                min-width: 70px;
+                font-size: 0.7em;
+                padding: 4px 6px;
             }
         }
     </style>
@@ -274,90 +444,178 @@
 
 <body>
     <div class="wrap">
+        <!-- NIVEAU 1 : DÉCISION -->
         <div class="dashboard-grid">
-            <!-- Global Insight (Unified view) -->
-            <div class="card" id="overview" draggable="true"
-                data-tooltip="Vue unifiée: décision, cycle, on-chain, risque, sentiment"
-                data-source="Scores unifiés du Risk Dashboard">
+            <!-- Global Insight ENRICHI -->
+            <div class="card level-1" id="overview" draggable="true" style="grid-column: span 2;"
+                data-tooltip="Vue unifiée: décision, cycle, on-chain, risque + Phase Engine intelligent"
+                data-source="Scores unifiés du Risk Dashboard + Phase Engine">
                 <div class="card-header">
                     <a href="analytics-unified.html" class="card-title" style="text-decoration: none; color: inherit;">
                         <span class="card-icon">🧭</span> Global Insight
                     </a>
                 </div>
-                <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                     <div>
-                        <div style="font-size:.85rem; color: var(--theme-text-muted); font-weight:600;">Decision Index
+                        <div style="font-size: 0.85rem; color: var(--theme-text-muted); font-weight: 600;">Decision Index</div>
+                        <div id="gi-score" style="font-size: 2.5rem; font-weight: 900;">--</div>
+                        <div class="phase-indicator">
+                            <div class="phase-chip inactive" id="phase-risk-off">Risk Off</div>
+                            <div class="phase-chip inactive" id="phase-eth-exp">ETH Expansion</div>
+                            <div class="phase-chip inactive" id="phase-altseason">Altseason</div>
                         </div>
-                        <div id="gi-score" style="font-size:2rem; font-weight:800;">--</div>
                     </div>
-                    <div style="text-align:right; font-size:.85rem; color: var(--theme-text-muted);">
-                        <div>Cycle: <span id="gi-cycle">--</span></div>
-                        <div>On‑Chain: <span id="gi-onchain">--</span></div>
-                        <div>Risque: <span id="gi-risk">--</span></div>
+                    <div>
+                        <div class="metric">
+                            <span class="metric-label">🔄 Cycle Score</span>
+                            <span class="metric-value" id="gi-cycle">--</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">⛓️ On-Chain Score</span>
+                            <span class="metric-value" id="gi-onchain">--</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">🛡️ Risk Score</span>
+                            <span class="metric-value" id="gi-risk">--</span>
+                        </div>
                     </div>
                 </div>
-                <div id="gi-reco" style="margin-top:.5rem; font-size:.9rem; color: var(--theme-text);"></div>
-                <div id="gi-meta"
-                    style="text-align:center; font-size:11px; color:var(--theme-text-muted); margin-top:8px; padding-top:8px; border-top:1px solid var(--theme-border);">
+                <div id="gi-reco" style="margin-top: 12px; padding: 10px; background: rgba(59, 130, 246, 0.1); border-radius: 6px; font-size: 0.9em;"></div>
+                <div id="gi-meta" style="text-align: center; font-size: 11px; color: var(--theme-text-muted); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--theme-border);"></div>
+            </div>
+
+            <!-- Market Regime NOUVEAU -->
+            <div class="card level-1" id="market-regime" draggable="true"
+                data-tooltip="Détection intelligente des régimes de marché pour BTC, ETH et actions"
+                data-source="ML Regime Detection API">
+                <div class="card-header">
+                    <a href="ai-dashboard.html#regimes" class="card-title" style="text-decoration: none; color: inherit;">
+                        <span class="card-icon">📈</span> Market Regime
+                    </a>
+                </div>
+                <div id="regime-content">
+                    <div class="regime-item">
+                        <div class="regime-header">
+                            <span class="regime-label">Bitcoin</span>
+                            <span class="regime-status bull" id="regime-btc-status">--</span>
+                        </div>
+                        <div class="regime-progress-bar">
+                            <div class="regime-progress-fill bull" id="regime-btc-bar" style="width: 0%;"></div>
+                        </div>
+                        <div class="regime-confidence" id="regime-btc-conf">--</div>
+                    </div>
+
+                    <div class="regime-item">
+                        <div class="regime-header">
+                            <span class="regime-label">Ethereum</span>
+                            <span class="regime-status expansion" id="regime-eth-status">--</span>
+                        </div>
+                        <div class="regime-progress-bar">
+                            <div class="regime-progress-fill expansion" id="regime-eth-bar" style="width: 0%;"></div>
+                        </div>
+                        <div class="regime-confidence" id="regime-eth-conf">--</div>
+                    </div>
+
+                    <div class="regime-item" style="margin-bottom: 0;">
+                        <div class="regime-header">
+                            <span class="regime-label">Stock Market</span>
+                            <span class="regime-status consolidation" id="regime-stock-status">--</span>
+                        </div>
+                        <div class="regime-progress-bar">
+                            <div class="regime-progress-fill consolidation" id="regime-stock-bar" style="width: 0%;"></div>
+                        </div>
+                        <div class="regime-confidence" id="regime-stock-conf">--</div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Crypto Overview - Disposition améliorée pour gagner de la place -->
-            <div class="card" id="crypto" draggable="true" style="grid-column: span 2;"
-                data-tooltip="Vue d'ensemble complète de votre portefeuille crypto avec répartition, métriques de performance et graphiques en temps réel."
+            <!-- Risk & Alerts NOUVEAU -->
+            <div class="card level-1" id="risk-alerts" draggable="true"
+                data-tooltip="Alertes de risque actives, niveau de risque portfolio et VaR"
+                data-source="Risk Dashboard + Governance Alerts">
+                <div class="card-header">
+                    <a href="risk-dashboard.html" class="card-title" style="text-decoration: none; color: inherit;">
+                        <span class="card-icon">🚨</span> Risk & Alerts
+                    </a>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Risk Level</span>
+                    <span class="metric-value" id="risk-level" style="color: var(--warning);">--</span>
+                </div>
+                <div id="alerts-container" style="max-height: 180px; overflow-y: auto;">
+                    <div class="loading" style="padding: 12px; text-align: center;">Loading alerts...</div>
+                </div>
+                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--theme-border); font-size: 0.85em; color: var(--theme-text-muted);">
+                    <strong>Active Alerts:</strong> <span id="alerts-count">--</span><br>
+                    <strong>Portfolio VaR (95%):</strong> <span id="portfolio-var">--</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- NIVEAU 2 : PATRIMOINE -->
+        <div class="dashboard-grid" style="margin-top: 20px;">
+            <!-- Global Overview ENRICHI -->
+            <div class="card level-2" id="global" draggable="true"
+                data-tooltip="Vue d'ensemble globale de votre patrimoine (Crypto + Bourse + Banques) avec P&L Today total"
+                data-source="API /api/wealth/global/summary">
+                <div class="card-header">
+                    <div class="card-title"><span class="card-icon">🌐</span>Global Overview</div>
+                </div>
+
+                <!-- Total Global + P&L Today en tête -->
+                <div style="text-align:center;padding:12px 0;border-bottom:1px solid var(--theme-border);">
+                    <div style="font-size:0.85rem;color:var(--theme-text-muted);margin-bottom:4px;">Total Patrimoine</div>
+                    <div id="global-total-value" style="font-size:2rem;font-weight:900;color:var(--theme-text);">--</div>
+                    <div id="global-pnl-today" style="font-size:0.95rem;font-weight:600;margin-top:4px;">--</div>
+                </div>
+
+                <!-- Modules avec graphiques intégrés -->
+                <div id="global-breakdown" style="display:flex;flex-direction:column;gap:8px;margin-top:12px;">
+                    <!-- Module cards will be added here by JS -->
+                </div>
+            </div>
+
+            <!-- Crypto Overview RÉDUIT -->
+            <div class="card level-2" id="crypto" draggable="true"
+                data-tooltip="Vue d'ensemble de votre portefeuille crypto avec métriques de performance"
                 data-source="API /balances/current + prix CoinGecko/CoinGlass">
                 <div class="card-header">
                     <div class="card-title"><span class="card-icon">₿</span>Crypto Overview</div>
                     <div style="display:flex;gap:8px;align-items:center;">
                         <span id="portfolio-source-display"
                             style="font-size:11px;color:var(--theme-text-muted);padding:2px 6px;background:var(--theme-bg);border-radius:4px;border:1px solid var(--theme-border);">--</span>
-                        <button class="action-btn secondary" style="padding:4px 8px;font-size:12px;"
-                            onclick="forceRefreshData()">🔄</button>
                         <span class="status-badge status-active" id="portfolio-status">Loading</span>
                     </div>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg);">
-                    <!-- Colonne gauche : Métriques -->
-                    <div>
-                        <div class="metric">
-                            <span class="metric-label">Total Value</span>
-                            <span class="metric-value" id="total-value">--</span>
-                        </div>
+                <div class="metric">
+                    <span class="metric-label">Total Value</span>
+                    <span class="metric-value" id="total-value">--</span>
+                </div>
 
-                        <div class="metric">
-                            <span class="metric-label">P&L Today</span>
-                            <span class="metric-value" id="daily-pnl">--</span>
-                        </div>
+                <div class="metric">
+                    <span class="metric-label">P&L Today</span>
+                    <span class="metric-value" id="daily-pnl">--</span>
+                </div>
 
-                        <div class="metric">
-                            <span class="metric-label">Assets Count</span>
-                            <span class="metric-value" id="assets-count">--</span>
-                        </div>
-                    </div>
+                <div class="metric">
+                    <span class="metric-label">Assets Count</span>
+                    <span class="metric-value" id="assets-count">--</span>
+                </div>
 
-                    <!-- Colonne droite : Graphique et Breakdown -->
-                    <div>
-                        <div class="portfolio-chart" id="portfolio-chart">
-                            <canvas id="portfolioChartCanvas"></canvas>
-                        </div>
-                    </div>
+                <div class="portfolio-chart" id="portfolio-chart" style="height: 140px; margin-top: 12px;">
+                    <canvas id="portfolioChartCanvas"></canvas>
                 </div>
             </div>
 
-            <!-- Bourse (Saxo) Overview - Lecture legacy -->
-            <div class="card" id="bourse" draggable="true"
+            <!-- Bourse (Saxo) Overview -->
+            <div class="card level-2" id="bourse" draggable="true"
                 data-tooltip="Vue d'ensemble de votre portefeuille d'actions et ETF via Saxo Bank en lecture seule."
                 data-source="API /api/saxo/positions (legacy)">
                 <div class="card-header">
                     <a href="saxo-dashboard.html" class="card-title" style="text-decoration: none; color: inherit;">
-                        <span class="card-icon">🏦</span>Bourse (Saxo) Overview
+                        <span class="card-icon">🏦</span>Bourse
                     </a>
-                    <div style="display:flex;gap:8px;align-items:center;">
-                        <button class="action-btn secondary" style="padding:4px 8px;font-size:12px;"
-                            onclick="refreshSaxoTile()">🔄</button>
-                        <span class="status-badge" id="saxo-status">Loading</span>
-                    </div>
                 </div>
 
                 <div class="metric">
@@ -382,18 +640,13 @@
             </div>
 
             <!-- Banque (Banks) Overview -->
-            <div class="card" id="banque" draggable="true"
+            <div class="card level-2" id="banque" draggable="true"
                 data-tooltip="Vue d'ensemble de vos comptes bancaires (comptes courants, épargne)."
                 data-source="API /api/wealth/banks/positions">
                 <div class="card-header">
                     <a href="banks-manager.html" class="card-title" style="text-decoration: none; color: inherit;">
-                        <span class="card-icon">💰</span>Banque Overview
+                        <span class="card-icon">💰</span>Banque
                     </a>
-                    <div style="display:flex;gap:8px;align-items:center;">
-                        <button class="action-btn secondary" style="padding:4px 8px;font-size:12px;"
-                            onclick="refreshBanksTile()">🔄</button>
-                        <span class="status-badge" id="banks-status">Loading</span>
-                    </div>
                 </div>
 
                 <div class="metric">
@@ -417,38 +670,16 @@
                 </div>
             </div>
 
-            <!-- Global Overview - Agrégation Crypto + Saxo + Banks -->
-            <div class="card" id="global" draggable="true"
-                data-tooltip="Vue d'ensemble globale de votre patrimoine (Crypto + Bourse + Banques)"
-                data-source="API /api/wealth/global/summary">
-                <div class="card-header">
-                    <div class="card-title"><span class="card-icon">🌐</span>Global Overview</div>
-                    <div style="display:flex;gap:8px;align-items:center;">
-                        <button class="action-btn secondary" style="padding:4px 8px;font-size:12px;"
-                            onclick="refreshGlobalTile()">🔄</button>
-                        <span class="status-badge" id="global-status">Loading</span>
-                    </div>
-                </div>
+        </div>
 
-                <!-- Total Global en tête -->
-                <div style="text-align:center;padding:8px 0;border-bottom:1px solid var(--theme-border);">
-                    <div style="font-size:0.75rem;color:var(--theme-text-muted);margin-bottom:2px;">Total</div>
-                    <div id="global-total-value" style="font-size:1.3rem;font-weight:700;color:var(--theme-text);">--</div>
-                </div>
-
-                <!-- Modules avec graphiques intégrés -->
-                <div id="global-breakdown" style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">
-                    <!-- Module cards will be added here by JS -->
-                </div>
-            </div>
-
+        <!-- NIVEAU 3 : OPÉRATIONS & SYSTÈME -->
+        <div class="dashboard-grid" style="margin-top: 20px;">
             <!-- Execution Status -->
-            <div class="card" id="card-execution" draggable="true"
+            <div class="card level-3" id="card-execution" draggable="true"
                 data-tooltip="Statut des exécutions automatiques de trades avec historique des performances et volumes traités."
                 data-source="API /execution/status + logs internes">
                 <div class="card-header">
-                    <div class="card-title"><span class="card-icon">🎯</span>Execution Status</div>
-                    <span class="status-badge" id="execution-status">Loading</span>
+                    <div class="card-title"><span class="card-icon">🎯</span>Execution</div>
                 </div>
                 <div class="metric">
                     <span class="metric-label">Last Execution</span>
@@ -464,102 +695,63 @@
                 </div>
             </div>
 
-            <!-- Exchange Connections -->
-            <div class="card" id="card-exchange" draggable="true"
-                data-tooltip="État des connexions avec les exchanges (Binance, KuCoin) et vérification des API keys."
-                data-source="Tests de connectivité API en temps réel">
-                <div class="card-header">
-                    <div class="card-title"><span class="card-icon">🔗</span>Exchange Status</div>
-                    <a href="monitoring.html" class="status-badge status-active" style="text-decoration:none;">View
-                        Details</a>
-                </div>
-                <div class="connections-grid" id="connections-grid">
-                    <div class="loading">Loading connections...</div>
-                </div>
-            </div>
-
             <!-- Recent Activity -->
-            <div class="card" id="card-activity" draggable="true"
+            <div class="card level-3" id="card-activity" draggable="true"
                 data-tooltip="Historique des dernières opérations de trading, rebalancing et événements système."
                 data-source="API /execution/history + logs système">
                 <div class="card-header">
-                    <div class="card-title"><span class="card-icon">📋</span>Recent Activity</div>
-                    <a href="execution_history.html" class="status-badge status-active"
-                        style="text-decoration:none;">View All</a>
+                    <div class="card-title"><span class="card-icon">📋</span>Activity</div>
                 </div>
                 <div class="recent-activity" id="recent-activity">
                     <div class="loading">Loading recent activity...</div>
                 </div>
             </div>
 
-            <!-- System Health -->
-            <div class="card" id="card-health" draggable="true"
-                data-tooltip="Surveillance de la santé du système : APIs, fraîcheur des données et validateurs de sécurité."
-                data-source="Monitoring interne + tests API">
+            <!-- System Status FUSIONNÉ (Exchange + Health) -->
+            <div class="card level-3" id="card-system" draggable="true"
+                data-tooltip="État du système : connexions exchanges, APIs, fraîcheur des données et sécurité."
+                data-source="Monitoring interne + tests API + connectivité">
                 <div class="card-header">
-                    <div class="card-title"><span class="card-icon">❤️</span>System Health</div>
-                    <span class="status-badge" id="system-health">Loading</span>
+                    <div class="card-title"><span class="card-icon">⚡</span>System Status</div>
                 </div>
                 <div class="metric">
                     <span class="metric-label">API Status</span>
                     <span class="metric-value" id="api-status">--</span>
                 </div>
                 <div class="metric">
+                    <span class="metric-label">Exchanges</span>
+                    <span class="metric-value" id="exchanges-status">--</span>
+                </div>
+                <div class="metric">
                     <span class="metric-label">Data Freshness</span>
                     <span class="metric-value" id="data-freshness">--</span>
                 </div>
-                <div class="metric">
-                    <span class="metric-label">Safety Validator</span>
-                    <span class="metric-value" id="safety-status">--</span>
-                </div>
             </div>
 
-            <!-- Scores -->
-            <div class="card" id="card-scores" draggable="true"
-                data-tooltip="Scores de performance et métriques calculés par les algorithmes ML pour évaluer le portefeuille."
-                data-source="API /analytics/scores + modèles ML">
+            <!-- Tools & Analytics -->
+            <div class="card level-3" id="card-tools" draggable="true"
+                data-tooltip="Accès rapide aux outils avancés : Analytics, AI Dashboard, Optimisation et Performance."
+                data-source="Liens internes et outils avancés">
                 <div class="card-header">
-                    <a href="risk-dashboard.html" class="card-title" style="text-decoration: none; color: inherit;">
-                        Scores
-                    </a>
-                    <span class="status-badge" id="scores-status">Loading</span>
+                    <div class="card-title"><span class="card-icon">🔧</span>Tools & Analytics</div>
                 </div>
-                <div id="scores-content">
-                    <div class="loading">Chargement des scores...</div>
-                </div>
-            </div>
-
-            <!-- Debug & New Modules -->
-            <div class="card" id="card-debug" draggable="true"
-                data-tooltip="Accès rapide aux outils de debug et aux nouveaux modules : Analytics, AI, Optimisation et Performance."
-                data-source="Liens internes et outils développeur">
-                <div class="card-header">
-                    <div class="card-title"><span class="card-icon">🔧</span>Debug & Nouveaux Modules</div>
-                    <a href="debug-menu.html" class="status-badge status-active" style="text-decoration:none;">Menu
-                        Complet</a>
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
                     <a href="analytics-unified.html"
-                        style="color: var(--theme-accent); text-decoration: none; padding: 8px; border: 1px solid var(--theme-border); border-radius: 6px; text-align: center; font-size: 0.9em;">
+                        style="color: var(--theme-text); background: var(--theme-surface-elevated); text-decoration: none; padding: 10px 8px; border: 1px solid var(--theme-border); border-radius: 6px; text-align: center; font-size: 0.85em; transition: all 0.2s;">
                         📊 Analytics
                     </a>
                     <a href="ai-dashboard.html"
-                        style="color: var(--theme-accent); text-decoration: none; padding: 8px; border: 1px solid var(--theme-border); border-radius: 6px; text-align: center; font-size: 0.9em;">
+                        style="color: var(--theme-text); background: var(--theme-surface-elevated); text-decoration: none; padding: 10px 8px; border: 1px solid var(--theme-border); border-radius: 6px; text-align: center; font-size: 0.85em; transition: all 0.2s;">
                         🤖 AI Dashboard
                     </a>
                     <a href="portfolio-optimization.html"
-                        style="color: var(--theme-accent); text-decoration: none; padding: 8px; border: 1px solid var(--theme-border); border-radius: 6px; text-align: center; font-size: 0.9em;">
-                        🎯 Optimisation+
+                        style="color: var(--theme-text); background: var(--theme-surface-elevated); text-decoration: none; padding: 10px 8px; border: 1px solid var(--theme-border); border-radius: 6px; text-align: center; font-size: 0.85em; transition: all 0.2s;">
+                        🎯 Optimization
                     </a>
-                    <a href="/api/performance/cache/stats" target="_blank"
-                        style="color: var(--theme-accent); text-decoration: none; padding: 8px; border: 1px solid var(--theme-border); border-radius: 6px; text-align: center; font-size: 0.9em;">
-                        ⚡ Performance
+                    <a href="debug-menu.html"
+                        style="color: var(--theme-text); background: var(--theme-surface-elevated); text-decoration: none; padding: 10px 8px; border: 1px solid var(--theme-border); border-radius: 6px; text-align: center; font-size: 0.85em; transition: all 0.2s;">
+                        🛠️ Debug
                     </a>
-                </div>
-                <div
-                    style="padding: 8px 12px; font-size: 0.8em; color: var(--theme-text-secondary); border-top: 1px solid var(--theme-border);">
-                    4 nouveaux systèmes: Performance (4.8x), Multi-actifs (7 classes), Charts interactifs, Optimisation
-                    avancée
                 </div>
             </div>
 

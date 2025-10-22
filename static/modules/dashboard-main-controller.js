@@ -8,6 +8,51 @@ import { selectCapPercent, selectPolicyCapPercent, selectEngineCapPercent } from
 // ✅ Couleur conforme CLAUDE.md: Plus haut = plus robuste = VERT
 const colorForScore = (s) => s > 70 ? 'var(--success)' : s >= 40 ? 'var(--warning)' : 'var(--danger)';
 
+/**
+ * Update Phase Engine chips visually (Dashboard V2)
+ */
+function updatePhaseChips(unifiedState) {
+    try {
+        // Get phase detection from unified state or Phase Engine
+        const phaseEngine = window.debugPhaseEngine || {};
+        const currentPhase = phaseEngine.currentPhase ||
+                           (unifiedState.phase?.detected) ||
+                           null;
+
+        // Reset all chips to inactive
+        const riskOffChip = document.getElementById('phase-risk-off');
+        const ethExpChip = document.getElementById('phase-eth-exp');
+        const altseasonChip = document.getElementById('phase-altseason');
+
+        if (riskOffChip) riskOffChip.className = 'phase-chip inactive';
+        if (ethExpChip) ethExpChip.className = 'phase-chip inactive';
+        if (altseasonChip) altseasonChip.className = 'phase-chip inactive';
+
+        // Activate current phase
+        if (currentPhase) {
+            if (currentPhase.includes('risk_off') || currentPhase.includes('Risk Off')) {
+                if (riskOffChip) riskOffChip.className = 'phase-chip active';
+            } else if (currentPhase.includes('eth_expansion') || currentPhase.includes('ETH Expansion')) {
+                if (ethExpChip) ethExpChip.className = 'phase-chip active';
+            } else if (currentPhase.includes('altseason') || currentPhase.includes('Altseason')) {
+                if (altseasonChip) altseasonChip.className = 'phase-chip active';
+            }
+        } else {
+            // Fallback: activate based on cycle score
+            const cycleScore = unifiedState.cycle?.score || 0;
+            if (cycleScore > 70) {
+                // High cycle score = likely eth expansion or altseason
+                if (ethExpChip) ethExpChip.className = 'phase-chip active';
+            } else if (cycleScore < 40) {
+                // Low cycle score = risk off
+                if (riskOffChip) riskOffChip.className = 'phase-chip active';
+            }
+        }
+    } catch (error) {
+        debugLogger.warn('⚠️ Failed to update phase chips:', error);
+    }
+}
+
 async function refreshGI() {
     try {
         console.debug('🧠 Refreshing Global Insight with intelligent analysis...');
@@ -92,6 +137,9 @@ async function refreshGI() {
             recommendations_count: recommendations.length,
             top_recommendation: recommendations[0]?.title
         });
+
+        // Update Phase Engine chips (Dashboard V2)
+        updatePhaseChips(unifiedState);
 
         // Update the meta badge with governance data
         updateGlobalInsightMeta();
@@ -620,8 +668,14 @@ async function loadDashboardData() {
         // Charger d'abord les groupes depuis alias-manager
         await loadAssetGroups();
 
-        const [portfolioData, connectionsData, historyData, executionStatus, scoresData] = await Promise.allSettled([
-            loadPortfolioData(), loadConnectionsStatus(), loadRecentHistory(), loadExecutionStatus(), loadScoresData()
+        const [portfolioData, connectionsData, historyData, executionStatus, scoresData, regimesData, alertsData] = await Promise.allSettled([
+            loadPortfolioData(),
+            loadConnectionsStatus(),
+            loadRecentHistory(),
+            loadExecutionStatus(),
+            loadScoresData(),
+            loadMarketRegimes(),      // Dashboard V2
+            loadRiskAlerts()          // Dashboard V2
         ]);
         const portfolioResult = portfolioData.status === 'fulfilled' ? portfolioData.value : null;
         console.debug('📊 About to update portfolio display with:', {
@@ -640,7 +694,7 @@ async function loadDashboardData() {
         updateRecentActivity(dashboardData.recentActivity);
         updateExecutionStatus(dashboardData.executionStats);
         updateScoresDisplay(scoresData.status === 'fulfilled' ? scoresData.value : null);
-        updateSystemHealth();
+        updateSystemStatus();         // Dashboard V2 (merged Exchange + Health)
 
         console.debug('✅ Dashboard data loaded successfully');
     } catch (e) {
@@ -1042,7 +1096,16 @@ async function updatePortfolioDisplay(data) {
 }
 function updateConnectionsDisplay(data) {
     const container = document.getElementById('connections-grid');
-    if (!data) { container.innerHTML = '<div class="error">Erreur de chargement</div>'; return; }
+    // Dashboard V2: connections-grid removed, handled by updateSystemStatus
+    if (!container) {
+        debugLogger.debug('⏭️ connections-grid not found, skipping (handled by System Status)');
+        return;
+    }
+
+    if (!data) {
+        container.innerHTML = '<div class="error">Erreur de chargement</div>';
+        return;
+    }
 
     const html = Object.values(data).map(conn => {
         const cls = conn.connected ? 'status-active' : 'status-error';
@@ -1081,36 +1144,69 @@ function updateRecentActivity(data) {
 }
 
 function updateExecutionStatus(data) {
+    const lastExecEl = document.getElementById('last-execution');
+    const successRateEl = document.getElementById('success-rate');
+    const volumeEl = document.getElementById('volume-24h');
+    const statusEl = document.getElementById('execution-status'); // Dashboard V2: may not exist
+
     if (!data || !data.recent_24h) {
-        document.getElementById('last-execution').textContent = 'Aucune';
-        document.getElementById('success-rate').textContent = '--';
-        document.getElementById('volume-24h').textContent = '$0.00';
-        const st = document.getElementById('execution-status'); st.className = 'status-badge status-warning'; st.textContent = 'En attente';
+        if (lastExecEl) lastExecEl.textContent = 'Aucune';
+        if (successRateEl) successRateEl.textContent = '--';
+        if (volumeEl) volumeEl.textContent = '$0.00';
+        if (statusEl) {
+            statusEl.className = 'status-badge status-warning';
+            statusEl.textContent = 'En attente';
+        }
         return;
     }
-    document.getElementById('last-execution').textContent = data.recent_24h?.total_orders > 0 ? 'Récent' : 'Aucune';
-    const sr = data.recent_24h?.success_rate;
-    document.getElementById('success-rate').textContent = (sr !== undefined) ? sr.toFixed(1) + '%' : '--';
-    document.getElementById('volume-24h').textContent = formatUSD(data.recent_24h?.total_volume || 0);
 
-    const st = document.getElementById('execution-status');
-    if (sr >= 95) { st.className = 'status-badge status-active'; st.textContent = 'Excellent'; }
-    else if (sr >= 90) { st.className = 'status-badge status-warning'; st.textContent = 'Bon'; }
-    else if (sr !== undefined) { st.className = 'status-badge status-error'; st.textContent = 'À améliorer'; }
-    else { st.className = 'status-badge status-warning'; st.textContent = 'En attente'; }
+    if (lastExecEl) {
+        lastExecEl.textContent = data.recent_24h?.total_orders > 0 ? 'Récent' : 'Aucune';
+    }
+
+    const sr = data.recent_24h?.success_rate;
+    if (successRateEl) {
+        successRateEl.textContent = (sr !== undefined) ? sr.toFixed(1) + '%' : '--';
+    }
+
+    if (volumeEl) {
+        volumeEl.textContent = formatUSD(data.recent_24h?.total_volume || 0);
+    }
+
+    if (statusEl) {
+        if (sr >= 95) { statusEl.className = 'status-badge status-active'; statusEl.textContent = 'Excellent'; }
+        else if (sr >= 90) { statusEl.className = 'status-badge status-warning'; statusEl.textContent = 'Bon'; }
+        else if (sr !== undefined) { statusEl.className = 'status-badge status-error'; statusEl.textContent = 'À améliorer'; }
+        else { statusEl.className = 'status-badge status-warning'; statusEl.textContent = 'En attente'; }
+    }
 }
 
 function updateSystemHealth() {
-    document.getElementById('api-status').textContent = 'Online';
-    document.getElementById('data-freshness').textContent = 'Récente';
-    document.getElementById('safety-status').textContent = 'Actif';
-    const st = document.getElementById('system-health'); st.className = 'status-badge status-active'; st.textContent = 'Healthy';
+    // Dashboard V2: Some elements may not exist (merged into System Status)
+    const apiStatusEl = document.getElementById('api-status');
+    const dataFreshnessEl = document.getElementById('data-freshness');
+    const safetyStatusEl = document.getElementById('safety-status');
+    const systemHealthEl = document.getElementById('system-health');
+
+    if (apiStatusEl) apiStatusEl.textContent = 'Online';
+    if (dataFreshnessEl) dataFreshnessEl.textContent = 'Récente';
+    if (safetyStatusEl) safetyStatusEl.textContent = 'Actif';
+    if (systemHealthEl) {
+        systemHealthEl.className = 'status-badge status-active';
+        systemHealthEl.textContent = 'Healthy';
+    }
 }
 
 // Mettre à jour l'affichage des scores
 function updateScoresDisplay(scoresData) {
     const container = document.getElementById('scores-content');
     const statusEl = document.getElementById('scores-status');
+
+    // Dashboard V2: Scores tile removed (merged into Global Insight)
+    if (!container) {
+        debugLogger.debug('⏭️ scores-content not found, skipping (merged into Global Insight)');
+        return;
+    }
 
     if (!scoresData) {
         // Aucun score disponible - afficher message avec lien vers risk-dashboard
@@ -2138,6 +2234,21 @@ async function refreshGlobalTile() {
         // Update total value
         if (totalValueEl) totalValueEl.textContent = formatCurrency(data.total_value_usd);
 
+        // Update P&L Today if available (Dashboard V2)
+        const pnlTodayEl = document.getElementById('global-pnl-today');
+        if (pnlTodayEl && data.pnl_today !== undefined) {
+            const pnlValue = data.pnl_today;
+            const pnlColor = pnlValue >= 0 ? 'var(--success)' : 'var(--danger)';
+            const pnlSign = pnlValue >= 0 ? '+' : '';
+            const pnlPct = data.pnl_today_pct !== undefined ? ` (${pnlSign}${data.pnl_today_pct.toFixed(1)}%)` : '';
+
+            pnlTodayEl.textContent = `${pnlSign}${formatCurrency(Math.abs(pnlValue))}${pnlPct}`;
+            pnlTodayEl.style.color = pnlColor;
+        } else if (pnlTodayEl) {
+            // Fallback si pas de P&L Today dans l'API
+            pnlTodayEl.textContent = '';
+        }
+
         // Build module cards with integrated charts
         if (breakdownEl && data.total_value_usd > 0) {
             const modules = [
@@ -2224,10 +2335,277 @@ async function refreshGlobalTile() {
     }
 }
 
+// ========================================
+// DASHBOARD V2 - NEW TILES
+// ========================================
+
+/**
+ * Load Market Regime data for BTC, ETH, and Stock Market
+ */
+async function loadMarketRegimes() {
+    try {
+        debugLogger.debug('📈 Loading market regimes...');
+
+        // Fetch regime data for BTC, ETH, and Stock
+        const [btcRes, ethRes, stockRes] = await Promise.all([
+            fetch('/api/ml/crypto/regime?symbol=BTC&lookback_days=365')
+                .then(r => r.ok ? r.json() : null)
+                .catch(() => null),
+            fetch('/api/ml/crypto/regime?symbol=ETH&lookback_days=365')
+                .then(r => r.ok ? r.json() : null)
+                .catch(() => null),
+            fetch('/api/ml/bourse/regime?benchmark=SPY&lookback_days=365')
+                .then(r => r.ok ? r.json() : null)
+                .catch(() => {
+                    debugLogger.debug('⏭️ Stock regime endpoint not available (404), skipping');
+                    return null;
+                })
+        ]);
+
+        // BTC
+        if (btcRes?.data?.current_regime) {
+            const regime = btcRes.data.current_regime;
+            const conf = btcRes.data.confidence || 0;
+
+            document.getElementById('regime-btc-status').textContent = regime;
+            document.getElementById('regime-btc-bar').style.width = `${conf * 100}%`;
+            document.getElementById('regime-btc-conf').textContent = `${Math.round(conf * 100)}% confidence`;
+
+            // Update class based on regime
+            const statusEl = document.getElementById('regime-btc-status');
+            statusEl.className = 'regime-status';
+            if (regime.toLowerCase().includes('bull')) statusEl.classList.add('bull');
+            else if (regime.toLowerCase().includes('bear')) statusEl.classList.add('bear');
+            else statusEl.classList.add('consolidation');
+        } else {
+            document.getElementById('regime-btc-status').textContent = 'Loading...';
+            document.getElementById('regime-btc-conf').textContent = '--';
+        }
+
+        // ETH
+        if (ethRes?.data?.current_regime) {
+            const regime = ethRes.data.current_regime;
+            const conf = ethRes.data.confidence || 0;
+
+            document.getElementById('regime-eth-status').textContent = regime;
+            document.getElementById('regime-eth-bar').style.width = `${conf * 100}%`;
+            document.getElementById('regime-eth-conf').textContent = `${Math.round(conf * 100)}% confidence`;
+
+            const statusEl = document.getElementById('regime-eth-status');
+            statusEl.className = 'regime-status';
+            if (regime.toLowerCase().includes('expansion')) statusEl.classList.add('expansion');
+            else if (regime.toLowerCase().includes('compression')) statusEl.classList.add('bear');
+            else statusEl.classList.add('consolidation');
+        } else {
+            document.getElementById('regime-eth-status').textContent = 'Loading...';
+            document.getElementById('regime-eth-conf').textContent = '--';
+        }
+
+        // Stock Market (different API structure - no 'data' wrapper)
+        if (stockRes?.current_regime) {
+            const regime = stockRes.current_regime;
+            const conf = stockRes.confidence || 0;
+
+            document.getElementById('regime-stock-status').textContent = regime;
+            document.getElementById('regime-stock-bar').style.width = `${conf * 100}%`;
+            document.getElementById('regime-stock-conf').textContent = `${Math.round(conf * 100)}% confidence`;
+
+            const statusEl = document.getElementById('regime-stock-status');
+            statusEl.className = 'regime-status';
+            if (regime.toLowerCase().includes('bull')) statusEl.classList.add('bull');
+            else if (regime.toLowerCase().includes('bear')) statusEl.classList.add('bear');
+            else statusEl.classList.add('consolidation');
+        } else {
+            // Fallback if stock regime endpoint not available
+            document.getElementById('regime-stock-status').textContent = 'N/A';
+            document.getElementById('regime-stock-bar').style.width = '0%';
+            document.getElementById('regime-stock-conf').textContent = 'Endpoint not available';
+        }
+
+        debugLogger.debug('✅ Market regimes loaded');
+    } catch (error) {
+        debugLogger.error('❌ Failed to load market regimes:', error);
+    }
+}
+
+/**
+ * Load Risk Alerts from governance system
+ */
+async function loadRiskAlerts() {
+    try {
+        debugLogger.debug('🚨 Loading risk alerts...');
+
+        const [riskRes, alertsRes] = await Promise.all([
+            fetch('/api/risk/dashboard')
+                .then(r => r.ok ? r.json() : null)
+                .catch(() => null),
+            fetch('/api/alerts/active')
+                .then(r => r.ok ? r.json() : null)
+                .catch(() => {
+                    debugLogger.debug('⏭️ Alerts endpoint not available (404), skipping');
+                    return null;
+                })
+        ]);
+
+        // Risk Level
+        const riskLevelEl = document.getElementById('risk-level');
+        const varEl = document.getElementById('portfolio-var');
+
+        if (riskRes?.success && riskRes.risk_metrics?.risk_score !== undefined) {
+            const riskScore = riskRes.risk_metrics.risk_score;
+            let riskLevel = 'Low';
+            let riskColor = 'var(--success)';
+
+            if (riskScore < 40) {
+                riskLevel = 'High';
+                riskColor = 'var(--danger)';
+            } else if (riskScore < 70) {
+                riskLevel = 'Medium';
+                riskColor = 'var(--warning)';
+            }
+
+            if (riskLevelEl) {
+                riskLevelEl.textContent = riskLevel;
+                riskLevelEl.style.color = riskColor;
+            }
+
+            // VaR (1-day 95% confidence)
+            if (varEl && riskRes.risk_metrics.var_95_1d !== undefined) {
+                const varValue = riskRes.risk_metrics.var_95_1d * 100; // Convert to percentage
+                varEl.textContent = `${varValue.toFixed(1)}%`;
+                varEl.style.color = Math.abs(varValue) > 5 ? 'var(--danger)' : 'var(--theme-text)';
+            } else if (varEl) {
+                varEl.textContent = '--';
+            }
+        } else {
+            // Fallback if risk endpoint not available
+            if (riskLevelEl) {
+                riskLevelEl.textContent = '--';
+                riskLevelEl.style.color = 'var(--theme-text-muted)';
+            }
+            if (varEl) {
+                varEl.textContent = '--';
+            }
+        }
+
+        // Alerts
+        const container = document.getElementById('alerts-container');
+        const alertsCountEl = document.getElementById('alerts-count');
+
+        if (container) {
+            if (alertsRes && Array.isArray(alertsRes) && alertsRes.length > 0) {
+                const alerts = alertsRes.slice(0, 3); // Max 3 alerts
+                container.innerHTML = alerts.map(alert => {
+                    // Map severity S1-S4 to CSS classes
+                    let severityClass = 'info';
+                    let icon = 'ℹ️';
+                    if (alert.severity === 'S1') {
+                        severityClass = 'critical';
+                        icon = '🚨';
+                    } else if (alert.severity === 'S2') {
+                        severityClass = 'warning';
+                        icon = '⚠️';
+                    } else if (alert.severity === 'S3') {
+                        severityClass = 'info';
+                        icon = 'ℹ️';
+                    }
+
+                    // Create alert message from alert_type
+                    const alertMessage = alert.alert_type?.replace(/_/g, ' ').toLowerCase() || 'Alert';
+                    return `<div class="alert-item ${severityClass}">${icon} ${alertMessage}</div>`;
+                }).join('');
+
+                if (alertsCountEl) alertsCountEl.textContent = alertsRes.length;
+            } else if (alertsRes === null) {
+                // Endpoint not available
+                container.innerHTML = '<div class="alert-item info" style="text-align:center;">ℹ️ Alerts endpoint not available</div>';
+                if (alertsCountEl) alertsCountEl.textContent = '--';
+            } else {
+                // No alerts
+                container.innerHTML = '<div class="alert-item success">✅ No active alerts</div>';
+                if (alertsCountEl) alertsCountEl.textContent = '0';
+            }
+        }
+
+        debugLogger.debug('✅ Risk alerts loaded');
+    } catch (error) {
+        debugLogger.error('❌ Failed to load risk alerts:', error);
+    }
+}
+
+/**
+ * Update System Status (merged Exchange + Health)
+ */
+async function updateSystemStatus() {
+    try {
+        debugLogger.debug('⚡ Updating system status...');
+
+        // API Status
+        const apiStatusEl = document.getElementById('api-status');
+        if (apiStatusEl) {
+            try {
+                const healthRes = await fetch('/health').then(r => r.json());
+                if (healthRes?.status === 'ok') {
+                    apiStatusEl.textContent = '✓ Online';
+                    apiStatusEl.style.color = 'var(--success)';
+                } else {
+                    apiStatusEl.textContent = '⚠ Degraded';
+                    apiStatusEl.style.color = 'var(--warning)';
+                }
+            } catch {
+                apiStatusEl.textContent = '✗ Offline';
+                apiStatusEl.style.color = 'var(--danger)';
+            }
+        }
+
+        // Exchanges Status
+        const exchangesEl = document.getElementById('exchanges-status');
+        if (exchangesEl) {
+            try {
+                const connectionsRes = await fetch('/exchanges/status')
+                    .then(r => r.ok ? r.json() : null)
+                    .catch(() => {
+                        debugLogger.debug('⏭️ Exchanges status endpoint not available (404), skipping');
+                        return null;
+                    });
+
+                if (connectionsRes?.ok && connectionsRes.data) {
+                    const exchanges = connectionsRes.data;
+                    const onlineCount = exchanges.filter(e => e.status === 'connected').length;
+                    const totalCount = exchanges.length;
+
+                    exchangesEl.textContent = `${onlineCount}/${totalCount}`;
+                    exchangesEl.style.color = onlineCount === totalCount ? 'var(--success)' : 'var(--warning)';
+                } else if (connectionsRes === null) {
+                    // Endpoint not available
+                    exchangesEl.textContent = 'N/A';
+                    exchangesEl.style.color = 'var(--theme-text-muted)';
+                } else {
+                    exchangesEl.textContent = '--';
+                }
+            } catch (error) {
+                debugLogger.debug('⚠️ Error loading exchanges status:', error);
+                exchangesEl.textContent = '--';
+                exchangesEl.style.color = 'var(--theme-text-muted)';
+            }
+        }
+
+        // Data Freshness (from existing function)
+        updateSystemHealth();
+
+        debugLogger.debug('✅ System status updated');
+    } catch (error) {
+        debugLogger.error('❌ Failed to update system status:', error);
+    }
+}
+
 // Make functions globally available for onclick
 window.refreshSaxoTile = refreshSaxoTile;
 window.refreshBanksTile = refreshBanksTile;
 window.refreshGlobalTile = refreshGlobalTile;
+window.loadMarketRegimes = loadMarketRegimes;
+window.loadRiskAlerts = loadRiskAlerts;
+window.updateSystemStatus = updateSystemStatus;
 
 // ✅ REMOVED: Auto-refresh Global tile moved to main DOMContentLoaded listener to avoid duplicates
 

@@ -152,24 +152,32 @@ async def get_portfolio(
 
 
 @router.get("/accounts", response_model=List[AccountModel])
-async def list_accounts() -> List[AccountModel]:
+async def list_accounts(
+    user: str = Depends(get_active_user),
+    file_key: Optional[str] = Query(None, description="Specific Saxo CSV file to load")
+) -> List[AccountModel]:
     _legacy_log("/accounts")
-    return await wealth_get_accounts(module=_MODULE)
+    return await wealth_get_accounts(module=_MODULE, user_id=user, file_key=file_key)
 
 
 @router.get("/instruments", response_model=List[InstrumentModel])
-async def list_instruments() -> List[InstrumentModel]:
+async def list_instruments(
+    user: str = Depends(get_active_user),
+    file_key: Optional[str] = Query(None, description="Specific Saxo CSV file to load")
+) -> List[InstrumentModel]:
     _legacy_log("/instruments")
-    return await wealth_get_instruments(module=_MODULE)
+    return await wealth_get_instruments(module=_MODULE, user_id=user, file_key=file_key)
 
 
 @router.get("/positions")
 async def list_positions(
+    user: str = Depends(get_active_user),
+    file_key: Optional[str] = Query(None, description="Specific Saxo CSV file to load"),
     limit: int = Query(200, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ) -> dict:
     _legacy_log("/positions")
-    wealth_positions = await wealth_get_positions(module=_MODULE)
+    wealth_positions = await wealth_get_positions(module=_MODULE, user_id=user, file_key=file_key)
     # wealth endpoint returns pydantic models; convert to plain dicts
     normalized = [p.model_dump() if isinstance(p, PositionModel) else p for p in wealth_positions]
     total = len(normalized)
@@ -187,23 +195,34 @@ async def list_positions(
 
 @router.get("/transactions", response_model=List[TransactionModel])
 async def list_transactions(
+    user: str = Depends(get_active_user),
+    file_key: Optional[str] = Query(None, description="Specific Saxo CSV file to load"),
     start: Optional[str] = None,
     end: Optional[str] = None,
 ) -> List[TransactionModel]:
     _legacy_log("/transactions")
-    return await wealth_get_transactions(module=_MODULE, start=start, end=end)
+    return await wealth_get_transactions(module=_MODULE, user_id=user, file_key=file_key, start=start, end=end)
 
 
 @router.get("/prices", response_model=List[PricePoint])
-async def list_prices(ids: List[str], granularity: str = "daily") -> List[PricePoint]:
+async def list_prices(
+    user: str = Depends(get_active_user),
+    file_key: Optional[str] = Query(None, description="Specific Saxo CSV file to load"),
+    ids: List[str] = Query(...),
+    granularity: str = "daily"
+) -> List[PricePoint]:
     if not ids:
         raise HTTPException(status_code=400, detail="missing_ids")
     _legacy_log("/prices")
-    return await wealth_get_prices(module=_MODULE, ids=ids, granularity=granularity)
+    return await wealth_get_prices(module=_MODULE, user_id=user, file_key=file_key, ids=ids, granularity=granularity)
 
 
 @router.post("/rebalance/preview", response_model=List[ProposedTrade])
-async def preview_rebalance(payload: Optional[dict] = Body(default=None)) -> List[ProposedTrade]:
+async def preview_rebalance(
+    user: str = Depends(get_active_user),
+    file_key: Optional[str] = Query(None, description="Specific Saxo CSV file to load"),
+    payload: Optional[dict] = Body(default=None)
+) -> List[ProposedTrade]:
     _legacy_log("/rebalance/preview")
-    return await wealth_preview_rebalance(module=_MODULE, payload=payload)
+    return await wealth_preview_rebalance(module=_MODULE, user_id=user, file_key=file_key, payload=payload)
 

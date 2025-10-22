@@ -6,6 +6,7 @@ import { safeFetch } from './http.js';
 
 let _cachedSummary = null;
 let _cacheTimestamp = 0;
+let _cachedForUser = null; // Track which user the cache is for
 const CACHE_TTL = 30000; // 30 secondes
 
 /**
@@ -14,9 +15,24 @@ const CACHE_TTL = 30000; // 30 secondes
  */
 export async function fetchSaxoSummary() {
     const now = Date.now();
+    const activeUser = localStorage.getItem('activeUser') || 'demo';
 
-    // Retourner le cache si valide
-    if (_cachedSummary && (now - _cacheTimestamp) < CACHE_TTL) {
+    (window.debugLogger?.debug || console.log)(`[Saxo Summary] Fetching for user: ${activeUser}, cached for: ${_cachedForUser || 'none'}`);
+
+    // Invalider le cache si l'utilisateur a changé
+    if (_cachedForUser && _cachedForUser !== activeUser) {
+        (window.debugLogger?.debug || console.log)(`[Saxo Summary] User changed from ${_cachedForUser} to ${activeUser}, invalidating cache`);
+        _cachedSummary = null;
+        _cacheTimestamp = 0;
+        _cachedForUser = null;
+        // ✅ CRITICAL: Also invalidate availableSources cache
+        window.availableSources = null;
+        window._availableSourcesUser = null;
+    }
+
+    // Retourner le cache si valide pour cet utilisateur
+    if (_cachedSummary && _cachedForUser === activeUser && (now - _cacheTimestamp) < CACHE_TTL) {
+        (window.debugLogger?.debug || console.log)(`[Saxo Summary] Returning cached data for ${activeUser}`);
         return _cachedSummary;
     }
 
@@ -28,17 +44,18 @@ export async function fetchSaxoSummary() {
         if (bourseSource && bourseSource !== 'all' && bourseSource.startsWith('saxo:')) {
             // Extract file_key from source (same logic as saxo-dashboard.html)
             const key = bourseSource.substring(5); // Remove 'saxo:' prefix
-            const activeUser = localStorage.getItem('activeUser') || 'demo';
 
             try {
                 // Load available sources to resolve file_key
-                if (!window.availableSources) {
+                // ✅ CRITICAL: Reload sources if user changed
+                if (!window.availableSources || window._availableSourcesUser !== activeUser) {
                     const response = await fetch('/api/users/sources', {
                         headers: { 'X-User': activeUser }
                     });
                     if (response.ok) {
                         const data = await response.json();
                         window.availableSources = data.sources || [];
+                        window._availableSourcesUser = activeUser; // Track user
                     }
                 }
 
@@ -54,9 +71,16 @@ export async function fetchSaxoSummary() {
             }
         }
 
+        (window.debugLogger?.debug || console.log)(`[Saxo Summary] Fetching from: ${apiUrl} for user: ${activeUser}`);
+
         const { ok, data } = await safeFetch(
             window.globalConfig?.getApiUrl(apiUrl) || apiUrl,
-            { timeout: 8000 }
+            {
+                timeout: 8000,
+                headers: {
+                    'X-User': activeUser  // ✅ CRITICAL: Always pass user
+                }
+            }
         );
 
         if (!ok || !data) {
@@ -70,6 +94,7 @@ export async function fetchSaxoSummary() {
             };
             _cachedSummary = emptySummary;
             _cacheTimestamp = now;
+            _cachedForUser = activeUser;
             return emptySummary;
         }
 
@@ -85,6 +110,7 @@ export async function fetchSaxoSummary() {
             };
             _cachedSummary = summary;
             _cacheTimestamp = now;
+            _cachedForUser = activeUser;
             return summary;
         }
 
@@ -129,6 +155,7 @@ export async function fetchSaxoSummary() {
 
         _cachedSummary = summary;
         _cacheTimestamp = now;
+        _cachedForUser = activeUser;
         return summary;
 
     } catch (error) {
@@ -145,6 +172,7 @@ export async function fetchSaxoSummary() {
         // Cache l'erreur pour éviter les appels répétés
         _cachedSummary = errorSummary;
         _cacheTimestamp = now;
+        _cachedForUser = activeUser;
         return errorSummary;
     }
 }
@@ -155,6 +183,7 @@ export async function fetchSaxoSummary() {
 export function invalidateSaxoCache() {
     _cachedSummary = null;
     _cacheTimestamp = 0;
+    _cachedForUser = null;
 }
 
 /**
