@@ -313,6 +313,43 @@ async def job_api_warmers():
         await _update_job_status(job_id, "error", duration_ms, str(e))
 
 
+async def job_crypto_toolbox_refresh():
+    """
+    Refresh crypto-toolbox indicators (2x daily: 08:00 & 20:00)
+    Scrapes 30+ on-chain indicators from crypto-toolbox.vercel.app
+    """
+    job_id = "crypto_toolbox_refresh"
+    start = datetime.now()
+
+    try:
+        logger.info(f"🔄 [{job_id}] Starting crypto-toolbox indicators refresh...")
+
+        import httpx
+
+        # Call the FastAPI crypto-toolbox endpoint with force refresh
+        base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
+        url = f"{base_url}/api/crypto-toolbox?force=true"
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            data = response.json()
+
+        duration_ms = (datetime.now() - start).total_seconds() * 1000
+
+        indicators_count = data.get("total_count", 0)
+        critical_count = data.get("critical_count", 0)
+
+        logger.info(f"✅ [{job_id}] Crypto-toolbox refresh completed in {duration_ms:.0f}ms")
+        logger.info(f"   📊 {indicators_count} indicators scraped ({critical_count} critical)")
+        await _update_job_status(job_id, "success", duration_ms)
+
+    except Exception as e:
+        duration_ms = (datetime.now() - start).total_seconds() * 1000
+        logger.exception(f"❌ [{job_id}] Crypto-toolbox refresh failed")
+        await _update_job_status(job_id, "error", duration_ms, str(e))
+
+
 async def job_weekly_ml_training():
     """
     Entraîne les modèles ML lourds chaque dimanche à 3h du matin.
@@ -444,6 +481,15 @@ async def initialize_scheduler() -> bool:
             IntervalTrigger(minutes=10, jitter=60),
             id="api_warmers",
             name="API Warmers",
+            **job_defaults
+        )
+
+        # Crypto-Toolbox refresh: 2x daily at 08:00 and 20:00
+        _scheduler.add_job(
+            job_crypto_toolbox_refresh,
+            CronTrigger(hour='8,20', minute=0, timezone="Europe/Zurich", jitter=120),
+            id="crypto_toolbox_refresh",
+            name="Crypto-Toolbox Indicators Refresh (2x daily)",
             **job_defaults
         )
 
