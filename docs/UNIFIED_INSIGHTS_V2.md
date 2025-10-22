@@ -7,6 +7,9 @@
 
 `static/core/unified-insights-v2.js` est le module **production** de calcul du Decision Index (DI) et de gestion des poids adaptatifs. Il est utilisé par Analytics Unified et synchronisé avec le Simulateur (`simulation-engine.js`).
 
+> ⚠️ **Note Importante**: Le Decision Index (DI) est **différent** du "Score Décisionnel" (formule canonique 50/30/20).
+> Voir [DECISION_INDEX_V2.md](DECISION_INDEX_V2.md) pour comprendre le système dual et les overrides.
+
 ---
 
 ## Architecture
