@@ -478,17 +478,69 @@ class MLOrchestrator:
         return volatility_predictions
     
     async def _get_sentiment_analysis(self, symbols: List[str]) -> Dict[str, Any]:
-        """Get sentiment analysis for symbols"""
-        # Mock sentiment analysis
-        sentiment_data = {}
-        for symbol in symbols[:5]:
-            sentiment_data[symbol] = {
-                'sentiment_score': 0.6,  # Mock positive sentiment
-                'social_mentions': 150,
-                'news_sentiment': 'bullish',
-                'fear_greed_index': 65
-            }
-        return sentiment_data
+        """Get sentiment analysis for symbols using real SentimentAnalysisEngine"""
+        try:
+            sentiment_engine = self.models['sentiment']
+
+            # Analyze market sentiment using real engine (calls alternative.me, social, news APIs)
+            results = await sentiment_engine.analyze_market_sentiment(symbols[:5], days=7)
+
+            # Map to expected format
+            sentiment_data = {}
+            individual_assets = results.get('individual_assets', {})
+
+            for symbol in symbols[:5]:
+                asset_data = individual_assets.get(symbol, {})
+
+                # Extract sentiment score (range -1 to 1)
+                sentiment_score = asset_data.get('overall_sentiment', 0.0)
+                confidence = asset_data.get('confidence', 0.5)
+
+                # Calculate Fear & Greed Index from sentiment (0-100 scale)
+                fear_greed_index = int(max(0, min(100, 50 + (sentiment_score * 50))))
+
+                sentiment_data[symbol] = {
+                    'sentiment_score': sentiment_score,
+                    'fear_greed_index': fear_greed_index,
+                    'confidence': confidence,
+                    'data_points': asset_data.get('data_points', 0),
+                    'source_breakdown': asset_data.get('source_breakdown', {}),
+                    'social_mentions': asset_data.get('source_breakdown', {}).get('social_media', {}).get('volume', 0),
+                    'news_sentiment': self._classify_sentiment_label(sentiment_score)
+                }
+
+            logger.info(f"Real sentiment analysis completed for {len(sentiment_data)} symbols")
+            return sentiment_data
+
+        except Exception as e:
+            logger.warning(f"Real sentiment analysis failed: {e}, using fallback")
+
+            # Fallback to basic mock if real analysis fails
+            sentiment_data = {}
+            for symbol in symbols[:5]:
+                sentiment_data[symbol] = {
+                    'sentiment_score': 0.0,  # Neutral fallback
+                    'fear_greed_index': 50,  # Neutral fallback
+                    'confidence': 0.3,
+                    'data_points': 0,
+                    'social_mentions': 0,
+                    'news_sentiment': 'neutral',
+                    'error': str(e)
+                }
+            return sentiment_data
+
+    def _classify_sentiment_label(self, sentiment_score: float) -> str:
+        """Convert sentiment score to label"""
+        if sentiment_score >= 0.6:
+            return 'bullish'
+        elif sentiment_score >= 0.2:
+            return 'slightly_bullish'
+        elif sentiment_score >= -0.2:
+            return 'neutral'
+        elif sentiment_score >= -0.6:
+            return 'slightly_bearish'
+        else:
+            return 'bearish'
     
     async def predict_volatility(self, symbol: str, horizon_days: int = 30) -> Dict[str, Any]:
         """
