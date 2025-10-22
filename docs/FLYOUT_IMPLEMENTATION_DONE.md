@@ -209,12 +209,52 @@ import('../selectors/governance.js').then(console.log);
 | Accessibilité | ✅ ARIA complet |
 | Responsive | ✅ Mobile-friendly |
 
+## 📋 Option B: Unified Endpoint (Documented, Not Implemented)
+
+**Strategy**: Create `/api/risk/unified` endpoint that returns complete data structure, eliminating need for frontend calculations and conditional hiding.
+
+**Benefits**:
+- ✅ All sections visible on all pages
+- ✅ Consistent UX everywhere
+- ✅ Single source of truth
+- ✅ Centralized calculation logic
+
+**Trade-offs**:
+- ⚠️ Backend work required (2-3 days dev)
+- ⚠️ More complex endpoint (orchestrates multiple APIs)
+- ⚠️ Migration/rollout effort (1 week)
+
+**Documentation**: `docs/OPTION_B_UNIFIED_RISK_ENDPOINT.md`
+
+**Decision**: Implement Option B if:
+1. Complete data on all pages is critical
+2. Team has bandwidth for backend work
+3. Long-term maintainability > short-term effort
+
+---
+
+## ⚠️ Known Limitations
+
+1. **Partial Data on Non-Dashboard Pages**:
+   - analytics-unified.html and rebalance.html show only 4/10 sections
+   - This is expected and acceptable with current implementation
+   - Fix: Implement Option B to provide complete data
+
+2. **API Endpoint Mismatch**:
+   - `/api/risk/dashboard` returns `risk_metrics`, not `ccs`, `cycle`, `scores`
+   - Frontend calculates these on risk-dashboard.html
+   - Other pages can't replicate calculations without multiple API calls
+   - Fix: Option B unified endpoint
+
+---
+
 ## 🚀 Prochaines étapes
 
 1. **Tests utilisateur** : Valider UX sur les 3 pages
 2. **Documentation** : Mettre à jour `docs/FRONTEND_PAGES.md`
 3. **Mode étendu** (optionnel) : Activer `include-ccs`, `include-onchain`, etc.
 4. **Autres pages** : Ajouter flyout sur `execution.html`, `simulations.html`, etc.
+5. **Considérer Option B** : Si données complètes nécessaires partout
 
 ## 📝 Commits à créer
 
