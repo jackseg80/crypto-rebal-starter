@@ -81,6 +81,18 @@ def _load_from_sources_fallback(user_id: Optional[str] = None, file_key: Optiona
             logger.debug(f"Using Saxo data/ (latest) for user {user_id}: {latest_data}")
             return _parse_saxo_csv(latest_data, "saxo_data", user_id=user_id)
 
+        # 2. Fallback vers anciens dossiers (uploads/snapshots) si data/ vide
+        legacy_patterns = ["saxobank/uploads/*.csv", "saxobank/snapshots/*.csv"]
+        legacy_files = []
+        for pattern in legacy_patterns:
+            legacy_files.extend(user_fs.glob_files(pattern))
+
+        if legacy_files:
+            logger.warning(f"[saxo_adapter] ⚠️ Using legacy folders for user {user_id} ({len(legacy_files)} files). Consider migrating to data/ folder.")
+            latest_legacy = max(legacy_files, key=lambda f: os.path.getmtime(f))
+            logger.info(f"[saxo_adapter] 📂 Loading from legacy: {Path(latest_legacy).name}")
+            return _parse_saxo_csv(latest_legacy, "saxo_legacy", user_id=user_id)
+
         logger.debug(f"No Saxo data found for user {user_id}")
         return None
 

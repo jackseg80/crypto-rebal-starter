@@ -2047,7 +2047,10 @@ window.debugPortfolioData = async function () {
 
     // Test stub source
     try {
-        const stubResponse = await fetch(`${globalConfig.get('api_base_url')}/balances/current?source=stub&_t=${Date.now()}`);
+        const activeUser = localStorage.getItem('activeUser') || 'demo';
+        const stubResponse = await fetch(`${globalConfig.get('api_base_url')}/balances/current?source=stub&_t=${Date.now()}`, {
+            headers: { 'X-User': activeUser }
+        });
         const stubData = await stubResponse.json();
         const stubTotal = stubData.items?.reduce((sum, item) => sum + (item.value_usd || 0), 0) || 0;
         debugLogger.debug('✅ Stub source API response:', {
@@ -2061,7 +2064,10 @@ window.debugPortfolioData = async function () {
 
     // Test cointracking source
     try {
-        const csvResponse = await fetch(`${globalConfig.get('api_base_url')}/balances/current?source=cointracking&_t=${Date.now()}`);
+        const activeUser = localStorage.getItem('activeUser') || 'demo';
+        const csvResponse = await fetch(`${globalConfig.get('api_base_url')}/balances/current?source=cointracking&_t=${Date.now()}`, {
+            headers: { 'X-User': activeUser }
+        });
         const csvData = await csvResponse.json();
         const csvTotal = csvData.items?.reduce((sum, item) => sum + (item.value_usd || 0), 0) || 0;
         debugLogger.debug('✅ CoinTracking source API response:', {
@@ -2499,12 +2505,14 @@ async function refreshGlobalTile() {
         }
 
         // Build API URL with bourse_file_key if available
-        let apiUrl = `${window.location.origin}/api/wealth/global/summary?user_id=${activeUser}&source=${currentSource}&min_usd_threshold=${minThreshold}`;
+        let apiUrl = `${window.location.origin}/api/wealth/global/summary?source=${currentSource}&min_usd_threshold=${minThreshold}`;
         if (bourseFileKey) {
             apiUrl += `&bourse_file_key=${encodeURIComponent(bourseFileKey)}`;
         }
 
-        const response = await fetch(apiUrl);
+        const response = await fetch(apiUrl, {
+            headers: { 'X-User': activeUser }
+        });
 
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
 

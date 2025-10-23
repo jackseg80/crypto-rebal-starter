@@ -302,17 +302,17 @@ async def get_accounts(
 @router.get("/{module}/instruments", response_model=List[InstrumentModel])
 async def get_instruments(
     module: str,
-    user_id: str = Query("demo"),
+    user: str = Depends(get_active_user),
     source: str = Query("auto"),
     file_key: Optional[str] = Query(None, description="Specific file to load (for Saxo)"),
 ) -> List[InstrumentModel]:
     _ensure_module(module)
     if module == "crypto":
-        instruments = await crypto_adapter.list_instruments(user_id=user_id, source=source)
+        instruments = await crypto_adapter.list_instruments(user_id=user, source=source)
     elif module == "saxo":
-        instruments = await saxo_adapter.list_instruments(user_id=user_id, file_key=file_key)
+        instruments = await saxo_adapter.list_instruments(user_id=user, file_key=file_key)
     else:
-        instruments = await banks_adapter.list_instruments(user_id=user_id)
+        instruments = await banks_adapter.list_instruments(user_id=user)
     logger.info("[wealth] served %s instruments for module=%s", len(instruments), module)
     return instruments
 
@@ -320,7 +320,7 @@ async def get_instruments(
 @router.get("/{module}/positions", response_model=List[PositionModel])
 async def get_positions(
     module: str,
-    user_id: str = Query("demo"),
+    user: str = Depends(get_active_user),
     source: str = Query("auto"),
     file_key: Optional[str] = Query(None, description="Specific file to load (for Saxo)"),
     min_usd_threshold: float = Query(1.0, description="Minimum USD value to filter dust assets"),
@@ -328,11 +328,11 @@ async def get_positions(
 ) -> List[PositionModel]:
     _ensure_module(module)
     if module == "crypto":
-        positions = await crypto_adapter.list_positions(user_id=user_id, source=source, min_usd_threshold=min_usd_threshold)
+        positions = await crypto_adapter.list_positions(user_id=user, source=source, min_usd_threshold=min_usd_threshold)
     elif module == "saxo":
-        positions = await saxo_adapter.list_positions(user_id=user_id, file_key=file_key)
+        positions = await saxo_adapter.list_positions(user_id=user, file_key=file_key)
     else:
-        positions = await banks_adapter.list_positions(user_id=user_id)
+        positions = await banks_adapter.list_positions(user_id=user)
     logger.info("[wealth] served %s positions for module=%s asof=%s", len(positions), module, asof or "latest")
     return positions
 
@@ -340,7 +340,7 @@ async def get_positions(
 @router.get("/{module}/transactions", response_model=List[TransactionModel])
 async def get_transactions(
     module: str,
-    user_id: str = Query("demo"),
+    user: str = Depends(get_active_user),
     source: str = Query("auto"),
     file_key: Optional[str] = Query(None, description="Specific file to load (for Saxo)"),
     start: Optional[str] = Query(None, alias="from"),
@@ -348,11 +348,11 @@ async def get_transactions(
 ) -> List[TransactionModel]:
     _ensure_module(module)
     if module == "crypto":
-        transactions = await crypto_adapter.list_transactions(user_id=user_id, source=source, start=start, end=end)
+        transactions = await crypto_adapter.list_transactions(user_id=user, source=source, start=start, end=end)
     elif module == "saxo":
-        transactions = await saxo_adapter.list_transactions(user_id=user_id, file_key=file_key, start=start, end=end)
+        transactions = await saxo_adapter.list_transactions(user_id=user, file_key=file_key, start=start, end=end)
     else:
-        transactions = await banks_adapter.list_transactions(start=start, end=end, user_id=user_id)
+        transactions = await banks_adapter.list_transactions(start=start, end=end, user_id=user)
     logger.info(
         "[wealth] served %s transactions for module=%s window=%s/%s",
         len(transactions),
@@ -368,7 +368,7 @@ async def get_prices(
     module: str,
     ids: List[str] = Query(..., description="Instrument identifiers"),
     granularity: str = Query("daily", regex="^(daily|intraday)$"),
-    user_id: str = Query("demo"),
+    user: str = Depends(get_active_user),
     source: str = Query("auto"),
     file_key: Optional[str] = Query(None, description="Specific file to load (for Saxo)"),
 ) -> List[PricePoint]:
@@ -378,9 +378,9 @@ async def get_prices(
     if module == "crypto":
         prices = await crypto_adapter.get_prices(ids, granularity=granularity)
     elif module == "saxo":
-        prices = await saxo_adapter.get_prices(ids, granularity=granularity, user_id=user_id, file_key=file_key)
+        prices = await saxo_adapter.get_prices(ids, granularity=granularity, user_id=user, file_key=file_key)
     else:
-        prices = await banks_adapter.get_prices(ids, granularity=granularity, user_id=user_id)
+        prices = await banks_adapter.get_prices(ids, granularity=granularity, user_id=user)
     logger.info("[wealth] served %s price points for module=%s", len(prices), module)
     return prices
 
@@ -389,17 +389,17 @@ async def get_prices(
 async def preview_rebalance(
     module: str,
     payload: Optional[dict] = Body(default=None, description="Module-specific preview payload"),
-    user_id: str = Query("demo"),
+    user: str = Depends(get_active_user),
     source: str = Query("auto"),
     file_key: Optional[str] = Query(None, description="Specific file to load (for Saxo)"),
 ) -> List[ProposedTrade]:
     _ensure_module(module)
     if module == "crypto":
-        trades = await crypto_adapter.preview_rebalance(user_id=user_id, source=source)
+        trades = await crypto_adapter.preview_rebalance(user_id=user, source=source)
     elif module == "saxo":
-        trades = await saxo_adapter.preview_rebalance(user_id=user_id, file_key=file_key)
+        trades = await saxo_adapter.preview_rebalance(user_id=user, file_key=file_key)
     else:
-        trades = await banks_adapter.preview_rebalance(user_id=user_id)
+        trades = await banks_adapter.preview_rebalance(user_id=user)
     logger.info(
         "[wealth] rebalance preview module=%s payload_keys=%s returned=%s",
         module,
@@ -411,7 +411,7 @@ async def preview_rebalance(
 
 @router.get("/global/summary")
 async def global_summary(
-    user_id: str = Query("demo", description="User ID for multi-tenant isolation"),
+    user: str = Depends(get_active_user),
     source: str = Query("auto", description="Crypto source resolver"),
     min_usd_threshold: float = Query(1.0, description="Minimum USD value to filter dust assets"),
     bourse_file_key: Optional[str] = Query(None, description="Bourse file key for specific CSV selection")
@@ -422,7 +422,7 @@ async def global_summary(
     Retourne un summary unifié avec total_value_usd et breakdown par module.
 
     Args:
-        user_id: ID utilisateur (isolation multi-tenant)
+        user: ID utilisateur (from authenticated context)
         source: Source resolver pour crypto
         bourse_file_key: Optional file key for specific Bourse CSV selection
 
@@ -430,7 +430,7 @@ async def global_summary(
         Dict avec total_value_usd, breakdown, et metadata
 
     Example:
-        GET /api/wealth/global/summary?user_id=jack&source=auto&bourse_file_key=saxo_25-09-2025.csv
+        GET /api/wealth/global/summary?source=auto&bourse_file_key=saxo_25-09-2025.csv
         {
             "total_value_usd": 556100.0,
             "breakdown": {
@@ -452,44 +452,52 @@ async def global_summary(
 
     # 1) Crypto
     try:
-        if await _module_available("crypto", user_id):
-            crypto_positions = await crypto_adapter.list_positions(user_id=user_id, source=source, min_usd_threshold=min_usd_threshold)
+        logger.info(f"[wealth][global] 🔍 Checking Crypto availability for user={user}")
+        crypto_available = await _module_available("crypto", user)
+        logger.info(f"[wealth][global] 💰 Crypto available: {crypto_available}")
+
+        if crypto_available:
+            logger.info(f"[wealth][global] 📂 Loading Crypto positions with source={source}")
+            crypto_positions = await crypto_adapter.list_positions(user_id=user, source=source, min_usd_threshold=min_usd_threshold)
+            logger.info(f"[wealth][global] 📋 Got {len(crypto_positions)} Crypto positions")
             breakdown["crypto"] = sum((p.market_value or 0.0) for p in crypto_positions)
-            logger.info(f"[wealth][global] crypto={breakdown['crypto']:.2f} USD for user={user_id} (threshold={min_usd_threshold})")
+            logger.info(f"[wealth][global] ✅ crypto={breakdown['crypto']:.2f} USD for user={user} (threshold={min_usd_threshold})")
+        else:
+            logger.warning(f"[wealth][global] ⚠️ Crypto module not available for user={user}")
     except Exception as e:
-        logger.warning(f"[wealth][global] crypto failed for user={user_id}: {e}")
+        logger.error(f"[wealth][global] ❌ crypto failed for user={user}: {e}", exc_info=True)
 
     # 2) Saxo (with file_key support)
     try:
-        logger.info(f"[wealth][global] 🔍 Checking Saxo availability for user={user_id}")
-        saxo_available = await _module_available("saxo", user_id)
+        logger.info(f"[wealth][global] 🔍 Checking Saxo availability for user={user}")
+        saxo_available = await _module_available("saxo", user)
         logger.info(f"[wealth][global] 📊 Saxo available: {saxo_available}")
 
         if saxo_available:
             logger.info(f"[wealth][global] 📂 Loading Saxo positions with file_key={bourse_file_key}")
-            saxo_positions = await saxo_adapter.list_positions(user_id=user_id, file_key=bourse_file_key)
+            saxo_positions = await saxo_adapter.list_positions(user_id=user, file_key=bourse_file_key)
             logger.info(f"[wealth][global] 📋 Got {len(saxo_positions)} Saxo positions")
             breakdown["saxo"] = sum((p.market_value or 0.0) for p in saxo_positions)
-            logger.info(f"[wealth][global] ✅ saxo={breakdown['saxo']:.2f} USD for user={user_id} file_key={bourse_file_key}")
+            logger.info(f"[wealth][global] ✅ saxo={breakdown['saxo']:.2f} USD for user={user} file_key={bourse_file_key}")
         else:
-            logger.warning(f"[wealth][global] ⚠️ Saxo module not available for user={user_id}")
+            logger.warning(f"[wealth][global] ⚠️ Saxo module not available for user={user}")
     except Exception as e:
-        logger.error(f"[wealth][global] ❌ saxo failed for user={user_id}: {e}", exc_info=True)
+        logger.error(f"[wealth][global] ❌ saxo failed for user={user}: {e}", exc_info=True)
 
     # 3) Banks
     try:
-        if await _module_available("banks", user_id):
-            banks_positions = await banks_adapter.list_positions(user_id=user_id)
+        if await _module_available("banks", user):
+            banks_positions = await banks_adapter.list_positions(user_id=user)
             breakdown["banks"] = sum((p.market_value or 0.0) for p in banks_positions)
-            logger.info(f"[wealth][global] banks={breakdown['banks']:.2f} USD for user={user_id}")
+            logger.info(f"[wealth][global] banks={breakdown['banks']:.2f} USD for user={user}")
     except Exception as e:
-        logger.warning(f"[wealth][global] banks failed for user={user_id}: {e}")
+        logger.warning(f"[wealth][global] banks failed for user={user}: {e}")
 
     total_value_usd = sum(breakdown.values())
 
     return {
         "total_value_usd": total_value_usd,
         "breakdown": breakdown,
-        "user_id": user_id,
+        "user_id": user,
         "timestamp": datetime.utcnow().isoformat(),
     }
