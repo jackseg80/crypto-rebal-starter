@@ -4,7 +4,7 @@
 // Cache global synchrone pour les données de taxonomy (chargées une fois au démarrage)
 let taxonomyCache = null;
 let cacheTimestamp = 0;
-const CACHE_TTL = 30 * 1000; // 30 secondes seulement pour debug
+const CACHE_TTL = 60 * 60 * 1000; // 1 hour (optimized: static file, weekly updates)
 
 // Variables globales synchrones pour compatibilité immédiate
 export let UNIFIED_ASSET_GROUPS = {};

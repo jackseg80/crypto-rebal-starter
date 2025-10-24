@@ -20,9 +20,16 @@ let CYCLE_PARAMS = {
   ceil: 100
 };
 
+// Cache pour cycle position (optimisé: données changent lentement)
+let _cyclePositionCache = null;
+let _cyclePositionCacheTimestamp = 0;
+const CYCLE_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours (cycle evolves slowly)
+
 export function getCycleParams() { return { ...CYCLE_PARAMS }; }
-export function setCycleParams(p) { 
-  CYCLE_PARAMS = { ...CYCLE_PARAMS, ...p }; 
+export function setCycleParams(p) {
+  CYCLE_PARAMS = { ...CYCLE_PARAMS, ...p };
+  // Invalidate cache when params change
+  _cyclePositionCache = null; 
   console.debug('🔄 Cycle parameters updated:', CYCLE_PARAMS);
 }
 
@@ -318,8 +325,15 @@ export function calibrateCycleParams(userAnchors) {
 
 /**
  * Estimate cycle position with confidence
+ * Cached for 24h (cycle evolves very slowly)
  */
 export function estimateCyclePosition() {
+  // Check cache
+  const now = Date.now();
+  if (_cyclePositionCache && (now - _cyclePositionCacheTimestamp) < CYCLE_CACHE_TTL) {
+    return _cyclePositionCache;
+  }
+
   const cycleData = getCurrentCycleMonths();
   const phase = getCyclePhase(cycleData.months);
   const score = cycleScoreFromMonths(cycleData.months);
@@ -373,13 +387,19 @@ export function estimateCyclePosition() {
     confidence = 0.3; // conservative fallback
   }
 
-  return {
+  const result = {
     ...cycleData,
     phase,
     score,
     confidence,
     multipliers: cycleMultipliers(cycleData.months)
   };
+
+  // Store in cache
+  _cyclePositionCache = result;
+  _cyclePositionCacheTimestamp = now;
+
+  return result;
 }
 
 /**

@@ -8,7 +8,7 @@ export class VaRCalculator {
         this.confidence_levels = [0.95, 0.99, 0.999];
         this.time_horizons = [1, 7, 30]; // 1 day, 1 week, 1 month
         this.cache = new Map();
-        this.cache_ttl = 5 * 60 * 1000; // 5 minutes
+        this.cache_ttl = 30 * 60 * 1000; // 30 minutes (optimized: based on daily historical data)
     }
 
     /**

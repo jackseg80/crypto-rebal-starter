@@ -21,8 +21,8 @@ _PRICES_FILE = Path("data/prices.json")
 
 _CRYPTO_SYMBOLS = set(Taxonomy.load().aliases.keys())
 
-_TTL_CRYPTO = 60
-_TTL_DEFAULT = 1800
+_TTL_CRYPTO = 180  # 3 minutes (optimized: CoinGecko rate limit + portfolio management needs)
+_TTL_DEFAULT = 1800  # 30 minutes for stocks/other assets
 
 
 def _cache_path(instrument_id: str, granularity: str) -> Path:

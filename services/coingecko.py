@@ -25,8 +25,9 @@ class CoinGeckoService:
         self._categories_cache: Dict[str, str] = {}
         self._coin_metadata_cache: Dict[str, Dict] = {}
         
-        # Timestamps de cache (TTL 5 minutes)
-        self._cache_ttl = timedelta(minutes=5)
+        # Timestamps de cache - Split pour optimisation
+        self._cache_ttl_prices = timedelta(minutes=15)  # Prix/market cap: changes frequently
+        self._cache_ttl_metadata = timedelta(hours=12)  # Categories/taxonomy: rarely changes
         self._symbol_to_id_cached_at: Optional[datetime] = None
         self._categories_cached_at: Optional[datetime] = None
         self._metadata_cached_at: Dict[str, datetime] = {}
@@ -118,8 +119,8 @@ class CoinGeckoService:
         now = datetime.now()
         
         # Vérifier le cache
-        if (self._symbol_to_id_cached_at and 
-            now - self._symbol_to_id_cached_at < self._cache_ttl and 
+        if (self._symbol_to_id_cached_at and
+            now - self._symbol_to_id_cached_at < self._cache_ttl_metadata and
             self._symbol_to_id_cache):
             return self._symbol_to_id_cache
         
@@ -174,8 +175,8 @@ class CoinGeckoService:
         now = datetime.now()
         
         # Vérifier le cache
-        if (self._categories_cached_at and 
-            now - self._categories_cached_at < self._cache_ttl and 
+        if (self._categories_cached_at and
+            now - self._categories_cached_at < self._cache_ttl_metadata and
             self._categories_cache):
             return self._categories_cache
         
@@ -199,8 +200,8 @@ class CoinGeckoService:
         now = datetime.now()
         
         # Vérifier le cache
-        if (coin_id in self._metadata_cached_at and 
-            now - self._metadata_cached_at[coin_id] < self._cache_ttl and 
+        if (coin_id in self._metadata_cached_at and
+            now - self._metadata_cached_at[coin_id] < self._cache_ttl_metadata and
             coin_id in self._coin_metadata_cache):
             return self._coin_metadata_cache[coin_id]
         

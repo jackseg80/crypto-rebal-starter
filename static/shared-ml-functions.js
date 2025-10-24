@@ -243,7 +243,7 @@ export async function loadAllMLStatus() {
 // SOURCE UNIQUE DE VÉRITÉ - Status ML unifié (comme AI Dashboard)
 // Cache pour éviter les appels répétés
 let mlUnifiedCache = { data: null, timestamp: 0 };
-const ML_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+const ML_CACHE_TTL = 15 * 60 * 1000; // 15 minutes (optimized: ML orchestrator runs hourly)
 
 /**
  * Fonction centralisée qui utilise la MÊME logique prioritaire que AI Dashboard

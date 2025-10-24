@@ -8,7 +8,7 @@ import { Taxonomy } from './taxonomy-utils.js';
 export class GroupRiskIndex {
     constructor() {
         this.cache = new Map();
-        this.cache_ttl = 3 * 60 * 1000; // 3 minutes
+        this.cache_ttl = 30 * 60 * 1000; // 30 minutes (optimized: based on portfolio/risk updates)
         this.taxonomy = new Taxonomy();
     }
 

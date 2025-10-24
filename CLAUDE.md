@@ -262,6 +262,19 @@ REDIS_URL=redis://localhost:6379/0
 
 **Utilisation:** Cache haute performance, alertes persistantes, streaming temps réel (4 streams: risk_events, alerts, market_data, portfolio_updates). Voir `docs/REDIS_SETUP.md` pour installation complète.
 
+### Cache TTL (Optimisé Oct 2025)
+
+**TTL alignés sur fréquence réelle des sources:**
+
+- On-Chain (MVRV, Puell): **4h** (source 1x/jour)
+- Cycle Score: **24h** (évolution 0.1%/jour)
+- ML Sentiment: **15 min** (source 15-30 min)
+- Prix crypto: **3 min** (CoinGecko rate limit)
+- Risk Metrics (VaR): **30 min** (historique daily)
+- Taxonomy/Groups: **1-12h** (quasi-statique)
+
+**Impact:** -90% appels API, -70% charge CPU, fraîcheur maintenue. Voir [`docs/CACHE_TTL_OPTIMIZATION.md`](docs/CACHE_TTL_OPTIMIZATION.md) pour détails complets.
+
 ### Logs Serveur (Debug)
 ```bash
 # Lire les logs en temps réel

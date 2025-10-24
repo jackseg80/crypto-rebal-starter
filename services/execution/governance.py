@@ -135,7 +135,7 @@ class Policy(BaseModel):
     slippage_limit_bps: int = Field(default=50, ge=1, le=500, description="Limite slippage [1-500 bps]")
     
     # TTL vs Cooldown separation (critique essentielle)
-    signals_ttl_seconds: int = Field(default=1800, ge=60, le=7200, description="TTL des signaux ML [1min-2h]")
+    signals_ttl_seconds: int = Field(default=3600, ge=60, le=7200, description="TTL des signaux ML [1min-2h] - optimized to 1h")
     plan_cooldown_hours: int = Field(default=24, ge=1, le=168, description="Cooldown publication plans [1-168h]")
     
     # No-trade zone et coûts
@@ -241,7 +241,7 @@ class GovernanceEngine:
         self._last_plan_publication = datetime.min
 
         # Default policy values - will be overridden by derived policy
-        self._signals_ttl_seconds = 1800  # 30 minutes - signaux peuvent être rafraîchis
+        self._signals_ttl_seconds = 3600  # 1 hour - signaux peuvent être rafraîchis (optimized: aligned with ML orchestrator)
         self._plan_cooldown_hours = 24     # 24 heures - nouvelles publications limitées
 
         # Phase 1A: Cap stability variables (hystérésis + smoothing)

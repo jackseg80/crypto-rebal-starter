@@ -258,7 +258,7 @@ const intelligentCache = new IntelligentCache();
 
 // Legacy cache variables (for backward compatibility)
 let indicatorsCache = intelligentCache;
-const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
+const CACHE_DURATION = 4 * 60 * 60 * 1000; // 4 hours (optimized: on-chain data updates daily)
 
 // Plus de cache de simulation - données réelles uniquement
 
