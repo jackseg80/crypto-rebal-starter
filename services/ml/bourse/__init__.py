@@ -7,7 +7,17 @@ Main components:
 - StocksDataSource: yfinance adapter to standard OHLCV format
 """
 
-from .stocks_adapter import StocksMLAdapter
-from .data_sources import StocksDataSource
+# Optional imports (some require torch)
+__all__ = []
 
-__all__ = ['StocksMLAdapter', 'StocksDataSource']
+try:
+    from .stocks_adapter import StocksMLAdapter
+    __all__.append('StocksMLAdapter')
+except ImportError:
+    pass
+
+try:
+    from .data_sources import StocksDataSource
+    __all__.append('StocksDataSource')
+except ImportError:
+    pass
