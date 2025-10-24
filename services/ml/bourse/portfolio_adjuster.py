@@ -134,37 +134,32 @@ class PortfolioAdjuster:
                 ]
 
                 # Handle BUY signals
-                if len(buy_signals) > 1:
+                if len(buy_signals) > 0:
                     # Sort by score (keep best)
                     buy_signals.sort(key=lambda x: x.get("score", 0), reverse=True)
 
-                    # Downgrade all except the best
+                    # Downgrade ALL BUY signals when sector is overweight
+                    # Rationale: Don't add to overweight sector, even for best signal
                     for i, rec in enumerate(buy_signals):
-                        if i == 0:
-                            # Keep best as is
-                            adjusted.append(rec)
-                        else:
-                            # Downgrade others
-                            original_action = rec["action"]
-                            if original_action == "STRONG BUY":
-                                rec["action"] = "BUY"
-                            elif original_action == "BUY":
-                                rec["action"] = "HOLD"
+                        original_action = rec["action"]
 
-                            rec["adjusted"] = True
-                            rec["adjustment_reason"] = "sector_concentration"
-                            rec["original_action"] = original_action
-                            rec["sector_weight"] = sector_weight
+                        # Downgrade based on original action
+                        if original_action == "STRONG BUY":
+                            rec["action"] = "HOLD"  # STRONG BUY → HOLD (not BUY)
+                        elif original_action == "BUY":
+                            rec["action"] = "HOLD"
 
-                            logger.info(
-                                f"Pass 1: {rec.get('symbol')}: Downgraded {original_action} → {rec['action']} "
-                                f"(sector {sector} at {sector_weight*100:.0f}%)"
-                            )
+                        rec["adjusted"] = True
+                        rec["adjustment_reason"] = "sector_concentration"
+                        rec["original_action"] = original_action
+                        rec["sector_weight"] = sector_weight
 
-                            adjusted.append(rec)
-                else:
-                    # Keep all BUY signals (0 or 1)
-                    adjusted.extend(buy_signals)
+                        logger.info(
+                            f"Pass 1: {rec.get('symbol')}: Downgraded {original_action} → {rec['action']} "
+                            f"(sector {sector} at {sector_weight*100:.0f}% > {self.max_sector_pct*100:.0f}%)"
+                        )
+
+                        adjusted.append(rec)
 
                 # Add non-BUY positions as is (will be processed in Pass 2)
                 for rec in recs:
