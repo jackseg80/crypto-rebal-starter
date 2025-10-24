@@ -651,8 +651,11 @@ async def get_portfolio_recommendations(
         # Get user positions from Saxo
         import httpx
         async with httpx.AsyncClient() as client:
-            positions_url = f"http://localhost:8000/api/saxo/positions?user_id={user_id}"
-            pos_response = await client.get(positions_url)
+            positions_url = "http://localhost:8000/api/saxo/positions"
+            pos_response = await client.get(
+                positions_url,
+                headers={"X-User": user_id}
+            )
             pos_response.raise_for_status()
             positions_data = pos_response.json()
             positions = positions_data.get("positions", [])

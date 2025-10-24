@@ -139,15 +139,16 @@ async def recompute_ml_signals(
             # Get previous blended score for audit trail
             blended_old = getattr(signals, 'blended_score', None)
 
-            # Strategic blended: 50% CCS Mixte + 30% On-Chain + 20% (100-Risk)
-            blended = (ccs_mixte * 0.50) + (onchain * 0.30) + ((100.0 - risk) * 0.20)
+            # Strategic blended: 50% CCS Mixte + 30% On-Chain + 20% Risk
+            # Risk Score semantics: 0-100, higher = more robust (no inversion)
+            blended = (ccs_mixte * 0.50) + (onchain * 0.30) + (risk * 0.20)
             blended = max(0.0, min(100.0, blended))
 
             try:
                 setattr(signals, 'blended_score', float(blended))
                 setattr(signals, 'as_of', datetime.now())
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to update blended_score on signals: {e}")
 
             # Phase 2A: Enriched structured audit logging with unique calc_timestamp
             policy = state.execution_policy

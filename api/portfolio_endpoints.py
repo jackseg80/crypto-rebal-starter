@@ -9,11 +9,12 @@ Endpoints:
 - GET /portfolio/alerts - Alertes dérive vs targets
 """
 
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Depends
 from typing import Dict, Any
 import logging
 
 from services.portfolio import PortfolioAnalytics
+from api.deps import get_active_user
 
 # Use BalanceService instead of importing from api.main to avoid circular dependency
 # No TYPE_CHECKING needed anymore since we use the service directly
@@ -52,8 +53,8 @@ def _to_rows(items):
 
 @router.get("/portfolio/metrics")
 async def portfolio_metrics(
+    user: str = Depends(get_active_user),
     source: str = Query("cointracking"),
-    user_id: str = Query("demo"),
     anchor: str = Query("prev_snapshot"),  # "midnight", "prev_snapshot", "prev_close"
     window: str = Query("24h"),  # "24h", "7d", "30d", "ytd"
     min_usd: float = Query(1.0)  # Default 1.0 to match dashboard behavior
@@ -62,8 +63,8 @@ async def portfolio_metrics(
     Métriques calculées du portfolio avec P&L configurable.
 
     Args:
+        user: ID utilisateur (from authenticated context)
         source: Source de données (cointracking, cointracking_api, saxobank, etc.)
-        user_id: ID utilisateur (demo, jack, etc.)
         anchor: Type d'ancre pour P&L ("midnight", "prev_snapshot", "prev_close")
         window: Fenêtre temporelle ("24h", "7d", "30d", "ytd")
         min_usd: Seuil minimal USD (1.0 par défaut pour match dashboard)
@@ -74,7 +75,7 @@ async def portfolio_metrics(
     try:
         # Récupérer les données de balance actuelles avec le même seuil que le dashboard
         resolve_func = _get_resolve_balances()
-        res = await resolve_func(source=source, user_id=user_id, min_usd=min_usd)
+        res = await resolve_func(source=source, user_id=user, min_usd=min_usd)
         rows = _to_rows(res.get("items", []))
         balances = {"source_used": res.get("source_used"), "items": rows}
 
@@ -86,7 +87,7 @@ async def portfolio_metrics(
         metrics = portfolio_analytics.calculate_portfolio_metrics(balances)
         performance = portfolio_analytics.calculate_performance_metrics(
             metrics,
-            user_id=user_id,
+            user_id=user,
             source=source,
             anchor=anchor,
             window=window
@@ -104,23 +105,23 @@ async def portfolio_metrics(
 
 @router.post("/portfolio/snapshot")
 async def save_portfolio_snapshot(
+    user: str = Depends(get_active_user),
     source: str = Query("cointracking"),
-    user_id: str = Query("demo"),
     min_usd: float = Query(1.0)  # Default 1.0 to match dashboard behavior
 ):
     """Sauvegarde un snapshot du portfolio pour suivi historique"""
     try:
         # Récupérer les données actuelles avec le même seuil que le dashboard
         resolve_func = _get_resolve_balances()
-        res = await resolve_func(source=source, user_id=user_id, min_usd=min_usd)
+        res = await resolve_func(source=source, user_id=user, min_usd=min_usd)
         rows = _to_rows(res.get("items", []))
         balances = {"source_used": res.get("source_used"), "items": rows}
 
         # Sauvegarder le snapshot
-        success = portfolio_analytics.save_portfolio_snapshot(balances, user_id=user_id, source=source)
+        success = portfolio_analytics.save_portfolio_snapshot(balances, user_id=user, source=source)
 
         if success:
-            return {"ok": True, "message": f"Snapshot sauvegardé pour user={user_id}, source={source}"}
+            return {"ok": True, "message": f"Snapshot sauvegardé pour user={user}, source={source}"}
         else:
             return {"ok": False, "error": "Erreur lors de la sauvegarde"}
     except Exception as e:
@@ -141,16 +142,16 @@ async def portfolio_trend(days: int = Query(30, ge=1, le=365)):
 
 @router.get("/portfolio/alerts")
 async def get_portfolio_alerts(
+    user: str = Depends(get_active_user),
     source: str = Query("cointracking"),
-    user_id: str = Query("demo"),
     drift_threshold: float = Query(10.0)
 ):
     """
     Calcule les alertes de dérive du portfolio par rapport aux targets.
 
     Args:
+        user: ID utilisateur (from authenticated context)
         source: Source de données (cointracking, cointracking_api, etc.)
-        user_id: ID utilisateur (demo, jack, etc.)
         drift_threshold: Seuil de dérive en % pour déclencher alerte (défaut: 10%)
 
     Returns:
@@ -159,7 +160,7 @@ async def get_portfolio_alerts(
     try:
         # Récupérer les données de portfolio
         resolve_func = _get_resolve_balances()
-        res = await resolve_func(source=source, user_id=user_id)
+        res = await resolve_func(source=source, user_id=user)
         rows = _to_rows(res.get("items", []))
         balances = {"source_used": res.get("source_used"), "items": rows}
 
