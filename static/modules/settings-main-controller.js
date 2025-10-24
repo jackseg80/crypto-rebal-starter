@@ -787,13 +787,12 @@ async function testDataSource() {
   testDiv.innerHTML = '<div class="test-result">🧪 Test en cours...</div>';
 
   try {
-    const globalSettings = window.userSettings || getDefaultSettings();
-    const response = await fetch(`${globalSettings.api_base_url}/balances/current?source=${globalSettings.data_source}`, {
-      headers: { 'X-User': getActiveUser() }
-    });
-    const data = await response.json();
+    const balanceResult = await window.loadBalanceData(true);
+    const data = balanceResult.csvText
+      ? { items: parseCSVBalancesAuto(balanceResult.csvText), source_used: 'CSV' }
+      : (balanceResult.data || { items: [] });
 
-    if (response.ok && data.items && data.items.length > 0) {
+    if (data.items && data.items.length > 0) {
       testDiv.innerHTML = `
     <div class="test-result" style="color: var(--pos);">
       ✅ <strong>Succès</strong><br>
@@ -1202,8 +1201,10 @@ async function runFullSystemTest() {
 
   // Test source de données
   try {
-    const balanceResponse = await fetch(`${globalSettings.api_base_url}/balances/current?source=${globalSettings.data_source}`, { headers: { 'X-User': getActiveUser() } });
-    const balanceData = await balanceResponse.json();
+    const balanceResult = await window.loadBalanceData(true);
+    const balanceData = balanceResult.csvText
+      ? { items: parseCSVBalancesAuto(balanceResult.csvText) }
+      : (balanceResult.data || { items: [] });
     results.push(`📊 Balances: ${balanceData.items?.length > 0 ? '✅ OK (' + balanceData.items.length + ' assets)' : '❌ Vide'}`);
   } catch (e) {
     results.push(`📊 Balances: ❌ ${e.message}`);

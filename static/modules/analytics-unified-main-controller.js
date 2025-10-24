@@ -353,7 +353,7 @@ async function renderUnifiedInsights(containerId = 'unified-root') {
 
     // Créer conteneur pour le Decision Index Panel (inclut maintenant les tuiles)
     const existingContent = el.innerHTML;
-    el.innerHTML = `<div id="new-di-panel" style="margin-bottom: 1rem;"></div>${existingContent}`;
+    el.innerHTML = `<div id="new-di-panel"></div>${existingContent}`;
 
     const newPanelEl = document.getElementById('new-di-panel');
     if (newPanelEl) {

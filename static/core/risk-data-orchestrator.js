@@ -66,7 +66,13 @@ export async function hydrateRiskStore() {
           return null;
         }
         const riskData = await window.globalConfig.apiRequest('/api/risk/dashboard', {
-          params: { min_usd: 1.0, price_history_days: 365, lookback_days: 90 }
+          params: {
+            min_usd: 1.0,
+            price_history_days: 365,
+            lookback_days: 90,
+            use_dual_window: true,  // Cohérent avec risk-dashboard-main-controller.js
+            risk_version: 'v2_active'
+          }
         });
         return riskData;
       } catch (err) {
@@ -254,8 +260,8 @@ export async function hydrateRiskStore() {
         ...(currentState.scores || {}),
         onchain: onchainScore,
         blended: blendedScore,
-        // Risk score calculé depuis API /api/risk/dashboard
-        risk: riskScore ?? currentState.scores?.risk
+        // Risk score calculé depuis API /api/risk/dashboard (TOUJOURS utiliser API si disponible)
+        risk: riskScore !== null ? riskScore : (currentState.scores?.risk ?? null)
       },
 
       // Governance (pour compatibilité avec risk-sidebar-full.js)

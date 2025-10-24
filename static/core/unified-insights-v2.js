@@ -14,7 +14,8 @@ import { calculateAdaptiveWeights as calculateAdaptiveWeightsV2 } from '../gover
 // Lightweight helpers (conservés pour compatibilité)
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
 const pct = (x) => Math.round(clamp01(x) * 100);
-const colorForScore = (s) => s > 70 ? 'var(--danger)' : s >= 40 ? 'var(--warning)' : 'var(--success)';
+// Risk Score semantics: 0-100, higher = more robust → GREEN
+const colorForScore = (s) => s > 70 ? 'var(--success)' : s >= 40 ? 'var(--warning)' : 'var(--danger)';
 
 /**
  * 🆕 STRUCTURE MODULATION V2 (Oct 2025)

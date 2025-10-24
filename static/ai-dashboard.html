@@ -1455,8 +1455,10 @@
                 const config = await fetchUserConfig();
 
                 // Récupérer balances actuelles pour contextualiser
-                const balanceResponse = await fetch(`${config.api_base_url}/balances/current?source=${config.data_source}`);
-                const balanceData = await balanceResponse.json();
+                const balanceResult = await window.loadBalanceData(true);
+                const balanceData = balanceResult.csvText
+                    ? { items: parseCSVBalancesAuto(balanceResult.csvText) }
+                    : (balanceResult.data || { items: [] });
 
                 // Récupérer métriques ML basées sur données historiques
                 const mlResponse = await fetch(`${config.api_base_url}/api/ml/portfolio-metrics`);
@@ -1495,8 +1497,10 @@
         async function fetchCSVData() {
             try {
                 const config = await fetchUserConfig();
-                const balanceResponse = await fetch(`${config.api_base_url}/balances/current?source=cointracking`);
-                const balanceData = await balanceResponse.json();
+                const balanceResult = await window.loadBalanceData(true);
+                const balanceData = balanceResult.csvText
+                    ? { items: parseCSVBalancesAuto(balanceResult.csvText) }
+                    : (balanceResult.data || { items: [] });
 
                 if (balanceData.items && balanceData.items.length > 0) {
                     return {

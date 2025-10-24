@@ -1069,7 +1069,9 @@ class WealthContextBar {
       // ✅ Utilise window.loadBalanceData() au lieu de fetch direct (règle CLAUDE.md)
       const [riskData, balancesData] = await Promise.allSettled([
         fetch('/api/risk/dashboard').then(r => r.json()),
-        window.loadBalanceData ? window.loadBalanceData(false) : fetch('/balances/current').then(r => r.json())
+        window.loadBalanceData ? window.loadBalanceData(false) : fetch('/balances/current', {
+          headers: { 'X-User': this.context.activeUser }
+        }).then(r => r.json())
       ]);
 
       // Extract successful responses

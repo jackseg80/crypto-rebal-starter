@@ -7,9 +7,10 @@
   <title>Analytics Unifiés - Crypto Rebalancer</title>
   <link rel="stylesheet" href="shared-theme.css">
   <link rel="stylesheet" href="theme-compat.css">
-  <link rel="stylesheet" href="analytics-unified-theme.css?v=20251015fixed">
   <link rel="stylesheet" href="components/governance-panel.css">
   <link rel="stylesheet" href="components/decision-index-panel.css?v=20251015fixed">
+  <!-- IMPORTANT: analytics-unified-theme.css EN DERNIER pour surcharger le DI Panel -->
+  <link rel="stylesheet" href="analytics-unified-theme.css?v=20251022v7">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
@@ -70,7 +71,7 @@
   <script type="module" src="modules/onchain-indicators.js"></script>
   <script type="module" src="modules/market-regimes.js"></script>
   <script type="module" src="modules/targets-coordinator.js"></script>
-  <script type="module" src="core/risk-data-orchestrator.js"></script>
+  <script type="module" src="core/risk-data-orchestrator.js?v=20251022fix"></script>
 </head>
 
 <body>
@@ -82,9 +83,9 @@
     <!-- Governance Panel -->
     <div id="governance-container"></div>
 
-
     <div id="unified-root"></div>
-    <div style="height: 1rem;"></div>
+
+    <!-- Tabs connectés directement aux panels -->
     <div class="tabs" id="analytics-tabs">
       <button class="tab-btn active" data-target="#tab-risk">Risk</button>
       <button class="tab-btn" data-target="#tab-performance">Performance</button>
@@ -93,13 +94,12 @@
       <button class="tab-btn" data-target="#tab-intelligence-ml">🤖 Intelligence ML</button>
       <button class="btn-refresh" id="manual-refresh-onchain" title="Forcer le rafraîchissement des indicateurs on-chain">🔄 Actualiser</button>
     </div>
-  </div>
 
-  <section class="wrap tab-panel active" id="tab-risk">
+    <!-- Tab Panels -->
+    <section class="tab-panel active" id="tab-risk">
     <div class="panel-card">
-      <h3 style="margin-bottom: 1rem;">🛡️ Risk Dashboard</h3>
-      <div
-        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
+      <h3>🛡️ Risk Dashboard</h3>
+      <div class="metrics-grid-250">
         <div class="metric-card" data-metric="risk-var">
           <h4>VaR Portfolio</h4>
           <div class="metric-value" id="risk-var-value">--</div>
@@ -122,8 +122,7 @@
         </div>
       </div>
       <!-- Scores clés du Risk Dashboard (version complète) -->
-      <div
-        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-top: 1rem;">
+      <div class="metrics-grid-220">
         <div class="metric-card" data-metric="risk-kpi-diversification">
           <h4>Diversification Ratio</h4>
           <div class="metric-value">--</div>
@@ -145,29 +144,28 @@
           <small>Fondamentaux on-chain</small>
         </div>
       </div>
-      <div style="margin-top: 2rem; padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-md);">
+      <div class="info-section">
         <h4>Alertes Risque</h4>
-        <div style="color: var(--theme-text-muted);">• Concentration du portefeuille dans les limites acceptables</div>
-        <div style="color: var(--theme-text-muted);">• Risque de corrélation modéré pour les conditions actuelles</div>
-        <div style="color: var(--theme-text-muted);">• Aucune alerte d'exposition significative</div>
+        <div class="info-section-content">
+          <div class="info-list-item">• Concentration du portefeuille dans les limites acceptables</div>
+          <div class="info-list-item">• Risque de corrélation modéré pour les conditions actuelles</div>
+          <div class="info-list-item">• Aucune alerte d'exposition significative</div>
+        </div>
       </div>
-      <div style="text-align: center; margin-top: 1.5rem; display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
-        <a href="risk-dashboard.html?nav=off" target="_blank"
-          style="display: inline-block; background: var(--brand-primary); color: white; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); text-decoration: none; font-weight: 600;">
+      <div class="actions-row">
+        <a href="risk-dashboard.html?nav=off" target="_blank" class="action-link">
           📊 Version complète du Risk Dashboard
         </a>
-        <a href="simulations.html?nav=off" target="_blank"
-          style="display: inline-block; background: var(--success); color: white; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); text-decoration: none; font-weight: 600;">
+        <a href="simulations.html?nav=off" target="_blank" class="action-link action-link--success">
           🧪 Simulateur Pipeline Complet
         </a>
       </div>
-    </div>
-  </section>
-  <section class="wrap tab-panel" id="tab-performance">
+      </div>
+    </section>
+    <section class="tab-panel" id="tab-performance">
     <div class="panel-card">
-      <h3 style="margin-bottom: 1rem;">📊 Performance Monitor</h3>
-      <div
-        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
+      <h3>📊 Performance Monitor</h3>
+      <div class="metrics-grid-250">
         <div class="metric-card" data-metric="perf-cache-size">
           <h4>Taille Cache Mémoire</h4>
           <div class="metric-value">--</div>
@@ -189,30 +187,25 @@
           <small>Mémoire système</small>
         </div>
       </div>
-      <div style="margin-top: 2rem; padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-md);">
+      <div class="info-section">
         <h4>Performance Système</h4>
-        <div style="display: grid; gap: 0.5rem;">
-          <div style="display: flex; justify-content: space-between;"><span>Taux de réussite cache:</span><span
-              style="color: var(--success);">--%</span></div>
-          <div style="display: flex; justify-content: space-between;"><span>Mémoire disponible:</span><span>-- GB</span>
-          </div>
-          <div style="display: flex; justify-content: space-between;"><span>Efficacité processus:</span><span>--</span>
-          </div>
+        <div class="info-section-content">
+          <div class="info-item"><span>Taux de réussite cache:</span><span class="text-positive">--%</span></div>
+          <div class="info-item"><span>Mémoire disponible:</span><span>-- GB</span></div>
+          <div class="info-item"><span>Efficacité processus:</span><span>--</span></div>
         </div>
       </div>
-      <div style="text-align: center; margin-top: 1.5rem;">
-        <a href="performance-monitor-unified.html" target="_blank"
-          style="display: inline-block; background: var(--brand-primary); color: white; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); text-decoration: none; font-weight: 600;">
+      <div class="actions-row">
+        <a href="performance-monitor-unified.html" target="_blank" class="action-link">
           📈 Performance Monitor Unifié (Nouveau)
         </a>
       </div>
-    </div>
-  </section>
-  <section class="wrap tab-panel" id="tab-cycles">
+      </div>
+    </section>
+    <section class="tab-panel" id="tab-cycles">
     <div class="panel-card">
       <h3>🔄 Cycle Analysis</h3>
-      <div
-        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
+      <div class="metrics-grid-250">
         <div class="metric-card" data-metric="cycle-phase">
           <h4>Phase Actuelle</h4>
           <div class="metric-value">--</div>
@@ -234,13 +227,11 @@
           <small>Certitude du modèle</small>
         </div>
       </div>
-      <div style="margin-top: 2rem; padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-md);">
+      <div class="info-section">
         <h4>Market Cycle Indicators</h4>
-        <div style="display: grid; gap: 0.5rem; color: var(--theme-text-muted); font-style: italic;">
-          <div style="text-align: center; padding: 2rem;">
-            📊 Indicateurs disponibles via l'API ML<br>
-            <small>Fear & Greed, RSI, MVRV Ratio</small>
-          </div>
+        <div class="info-section-content" style="text-align: center; padding: 1rem;">
+          📊 Indicateurs disponibles via l'API ML<br>
+          <small class="text-subtle">Fear & Greed, RSI, MVRV Ratio</small>
           <!-- TODO: Connecter aux endpoints ML réels:
                - Fear & Greed: /api/ml/sentiment/fear-greed
                - RSI: À implémenter via technical indicators
@@ -248,19 +239,17 @@
           -->
         </div>
       </div>
-      <div style="text-align: center; margin-top: 1.5rem;">
-        <a href="cycle-analysis.html?nav=off" target="_blank"
-          style="display: inline-block; background: var(--brand-primary); color: white; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); text-decoration: none; font-weight: 600;">
+      <div class="actions-row">
+        <a href="cycle-analysis.html?nav=off" target="_blank" class="action-link">
           🔄 Version complète du Cycle Analysis
         </a>
       </div>
-    </div>
-  </section>
-  <section class="wrap tab-panel" id="tab-monitoring">
+      </div>
+    </section>
+    <section class="tab-panel" id="tab-monitoring">
     <div class="panel-card">
       <h3>📈 Advanced Analytics</h3>
-      <div
-        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
+      <div class="metrics-grid-250">
         <div class="metric-card" data-metric="monitor-total-return">
           <h4>Rendement Total</h4>
           <div class="metric-value">--%</div>
@@ -282,31 +271,30 @@
           <small>Pire baisse</small>
         </div>
       </div>
-      <div style="margin-top: 2rem; padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-md);">
+      <div class="info-section">
         <h4>Métriques Avancées</h4>
-        <div id="advanced-metrics-breakdown" style="display: grid; gap: 0.5rem;"></div>
+        <div id="advanced-metrics-breakdown" class="info-section-content"></div>
       </div>
-      <div style="text-align: center; margin-top: 1.5rem;">
-        <a href="performance-monitor-unified.html" target="_blank"
-          style="display: inline-block; background: var(--brand-primary); color: white; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); text-decoration: none; font-weight: 600;">
+      <div class="actions-row">
+        <a href="performance-monitor-unified.html" target="_blank" class="action-link">
           📊 Performance Monitor Unifié
         </a>
       </div>
-    </div>
-  </section>
+      </div>
+    </section>
 
-  <!-- Intelligence ML Tab Panel -->
-  <section class="wrap tab-panel" id="tab-intelligence-ml">
+    <!-- Intelligence ML Tab Panel -->
+    <section class="tab-panel" id="tab-intelligence-ml">
     <div class="panel-card">
-      <h3 style="margin-bottom: 1rem;">🤖 Intelligence ML - Vue Analyse Complète</h3>
-      <p style="color: var(--theme-text-muted); margin-bottom: 2rem;">
+      <h3>🤖 Intelligence ML - Vue Analyse Complète</h3>
+      <p>
         Analyse détaillée des modèles ML, prédictions temps réel et administration avancée
       </p>
 
       <!-- Stats ML Globales -->
-      <div class="ml-stats-section" style="margin-bottom: 2rem;">
-        <h4 style="margin-bottom: 1rem;">📊 Statistiques ML Globales</h4>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+      <div class="ml-stats-section">
+        <h4>📊 Statistiques ML Globales</h4>
+        <div class="metrics-grid-200">
           <div class="metric-card">
             <h5>Modèles Actifs</h5>
             <div class="metric-value" id="ml-active-models">--/4</div>
@@ -326,9 +314,9 @@
       </div>
 
       <!-- Vue Modèles Détaillée -->
-      <div class="ml-models-section" style="margin-bottom: 2rem;">
-        <h4 style="margin-bottom: 1rem;">🧠 Santé des Modèles</h4>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+      <div class="ml-models-section">
+        <h4>🧠 Santé des Modèles</h4>
+        <div class="metrics-grid-250">
           <div class="metric-card">
             <h5>🌊 Volatility LSTM</h5>
             <div class="metric-value" id="ml-vol-model-status">⚪ Unknown</div>
@@ -353,11 +341,10 @@
       </div>
 
       <!-- Prédictions Temps Réel -->
-      <div class="ml-predictions-section" style="margin-bottom: 2rem;">
-        <h4 style="margin-bottom: 1rem;">🔮 Prédictions Temps Réel</h4>
-        <div id="ml-predictions-container" style="display: grid; gap: 1rem;">
-          <div class="prediction-grid"
-            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+      <div class="ml-predictions-section">
+        <h4>🔮 Prédictions Temps Réel</h4>
+        <div id="ml-predictions-container">
+          <div class="prediction-grid metrics-grid-250">
             <!-- Volatilité -->
             <div class="metric-card" data-metric="ml-volatility-btc">
               <h5>BTC Volatilité 24h</h5>
@@ -386,17 +373,15 @@
       </div>
 
       <!-- Administration ML (repliable, RBAC protected) -->
-      <details class="ml-admin-section" style="margin-bottom: 2rem;">
-        <summary
-          style="cursor: pointer; padding: 0.75rem; background: var(--theme-surface-elevated); border-radius: var(--radius-sm); font-weight: 600;">
+      <details class="ml-admin-section">
+        <summary class="ml-admin-summary">
           🔧 Administration ML (Admin Only)
         </summary>
-        <div
-          style="padding: 1rem; border: 1px solid var(--theme-border); border-top: none; border-radius: 0 0 var(--radius-sm) var(--radius-sm);">
+        <div class="ml-admin-content">
           <div id="ml-admin-ops-container"></div>
 
           <!-- Actions Admin -->
-          <div class="admin-actions" style="display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap;">
+          <div class="admin-actions">
             <button class="btn secondary" id="btn-retrain">
               🔄 Retrain Models
             </button>
@@ -412,10 +397,9 @@
           </div>
 
           <!-- ML Pipeline Status -->
-          <div class="ml-pipeline-status" style="margin-top: 1.5rem;">
-            <h5 style="margin-bottom: 0.75rem;">Pipeline Status</h5>
-            <div id="ml-pipeline-container"
-              style="font-family: monospace; background: var(--theme-bg); padding: 1rem; border-radius: var(--radius-sm); font-size: 0.85rem;">
+          <div class="ml-pipeline-status">
+            <h5>Pipeline Status</h5>
+            <div id="ml-pipeline-container">
               Loading pipeline status...
             </div>
           </div>
@@ -423,15 +407,16 @@
       </details>
 
       <!-- Lien vers Command Center -->
-      <div style="text-align: center; margin-top: 2rem;">
-        <a href="ai-dashboard.html" target="_blank"
-          style="display: inline-block; background: var(--brand-primary); color: white; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); text-decoration: none; font-weight: 600;">
+      <div class="actions-row">
+        <a href="ai-dashboard.html" target="_blank" class="action-link">
           🤖 Ouvrir ML Command Center (Vue Ops)
         </a>
       </div>
 
-    </div>
-  </section>
+      </div>
+    </section>
+
+  </div><!-- Fin du wrap principal -->
 
   <script type="module" src="modules/analytics-unified-tabs-controller.js"></script>
 
