@@ -63,44 +63,45 @@ if (-not (Test-Path ".venv\Scripts\python.exe")) {
 # Check and start Redis
 Write-Host "🔍 Checking Redis..." -ForegroundColor Cyan
 
+# Try localhost first
 $redisRunning = Test-NetConnection -ComputerName localhost -Port 6379 -InformationLevel Quiet -WarningAction SilentlyContinue
+$redisHost = "localhost"
 
 if ($redisRunning) {
-    Write-Host "✅ Redis is running" -ForegroundColor Green
+    Write-Host "✅ Redis is running on localhost" -ForegroundColor Green
 } else {
-    Write-Host "⚠️  Redis not detected, attempting to start..." -ForegroundColor Yellow
-
-    # Try to start Redis via WSL2
+    # Try WSL2 Redis
     try {
-        $wslCheck = wsl --status 2>$null
+        wsl --status 2>$null | Out-Null
         if ($LASTEXITCODE -eq 0) {
             Write-Host "   Starting Redis via WSL2..." -ForegroundColor Gray
 
             # Auto-provide sudo password for WSL2
             $wslPassword = "Hgbdhgbd1"
-            echo $wslPassword | wsl -d Ubuntu bash -c "sudo -S service redis-server start" 2>$null
+            Write-Output $wslPassword | wsl -d Ubuntu bash -c "sudo -S service redis-server start" 2>$null
 
-            # Retry logic: wait up to 2 seconds for Redis to start (optimized)
-            $retries = 0
-            $maxRetries = 4
-            while (-not $redisRunning -and $retries -lt $maxRetries) {
+            # Get WSL2 IP address
+            $wslIP = wsl -d Ubuntu hostname -I 2>$null | ForEach-Object { $_.Trim().Split()[0] }
+
+            if ($wslIP) {
+                Write-Host "   WSL2 IP: $wslIP" -ForegroundColor Gray
+
+                # Wait for Redis to start and test WSL2 IP
                 Start-Sleep -Milliseconds 500
-                $redisRunning = Test-NetConnection -ComputerName localhost -Port 6379 -InformationLevel Quiet -WarningAction SilentlyContinue
-                $retries++
-                if (-not $redisRunning -and $retries -lt $maxRetries) {
-                    Write-Host "   Waiting for Redis... ($retries/$maxRetries)" -ForegroundColor Gray
-                }
-            }
+                $redisRunning = Test-NetConnection -ComputerName $wslIP -Port 6379 -InformationLevel Quiet -WarningAction SilentlyContinue
 
-            if ($redisRunning) {
-                Write-Host "✅ Redis started successfully" -ForegroundColor Green
-            } else {
-                Write-Host "⚠️  Redis not available - server will run in degraded mode" -ForegroundColor Yellow
-                Write-Host "   See docs/REDIS_SETUP.md for installation" -ForegroundColor Gray
+                if ($redisRunning) {
+                    Write-Host "✅ Redis started on WSL2" -ForegroundColor Green
+                    $redisHost = $wslIP
+                    # Override REDIS_URL to use WSL2 IP
+                    $env:REDIS_URL = "redis://${wslIP}:6379/0"
+                    Write-Host "   Using REDIS_URL=$env:REDIS_URL" -ForegroundColor Gray
+                } else {
+                    Write-Host "⚠️  Redis not accessible - server will run in degraded mode" -ForegroundColor Yellow
+                }
             }
         } else {
             Write-Host "⚠️  WSL2 not available - Redis not started" -ForegroundColor Yellow
-            Write-Host "   Server will run in degraded mode (memory-only alerts)" -ForegroundColor Gray
         }
     } catch {
         Write-Host "⚠️  Could not start Redis - continuing without it" -ForegroundColor Yellow
