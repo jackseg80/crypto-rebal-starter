@@ -69,7 +69,7 @@ class RecommendationsOrchestrator:
             technical = TechnicalIndicators(market_regime=market_regime)
             scoring = ScoringEngine(timeframe=timeframe)
             decision = DecisionEngine(market_regime=market_regime)
-            targets = PriceTargets(timeframe=timeframe)
+            targets = PriceTargets(timeframe=timeframe, market_regime=market_regime)
             adjuster = PortfolioAdjuster()
 
             # Get benchmark data
@@ -243,7 +243,8 @@ class RecommendationsOrchestrator:
             current_price=hist_data['close'].iloc[-1],
             action=decision_result['action'],
             support_resistance=sr_levels,
-            volatility=volatility
+            volatility=volatility,
+            price_data=hist_data  # Pass historical data for advanced stop loss calculation
         )
 
         # Calculate position sizing

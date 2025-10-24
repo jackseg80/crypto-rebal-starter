@@ -200,9 +200,22 @@ body {
 }
 
 .wrap {
-  max-width: 98vw;
+  width: 100%;
+  max-width: none;  /* Full responsive */
   margin: 0 auto;
-  padding: var(--space-lg);
+  padding: var(--space-lg) var(--space-xl);
+}
+
+@media (min-width: 2000px) {
+  .wrap {
+    padding: var(--space-lg) calc(var(--space-xl) * 2);  /* Plus d'espace sur très grands écrans */
+  }
+}
+
+@media (max-width: 768px) {
+  .wrap {
+    padding: var(--space-md);
+  }
 }
 
 /* Grid système */
@@ -231,12 +244,29 @@ body {
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
 }
 
-@media (max-width: 768px) {
+/* Responsive breakpoints améliorés */
+@media (max-width: 1400px) {
+  .grid-4 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
 
+@media (max-width: 1024px) {
+  .grid-3,
+  .grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
   .grid-2,
   .grid-3,
   .grid-4 {
     grid-template-columns: 1fr;
+  }
+
+  .grid {
+    gap: var(--space-md);
   }
 }
 

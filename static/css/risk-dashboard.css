@@ -1,12 +1,18 @@
 /* ===== Risk Dashboard Styles ===== */
 /* Extracted from risk-dashboard.html for better maintainability */
 
-/* ===== Container responsive ===== */
+/* ===== Container responsive (Full Width) ===== */
 .container {
   width: 100%;
-  max-width: 95vw;
+  max-width: none;  /* Full responsive, pas de limite */
   margin: 0 auto;
   padding: 0 var(--space-lg);
+}
+
+@media (min-width: 2000px) {
+  .container {
+    padding: 0 calc(var(--space-lg) * 2);  /* Plus d'espace sur très grands écrans */
+  }
 }
 
 @media (max-width: 768px) {

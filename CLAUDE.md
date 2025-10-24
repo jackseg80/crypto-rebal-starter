@@ -29,8 +29,8 @@ const balanceResult = await window.loadBalanceData(true);
 
 ### 2. Risk Score = Positif (0-100)
 - **Convention:** Plus haut = plus robuste
-- **DI Formula:** `DI = wCycle·scoreCycle + wOnchain·scoreOnchain + wRisk·scoreRisk`
 - **❌ INTERDIT:** Ne jamais inverser avec `100 - scoreRisk`
+- **⚠️ ATTENTION:** Le Decision Index N'EST PAS une somme pondérée (voir règle #3)
 
 ### 3. Système Dual de Scoring ⚠️
 **Deux systèmes parallèles avec objectifs différents:**
@@ -63,7 +63,15 @@ const balanceResult = await window.loadBalanceData(true);
 - Contradiction >50% → Pénalise On-Chain/Risk (×0.9)
 - Structure Score <50 → +10 pts stables
 
-### 4. Autres Règles
+### 4. Design & Responsive
+
+- **Full responsive** : Toutes les pages principales utilisent `max-width: none`
+- **Adaptive padding** : Plus d'espace sur grands écrans (2000px+)
+- **Grid auto-fit** : `repeat(auto-fit, minmax(300px, 1fr))` pour adaptation automatique
+- **Breakpoints cohérents** : 768px (mobile), 1024px (tablet), 1400px (desktop), 2000px (XL)
+- **Pas de largeur fixe** : Éviter `max-width: 1200px` ou similaires
+
+### 5. Autres Règles
 - Ne jamais committer `.env` ou clés
 - Pas d'URL API en dur → `static/global-config.js`
 - Modifications minimales, pas de refonte sans demande
@@ -327,6 +335,97 @@ Select-String -Path "logs\app.log" -Pattern "ERROR|WARNING" | Select-Object -Las
 
 **Note:** Panneau "Phase Engine Beta" supprimé - système autonome
 
+### Allocation Engine V2 - Topdown Hierarchical (Oct 2025)
+**Architecture à 3 niveaux** ([allocation-engine.js](static/core/allocation-engine.js)):
+
+**Niveau 1 - MACRO**: BTC, ETH, Stablecoins, Alts (total)
+**Niveau 2 - SECTEURS**: SOL, L1/L0, L2/Scaling, DeFi, Memecoins, Gaming/NFT, AI/Data, Others
+**Niveau 3 - COINS**: Assets individuels avec incumbency protection
+
+**Mécanismes clés:**
+
+#### Floors Contextuels
+```javascript
+// Floors de BASE (toujours)
+BTC: 15%, ETH: 12%, Stablecoins: 10%, SOL: 3%
+
+// Floors BULLISH (Cycle ≥ 90)
+SOL: 3% → 6%, L2/Scaling: 3% → 6%, DeFi: 4% → 8%, Memecoins: 2% → 5%
+```
+
+#### Incumbency Protection
+**Aucun asset détenu ne peut descendre sous 3%** → Évite liquidations forcées d'assets existants
+
+#### Renormalisation Proportionnelle
+```javascript
+// Préserve stables EXACTEMENT, redistribue risky pool proportionnellement
+nonStablesSpace = 1 - stablesTarget  // Ex: 75%
+btcTarget = (baseBtcRatio / baseTotal) × nonStablesSpace
+ethTarget = (baseEthRatio / baseTotal) × nonStablesSpace
+```
+
+### Stop Loss Intelligent - Multi-Method (Oct 2025)
+
+**4 méthodes de calcul adaptatives** ([stop_loss_calculator.py](services/ml/bourse/stop_loss_calculator.py)):
+
+**Méthodes :**
+
+1. **ATR 2x** (Recommandé) - S'adapte à la volatilité, multiplier selon régime marché (1.5x-2.5x)
+2. **Technical Support** - Basé sur MA20/MA50
+3. **Volatility 2σ** - 2 écarts-types statistiques
+4. **Fixed %** - Pourcentage fixe (legacy fallback)
+
+**Frontend** ([saxo-dashboard.html](static/saxo-dashboard.html)):
+
+- Tableau comparatif des 4 méthodes dans modal de recommendation
+- Badge R/R avec icônes (✅ ≥2.0, ⚠️ ≥1.5, ❌ <1.5)
+- Alerte automatique si R/R < 1.5 (trade non recommandé)
+- Colonne R/R triable dans tableau principal (tri par défaut)
+- Calcul du risque en € pour chaque méthode
+
+**Détails complets :** [`docs/STOP_LOSS_SYSTEM.md`](docs/STOP_LOSS_SYSTEM.md)
+
+### Governance - Freeze Semantics (Oct 2025)
+**3 types de freeze avec opérations granulaires** ([governance.py](services/execution/governance.py)):
+
+| Type | Achats | Ventes→Stables | Rotations Assets | Hedge | Réductions Risque |
+|------|--------|----------------|------------------|-------|-------------------|
+| **full_freeze** | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **s3_alert_freeze** | ❌ | ✅ | ❌ | ✅ | ✅ |
+| **error_freeze** | ❌ | ✅ | ❌ | ✅ | ✅ |
+
+**Usage:**
+- `full_freeze`: Urgence absolue (tout bloqué sauf sorties d'urgence)
+- `s3_alert_freeze`: Alerte sévère (protection capital, hedge autorisé)
+- `error_freeze`: Erreur technique (prudence, réductions risque prioritaires)
+
+### TTL vs Cooldown (Critique!)
+**Distinction essentielle** pour éviter spam UI ([governance.py:137-245](services/execution/governance.py)):
+
+```python
+signals_ttl_seconds = 1800      # 30 min: Signaux ML peuvent être rafraîchis
+plan_cooldown_hours = 24        # 24h: Publications plans limitées
+```
+
+**Permet** : Rafraîchir signaux backend toutes les 30min SANS publier nouveau plan toutes les 30min !
+
+### Cap Stability (Hystérésis Anti Flip-Flop)
+**3 variables d'état** pour smoothing ([governance.py:247-250](services/execution/governance.py)):
+
+```python
+_last_cap = 0.08                # Dernière cap calculée (smoothing EMA)
+_prudent_mode = False           # État hystérésis (Schmitt trigger)
+_alert_cap_reduction = 0.0      # Override AlertEngine
+```
+
+**+ Hystérésis Memecoins** ([risk_scoring.py:186-200](services/risk_scoring.py)):
+```python
+# Zone transition 48-52%: interpolation linéaire (évite flip-flop -10 ↔ -15)
+if memecoins_pct >= 0.48 and memecoins_pct <= 0.52:
+    t = (memecoins_pct - 0.48) / 0.04
+    delta = -10 + t * (-15 - (-10))  # Transition douce
+```
+
 ### WealthContextBar
 - Change source depuis n'importe quelle page
 - Menu "Compte" → Sélection CSV/API → Reload auto
@@ -368,13 +467,18 @@ EOF
 - Code Consolidation: `DUPLICATE_CODE_CONSOLIDATION.md`
 
 ### Features & Systems
-- Risk: `docs/RISK_SEMANTICS.md`, `docs/RISK_SCORE_V2_IMPLEMENTATION.md`
-- P&L: `docs/P&L_TODAY_USAGE.md`
-- Multi-tenant: `docs/SIMULATOR_USER_ISOLATION_FIX.md`
-- Wealth: `docs/TODO_WEALTH_MERGE.md`
-- Sources: `docs/SOURCES_MIGRATION_DATA_FOLDER.md`
-- Logging: `docs/LOGGING.md` (système de logs rotatifs pour debug/IA)
-- Redis: `docs/REDIS_SETUP.md` (installation, config, cache & streaming)
+- **Allocation**: `docs/ALLOCATION_ENGINE_V2.md` (topdown hierarchical, floors, incumbency)
+- **Decision Index**: `docs/DECISION_INDEX_V2.md` (système dual scoring, DI vs Régime)
+- **Risk**: `docs/RISK_SEMANTICS.md`, `docs/RISK_SCORE_V2_IMPLEMENTATION.md`
+- **Structure**: `docs/STRUCTURE_MODULATION_V2.md` (garde-fou allocation, deltaCap)
+- **Governance**: `docs/GOVERNANCE_FIXES_OCT_2025.md` (freeze semantics, TTL vs Cooldown)
+- **Cap Stability**: `docs/CAP_STABILITY_FIX.md` (hystérésis, anti flip-flop)
+- **P&L**: `docs/P&L_TODAY_USAGE.md`
+- **Multi-tenant**: `docs/SIMULATOR_USER_ISOLATION_FIX.md`
+- **Wealth**: `docs/TODO_WEALTH_MERGE.md`
+- **Sources**: `docs/SOURCES_MIGRATION_DATA_FOLDER.md`
+- **Logging**: `docs/LOGGING.md` (système de logs rotatifs pour debug/IA)
+- **Redis**: `docs/REDIS_SETUP.md` (installation, config, cache & streaming)
 
 ### Session Notes
 - Latest: `SESSION_RESUME_2025-10-20.md` (dependency injection + consolidation)

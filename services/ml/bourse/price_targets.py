@@ -3,13 +3,15 @@ Price Targets Calculator for Portfolio Recommendations
 
 Calculates:
 - Entry zones (for BUY signals)
-- Stop-loss levels
+- Stop-loss levels (multi-method: ATR, Technical, Volatility, Fixed)
 - Take-profit targets (TP1, TP2)
 - Risk/Reward ratios
 """
 
 from typing import Dict, Any, Optional, Tuple
 import logging
+import pandas as pd
+from services.ml.bourse.stop_loss_calculator import StopLossCalculator
 
 logger = logging.getLogger(__name__)
 
@@ -39,26 +41,35 @@ class PriceTargets:
         }
     }
 
-    def __init__(self, timeframe: str = "medium"):
+    def __init__(self, timeframe: str = "medium", market_regime: str = "Bull Market"):
         """
         Initialize price targets calculator
 
         Args:
             timeframe: "short", "medium", or "long"
+            market_regime: Current market regime for stop loss adaptation
         """
         if timeframe not in self.TARGETS:
             logger.warning(f"Invalid timeframe '{timeframe}', defaulting to 'medium'")
             timeframe = "medium"
 
         self.timeframe = timeframe
+        self.market_regime = market_regime
         self.params = self.TARGETS[timeframe]
+
+        # Initialize stop loss calculator
+        self.stop_loss_calc = StopLossCalculator(
+            timeframe=timeframe,
+            market_regime=market_regime
+        )
 
     def calculate_targets(
         self,
         current_price: float,
         action: str,
         support_resistance: Optional[Dict[str, float]] = None,
-        volatility: Optional[float] = None
+        volatility: Optional[float] = None,
+        price_data: Optional[pd.DataFrame] = None
     ) -> Dict[str, Any]:
         """
         Calculate all price targets
@@ -68,6 +79,7 @@ class PriceTargets:
             action: Recommendation action (STRONG BUY, BUY, HOLD, etc.)
             support_resistance: Optional S/R levels from technical analysis
             volatility: Optional volatility for adaptive sizing
+            price_data: Optional historical OHLC data for advanced stop loss calculation
 
         Returns:
             Dict with entry zone, stop-loss, take-profits, and risk/reward
@@ -76,22 +88,25 @@ class PriceTargets:
             return self._calculate_buy_targets(
                 current_price,
                 support_resistance,
-                volatility
+                volatility,
+                price_data
             )
         elif action in ["STRONG SELL", "SELL"]:
             return self._calculate_sell_targets(
                 current_price,
                 support_resistance,
-                volatility
+                volatility,
+                price_data
             )
         else:  # HOLD
-            return self._calculate_hold_targets(current_price)
+            return self._calculate_hold_targets(current_price, price_data)
 
     def _calculate_buy_targets(
         self,
         current_price: float,
         sr_levels: Optional[Dict[str, float]],
-        volatility: Optional[float]
+        volatility: Optional[float],
+        price_data: Optional[pd.DataFrame] = None
     ) -> Dict[str, Any]:
         """Calculate targets for BUY recommendations"""
 
@@ -105,15 +120,16 @@ class PriceTargets:
             if support < current_price:
                 entry_low = max(entry_low, support)
 
-        # Stop-loss: below support with buffer
-        if sr_levels and "support1" in sr_levels:
-            stop_loss = sr_levels["support1"] * (1 - self.params["stop_loss"] / 2)
-        else:
-            stop_loss = current_price * (1 - self.params["stop_loss"])
+        # Calculate stop loss using multi-method approach
+        stop_loss_analysis = self.stop_loss_calc.calculate_all_methods(
+            current_price=current_price,
+            price_data=price_data,
+            volatility=volatility
+        )
 
-        # Adjust for volatility if available (higher vol = wider stops)
-        if volatility is not None and volatility > 0.30:  # High vol
-            stop_loss *= 0.95  # Widen stop by 5%
+        # Use recommended stop loss for main calculation
+        recommended_method = stop_loss_analysis["recommended_method"]
+        stop_loss = stop_loss_analysis["stop_loss_levels"][recommended_method]["price"]
 
         # Take-profit levels
         # TP1: First resistance or calculated target
@@ -157,14 +173,17 @@ class PriceTargets:
             "risk_reward_tp1": round(rr_tp1, 2),
             "risk_reward_tp2": round(rr_tp2, 2),
             "position_sizing": "50% at TP1, 50% at TP2",
-            "timeframe": self.timeframe
+            "timeframe": self.timeframe,
+            # Add multi-method stop loss analysis
+            "stop_loss_analysis": stop_loss_analysis
         }
 
     def _calculate_sell_targets(
         self,
         current_price: float,
         sr_levels: Optional[Dict[str, float]],
-        volatility: Optional[float]
+        volatility: Optional[float],
+        price_data: Optional[pd.DataFrame] = None
     ) -> Dict[str, Any]:
         """Calculate targets for SELL recommendations"""
 
@@ -196,12 +215,24 @@ class PriceTargets:
             "timeframe": self.timeframe
         }
 
-    def _calculate_hold_targets(self, current_price: float) -> Dict[str, Any]:
+    def _calculate_hold_targets(
+        self,
+        current_price: float,
+        price_data: Optional[pd.DataFrame] = None
+    ) -> Dict[str, Any]:
         """Calculate monitoring levels for HOLD positions"""
+
+        # Calculate stop loss using multi-method approach (useful for monitoring)
+        stop_loss_analysis = self.stop_loss_calc.calculate_all_methods(
+            current_price=current_price,
+            price_data=price_data,
+            volatility=None
+        )
 
         # For HOLD, just provide monitoring levels
         upper_watch = current_price * (1 + self.params["tp1"])
-        lower_watch = current_price * (1 - self.params["stop_loss"])
+        recommended_method = stop_loss_analysis["recommended_method"]
+        lower_watch = stop_loss_analysis["stop_loss_levels"][recommended_method]["price"]
 
         return {
             "current_price": round(current_price, 2),
@@ -209,9 +240,11 @@ class PriceTargets:
             "upper_watch": round(upper_watch, 2),
             "upper_watch_pct": round(self.params["tp1"] * 100, 1),
             "lower_watch": round(lower_watch, 2),
-            "lower_watch_pct": round(-self.params["stop_loss"] * 100, 1),
+            "lower_watch_pct": round((lower_watch / current_price - 1) * 100, 1),
             "guidance": f"Re-evaluate if price breaks above ${upper_watch:.2f} (upgrade to BUY) or below ${lower_watch:.2f} (downgrade to SELL)",
-            "timeframe": self.timeframe
+            "timeframe": self.timeframe,
+            # Add multi-method stop loss analysis
+            "stop_loss_analysis": stop_loss_analysis
         }
 
     def calculate_position_size(

@@ -37,9 +37,22 @@
 
     <style>
         .container {
-            max-width: 1200px;
+            width: 100%;
             margin: 0 auto;
-            padding: 1rem;
+            padding: 1rem 2rem;
+            max-width: none;  /* Full responsive */
+        }
+
+        @media (min-width: 2000px) {
+            .container {
+                padding: 1rem 4rem;  /* Plus d'espace sur très grands écrans */
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
         }
 
         .dashboard-header {
@@ -55,20 +68,23 @@
 
         .dashboard-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 1.5rem;
             margin-bottom: 2rem;
         }
 
-        @media (max-width: 1200px) {
+        /* Forcer 2 colonnes minimum sur grands écrans */
+        @media (min-width: 1400px) {
             .dashboard-grid {
-                grid-template-columns: 1fr 1fr;
+                grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
             }
         }
 
+        /* 1 colonne sur mobile */
         @media (max-width: 768px) {
             .dashboard-grid {
                 grid-template-columns: 1fr;
+                gap: 1rem;
             }
         }
 
@@ -4017,24 +4033,44 @@
             // Build table HTML
             let tableHTML = `
                 <div style="overflow-x: auto;">
-                    <table style="width: 100%; border-collapse: collapse;">
+                    <table id="recommendationsTableElement" style="width: 100%; border-collapse: collapse;">
                         <thead>
                             <tr style="border-bottom: 2px solid var(--theme-border); background: var(--theme-bg-subtle);">
-                                <th style="padding: 0.75rem; text-align: left; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Symbol</th>
-                                <th style="padding: 0.75rem; text-align: left; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Name</th>
-                                <th style="padding: 0.75rem; text-align: left; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Action</th>
-                                <th style="padding: 0.75rem; text-align: center; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Confidence</th>
-                                <th style="padding: 0.75rem; text-align: left; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Sector</th>
-                                <th style="padding: 0.75rem; text-align: right; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Weight</th>
-                                <th style="padding: 0.75rem; text-align: right; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Value</th>
+                                <th onclick="sortRecommendationsTable('symbol')" style="padding: 0.75rem; text-align: left; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted); cursor: pointer; user-select: none;">
+                                    Symbol <span id="sortRecSymbol">↕️</span>
+                                </th>
+                                <th onclick="sortRecommendationsTable('name')" style="padding: 0.75rem; text-align: left; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted); cursor: pointer; user-select: none;">
+                                    Name <span id="sortRecName">↕️</span>
+                                </th>
+                                <th onclick="sortRecommendationsTable('action')" style="padding: 0.75rem; text-align: left; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted); cursor: pointer; user-select: none;">
+                                    Action <span id="sortRecAction">↕️</span>
+                                </th>
+                                <th onclick="sortRecommendationsTable('rr')" style="padding: 0.75rem; text-align: center; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted); cursor: pointer; user-select: none;">
+                                    R/R <span id="sortRecRr">▼</span>
+                                </th>
+                                <th onclick="sortRecommendationsTable('score')" style="padding: 0.75rem; text-align: center; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted); cursor: pointer; user-select: none;">
+                                    Score <span id="sortRecScore">↕️</span>
+                                </th>
+                                <th onclick="sortRecommendationsTable('confidence')" style="padding: 0.75rem; text-align: center; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted); cursor: pointer; user-select: none;">
+                                    Confidence <span id="sortRecConfidence">↕️</span>
+                                </th>
+                                <th onclick="sortRecommendationsTable('sector')" style="padding: 0.75rem; text-align: left; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted); cursor: pointer; user-select: none;">
+                                    Sector <span id="sortRecSector">↕️</span>
+                                </th>
+                                <th onclick="sortRecommendationsTable('weight')" style="padding: 0.75rem; text-align: right; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted); cursor: pointer; user-select: none;">
+                                    Weight <span id="sortRecWeight">↕️</span>
+                                </th>
+                                <th onclick="sortRecommendationsTable('value')" style="padding: 0.75rem; text-align: right; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted); cursor: pointer; user-select: none;">
+                                    Value <span id="sortRecValue">↕️</span>
+                                </th>
                                 <th style="padding: 0.75rem; text-align: center; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Details</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="recommendationsTableBody">
             `;
 
             recommendations.forEach(rec => {
-                const actionBadge = getActionBadge(rec.action);
+                const actionBadge = getActionBadge(rec.action, rec.adjusted, rec.original_action);
                 const confidenceBar = getConfidenceBar(rec.confidence);
 
                 // Get full name from mapping
@@ -4042,8 +4078,30 @@
                 // Shorten name if too long
                 const displayName = fullName.length > 25 ? fullName.substring(0, 22) + '...' : fullName;
 
+                // Risk/Reward ratio
+                const rr = rec.price_targets?.risk_reward_tp1 || 0;
+                const rrDisplay = rr > 0 ? `1:${rr.toFixed(2)}` : 'N/A';
+                const rrColor = rr >= 2 ? 'var(--success)' : rr >= 1.5 ? 'var(--warning)' : 'var(--danger)';
+                const rrIcon = rr >= 2 ? '✅' : rr >= 1.5 ? '⚠️' : '❌';
+
+                // Score
+                const score = rec.score || 0;
+                const scoreDisplay = (score * 100).toFixed(0);
+                const scoreColor = score >= 0.7 ? 'var(--success)' : score >= 0.5 ? 'var(--warning)' : 'var(--danger)';
+
                 tableHTML += `
-                    <tr class="rec-row" data-symbol="${rec.symbol}" style="border-bottom: 1px solid var(--theme-border); cursor: pointer;" onclick="showRecommendationModal('${rec.symbol}')">
+                    <tr class="rec-row"
+                        data-symbol="${rec.symbol}"
+                        data-name="${fullName}"
+                        data-action="${rec.action}"
+                        data-rr="${rr}"
+                        data-score="${score}"
+                        data-confidence="${rec.confidence}"
+                        data-sector="${rec.sector}"
+                        data-weight="${rec.weight_pct}"
+                        data-value="${rec.current_value}"
+                        style="border-bottom: 1px solid var(--theme-border); cursor: pointer;"
+                        onclick="showRecommendationModal('${rec.symbol}')">
                         <td style="padding: 0.75rem;">
                             <div style="font-weight: 600; color: var(--theme-text);">${rec.symbol}</div>
                         </td>
@@ -4051,6 +4109,12 @@
                             <div style="font-size: 0.875rem; color: var(--theme-text-muted);" title="${fullName}">${displayName}</div>
                         </td>
                         <td style="padding: 0.75rem;">${actionBadge}</td>
+                        <td style="padding: 0.75rem; text-align: center;">
+                            <span style="color: ${rrColor}; font-weight: 600;">${rrIcon} ${rrDisplay}</span>
+                        </td>
+                        <td style="padding: 0.75rem; text-align: center;">
+                            <span style="color: ${scoreColor}; font-weight: 600;">${scoreDisplay}</span>
+                        </td>
                         <td style="padding: 0.75rem; text-align: center;">${confidenceBar}</td>
                         <td style="padding: 0.75rem; font-size: 0.875rem; color: var(--theme-text-muted);">${rec.sector}</td>
                         <td style="padding: 0.75rem; text-align: right; font-weight: 600;">${rec.weight_pct}%</td>
@@ -4071,12 +4135,15 @@
             `;
 
             tableContainer.innerHTML = tableHTML;
+
+            // Apply default sort by R/R (descending) after rendering
+            sortRecommendationsTable('rr');
         }
 
         /**
          * Get action badge HTML
          */
-        function getActionBadge(action) {
+        function getActionBadge(action, adjusted = false, originalAction = null) {
             const badges = {
                 'STRONG BUY': '<span style="padding: 0.25rem 0.75rem; border-radius: var(--radius-full); background: #22c55e; color: white; font-size: 0.75rem; font-weight: 600;">🟢 STRONG BUY</span>',
                 'BUY': '<span style="padding: 0.25rem 0.75rem; border-radius: var(--radius-full); background: #86efac; color: #166534; font-size: 0.75rem; font-weight: 600;">🟢 BUY</span>',
@@ -4084,7 +4151,15 @@
                 'SELL': '<span style="padding: 0.25rem 0.75rem; border-radius: var(--radius-full); background: #fbbf24; color: #78350f; font-size: 0.75rem; font-weight: 600;">🟠 SELL</span>',
                 'STRONG SELL': '<span style="padding: 0.25rem 0.75rem; border-radius: var(--radius-full); background: #ef4444; color: white; font-size: 0.75rem; font-weight: 600;">🔴 STRONG SELL</span>'
             };
-            return badges[action] || action;
+
+            let badge = badges[action] || action;
+
+            // Add adjustment indicator if action was downgraded
+            if (adjusted && originalAction) {
+                badge += ` <span style="display: inline-block; margin-left: 0.25rem; cursor: help; font-size: 0.875rem;" title="Originally ${originalAction}, adjusted for portfolio constraints">⚠️</span>`;
+            }
+
+            return badge;
         }
 
         /**
@@ -4119,6 +4194,116 @@
             });
 
             renderRecommendationsTable(filtered);
+        }
+
+        /**
+         * Sort recommendations table by column
+         */
+        let recommendationsSortState = {
+            column: 'rr',  // Default sort by R/R
+            ascending: false  // Descending (best R/R first)
+        };
+
+        function sortRecommendationsTable(column) {
+            const tbody = document.getElementById('recommendationsTableBody');
+            if (!tbody) return;
+
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+
+            // Toggle sort direction if same column
+            if (recommendationsSortState.column === column) {
+                recommendationsSortState.ascending = !recommendationsSortState.ascending;
+            } else {
+                recommendationsSortState.column = column;
+                // Default to descending for numeric columns, ascending for text
+                recommendationsSortState.ascending = ['symbol', 'name', 'sector'].includes(column);
+            }
+
+            // Sort rows
+            rows.sort((a, b) => {
+                let aVal, bVal;
+
+                switch (column) {
+                    case 'symbol':
+                        aVal = a.dataset.symbol;
+                        bVal = b.dataset.symbol;
+                        return recommendationsSortState.ascending
+                            ? aVal.localeCompare(bVal)
+                            : bVal.localeCompare(aVal);
+
+                    case 'name':
+                        aVal = a.dataset.name;
+                        bVal = b.dataset.name;
+                        return recommendationsSortState.ascending
+                            ? aVal.localeCompare(bVal)
+                            : bVal.localeCompare(aVal);
+
+                    case 'action':
+                        // Sort by action priority: STRONG BUY > BUY > HOLD > SELL > STRONG SELL
+                        const actionOrder = {
+                            'STRONG BUY': 5,
+                            'BUY': 4,
+                            'HOLD': 3,
+                            'SELL': 2,
+                            'STRONG SELL': 1
+                        };
+                        aVal = actionOrder[a.dataset.action] || 0;
+                        bVal = actionOrder[b.dataset.action] || 0;
+                        break;
+
+                    case 'rr':
+                        aVal = parseFloat(a.dataset.rr) || 0;
+                        bVal = parseFloat(b.dataset.rr) || 0;
+                        break;
+
+                    case 'score':
+                        aVal = parseFloat(a.dataset.score) || 0;
+                        bVal = parseFloat(b.dataset.score) || 0;
+                        break;
+
+                    case 'confidence':
+                        aVal = parseFloat(a.dataset.confidence);
+                        bVal = parseFloat(b.dataset.confidence);
+                        break;
+
+                    case 'sector':
+                        aVal = a.dataset.sector;
+                        bVal = b.dataset.sector;
+                        return recommendationsSortState.ascending
+                            ? aVal.localeCompare(bVal)
+                            : bVal.localeCompare(aVal);
+
+                    case 'weight':
+                        aVal = parseFloat(a.dataset.weight) || 0;
+                        bVal = parseFloat(b.dataset.weight) || 0;
+                        break;
+
+                    case 'value':
+                        aVal = parseFloat(a.dataset.value) || 0;
+                        bVal = parseFloat(b.dataset.value) || 0;
+                        break;
+
+                    default:
+                        return 0;
+                }
+
+                return recommendationsSortState.ascending ? aVal - bVal : bVal - aVal;
+            });
+
+            // Reorder rows in DOM
+            rows.forEach(row => tbody.appendChild(row));
+
+            // Update sort indicators
+            ['Symbol', 'Name', 'Action', 'Rr', 'Score', 'Confidence', 'Sector', 'Weight', 'Value'].forEach(col => {
+                const indicator = document.getElementById(`sortRec${col}`);
+                if (indicator) {
+                    if (col.toLowerCase() === column) {
+                        indicator.textContent = recommendationsSortState.ascending ? '▲' : '▼';
+                    } else {
+                        indicator.textContent = '↕️';
+                    }
+                }
+            });
         }
 
         /**
@@ -4169,8 +4354,18 @@
 
         /**
          * Get display name for symbol
+         * Priority: 1) Real portfolio data, 2) Static mapping, 3) API fallback name, 4) Symbol
          */
         function getDisplayName(symbol, fallbackName) {
+            // First, try to get name from current portfolio data (most accurate)
+            if (currentPortfolioData && currentPortfolioData.positions) {
+                const position = currentPortfolioData.positions.find(p => p.symbol === symbol);
+                if (position && position.name) {
+                    return position.name;
+                }
+            }
+
+            // Fallback to static mapping or API name
             return SYMBOL_NAMES[symbol] || fallbackName || symbol;
         }
 
@@ -4269,11 +4464,31 @@
                             </div>
                             ` : ''}
 
+                            <!-- Risk/Reward Warning -->
+                            ${rec.price_targets?.risk_reward_tp1 && rec.price_targets.risk_reward_tp1 < 1.5 ? `
+                            <div style="background: #fef3c7; border: 2px solid #f59e0b; padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1.5rem;">
+                                <div style="display: flex; align-items: start; gap: 0.75rem;">
+                                    <div style="font-size: 1.5rem;">⚠️</div>
+                                    <div style="flex: 1;">
+                                        <h3 style="font-size: 1rem; font-weight: 700; margin: 0 0 0.5rem 0; color: #92400e;">Poor Risk/Reward Ratio</h3>
+                                        <p style="margin: 0; font-size: 0.875rem; color: #78350f;">
+                                            <strong>Current R/R:</strong> 1:${rec.price_targets.risk_reward_tp1.toFixed(2)} (minimum recommended: 1:1.5)<br>
+                                            <strong>⚠️ Risk:</strong> ${Math.abs(rec.price_targets.stop_loss_pct || 0).toFixed(1)}% downside for only ${rec.price_targets.take_profit_1_pct || 0}% upside<br>
+                                            <strong>💡 Suggestion:</strong> Wait for better entry point (pullback) or consider tighter stop loss
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            ` : ''}
+
                             <!-- Price Targets -->
                             <div style="background: var(--theme-bg); padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1.5rem;">
                                 <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem;">📊 Price Information</h3>
                                 ${renderPriceTargets(rec.price_targets)}
                             </div>
+
+                            <!-- Stop Loss Analysis (Multi-Method) -->
+                            ${rec.price_targets?.stop_loss_analysis ? renderStopLossAnalysis(rec.price_targets.stop_loss_analysis, rec.current_value) : ''}
 
                             <!-- Rationale -->
                             <div style="margin-bottom: 1.5rem;">
@@ -4385,6 +4600,114 @@
             } else {
                 return '<p style="color: var(--theme-text-muted);">Price targets not available</p>';
             }
+        }
+
+        /**
+         * Render Stop Loss Analysis (Multi-Method Comparison)
+         */
+        function renderStopLossAnalysis(analysis, positionValue) {
+            if (!analysis || !analysis.stop_loss_levels) return '';
+
+            const levels = analysis.stop_loss_levels;
+            const recommended = analysis.recommended_method;
+            const currentPrice = analysis.current_price;
+
+            // Calculate risk in dollars for each method if position exists
+            const calculateRiskDollars = (stopPrice) => {
+                if (!positionValue || positionValue === 0) return null;
+                const shares = positionValue / currentPrice;
+                return (currentPrice - stopPrice) * shares;
+            };
+
+            // Quality badge color
+            const getQualityColor = (quality) => {
+                if (quality === 'high') return 'var(--success)';
+                if (quality === 'medium') return 'var(--warning)';
+                return 'var(--theme-text-muted)';
+            };
+
+            // Render each method row
+            const renderMethod = (methodKey, methodData) => {
+                const isRecommended = methodKey === recommended;
+                const riskDollars = calculateRiskDollars(methodData.price);
+                const qualityColor = getQualityColor(methodData.quality);
+
+                return `
+                    <tr style="background: ${isRecommended ? 'color-mix(in oklab, var(--success) 10%, transparent)' : 'transparent'}; border-bottom: 1px solid var(--theme-border);">
+                        <td style="padding: 0.75rem;">
+                            ${isRecommended ? '✅ ' : ''}
+                            <strong>${getMethodLabel(methodKey)}</strong>
+                            ${isRecommended ? '<br><span style="font-size: 0.7rem; color: var(--success);">Recommended</span>' : ''}
+                        </td>
+                        <td style="padding: 0.75rem; text-align: right; font-weight: 600;">
+                            $${methodData.price}
+                        </td>
+                        <td style="padding: 0.75rem; text-align: right; color: ${methodData.distance_pct < 0 ? 'var(--danger)' : 'var(--success)'};">
+                            ${methodData.distance_pct}%
+                        </td>
+                        <td style="padding: 0.75rem; text-align: right; ${riskDollars ? '' : 'color: var(--theme-text-muted);'}">
+                            ${riskDollars ? `-€${Math.abs(riskDollars).toFixed(0)}` : 'N/A'}
+                        </td>
+                        <td style="padding: 0.75rem; text-align: center;">
+                            <span style="display: inline-block; padding: 0.125rem 0.5rem; border-radius: var(--radius-full); background: ${qualityColor}20; color: ${qualityColor}; font-size: 0.7rem; font-weight: 600;">
+                                ${methodData.quality?.toUpperCase() || 'N/A'}
+                            </span>
+                        </td>
+                    </tr>
+                `;
+            };
+
+            return `
+                <details open style="margin-bottom: 1.5rem; border: 2px solid var(--info); border-radius: var(--radius-md); padding: 0.75rem; background: color-mix(in oklab, var(--info) 5%, transparent);">
+                    <summary style="cursor: pointer; font-weight: 600; padding: 0.5rem; color: var(--info); user-select: none;">
+                        🛡️ Stop Loss Analysis (4 Methods Compared)
+                    </summary>
+                    <div style="padding: 1rem 0.5rem 0.5rem 0.5rem;">
+                        <p style="font-size: 0.875rem; color: var(--theme-text-muted); margin-bottom: 1rem;">
+                            Comparing 4 stop loss calculation methods. <strong style="color: var(--success);">ATR-based</strong> is recommended for most assets as it adapts to volatility.
+                        </p>
+
+                        <div style="overflow-x: auto;">
+                            <table style="width: 100%; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="border-bottom: 2px solid var(--theme-border); background: var(--theme-bg-subtle);">
+                                        <th style="padding: 0.5rem; text-align: left; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Method</th>
+                                        <th style="padding: 0.5rem; text-align: right; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Price</th>
+                                        <th style="padding: 0.5rem; text-align: right; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Distance</th>
+                                        <th style="padding: 0.5rem; text-align: right; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Max Loss</th>
+                                        <th style="padding: 0.5rem; text-align: center; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Quality</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${Object.entries(levels).map(([key, data]) => renderMethod(key, data)).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        ${levels[recommended] && levels[recommended].reasoning ? `
+                            <div style="margin-top: 1rem; padding: 0.75rem; background: var(--theme-bg); border-radius: var(--radius-sm); border-left: 3px solid var(--success);">
+                                <strong style="font-size: 0.875rem; color: var(--success);">💡 Why ${getMethodLabel(recommended)}?</strong>
+                                <p style="margin: 0.5rem 0 0 0; font-size: 0.875rem; color: var(--theme-text);">
+                                    ${levels[recommended].reasoning}
+                                </p>
+                            </div>
+                        ` : ''}
+                    </div>
+                </details>
+            `;
+        }
+
+        /**
+         * Get human-readable label for stop loss method
+         */
+        function getMethodLabel(methodKey) {
+            const labels = {
+                'atr_2x': 'ATR 2x',
+                'technical_support': 'Technical Support',
+                'volatility_2std': 'Volatility 2σ',
+                'fixed_pct': 'Fixed %'
+            };
+            return labels[methodKey] || methodKey;
         }
 
         /**
