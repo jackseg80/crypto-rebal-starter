@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stop Loss Backtest Report</title>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --bg: #f9fafb;
+            --surface: #ffffff;
+            --border: #e5e7eb;
+            --text: #1f2937;
+            --text-muted: #6b7280;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            padding: 2rem;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--primary) 0%, #1e40af 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+        }
+
+        header h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        header p {
+            opacity: 0.9;
+            font-size: 0.95rem;
+        }
+
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+
+        .card-title {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .card-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .card-subtitle {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        .positive { color: var(--success); }
+        .negative { color: var(--danger); }
+        .neutral { color: var(--text-muted); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--surface);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 2rem;
+        }
+
+        thead {
+            background: var(--bg);
+        }
+
+        th, td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            font-weight: 600;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+
+        tbody tr:hover {
+            background: var(--bg);
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-success {
+            background: color-mix(in srgb, var(--success) 15%, transparent);
+            color: var(--success);
+        }
+
+        .badge-danger {
+            background: color-mix(in srgb, var(--danger) 15%, transparent);
+            color: var(--danger);
+        }
+
+        .section {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+        }
+
+        .verdict {
+            background: var(--bg);
+            padding: 1.5rem;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary);
+            margin-top: 1rem;
+        }
+
+        .verdict strong {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--primary);
+        }
+
+        footer {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 Stop Loss Backtest Report</h1>
+            <p>ATR 2x vs Fixed % Performance Comparison</p>
+            <p style="font-size: 0.875rem; margin-top: 0.5rem;">Generated: 2025-10-24 16:18:20</p>
+        </header>
+
+        <!-- Configuration -->
+        <div class="section">
+            <h2 class="section-title">⚙️ Test Configuration</h2>
+            <p><strong>Market Regime:</strong> Bull Market</p>
+            <p><strong>Timeframe:</strong> short</p>
+            <p><strong>Lookback Period:</strong> 1825 days</p>
+            <p><strong>Entry Interval:</strong> 7 days</p>
+            <p><strong>Assets Tested:</strong> AAPL, NVDA, SPY</p>
+        </div>
+
+        <!-- Aggregate Summary -->
+        <div class="section">
+            <h2 class="section-title">🎯 Aggregate Results</h2>
+
+            <div class="summary-cards">
+                <div class="card">
+                    <div class="card-title">Overall Winner</div>
+                    <div class="card-value negative">Fixed %</div>
+                    <div class="card-subtitle">Based on total P&L</div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">P&L Difference</div>
+                    <div class="card-value negative">$-4,126</div>
+                    <div class="card-subtitle">-78.1% improvement</div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">ATR 2x Total P&L</div>
+                    <div class="card-value">$1,156</div>
+                    <div class="card-subtitle">0 assets won</div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">Fixed % Total P&L</div>
+                    <div class="card-value">$5,281</div>
+                    <div class="card-subtitle">2 assets won</div>
+                </div>
+            </div>
+
+            <div class="verdict">
+                <strong>📝 Overall Verdict:</strong>
+                Fixed % outperforms ATR 2x by 78.1%. Further investigation needed to understand why ATR underperforms.
+            </div>
+        </div>
+
+        <!-- Individual Results Table -->
+        <div class="section">
+            <h2 class="section-title">📈 Individual Asset Results</h2>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Asset</th>
+                        <th>Period</th>
+                        <th>ATR P&L</th>
+                        <th>Fixed P&L</th>
+                        <th>Difference</th>
+                        <th>Winner</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                <tr>
+                    <td><strong>AAPL</strong></td>
+                    <td>2025-07-28 to 2025-10-23<br><small>63 days</small></td>
+                    <td class="positive">$2,181</td>
+                    <td class="positive">$3,453</td>
+                    <td class="negative">$-1,272</td>
+                    <td><span class="badge badge-danger">Fixed %</span></td>
+                </tr>
+            
+                <tr>
+                    <td><strong>NVDA</strong></td>
+                    <td>2025-07-28 to 2025-10-23<br><small>63 days</small></td>
+                    <td class="negative">$-1,026</td>
+                    <td class="positive">$1,829</td>
+                    <td class="negative">$-2,854</td>
+                    <td><span class="badge badge-danger">Fixed %</span></td>
+                </tr>
+            
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Detailed Metrics Table -->
+        <div class="section">
+            <h2 class="section-title">📊 Detailed Metrics Comparison</h2>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Asset</th>
+                        <th>Method</th>
+                        <th>Trades</th>
+                        <th>Win Rate</th>
+                        <th>Stops Hit</th>
+                        <th>Targets</th>
+                        <th>Avg P&L %</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                <tr>
+                    <td rowspan="2"><strong>AAPL</strong></td>
+                    <td>ATR 2x</td>
+                    <td>5</td>
+                    <td>80.0%</td>
+                    <td>20.0%</td>
+                    <td>20.0%</td>
+                    <td class="positive">+1.91%</td>
+                </tr>
+            
+                <tr>
+                    <td>Fixed %</td>
+                    <td>9</td>
+                    <td>66.7%</td>
+                    <td>33.3%</td>
+                    <td>33.3%</td>
+                    <td class="positive">+1.70%</td>
+                </tr>
+            
+                <tr>
+                    <td rowspan="2"><strong>NVDA</strong></td>
+                    <td>ATR 2x</td>
+                    <td>5</td>
+                    <td>40.0%</td>
+                    <td>40.0%</td>
+                    <td>20.0%</td>
+                    <td class="negative">-1.09%</td>
+                </tr>
+            
+                <tr>
+                    <td>Fixed %</td>
+                    <td>9</td>
+                    <td>55.6%</td>
+                    <td>33.3%</td>
+                    <td>33.3%</td>
+                    <td class="positive">+1.25%</td>
+                </tr>
+            
+                </tbody>
+            </table>
+        </div>
+
+        <footer>
+            <p>🤖 Generated by Crypto Rebal Starter - Stop Loss Backtesting Module</p>
+            <p>Data source: Cached parquet files (data/cache/bourse/)</p>
+        </footer>
+    </div>
+</body>
+</html>

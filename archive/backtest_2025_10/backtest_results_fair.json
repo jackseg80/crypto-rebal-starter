@@ -1,0 +1,375 @@
+{
+  "individual_results": [
+    {
+      "symbol": "AAPL",
+      "data_period": {
+        "start": "2024-09-19",
+        "end": "2025-10-17",
+        "days": 271
+      },
+      "atr_2x": {
+        "total_trades": 19,
+        "win_rate": 0.42105263157894735,
+        "avg_pnl_pct": -0.0016218449901230557,
+        "total_pnl_usd": -938.4295983173215,
+        "avg_win": 0.061320409360311905,
+        "avg_loss": -0.047398029972257574,
+        "stops_hit": 8,
+        "stops_hit_pct": 0.42105263157894735,
+        "targets_reached": 5,
+        "targets_reached_pct": 0.2631578947368421,
+        "avg_holding_days": 17.63157894736842,
+        "best_trade": 0.08000000000000014,
+        "worst_trade": -0.0910826704634031
+      },
+      "fixed_5pct": {
+        "total_trades": 39,
+        "win_rate": 0.41025641025641024,
+        "avg_pnl_pct": -0.00014801343952483586,
+        "total_pnl_usd": -1274.7684478759843,
+        "avg_win": 0.06131198359614075,
+        "avg_loss": -0.042902793986074814,
+        "stops_hit": 19,
+        "stops_hit_pct": 0.48717948717948717,
+        "targets_reached": 9,
+        "targets_reached_pct": 0.23076923076923078,
+        "avg_holding_days": 17.333333333333332,
+        "best_trade": 0.08000000000000014,
+        "worst_trade": -0.050000000000000114
+      },
+      "fixed_variable": {
+        "total_trades": 39,
+        "win_rate": 0.48717948717948717,
+        "avg_pnl_pct": 0.0077479246545277556,
+        "total_pnl_usd": 5709.339782714849,
+        "avg_win": 0.06039421368412659,
+        "avg_loss": -0.042266049923591134,
+        "stops_hit": 11,
+        "stops_hit_pct": 0.28205128205128205,
+        "targets_reached": 11,
+        "targets_reached_pct": 0.28205128205128205,
+        "avg_holding_days": 20.384615384615383,
+        "best_trade": 0.08000000000000014,
+        "worst_trade": -0.06000000000000011
+      },
+      "comparison": {
+        "winner": "Fixed Variable",
+        "pnl_atr": -938.4295983173215,
+        "pnl_fixed": -1274.7684478759843,
+        "pnl_fixed_var": 5709.339782714849,
+        "best_pnl": 5709.339782714849,
+        "verdict": "Fixed Variable wins with $5,709 (+547.9% vs worst)"
+      }
+    },
+    {
+      "symbol": "NVDA",
+      "data_period": {
+        "start": "2024-09-20",
+        "end": "2025-10-17",
+        "days": 270
+      },
+      "atr_2x": {
+        "total_trades": 20,
+        "win_rate": 0.55,
+        "avg_pnl_pct": -0.0033602582038199913,
+        "total_pnl_usd": -926.1262328545779,
+        "avg_win": 0.06071165451224665,
+        "avg_loss": -0.08167037374567923,
+        "stops_hit": 7,
+        "stops_hit_pct": 0.35,
+        "targets_reached": 7,
+        "targets_reached_pct": 0.35,
+        "avg_holding_days": 15.65,
+        "best_trade": 0.08000000000000017,
+        "worst_trade": -0.15881912081120106
+      },
+      "fixed_5pct": {
+        "total_trades": 39,
+        "win_rate": 0.5384615384615384,
+        "avg_pnl_pct": 0.015529322009239928,
+        "total_pnl_usd": 7791.778823852539,
+        "avg_win": 0.0716973123028742,
+        "avg_loss": -0.05000000000000005,
+        "stops_hit": 18,
+        "stops_hit_pct": 0.46153846153846156,
+        "targets_reached": 17,
+        "targets_reached_pct": 0.4358974358974359,
+        "avg_holding_days": 9.871794871794872,
+        "best_trade": 0.08000000000000017,
+        "worst_trade": -0.05000000000000012
+      },
+      "fixed_variable": {
+        "total_trades": 39,
+        "win_rate": 0.6153846153846154,
+        "avg_pnl_pct": 0.016542755473745833,
+        "total_pnl_usd": 9035.033142089873,
+        "avg_win": 0.07273514826501493,
+        "avg_loss": -0.07336507299228472,
+        "stops_hit": 13,
+        "stops_hit_pct": 0.3333333333333333,
+        "targets_reached": 20,
+        "targets_reached_pct": 0.5128205128205128,
+        "avg_holding_days": 13.0,
+        "best_trade": 0.08000000000000017,
+        "worst_trade": -0.08000000000000004
+      },
+      "comparison": {
+        "winner": "Fixed Variable",
+        "pnl_atr": -926.1262328545779,
+        "pnl_fixed": 7791.778823852539,
+        "pnl_fixed_var": 9035.033142089873,
+        "best_pnl": 9035.033142089873,
+        "verdict": "Fixed Variable wins with $9,035 (+1075.6% vs worst)"
+      }
+    },
+    {
+      "symbol": "TSLA",
+      "data_period": {
+        "start": "2024-09-19",
+        "end": "2025-10-17",
+        "days": 271
+      },
+      "atr_2x": {
+        "total_trades": 19,
+        "win_rate": 0.7894736842105263,
+        "avg_pnl_pct": 0.027160249065896945,
+        "total_pnl_usd": 17427.73913574221,
+        "avg_win": 0.07036097607932995,
+        "avg_loss": -0.13484247723447673,
+        "stops_hit": 4,
+        "stops_hit_pct": 0.21052631578947367,
+        "targets_reached": 13,
+        "targets_reached_pct": 0.6842105263157895,
+        "avg_holding_days": 10.0,
+        "best_trade": 0.08000000000000017,
+        "worst_trade": -0.16604404038036338
+      },
+      "fixed_5pct": {
+        "total_trades": 39,
+        "win_rate": 0.48717948717948717,
+        "avg_pnl_pct": 0.011482638555647132,
+        "total_pnl_usd": 14775.970413208022,
+        "avg_win": 0.07620120545632839,
+        "avg_loss": -0.05000000000000006,
+        "stops_hit": 20,
+        "stops_hit_pct": 0.5128205128205128,
+        "targets_reached": 18,
+        "targets_reached_pct": 0.46153846153846156,
+        "avg_holding_days": 5.615384615384615,
+        "best_trade": 0.08000000000000015,
+        "worst_trade": -0.05000000000000012
+      },
+      "fixed_variable": {
+        "total_trades": 39,
+        "win_rate": 0.6153846153846154,
+        "avg_pnl_pct": 0.014754221568973085,
+        "total_pnl_usd": 17102.15979003913,
+        "avg_win": 0.07397561004958124,
+        "avg_loss": -0.07999999999999995,
+        "stops_hit": 15,
+        "stops_hit_pct": 0.38461538461538464,
+        "targets_reached": 22,
+        "targets_reached_pct": 0.5641025641025641,
+        "avg_holding_days": 7.769230769230769,
+        "best_trade": 0.08000000000000015,
+        "worst_trade": -0.08000000000000004
+      },
+      "comparison": {
+        "winner": "ATR 2x",
+        "pnl_atr": 17427.73913574221,
+        "pnl_fixed": 14775.970413208022,
+        "pnl_fixed_var": 17102.15979003913,
+        "best_pnl": 17427.73913574221,
+        "verdict": "ATR 2x wins with $17,428 (+17.9% vs worst)"
+      }
+    },
+    {
+      "symbol": "MSFT",
+      "data_period": {
+        "start": "2020-10-26",
+        "end": "2025-10-23",
+        "days": 1255
+      },
+      "atr_2x": {
+        "total_trades": 91,
+        "win_rate": 0.5274725274725275,
+        "avg_pnl_pct": 0.006391691544598879,
+        "total_pnl_usd": 17574.484500037037,
+        "avg_win": 0.05620137273155845,
+        "avg_loss": -0.04920981303619321,
+        "stops_hit": 33,
+        "stops_hit_pct": 0.3626373626373626,
+        "targets_reached": 20,
+        "targets_reached_pct": 0.21978021978021978,
+        "avg_holding_days": 20.857142857142858,
+        "best_trade": 0.08000000000000013,
+        "worst_trade": -0.09797936895905668
+      },
+      "fixed_5pct": {
+        "total_trades": 180,
+        "win_rate": 0.5222222222222223,
+        "avg_pnl_pct": 0.008852327462954149,
+        "total_pnl_usd": 47716.9493560791,
+        "avg_win": 0.0577343679498166,
+        "avg_loss": -0.04457687958082574,
+        "stops_hit": 73,
+        "stops_hit_pct": 0.40555555555555556,
+        "targets_reached": 48,
+        "targets_reached_pct": 0.26666666666666666,
+        "avg_holding_days": 19.405555555555555,
+        "best_trade": 0.08000000000000018,
+        "worst_trade": -0.05000000000000013
+      },
+      "fixed_variable": {
+        "total_trades": 180,
+        "win_rate": 0.5388888888888889,
+        "avg_pnl_pct": 0.007632543136117983,
+        "total_pnl_usd": 42375.137542724595,
+        "avg_win": 0.05642304567568987,
+        "avg_loss": -0.049387682723381704,
+        "stops_hit": 61,
+        "stops_hit_pct": 0.3388888888888889,
+        "targets_reached": 48,
+        "targets_reached_pct": 0.26666666666666666,
+        "avg_holding_days": 21.05,
+        "best_trade": 0.08000000000000018,
+        "worst_trade": -0.060000000000000143
+      },
+      "comparison": {
+        "winner": "Fixed 5%",
+        "pnl_atr": 17574.484500037037,
+        "pnl_fixed": 47716.9493560791,
+        "pnl_fixed_var": 42375.137542724595,
+        "best_pnl": 47716.9493560791,
+        "verdict": "Fixed 5% wins with $47,717 (+171.5% vs worst)"
+      }
+    },
+    {
+      "symbol": "KO",
+      "data_period": {
+        "start": "2024-09-19",
+        "end": "2025-10-17",
+        "days": 271
+      },
+      "atr_2x": {
+        "total_trades": 19,
+        "win_rate": 0.47368421052631576,
+        "avg_pnl_pct": 0.002125026116397458,
+        "total_pnl_usd": 240.34749710029928,
+        "avg_win": 0.03713919406789203,
+        "avg_loss": -0.029387725039947653,
+        "stops_hit": 7,
+        "stops_hit_pct": 0.3684210526315789,
+        "targets_reached": 1,
+        "targets_reached_pct": 0.05263157894736842,
+        "avg_holding_days": 20.210526315789473,
+        "best_trade": 0.07999999999999997,
+        "worst_trade": -0.0418373693812419
+      },
+      "fixed_5pct": {
+        "total_trades": 39,
+        "win_rate": 0.48717948717948717,
+        "avg_pnl_pct": 0.00015663758731014173,
+        "total_pnl_usd": -199.99267959594977,
+        "avg_win": 0.03392868929351007,
+        "avg_loss": -0.03192681153357979,
+        "stops_hit": 8,
+        "stops_hit_pct": 0.20512820512820512,
+        "targets_reached": 3,
+        "targets_reached_pct": 0.07692307692307693,
+        "avg_holding_days": 25.05128205128205,
+        "best_trade": 0.08000000000000013,
+        "worst_trade": -0.05000000000000012
+      },
+      "fixed_variable": {
+        "total_trades": 39,
+        "win_rate": 0.41025641025641024,
+        "avg_pnl_pct": -0.0039853136332052685,
+        "total_pnl_usd": -1305.7557220458996,
+        "avg_win": 0.03385660358541415,
+        "avg_loss": -0.030310125611375294,
+        "stops_hit": 14,
+        "stops_hit_pct": 0.358974358974359,
+        "targets_reached": 3,
+        "targets_reached_pct": 0.07692307692307693,
+        "avg_holding_days": 21.923076923076923,
+        "best_trade": 0.08000000000000013,
+        "worst_trade": -0.04000000000000012
+      },
+      "comparison": {
+        "winner": "ATR 2x",
+        "pnl_atr": 240.34749710029928,
+        "pnl_fixed": -199.99267959594977,
+        "pnl_fixed_var": -1305.7557220458996,
+        "best_pnl": 240.34749710029928,
+        "verdict": "ATR 2x wins with $240 (+118.4% vs worst)"
+      }
+    },
+    {
+      "symbol": "SPY",
+      "data_period": {
+        "start": "2024-10-23",
+        "end": "2025-10-22",
+        "days": 250
+      },
+      "atr_2x": {
+        "total_trades": 17,
+        "win_rate": 0.5882352941176471,
+        "avg_pnl_pct": 0.008440784285981528,
+        "total_pnl_usd": 7797.595432294793,
+        "avg_win": 0.03259235871109572,
+        "avg_loss": -0.026061464892753027,
+        "stops_hit": 6,
+        "stops_hit_pct": 0.35294117647058826,
+        "targets_reached": 2,
+        "targets_reached_pct": 0.11764705882352941,
+        "avg_holding_days": 18.529411764705884,
+        "best_trade": 0.0800000000000001,
+        "worst_trade": -0.054674006067698414
+      },
+      "fixed_5pct": {
+        "total_trades": 36,
+        "win_rate": 0.6944444444444444,
+        "avg_pnl_pct": 0.013870387125227255,
+        "total_pnl_usd": 28832.357788085938,
+        "avg_win": 0.035004990160037705,
+        "avg_loss": -0.03416280159025106,
+        "stops_hit": 6,
+        "stops_hit_pct": 0.16666666666666666,
+        "targets_reached": 3,
+        "targets_reached_pct": 0.08333333333333333,
+        "avg_holding_days": 24.944444444444443,
+        "best_trade": 0.08000000000000017,
+        "worst_trade": -0.05000000000000008
+      },
+      "fixed_variable": {
+        "total_trades": 36,
+        "win_rate": 0.6944444444444444,
+        "avg_pnl_pct": 0.015537053791893922,
+        "total_pnl_usd": 32316.018554687504,
+        "avg_win": 0.035004990160037705,
+        "avg_loss": -0.0287082561357056,
+        "stops_hit": 6,
+        "stops_hit_pct": 0.16666666666666666,
+        "targets_reached": 3,
+        "targets_reached_pct": 0.08333333333333333,
+        "avg_holding_days": 24.0,
+        "best_trade": 0.08000000000000017,
+        "worst_trade": -0.04000000000000011
+      },
+      "comparison": {
+        "winner": "Fixed Variable",
+        "pnl_atr": 7797.595432294793,
+        "pnl_fixed": 28832.357788085938,
+        "pnl_fixed_var": 32316.018554687504,
+        "best_pnl": 32316.018554687504,
+        "verdict": "Fixed Variable wins with $32,316 (+314.4% vs worst)"
+      }
+    }
+  ],
+  "test_config": {
+    "lookback_days": 365,
+    "entry_interval_days": 7,
+    "market_regime": "Bull Market"
+  }
+}
