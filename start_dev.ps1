@@ -80,11 +80,11 @@ if ($redisRunning) {
             $wslPassword = "Hgbdhgbd1"
             echo $wslPassword | wsl -d Ubuntu bash -c "sudo -S service redis-server start" 2>$null
 
-            # Retry logic: wait up to 5 seconds for Redis to start
+            # Retry logic: wait up to 2 seconds for Redis to start (optimized)
             $retries = 0
-            $maxRetries = 5
+            $maxRetries = 4
             while (-not $redisRunning -and $retries -lt $maxRetries) {
-                Start-Sleep -Seconds 1
+                Start-Sleep -Milliseconds 500
                 $redisRunning = Test-NetConnection -ComputerName localhost -Port 6379 -InformationLevel Quiet -WarningAction SilentlyContinue
                 $retries++
                 if (-not $redisRunning -and $retries -lt $maxRetries) {
