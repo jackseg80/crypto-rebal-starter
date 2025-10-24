@@ -131,24 +131,37 @@ class PriceTargets:
         recommended_method = stop_loss_analysis["recommended_method"]
         stop_loss = stop_loss_analysis["stop_loss_levels"][recommended_method]["price"]
 
-        # Take-profit levels
-        # TP1: First resistance or calculated target
-        if sr_levels and "resistance1" in sr_levels:
-            tp1 = max(
-                sr_levels["resistance1"],
-                current_price * (1 + self.params["tp1"])
-            )
-        else:
-            tp1 = current_price * (1 + self.params["tp1"])
+        # Get volatility bucket from stop loss analysis (for adaptive TP calculation)
+        vol_bucket = stop_loss_analysis["stop_loss_levels"][recommended_method].get("volatility_bucket", "moderate")
 
-        # TP2: Second resistance or extended target
-        if sr_levels and "resistance2" in sr_levels:
-            tp2 = max(
-                sr_levels["resistance2"],
-                current_price * (1 + self.params["tp2"])
-            )
+        # TP multipliers based on volatility (Option C - Adaptive)
+        # Low vol: aim further (predictable, can hold longer)
+        # High vol: take profits earlier (erratic, quick reversals)
+        TP_MULTIPLIERS = {
+            "low": {"tp1": 2.0, "tp2": 3.0},      # Low vol: viser plus loin
+            "moderate": {"tp1": 1.5, "tp2": 2.5},  # Moderate: équilibré
+            "high": {"tp1": 1.2, "tp2": 2.0}       # High vol: prendre profits plus tôt
+        }
+
+        multipliers = TP_MULTIPLIERS.get(vol_bucket, {"tp1": 1.5, "tp2": 2.5})
+
+        # Calculate risk
+        risk = current_price - stop_loss
+
+        # Calculate TP based on risk multiples (volatility-adaptive)
+        tp1_calculated = current_price + (risk * multipliers["tp1"])
+        tp2_calculated = current_price + (risk * multipliers["tp2"])
+
+        # Override with technical resistance if better
+        if sr_levels and "resistance1" in sr_levels:
+            tp1 = max(tp1_calculated, sr_levels["resistance1"])
         else:
-            tp2 = current_price * (1 + self.params["tp2"])
+            tp1 = tp1_calculated
+
+        if sr_levels and "resistance2" in sr_levels:
+            tp2 = max(tp2_calculated, sr_levels["resistance2"])
+        else:
+            tp2 = tp2_calculated
 
         # Risk/Reward calculation
         risk = current_price - stop_loss
@@ -229,16 +242,29 @@ class PriceTargets:
             volatility=None
         )
 
-        # For HOLD, just provide monitoring levels
-        upper_watch = current_price * (1 + self.params["tp1"])
+        # Get volatility bucket and stop loss
         recommended_method = stop_loss_analysis["recommended_method"]
         lower_watch = stop_loss_analysis["stop_loss_levels"][recommended_method]["price"]
+        vol_bucket = stop_loss_analysis["stop_loss_levels"][recommended_method].get("volatility_bucket", "moderate")
+
+        # Use same TP multipliers as BUY (for consistency)
+        TP_MULTIPLIERS = {
+            "low": {"tp1": 2.0, "tp2": 3.0},
+            "moderate": {"tp1": 1.5, "tp2": 2.5},
+            "high": {"tp1": 1.2, "tp2": 2.0}
+        }
+
+        multipliers = TP_MULTIPLIERS.get(vol_bucket, {"tp1": 1.5, "tp2": 2.5})
+
+        # Calculate risk and upper watch (using tp1 multiple)
+        risk = current_price - lower_watch
+        upper_watch = current_price + (risk * multipliers["tp1"])
 
         return {
             "current_price": round(current_price, 2),
             "action": "HOLD - Monitor position",
             "upper_watch": round(upper_watch, 2),
-            "upper_watch_pct": round(self.params["tp1"] * 100, 1),
+            "upper_watch_pct": round((upper_watch / current_price - 1) * 100, 1),
             "lower_watch": round(lower_watch, 2),
             "lower_watch_pct": round((lower_watch / current_price - 1) * 100, 1),
             "guidance": f"Re-evaluate if price breaks above ${upper_watch:.2f} (upgrade to BUY) or below ${lower_watch:.2f} (downgrade to SELL)",

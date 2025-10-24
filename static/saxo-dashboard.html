@@ -4660,11 +4660,11 @@
             return `
                 <details open style="margin-bottom: 1.5rem; border: 2px solid var(--info); border-radius: var(--radius-md); padding: 0.75rem; background: color-mix(in oklab, var(--info) 5%, transparent);">
                     <summary style="cursor: pointer; font-weight: 600; padding: 0.5rem; color: var(--info); user-select: none;">
-                        🛡️ Stop Loss Analysis (4 Methods Compared)
+                        🛡️ Stop Loss Analysis (5 Methods Compared)
                     </summary>
                     <div style="padding: 1rem 0.5rem 0.5rem 0.5rem;">
                         <p style="font-size: 0.875rem; color: var(--theme-text-muted); margin-bottom: 1rem;">
-                            Comparing 4 stop loss calculation methods. <strong style="color: var(--success);">ATR-based</strong> is recommended for most assets as it adapts to volatility.
+                            Comparing multiple stop loss calculation methods. <strong style="color: var(--success);">Fixed Variable</strong> is recommended (backtested +8% vs Fixed 5%, +156% vs ATR). Simple rules: 4% (low vol), 6% (moderate vol), 8% (high vol).
                         </p>
 
                         <div style="overflow-x: auto;">
@@ -4702,6 +4702,7 @@
          */
         function getMethodLabel(methodKey) {
             const labels = {
+                'fixed_variable': 'Fixed Variable (Adaptive)',
                 'atr_2x': 'ATR 2x',
                 'technical_support': 'Technical Support',
                 'volatility_2std': 'Volatility 2σ',

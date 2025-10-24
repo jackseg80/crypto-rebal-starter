@@ -366,24 +366,33 @@ ethTarget = (baseEthRatio / baseTotal) × nonStablesSpace
 
 ### Stop Loss Intelligent - Multi-Method (Oct 2025)
 
-**4 méthodes de calcul adaptatives** ([stop_loss_calculator.py](services/ml/bourse/stop_loss_calculator.py)):
+**5 méthodes de calcul adaptatives** ([stop_loss_calculator.py](services/ml/bourse/stop_loss_calculator.py)):
 
 **Méthodes :**
 
-1. **ATR 2x** (Recommandé) - S'adapte à la volatilité, multiplier selon régime marché (1.5x-2.5x)
-2. **Technical Support** - Basé sur MA20/MA50
-3. **Volatility 2σ** - 2 écarts-types statistiques
-4. **Fixed %** - Pourcentage fixe (legacy fallback)
+1. **Fixed Variable** (Recommandé ✅) - Adaptatif selon volatilité : 4% (low vol), 6% (moderate vol), 8% (high vol)
+2. **ATR 2x** - S'adapte à la volatilité, multiplier selon régime marché (1.5x-2.5x)
+3. **Technical Support** - Basé sur MA20/MA50
+4. **Volatility 2σ** - 2 écarts-types statistiques
+5. **Fixed %** - Pourcentage fixe (legacy fallback)
+
+**Validation Backtest (Oct 2025) :**
+
+- 372 trades, 6 assets (MSFT, NVDA, TSLA, AAPL, SPY, KO), 1-5 ans
+- Fixed Variable : $105,232 (WINNER)
+- Fixed 5% : $97,642 (-7.2%)
+- ATR 2x : $41,176 (-60.9%)
+- **Résultat : Fixed Variable gagne +8% vs Fixed 5%, +156% vs ATR**
 
 **Frontend** ([saxo-dashboard.html](static/saxo-dashboard.html)):
 
-- Tableau comparatif des 4 méthodes dans modal de recommendation
+- Tableau comparatif des 5 méthodes dans modal de recommendation
 - Badge R/R avec icônes (✅ ≥2.0, ⚠️ ≥1.5, ❌ <1.5)
 - Alerte automatique si R/R < 1.5 (trade non recommandé)
 - Colonne R/R triable dans tableau principal (tri par défaut)
 - Calcul du risque en € pour chaque méthode
 
-**Détails complets :** [`docs/STOP_LOSS_SYSTEM.md`](docs/STOP_LOSS_SYSTEM.md)
+**Détails complets :** [`docs/STOP_LOSS_BACKTEST_RESULTS.md`](docs/STOP_LOSS_BACKTEST_RESULTS.md), [`docs/STOP_LOSS_SYSTEM.md`](docs/STOP_LOSS_SYSTEM.md)
 
 ### Governance - Freeze Semantics (Oct 2025)
 **3 types de freeze avec opérations granulaires** ([governance.py](services/execution/governance.py)):

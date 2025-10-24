@@ -6,7 +6,9 @@
 
 ## Vue d'ensemble
 
-Le système de stop loss intelligent calcule des niveaux de stop loss optimaux en utilisant **4 méthodes différentes** au lieu d'un simple pourcentage fixe. Cela permet d'adapter le stop loss à la volatilité de chaque asset et au régime de marché actuel.
+Le système de stop loss intelligent calcule des niveaux de stop loss optimaux en utilisant **5 méthodes différentes** au lieu d'un simple pourcentage fixe. Cela permet d'adapter le stop loss à la volatilité de chaque asset et au régime de marché actuel.
+
+**Méthode recommandée : Fixed Variable** (validée par backtest sur 372 trades, +8% vs Fixed 5%, +156% vs ATR)
 
 ## Architecture
 
@@ -26,7 +28,54 @@ Le système de stop loss intelligent calcule des niveaux de stop loss optimaux e
 
 ## Méthodes de calcul
 
-### 1. ATR-based (Recommandé par défaut)
+### 1. Fixed Variable (Recommandé ✅)
+
+**Formule :**
+```python
+# Bucket basé sur volatilité annuelle
+if annual_volatility > 0.40:
+    stop_pct = 0.08  # High vol
+elif annual_volatility > 0.25:
+    stop_pct = 0.06  # Moderate vol
+else:
+    stop_pct = 0.04  # Low vol
+
+stop_loss = current_price × (1 - stop_pct)
+```
+
+**Buckets de volatilité :**
+- **Low vol (<25%)** : Stop 4% - Assets stables (KO, SPY, ETFs bonds)
+- **Moderate vol (25-40%)** : Stop 6% - Majorité des stocks (AAPL, NVDA, MSFT)
+- **High vol (>40%)** : Stop 8% - Assets erratiques (TSLA, PLTR, crypto)
+
+**Avantages :**
+- ✅ **Simplicité** : 3 règles simples (4-6-8%)
+- ✅ **S'adapte à la volatilité** de l'asset
+- ✅ **Validé empiriquement** : Backtest sur 372 trades, 6 assets, 1-5 ans
+- ✅ **Performance supérieure** : +8% vs Fixed 5%, +156% vs ATR 2x
+- ✅ **Évite over-optimization** : Pas de paramètres complexes
+
+**Résultats backtest (Oct 2025) :**
+```
+Fixed Variable:  $105,232  ✅ WINNER (+8.0% vs Fixed 5%)
+Fixed 5%:        $ 97,642  (-7.2% vs Fixed Var)
+ATR 2x:          $ 41,176  (-60.9% vs Fixed Var)
+```
+
+**Exemple :**
+```
+NVDA (vol 30% moderate):
+- Annual volatility = 30%
+- Bucket = "moderate" (25-40%)
+- Stop Loss = current × (1 - 0.06) = -6%
+- Prix $182.16 → Stop $171.23
+```
+
+**Détails complets :** Voir `docs/STOP_LOSS_BACKTEST_RESULTS.md`
+
+---
+
+### 2. ATR-based (Adaptive)
 
 **Formule :**
 ```python
@@ -121,23 +170,27 @@ stop_loss = current_price × (1 - fixed_pct)
 
 ## Sélection de la méthode recommandée
 
-**Priorité :**
+**Priorité (Mise à jour Oct 2025) :**
 ```
-1. ATR-based (si ≥15 jours de données)
-2. Technical Support (si ≥50 jours de données)
-3. Volatility 2σ (si ≥30 jours de données)
-4. Fixed % (fallback toujours disponible)
+1. Fixed Variable (TOUJOURS - gagnant backtest)
+2. ATR-based (si ≥15 jours de données)
+3. Technical Support (si ≥50 jours de données)
+4. Volatility 2σ (si ≥30 jours de données)
+5. Fixed % (fallback legacy)
 ```
 
 **Code :**
 ```python
 def _determine_best_method(self, stop_loss_levels):
-    if "atr_2x" in stop_loss_levels:
-        return "atr_2x"  # Priorité 1
+    # NEW: Fixed Variable always wins (validated by backtest)
+    if "fixed_variable" in stop_loss_levels:
+        return "fixed_variable"  # Priorité 1
+    elif "atr_2x" in stop_loss_levels:
+        return "atr_2x"  # Priorité 2
     elif "technical_support" in stop_loss_levels:
-        return "technical_support"  # Priorité 2
+        return "technical_support"  # Priorité 3
     elif "volatility_2std" in stop_loss_levels:
-        return "volatility_2std"  # Priorité 3
+        return "volatility_2std"  # Priorité 4
     else:
         return "fixed_pct"  # Fallback
 ```
@@ -150,10 +203,166 @@ Chaque méthode a un badge de qualité :
 
 | Méthode | Qualité | Raison |
 |---------|---------|--------|
-| ATR 2x | **HIGH** | S'adapte à la volatilité, méthode pro |
+| **Fixed Variable** | **HIGH** | ✅ Gagnant backtest, simple, adaptatif (4-6-8%) |
+| ATR 2x | **MEDIUM** | S'adapte mais complexe, perdu backtest -60% |
 | Technical Support | **MEDIUM** | Basé sur TA réel mais peut être imprécis |
 | Volatility 2σ | **MEDIUM** | Statistiquement valide mais générique |
-| Fixed % | **LOW** | Ne s'adapte pas, méthode simpliste |
+| Fixed % | **LOW** | Ne s'adapte pas, méthode simpliste legacy |
+
+---
+
+## Take Profits Adaptatifs (Option C) 🎯
+
+**Implémenté :** Octobre 2025
+**Validation :** Aligné avec système Fixed Variable
+
+### Principe
+
+Au lieu de TP fixes (+8% / +15%), les TP sont calculés comme **multiples du risque** pour garantir des R/R minimums.
+
+**Formule :**
+```python
+risk = current_price - stop_loss
+tp1 = current_price + (risk × tp1_multiplier)
+tp2 = current_price + (risk × tp2_multiplier)
+```
+
+### Multiples adaptatifs par volatilité
+
+```python
+TP_MULTIPLIERS = {
+    "low":      {"tp1": 2.0, "tp2": 3.0},   # Assets stables
+    "moderate": {"tp1": 1.5, "tp2": 2.5},   # Majorité stocks
+    "high":     {"tp1": 1.2, "tp2": 2.0}    # Assets erratiques
+}
+```
+
+### Rationale par bucket
+
+| Volatilité | Stop | TP1 Multiple | TP2 Multiple | Logique |
+|------------|------|--------------|--------------|---------|
+| **Low (<25%)** | -4% | 2.0x | 3.0x | Mouvements prévisibles → viser plus loin |
+| **Moderate (25-40%)** | -6% | 1.5x | 2.5x | Équilibré |
+| **High (>40%)** | -8% | 1.2x | 2.0x | Erratique → prendre profits vite |
+
+### Exemples concrets
+
+**SPY (Low vol 18%) :**
+```
+Prix : $575.00
+Stop : $552.00 (-4%)
+Risk : $23.00
+
+TP1 = $575 + ($23 × 2.0) = $621.00 (+8%)
+TP2 = $575 + ($23 × 3.0) = $644.00 (+12%)
+
+R/R TP1 = 2.00 ✅
+R/R TP2 = 3.00 ✅
+```
+
+**NVDA (Moderate vol 30%) :**
+```
+Prix : $182.16
+Stop : $171.23 (-6%)
+Risk : $10.93
+
+TP1 = $182.16 + ($10.93 × 1.5) = $198.56 (+9%)
+TP2 = $182.16 + ($10.93 × 2.5) = $209.49 (+15%)
+
+R/R TP1 = 1.50 ✅
+R/R TP2 = 2.50 ✅
+```
+
+**TSLA (High vol 44%) :**
+```
+Prix : $448.98
+Stop : $413.06 (-8%)
+Risk : $35.92
+
+TP1 = $448.98 + ($35.92 × 1.2) = $492.08 (+9.6%)
+TP2 = $448.98 + ($35.92 × 2.0) = $520.82 (+16%)
+
+R/R TP1 = 1.20 ⚠️ (limite acceptable)
+R/R TP2 = 2.00 ✅
+```
+
+### Avantages vs TP fixes
+
+**Avant (système ancien) :**
+```python
+# Timeframe "medium"
+tp1 = current_price × 1.08  # +8% pour TOUS
+tp2 = current_price × 1.15  # +15% pour TOUS
+
+# Résultat : R/R uniformes
+# - Low vol + stop 4% → R/R = 8/4 = 2.00 ✅
+# - Moderate vol + stop 6% → R/R = 8/6 = 1.33 ⚠️
+# - High vol + stop 8% → R/R = 8/8 = 1.00 ❌
+```
+
+**Après (Option C) :**
+```python
+# Adaptatif selon volatilité
+risk = current_price - stop_loss
+tp1 = current_price + (risk × multipliers[vol_bucket]["tp1"])
+tp2 = current_price + (risk × multipliers[vol_bucket]["tp2"])
+
+# Résultat : R/R garantis minimums
+# - Low vol → R/R ≥ 2.00 ✅
+# - Moderate vol → R/R ≥ 1.50 ✅
+# - High vol → R/R ≥ 1.20 ✅
+```
+
+### Impact sur le portfolio
+
+**Distribution R/R observée (après implémentation) :**
+```
+R/R 2.00 : 9 positions  (32%) - Low vol assets
+R/R 1.50 : 11 positions (39%) - Moderate vol assets
+R/R 1.20 : 4 positions  (14%) - High vol assets
+N/A      : 4 positions  (14%)
+
+→ 70% du portfolio avec R/R ≥ 1.50 ✅
+```
+
+### Fichiers modifiés
+
+**Backend :**
+- `services/ml/bourse/price_targets.py` (lignes 134-164)
+  - Méthode `_calculate_buy_targets()` : TP adaptatifs
+  - Méthode `_calculate_hold_targets()` : Même logique
+
+**Code exemple :**
+```python
+# Get volatility bucket from Fixed Variable stop loss
+vol_bucket = stop_loss_analysis["stop_loss_levels"]["fixed_variable"]["volatility_bucket"]
+
+# TP multipliers
+TP_MULTIPLIERS = {
+    "low": {"tp1": 2.0, "tp2": 3.0},
+    "moderate": {"tp1": 1.5, "tp2": 2.5},
+    "high": {"tp1": 1.2, "tp2": 2.0}
+}
+
+multipliers = TP_MULTIPLIERS[vol_bucket]
+
+# Calculate TP based on risk multiples
+risk = current_price - stop_loss
+tp1 = current_price + (risk × multipliers["tp1"])
+tp2 = current_price + (risk × multipliers["tp2"])
+
+# Override with technical resistance if better
+if sr_levels and "resistance1" in sr_levels:
+    tp1 = max(tp1, sr_levels["resistance1"])
+```
+
+### Bénéfices
+
+1. ✅ **R/R minimums garantis** pour toutes les positions
+2. ✅ **Plus de R/R uniformes** (1.33 partout)
+3. ✅ **Cohérence avec stop loss** : Système complet basé volatilité
+4. ✅ **Logique de trading réaliste** : Prendre profits plus vite sur high vol
+5. ✅ **Simplicité** : Mêmes 3 buckets (low/moderate/high)
 
 ---
 
