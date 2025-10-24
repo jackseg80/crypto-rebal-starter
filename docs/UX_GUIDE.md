@@ -202,24 +202,83 @@ Poids Adaptatifs (Σ = 100%)
 
 ## Responsive Design
 
-### Desktop (≥ 1024px)
+### Breakpoints Standards (Oct 2025)
+
+| Breakpoint | Width | Layout | Use case |
+|------------|-------|--------|----------|
+| **XL** | ≥ 2000px | 4+ columns, padding augmenté | Ultra-wide monitors |
+| **Large** | 1400px - 1999px | 3-4 columns | Modern desktops |
+| **Desktop** | 1024px - 1399px | 2-3 columns | Standard desktops |
+| **Tablet** | 768px - 1023px | 1-2 columns | Tablets |
+| **Mobile** | < 768px | 1 column | Phones |
+
+### Règles Critiques
+
+#### ❌ À ÉVITER
+
+```css
+/* NE JAMAIS fixer une largeur max arbitraire */
+.container {
+  max-width: 1200px;  /* ❌ Limite l'espace sur grands écrans */
+}
+```
+
+#### ✅ À FAIRE
+
+```css
+/* Full responsive avec padding adaptatif */
+.container {
+  width: 100%;
+  max-width: none;  /* Utilise tout l'espace disponible */
+  padding: 1rem 2rem;
+}
+
+@media (min-width: 2000px) {
+  .container {
+    padding: 1rem 4rem;  /* Plus d'espace sur XL screens */
+  }
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 1rem;  /* Moins d'espace sur mobile */
+  }
+}
+```
+
+#### Grid Auto-Fit
+
+```css
+/* S'adapte automatiquement au nombre de colonnes */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+```
+
+### Layout par Device
+
+#### Desktop (≥ 1024px)
 
 - Barre empilée horizontale
 - Poids affichés en colonnes
 - Badges en ligne
+- **Full width** (pas de max-width)
 
-### Tablet (768px - 1023px)
+#### Tablet (768px - 1023px)
 
 - Barre empilée horizontale (plus petite)
 - Poids en 2 colonnes
 - Badges empilés
 
-### Mobile (< 768px)
+#### Mobile (< 768px)
 
 - Barre empilée verticale
 - Poids en liste verticale
 - Badges en liste verticale
 - Texte condensé
+- Padding réduit
 
 ---
 

@@ -3649,11 +3649,40 @@ Résultat: 3-4 SELLs, 9 HOLDs avec warning
 
 ### 🎯 Price Targets par Timeframe
 
-| Timeframe | Stop-Loss | TP1 | TP2 | R/R Min |
-|-----------|-----------|-----|-----|---------|
-| **Short (1-2w)** | -5% | +5% | +10% | 1.5 |
-| **Medium (1m)** | -8% | +8% | +15% | 1.5 |
-| **Long (3-6m)** | -12% | +12% | +25% | 1.5 |
+> **⚠️ IMPORTANT (Oct 2025) :** Le système a évolué vers un **Stop Loss Intelligent Multi-Method**.
+> Les pourcentages fixes ci-dessous sont désormais utilisés comme **fallback uniquement**.
+> Voir [`docs/STOP_LOSS_SYSTEM.md`](STOP_LOSS_SYSTEM.md) pour détails complets.
+
+#### Targets par Timeframe (Take Profit)
+
+| Timeframe | TP1 | TP2 | R/R Min |
+|-----------|-----|-----|---------|
+| **Short (1-2w)** | +5% | +10% | 1.5 |
+| **Medium (1m)** | +8% | +15% | 1.5 |
+| **Long (3-6m)** | +12% | +25% | 1.5 |
+
+#### Stop Loss (Multi-Method System)
+
+**4 méthodes calculées automatiquement :**
+
+1. **ATR 2x** (Recommandé par défaut)
+   - S'adapte à la volatilité de l'asset
+   - Multiplier selon régime : Bull (2.5x), Neutral (2.0x), Bear (1.5x)
+   - Exemple NVDA (vol 40%) : -3.8% au lieu de -5% fixe
+
+2. **Technical Support** (MA20/MA50)
+   - Basé sur supports techniques réels
+   - Évite sorties prématurées sur "noise"
+
+3. **Volatility 2σ** (Statistical)
+   - 2 écarts-types (95% de couverture)
+   - Approche statistique pure
+
+4. **Fixed %** (Legacy fallback)
+   - Short: -5%, Medium: -8%, Long: -12%
+   - Utilisé uniquement si données insuffisantes
+
+**Frontend :** Tableau comparatif des 4 méthodes affiché dans modal de recommendation.
 
 ### 🐛 Issues Résolues (3 Fixes Critiques)
 
