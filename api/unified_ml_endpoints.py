@@ -956,6 +956,24 @@ class SentimentResponse(BaseModel):
 
 
 @router.get("/sentiment/symbol/{symbol}", response_model=SentimentResponse)
+@handle_api_errors(
+    fallback=SentimentResponse(
+        success=True,
+        symbol="FALLBACK",
+        aggregated_sentiment={
+            "fear_greed_index": 50,
+            "overall_sentiment": 0.0,
+            "interpretation": "neutral",
+            "confidence": 0.5,
+            "trend": "neutral",
+            "source_breakdown": {},
+            "analysis_period_days": 1
+        },
+        sources_used=["fallback"],
+        metadata={"error": "Sentiment analysis failed"}
+    ),
+    reraise_http_errors=False
+)
 async def get_symbol_sentiment(
     symbol: str,
     days: int = Query(1, ge=1, le=30, description="Number of days for sentiment analysis"),
@@ -969,7 +987,7 @@ async def get_symbol_sentiment(
     - Source breakdown (fear_greed, social_media, news)
     - Confidence metrics and interpretation
 
-    REFACTORED: Using @handle_api_errors decorator for outer exception (Phase 2)
+    REFACTORED: Using @handle_api_errors decorator (Phase 2)
     Note: Inner try/except for governance fallback kept intentionally
     """
     logger.debug(f"Getting sentiment analysis for {symbol} over {days} days")
@@ -1069,39 +1087,6 @@ async def get_symbol_sentiment(
                 "model_version": "unified_ml_v1.0",
                 "data_quality": data_quality,
                 "last_updated": datetime.now().isoformat()
-            }
-        )
-        
-    except Exception as e:
-        logger.error(f"Error in sentiment analysis for {symbol}: {e}")
-        # Return a basic fallback response
-        return SentimentResponse(
-            success=True,
-            symbol=symbol.upper(),
-            aggregated_sentiment={
-                "fear_greed_index": 50,
-                "overall_sentiment": 0.0,
-                "interpretation": "neutral",
-                "confidence": 0.5,
-                "trend": "neutral",
-                "source_breakdown": {
-                    "fear_greed": {
-                        "average_sentiment": 0.0,
-                        "value": 50,
-                        "confidence": 0.5,
-                        "trend": "neutral",
-                        "volatility": 0.2
-                    }
-                },
-                "analysis_period_days": days
-            },
-            sources_used=["fallback_generator"],
-            metadata={
-                "timestamp": datetime.now().isoformat(),
-                "model_version": "fallback_v1.0",
-                "data_quality": "fallback",
-                "last_updated": datetime.now().isoformat(),
-                "error": str(e)
             }
         )
 
