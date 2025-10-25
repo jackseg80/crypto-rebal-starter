@@ -1020,75 +1020,75 @@ async def get_symbol_sentiment(
         seed = int(hashlib.md5(f"{symbol}_{days}".encode()).hexdigest(), 16) % 1000
         sentiment_value = (seed / 1000) * 1.4 - 0.7  # Range -0.7 to 0.7
         confidence = 0.65
-        
-        # Convert sentiment (-1 to 1) to Fear & Greed Index (0-100)
-        fear_greed_value = max(0, min(100, round(50 + (sentiment_value * 50))))
-        
-        # Determine interpretation
-        if fear_greed_value < 25:
-            interpretation = "extreme_fear"
-        elif fear_greed_value < 45:
-            interpretation = "fear"
-        elif fear_greed_value < 55:
-            interpretation = "neutral"
-        elif fear_greed_value < 75:
-            interpretation = "greed"
-        else:
-            interpretation = "extreme_greed"
-        
-        # Build source breakdown if requested
-        source_breakdown = {}
-        if include_breakdown:
-            source_breakdown = {
-                "fear_greed": {
-                    "average_sentiment": sentiment_value,
-                    "value": fear_greed_value,
-                    "confidence": confidence,
-                    "trend": "neutral",
-                    "volatility": abs(sentiment_value * 0.3)
-                },
-                "social_media": {
-                    "average_sentiment": sentiment_value * 0.85,
-                    "platforms": ["twitter", "reddit", "telegram"],
-                    "volume": "medium",
-                    "confidence": confidence * 0.9
-                },
-                "news_sentiment": {
-                    "average_sentiment": sentiment_value * 0.7,
-                    "sources": ["coindesk", "cointelegraph", "decrypt"],
-                    "articles_analyzed": min(50, days * 8),
-                    "confidence": confidence * 1.1 if confidence < 0.9 else 0.95
-                }
-            }
-        
-        # Determine data quality based on confidence
-        if confidence > 0.8:
-            data_quality = "high"
-        elif confidence > 0.5:
-            data_quality = "medium"
-        else:
-            data_quality = "low"
-        
-        return SentimentResponse(
-            success=True,
-            symbol=symbol.upper(),
-            aggregated_sentiment={
-                "fear_greed_index": fear_greed_value,
-                "overall_sentiment": sentiment_value,
-                "interpretation": interpretation,
+
+    # Convert sentiment (-1 to 1) to Fear & Greed Index (0-100)
+    fear_greed_value = max(0, min(100, round(50 + (sentiment_value * 50))))
+
+    # Determine interpretation
+    if fear_greed_value < 25:
+        interpretation = "extreme_fear"
+    elif fear_greed_value < 45:
+        interpretation = "fear"
+    elif fear_greed_value < 55:
+        interpretation = "neutral"
+    elif fear_greed_value < 75:
+        interpretation = "greed"
+    else:
+        interpretation = "extreme_greed"
+
+    # Build source breakdown if requested
+    source_breakdown = {}
+    if include_breakdown:
+        source_breakdown = {
+            "fear_greed": {
+                "average_sentiment": sentiment_value,
+                "value": fear_greed_value,
                 "confidence": confidence,
                 "trend": "neutral",
-                "source_breakdown": source_breakdown,
-                "analysis_period_days": days
+                "volatility": abs(sentiment_value * 0.3)
             },
-            sources_used=["ml_orchestrator", "governance_engine", "market_signals"],
-            metadata={
-                "timestamp": datetime.now().isoformat(),
-                "model_version": "unified_ml_v1.0",
-                "data_quality": data_quality,
-                "last_updated": datetime.now().isoformat()
+            "social_media": {
+                "average_sentiment": sentiment_value * 0.85,
+                "platforms": ["twitter", "reddit", "telegram"],
+                "volume": "medium",
+                "confidence": confidence * 0.9
+            },
+            "news_sentiment": {
+                "average_sentiment": sentiment_value * 0.7,
+                "sources": ["coindesk", "cointelegraph", "decrypt"],
+                "articles_analyzed": min(50, days * 8),
+                "confidence": confidence * 1.1 if confidence < 0.9 else 0.95
             }
-        )
+        }
+
+    # Determine data quality based on confidence
+    if confidence > 0.8:
+        data_quality = "high"
+    elif confidence > 0.5:
+        data_quality = "medium"
+    else:
+        data_quality = "low"
+
+    return SentimentResponse(
+        success=True,
+        symbol=symbol.upper(),
+        aggregated_sentiment={
+            "fear_greed_index": fear_greed_value,
+            "overall_sentiment": sentiment_value,
+            "interpretation": interpretation,
+            "confidence": confidence,
+            "trend": "neutral",
+            "source_breakdown": source_breakdown,
+            "analysis_period_days": days
+        },
+        sources_used=["ml_orchestrator", "governance_engine", "market_signals"],
+        metadata={
+            "timestamp": datetime.now().isoformat(),
+            "model_version": "unified_ml_v1.0",
+            "data_quality": data_quality,
+            "last_updated": datetime.now().isoformat()
+        }
+    )
 
 
 # === NOUVEAUX ENDPOINTS AVEC CONTRAT UNIFIE ===
