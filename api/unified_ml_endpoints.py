@@ -957,10 +957,10 @@ class SentimentResponse(BaseModel):
 
 @router.get("/sentiment/symbol/{symbol}", response_model=SentimentResponse)
 @handle_api_errors(
-    fallback=SentimentResponse(
-        success=True,
-        symbol="FALLBACK",
-        aggregated_sentiment={
+    fallback={
+        "success": True,
+        "symbol": "BTC",
+        "aggregated_sentiment": {
             "fear_greed_index": 50,
             "overall_sentiment": 0.0,
             "interpretation": "neutral",
@@ -969,9 +969,9 @@ class SentimentResponse(BaseModel):
             "source_breakdown": {},
             "analysis_period_days": 1
         },
-        sources_used=["fallback"],
-        metadata={"error": "Sentiment analysis failed"}
-    ),
+        "sources_used": ["fallback"],
+        "metadata": {"error": "Sentiment analysis failed"}
+    },
     reraise_http_errors=False
 )
 async def get_symbol_sentiment(
