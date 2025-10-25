@@ -376,9 +376,13 @@ except ImportError as e:
     else:
         # Fallback OK: ne pas écraser ct_api
         pass
-except Exception as e:
-    logger.error(f"Unexpected error importing cointracking_api: {e}")
+except (SyntaxError, AttributeError, RuntimeError) as e:
+    logger.error(f"Unexpected error importing cointracking_api: {e}", exc_info=True)
     ct_api = None
+except Exception as e:
+    logger.critical(f"Critical unexpected error importing cointracking_api: {e}", exc_info=True)
+    ct_api = None
+    raise  # Re-raise to prevent silent failures in critical imports
 
 # CSV/API cointracking facade (safe import)
 try:
