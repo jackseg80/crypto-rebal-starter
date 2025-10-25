@@ -77,7 +77,7 @@ class RecommendationsOrchestrator:
             benchmark_return = self._calculate_return(benchmark_data['close'], 30) if benchmark_data is not None else 0
 
             # Calculate total portfolio value
-            total_value = sum(pos.get('market_value', 0) for pos in positions)
+            total_value = sum(pos.get('market_value', 0) or 0 for pos in positions)
 
             # Generate sector analysis directly if not provided
             if sector_analysis is None:
@@ -248,7 +248,7 @@ class RecommendationsOrchestrator:
         )
 
         # Calculate position sizing
-        current_value = position.get('market_value', 0)
+        current_value = position.get('market_value', 0) or 0
         current_weight = current_value / total_portfolio_value if total_portfolio_value > 0 else 0
         sector_weight = sector_data.get('weight', 0) if sector_data else 0
 
@@ -348,7 +348,7 @@ class RecommendationsOrchestrator:
         if not sector_analysis or 'sectors' not in sector_analysis:
             return {}
 
-        total_value = sum(pos.get('market_value', 0) for pos in positions)
+        total_value = sum(pos.get('market_value', 0) or 0 for pos in positions)
         if total_value == 0:
             return {}
 
@@ -387,7 +387,7 @@ class RecommendationsOrchestrator:
                     continue
 
                 # Store position value
-                value = pos.get('market_value', 0)
+                value = pos.get('market_value', 0) or 0
                 if value > 0:
                     positions_values[symbol] = float(value)
 

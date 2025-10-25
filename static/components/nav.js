@@ -218,7 +218,7 @@ const initUnifiedNav = () => {
             <li><a href="saxo-dashboard.html" data-route="saxo-dashboard.html">Bourse</a></li>
             <li><a href="banks-manager.html" data-route="banks-manager.html">Banque</a></li>
             <li class="has-submenu">
-              <a href="#" data-route="">Outils</a>
+              <a href="settings.html" data-route="settings.html">Outils</a>
               <div class="submenu">
                 <a href="ai-dashboard.html" data-route="ai-dashboard.html">🤖 AI Dashboard</a>
                 <a href="monitoring.html" data-route="monitoring.html">📊 Monitoring</a>
