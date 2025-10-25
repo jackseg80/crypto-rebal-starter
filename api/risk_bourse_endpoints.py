@@ -43,7 +43,8 @@ async def bourse_risk_dashboard(
     min_usd: float = Query(1.0, ge=0.0, description="Minimum position value in USD"),
     lookback_days: int = Query(252, ge=30, le=730, description="Days of price history for metrics"),
     risk_free_rate: float = Query(0.03, ge=0.0, le=0.20, description="Annual risk-free rate"),
-    var_method: str = Query("historical", description="VaR calculation method")
+    var_method: str = Query("historical", description="VaR calculation method"),
+    cash_amount: Optional[float] = Query(None, ge=0.0, description="Cash/liquidities in USD")
 ) -> RiskDashboardResponse:
     """
     Calculer les métriques de risque pour un portfolio Bourse/Saxo.
@@ -57,12 +58,13 @@ async def bourse_risk_dashboard(
         lookback_days: Jours d'historique prix pour calculs
         risk_free_rate: Taux sans risque annuel pour Sharpe/Sortino
         var_method: Méthode VaR (historical|parametric|montecarlo)
+        cash_amount: Montant des liquidités disponibles en USD (optionnel)
 
     Returns:
         RiskDashboardResponse avec score + métriques complètes
 
     Example:
-        GET /api/risk/bourse/dashboard?user_id=jack&file_key=portfolio.csv&min_usd=100&lookback_days=252
+        GET /api/risk/bourse/dashboard?user_id=jack&file_key=portfolio.csv&min_usd=100&lookback_days=252&cash_amount=5000
     """
     try:
         logger.info(f"[risk-bourse] Computing risk dashboard for user {user_id}")
@@ -145,11 +147,23 @@ async def bourse_risk_dashboard(
 
         # 3) Formater réponse
         total_value = risk_result["metadata"]["portfolio_value"]
+
+        # Add cash/liquidities to total value if provided
+        total_value_with_cash = total_value
+        if cash_amount and cash_amount > 0:
+            total_value_with_cash = total_value + cash_amount
+            logger.info(f"[risk-bourse] Including cash: ${cash_amount:,.2f}, Total: ${total_value_with_cash:,.2f}")
+
         risk_score = risk_result["risk_score"]["risk_score"]
         risk_level = risk_result["risk_score"]["risk_level"]
 
         # Métriques détaillées
         metrics = risk_result["traditional_risk"]
+
+        # Add cash info to metrics if provided
+        if cash_amount and cash_amount > 0:
+            metrics["cash_amount"] = cash_amount
+            metrics["cash_percentage"] = (cash_amount / total_value_with_cash * 100) if total_value_with_cash > 0 else 0
 
         # Coverage (proxy basé sur disponibilité données)
         coverage = min(1.0, len(positions_filtered) / max(1, len(positions)))
@@ -158,7 +172,7 @@ async def bourse_risk_dashboard(
             ok=True,
             coverage=coverage,
             positions_count=len(positions_filtered),
-            total_value_usd=total_value,
+            total_value_usd=total_value_with_cash,
             risk={
                 "score": risk_score,
                 "level": risk_level,

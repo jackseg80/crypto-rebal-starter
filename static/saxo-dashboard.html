@@ -927,11 +927,16 @@
                 document.getElementById('riskMetrics').innerHTML = '<div class="loading">…</div>';
                 document.getElementById('riskStructure').innerHTML = '<div class="loading">…</div>';
 
-                // Build URL with file_key if available
+                // Build URL with file_key and cash if available
                 let riskUrl = `/api/risk/bourse/dashboard?user_id=${activeUser}`;
                 if (currentFileKey) {
                     riskUrl += `&file_key=${encodeURIComponent(currentFileKey)}`;
                     debugLogger.debug(`🔍 Loading risk with file_key: ${currentFileKey}`);
+                }
+                // Include cash amount if available
+                if (window.portfolioCash && window.portfolioCash > 0) {
+                    riskUrl += `&cash_amount=${window.portfolioCash}`;
+                    debugLogger.debug(`💵 Including cash in risk calculation: $${window.portfolioCash}`);
                 }
 
                 const response = await safeFetch(globalConfig.getApiUrl(riskUrl));
@@ -3301,6 +3306,9 @@
                 // Store portfolio data
                 currentPortfolioData = portfolioData;
 
+                // Load cash amount (async, don't block)
+                await loadPortfolioCash();
+
                 // Hide main content and show dashboard
                 document.getElementById('mainContent').style.display = 'none';
                 document.getElementById('dashboardContent').style.display = 'block';
@@ -3327,9 +3335,13 @@
             const assetAllocation = summary.asset_allocation || {};
             const currencyExposure = summary.currency_exposure || {};
 
+            // Get saved cash value for this portfolio
+            const savedCash = window.portfolioCash || 0;
+            const totalWithCash = totalValue + savedCash;
+
             // Portfolio Summary
             const summaryHtml = `
-                <div class="metric-large">$${totalValue.toLocaleString()}</div>
+                <div class="metric-large">$${totalWithCash.toLocaleString()}</div>
                 <div class="metric-label">Total Portfolio Value</div>
                 <div style="margin-top: 1rem;">
                     <div style="display: flex; justify-content: space-between; margin: 0.5rem 0;">
@@ -3338,7 +3350,7 @@
                     </div>
                     <div style="display: flex; justify-content: space-between; margin: 0.5rem 0;">
                         <span>Asset Classes:</span>
-                        <span><strong>${Object.keys(assetAllocation).length}</strong></span>
+                        <span><strong>${Object.keys(assetAllocation).length + (savedCash > 0 ? 1 : 0)}</strong></span>
                     </div>
                     <div style="display: flex; justify-content: space-between; margin: 0.5rem 0;">
                         <span>Currencies:</span>
@@ -3348,17 +3360,49 @@
             `;
             document.getElementById('portfolioSummary').innerHTML = summaryHtml;
 
-            // Asset Allocation
-            const allocationHtml = Object.keys(assetAllocation).length > 0 ? `
+            // Asset Allocation (include cash as an asset class)
+            const allocationWithCash = {};
+
+            // Recalculate percentages with cash included
+            if (totalWithCash > 0) {
+                // Add existing asset classes with recalculated percentages
+                Object.entries(assetAllocation).forEach(([assetClass, percentage]) => {
+                    const originalValue = (percentage / 100) * totalValue;
+                    const newPercentage = (originalValue / totalWithCash) * 100;
+                    allocationWithCash[assetClass] = newPercentage;
+                });
+
+                // Add cash as an asset class
+                if (savedCash > 0) {
+                    const cashPercentage = (savedCash / totalWithCash) * 100;
+                    allocationWithCash['Cash'] = cashPercentage;
+                }
+            } else {
+                // No cash, use original allocation
+                Object.assign(allocationWithCash, assetAllocation);
+            }
+
+            const allocationHtml = Object.keys(allocationWithCash).length > 0 ? `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3 style="margin: 0;">Asset Allocation</h3>
+                    <button onclick="editCashAmount()" style="padding: 0.4rem 0.75rem; background: var(--brand-primary); color: white; border: none; border-radius: var(--radius-sm); cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; gap: 0.35rem;">
+                        Edit Cash
+                    </button>
+                </div>
                 <div class="allocation-grid">
-                    ${Object.entries(assetAllocation)
+                    ${Object.entries(allocationWithCash)
                     .sort(([, a], [, b]) => b - a)
-                    .map(([assetClass, percentage]) => `
-                            <div class="allocation-item">
+                    .map(([assetClass, percentage]) => {
+                        const isCash = assetClass === 'Cash';
+                        const style = isCash ? 'border: 2px solid #10b981;' : '';
+                        return `
+                            <div class="allocation-item" style="${style}">
                                 <div class="allocation-percentage">${Number(percentage).toFixed(1)}%</div>
                                 <div class="allocation-label">${assetClass}</div>
+                                ${isCash ? `<div style="font-size: 0.75rem; opacity: 0.7; margin-top: 0.25rem;">$${savedCash.toLocaleString()}</div>` : ''}
                             </div>
-                        `).join('')}
+                        `;
+                    }).join('')}
                 </div>
             ` : '<div class="no-data">Aucune donnée d\'allocation disponible</div>';
             document.getElementById('assetAllocation').innerHTML = allocationHtml;
@@ -3398,6 +3442,162 @@
                 </table>
             ` : '<div class="no-data">Aucune position trouvée</div>';
             document.getElementById('topHoldings').innerHTML = holdingsHtml;
+        }
+
+        // ==================== CASH / LIQUIDITIES MANAGEMENT ====================
+
+        // Load saved cash amount for current portfolio
+        async function loadPortfolioCash() {
+            const activeUser = localStorage.getItem('activeUser') || 'demo';
+
+            try {
+                // Build URL with file_key
+                let url = `/api/saxo/cash?user_id=${activeUser}`;
+                if (currentFileKey) {
+                    url += `&file_key=${encodeURIComponent(currentFileKey)}`;
+                }
+
+                const response = await safeFetch(globalConfig.getApiUrl(url));
+                if (response?.ok && response?.data) {
+                    window.portfolioCash = Number(response.data.cash_amount || 0);
+                    debugLogger.debug(`💵 Loaded cash amount: $${window.portfolioCash}`);
+                } else {
+                    window.portfolioCash = 0;
+                }
+            } catch (error) {
+                debugLogger.warn('Failed to load cash amount, defaulting to 0', error);
+                window.portfolioCash = 0;
+            }
+        }
+
+        // Edit cash amount (show modal)
+        function editCashAmount() {
+            const currentCash = window.portfolioCash || 0;
+
+            // Create modal
+            const modal = document.createElement('div');
+            modal.id = 'cashModal';
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.5);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10000;
+            `;
+
+            modal.innerHTML = `
+                <div style="background: var(--theme-surface); border-radius: var(--radius-lg); padding: 2rem; max-width: 500px; width: 90%; box-shadow: var(--shadow-lg);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                        <h3 style="margin: 0; font-size: 1.25rem; font-weight: 700;">💵 Éditer Liquidités</h3>
+                        <button onclick="closeCashModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--theme-text-muted);">×</button>
+                    </div>
+
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Montant en USD:</label>
+                        <input type="number" id="cashInput" value="${currentCash}" step="100" min="0"
+                            style="width: 100%; padding: 0.75rem; border: 1px solid var(--theme-border); border-radius: var(--radius-md); background: var(--theme-bg); color: var(--theme-text); font-size: 1rem;"
+                        />
+                    </div>
+
+                    <div style="padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-sm); margin-bottom: 1.5rem; font-size: 0.875rem; color: var(--theme-text-muted);">
+                        ℹ️ <strong>Info:</strong> Cette valeur représente les liquidités disponibles sur votre compte Saxo. Elle sera prise en compte dans les analyses de risque et les recommandations.
+                    </div>
+
+                    <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                        <button onclick="closeCashModal()" style="padding: 0.75rem 1.5rem; background: var(--theme-bg); border: 1px solid var(--theme-border); border-radius: var(--radius-md); cursor: pointer; font-weight: 600;">
+                            Annuler
+                        </button>
+                        <button onclick="saveCashAmount()" style="padding: 0.75rem 1.5rem; background: var(--brand-primary); color: white; border: none; border-radius: var(--radius-md); cursor: pointer; font-weight: 600;">
+                            💾 Enregistrer
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(modal);
+
+            // Focus on input
+            setTimeout(() => {
+                document.getElementById('cashInput')?.focus();
+            }, 100);
+
+            // Close on Escape key
+            window.addEventListener('keydown', function escHandler(e) {
+                if (e.key === 'Escape') {
+                    closeCashModal();
+                    window.removeEventListener('keydown', escHandler);
+                }
+            });
+        }
+
+        // Close cash modal
+        function closeCashModal() {
+            const modal = document.getElementById('cashModal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+
+        // Save cash amount
+        async function saveCashAmount() {
+            const cashInput = document.getElementById('cashInput');
+            const cashAmount = Number(cashInput?.value || 0);
+
+            if (cashAmount < 0) {
+                alert('Le montant ne peut pas être négatif');
+                return;
+            }
+
+            const activeUser = localStorage.getItem('activeUser') || 'demo';
+
+            try {
+                // Show saving indicator
+                cashInput.disabled = true;
+
+                // Build URL with file_key
+                let url = `/api/saxo/cash?user_id=${activeUser}`;
+                if (currentFileKey) {
+                    url += `&file_key=${encodeURIComponent(currentFileKey)}`;
+                }
+
+                const response = await safeFetch(globalConfig.getApiUrl(url), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User': activeUser
+                    },
+                    body: JSON.stringify({
+                        cash_amount: cashAmount
+                    })
+                });
+
+                if (!response?.ok) {
+                    throw new Error('Failed to save cash amount');
+                }
+
+                // Update local value
+                window.portfolioCash = cashAmount;
+
+                // Close modal
+                closeCashModal();
+
+                // Reload overview to show updated value
+                if (currentPortfolioData) {
+                    loadOverviewData(currentPortfolioData);
+                }
+
+                debugLogger.info(`💾 Cash amount saved: $${cashAmount}`);
+
+            } catch (error) {
+                debugLogger.error('Failed to save cash amount', error);
+                alert('Erreur lors de la sauvegarde: ' + error.message);
+                cashInput.disabled = false;
+            }
         }
 
         function loadAllPositions() {
@@ -3929,9 +4129,19 @@
 
                 tableContainer.innerHTML = '<div class="loading">Loading recommendations...</div>';
 
-                const response = await fetch(
-                    `/api/ml/bourse/portfolio-recommendations?user_id=${activeUser}&timeframe=${timeframe}&lookback_days=90`
-                );
+                // Build URL with parameters
+                let recsUrl = `/api/ml/bourse/portfolio-recommendations?user_id=${activeUser}&timeframe=${timeframe}&lookback_days=90`;
+                if (currentFileKey) {
+                    recsUrl += `&file_key=${encodeURIComponent(currentFileKey)}`;
+                    debugLogger.debug(`🔍 Loading recommendations with file_key: ${currentFileKey}`);
+                }
+                // Include cash amount if available
+                if (window.portfolioCash && window.portfolioCash > 0) {
+                    recsUrl += `&cash_amount=${window.portfolioCash}`;
+                    debugLogger.debug(`💵 Including cash in recommendations: $${window.portfolioCash}`);
+                }
+
+                const response = await fetch(recsUrl);
 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);

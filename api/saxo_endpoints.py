@@ -226,3 +226,115 @@ async def preview_rebalance(
     _legacy_log("/rebalance/preview")
     return await wealth_preview_rebalance(module=_MODULE, user=user, file_key=file_key, payload=payload)
 
+
+# ==================== CASH / LIQUIDITIES MANAGEMENT ====================
+
+@router.get("/cash")
+async def get_portfolio_cash(
+    user_id: str = Query(..., description="User ID"),
+    file_key: Optional[str] = Query(None, description="Specific Saxo CSV file identifier")
+) -> dict:
+    """
+    Get saved cash/liquidities amount for a Saxo portfolio.
+
+    Returns:
+        {"cash_amount": float, "currency": "USD", "last_updated": "..."}
+    """
+    import json
+    from datetime import datetime
+
+    # Determine file identifier
+    cash_key = file_key or "default"
+
+    # Build cash file path
+    cash_dir = Path(f"data/users/{user_id}/saxobank/cash")
+    cash_file = cash_dir / f"{cash_key}_cash.json"
+
+    if not cash_file.exists():
+        # Return default 0 if no cash saved
+        return {
+            "cash_amount": 0.0,
+            "currency": "USD",
+            "last_updated": None
+        }
+
+    try:
+        with open(cash_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        return {
+            "cash_amount": float(data.get("cash_amount", 0.0)),
+            "currency": data.get("currency", "USD"),
+            "last_updated": data.get("last_updated")
+        }
+    except Exception as e:
+        logger.error(f"Failed to load cash amount for user {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to load cash amount: {str(e)}")
+
+
+@router.post("/cash")
+async def save_portfolio_cash(
+    user_id: str = Query(..., description="User ID"),
+    file_key: Optional[str] = Query(None, description="Specific Saxo CSV file identifier"),
+    payload: dict = Body(..., description="Cash amount payload")
+) -> dict:
+    """
+    Save cash/liquidities amount for a Saxo portfolio.
+
+    Payload:
+        {
+            "cash_amount": float,
+            "currency": str (optional, default: "USD")
+        }
+    """
+    import json
+    from datetime import datetime
+
+    cash_amount = payload.get("cash_amount")
+    if cash_amount is None:
+        raise HTTPException(status_code=400, detail="cash_amount is required")
+
+    try:
+        cash_amount = float(cash_amount)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="cash_amount must be a number")
+
+    if cash_amount < 0:
+        raise HTTPException(status_code=400, detail="cash_amount cannot be negative")
+
+    currency = payload.get("currency", "USD")
+
+    # Determine file identifier
+    cash_key = file_key or "default"
+
+    # Build cash file path
+    cash_dir = Path(f"data/users/{user_id}/saxobank/cash")
+    cash_dir.mkdir(parents=True, exist_ok=True)
+
+    cash_file = cash_dir / f"{cash_key}_cash.json"
+
+    # Save cash amount with metadata
+    data = {
+        "cash_amount": cash_amount,
+        "currency": currency,
+        "last_updated": datetime.utcnow().isoformat() + "Z",
+        "user_id": user_id,
+        "file_key": cash_key
+    }
+
+    try:
+        with open(cash_file, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+
+        logger.info(f"💾 Saved cash amount ${cash_amount} for user {user_id}, file_key={cash_key}")
+
+        return {
+            "success": True,
+            "cash_amount": cash_amount,
+            "currency": currency,
+            "message": f"Cash amount saved successfully: ${cash_amount:,.2f}"
+        }
+    except Exception as e:
+        logger.error(f"Failed to save cash amount for user {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save cash amount: {str(e)}")
+

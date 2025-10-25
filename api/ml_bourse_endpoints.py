@@ -583,7 +583,9 @@ async def get_portfolio_recommendations(
     source: str = Query("saxobank", description="Data source (saxobank, cointracking, etc.)"),
     timeframe: str = Query("medium", description="Timeframe: short (1-2w), medium (1m), long (3-6m)"),
     lookback_days: int = Query(90, ge=60, le=365, description="Days of historical data to analyze"),
-    benchmark: str = Query("SPY", description="Benchmark symbol for relative strength")
+    benchmark: str = Query("SPY", description="Benchmark symbol for relative strength"),
+    file_key: Optional[str] = Query(None, description="Specific Saxo CSV file to load"),
+    cash_amount: Optional[float] = Query(None, ge=0.0, description="Cash/liquidities in USD")
 ):
     """
     Generate BUY/HOLD/SELL recommendations for all portfolio positions.
@@ -641,6 +643,10 @@ async def get_portfolio_recommendations(
     try:
         logger.info(f"Portfolio recommendations requested (user={user_id}, source={source}, timeframe={timeframe})")
 
+        # Log cash amount if provided
+        if cash_amount and cash_amount > 0:
+            logger.info(f"💵 Cash/liquidities provided: ${cash_amount:,.2f}")
+
         # Validate timeframe
         if timeframe not in ["short", "medium", "long"]:
             raise HTTPException(
@@ -652,6 +658,8 @@ async def get_portfolio_recommendations(
         import httpx
         async with httpx.AsyncClient() as client:
             positions_url = "http://localhost:8000/api/saxo/positions"
+            if file_key:
+                positions_url += f"?file_key={file_key}"
             pos_response = await client.get(
                 positions_url,
                 headers={"X-User": user_id}
