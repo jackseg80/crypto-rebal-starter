@@ -122,4 +122,11 @@ data/users/*/config.json
 data/users/*/config/config.json
 data/users/*/sources.json
 data/users/*/config/sources.json
+data/users/jack/
+
+# Temporary test/validation files
+*_recs.json
+*_report.txt
+validation_report.txt
+*_OLD.md
 
