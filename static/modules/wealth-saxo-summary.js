@@ -114,11 +114,41 @@ export async function fetchSaxoSummary() {
             return summary;
         }
 
-        // Calculer la valeur totale
-        const totalValue = positions.reduce((sum, pos) => {
+        // Calculer la valeur totale des positions
+        let totalValue = positions.reduce((sum, pos) => {
             const value = Number(pos.market_value_usd || pos.market_value || pos.value || 0);
             return sum + value;
         }, 0);
+
+        // Récupérer et ajouter le cash/liquidités
+        try {
+            // Construire l'URL avec user_id (obligatoire) + file_key (optionnel)
+            let cashUrl = `/api/saxo/cash?user_id=${encodeURIComponent(activeUser)}`;
+            const bourseSource = window.wealthContextBar?.getContext()?.bourse;
+
+            if (bourseSource && bourseSource !== 'all' && bourseSource.startsWith('saxo:')) {
+                const key = bourseSource.substring(5);
+                const source = window.availableSources?.find(s => s.key === key);
+                if (source?.file_path) {
+                    const fileKey = source.file_path.split(/[/\\]/).pop();
+                    cashUrl += `&file_key=${encodeURIComponent(fileKey)}`;
+                }
+            }
+
+            const cashResponse = await safeFetch(cashUrl, {
+                timeout: 3000,
+                headers: { 'X-User': activeUser }
+            });
+
+            if (cashResponse?.ok && cashResponse.data?.cash_amount) {
+                const cashAmount = Number(cashResponse.data.cash_amount || 0);
+                totalValue += cashAmount;
+                (window.debugLogger?.debug || console.log)(`[Saxo Summary] Added cash: $${cashAmount}, new total: $${totalValue}`);
+            }
+        } catch (cashError) {
+            // Non-bloquant : on continue sans le cash si l'endpoint n'existe pas ou échoue
+            (window.debugLogger?.debug || console.log)('[Saxo Summary] Cash fetch failed (non-blocking):', cashError.message);
+        }
 
         // Trouver la date la plus récente (asof)
         let latestDate = 'Date inconnue';

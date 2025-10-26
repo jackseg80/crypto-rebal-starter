@@ -1789,13 +1789,15 @@
                 }
 
                 // Valeurs par défaut si certaines données manquent
-                btcVol = btcVol || 0;
-                ethVol = ethVol || 0;
-                solVol = solVol || 0;
+                // Note: Ne pas utiliser || 0 pour les valeurs qui peuvent être null (besoin d'afficher N/A)
+                btcVol = btcVol ?? null;
+                ethVol = ethVol ?? null;
+                solVol = solVol ?? null;
                 marketRegime = marketRegime || 'Unknown';
                 regimeConfidence = regimeConfidence || 0;
-                avgCorrelation = avgCorrelation || 0;
-                systematicRisk = systematicRisk || 'unknown';
+                // avgCorrelation et systematicRisk restent null si non disponibles
+                avgCorrelation = avgCorrelation ?? null;
+                systematicRisk = systematicRisk ?? null;
                 fearGreed = fearGreed || 0;
 
                 // 4. Mettre à jour l'affichage avec vraies données détaillées
@@ -1803,15 +1805,15 @@
                     <div class="status-grid">
                         <div class="status-item">
                             <span class="status-label">BTC Volatilité</span>
-                            <span class="status-value">${(btcVol * 100).toFixed(1)}%</span>
+                            <span class="status-value">${btcVol !== null ? (btcVol * 100).toFixed(1) + '%' : 'N/A'}</span>
                         </div>
                         <div class="status-item">
                             <span class="status-label">ETH Volatilité</span>
-                            <span class="status-value">${(ethVol * 100).toFixed(1)}%</span>
+                            <span class="status-value">${ethVol !== null ? (ethVol * 100).toFixed(1) + '%' : 'N/A'}</span>
                         </div>
                         <div class="status-item">
                             <span class="status-label">SOL Volatilité</span>
-                            <span class="status-value">${(solVol * 100).toFixed(1)}%</span>
+                            <span class="status-value">${solVol !== null ? (solVol * 100).toFixed(1) + '%' : 'N/A'}</span>
                         </div>
                         <div class="status-item">
                             <span class="status-label">Régime Marché</span>
@@ -1819,11 +1821,11 @@
                         </div>
                         <div class="status-item">
                             <span class="status-label">Corrélation Moy.</span>
-                            <span class="status-value">${(avgCorrelation * 100).toFixed(0)}%</span>
+                            <span class="status-value">${avgCorrelation !== null ? (avgCorrelation * 100).toFixed(0) + '%' : 'N/A'}</span>
                         </div>
                         <div class="status-item">
                             <span class="status-label">Risque Systémique</span>
-                            <span class="status-value">${systematicRisk.charAt(0).toUpperCase() + systematicRisk.slice(1)}</span>
+                            <span class="status-value">${systematicRisk !== null ? (systematicRisk.charAt(0).toUpperCase() + systematicRisk.slice(1)) : 'N/A'}</span>
                         </div>
                         <div class="status-item">
                             <span class="status-label">ML Sentiment</span>
