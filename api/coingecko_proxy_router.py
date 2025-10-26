@@ -3,19 +3,54 @@ CoinGecko Proxy Router
 Provides a backend proxy for CoinGecko API to avoid CORS and rate limiting issues.
 
 Features:
-- Caching (5 minutes default) to reduce API calls
+- Caching (15 minutes default - optimized Oct 2025) to reduce API calls
 - CORS-free (backend-to-backend)
 - Automatic fallback to cached data on API failures
 - Rate limit handling
+- Multi-tenant: uses user's CoinGecko API key from config.json
 """
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Header
 from typing import Dict, Any, Optional
 import httpx
 import logging
 from datetime import datetime, timedelta
 import json
+import os
+from pathlib import Path
 
 logger = logging.getLogger("crypto-rebalancer")
+
+def get_user_coingecko_key(user_id: str) -> Optional[str]:
+    """
+    Load CoinGecko API key from user's config.json.
+    Falls back to .env if user config doesn't exist.
+
+    Args:
+        user_id: User ID
+
+    Returns:
+        CoinGecko API key or None
+    """
+    try:
+        config_path = Path(f"data/users/{user_id}/config.json")
+        if config_path.exists():
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                key = config.get("coingecko_api_key", "")
+                if key:
+                    logger.debug(f"Using CoinGecko key from user {user_id} config")
+                    return key
+    except Exception as e:
+        logger.warning(f"Failed to load user config for {user_id}: {e}")
+
+    # Fallback to .env
+    env_key = os.getenv("COINGECKO_API_KEY", "")
+    if env_key:
+        logger.debug("Using CoinGecko key from .env (fallback)")
+        return env_key
+
+    logger.debug("No CoinGecko API key found (user config or .env)")
+    return None
 
 router = APIRouter(prefix="/api/coingecko-proxy", tags=["coingecko-proxy"])
 
@@ -68,7 +103,8 @@ async def _fetch_with_cache_and_fallback(
     url: str,
     cache_key: str,
     cache_ttl: int,
-    params: Optional[Dict[str, str]] = None
+    params: Optional[Dict[str, str]] = None,
+    api_key: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Helper function to fetch from CoinGecko with caching and stale fallback.
@@ -78,6 +114,7 @@ async def _fetch_with_cache_and_fallback(
         cache_key: Unique cache key
         cache_ttl: Cache TTL in seconds
         params: Optional query parameters
+        api_key: CoinGecko API key (from user config)
 
     Returns:
         Response dict with data, cached status, etc.
@@ -85,13 +122,17 @@ async def _fetch_with_cache_and_fallback(
     # Try cache first
     cached = get_cached_data(cache_key, cache_ttl)
     if cached:
-        return {
-            "data": cached,
-            "cached": True,
-            "timestamp": datetime.now().isoformat()
-        }
+        # Return data directly (frontend expects raw CoinGecko response)
+        return cached
 
     try:
+        # Add API key to params if available (for Pro/Demo API)
+        if api_key:
+            if params is None:
+                params = {}
+            params["x_cg_demo_api_key"] = api_key
+            logger.debug("Using CoinGecko API key from user config")
+
         async with httpx.AsyncClient(timeout=10.0) as client:
             logger.debug(f"Fetching from CoinGecko: {url}")
             response = await client.get(url, params=params)
@@ -103,14 +144,8 @@ async def _fetch_with_cache_and_fallback(
                     stale_data = _cache[cache_key]["data"]
                     age = (datetime.now() - _cache[cache_key]["timestamp"]).total_seconds()
                     logger.info(f"Using stale cache (age: {age:.1f}s) due to rate limit")
-                    return {
-                        "data": stale_data,
-                        "cached": True,
-                        "stale": True,
-                        "age_seconds": age,
-                        "timestamp": datetime.now().isoformat(),
-                        "warning": "CoinGecko API rate limited, using stale cache"
-                    }
+                    # Return data directly (frontend expects raw CoinGecko response)
+                    return stale_data
                 raise HTTPException(status_code=429, detail="CoinGecko API rate limit exceeded and no cache available")
 
             response.raise_for_status()
@@ -120,11 +155,8 @@ async def _fetch_with_cache_and_fallback(
             set_cached_data(cache_key, data, cache_ttl)
 
             logger.info(f"Successfully fetched data from CoinGecko: {url}")
-            return {
-                "data": data,
-                "cached": False,
-                "timestamp": datetime.now().isoformat()
-            }
+            # Return data directly (frontend expects raw CoinGecko response)
+            return data
 
     except httpx.TimeoutException:
         logger.error("CoinGecko API timeout")
@@ -133,36 +165,34 @@ async def _fetch_with_cache_and_fallback(
             stale_data = _cache[cache_key]["data"]
             age = (datetime.now() - _cache[cache_key]["timestamp"]).total_seconds()
             logger.info(f"Using stale cache (age: {age:.1f}s) due to timeout")
-            return {
-                "data": stale_data,
-                "cached": True,
-                "stale": True,
-                "age_seconds": age,
-                "timestamp": datetime.now().isoformat(),
-                "warning": "CoinGecko API timeout, using stale cache"
-            }
+            # Return data directly (frontend expects raw CoinGecko response)
+            return stale_data
         raise HTTPException(status_code=504, detail="CoinGecko API timeout and no cache available")
 
     except httpx.HTTPStatusError as e:
         logger.error(f"CoinGecko API error: {e.response.status_code}")
-        raise HTTPException(status_code=e.response.status_code, detail=f"CoinGecko API error: {e.response.text}")
-
-    except Exception as e:
-        logger.error(f"Unexpected error fetching CoinGecko data: {e}")
-        # Try to use stale cache
+        # Try to use stale cache instead of raising error
         if cache_key in _cache:
             stale_data = _cache[cache_key]["data"]
             age = (datetime.now() - _cache[cache_key]["timestamp"]).total_seconds()
-            logger.info(f"Using stale cache (age: {age:.1f}s) due to error")
-            return {
-                "data": stale_data,
-                "cached": True,
-                "stale": True,
-                "age_seconds": age,
-                "timestamp": datetime.now().isoformat(),
-                "warning": f"CoinGecko API error: {str(e)}, using stale cache"
-            }
-        raise HTTPException(status_code=500, detail=f"Failed to fetch CoinGecko data: {str(e)}")
+            logger.info(f"Using stale cache (age: {age:.1f}s) due to API error {e.response.status_code}")
+            # Return data directly (frontend expects raw CoinGecko response)
+            return stale_data
+        # Only raise if no cache available
+        raise HTTPException(status_code=e.response.status_code, detail=f"CoinGecko API error and no cache available")
+
+    except Exception as e:
+        logger.error(f"Unexpected error fetching CoinGecko data: {e}")
+        # ALWAYS try to use stale cache before raising error
+        if cache_key in _cache:
+            stale_data = _cache[cache_key]["data"]
+            age = (datetime.now() - _cache[cache_key]["timestamp"]).total_seconds()
+            logger.info(f"Using stale cache (age: {age:.1f}s) due to unexpected error")
+            # Return data directly (frontend expects raw CoinGecko response)
+            return stale_data
+        # Last resort: return empty object (frontend expects raw CoinGecko response)
+        logger.warning(f"No cache available for {cache_key}, returning empty fallback")
+        return {}
 
 @router.get("/bitcoin")
 async def get_bitcoin_data(
@@ -172,22 +202,31 @@ async def get_bitcoin_data(
     community_data: bool = Query(False, description="Include community data"),
     developer_data: bool = Query(False, description="Include developer data"),
     sparkline: bool = Query(False, description="Include sparkline data"),
-    cache_ttl: int = Query(300, description="Cache TTL in seconds", ge=60, le=3600)
+    cache_ttl: int = Query(900, description="Cache TTL in seconds (default 15min)", ge=60, le=7200),
+    x_user: Optional[str] = Header(None, alias="X-User")
 ):
     """
-    Proxy endpoint for CoinGecko Bitcoin data.
+    Proxy endpoint for CoinGecko Bitcoin data (multi-tenant).
 
     This endpoint caches responses to avoid rate limiting and provides
     graceful degradation when CoinGecko API is unavailable.
 
+    Uses the CoinGecko API key from the user's config.json.
+
     Example:
         GET /api/coingecko-proxy/bitcoin?market_data=true
+
+    Headers:
+        X-User: Optional user ID (defaults to "demo")
 
     Returns:
         Bitcoin market data from CoinGecko API (or cached data)
     """
-    # Build cache key from parameters
-    cache_key = f"bitcoin_{localization}_{tickers}_{market_data}_{community_data}_{developer_data}_{sparkline}"
+    # Get user (fallback to demo if not provided)
+    user = x_user or "demo"
+
+    # Build cache key from parameters (include user for multi-tenant cache)
+    cache_key = f"bitcoin_{user}_{localization}_{tickers}_{market_data}_{community_data}_{developer_data}_{sparkline}"
 
     # Build CoinGecko URL and params
     url = "https://api.coingecko.com/api/v3/coins/bitcoin"
@@ -200,51 +239,70 @@ async def get_bitcoin_data(
         "sparkline": str(sparkline).lower()
     }
 
-    return await _fetch_with_cache_and_fallback(url, cache_key, cache_ttl, params)
+    # Get user's CoinGecko API key
+    api_key = get_user_coingecko_key(user)
+
+    return await _fetch_with_cache_and_fallback(url, cache_key, cache_ttl, params, api_key)
 
 @router.get("/global")
 async def get_global_data(
-    cache_ttl: int = Query(300, description="Cache TTL in seconds", ge=60, le=3600)
+    cache_ttl: int = Query(900, description="Cache TTL in seconds (default 15min)", ge=60, le=7200),
+    x_user: Optional[str] = Header(None, alias="X-User")
 ):
     """
-    Proxy endpoint for CoinGecko global cryptocurrency market data.
+    Proxy endpoint for CoinGecko global cryptocurrency market data (multi-tenant).
     Used for BTC dominance and market cap data.
 
     Example:
         GET /api/coingecko-proxy/global
 
+    Headers:
+        X-User: Optional user ID (defaults to "demo")
+
     Returns:
         Global market data from CoinGecko API (or cached data)
     """
-    cache_key = "global"
+    user = x_user or "demo"
+    cache_key = f"global_{user}"
     url = "https://api.coingecko.com/api/v3/global"
 
-    return await _fetch_with_cache_and_fallback(url, cache_key, cache_ttl)
+    # Get user's CoinGecko API key
+    api_key = get_user_coingecko_key(user)
+
+    return await _fetch_with_cache_and_fallback(url, cache_key, cache_ttl, None, api_key)
 
 @router.get("/simple/price")
 async def get_simple_price(
     ids: str = Query(..., description="Comma-separated coin IDs (e.g., bitcoin,ethereum)"),
     vs_currencies: str = Query("usd", description="Comma-separated fiat currencies"),
-    cache_ttl: int = Query(300, description="Cache TTL in seconds", ge=60, le=3600)
+    cache_ttl: int = Query(180, description="Cache TTL in seconds (default 3min for prices)", ge=60, le=7200),
+    x_user: Optional[str] = Header(None, alias="X-User")
 ):
     """
-    Proxy endpoint for CoinGecko simple price endpoint.
+    Proxy endpoint for CoinGecko simple price endpoint (multi-tenant).
     Used for getting current prices of multiple coins.
 
     Example:
         GET /api/coingecko-proxy/simple/price?ids=bitcoin,ethereum&vs_currencies=usd
 
+    Headers:
+        X-User: Optional user ID (defaults to "demo")
+
     Returns:
         Simple price data from CoinGecko API (or cached data)
     """
-    cache_key = f"simple_price_{ids}_{vs_currencies}"
+    user = x_user or "demo"
+    cache_key = f"simple_price_{user}_{ids}_{vs_currencies}"
     url = "https://api.coingecko.com/api/v3/simple/price"
     params = {
         "ids": ids,
         "vs_currencies": vs_currencies
     }
 
-    return await _fetch_with_cache_and_fallback(url, cache_key, cache_ttl, params)
+    # Get user's CoinGecko API key
+    api_key = get_user_coingecko_key(user)
+
+    return await _fetch_with_cache_and_fallback(url, cache_key, cache_ttl, params, api_key)
 
 @router.get("/market_chart")
 async def get_market_chart(
@@ -252,19 +310,24 @@ async def get_market_chart(
     vs_currency: str = Query("usd", description="Fiat currency"),
     days: int = Query(7, description="Number of days", ge=1, le=365),
     interval: str = Query("daily", description="Data interval"),
-    cache_ttl: int = Query(300, description="Cache TTL in seconds", ge=60, le=3600)
+    cache_ttl: int = Query(900, description="Cache TTL in seconds (default 15min)", ge=60, le=7200),
+    x_user: Optional[str] = Header(None, alias="X-User")
 ):
     """
-    Proxy endpoint for CoinGecko market chart endpoint.
+    Proxy endpoint for CoinGecko market chart endpoint (multi-tenant).
     Used for historical price data and volatility calculations.
 
     Example:
         GET /api/coingecko-proxy/market_chart?coin_id=bitcoin&vs_currency=usd&days=7&interval=daily
 
+    Headers:
+        X-User: Optional user ID (defaults to "demo")
+
     Returns:
         Market chart data from CoinGecko API (or cached data)
     """
-    cache_key = f"market_chart_{coin_id}_{vs_currency}_{days}_{interval}"
+    user = x_user or "demo"
+    cache_key = f"market_chart_{user}_{coin_id}_{vs_currency}_{days}_{interval}"
     url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart"
     params = {
         "vs_currency": vs_currency,
@@ -272,7 +335,10 @@ async def get_market_chart(
         "interval": interval
     }
 
-    return await _fetch_with_cache_and_fallback(url, cache_key, cache_ttl, params)
+    # Get user's CoinGecko API key
+    api_key = get_user_coingecko_key(user)
+
+    return await _fetch_with_cache_and_fallback(url, cache_key, cache_ttl, params, api_key)
 
 @router.get("/cache/stats")
 async def get_cache_stats():

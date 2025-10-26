@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import List, Optional
 
 from fastapi import APIRouter, Body, HTTPException, Query, Depends
@@ -467,7 +468,7 @@ async def global_summary(
     except Exception as e:
         logger.error(f"[wealth][global] ❌ crypto failed for user={user}: {e}", exc_info=True)
 
-    # 2) Saxo (with file_key support)
+    # 2) Saxo (with file_key support + cash)
     try:
         logger.info(f"[wealth][global] 🔍 Checking Saxo availability for user={user}")
         saxo_available = await _module_available("saxo", user)
@@ -478,6 +479,23 @@ async def global_summary(
             saxo_positions = await saxo_adapter.list_positions(user_id=user, file_key=bourse_file_key)
             logger.info(f"[wealth][global] 📋 Got {len(saxo_positions)} Saxo positions")
             breakdown["saxo"] = sum((p.market_value or 0.0) for p in saxo_positions)
+
+            # Add cash/liquidities if available
+            try:
+                import json
+                cash_key = bourse_file_key or "default"
+                cash_dir = Path(f"data/users/{user}/saxobank/cash")
+                cash_file = cash_dir / f"{cash_key}_cash.json"
+
+                if cash_file.exists():
+                    with open(cash_file, 'r', encoding='utf-8') as f:
+                        cash_data = json.load(f)
+                        cash_amount = float(cash_data.get("cash_amount", 0.0))
+                        breakdown["saxo"] += cash_amount
+                        logger.info(f"[wealth][global] 💵 Added cash ${cash_amount:.2f} to Saxo total")
+            except Exception as cash_error:
+                logger.debug(f"[wealth][global] Cash file not found or error (non-blocking): {cash_error}")
+
             logger.info(f"[wealth][global] ✅ saxo={breakdown['saxo']:.2f} USD for user={user} file_key={bourse_file_key}")
         else:
             logger.warning(f"[wealth][global] ⚠️ Saxo module not available for user={user}")
