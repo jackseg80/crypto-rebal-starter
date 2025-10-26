@@ -448,33 +448,72 @@ class MLOrchestrator:
     async def _get_volatility_predictions(self, symbols: List[str], horizons: List[int]) -> Dict[str, Any]:
         """Get volatility predictions for symbols"""
         volatility_predictions = {}
-        
+
         for symbol in symbols[:3]:  # Limit for testing
             try:
                 # Get recent data for prediction
                 recent_data = self.data_pipeline.get_prediction_data(symbol, lookback_days=90)
                 if recent_data is None:
                     continue
-                
+
+                # Calculate historical volatility from recent data
+                try:
+                    import pandas as pd
+                    import numpy as np
+
+                    # Extract close prices from DataFrame
+                    if isinstance(recent_data, pd.DataFrame) and 'close' in recent_data.columns:
+                        prices_series = recent_data['close']
+                    elif isinstance(recent_data, dict) and 'close' in recent_data:
+                        prices_series = pd.Series(recent_data['close'])
+                    elif isinstance(recent_data, (list, pd.Series)):
+                        prices_series = pd.Series(recent_data)
+                    else:
+                        raise ValueError(f"Unexpected data format: {type(recent_data)}")
+
+                    # Calculate returns and volatility
+                    returns = prices_series.pct_change().dropna()
+
+                    if len(returns) < 7:
+                        raise ValueError(f"Insufficient data points: {len(returns)}")
+
+                    # Calculate volatility for different windows (annualized)
+                    vol_7d = returns.tail(7).std() * np.sqrt(365)
+                    vol_30d = returns.tail(30).std() * np.sqrt(365) if len(returns) >= 30 else vol_7d
+                    vol_90d = returns.std() * np.sqrt(365)
+
+                    # Map horizons to appropriate volatility estimates
+                    vol_map = {
+                        1: float(vol_7d) if not pd.isna(vol_7d) else 0.5,
+                        7: float(vol_7d) if not pd.isna(vol_7d) else 0.5,
+                        30: float(vol_30d) if not pd.isna(vol_30d) else 0.5,
+                        90: float(vol_90d) if not pd.isna(vol_90d) else 0.5
+                    }
+
+                    logger.debug(f"Calculated volatility for {symbol}: 7d={vol_7d:.2%}, 30d={vol_30d:.2%}, 90d={vol_90d:.2%}")
+
+                except Exception as calc_error:
+                    logger.warning(f"Volatility calculation failed for {symbol}: {calc_error}, using fallback")
+                    vol_map = {h: 0.5 for h in horizons}
+
                 # Generate predictions for each horizon
                 symbol_predictions = {}
                 for horizon in horizons:
-                    # This would call the actual prediction method
-                    # pred = self.models['volatility'].predict(recent_data, horizon)
-                    
-                    # Mock prediction for now
+                    # Use calculated volatility or fallback to mock
+                    vol_forecast = vol_map.get(horizon, 0.3 + (horizon * 0.02))
+
                     pred = {
-                        'volatility_forecast': 0.3 + (horizon * 0.02),  # Mock increasing volatility
-                        'confidence': 0.8 - (horizon * 0.05),  # Mock decreasing confidence
-                        'risk_level': 'medium'
+                        'volatility_forecast': float(vol_forecast),
+                        'confidence': 0.75,  # Fixed confidence for historical vol
+                        'risk_level': 'high' if vol_forecast > 0.6 else 'medium' if vol_forecast > 0.4 else 'low'
                     }
                     symbol_predictions[f'{horizon}d'] = pred
-                
+
                 volatility_predictions[symbol] = symbol_predictions
-                
+
             except Exception as e:
                 logger.error(f"Error predicting volatility for {symbol}: {e}")
-        
+
         return volatility_predictions
     
     async def _get_sentiment_analysis(self, symbols: List[str]) -> Dict[str, Any]:

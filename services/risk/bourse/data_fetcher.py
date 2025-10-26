@@ -1,6 +1,7 @@
 """
 Data fetcher for bourse (stock market) historical prices
 Supports multiple data sources: Saxo API, Yahoo Finance fallback
+Multi-currency support with automatic exchange detection
 """
 
 import pandas as pd
@@ -12,44 +13,64 @@ import aiohttp
 import asyncio
 import os
 
+from services.ml.bourse.currency_detector import CurrencyExchangeDetector
+
 logger = logging.getLogger(__name__)
 
 
 class BourseDataFetcher:
     """
     Fetches historical price data for stocks, ETFs, and other traditional assets
+    with multi-currency and multi-exchange support
     """
 
     def __init__(self, cache_dir: str = "data/cache/bourse"):
         self.cache_dir = cache_dir
         os.makedirs(cache_dir, exist_ok=True)
         self.cache = {}  # In-memory cache
+        self.currency_detector = CurrencyExchangeDetector()
 
     async def fetch_historical_prices(
         self,
         ticker: str,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
-        source: str = "yahoo"
+        source: str = "yahoo",
+        isin: Optional[str] = None,
+        exchange_hint: Optional[str] = None
     ) -> pd.DataFrame:
         """
-        Fetch historical OHLCV data for a ticker
+        Fetch historical OHLCV data for a ticker with multi-currency support
 
         Args:
-            ticker: Stock ticker symbol
+            ticker: Stock ticker symbol (base, without exchange suffix)
             start_date: Start date for historical data
             end_date: End date for historical data
             source: Data source ("saxo", "yahoo", "manual")
+            isin: ISIN code for currency detection (optional)
+            exchange_hint: Exchange hint from Saxo CSV (optional)
 
         Returns:
             DataFrame with OHLCV data indexed by date
+
+        Note:
+            The ticker will be automatically converted to the correct yfinance symbol
+            using CurrencyExchangeDetector (e.g., "ROG" → "ROG.SW" for Swiss stocks)
         """
         if end_date is None:
             end_date = datetime.now()
         if start_date is None:
             start_date = end_date - timedelta(days=365)  # Default 1 year
 
-        cache_key = f"{ticker}_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}_{source}"
+        # Detect correct exchange and currency
+        yf_symbol, native_currency, exchange_name = self.currency_detector.detect_currency_and_exchange(
+            symbol=ticker,
+            isin=isin,
+            exchange_hint=exchange_hint
+        )
+
+        # Use yf_symbol for caching and fetching
+        cache_key = f"{yf_symbol}_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}_{source}"
 
         # Check in-memory cache first
         if cache_key in self.cache:
@@ -67,9 +88,13 @@ class BourseDataFetcher:
             except Exception as e:
                 logger.warning(f"Failed to load cache file for {ticker}: {e}")
 
-        # Fetch from source
+        # Fetch from source using detected yfinance symbol
         if source == "yahoo":
-            df = await self._fetch_yahoo_finance(ticker, start_date, end_date)
+            df = await self._fetch_yahoo_finance(yf_symbol, start_date, end_date)
+            # Add metadata about currency and exchange
+            df.attrs['native_currency'] = native_currency
+            df.attrs['exchange'] = exchange_name
+            df.attrs['original_ticker'] = ticker
         elif source == "saxo":
             df = await self._fetch_saxo_api(ticker, start_date, end_date)
         elif source == "manual":
@@ -87,7 +112,7 @@ class BourseDataFetcher:
         except Exception as e:
             logger.warning(f"Failed to save cache file for {ticker}: {e}")
 
-        logger.info(f"Fetched {len(df)} days of data for {ticker} from {source}")
+        logger.info(f"Fetched {len(df)} days of data for {ticker} ({yf_symbol}, {native_currency}) from {source}")
         return df
 
     async def _fetch_yahoo_finance(

@@ -32,19 +32,27 @@ class StocksDataSource:
         self,
         symbol: str,
         lookback_days: int = 365,
-        end_date: Optional[datetime] = None
+        end_date: Optional[datetime] = None,
+        isin: Optional[str] = None,
+        exchange_hint: Optional[str] = None
     ) -> pd.DataFrame:
         """
-        Get OHLCV data formatted for ML models.
+        Get OHLCV data formatted for ML models with multi-currency support.
 
         Args:
-            symbol: Stock ticker (e.g., "AAPL", "MSFT")
+            symbol: Stock ticker (e.g., "AAPL", "MSFT", "ROG")
             lookback_days: Number of days of history
             end_date: End date (default: now)
+            isin: ISIN code for currency detection (optional)
+            exchange_hint: Exchange hint from Saxo CSV (optional, e.g., "VX", "FSE")
 
         Returns:
             DataFrame with columns: open, high, low, close, volume
             Index: DatetimeIndex
+
+        Note:
+            The symbol will be automatically converted to the correct yfinance symbol
+            (e.g., "ROG" → "ROG.SW" for Roche on Swiss Exchange)
         """
         if end_date is None:
             end_date = datetime.now()
@@ -54,7 +62,9 @@ class StocksDataSource:
             ticker=symbol,
             start_date=start_date,
             end_date=end_date,
-            source="yahoo"
+            source="yahoo",
+            isin=isin,
+            exchange_hint=exchange_hint
         )
 
         # ML models expect lowercase column names
