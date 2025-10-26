@@ -385,7 +385,9 @@ const storeActions = {
   _updateBackendStatusFromGovernance(ttlMinutes = 30) {
     try {
       const gov = getState().governance;
-      const ts = gov?.ml_signals?.timestamp ? new Date(gov.ml_signals.timestamp).getTime() : (gov?.last_sync || 0);
+      // FIX Oct 2025: Use ml_signals_timestamp (root level) instead of ml_signals.timestamp
+      const ts = gov?.ml_signals_timestamp ? new Date(gov.ml_signals_timestamp).getTime() :
+                 (gov?.ml_signals?.timestamp ? new Date(gov.ml_signals.timestamp).getTime() : (gov?.last_sync || 0));
       const age = ts ? (Date.now() - ts) : Number.POSITIVE_INFINITY;
       const ttlMs = ttlMinutes * 60 * 1000;
       const current = getState().ui.apiStatus.backend || 'unknown';
