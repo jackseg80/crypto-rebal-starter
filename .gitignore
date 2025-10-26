@@ -126,6 +126,7 @@ data/users/jack/
 
 # Temporary test/validation files
 *_recs.json
+*recommendations*.json
 *_report.txt
 validation_report.txt
 *_OLD.md
