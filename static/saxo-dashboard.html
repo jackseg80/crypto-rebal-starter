@@ -4580,38 +4580,137 @@
                     markdownText += `- **Sell:** ${counts['SELL'] || 0}\n`;
                     markdownText += `- **Strong Sell:** ${counts['STRONG SELL'] || 0}\n\n`;
 
-                    // Recommendations table
+                    // Detailed recommendations (enriched format with all View modal data)
                     if (recs.length > 0) {
-                        markdownText += `### Recommendations\n\n`;
-                        markdownText += `| Symbol | Name | Action | Target | Stop Loss | R/R | Confidence | Rationale |\n`;
-                        markdownText += `|--------|------|--------|--------|-----------|-----|------------|----------|\n`;
+                        markdownText += `### Detailed Recommendations\n\n`;
 
-                        recs.forEach(rec => {
+                        recs.forEach((rec, idx) => {
                             const symbol = rec.symbol || 'N/A';
-                            const name = (rec.name || '').substring(0, 20);  // Truncate long names
+                            const name = rec.name || 'N/A';
                             const action = rec.action || 'N/A';
-                            const target = rec.target_price ? `$${rec.target_price.toFixed(2)}` : 'N/A';
-                            const stopLoss = rec.stop_loss ? `$${rec.stop_loss.toFixed(2)}` : 'N/A';
-                            const rr = rec.risk_reward_ratio ? rec.risk_reward_ratio.toFixed(2) : 'N/A';
-                            const conf = rec.confidence ? `${Math.round(rec.confidence * 100)}%` : 'N/A';
+                            const conf = rec.confidence ? Math.round(rec.confidence * 100) : 0;
+                            const score = rec.score ? rec.score.toFixed(2) : 'N/A';
 
-                            // Handle rationale (could be string, array, or object)
-                            let rationale = 'N/A';
-                            if (rec.rationale) {
-                                if (typeof rec.rationale === 'string') {
-                                    rationale = rec.rationale.replace(/\n/g, ' ').substring(0, 50);
-                                } else if (Array.isArray(rec.rationale)) {
-                                    rationale = rec.rationale.join('; ').substring(0, 50);
-                                } else {
-                                    rationale = String(rec.rationale).substring(0, 50);
-                                }
-                                if (rationale.length >= 50) rationale += '...';
+                            // Position header
+                            markdownText += `#### ${idx + 1}. ${symbol} - ${name}\n\n`;
+                            markdownText += `**Action:** ${action} | **Confidence:** ${conf}% | **Score:** ${score}\n\n`;
+
+                            // Adjustment warning if applicable
+                            if (rec.adjusted && rec.original_action) {
+                                markdownText += `⚠️ **ADJUSTED:** Originally ${rec.original_action}, adjusted to ${action}\n`;
+                                markdownText += `**Reason:** ${rec.adjustment_note || 'Portfolio constraints'}\n\n`;
                             }
 
-                            markdownText += `| ${symbol} | ${name} | ${action} | ${target} | ${stopLoss} | ${rr} | ${conf} | ${rationale} |\n`;
+                            // Price targets section
+                            if (rec.price_targets) {
+                                const pt = rec.price_targets;
+                                markdownText += `**Price Targets:**\n`;
+                                markdownText += `- Current Price: $${pt.current_price || 'N/A'}\n`;
+
+                                if (pt.action && pt.action.includes('HOLD')) {
+                                    // HOLD positions show watch levels
+                                    markdownText += `- Upper Watch: $${pt.upper_watch || 'N/A'} (+${pt.upper_watch_pct || 0}%)\n`;
+                                    markdownText += `- Lower Watch: $${pt.lower_watch || 'N/A'} (${pt.lower_watch_pct || 0}%)\n`;
+                                } else if (pt.entry_zone) {
+                                    // BUY/SELL positions show entry/exit zones
+                                    markdownText += `- Entry Zone: $${pt.entry_zone.low || 'N/A'} - $${pt.entry_zone.high || 'N/A'}\n`;
+                                    markdownText += `- Stop Loss: $${pt.stop_loss || 'N/A'} (${pt.stop_loss_pct || 'N/A'}%)\n`;
+                                    markdownText += `- Take Profit 1: $${pt.take_profit_1 || 'N/A'} (+${pt.take_profit_1_pct || 'N/A'}%)\n`;
+                                    markdownText += `- Take Profit 2: $${pt.take_profit_2 || 'N/A'} (+${pt.take_profit_2_pct || 'N/A'}%)\n`;
+
+                                    // R/R Ratio with warning
+                                    const rr = pt.risk_reward_tp1 || 0;
+                                    const rrIcon = rr >= 2.0 ? '✅' : rr >= 1.5 ? '⚠️' : '❌';
+                                    markdownText += `- Risk/Reward Ratio: ${rrIcon} 1:${rr.toFixed(2)}`;
+                                    if (rr < 1.5) {
+                                        markdownText += ` (⚠️ Below recommended 1:1.5 minimum)`;
+                                    }
+                                    markdownText += `\n`;
+                                }
+
+                                if (pt.guidance) {
+                                    markdownText += `- Guidance: ${pt.guidance}\n`;
+                                }
+
+                                markdownText += `\n`;
+                            }
+
+                            // Stop Loss Analysis (if available)
+                            if (rec.price_targets?.stop_loss_analysis) {
+                                const sla = rec.price_targets.stop_loss_analysis;
+                                markdownText += `**Stop Loss Methods Comparison:**\n`;
+
+                                if (sla.trailing_stop) {
+                                    markdownText += `- Trailing Stop: $${sla.trailing_stop.price?.toFixed(2) || 'N/A'} (${sla.trailing_stop.percent?.toFixed(1) || 'N/A'}%)\n`;
+                                }
+                                if (sla.fixed_variable) {
+                                    markdownText += `- Fixed Variable: $${sla.fixed_variable.price?.toFixed(2) || 'N/A'} (${sla.fixed_variable.percent?.toFixed(1) || 'N/A'}%)\n`;
+                                }
+                                if (sla.atr_2x) {
+                                    markdownText += `- ATR 2x: $${sla.atr_2x.price?.toFixed(2) || 'N/A'} (${sla.atr_2x.percent?.toFixed(1) || 'N/A'}%)\n`;
+                                }
+                                if (sla.technical_support) {
+                                    markdownText += `- Technical Support: $${sla.technical_support.price?.toFixed(2) || 'N/A'} (${sla.technical_support.percent?.toFixed(1) || 'N/A'}%)\n`;
+                                }
+                                if (sla.volatility_2sigma) {
+                                    markdownText += `- Volatility 2σ: $${sla.volatility_2sigma.price?.toFixed(2) || 'N/A'} (${sla.volatility_2sigma.percent?.toFixed(1) || 'N/A'}%)\n`;
+                                }
+
+                                markdownText += `\n`;
+                            }
+
+                            // Technical indicators
+                            if (rec.technical) {
+                                const tech = rec.technical;
+                                markdownText += `**Technical Indicators:**\n`;
+                                markdownText += `- RSI (14d): ${tech.rsi_14d ? tech.rsi_14d.toFixed(1) : 'N/A'}`;
+                                if (tech.rsi_14d) {
+                                    if (tech.rsi_14d > 70) markdownText += ` (Overbought ⚠️)`;
+                                    else if (tech.rsi_14d < 30) markdownText += ` (Oversold ✅)`;
+                                }
+                                markdownText += `\n`;
+                                markdownText += `- MACD Signal: ${tech.macd_signal || 'N/A'}\n`;
+                                markdownText += `- vs MA50: ${tech.vs_ma50_pct ? tech.vs_ma50_pct.toFixed(1) + '%' : 'N/A'}\n`;
+                                markdownText += `- vs SPY (30d): ${tech.vs_spy_30d ? tech.vs_spy_30d.toFixed(1) + '%' : 'N/A'}\n`;
+                                markdownText += `\n`;
+                            }
+
+                            // Rationale (full, not truncated)
+                            if (rec.rationale) {
+                                markdownText += `**Rationale:**\n`;
+                                if (Array.isArray(rec.rationale)) {
+                                    rec.rationale.forEach(r => {
+                                        markdownText += `- ${r}\n`;
+                                    });
+                                } else if (typeof rec.rationale === 'string') {
+                                    markdownText += `${rec.rationale}\n`;
+                                } else {
+                                    markdownText += `${String(rec.rationale)}\n`;
+                                }
+                                markdownText += `\n`;
+                            }
+
+                            // Tactical advice
+                            if (rec.tactical_advice) {
+                                markdownText += `**🎯 Tactical Advice:** ${rec.tactical_advice}\n\n`;
+                            }
+
+                            // Position sizing
+                            if (rec.position_sizing?.guidance) {
+                                markdownText += `**⚖️ Position Sizing:** ${rec.position_sizing.guidance}\n\n`;
+                            }
+
+                            // Portfolio context (if available)
+                            if (rec.current_value || rec.weight_pct) {
+                                markdownText += `**Current Position:**\n`;
+                                if (rec.current_value) markdownText += `- Value: $${rec.current_value.toFixed(2)}\n`;
+                                if (rec.weight_pct) markdownText += `- Weight: ${rec.weight_pct}% of portfolio\n`;
+                                markdownText += `\n`;
+                            }
+
+                            markdownText += `---\n\n`;
                         });
 
-                        markdownText += `\n`;
                     } else {
                         markdownText += `*No recommendations for this timeframe*\n\n`;
                     }
@@ -4620,12 +4719,38 @@
                 }
 
                 // Add footer
-                markdownText += `## Notes\n\n`;
-                markdownText += `- **R/R:** Risk/Reward Ratio (Higher is better, minimum 1.5 recommended)\n`;
+                markdownText += `## Notes & Glossary\n\n`;
+                markdownText += `### Key Metrics\n`;
+                markdownText += `- **Action:** STRONG BUY/BUY/HOLD/SELL/STRONG SELL recommendation\n`;
                 markdownText += `- **Confidence:** ML model confidence score (70%+ recommended for action)\n`;
-                markdownText += `- **Target:** Estimated price target for the timeframe\n`;
-                markdownText += `- **Stop Loss:** Recommended stop loss level for risk management\n\n`;
+                markdownText += `- **Score:** Composite score combining technical and fundamental factors\n`;
+                markdownText += `- **R/R Ratio:** Risk/Reward Ratio (minimum 1.5 recommended, 2.0+ excellent)\n`;
+                markdownText += `  - ✅ ≥2.0: Excellent risk/reward\n`;
+                markdownText += `  - ⚠️ 1.5-2.0: Acceptable\n`;
+                markdownText += `  - ❌ <1.5: Not recommended (too much risk)\n\n`;
+
+                markdownText += `### Price Targets\n`;
+                markdownText += `- **Entry Zone:** Recommended price range to open position\n`;
+                markdownText += `- **Stop Loss:** Exit price if trade goes against you (risk management)\n`;
+                markdownText += `- **Take Profit 1/2:** Target prices to take partial or full profits\n`;
+                markdownText += `- **Upper/Lower Watch:** Monitoring levels for HOLD positions\n\n`;
+
+                markdownText += `### Technical Indicators\n`;
+                markdownText += `- **RSI (14d):** Relative Strength Index (>70=overbought, <30=oversold)\n`;
+                markdownText += `- **MACD:** Moving Average Convergence Divergence (bullish/bearish signal)\n`;
+                markdownText += `- **vs MA50:** Distance from 50-day moving average (%)\n`;
+                markdownText += `- **vs SPY:** Relative performance vs S&P 500 over 30 days\n\n`;
+
+                markdownText += `### Stop Loss Methods\n`;
+                markdownText += `Multiple stop loss calculation methods for comparison:\n`;
+                markdownText += `- **Trailing Stop:** Adaptive stop based on position gains (protects profits)\n`;
+                markdownText += `- **Fixed Variable:** Volatility-adjusted fixed % (4-8%)\n`;
+                markdownText += `- **ATR 2x:** Based on Average True Range (volatility-based)\n`;
+                markdownText += `- **Technical Support:** Based on key support levels (MA20/MA50)\n`;
+                markdownText += `- **Volatility 2σ:** Statistical 2 standard deviations\n\n`;
+
                 markdownText += `*Generated by Crypto Rebal Starter - Saxo Dashboard*\n`;
+                markdownText += `*Export includes all View modal details: Price targets, Stop loss analysis, Technical indicators, Full rationale, Tactical advice, Position sizing*\n`;
 
                 // Download as .txt file
                 const blob = new Blob([markdownText], { type: 'text/plain;charset=utf-8' });
