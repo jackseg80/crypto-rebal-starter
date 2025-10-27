@@ -789,7 +789,12 @@
                 <div class="dashboard-card">
                     <div class="card-header">
                         <h3 class="card-title">Position Recommendations</h3>
-                        <div class="card-badge" id="recCount">0 positions</div>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <button id="btnExportTextRecs" class="btn secondary small" style="padding: 0.35rem 0.75rem; font-size: 0.75rem;">
+                                📄 Export Text (All Timeframes)
+                            </button>
+                            <div class="card-badge" id="recCount">0 positions</div>
+                        </div>
                     </div>
                     <div id="recommendationsTable">
                         <div class="loading">Loading recommendations...</div>
@@ -4202,6 +4207,14 @@
                     filterRecommendations(document.getElementById('recSearch').value, e.target.value);
                 });
             }
+
+            // Export text button
+            const exportBtn = document.getElementById('btnExportTextRecs');
+            if (exportBtn) {
+                exportBtn.addEventListener('click', async () => {
+                    await exportRecommendationsToText();
+                });
+            }
         }
 
         /**
@@ -4498,6 +4511,134 @@
             });
 
             renderRecommendationsTable(filtered);
+        }
+
+        /**
+         * Export recommendations to text (Markdown format for AI analysis)
+         * Fetches all 3 timeframes and generates structured text
+         */
+        async function exportRecommendationsToText() {
+            const btn = document.getElementById('btnExportTextRecs');
+            const originalText = btn.textContent;
+
+            try {
+                btn.disabled = true;
+                btn.textContent = '⏳ Generating...';
+
+                const activeUser = localStorage.getItem('activeUser') || 'demo';
+                const timeframes = [
+                    { id: 'short', name: 'SHORT TERM (1-2 Weeks)', description: 'Trading Horizon' },
+                    { id: 'medium', name: 'MEDIUM TERM (1 Month)', description: 'Tactical Horizon' },
+                    { id: 'long', name: 'LONG TERM (3-6 Months)', description: 'Strategic Horizon' }
+                ];
+
+                let markdownText = `# Portfolio Recommendations Export\n\n`;
+                markdownText += `**Generated:** ${new Date().toLocaleString()}\n`;
+                markdownText += `**User:** ${activeUser}\n`;
+                markdownText += `**Portfolio:** ${currentFileKey || 'Latest'}\n\n`;
+                markdownText += `---\n\n`;
+
+                // Fetch all timeframes
+                for (const tf of timeframes) {
+                    debugLogger.info(`Fetching ${tf.id} timeframe recommendations...`);
+
+                    let recsUrl = `/api/ml/bourse/portfolio-recommendations?user_id=${activeUser}&timeframe=${tf.id}&lookback_days=90`;
+                    if (currentFileKey) {
+                        recsUrl += `&file_key=${encodeURIComponent(currentFileKey)}`;
+                    }
+                    if (window.portfolioCash && window.portfolioCash > 0) {
+                        recsUrl += `&cash_amount=${window.portfolioCash}`;
+                    }
+
+                    const response = await fetch(recsUrl);
+                    if (!response.ok) throw new Error(`Failed to fetch ${tf.id} recommendations`);
+
+                    const data = await response.json();
+                    const recs = data.recommendations || [];
+                    const summary = data.summary || {};
+                    const marketContext = data.market_context || {};
+
+                    // Add timeframe section
+                    markdownText += `## ${tf.name} - ${tf.description}\n\n`;
+
+                    // Market context (only for first timeframe to avoid repetition)
+                    if (tf.id === 'short') {
+                        markdownText += `### Market Context\n`;
+                        markdownText += `- **Cycle Score:** ${marketContext.cycle_score || 'N/A'}/100\n`;
+                        markdownText += `- **Market Regime:** ${marketContext.market_regime || 'N/A'}\n`;
+                        markdownText += `- **Risk Level:** ${marketContext.risk_level || 'N/A'}\n`;
+                        markdownText += `- **ML Sentiment:** ${marketContext.ml_sentiment || 'N/A'}\n\n`;
+                    }
+
+                    // Summary stats
+                    markdownText += `### Summary Statistics\n`;
+                    const counts = summary.action_counts || {};
+                    markdownText += `- **Total Positions:** ${recs.length}\n`;
+                    markdownText += `- **Strong Buy:** ${counts['STRONG BUY'] || 0}\n`;
+                    markdownText += `- **Buy:** ${counts['BUY'] || 0}\n`;
+                    markdownText += `- **Hold:** ${counts['HOLD'] || 0}\n`;
+                    markdownText += `- **Sell:** ${counts['SELL'] || 0}\n`;
+                    markdownText += `- **Strong Sell:** ${counts['STRONG SELL'] || 0}\n\n`;
+
+                    // Recommendations table
+                    if (recs.length > 0) {
+                        markdownText += `### Recommendations\n\n`;
+                        markdownText += `| Symbol | Name | Action | Target | Stop Loss | R/R | Confidence | Rationale |\n`;
+                        markdownText += `|--------|------|--------|--------|-----------|-----|------------|----------|\n`;
+
+                        recs.forEach(rec => {
+                            const symbol = rec.symbol || 'N/A';
+                            const name = (rec.name || '').substring(0, 20);  // Truncate long names
+                            const action = rec.action || 'N/A';
+                            const target = rec.target_price ? `$${rec.target_price.toFixed(2)}` : 'N/A';
+                            const stopLoss = rec.stop_loss ? `$${rec.stop_loss.toFixed(2)}` : 'N/A';
+                            const rr = rec.risk_reward_ratio ? rec.risk_reward_ratio.toFixed(2) : 'N/A';
+                            const conf = rec.confidence ? `${Math.round(rec.confidence * 100)}%` : 'N/A';
+                            const rationale = (rec.rationale || '').replace(/\n/g, ' ').substring(0, 50) + '...';
+
+                            markdownText += `| ${symbol} | ${name} | ${action} | ${target} | ${stopLoss} | ${rr} | ${conf} | ${rationale} |\n`;
+                        });
+
+                        markdownText += `\n`;
+                    } else {
+                        markdownText += `*No recommendations for this timeframe*\n\n`;
+                    }
+
+                    markdownText += `---\n\n`;
+                }
+
+                // Add footer
+                markdownText += `## Notes\n\n`;
+                markdownText += `- **R/R:** Risk/Reward Ratio (Higher is better, minimum 1.5 recommended)\n`;
+                markdownText += `- **Confidence:** ML model confidence score (70%+ recommended for action)\n`;
+                markdownText += `- **Target:** Estimated price target for the timeframe\n`;
+                markdownText += `- **Stop Loss:** Recommended stop loss level for risk management\n\n`;
+                markdownText += `*Generated by Crypto Rebal Starter - Saxo Dashboard*\n`;
+
+                // Download as .txt file
+                const blob = new Blob([markdownText], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `portfolio-recommendations-${new Date().toISOString().split('T')[0]}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                debugLogger.info('✅ Recommendations exported successfully');
+                btn.textContent = '✅ Downloaded!';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.disabled = false;
+                }, 2000);
+
+            } catch (error) {
+                debugLogger.error('Failed to export recommendations:', error);
+                alert(`Error exporting recommendations: ${error.message}`);
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
         }
 
         /**
