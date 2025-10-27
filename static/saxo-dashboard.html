@@ -4594,7 +4594,19 @@
                             const stopLoss = rec.stop_loss ? `$${rec.stop_loss.toFixed(2)}` : 'N/A';
                             const rr = rec.risk_reward_ratio ? rec.risk_reward_ratio.toFixed(2) : 'N/A';
                             const conf = rec.confidence ? `${Math.round(rec.confidence * 100)}%` : 'N/A';
-                            const rationale = (rec.rationale || '').replace(/\n/g, ' ').substring(0, 50) + '...';
+
+                            // Handle rationale (could be string, array, or object)
+                            let rationale = 'N/A';
+                            if (rec.rationale) {
+                                if (typeof rec.rationale === 'string') {
+                                    rationale = rec.rationale.replace(/\n/g, ' ').substring(0, 50);
+                                } else if (Array.isArray(rec.rationale)) {
+                                    rationale = rec.rationale.join('; ').substring(0, 50);
+                                } else {
+                                    rationale = String(rec.rationale).substring(0, 50);
+                                }
+                                if (rationale.length >= 50) rationale += '...';
+                            }
 
                             markdownText += `| ${symbol} | ${name} | ${action} | ${target} | ${stopLoss} | ${rr} | ${conf} | ${rationale} |\n`;
                         });
