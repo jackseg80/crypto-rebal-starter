@@ -55,6 +55,14 @@ class SaxoImportConnector:
             'isin': 'ISIN',
             'statut': 'Status',
             'etat': 'Status',
+            # Entry price (avg_price) aliases
+            'prix entree': 'Entry Price',
+            'prix d entree': 'Entry Price',
+            'entry price': 'Entry Price',
+            'average price': 'Entry Price',
+            'avg price': 'Entry Price',
+            'prix moyen': 'Entry Price',
+            'prix revient': 'Entry Price',  # Saxo uses "Prix revient" in some exports
         }
 
     def _canonical_column_name(self, name: str) -> str:
@@ -238,6 +246,10 @@ class SaxoImportConnector:
             currency = clean_str(row.get('Currency', 'USD')).upper() or 'USD'
             asset_class_raw = clean_str(row.get('Asset Class', 'Unknown')) or 'Unknown'
 
+            # Extract average entry price (cost basis) for trailing stop calculation
+            avg_price_raw = self._to_float(row.get('Entry Price', 0))
+            avg_price = avg_price_raw if avg_price_raw > 0 else None
+
             # Skip summary rows (e.g., "Actions (95)")
             if instrument_raw and ('(' in instrument_raw and ')' in instrument_raw and instrument_raw.split('(')[0].strip().lower() in ['actions', 'obligations', 'etf', 'etfs']):
                 logger.debug(f"Skipping summary row: {instrument_raw}")
@@ -290,6 +302,7 @@ class SaxoImportConnector:
                 "_raw_asset_class": asset_class_raw,  # For debugging
                 "exchange": enriched.get("exchange"),
                 "isin": enriched_isin,
+                "avg_price": avg_price,  # Average entry price for trailing stop
                 "source": "saxo_bank",
                 "import_timestamp": datetime.now().isoformat()
             }

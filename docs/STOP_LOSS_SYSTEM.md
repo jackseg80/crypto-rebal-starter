@@ -3,30 +3,76 @@
 > **Date:** Octobre 2025
 > **Status:** Production
 > **Module:** ML Bourse Recommendations
+> **Update:** Trailing Stop ajouté (Oct 2025)
 
 ## Vue d'ensemble
 
-Le système de stop loss intelligent calcule des niveaux de stop loss optimaux en utilisant **5 méthodes différentes** au lieu d'un simple pourcentage fixe. Cela permet d'adapter le stop loss à la volatilité de chaque asset et au régime de marché actuel.
+Le système de stop loss intelligent calcule des niveaux de stop loss optimaux en utilisant **6 méthodes différentes** au lieu d'un simple pourcentage fixe. Cela permet d'adapter le stop loss à la volatilité de chaque asset, au régime de marché actuel, et aux gains latents des positions.
 
-**Méthode recommandée : Fixed Variable** (validée par backtest sur 372 trades, +8% vs Fixed 5%, +156% vs ATR)
+**Méthodes principales :**
+- **Trailing Stop** (prioritaire pour positions legacy >20% gain)
+- **Fixed Variable** (recommandée pour positions standard - validée par backtest +8% vs Fixed 5%)
 
 ## Architecture
 
 ### Backend
 
 **Fichiers principaux :**
-- `services/ml/bourse/stop_loss_calculator.py` - Calculateur multi-méthodes
+- `services/stop_loss/trailing_stop_calculator.py` - Calculateur trailing stop (générique, réutilisable)
+- `services/ml/bourse/stop_loss_calculator.py` - Calculateur multi-méthodes (6 méthodes)
 - `services/ml/bourse/price_targets.py` - Intégration dans les price targets
 - `services/ml/bourse/recommendations_orchestrator.py` - Orchestration
+- `connectors/saxo_import.py` - Extraction avg_price depuis CSV
+- `adapters/saxo_adapter.py` - Propagation avg_price
 
 ### Frontend
 
 **Fichiers modifiés :**
-- `static/saxo-dashboard.html` - Tableau comparatif + badges R/R
+- `static/saxo-dashboard.html` - Tableau comparatif + badge 🏆 legacy + modal highlight
 
 ---
 
 ## Méthodes de calcul
+
+### 0. Trailing Stop (NEW - Oct 2025) 🏆
+
+**Applicable uniquement aux positions legacy avec gains significatifs (>20%).**
+
+**Concept :** Protéger les gains latents en utilisant un stop loss plus large basé sur l'All-Time High (ATH) au lieu du prix actuel.
+
+**Gain Tiers :**
+- **0-20%** : Non applicable (utilise Fixed Variable)
+- **20-50%** : Trailing -15% from ATH
+- **50-100%** : Trailing -20% from ATH
+- **100-500%** : Trailing -25% from ATH
+- **>500%** : Trailing -30% from ATH (legacy)
+
+**Exemple concret :**
+```python
+Position AAPL:
+  Prix entrée: $91.90 (il y a plusieurs années)
+  Prix actuel: $262.82
+  Gain latent: +186% (+$170.92 par action)
+  ATH (estimé 365j): $265.29
+
+  Tier: 100-500% → Trailing -25%
+  Stop loss: $265.29 × 0.75 = $198.97
+
+  Vs Fixed Variable (6%): $247.05
+  → Économie: $48.08 par action de "breathing room"
+  → Gain minimum protégé: +117% au lieu de +169%
+```
+
+**Estimation ATH :**
+- Utilise `max(price_history['high'].tail(365))` - pas de tracking temps réel
+- Lookback par défaut: 365 jours (configurable)
+- Conservatif: `ATH = max(historical_high, current_price)`
+
+**Priorité :** Méthode #1 (prioritaire sur Fixed Variable pour positions legacy)
+
+**Documentation complète :** [TRAILING_STOP_IMPLEMENTATION.md](TRAILING_STOP_IMPLEMENTATION.md)
+
+---
 
 ### 1. Fixed Variable (Recommandé ✅)
 

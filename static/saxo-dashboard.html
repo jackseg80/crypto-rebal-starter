@@ -4299,6 +4299,13 @@
                 const scoreDisplay = (score * 100).toFixed(0);
                 const scoreColor = score >= 0.7 ? 'var(--success)' : score >= 0.5 ? 'var(--warning)' : 'var(--danger)';
 
+                // Legacy badge (trailing stop active)
+                const isTrailingStop = rec.price_targets?.stop_loss_analysis?.recommended_method === 'trailing_stop';
+                const trailingInfo = rec.price_targets?.stop_loss_analysis?.stop_loss_levels?.trailing_stop;
+                const gainPct = trailingInfo?.gain_pct || 0;
+                const legacyBadge = isTrailingStop ?
+                    `<span style="display: inline-block; margin-left: 0.25rem; font-size: 0.65rem; padding: 0.15rem 0.4rem; background: #10b981; color: white; border-radius: 3px;" title="Legacy position +${gainPct.toFixed(0)}% (trailing stop active)">🏆</span>` : '';
+
                 tableHTML += `
                     <tr class="rec-row"
                         data-symbol="${rec.symbol}"
@@ -4313,7 +4320,7 @@
                         style="border-bottom: 1px solid var(--theme-border); cursor: pointer;"
                         onclick="showRecommendationModal('${rec.symbol}')">
                         <td style="padding: 0.75rem;">
-                            <div style="font-weight: 600; color: var(--theme-text);">${rec.symbol}</div>
+                            <div style="font-weight: 600; color: var(--theme-text);">${rec.symbol}${legacyBadge}</div>
                         </td>
                         <td style="padding: 0.75rem;">
                             <div style="font-size: 0.875rem; color: var(--theme-text-muted);" title="${fullName}">${displayName}</div>
@@ -4841,6 +4848,13 @@
                 const isRecommended = methodKey === recommended;
                 const riskDollars = calculateRiskDollars(methodData.price);
                 const qualityColor = getQualityColor(methodData.quality);
+                const isTrailingStop = methodKey === 'trailing_stop';
+
+                // Special note for trailing stop
+                const trailingNote = isTrailingStop && methodData.gain_pct ?
+                    `<div style="font-size: 0.65rem; color: var(--success); margin-top: 0.25rem;">
+                        Position long terme détectée (+${methodData.gain_pct.toFixed(0)}%)
+                    </div>` : '';
 
                 return `
                     <tr style="background: ${isRecommended ? 'color-mix(in oklab, var(--success) 10%, transparent)' : 'transparent'}; border-bottom: 1px solid var(--theme-border);">
@@ -4848,6 +4862,7 @@
                             ${isRecommended ? '✅ ' : ''}
                             <strong>${getMethodLabel(methodKey)}</strong>
                             ${isRecommended ? '<br><span style="font-size: 0.7rem; color: var(--success);">Recommended</span>' : ''}
+                            ${trailingNote}
                         </td>
                         <td style="padding: 0.75rem; text-align: right; font-weight: 600;">
                             $${methodData.price}
@@ -4912,6 +4927,7 @@
          */
         function getMethodLabel(methodKey) {
             const labels = {
+                'trailing_stop': '🏆 Trailing Stop (Legacy)',
                 'fixed_variable': 'Fixed Variable (Adaptive)',
                 'atr_2x': 'ATR 2x',
                 'technical_support': 'Technical Support',

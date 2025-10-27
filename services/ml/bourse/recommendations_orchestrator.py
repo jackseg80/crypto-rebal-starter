@@ -237,6 +237,9 @@ class RecommendationsOrchestrator:
             }
         )
 
+        # Extract avg_price from position (for trailing stop calculation)
+        avg_price = position.get('avg_price', None)
+
         # Calculate price targets
         sr_levels = tech_analysis.get('support_resistance', {})
         price_targets = targets.calculate_targets(
@@ -244,7 +247,8 @@ class RecommendationsOrchestrator:
             action=decision_result['action'],
             support_resistance=sr_levels,
             volatility=volatility,
-            price_data=hist_data  # Pass historical data for advanced stop loss calculation
+            price_data=hist_data,  # Pass historical data for advanced stop loss calculation
+            avg_price=avg_price  # Pass avg_price for trailing stop calculation
         )
 
         # Calculate position sizing

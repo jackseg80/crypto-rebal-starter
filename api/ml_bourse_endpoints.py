@@ -656,7 +656,7 @@ async def get_portfolio_recommendations(
 
         # Get user positions from Saxo
         import httpx
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:  # Increased timeout to 30 seconds
             positions_url = "http://localhost:8000/api/saxo/positions"
             if file_key:
                 positions_url += f"?file_key={file_key}"
@@ -680,7 +680,7 @@ async def get_portfolio_recommendations(
             }
 
         # Get current market regime
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:  # Increased timeout to 30 seconds
             regime_url = f"http://localhost:8000/api/ml/bourse/regime?benchmark={benchmark}&lookback_days={max(lookback_days, 365)}"
             regime_response = await client.get(regime_url)
             regime_response.raise_for_status()

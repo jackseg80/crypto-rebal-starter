@@ -266,6 +266,7 @@ def ingest_file(file_path: str, portfolio_name: Optional[str] = None) -> Dict[st
             'market_value_usd': market_value_usd,
             'asset_class': _normalize_asset_class(pos.get('asset_class') or ''),
             'position_id': str(pos.get('position_id') or symbol),
+            'avg_price': pos.get('avg_price'),  # Keep avg_price for trailing stop calculation
         })
 
     summary = connector.get_portfolio_summary(normalized_positions)
@@ -477,7 +478,7 @@ async def list_positions(user_id: Optional[str] = None, file_key: Optional[str] 
             PositionModel(
                 instrument_id=symbol,
                 quantity=quantity,
-                avg_price=None,
+                avg_price=position.get("avg_price"),  # ✅ FIX: Use actual avg_price for trailing stop
                 currency="USD",  # ✅ FIX: Always USD since market_value is now in USD
                 market_value=market_value_usd,  # ✅ FIX: Use USD value
                 pnl=None,

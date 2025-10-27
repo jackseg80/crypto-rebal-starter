@@ -69,7 +69,8 @@ class PriceTargets:
         action: str,
         support_resistance: Optional[Dict[str, float]] = None,
         volatility: Optional[float] = None,
-        price_data: Optional[pd.DataFrame] = None
+        price_data: Optional[pd.DataFrame] = None,
+        avg_price: Optional[float] = None
     ) -> Dict[str, Any]:
         """
         Calculate all price targets
@@ -80,6 +81,7 @@ class PriceTargets:
             support_resistance: Optional S/R levels from technical analysis
             volatility: Optional volatility for adaptive sizing
             price_data: Optional historical OHLC data for advanced stop loss calculation
+            avg_price: Average entry price (cost basis) for trailing stop calculation
 
         Returns:
             Dict with entry zone, stop-loss, take-profits, and risk/reward
@@ -89,24 +91,27 @@ class PriceTargets:
                 current_price,
                 support_resistance,
                 volatility,
-                price_data
+                price_data,
+                avg_price
             )
         elif action in ["STRONG SELL", "SELL"]:
             return self._calculate_sell_targets(
                 current_price,
                 support_resistance,
                 volatility,
-                price_data
+                price_data,
+                avg_price
             )
         else:  # HOLD
-            return self._calculate_hold_targets(current_price, price_data)
+            return self._calculate_hold_targets(current_price, price_data, avg_price)
 
     def _calculate_buy_targets(
         self,
         current_price: float,
         sr_levels: Optional[Dict[str, float]],
         volatility: Optional[float],
-        price_data: Optional[pd.DataFrame] = None
+        price_data: Optional[pd.DataFrame] = None,
+        avg_price: Optional[float] = None
     ) -> Dict[str, Any]:
         """Calculate targets for BUY recommendations"""
 
@@ -124,7 +129,8 @@ class PriceTargets:
         stop_loss_analysis = self.stop_loss_calc.calculate_all_methods(
             current_price=current_price,
             price_data=price_data,
-            volatility=volatility
+            volatility=volatility,
+            avg_price=avg_price  # Pass avg_price for trailing stop calculation
         )
 
         # Use recommended stop loss for main calculation
@@ -196,7 +202,8 @@ class PriceTargets:
         current_price: float,
         sr_levels: Optional[Dict[str, float]],
         volatility: Optional[float],
-        price_data: Optional[pd.DataFrame] = None
+        price_data: Optional[pd.DataFrame] = None,
+        avg_price: Optional[float] = None
     ) -> Dict[str, Any]:
         """Calculate targets for SELL recommendations"""
 
@@ -231,7 +238,8 @@ class PriceTargets:
     def _calculate_hold_targets(
         self,
         current_price: float,
-        price_data: Optional[pd.DataFrame] = None
+        price_data: Optional[pd.DataFrame] = None,
+        avg_price: Optional[float] = None
     ) -> Dict[str, Any]:
         """Calculate monitoring levels for HOLD positions"""
 
@@ -239,7 +247,8 @@ class PriceTargets:
         stop_loss_analysis = self.stop_loss_calc.calculate_all_methods(
             current_price=current_price,
             price_data=price_data,
-            volatility=None
+            volatility=None,
+            avg_price=avg_price  # Pass avg_price for trailing stop calculation
         )
 
         # Get volatility bucket and stop loss

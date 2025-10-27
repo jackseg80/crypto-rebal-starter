@@ -1,12 +1,13 @@
 """
 Stop Loss Calculator - Multi-method approach for optimal stop loss placement
 
-Implements 5 methods:
-1. Fixed Variable (RECOMMENDED) - 4%/6%/8% based on volatility (WINNER +8% vs Fixed)
-2. ATR-based (2x ATR) - Adapts to volatility, good for hyper-volatile only
-3. Technical Support (MA20/MA50) - Uses moving averages as support
-4. Volatility-adjusted (2σ) - Based on statistical volatility
-5. Fixed percentage - Simple fallback (legacy method)
+Implements 6 methods:
+1. Trailing Stop (NEW) - Adaptive trailing for high-gain positions (legacy holdings)
+2. Fixed Variable (RECOMMENDED) - 4%/6%/8% based on volatility (WINNER +8% vs Fixed)
+3. ATR-based (2x ATR) - Adapts to volatility, good for hyper-volatile only
+4. Technical Support (MA20/MA50) - Uses moving averages as support
+5. Volatility-adjusted (2σ) - Based on statistical volatility
+6. Fixed percentage - Simple fallback (legacy method)
 
 Backtest Results (Oct 2025):
 - Fixed Variable: $105,232 (WINNER)
@@ -15,13 +16,15 @@ Backtest Results (Oct 2025):
 
 Author: AI System
 Date: October 2025
-Updated: After comprehensive backtest validation
+Updated: After trailing stop implementation (Oct 2025)
 """
 
 import logging
 import numpy as np
 import pandas as pd
 from typing import Dict, Optional, Any
+
+from services.stop_loss.trailing_stop_calculator import TrailingStopCalculator
 
 logger = logging.getLogger(__name__)
 
@@ -232,7 +235,8 @@ class StopLossCalculator:
         self,
         current_price: float,
         price_data: Optional[pd.DataFrame] = None,
-        volatility: Optional[float] = None
+        volatility: Optional[float] = None,
+        avg_price: Optional[float] = None
     ) -> Dict[str, Any]:
         """
         Calculate stop loss using all methods and recommend best one
@@ -241,6 +245,7 @@ class StopLossCalculator:
             current_price: Current market price
             price_data: Historical OHLC data (optional but recommended)
             volatility: Annualized volatility (optional, calculated if not provided)
+            avg_price: Average entry price (cost basis) for trailing stop calculation
 
         Returns:
             Dict with all stop loss methods and recommendation
@@ -328,6 +333,32 @@ class StopLossCalculator:
             "quality": "low"
         }
 
+        # Method 6: Trailing Stop (NEW - for high-gain legacy positions)
+        if avg_price and avg_price > 0:
+            trailing_calc = TrailingStopCalculator(ath_lookback_days=365)
+            trailing_result = trailing_calc.calculate_trailing_stop(
+                current_price=current_price,
+                avg_price=avg_price,
+                ath=None,  # Will be estimated from price_history
+                price_history=price_data
+            )
+
+            # Only add if trailing stop is applicable (sufficient unrealized gains)
+            if trailing_result and trailing_result.get('applicable'):
+                result["stop_loss_levels"]["trailing_stop"] = {
+                    "price": trailing_result["stop_loss"],
+                    "distance_pct": trailing_result["distance_pct"],
+                    "gain_pct": trailing_result["unrealized_gain_pct"],
+                    "ath": trailing_result["ath"],
+                    "ath_estimated": trailing_result["ath_estimated"],
+                    "trail_pct": trailing_result["trail_pct"],
+                    "tier": trailing_result["tier"],
+                    "reasoning": trailing_result["reasoning"],
+                    "quality": "high",  # High quality for protecting large gains
+                    "is_legacy": True
+                }
+                logger.info(f"Trailing stop applied: {trailing_result['reasoning']}")
+
         # Determine recommended method
         result["recommended_method"] = self._determine_best_method(result["stop_loss_levels"])
 
@@ -341,11 +372,12 @@ class StopLossCalculator:
         """
         Determine which stop loss method to recommend
 
-        Priority (UPDATED based on backtest Oct 2025):
-        1. Fixed Variable (if available) - WINNER of backtest (+8% vs Fixed 5%)
-        2. ATR-based (if available) - Good for hyper-volatile only
-        3. Technical Support (if available)
-        4. Fixed percentage (legacy fallback)
+        Priority (UPDATED with trailing stop Oct 2025):
+        1. Trailing Stop (if applicable) - HIGHEST priority for legacy positions
+        2. Fixed Variable (if available) - WINNER of backtest (+8% vs Fixed 5%)
+        3. ATR-based (if available) - Good for hyper-volatile only
+        4. Technical Support (if available)
+        5. Fixed percentage (legacy fallback)
 
         Args:
             stop_loss_levels: Dict of calculated stop loss levels
@@ -353,8 +385,12 @@ class StopLossCalculator:
         Returns:
             Recommended method key
         """
-        if "fixed_variable" in stop_loss_levels:
-            return "fixed_variable"  # NEW: Winner of 3-way backtest
+        # Highest priority: Trailing stop for legacy positions with high gains
+        if "trailing_stop" in stop_loss_levels:
+            return "trailing_stop"
+        # Standard methods for recent positions
+        elif "fixed_variable" in stop_loss_levels:
+            return "fixed_variable"  # Winner of 3-way backtest
         elif "atr_2x" in stop_loss_levels:
             return "atr_2x"
         elif "technical_support" in stop_loss_levels:
@@ -375,7 +411,8 @@ class StopLossCalculator:
             Badge text (high/medium/low)
         """
         quality_map = {
-            "fixed_variable": "high",  # UPDATED: Winner of backtest
+            "trailing_stop": "high",   # NEW: High priority for legacy positions
+            "fixed_variable": "high",  # Winner of backtest
             "atr_2x": "medium",        # DOWNGRADED: Lost to Fixed Variable
             "technical_support": "medium",
             "volatility_2std": "medium",

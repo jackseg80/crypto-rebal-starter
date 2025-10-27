@@ -379,15 +379,16 @@ ethTarget = (baseEthRatio / baseTotal) × nonStablesSpace
 
 ### Stop Loss Intelligent - Multi-Method (Oct 2025)
 
-**5 méthodes de calcul adaptatives** ([stop_loss_calculator.py](services/ml/bourse/stop_loss_calculator.py)):
+**6 méthodes de calcul adaptatives** ([stop_loss_calculator.py](services/ml/bourse/stop_loss_calculator.py)):
 
 **Méthodes :**
 
-1. **Fixed Variable** (Recommandé ✅) - Adaptatif selon volatilité : 4% (low vol), 6% (moderate vol), 8% (high vol)
-2. **ATR 2x** - S'adapte à la volatilité, multiplier selon régime marché (1.5x-2.5x)
-3. **Technical Support** - Basé sur MA20/MA50
-4. **Volatility 2σ** - 2 écarts-types statistiques
-5. **Fixed %** - Pourcentage fixe (legacy fallback)
+1. **Trailing Stop** (NEW - Oct 2025) - Adaptatif selon gains latents : protège positions legacy (>20% gain) avec trailing -15% à -30% from ATH. Prioritaire pour positions gagnantes.
+2. **Fixed Variable** (Recommandé ✅) - Adaptatif selon volatilité : 4% (low vol), 6% (moderate vol), 8% (high vol)
+3. **ATR 2x** - S'adapte à la volatilité, multiplier selon régime marché (1.5x-2.5x)
+4. **Technical Support** - Basé sur MA20/MA50
+5. **Volatility 2σ** - 2 écarts-types statistiques
+6. **Fixed %** - Pourcentage fixe (legacy fallback)
 
 **Validation Backtest (Oct 2025) :**
 
@@ -405,7 +406,10 @@ ethTarget = (baseEthRatio / baseTotal) × nonStablesSpace
 - Colonne R/R triable dans tableau principal (tri par défaut)
 - Calcul du risque en € pour chaque méthode
 
-**Détails complets :** [`docs/STOP_LOSS_BACKTEST_RESULTS.md`](docs/STOP_LOSS_BACKTEST_RESULTS.md), [`docs/STOP_LOSS_SYSTEM.md`](docs/STOP_LOSS_SYSTEM.md)
+**Détails complets :**
+- [`docs/TRAILING_STOP_IMPLEMENTATION.md`](docs/TRAILING_STOP_IMPLEMENTATION.md) - Trailing stop (NEW)
+- [`docs/STOP_LOSS_BACKTEST_RESULTS.md`](docs/STOP_LOSS_BACKTEST_RESULTS.md) - Backtest validation
+- [`docs/STOP_LOSS_SYSTEM.md`](docs/STOP_LOSS_SYSTEM.md) - Architecture système
 
 ### Governance - Freeze Semantics (Oct 2025)
 **3 types de freeze avec opérations granulaires** ([governance.py](services/execution/governance.py)):
